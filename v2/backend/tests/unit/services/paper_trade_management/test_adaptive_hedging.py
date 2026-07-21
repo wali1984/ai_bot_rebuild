@@ -7,20 +7,59 @@ Paper-only; live gate stays BLOCKED.
 """
 from __future__ import annotations
 
+from v2.backend.app.services.paper_trade_management import lifecycle as lifecycle_module
 from v2.backend.app.services.paper_trade_management.exits import (
     PaperExitConfig,
     effective_atr_stop_bps,
     evaluate_exit,
 )
 from v2.backend.app.services.paper_trade_management.hedging import (
+    HEDGE_DIRECTIVE_IMMUTABLE_MAX_SAFETY_LIFETIME_SECONDS,
+    build_adaptive_hedge_directive_validity,
     evaluate_adaptive_hedge_trigger,
     evaluate_adaptive_hedge_unwind,
+    hedge_directive_storage_ttl_seconds,
+    validate_adaptive_hedge_directive_validity,
 )
 from v2.backend.app.services.paper_trade_management.lifecycle import (
     PaperLifecycleConfig,
     reconcile_paper_lifecycle,
 )
 from v2.backend.app.services.paper_trade_management.position_state import position_from_fill
+
+_SESSION = "paper-session-adaptive-hedge-unit"
+
+
+def _authoritative_mark_evidence(
+    *,
+    price: float = 99.5,
+    event_time: str = "2026-07-16T10:00:59.500Z",
+    generated_at: str = "2026-07-16T10:00:59.600Z",
+    available_at: str = "2026-07-16T10:00:59.700Z",
+    freshness_seconds: float = 1.0,
+) -> dict:
+    return {
+        "price": price,
+        "authority_complete": True,
+        "event_time": event_time,
+        "generated_at": generated_at,
+        "available_at": available_at,
+        "source": "binance_usdm_wss_mark_price_all_symbols",
+        "authentication_boundary": "BINANCE_USDM_TLS_WSS_MARK_PRICE_PUBLIC_STREAM_V1",
+        "consumer_validation_boundary": "PAPER_LOOP_EXCHANGE_MARK_CONSUMER_V1",
+        "cadence_policy_version": "BINANCE_USDM_MARK_PRICE_STREAM_1S_CADENCE_V1",
+        "freshness_budget_seconds": freshness_seconds,
+        "expected_update_interval_seconds": freshness_seconds,
+        "evidence_sha256": "a" * 64,
+    }
+
+
+def _directive_validity(*, previous: str) -> dict:
+    return build_adaptive_hedge_directive_validity(
+        previous_cycle_generated_utc=previous,
+        directive_generated_utc="2026-07-16T10:01:00.000Z",
+        mark_evidence=_authoritative_mark_evidence(),
+    )
 
 
 def _fill(
@@ -64,13 +103,21 @@ def _fill(
         "trainer_source": "V2_NATIVE_RL_MASA_PPO_CUDA_TRAINER_PAPER_SHADOW",
         "timeframe": timeframe,
         "paper_fill_allowed": True,
+        "paper_session_id": _SESSION,
     }
     row.update(extra)
     return row
 
 
 def _hedge_fill(parent_fill: dict, *, hedge_ratio: float = 0.5, price: float = 99.0) -> dict:
-    parent_id = f"paper_pos_{parent_fill['symbol']}"
+    parent_position = position_from_fill(
+        parent_fill,
+        fill_id=str(parent_fill["fill_id"]),
+        side=str(parent_fill["side"]),
+        quantity=float(parent_fill["quantity"]),
+        price=float(parent_fill["fill_price"]),
+    )
+    parent_id = parent_position.position_id
     hedge_id = f"{parent_id}:hedge:2026-07-16T10:05:00Z"
     row = dict(parent_fill)
     qty = float(parent_fill["quantity"]) * hedge_ratio
@@ -87,7 +134,9 @@ def _hedge_fill(parent_fill: dict, *, hedge_ratio: float = 0.5, price: float = 9
             "fill_price": price,
             "hedge_intent": True,
             "hedge_parent_id": parent_id,
+            "hedge_parent_generation_id": parent_position.position_generation_id,
             "hedge_child_id": hedge_id,
+            "hedge_pair_session_id": _SESSION,
             "hedge_ratio": hedge_ratio,
             "hedge_state": "HEDGE_CHILD",
             "hedge_reason": "ADAPTIVE_ADVERSE_EXCURSION_HEDGE",
@@ -96,6 +145,210 @@ def _hedge_fill(parent_fill: dict, *, hedge_ratio: float = 0.5, price: float = 9
         }
     )
     return row
+
+
+# ── Directive validity/queue cadence ──────────────────────────────────────
+
+
+def test_directive_validity_adapts_to_observed_lifecycle_cadence() -> None:
+    fast = _directive_validity(previous="2026-07-16T10:00:45.000Z")
+    slow = _directive_validity(previous="2026-07-16T09:59:30.000Z")
+
+    assert fast["authority_complete"] is True
+    assert slow["authority_complete"] is True
+    assert fast["observed_lifecycle_update_cadence_seconds"] == 15.0
+    assert slow["observed_lifecycle_update_cadence_seconds"] == 90.0
+    assert fast["adaptive_freshness_budget_seconds"] == 16.0
+    assert slow["adaptive_freshness_budget_seconds"] == 91.0
+    assert fast["valid_until"] == "2026-07-16T10:01:16.000Z"
+    assert slow["valid_until"] == "2026-07-16T10:02:31.000Z"
+
+
+def test_directive_validity_expires_fail_closed_at_derived_boundary() -> None:
+    validity = _directive_validity(previous="2026-07-16T10:00:45.000Z")
+
+    before_expiry = validate_adaptive_hedge_directive_validity(
+        directive_generated_utc="2026-07-16T10:01:00.000Z",
+        validity_envelope=validity,
+        observed_at="2026-07-16T10:01:15.999Z",
+    )
+    after_expiry = validate_adaptive_hedge_directive_validity(
+        directive_generated_utc="2026-07-16T10:01:00.000Z",
+        validity_envelope=validity,
+        observed_at="2026-07-16T10:01:16.001Z",
+    )
+
+    assert before_expiry["valid"] is True
+    assert after_expiry["valid"] is False
+    assert after_expiry["expired"] is True
+    assert "HEDGE_DIRECTIVE_ADAPTIVE_VALIDITY_EXPIRED" in after_expiry[
+        "rejection_reasons"
+    ]
+
+
+def test_directive_validity_requires_observed_cadence_and_mark_authority() -> None:
+    no_observation = build_adaptive_hedge_directive_validity(
+        previous_cycle_generated_utc=None,
+        directive_generated_utc="2026-07-16T10:01:00.000Z",
+        mark_evidence=_authoritative_mark_evidence(),
+    )
+    unauthenticated_mark = build_adaptive_hedge_directive_validity(
+        previous_cycle_generated_utc="2026-07-16T10:00:45.000Z",
+        directive_generated_utc="2026-07-16T10:01:00.000Z",
+        mark_evidence={
+            **_authoritative_mark_evidence(),
+            "authority_complete": False,
+        },
+    )
+    wrong_source = build_adaptive_hedge_directive_validity(
+        previous_cycle_generated_utc="2026-07-16T10:00:45.000Z",
+        directive_generated_utc="2026-07-16T10:01:00.000Z",
+        mark_evidence={
+            **_authoritative_mark_evidence(),
+            "source": "ticker_fallback",
+        },
+    )
+
+    assert no_observation["authority_complete"] is False
+    assert unauthenticated_mark["authority_complete"] is False
+    assert wrong_source["authority_complete"] is False
+    assert "HEDGE_DIRECTIVE_CADENCE_CLOCK_MISSING_OR_INVALID" in no_observation[
+        "rejection_reasons"
+    ]
+    assert "HEDGE_DIRECTIVE_MARK_AUTHORITY_INCOMPLETE" in unauthenticated_mark[
+        "rejection_reasons"
+    ]
+    assert "HEDGE_DIRECTIVE_MARK_SOURCE_MISMATCH" in wrong_source[
+        "rejection_reasons"
+    ]
+
+
+def test_directive_validity_tamper_fails_consumer_reconciliation() -> None:
+    validity = _directive_validity(previous="2026-07-16T10:00:45.000Z")
+    tampered = {
+        **validity,
+        "adaptive_freshness_budget_seconds": 17.0,
+    }
+
+    result = validate_adaptive_hedge_directive_validity(
+        directive_generated_utc="2026-07-16T10:01:00.000Z",
+        validity_envelope=tampered,
+        observed_at="2026-07-16T10:01:01.000Z",
+    )
+
+    assert result["valid"] is False
+    assert "HEDGE_DIRECTIVE_ADAPTIVE_BUDGET_RECONCILIATION_FAILED" in result[
+        "rejection_reasons"
+    ]
+
+
+def test_directive_safety_ceiling_caps_stalled_cadence_without_becoming_authority() -> None:
+    validity = _directive_validity(previous="2026-07-16T09:00:00.000Z")
+
+    assert validity["observed_lifecycle_update_cadence_seconds"] == 3660.0
+    assert validity["adaptive_freshness_budget_seconds"] == (
+        HEDGE_DIRECTIVE_IMMUTABLE_MAX_SAFETY_LIFETIME_SECONDS
+    )
+    assert validity["valid_until"] == "2026-07-16T10:11:00.000Z"
+
+
+def test_queue_ttl_tracks_remaining_directive_lifetime_and_never_extends_it() -> None:
+    fast = {
+        "generated_utc": "2026-07-16T10:01:00.000Z",
+        "validity_envelope": _directive_validity(
+            previous="2026-07-16T10:00:45.000Z"
+        ),
+    }
+    slow = {
+        "generated_utc": "2026-07-16T10:01:00.000Z",
+        "validity_envelope": _directive_validity(
+            previous="2026-07-16T09:59:30.000Z"
+        ),
+    }
+
+    assert hedge_directive_storage_ttl_seconds(
+        [fast], observed_at="2026-07-16T10:01:01.000Z"
+    ) == 15
+    assert hedge_directive_storage_ttl_seconds(
+        [slow], observed_at="2026-07-16T10:01:01.000Z"
+    ) == 90
+    assert (
+        hedge_directive_storage_ttl_seconds(
+            [fast], observed_at="2026-07-16T10:01:16.001Z"
+        )
+        is None
+    )
+
+
+def test_lifecycle_pending_hedge_uses_hashed_adaptive_expiry_across_restarts() -> None:
+    parent = _fill(
+        fill_id="adaptive-validity-parent",
+        side="long",
+        price=100.0,
+        confidence_calibrated=0.9,
+        entry_atr_bps=20.0,
+    )
+    opened = reconcile_paper_lifecycle(
+        existing_ledger={},
+        accepted_fills=[parent],
+        mark_prices={"BTCUSDT": {"price": 100.0}},
+        generated_utc="2026-07-16T10:00:00.000Z",
+        config=_hedge_config(),
+        paper_session_id=_SESSION,
+    )
+    triggered = reconcile_paper_lifecycle(
+        existing_ledger=opened,
+        accepted_fills=[parent],
+        mark_prices={
+            "BTCUSDT": _authoritative_mark_evidence(price=99.3),
+        },
+        generated_utc="2026-07-16T10:01:00.000Z",
+        config=_hedge_config(),
+        paper_session_id=_SESSION,
+    )
+
+    assert len(triggered["hedge_directives"]) == 1, {
+        "hedge": triggered["paper_adaptive_hedge_status"],
+        "exit": triggered["paper_exit_coordinator_status"]["evaluations"],
+    }
+    pending = triggered["positions_by_symbol"]["BTCUSDT"]
+    assert pending["hedge_state"] == "HEDGE_PENDING"
+    assert pending["hedge_pending_validity_envelope"]["valid_until"] == (
+        "2026-07-16T10:02:01.000Z"
+    )
+
+    deferred = reconcile_paper_lifecycle(
+        existing_ledger=triggered,
+        accepted_fills=[parent],
+        mark_prices={"BTCUSDT": {"price": 98.8}},
+        generated_utc="2026-07-16T10:01:30.000Z",
+        config=_hedge_config(),
+        paper_session_id=_SESSION,
+    )
+    deferred_evaluation = deferred["paper_exit_coordinator_status"]["evaluations"][0]
+    assert deferred_evaluation["blocker"] == "ATR_STOP_DEFERRED_HEDGE_FILL_IN_FLIGHT"
+    assert deferred["positions_by_symbol"]["BTCUSDT"]["hedge_state"] == (
+        "HEDGE_PENDING"
+    )
+
+    expired = reconcile_paper_lifecycle(
+        existing_ledger=deferred,
+        accepted_fills=[parent],
+        mark_prices={"BTCUSDT": {"price": 98.8}},
+        generated_utc="2026-07-16T10:02:01.001Z",
+        config=_hedge_config(),
+        paper_session_id=_SESSION,
+    )
+    expired_evaluation = expired["paper_exit_coordinator_status"]["evaluations"][0]
+    assert expired_evaluation["close_reason"] == "TIER_1_ATR_VOLATILITY_STOP"
+    assert "HEDGE_DIRECTIVE_ADAPTIVE_VALIDITY_EXPIRED" in expired_evaluation[
+        "hedge_pending_expiry_reasons"
+    ]
+    assert "BTCUSDT" not in expired["positions_by_symbol"]
+    assert any(
+        row.get("close_reason") == "TIER_1_ATR_VOLATILITY_STOP"
+        for row in expired["new_close_events"]
+    )
 
 
 # ── Trigger ────────────────────────────────────────────────────────────────
@@ -271,6 +524,7 @@ def test_tagged_hedge_fill_opens_pair_instead_of_netting() -> None:
         mark_prices={"BTCUSDT": {"price": 99.0}},
         generated_utc="2026-07-16T10:06:00Z",
         config=_hedge_config(),
+        paper_session_id=_SESSION,
     )
     keys = set(result["positions_by_symbol"])
     assert "BTCUSDT" in keys
@@ -279,7 +533,10 @@ def test_tagged_hedge_fill_opens_pair_instead_of_netting() -> None:
     hedge_row = result["positions_by_symbol"]["BTCUSDT::HEDGE"]
     assert parent_row["hedge_state"] == "HEDGED"
     assert hedge_row["hedge_state"] == "HEDGE_CHILD"
-    assert hedge_row["hedge_parent_id"] == "paper_pos_BTCUSDT"
+    assert hedge_row["hedge_parent_id"] == parent_row["position_id"]
+    assert hedge_row["hedge_parent_generation_id"] == parent_row[
+        "position_generation_id"
+    ]
     assert hedge_row["side"] == "short"
     # No netting close happened.
     assert not [
@@ -300,6 +557,7 @@ def test_untagged_opposite_fill_still_nets() -> None:
         mark_prices={"BTCUSDT": {"price": 99.0}},
         generated_utc="2026-07-16T10:06:00Z",
         config=_hedge_config(),
+        paper_session_id=_SESSION,
     )
     assert "BTCUSDT::HEDGE" not in result["positions_by_symbol"]
     assert [
@@ -318,11 +576,12 @@ def test_hedge_fill_nets_when_feature_disabled() -> None:
         mark_prices={"BTCUSDT": {"price": 99.0}},
         generated_utc="2026-07-16T10:06:00Z",
         config=PaperLifecycleConfig(allow_explicit_hedge=False, portfolio_equity_usdt=10_000.0),
+        paper_session_id=_SESSION,
     )
     assert "BTCUSDT::HEDGE" not in result["positions_by_symbol"]
 
 
-def test_orphan_hedge_unwinds_immediately() -> None:
+def test_orphan_hedge_fill_is_rejected_before_pair_mutation() -> None:
     parent = _fill(fill_id="f1", side="long", price=100.0)
     hedge = _hedge_fill(parent, price=99.0)
     # Parent's fill already closed in a prior cycle: only the hedge replays.
@@ -339,18 +598,18 @@ def test_orphan_hedge_unwinds_immediately() -> None:
     }
     result = reconcile_paper_lifecycle(
         existing_ledger=existing,
-        accepted_fills=[parent, hedge],
+        accepted_fills=[hedge],
         mark_prices={"BTCUSDT": {"price": 99.5}},
         generated_utc="2026-07-16T10:06:00Z",
         config=_hedge_config(),
+        paper_session_id=_SESSION,
     )
     assert "BTCUSDT::HEDGE" not in result["positions_by_symbol"]
-    unwinds = [
-        row
-        for row in result["new_close_events"]
-        if row.get("close_reason") == "TIER_2_HEDGE_UNWIND_EXHAUSTED"
-    ]
-    assert unwinds, result["paper_adaptive_hedge_status"]
+    assert any(
+        "HEDGE_PARENT_POSITION_NOT_OPEN"
+        in (row.get("paper_lifecycle_block_reasons") or [])
+        for row in result["blocked_entries"]
+    )
 
 
 def test_hedge_close_accounting_matches_ledger_totals() -> None:
@@ -375,6 +634,7 @@ def test_hedge_close_accounting_matches_ledger_totals() -> None:
         mark_prices={"BTCUSDT": {"price": 99.5}},
         generated_utc="2026-07-16T10:06:00Z",
         config=_hedge_config(),
+        paper_session_id=_SESSION,
     )
     trade_sum = sum(
         float(
@@ -387,6 +647,85 @@ def test_hedge_close_accounting_matches_ledger_totals() -> None:
     assert abs(trade_sum - float(result["realized_net_pnl_usd"])) < 1e-9
 
 
+def test_hedge_pair_cannot_mutate_from_unauthenticated_fallback_mark() -> None:
+    parent = _fill(fill_id="mark-authority-parent", side="long", price=100.0)
+    hedge = _hedge_fill(parent, price=99.0)
+    opened = reconcile_paper_lifecycle(
+        existing_ledger={},
+        accepted_fills=[parent, hedge],
+        mark_prices={"BTCUSDT": {"price": 99.0}},
+        generated_utc="2026-07-16T10:06:00Z",
+        config=_hedge_config(),
+        paper_session_id=_SESSION,
+    )
+
+    held = reconcile_paper_lifecycle(
+        existing_ledger=opened,
+        accepted_fills=[parent, hedge],
+        mark_prices={"BTCUSDT": {"price": 90.0}},
+        generated_utc="2026-07-17T10:06:00Z",
+        config=_hedge_config(),
+        paper_session_id=_SESSION,
+    )
+
+    assert set(held["positions_by_symbol"]) == {"BTCUSDT", "BTCUSDT::HEDGE"}
+    assert not held["new_close_events"]
+    assert any(
+        event.get("reason")
+        == "AUTHENTICATED_CURRENT_MARK_REQUIRED_FOR_HEDGE_PAIR_MUTATION"
+        for event in held["paper_adaptive_hedge_status"]["pair_events"]
+    )
+
+
+def test_close_both_is_atomic_when_second_leg_preflight_fails(monkeypatch) -> None:
+    parent = _fill(fill_id="atomic-parent", side="long", price=100.0)
+    hedge = _hedge_fill(parent, price=99.0)
+    opened = reconcile_paper_lifecycle(
+        existing_ledger={},
+        accepted_fills=[parent, hedge],
+        mark_prices={"BTCUSDT": {"price": 99.0}},
+        generated_utc="2026-07-16T10:06:00Z",
+        config=_hedge_config(),
+        paper_session_id=_SESSION,
+    )
+    assert set(opened["positions_by_symbol"]) == {"BTCUSDT", "BTCUSDT::HEDGE"}
+
+    real_close = lifecycle_module._close_position
+
+    def _fail_parent_leg(**kwargs):
+        if kwargs.get("symbol") == "BTCUSDT":
+            return None, None, {"reason": "INJECTED_PARENT_LEG_FAILURE"}
+        return real_close(**kwargs)
+
+    monkeypatch.setattr(lifecycle_module, "_close_position", _fail_parent_leg)
+    result = reconcile_paper_lifecycle(
+        existing_ledger=opened,
+        accepted_fills=[parent, hedge],
+        mark_prices={
+            "BTCUSDT": _authoritative_mark_evidence(
+                price=90.0,
+                event_time="2026-07-17T10:05:59.500Z",
+                generated_at="2026-07-17T10:05:59.600Z",
+                available_at="2026-07-17T10:05:59.700Z",
+            )
+        },
+        generated_utc="2026-07-17T10:06:00Z",
+        config=_hedge_config(),
+        paper_session_id=_SESSION,
+    )
+
+    assert set(result["positions_by_symbol"]) == {"BTCUSDT", "BTCUSDT::HEDGE"}
+    assert not [
+        row
+        for row in result["new_close_events"]
+        if row.get("close_reason") == "TIER_2_HEDGE_PAIR_CLOSE"
+    ]
+    assert any(
+        row.get("paper_lifecycle_status") == "HEDGE_PAIR_CLOSE_BLOCKED_ATOMIC"
+        for row in result["paper_exit_coordinator_status"]["dirty_close_blocks"]
+    )
+
+
 def test_hedge_status_block_present() -> None:
     result = reconcile_paper_lifecycle(
         existing_ledger={},
@@ -394,6 +733,7 @@ def test_hedge_status_block_present() -> None:
         mark_prices={"BTCUSDT": {"price": 100.0}},
         generated_utc="2026-07-16T10:06:00Z",
         config=_hedge_config(),
+        paper_session_id=_SESSION,
     )
     status = result["paper_adaptive_hedge_status"]
     assert status["enabled"] is True

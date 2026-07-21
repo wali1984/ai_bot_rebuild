@@ -423,6 +423,14 @@ Known current behaviors:
 
 Any paper performance window must identify and segregate rows created by those paths.
 
+For cross-margin, authenticated mark/bracket evidence, adaptive stress,
+cascade force-close, hedge queue expiry, and pair-close atomicity, use the
+[paper cross-margin and adaptive-hedge authority contract](PAPER_CROSS_MARGIN_AND_HEDGE_AUTHORITY_CONTRACT.md).
+In particular, Redis hedge-queue TTL is garbage collection only. Confirm each
+directive's content hash, parent ID and generation, paper session, derived
+`valid_until`, and a fresh synthesis-time mark; TTL presence is never proof
+that a directive remains authorized.
+
 ### 5.7 Portfolio and guardian
 
 Portfolio state is derived from valid paper state and market prices. Verify:

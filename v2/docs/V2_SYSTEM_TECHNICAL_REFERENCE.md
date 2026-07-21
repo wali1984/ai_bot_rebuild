@@ -453,6 +453,15 @@ Responsibilities include:
 
 Later lifecycle/churn/non-relaxable filters catch some rows, not all skipped invariants. Paper results must be classified before feedback/evaluation.
 
+The current low-level paper cross-margin, authenticated mark/bracket, adaptive
+stress, cascade-directive, hedge validity, and atomic pair-close contracts are
+specified in
+[`docs/system_audit_2026_master/PAPER_CROSS_MARGIN_AND_HEDGE_AUTHORITY_CONTRACT.md`](../../docs/system_audit_2026_master/PAPER_CROSS_MARGIN_AND_HEDGE_AUTHORITY_CONTRACT.md).
+The hedge queue's Redis TTL is operational cleanup; per-directive adaptive
+validity is derived from observed lifecycle cadence plus authenticated mark
+freshness, bounded by an immutable safety ceiling, and re-derived by the
+consumer.
+
 ## 18. Position, lifecycle, portfolio and guardian
 
 Paper subservices implement entry/exit validity, lifecycle reconciliation, net position state, dedupe/netting, accounting, outcome generation and performance telemetry. Invalid transitions must fail before a fill/order boundary; the required model is explicit flat/open/close/replace state, not ID presence.

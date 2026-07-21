@@ -81,6 +81,15 @@ from v2.backend.app.services.market_structure import (
     compute_vwap_features,
 )
 from v2.backend.app.services.paper_trade_management.exits import PAPER_EXIT_POLICY_VERSION
+from v2.backend.app.services.paper_trade_management.hedging import (
+    HEDGE_DIRECTIVE_QUEUE_SCHEMA_VERSION,
+    HEDGE_DIRECTIVE_STORAGE_TTL_ROLE,
+    hedge_directive_storage_ttl_seconds,
+    validate_adaptive_hedge_directive_validity,
+)
+from v2.backend.app.services.paper_trade_management.margin_accounting import (
+    build_paper_margin_status,
+)
 from v2.backend.app.services.paper_trade_management.outcome_memory_updater import (
     rebuild_outcome_memory_from_closed_trades,
 )
@@ -6748,6 +6757,175 @@ def _read_v2_market_price(r, symbol: str) -> tuple[float | None, str, str | None
                 if px is not None and px > 0:
                     return px, ENTRY_PRICE_SOURCE_V2_FEATURES, payload.get("generated_at")
     return None, ENTRY_PRICE_BLOCKER_MISSING_FILL, None
+
+
+_EXCHANGE_MARK_SCHEMA_VERSION = "binance_usdm_mark_price_wss_v1"
+_EXCHANGE_MARK_SOURCE = "binance_usdm_wss_mark_price_all_symbols"
+_EXCHANGE_MARK_TRANSPORT = "websocket_primary"
+_EXCHANGE_MARK_STREAM = "!markPrice@arr@1s"
+_EXCHANGE_MARK_AUTHENTICATION_BOUNDARY = (
+    "BINANCE_USDM_TLS_WSS_MARK_PRICE_PUBLIC_STREAM_V1"
+)
+_EXCHANGE_MARK_CADENCE_POLICY_VERSION = (
+    "BINANCE_USDM_MARK_PRICE_STREAM_1S_CADENCE_V1"
+)
+
+
+def _aware_utc_datetime(value: Any) -> datetime | None:
+    if isinstance(value, datetime):
+        parsed = value
+    elif isinstance(value, str) and value.strip():
+        try:
+            parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+        except ValueError:
+            return None
+    else:
+        return None
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        return None
+    return parsed.astimezone(timezone.utc)
+
+
+def _exchange_mark_payload_sha256(payload: Mapping[str, Any]) -> str:
+    material = {
+        key: value for key, value in payload.items() if key != "evidence_sha256"
+    }
+    encoded = json.dumps(material, sort_keys=True, separators=(",", ":")).encode(
+        "utf-8"
+    )
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _read_v2_exchange_mark_price(
+    r: Any,
+    symbol: str,
+    *,
+    decision_time: str,
+) -> dict[str, Any]:
+    """Read one exact, source-authenticated Binance USD-M mark receipt.
+
+    Ticker and candle values are intentionally outside this contract.  They
+    may still support non-authoritative paper telemetry, but they can never
+    authorize maintenance, liquidation, or portfolio-guard arithmetic.
+    """
+
+    canonical_symbol = str(symbol or "").upper()
+    result: dict[str, Any] = {
+        "schema_version": "paper_exchange_mark_consumer_v1",
+        "symbol": canonical_symbol,
+        "price": None,
+        "authority_complete": False,
+        "decision_time": decision_time,
+        "consumer_observed_at": None,
+        "rejection_reasons": [],
+    }
+    if r is None or not canonical_symbol:
+        result["rejection_reasons"] = ["EXCHANGE_MARK_REDIS_OR_SYMBOL_MISSING"]
+        return result
+    try:
+        raw = r.get(f"{V2_REDIS_PREFIX}market:mark_price:{canonical_symbol}")
+    except Exception as exc:  # noqa: BLE001
+        result["rejection_reasons"] = [
+            f"EXCHANGE_MARK_READ_EXCEPTION_{type(exc).__name__.upper()}"
+        ]
+        return result
+    result["consumer_observed_at"] = _utc_iso()
+    if raw in (None, "", b""):
+        result["rejection_reasons"] = ["EXCHANGE_MARK_MISSING"]
+        return result
+    try:
+        if isinstance(raw, bytes):
+            raw = raw.decode("utf-8")
+        payload = json.loads(raw) if isinstance(raw, str) else raw
+    except (UnicodeDecodeError, TypeError, ValueError):
+        payload = None
+    if not isinstance(payload, dict):
+        result["rejection_reasons"] = ["EXCHANGE_MARK_MALFORMED"]
+        return result
+
+    price = _coerce_float(payload.get("mark_price"))
+    event_time = _aware_utc_datetime(payload.get("event_time"))
+    generated_at = _aware_utc_datetime(payload.get("generated_at"))
+    available_at = _aware_utc_datetime(payload.get("available_at"))
+    decision_at = _aware_utc_datetime(decision_time)
+    observed_at = _aware_utc_datetime(result.get("consumer_observed_at"))
+    freshness_budget = _coerce_float(payload.get("freshness_budget_seconds"))
+    expected_interval = _coerce_float(
+        payload.get("expected_update_interval_seconds")
+    )
+    supplied_hash = payload.get("evidence_sha256")
+    reasons: list[str] = []
+    exact_fields = {
+        "schema_version": _EXCHANGE_MARK_SCHEMA_VERSION,
+        "symbol": canonical_symbol,
+        "source": _EXCHANGE_MARK_SOURCE,
+        "transport": _EXCHANGE_MARK_TRANSPORT,
+        "stream_name": _EXCHANGE_MARK_STREAM,
+        "authentication_boundary": _EXCHANGE_MARK_AUTHENTICATION_BOUNDARY,
+        "cadence_policy_version": _EXCHANGE_MARK_CADENCE_POLICY_VERSION,
+    }
+    for field, expected in exact_fields.items():
+        if payload.get(field) != expected:
+            reasons.append(f"EXCHANGE_MARK_{field.upper()}_MISMATCH")
+    if payload.get("exchange_source_authenticated") is not True:
+        reasons.append("EXCHANGE_MARK_SOURCE_NOT_AUTHENTICATED")
+    if price is None or not math.isfinite(price) or price <= 0.0:
+        reasons.append("EXCHANGE_MARK_PRICE_INVALID")
+    if None in (event_time, generated_at, available_at, decision_at, observed_at):
+        reasons.append("EXCHANGE_MARK_CLOCK_MISSING_OR_INVALID")
+    elif not event_time <= generated_at <= available_at <= decision_at <= observed_at:
+        if available_at > decision_at:
+            reasons.append("EXCHANGE_MARK_AVAILABLE_AFTER_DECISION_TIME")
+        else:
+            reasons.append("EXCHANGE_MARK_CLOCK_ORDER_INVALID")
+    if (
+        freshness_budget is None
+        or not math.isfinite(freshness_budget)
+        or freshness_budget <= 0.0
+        or expected_interval is None
+        or not math.isfinite(expected_interval)
+        or expected_interval <= 0.0
+        or not math.isclose(
+            freshness_budget,
+            expected_interval,
+            rel_tol=0.0,
+            abs_tol=1e-12,
+        )
+    ):
+        reasons.append("EXCHANGE_MARK_CADENCE_CONTRACT_INVALID")
+    elif decision_at is not None and event_time is not None:
+        age_seconds = (decision_at - event_time).total_seconds()
+        if age_seconds < 0.0 or age_seconds > freshness_budget:
+            reasons.append("EXCHANGE_MARK_STALE_AT_DECISION_TIME")
+    if (
+        not isinstance(supplied_hash, str)
+        or len(supplied_hash) != 64
+        or supplied_hash != supplied_hash.lower()
+        or any(char not in "0123456789abcdef" for char in supplied_hash)
+        or supplied_hash != _exchange_mark_payload_sha256(payload)
+    ):
+        reasons.append("EXCHANGE_MARK_EVIDENCE_SHA256_INVALID")
+
+    result.update(
+        {
+            "price": price if not reasons else None,
+            "source": payload.get("source"),
+            "event_time": payload.get("event_time"),
+            "generated_at": payload.get("generated_at"),
+            "available_at": payload.get("available_at"),
+            "evidence_sha256": supplied_hash,
+            "freshness_budget_seconds": freshness_budget,
+            "expected_update_interval_seconds": expected_interval,
+            "cadence_policy_version": payload.get("cadence_policy_version"),
+            "authentication_boundary": payload.get("authentication_boundary"),
+            "consumer_validation_boundary": (
+                "PAPER_LOOP_EXCHANGE_MARK_CONSUMER_V1" if not reasons else None
+            ),
+            "authority_complete": not reasons,
+            "rejection_reasons": list(dict.fromkeys(reasons)),
+        }
+    )
+    return result
 
 
 def _timestamp_to_utc_iso(value: Any) -> str | None:
@@ -24972,6 +25150,68 @@ def _portfolio_equity_context(r) -> dict[str, float]:
     }
 
 
+def _paper_account_margin_snapshot_for_ledger(
+    *,
+    open_positions: list[dict[str, Any]],
+    starting_equity_usd: Any,
+    realized_net_pnl_usd: Any,
+    unrealized_pnl_usd: Any,
+    paper_session_id: str | None,
+    generated_utc: str,
+) -> dict[str, Any]:
+    """Bind account-margin rows to the exact open-position ledger generation."""
+
+    starting_equity = _coerce_float(starting_equity_usd)
+    realized_net_pnl = _coerce_float(realized_net_pnl_usd)
+    unrealized_pnl = _coerce_float(unrealized_pnl_usd)
+    components_complete = all(
+        value is not None
+        for value in (starting_equity, realized_net_pnl, unrealized_pnl)
+    )
+    wallet_balance = (
+        starting_equity + realized_net_pnl
+        if starting_equity is not None and realized_net_pnl is not None
+        else None
+    )
+    equity = (
+        wallet_balance + unrealized_pnl
+        if wallet_balance is not None and unrealized_pnl is not None
+        else None
+    )
+    status = build_paper_margin_status(
+        equity=equity,
+        wallet_balance=wallet_balance,
+        open_positions=open_positions,
+        min_available_margin_buffer_pct=0.0,
+        newly_reserved_margin_usd=0.0,
+        reservations_included_in_open_positions=True,
+        expected_unrealized_pnl_usd=unrealized_pnl,
+        require_ledger_reconciliation=True,
+    )
+    status.update(
+        {
+            "generated_utc": generated_utc,
+            "paper_session_id": paper_session_id,
+            "account_balance_components_complete": components_complete,
+            "starting_equity_usd": starting_equity,
+            "realized_net_pnl_usd": realized_net_pnl,
+            "unrealized_pnl_usd": unrealized_pnl,
+            "wallet_balance_source": (
+                "SAME_LEDGER_STARTING_EQUITY_PLUS_REALIZED_NET_PNL"
+            ),
+            "equity_source": (
+                "SAME_LEDGER_WALLET_BALANCE_PLUS_CURRENT_UNREALIZED_PNL"
+            ),
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+            "leverage_mutated": False,
+            "margin_mutated": False,
+        }
+    )
+    return status
+
+
 EXIT_OVERSHOOT_ESTIMATE_REDIS_KEY = f"{V2_REDIS_PREFIX}paper:exit_overshoot_estimate"
 _EXIT_OVERSHOOT_MAX_SAMPLE = 20
 
@@ -24989,7 +25229,6 @@ PAPER_ADAPTIVE_HEDGE_ENABLED = str(
 # open hedge pairs through the TIER_3 netting path. env OR redis enables.
 ADAPTIVE_HEDGE_ENABLED_REDIS_KEY = f"{V2_REDIS_PREFIX}paper:adaptive_hedge_enabled"
 HEDGE_DIRECTIVES_REDIS_KEY = f"{V2_REDIS_PREFIX}paper:hedge_directives"
-HEDGE_DIRECTIVES_MAX_AGE_SECONDS = 300.0
 
 # Operator directive (2026-07-16): majors are processed first each cycle so
 # admission budget/exposure caps prefer them; NOT an exclusion list — the
@@ -25010,6 +25249,23 @@ def _adaptive_hedge_enabled(r) -> bool:
     if isinstance(raw, bytes):
         raw = raw.decode("utf-8", "replace")
     return str(raw or "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def _hedge_directive_hash_valid(value: Any) -> bool:
+    if not isinstance(value, dict):
+        return False
+    material = dict(value)
+    supplied = material.pop("hedge_directive_evidence_sha256", None)
+    try:
+        encoded = json.dumps(
+            material,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
+    except (TypeError, ValueError):
+        return False
+    return supplied == hashlib.sha256(encoded).hexdigest()
 
 
 def _synthesize_adaptive_hedge_fills(
@@ -25045,16 +25301,22 @@ def _synthesize_adaptive_hedge_fills(
     if not isinstance(directives, list) or not directives:
         status["reason"] = "NO_PENDING_HEDGE_DIRECTIVES"
         return status
-    generated_utc = str(payload.get("generated_utc") or "")
-    age_seconds = _seconds_since_iso(generated_utc)
-    if age_seconds is None or age_seconds > HEDGE_DIRECTIVES_MAX_AGE_SECONDS:
-        status["reason"] = "HEDGE_DIRECTIVES_STALE"
-        status["directive_age_seconds"] = age_seconds
-        try:
-            r.delete(HEDGE_DIRECTIVES_REDIS_KEY)
-        except Exception:
-            pass
+    if (
+        payload.get("schema_version") != HEDGE_DIRECTIVE_QUEUE_SCHEMA_VERSION
+        or payload.get("storage_ttl_role") != HEDGE_DIRECTIVE_STORAGE_TTL_ROLE
+        or payload.get("directive_validity_authority")
+        != "PER_DIRECTIVE_ADAPTIVE_VALIDITY_ENVELOPE"
+        or payload.get("storage_ttl_grants_directive_authority") is not False
+        or payload.get("paper_session_id") is None
+        or paper_session_id is None
+        or payload.get("paper_session_id") != paper_session_id
+        or payload.get("paper_only") is not True
+        or payload.get("routes_to_live") is not False
+        or payload.get("places_real_order") is not False
+    ):
+        status["reason"] = "HEDGE_DIRECTIVE_ENVELOPE_SESSION_OR_ROUTE_INVALID"
         return status
+    generated_utc = str(payload.get("generated_utc") or "")
     positions_by_symbol = (
         existing_ledger.get("positions_by_symbol")
         if isinstance(existing_ledger.get("positions_by_symbol"), dict)
@@ -25065,42 +25327,127 @@ def _synthesize_adaptive_hedge_fills(
         for row in existing_accepted
         if isinstance(row, dict)
     }
+    retryable_directives: list[dict[str, Any]] = []
     for directive in directives:
         if not isinstance(directive, dict):
             continue
+        if not _hedge_directive_hash_valid(directive):
+            status["skipped"].append(
+                {"symbol": directive.get("symbol"), "reason": "DIRECTIVE_HASH_INVALID"}
+            )
+            continue
+        directive_observed_at = _utc_iso()
+        validity_status = validate_adaptive_hedge_directive_validity(
+            directive_generated_utc=directive.get("generated_utc"),
+            validity_envelope=directive.get("validity_envelope"),
+            observed_at=directive_observed_at,
+        )
+        if validity_status.get("valid") is not True:
+            status["skipped"].append(
+                {
+                    "symbol": directive.get("symbol"),
+                    "reason": (
+                        "DIRECTIVE_ADAPTIVE_VALIDITY_EXPIRED"
+                        if validity_status.get("expired") is True
+                        else "DIRECTIVE_ADAPTIVE_VALIDITY_INVALID"
+                    ),
+                    "validity_rejection_reasons": validity_status.get(
+                        "rejection_reasons"
+                    )
+                    or [],
+                    "directive_age_seconds": validity_status.get("age_seconds"),
+                    "adaptive_freshness_budget_seconds": validity_status.get(
+                        "adaptive_freshness_budget_seconds"
+                    ),
+                }
+            )
+            continue
         symbol = str(directive.get("symbol") or "").upper()
         parent_position_id = str(directive.get("parent_position_id") or "")
+        parent_generation_id = str(
+            directive.get("parent_position_generation_id") or ""
+        )
         hedge_side = str(directive.get("hedge_side") or "").lower()
         hedge_quantity = _coerce_float(directive.get("hedge_quantity"))
-        mark_price = _coerce_float(directive.get("mark_price"))
-        if not symbol or hedge_side not in ("long", "short") or not hedge_quantity or hedge_quantity <= 0:
+        if (
+            not symbol
+            or not parent_position_id
+            or not parent_generation_id
+            or hedge_side not in ("long", "short")
+            or not hedge_quantity
+            or hedge_quantity <= 0
+        ):
             status["skipped"].append({"symbol": symbol, "reason": "DIRECTIVE_FIELDS_INVALID"})
+            continue
+        if (
+            paper_session_id is None
+            or directive.get("paper_session_id") != paper_session_id
+            or directive.get("hedge_pair_session_id") != paper_session_id
+            or existing_ledger.get("paper_session_id") != paper_session_id
+        ):
+            status["skipped"].append(
+                {"symbol": symbol, "reason": "DIRECTIVE_PAPER_SESSION_ID_MISMATCH"}
+            )
             continue
         if symbol not in positions_by_symbol:
             status["skipped"].append({"symbol": symbol, "reason": "PARENT_POSITION_NO_LONGER_OPEN"})
+            continue
+        parent_position = positions_by_symbol[symbol]
+        if (
+            not isinstance(parent_position, dict)
+            or parent_position.get("position_id") != parent_position_id
+            or parent_position.get("position_generation_id") != parent_generation_id
+        ):
+            status["skipped"].append(
+                {"symbol": symbol, "reason": "DIRECTIVE_PARENT_GENERATION_NOT_CURRENT"}
+            )
             continue
         if f"{symbol}::HEDGE" in positions_by_symbol:
             status["skipped"].append({"symbol": symbol, "reason": "HEDGE_ALREADY_OPEN"})
             continue
         parent_fill = accepted_by_identity.get(str(directive.get("parent_entry_fill_id") or ""))
         if parent_fill is None:
-            parent_fill = next(
-                (
-                    row
-                    for row in existing_accepted
-                    if isinstance(row, dict)
-                    and str(row.get("symbol") or "").upper() == symbol
-                    and row.get("hedge_intent") is not True
-                ),
-                None,
-            )
-        if parent_fill is None:
             status["skipped"].append({"symbol": symbol, "reason": "PARENT_ENTRY_FILL_NOT_FOUND"})
+            retryable_directives.append(directive)
             continue
-        if mark_price is None or mark_price <= 0:
-            mark_price, _px_source, _px_utc = _read_v2_market_price(r, symbol)
-        if mark_price is None or mark_price <= 0:
-            status["skipped"].append({"symbol": symbol, "reason": "HEDGE_MARK_PRICE_UNAVAILABLE"})
+        hedge_decision_time = _utc_iso()
+        current_mark = _read_v2_exchange_mark_price(
+            r,
+            symbol,
+            decision_time=hedge_decision_time,
+        )
+        mark_price = _coerce_float(current_mark.get("price"))
+        if (
+            current_mark.get("authority_complete") is not True
+            or mark_price is None
+            or mark_price <= 0
+        ):
+            status["skipped"].append(
+                {
+                    "symbol": symbol,
+                    "reason": "AUTHENTICATED_HEDGE_MARK_PRICE_UNAVAILABLE",
+                    "mark_rejection_reasons": current_mark.get("rejection_reasons") or [],
+                }
+            )
+            retryable_directives.append(directive)
+            continue
+        hedge_execution_time = _utc_iso()
+        execution_validity_status = validate_adaptive_hedge_directive_validity(
+            directive_generated_utc=directive.get("generated_utc"),
+            validity_envelope=directive.get("validity_envelope"),
+            observed_at=hedge_execution_time,
+        )
+        if execution_validity_status.get("valid") is not True:
+            status["skipped"].append(
+                {
+                    "symbol": symbol,
+                    "reason": "DIRECTIVE_EXPIRED_BEFORE_HEDGE_FILL_COMMIT",
+                    "validity_rejection_reasons": execution_validity_status.get(
+                        "rejection_reasons"
+                    )
+                    or [],
+                }
+            )
             continue
         directive_ts = str(directive.get("generated_utc") or generated_utc)
         hedge_fill_id = f"{parent_position_id}:hedge:{directive_ts}"
@@ -25119,12 +25466,38 @@ def _synthesize_adaptive_hedge_fills(
                 "notional_usd": hedge_notional,
                 "hedge_intent": True,
                 "hedge_parent_id": parent_position_id,
+                "hedge_parent_generation_id": parent_generation_id,
                 "hedge_child_id": hedge_fill_id,
+                "hedge_pair_session_id": paper_session_id,
                 "hedge_ratio": _coerce_float(directive.get("hedge_ratio")),
                 "hedge_state": "HEDGE_CHILD",
                 "hedge_reason": str(directive.get("reason") or "ADAPTIVE_ADVERSE_EXCURSION_HEDGE"),
                 "hedge_entry_parent_pnl_bps": _coerce_float(
                     directive.get("parent_pnl_bps_at_trigger")
+                ),
+                "hedge_directive_evidence_sha256": directive.get(
+                    "hedge_directive_evidence_sha256"
+                ),
+                "hedge_directive_validity_envelope": directive.get(
+                    "validity_envelope"
+                ),
+                "hedge_directive_receipt": dict(directive),
+                "hedge_directive_generated_utc": directive.get("generated_utc"),
+                "hedge_decision_time": hedge_decision_time,
+                "paper_admission_decision_time": hedge_decision_time,
+                "decision_time": hedge_decision_time,
+                "execution_time": hedge_execution_time,
+                "fill_price_utc": hedge_execution_time,
+                "accepted_at": hedge_execution_time,
+                "entry_time": hedge_execution_time,
+                "hedge_mark_event_time": current_mark.get("event_time"),
+                "hedge_mark_generated_at": current_mark.get("generated_at"),
+                "hedge_mark_available_at": current_mark.get("available_at"),
+                "hedge_mark_evidence_sha256": current_mark.get(
+                    "evidence_sha256"
+                ),
+                "hedge_mark_consumer_validation_boundary": current_mark.get(
+                    "consumer_validation_boundary"
                 ),
                 "hedge_budget_usd": hedge_notional,
                 "unwind_plan": "adaptive_exhaustion_or_parent_recovery",
@@ -25132,7 +25505,7 @@ def _synthesize_adaptive_hedge_fills(
                 "paper_fill_allowed": True,
                 "paper_hedge_fill": True,
                 "paper_fast_path": False,
-                "generated_utc": _utc_iso(),
+                "generated_utc": hedge_execution_time,
                 "paper_only": True,
                 "places_real_order": False,
                 "routes_to_live": False,
@@ -25146,9 +25519,26 @@ def _synthesize_adaptive_hedge_fills(
         accepted.append(hedge_fill)
         status["synthesized"] += 1
     try:
-        r.delete(HEDGE_DIRECTIVES_REDIS_KEY)
+        if retryable_directives:
+            retained_payload = {
+                **payload,
+                "directives": retryable_directives,
+            }
+            r.set(
+                HEDGE_DIRECTIVES_REDIS_KEY,
+                json.dumps(
+                    retained_payload,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                    allow_nan=False,
+                ),
+                keepttl=True,
+            )
+        else:
+            r.delete(HEDGE_DIRECTIVES_REDIS_KEY)
     except Exception:
-        pass
+        status["queue_update_failed"] = True
+    status["retryable_retained"] = len(retryable_directives)
     return status
 
 
@@ -26661,6 +27051,75 @@ def _paper_maintenance_bracket_security_context(
         "status": "READY",
         "reason": "EXACT_PUBLIC_BINDING_AND_PROTECTED_EVIDENCE_AUTH_READY",
     }
+
+
+def _select_paper_maintenance_bracket_for_lifecycle(
+    r: Any,
+    *,
+    security_context: Any | None,
+    symbol: str,
+    candidate_notional: float,
+    decision_time: str,
+    mark_evidence: Mapping[str, Any],
+    position_id: str,
+    position_generation_id: str | None,
+) -> dict[str, Any]:
+    """Revalidate HMAC evidence for one exact current marked notional."""
+
+    from v2.backend.app.services.binance_usdm_leverage_bracket_evidence import (  # noqa: PLC0415
+        select_paper_bracket_evidence,
+    )
+
+    if mark_evidence.get("authority_complete") is not True:
+        return {
+            "status": "MARK_EVIDENCE_NON_AUTHORITATIVE",
+            "allowed": False,
+            "evidence_usable": False,
+            "prevalidated": False,
+            "authentication_revalidated": False,
+            "reason": "AUTHENTICATED_MARK_REQUIRED_BEFORE_BRACKET_SELECTION",
+        }
+    result = select_paper_bracket_evidence(
+        r,
+        security_context=security_context,
+        symbol=symbol,
+        candidate_notional=candidate_notional,
+        decision_time=decision_time,
+    )
+    transformed = {
+        **result,
+        "bracket_id": result.get("selected_bracket"),
+        "maint_margin_ratio": result.get("maintenance_margin_rate"),
+        "cum": result.get("maintenance_margin_cum"),
+        "evidence_hash": result.get("content_checksum_sha256"),
+        "evidence_checksum_sha256": result.get("content_checksum_sha256"),
+        "binding": result.get("credential_binding_id"),
+        "environment_id": result.get("exchange_environment"),
+        "key_id": result.get("evidence_auth_key_id"),
+        "position_id_at_selection": position_id,
+        "position_generation_id_at_selection": position_generation_id,
+        "mark_evidence_sha256_at_selection": mark_evidence.get("evidence_sha256"),
+        "mark_event_time_at_selection": mark_evidence.get("event_time"),
+    }
+    authentication_revalidated = (
+        result.get("status") == "READY"
+        and result.get("evidence_usable") is True
+        and result.get("allowed") is True
+        and isinstance(result.get("evidence_hmac_sha256"), str)
+        and isinstance(result.get("content_checksum_sha256"), str)
+    )
+    transformed.update(
+        {
+            "prevalidated": authentication_revalidated,
+            "authentication_revalidated": authentication_revalidated,
+            "authentication_boundary": (
+                "PAPER_LOOP_SELECT_PAPER_BRACKET_EVIDENCE_HMAC_V1"
+                if authentication_revalidated
+                else None
+            ),
+        }
+    )
+    return transformed
 
 
 def _build_volatility_liquidity_state(
@@ -31976,14 +32435,48 @@ def run_once() -> dict:
     )
     if post_backfill_churn_blocked:
         blocked.extend(post_backfill_churn_blocked)
+    lifecycle_decision_time = _utc_iso()
+    bracket_security_context, bracket_security_status = (
+        _paper_maintenance_bracket_security_context()
+    )
     mark_prices: dict[str, dict[str, Any]] = {}
     for symbol in sorted({str(row.get("symbol") or "").upper() for row in accepted_for_ledger if row.get("symbol")}):
-        px, px_source, px_source_utc = _read_v2_market_price(r, symbol)
+        exchange_mark = _read_v2_exchange_mark_price(
+            r,
+            symbol,
+            decision_time=lifecycle_decision_time,
+        )
+        fallback_px, fallback_source, fallback_source_utc = _read_v2_market_price(
+            r, symbol
+        )
+        exchange_mark_authoritative = (
+            exchange_mark.get("authority_complete") is True
+            and _coerce_float(exchange_mark.get("price")) is not None
+        )
+        px = (
+            _coerce_float(exchange_mark.get("price"))
+            if exchange_mark_authoritative
+            else fallback_px
+        )
+        px_source = (
+            str(exchange_mark.get("source"))
+            if exchange_mark_authoritative
+            else fallback_source
+        )
+        px_source_utc = (
+            str(exchange_mark.get("event_time"))
+            if exchange_mark_authoritative
+            else fallback_source_utc
+        )
         exit_microstructure = _read_v2_orderbook_microstructure(r, symbol)
         mark_prices[symbol] = {
+            **exchange_mark,
             "price": px,
             "source": px_source,
             "source_utc": px_source_utc,
+            "exchange_mark_receipt": exchange_mark,
+            "fallback_price_used": not exchange_mark_authoritative,
+            "fallback_never_counts_as_authenticated_exchange_mark": True,
             "actual_observed_spread_exit_bps": exit_microstructure.get("bid_ask_spread_bps"),
             "exit_spread_source": exit_microstructure.get("source"),
             "exit_spread_available_at": exit_microstructure.get("entry_spread_available_at"),
@@ -31997,7 +32490,7 @@ def run_once() -> dict:
         existing_ledger=existing_ledger,
         accepted_fills=accepted_for_ledger,
         mark_prices=mark_prices,
-        generated_utc=_utc_iso(),
+        generated_utc=lifecycle_decision_time,
         config=PaperLifecycleConfig(
             portfolio_equity_usdt=portfolio_context["equity"],
             exit_config=PaperExitConfig(
@@ -32016,24 +32509,85 @@ def run_once() -> dict:
             portfolio_drawdown_bps=portfolio_context["drawdown_bps"],
         ),
         portfolio_guard=_read_json_key(r, "v2:paper:portfolio_cascade_guard"),
+        paper_session_id=(str(paper_session_id) if paper_session_id else None),
+        maintenance_bracket_resolver=(
+            lambda **kwargs: _select_paper_maintenance_bracket_for_lifecycle(
+                r,
+                security_context=bracket_security_context,
+                **kwargs,
+            )
+        ),
     )
+    lifecycle_result["paper_maintenance_bracket_security_status"] = (
+        bracket_security_status
+    )
+    lifecycle_result["paper_exchange_mark_authority_status"] = {
+        "schema_version": "paper_exchange_mark_authority_status_v1",
+        "decision_time": lifecycle_decision_time,
+        "symbol_count": len(mark_prices),
+        "authoritative_symbol_count": sum(
+            1
+            for receipt in mark_prices.values()
+            if receipt.get("authority_complete") is True
+        ),
+        "fallback_symbol_count": sum(
+            1 for receipt in mark_prices.values() if receipt.get("fallback_price_used")
+        ),
+        "receipts": {
+            symbol: {
+                "authority_complete": receipt.get("authority_complete") is True,
+                "event_time": receipt.get("event_time"),
+                "generated_at": receipt.get("generated_at"),
+                "available_at": receipt.get("available_at"),
+                "decision_time": receipt.get("decision_time"),
+                "consumer_observed_at": receipt.get("consumer_observed_at"),
+                "source": receipt.get("source"),
+                "evidence_sha256": receipt.get("evidence_sha256"),
+                "cadence_policy_version": receipt.get("cadence_policy_version"),
+                "freshness_budget_seconds": receipt.get(
+                    "freshness_budget_seconds"
+                ),
+                "rejection_reasons": receipt.get("rejection_reasons") or [],
+                "fallback_price_used": receipt.get("fallback_price_used") is True,
+            }
+            for symbol, receipt in mark_prices.items()
+        },
+        "ticker_or_candle_fallback_is_authority": False,
+        "paper_only": True,
+    }
     # Publish this cycle's hedge directives for next-cycle fill synthesis and
     # surface the adaptive hedge status for Monitor Center / GUI.
     if PAPER_ADAPTIVE_HEDGE_ENABLED:
         _lifecycle_hedge_directives = lifecycle_result.get("hedge_directives") or []
         if _lifecycle_hedge_directives:
-            _safe_write(
-                r,
-                HEDGE_DIRECTIVES_REDIS_KEY,
-                json.dumps(
-                    {
-                        "generated_utc": _utc_iso(),
-                        "directives": _lifecycle_hedge_directives,
-                        "paper_only": True,
-                    }
-                ),
-                ex=600,
+            _hedge_directive_published_at = _utc_iso()
+            _hedge_directive_storage_ttl = hedge_directive_storage_ttl_seconds(
+                _lifecycle_hedge_directives,
+                observed_at=_hedge_directive_published_at,
             )
+            if _hedge_directive_storage_ttl is not None:
+                _safe_write(
+                    r,
+                    HEDGE_DIRECTIVES_REDIS_KEY,
+                    json.dumps(
+                        {
+                            "schema_version": HEDGE_DIRECTIVE_QUEUE_SCHEMA_VERSION,
+                            "generated_utc": _hedge_directive_published_at,
+                            "paper_session_id": paper_session_id,
+                            "directives": _lifecycle_hedge_directives,
+                            "storage_ttl_seconds": _hedge_directive_storage_ttl,
+                            "storage_ttl_role": HEDGE_DIRECTIVE_STORAGE_TTL_ROLE,
+                            "storage_ttl_grants_directive_authority": False,
+                            "directive_validity_authority": (
+                                "PER_DIRECTIVE_ADAPTIVE_VALIDITY_ENVELOPE"
+                            ),
+                            "paper_only": True,
+                            "routes_to_live": False,
+                            "places_real_order": False,
+                        }
+                    ),
+                    ex=_hedge_directive_storage_ttl,
+                )
     # Status telemetry is owner-first: foreign run_once callers only write it
     # when the key is absent, so the systemd loop's view is never clobbered.
     _hedge_status_key = f"{V2_REDIS_PREFIX}paper:adaptive_hedge_status"
@@ -34113,7 +34667,17 @@ def run_once() -> dict:
         ):
             keys_written.append(f"{V2_REDIS_PREFIX}decision:per_id_store_status")
         aggregate_metrics = paper_performance_circuit_breaker_status.get("aggregate") or {}
+        ledger_generated_utc = _utc_iso()
+        paper_account_margin_status = _paper_account_margin_snapshot_for_ledger(
+            open_positions=open_positions,
+            starting_equity_usd=paper_starting_equity_usd,
+            realized_net_pnl_usd=lifecycle_result.get("realized_net_pnl_usd"),
+            unrealized_pnl_usd=lifecycle_result.get("unrealized_pnl_usd"),
+            paper_session_id=(str(paper_session_id) if paper_session_id else None),
+            generated_utc=ledger_generated_utc,
+        )
         ledger_payload = {
+            "schema_version": "paper_ledger_v2",
             "paper_session_id": paper_session_id,
             "reset_session_id": paper_session_state.get("reset_session_id") or paper_session_id,
             "starting_equity_usd": paper_starting_equity_usd,
@@ -34144,6 +34708,16 @@ def run_once() -> dict:
             "shadow_observation_history_ttl_seconds": SHADOW_OBSERVATION_HISTORY_TTL_SECONDS,
             "accepted_position_count": len(open_positions),
             "open_position_count": len(open_positions),
+            "paper_account_margin_status": paper_account_margin_status,
+            "paper_exchange_mark_authority_status": lifecycle_result.get(
+                "paper_exchange_mark_authority_status"
+            ),
+            "paper_maintenance_bracket_security_status": lifecycle_result.get(
+                "paper_maintenance_bracket_security_status"
+            ),
+            "portfolio_cascade_guard_lifecycle_status": lifecycle_result.get(
+                "portfolio_cascade_guard_lifecycle_status"
+            ),
             "closed_trade_count": len(closes),
             "outcome_label_count": len(outcome_labels),
             "trainer_feedback_total_row_count": len(trainer_feedback_rows),
@@ -34329,8 +34903,12 @@ def run_once() -> dict:
             "live_gate": live_context["live_gate"],
             "live_symbols": live_context["live_symbols"],
             "execution_live_symbols": live_context["execution_live_symbols"],
+            "paper_only": True,
+            "routes_to_live": False,
             "places_real_order": False,
-            "generated_utc": _utc_iso(),
+            "leverage_mutated": False,
+            "margin_mutated": False,
+            "generated_utc": ledger_generated_utc,
         }
         # Write closed_trades before ledger so that the portfolio state publisher
         # always sees the full standalone list before the ledger sample — this
@@ -34993,6 +35571,15 @@ def run_once() -> dict:
         "unrealized_pnl_usd": lifecycle_result["unrealized_pnl_usd"],
         "total_open_notional": lifecycle_result["total_open_notional"],
         "paper_position_lifecycle_status": lifecycle_result["paper_position_lifecycle_status"],
+        "paper_exchange_mark_authority_status": lifecycle_result.get(
+            "paper_exchange_mark_authority_status"
+        ),
+        "paper_maintenance_bracket_security_status": lifecycle_result.get(
+            "paper_maintenance_bracket_security_status"
+        ),
+        "portfolio_cascade_guard_lifecycle_status": lifecycle_result.get(
+            "portfolio_cascade_guard_lifecycle_status"
+        ),
         "paper_position_exposure_cap_status": lifecycle_result["paper_position_exposure_cap_status"],
         "paper_hedge_netting_status": lifecycle_result["paper_hedge_netting_status"],
         "paper_exit_coordinator_status": lifecycle_result["paper_exit_coordinator_status"],

@@ -5,12 +5,18 @@ import math
 import os
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
 
 from v2.backend.app.cli import v2_trade_management_paper_loop as paper_loop
+from v2.backend.app.services.paper_trade_management.hedging import (
+    HEDGE_DIRECTIVE_QUEUE_SCHEMA_VERSION,
+    HEDGE_DIRECTIVE_STORAGE_TTL_ROLE,
+    build_adaptive_hedge_directive_validity,
+)
+from v2.backend.app.services.paper_trade_management import lifecycle as lifecycle_module
 
 
 class _FakeRedis:
@@ -43,6 +49,501 @@ class _FakeRedis:
         for key in self.payloads:
             if key.startswith(prefix):
                 yield key
+
+
+def _authenticated_exchange_mark_payload(
+    *,
+    symbol: str = "BTCUSDT",
+    price: float = 60000.0,
+    event_time: str,
+    generated_at: str | None = None,
+    available_at: str | None = None,
+) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "schema_version": "binance_usdm_mark_price_wss_v1",
+        "symbol": symbol,
+        "mark_price": price,
+        "markPrice": price,
+        "index_price": price,
+        "indexPrice": price,
+        "estimated_settle_price": None,
+        "last_funding_rate": None,
+        "next_funding_time_ms": None,
+        "event_time": event_time,
+        "generated_at": generated_at or event_time,
+        "available_at": available_at or event_time,
+        "source": "binance_usdm_wss_mark_price_all_symbols",
+        "transport": "websocket_primary",
+        "stream_name": "!markPrice@arr@1s",
+        "exchange_source_authenticated": True,
+        "authentication_boundary": (
+            "BINANCE_USDM_TLS_WSS_MARK_PRICE_PUBLIC_STREAM_V1"
+        ),
+        "cadence_policy_version": (
+            "BINANCE_USDM_MARK_PRICE_STREAM_1S_CADENCE_V1"
+        ),
+        "expected_update_interval_seconds": 1.0,
+        "freshness_budget_seconds": 1.0,
+        "event_time_semantics": "BINANCE_USDM_WEBSOCKET_EVENT_TIME_E",
+        "generated_at_semantics": "LOCAL_NORMALIZATION_COMPLETION_TIME",
+        "available_at_semantics": "LOCAL_REDIS_PUBLICATION_RELEASE_TIME",
+        "live_gate": "blocked_human_only",
+        "places_real_order": False,
+        "test_orders": False,
+        "leverage_mutation": False,
+        "margin_mode_mutation": False,
+        "transfer_or_withdrawal": False,
+        "raw_credentials_exposed": False,
+    }
+    payload["evidence_sha256"] = paper_loop._exchange_mark_payload_sha256(  # noqa: SLF001
+        payload
+    )
+    return payload
+
+
+def test_exchange_mark_consumer_accepts_exact_fresh_hashed_wss_receipt() -> None:
+    decision_time = paper_loop._utc_iso()  # noqa: SLF001
+    payload = _authenticated_exchange_mark_payload(event_time=decision_time)
+    redis = _FakeRedis({"v2:market:mark_price:BTCUSDT": payload})
+
+    result = paper_loop._read_v2_exchange_mark_price(  # noqa: SLF001
+        redis,
+        "BTCUSDT",
+        decision_time=decision_time,
+    )
+
+    assert result["authority_complete"] is True
+    assert result["price"] == pytest.approx(60000.0)
+    assert result["consumer_validation_boundary"] == (
+        "PAPER_LOOP_EXCHANGE_MARK_CONSUMER_V1"
+    )
+    assert result["event_time"] == decision_time
+    assert result["generated_at"] == decision_time
+    assert result["available_at"] == decision_time
+    assert result["decision_time"] == decision_time
+
+
+def test_exchange_mark_consumer_rejects_future_available_at_and_tamper() -> None:
+    decision = datetime.now(timezone.utc).replace(microsecond=0)
+    decision_time = decision.isoformat().replace("+00:00", "Z")
+    future = (decision.replace(microsecond=0).timestamp() + 1.0)
+    future_available = datetime.fromtimestamp(future, tz=timezone.utc).isoformat().replace(
+        "+00:00", "Z"
+    )
+    payload = _authenticated_exchange_mark_payload(
+        event_time=decision_time,
+        available_at=future_available,
+    )
+    payload["evidence_sha256"] = paper_loop._exchange_mark_payload_sha256(  # noqa: SLF001
+        payload
+    )
+    redis = _FakeRedis({"v2:market:mark_price:BTCUSDT": payload})
+
+    future_result = paper_loop._read_v2_exchange_mark_price(  # noqa: SLF001
+        redis,
+        "BTCUSDT",
+        decision_time=decision_time,
+    )
+    assert future_result["authority_complete"] is False
+    assert future_result["price"] is None
+    assert "EXCHANGE_MARK_AVAILABLE_AFTER_DECISION_TIME" in future_result[
+        "rejection_reasons"
+    ]
+
+    payload = _authenticated_exchange_mark_payload(event_time=decision_time)
+    payload["mark_price"] = 1.0
+    redis = _FakeRedis({"v2:market:mark_price:BTCUSDT": payload})
+    tampered = paper_loop._read_v2_exchange_mark_price(  # noqa: SLF001
+        redis,
+        "BTCUSDT",
+        decision_time=decision_time,
+    )
+    assert tampered["authority_complete"] is False
+    assert "EXCHANGE_MARK_EVIDENCE_SHA256_INVALID" in tampered["rejection_reasons"]
+
+
+class _HedgeQueueRedis(_FakeRedis):
+    def __init__(self, payloads: dict[str, object]):
+        super().__init__(payloads)
+        self.queue_set_calls: list[dict[str, object]] = []
+        self.deleted: list[str] = []
+
+    def set(
+        self,
+        key: str,
+        value: str,
+        ex: int | None = None,
+        keepttl: bool = False,
+    ) -> bool:
+        self.payloads[key] = value
+        self.queue_set_calls.append(
+            {"key": key, "ex": ex, "keepttl": keepttl, "value": value}
+        )
+        return True
+
+    def delete(self, key: str) -> int:
+        self.deleted.append(key)
+        return int(self.payloads.pop(key, None) is not None)
+
+
+def _iso(value: datetime) -> str:
+    return value.astimezone(timezone.utc).isoformat(timespec="milliseconds").replace(
+        "+00:00", "Z"
+    )
+
+
+def _queue_directive(
+    *,
+    symbol: str,
+    parent_position_id: str,
+    parent_generation_id: str,
+    parent_fill_id: str,
+    generated_at: datetime,
+    previous_cycle_at: datetime,
+    paper_session_id: str,
+) -> dict[str, object]:
+    generated_utc = _iso(generated_at)
+    mark_evidence = {
+        "authority_complete": True,
+        "event_time": generated_utc,
+        "generated_at": generated_utc,
+        "available_at": generated_utc,
+        "source": "binance_usdm_wss_mark_price_all_symbols",
+        "authentication_boundary": (
+            "BINANCE_USDM_TLS_WSS_MARK_PRICE_PUBLIC_STREAM_V1"
+        ),
+        "consumer_validation_boundary": "PAPER_LOOP_EXCHANGE_MARK_CONSUMER_V1",
+        "cadence_policy_version": (
+            "BINANCE_USDM_MARK_PRICE_STREAM_1S_CADENCE_V1"
+        ),
+        "freshness_budget_seconds": 1.0,
+        "expected_update_interval_seconds": 1.0,
+        "evidence_sha256": "a" * 64,
+    }
+    validity = build_adaptive_hedge_directive_validity(
+        previous_cycle_generated_utc=_iso(previous_cycle_at),
+        directive_generated_utc=generated_utc,
+        mark_evidence=mark_evidence,
+    )
+    assert validity["authority_complete"] is True
+    return lifecycle_module._seal_hedge_directive(  # noqa: SLF001
+        {
+            "symbol": symbol,
+            "parent_position_id": parent_position_id,
+            "parent_position_generation_id": parent_generation_id,
+            "paper_session_id": paper_session_id,
+            "hedge_pair_session_id": paper_session_id,
+            "parent_entry_fill_id": parent_fill_id,
+            "hedge_side": "short",
+            "hedge_ratio": 0.5,
+            "hedge_quantity": 0.5,
+            "reason": "ADAPTIVE_ADVERSE_EXCURSION_HEDGE",
+            "parent_pnl_bps_at_trigger": -50.0,
+            "validity_envelope": validity,
+            "generated_utc": generated_utc,
+            "paper_only": True,
+            "places_real_order": False,
+        }
+    )
+
+
+def _queue_payload(
+    *,
+    directives: list[dict[str, object]],
+    generated_utc: str,
+    paper_session_id: str,
+) -> dict[str, object]:
+    return {
+        "schema_version": HEDGE_DIRECTIVE_QUEUE_SCHEMA_VERSION,
+        "generated_utc": generated_utc,
+        "paper_session_id": paper_session_id,
+        "directives": directives,
+        "storage_ttl_seconds": 1,
+        "storage_ttl_role": HEDGE_DIRECTIVE_STORAGE_TTL_ROLE,
+        "storage_ttl_grants_directive_authority": False,
+        "directive_validity_authority": (
+            "PER_DIRECTIVE_ADAPTIVE_VALIDITY_ENVELOPE"
+        ),
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+
+
+def test_hedge_queue_consumption_removes_success_and_atomically_retains_retry() -> None:
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    session_id = "paper-session-hedge-queue-unit"
+    btc_directive = _queue_directive(
+        symbol="BTCUSDT",
+        parent_position_id="btc-position",
+        parent_generation_id="btc-generation",
+        parent_fill_id="btc-fill",
+        generated_at=now,
+        previous_cycle_at=now - timedelta(seconds=30),
+        paper_session_id=session_id,
+    )
+    eth_directive = _queue_directive(
+        symbol="ETHUSDT",
+        parent_position_id="eth-position",
+        parent_generation_id="eth-generation",
+        parent_fill_id="eth-fill-missing",
+        generated_at=now,
+        previous_cycle_at=now - timedelta(seconds=30),
+        paper_session_id=session_id,
+    )
+    mark_payload = _authenticated_exchange_mark_payload(
+        symbol="BTCUSDT",
+        price=100.0,
+        event_time=_iso(now),
+    )
+    redis = _HedgeQueueRedis(
+        {
+            paper_loop.HEDGE_DIRECTIVES_REDIS_KEY: _queue_payload(
+                directives=[btc_directive, eth_directive],
+                generated_utc=_iso(now),
+                paper_session_id=session_id,
+            ),
+            "v2:market:mark_price:BTCUSDT": mark_payload,
+        }
+    )
+    existing_ledger = {
+        "paper_session_id": session_id,
+        "positions_by_symbol": {
+            "BTCUSDT": {
+                "position_id": "btc-position",
+                "position_generation_id": "btc-generation",
+            },
+            "ETHUSDT": {
+                "position_id": "eth-position",
+                "position_generation_id": "eth-generation",
+            },
+        },
+    }
+    accepted: list[dict[str, object]] = []
+
+    status = paper_loop._synthesize_adaptive_hedge_fills(  # noqa: SLF001
+        redis,
+        existing_ledger=existing_ledger,
+        existing_accepted=[
+            {
+                "fill_id": "btc-fill",
+                "symbol": "BTCUSDT",
+                "paper_session_id": session_id,
+            }
+        ],
+        accepted=accepted,
+        paper_session_id=session_id,
+        starting_equity_usd=1_000.0,
+    )
+
+    assert status["synthesized"] == 1
+    assert status["retryable_retained"] == 1
+    assert len(accepted) == 1
+    assert accepted[0]["hedge_parent_id"] == "btc-position"
+    assert accepted[0]["hedge_parent_generation_id"] == "btc-generation"
+    assert accepted[0]["hedge_directive_receipt"] == btc_directive
+    assert accepted[0]["hedge_directive_generated_utc"] <= accepted[0][
+        "hedge_decision_time"
+    ]
+    assert accepted[0]["hedge_mark_available_at"] <= accepted[0][
+        "hedge_decision_time"
+    ]
+    assert accepted[0]["decision_time"] == accepted[0]["hedge_decision_time"]
+    assert accepted[0]["hedge_decision_time"] <= accepted[0]["execution_time"]
+    assert accepted[0]["fill_price_utc"] == accepted[0]["execution_time"]
+    assert accepted[0]["entry_time"] == accepted[0]["execution_time"]
+    assert accepted[0]["hedge_mark_consumer_validation_boundary"] == (
+        "PAPER_LOOP_EXCHANGE_MARK_CONSUMER_V1"
+    )
+    assert redis.deleted == []
+    assert redis.queue_set_calls[-1]["keepttl"] is True
+    retained = json.loads(
+        str(redis.queue_set_calls[-1]["value"])
+    )
+    assert retained["directives"] == [eth_directive]
+
+
+def test_hedge_queue_expired_directive_fails_closed_and_is_deleted() -> None:
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    session_id = "paper-session-hedge-queue-expired"
+    generated_at = now - timedelta(seconds=120)
+    directive = _queue_directive(
+        symbol="BTCUSDT",
+        parent_position_id="btc-position",
+        parent_generation_id="btc-generation",
+        parent_fill_id="btc-fill",
+        generated_at=generated_at,
+        previous_cycle_at=generated_at - timedelta(seconds=15),
+        paper_session_id=session_id,
+    )
+    redis = _HedgeQueueRedis(
+        {
+            paper_loop.HEDGE_DIRECTIVES_REDIS_KEY: _queue_payload(
+                directives=[directive],
+                generated_utc=_iso(generated_at),
+                paper_session_id=session_id,
+            )
+        }
+    )
+    accepted: list[dict[str, object]] = []
+
+    status = paper_loop._synthesize_adaptive_hedge_fills(  # noqa: SLF001
+        redis,
+        existing_ledger={
+            "paper_session_id": session_id,
+            "positions_by_symbol": {
+                "BTCUSDT": {
+                    "position_id": "btc-position",
+                    "position_generation_id": "btc-generation",
+                }
+            },
+        },
+        existing_accepted=[{"fill_id": "btc-fill", "symbol": "BTCUSDT"}],
+        accepted=accepted,
+        paper_session_id=session_id,
+        starting_equity_usd=1_000.0,
+    )
+
+    assert status["synthesized"] == 0
+    assert accepted == []
+    assert status["skipped"][0]["reason"] == (
+        "DIRECTIVE_ADAPTIVE_VALIDITY_EXPIRED"
+    )
+    assert redis.deleted == [paper_loop.HEDGE_DIRECTIVES_REDIS_KEY]
+
+
+def test_hedge_queue_rechecks_expiry_immediately_before_fill_commit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    generated_at = datetime(2026, 7, 21, 12, 0, tzinfo=timezone.utc)
+    session_id = "paper-session-hedge-queue-commit-expiry"
+    directive = _queue_directive(
+        symbol="BTCUSDT",
+        parent_position_id="btc-position",
+        parent_generation_id="btc-generation",
+        parent_fill_id="btc-fill",
+        generated_at=generated_at,
+        previous_cycle_at=generated_at - timedelta(seconds=15),
+        paper_session_id=session_id,
+    )
+    redis = _HedgeQueueRedis(
+        {
+            paper_loop.HEDGE_DIRECTIVES_REDIS_KEY: _queue_payload(
+                directives=[directive],
+                generated_utc=_iso(generated_at),
+                paper_session_id=session_id,
+            )
+        }
+    )
+    clock = iter(
+        (
+            "2026-07-21T12:00:15.999Z",
+            "2026-07-21T12:00:15.999Z",
+            "2026-07-21T12:00:16.001Z",
+        )
+    )
+    monkeypatch.setattr(paper_loop, "_utc_iso", lambda: next(clock))
+    monkeypatch.setattr(
+        paper_loop,
+        "_read_v2_exchange_mark_price",
+        lambda *args, **kwargs: {
+            "authority_complete": True,
+            "price": 100.0,
+            "event_time": "2026-07-21T12:00:15.900Z",
+            "generated_at": "2026-07-21T12:00:15.910Z",
+            "available_at": "2026-07-21T12:00:15.920Z",
+            "evidence_sha256": "b" * 64,
+            "consumer_validation_boundary": (
+                "PAPER_LOOP_EXCHANGE_MARK_CONSUMER_V1"
+            ),
+            "rejection_reasons": [],
+        },
+    )
+    accepted: list[dict[str, object]] = []
+
+    status = paper_loop._synthesize_adaptive_hedge_fills(  # noqa: SLF001
+        redis,
+        existing_ledger={
+            "paper_session_id": session_id,
+            "positions_by_symbol": {
+                "BTCUSDT": {
+                    "position_id": "btc-position",
+                    "position_generation_id": "btc-generation",
+                }
+            },
+        },
+        existing_accepted=[{"fill_id": "btc-fill", "symbol": "BTCUSDT"}],
+        accepted=accepted,
+        paper_session_id=session_id,
+        starting_equity_usd=1_000.0,
+    )
+
+    assert accepted == []
+    assert status["synthesized"] == 0
+    assert status["skipped"][-1]["reason"] == (
+        "DIRECTIVE_EXPIRED_BEFORE_HEDGE_FILL_COMMIT"
+    )
+    assert redis.deleted == [paper_loop.HEDGE_DIRECTIVES_REDIS_KEY]
+
+
+def test_lifecycle_bracket_adapter_binds_hmac_selection_to_exact_mark(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from v2.backend.app.services import binance_usdm_leverage_bracket_evidence
+
+    selected = {
+        "status": "READY",
+        "allowed": True,
+        "evidence_usable": True,
+        "selected_bracket": 2,
+        "maintenance_margin_rate": 0.01,
+        "maintenance_margin_cum": 3.0,
+        "maintenance_margin_estimate_for_candidate_notional": 2.0,
+        "max_initial_leverage": 20,
+        "candidate_notional": 500.0,
+        "candidate_notional_contract": (
+            "TOTAL_ABSOLUTE_SYMBOL_POSITION_NOTIONAL_AFTER_CANDIDATE_FILL"
+        ),
+        "notional_floor": 100.0,
+        "notional_cap": 1000.0,
+        "content_checksum_sha256": "a" * 64,
+        "evidence_hmac_sha256": "b" * 64,
+        "credential_binding_id": "mainnet:paper:readonly",
+        "exchange_environment": "mainnet",
+        "evidence_auth_key_id": "key-v1",
+        "source": "BINANCE_USDM_USER_DATA_GET_FAPI_V1_LEVERAGE_BRACKET",
+    }
+    monkeypatch.setattr(
+        binance_usdm_leverage_bracket_evidence,
+        "select_paper_bracket_evidence",
+        lambda *args, **kwargs: dict(selected),
+    )
+    mark = {
+        "authority_complete": True,
+        "evidence_sha256": "c" * 64,
+        "event_time": "2026-07-21T12:00:00Z",
+    }
+
+    result = paper_loop._select_paper_maintenance_bracket_for_lifecycle(  # noqa: SLF001
+        object(),
+        security_context=object(),
+        symbol="BTCUSDT",
+        candidate_notional=500.0,
+        decision_time="2026-07-21T12:00:00Z",
+        mark_evidence=mark,
+        position_id="position-1",
+        position_generation_id="generation-1",
+    )
+
+    assert result["prevalidated"] is True
+    assert result["authentication_revalidated"] is True
+    assert result["authentication_boundary"] == (
+        "PAPER_LOOP_SELECT_PAPER_BRACKET_EVIDENCE_HMAC_V1"
+    )
+    assert result["candidate_notional"] == pytest.approx(500.0)
+    assert result["position_id_at_selection"] == "position-1"
+    assert result["position_generation_id_at_selection"] == "generation-1"
+    assert result["mark_evidence_sha256_at_selection"] == "c" * 64
 
 
 def _preemptive_allow_decision(**overrides) -> dict[str, object]:
@@ -98,6 +599,7 @@ def test_paper_trainer_model_quality_status_surfaces_checkpoint_blockers() -> No
     assert status["paper_only"] is True
     assert status["routes_to_live"] is False
     assert status["places_real_order"] is False
+
     assert status["counts_as_a_grade_evidence"] is False
 
 
@@ -10921,6 +11423,7 @@ def test_trainer_model_quality_runtime_status_publishes_phase_9_contract(
     assert status["paper_only"] is True
     assert status["routes_to_live"] is False
     assert status["places_real_order"] is False
+
     assert status["counts_as_a_grade_evidence"] is False
     assert status["a_grade_promotion_allowed"] is False
     assert status["ready_allowed"] is False
@@ -16931,29 +17434,165 @@ def test_session_performance_sizing_factor_adapts_both_directions() -> None:
 
 
 def test_portfolio_cascade_guard_decision_core() -> None:
-    # Protect losers in confirmed cascades; let winners ride; close losers on
-    # portfolio worst-case breach; do nothing otherwise.
-    from app.cli.v2_portfolio_cascade_guard_loop import decide_directives
+    # Close the smallest descending prefix of positions whose signed marginal
+    # contribution restores the adaptive stress reserve. Present PnL sign is
+    # not a liquidation-relief proxy.
+    from v2.backend.app.cli.v2_portfolio_cascade_guard_loop import decide_directives
 
     positions = [
-        {"symbol": "ALTAUSDT", "unrealized_pnl_bps": -25.0},
-        {"symbol": "ALTBUSDT", "unrealized_pnl_bps": +80.0},
-        {"symbol": "CALMUSDT", "unrealized_pnl_bps": -10.0},
+        {
+            "position_id": f"position-{symbol}",
+            "position_generation_id": f"generation-{symbol}",
+            "position_evidence_sha256": character * 64,
+            "symbol": symbol,
+            "side": "long",
+            "position_quantity": 1.0,
+            "entry_price": 100.0,
+            "effective_leverage": 2.0,
+            "unrealized_pnl_bps": pnl_bps,
+            "margin_mode": "cross",
+        }
+        for symbol, pnl_bps, character in (
+            ("ALTAUSDT", -25.0, "a"),
+            ("ALTBUSDT", +80.0, "b"),
+            ("CALMUSDT", -10.0, "c"),
+        )
     ]
-    cascade = {
-        "ALTAUSDT": {"status": "EVENT_CONFIRMED", "score": 0.9, "timeframe": "1m"},
-        "ALTBUSDT": {"status": "EVENT_CONFIRMED", "score": 0.9, "timeframe": "1m"},
-        "CALMUSDT": {"status": "ABSENT_NO_TRADE", "score": 0.1, "timeframe": "1m"},
+    snapshot = {
+        "authority_complete": True,
+        "portfolio_level_computed": True,
+        "adaptive_stress_authority_complete": True,
+        "portfolio_snapshot_sha256": "1" * 64,
+        "worst_case_liquidation_breached": True,
+        "worst_case_liquidation_buffer_usd": -10.0,
+        "adaptive_recovery_reserve_usd": 30.0,
+        "worst_case_scenario": "unit_down",
+        "adaptive_stress_evidence_sha256": "3" * 64,
+        "adaptive_stress_source_observations_sha256": "4" * 64,
+        "adaptive_stress_policy_version": "UNIT_STRESS_V1",
+        "adaptive_stress_cadence_policy_version": "UNIT_CADENCE_V1",
+        "adaptive_stress_freshness_budget_seconds": 60.0,
+        "adaptive_guard_lifetime_seconds": 20.0,
+        "correlated_shock_scenarios": {
+            "unit_down": {
+                "position_contributions": {
+                    f"position-{symbol}": {
+                        "position_generation_id": f"generation-{symbol}",
+                        "symbol": symbol,
+                        "symbol_move": -0.2,
+                        "shock_pnl_delta_usd": -relief,
+                        "shocked_maintenance_margin_usd": 1.0,
+                        "marginal_stress_buffer_relief_if_closed_usd": relief,
+                    }
+                    for symbol, relief in (
+                        ("ALTAUSDT", 25.0),
+                        ("ALTBUSDT", 50.0),
+                        ("CALMUSDT", -5.0),
+                    )
+                }
+            }
+        },
     }
-    d = {x["symbol"]: x for x in decide_directives(positions, cascade, {})}
-    assert d["ALTAUSDT"]["action"] == "CLOSE"
-    assert d["ALTBUSDT"]["action"] == "RIDE_TIGHTEN"  # winner rides the move
-    assert "CALMUSDT" not in d
+    kwargs = {
+        "paper_session_id": "unit-paper-session",
+        "source_ledger_generated_utc": "2026-07-09T05:59:30Z",
+        "source_ledger_sha256": "2" * 64,
+        "generated_utc": "2026-07-09T06:00:00Z",
+        "expires_utc": "2026-07-09T06:00:20Z",
+    }
+    directives = decide_directives(positions, {}, snapshot, **kwargs)
+    assert [row["symbol"] for row in directives] == ["ALTBUSDT"]
+    assert directives[0]["unrealized_pnl_bps_at_generation"] > 0.0
+    assert directives[0]["marginal_stress_buffer_relief_if_closed_usd"] == 50.0
 
-    breach = {"worst_case_liquidation_breached": True}
-    d2 = {x["symbol"]: x for x in decide_directives(positions, cascade, breach)}
-    assert d2["CALMUSDT"]["action"] == "CLOSE"  # portfolio breach closes losers
-    assert d2["ALTBUSDT"]["action"] == "RIDE_TIGHTEN"
+    missing_stress_authority = {**snapshot, "adaptive_stress_authority_complete": False}
+    assert decide_directives(positions, {}, missing_stress_authority, **kwargs) == []
+
+
+def test_paper_ledger_margin_snapshot_binds_exact_position_generation() -> None:
+    position = {
+        "position_id": "paper_pos_ALTAUSDT_generation",
+        "position_generation_id": "generation-a",
+        "paper_session_id": "paper-session-a",
+        "symbol": "ALTAUSDT",
+        "side": "long",
+        "net_quantity": 10.0,
+        "avg_entry_price": 100.0,
+        "last_mark_price": 99.0,
+        "effective_leverage": 1.0,
+        "gross_notional_usd": 1000.0,
+        "maintenance_margin_rate": 0.01,
+        "maintenance_margin_cum": 0.0,
+        "maintenance_margin_mark_price": 99.0,
+        "maintenance_margin_mark_time": "2026-07-09T06:00:00Z",
+        "maintenance_margin_mark_event_time": "2026-07-09T06:00:00Z",
+        "maintenance_margin_mark_generated_at": "2026-07-09T06:00:00Z",
+        "maintenance_margin_mark_available_at": "2026-07-09T06:00:00Z",
+        "maintenance_margin_mark_decision_time": "2026-07-09T06:00:00Z",
+        "maintenance_margin_mark_source": "UNIT_AUTHENTICATED_MARK",
+        "maintenance_margin_mark_evidence_sha256": "a" * 64,
+        "maintenance_margin_mark_contract_authoritative": True,
+        "maintenance_margin_mark_freshness_budget_seconds": 1.0,
+        "maintenance_margin_mark_cadence_policy_version": "UNIT_MARK_CADENCE_V1",
+        "maintenance_margin_mark_consumer_validation_boundary": (
+            "PAPER_LOOP_EXCHANGE_MARK_CONSUMER_V1"
+        ),
+        "margin_mode_simulated": "isolated_paper_simulated",
+        "maintenance_margin_notional_usd": 990.0,
+        "maintenance_margin_estimate": 9.9,
+        "unrealized_pnl": -10.0,
+        "unrealized_pnl_bps": -100.0,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+    status = paper_loop._paper_account_margin_snapshot_for_ledger(  # noqa: SLF001
+        open_positions=[position],
+        starting_equity_usd=10_000.0,
+        realized_net_pnl_usd=0.0,
+        unrealized_pnl_usd=-10.0,
+        paper_session_id="paper-session-a",
+        generated_utc="2026-07-09T06:00:00Z",
+    )
+
+    assert status["status"] == "PASS"
+    assert status["paper_session_id"] == "paper-session-a"
+    assert status["generated_utc"] == "2026-07-09T06:00:00Z"
+    assert status["wallet_balance_usd"] == 10_000.0
+    assert status["equity_usd"] == 9_990.0
+    assert status["account_balance_components_complete"] is True
+    assert status["position_margin_rows"][0]["row_id"] == position["position_id"]
+    assert status["position_margin_rows"][0]["position_generation_id"] == (
+        position["position_generation_id"]
+    )
+    assert status["paper_only"] is True
+    assert status["routes_to_live"] is False
+    assert status["places_real_order"] is False
+
+    incomplete = paper_loop._paper_account_margin_snapshot_for_ledger(  # noqa: SLF001
+        open_positions=[position],
+        starting_equity_usd=10_000.0,
+        realized_net_pnl_usd=None,
+        unrealized_pnl_usd=-10.0,
+        paper_session_id="paper-session-a",
+        generated_utc="2026-07-09T06:00:00Z",
+    )
+    assert incomplete["status"] == "FAIL_CLOSED"
+    assert incomplete["account_balance_components_complete"] is False
+
+    pnl_mismatch = paper_loop._paper_account_margin_snapshot_for_ledger(  # noqa: SLF001
+        open_positions=[position],
+        starting_equity_usd=10_000.0,
+        realized_net_pnl_usd=0.0,
+        unrealized_pnl_usd=-9.0,
+        paper_session_id="paper-session-a",
+        generated_utc="2026-07-09T06:00:00Z",
+    )
+    assert pnl_mismatch["status"] == "FAIL_CLOSED"
+    assert (
+        "EXPECTED_LEDGER_UNREALIZED_PNL_DOES_NOT_EQUAL_POSITION_ROW_SUM"
+        in pnl_mismatch["ledger_reconciliation_reasons"]
+    )
 
 
 def _quarantine_row(

@@ -3,8 +3,16 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+from copy import deepcopy
 from dataclasses import dataclass, replace
-from typing import Any
+from typing import Any, Callable
+
+from v2.backend.app.services.risk.portfolio_cascade_directive import (
+    finite_number as cascade_finite_number,
+)
+from v2.backend.app.services.risk.portfolio_cascade_directive import (
+    verify_guard_payload,
+)
 
 from .accounting import coerce_float
 from .caps import PaperExposureCaps, evaluate_exposure_caps
@@ -14,7 +22,12 @@ from .generation_identity import (
     entry_generation_identity,
     normalize_timestamp,
 )
-from .hedging import evaluate_adaptive_hedge_trigger, evaluate_adaptive_hedge_unwind
+from .hedging import (
+    build_adaptive_hedge_directive_validity,
+    evaluate_adaptive_hedge_trigger,
+    evaluate_adaptive_hedge_unwind,
+    validate_adaptive_hedge_directive_validity,
+)
 from .netting import classify_fill
 from .outcomes import build_close_event, capture_close_outcome_availability
 from .policy_funding_repair import repair_policy_funding_rows
@@ -693,6 +706,24 @@ def _hedge_position_key(symbol: str) -> str:
     return f"{str(symbol).upper()}::HEDGE"
 
 
+def _seal_hedge_directive(material: dict[str, Any]) -> dict[str, Any]:
+    payload = {
+        key: value
+        for key, value in dict(material).items()
+        if key != "hedge_directive_evidence_sha256"
+    }
+    encoded = json.dumps(
+        payload,
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    ).encode("utf-8")
+    return {
+        **payload,
+        "hedge_directive_evidence_sha256": hashlib.sha256(encoded).hexdigest(),
+    }
+
+
 def _is_hedge_child_row(row: dict[str, Any]) -> bool:
     return bool(row.get("hedge_parent_id")) and str(row.get("hedge_state") or "").upper() == "HEDGE_CHILD"
 
@@ -860,6 +891,10 @@ def _carry_prior_position_state(
     position.hedge_pending_since = first_present(
         position.hedge_pending_since, prior.get("hedge_pending_since")
     )
+    position.hedge_pending_validity_envelope = first_present(
+        position.hedge_pending_validity_envelope,
+        prior.get("hedge_pending_validity_envelope"),
+    )
     position.drawdown_at_entry = first_present(position.drawdown_at_entry, prior.get("drawdown_at_entry"))
     position.market_regime_at_entry = first_present(
         position.market_regime_at_entry,
@@ -987,6 +1022,16 @@ def _carry_prior_position_state(
         "maintenance_margin_notional_usd",
         "maintenance_margin_mark_price",
         "maintenance_margin_mark_time",
+        "maintenance_margin_mark_event_time",
+        "maintenance_margin_mark_generated_at",
+        "maintenance_margin_mark_available_at",
+        "maintenance_margin_mark_decision_time",
+        "maintenance_margin_mark_source",
+        "maintenance_margin_mark_evidence_sha256",
+        "maintenance_margin_mark_contract_authoritative",
+        "maintenance_margin_mark_freshness_budget_seconds",
+        "maintenance_margin_mark_cadence_policy_version",
+        "maintenance_margin_mark_consumer_validation_boundary",
         "maintenance_bracket_id",
         "maintenance_bracket_maint_margin_ratio",
         "maintenance_bracket_cum",
@@ -1001,11 +1046,37 @@ def _carry_prior_position_state(
         "maintenance_bracket_available_at",
         "maintenance_bracket_expires_at",
         "maintenance_bracket_consumer_observed_at",
+        "maintenance_bracket_current_checked_at",
+        "maintenance_bracket_decision_time",
+        "maintenance_bracket_candidate_notional",
+        "maintenance_bracket_notional_floor",
+        "maintenance_bracket_notional_cap",
+        "maintenance_bracket_notional_contract",
+        "maintenance_bracket_authentication_revalidated",
+        "maintenance_bracket_authentication_boundary",
         "maintenance_bracket_prevalidated",
         "maintenance_bracket_evidence_status",
         "maintenance_bracket_evidence_reason",
         "liquidation_price_estimate",
         "liquidation_buffer_bps",
+        "last_mark_price",
+        "last_mark_event_time",
+        "last_mark_generated_at",
+        "last_mark_available_at",
+        "last_mark_decision_time",
+        "last_mark_source",
+        "last_mark_evidence_sha256",
+        "last_mark_contract_authoritative",
+        "hedge_state",
+        "hedge_reason",
+        "hedge_parent_id",
+        "hedge_parent_generation_id",
+        "hedge_child_id",
+        "hedge_pair_session_id",
+        "hedge_ratio",
+        "hedge_entry_parent_pnl_bps",
+        "hedge_pending_since",
+        "hedge_pending_validity_envelope",
         "risk_budget_usd",
         "risk_budget_source",
         "stop_distance_bps",
@@ -1893,17 +1964,49 @@ def _mark_for_symbol(mark_prices: dict[str, Any], symbol: str, fallback: float |
     return fallback, "ENTRY_PRICE_FALLBACK_ONLY_FOR_UNCHANGED_MARK"
 
 
-def _maintenance_bracket_for_symbol(
+def _mark_evidence_for_symbol(
     mark_prices: dict[str, Any],
     symbol: str,
 ) -> dict[str, Any] | None:
-    """Return only the prevalidated lifecycle mapping attached to this mark."""
-
     value = mark_prices.get(symbol.upper())
-    if not isinstance(value, dict):
+    return dict(value) if isinstance(value, dict) else None
+
+
+def _maintenance_bracket_for_position(
+    *,
+    resolver: Callable[..., dict[str, Any] | None] | None,
+    position: PaperNetPosition,
+    symbol: str,
+    mark_price: float | None,
+    mark_evidence: dict[str, Any] | None,
+    decision_time: str,
+) -> dict[str, Any] | None:
+    """Resolve a fresh authenticated bracket for this exact marked notional."""
+
+    if (
+        resolver is None
+        or mark_price is None
+        or mark_price <= 0.0
+        or not isinstance(mark_evidence, dict)
+        or mark_evidence.get("authority_complete") is not True
+    ):
         return None
-    evidence = value.get("maintenance_bracket_evidence")
-    return dict(evidence) if isinstance(evidence, dict) else None
+    try:
+        return resolver(
+            symbol=symbol,
+            candidate_notional=abs(position.net_quantity) * mark_price,
+            decision_time=decision_time,
+            mark_evidence=dict(mark_evidence),
+            position_id=position.position_id,
+            position_generation_id=position.position_generation_id,
+        )
+    except Exception as exc:  # noqa: BLE001 - paper risk authority fails closed
+        return {
+            "status": "BRACKET_RESOLVER_EXCEPTION",
+            "reason": f"BRACKET_RESOLVER_EXCEPTION_{type(exc).__name__.upper()}",
+            "prevalidated": False,
+            "authentication_revalidated": False,
+        }
 
 
 def _first_number(*values: Any) -> float | None:
@@ -1981,12 +2084,18 @@ def _close_position(
     exit_spread_source: str | None = None,
     exit_spread_available_at: str | None = None,
     exit_audit_context: dict[str, Any] | None = None,
+    mark_already_applied: bool = False,
 ) -> tuple[dict[str, Any] | None, dict[str, Any] | None, dict[str, Any] | None]:
     position = positions.get(symbol)
     if position is None or close_quantity <= 0:
         return None, None, None
     quantity = min(position.net_quantity, close_quantity)
-    position.update_mark(mark_price=exit_price, mark_time=exit_time)
+    # The caller has already applied the current market mark and its exact
+    # maintenance bracket.  ``exit_price`` can be a trailing/stop execution
+    # price rather than an exchange mark; relabelling it as a mark here would
+    # invalidate otherwise current maintenance authority.
+    if not mark_already_applied:
+        position.update_mark(mark_price=exit_price, mark_time=exit_time)
     close_event, outcome = build_close_event(
         position=position,
         close_quantity=quantity,
@@ -2127,6 +2236,8 @@ def reconcile_paper_lifecycle(
     generated_utc: str | None = None,
     config: PaperLifecycleConfig | None = None,
     portfolio_guard: dict[str, Any] | None = None,
+    paper_session_id: str | None = None,
+    maintenance_bracket_resolver: Callable[..., dict[str, Any] | None] | None = None,
 ) -> dict[str, Any]:
     existing_ledger = existing_ledger or {}
     mark_prices = mark_prices or {}
@@ -2153,6 +2264,41 @@ def reconcile_paper_lifecycle(
     restored_prior_rows: dict[str, dict[str, Any]] = {}
     reconstruction_blocks: list[dict[str, Any]] = []
     blocked_prior_keys: set[str] = set()
+    guard_rejections: list[dict[str, Any]] = []
+    guard_events: list[dict[str, Any]] = []
+    guard_applied_directive_ids: set[str] = set()
+    ledger_session_id = existing_ledger.get("paper_session_id")
+    active_paper_session_id = (
+        paper_session_id
+        if isinstance(paper_session_id, str) and paper_session_id.strip()
+        else ledger_session_id
+        if isinstance(ledger_session_id, str) and ledger_session_id.strip()
+        else None
+    )
+    guard_envelope_reasons: list[str] = []
+    verified_guard_directives: list[dict[str, Any]] = []
+    if portfolio_guard is not None:
+        if active_paper_session_id is None:
+            guard_envelope_reasons.append("CURRENT_PAPER_SESSION_ID_MISSING")
+        elif (
+            isinstance(ledger_session_id, str)
+            and ledger_session_id.strip()
+            and ledger_session_id != active_paper_session_id
+        ):
+            guard_envelope_reasons.append("CURRENT_AND_LEDGER_PAPER_SESSION_ID_MISMATCH")
+        else:
+            verified_guard_directives, guard_envelope_reasons = verify_guard_payload(
+                portfolio_guard,
+                expected_paper_session_id=active_paper_session_id,
+                observed_utc=generated_utc,
+            )
+    guard_directives_by_identity = {
+        (
+            str(directive["position_id"]),
+            str(directive["position_generation_id"]),
+        ): directive
+        for directive in verified_guard_directives
+    }
 
     for prior_key, prior in prior_positions.items():
         has_reconstruction_envelope = any(
@@ -2348,6 +2494,48 @@ def reconcile_paper_lifecycle(
             and fill.get("hedge_intent") is True
             and fill.get("hedge_parent_id")
         ):
+            parent_position = positions.get(symbol)
+            hedge_ratio = coerce_float(fill.get("hedge_ratio"))
+            hedge_pair_reasons: list[str] = []
+            if parent_position is None:
+                hedge_pair_reasons.append("HEDGE_PARENT_POSITION_NOT_OPEN")
+            else:
+                if fill.get("hedge_parent_id") != parent_position.position_id:
+                    hedge_pair_reasons.append("HEDGE_PARENT_POSITION_ID_MISMATCH")
+                if (
+                    fill.get("hedge_parent_generation_id")
+                    != parent_position.position_generation_id
+                ):
+                    hedge_pair_reasons.append("HEDGE_PARENT_GENERATION_ID_MISMATCH")
+                if side == parent_position.side:
+                    hedge_pair_reasons.append("HEDGE_SIDE_NOT_OPPOSITE_PARENT")
+                if (
+                    hedge_ratio is None
+                    or not 0.0 < hedge_ratio <= 1.0
+                    or not math.isclose(
+                        quantity,
+                        parent_position.net_quantity * hedge_ratio,
+                        rel_tol=1e-9,
+                        abs_tol=1e-12,
+                    )
+                ):
+                    hedge_pair_reasons.append("HEDGE_QUANTITY_RATIO_BINDING_INVALID")
+            if (
+                active_paper_session_id is None
+                or fill.get("paper_session_id") != active_paper_session_id
+                or fill.get("hedge_pair_session_id") != active_paper_session_id
+            ):
+                hedge_pair_reasons.append("HEDGE_PAIR_PAPER_SESSION_ID_MISMATCH")
+            if fill.get("hedge_child_id") != fill_id:
+                hedge_pair_reasons.append("HEDGE_CHILD_FILL_ID_BINDING_INVALID")
+            if hedge_pair_reasons:
+                rejected = dict(fill)
+                rejected["paper_lifecycle_status"] = "HEDGE_PAIR_ADMISSION_BLOCKED"
+                rejected["paper_lifecycle_block_reasons"] = list(
+                    dict.fromkeys(hedge_pair_reasons)
+                )
+                blocked_entries.append(rejected)
+                continue
             hedge_key = _hedge_position_key(symbol)
             if hedge_key in positions:
                 netting_events.append(
@@ -2378,13 +2566,16 @@ def reconcile_paper_lifecycle(
                 fill, fill_id=fill_id, side=side, quantity=quantity, price=price
             )
             _carry_prior_position_state(positions[hedge_key], prior_positions.get(hedge_key))
-            parent_position = positions.get(symbol)
-            if parent_position is not None:
-                parent_position.hedge_state = "HEDGED"
-                parent_position.hedge_reason = str(
-                    fill.get("hedge_reason") or "ADAPTIVE_ADVERSE_EXCURSION_HEDGE"
-                )
-                parent_position.hedge_child_id = str(fill_id)
+            assert parent_position is not None
+            child_position = positions[hedge_key]
+            parent_position.hedge_state = "HEDGED"
+            parent_position.hedge_reason = str(
+                fill.get("hedge_reason") or "ADAPTIVE_ADVERSE_EXCURSION_HEDGE"
+            )
+            parent_position.hedge_child_id = child_position.position_id
+            parent_position.hedge_pair_session_id = active_paper_session_id
+            parent_position.hedge_pending_since = None
+            parent_position.hedge_pending_validity_envelope = None
             accepted_open_fills.append(
                 _accepted_fill_with_position_metadata(
                     fill,
@@ -2580,6 +2771,7 @@ def reconcile_paper_lifecycle(
     # before standard exits so a HOLD verdict can defer the parent's TIER_1
     # ATR stop below (TIER_0 tiers are never deferred).
     hedge_directives: list[dict[str, Any]] = []
+    hedge_directive_rejections: list[dict[str, Any]] = []
     hedge_pair_events: list[dict[str, Any]] = []
     hedge_protected_symbols: set[str] = set()
     if config.allow_explicit_hedge:
@@ -2589,13 +2781,43 @@ def reconcile_paper_lifecycle(
                 continue
             base_symbol = hedge_key.split("::")[0]
             parent_position = positions.get(base_symbol)
+            child_session_valid = (
+                active_paper_session_id is not None
+                and hedge_position.hedge_pair_session_id == active_paper_session_id
+            )
+            pair_binding_reasons: list[str] = []
+            if not child_session_valid:
+                pair_binding_reasons.append("HEDGE_CHILD_SESSION_BINDING_INVALID")
+            if parent_position is not None:
+                if hedge_position.hedge_parent_id != parent_position.position_id:
+                    pair_binding_reasons.append("HEDGE_CHILD_PARENT_ID_BINDING_INVALID")
+                if (
+                    hedge_position.hedge_parent_generation_id
+                    != parent_position.position_generation_id
+                ):
+                    pair_binding_reasons.append(
+                        "HEDGE_CHILD_PARENT_GENERATION_BINDING_INVALID"
+                    )
+                if parent_position.hedge_child_id != hedge_position.position_id:
+                    pair_binding_reasons.append("HEDGE_PARENT_CHILD_ID_BINDING_INVALID")
+                if parent_position.hedge_pair_session_id != active_paper_session_id:
+                    pair_binding_reasons.append("HEDGE_PARENT_SESSION_BINDING_INVALID")
+            if pair_binding_reasons:
+                hedge_pair_events.append(
+                    {
+                        "symbol": base_symbol,
+                        "action": "BLOCKED",
+                        "reason": "HEDGE_PAIR_BINDING_INVALID",
+                        "block_reasons": list(dict.fromkeys(pair_binding_reasons)),
+                    }
+                )
+                if parent_position is not None:
+                    hedge_protected_symbols.add(base_symbol)
+                continue
             mark, _mark_src = _mark_for_symbol(
                 mark_prices, base_symbol, hedge_position.last_mark_price or hedge_position.avg_entry_price
             )
-            maintenance_bracket = _maintenance_bracket_for_symbol(
-                mark_prices,
-                base_symbol,
-            )
+            mark_evidence = _mark_evidence_for_symbol(mark_prices, base_symbol)
             if mark is None or mark <= 0:
                 hedge_pair_events.append(
                     {"symbol": base_symbol, "action": "HOLD", "reason": "MARK_PRICE_MISSING"}
@@ -2603,20 +2825,77 @@ def reconcile_paper_lifecycle(
                 if parent_position is not None:
                     hedge_protected_symbols.add(base_symbol)
                 continue
+            hedge_maintenance_bracket = _maintenance_bracket_for_position(
+                resolver=maintenance_bracket_resolver,
+                position=hedge_position,
+                symbol=base_symbol,
+                mark_price=mark,
+                mark_evidence=mark_evidence,
+                decision_time=generated_utc,
+            )
+            mark_event_time = (
+                str(mark_evidence.get("event_time"))
+                if isinstance(mark_evidence, dict)
+                and mark_evidence.get("authority_complete") is True
+                else generated_utc
+            )
             hedge_position.update_mark(
                 mark_price=mark,
-                mark_time=generated_utc,
-                maintenance_bracket_evidence=maintenance_bracket,
+                mark_time=mark_event_time,
+                mark_evidence=mark_evidence,
+                decision_time=generated_utc,
+                maintenance_bracket_evidence=hedge_maintenance_bracket,
             )
+            if (
+                hedge_position.last_mark_contract_authoritative is not True
+                or hedge_position.last_mark_decision_time != generated_utc
+            ):
+                hedge_pair_events.append(
+                    {
+                        "symbol": base_symbol,
+                        "action": "HOLD",
+                        "reason": (
+                            "AUTHENTICATED_CURRENT_MARK_REQUIRED_FOR_HEDGE_PAIR_MUTATION"
+                        ),
+                    }
+                )
+                if parent_position is not None:
+                    hedge_protected_symbols.add(base_symbol)
+                continue
             hedge_pnl_bps_value = hedge_position.unrealized_pnl_bps()
             parent_pnl_bps_value = None
             parent_payload: dict[str, Any] = {}
             if parent_position is not None:
+                parent_maintenance_bracket = _maintenance_bracket_for_position(
+                    resolver=maintenance_bracket_resolver,
+                    position=parent_position,
+                    symbol=base_symbol,
+                    mark_price=mark,
+                    mark_evidence=mark_evidence,
+                    decision_time=generated_utc,
+                )
                 parent_position.update_mark(
                     mark_price=mark,
-                    mark_time=generated_utc,
-                    maintenance_bracket_evidence=maintenance_bracket,
+                    mark_time=mark_event_time,
+                    mark_evidence=mark_evidence,
+                    decision_time=generated_utc,
+                    maintenance_bracket_evidence=parent_maintenance_bracket,
                 )
+                if (
+                    parent_position.last_mark_contract_authoritative is not True
+                    or parent_position.last_mark_decision_time != generated_utc
+                ):
+                    hedge_pair_events.append(
+                        {
+                            "symbol": base_symbol,
+                            "action": "HOLD",
+                            "reason": (
+                                "AUTHENTICATED_CURRENT_PARENT_MARK_REQUIRED_FOR_HEDGE_PAIR_MUTATION"
+                            ),
+                        }
+                    )
+                    hedge_protected_symbols.add(base_symbol)
+                    continue
                 parent_pnl_bps_value = parent_position.unrealized_pnl_bps()
                 parent_payload = parent_position.to_payload(generated_utc=generated_utc)
             hedge_best_excursion = None
@@ -2671,6 +2950,7 @@ def reconcile_paper_lifecycle(
                     fee_bps=config.fee_bps,
                     slippage_bps=config.slippage_bps,
                     exit_audit_context=_exit_audit_context(exit_config=config.exit_config),
+                    mark_already_applied=True,
                 )
                 if dirty_block is not None:
                     dirty_close_blocks.append(dirty_block)
@@ -2679,31 +2959,93 @@ def reconcile_paper_lifecycle(
                     outcome_labels.append(outcome)
                     new_close_events.append(close_event)
                     new_outcomes.append(outcome)
-                if parent_position is not None:
-                    parent_position.hedge_state = "HEDGE_UNWOUND"
-                    parent_position.hedge_reason = str(unwind.get("reason") or "HEDGE_UNWOUND")
+                    if parent_position is not None:
+                        parent_position.hedge_state = "HEDGE_UNWOUND"
+                        parent_position.hedge_reason = str(
+                            unwind.get("reason") or "HEDGE_UNWOUND"
+                        )
+                        parent_position.hedge_child_id = None
+                        parent_position.hedge_pair_session_id = None
+                elif parent_position is not None:
+                    hedge_protected_symbols.add(base_symbol)
             elif action == "CLOSE_BOTH":
-                for close_key, close_pos in ((hedge_key, hedge_position), (base_symbol, parent_position)):
-                    if close_pos is None or close_key not in positions:
+                if parent_position is None or base_symbol not in positions:
+                    hedge_pair_events.append(
+                        {
+                            "symbol": base_symbol,
+                            "action": "BLOCKED",
+                            "reason": "HEDGE_PAIR_CLOSE_REQUIRES_BOTH_LEGS",
+                        }
+                    )
+                    continue
+                staged_positions = deepcopy(positions)
+                staged_closes: list[dict[str, Any]] = []
+                staged_outcomes: list[dict[str, Any]] = []
+                staged_blocks: list[dict[str, Any]] = []
+                for close_key in (hedge_key, base_symbol):
+                    staged_position = staged_positions.get(close_key)
+                    if staged_position is None:
+                        staged_blocks.append(
+                            {
+                                "symbol": close_key,
+                                "reason": "HEDGE_PAIR_STAGED_LEG_MISSING",
+                            }
+                        )
                         continue
                     close_event, outcome, dirty_block = _close_position(
-                        positions=positions,
+                        positions=staged_positions,
                         symbol=close_key,
-                        close_quantity=close_pos.net_quantity,
+                        close_quantity=staged_position.net_quantity,
                         exit_price=mark,
                         exit_time=generated_utc,
                         close_reason="TIER_2_HEDGE_PAIR_CLOSE",
                         fee_bps=config.fee_bps,
                         slippage_bps=config.slippage_bps,
-                        exit_audit_context=_exit_audit_context(exit_config=config.exit_config),
+                        exit_audit_context=_exit_audit_context(
+                            exit_config=config.exit_config
+                        ),
+                        mark_already_applied=True,
                     )
                     if dirty_block is not None:
-                        dirty_close_blocks.append(dirty_block)
-                    elif close_event is not None and outcome is not None:
-                        closed_trades.append(close_event)
-                        outcome_labels.append(outcome)
-                        new_close_events.append(close_event)
-                        new_outcomes.append(outcome)
+                        staged_blocks.append(dirty_block)
+                    elif close_event is None or outcome is None:
+                        staged_blocks.append(
+                            {
+                                "symbol": close_key,
+                                "reason": "HEDGE_PAIR_STAGED_CLOSE_INCOMPLETE",
+                            }
+                        )
+                    else:
+                        staged_closes.append(close_event)
+                        staged_outcomes.append(outcome)
+                if staged_blocks or len(staged_closes) != 2 or len(staged_outcomes) != 2:
+                    dirty_close_blocks.append(
+                        {
+                            "symbol": base_symbol,
+                            "paper_lifecycle_status": "HEDGE_PAIR_CLOSE_BLOCKED_ATOMIC",
+                            "paper_lifecycle_block_reasons": [
+                                "HEDGE_PAIR_CLOSE_ATOMIC_PREFLIGHT_FAILED"
+                            ],
+                            "leg_blocks": staged_blocks,
+                            "paper_only": True,
+                            "places_real_order": False,
+                        }
+                    )
+                    hedge_protected_symbols.add(base_symbol)
+                    hedge_pair_events.append(
+                        {
+                            "symbol": base_symbol,
+                            "action": "BLOCKED",
+                            "reason": "HEDGE_PAIR_CLOSE_ATOMIC_PREFLIGHT_FAILED",
+                        }
+                    )
+                else:
+                    positions.clear()
+                    positions.update(staged_positions)
+                    closed_trades.extend(staged_closes)
+                    outcome_labels.extend(staged_outcomes)
+                    new_close_events.extend(staged_closes)
+                    new_outcomes.extend(staged_outcomes)
             else:
                 if parent_position is not None:
                     hedge_protected_symbols.add(base_symbol)
@@ -2714,13 +3056,29 @@ def reconcile_paper_lifecycle(
             # not close them independently.
             continue
         mark, mark_source = _mark_for_symbol(mark_prices, symbol, position.last_mark_price or position.avg_entry_price)
-        maintenance_bracket = _maintenance_bracket_for_symbol(mark_prices, symbol)
+        mark_evidence = _mark_evidence_for_symbol(mark_prices, symbol)
+        maintenance_bracket = _maintenance_bracket_for_position(
+            resolver=maintenance_bracket_resolver,
+            position=position,
+            symbol=symbol,
+            mark_price=mark,
+            mark_evidence=mark_evidence,
+            decision_time=generated_utc,
+        )
+        mark_event_time = (
+            str(mark_evidence.get("event_time"))
+            if isinstance(mark_evidence, dict)
+            and mark_evidence.get("authority_complete") is True
+            else generated_utc
+        )
         exit_spread_bps, exit_spread_source, exit_spread_available_at = _exit_spread_from_mapping(
             mark_prices.get(symbol.upper()) if isinstance(mark_prices, dict) else None
         )
         position.update_mark(
             mark_price=mark,
-            mark_time=generated_utc,
+            mark_time=mark_event_time,
+            mark_evidence=mark_evidence,
+            decision_time=generated_utc,
             maintenance_bracket_evidence=maintenance_bracket,
         )
         effective_exit_config, trailing_context_decision = _exit_config_for_trailing_context(
@@ -2749,26 +3107,202 @@ def reconcile_paper_lifecycle(
                 else None
             ),
         )
-        # Portfolio cascade guard (paper-only): a confirmed cascade on a LOSING
-        # position, or a portfolio-level worst-case liquidation breach, forces a
-        # TIER_0 protective close -- one coin's MM move must never cascade the
-        # book (legacy failure mode). Winning positions are left to ride; the
-        # trailing/sweep-reversal exits own the reversal.
-        _guard_directives = {
-            str(d.get("symbol") or "").upper(): d
-            for d in ((portfolio_guard or {}).get("directives") or [])
-            if isinstance(d, dict)
-        }
-        _guard_hit = _guard_directives.get(symbol.upper())
-        if _guard_hit and str(_guard_hit.get("action") or "").upper() == "CLOSE":
-            exit_eval = {
-                "should_close": True,
-                "close_reason": "TIER_0_PORTFOLIO_CASCADE_GUARD",
-                "tier": 0,
-                "pnl_bps": position.unrealized_pnl_bps(),
-                "portfolio_cascade_guard_reason": _guard_hit.get("reason"),
-                "portfolio_cascade_guard_cascade_score": _guard_hit.get("cascade_score"),
-            }
+        # A guard directive is never joined by symbol.  The exact paper
+        # session + position id + generation must still be current, its
+        # generation-bound position material must be unchanged, and a CLOSE
+        # generated for a loser is re-evaluated against the current mark.
+        _guard_identity = (
+            position.position_id,
+            str(position.position_generation_id or ""),
+        )
+        _guard_hit = guard_directives_by_identity.get(_guard_identity)
+        if _guard_hit is not None:
+            _directive_id = str(_guard_hit.get("directive_id") or "")
+            _guard_reasons: list[str] = []
+            if str(_guard_hit.get("symbol") or "").upper() != symbol.upper():
+                _guard_reasons.append("DIRECTIVE_SYMBOL_DOES_NOT_MATCH_CURRENT_POSITION")
+            _current_quantity = coerce_float(position.net_quantity)
+            _current_entry = coerce_float(position.avg_entry_price)
+            _current_leverage = coerce_float(position.effective_leverage)
+            for _current, _expected_field, _reason in (
+                (
+                    _current_quantity,
+                    "position_quantity_at_generation",
+                    "DIRECTIVE_POSITION_QUANTITY_CHANGED",
+                ),
+                (
+                    _current_entry,
+                    "entry_price_at_generation",
+                    "DIRECTIVE_POSITION_ENTRY_PRICE_CHANGED",
+                ),
+                (
+                    _current_leverage,
+                    "effective_leverage_at_generation",
+                    "DIRECTIVE_POSITION_LEVERAGE_CHANGED",
+                ),
+            ):
+                _expected = cascade_finite_number(_guard_hit.get(_expected_field))
+                if (
+                    _current is None
+                    or _expected is None
+                    or not math.isclose(
+                        float(_current),
+                        float(_expected),
+                        rel_tol=1e-9,
+                        abs_tol=1e-7,
+                    )
+                ):
+                    _guard_reasons.append(_reason)
+            if _guard_hit.get("position_side_at_generation") != position.side:
+                _guard_reasons.append("DIRECTIVE_POSITION_SIDE_CHANGED")
+            _current_margin_mode = str(position.margin_mode_simulated or "").lower()
+            if _current_margin_mode == "cross_paper_simulated":
+                _current_margin_mode = "cross"
+            elif _current_margin_mode == "isolated_paper_simulated":
+                _current_margin_mode = "isolated"
+            if _guard_hit.get("margin_mode_at_generation") != _current_margin_mode:
+                _guard_reasons.append("DIRECTIVE_POSITION_MARGIN_MODE_CHANGED")
+
+            _action = str(_guard_hit.get("action") or "").upper()
+            if _action == "RIDE_TIGHTEN":
+                # This slice does not implement tighter trailing semantics.
+                # Preserve the right tail and expose the observation only.
+                if _guard_reasons:
+                    guard_rejections.append(
+                        {
+                            "directive_id": _directive_id,
+                            "position_id": position.position_id,
+                            "position_generation_id": position.position_generation_id,
+                            "symbol": symbol,
+                            "reasons": list(dict.fromkeys(_guard_reasons)),
+                        }
+                    )
+                else:
+                    guard_applied_directive_ids.add(_directive_id)
+                    guard_events.append(
+                        {
+                            "directive_id": _directive_id,
+                            "position_id": position.position_id,
+                            "position_generation_id": position.position_generation_id,
+                            "symbol": symbol,
+                            "action": "RIDE_TIGHTEN",
+                            "status": "TELEMETRY_ONLY_NO_EXIT_MUTATION",
+                            "reasons": [],
+                        }
+                    )
+            elif _action == "CLOSE":
+                _guard_reason = str(_guard_hit.get("reason") or "")
+                _adaptive_stress_close = (
+                    _guard_reason == "ADAPTIVE_PORTFOLIO_STRESS_DE_RISK"
+                )
+                _generation_pnl_bps = cascade_finite_number(
+                    _guard_hit.get("unrealized_pnl_bps_at_generation")
+                )
+                _current_pnl_bps = (
+                    position.unrealized_pnl_bps()
+                    if mark is not None
+                    and mark_source != "ENTRY_PRICE_FALLBACK_ONLY_FOR_UNCHANGED_MARK"
+                    and position.last_mark_contract_authoritative is True
+                    and position.last_mark_decision_time == generated_utc
+                    else None
+                )
+                if _generation_pnl_bps is None:
+                    _guard_reasons.append("DIRECTIVE_GENERATION_PNL_UNAVAILABLE")
+                elif not _adaptive_stress_close and _generation_pnl_bps >= 0.0:
+                    _guard_reasons.append(
+                        "DIRECTIVE_WAS_NOT_GENERATED_FOR_A_LOSING_POSITION"
+                    )
+                if _current_pnl_bps is None:
+                    _guard_reasons.append("CURRENT_MARK_EVIDENCE_UNAVAILABLE_FOR_PNL_REVALIDATION")
+                elif not math.isfinite(float(_current_pnl_bps)):
+                    _guard_reasons.append("CURRENT_PNL_REVALIDATION_NONFINITE")
+                elif not _adaptive_stress_close and _current_pnl_bps >= 0.0:
+                    _guard_reasons.append("CURRENT_POSITION_NO_LONGER_LOSING")
+                _current_stress_relief: float | None = None
+                if _adaptive_stress_close and _current_pnl_bps is not None:
+                    _symbol_move = cascade_finite_number(
+                        _guard_hit.get("stress_symbol_move_at_generation")
+                    )
+                    _quantity = coerce_float(position.net_quantity)
+                    _maintenance_rate = coerce_float(position.maintenance_margin_rate)
+                    _maintenance_cum = coerce_float(position.maintenance_margin_cum)
+                    if (
+                        _symbol_move is None
+                        or _symbol_move <= -1.0
+                        or mark is None
+                        or _quantity is None
+                        or _quantity <= 0.0
+                        or _maintenance_rate is None
+                        or not 0.0 < _maintenance_rate < 1.0
+                        or _maintenance_cum is None
+                        or _maintenance_cum < 0.0
+                        or not position._maintenance_bracket_is_usable()
+                    ):
+                        _guard_reasons.append(
+                            "CURRENT_ADAPTIVE_STRESS_MAINTENANCE_EVIDENCE_INVALID"
+                        )
+                    else:
+                        _shocked_mark = float(mark) * (1.0 + _symbol_move)
+                        _direction = 1.0 if position.side == "long" else -1.0
+                        _shock_pnl_delta = (
+                            _direction * _quantity * (_shocked_mark - float(mark))
+                        )
+                        _shocked_maintenance = max(
+                            0.0,
+                            _quantity * _shocked_mark * _maintenance_rate
+                            - _maintenance_cum,
+                        )
+                        _current_stress_relief = (
+                            _shocked_maintenance - _shock_pnl_delta
+                        )
+                        if (
+                            not math.isfinite(_current_stress_relief)
+                            or _current_stress_relief <= 0.0
+                        ):
+                            _guard_reasons.append(
+                                "CURRENT_MARGINAL_STRESS_CLOSE_RELIEF_NOT_POSITIVE"
+                            )
+                if _guard_reasons:
+                    guard_rejections.append(
+                        {
+                            "directive_id": _directive_id,
+                            "position_id": position.position_id,
+                            "position_generation_id": position.position_generation_id,
+                            "symbol": symbol,
+                            "reasons": list(dict.fromkeys(_guard_reasons)),
+                        }
+                    )
+                else:
+                    guard_applied_directive_ids.add(_directive_id)
+                    guard_events.append(
+                        {
+                            "directive_id": _directive_id,
+                            "position_id": position.position_id,
+                            "position_generation_id": position.position_generation_id,
+                            "symbol": symbol,
+                            "action": "CLOSE",
+                            "status": (
+                                "CURRENT_POSITIVE_STRESS_RELIEF_REVALIDATED_FOR_TIER_0_CLOSE"
+                                if _adaptive_stress_close
+                                else "CURRENT_LOSER_REVALIDATED_FOR_TIER_0_CLOSE"
+                            ),
+                            "current_unrealized_pnl_bps": _current_pnl_bps,
+                            "current_marginal_stress_buffer_relief_if_closed_usd": (
+                                _current_stress_relief
+                            ),
+                        }
+                    )
+                    exit_eval = {
+                        "should_close": True,
+                        "close_reason": "TIER_0_PORTFOLIO_CASCADE_GUARD",
+                        "tier": 0,
+                        "pnl_bps": _current_pnl_bps,
+                        "portfolio_cascade_guard_directive_id": _directive_id,
+                        "portfolio_cascade_guard_reason": _guard_hit.get("reason"),
+                        "portfolio_cascade_guard_cascade_score": _guard_hit.get(
+                            "cascade_score"
+                        ),
+                    }
         # ── Adaptive hedging hooks (operator-gated) ───────────────────────
         if config.allow_explicit_hedge and mark is not None:
             _would_atr_stop = (
@@ -2795,14 +3329,16 @@ def reconcile_paper_lifecycle(
                 # lands next cycle). Without this, the stop closes the parent
                 # before the hedge can open (observed: BARDUSDT directive at
                 # one cycle, TIER_1 close the next, synthesis skipped with
-                # PARENT_POSITION_NO_LONGER_OPEN). The deferral is BOUNDED:
-                # ~2 directive lifetimes, after which the pending state
-                # clears and the stop fires normally; the TIER_0 catastrophic
-                # floor stays armed throughout.
-                _pending_age = seconds_between(
-                    position.hedge_pending_since or position.opened_est, generated_utc
+                # PARENT_POSITION_NO_LONGER_OPEN). Deferral authority is the
+                # persisted, reconstruction-hashed adaptive validity envelope;
+                # no fixed waiting threshold may keep the stop disarmed. The
+                # TIER_0 catastrophic floor stays armed throughout.
+                _pending_validity = validate_adaptive_hedge_directive_validity(
+                    directive_generated_utc=position.hedge_pending_since,
+                    validity_envelope=position.hedge_pending_validity_envelope,
+                    observed_at=generated_utc,
                 )
-                if _pending_age <= 600:
+                if _pending_validity.get("valid") is True:
                     exit_eval = {
                         "should_close": False,
                         "close_reason": None,
@@ -2810,13 +3346,26 @@ def reconcile_paper_lifecycle(
                         "blocker": "ATR_STOP_DEFERRED_HEDGE_FILL_IN_FLIGHT",
                         "pnl_bps": exit_eval.get("pnl_bps"),
                         "deferred_close_reason": "TIER_1_ATR_VOLATILITY_STOP",
-                        "hedge_pending_age_seconds": _pending_age,
+                        "hedge_pending_age_seconds": _pending_validity.get(
+                            "age_seconds"
+                        ),
+                        "hedge_pending_remaining_seconds": _pending_validity.get(
+                            "remaining_seconds"
+                        ),
+                        "hedge_pending_validity_policy": (
+                            position.hedge_pending_validity_envelope or {}
+                        ).get("policy_version"),
                     }
                     _would_atr_stop = False
                 else:
                     position.hedge_state = "NO_HEDGE"
                     position.hedge_reason = "HEDGE_PENDING_EXPIRED_STOP_RESUMES"
                     position.hedge_pending_since = None
+                    position.hedge_pending_validity_envelope = None
+                    position.hedge_pair_session_id = None
+                    exit_eval["hedge_pending_expiry_reasons"] = (
+                        _pending_validity.get("rejection_reasons") or []
+                    )
             elif (
                 symbol not in hedge_protected_symbols
                 and (exit_eval.get("should_close") is not True or _would_atr_stop)
@@ -2841,14 +3390,35 @@ def reconcile_paper_lifecycle(
                     fee_bps=config.fee_bps,
                     slippage_bps=config.slippage_bps,
                 )
-                if trigger.get("trigger") is True:
+                directive_validity = build_adaptive_hedge_directive_validity(
+                    previous_cycle_generated_utc=existing_ledger.get(
+                        "generated_utc"
+                    ),
+                    directive_generated_utc=generated_utc,
+                    mark_evidence=mark_evidence,
+                )
+                if (
+                    trigger.get("trigger") is True
+                    and active_paper_session_id is not None
+                    and directive_validity.get("authority_complete") is True
+                ):
                     position.hedge_state = "HEDGE_PENDING"
                     position.hedge_reason = str(trigger.get("reason"))
                     position.hedge_pending_since = generated_utc
+                    position.hedge_pair_session_id = active_paper_session_id
+                    position.hedge_pending_validity_envelope = dict(
+                        directive_validity
+                    )
                     hedge_directives.append(
-                        {
+                        _seal_hedge_directive(
+                            {
                             "symbol": symbol,
                             "parent_position_id": position.position_id,
+                            "parent_position_generation_id": (
+                                position.position_generation_id
+                            ),
+                            "paper_session_id": active_paper_session_id,
+                            "hedge_pair_session_id": active_paper_session_id,
                             "parent_entry_fill_id": (
                                 position.fill_ids[0] if position.fill_ids else position.position_id
                             ),
@@ -2866,10 +3436,12 @@ def reconcile_paper_lifecycle(
                                 for k, v in trigger.items()
                                 if k not in ("trigger", "reason", "hedge_side", "hedge_ratio")
                             },
+                            "validity_envelope": directive_validity,
                             "generated_utc": generated_utc,
                             "paper_only": True,
                             "places_real_order": False,
                         }
+                    )
                     )
                     if _would_atr_stop:
                         # Convert the imminent full stop-out into a hedge:
@@ -2884,6 +3456,26 @@ def reconcile_paper_lifecycle(
                             "deferred_close_reason": "TIER_1_ATR_VOLATILITY_STOP",
                             "hedge_directive_emitted": True,
                         }
+                elif trigger.get("trigger") is True:
+                    rejection_reasons = list(
+                        directive_validity.get("rejection_reasons") or []
+                    )
+                    if active_paper_session_id is None:
+                        rejection_reasons.append(
+                            "HEDGE_DIRECTIVE_ACTIVE_PAPER_SESSION_MISSING"
+                        )
+                    hedge_directive_rejections.append(
+                        {
+                            "symbol": symbol,
+                            "reason": "HEDGE_DIRECTIVE_VALIDITY_AUTHORITY_BLOCKED",
+                            "rejection_reasons": list(
+                                dict.fromkeys(rejection_reasons)
+                            ),
+                            "validity_envelope": directive_validity,
+                            "paper_only": True,
+                            "places_real_order": False,
+                        }
+                    )
         exit_eval["symbol"] = symbol
         exit_eval["mark_price_source"] = mark_source
         exit_eval["trailing_context_decision"] = trailing_context_decision
@@ -2915,6 +3507,7 @@ def reconcile_paper_lifecycle(
                 exit_eval=exit_eval,
                 trailing_context_decision=trailing_context_decision,
             ),
+            mark_already_applied=True,
         )
         if dirty_close_block is not None:
             dirty_close_blocks.append(dirty_close_block)
@@ -2926,6 +3519,29 @@ def reconcile_paper_lifecycle(
             outcome_labels.append(outcome)
             new_close_events.append(close_event)
             new_outcomes.append(outcome)
+
+    for _directive in verified_guard_directives:
+        _directive_id = str(_directive.get("directive_id") or "")
+        if _directive_id in guard_applied_directive_ids:
+            continue
+        _identity = (
+            str(_directive.get("position_id") or ""),
+            str(_directive.get("position_generation_id") or ""),
+        )
+        if any(
+            rejection.get("directive_id") == _directive_id
+            for rejection in guard_rejections
+        ):
+            continue
+        guard_rejections.append(
+            {
+                "directive_id": _directive_id,
+                "position_id": _identity[0],
+                "position_generation_id": _identity[1],
+                "symbol": _directive.get("symbol"),
+                "reasons": ["DIRECTIVE_POSITION_IDENTITY_NOT_CURRENT"],
+            }
+        )
 
     for prior_key, prior in restored_prior_rows.items():
         restored_position = positions.get(prior_key)
@@ -3010,6 +3626,36 @@ def reconcile_paper_lifecycle(
         "new_close_events": new_close_events,
         "outcome_labels": outcome_labels,
         "new_outcome_labels": new_outcomes,
+        "portfolio_cascade_guard_lifecycle_status": {
+            "schema_version": "portfolio_cascade_guard_lifecycle_v1",
+            "guard_provided": portfolio_guard is not None,
+            "guard_envelope_valid": (
+                portfolio_guard is not None and not guard_envelope_reasons
+            ),
+            "paper_session_id": active_paper_session_id,
+            "verified_directive_count": len(verified_guard_directives),
+            "applied_close_count": sum(
+                1
+                for event in guard_events
+                if event.get("action") == "CLOSE"
+                and event.get("status")
+                in {
+                    "CURRENT_LOSER_REVALIDATED_FOR_TIER_0_CLOSE",
+                    "CURRENT_POSITIVE_STRESS_RELIEF_REVALIDATED_FOR_TIER_0_CLOSE",
+                }
+            ),
+            "ride_tighten_telemetry_only_count": sum(
+                1 for event in guard_events if event.get("action") == "RIDE_TIGHTEN"
+            ),
+            "envelope_reasons": list(dict.fromkeys(guard_envelope_reasons)),
+            "events": guard_events,
+            "rejections": guard_rejections,
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+            "leverage_mutated": False,
+            "margin_mutated": False,
+        },
         "realized_pnl_usd": realized_total,
         # Ledger-level aggregate is NET (fees/slippage/funding applied); per-trade
         # realized_pnl_usd is GROSS (bps x notional). Explicit aliases prevent
@@ -3059,6 +3705,8 @@ def reconcile_paper_lifecycle(
             ),
             "hedge_protected_symbols": sorted(hedge_protected_symbols),
             "directives_emitted": len(hedge_directives),
+            "directive_rejection_count": len(hedge_directive_rejections),
+            "directive_rejections": hedge_directive_rejections[:25],
             "pair_events": hedge_pair_events[:25],
             "explicit_hedge_opens": sum(
                 1 for row in netting_events if row.get("event") == "EXPLICIT_HEDGE_OPENED"

@@ -2084,8 +2084,53 @@ def canonical_margin_requirement(
     valid = not invalid_reasons
     reported_margin = _finite_float(row.get("allocated_margin_usd"))
     validated_symbol = _valid_paper_usdm_symbol(row.get("symbol"))
+    position_generation_id_value = row.get("position_generation_id")
+    position_generation_id = (
+        position_generation_id_value
+        if type(position_generation_id_value) is str
+        and bool(_SAFE_ROW_ID_RE.fullmatch(position_generation_id_value))
+        else None
+    )
+    paper_session_id_value = row.get("paper_session_id")
+    paper_session_id = (
+        paper_session_id_value
+        if type(paper_session_id_value) is str
+        and bool(_SAFE_ROW_ID_RE.fullmatch(paper_session_id_value))
+        else None
+    )
+    # These are non-authorizing echoes for strict downstream reconciliation.
+    # The cascade guard must compare every value back to the exact embedded
+    # open-position row; missing/invalid echoes cannot become defaults.
+    maintenance_margin_cum = _finite_float(row.get("maintenance_margin_cum"))
+    maintenance_margin_mark_price = _finite_float(
+        row.get("maintenance_margin_mark_price")
+    )
+    maintenance_margin_mark_time_value = row.get("maintenance_margin_mark_time")
+    maintenance_margin_mark_time = (
+        maintenance_margin_mark_time_value
+        if type(maintenance_margin_mark_time_value) is str
+        and bool(maintenance_margin_mark_time_value.strip())
+        else None
+    )
+    maintenance_margin_notional_usd = _finite_float(
+        row.get("maintenance_margin_notional_usd")
+    )
+    maintenance_margin_estimate = _finite_float(
+        row.get("maintenance_margin_estimate")
+    )
+    unrealized_pnl_usd = _finite_float(
+        row.get("unrealized_pnl_usd")
+        if "unrealized_pnl_usd" in row
+        else row.get("unrealized_pnl")
+    )
+    unrealized_pnl_bps = _finite_float(row.get("unrealized_pnl_bps"))
+    margin_mode_simulated = (
+        str(row.get("margin_mode_simulated") or "").strip().lower() or None
+    )
     return {
         "row_id": row_id,
+        "position_generation_id": position_generation_id,
+        "paper_session_id": paper_session_id,
         "row_identity_valid": row_identity_invalid_reason is None,
         "row_identity_invalid_reason": row_identity_invalid_reason,
         "symbol": validated_symbol or "",
@@ -2216,6 +2261,45 @@ def canonical_margin_requirement(
             and margin is not None
             and math.isclose(reported_margin, margin, rel_tol=1e-9, abs_tol=0.01)
         ),
+        "maintenance_margin_cum": maintenance_margin_cum,
+        "maintenance_margin_mark_price": maintenance_margin_mark_price,
+        "maintenance_margin_mark_time": maintenance_margin_mark_time,
+        "maintenance_margin_mark_event_time": row.get(
+            "maintenance_margin_mark_event_time"
+        ),
+        "maintenance_margin_mark_generated_at": row.get(
+            "maintenance_margin_mark_generated_at"
+        ),
+        "maintenance_margin_mark_available_at": row.get(
+            "maintenance_margin_mark_available_at"
+        ),
+        "maintenance_margin_mark_decision_time": row.get(
+            "maintenance_margin_mark_decision_time"
+        ),
+        "maintenance_margin_mark_source": row.get(
+            "maintenance_margin_mark_source"
+        ),
+        "maintenance_margin_mark_evidence_sha256": row.get(
+            "maintenance_margin_mark_evidence_sha256"
+        ),
+        "maintenance_margin_mark_contract_authoritative": row.get(
+            "maintenance_margin_mark_contract_authoritative"
+        )
+        is True,
+        "maintenance_margin_mark_freshness_budget_seconds": _finite_float(
+            row.get("maintenance_margin_mark_freshness_budget_seconds")
+        ),
+        "maintenance_margin_mark_cadence_policy_version": row.get(
+            "maintenance_margin_mark_cadence_policy_version"
+        ),
+        "maintenance_margin_mark_consumer_validation_boundary": row.get(
+            "maintenance_margin_mark_consumer_validation_boundary"
+        ),
+        "margin_mode_simulated": margin_mode_simulated,
+        "maintenance_margin_notional_usd": maintenance_margin_notional_usd,
+        "maintenance_margin_estimate": maintenance_margin_estimate,
+        "unrealized_pnl_usd": unrealized_pnl_usd,
+        "unrealized_pnl_bps": unrealized_pnl_bps,
         "mapping_snapshot_valid": mapping_snapshot_invalid_reason is None,
         "mapping_snapshot_invalid_reason": mapping_snapshot_invalid_reason,
         **route_safety_evidence,
@@ -2265,6 +2349,8 @@ def build_paper_margin_status(
     min_available_margin_buffer_pct: Any = 0.0,
     newly_reserved_margin_usd: Any = 0.0,
     reservations_included_in_open_positions: bool = False,
+    expected_unrealized_pnl_usd: Any = None,
+    require_ledger_reconciliation: bool = False,
 ) -> dict[str, Any]:
     """Build account-wide used/reserved/free paper-margin truth.
 
@@ -2388,6 +2474,102 @@ def build_paper_margin_status(
         if row["valid"] is True and row["canonical_margin_unrounded_usd"] is not None
     )
     base, base_source, equity_value, wallet_value = _margin_base(equity, wallet_balance)
+    ledger_reconciliation_reasons: list[str] = []
+    row_unrealized_values = [
+        _finite_float(row.get("unrealized_pnl_usd"))
+        for row in margin_rows
+        if row.get("valid") is True
+    ]
+    row_unrealized_complete = all(
+        value is not None for value in row_unrealized_values
+    )
+    row_unrealized_pnl_usd = (
+        math.fsum(float(value) for value in row_unrealized_values if value is not None)
+        if row_unrealized_complete
+        else None
+    )
+    expected_unrealized = _finite_float(expected_unrealized_pnl_usd)
+    if require_ledger_reconciliation:
+        if not row_unrealized_complete:
+            ledger_reconciliation_reasons.append(
+                "OPEN_POSITION_UNREALIZED_PNL_ROW_SUM_INCOMPLETE"
+            )
+        if expected_unrealized is None:
+            ledger_reconciliation_reasons.append(
+                "EXPECTED_LEDGER_UNREALIZED_PNL_MISSING_OR_NONFINITE"
+            )
+        elif (
+            row_unrealized_pnl_usd is None
+            or not math.isclose(
+                expected_unrealized,
+                row_unrealized_pnl_usd,
+                rel_tol=1e-9,
+                abs_tol=1e-7,
+            )
+        ):
+            ledger_reconciliation_reasons.append(
+                "EXPECTED_LEDGER_UNREALIZED_PNL_DOES_NOT_EQUAL_POSITION_ROW_SUM"
+            )
+        if (
+            row_unrealized_pnl_usd is None
+            or not math.isclose(
+                equity_value,
+                wallet_value + row_unrealized_pnl_usd,
+                rel_tol=1e-9,
+                abs_tol=1e-7,
+            )
+        ):
+            ledger_reconciliation_reasons.append(
+                "EQUITY_DOES_NOT_EQUAL_WALLET_PLUS_POSITION_ROW_PNL"
+            )
+        invalid_modes = [
+            row.get("margin_mode_simulated")
+            for row in margin_rows
+            if row.get("valid") is True
+            and row.get("margin_mode_simulated")
+            not in {
+                "cross",
+                "cross_paper_simulated",
+                "isolated",
+                "isolated_paper_simulated",
+            }
+        ]
+        if invalid_modes:
+            ledger_reconciliation_reasons.append(
+                "OPEN_POSITION_MARGIN_MODE_PARTITION_INCOMPLETE"
+            )
+    cross_margin_rows = [
+        row
+        for row in margin_rows
+        if row.get("valid") is True
+        and row.get("margin_mode_simulated")
+        in {"cross", "cross_paper_simulated"}
+    ]
+    isolated_margin_rows = [
+        row
+        for row in margin_rows
+        if row.get("valid") is True
+        and row.get("margin_mode_simulated")
+        in {"isolated", "isolated_paper_simulated"}
+    ]
+    cross_used_margin = math.fsum(
+        float(row["canonical_margin_usd"]) for row in cross_margin_rows
+    )
+    isolated_used_margin = math.fsum(
+        float(row["canonical_margin_usd"]) for row in isolated_margin_rows
+    )
+    cross_unrealized_pnl = math.fsum(
+        float(row["unrealized_pnl_usd"])
+        for row in cross_margin_rows
+        if row.get("unrealized_pnl_usd") is not None
+    )
+    isolated_unrealized_pnl = math.fsum(
+        float(row["unrealized_pnl_usd"])
+        for row in isolated_margin_rows
+        if row.get("unrealized_pnl_usd") is not None
+    )
+    cross_wallet_balance = wallet_value - isolated_used_margin
+    cross_equity = cross_wallet_balance + cross_unrealized_pnl
     parsed_buffer_pct = _finite_float(min_available_margin_buffer_pct)
     buffer_valid = parsed_buffer_pct is not None and 0.0 <= parsed_buffer_pct <= 1.0
     buffer_pct = parsed_buffer_pct if parsed_buffer_pct is not None and buffer_valid else 1.0
@@ -2470,6 +2652,7 @@ def build_paper_margin_status(
         and accounting_complete
         and margin_base_available
         and control_inputs_valid
+        and not ledger_reconciliation_reasons
     )
     failure_reasons: list[str] = []
     if not margin_base_available:
@@ -2483,6 +2666,7 @@ def build_paper_margin_status(
     if not reservation_inclusion_flag_valid:
         failure_reasons.append(PAPER_MARGIN_RESERVATION_INCLUSION_FLAG_INVALID_REASON)
     failure_reasons.extend(derived_invalid_reasons)
+    failure_reasons.extend(ledger_reconciliation_reasons)
     if deficit > 0.0:
         failure_reasons.append("PAPER_MARGIN_USED_AND_RESERVED_EXCEED_MARGIN_BASE")
     if not buffer_invariant:
@@ -2493,6 +2677,28 @@ def build_paper_margin_status(
         "equity": round(equity_value, 8),
         "equity_usd": round(equity_value, 8),
         "wallet_balance_usd": round(wallet_value, 8),
+        "unrealized_pnl_usd": (
+            round(row_unrealized_pnl_usd, 8)
+            if row_unrealized_pnl_usd is not None
+            else None
+        ),
+        "expected_unrealized_pnl_usd": expected_unrealized,
+        "ledger_reconciliation_required": require_ledger_reconciliation,
+        "ledger_reconciliation_complete": not ledger_reconciliation_reasons,
+        "ledger_reconciliation_reasons": ledger_reconciliation_reasons,
+        "equity_wallet_position_pnl_reconciled": (
+            require_ledger_reconciliation and not ledger_reconciliation_reasons
+        ),
+        "cross_used_margin_usd": round(cross_used_margin, 8),
+        "isolated_used_margin_usd": round(isolated_used_margin, 8),
+        "cross_unrealized_pnl_usd": round(cross_unrealized_pnl, 8),
+        "isolated_unrealized_pnl_usd": round(isolated_unrealized_pnl, 8),
+        "cross_wallet_balance_usd": round(cross_wallet_balance, 8),
+        "cross_equity_usd": round(cross_equity, 8),
+        "margin_mode_partition_complete": not any(
+            reason == "OPEN_POSITION_MARGIN_MODE_PARTITION_INCOMPLETE"
+            for reason in ledger_reconciliation_reasons
+        ),
         "margin_base_usd": round(base, 8),
         "margin_base_source": base_source,
         "margin_base_available": margin_base_available,

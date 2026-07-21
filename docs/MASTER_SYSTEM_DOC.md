@@ -137,6 +137,7 @@ No active authorized real submitter was observed; release mode was effectively n
 - [Temporal data/features](system_audit_2026_master/components/DATA_TEMPORAL_LINEAGE_AND_FEATURES.md)
 - [Trainer/PPO/MASA/replay/checkpoints](system_audit_2026_master/components/TRAINER_PPO_MASA_REPLAY_AND_CHECKPOINTS.md)
 - [Decision/risk/paper/live execution](system_audit_2026_master/components/DECISION_RISK_PAPER_AND_LIVE_EXECUTION.md)
+- [Paper cross-margin and adaptive-hedge authority contract](system_audit_2026_master/PAPER_CROSS_MARGIN_AND_HEDGE_AUTHORITY_CONTRACT.md)
 - [API/auth/storage/web/mobile](system_audit_2026_master/components/API_AUTH_STORAGE_WEB_AND_MOBILE.md)
 - [Config/contracts/change impact](system_audit_2026_master/components/CONFIG_KEYS_CONTRACTS_AND_CHANGE_IMPACT.md)
 - [Function-level atlas summary](system_audit_2026_master/atlas/ATLAS_SUMMARY.md)

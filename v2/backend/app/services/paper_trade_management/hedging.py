@@ -1,7 +1,41 @@
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from typing import Any
+
+HEDGE_DIRECTIVE_VALIDITY_SCHEMA_VERSION = (
+    "PAPER_ADAPTIVE_HEDGE_DIRECTIVE_VALIDITY_V1"
+)
+HEDGE_DIRECTIVE_VALIDITY_POLICY_VERSION = (
+    "OBSERVED_LIFECYCLE_CADENCE_PLUS_AUTHENTICATED_MARK_FRESHNESS_V1"
+)
+HEDGE_DIRECTIVE_VALIDITY_FORMULA = (
+    "MIN(IMMUTABLE_MAX_SAFETY_LIFETIME_SECONDS,"
+    "OBSERVED_LIFECYCLE_UPDATE_CADENCE_SECONDS+"
+    "AUTHENTICATED_MARK_FRESHNESS_BUDGET_SECONDS)"
+)
+# This is an immutable fail-safe ceiling, not the directive's validity
+# authority.  The effective lifetime is recomputed from observed lifecycle
+# cadence plus the authenticated mark receipt's freshness budget and is
+# normally much smaller.  The ceiling only prevents a stalled/poisoned cadence
+# observation from granting an unbounded hedge instruction lifetime.
+HEDGE_DIRECTIVE_IMMUTABLE_MAX_SAFETY_LIFETIME_SECONDS = 600.0
+HEDGE_DIRECTIVE_QUEUE_SCHEMA_VERSION = "PAPER_ADAPTIVE_HEDGE_DIRECTIVE_QUEUE_V2"
+HEDGE_DIRECTIVE_STORAGE_TTL_ROLE = (
+    "OPERATIONAL_GARBAGE_COLLECTION_ONLY_NOT_VALIDITY_AUTHORITY"
+)
+HEDGE_DIRECTIVE_MARK_SOURCE = "binance_usdm_wss_mark_price_all_symbols"
+HEDGE_DIRECTIVE_MARK_AUTHENTICATION_BOUNDARY = (
+    "BINANCE_USDM_TLS_WSS_MARK_PRICE_PUBLIC_STREAM_V1"
+)
+HEDGE_DIRECTIVE_MARK_CONSUMER_VALIDATION_BOUNDARY = (
+    "PAPER_LOOP_EXCHANGE_MARK_CONSUMER_V1"
+)
+HEDGE_DIRECTIVE_MARK_CADENCE_POLICY_VERSION = (
+    "BINANCE_USDM_MARK_PRICE_STREAM_1S_CADENCE_V1"
+)
 
 
 def _float(value: Any, default: float = 0.0) -> float:
@@ -14,6 +48,375 @@ def _float(value: Any, default: float = 0.0) -> float:
     if out != out or out in (float("inf"), float("-inf")):
         return default
     return out
+
+
+def _optional_finite_float(value: Any) -> float | None:
+    if isinstance(value, bool) or value in (None, ""):
+        return None
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if math.isfinite(parsed) else None
+
+
+def _aware_utc(value: Any) -> datetime | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        return None
+    return parsed.astimezone(UTC)
+
+
+def _utc_iso(value: datetime) -> str:
+    return value.astimezone(UTC).isoformat(timespec="milliseconds").replace(
+        "+00:00", "Z"
+    )
+
+
+def _sha256_hex(value: Any) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and value == value.lower()
+        and all(char in "0123456789abcdef" for char in value)
+    )
+
+
+def build_adaptive_hedge_directive_validity(
+    *,
+    previous_cycle_generated_utc: Any,
+    directive_generated_utc: Any,
+    mark_evidence: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Build point-in-time validity from observed cadence and mark freshness.
+
+    No configured/default duration authorizes the directive.  A directive is
+    eligible only when there is a prior lifecycle timestamp (an actual cadence
+    observation) and an authenticated, current mark receipt.  The immutable
+    maximum is a safety ceiling only.
+    """
+
+    previous_at = _aware_utc(previous_cycle_generated_utc)
+    generated_at = _aware_utc(directive_generated_utc)
+    evidence = mark_evidence if isinstance(mark_evidence, dict) else {}
+    mark_event_at = _aware_utc(evidence.get("event_time"))
+    mark_generated_at = _aware_utc(evidence.get("generated_at"))
+    mark_available_at = _aware_utc(evidence.get("available_at"))
+    source_freshness = _optional_finite_float(
+        evidence.get("freshness_budget_seconds")
+    )
+    source_expected_interval = _optional_finite_float(
+        evidence.get("expected_update_interval_seconds")
+    )
+    rejection_reasons: list[str] = []
+    if previous_at is None or generated_at is None:
+        rejection_reasons.append("HEDGE_DIRECTIVE_CADENCE_CLOCK_MISSING_OR_INVALID")
+    elif previous_at >= generated_at:
+        rejection_reasons.append("HEDGE_DIRECTIVE_CADENCE_CLOCK_ORDER_INVALID")
+    if evidence.get("authority_complete") is not True:
+        rejection_reasons.append("HEDGE_DIRECTIVE_MARK_AUTHORITY_INCOMPLETE")
+    if None in (mark_event_at, mark_generated_at, mark_available_at, generated_at):
+        rejection_reasons.append("HEDGE_DIRECTIVE_MARK_CLOCK_MISSING_OR_INVALID")
+    elif not mark_event_at <= mark_generated_at <= mark_available_at <= generated_at:
+        rejection_reasons.append("HEDGE_DIRECTIVE_MARK_CLOCK_ORDER_INVALID")
+    if (
+        source_freshness is None
+        or source_freshness <= 0.0
+        or source_expected_interval is None
+        or source_expected_interval <= 0.0
+        or not math.isclose(
+            source_freshness,
+            source_expected_interval,
+            rel_tol=0.0,
+            abs_tol=1e-12,
+        )
+    ):
+        rejection_reasons.append("HEDGE_DIRECTIVE_MARK_CADENCE_CONTRACT_INVALID")
+    elif generated_at is not None and mark_event_at is not None:
+        mark_age_seconds = (generated_at - mark_event_at).total_seconds()
+        if mark_age_seconds < 0.0 or mark_age_seconds > source_freshness:
+            rejection_reasons.append("HEDGE_DIRECTIVE_MARK_STALE_AT_GENERATION")
+    exact_mark_authority_fields = {
+        "source": HEDGE_DIRECTIVE_MARK_SOURCE,
+        "authentication_boundary": HEDGE_DIRECTIVE_MARK_AUTHENTICATION_BOUNDARY,
+        "consumer_validation_boundary": (
+            HEDGE_DIRECTIVE_MARK_CONSUMER_VALIDATION_BOUNDARY
+        ),
+        "cadence_policy_version": HEDGE_DIRECTIVE_MARK_CADENCE_POLICY_VERSION,
+    }
+    for field_name, expected in exact_mark_authority_fields.items():
+        if evidence.get(field_name) != expected:
+            rejection_reasons.append(
+                f"HEDGE_DIRECTIVE_MARK_{field_name.upper()}_MISMATCH"
+            )
+    if not _sha256_hex(evidence.get("evidence_sha256")):
+        rejection_reasons.append("HEDGE_DIRECTIVE_MARK_EVIDENCE_HASH_INVALID")
+
+    observed_cadence = (
+        (generated_at - previous_at).total_seconds()
+        if previous_at is not None and generated_at is not None and previous_at < generated_at
+        else None
+    )
+    adaptive_budget = (
+        min(
+            HEDGE_DIRECTIVE_IMMUTABLE_MAX_SAFETY_LIFETIME_SECONDS,
+            observed_cadence + source_freshness,
+        )
+        if observed_cadence is not None
+        and observed_cadence > 0.0
+        and source_freshness is not None
+        and source_freshness > 0.0
+        else None
+    )
+    expires_at = (
+        generated_at + timedelta(seconds=adaptive_budget)
+        if generated_at is not None and adaptive_budget is not None
+        else None
+    )
+    return {
+        "schema_version": HEDGE_DIRECTIVE_VALIDITY_SCHEMA_VERSION,
+        "policy_version": HEDGE_DIRECTIVE_VALIDITY_POLICY_VERSION,
+        "authority_complete": not rejection_reasons,
+        "rejection_reasons": list(dict.fromkeys(rejection_reasons)),
+        "cadence_observation_from": (
+            _utc_iso(previous_at) if previous_at is not None else None
+        ),
+        "cadence_observation_to": (
+            _utc_iso(generated_at) if generated_at is not None else None
+        ),
+        "observed_lifecycle_update_cadence_seconds": observed_cadence,
+        "authenticated_mark_freshness_budget_seconds": source_freshness,
+        "authenticated_mark_expected_update_interval_seconds": (
+            source_expected_interval
+        ),
+        "adaptive_freshness_budget_seconds": adaptive_budget,
+        "valid_until": _utc_iso(expires_at) if expires_at is not None else None,
+        "immutable_max_safety_lifetime_seconds": (
+            HEDGE_DIRECTIVE_IMMUTABLE_MAX_SAFETY_LIFETIME_SECONDS
+        ),
+        "lifetime_formula": HEDGE_DIRECTIVE_VALIDITY_FORMULA,
+        "mark_event_time": evidence.get("event_time"),
+        "mark_generated_at": evidence.get("generated_at"),
+        "mark_available_at": evidence.get("available_at"),
+        "mark_source": evidence.get("source"),
+        "mark_authentication_boundary": evidence.get("authentication_boundary"),
+        "mark_consumer_validation_boundary": evidence.get(
+            "consumer_validation_boundary"
+        ),
+        "mark_cadence_policy_version": evidence.get("cadence_policy_version"),
+        "mark_evidence_sha256": evidence.get("evidence_sha256"),
+        "paper_only": True,
+        "places_real_order": False,
+    }
+
+
+def validate_adaptive_hedge_directive_validity(
+    *,
+    directive_generated_utc: Any,
+    validity_envelope: dict[str, Any] | None,
+    observed_at: Any,
+) -> dict[str, Any]:
+    """Recompute one directive's adaptive lifetime at the consumer boundary."""
+
+    validity = validity_envelope if isinstance(validity_envelope, dict) else {}
+    generated_at = _aware_utc(directive_generated_utc)
+    observed = _aware_utc(observed_at)
+    cadence_from = _aware_utc(validity.get("cadence_observation_from"))
+    cadence_to = _aware_utc(validity.get("cadence_observation_to"))
+    valid_until = _aware_utc(validity.get("valid_until"))
+    mark_event_at = _aware_utc(validity.get("mark_event_time"))
+    mark_generated_at = _aware_utc(validity.get("mark_generated_at"))
+    mark_available_at = _aware_utc(validity.get("mark_available_at"))
+    observed_cadence = _optional_finite_float(
+        validity.get("observed_lifecycle_update_cadence_seconds")
+    )
+    source_freshness = _optional_finite_float(
+        validity.get("authenticated_mark_freshness_budget_seconds")
+    )
+    source_expected_interval = _optional_finite_float(
+        validity.get("authenticated_mark_expected_update_interval_seconds")
+    )
+    adaptive_budget = _optional_finite_float(
+        validity.get("adaptive_freshness_budget_seconds")
+    )
+    safety_cap = _optional_finite_float(
+        validity.get("immutable_max_safety_lifetime_seconds")
+    )
+    reasons: list[str] = []
+    exact_fields = {
+        "schema_version": HEDGE_DIRECTIVE_VALIDITY_SCHEMA_VERSION,
+        "policy_version": HEDGE_DIRECTIVE_VALIDITY_POLICY_VERSION,
+        "lifetime_formula": HEDGE_DIRECTIVE_VALIDITY_FORMULA,
+        "immutable_max_safety_lifetime_seconds": (
+            HEDGE_DIRECTIVE_IMMUTABLE_MAX_SAFETY_LIFETIME_SECONDS
+        ),
+        "paper_only": True,
+        "places_real_order": False,
+        "authority_complete": True,
+    }
+    for field_name, expected in exact_fields.items():
+        if validity.get(field_name) != expected:
+            reasons.append(f"HEDGE_DIRECTIVE_VALIDITY_{field_name.upper()}_MISMATCH")
+    if validity.get("rejection_reasons") != []:
+        reasons.append("HEDGE_DIRECTIVE_VALIDITY_PRODUCER_REJECTIONS_PRESENT")
+    if None in (generated_at, observed, cadence_from, cadence_to, valid_until):
+        reasons.append("HEDGE_DIRECTIVE_VALIDITY_CLOCK_MISSING_OR_INVALID")
+    elif not cadence_from < cadence_to == generated_at <= observed:
+        reasons.append("HEDGE_DIRECTIVE_VALIDITY_CLOCK_ORDER_INVALID")
+    if (
+        observed_cadence is None
+        or observed_cadence <= 0.0
+        or cadence_from is None
+        or cadence_to is None
+        or not math.isclose(
+            observed_cadence,
+            (cadence_to - cadence_from).total_seconds(),
+            rel_tol=0.0,
+            abs_tol=1e-9,
+        )
+    ):
+        reasons.append("HEDGE_DIRECTIVE_OBSERVED_CADENCE_RECONCILIATION_FAILED")
+    if (
+        source_freshness is None
+        or source_freshness <= 0.0
+        or source_expected_interval is None
+        or source_expected_interval <= 0.0
+        or not math.isclose(
+            source_freshness,
+            source_expected_interval,
+            rel_tol=0.0,
+            abs_tol=1e-12,
+        )
+    ):
+        reasons.append("HEDGE_DIRECTIVE_SOURCE_CADENCE_CONTRACT_INVALID")
+    if None in (mark_event_at, mark_generated_at, mark_available_at, generated_at):
+        reasons.append("HEDGE_DIRECTIVE_VALIDITY_MARK_CLOCK_MISSING_OR_INVALID")
+    elif not mark_event_at <= mark_generated_at <= mark_available_at <= generated_at:
+        reasons.append("HEDGE_DIRECTIVE_VALIDITY_MARK_CLOCK_ORDER_INVALID")
+    elif (
+        source_freshness is not None
+        and (generated_at - mark_event_at).total_seconds() > source_freshness
+    ):
+        reasons.append("HEDGE_DIRECTIVE_VALIDITY_MARK_STALE_AT_GENERATION")
+    expected_budget = (
+        min(
+            HEDGE_DIRECTIVE_IMMUTABLE_MAX_SAFETY_LIFETIME_SECONDS,
+            observed_cadence + source_freshness,
+        )
+        if observed_cadence is not None
+        and observed_cadence > 0.0
+        and source_freshness is not None
+        and source_freshness > 0.0
+        else None
+    )
+    if (
+        adaptive_budget is None
+        or expected_budget is None
+        or safety_cap != HEDGE_DIRECTIVE_IMMUTABLE_MAX_SAFETY_LIFETIME_SECONDS
+        or not math.isclose(
+            adaptive_budget,
+            expected_budget,
+            rel_tol=0.0,
+            abs_tol=1e-9,
+        )
+    ):
+        reasons.append("HEDGE_DIRECTIVE_ADAPTIVE_BUDGET_RECONCILIATION_FAILED")
+    expected_valid_until = (
+        generated_at + timedelta(seconds=expected_budget)
+        if generated_at is not None and expected_budget is not None
+        else None
+    )
+    if (
+        expected_valid_until is None
+        or valid_until is None
+        or abs((valid_until - expected_valid_until).total_seconds()) > 0.001
+    ):
+        reasons.append("HEDGE_DIRECTIVE_VALID_UNTIL_RECONCILIATION_FAILED")
+    if not _sha256_hex(validity.get("mark_evidence_sha256")):
+        reasons.append("HEDGE_DIRECTIVE_VALIDITY_MARK_EVIDENCE_HASH_INVALID")
+    exact_mark_authority_fields = {
+        "mark_source": HEDGE_DIRECTIVE_MARK_SOURCE,
+        "mark_authentication_boundary": (
+            HEDGE_DIRECTIVE_MARK_AUTHENTICATION_BOUNDARY
+        ),
+        "mark_consumer_validation_boundary": (
+            HEDGE_DIRECTIVE_MARK_CONSUMER_VALIDATION_BOUNDARY
+        ),
+        "mark_cadence_policy_version": (
+            HEDGE_DIRECTIVE_MARK_CADENCE_POLICY_VERSION
+        ),
+    }
+    for field_name, expected in exact_mark_authority_fields.items():
+        if validity.get(field_name) != expected:
+            reasons.append(
+                f"HEDGE_DIRECTIVE_VALIDITY_{field_name.upper()}_MISMATCH"
+            )
+    expired = (
+        observed is not None and valid_until is not None and observed > valid_until
+    )
+    if expired:
+        reasons.append("HEDGE_DIRECTIVE_ADAPTIVE_VALIDITY_EXPIRED")
+    age_seconds = (
+        max(0.0, (observed - generated_at).total_seconds())
+        if observed is not None and generated_at is not None and observed >= generated_at
+        else None
+    )
+    remaining_seconds = (
+        max(0.0, (valid_until - observed).total_seconds())
+        if observed is not None and valid_until is not None
+        else None
+    )
+    return {
+        "valid": not reasons,
+        "expired": expired,
+        "rejection_reasons": list(dict.fromkeys(reasons)),
+        "age_seconds": age_seconds,
+        "remaining_seconds": remaining_seconds,
+        "adaptive_freshness_budget_seconds": adaptive_budget,
+        "immutable_max_safety_lifetime_seconds": (
+            HEDGE_DIRECTIVE_IMMUTABLE_MAX_SAFETY_LIFETIME_SECONDS
+        ),
+    }
+
+
+def hedge_directive_storage_ttl_seconds(
+    directives: list[dict[str, Any]],
+    *,
+    observed_at: Any,
+) -> int | None:
+    """Return garbage-collection TTL; never grants directive authority."""
+
+    remaining: list[float] = []
+    for directive in directives:
+        if not isinstance(directive, dict):
+            continue
+        status = validate_adaptive_hedge_directive_validity(
+            directive_generated_utc=directive.get("generated_utc"),
+            validity_envelope=directive.get("validity_envelope"),
+            observed_at=observed_at,
+        )
+        if status.get("valid") is True:
+            value = _optional_finite_float(status.get("remaining_seconds"))
+            if value is not None and value > 0.0:
+                remaining.append(value)
+    if not remaining:
+        return None
+    return max(
+        1,
+        int(
+            math.ceil(
+                min(
+                    max(remaining),
+                    HEDGE_DIRECTIVE_IMMUTABLE_MAX_SAFETY_LIFETIME_SECONDS,
+                )
+            )
+        ),
+    )
 
 
 @dataclass(frozen=True)
@@ -309,8 +712,20 @@ def evaluate_adaptive_hedge_unwind(
 
 __all__ = [
     "AdaptiveHedgeConfig",
+    "HEDGE_DIRECTIVE_IMMUTABLE_MAX_SAFETY_LIFETIME_SECONDS",
+    "HEDGE_DIRECTIVE_MARK_AUTHENTICATION_BOUNDARY",
+    "HEDGE_DIRECTIVE_MARK_CADENCE_POLICY_VERSION",
+    "HEDGE_DIRECTIVE_MARK_CONSUMER_VALIDATION_BOUNDARY",
+    "HEDGE_DIRECTIVE_MARK_SOURCE",
+    "HEDGE_DIRECTIVE_QUEUE_SCHEMA_VERSION",
+    "HEDGE_DIRECTIVE_STORAGE_TTL_ROLE",
+    "HEDGE_DIRECTIVE_VALIDITY_POLICY_VERSION",
+    "HEDGE_DIRECTIVE_VALIDITY_SCHEMA_VERSION",
     "evaluate_adaptive_hedge",
     "build_hedge_cost_benefit",
+    "build_adaptive_hedge_directive_validity",
     "evaluate_adaptive_hedge_trigger",
     "evaluate_adaptive_hedge_unwind",
+    "hedge_directive_storage_ttl_seconds",
+    "validate_adaptive_hedge_directive_validity",
 ]

@@ -36,6 +36,12 @@ from v2.backend.app.services.paper_trade_management.position_state import (
     parse_aware_utc,
     position_from_fill,
 )
+from v2.backend.app.services.risk.portfolio_cascade_directive import (
+    DIRECTIVE_SCHEMA_VERSION,
+    GUARD_SCHEMA_VERSION,
+    seal_directive,
+    seal_guard_payload,
+)
 from v2.backend.app.services.trade_lifecycle_guard import (
     TradeLifecycleGuardInput,
     evaluate_trade_lifecycle_guard,
@@ -100,9 +106,19 @@ def _maintenance_bracket_evidence(
     available_at: str = "2026-06-11T09:59:30Z",
     expires_at: str = "2026-06-11T10:10:00Z",
     consumer_observed_at: str = "2026-06-11T10:00:00Z",
+    current_checked_at: str | None = None,
+    decision_time: str | None = None,
+    candidate_notional: float = 100.0,
+    notional_floor: float = 0.0,
+    notional_cap: float = 1_000_000_000.0,
 ) -> dict:
+    decision_time = decision_time or consumer_observed_at
+    current_checked_at = current_checked_at or consumer_observed_at
     return {
         "prevalidated": True,
+        "status": "READY",
+        "allowed": True,
+        "evidence_usable": True,
         "bracket_id": bracket_id,
         "maint_margin_ratio": ratio,
         "cum": cum,
@@ -117,7 +133,69 @@ def _maintenance_bracket_evidence(
         "available_at": available_at,
         "expires_at": expires_at,
         "consumer_observed_at": consumer_observed_at,
+        "current_checked_at": current_checked_at,
+        "decision_time": decision_time,
+        "candidate_notional": candidate_notional,
+        "candidate_notional_contract": (
+            "TOTAL_ABSOLUTE_SYMBOL_POSITION_NOTIONAL_AFTER_CANDIDATE_FILL"
+        ),
+        "notional_floor": notional_floor,
+        "notional_cap": notional_cap,
+        "maintenance_margin_estimate_for_candidate_notional": max(
+            0.0, candidate_notional * ratio - cum
+        ),
+        "authentication_revalidated": True,
+        "authentication_boundary": (
+            "PAPER_LOOP_SELECT_PAPER_BRACKET_EVIDENCE_HMAC_V1"
+        ),
     }
+
+
+def _authoritative_mark(
+    price: float,
+    *,
+    decision_time: str,
+    event_time: str | None = None,
+) -> dict:
+    event_time = event_time or decision_time
+    return {
+        "price": price,
+        "source": "UNIT_AUTHENTICATED_EXCHANGE_MARK",
+        "event_time": event_time,
+        "generated_at": event_time,
+        "available_at": event_time,
+        "decision_time": decision_time,
+        "evidence_sha256": "e" * 64,
+        "freshness_budget_seconds": 3600.0,
+        "expected_update_interval_seconds": 3600.0,
+        "cadence_policy_version": "UNIT_MARK_CADENCE_V1",
+        "consumer_validation_boundary": "PAPER_LOOP_EXCHANGE_MARK_CONSUMER_V1",
+        "authority_complete": True,
+    }
+
+
+def _bracket_resolver_from(
+    base: dict | None = None,
+):
+    template = dict(base or _maintenance_bracket_evidence())
+
+    def _resolve(**kwargs) -> dict:
+        candidate_notional = float(kwargs["candidate_notional"])
+        decision_time = str(kwargs["decision_time"])
+        ratio = float(template.get("maint_margin_ratio") or 0.0)
+        cum = float(template.get("cum") or 0.0)
+        return {
+            **template,
+            "candidate_notional": candidate_notional,
+            "decision_time": decision_time,
+            "consumer_observed_at": decision_time,
+            "current_checked_at": decision_time,
+            "maintenance_margin_estimate_for_candidate_notional": max(
+                0.0, candidate_notional * ratio - cum
+            ),
+        }
+
+    return _resolve
 
 
 def _audit_quality_fields() -> dict:
@@ -743,7 +821,12 @@ def test_position_from_fill_reconciles_notional_margin_and_leverage() -> None:
     assert payload["allocated_margin_usd"] * payload["effective_leverage"] == pytest.approx(
         payload["gross_notional_usd"]
     )
-    assert payload["maintenance_margin_estimate"] == pytest.approx(1.0)
+    # Fill-time bracket metadata is not enough to authorize maintenance.  The
+    # lifecycle must reselect it against an authenticated current mark.
+    assert payload["maintenance_margin_estimate"] is None
+    assert payload["maintenance_bracket_evidence_status"] == (
+        "MARK_EVIDENCE_NON_AUTHORITATIVE"
+    )
     assert payload["allocated_margin_usd_upstream"] == pytest.approx(50.0)
     assert payload["capital_accounting_reconciled"] is True
     assert "ALLOCATED_MARGIN_RECOMPUTED_FROM_NOTIONAL_LEVERAGE" in payload[
@@ -769,7 +852,7 @@ def test_position_from_fill_never_promotes_recommended_to_executed_leverage() ->
     assert position.leverage_source == "FAIL_CLOSED_1X_EXECUTED_LEVERAGE_MISSING"
 
 
-def test_position_from_fill_never_labels_isolated_liquidation_math_as_cross() -> None:
+def test_position_from_fill_preserves_cross_mode_without_faking_isolated_liquidation() -> None:
     fill = _fill(fill_id="cross-margin-model-unavailable", qty=2.0, price=50.0)
     fill.update(
         {
@@ -789,12 +872,8 @@ def test_position_from_fill_never_labels_isolated_liquidation_math_as_cross() ->
     )
 
     assert position.recommended_margin_mode == "cross_paper_simulated"
-    assert position.margin_mode_simulated == "isolated_paper_simulated"
-    assert (
-        "CROSS_MARGIN_SIMULATION_DOWNGRADED_NO_ACCOUNT_WIDE_LIQUIDATION_MODEL"
-        in position.capital_accounting_reconciliation_reasons
-    )
-    assert position.liquidation_price_estimate is not None
+    assert position.margin_mode_simulated == "cross_paper_simulated"
+    assert position.liquidation_price_estimate is None
 
 
 def test_position_from_fill_missing_maintenance_has_no_liquidation_estimate() -> None:
@@ -885,10 +964,9 @@ def test_same_side_netting_recomputes_aggregate_capital_state() -> None:
         existing_ledger={},
         accepted_fills=[first, second],
         mark_prices={
-            "BTCUSDT": {
-                "price": 100.0,
-                "maintenance_bracket_evidence": whole_position_bracket,
-            }
+            "BTCUSDT": _authoritative_mark(
+                100.0, decision_time="2026-06-11T10:01:00Z"
+            )
         },
         generated_utc="2026-06-11T10:01:00Z",
         config=PaperLifecycleConfig(
@@ -899,6 +977,9 @@ def test_same_side_netting_recomputes_aggregate_capital_state() -> None:
                 profit_bank_bps=99999.0,
                 profit_lock_bps=99999.0,
             ),
+        ),
+        maintenance_bracket_resolver=_bracket_resolver_from(
+            whole_position_bracket
         ),
     )
 
@@ -921,7 +1002,7 @@ def test_same_side_netting_recomputes_aggregate_capital_state() -> None:
     assert result["paper_hedge_netting_status"]["same_side_netting_count"] == 1
 
 
-def test_same_side_fill_uses_conservative_bracket_without_weighting_rates() -> None:
+def test_same_side_fill_requires_whole_position_bracket_reselection() -> None:
     first_fill = _fill(fill_id="tier-fill-a", qty=1.0, price=100.0)
     first_fill.update(
         {
@@ -965,12 +1046,11 @@ def test_same_side_fill_uses_conservative_bracket_without_weighting_rates() -> N
         incoming_position=incoming,
     )
 
-    assert position.maintenance_bracket_id == 2
-    assert position.maintenance_margin_rate == pytest.approx(0.01)
-    assert position.maintenance_margin_rate != pytest.approx(0.0075)
-    assert position.maintenance_margin_estimate == pytest.approx(2.0)
+    assert position.maintenance_bracket_id is None
+    assert position.maintenance_margin_rate is None
+    assert position.maintenance_margin_estimate is None
     assert position.maintenance_bracket_evidence_status == (
-        "READY_CONSERVATIVE_SAME_SIDE_FILL"
+        "WHOLE_POSITION_NOTIONAL_RESELECTION_REQUIRED"
     )
     assert position.allocated_margin_usd * position.effective_leverage == pytest.approx(
         position.gross_notional_usd
@@ -999,10 +1079,15 @@ def test_mark_tier_boundary_reselects_whole_position_bracket_and_uses_cum() -> N
     position.update_mark(
         mark_price=99.99,
         mark_time="2026-06-11T10:01:00Z",
+        mark_evidence=_authoritative_mark(
+            99.99, decision_time="2026-06-11T10:01:00Z"
+        ),
+        decision_time="2026-06-11T10:01:00Z",
         maintenance_bracket_evidence=_maintenance_bracket_evidence(
             bracket_id=1,
             ratio=0.004,
             consumer_observed_at="2026-06-11T10:01:00Z",
+            candidate_notional=499.95,
         ),
     )
     assert position.maintenance_margin_notional_usd == pytest.approx(499.95)
@@ -1011,12 +1096,17 @@ def test_mark_tier_boundary_reselects_whole_position_bracket_and_uses_cum() -> N
     position.update_mark(
         mark_price=100.0,
         mark_time="2026-06-11T10:02:00Z",
+        mark_evidence=_authoritative_mark(
+            100.0, decision_time="2026-06-11T10:02:00Z"
+        ),
+        decision_time="2026-06-11T10:02:00Z",
         maintenance_bracket_evidence=_maintenance_bracket_evidence(
             bracket_id=2,
             ratio=0.01,
             cum=3.0,
             max_initial_leverage=3.0,
             consumer_observed_at="2026-06-11T10:02:00Z",
+            candidate_notional=500.0,
         ),
     )
     assert position.maintenance_bracket_id == 2
@@ -1050,13 +1140,13 @@ def test_maintenance_bracket_roundtrip_and_lifecycle_restart() -> None:
         existing_ledger={},
         accepted_fills=[fill],
         mark_prices={
-            "BTCUSDT": {
-                "price": 101.0,
-                "maintenance_bracket_evidence": mark_evidence,
-            }
+            "BTCUSDT": _authoritative_mark(
+                101.0, decision_time="2026-06-11T10:01:00Z"
+            )
         },
         generated_utc="2026-06-11T10:01:00Z",
         config=PaperLifecycleConfig(portfolio_equity_usdt=10000.0),
+        maintenance_bracket_resolver=_bracket_resolver_from(mark_evidence),
     )
     persisted = first["open_positions"][0]
     assert persisted["maintenance_bracket_evidence"]["binding"] == (
@@ -1070,17 +1160,19 @@ def test_maintenance_bracket_roundtrip_and_lifecycle_restart() -> None:
         existing_ledger=first,
         accepted_fills=[fill],
         mark_prices={
-            "BTCUSDT": {
-                "price": 102.0,
-                "maintenance_bracket_evidence": _maintenance_bracket_evidence(
-                    ratio=0.006,
-                    cum=0.25,
-                    consumer_observed_at="2026-06-11T10:02:00Z",
-                ),
-            }
+            "BTCUSDT": _authoritative_mark(
+                102.0, decision_time="2026-06-11T10:02:00Z"
+            )
         },
         generated_utc="2026-06-11T10:02:00Z",
         config=PaperLifecycleConfig(portfolio_equity_usdt=10000.0),
+        maintenance_bracket_resolver=_bracket_resolver_from(
+            _maintenance_bracket_evidence(
+                ratio=0.006,
+                cum=0.25,
+                consumer_observed_at="2026-06-11T10:02:00Z",
+            )
+        ),
     )
     restored = restarted["open_positions"][0]
     assert restored["maintenance_bracket_id"] == 1
@@ -1103,10 +1195,15 @@ def test_maintenance_bracket_roundtrip_and_lifecycle_restart() -> None:
     position.update_mark(
         mark_price=102.0,
         mark_time="2026-06-11T10:02:00Z",
+        mark_evidence=_authoritative_mark(
+            102.0, decision_time="2026-06-11T10:02:00Z"
+        ),
+        decision_time="2026-06-11T10:02:00Z",
         maintenance_bracket_evidence=_maintenance_bracket_evidence(
             ratio=0.006,
             cum=0.25,
             consumer_observed_at="2026-06-11T10:02:00Z",
+            candidate_notional=204.0,
         ),
     )
     close_event, outcome = build_close_event(
@@ -1152,10 +1249,9 @@ def test_authenticated_bracket_drives_tier_zero_near_liquidation_exit() -> None:
         existing_ledger={},
         accepted_fills=[fill],
         mark_prices={
-            "BTCUSDT": {
-                "price": 91.0,
-                "maintenance_bracket_evidence": mark_evidence,
-            }
+            "BTCUSDT": _authoritative_mark(
+                91.0, decision_time="2026-06-11T10:01:00Z"
+            )
         },
         generated_utc="2026-06-11T10:01:00Z",
         config=PaperLifecycleConfig(
@@ -1167,6 +1263,7 @@ def test_authenticated_bracket_drives_tier_zero_near_liquidation_exit() -> None:
                 static_take_profit_enabled=False,
             ),
         ),
+        maintenance_bracket_resolver=_bracket_resolver_from(mark_evidence),
     )
 
     evaluations = result["paper_exit_coordinator_status"]["evaluations"]
@@ -1195,30 +1292,39 @@ def test_missing_or_stale_mark_bracket_makes_maintenance_and_liquidation_unknown
     position.update_mark(
         mark_price=101.0,
         mark_time="2026-06-11T10:01:00Z",
+        mark_evidence=_authoritative_mark(
+            101.0, decision_time="2026-06-11T10:01:00Z"
+        ),
+        decision_time="2026-06-11T10:01:00Z",
         maintenance_bracket_evidence=None,
     )
     assert position.maintenance_margin_rate is None
     assert position.maintenance_margin_estimate is None
     assert position.liquidation_price_estimate is None
     assert position.liquidation_buffer_bps is None
-    assert position.maintenance_bracket_id == 1
+    assert position.maintenance_bracket_id is None
     assert position.maintenance_bracket_evidence_status == "MISSING_FOR_CURRENT_MARK"
 
     position.update_mark(
         mark_price=102.0,
         mark_time="2026-06-11T10:02:00Z",
+        mark_evidence=_authoritative_mark(
+            102.0, decision_time="2026-06-11T10:02:00Z"
+        ),
+        decision_time="2026-06-11T10:02:00Z",
         maintenance_bracket_evidence=_maintenance_bracket_evidence(
             bracket_id=2,
             ratio=0.01,
             cum=3.0,
             expires_at="2026-06-11T10:01:59Z",
-            consumer_observed_at="2026-06-11T10:01:00Z",
+            consumer_observed_at="2026-06-11T10:02:00Z",
+            candidate_notional=102.0,
         ),
     )
     assert position.maintenance_margin_estimate is None
     assert position.liquidation_price_estimate is None
     assert position.maintenance_bracket_id == 2
-    assert position.maintenance_bracket_evidence_status == "STALE_AT_MARK"
+    assert position.maintenance_bracket_evidence_status == "STALE_AT_CURRENT_CHECK"
 
 
 @pytest.mark.parametrize(
@@ -1252,7 +1358,8 @@ def test_mark_bracket_rejects_missing_or_tampered_provenance(
         price=100.0,
     )
     evidence = _maintenance_bracket_evidence(
-        consumer_observed_at="2026-06-11T10:01:00Z"
+        consumer_observed_at="2026-06-11T10:01:00Z",
+        candidate_notional=101.0,
     )
     if remove_field is not None:
         evidence.pop(remove_field)
@@ -1261,6 +1368,10 @@ def test_mark_bracket_rejects_missing_or_tampered_provenance(
     position.update_mark(
         mark_price=101.0,
         mark_time="2026-06-11T10:01:00Z",
+        mark_evidence=_authoritative_mark(
+            101.0, decision_time="2026-06-11T10:01:00Z"
+        ),
+        decision_time="2026-06-11T10:01:00Z",
         maintenance_bracket_evidence=evidence,
     )
 
@@ -1308,9 +1419,11 @@ def test_flattened_bracket_aliases_roundtrip_into_lifecycle_evidence() -> None:
         quantity=1.0,
         price=100.0,
     )
-    assert position.maintenance_bracket_evidence_status == "READY"
-    assert position.maintenance_margin_rate == pytest.approx(0.01)
-    assert position.liquidation_price_estimate is not None
+    assert position.maintenance_bracket_evidence_status == (
+        "MARK_EVIDENCE_NON_AUTHORITATIVE"
+    )
+    assert position.maintenance_margin_rate is None
+    assert position.liquidation_price_estimate is None
 
 
 def test_selector_shaped_bracket_audit_record_normalizes_only_with_explicit_trust() -> None:
@@ -1335,7 +1448,8 @@ def test_selector_shaped_bracket_audit_record_normalizes_only_with_explicit_trus
         {"paper_maintenance_margin_bracket_evidence": raw_selector}
     )
 
-    assert evidence == {
+    assert evidence is not None
+    expected_evidence = {
         "prevalidated": True,
         "bracket_id": 2,
         "maint_margin_ratio": 0.01,
@@ -1352,6 +1466,9 @@ def test_selector_shaped_bracket_audit_record_normalizes_only_with_explicit_trus
         "expires_at": "2026-06-11T10:10:00Z",
         "consumer_observed_at": "2026-06-11T10:00:00Z",
     }
+    assert {key: evidence.get(key) for key in expected_evidence} == expected_evidence
+    assert evidence["authentication_revalidated"] is False
+    assert evidence["allowed"] is False
 
     untrusted = dict(raw_selector)
     untrusted.pop("prevalidated")
@@ -2973,19 +3090,20 @@ def test_closed_trade_carries_accounting_and_path_telemetry() -> None:
             atr_stop_multiplier=99999.0,
         ),
     )
+    telemetry_bracket = _maintenance_bracket_evidence(
+        expires_at="2026-06-11T10:20:00Z"
+    )
     opened = reconcile_paper_lifecycle(
         existing_ledger={},
         accepted_fills=[fill],
         mark_prices={
-            "BTCUSDT": {
-                "price": 100.0,
-                "maintenance_bracket_evidence": _maintenance_bracket_evidence(
-                    expires_at="2026-06-11T10:20:00Z",
-                ),
-            }
+            "BTCUSDT": _authoritative_mark(
+                100.0, decision_time="2026-06-11T10:00:00Z"
+            )
         },
         generated_utc="2026-06-11T10:00:00Z",
         config=cfg,
+        maintenance_bracket_resolver=_bracket_resolver_from(telemetry_bracket),
     )
     adverse = reconcile_paper_lifecycle(
         existing_ledger=opened,
@@ -2993,46 +3111,37 @@ def test_closed_trade_carries_accounting_and_path_telemetry() -> None:
         # -100bps adverse move: below stops under test, above the 150bps
         # catastrophic floor added by the A+ goal (Phase 8).
         mark_prices={
-            "BTCUSDT": {
-                "price": 99.0,
-                "maintenance_bracket_evidence": _maintenance_bracket_evidence(
-                    expires_at="2026-06-11T10:20:00Z",
-                    consumer_observed_at="2026-06-11T10:05:00Z",
-                ),
-            }
+            "BTCUSDT": _authoritative_mark(
+                99.0, decision_time="2026-06-11T10:05:00Z"
+            )
         },
         generated_utc="2026-06-11T10:05:00Z",
         config=cfg,
+        maintenance_bracket_resolver=_bracket_resolver_from(telemetry_bracket),
     )
     favorable = reconcile_paper_lifecycle(
         existing_ledger=adverse,
         accepted_fills=[fill],
         mark_prices={
-            "BTCUSDT": {
-                "price": 105.0,
-                "maintenance_bracket_evidence": _maintenance_bracket_evidence(
-                    expires_at="2026-06-11T10:20:00Z",
-                    consumer_observed_at="2026-06-11T10:10:00Z",
-                ),
-            }
+            "BTCUSDT": _authoritative_mark(
+                105.0, decision_time="2026-06-11T10:10:00Z"
+            )
         },
         generated_utc="2026-06-11T10:10:00Z",
         config=cfg,
+        maintenance_bracket_resolver=_bracket_resolver_from(telemetry_bracket),
     )
     closed = reconcile_paper_lifecycle(
         existing_ledger=favorable,
         accepted_fills=[fill],
         mark_prices={
-            "BTCUSDT": {
-                "price": 104.0,
-                "maintenance_bracket_evidence": _maintenance_bracket_evidence(
-                    expires_at="2026-06-11T10:20:00Z",
-                    consumer_observed_at="2026-06-11T10:15:00Z",
-                ),
-            }
+            "BTCUSDT": _authoritative_mark(
+                104.0, decision_time="2026-06-11T10:15:00Z"
+            )
         },
         generated_utc="2026-06-11T10:15:00Z",
         config=cfg,
+        maintenance_bracket_resolver=_bracket_resolver_from(telemetry_bracket),
     )
 
     row = closed["closed_trades"][0]
@@ -3042,7 +3151,7 @@ def test_closed_trade_carries_accounting_and_path_telemetry() -> None:
     assert row["effective_leverage"] == 2.0
     assert row["allocated_margin_usd"] == 50.0
     assert row["recommended_leverage"] == 2.0
-    assert row["margin_mode_simulated"] == "isolated"
+    assert row["margin_mode_simulated"] == "isolated_paper_simulated"
     assert row["adaptive_capital_policy_version"] == ADAPTIVE_CAPITAL_POLICY_VERSION
     assert row["adaptive_allocation"] == allocation
     assert row["adaptive_allocation"]["model_inputs"]["raw_leverage_target"] == 3.0
@@ -4727,42 +4836,286 @@ def test_admission_invalidated_position_still_stop_closes_within_one_cycle() -> 
     assert result["open_positions"] == []
 
 
-def test_lifecycle_honors_portfolio_cascade_guard_close() -> None:
-    # The portfolio cascade guard's CLOSE directive forces a TIER_0 protective
-    # exit (one coin's MM move must never cascade the book).
+_GUARD_SESSION = "paper-session-lifecycle-guard"
+
+
+def _guard_position_fixture() -> tuple[dict, dict, dict]:
     fill = _fill(fill_id="guard1", symbol="ALTAUSDT", price=1.0, qty=10.0)
-    guard = {
-        "directives": [
-            {
-                "symbol": "ALTAUSDT",
-                "action": "CLOSE",
-                "reason": "CASCADE_CONFIRMED_ON_LOSING_POSITION",
-                "cascade_score": 0.9,
-            }
-        ]
-    }
-    result = reconcile_paper_lifecycle(
+    fill["recommended_margin_mode"] = "cross_paper_simulated"
+    fill["margin_mode_simulated"] = "cross_paper_simulated"
+    initial_mark = _authoritative_mark(
+        0.999,
+        decision_time="2026-06-11T10:04:00Z",
+    )
+    initial = reconcile_paper_lifecycle(
         existing_ledger={},
         accepted_fills=[fill],
-        mark_prices={"ALTAUSDT": 0.99},
-        generated_utc="2026-06-11T10:05:00Z",
+        mark_prices={"ALTAUSDT": initial_mark},
+        generated_utc="2026-06-11T10:04:00Z",
+        config=PaperLifecycleConfig(portfolio_equity_usdt=10000.0),
+        paper_session_id=_GUARD_SESSION,
+        maintenance_bracket_resolver=_bracket_resolver_from(),
+    )
+    position = dict(initial["open_positions"][0])
+    ledger = {
+        "paper_session_id": _GUARD_SESSION,
+        "open_positions": [position],
+    }
+    return fill, ledger, position
+
+
+def _sealed_lifecycle_guard(
+    position: dict,
+    *,
+    action: str = "CLOSE",
+    reason: str = "ADAPTIVE_PORTFOLIO_STRESS_DE_RISK",
+    position_id: str | None = None,
+    generation_id: str | None = None,
+    symbol: str | None = None,
+    quantity: float | None = None,
+    generated_utc: str = "2026-06-11T10:04:30Z",
+    expires_utc: str = "2026-06-11T10:06:00Z",
+    stress_move: float = -0.2,
+) -> dict:
+    generated_at = parse_aware_utc(generated_utc)
+    expires_at = parse_aware_utc(expires_utc)
+    assert generated_at is not None and expires_at is not None
+    adaptive_lifetime_seconds = (expires_at - generated_at).total_seconds()
+    directive_material = {
+        "schema_version": DIRECTIVE_SCHEMA_VERSION,
+        "paper_session_id": _GUARD_SESSION,
+        "position_id": position_id or position["position_id"],
+        "position_generation_id": generation_id or position["position_generation_id"],
+        "symbol": symbol or position["symbol"],
+        "action": action,
+        "reason": reason,
+        "generated_utc": generated_utc,
+        "expires_utc": expires_utc,
+        "source_ledger_generated_utc": "2026-06-11T10:04:00Z",
+        "source_ledger_sha256": "a" * 64,
+        "portfolio_snapshot_sha256": "b" * 64,
+        "position_evidence_sha256": "c" * 64,
+        "portfolio_level_computed": True,
+        "worst_case_liquidation_breached": True,
+        "worst_case_scenario": "unit_adaptive_scenario",
+        "worst_case_liquidation_buffer_usd_at_generation": -1.0,
+        "adaptive_recovery_reserve_usd_at_generation": 1.0,
+        "stress_buffer_deficit_usd_at_generation": 2.0,
+        "marginal_stress_buffer_relief_if_closed_usd": 3.0,
+        "cumulative_ranked_relief_usd": 3.0,
+        "stress_close_rank": 1,
+        "stress_symbol_move_at_generation": stress_move,
+        "stress_shock_pnl_delta_usd_at_generation": -2.0,
+        "stress_shocked_maintenance_margin_usd_at_generation": 1.0,
+        "adaptive_stress_authority_complete": True,
+        "adaptive_stress_evidence_sha256": "e" * 64,
+        "adaptive_stress_source_observations_sha256": "f" * 64,
+        "adaptive_stress_policy_version": "UNIT_ADAPTIVE_STRESS_V1",
+        "adaptive_guard_cadence_policy_version": "UNIT_ADAPTIVE_CADENCE_V1",
+        "adaptive_guard_freshness_budget_seconds": 120.0,
+        "adaptive_guard_lifetime_seconds": adaptive_lifetime_seconds,
+        "unrealized_pnl_bps_at_generation": -10.0,
+        "position_quantity_at_generation": (
+            position["net_quantity"] if quantity is None else quantity
+        ),
+        "position_side_at_generation": position["side"],
+        "entry_price_at_generation": position["avg_entry_price"],
+        "effective_leverage_at_generation": position["effective_leverage"],
+        "margin_mode_at_generation": "cross",
+        "cascade_evidence_sha256": None,
+        "cascade_schema_version": None,
+        "cascade_status": None,
+        "cascade_score": None,
+        "cascade_timeframe": None,
+        "cascade_event_time": None,
+        "cascade_available_at": None,
+        "cascade_decision_time": None,
+        "cascade_generated_at": None,
+        "ride_tighten_implemented": False,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "leverage_mutated": False,
+        "margin_mutated": False,
+    }
+    if action == "RIDE_TIGHTEN":
+        directive_material.update(
+            {
+                "reason": "CASCADE_CONFIRMED_POSITION_WINNING_TELEMETRY_ONLY",
+                "unrealized_pnl_bps_at_generation": 10.0,
+                "cascade_evidence_sha256": "d" * 64,
+                "cascade_schema_version": "cascade_context_v1",
+                "cascade_status": "EVENT_CONFIRMED",
+                "cascade_score": 0.9,
+                "cascade_timeframe": "1m",
+                "cascade_event_time": "2026-06-11T10:03:40Z",
+                "cascade_available_at": "2026-06-11T10:03:40Z",
+                "cascade_decision_time": "2026-06-11T10:04:10Z",
+                "cascade_generated_at": "2026-06-11T10:04:20Z",
+                "cascade_direction_authority_complete": True,
+                "cascade_adverse_price_move_direction": "DOWN",
+                "cascade_direction_evidence_sha256": "9" * 64,
+            }
+        )
+    directive = seal_directive(directive_material)
+    return seal_guard_payload(
+        {
+            "schema_version": GUARD_SCHEMA_VERSION,
+            "status": "PASS",
+            "directive_authority": True,
+            "block_reasons": [],
+            "paper_session_id": _GUARD_SESSION,
+            "source_ledger_generated_utc": "2026-06-11T10:04:00Z",
+            "source_ledger_sha256": "a" * 64,
+            "portfolio_snapshot_sha256": "b" * 64,
+            "generated_utc": generated_utc,
+            "expires_utc": expires_utc,
+            "open_position_count": 1,
+            "directives": [directive],
+            "cascade_by_symbol": {},
+            "portfolio_level_computed": True,
+            "worst_case_liquidation_breached": True,
+            "worst_case_liquidation_buffer_usd": -1.0,
+            "adaptive_recovery_reserve_usd": 1.0,
+            "adaptive_stress_authority_complete": True,
+            "adaptive_stress_evidence_sha256": "e" * 64,
+            "adaptive_stress_source_observations_sha256": "f" * 64,
+            "adaptive_stress_policy_version": "UNIT_ADAPTIVE_STRESS_V1",
+            "adaptive_stress_producer": "adaptive_portfolio_stress_controller",
+            "adaptive_stress_auth_boundary": "PAPER_ADAPTIVE_STRESS_PIT_V1",
+            "adaptive_guard_cadence_policy_version": "UNIT_ADAPTIVE_CADENCE_V1",
+            "adaptive_guard_freshness_budget_seconds": 120.0,
+            "adaptive_guard_lifetime_seconds": adaptive_lifetime_seconds,
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+            "leverage_mutated": False,
+            "margin_mutated": False,
+        }
+    )
+
+
+def _reconcile_with_guard(
+    guard: dict,
+    *,
+    mark: float = 0.999,
+    generated_utc: str = "2026-06-11T10:05:00Z",
+) -> dict:
+    fill, ledger, _ = _guard_position_fixture()
+    return reconcile_paper_lifecycle(
+        existing_ledger=ledger,
+        accepted_fills=[fill],
+        mark_prices={
+            "ALTAUSDT": _authoritative_mark(
+                mark,
+                decision_time=generated_utc,
+            )
+        },
+        generated_utc=generated_utc,
         config=PaperLifecycleConfig(portfolio_equity_usdt=10000.0),
         portfolio_guard=guard,
+        paper_session_id=_GUARD_SESSION,
+        maintenance_bracket_resolver=_bracket_resolver_from(),
     )
+
+
+def test_lifecycle_honors_exact_generation_bound_guard_close() -> None:
+    _, _, position = _guard_position_fixture()
+    result = _reconcile_with_guard(_sealed_lifecycle_guard(position))
     closed = result.get("closed_trades") or []
     assert any(
-        t.get("symbol") == "ALTAUSDT"
-        and (t.get("exit_reason") or t.get("close_reason")) == "TIER_0_PORTFOLIO_CASCADE_GUARD"
-        for t in closed
-    ), f"guard close not honored: {[(t.get('symbol'), t.get('exit_reason'), t.get('close_reason')) for t in closed]}"
-
-    # Without a directive the same position stays open (no spurious closes).
-    result2 = reconcile_paper_lifecycle(
-        existing_ledger={},
-        accepted_fills=[_fill(fill_id="guard2", symbol="ALTBUSDT", price=1.0, qty=10.0)],
-        mark_prices={"ALTBUSDT": 0.999},
-        generated_utc="2026-06-11T10:05:00Z",
-        config=PaperLifecycleConfig(portfolio_equity_usdt=10000.0),
-        portfolio_guard={"directives": []},
+        row.get("symbol") == "ALTAUSDT"
+        and (row.get("exit_reason") or row.get("close_reason"))
+        == "TIER_0_PORTFOLIO_CASCADE_GUARD"
+        for row in closed
     )
-    assert any(p.get("symbol") == "ALTBUSDT" for p in result2.get("open_positions") or [])
+    status = result["portfolio_cascade_guard_lifecycle_status"]
+    assert status["guard_envelope_valid"] is True
+    assert status["applied_close_count"] == 1
+
+
+def test_lifecycle_rejects_legacy_or_forged_symbol_only_close() -> None:
+    forged = {
+        "directives": [
+            {"symbol": "ALTAUSDT", "action": "CLOSE", "cascade_score": 0.99}
+        ]
+    }
+    result = _reconcile_with_guard(forged)
+    assert result["new_close_events"] == []
+    status = result["portfolio_cascade_guard_lifecycle_status"]
+    assert status["guard_envelope_valid"] is False
+    assert "GUARD_EVIDENCE_HASH_INVALID" in status["envelope_reasons"]
+
+
+def test_lifecycle_rejects_stale_reopened_generation_even_with_valid_hash() -> None:
+    _, _, position = _guard_position_fixture()
+    stale = _sealed_lifecycle_guard(position, generation_id="prior-generation")
+    result = _reconcile_with_guard(stale)
+    assert result["new_close_events"] == []
+    assert result["portfolio_cascade_guard_lifecycle_status"]["rejections"][0][
+        "reasons"
+    ] == ["DIRECTIVE_POSITION_IDENTITY_NOT_CURRENT"]
+
+
+def test_lifecycle_stress_close_can_close_winner_when_relief_stays_positive() -> None:
+    _, _, position = _guard_position_fixture()
+    result = _reconcile_with_guard(_sealed_lifecycle_guard(position), mark=1.001)
+    status = result["portfolio_cascade_guard_lifecycle_status"]
+    assert status["applied_close_count"] == 1
+    assert status["events"][0]["current_unrealized_pnl_bps"] > 0.0
+    assert (
+        status["events"][0][
+            "current_marginal_stress_buffer_relief_if_closed_usd"
+        ]
+        > 0.0
+    )
+
+
+def test_lifecycle_rejects_stress_close_when_current_relief_turns_negative() -> None:
+    _, _, position = _guard_position_fixture()
+    result = _reconcile_with_guard(
+        _sealed_lifecycle_guard(position, stress_move=0.2),
+        mark=1.001,
+    )
+    assert result["new_close_events"] == []
+    reasons = result["portfolio_cascade_guard_lifecycle_status"]["rejections"][0][
+        "reasons"
+    ]
+    assert "CURRENT_MARGINAL_STRESS_CLOSE_RELIEF_NOT_POSITIVE" in reasons
+
+
+def test_lifecycle_rejects_changed_position_material_with_same_generation() -> None:
+    _, _, position = _guard_position_fixture()
+    forged = _sealed_lifecycle_guard(
+        position,
+        quantity=float(position["net_quantity"]) + 1.0,
+    )
+    result = _reconcile_with_guard(forged)
+    assert result["new_close_events"] == []
+    reasons = result["portfolio_cascade_guard_lifecycle_status"]["rejections"][0][
+        "reasons"
+    ]
+    assert "DIRECTIVE_POSITION_QUANTITY_CHANGED" in reasons
+
+
+def test_lifecycle_rejects_expired_guard() -> None:
+    _, _, position = _guard_position_fixture()
+    expired = _sealed_lifecycle_guard(
+        position,
+        expires_utc="2026-06-11T10:04:59Z",
+    )
+    result = _reconcile_with_guard(expired)
+    assert result["new_close_events"] == []
+    assert "GUARD_PRIMARY_CLOCK_ORDER_OR_EXPIRY_INVALID" in result[
+        "portfolio_cascade_guard_lifecycle_status"
+    ]["envelope_reasons"]
+
+
+def test_lifecycle_ride_tighten_is_telemetry_only() -> None:
+    _, _, position = _guard_position_fixture()
+    ride = _sealed_lifecycle_guard(position, action="RIDE_TIGHTEN")
+    result = _reconcile_with_guard(ride, mark=1.001)
+    assert result["new_close_events"] == []
+    status = result["portfolio_cascade_guard_lifecycle_status"]
+    assert status["ride_tighten_telemetry_only_count"] == 1
+    assert status["events"][0]["status"] == "TELEMETRY_ONLY_NO_EXIT_MUTATION"

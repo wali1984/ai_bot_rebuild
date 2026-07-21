@@ -44,6 +44,18 @@ _PAPER_POSITION_RECONSTRUCTION_FIELDS = (
     "maintenance_margin_rate",
     "maintenance_margin_cum",
     "maintenance_margin_notional_usd",
+    "maintenance_margin_mark_price",
+    "maintenance_margin_mark_time",
+    "maintenance_margin_mark_event_time",
+    "maintenance_margin_mark_generated_at",
+    "maintenance_margin_mark_available_at",
+    "maintenance_margin_mark_decision_time",
+    "maintenance_margin_mark_source",
+    "maintenance_margin_mark_evidence_sha256",
+    "maintenance_margin_mark_contract_authoritative",
+    "maintenance_margin_mark_freshness_budget_seconds",
+    "maintenance_margin_mark_cadence_policy_version",
+    "maintenance_margin_mark_consumer_validation_boundary",
     "maintenance_bracket_id",
     "maintenance_bracket_maint_margin_ratio",
     "maintenance_bracket_cum",
@@ -58,6 +70,14 @@ _PAPER_POSITION_RECONSTRUCTION_FIELDS = (
     "maintenance_bracket_available_at",
     "maintenance_bracket_expires_at",
     "maintenance_bracket_consumer_observed_at",
+    "maintenance_bracket_current_checked_at",
+    "maintenance_bracket_decision_time",
+    "maintenance_bracket_candidate_notional",
+    "maintenance_bracket_notional_floor",
+    "maintenance_bracket_notional_cap",
+    "maintenance_bracket_notional_contract",
+    "maintenance_bracket_authentication_revalidated",
+    "maintenance_bracket_authentication_boundary",
     "maintenance_bracket_prevalidated",
     "maintenance_bracket_evidence_status",
     "maintenance_bracket_evidence_reason",
@@ -79,6 +99,24 @@ _PAPER_POSITION_RECONSTRUCTION_FIELDS = (
     "entry_slippage_cost_sources",
     "entry_cost_basis_status",
     "position_state",
+    "last_mark_price",
+    "last_mark_event_time",
+    "last_mark_generated_at",
+    "last_mark_available_at",
+    "last_mark_decision_time",
+    "last_mark_source",
+    "last_mark_evidence_sha256",
+    "last_mark_contract_authoritative",
+    "hedge_state",
+    "hedge_reason",
+    "hedge_parent_id",
+    "hedge_parent_generation_id",
+    "hedge_child_id",
+    "hedge_pair_session_id",
+    "hedge_ratio",
+    "hedge_entry_parent_pnl_bps",
+    "hedge_pending_since",
+    "hedge_pending_validity_envelope",
     "paper_only",
     "places_real_order",
 )
@@ -107,10 +145,15 @@ def _paper_position_reconstruction_material(row: dict[str, Any]) -> dict[str, An
         "maintenance_margin_rate",
         "maintenance_margin_cum",
         "maintenance_margin_notional_usd",
+        "maintenance_margin_mark_price",
+        "maintenance_margin_mark_freshness_budget_seconds",
         "maintenance_bracket_id",
         "maintenance_bracket_maint_margin_ratio",
         "maintenance_bracket_cum",
         "maintenance_bracket_max_initial_leverage",
+        "maintenance_bracket_candidate_notional",
+        "maintenance_bracket_notional_floor",
+        "maintenance_bracket_notional_cap",
         "liquidation_price_estimate",
         "liquidation_buffer_bps",
         "realized_pnl",
@@ -122,6 +165,9 @@ def _paper_position_reconstruction_material(row: dict[str, Any]) -> dict[str, An
         "entry_slippage_remaining_usd",
         "entry_slippage_allocated_to_closes_usd",
         "entry_slippage_fallback_bps_per_side",
+        "last_mark_price",
+        "hedge_ratio",
+        "hedge_entry_parent_pnl_bps",
     ):
         material[field_name] = coerce_float(material.get(field_name))
     for field_name in (
@@ -313,8 +359,43 @@ def validate_paper_position_reconstruction(
     if str(row.get("margin_mode_simulated") or "").strip().lower() not in {
         "isolated",
         "isolated_paper_simulated",
+        "cross",
+        "cross_paper_simulated",
     }:
-        reasons.append("POSITION_RECONSTRUCTION_MARGIN_MODE_NOT_ISOLATED")
+        reasons.append("POSITION_RECONSTRUCTION_MARGIN_MODE_MISSING_OR_INVALID")
+    hedge_state = str(row.get("hedge_state") or "").strip().upper()
+    if hedge_state == "HEDGE_CHILD":
+        for field_name in (
+            "hedge_parent_id",
+            "hedge_parent_generation_id",
+            "hedge_child_id",
+            "hedge_pair_session_id",
+        ):
+            if not isinstance(row.get(field_name), str) or not str(
+                row.get(field_name) or ""
+            ).strip():
+                reasons.append(
+                    f"POSITION_RECONSTRUCTION_{field_name.upper()}_MISSING"
+                )
+        hedge_ratio = coerce_float(row.get("hedge_ratio"))
+        if hedge_ratio is None or not 0.0 < hedge_ratio <= 1.0:
+            reasons.append("POSITION_RECONSTRUCTION_HEDGE_RATIO_INVALID")
+    elif hedge_state in {"HEDGED", "HEDGE_PENDING"}:
+        if hedge_state == "HEDGED" and (
+            not isinstance(row.get("hedge_child_id"), str)
+            or not str(row.get("hedge_child_id") or "").strip()
+        ):
+            reasons.append("POSITION_RECONSTRUCTION_HEDGE_CHILD_ID_MISSING")
+        if not isinstance(row.get("hedge_pair_session_id"), str) or not str(
+            row.get("hedge_pair_session_id") or ""
+        ).strip():
+            reasons.append("POSITION_RECONSTRUCTION_HEDGE_PAIR_SESSION_ID_MISSING")
+        if hedge_state == "HEDGE_PENDING" and not isinstance(
+            row.get("hedge_pending_validity_envelope"), dict
+        ):
+            reasons.append(
+                "POSITION_RECONSTRUCTION_HEDGE_PENDING_VALIDITY_ENVELOPE_MISSING"
+            )
 
     allocation = row.get("adaptive_allocation")
     if allocation not in (None, {}):
@@ -811,12 +892,15 @@ class PaperNetPosition:
     # under "{symbol}::HEDGE" and carries its parent's position id; the parent
     # carries the child fill id while hedged.
     hedge_parent_id: str | None = None
+    hedge_parent_generation_id: str | None = None
     hedge_child_id: str | None = None
+    hedge_pair_session_id: str | None = None
     hedge_ratio: float | None = None
     hedge_entry_parent_pnl_bps: float | None = None
     # Set when the adaptive trigger marks HEDGE_PENDING; bounds how long the
     # parent's TIER_1 stop stays deferred while the hedge fill is in flight.
     hedge_pending_since: str | None = None
+    hedge_pending_validity_envelope: dict[str, Any] | None = None
     drawdown_at_entry: float | None = None
     market_regime_at_entry: str | None = None
     liquidity_zone_context: dict[str, Any] | None = None
@@ -850,6 +934,16 @@ class PaperNetPosition:
     maintenance_margin_notional_usd: float | None = None
     maintenance_margin_mark_price: float | None = None
     maintenance_margin_mark_time: str | None = None
+    maintenance_margin_mark_event_time: str | None = None
+    maintenance_margin_mark_generated_at: str | None = None
+    maintenance_margin_mark_available_at: str | None = None
+    maintenance_margin_mark_decision_time: str | None = None
+    maintenance_margin_mark_source: str | None = None
+    maintenance_margin_mark_evidence_sha256: str | None = None
+    maintenance_margin_mark_contract_authoritative: bool = False
+    maintenance_margin_mark_freshness_budget_seconds: float | None = None
+    maintenance_margin_mark_cadence_policy_version: str | None = None
+    maintenance_margin_mark_consumer_validation_boundary: str | None = None
     maintenance_bracket_id: Any | None = None
     maintenance_bracket_maint_margin_ratio: Any | None = None
     maintenance_bracket_cum: Any | None = None
@@ -864,6 +958,14 @@ class PaperNetPosition:
     maintenance_bracket_available_at: str | None = None
     maintenance_bracket_expires_at: str | None = None
     maintenance_bracket_consumer_observed_at: str | None = None
+    maintenance_bracket_current_checked_at: str | None = None
+    maintenance_bracket_decision_time: str | None = None
+    maintenance_bracket_candidate_notional: float | None = None
+    maintenance_bracket_notional_floor: float | None = None
+    maintenance_bracket_notional_cap: float | None = None
+    maintenance_bracket_notional_contract: str | None = None
+    maintenance_bracket_authentication_revalidated: bool = False
+    maintenance_bracket_authentication_boundary: str | None = None
     maintenance_bracket_prevalidated: bool | None = None
     maintenance_bracket_evidence_status: str | None = None
     maintenance_bracket_evidence_reason: str | None = None
@@ -1020,6 +1122,13 @@ class PaperNetPosition:
     trailing_stop_history: list[dict[str, Any]] = field(default_factory=list)
     last_mark_price: float | None = None
     last_mark_est: str | None = None
+    last_mark_event_time: str | None = None
+    last_mark_generated_at: str | None = None
+    last_mark_available_at: str | None = None
+    last_mark_decision_time: str | None = None
+    last_mark_source: str | None = None
+    last_mark_evidence_sha256: str | None = None
+    last_mark_contract_authoritative: bool = False
     realized_pnl: float = 0.0
 
     @property
@@ -1424,6 +1533,38 @@ class PaperNetPosition:
         self.maintenance_bracket_consumer_observed_at = (
             str(observed_at) if observed_at not in (None, "") else None
         )
+        current_checked_at = evidence.get("current_checked_at")
+        self.maintenance_bracket_current_checked_at = (
+            str(current_checked_at)
+            if current_checked_at not in (None, "")
+            else None
+        )
+        decision_time = evidence.get("decision_time")
+        self.maintenance_bracket_decision_time = (
+            str(decision_time) if decision_time not in (None, "") else None
+        )
+        self.maintenance_bracket_candidate_notional = coerce_float(
+            evidence.get("candidate_notional")
+        )
+        self.maintenance_bracket_notional_floor = coerce_float(
+            evidence.get("notional_floor")
+        )
+        self.maintenance_bracket_notional_cap = coerce_float(
+            evidence.get("notional_cap")
+        )
+        notional_contract = evidence.get("candidate_notional_contract")
+        self.maintenance_bracket_notional_contract = (
+            str(notional_contract) if notional_contract not in (None, "") else None
+        )
+        self.maintenance_bracket_authentication_revalidated = (
+            evidence.get("authentication_revalidated") is True
+        )
+        authentication_boundary = evidence.get("authentication_boundary")
+        self.maintenance_bracket_authentication_boundary = (
+            str(authentication_boundary)
+            if authentication_boundary not in (None, "")
+            else None
+        )
         self.maintenance_bracket_prevalidated = evidence.get("prevalidated") is True
 
     def apply_maintenance_bracket_evidence(
@@ -1432,6 +1573,8 @@ class PaperNetPosition:
         *,
         mark_price: float,
         mark_time: str,
+        mark_evidence: dict[str, Any] | None = None,
+        decision_time: str | None = None,
     ) -> None:
         """Apply prevalidated account-bound evidence to the whole net position.
 
@@ -1451,9 +1594,85 @@ class PaperNetPosition:
                 reason="MAINTENANCE_MARK_PRICE_INVALID_FAIL_CLOSED",
             )
             return
-        self.maintenance_margin_notional_usd = abs(self.net_quantity) * mark
+        mark_material = mark_evidence if isinstance(mark_evidence, dict) else {}
+        mark_event_time = parse_aware_utc(mark_material.get("event_time"))
+        mark_generated_at = parse_aware_utc(mark_material.get("generated_at"))
+        mark_available_at = parse_aware_utc(mark_material.get("available_at"))
+        mark_decision_at = parse_aware_utc(decision_time)
+        mark_budget = coerce_float(mark_material.get("freshness_budget_seconds"))
+        marked_price = coerce_float(mark_material.get("price"))
+        mark_hash = mark_material.get("evidence_sha256")
+        mark_source = mark_material.get("source")
+        cadence_version = mark_material.get("cadence_policy_version")
+        consumer_validation_boundary = mark_material.get(
+            "consumer_validation_boundary"
+        )
+        mark_contract_valid = (
+            mark_material.get("authority_complete") is True
+            and marked_price is not None
+            and _accounting_values_match(marked_price, mark)
+            and mark_event_time is not None
+            and mark_generated_at is not None
+            and mark_available_at is not None
+            and mark_decision_at is not None
+            and mark_event_time <= mark_generated_at <= mark_available_at <= mark_decision_at
+            and mark_budget is not None
+            and math.isfinite(mark_budget)
+            and mark_budget > 0.0
+            and (mark_decision_at - mark_event_time).total_seconds() <= mark_budget
+            and _is_lower_sha256_hex(mark_hash)
+            and isinstance(mark_source, str)
+            and bool(mark_source.strip())
+            and isinstance(cadence_version, str)
+            and bool(cadence_version.strip())
+            and consumer_validation_boundary
+            == "PAPER_LOOP_EXCHANGE_MARK_CONSUMER_V1"
+            and str(mark_material.get("event_time")) == str(mark_time)
+        )
         self.maintenance_margin_mark_price = mark
-        self.maintenance_margin_mark_time = mark_time
+        self.maintenance_margin_mark_time = str(mark_time)
+        self.maintenance_margin_mark_event_time = (
+            str(mark_material.get("event_time"))
+            if mark_material.get("event_time") not in (None, "")
+            else None
+        )
+        self.maintenance_margin_mark_generated_at = (
+            str(mark_material.get("generated_at"))
+            if mark_material.get("generated_at") not in (None, "")
+            else None
+        )
+        self.maintenance_margin_mark_available_at = (
+            str(mark_material.get("available_at"))
+            if mark_material.get("available_at") not in (None, "")
+            else None
+        )
+        self.maintenance_margin_mark_decision_time = (
+            str(decision_time) if decision_time not in (None, "") else None
+        )
+        self.maintenance_margin_mark_source = (
+            str(mark_source) if mark_source not in (None, "") else None
+        )
+        self.maintenance_margin_mark_evidence_sha256 = (
+            str(mark_hash) if mark_hash not in (None, "") else None
+        )
+        self.maintenance_margin_mark_contract_authoritative = mark_contract_valid
+        self.maintenance_margin_mark_freshness_budget_seconds = mark_budget
+        self.maintenance_margin_mark_cadence_policy_version = (
+            str(cadence_version) if cadence_version not in (None, "") else None
+        )
+        self.maintenance_margin_mark_consumer_validation_boundary = (
+            str(consumer_validation_boundary)
+            if consumer_validation_boundary not in (None, "")
+            else None
+        )
+        if not mark_contract_valid:
+            self.maintenance_margin_notional_usd = None
+            self._set_maintenance_unknown(
+                status="MARK_EVIDENCE_NON_AUTHORITATIVE",
+                reason="MAINTENANCE_MARK_EVIDENCE_CONTRACT_INVALID_FAIL_CLOSED",
+            )
+            return
+        self.maintenance_margin_notional_usd = abs(self.net_quantity) * mark
         if not isinstance(evidence, dict):
             self._set_maintenance_unknown(
                 status="MISSING_FOR_CURRENT_MARK",
@@ -1462,13 +1681,17 @@ class PaperNetPosition:
             return
 
         self._capture_maintenance_bracket_lineage(evidence)
-        mark_dt = parse_aware_utc(mark_time)
         available_dt = parse_aware_utc(self.maintenance_bracket_available_at)
         expires_dt = parse_aware_utc(self.maintenance_bracket_expires_at)
         observed_dt = parse_aware_utc(self.maintenance_bracket_consumer_observed_at)
+        checked_dt = parse_aware_utc(self.maintenance_bracket_current_checked_at)
+        bracket_decision_dt = parse_aware_utc(self.maintenance_bracket_decision_time)
         ratio = coerce_float(self.maintenance_bracket_maint_margin_ratio)
         cum = coerce_float(self.maintenance_bracket_cum)
         max_leverage = coerce_float(self.maintenance_bracket_max_initial_leverage)
+        candidate_notional = coerce_float(self.maintenance_bracket_candidate_notional)
+        notional_floor = coerce_float(self.maintenance_bracket_notional_floor)
+        notional_cap = coerce_float(self.maintenance_bracket_notional_cap)
         binding_present = self.maintenance_bracket_binding not in (None, "", {}, [])
         checksum = self.maintenance_bracket_evidence_checksum_sha256
         evidence_hmac = self.maintenance_bracket_evidence_hmac_sha256
@@ -1488,10 +1711,15 @@ class PaperNetPosition:
                 ("environment_id", environment_id not in (None, "")),
                 ("key_id", key_id not in (None, "")),
                 ("source", self.maintenance_bracket_source not in (None, "")),
-                ("mark_time", mark_dt is not None),
+                ("mark_decision_time", mark_decision_at is not None),
                 ("available_at", available_dt is not None),
                 ("expires_at", expires_dt is not None),
                 ("consumer_observed_at", observed_dt is not None),
+                ("current_checked_at", checked_dt is not None),
+                ("decision_time", bracket_decision_dt is not None),
+                ("candidate_notional", candidate_notional is not None),
+                ("notional_floor", notional_floor is not None),
+                ("notional_cap", notional_cap is not None),
             )
             if not present
         ]
@@ -1505,6 +1733,14 @@ class PaperNetPosition:
             or not isinstance(key_id, str)
             or not key_id.strip()
             or self.maintenance_bracket_source != _BINANCE_USDM_BRACKET_SOURCE
+            or self.maintenance_bracket_authentication_revalidated is not True
+            or self.maintenance_bracket_authentication_boundary
+            != "PAPER_LOOP_SELECT_PAPER_BRACKET_EVIDENCE_HMAC_V1"
+            or evidence.get("evidence_usable") is not True
+            or evidence.get("allowed") is not True
+            or evidence.get("status") != "READY"
+            or self.maintenance_bracket_notional_contract
+            != "TOTAL_ABSOLUTE_SYMBOL_POSITION_NOTIONAL_AFTER_CANDIDATE_FILL"
         )
         numeric_invalid = (
             ratio is None
@@ -1516,6 +1752,27 @@ class PaperNetPosition:
             or max_leverage is None
             or not math.isfinite(max_leverage)
             or max_leverage < 1.0
+            or candidate_notional is None
+            or not math.isfinite(candidate_notional)
+            or not _accounting_values_match(
+                candidate_notional,
+                self.maintenance_margin_notional_usd,
+            )
+            or notional_floor is None
+            or notional_floor < 0.0
+            or notional_cap is None
+            or notional_cap <= notional_floor
+            or not (notional_floor <= candidate_notional < notional_cap)
+            or not _accounting_values_match(
+                coerce_float(
+                    evidence.get("maintenance_margin_estimate_for_candidate_notional")
+                ),
+                max(0.0, candidate_notional * ratio - cum)
+                if candidate_notional is not None
+                and ratio is not None
+                and cum is not None
+                else None,
+            )
         )
         if required_missing or numeric_invalid or provenance_invalid:
             detail = (
@@ -1531,10 +1788,11 @@ class PaperNetPosition:
             )
             return
         assert (
-            mark_dt is not None
-            and available_dt is not None
+            available_dt is not None
             and expires_dt is not None
             and observed_dt is not None
+            and checked_dt is not None
+            and bracket_decision_dt is not None
         )
         if available_dt >= expires_dt:
             self._set_maintenance_unknown(
@@ -1542,22 +1800,28 @@ class PaperNetPosition:
                 reason="MAINTENANCE_BRACKET_AVAILABLE_NOT_BEFORE_EXPIRY",
             )
             return
-        if available_dt > mark_dt:
+        if bracket_decision_dt != mark_decision_at:
             self._set_maintenance_unknown(
-                status="FUTURE_AT_MARK",
-                reason="MAINTENANCE_BRACKET_AVAILABLE_AFTER_MARK_TIME",
+                status="DECISION_CLOCK_MISMATCH",
+                reason="MAINTENANCE_BRACKET_DECISION_TIME_NOT_MARK_DECISION_TIME",
             )
             return
-        if expires_dt <= mark_dt:
+        if available_dt > bracket_decision_dt:
             self._set_maintenance_unknown(
-                status="STALE_AT_MARK",
-                reason="MAINTENANCE_BRACKET_EXPIRED_AT_MARK_TIME",
+                status="FUTURE_AT_DECISION",
+                reason="MAINTENANCE_BRACKET_AVAILABLE_AFTER_DECISION_TIME",
             )
             return
-        if observed_dt < available_dt or observed_dt > mark_dt:
+        if expires_dt <= checked_dt:
+            self._set_maintenance_unknown(
+                status="STALE_AT_CURRENT_CHECK",
+                reason="MAINTENANCE_BRACKET_EXPIRED_AT_CURRENT_CHECK",
+            )
+            return
+        if not available_dt <= bracket_decision_dt <= observed_dt <= checked_dt:
             self._set_maintenance_unknown(
                 status="INVALID_CONSUMER_OBSERVED_AT",
-                reason="MAINTENANCE_BRACKET_CONSUMER_OBSERVED_AT_INVALID",
+                reason="MAINTENANCE_BRACKET_CONSUMER_CLOCK_ORDER_INVALID",
             )
             return
 
@@ -1598,11 +1862,14 @@ class PaperNetPosition:
         simulated_margin_mode = str(
             self.margin_mode_simulated or "isolated_paper_simulated"
         ).strip().lower()
-        if simulated_margin_mode not in {"isolated", "isolated_paper_simulated"}:
+        if simulated_margin_mode in {"cross", "cross_paper_simulated"}:
+            self.margin_mode_simulated = "cross_paper_simulated"
+        elif simulated_margin_mode in {"isolated", "isolated_paper_simulated"}:
+            self.margin_mode_simulated = "isolated_paper_simulated"
+        else:
             self.margin_mode_simulated = "isolated_paper_simulated"
             reason = (
-                "CROSS_MARGIN_SIMULATION_DOWNGRADED_NO_ACCOUNT_WIDE_"
-                "LIQUIDATION_MODEL"
+                "INVALID_MARGIN_MODE_DOWNGRADED_TO_ISOLATED_PAPER_SIMULATED"
             )
             if reason not in self.capital_accounting_reconciliation_reasons:
                 self.capital_accounting_reconciliation_reasons.append(reason)
@@ -1640,6 +1907,15 @@ class PaperNetPosition:
             0.0,
             maintenance_notional * maintenance_rate - maintenance_cum,
         )
+        if self.margin_mode_simulated == "cross_paper_simulated":
+            self.maintenance_margin_estimate = maintenance_amount
+            self.liquidation_price_estimate = None
+            self.liquidation_buffer_bps = None
+            reason = "CROSS_LIQUIDATION_REQUIRES_ACCOUNT_WIDE_MODEL"
+            if reason not in self.capital_accounting_reconciliation_reasons:
+                self.capital_accounting_reconciliation_reasons.append(reason)
+            self._sync_adaptive_allocation_capital()
+            return
         liquidation_price = _liquidation_estimate(
             side=self.side,
             entry_price=self.avg_entry_price,
@@ -1898,39 +2174,20 @@ class PaperNetPosition:
                 ]
             )
         )
-        # Until the next whole-position mark selects the exact tier, retain
-        # only the more conservative of two complete fill-bound brackets.
+        # A fill-bound bracket is selected for that fill's notional.  It is
+        # never valid authority for the newly aggregated whole-position
+        # notional, even when it happens to look conservative.  The lifecycle
+        # must perform a fresh authenticated whole-position selection below.
         self.maintenance_margin_notional_usd = abs(new_qty) * price
         self.maintenance_margin_mark_price = price
         self.maintenance_margin_mark_time = first_present(
             incoming_position.entry_generation_time_utc,
             incoming_position.opened_est,
         )
-        if self._maintenance_bracket_is_usable() and incoming_position._maintenance_bracket_is_usable():
-            candidates = (self, incoming_position)
-
-            def maintenance_for(candidate: PaperNetPosition) -> float:
-                rate = coerce_float(candidate.maintenance_margin_rate) or 0.0
-                cum_value = coerce_float(candidate.maintenance_margin_cum) or 0.0
-                return max(0.0, self.maintenance_margin_notional_usd * rate - cum_value)
-
-            selected = max(
-                candidates,
-                key=lambda candidate: (
-                    maintenance_for(candidate),
-                    coerce_float(candidate.maintenance_margin_rate) or 0.0,
-                ),
-            )
-            self._copy_maintenance_bracket_from(selected)
-            self.maintenance_bracket_evidence_status = "READY_CONSERVATIVE_SAME_SIDE_FILL"
-            self.maintenance_bracket_evidence_reason = (
-                "CONSERVATIVE_FILL_BRACKET_PENDING_WHOLE_POSITION_MARK_RESELECTION"
-            )
-        else:
-            self._set_maintenance_unknown(
-                status="SAME_SIDE_FILL_EVIDENCE_INCOMPLETE",
-                reason="SAME_SIDE_FILL_MAINTENANCE_BRACKET_EVIDENCE_INCOMPLETE",
-            )
+        self._set_maintenance_unknown(
+            status="WHOLE_POSITION_NOTIONAL_RESELECTION_REQUIRED",
+            reason="AGGREGATED_POSITION_REQUIRES_AUTHENTICATED_NOTIONAL_BRACKET_RESELECTION",
+        )
         self.recompute_capital_accounting()
         if fill_id not in self.fill_ids:
             self.fill_ids.append(fill_id)
@@ -1940,12 +2197,61 @@ class PaperNetPosition:
         *,
         mark_price: float | None,
         mark_time: str,
+        mark_evidence: dict[str, Any] | None = None,
+        decision_time: str | None = None,
         maintenance_bracket_evidence: dict[str, Any] | None | object = _MAINTENANCE_EVIDENCE_UNSET,
     ) -> None:
         if mark_price is None or mark_price <= 0:
             return
+        prior_mark_price = self.last_mark_price
+        duplicate_decision_mark = (
+            prior_mark_price is not None
+            and _accounting_values_match(prior_mark_price, mark_price)
+            and self.last_mark_contract_authoritative is True
+        )
         self.last_mark_price = mark_price
         self.last_mark_est = utc_to_est_iso(mark_time) or mark_time
+        mark_material = mark_evidence if isinstance(mark_evidence, dict) else {}
+        if mark_material:
+            self.last_mark_event_time = (
+                str(mark_material.get("event_time"))
+                if mark_material.get("event_time") not in (None, "")
+                else None
+            )
+            self.last_mark_generated_at = (
+                str(mark_material.get("generated_at"))
+                if mark_material.get("generated_at") not in (None, "")
+                else None
+            )
+            self.last_mark_available_at = (
+                str(mark_material.get("available_at"))
+                if mark_material.get("available_at") not in (None, "")
+                else None
+            )
+            self.last_mark_decision_time = (
+                str(decision_time) if decision_time not in (None, "") else None
+            )
+            self.last_mark_source = (
+                str(mark_material.get("source"))
+                if mark_material.get("source") not in (None, "")
+                else None
+            )
+            self.last_mark_evidence_sha256 = (
+                str(mark_material.get("evidence_sha256"))
+                if mark_material.get("evidence_sha256") not in (None, "")
+                else None
+            )
+            self.last_mark_contract_authoritative = (
+                mark_material.get("authority_complete") is True
+            )
+        elif not duplicate_decision_mark:
+            self.last_mark_event_time = None
+            self.last_mark_generated_at = None
+            self.last_mark_available_at = None
+            self.last_mark_decision_time = None
+            self.last_mark_source = None
+            self.last_mark_evidence_sha256 = None
+            self.last_mark_contract_authoritative = False
         self.intra_trade_high_price = max(self.intra_trade_high_price or self.avg_entry_price, mark_price)
         self.intra_trade_low_price = min(self.intra_trade_low_price or self.avg_entry_price, mark_price)
         if self.best_favorable_price is None:
@@ -1974,15 +2280,17 @@ class PaperNetPosition:
                 else None,
                 mark_price=mark_price,
                 mark_time=mark_time,
+                mark_evidence=mark_evidence,
+                decision_time=decision_time,
             )
-        elif self._maintenance_bracket_is_usable():
-            # Internal close/path updates may repeat the same externally
-            # validated mark. They may update the price basis, but cannot
-            # introduce or resurrect maintenance evidence.
-            self.maintenance_margin_notional_usd = abs(self.net_quantity) * mark_price
-            self.maintenance_margin_mark_price = mark_price
-            self.maintenance_margin_mark_time = mark_time
-            self.recompute_capital_accounting()
+        elif self._maintenance_bracket_is_usable() and not duplicate_decision_mark:
+            # A price change changes the bracket-selection notional.  Reusing
+            # the previous tier without an authenticated reselection would
+            # make the maintenance result notional-incorrect.
+            self._set_maintenance_unknown(
+                status="CURRENT_MARK_BRACKET_RESELECTION_MISSING",
+                reason="CURRENT_MARK_REQUIRES_AUTHENTICATED_NOTIONAL_BRACKET_RESELECTION",
+            )
 
     def record_trailing_state(
         self,
@@ -2057,6 +2365,36 @@ class PaperNetPosition:
             "maintenance_margin_notional_usd": (
                 self.maintenance_margin_notional_usd
             ),
+            "maintenance_margin_mark_price": self.maintenance_margin_mark_price,
+            "maintenance_margin_mark_time": self.maintenance_margin_mark_time,
+            "maintenance_margin_mark_event_time": (
+                self.maintenance_margin_mark_event_time
+            ),
+            "maintenance_margin_mark_generated_at": (
+                self.maintenance_margin_mark_generated_at
+            ),
+            "maintenance_margin_mark_available_at": (
+                self.maintenance_margin_mark_available_at
+            ),
+            "maintenance_margin_mark_decision_time": (
+                self.maintenance_margin_mark_decision_time
+            ),
+            "maintenance_margin_mark_source": self.maintenance_margin_mark_source,
+            "maintenance_margin_mark_evidence_sha256": (
+                self.maintenance_margin_mark_evidence_sha256
+            ),
+            "maintenance_margin_mark_contract_authoritative": (
+                self.maintenance_margin_mark_contract_authoritative
+            ),
+            "maintenance_margin_mark_freshness_budget_seconds": (
+                self.maintenance_margin_mark_freshness_budget_seconds
+            ),
+            "maintenance_margin_mark_cadence_policy_version": (
+                self.maintenance_margin_mark_cadence_policy_version
+            ),
+            "maintenance_margin_mark_consumer_validation_boundary": (
+                self.maintenance_margin_mark_consumer_validation_boundary
+            ),
             "maintenance_bracket_id": self.maintenance_bracket_id,
             "maintenance_bracket_maint_margin_ratio": (
                 self.maintenance_bracket_maint_margin_ratio
@@ -2088,6 +2426,24 @@ class PaperNetPosition:
             ),
             "maintenance_bracket_consumer_observed_at": (
                 self.maintenance_bracket_consumer_observed_at
+            ),
+            "maintenance_bracket_current_checked_at": (
+                self.maintenance_bracket_current_checked_at
+            ),
+            "maintenance_bracket_decision_time": self.maintenance_bracket_decision_time,
+            "maintenance_bracket_candidate_notional": (
+                self.maintenance_bracket_candidate_notional
+            ),
+            "maintenance_bracket_notional_floor": self.maintenance_bracket_notional_floor,
+            "maintenance_bracket_notional_cap": self.maintenance_bracket_notional_cap,
+            "maintenance_bracket_notional_contract": (
+                self.maintenance_bracket_notional_contract
+            ),
+            "maintenance_bracket_authentication_revalidated": (
+                self.maintenance_bracket_authentication_revalidated
+            ),
+            "maintenance_bracket_authentication_boundary": (
+                self.maintenance_bracket_authentication_boundary
             ),
             "maintenance_bracket_prevalidated": (
                 self.maintenance_bracket_prevalidated
@@ -2126,6 +2482,30 @@ class PaperNetPosition:
             ),
             "entry_cost_basis_status": self.entry_cost_basis_status,
             "position_state": "OPEN_POSITION",
+            "last_mark_price": self.last_mark_price,
+            "last_mark_event_time": self.last_mark_event_time,
+            "last_mark_generated_at": self.last_mark_generated_at,
+            "last_mark_available_at": self.last_mark_available_at,
+            "last_mark_decision_time": self.last_mark_decision_time,
+            "last_mark_source": self.last_mark_source,
+            "last_mark_evidence_sha256": self.last_mark_evidence_sha256,
+            "last_mark_contract_authoritative": (
+                self.last_mark_contract_authoritative
+            ),
+            "hedge_state": self.hedge_state,
+            "hedge_reason": self.hedge_reason,
+            "hedge_parent_id": self.hedge_parent_id,
+            "hedge_parent_generation_id": self.hedge_parent_generation_id,
+            "hedge_child_id": self.hedge_child_id,
+            "hedge_pair_session_id": self.hedge_pair_session_id,
+            "hedge_ratio": self.hedge_ratio,
+            "hedge_entry_parent_pnl_bps": self.hedge_entry_parent_pnl_bps,
+            "hedge_pending_since": self.hedge_pending_since,
+            "hedge_pending_validity_envelope": (
+                dict(self.hedge_pending_validity_envelope)
+                if isinstance(self.hedge_pending_validity_envelope, dict)
+                else None
+            ),
             "paper_only": True,
             "places_real_order": False,
         }
@@ -2218,6 +2598,18 @@ class PaperNetPosition:
             "available_at": self.maintenance_bracket_available_at,
             "expires_at": self.maintenance_bracket_expires_at,
             "consumer_observed_at": self.maintenance_bracket_consumer_observed_at,
+            "current_checked_at": self.maintenance_bracket_current_checked_at,
+            "decision_time": self.maintenance_bracket_decision_time,
+            "candidate_notional": self.maintenance_bracket_candidate_notional,
+            "notional_floor": self.maintenance_bracket_notional_floor,
+            "notional_cap": self.maintenance_bracket_notional_cap,
+            "candidate_notional_contract": self.maintenance_bracket_notional_contract,
+            "authentication_revalidated": (
+                self.maintenance_bracket_authentication_revalidated
+            ),
+            "authentication_boundary": self.maintenance_bracket_authentication_boundary,
+            "evidence_usable": self._maintenance_bracket_is_usable(),
+            "allowed": self._maintenance_bracket_is_usable(),
             "status": self.maintenance_bracket_evidence_status,
             "reason": self.maintenance_bracket_evidence_reason,
         }
@@ -2271,6 +2663,34 @@ class PaperNetPosition:
             "maintenance_margin_notional_usd": self.maintenance_margin_notional_usd,
             "maintenance_margin_mark_price": self.maintenance_margin_mark_price,
             "maintenance_margin_mark_time": self.maintenance_margin_mark_time,
+            "maintenance_margin_mark_event_time": (
+                self.maintenance_margin_mark_event_time
+            ),
+            "maintenance_margin_mark_generated_at": (
+                self.maintenance_margin_mark_generated_at
+            ),
+            "maintenance_margin_mark_available_at": (
+                self.maintenance_margin_mark_available_at
+            ),
+            "maintenance_margin_mark_decision_time": (
+                self.maintenance_margin_mark_decision_time
+            ),
+            "maintenance_margin_mark_source": self.maintenance_margin_mark_source,
+            "maintenance_margin_mark_evidence_sha256": (
+                self.maintenance_margin_mark_evidence_sha256
+            ),
+            "maintenance_margin_mark_contract_authoritative": (
+                self.maintenance_margin_mark_contract_authoritative
+            ),
+            "maintenance_margin_mark_freshness_budget_seconds": (
+                self.maintenance_margin_mark_freshness_budget_seconds
+            ),
+            "maintenance_margin_mark_cadence_policy_version": (
+                self.maintenance_margin_mark_cadence_policy_version
+            ),
+            "maintenance_margin_mark_consumer_validation_boundary": (
+                self.maintenance_margin_mark_consumer_validation_boundary
+            ),
             "maintenance_margin_formula": "MAX(0,ABS_NET_QUANTITY_X_FRESH_MARK_X_MAINT_MARGIN_RATIO_MINUS_CUM)",
             "maintenance_bracket_evidence": maintenance_bracket_evidence,
             "maintenance_bracket_id": self.maintenance_bracket_id,
@@ -2287,6 +2707,24 @@ class PaperNetPosition:
             "maintenance_bracket_available_at": self.maintenance_bracket_available_at,
             "maintenance_bracket_expires_at": self.maintenance_bracket_expires_at,
             "maintenance_bracket_consumer_observed_at": self.maintenance_bracket_consumer_observed_at,
+            "maintenance_bracket_current_checked_at": (
+                self.maintenance_bracket_current_checked_at
+            ),
+            "maintenance_bracket_decision_time": self.maintenance_bracket_decision_time,
+            "maintenance_bracket_candidate_notional": (
+                self.maintenance_bracket_candidate_notional
+            ),
+            "maintenance_bracket_notional_floor": self.maintenance_bracket_notional_floor,
+            "maintenance_bracket_notional_cap": self.maintenance_bracket_notional_cap,
+            "maintenance_bracket_notional_contract": (
+                self.maintenance_bracket_notional_contract
+            ),
+            "maintenance_bracket_authentication_revalidated": (
+                self.maintenance_bracket_authentication_revalidated
+            ),
+            "maintenance_bracket_authentication_boundary": (
+                self.maintenance_bracket_authentication_boundary
+            ),
             "maintenance_bracket_prevalidated": self.maintenance_bracket_prevalidated,
             "maintenance_bracket_evidence_status": self.maintenance_bracket_evidence_status,
             "maintenance_bracket_evidence_reason": self.maintenance_bracket_evidence_reason,
@@ -2341,6 +2779,15 @@ class PaperNetPosition:
             "opened_est": self.opened_est,
             "last_mark_est": self.last_mark_est,
             "last_mark_price": self.last_mark_price,
+            "last_mark_event_time": self.last_mark_event_time,
+            "last_mark_generated_at": self.last_mark_generated_at,
+            "last_mark_available_at": self.last_mark_available_at,
+            "last_mark_decision_time": self.last_mark_decision_time,
+            "last_mark_source": self.last_mark_source,
+            "last_mark_evidence_sha256": self.last_mark_evidence_sha256,
+            "last_mark_contract_authoritative": (
+                self.last_mark_contract_authoritative
+            ),
             "unrealized_pnl": self.unrealized_pnl(),
             "unrealized_pnl_bps": self.unrealized_pnl_bps(),
             "realized_pnl": self.realized_pnl,
@@ -2498,10 +2945,17 @@ class PaperNetPosition:
             "hedge_state": self.hedge_state,
             "hedge_reason": self.hedge_reason,
             "hedge_parent_id": self.hedge_parent_id,
+            "hedge_parent_generation_id": self.hedge_parent_generation_id,
             "hedge_child_id": self.hedge_child_id,
+            "hedge_pair_session_id": self.hedge_pair_session_id,
             "hedge_ratio": self.hedge_ratio,
             "hedge_entry_parent_pnl_bps": self.hedge_entry_parent_pnl_bps,
             "hedge_pending_since": self.hedge_pending_since,
+            "hedge_pending_validity_envelope": (
+                dict(self.hedge_pending_validity_envelope)
+                if isinstance(self.hedge_pending_validity_envelope, dict)
+                else None
+            ),
             "drawdown_at_entry": self.drawdown_at_entry,
             "market_regime_at_entry": self.market_regime_at_entry,
             "liquidity_zone_context": self.liquidity_zone_context,
@@ -2743,6 +3197,24 @@ def maintenance_bracket_evidence_from_payload(
             "available_at": value.get("available_at"),
             "expires_at": value.get("expires_at"),
             "consumer_observed_at": value.get("consumer_observed_at"),
+            "current_checked_at": value.get("current_checked_at"),
+            "decision_time": value.get("decision_time"),
+            "candidate_notional": value.get("candidate_notional"),
+            "notional_floor": value.get("notional_floor"),
+            "notional_cap": value.get("notional_cap"),
+            "candidate_notional_contract": value.get(
+                "candidate_notional_contract"
+            ),
+            "authentication_revalidated": (
+                value.get("authentication_revalidated") is True
+            ),
+            "authentication_boundary": value.get("authentication_boundary"),
+            "evidence_usable": value.get("evidence_usable") is True,
+            "allowed": value.get("allowed") is True,
+            "status": value.get("status"),
+            "maintenance_margin_estimate_for_candidate_notional": value.get(
+                "maintenance_margin_estimate_for_candidate_notional"
+            ),
         }
 
     for container in (payload, allocation):
@@ -2830,6 +3302,48 @@ def maintenance_bracket_evidence_from_payload(
         "consumer_observed_at": first_present(
             payload.get("maintenance_bracket_consumer_observed_at"),
             allocation.get("maintenance_bracket_consumer_observed_at"),
+        ),
+        "current_checked_at": first_present(
+            payload.get("maintenance_bracket_current_checked_at"),
+            allocation.get("maintenance_bracket_current_checked_at"),
+        ),
+        "decision_time": first_present(
+            payload.get("maintenance_bracket_decision_time"),
+            allocation.get("maintenance_bracket_decision_time"),
+        ),
+        "candidate_notional": first_present(
+            payload.get("maintenance_bracket_candidate_notional"),
+            allocation.get("maintenance_bracket_candidate_notional"),
+        ),
+        "notional_floor": first_present(
+            payload.get("maintenance_bracket_notional_floor"),
+            allocation.get("maintenance_bracket_notional_floor"),
+        ),
+        "notional_cap": first_present(
+            payload.get("maintenance_bracket_notional_cap"),
+            allocation.get("maintenance_bracket_notional_cap"),
+        ),
+        "candidate_notional_contract": first_present(
+            payload.get("maintenance_bracket_notional_contract"),
+            allocation.get("maintenance_bracket_notional_contract"),
+        ),
+        "authentication_revalidated": first_present(
+            payload.get("maintenance_bracket_authentication_revalidated"),
+            allocation.get("maintenance_bracket_authentication_revalidated"),
+        )
+        is True,
+        "authentication_boundary": first_present(
+            payload.get("maintenance_bracket_authentication_boundary"),
+            allocation.get("maintenance_bracket_authentication_boundary"),
+        ),
+        "evidence_usable": (
+            payload.get("maintenance_bracket_evidence_status") == "READY"
+        ),
+        "allowed": payload.get("maintenance_bracket_evidence_status") == "READY",
+        "status": payload.get("maintenance_bracket_evidence_status"),
+        "maintenance_margin_estimate_for_candidate_notional": first_present(
+            payload.get("maintenance_margin_estimate"),
+            allocation.get("maintenance_margin_estimate"),
         ),
     }
 
@@ -3744,9 +4258,20 @@ def position_from_fill(fill: dict[str, Any], *, fill_id: str, side: str, quantit
             if fill.get("hedge_intent") is True and fill.get("hedge_parent_id")
             else None
         ),
+        hedge_parent_generation_id=(
+            str(fill.get("hedge_parent_generation_id"))
+            if fill.get("hedge_intent") is True
+            and fill.get("hedge_parent_generation_id")
+            else None
+        ),
         hedge_child_id=(
             str(fill.get("hedge_child_id"))
             if fill.get("hedge_intent") is True and fill.get("hedge_child_id")
+            else None
+        ),
+        hedge_pair_session_id=(
+            str(fill.get("hedge_pair_session_id"))
+            if fill.get("hedge_intent") is True and fill.get("hedge_pair_session_id")
             else None
         ),
         hedge_ratio=(
