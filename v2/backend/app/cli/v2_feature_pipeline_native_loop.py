@@ -1901,43 +1901,26 @@ def _merge_external_v2_features(
     }
 
 
-def _read_liq_notional_24h(r, symbol: str) -> float | None:
-    """Resolve 24h liquidation notional (USD) for ``symbol``.
+def _read_liq_notional_24h(
+    r,
+    symbol: str,
+    *,
+    decision_ms: int | None = None,
+) -> float | None:
+    """Mask the 24h liquidation feature until a complete source is bound.
 
-    Source priority:
-      1. ``v2:market:liquidations:aggregate:{symbol}`` (rolling aggregate from
-         the WSS client) — authoritative when present.
-      2. ``v2:liquidations:events`` stream scanned over the last 24h — used when
-         no aggregate exists but the stream is live (present even if empty).
-    Returns 0.0 when a live source exists but reports no liquidations (a real
-    zero), or ``None`` when no liquidation source is observable at all.
+    The deployed Binance ``forceOrder`` feed is explicitly a lossy snapshot
+    stream.  Its observed aggregate can support lower-bound operator telemetry,
+    but it cannot prove complete 24h capture and has no authenticated producer
+    receipt.  Reading that mutable payload here would let it self-assert the
+    completeness needed to populate ``last_liq_bps_24h``.  Do not read it.
+
+    ``r``, ``symbol`` and ``decision_ms`` remain in the signature so a future
+    complete-capture integration can be added behind an independently verified
+    source contract without changing the feature-builder call boundary.
     """
-    if r is None:
-        return None
-    agg_raw = r.get(f"{V2_REDIS_PREFIX}market:liquidations:aggregate:{symbol}")
-    if agg_raw:
-        try:
-            agg = json.loads(agg_raw)
-            if isinstance(agg, dict) and "notional_24h" in agg:
-                return float(agg.get("notional_24h") or 0.0)
-        except (ValueError, TypeError):
-            pass
-    # Fall back to the global events stream if it exists at all.
-    try:
-        if not r.exists(f"{V2_REDIS_PREFIX}liquidations:events"):
-            return None
-        entries = r.xrange(f"{V2_REDIS_PREFIX}liquidations:events", min="-", max="+")
-    except Exception:
-        return None
-    total = 0.0
-    for _eid, fields in entries or []:
-        if (fields.get("symbol") or "").upper() != symbol.upper():
-            continue
-        try:
-            total += float(fields.get("notional") or 0.0)
-        except (TypeError, ValueError):
-            continue
-    return total
+    del r, symbol, decision_ms
+    return None
 
 
 def _klines_to_ohlc_series(klines: list) -> tuple[list[float], list[float], list[float], list[float]]:
@@ -2537,7 +2520,11 @@ def run_once(symbols: tuple[str, ...], timeframe: str, *, write_trainer_snapshot
         m["_orderbook"] = _read_orderbook(r, sym)
         m["_oi_hist"] = _read_oi_hist(r, sym)
         m["_long_short"] = _read_long_short(r, sym)
-        m["_liq_notional_24h"] = _read_liq_notional_24h(r, sym)
+        m["_liq_notional_24h"] = _read_liq_notional_24h(
+            r,
+            sym,
+            decision_ms=decision_ms,
+        )
         m["_paper_position_present"] = (
             paper_position_presence.get(sym) if paper_position_presence is not None else None
         )

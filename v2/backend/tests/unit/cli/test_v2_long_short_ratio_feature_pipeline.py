@@ -122,8 +122,20 @@ def test_feature_pipeline_archives_snapshot_by_exact_feature_snapshot_id(monkeyp
     monkeypatch.setattr(loop, "_read_orderbook", lambda _r, _symbol: None)
     monkeypatch.setattr(loop, "_read_oi_hist", lambda _r, _symbol: None)
     monkeypatch.setattr(loop, "_read_long_short", lambda _r, _symbol: None)
-    monkeypatch.setattr(loop, "_read_liq_notional_24h", lambda _r, _symbol: None)
-    monkeypatch.setattr(loop, "_merge_external_v2_features", lambda _r, _symbol, _timeframe, _features: {"sources_present": [], "fields_merged": []})
+    monkeypatch.setattr(
+        loop,
+        "_read_liq_notional_24h",
+        lambda _r, _symbol, *, decision_ms=None: None,
+    )
+    monkeypatch.setattr(
+        loop,
+        "_merge_external_v2_features",
+        lambda _r, _symbol, _timeframe, _features, **_kwargs: {
+            "sources_present": [],
+            "fields_merged": [],
+            "market_structure_ohlcv_binding": None,
+        },
+    )
     monkeypatch.setattr(loop, "SNAPSHOT_PATH", tmp_path / "latest_feature_snapshot.json")
 
     status = loop.run_once(("BTCUSDT",), "1m")
