@@ -783,6 +783,7 @@ public struct IngestorRowModel: Decodable, Equatable, Identifiable {
     public let sampled_payloads: Int?
     public let upstream_error_payloads: Int?
     public let newest_event_age_seconds: Double?
+    public let live_within_seconds: Double?
     public let status: String
     public let provider_current: Bool?
     public let provider_usable: Bool?

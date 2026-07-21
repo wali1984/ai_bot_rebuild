@@ -23,11 +23,15 @@ private func ingestorStatusLabel(_ status: String) -> String {
     status.replacingOccurrences(of: "_", with: " ").uppercased()
 }
 
-/// Freshness color for a per-feed age: <=60s fresh, <=300s warming, else stale.
-private func ingestorFreshnessColor(_ seconds: Double?) -> Color {
+/// Freshness color graded against the feed's own liveness threshold (backend
+/// live_within_seconds; moralis polls every 300s so 660s is still live). Falls
+/// back to the streaming-feed defaults of 60s/300s when no threshold is given.
+private func ingestorFreshnessColor(_ seconds: Double?, liveWithin: Double? = nil) -> Color {
     guard let seconds else { return NerVyx.textMuted }
-    if seconds <= 60 { return NerVyx.validation }
-    if seconds <= 300 { return NerVyx.warning }
+    let fresh = liveWithin ?? 60
+    let warming = max(300, fresh * 2)
+    if seconds <= fresh { return NerVyx.validation }
+    if seconds <= warming { return NerVyx.warning }
     return NerVyx.sell
 }
 
@@ -212,7 +216,7 @@ struct IngestorsView: View {
                 MetricCard(
                     title: "Freshness",
                     value: NerVyxFormat.age(ingestor.newest_event_age_seconds),
-                    valueColor: ingestorFreshnessColor(ingestor.newest_event_age_seconds),
+                    valueColor: ingestorFreshnessColor(ingestor.newest_event_age_seconds, liveWithin: ingestor.live_within_seconds),
                     icon: "clock"
                 )
                 MetricCard(

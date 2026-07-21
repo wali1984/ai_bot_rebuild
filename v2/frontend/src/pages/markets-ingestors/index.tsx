@@ -39,6 +39,7 @@ interface IngestorRow {
   sampled_payloads: number;
   upstream_error_payloads: number;
   newest_event_age_seconds: number | null;
+  live_within_seconds?: number | null;
   status: string;
   provider_current?: boolean;
   provider_usable?: boolean;
@@ -283,12 +284,17 @@ function StatusLegend({ rows }: { rows: IngestorRow[] }) {
   );
 }
 
-/** Freshness colour: only live ingestors grade by age; others take their status colour. */
-function ageColor(status: string, age: number | null | undefined): string {
+/** Freshness colour: only live ingestors grade by age; others take their status
+ * colour. Age is graded against the feed's own liveness threshold (backend
+ * live_within_seconds — moralis polls every 300s so 660s is still live),
+ * falling back to streaming-feed defaults of 60s/300s. */
+function ageColor(status: string, age: number | null | undefined, liveWithin?: number | null): string {
   if (status !== 'live') return STATUS_COLOR[status] ?? 'var(--text-muted)';
   if (age == null) return 'var(--text-muted)';
-  if (age < 60) return 'var(--buy, #21C784)';
-  if (age < 300) return '#A8841F';
+  const fresh = liveWithin ?? 60;
+  const warming = Math.max(300, fresh * 2);
+  if (age < fresh) return 'var(--buy, #21C784)';
+  if (age < warming) return '#A8841F';
   return 'var(--sell, #FF5D7A)';
 }
 
@@ -318,7 +324,7 @@ function IngestorStatusCard({ row }: { row: IngestorRow }) {
         <span style={{ flex: '0 0 auto', padding: '2px 9px', borderRadius: 999, fontSize: 10, fontWeight: 800, letterSpacing: '0.04em', color, background: `color-mix(in oklch, ${color} 14%, transparent)`, border: `1px solid color-mix(in oklch, ${color} 40%, transparent)`, textTransform: 'uppercase' }}>{row.status.replace(/_/g, ' ')}</span>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '10px 14px' }}>
-        <Stat label="Freshness" value={fmtAge(row.newest_event_age_seconds)} color={ageColor(row.status, row.newest_event_age_seconds)} mono />
+        <Stat label="Freshness" value={fmtAge(row.newest_event_age_seconds)} color={ageColor(row.status, row.newest_event_age_seconds, row.live_within_seconds)} mono />
         <Stat label="Keys / symbols" value={row.key_count != null ? row.key_count.toLocaleString() : '—'} mono />
         <Stat label="Sampled payloads" value={row.sampled_payloads != null ? row.sampled_payloads.toLocaleString() : '—'} mono />
         <Stat label="Upstream errors" value={row.upstream_error_payloads ?? 0} color={hasErrors ? 'var(--sell, #FF5D7A)' : 'var(--buy, #21C784)'} mono />
