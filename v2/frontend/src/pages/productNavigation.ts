@@ -282,13 +282,9 @@ export const PAGE_OVERRIDES: Record<string, ProductPageOverride> = {
     hideFromNav: true,
     path: '/admin/monitor-center',
   },
-  ingestors: {
-    title: 'Ingestors',
-    surface: 'admin',
-    navCategory: 'data',
-    hideFromNav: true,
-    path: '/admin/ingestors',
-  },
+  // 'ingestors' page module removed 2026-07-21: /admin/ingestors was permanently
+  // shadowed by the MERGED_LEGACY_PATHS redirect to /admin/data (its live
+  // replacement, Ingestors tab). The redirect below is the surviving alias.
   'trainer-admin': {
     title: 'Trainer',
     surface: 'system',

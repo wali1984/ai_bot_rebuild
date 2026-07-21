@@ -236,10 +236,6 @@ import historyMeta from './history/meta';
 import historyRbac from './history/rbac';
 import historyRoute from './history/route';
 
-import ingestorsMeta from './ingestors/meta';
-import ingestorsRbac from './ingestors/rbac';
-import ingestorsRoute from './ingestors/route';
-
 import orderbookRuntimeTruthMeta from './orderbook-runtime-truth/meta';
 import orderbookRuntimeTruthRbac from './orderbook-runtime-truth/rbac';
 import orderbookRuntimeTruthRoute from './orderbook-runtime-truth/route';
@@ -372,7 +368,6 @@ const RAW_PAGES: ReadonlyArray<PageModule> = [
   { meta: alertsMeta, rbac: alertsRbac, route: alertsRoute, Component: lazy(() => import('./alerts')) },
   { meta: executiveStatusMeta, rbac: executiveStatusRbac, route: executiveStatusRoute, Component: lazy(() => import('./executive-status')) },
   { meta: historyMeta, rbac: historyRbac, route: historyRoute, Component: lazy(() => import('./history')) },
-  { meta: ingestorsMeta, rbac: ingestorsRbac, route: ingestorsRoute, Component: lazy(() => import('./ingestors')) },
   { meta: orderbookRuntimeTruthMeta, rbac: orderbookRuntimeTruthRbac, route: orderbookRuntimeTruthRoute, Component: lazy(() => import('./orderbook-runtime-truth')) },
   { meta: microstructureTrustMeta, rbac: microstructureTrustRbac, route: microstructureTrustRoute, Component: lazy(() => import('./microstructure-trust')) },
   { meta: liquidationBridgeMeta, rbac: liquidationBridgeRbac, route: liquidationBridgeRoute, Component: lazy(() => import('./liquidation-bridge')) },
