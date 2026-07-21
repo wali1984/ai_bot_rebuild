@@ -68,17 +68,19 @@ interface TrainerPayload {
   model_source?: string; model_id?: string;
 }
 
+// Shape AFTER useRealtimeResource unwraps the /api/v2/risk/status envelope:
+// the hook already returns the envelope's inner .data object, so these
+// fields live at the top level here (reading .data again double-unwraps
+// into undefined and hides live gateway decisions).
 interface RiskPayload {
-  data?: {
-    latest_gateway_result?: {
-      symbol?: string; side?: string; risk_action?: string; risk_result?: string;
-      risk_reason_code?: string; live_blocked?: boolean; generated_at?: string;
-      strategy_router_confidence?: number | null;
-      required_blocks_checked?: string[];
-    };
-    heartbeat?: { decisions_processed_total?: number; finished_at?: string };
-    active_profile?: { profile_name?: string; profile_id?: string };
+  latest_gateway_result?: {
+    symbol?: string; side?: string; risk_action?: string; risk_result?: string;
+    risk_reason_code?: string; live_blocked?: boolean; generated_at?: string;
+    strategy_router_confidence?: number | null;
+    required_blocks_checked?: string[];
   };
+  heartbeat?: { decisions_processed_total?: number; finished_at?: string };
+  active_profile?: { profile_name?: string; profile_id?: string };
 }
 
 interface PaperTrainerModelQualityStatus {
@@ -196,7 +198,7 @@ export default function AdminIntelligencePage(): JSX.Element {
   });
 
   const t = te.data;
-  const r = re.data?.data;
+  const r = re.data;
   const runtime = pe.data;
   const paperLoop = runtime?.paper_loop;
   const trainerQuality = paperLoop?.paper_trainer_model_quality_runtime_status
