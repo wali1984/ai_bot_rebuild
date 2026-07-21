@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime, timedelta
+from typing import Any
+
+import pytest
 
 from v2.backend.app.cli import v2_microstructure_feed_quality_monitor as monitor
 
@@ -15,6 +19,44 @@ class FakeRedis:
     def set(self, key: str, value: str, ex: int | None = None) -> None:
         assert key.startswith("v2:microstructure:")
         self.store[key] = value
+
+
+def _utc(value: datetime) -> str:
+    return value.astimezone(UTC).isoformat(timespec="microseconds").replace(
+        "+00:00", "Z"
+    )
+
+
+def _coinglass_v2_payload(
+    *,
+    symbol: str = "BTCUSDT",
+    timeframe: str = "1m",
+    features: dict[str, float] | None = None,
+) -> dict[str, Any]:
+    now = datetime.now(UTC)
+    return {
+        "schema_version": "coinglass_aggregated_feature_payload_v2",
+        "provider": "coinglass",
+        "symbol": symbol,
+        "timeframe": timeframe,
+        "feature_cutoff": _utc(now - timedelta(seconds=30)),
+        "available_at": _utc(now - timedelta(seconds=2)),
+        "generated_at": _utc(now - timedelta(seconds=1)),
+        "actual_payload_present": True,
+        "provider_ready": True,
+        "decision_time_safe": True,
+        "temporal_contract_valid": True,
+        "feature_observation_hash": "f" * 64,
+        "features": features
+        or {
+            "coinglass_long_ratio": 0.61,
+            "coinglass_short_ratio": 0.39,
+            "coinglass_funding_rate": 0.025,
+            "coinglass_open_interest_change_fraction_5m": -0.07,
+        },
+        "missing_feature_flags": [],
+        "stale_feature_flags": [],
+    }
 
 
 def test_microstructure_monitor_writes_only_microstructure_keys(tmp_path) -> None:
@@ -213,6 +255,9 @@ def test_microstructure_monitor_uses_binance_event_and_transaction_timestamp_ali
 
 
 def test_microstructure_context_reads_binance_and_coinglass_derivatives_aliases() -> None:
+    coinglass = _coinglass_v2_payload(
+        features={"coinglass_open_interest_change_fraction_5m": -0.01}
+    )
     fake = FakeRedis(
         {
             "v2:market:long_short:BTCUSDT": {
@@ -221,12 +266,7 @@ def test_microstructure_context_reads_binance_and_coinglass_derivatives_aliases(
             "v2:market:funding:BTCUSDT": {
                 "lastFundingRate": "0.00006622",
             },
-            "v2:features:coinglass:BTCUSDT:1m": {
-                "features": {
-                    "coinglass_open_interest_delta_usd_5m": -100.0,
-                    "coinglass_open_interest_usd": 10000.0,
-                }
-            },
+            "v2:features:coinglass:BTCUSDT:1m": coinglass,
         }
     )
 
@@ -235,6 +275,106 @@ def test_microstructure_context_reads_binance_and_coinglass_derivatives_aliases(
     assert ctx["long_short_ratio"] == 1.574
     assert ctx["funding_rate"] == 0.00006622
     assert ctx["open_interest_change_pct"] == -0.01
+    assert ctx["coinglass_provider_input_lineage"] == {
+        "canonical_loader_present": True,
+        "canonical_loader_stale": False,
+        "admitted_to_microstructure": True,
+        "feature_cutoff": coinglass["feature_cutoff"],
+        "available_at": coinglass["available_at"],
+        "generated_at": coinglass["generated_at"],
+    }
+
+
+def test_microstructure_context_admits_exact_fresh_coinglass_v2_fraction_units() -> None:
+    payload = _coinglass_v2_payload()
+    ctx = monitor._read_context(
+        FakeRedis({"v2:features:coinglass:BTCUSDT:1m": payload}),
+        "BTCUSDT",
+        "1m",
+    )
+
+    assert ctx["long_short_ratio"] == pytest.approx(0.61 / 0.39)
+    # Regression: 0.025 is already a fraction and must not become 0.00025.
+    assert ctx["funding_rate"] == 0.025
+    assert ctx["open_interest_change_pct"] == -0.07
+    assert ctx["coinglass_provider_input_lineage"] == {
+        "canonical_loader_present": True,
+        "canonical_loader_stale": False,
+        "admitted_to_microstructure": True,
+        "feature_cutoff": payload["feature_cutoff"],
+        "available_at": payload["available_at"],
+        "generated_at": payload["generated_at"],
+    }
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "legacy_v1",
+        "stale",
+        "future",
+        "symbol_mismatch",
+        "timeframe_mismatch",
+        "forged_boolean",
+        "forged_hash_without_contract",
+        "nan_feature",
+    ],
+)
+def test_raw_coinglass_cannot_bypass_canonical_microstructure_gate(
+    mutation: str,
+) -> None:
+    payload = _coinglass_v2_payload()
+    if mutation == "legacy_v1":
+        payload["schema_version"] = "coinglass_aggregated_feature_payload_v1"
+    elif mutation == "stale":
+        now = datetime.now(UTC)
+        payload.update(
+            {
+                "feature_cutoff": _utc(now - timedelta(minutes=12)),
+                "available_at": _utc(now - timedelta(minutes=11)),
+                "generated_at": _utc(now - timedelta(minutes=10)),
+            }
+        )
+    elif mutation == "future":
+        now = datetime.now(UTC)
+        payload.update(
+            {
+                "feature_cutoff": _utc(now + timedelta(seconds=30)),
+                "available_at": _utc(now + timedelta(seconds=31)),
+                "generated_at": _utc(now + timedelta(seconds=32)),
+            }
+        )
+    elif mutation == "symbol_mismatch":
+        payload["symbol"] = "ETHUSDT"
+    elif mutation == "timeframe_mismatch":
+        payload["timeframe"] = "5m"
+    elif mutation == "forged_boolean":
+        payload["decision_time_safe"] = 1
+    elif mutation == "forged_hash_without_contract":
+        payload = {
+            "feature_observation_hash": "a" * 64,
+            "features": {
+                "coinglass_long_ratio": 0.99,
+                "coinglass_short_ratio": 0.01,
+                "coinglass_funding_rate": 0.25,
+                "coinglass_open_interest_change_fraction_5m": -0.9,
+            },
+        }
+    elif mutation == "nan_feature":
+        payload["features"] = {"coinglass_funding_rate": float("nan")}
+
+    ctx = monitor._read_context(
+        FakeRedis({"v2:features:coinglass:BTCUSDT:1m": payload}),
+        "BTCUSDT",
+        "1m",
+    )
+
+    assert ctx["long_short_ratio"] is None
+    assert ctx["funding_rate"] is None
+    assert ctx["open_interest_change_pct"] is None
+    assert ctx["coinglass_provider_input_lineage"][
+        "admitted_to_microstructure"
+    ] is False
 
 
 def test_microstructure_context_derives_open_interest_change_from_hist() -> None:

@@ -14,6 +14,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
+from v2.backend.app.services.altdata.provider_feature_bridge import load_coinglass_input
 from v2.backend.app.services.microstructure_trust.cross_venue_confirmation import (
     evaluate_cross_venue_confirmation,
 )
@@ -39,7 +40,6 @@ from v2.backend.app.services.microstructure_trust.trade_tape_confirmation import
 )
 from v2.backend.app.services.microstructure_trust.trust_score import score_microstructure_trust
 from v2.backend.app.services.v2_symbol_runtime_universe import resolve_symbols
-
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 DEFAULT_REPLAY_ROOT = REPO_ROOT / "v2/runtime/orderbook_replay"
@@ -349,11 +349,12 @@ def _read_context(redis_client: Any, symbol: str, timeframe: str) -> dict[str, A
     oi_payload = _safe_get_json(redis_client, f"{V2_REDIS_PREFIX}market:open_interest:{normalized}")
     oi_hist_payload = _safe_get_json(redis_client, f"{V2_REDIS_PREFIX}market:open_interest_hist:{normalized}:5m")
     price_payload = _safe_get_json(redis_client, f"{V2_REDIS_PREFIX}market:prices:{normalized}")
-    coinglass_payload = _safe_get_json(redis_client, f"{V2_REDIS_PREFIX}features:coinglass:{normalized}:1m")
+    coinglass_input = load_coinglass_input(redis_client, normalized, timeframe)
+    coinglass_admitted = bool(
+        coinglass_input.present is True and coinglass_input.stale is False
+    )
     coinglass_features = (
-        coinglass_payload.get("features")
-        if isinstance(coinglass_payload, Mapping) and isinstance(coinglass_payload.get("features"), Mapping)
-        else {}
+        dict(coinglass_input.features) if coinglass_admitted else {}
     )
     long_short_ratio = _float(
         _first_present(
@@ -376,28 +377,20 @@ def _read_context(redis_client: Any, symbol: str, timeframe: str) -> dict[str, A
     if funding_rate is None:
         cg_funding = _float(coinglass_features.get("coinglass_funding_rate"))
         if cg_funding is not None:
-            funding_rate = cg_funding / 100.0 if abs(cg_funding) > 0.01 else cg_funding
+            # The canonical CoinGlass producer publishes funding in fraction
+            # units. Magnitude-based unit guessing can silently divide a real
+            # extreme funding observation by 100.
+            funding_rate = cg_funding
     oi_change = _float(
         _first_present(
             (oi_payload or {}).get("open_interest_change_pct") if isinstance(oi_payload, dict) else None,
             (oi_payload or {}).get("openInterestChangePct") if isinstance(oi_payload, dict) else None,
-            coinglass_features.get("coinglass_open_interest_change_pct"),
-            coinglass_features.get("coinglass_open_interest_delta_pct_5m"),
-            coinglass_features.get("coinglass_open_interest_delta_pct_1h"),
+            coinglass_features.get("coinglass_open_interest_change_fraction_5m"),
+            coinglass_features.get("coinglass_open_interest_change_fraction_1h"),
         )
     )
     if oi_change is None:
         oi_change = _open_interest_hist_change_pct(oi_hist_payload)
-    if oi_change is None:
-        oi_delta = _float(
-            _first_present(
-                coinglass_features.get("coinglass_open_interest_delta_usd_5m"),
-                coinglass_features.get("coinglass_open_interest_delta_usd_1h"),
-            )
-        )
-        oi_usd = _float(coinglass_features.get("coinglass_open_interest_usd"))
-        if oi_delta is not None and oi_usd is not None and oi_usd > 0:
-            oi_change = oi_delta / oi_usd
     return {
         "liquidation": liquidation if isinstance(liquidation, dict) else {},
         "long_short_ratio": long_short_ratio,
@@ -406,6 +399,14 @@ def _read_context(redis_client: Any, symbol: str, timeframe: str) -> dict[str, A
         "mark_price": _float((price_payload or {}).get("mark_price") if isinstance(price_payload, dict) else None),
         "index_price": _float((price_payload or {}).get("index_price") if isinstance(price_payload, dict) else None),
         "basis_bps": _float((price_payload or {}).get("basis_bps") if isinstance(price_payload, dict) else None),
+        "coinglass_provider_input_lineage": {
+            "canonical_loader_present": coinglass_input.present is True,
+            "canonical_loader_stale": coinglass_input.stale is True,
+            "admitted_to_microstructure": coinglass_admitted,
+            "feature_cutoff": coinglass_input.feature_cutoff,
+            "available_at": coinglass_input.available_at,
+            "generated_at": coinglass_input.generated_at,
+        },
     }
 
 
@@ -536,13 +537,13 @@ def _build_symbol_rows(
     provider_symbol_support: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     books = {exchange: _book_payload(redis_client, exchange, symbol) for exchange in exchanges}
-    # The monitor's decision timestamp must be after the Redis feature snapshot
-    # has been read; otherwise a concurrently refreshed book can look like
-    # look-ahead leakage even when it was available to this evaluation.
-    decision_time = iso_now()
     book_for_tape = next((payload for payload in books.values() if isinstance(payload, Mapping)), None)
     context = _read_context(redis_client, symbol, timeframe)
     trades = _read_trades(redis_client, symbol)
+    # Capture the decision boundary after every book, provider, and tape read.
+    # This preserves available_at <= decision_time for evidence that was
+    # actually visible to this evaluation.
+    decision_time = iso_now()
     tape = evaluate_trade_tape_confirmation(
         symbol=symbol,
         trades=list(trades),
@@ -640,6 +641,9 @@ def _build_symbol_rows(
         trade_imbalance=_float(tape.get("trade_imbalance")),
         cross_venue_basis_bps=_float(cross.get("price_divergence_bps")),
     )
+    sweep["coinglass_provider_input_lineage"] = context[
+        "coinglass_provider_input_lineage"
+    ]
     combined_feed = _combine_feed_quality(feed_rows)
     combined_adversarial = _combine_adversarial(adversarial_rows, symbol=symbol)
     active_orderbook_sources = [
@@ -695,6 +699,9 @@ def _build_symbol_rows(
             "secondary_feed_warning_reasons": combined_feed.get("secondary_feed_warning_reasons") or [],
             "usable_source_exchanges": combined_feed.get("usable_source_exchanges") or [],
             "combined_feed_fail_policy": combined_feed.get("combined_fail_policy"),
+            "coinglass_provider_input_lineage": context[
+                "coinglass_provider_input_lineage"
+            ],
             **venue_unavailability,
             "source_availability": {
                 "direct_binance_or_kucoin": bool(direct_orderbook_sources),
