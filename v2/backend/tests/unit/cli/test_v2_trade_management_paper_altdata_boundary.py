@@ -29,7 +29,9 @@ class FakeRedis:
 
 
 def _utc(value: datetime) -> str:
-    return value.astimezone(UTC).isoformat(timespec="microseconds").replace("+00:00", "Z")
+    return (
+        value.astimezone(UTC).isoformat(timespec="microseconds").replace("+00:00", "Z")
+    )
 
 
 def _parse(value: str) -> datetime:
@@ -164,7 +166,9 @@ def test_forged_cached_confluence_and_raw_provider_bytes_never_gain_authority() 
     )
     redis.data["v2:features:coinglass:BTCUSDT:1m"] = b'{"features":{"x":1}}'
     redis.data["v2:features:moralis:BTCUSDT:1m"] = b'{"features":{"x":1}}'
-    redis.data["v2:features:santiment:BTCUSDT:1h"] = b'{"features":{"altdata_trade_block_score":1}}'
+    redis.data["v2:features:santiment:BTCUSDT:1h"] = (
+        b'{"features":{"altdata_trade_block_score":1}}'
+    )
 
     altdata, lineage = paper_loop._paper_canonical_altdata_context(  # noqa: SLF001
         redis,
@@ -194,7 +198,9 @@ def test_forged_cached_confluence_and_raw_provider_bytes_never_gain_authority() 
 @pytest.mark.parametrize(
     "mutate",
     [
-        lambda payload, base: payload.update(**_clocks(base, available_age_seconds=601.0)),
+        lambda payload, base: payload.update(
+            **_clocks(base, available_age_seconds=601.0)
+        ),
         lambda payload, base: payload.update(
             feature_cutoff=_utc(base + timedelta(hours=1)),
             available_at=_utc(base + timedelta(hours=1, seconds=1)),
@@ -231,7 +237,9 @@ def test_stale_future_identity_nan_and_malformed_sources_are_explicitly_masked(
     assert lineage["altdata_canonical_reconstruction_valid"] is True
     assert lineage["altdata_canonical_reconstruction_admitted"] is False
     assert lineage["altdata_actual_payload_present"] is False
-    assert lineage["altdata_reconstruction_mask_reason"] == ("no_fresh_contributing_provider")
+    assert lineage["altdata_reconstruction_mask_reason"] == (
+        "no_fresh_contributing_provider"
+    )
     assert lineage["provider_features_used"] == []
     assert decision["preemptive_decision"] == "ALLOW"
     assert decision["altdata_confluence_present"] is False
@@ -249,11 +257,16 @@ def test_boundary_exception_masks_altdata_without_reading_any_fallback(
     redis = FakeRedis()
     redis.set_payload(
         "v2:altdata:confluence:BTCUSDT:1m",
-        {"actual_payload_present": True, "features": {"altdata_trade_block_score": 1.0}},
+        {
+            "actual_payload_present": True,
+            "features": {"altdata_trade_block_score": 1.0},
+        },
     )
 
     def fail_boundary(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
-        raise canonical_altdata_authority.CanonicalConfluenceContractError("forged boundary")
+        raise canonical_altdata_authority.CanonicalConfluenceContractError(
+            "forged boundary"
+        )
 
     monkeypatch.setattr(
         canonical_altdata_authority,
@@ -288,6 +301,7 @@ def test_fresh_canonical_confluence_carries_causal_non_authoritative_lineage() -
     )
     decision = _decision(altdata)
     decision.update(lineage)
+    paper_loop._stamp_paper_runtime_preemptive_decision_time(decision)  # noqa: SLF001
 
     assert altdata is not None
     assert decision["altdata_confluence_present"] is True
@@ -312,6 +326,7 @@ def test_fresh_canonical_confluence_carries_causal_non_authoritative_lineage() -
         )
     ]
     assert clocks == sorted(clocks)
+    assert clocks[-1] <= _parse(decision["preemptive_decision_time"])
     assert (
         paper_loop._paper_altdata_admission_rejection_reasons(  # noqa: SLF001
             decision
@@ -321,6 +336,46 @@ def test_fresh_canonical_confluence_carries_causal_non_authoritative_lineage() -
     assert (
         paper_loop._paper_preemptive_admission_rejection_reasons(  # noqa: SLF001
             _admission_intent(decision)
+        )
+        == []
+    )
+
+
+def test_runtime_revalidation_never_reuses_a_pre_altdata_candidate_clock() -> None:
+    base = datetime.now(UTC)
+    redis = FakeRedis()
+    redis.set_payload("v2:features:coinglass:BTCUSDT:1m", _coinglass_payload(base))
+    altdata, lineage = paper_loop._paper_canonical_altdata_context(  # noqa: SLF001
+        redis,
+        symbol="BTCUSDT",
+        timeframe="1m",
+    )
+    candidate = _candidate()
+    candidate["decision_time"] = _utc(base - timedelta(hours=1))
+    decision = decision_module.evaluate_candidate(
+        candidate,
+        closed_rows=_winning_history(),
+        continuous_edge_guardian_gate={
+            "status": "ACTIVE",
+            "a_grade_new_entries_allowed": True,
+            "new_entries_allowed": True,
+        },
+        altdata_confluence=altdata,
+    )
+    decision.update(lineage)
+
+    assert "ALTDATA_AVAILABLE_AFTER_PREEMPTIVE_DECISION" in (
+        paper_loop._paper_altdata_admission_rejection_reasons(decision)  # noqa: SLF001
+    )
+
+    paper_loop._stamp_paper_runtime_preemptive_decision_time(decision)  # noqa: SLF001
+
+    assert _parse(decision["altdata_available_at"]) <= _parse(
+        decision["preemptive_decision_time"]
+    )
+    assert (
+        paper_loop._paper_altdata_admission_rejection_reasons(  # noqa: SLF001
+            decision
         )
         == []
     )
@@ -385,6 +440,38 @@ def test_admission_rejects_bad_clock_order_only_when_altdata_is_present() -> Non
     )
 
 
+def test_admission_rejects_noncanonical_and_missing_runtime_decision_clocks() -> None:
+    base = datetime.now(UTC)
+    redis = FakeRedis()
+    redis.set_payload("v2:features:coinglass:BTCUSDT:1m", _coinglass_payload(base))
+    altdata, lineage = paper_loop._paper_canonical_altdata_context(  # noqa: SLF001
+        redis,
+        symbol="BTCUSDT",
+        timeframe="1m",
+    )
+    decision = _decision(altdata)
+    decision.update(lineage)
+    paper_loop._stamp_paper_runtime_preemptive_decision_time(decision)  # noqa: SLF001
+
+    malformed = copy.deepcopy(decision)
+    malformed["altdata_observed_at"] = malformed["altdata_observed_at"].replace(
+        "T",
+        " ",
+        1,
+    )
+    assert "ALTDATA_CANONICAL_CLOCK_MISSING_OR_INVALID" in (
+        paper_loop._paper_altdata_admission_rejection_reasons(malformed)  # noqa: SLF001
+    )
+
+    missing_decision_time = copy.deepcopy(decision)
+    missing_decision_time.pop("preemptive_decision_time")
+    assert "ALTDATA_PREEMPTIVE_DECISION_TIME_MISSING_OR_INVALID" in (
+        paper_loop._paper_altdata_admission_rejection_reasons(  # noqa: SLF001
+            missing_decision_time
+        )
+    )
+
+
 def test_plain_sha_identity_is_observational_not_authentication() -> None:
     base = datetime.now(UTC)
     redis = FakeRedis()
@@ -396,6 +483,7 @@ def test_plain_sha_identity_is_observational_not_authentication() -> None:
     )
     decision = _decision(altdata)
     decision.update(lineage)
+    paper_loop._stamp_paper_runtime_preemptive_decision_time(decision)  # noqa: SLF001
 
     observational = copy.deepcopy(decision)
     observational["altdata_content_identity"]["digest"] = "0" * 64

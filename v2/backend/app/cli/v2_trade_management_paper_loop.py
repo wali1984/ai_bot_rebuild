@@ -26,7 +26,7 @@ import time
 from collections import Counter
 from copy import deepcopy
 from dataclasses import replace
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any, Mapping, Sequence, TextIO
@@ -19278,6 +19278,26 @@ def _apply_preemptive_decision_context(
                 "preemptive_decision_id"
             )
             target["runtime_revalidated_preemptive_decision_reasons"] = runtime_reasons_list
+
+
+def _stamp_paper_runtime_preemptive_decision_time(
+    preemptive_decision: dict[str, Any],
+) -> None:
+    """Stamp when this paper-loop recomputation actually finished.
+
+    The generic preemptive schema preserves an upstream candidate clock when
+    one exists.  That clock remains useful source lineage, but it predates the
+    paper loop's in-process alt-data reconstruction and therefore cannot be
+    reused as this runtime decision's causal boundary.
+    """
+
+    decision_time = (
+        datetime.now(UTC)
+        .isoformat(timespec="microseconds")
+        .replace("+00:00", "Z")
+    )
+    preemptive_decision["preemptive_decision_time"] = decision_time
+    preemptive_decision["preemptive_decision_time_et"] = _operator_et_iso(decision_time)
 
 
 def _preemptive_decision_rejection_reason_for_tier(
@@ -45022,6 +45042,7 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             decision_time=preemptive_runtime_decision_time,
         )
         preemptive_decision.update(_canonical_altdata_lineage)
+        _stamp_paper_runtime_preemptive_decision_time(preemptive_decision)
         _apply_preemptive_decision_context(
             intent=intent,
             allocation=allocation_payload,
