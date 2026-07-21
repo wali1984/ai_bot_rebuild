@@ -30,3 +30,8 @@ ai-bot-v2-worker-porting-orchestrator.service
 ai-bot-v2-agent-supervisor.service
 ai-bot-v2-parallel-scheduler.service
 ai-bot-v2-codex-watchdog.service
+
+# Codex containment 2026-07-21: the active cascade publisher directly consumed
+# legacy CoinGlass v1 bytes and could emit false fast-squeeze block/hedge advice.
+# Keep it held until the causal provider-loader gate is released and verified.
+ai-bot-v2-cascade-context-publisher.service
