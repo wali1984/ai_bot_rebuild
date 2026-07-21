@@ -1,6 +1,7 @@
 import { useRealtimeResource } from '../../hooks/useRealtimeResource';
 import { useOptionalAuth } from '../../hooks/useAuth';
 import meta from './meta';
+import './styles.css';
 
 interface PublicStatusData {
   live_gate_status?: string;
@@ -44,6 +45,7 @@ function Chip({ label, tone }: { label: string; tone: 'ok' | 'warn' | 'block' | 
   const c = colors[tone];
   return (
     <span
+      className="public-status__chip"
       style={{
         display: 'inline-flex',
         alignItems: 'center',
@@ -66,6 +68,7 @@ function Chip({ label, tone }: { label: string; tone: 'ok' | 'warn' | 'block' | 
 function StatusRow({ label, value, tone, detail }: { label: string; value: string; tone: 'ok' | 'warn' | 'block' | 'neutral'; detail?: string }): JSX.Element {
   return (
     <div
+      className="public-status__row"
       style={{
         display: 'grid',
         gridTemplateColumns: '180px 1fr auto',
@@ -75,10 +78,10 @@ function StatusRow({ label, value, tone, detail }: { label: string; value: strin
         borderBottom: '1px solid var(--line-soft)',
       }}
     >
-      <span style={{ fontSize: 13, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{label}</span>
+      <span className="public-status__row-label" style={{ fontSize: 13, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{label}</span>
       {detail ? (
-        <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{detail}</span>
-      ) : <span />}
+        <span className="public-status__row-detail" style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{detail}</span>
+      ) : <span className="public-status__row-detail" />}
       <Chip label={value} tone={tone} />
     </div>
   );

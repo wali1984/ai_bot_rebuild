@@ -1,7 +1,7 @@
 # Final Product Audit Resume Checkpoint
 
-Checkpoint time: 2026-07-21T23:07:28Z
-Context usage: approximately 35%; start the next phase in a fresh session.
+Checkpoint time: 2026-07-21T23:47:30Z
+Context usage: below the next 30–35% rollover threshold.
 
 ## Counts
 
@@ -17,10 +17,20 @@ Context usage: approximately 35%; start the next phase in a fresh session.
 - User services active / inactive / failed: 62 / 46 / 0
 - Deliberately stopped units: 12
 - Prior audit/fix commits reused: 37
-- Retained screenshots: 0
+- Active canonical web routes established: 58
+- Redirects established: 82
+- Dynamic route patterns / required empty-populated cases: 3 / 6
+- Page families completed: 1 / 6 web families
+- Routes inspected in final regression: 5 / 58 canonical
+- Viewport checks completed: 20
+- Screenshots captured: 20
+- Visible field checks completed: 2,011
+- Exact rendered-to-source scalar matches: 532
+- Endpoint/resource contracts compared: 10
 - GitHub branch runs inspected / failed: 20 / 20
 - HEAD Swift tests passed / failed: 35 / 1
-- Defects remaining: 7
+- Product defects fixed in this phase: 2
+- Defects remaining: 8 (7 preflight blockers plus 1 markets CSS build warning)
 - Services restarted: 0
 - Exchange mutations: 0
 - Redis writes: 0
@@ -32,12 +42,16 @@ Context usage: approximately 35%; start the next phase in a fresh session.
 - Prior final-field audit families mapped to their commits.
 - No full atlas generated.
 - No proven page-family audit rerun.
+- Authoritative route inventory derived from the mounted registry: 72 modules, 15 redirect-shadowed, 58 reachable canonical cases including `/`.
+- Global shell/public final regression completed and committed-ready: 5 routes, 20 screenshots, 2,011 field checks, 82/82 redirects, 0 residual family defects.
+- Route-contract drift fixed.
+- Public Status 390 px description/chip collisions fixed and visually reverified.
 
 ## Current git point
 
 - Branch: `codex/pipeline-trust-refresh`
-- Base HEAD: `f06277824efacb58ac5f83f1d42eca4a56adabe8`
-- Upstream divergence at preflight: 0 / 0
+- Base HEAD: `ab18cf6363ba98905e973b10bae6053d2610f1b2`
+- Upstream divergence before the family commit: ahead 1 / behind 0
 - This checkpoint commit: resolve with `git log -1 --format=%H -- claude_worklog/codex/FINAL_PRODUCT_AUDIT_CHECKPOINT.md`
 
 ## Held publisher items
@@ -51,8 +65,9 @@ Read [FINAL_PRODUCT_AUDIT_HOLD_LIST_20260721T230728Z.md](./FINAL_PRODUCT_AUDIT_H
 3. Codemagic iOS release has 0 test scripts and 0 cache entries.
 4. Codemagic external repository/signing/archive evidence is unavailable locally.
 5. Three untracked iOS files are owner-held.
-6. Prior audit retained 0 screenshots and no exact route/field count.
+6. Five of 58 canonical routes now have retained final-regression screenshots and exact field counts; 53 routes remain.
 7. The pre-existing working tree has 155 held paths.
+8. The production build emits one malformed-CSS-comment warning in `proChartInternals.css`; fix in markets/charts.
 
 ## Tests and evidence already completed
 
@@ -62,16 +77,20 @@ Read [FINAL_PRODUCT_AUDIT_HOLD_LIST_20260721T230728Z.md](./FINAL_PRODUCT_AUDIT_H
 - WebSockets: enterprise realtime, market data, paper activity, and resource stream all returned frames.
 - iOS build-number guard: passed.
 - GitHub log inspection: 36 Swift tests executed, 1 assertion failed.
-- Local source build in this checkpoint: not run because 3 iOS source paths are owner-held.
-- Screenshots in this checkpoint: 0.
+- Frontend typecheck: passed.
+- Frontend production build: passed with 1 markets CSS warning.
+- Routing invariants: 13/13 passed.
+- Global/public Playwright final regression: 1/1 passed.
+- Screenshots in this checkpoint: 20 across 5 routes and 4 viewports.
+- Global/public fields checked / exact source matches: 2,011 / 532.
 
 ## Exact next command
 
 ```bash
-sed -n '1,260p' claude_worklog/codex/FINAL_PRODUCT_AUDIT_CHECKPOINT.md
+cd '/home/wali/Desktop/AI BOT REBUILD/v2/frontend' && FINAL_PRODUCT_AUDIT_FAMILY=markets_charts FINAL_PRODUCT_AUDIT_RUN_ID=20260721T230728Z FINAL_PRODUCT_AUDIT_TRADER_TOKEN_FILE=/tmp/final-product-audit-20260721T230728Z-trader.jwt FINAL_PRODUCT_AUDIT_ADMIN_TOKEN_FILE=/tmp/final-product-audit-20260721T230728Z-admin.jwt npx playwright test tests/e2e/final_product_regression.spec.ts --project=chromium --retries=0 --workers=1
 ```
 
-After reading the checkpoint, begin the single final-regression route/screenshot harness from the existing registry and route-contract tests. Do not regenerate an atlas and do not re-audit fields already covered by the 37 commits; compare at least three repaired fields per family as required by the final verifier.
+First fix the single malformed comment in `src/components/charts/proChartInternals.css`, rebuild, then execute the markets/charts final-regression family. Do not run the old 580-row role atlas.
 
 ## Live-gate checkpoint
 

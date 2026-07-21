@@ -1,184 +1,73 @@
-export const PUBLIC_PAGE_PATHS = ['/', '/landing', '/status', '/status-simple', '/login'] as const;
+import { PAGES } from '../../../src/pages/registry';
+import { MERGED_LEGACY_PATHS } from '../../../src/pages/productNavigation';
 
-export const TRADER_PAGE_PATHS = [
-  '/dashboard',
-  '/account-settings',
-  '/markets',
-  '/markets/symbols',
-  '/market/BTCUSDT',
-  '/chart/BTCUSDT',
-  '/trade',
-  '/trade/paper',
-  '/derivatives',
-  '/signals',
-  '/ai-predictions',
-  '/ai-predictions/model-state',
-  '/portfolio',
-  '/portfolio/executions',
-  '/portfolio/history',
-  '/risk',
-  '/audit-ledger',
-  '/live-canary',
-  '/backtests',
-  '/backtests/replay',
-  '/research',
-  '/research/technical-analysis',
-  '/alerts',
-] as const;
+/**
+ * Route-test contracts derived from the mounted registry.
+ *
+ * The previous hand-maintained arrays drifted behind the router: active pages
+ * were omitted while redirect sources were still labelled canonical. Keep the
+ * browser inventory coupled to the same registry and redirect map used by the
+ * application so a final sweep cannot silently miss a mounted surface.
+ */
 
-export const ADMIN_PAGE_PATHS = [
-  '/admin',
-  '/admin/system',
-  '/admin/monitor-center',
-  '/admin/ingestors',
-  '/admin/trainer',
-  '/admin/trainer-admin',
-  '/admin/trainer-prediction-monitor',
-  '/admin/signal-explainability',
-  '/admin/orchestrator',
-  '/admin/risk',
-  '/admin/traders',
-  '/admin/execution',
-  '/admin/exchanges',
-  '/admin/config',
-  '/admin/logs',
-  '/admin/audit',
-  '/admin/scripts',
-  '/admin/build-validation',
-  '/admin/coverage',
-  '/admin/migrations',
-  '/admin/ai-tools',
-  '/admin/readiness',
-  '/admin/readiness/mobile',
-  '/admin/reports',
-  '/admin/external-manual-position-quarantine',
-  '/admin/executive-status',
-  '/admin/codex-review-center',
-] as const;
+function isRedirectSource(path: string): boolean {
+  return Object.prototype.hasOwnProperty.call(MERGED_LEGACY_PATHS, path);
+}
 
-export const SUPERADMIN_PAGE_PATHS = [
-  '/admin/evidence',
-] as const;
+function materializeDynamicPath(path: string): string {
+  if (path === '/market/:symbol?') return '/market/BTCUSDT';
+  if (path === '/chart/:symbol?') return '/chart/BTCUSDT';
+  if (path === '/markets/ingestors/:name?') return '/markets/ingestors';
+  return path;
+}
 
-export const ALL_PAGE_PATHS = [
+export const ACTIVE_ROUTE_MODULES = PAGES.filter((page) => !isRedirectSource(page.route.path));
+
+export const PUBLIC_PAGE_PATHS: ReadonlyArray<string> = [
+  '/',
+  ...ACTIVE_ROUTE_MODULES
+    .filter((page) => page.meta.surface === 'public')
+    .map((page) => materializeDynamicPath(page.route.path)),
+];
+
+export const TRADER_PAGE_PATHS: ReadonlyArray<string> = ACTIVE_ROUTE_MODULES
+  .filter((page) => page.meta.surface === 'app')
+  .map((page) => materializeDynamicPath(page.route.path));
+
+export const ADMIN_PAGE_PATHS: ReadonlyArray<string> = ACTIVE_ROUTE_MODULES
+  .filter((page) => page.meta.surface === 'admin' || page.meta.surface === 'system')
+  .map((page) => materializeDynamicPath(page.route.path));
+
+// No active page requires the legacy superadmin/live_approver role. The
+// operator-evidence page is intentionally reachable by an existing admin.
+export const SUPERADMIN_PAGE_PATHS: ReadonlyArray<string> = [];
+
+export const ALL_PAGE_PATHS: ReadonlyArray<string> = [
   ...PUBLIC_PAGE_PATHS,
   ...TRADER_PAGE_PATHS,
   ...ADMIN_PAGE_PATHS,
-  ...SUPERADMIN_PAGE_PATHS,
-] as const;
+];
 
-export const REVIEWER_ONLY_ADMIN_PATHS = [
-  '/system/readiness',
-  '/system/reports',
-  '/system/audit-ledger',
-  '/system/scripts',
-  '/system/build-validation',
-  '/system/coverage',
-  '/system/migrations',
-  '/system/ai-tools',
-] as const;
+export const REVIEWER_ONLY_ADMIN_PATHS: ReadonlyArray<string> = ACTIVE_ROUTE_MODULES
+  .filter((page) => page.rbac.minRole === 'reviewer')
+  .map((page) => materializeDynamicPath(page.route.path));
 
-export const VIEWER_VISIBLE_ADMIN_PATHS = [
-  '/dashboard',
-  '/markets',
-  '/trade',
-  '/signals',
-  '/ai-predictions',
-  '/portfolio',
-  '/backtests',
-  '/research',
-] as const;
+export const VIEWER_VISIBLE_ADMIN_PATHS: ReadonlyArray<string> = ACTIVE_ROUTE_MODULES
+  .filter(
+    (page) =>
+      (page.meta.surface === 'admin' || page.meta.surface === 'system')
+      && page.rbac.minRole === 'viewer',
+  )
+  .map((page) => materializeDynamicPath(page.route.path));
 
-export const PAGES_WITH_DANGEROUS_CONTROLS = [
-  {
-    path: '/system/risk-controllers',
-    controls: ['disable_kill_switch', 'disable_mandatory_stop', 'increase_daily_loss_limit'],
-  },
-  {
-    path: '/system/config',
-    controls: ['enable_live_trading', 'enable_adjust_leverage', 'switch_paper_to_live', 'enable_cross_margin'],
-  },
-  {
-    path: '/system/strategy-controls',
-    controls: ['enable_hedge_dca'],
-  },
-  {
-    path: '/system/execution',
-    controls: ['switch_paper_to_live', 'increase_max_position_size', 'add_live_api_keys'],
-  },
-  {
-    path: '/system/readiness',
-    controls: ['enable_live_trading', 'increase_leverage'],
-  },
-] as const;
+export const PAGES_WITH_DANGEROUS_CONTROLS: ReadonlyArray<{
+  path: string;
+  controls: ReadonlyArray<string>;
+}> = ACTIVE_ROUTE_MODULES
+  .filter((page) => page.meta.dangerousControlIds.length > 0)
+  .map((page) => ({
+    path: materializeDynamicPath(page.route.path),
+    controls: page.meta.dangerousControlIds,
+  }));
 
-export const LEGACY_REDIRECTS = {
-  '/landing-legacy': '/landing',
-  '/system': '/admin',
-  '/mission-control': '/dashboard',
-  '/admin/mission-control': '/dashboard',
-  '/operator-proof': '/admin/reports',
-  '/admin/war-room': '/admin',
-  '/admin/permanent-migration': '/admin/tools',
-  '/admin/coverage-system-atlas': '/admin/tools',
-  '/admin/script-registry': '/admin/tools',
-  '/ai-predictions/model-state': '/ai-predictions',
-  // '/markets/symbols' removed 2026-07-21: the shadowing redirect was dropped,
-  // the Symbols page is reachable again; legacy aliases now point at it.
-  '/symbols': '/markets/symbols',
-  '/admin/symbols': '/markets/symbols',
-  '/admin/market-intelligence': '/research',
-  '/admin/ai-brain': '/admin/model-state',
-  '/admin/signals': '/signals',
-  '/admin/executions': '/portfolio/executions',
-  '/admin/positions': '/portfolio',
-  '/admin/risk-control': '/admin/risk',
-  '/admin/exchange-manager': '/admin/exchanges',
-  '/admin/config-admin': '/admin/config',
-  '/admin/strategy-admin': '/admin/orchestration',
-  '/system/strategy-controls': '/admin/orchestration',
-  '/system/ingestors': '/admin/data',
-  '/admin/technical-analysis': '/research',
-  '/research/technical-analysis': '/research',
-  '/admin/liquidation-bridge': '/derivatives',
-  '/admin/strategy-backtesting': '/backtests',
-  '/admin/logs-errors': '/admin/logs',
-  '/admin/orchestrator-admin': '/admin/orchestration',
-  '/admin/execution-admin': '/admin/execution',
-  // '/trade/paper' is a real page (paper-trading module), not a redirect —
-  // a redirect entry for it would shadow the page. The legacy admin alias lands on it.
-  '/admin/paper-trading': '/trade/paper',
-  '/backtests/replay': '/backtests',
-  '/admin/replay': '/backtests',
-  '/admin/audit-ledger': '/admin/audit',
-  '/ingestors': '/markets/ingestors',
-  '/providers': '/markets/ingestors',
-  '/admin/claude-admin-ai': '/admin/tools',
-  '/admin/ollama-local-assistant': '/admin/tools',
-  '/admin/report-center': '/admin/reports',
-  '/admin/build-validation-status': '/admin/tools',
-  '/admin/operator-proof-dashboard': '/admin/evidence',
-  '/admin/mobile-iphone-readiness': '/admin/risk',
-  '/system/control-center': '/admin',
-  '/system/health': '/admin',
-  '/system/risk-controllers': '/admin/risk',
-  '/system/exchanges': '/admin/exchanges',
-  '/system/position-quarantine': '/admin/risk',
-  '/system/config': '/admin/config',
-  '/system/logs': '/admin/logs',
-  '/system/model-state': '/admin/intelligence',
-  '/system/trainer': '/admin/intelligence',
-  '/system/orchestrator': '/admin/orchestration',
-  '/system/execution': '/admin/execution',
-  '/system/audit-ledger': '/admin/audit',
-  '/system/readiness': '/admin/risk',
-  '/system/ai-tools': '/admin/tools',
-  '/system/reports': '/admin/reports',
-  '/system/build-validation': '/admin/tools',
-  '/system/executive-summary': '/admin/executive-status',
-  '/system/build-code-review': '/admin/codex-review-center',
-  '/system/evidence': '/admin/reports',
-  '/system/readiness/mobile': '/admin/risk',
-  '/trader': '/trade',
-  '/history': '/portfolio/history',
-} as const;
+export const LEGACY_REDIRECTS: Readonly<Record<string, string>> = MERGED_LEGACY_PATHS;
