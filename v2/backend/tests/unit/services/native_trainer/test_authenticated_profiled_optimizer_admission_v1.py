@@ -25,6 +25,13 @@ from v2.backend.app.services.native_trainer.immutable_source_payload_store impor
 )
 from v2.backend.app.services.native_trainer.profiled_model_feature_snapshot_record_v1 import (
     LOGICAL_MODEL_INPUT_COUNT,
+    LOGICAL_PROFILE_SELECTION_MASK,
+    LOGICAL_PROFILE_SELECTION_MASK_SHA256,
+)
+from v2.backend.app.services.native_trainer.profiled_training_ledger_loader_v1 import (
+    PROFILED_TRAINING_PROJECTION_V1_CONFIGURATION_SHA256,
+    PROFILED_TRAINING_PROJECTION_V1_IMPLEMENTATION_SHA256,
+    PROFILED_TRAINING_PROJECTION_V1_SCHEMA_VERSION,
 )
 from v2.backend.app.services.native_trainer.profiled_training_observation_manifest_v1 import (
     authenticate_profiled_training_observation_manifest_v1,
@@ -231,6 +238,12 @@ def test_valid_externally_witnessed_fixture_yields_typed_supervised_input_only(
         admitted.completion_ordered_page_root_sha256
         == adapter_evidence["completion"].ordered_page_root_sha256
     )
+    assert admitted.manifest_total_profiled_samples == 1
+    assert admitted.manifest_admitted_example_count == 1
+    assert admitted.manifest_label_unavailable_count == 0
+    assert admitted.completion_consumed_entry_count == 1
+    assert admitted.completion_admitted_entry_count == 1
+    assert admitted.completion_label_unavailable_count == 0
     assert admitted.witness_namespace == WITNESS_NAMESPACE
     assert admitted.witness_public_key_sha256 == adapter_evidence["public_key_sha256"]
     assert admitted.witness_previous_event_sha256 == PREVIOUS_WITNESS_EVENT_SHA256
@@ -238,6 +251,17 @@ def test_valid_externally_witnessed_fixture_yields_typed_supervised_input_only(
     assert admitted.sample_identity_sha256 == adapter_evidence["candidate"].sample_identity_sha256
     assert admitted.label_binding_sha256 == adapter_evidence["candidate"].label_binding_sha256
     assert admitted.tensor_binding_sha256 == adapter_evidence["candidate"].tensor_binding_sha256
+    assert admitted.logical_profile_selection_mask == LOGICAL_PROFILE_SELECTION_MASK
+    assert admitted.logical_profile_selection_mask_sha256 == LOGICAL_PROFILE_SELECTION_MASK_SHA256
+    assert admitted.projection_schema_version == PROFILED_TRAINING_PROJECTION_V1_SCHEMA_VERSION
+    assert (
+        admitted.projection_implementation_sha256
+        == PROFILED_TRAINING_PROJECTION_V1_IMPLEMENTATION_SHA256
+    )
+    assert (
+        admitted.projection_configuration_sha256
+        == PROFILED_TRAINING_PROJECTION_V1_CONFIGURATION_SHA256
+    )
     assert len(admitted.model_input) == LOGICAL_MODEL_INPUT_COUNT
     assert admitted.supervised_target.label_binding_sha256 == admitted.label_binding_sha256
     assert admitted.supervised_target.action_index in {0, 1, 2}
