@@ -204,3 +204,161 @@ other user units; neither scoped unit produced a verification error. Direct
 `nsenter` mount inspection was denied by the host, so the same evidence was
 obtained from `/proc/<pid>/mountinfo`; an independent review additionally used
 `findmnt -N <pid>` successfully.
+
+## Trainer Capture Policy V2 release update — 2026-07-21 14:14 EDT
+
+### Outcome
+
+The observation-only trainer service was advanced from code release
+`0f9b5c93b75b11b2f21f70663b9cc1ba34413423` to the pushed causal-policy
+release `9fc6c55ebdea7b79afa8bbe21a5043b8579463b6`. The native ingestor remained
+on its healthy `0f9b5c93...` release because the intervening code commit changed
+only the authenticated trainer policy/loader/publisher/waiting components.
+No trading, order, leverage, margin, allocator, or live-execution service was
+restarted or modified.
+
+This cutover restores the resident trust observer on Capture Policy V2. It
+does **not** activate optimization or model training. At the latest verified
+cycles the ledger remains internally coherent, but it contains zero strict
+training-eligible rows and zero profiled child candidates. Every training,
+checkpoint, model, prediction, paper, live, execution, runtime, and automatic
+transition authority remains false.
+
+### Exact release and runtime evidence
+
+- Code release worktree:
+  `/home/wali/ai_bot_local_data/deployments/ai_bot_rebuild/9fc6c55ebdea7b79afa8bbe21a5043b8579463b6`
+- Release `HEAD`: `9fc6c55ebdea7b79afa8bbe21a5043b8579463b6`
+- Release tracked diff: clean against the same SHA
+- Remote branch contained that code SHA before deployment; the later
+  documentation-only branch head is `e75cde9bf26250c5d0a79d95bc0d600f460684ea`
+- Service PID: `2350183`
+- Service start: `2026-07-21 14:14:55 EDT`
+- State: `active/running`
+- `NRestarts=0`
+- Effective executable: `/usr/bin/python3 -I -B`
+- Effective script: exact release-path
+  `v2_native_cuda_trainer_persistent_loop.py`
+- Effective mode: `waiting-for-authenticated-samples`
+- Effective `AI_BOT_CODE_SHA`: exact `9fc6c55...` release
+- `/proc/2350183/cwd`: exact release path
+- `/proc/2350183/mountinfo`: exact release mounted `ro,relatime` in the
+  service namespace
+- NTP synchronized: `yes`
+- Successful post-start cycles observed at
+  `2026-07-21T18:14:55.821972Z`,
+  `2026-07-21T18:15:26.671619Z`, and
+  `2026-07-21T18:16:28.329369Z`
+- Each observed cycle: probe succeeded, ledger integrity verified, scan
+  complete, `2` records/`2` receipts, `0` strict rows, `0` profiled children,
+  `training_loop_active=false`, `trainer_admission_authorized=false`
+
+The service now runs the stdlib-only observer with the distribution-managed
+Python interpreter in isolated mode. This removes its prior dependency on the
+mutable repository virtual environment. The full transform/publisher test
+chain still needs TA-Lib and other dependencies; those were tested by mounting
+the existing virtual environment read-only at the release-local `.venv` path
+inside a transient systemd namespace. That test binding is not a claim that
+the shared dependency source is host-immutable. A production publisher still
+requires a dedicated pinned dependency release.
+
+`ReadOnlyPaths` is namespace-local protection. The release remains writable by
+the owning host user outside the service namespace, so this deployment must
+not be described as host-level immutable or resistant to a same-UID operator.
+
+### Validation and the dependency-identity finding
+
+An initial test invocation used the main-workspace virtual-environment path
+directly with release code. The TA-Lib dependency contract correctly rejected
+it as `UNAPPROVED_INTERPRETER_ENVIRONMENT`; the interrupted run showed
+`9 failed, 27 passed, 5 errors`. This was a deployment-environment mismatch,
+not a reason to weaken the identity check.
+
+The release was then tested in the intended namespace layout: the dependency
+tree was mounted read-only at `<release>/.venv`, the interpreter reported
+`repository_.venv`, all `v2.*` imports resolved beneath the exact release, and
+the five policy/transform/publisher/loader/waiting files completed:
+
+```text
+121 passed in 516.15s (0:08:36)
+```
+
+Additional checks passed:
+
+- Python compilation of the five changed application modules
+- clean release tracked diff and exact remote code SHA
+- read-only release mount probe
+- release-local TA-Lib environment identity validation
+- observation-only cycle against the real ledger with its writer replaced by
+  a no-op
+- observation-only cycle using `/usr/bin/python3`
+- `systemd-analyze --user verify` for the scoped trainer unit
+- post-restart CWD, command line, environment, mount, status, and repeated-cycle
+  inspection
+
+The systemd verifier again printed unrelated syntax warnings from other
+pre-existing user units; it printed no scoped trainer-unit error.
+
+### Local Git LFS operational repair
+
+The first release checkout failed because this repository's local Git LFS
+filter configuration referenced a deleted `/tmp/codex-git-lfs/.../git-lfs`
+binary. The local, non-versioned `.git/config` filter paths were repointed to
+the existing `/home/wali/.local/bin/git-lfs` version `3.7.1`, after which the
+detached checkout completed. No tracked source file changed for this repair.
+This removes one concrete repeat-worktree failure mode that could destabilize
+future agent/release operations.
+
+### Redis/disk alarm disposition
+
+Historical CoinAPI stderr contains `ENOSPC` and Redis `MISCONF` errors, but the
+file stopped changing on 2026-07-07. At the update observation:
+
+- root filesystem: `642G` available, `64%` used
+- inode use: `8%`
+- Redis `rdb_last_bgsave_status=ok`
+- latest RDB save: `2026-07-21T18:04:16Z`
+- Redis `PING=PONG`
+- an atomic diagnostic `SET`/`GET`/`DEL` succeeded and left no key
+
+The old log is therefore superseded evidence, not a current persistence
+incident. CoinAPI REST currently reports
+`V2_COINAPI_REST_OPTIONAL_AUTH_UNAVAILABLE` with `redis_ok=true`; CoinAPI
+remains installed as an optional source and is not trainer-blocking.
+
+### External deployment file changed
+
+- `/home/wali/.config/systemd/user/ai-bot-v2-native-cuda-trainer-persistent.service.d/90-immutable-release.conf`
+
+The drop-in now binds the exact 9fc release paths/SHA and executes the resident
+CLI by absolute release script path with `/usr/bin/python3 -I -B`. No credential
+file, model, checkpoint, ledger, CAS object, paper state, or exchange state was
+modified by the cutover.
+
+### Commands used for this update
+
+```text
+git worktree add --detach <9fc-release-path> 9fc6c55ebdea7b79afa8bbe21a5043b8579463b6
+git config --local filter.lfs.{clean,smudge,process,required} <stable-local-lfs-values>
+git -C <9fc-release-path> rev-parse HEAD
+git -C <9fc-release-path> diff --quiet --exit-code 9fc6c55ebdea7b79afa8bbe21a5043b8579463b6 --
+git ls-remote --heads origin codex/pipeline-trust-refresh
+PYTHONPATH=<9fc-release-path> <shared-venv-python> -m py_compile <five-trainer-modules>
+systemd-run --user --wait --pipe --collect --property=ReadOnlyPaths=<9fc-release-path> /usr/bin/findmnt -n -o TARGET,OPTIONS -T <9fc-release-path>
+systemd-run --user --wait --pipe --collect --property=ReadOnlyPaths=<9fc-release-path> --property=BindReadOnlyPaths=<shared-venv>:<release-.venv> <release-python> -m pytest -q -p no:cacheprovider <five-trainer-test-files>
+systemd-run --user --wait --pipe --collect --property=ReadOnlyPaths=<9fc-release-path> /usr/bin/python3 -I -B <observer-probe>
+systemd-analyze --user verify <trainer-unit>
+systemctl --user daemon-reload
+systemctl --user restart ai-bot-v2-native-cuda-trainer-persistent.service
+systemctl --user show ai-bot-v2-native-cuda-trainer-persistent.service <scoped-properties>
+readlink -f /proc/2350183/cwd
+tr '\0' '\n' </proc/2350183/cmdline
+tr '\0' '\n' </proc/2350183/environ
+rg -F <9fc-release-path> /proc/2350183/mountinfo
+jq <waiting-observer-authority-contract> <trainer-waiting-status-json>
+df -hT / /home/wali /home/wali/ai_bot_local_data /tmp
+df -i / /home/wali /home/wali/ai_bot_local_data /tmp
+redis-cli --raw INFO persistence
+redis-cli --raw CONFIG GET dir dbfilename appendonly appenddirname stop-writes-on-bgsave-error save
+redis-cli --raw EVAL <atomic-set-get-delete-probe> 1 <ephemeral-key> <ephemeral-value>
+```
