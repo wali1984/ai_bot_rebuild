@@ -1,7 +1,8 @@
 [Unit]
-Description=AI Bot V2 canonical direct-orderbook feature-pair supervisor (summary only; paper-safe)
+Description=AI Bot V2 exact direct-orderbook pair supervisor (summary only; paper-safe)
 After=network-online.target
 Wants=network-online.target
+ConditionPathExists=%h/.config/ai-bot-v2/credentials/orderbook-pair-supervisor/redis-url.cred
 
 [Service]
 Type=simple
@@ -9,11 +10,21 @@ WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
 Environment="PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD"
 Environment=PYTHONDONTWRITEBYTECODE=1
 Environment=LIVE_GATE=blocked_human_only
-ExecStart="/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python" -m v2.backend.app.cli.v2_orderbook_features_publisher --loop --interval-seconds 20
+LoadCredentialEncrypted=V2_ORDERBOOK_SUPERVISOR_REDIS_URL:%h/.config/ai-bot-v2/credentials/orderbook-pair-supervisor/redis-url.cred
+ExecStart="/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python" -m v2.backend.app.cli.v2_orderbook_features_publisher --loop --interval-seconds 20 --summary-ttl-seconds 900
 Restart=always
 RestartSec=10
 Nice=10
 NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+UMask=0077
 
 [Install]
 WantedBy=default.target
