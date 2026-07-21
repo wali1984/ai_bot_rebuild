@@ -67,6 +67,22 @@ _CLASSIFIER_KEY_ID = "moralis-test-key-2026-07"
 _OBSERVED_AT = "2026-07-08T12:03:00Z"
 
 
+class _FakePipeline:
+    def __init__(self, redis_client: FakeRedis) -> None:
+        self.redis_client = redis_client
+        self.operations: list[tuple[str, str, int | None]] = []
+
+    def set(self, key: str, value: str, ex: int | None = None) -> _FakePipeline:
+        self.operations.append((key, value, ex))
+        return self
+
+    def execute(self) -> list[bool]:
+        return [
+            self.redis_client.set(key, value, ex=ttl)
+            for key, value, ttl in self.operations
+        ]
+
+
 class FakeRedis:
     def __init__(self) -> None:
         self.data: dict[str, str] = {}
@@ -93,6 +109,10 @@ class FakeRedis:
         if key not in self.data:
             return -2
         return self.ttls.get(key, -1)
+
+    def pipeline(self, *, transaction: bool) -> _FakePipeline:
+        assert transaction is True
+        return _FakePipeline(self)
 
     def scan_iter(self, pattern: str, count: int = 500):
         del count
@@ -2223,14 +2243,25 @@ def test_wallet_reader_rederives_source_identity_and_classification(
     seed_path.write_text(
         json.dumps(
             {
+                "schema_version": "moralis_wallet_watchlist_seed_v1",
+                "policy": {
+                    "empty_watchlist_status": "CONFIGURED_NO_WATCHLIST",
+                    "t0_max_wallets": 50,
+                    "t1_max_wallets": 250,
+                    "unknown_wallet_is_smart_money": False,
+                },
                 "wallets": [
                     {
                         "chain": "eth",
                         "address": VALID_WALLET_ADDRESS,
                         "tier": "T0",
                         "source": "unit_fixture_source",
+                        "classification": "CANDIDATE_SMART_WALLET",
+                        "verified_smart_wallet": False,
+                        "added_utc": "2020-01-01T00:00:00Z",
+                        "added_by": "v2_moralis_wallet_watchlist_bootstrap",
                     }
-                ]
+                ],
             }
         ),
         encoding="utf-8",

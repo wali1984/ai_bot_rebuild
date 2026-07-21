@@ -4,9 +4,15 @@ import json
 from typing import Any
 
 from v2.backend.app.cli import v2_moralis_provider_loop as moralis_provider_loop
-from v2.backend.app.cli.v2_coinglass_provider_loop import run_once
+from v2.backend.app.cli.v2_coinglass_provider_loop import (
+    coinglass_scheduler_plan,
+    run_once,
+)
 from v2.backend.app.cli.v2_moralis_provider_loop import run_once as run_moralis_once
 from v2.backend.app.cli.v2_provider_scheduler_status import build_status
+from v2.backend.app.services.coinglass_provider.endpoint_registry import (
+    coinglass_endpoint_registry,
+)
 from v2.backend.app.services.coinglass_provider.models import CoinGlassResponse
 from v2.backend.app.services.smart_money_wallets.models import MoralisResponse
 
@@ -18,6 +24,9 @@ class FakeRedis:
     def __init__(self) -> None:
         self.data: dict[str, str] = {}
         self.ttls: dict[str, int] = {}
+        self.redis_time_seconds = 1_750_000_000
+        self.paced_states: dict[str, dict[str, float | int]] = {}
+        self.paced_reservations: dict[str, dict[str, str | int]] = {}
 
     def set(
         self,
@@ -54,6 +63,131 @@ class FakeRedis:
                 return 0
             self.data[keys[1]] = argv[1]
             return 1
+        if "MORALIS_FENCED_PACED_CU_CLAIM_V3" in script:
+            if self.data.get(keys[0]) != argv[0]:
+                return [-1, "0", 0, ""]
+            interval = int(argv[1])
+            cost = int(argv[2])
+            remaining_today = int(argv[3])
+            remaining_month = int(argv[4])
+            day_opportunities = int(argv[5])
+            month_opportunities = int(argv[6])
+            day_reset = int(argv[7])
+            month_reset = int(argv[8])
+            reservation_id = argv[9]
+            window_id = self.redis_time_seconds // interval
+            if (
+                self.redis_time_seconds >= day_reset
+                or self.redis_time_seconds >= month_reset
+            ):
+                return [-4, "0", window_id, ""]
+            if keys[2] in self.paced_reservations:
+                return [-5, "0", window_id, ""]
+            state = self.paced_states.get(keys[1])
+            reset = (
+                state is None
+                or self.redis_time_seconds >= int(state["day_reset"])
+                or self.redis_time_seconds >= int(state["month_reset"])
+                or int(state["day_reset"]) != day_reset
+                or int(state["month_reset"]) != month_reset
+            )
+            if reset:
+                previous_window = window_id - 1
+                credit = 0.0
+            else:
+                assert state is not None
+                if int(state["interval"]) != interval:
+                    return [-2, str(state["credit"]), window_id, ""]
+                previous_window = int(state["window_id"])
+                credit = float(state["credit"])
+            earned = min(
+                remaining_today / day_opportunities,
+                remaining_month / month_opportunities,
+            )
+            earned_for_elapsed = earned
+            if not reset:
+                assert state is not None
+                earned_for_elapsed = min(float(state["earned"]), earned)
+            bound = min(remaining_today, remaining_month)
+            credit = min(
+                bound,
+                credit + (window_id - previous_window) * earned_for_elapsed,
+            )
+            admitted = credit + 1e-9 >= cost
+            if admitted:
+                credit -= cost
+            self.paced_states[keys[1]] = {
+                "window_id": window_id,
+                "credit": credit,
+                "interval": interval,
+                "day_reset": day_reset,
+                "month_reset": month_reset,
+                "bound": bound,
+                "earned": earned,
+            }
+            if admitted:
+                self.paced_reservations[keys[2]] = {
+                    "reservation_id": reservation_id,
+                    "lease_key": keys[0],
+                    "lease_token": argv[0],
+                    "window_id": window_id,
+                    "cost": cost,
+                    "credit_key": keys[1],
+                    "day_reset": day_reset,
+                    "month_reset": month_reset,
+                }
+            return [
+                int(admitted),
+                str(credit),
+                window_id,
+                reservation_id if admitted else "",
+            ]
+        if "MORALIS_FENCED_PACED_CU_RELEASE_V3" in script:
+            if self.data.get(keys[0]) != argv[0]:
+                return 0
+            reservation = self.paced_reservations.get(keys[2])
+            state = self.paced_states.get(keys[1])
+            if (
+                reservation is None
+                or state is None
+                or reservation["reservation_id"] != argv[1]
+                or reservation["lease_key"] != keys[0]
+                or reservation["lease_token"] != argv[0]
+                or reservation["credit_key"] != keys[1]
+                or int(reservation["window_id"]) != int(argv[2])
+                or int(reservation["cost"]) != int(argv[3])
+                or int(reservation["day_reset"]) != int(state["day_reset"])
+                or int(reservation["month_reset"]) != int(state["month_reset"])
+                or int(state["window_id"]) != int(argv[2])
+            ):
+                return 0
+            cost = int(argv[3])
+            state["credit"] = min(
+                float(state["bound"]),
+                float(state["credit"]) + cost,
+            )
+            del self.paced_reservations[keys[2]]
+            return 1
+        if "MORALIS_FENCED_PACED_CU_FINALIZE_V1" in script:
+            if self.data.get(keys[0]) != argv[0]:
+                return 0
+            reservation = self.paced_reservations.get(keys[2])
+            state = self.paced_states.get(keys[1])
+            if (
+                reservation is None
+                or state is None
+                or reservation["reservation_id"] != argv[1]
+                or reservation["lease_key"] != keys[0]
+                or reservation["lease_token"] != argv[0]
+                or reservation["credit_key"] != keys[1]
+                or int(reservation["window_id"]) != int(argv[2])
+                or int(reservation["cost"]) != int(argv[3])
+                or int(reservation["day_reset"]) != int(state["day_reset"])
+                or int(reservation["month_reset"]) != int(state["month_reset"])
+            ):
+                return 0
+            del self.paced_reservations[keys[2]]
+            return 1
         if "EXPIRE" in script:
             return int(self.data.get(keys[0]) == argv[0])
         if "DEL" in script:
@@ -75,11 +209,27 @@ class FakeCoinGlassClient:
 
     def get(self, spec, *, symbol: str | None = None):
         self.calls.append((spec.endpoint_id, symbol))
-        return CoinGlassResponse(
-            spec.endpoint_id,
-            symbol,
-            200,
-            {
+        if spec.endpoint_id == "funding_rate":
+            payload = {
+                "data": [
+                    {
+                        "symbol": coin,
+                        "stablecoin_margin_list": [
+                            {
+                                "exchange": "Binance",
+                                "funding_rate": funding_rate,
+                            }
+                        ],
+                    }
+                    for coin, funding_rate in (
+                        ("BTC", 0.01),
+                        ("ETH", 0.02),
+                        ("SOL", 0.03),
+                    )
+                ]
+            }
+        else:
+            payload = {
                 "data": [
                     {
                         "time": 1783512000000,
@@ -98,7 +248,12 @@ class FakeCoinGlassClient:
                         "ask_usd": 8000,
                     }
                 ]
-            },
+            }
+        return CoinGlassResponse(
+            spec.endpoint_id,
+            symbol,
+            200,
+            payload,
         )
 
 
@@ -128,11 +283,35 @@ class FakeMoralisClient:
         self.limiter = FakeMoralisLimiter()
         self.calls: list[tuple[str, str | None, str | None]] = []
 
-    def get(self, spec, *, chain: str, wallet: str | None = None, token: str | None = None, symbol: str | None = None):
+    def get(
+        self,
+        spec,
+        *,
+        chain: str,
+        wallet: str | None = None,
+        token: str | None = None,
+        symbol: str | None = None,
+    ):
         self.calls.append((spec.endpoint_id, wallet, token))
-        payload = {"result": [{"direction": "out", "value_usd": 1200, "block_timestamp": "2026-07-08T12:00:00Z"}]}
+        payload = {
+            "result": [
+                {
+                    "direction": "out",
+                    "value_usd": 1200,
+                    "block_timestamp": "2026-07-08T12:00:00Z",
+                }
+            ]
+        }
         if spec.endpoint_id in {"wallet_swaps", "token_swaps"}:
-            payload = {"result": [{"side": "buy", "total_value_usd": 800, "block_timestamp": "2026-07-08T12:00:00Z"}]}
+            payload = {
+                "result": [
+                    {
+                        "side": "buy",
+                        "total_value_usd": 800,
+                        "block_timestamp": "2026-07-08T12:00:00Z",
+                    }
+                ]
+            }
         if spec.endpoint_id == "token_holders":
             payload = {"result": [{"owner_address": "0xabc"}]}
         return MoralisResponse(
@@ -195,12 +374,72 @@ def test_coinglass_loop_honors_endpoint_cadence() -> None:
         force=False,
         now_monotonic=130.0,
     )
-    assert third["request_count"] == 3
-    assert {endpoint for endpoint, _symbol in client.calls[-3:]} == {
+    assert third["request_count"] == 0
+
+    fourth = run_once(
+        redis_client,
+        client=client,
+        symbols=["BTCUSDT"],
+        scheduler_state=state,
+        force=False,
+        now_monotonic=400.0,
+    )
+    assert fourth["request_count"] == first_call_count
+    assert {
+        endpoint for endpoint, _symbol in client.calls[-first_call_count:]
+    }.issuperset({
+        "long_short_ratio",
         "liquidation_orders",
         "trades",
         "orderbook_l2_l3",
+    })
+
+
+def test_coinglass_funding_fetches_once_and_fans_out_to_due_symbols() -> None:
+    redis_client = FakeRedis()
+    client = FakeCoinGlassClient()
+    state: dict[str, float] = {}
+    symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
+    disabled = frozenset(
+        spec.endpoint_id
+        for spec in coinglass_endpoint_registry()
+        if spec.endpoint_id != "funding_rate"
+    )
+
+    report = run_once(
+        redis_client,
+        client=client,
+        symbols=symbols,
+        scheduler_state=state,
+        force=False,
+        now_monotonic=100.0,
+        disabled_endpoints=disabled,
+    )
+
+    assert client.calls == [("funding_rate", None)]
+    assert report["request_count"] == 1
+    assert report["result_count"] == 3
+    assert report["actual_payload_results"] == 3
+    assert state == {
+        "funding_rate:BTCUSDT": 100.0,
+        "funding_rate:ETHUSDT": 100.0,
+        "funding_rate:SOLUSDT": 100.0,
     }
+    expected_rates = {
+        "BTCUSDT": 0.0001,
+        "ETHUSDT": 0.0002,
+        "SOLUSDT": 0.0003,
+    }
+    for output_symbol, expected_rate in expected_rates.items():
+        raw = json.loads(redis_client.data[f"v2:coinglass:funding:{output_symbol}"])
+        assert raw["features"]["coinglass_funding_rate"] == expected_rate
+
+    plan = coinglass_scheduler_plan(symbols)
+    endpoint_rows = {row["endpoint_id"]: row for row in plan["endpoints"]}
+    assert endpoint_rows["funding_rate"]["response_scope"] == "all_symbols"
+    assert endpoint_rows["funding_rate"]["estimated_requests_per_cycle"] == 1
+    assert endpoint_rows["market_snapshot"]["response_scope"] == "per_symbol"
+    assert endpoint_rows["market_snapshot"]["estimated_requests_per_cycle"] == 3
 
 
 def test_moralis_loop_honors_wallet_token_cadence(monkeypatch: Any) -> None:
@@ -254,7 +493,11 @@ def test_moralis_loop_honors_wallet_token_cadence(monkeypatch: Any) -> None:
     )
     first_call_count = len(client.calls)
     assert first["request_count"] == first_call_count
-    assert first_call_count > 6
+    assert first_call_count > 0
+    assert first["current_run_admitted_compute_units"] <= (
+        first["schedule_plan"]["earned_compute_units_per_window"]
+    )
+    assert first["paced_cu_admission_state_available"] is True
 
     second = run_moralis_once(
         redis_client,
@@ -268,7 +511,12 @@ def test_moralis_loop_honors_wallet_token_cadence(monkeypatch: Any) -> None:
         now_monotonic=160.0,
     )
     assert second["request_count"] == 0
-    assert second["skipped_not_due_count"] == first_call_count
+    assert len(client.calls) == first_call_count
+    assert second["skipped_not_due_count"] >= 1
+    assert second["scheduler_run_suppressed_reason"] in {
+        None,
+        "PACED_CU_CREDIT_ACCUMULATING_FOR_NEXT_DUE_JOB",
+    }
 
     # The production Redis lease keys expire by their adaptive cadence TTL.
     # This in-memory fake has no clock/expiry engine, so emulate that expiry
@@ -276,6 +524,8 @@ def test_moralis_loop_honors_wallet_token_cadence(monkeypatch: Any) -> None:
     for key in list(redis_client.data):
         if key.startswith("v2:provider:moralis:cadence_claim:"):
             redis_client.data.pop(key)
+    redis_client.redis_time_seconds += 300
+    calls_before_third = len(client.calls)
 
     third = run_moralis_once(
         redis_client,
@@ -288,11 +538,5 @@ def test_moralis_loop_honors_wallet_token_cadence(monkeypatch: Any) -> None:
         force=False,
         now_monotonic=10_000.0,
     )
-    assert third["request_count"] >= 3
-    assert {
-        endpoint
-        for endpoint, _wallet, _token in client.calls[-third["request_count"]:]
-    }.issuperset({
-        "token_transfers",
-        "wallet_swaps",
-    })
+    assert third["request_count"] > 0
+    assert len(client.calls) == calls_before_third + third["request_count"]

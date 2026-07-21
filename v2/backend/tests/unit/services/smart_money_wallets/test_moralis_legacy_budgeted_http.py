@@ -4,6 +4,7 @@ import json
 import shutil
 import subprocess
 import time
+import uuid
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
@@ -29,6 +30,29 @@ from v2.backend.app.services.smart_money_wallets.rate_limit import MoralisRateLi
 
 VALID_TOKEN_ADDRESS = "0x" + ("1" * 40)
 VALID_WALLET_ADDRESS = "0x" + ("2" * 40)
+
+
+def _empty_candidate_watchlist_seed() -> dict[str, Any]:
+    return {
+        "schema_version": "moralis_wallet_watchlist_seed_v1",
+        "policy": {
+            "empty_watchlist_status": "CONFIGURED_NO_WATCHLIST",
+            "t0_max_wallets": 50,
+            "t1_max_wallets": 250,
+            "unknown_wallet_is_smart_money": False,
+        },
+        "wallets": [],
+    }
+
+
+def _assert_redis_epoch_within_inclusive_bounds(
+    *,
+    created_at_epoch: int,
+    before_epoch: int,
+    after_epoch: int,
+) -> None:
+    assert before_epoch <= after_epoch
+    assert before_epoch <= created_at_epoch <= after_epoch
 
 
 class _QueueHttpClient:
@@ -266,6 +290,7 @@ def test_scheduler_lease_and_cadence_claims_are_durable_in_real_redis(
         redis_client,
         chain="eth",
         job_id="stale-worker-job",
+        rotation_universe_digest="0" * 64,
         lease_token=lease_token,
     ) is False
     redis_client.set(provider_loop._scheduler_lease_key("eth"), lease_token)
@@ -274,6 +299,424 @@ def test_scheduler_lease_and_cadence_claims_are_durable_in_real_redis(
         chain="eth",
         lease_token=lease_token,
     ) is True
+
+
+def test_real_redis_earned_credit_carries_releases_and_rejects_stale_reset(
+    redis_client: redis.Redis,
+) -> None:
+    lease_token, state_available, acquired = provider_loop._acquire_scheduler_lease(
+        redis_client,
+        chain="eth",
+    )
+    assert state_available is True
+    assert acquired is True
+    assert lease_token is not None
+    now_seconds = int(redis_client.time()[0])
+    state_key = provider_loop.PACED_CU_ADMISSION_WINDOW_PREFIX
+    claim_kwargs = {
+        "chain": "eth",
+        "lease_token": lease_token,
+        "scheduler_interval_seconds": 300,
+        "remaining_today_cu": 26_130,
+        "remaining_month_cu": 1_945_510,
+        "daily_admission_opportunities": 158,
+        "monthly_admission_opportunities": 3_038,
+        "utc_day_reset_epoch_seconds": now_seconds + 86_400,
+        "utc_month_reset_epoch_seconds": now_seconds + 2_592_000,
+    }
+
+    first = provider_loop._claim_paced_compute_units(
+        redis_client,
+        cost_cu=250,
+        **claim_kwargs,
+    )
+    assert first[0] is False
+    assert first[1] is True
+    assert first[2] == pytest.approx(26_130 / 158, rel=1e-6)
+
+    stored_window = int(redis_client.hget(state_key, "window_id"))
+    redis_client.hset(state_key, "window_id", stored_window - 1)
+    second = provider_loop._claim_paced_compute_units(
+        redis_client,
+        cost_cu=250,
+        **claim_kwargs,
+    )
+    assert second[0] is True
+    assert second[1] is True
+    assert second[2] == pytest.approx((2 * (26_130 / 158)) - 250, rel=1e-5)
+
+    assert provider_loop._release_paced_compute_units(
+        redis_client,
+        chain="eth",
+        lease_token=lease_token,
+        window_id=second[3],
+        cost_cu=250,
+        reservation_id=second[4],
+    ) is True
+    assert float(redis_client.hget(state_key, "credit_cu")) == pytest.approx(
+        2 * (26_130 / 158),
+        rel=1e-5,
+    )
+
+    state_before = redis_client.hgetall(state_key)
+    stale = provider_loop._claim_paced_compute_units(
+        redis_client,
+        chain="eth",
+        lease_token=lease_token,
+        scheduler_interval_seconds=300,
+        cost_cu=10,
+        remaining_today_cu=26_130,
+        remaining_month_cu=1_945_510,
+        daily_admission_opportunities=158,
+        monthly_admission_opportunities=3_038,
+        utc_day_reset_epoch_seconds=now_seconds,
+        utc_month_reset_epoch_seconds=now_seconds + 2_592_000,
+    )
+    assert stale[0] is False
+    assert stale[1] is False
+    assert redis_client.hgetall(state_key) == state_before
+
+
+def test_real_redis_paced_release_is_exact_once_and_field_bound(
+    redis_client: redis.Redis,
+) -> None:
+    lease_token, state_available, acquired = provider_loop._acquire_scheduler_lease(
+        redis_client,
+        chain="eth",
+    )
+    assert state_available is True
+    assert acquired is True
+    assert lease_token is not None
+    now_seconds = int(redis_client.time()[0])
+    day_reset = now_seconds + 86_400
+    month_reset = now_seconds + 2_592_000
+    admitted, available, credit, window_id, reservation_id = (
+        provider_loop._claim_paced_compute_units(
+            redis_client,
+            chain="eth",
+            lease_token=lease_token,
+            scheduler_interval_seconds=300,
+            cost_cu=50,
+            remaining_today_cu=100,
+            remaining_month_cu=100,
+            daily_admission_opportunities=1,
+            monthly_admission_opportunities=1,
+            utc_day_reset_epoch_seconds=day_reset,
+            utc_month_reset_epoch_seconds=month_reset,
+        )
+    )
+
+    assert admitted is True
+    assert available is True
+    assert credit == pytest.approx(50.0)
+    assert window_id is not None
+    assert reservation_id is not None
+    reservation_key = provider_loop._paced_cu_reservation_key(reservation_id)
+    credit_key = provider_loop.PACED_CU_ADMISSION_WINDOW_PREFIX
+    reservation = redis_client.hgetall(reservation_key)
+    created_at_epoch = int(reservation.pop("created_at_epoch"))
+    after_claim_seconds = int(redis_client.time()[0])
+    _assert_redis_epoch_within_inclusive_bounds(
+        created_at_epoch=created_at_epoch,
+        before_epoch=now_seconds,
+        after_epoch=after_claim_seconds,
+    )
+    assert reservation == {
+        "reservation_id": reservation_id,
+        "lease_key": provider_loop._scheduler_lease_key("eth"),
+        "lease_token": lease_token,
+        "window_id": str(window_id),
+        "cost_cu": "50",
+        "credit_key": credit_key,
+        "day_reset_epoch": str(day_reset),
+        "month_reset_epoch": str(month_reset),
+    }
+    expected_expires_at = min(day_reset, month_reset) + (2 * 300)
+    assert redis_client.expiretime(reservation_key) == expected_expires_at
+    assert 0 < redis_client.ttl(reservation_key) <= 87_000
+
+    def release(
+        *,
+        token: str = lease_token,
+        release_window: int = window_id,
+        cost: int = 50,
+        receipt: str = reservation_id,
+    ) -> bool:
+        return provider_loop._release_paced_compute_units(
+            redis_client,
+            chain="eth",
+            lease_token=token,
+            window_id=release_window,
+            cost_cu=cost,
+            reservation_id=receipt,
+        )
+
+    assert release(receipt=uuid.uuid4().hex) is False
+    assert release(cost=49) is False
+    assert release(release_window=window_id + 1) is False
+    assert float(redis_client.hget(credit_key, "credit_cu")) == pytest.approx(50.0)
+    assert redis_client.exists(reservation_key) == 1
+
+    replacement_token = uuid.uuid4().hex
+    redis_client.set(provider_loop._scheduler_lease_key("eth"), replacement_token)
+    assert release(token=replacement_token) is False
+    assert release() is False
+    redis_client.set(provider_loop._scheduler_lease_key("eth"), lease_token)
+
+    redis_client.hset(credit_key, "day_reset_epoch", day_reset + 1)
+    assert release() is False
+    redis_client.hset(credit_key, "day_reset_epoch", day_reset)
+
+    redis_client.hdel(credit_key, "credit_cu")
+    assert release() is False
+    redis_client.hset(credit_key, "credit_cu", 50)
+
+    assert release() is True
+    assert float(redis_client.hget(credit_key, "credit_cu")) == pytest.approx(100.0)
+    assert redis_client.exists(reservation_key) == 0
+    assert release() is False
+    assert float(redis_client.hget(credit_key, "credit_cu")) == pytest.approx(100.0)
+    assert provider_loop._finalize_paced_compute_units(
+        redis_client,
+        chain="eth",
+        lease_token=lease_token,
+        window_id=window_id,
+        cost_cu=50,
+        reservation_id=reservation_id,
+    ) is False
+
+
+def test_reservation_created_at_bound_accepts_redis_second_straddle() -> None:
+    _assert_redis_epoch_within_inclusive_bounds(
+        created_at_epoch=1_000_001,
+        before_epoch=1_000_000,
+        after_epoch=1_000_001,
+    )
+    _assert_redis_epoch_within_inclusive_bounds(
+        created_at_epoch=1_000_000,
+        before_epoch=1_000_000,
+        after_epoch=1_000_001,
+    )
+
+
+def test_real_redis_concurrent_paced_release_refunds_exactly_once(
+    redis_client: redis.Redis,
+) -> None:
+    lease_token, state_available, acquired = provider_loop._acquire_scheduler_lease(
+        redis_client,
+        chain="eth",
+    )
+    assert state_available is True
+    assert acquired is True
+    assert lease_token is not None
+    now_seconds = int(redis_client.time()[0])
+    claim = provider_loop._claim_paced_compute_units(
+        redis_client,
+        chain="eth",
+        lease_token=lease_token,
+        scheduler_interval_seconds=300,
+        cost_cu=50,
+        remaining_today_cu=100,
+        remaining_month_cu=100,
+        daily_admission_opportunities=1,
+        monthly_admission_opportunities=1,
+        utc_day_reset_epoch_seconds=now_seconds + 86_400,
+        utc_month_reset_epoch_seconds=now_seconds + 2_592_000,
+    )
+    assert claim[0] is True
+    assert claim[3] is not None
+    assert claim[4] is not None
+
+    def release(_index: int) -> bool:
+        return provider_loop._release_paced_compute_units(
+            redis_client,
+            chain="eth",
+            lease_token=lease_token,
+            window_id=claim[3],
+            cost_cu=50,
+            reservation_id=claim[4],
+        )
+
+    with ThreadPoolExecutor(max_workers=16) as pool:
+        release_results = list(pool.map(release, range(32)))
+
+    assert sum(release_results) == 1
+    assert float(
+        redis_client.hget(
+            provider_loop.PACED_CU_ADMISSION_WINDOW_PREFIX,
+            "credit_cu",
+        )
+    ) == pytest.approx(100.0)
+    assert redis_client.exists(
+        provider_loop._paced_cu_reservation_key(claim[4])
+    ) == 0
+
+
+def test_real_redis_finalize_and_worker_restart_keep_ambiguous_claim_charged(
+    redis_client: redis.Redis,
+) -> None:
+    old_lease, state_available, acquired = provider_loop._acquire_scheduler_lease(
+        redis_client,
+        chain="eth",
+    )
+    assert state_available is True
+    assert acquired is True
+    assert old_lease is not None
+    now_seconds = int(redis_client.time()[0])
+    claim_kwargs = {
+        "chain": "eth",
+        "lease_token": old_lease,
+        "scheduler_interval_seconds": 300,
+        "cost_cu": 50,
+        "remaining_today_cu": 100,
+        "remaining_month_cu": 100,
+        "daily_admission_opportunities": 1,
+        "monthly_admission_opportunities": 1,
+        "utc_day_reset_epoch_seconds": now_seconds + 86_400,
+        "utc_month_reset_epoch_seconds": now_seconds + 2_592_000,
+    }
+    dispatched_claim = provider_loop._claim_paced_compute_units(
+        redis_client,
+        **claim_kwargs,
+    )
+    assert dispatched_claim[0] is True
+    assert provider_loop._finalize_paced_compute_units(
+        redis_client,
+        chain="eth",
+        lease_token=old_lease,
+        window_id=dispatched_claim[3],
+        cost_cu=50,
+        reservation_id=dispatched_claim[4],
+    ) is True
+    assert provider_loop._finalize_paced_compute_units(
+        redis_client,
+        chain="eth",
+        lease_token=old_lease,
+        window_id=dispatched_claim[3],
+        cost_cu=50,
+        reservation_id=dispatched_claim[4],
+    ) is False
+    assert provider_loop._release_paced_compute_units(
+        redis_client,
+        chain="eth",
+        lease_token=old_lease,
+        window_id=dispatched_claim[3],
+        cost_cu=50,
+        reservation_id=dispatched_claim[4],
+    ) is False
+
+    ambiguous_claim = provider_loop._claim_paced_compute_units(
+        redis_client,
+        **claim_kwargs,
+    )
+    assert ambiguous_claim[0] is True
+    assert ambiguous_claim[4] is not None
+    reservation_key = provider_loop._paced_cu_reservation_key(ambiguous_claim[4])
+    credit_key = provider_loop.PACED_CU_ADMISSION_WINDOW_PREFIX
+    assert float(redis_client.hget(credit_key, "credit_cu")) == pytest.approx(0.0)
+    assert redis_client.ttl(reservation_key) > 0
+
+    assert provider_loop._release_scheduler_lease(
+        redis_client,
+        chain="eth",
+        lease_token=old_lease,
+    ) is True
+    new_lease, new_state_available, new_acquired = (
+        provider_loop._acquire_scheduler_lease(redis_client, chain="eth")
+    )
+    assert new_state_available is True
+    assert new_acquired is True
+    assert new_lease is not None
+    assert new_lease != old_lease
+    assert provider_loop._release_paced_compute_units(
+        redis_client,
+        chain="eth",
+        lease_token=new_lease,
+        window_id=ambiguous_claim[3],
+        cost_cu=50,
+        reservation_id=ambiguous_claim[4],
+    ) is False
+    assert provider_loop._release_paced_compute_units(
+        redis_client,
+        chain="eth",
+        lease_token=old_lease,
+        window_id=ambiguous_claim[3],
+        cost_cu=50,
+        reservation_id=ambiguous_claim[4],
+    ) is False
+    assert float(redis_client.hget(credit_key, "credit_cu")) == pytest.approx(0.0)
+    assert redis_client.exists(reservation_key) == 1
+
+    redis_client.delete(reservation_key)
+    assert redis_client.exists(reservation_key) == 0
+    assert float(redis_client.hget(credit_key, "credit_cu")) == pytest.approx(0.0)
+
+
+def test_real_redis_cross_chain_claims_share_one_atomic_credit_authority(
+    redis_client: redis.Redis,
+) -> None:
+    leases: dict[str, str] = {}
+    for chain in ("eth", "arbitrum"):
+        lease_token, state_available, acquired = (
+            provider_loop._acquire_scheduler_lease(redis_client, chain=chain)
+        )
+        assert state_available is True
+        assert acquired is True
+        assert lease_token is not None
+        leases[chain] = lease_token
+    now_seconds = int(redis_client.time()[0])
+
+    def claim(chain: str) -> tuple[str, tuple[bool, bool, float, int | None, str | None]]:
+        result = provider_loop._claim_paced_compute_units(
+            redis_client,
+            chain=chain,
+            lease_token=leases[chain],
+            scheduler_interval_seconds=300,
+            cost_cu=100,
+            remaining_today_cu=100,
+            remaining_month_cu=100,
+            daily_admission_opportunities=1,
+            monthly_admission_opportunities=1,
+            utc_day_reset_epoch_seconds=now_seconds + 86_400,
+            utc_month_reset_epoch_seconds=now_seconds + 2_592_000,
+        )
+        return chain, result
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = dict(pool.map(claim, ("eth", "arbitrum")))
+
+    admitted_chains = [chain for chain, result in results.items() if result[0]]
+    assert len(admitted_chains) == 1
+    assert all(result[1] is True for result in results.values())
+    assert len(
+        list(
+            redis_client.scan_iter(
+                f"{provider_loop.PACED_CU_RESERVATION_KEY_PREFIX}:*"
+            )
+        )
+    ) == 1
+    assert float(
+        redis_client.hget(
+            provider_loop.PACED_CU_ADMISSION_WINDOW_PREFIX,
+            "credit_cu",
+        )
+    ) == pytest.approx(0.0)
+
+    admitted_chain = admitted_chains[0]
+    admitted = results[admitted_chain]
+    assert provider_loop._finalize_paced_compute_units(
+        redis_client,
+        chain=admitted_chain,
+        lease_token=leases[admitted_chain],
+        window_id=admitted[3],
+        cost_cu=100,
+        reservation_id=admitted[4],
+    ) is True
+    assert list(
+        redis_client.scan_iter(
+            f"{provider_loop.PACED_CU_RESERVATION_KEY_PREFIX}:*"
+        )
+    ) == []
 
 
 def test_legacy_poller_is_retired_without_http_cu_or_identity_publication(
@@ -338,7 +781,7 @@ def test_wallet_bootstrap_budgets_holders_and_never_duplicates_token_transfers(
     tmp_path: Path,
 ) -> None:
     seed_path = tmp_path / "wallet_watchlist_seed.yaml"
-    seed_path.write_text(json.dumps({"wallets": []}), encoding="utf-8")
+    seed_path.write_text(json.dumps(_empty_candidate_watchlist_seed()), encoding="utf-8")
     monkeypatch.setattr(bootstrap, "SEED_PATH", seed_path)
     monkeypatch.setattr(
         bootstrap,
@@ -424,7 +867,7 @@ def test_wallet_bootstrap_keeps_same_address_on_different_chains_distinct(
     tmp_path: Path,
 ) -> None:
     seed_path = tmp_path / "wallet_watchlist_seed.yaml"
-    seed_path.write_text(json.dumps({"wallets": []}), encoding="utf-8")
+    seed_path.write_text(json.dumps(_empty_candidate_watchlist_seed()), encoding="utf-8")
     monkeypatch.setattr(bootstrap, "SEED_PATH", seed_path)
     monkeypatch.setattr(
         bootstrap,
@@ -476,7 +919,7 @@ def test_wallet_bootstrap_quarantines_identity_before_cu_http_or_seed_publicatio
     tmp_path: Path,
 ) -> None:
     seed_path = tmp_path / "wallet_watchlist_seed.yaml"
-    seed_path.write_text(json.dumps({"wallets": []}), encoding="utf-8")
+    seed_path.write_text(json.dumps(_empty_candidate_watchlist_seed()), encoding="utf-8")
     monkeypatch.setattr(bootstrap, "SEED_PATH", seed_path)
     malicious_contract = "0x/../unsafe?api_key=leak"
     monkeypatch.setattr(

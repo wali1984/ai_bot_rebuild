@@ -15,6 +15,9 @@ class FakeRedis:
     def __init__(self) -> None:
         self.data: dict[str, str] = {}
         self.ttls: dict[str, int] = {}
+        self.redis_time_seconds = 1_750_000_000
+        self.paced_states: dict[str, dict[str, float | int]] = {}
+        self.paced_reservations: dict[str, dict[str, str | int]] = {}
 
     def set(
         self,
@@ -63,6 +66,131 @@ class FakeRedis:
             if self.data.get(keys[0]) != argv[0]:
                 return 0
             self.data[keys[1]] = argv[1]
+            return 1
+        if "MORALIS_FENCED_PACED_CU_CLAIM_V3" in script:
+            if self.data.get(keys[0]) != argv[0]:
+                return [-1, "0", 0, ""]
+            interval = int(argv[1])
+            cost = int(argv[2])
+            remaining_today = int(argv[3])
+            remaining_month = int(argv[4])
+            day_opportunities = int(argv[5])
+            month_opportunities = int(argv[6])
+            day_reset = int(argv[7])
+            month_reset = int(argv[8])
+            reservation_id = argv[9]
+            window_id = self.redis_time_seconds // interval
+            if (
+                self.redis_time_seconds >= day_reset
+                or self.redis_time_seconds >= month_reset
+            ):
+                return [-4, "0", window_id, ""]
+            if keys[2] in self.paced_reservations:
+                return [-5, "0", window_id, ""]
+            state = self.paced_states.get(keys[1])
+            reset = (
+                state is None
+                or self.redis_time_seconds >= int(state["day_reset"])
+                or self.redis_time_seconds >= int(state["month_reset"])
+                or int(state["day_reset"]) != day_reset
+                or int(state["month_reset"]) != month_reset
+            )
+            if reset:
+                previous_window = window_id - 1
+                credit = 0.0
+            else:
+                assert state is not None
+                if int(state["interval"]) != interval:
+                    return [-2, str(state["credit"]), window_id, ""]
+                previous_window = int(state["window_id"])
+                credit = float(state["credit"])
+            earned = min(
+                remaining_today / day_opportunities,
+                remaining_month / month_opportunities,
+            )
+            earned_for_elapsed = earned
+            if not reset:
+                assert state is not None
+                earned_for_elapsed = min(float(state["earned"]), earned)
+            bound = min(remaining_today, remaining_month)
+            credit = min(
+                bound,
+                credit + (window_id - previous_window) * earned_for_elapsed,
+            )
+            admitted = credit + 1e-9 >= cost
+            if admitted:
+                credit -= cost
+            self.paced_states[keys[1]] = {
+                "window_id": window_id,
+                "credit": credit,
+                "interval": interval,
+                "day_reset": day_reset,
+                "month_reset": month_reset,
+                "bound": bound,
+                "earned": earned,
+            }
+            if admitted:
+                self.paced_reservations[keys[2]] = {
+                    "reservation_id": reservation_id,
+                    "lease_key": keys[0],
+                    "lease_token": argv[0],
+                    "window_id": window_id,
+                    "cost": cost,
+                    "credit_key": keys[1],
+                    "day_reset": day_reset,
+                    "month_reset": month_reset,
+                }
+            return [
+                int(admitted),
+                str(credit),
+                window_id,
+                reservation_id if admitted else "",
+            ]
+        if "MORALIS_FENCED_PACED_CU_RELEASE_V3" in script:
+            if self.data.get(keys[0]) != argv[0]:
+                return 0
+            reservation = self.paced_reservations.get(keys[2])
+            state = self.paced_states.get(keys[1])
+            if (
+                reservation is None
+                or state is None
+                or reservation["reservation_id"] != argv[1]
+                or reservation["lease_key"] != keys[0]
+                or reservation["lease_token"] != argv[0]
+                or reservation["credit_key"] != keys[1]
+                or int(reservation["window_id"]) != int(argv[2])
+                or int(reservation["cost"]) != int(argv[3])
+                or int(reservation["day_reset"]) != int(state["day_reset"])
+                or int(reservation["month_reset"]) != int(state["month_reset"])
+                or int(state["window_id"]) != int(argv[2])
+            ):
+                return 0
+            cost = int(argv[3])
+            state["credit"] = min(
+                float(state["bound"]),
+                float(state["credit"]) + cost,
+            )
+            del self.paced_reservations[keys[2]]
+            return 1
+        if "MORALIS_FENCED_PACED_CU_FINALIZE_V1" in script:
+            if self.data.get(keys[0]) != argv[0]:
+                return 0
+            reservation = self.paced_reservations.get(keys[2])
+            state = self.paced_states.get(keys[1])
+            if (
+                reservation is None
+                or state is None
+                or reservation["reservation_id"] != argv[1]
+                or reservation["lease_key"] != keys[0]
+                or reservation["lease_token"] != argv[0]
+                or reservation["credit_key"] != keys[1]
+                or int(reservation["window_id"]) != int(argv[2])
+                or int(reservation["cost"]) != int(argv[3])
+                or int(reservation["day_reset"]) != int(state["day_reset"])
+                or int(reservation["month_reset"]) != int(state["month_reset"])
+            ):
+                return 0
+            del self.paced_reservations[keys[2]]
             return 1
         if "EXPIRE" in script:
             return int(self.data.get(keys[0]) == argv[0])
