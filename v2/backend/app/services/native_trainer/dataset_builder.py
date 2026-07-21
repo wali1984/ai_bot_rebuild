@@ -1809,20 +1809,12 @@ def build_dataset_for_universe(
             ta = reader.get_json(
                 TA_KEY_TEMPLATE.format(symbol=symbol, timeframe=tf)
             )
-            # Merge Moralis bridge + confluence engine features into the
-            # altdata vector; None values stay None so masks remain honest.
-            altdata_merged = dict(altdata or {})
-            for bridge_key in (
-                f"v2:features:moralis:{symbol}:{tf}",
-                f"v2:altdata:confluence:{symbol}:{tf}",
-            ):
-                bridge_payload = reader.get_json(bridge_key) or {}
-                bridge_features = bridge_payload.get("features")
-                if isinstance(bridge_features, dict):
-                    for bridge_name, bridge_value in bridge_features.items():
-                        if bridge_value is not None and bridge_name not in altdata_merged:
-                            altdata_merged[str(bridge_name)] = bridge_value
-            altdata_for_row = altdata_merged if altdata_merged else altdata
+            # This compatibility dataset path has no authenticated provider
+            # receipt resolver. Do not merge raw Moralis or cached confluence
+            # maps under the base snapshot's clocks: optional provider slots
+            # remain missing until an independently verified path supplies
+            # them, while valid base samples continue training normally.
+            altdata_for_row = altdata
             snapshot_id = (features or {}).get("feature_snapshot_id") or ""
             label_row = label_rows_by_snapshot.get(str(snapshot_id))
             risk_decision = None  # avoid scanning RISK_DECISIONS list payload per row
