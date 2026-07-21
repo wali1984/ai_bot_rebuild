@@ -227,6 +227,13 @@ function IngestorRollupPanel({ ingestors, loading }: { ingestors: IngestorRollup
   // are not hidden behind "Stale providers: none".
   const providerHealth = ingestors?.provider_health ?? {};
   const providerEntries = Object.entries(providerHealth);
+  // Deliberate policy states (e.g. moralis ISOLATED_BY_POLICY under the durable
+  // CU budget, or OPTIONAL providers): not healthy-green, but NOT a fault —
+  // counting them as unhealthy contradicts the backend's own overall_status.
+  const isPolicyIsolated = (v: { status?: string | null }): boolean => {
+    const st = (v.status ?? '').toUpperCase();
+    return st.includes('ISOLATED_BY_POLICY') || st.startsWith('OPTIONAL');
+  };
   const isHealthy = (v: { status?: string | null; freshness?: string | null }): boolean => {
     const st = (v.status ?? '').toUpperCase();
     const fr = (v.freshness ?? '').toLowerCase();
@@ -235,9 +242,11 @@ function IngestorRollupPanel({ ingestors, loading }: { ingestors: IngestorRollup
     if (['stale', 'unknown', 'offline', 'degraded'].includes(fr)) return false;
     return ['ACTIVE', 'READY', 'GREEN', 'OK', 'HEALTHY'].some((t) => st.includes(t));
   };
-  const unhealthy = providerEntries.filter(([, v]) => !isHealthy(v)).map(([name]) => name);
+  const unhealthy = providerEntries.filter(([, v]) => !isHealthy(v) && !isPolicyIsolated(v)).map(([name]) => name);
+  const policyIsolated = providerEntries.filter(([, v]) => isPolicyIsolated(v)).map(([name]) => name);
   const providerTone = (v: { status?: string | null; freshness?: string | null }): 'ok' | 'warn' | 'error' | 'neutral' => {
     if (isHealthy(v)) return 'ok';
+    if (isPolicyIsolated(v)) return 'neutral';
     const st = (v.status ?? '').toUpperCase();
     if (!st || st.includes('OFFLINE') || st.includes('DOWN') || st.includes('ERROR') || st.includes('STALE')) return 'error';
     return 'warn';
@@ -264,6 +273,13 @@ function IngestorRollupPanel({ ingestors, loading }: { ingestors: IngestorRollup
           value={unhealthy.length ? `${unhealthy.length}: ${unhealthy.slice(0, 4).join(', ')}` : 'none'}
           tone={unhealthy.length ? 'warn' : 'ok'}
         />
+        {policyIsolated.length > 0 && (
+          <TruthCell
+            label="Isolated by policy"
+            value={`${policyIsolated.length}: ${policyIsolated.slice(0, 4).join(', ')}`}
+            tone="neutral"
+          />
+        )}
       </div>
       {providerEntries.length > 0 && (
         <div style={{ padding: '0 12px 8px' }}>

@@ -30,41 +30,68 @@ interface PredictionEntry {
   timeframe?: string | null;
   action: string | null;
   confidence: number | null;
-  target_price: number | null;
-  current_price: number | null;
-  expected_move_pct: number | null;
-  horizon: string | null;
-  strategy: string | null;
-  model_version: string | null;
-  feature_snapshot_id: string | null;
-  emitted: boolean;
-  blocked: boolean;
-  block_reason: string | null;
+  target_price?: number | null;
+  current_price?: number | null;
+  expected_move_pct?: number | null;
+  horizon?: string | null;
+  strategy?: string | null;
+  model_version?: string | null;
+  checkpoint_id?: string | null;
+  feature_snapshot_id?: string | null;
+  timestamp?: string | null;
+  source?: string | null;
+  emitted?: boolean;
+  blocked?: boolean;
+  block_reason?: string | null;
 }
 
-interface TrainerStatus {
-  status: string | null;
-  last_train_at: string | null;
-  current_epoch: number | null;
-  total_epochs: number | null;
-  loss: number | null;
-  val_loss: number | null;
-  checkpoint: string | null;
-  dataset: string | null;
+interface CalibrationBlock {
+  calibration_source?: string | null;
+  confidence_calibrated?: number | null;
+  confidence_raw?: number | null;
+  coverage_factor?: number | null;
+  missing_penalty?: number | null;
+  stale_penalty?: number | null;
+  temperature?: number | null;
+  used_calibration?: boolean | null;
 }
 
+interface OfflinePretrainStatus {
+  phase?: string | null;
+  promoted?: boolean | null;
+  generated_utc?: string | null;
+  h2l_decision?: string | null;
+  duration_seconds?: number | null;
+  sortino_offline?: number | null;
+}
+
+// Shape of /api/v2/ai/predictions `data` (verified against the live payload):
+// checkpoint lives in `checkpoint_id`, calibration is a nested object, and the
+// trainer state is a flat `trainer_status` string (e.g. STALE_REDIS_EVIDENCE).
 interface AIPredictionsData {
   predictions: PredictionEntry[];
-  trainer: TrainerStatus | null;
-  feature_importance: FeatureImportanceEntry[];
+  count?: number | null;
+  trainer_status?: string | null;
   model_version: string | null;
-  checkpoint: string | null;
-  total_emitted: number | null;
-  total_blocked: number | null;
-  calibration_score: number | null;
-  win_rate_realized: number | null;
-  source: string | null;
-  timestamp: string | null;
+  checkpoint_id?: string | null;
+  cuda_active?: boolean | null;
+  data_coverage?: number | null;
+  calibration_available?: boolean | null;
+  calibration?: CalibrationBlock | null;
+  feature_importance_available?: boolean | null;
+  feature_importance?: FeatureImportanceEntry[] | null;
+  offline_pretrain_status?: OfflinePretrainStatus | null;
+}
+
+// Flat payload of /api/v2/trainer/status — carries the honest evidence age
+// (staleness_seconds) that /api/v2/ai/predictions re-emission hides.
+interface TrainerStatusFlat {
+  state?: string | null;
+  staleness_seconds?: number | null;
+  freshness_status?: string | null;
+  checkpoint_id?: string | null;
+  data_coverage?: number | null;
+  cuda_active?: boolean | null;
 }
 
 function fmt(n: number | null, d = 2): string {
@@ -129,30 +156,57 @@ function KPICard({ label, value, sub, color }: { label: string; value: string; s
   );
 }
 
-function TrainerStatusPanel({ trainer }: { trainer: TrainerStatus | null }): JSX.Element {
-  const statusColor = (s: string | null): string => {
-    if (!s) return 'var(--text-muted)';
-    const l = s.toLowerCase();
-    if (l === 'running' || l === 'training') return 'var(--buy)';
-    if (l === 'idle' || l === 'done') return 'var(--text-secondary)';
-    if (l === 'error' || l === 'failed') return 'var(--sell)';
-    return 'var(--warn)';
-  };
+function isStaleTrainerState(state: string | null | undefined): boolean {
+  return (state ?? '').toUpperCase().includes('STALE');
+}
+
+function trainerStateColor(state: string | null | undefined): string {
+  if (!state) return 'var(--text-muted)';
+  const u = state.toUpperCase();
+  if (u.includes('STALE') || u.includes('ABORT') || u.includes('HELD')) return 'var(--warn)';
+  if (u.includes('ERROR') || u.includes('FAILED') || u.includes('DOWN')) return 'var(--sell)';
+  if (u.includes('RUNNING') || u.includes('TRAINING') || u.includes('ACTIVE')) return 'var(--buy)';
+  return 'var(--text-secondary)';
+}
+
+function fmtAgeSeconds(s: number | null | undefined): string | null {
+  if (s == null || !Number.isFinite(s) || s < 0) return null;
+  if (s < 60) return `${Math.round(s)}s`;
+  if (s < 3600) return `${Math.round(s / 60)}m`;
+  return `${(s / 3600).toFixed(1)}h`;
+}
+
+function fmtCoveragePct(n: number | null | undefined): string {
+  if (n == null || !Number.isFinite(n)) return '—';
+  return `${n.toFixed(1)}%`;
+}
+
+function TrainerStatusPanel({
+  data,
+  evidenceAgeSeconds,
+}: {
+  data: AIPredictionsData | null;
+  evidenceAgeSeconds: number | null;
+}): JSX.Element {
+  const state = data?.trainer_status ?? null;
+  const offline = data?.offline_pretrain_status ?? null;
+  const age = fmtAgeSeconds(evidenceAgeSeconds);
   return (
     <div className="glass" style={{ padding: '16px 18px' }}>
       <h3 style={{ margin: '0 0 12px', fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Trainer Status</h3>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12 }}>
         {[
-          { label: 'Status', value: trainer?.status ?? '—', color: statusColor(trainer?.status ?? null) },
-          { label: 'Epoch', value: trainer?.current_epoch != null && trainer?.total_epochs != null ? `${trainer.current_epoch}/${trainer.total_epochs}` : '—' },
-          { label: 'Loss', value: trainer?.loss?.toFixed(4) ?? '—' },
-          { label: 'Val Loss', value: trainer?.val_loss?.toFixed(4) ?? '—' },
-          { label: 'Checkpoint', value: trainer?.checkpoint ?? '—' },
-          { label: 'Last Train', value: trainer?.last_train_at ? new Date(trainer.last_train_at).toLocaleTimeString() : '—' },
+          { label: 'Status', value: state ? state.replace(/_/g, ' ') : '—', color: trainerStateColor(state) },
+          { label: 'Evidence Age', value: age ?? '—', color: isStaleTrainerState(state) ? 'var(--warn)' : undefined },
+          { label: 'Checkpoint', value: data?.checkpoint_id ?? '—' },
+          { label: 'CUDA', value: data?.cuda_active == null ? '—' : data.cuda_active ? 'active' : 'inactive', color: data?.cuda_active ? 'var(--buy)' : undefined },
+          { label: 'Data Coverage', value: fmtCoveragePct(data?.data_coverage) },
+          { label: 'Offline Pretrain', value: offline?.phase ? offline.phase.replace(/_/g, ' ') : '—', color: offline?.phase?.toUpperCase().includes('ABORT') ? 'var(--warn)' : undefined },
+          { label: 'Last Pretrain Run', value: offline?.generated_utc ? new Date(offline.generated_utc).toLocaleString() : '—' },
         ].map((item) => (
           <div key={item.label} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
             <span style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{item.label}</span>
-            <span style={{ fontSize: 13, fontWeight: 600, fontFamily: 'var(--font-mono)', color: item.color ?? 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.value}</span>
+            <span style={{ fontSize: 13, fontWeight: 600, fontFamily: 'var(--font-mono)', color: item.color ?? 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={String(item.value)}>{item.value}</span>
           </div>
         ))}
       </div>
@@ -212,9 +266,9 @@ function PredictionMatrix({
                 <td style={{ padding: '10px 12px', fontWeight: 700, color: dirColor(p.action) }}>{p.action?.toUpperCase() ?? '—'}</td>
                 <td style={{ padding: '10px 12px' }}>{fmtConf(p.confidence)}</td>
                 <td style={{ padding: '10px 12px' }}><AccuracyBadge cell={accuracyCell} /></td>
-                <td style={{ padding: '10px 12px', color: 'var(--buy)' }}>{fmt(p.target_price)}</td>
-                <td style={{ padding: '10px 12px' }}>{fmt(p.current_price)}</td>
-                <td style={{ padding: '10px 12px', color: (p.expected_move_pct ?? 0) >= 0 ? 'var(--buy)' : 'var(--sell)' }}>{fmtPct(p.expected_move_pct)}</td>
+                <td style={{ padding: '10px 12px', color: 'var(--buy)' }}>{fmt(p.target_price ?? null)}</td>
+                <td style={{ padding: '10px 12px' }}>{fmt(p.current_price ?? null)}</td>
+                <td style={{ padding: '10px 12px', color: (p.expected_move_pct ?? 0) >= 0 ? 'var(--buy)' : 'var(--sell)' }}>{fmtPct(p.expected_move_pct ?? null)}</td>
                 <td style={{ padding: '10px 12px', color: 'var(--text-muted)' }}>{p.horizon ?? '—'}</td>
                 <td style={{ padding: '10px 12px', color: 'var(--text-muted)', fontSize: 11 }}>{p.strategy ?? '—'}</td>
                 <td style={{ padding: '10px 12px' }}>
@@ -246,8 +300,26 @@ export default function AIPredictionsPage(): JSX.Element {
     mode: 'read_only',
   });
   const adaptiveCapital = useAdaptiveCapitalDashboard(30_000);
+  // /api/v2/ai/predictions re-emits the last Redis evidence with a fresh
+  // timestamp, so the delivery envelope alone cannot show how old the trainer
+  // brain actually is. /api/v2/trainer/status carries the honest
+  // staleness_seconds for the same evidence.
+  const trainerStatusRes = useRealtimeResource<TrainerStatusFlat>({
+    url: '/api/v2/trainer/status',
+    source: '/api/v2/trainer/status',
+    source_type: 'api',
+    pollIntervalMs: 60_000,
+    staleThresholdMs: 300_000,
+    mode: 'read_only',
+  });
 
   const data = envelope.data;
+  const trainerFlat = trainerStatusRes.envelope.data;
+  const trainerState = data?.trainer_status ?? trainerFlat?.state ?? null;
+  const trainerEvidenceAgeSeconds = typeof trainerFlat?.staleness_seconds === 'number' ? trainerFlat.staleness_seconds : null;
+  const trainerStale = isStaleTrainerState(trainerState);
+  const trainerAgeLabel = fmtAgeSeconds(trainerEvidenceAgeSeconds);
+  const calibrated = data?.calibration?.confidence_calibrated ?? null;
   const accuracyStatus = adaptiveCapital.data?.signal_prediction_accuracy_status
     ?? adaptiveCapital.data?.capital_productivity_runtime_status?.signal_prediction_accuracy_status
     ?? null;
@@ -271,6 +343,23 @@ export default function AIPredictionsPage(): JSX.Element {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <FreshnessBadge status={envelope.freshness_status} lagMs={envelope.lag_ms} />
+            {trainerState && (
+              <span
+                title="Trainer brain state from Redis evidence — independent of API delivery freshness"
+                style={{
+                  padding: '3px 9px',
+                  borderRadius: 'var(--radius-sm)',
+                  fontSize: 11,
+                  fontWeight: 800,
+                  fontFamily: 'var(--font-mono)',
+                  color: trainerStateColor(trainerState),
+                  border: `1px solid ${trainerStateColor(trainerState)}`,
+                  background: 'transparent',
+                }}
+              >
+                TRAINER: {trainerState.replace(/_/g, ' ')}{trainerAgeLabel ? ` · ${trainerAgeLabel}` : ''}
+              </span>
+            )}
             <SourceBadge sourceType={envelope.source_type} source={envelope.source} endpoint={envelope.endpoint} />
             <button
               onClick={refetch}
@@ -289,13 +378,34 @@ export default function AIPredictionsPage(): JSX.Element {
         </div>
       )}
 
+      {/* Trainer staleness banner — honest state when the brain is held */}
+      {trainerStale && (
+        <div style={{ margin: '16px 24px 0', padding: '10px 14px', borderRadius: 'var(--radius-sm)', border: '1px solid color-mix(in oklch, var(--warn) 45%, transparent)', background: 'color-mix(in oklch, var(--warn) 10%, var(--bg-elevated))', fontSize: 12, color: 'var(--warn)', fontFamily: 'var(--font-mono)' }}>
+          Trainer evidence is stale ({trainerState?.replace(/_/g, ' ')}{trainerAgeLabel ? ` · age ${trainerAgeLabel}` : ''}). The prediction below is re-emitted from the last Redis evidence — it is not fresh model output. Delivery freshness above refers to the API response only.
+        </div>
+      )}
+
       {/* KPI row */}
       <div style={{ padding: '16px 24px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 12 }}>
         <KPICard label="Model" value={loading ? '…' : (data?.model_version ?? '—')} sub="Active model version" />
-        <KPICard label="Emitted" value={loading ? '…' : String(data?.total_emitted ?? '—')} color="var(--buy)" sub="Signals emitted" />
-        <KPICard label="Blocked" value={loading ? '…' : String(data?.total_blocked ?? '—')} color="var(--sell)" sub="Signals blocked by risk" />
-        <KPICard label="Calibration" value={loading ? '…' : fmtConf(data?.calibration_score ?? null)} sub="Confidence calibration" />
-        <KPICard label="Realized Win Rate" value={loading ? '…' : fmtPct(data?.win_rate_realized ?? null)} sub="Runtime measured" />
+        <KPICard
+          label="Trainer Status"
+          value={loading ? '…' : (trainerState ? trainerState.replace(/_/g, ' ') : '—')}
+          color={trainerStateColor(trainerState)}
+          sub={trainerAgeLabel ? `evidence age ${trainerAgeLabel}` : 'from Redis evidence'}
+        />
+        <KPICard
+          label="Calibration"
+          value={loading ? '…' : fmtConf(calibrated)}
+          sub={data?.calibration ? `raw ${fmtConf(data.calibration.confidence_raw ?? null)} · T=${data.calibration.temperature ?? '—'}` : 'Confidence calibration'}
+        />
+        <KPICard label="Data Coverage" value={loading ? '…' : fmtCoveragePct(data?.data_coverage)} sub="Feature coverage into model" />
+        <KPICard
+          label="CUDA"
+          value={loading ? '…' : data?.cuda_active == null ? '—' : data.cuda_active ? 'ACTIVE' : 'INACTIVE'}
+          color={data?.cuda_active ? 'var(--buy)' : undefined}
+          sub="GPU inference runtime"
+        />
       </div>
 
       <div style={{ padding: '0 24px 16px' }}>
@@ -310,7 +420,7 @@ export default function AIPredictionsPage(): JSX.Element {
 
       {/* Trainer status */}
       <div style={{ padding: '0 24px 16px' }}>
-        <TrainerStatusPanel trainer={data?.trainer ?? null} />
+        <TrainerStatusPanel data={data} evidenceAgeSeconds={trainerEvidenceAgeSeconds} />
       </div>
 
       {/* Prediction matrix */}
@@ -334,16 +444,17 @@ export default function AIPredictionsPage(): JSX.Element {
           <div className="glass" style={{ padding: '16px' }}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 10 }}>
               {[
-                ['Source', data.source ?? '/api/v2/ai/predictions'],
+                ['Source', envelope.source ?? '/api/v2/ai/predictions'],
                 ['Endpoint', '/api/v2/ai/predictions'],
-                ['Received At', data.timestamp ?? '—'],
-                ['Freshness', envelope.freshness_status],
+                ['Received At', envelope.received_at ? new Date(envelope.received_at).toISOString() : '—'],
+                ['Delivery Freshness', envelope.freshness_status],
+                ['Trainer Status', trainerState ? trainerState.replace(/_/g, ' ') : '—'],
+                ['Trainer Evidence Age', trainerAgeLabel ?? '—'],
                 ['Source Type', envelope.source_type],
                 ['Model Version', data.model_version ?? '—'],
-                ['Checkpoint', data.checkpoint ?? '—'],
-                ['Calibration', fmtConf(data.calibration_score ?? null)],
-                ['Emitted', String(data.total_emitted ?? '—')],
-                ['Blocked', String(data.total_blocked ?? '—')],
+                ['Checkpoint', data.checkpoint_id ?? '—'],
+                ['Calibration', fmtConf(calibrated)],
+                ['Calibration Raw', fmtConf(data.calibration?.confidence_raw ?? null)],
                 ['Missing Fields', String(envelope.missing_fields.length)],
               ].map(([label, value]) => (
                 <div key={label} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>

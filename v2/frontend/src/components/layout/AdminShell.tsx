@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Navigate, Outlet, useLocation, NavLink } from 'react-router-dom';
 import { canSee, canSeePage, normalizeRole, type RoleLike } from '../../auth/rbac';
 import { useAuth } from '../../hooks/useAuth';
@@ -70,7 +71,11 @@ function parseHealth(data: AdminOverviewPayload | null | undefined): HealthCount
   return counts;
 }
 
-function GlobalHealthStrip({ counts, freshMs }: { counts: HealthCounts; freshMs: number | null }): JSX.Element {
+function isInsufficientRoleError(message: string): boolean {
+  return /insufficient_role|forbidden|\b403\b/i.test(message);
+}
+
+function GlobalHealthStrip({ counts, freshMs, restricted }: { counts: HealthCounts; freshMs: number | null; restricted?: boolean }): JSX.Element {
   const hasIssues = counts.warn + counts.error > 0;
   return (
     <div
@@ -95,7 +100,9 @@ function GlobalHealthStrip({ counts, freshMs }: { counts: HealthCounts; freshMs:
       }}
     >
       {counts.ok + counts.warn + counts.error === 0 ? (
-        <span style={{ color: 'var(--text-muted)' }}>Health data loading…</span>
+        <span style={{ color: 'var(--text-muted)' }}>
+          {restricted ? 'Health summary requires admin role — page data unaffected' : 'Health data loading…'}
+        </span>
       ) : (
         <>
           <span style={{ color: 'var(--ok)' }}>
@@ -304,13 +311,24 @@ export function AdminShell(): JSX.Element {
   const location = useLocation();
   const effectiveRole: RoleLike = user?.role ? normalizeRole(user.role) : 'public';
 
+  // /api/v2/admin/overview is admin-gated, but AdminShell also hosts
+  // viewer/reviewer-min pages reachable by a trader. On 403 insufficient_role,
+  // stop repolling and let the health strip degrade honestly instead of
+  // showing "Health data loading…" forever.
+  const [overviewRestricted, setOverviewRestricted] = useState(false);
   const { envelope } = useRealtimeResource<AdminOverviewPayload>({
     url: '/api/v2/admin/overview',
     source: 'admin-overview',
     pollIntervalMs: 30_000,
-    enabled: !!user,
+    enabled: !!user && !overviewRestricted,
     initialFetchWhenStreaming: true,
   });
+  const overviewErrors = envelope.errors;
+  useEffect(() => {
+    if (overviewErrors.some(isInsufficientRoleError)) {
+      setOverviewRestricted(true);
+    }
+  }, [overviewErrors]);
 
   const overviewData = envelope.data;
   const healthCounts = parseHealth(overviewData);
@@ -517,7 +535,7 @@ export function AdminShell(): JSX.Element {
       </header>
 
       {/* ── Global health strip ─────────────────────────────────────────── */}
-      <GlobalHealthStrip counts={healthCounts} freshMs={freshMs} />
+      <GlobalHealthStrip counts={healthCounts} freshMs={freshMs} restricted={overviewRestricted} />
       <RuntimeTruthStrip surface="admin" />
 
       {/* ── Body: left nav + main ───────────────────────────────────────── */}
