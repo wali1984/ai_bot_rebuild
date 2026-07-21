@@ -446,6 +446,10 @@ final class MonitorViewModel {
     // MARK: - Freshness helpers
 
     /// Higher rank == worse. Used to sort/color providers and feeds.
+    /// Policy-degraded statuses (ISOLATED_BY_POLICY / quarantined / heartbeat-only)
+    /// must rank as degraded even when the heartbeat freshness is "fresh" —
+    /// a quarantined provider is not healthy-green (matches the Providers
+    /// screen's heartbeat_only yellow rule).
     static func freshnessRank(_ freshness: String?, status: String?) -> Int {
         let f = (freshness ?? "").lowercased()
         let s = (status ?? "").lowercased()
@@ -454,6 +458,10 @@ final class MonitorViewModel {
         }
         if f == "unknown" || s.isEmpty { return 3 }
         if f.contains("stale") || f.contains("delayed") || s.contains("stale") { return 2 }
+        if s.contains("isolated") || s.contains("quarantin") || s.contains("heartbeat") || s.contains("degraded")
+            || f.contains("isolated") || f.contains("quarantin") || f.contains("degraded") {
+            return 2
+        }
         if f == "fresh" || s.contains("active") || s.contains("ready") { return 0 }
         return 1
     }

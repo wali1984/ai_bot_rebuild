@@ -106,6 +106,7 @@ struct ProvidersView: View {
         ScrollView {
             VStack(spacing: 14) {
                 coverageStrip
+                ingestorCensusLink
                 summaryCard
                 if !vm.degradedProviders.isEmpty {
                     degradedAttentionCard
@@ -181,6 +182,42 @@ struct ProvidersView: View {
             transport: vm.transport,
             ageSeconds: vm.freshnessAgeSeconds
         )
+    }
+
+    // MARK: - Ingestor census link (the More-menu row is "Providers & Ingestors" —
+    // the per-stream ingestor census must be reachable from here, not only via
+    // System Monitor data-feed rows)
+
+    private var ingestorCensusLink: some View {
+        NavigationLink {
+            IngestorsView()
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "dot.radiowaves.up.forward")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(NerVyx.signal)
+                    .frame(width: 30, height: 30)
+                    .background(NerVyx.signal.opacity(0.14))
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Ingestor census")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(NerVyx.textPrimary)
+                    Text("Per-stream ingest truth: current provider, usability, unusable reasons")
+                        .font(.system(size: 10))
+                        .foregroundStyle(NerVyx.textMuted)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                }
+                Spacer(minLength: 6)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(NerVyx.signal)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .nerVyxGlassCard(accent: NerVyx.signal.opacity(0.5))
     }
 
     // MARK: - Summary card

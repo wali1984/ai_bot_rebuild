@@ -375,6 +375,9 @@ public struct ChampionChallengerStatus: Decodable, Equatable {
     public let paper_challenger_enabled: Bool?
     public let replay_windows_processed: Int?
     public let replay_snapshots_scanned: Int?
+    /// Exact runtime blocker chain (additive; absent on older payloads).
+    public let blocker_reasons: [String]?
+    public let evaluated_at_utc: String?
 
     public var displayStatus: String {
         (status ?? "MISSING_RUNTIME_EVIDENCE").replacingOccurrences(of: "_", with: " ")

@@ -80,6 +80,7 @@ struct MonitorView: View {
                 dataFeedsSection
                 providerHealthSection
                 backendSurfacesSection
+                dataTruthSection
                 if let h = vm.health {
                     runtimeCompute(h)
                 }
@@ -412,6 +413,40 @@ struct MonitorView: View {
         if lagMs > 5000 { return NerVyx.warning }
         if lagMs > 15000 { return NerVyx.sell }
         return NerVyx.textSecondary
+    }
+
+    // MARK: - Runtime data truth (orderbook feed coverage + book-trust semantics)
+
+    private var dataTruthSection: some View {
+        NavigationLink {
+            DataTruthView()
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "books.vertical")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(NerVyx.signal)
+                    .frame(width: 30, height: 30)
+                    .background(NerVyx.signal.opacity(0.14))
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Orderbook & book-trust truth")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(NerVyx.textPrimary)
+                    Text("Direct feed coverage, sequence gaps, microstructure trust semantics")
+                        .font(.system(size: 10))
+                        .foregroundStyle(NerVyx.textMuted)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                }
+                Spacer(minLength: 6)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(NerVyx.signal)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .nerVyxGlassCard(accent: NerVyx.signal.opacity(0.5))
     }
 
     // MARK: - Trainer / GPU compact (links to Trainer Telemetry)
