@@ -291,6 +291,27 @@ def _address_mapping(address: SourcePayloadAddress) -> dict[str, Any]:
     }
 
 
+def _valid_address_mapping(value: object) -> bool:
+    if type(value) is not dict:
+        return False
+    binding = cast(dict[str, Any], value)
+    byte_count = binding.get("payload_byte_count")
+    return (
+        set(binding)
+        == {
+            "schema_version",
+            "payload_sha256",
+            "payload_byte_count",
+            "relative_path",
+        }
+        and _valid_sha256(binding.get("payload_sha256"))
+        and type(byte_count) is int
+        and byte_count > 0
+        and type(binding.get("relative_path")) is str
+        and bool(binding.get("relative_path"))
+    )
+
+
 def _put_exact(
     store: ImmutableSourcePayloadStore,
     payload: bytes,
@@ -350,7 +371,7 @@ def _strict_fee_material(value: object) -> dict[str, object]:
 def _parse_exact_attestation_bytes(value: object) -> dict[str, object]:
     if type(value) is not bytes or not value or len(value) > _MAX_FEE_ATTESTATION_BYTES:
         _validation("PAPER_RESEARCH_FEE_ATTESTATION_BYTES_INVALID")
-    raw = cast(bytes, value)
+    raw = value
 
     def reject_duplicate(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
         parsed: dict[str, Any] = {}
@@ -457,7 +478,7 @@ def assemble_paper_research_fee_schedule_attestation_v1(
             declared_trust_anchor_id=trust_anchor,
             declared_public_key_sha256=cast(str, declared_public_key_sha256),
         ),
-        "signature_hex": cast(bytes, signature_bytes).hex(),
+        "signature_hex": signature_bytes.hex(),
     }
     encoded = _canonical_bytes(
         envelope,
@@ -481,7 +502,7 @@ def _verify_fee_attestation(
         or len(registry_public_key_bytes) != _ED25519_PUBLIC_KEY_BYTES
     ):
         _validation("PAPER_RESEARCH_FEE_REGISTRY_PUBLIC_KEY_INVALID")
-    public_key_bytes = cast(bytes, registry_public_key_bytes)
+    public_key_bytes = registry_public_key_bytes
     if not _valid_sha256(registry_public_key_sha256):
         _validation("PAPER_RESEARCH_FEE_REGISTRY_PUBLIC_KEY_FINGERPRINT_INVALID")
     public_key_sha256 = hashlib.sha256(public_key_bytes).hexdigest()
@@ -563,7 +584,7 @@ def _validate_fee_evidence(
         or len(source_document_bytes) > _MAX_SOURCE_DOCUMENT_BYTES
     ):
         _validation("PAPER_RESEARCH_FEE_SOURCE_DOCUMENT_BYTES_INVALID")
-    source_bytes = cast(bytes, source_document_bytes)
+    source_bytes = source_document_bytes
     source_address = _put_exact(
         store,
         source_bytes,
@@ -872,7 +893,7 @@ def build_paper_research_causal_cost_evidence_v1(
 
     if type(source_payload_store) is not ImmutableSourcePayloadStore:
         _validation("PAPER_RESEARCH_COST_IMMUTABLE_SOURCE_PAYLOAD_STORE_REQUIRED")
-    store = cast(ImmutableSourcePayloadStore, source_payload_store)
+    store = source_payload_store
     normalized_symbol = _label(
         symbol,
         reason="PAPER_RESEARCH_COST_SYMBOL_INVALID",
@@ -893,10 +914,7 @@ def build_paper_research_causal_cost_evidence_v1(
         _validation("PAPER_RESEARCH_COST_COUNTERFACTUAL_HORIZON_NOT_PINNED_900_SECONDS")
     if type(expected_notional_policy) is not CausalExpectedNotionalPolicyTokenV1:
         _validation("PAPER_RESEARCH_COST_CAUSAL_NOTIONAL_FACTORY_TOKEN_REQUIRED")
-    notional_token = cast(
-        CausalExpectedNotionalPolicyTokenV1,
-        expected_notional_policy,
-    )
+    notional_token = expected_notional_policy
     try:
         notional_contract = notional_token.contract
     except CausalExpectedNotionalPolicyV1IntegrityError as exc:
@@ -1176,6 +1194,20 @@ def build_paper_research_causal_cost_evidence_v1(
             )
         )
 
+    source_exact_objects = (
+        *market_objects,
+        *notional_objects,
+        (notional_raw_status_address, notional_token.raw_status_bytes),
+        (
+            notional_source_receipt_address,
+            notional_token.source_read_receipt_bytes,
+        ),
+        *fee_objects,
+        *source_receipt_objects,
+    )
+    source_cas_object_inventory = [
+        _address_mapping(address) for address, _payload in source_exact_objects
+    ]
     contract_material = {
         "schema_version": PAPER_RESEARCH_CAUSAL_COST_EVIDENCE_V1_SCHEMA_VERSION,
         "evidence_classification": (PAPER_RESEARCH_CAUSAL_COST_EVIDENCE_V1_CLASSIFICATION),
@@ -1211,6 +1243,9 @@ def build_paper_research_causal_cost_evidence_v1(
         "external_monotonic_fee_revision_verified": False,
         "profiled_account_lane_compatible": False,
         "research_cost_components_complete": True,
+        "source_cas_object_count": len(source_cas_object_inventory),
+        "source_cas_object_inventory": source_cas_object_inventory,
+        "source_cas_object_inventory_sha256": _sha256(source_cas_object_inventory),
         "research_training_admission_status": (
             "NOT_AUTHORIZED_SEPARATE_LEDGER_MANIFEST_WITNESS_AND_ADMISSION_REQUIRED"
         ),
@@ -1243,18 +1278,7 @@ def build_paper_research_causal_cost_evidence_v1(
             tuple(item["receipt_sha256"] for item in receipts),
         ),
         _store=store,
-        _exact_objects=(
-            *market_objects,
-            *notional_objects,
-            (notional_raw_status_address, notional_token.raw_status_bytes),
-            (
-                notional_source_receipt_address,
-                notional_token.source_read_receipt_bytes,
-            ),
-            *fee_objects,
-            *source_receipt_objects,
-            (artifact_address, artifact_bytes),
-        ),
+        _exact_objects=(*source_exact_objects, (artifact_address, artifact_bytes)),
         _fee_attestation_bytes=cast(bytes, fee_schedule_signed_attestation),
         _fee_material_json=fee_material_json,
         _registry_public_key_bytes=cast(bytes, fee_schedule_registry_public_key_bytes),
@@ -1375,6 +1399,24 @@ def _validated_result(
         if key not in {"evidence_id", "contract_material_sha256"}
     }
     material_sha256 = _sha256(material)
+    source_inventory = contract.get("source_cas_object_inventory")
+    if (
+        type(source_inventory) is not list
+        or not source_inventory
+        or contract.get("source_cas_object_count") != len(source_inventory)
+        or contract.get("source_cas_object_inventory_sha256") != _sha256(source_inventory)
+        or any(not _valid_address_mapping(binding) for binding in source_inventory)
+    ):
+        _integrity("PAPER_RESEARCH_COST_RESULT_CAS_INVENTORY_INVALID")
+    retained_source_objects = result._exact_objects[:-1]
+    retained_artifact_object = result._exact_objects[-1]
+    if (
+        [_address_mapping(address) for address, _payload in retained_source_objects]
+        != source_inventory
+        or retained_artifact_object[0] != result.artifact_address
+        or not hmac.compare_digest(retained_artifact_object[1], artifact_bytes)
+    ):
+        _integrity("PAPER_RESEARCH_COST_RESULT_CAS_INVENTORY_MISMATCH")
     if (
         hashlib.sha256(artifact_bytes).hexdigest() != result.artifact_sha256
         or result.artifact_address.payload_sha256 != result.artifact_sha256
