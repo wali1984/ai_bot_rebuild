@@ -82,6 +82,25 @@ interface BacktestResults {
 
 const HOT_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT'];
 const TIMEFRAMES = ['1m', '5m', '15m', '1h', '4h', '1d'];
+
+// A closed candle of timeframe T is by definition up to ~T old, so a fixed
+// 20s stale threshold branded healthy 1h data permanently 'Stale · NNm'
+// (final field audit). Scale the threshold with the selected timeframe:
+// content older than 2xT + 5m grace is genuinely stale. The 2x factor also
+// lets the hook's content-provably-fresh check (age < threshold/2) override
+// the backend envelope's timeframe-blind stale=true flag.
+const TIMEFRAME_MS: Record<string, number> = {
+  '1m': 60_000,
+  '5m': 300_000,
+  '15m': 900_000,
+  '1h': 3_600_000,
+  '4h': 14_400_000,
+  '1d': 86_400_000,
+};
+
+function candleStaleThresholdMs(timeframe: string): number {
+  return 2 * (TIMEFRAME_MS[timeframe] ?? 3_600_000) + 5 * 60_000;
+}
 const SPEEDS = [1, 2, 5, 10] as const;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
@@ -194,7 +213,7 @@ export default function BacktestsReplayPage(): JSX.Element {
     source: `/api/v2/market/${symbol}/candles`,
     source_type: 'websocket',
     pollIntervalMs: 5_000,
-    staleThresholdMs: 20_000,
+    staleThresholdMs: candleStaleThresholdMs(timeframe),
     mode: 'read_only',
   });
 
