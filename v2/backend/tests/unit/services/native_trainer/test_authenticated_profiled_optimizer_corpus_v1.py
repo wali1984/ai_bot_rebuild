@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import copy
 import hashlib
+import pickle
 from collections.abc import Callable
 from dataclasses import replace
 from typing import Any
@@ -21,6 +23,7 @@ from v2.backend.app.services.native_trainer.authenticated_profiled_optimizer_cor
     AuthenticatedProfiledOptimizerCorpusV1Error,
     build_authenticated_profiled_optimizer_corpus_v1,
     validate_authenticated_profiled_optimizer_corpus_inventory_equality_v1,
+    validate_authenticated_profiled_optimizer_execution_authorization_pair_v1,
 )
 from v2.backend.app.services.native_trainer.durable_feature_snapshot_ledger import (
     stable_sha256,
@@ -214,6 +217,7 @@ def test_exact_before_after_inventory_authorizes_only_supervised_optimizer_execu
     assert before.rows[0].supervised_target is not after.rows[0].supervised_target
     assert before.causal_clock_range is not after.causal_clock_range
     assert authorization.before_after_inventory_equality_verified is True
+    assert authorization.independent_temporal_materialization_verified is False
     assert authorization.before_ordered_admitted_inventory_sha256 == (
         authorization.after_ordered_admitted_inventory_sha256
     )
@@ -255,14 +259,71 @@ def test_same_object_cannot_impersonate_independent_before_after_snapshots(
             after=corpus,
         )
 
-    shallow_copy = replace(corpus)
     with pytest.raises(
         AuthenticatedProfiledOptimizerCorpusV1Error,
-        match="PROFILED_OPTIMIZER_CORPUS_DISTINCT_BEFORE_AFTER_SNAPSHOTS_REQUIRED",
+        match="PROFILED_OPTIMIZER_CORPUS_FACTORY_SEAL_INVALID",
     ):
-        validate_authenticated_profiled_optimizer_corpus_inventory_equality_v1(
-            before=corpus,
-            after=shallow_copy,
+        replace(corpus)
+
+
+def test_deep_dataclass_replace_clone_cannot_masquerade_as_second_materialization(
+    adapter_evidence: dict[str, Any],
+) -> None:
+    admitted = _admitted(adapter_evidence)
+    corpus = build_authenticated_profiled_optimizer_corpus_v1((admitted,))
+    cloned_target = replace(corpus.rows[0].supervised_target)
+
+    with pytest.raises(
+        AuthenticatedProfiledOptimizerCorpusV1Error,
+        match="PROFILED_OPTIMIZER_CORPUS_ROW_FACTORY_SEAL_INVALID",
+    ):
+        replace(corpus.rows[0], supervised_target=cloned_target)
+
+
+@pytest.mark.parametrize("operation", (copy.copy, copy.deepcopy, pickle.dumps))
+def test_corpus_graph_copy_or_pickle_transfer_fails_closed(
+    adapter_evidence: dict[str, Any], operation: Any
+) -> None:
+    admitted = _admitted(adapter_evidence)
+    corpus = build_authenticated_profiled_optimizer_corpus_v1((admitted,))
+
+    with pytest.raises(
+        AuthenticatedProfiledOptimizerCorpusV1Error,
+        match="PROFILED_OPTIMIZER_CORPUS_PICKLE_OR_COPY_FORBIDDEN",
+    ):
+        operation(corpus)
+
+
+def test_seals_retain_exact_owner_references_and_authorization_is_pair_bound(
+    adapter_evidence: dict[str, Any],
+) -> None:
+    admitted = _admitted(adapter_evidence)
+    before = build_authenticated_profiled_optimizer_corpus_v1((admitted,))
+    after = build_authenticated_profiled_optimizer_corpus_v1((admitted,))
+    authorization = validate_authenticated_profiled_optimizer_corpus_inventory_equality_v1(
+        before=before,
+        after=after,
+    )
+    unrelated_before = build_authenticated_profiled_optimizer_corpus_v1((admitted,))
+    unrelated_after = build_authenticated_profiled_optimizer_corpus_v1((admitted,))
+
+    assert before._factory_seal._owner is before
+    assert before.rows[0]._factory_seal._owner is before.rows[0]
+    assert before.causal_clock_range._factory_seal._owner is before.causal_clock_range
+    assert authorization._factory_seal._owner is authorization
+    validate_authenticated_profiled_optimizer_execution_authorization_pair_v1(
+        authorization=authorization,
+        before=before,
+        after=after,
+    )
+    with pytest.raises(
+        AuthenticatedProfiledOptimizerCorpusV1Error,
+        match="PROFILED_OPTIMIZER_EXECUTION_AUTHORIZATION_OWNER_PAIR_MISMATCH",
+    ):
+        validate_authenticated_profiled_optimizer_execution_authorization_pair_v1(
+            authorization=authorization,
+            before=unrelated_before,
+            after=unrelated_after,
         )
 
 
