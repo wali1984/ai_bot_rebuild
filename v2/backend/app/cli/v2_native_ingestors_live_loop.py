@@ -23,6 +23,7 @@ import urllib.request
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation
 from functools import partial
 from pathlib import Path
 from typing import Any
@@ -36,6 +37,7 @@ from v2.backend.app.services.binance_unified_websocket_transport import (
 )
 from v2.backend.app.services.market_data.current_price_resolver import resolve_current_price
 from v2.backend.app.services.market_state_integrity.canonical_candles import (
+    canonical_from_binance_rest,
     closed_candle_key,
     current_candle_key,
 )
@@ -280,6 +282,30 @@ def _safe_float(value: Any) -> float | None:
     except (TypeError, ValueError):
         return None
     return parsed if math.isfinite(parsed) else None
+
+
+def _observed_epoch_ms() -> int:
+    """Return the local observation clock used only as a causal cutoff."""
+
+    return int(time.time() * 1_000)
+
+
+def _strict_positive_epoch_ms(value: Any) -> int | None:
+    """Parse exact integral milliseconds without binary-float rounding."""
+
+    if value in (None, "") or isinstance(value, bool | float):
+        return None
+    if type(value) is int:
+        return value if value > 0 else None
+    if not isinstance(value, str | Decimal):
+        return None
+    try:
+        parsed = Decimal(str(value).strip())
+    except (InvalidOperation, ValueError):
+        return None
+    if not parsed.is_finite() or parsed <= 0 or parsed != parsed.to_integral_value():
+        return None
+    return int(parsed)
 
 
 def _ticker_cache_age_seconds(ticker: dict) -> float | None:
@@ -578,31 +604,55 @@ def _coinank_oi_hist_rows(symbol: str, *, redis_client: Any = None) -> list[dict
         payload = _read_json(redis_client, template.format(symbol=symbol))
         if not isinstance(payload, dict):
             continue
-        fetched_ms = _safe_float(payload.get("ts_ms") or payload.get("timestamp"))
+        fetched_ms = _strict_positive_epoch_ms(
+            payload.get("ts_ms") or payload.get("timestamp")
+        )
+        if fetched_ms is None or fetched_ms > _observed_epoch_ms():
+            continue
+        request_started_at_ms = _strict_positive_epoch_ms(
+            payload.get("request_started_at_ms")
+        )
+        # ``ts_ms`` is written after response parsing by the legacy producer;
+        # it cannot prove a row was final when the request snapshot began.
+        # Until the producer carries this pre-request cutoff, CoinAnk remains
+        # optional/unavailable rather than promoting a boundary-straddling row.
+        if request_started_at_ms is None or request_started_at_ms > fetched_ms:
+            continue
         inner = payload.get("data")
         rows = inner.get("data") if isinstance(inner, dict) else None
-        if not isinstance(rows, list):
+        if not isinstance(rows, list) or not rows:
             continue
         bucket_ms = COINANK_OI_BUCKET_MS.get(tf, 300_000)
         mapped: list[dict] = []
         for row in rows:
             if not isinstance(row, dict):
                 continue
-            begin = _safe_float(row.get("begin"))
+            begin = _strict_positive_epoch_ms(row.get("begin"))
             close = _safe_float(row.get("close"))
-            if begin is None or begin <= 0 or close is None or close <= 0:
+            if begin is None or close is None or close <= 0:
                 continue
-            # OI-at-bucket-close; the newest (possibly open) bucket is only
-            # current up to the provider's own fetch time.
+            # ``begin`` is the bucket-open clock and the derived row clock is
+            # its exact close boundary. Never truncate an unfinished bucket
+            # to the fetch time: that turns a partial value into a fake final.
             row_ms = begin + bucket_ms
-            if fetched_ms is not None and fetched_ms > 0:
-                row_ms = min(row_ms, fetched_ms)
+            if row_ms >= request_started_at_ms:
+                continue
             mapped.append(
                 {
                     "symbol": symbol,
                     "sumOpenInterest": close,
                     "timestamp": int(row_ms),
+                    "event_time": int(row_ms),
+                    "ingested_at": fetched_ms,
+                    "available_at": fetched_ms,
+                    "finality_cutoff_ms": request_started_at_ms,
+                    "finality_cutoff_source_field": "request_started_at_ms",
+                    "generated_at": payload.get("generated_at"),
+                    "period": tf,
                     "source": "coinank_open_interest_kline_backup",
+                    "transport": "provider_backup_cache",
+                    "source_receipt_authority": False,
+                    "trainer_authority": False,
                 }
             )
         if mapped:
@@ -622,20 +672,25 @@ def _coinank_point_open_interest(symbol: str, *, redis_client: Any = None) -> di
         "open_interest": last["sumOpenInterest"],
         "openInterest": last["sumOpenInterest"],
         "time": last["timestamp"],
+        "finality_cutoff_ms": last["finality_cutoff_ms"],
+        "finality_cutoff_source_field": last["finality_cutoff_source_field"],
         "fetched_utc": _utc_iso(),
         "unit": "contracts",
         "source": "coinank_open_interest_kline_backup",
         "transport": "provider_backup_cache",
+        "source_receipt_authority": False,
+        "trainer_authority": False,
     }
 
 
 def _open_interest_cache_age_seconds(payload: dict) -> float | None:
     """Age of an open-interest cache payload, or None when it is undated."""
-    event_ms = _safe_float(
+    event_ms = _strict_positive_epoch_ms(
         payload.get("time") or payload.get("timestamp") or payload.get("binance_time_ms")
     )
-    if event_ms is not None and event_ms > 0:
-        return max(0.0, time.time() - event_ms / 1000.0)
+    if event_ms is not None:
+        age = time.time() - event_ms / 1000.0
+        return age if age >= 0.0 else None
     for field in ("fetched_utc", "available_at"):
         value = payload.get(field)
         if isinstance(value, str) and value:
@@ -645,8 +700,99 @@ def _open_interest_cache_age_seconds(payload: dict) -> float | None:
                 continue
             if parsed.tzinfo is None:
                 parsed = parsed.replace(tzinfo=timezone.utc)
-            return max(0.0, time.time() - parsed.timestamp())
+            age = time.time() - parsed.timestamp()
+            return age if age >= 0.0 else None
     return None
+
+
+_PUBLICATION_CLAIM_SCAN_MAX_DEPTH = 64
+_PUBLICATION_CLAIM_SCAN_MAX_NODES = 65_536
+
+
+def _contains_unverified_publication_claim(value: Any) -> bool:
+    """Reject inherited receipt/authority claims this loop cannot verify."""
+
+    stack: list[tuple[Any, int]] = [(value, 0)]
+    seen: set[int] = set()
+    nodes = 0
+    while stack:
+        current, depth = stack.pop()
+        if not isinstance(current, dict | list | tuple):
+            continue
+        current_id = id(current)
+        if current_id in seen:
+            continue
+        seen.add(current_id)
+        nodes += 1
+        if (
+            depth > _PUBLICATION_CLAIM_SCAN_MAX_DEPTH
+            or nodes > _PUBLICATION_CLAIM_SCAN_MAX_NODES
+        ):
+            return True
+        if isinstance(current, dict):
+            for raw_key, nested in current.items():
+                key = str(raw_key).strip().lower()
+                if key == "authority" or key.endswith("_authority"):
+                    if nested is not False:
+                        return True
+                    continue
+                if "receipt" in key or "postcommit" in key or "readback" in key:
+                    return True
+                if isinstance(nested, dict | list | tuple):
+                    stack.append((nested, depth + 1))
+        else:
+            stack.extend(
+                (nested, depth + 1)
+                for nested in current
+                if isinstance(nested, dict | list | tuple)
+            )
+    return False
+
+
+def _finalized_cached_websocket_kline(
+    row: Any,
+    *,
+    observed_at_ms: int,
+) -> dict[str, Any] | None:
+    """Return one explicitly final, causally observable WSS cache row."""
+
+    if (
+        not isinstance(row, dict)
+        or _contains_unverified_publication_claim(row)
+        or not _is_websocket_cache_payload(row)
+    ):
+        return None
+    if row.get("is_closed") is not True:
+        return None
+    for alias in ("closed_candle", "candle_closed_confirmed", "feature_eligible"):
+        if alias in row and row.get(alias) is not True:
+            return None
+    close_ms = _strict_positive_epoch_ms(
+        _first_present(
+            row.get("candle_close_time"),
+            row.get("close_time"),
+            row.get("closeTime"),
+            row.get("T"),
+        )
+    )
+    # Binance close clocks are inclusive: equality with the observation clock
+    # is not yet final. A producer boolean alone is never sufficient.
+    if close_ms is None or close_ms >= observed_at_ms:
+        return None
+    raw_available = row.get("available_at")
+    if raw_available not in (None, ""):
+        available_ms = _strict_positive_epoch_ms(raw_available)
+        if (
+            available_ms is None
+            or available_ms <= close_ms
+            or available_ms > observed_at_ms
+        ):
+            return None
+    return {
+        **row,
+        "source_receipt_authority": False,
+        "trainer_authority": False,
+    }
 
 
 def _fetch_open_interest(symbol: str, *, redis_client: Any = None) -> dict | None:
@@ -721,22 +867,31 @@ def _fetch_klines(
     ):
         cached = _read_json(redis_client, key)
         if isinstance(cached, list) and cached:
+            observed_at_ms = _observed_epoch_ms()
             websocket_rows = [
-                row
+                finalized
                 for row in cached
-                if isinstance(row, dict) and _is_websocket_cache_payload(row)
+                if (
+                    finalized := _finalized_cached_websocket_kline(
+                        row,
+                        observed_at_ms=observed_at_ms,
+                    )
+                )
+                is not None
             ]
             if websocket_rows:
                 return websocket_rows[-max(1, min(int(limit), len(websocket_rows))) :]
     current = _read_json(redis_client, current_candle_key("binance", symbol, interval))
-    if (
-        isinstance(current, dict)
-        and current.get("is_closed") is True
-        and _is_websocket_cache_payload(current)
-    ):
-        return [current]
+    if isinstance(current, dict):
+        finalized_current = _finalized_cached_websocket_kline(
+            current,
+            observed_at_ms=_observed_epoch_ms(),
+        )
+        if finalized_current is not None:
+            return [finalized_current]
     if _rest_fallback_disabled():
         return None
+    request_started_at_ms = _observed_epoch_ms()
     try:
         data = _http_get_json(
             f"{BINANCE_FAPI}/fapi/v1/klines?symbol={symbol}&interval={interval}&limit={int(limit)}",
@@ -744,9 +899,36 @@ def _fetch_klines(
         )
     except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, OSError, ValueError):
         return None
-    if not isinstance(data, list):
+    response_received_at_ms = _observed_epoch_ms()
+    if response_received_at_ms < request_started_at_ms or not isinstance(data, list):
         return None
-    return data
+    canonical_rows: list[dict[str, Any]] = []
+    for raw_row in data:
+        if type(raw_row) is not list or not 11 <= len(raw_row) <= 12:
+            return None
+        try:
+            candle = canonical_from_binance_rest(
+                raw_row,
+                symbol=symbol,
+                timeframe=interval,
+                ingested_at=response_received_at_ms,
+            )
+        except (TypeError, ValueError, OverflowError):
+            return None
+        # Request start is the immutable finality cutoff. A response that
+        # straddles a close must not promote the row that was still forming
+        # when the request began.
+        if not candle.is_closed or candle.candle_close_time >= request_started_at_ms:
+            continue
+        canonical_rows.append(
+            {
+                **candle.to_dict(),
+                "source_receipt_authority": False,
+                "trainer_authority": False,
+            }
+        )
+    canonical_rows.sort(key=lambda row: int(row["candle_open_time"]))
+    return canonical_rows[-max(1, min(int(limit), len(canonical_rows))) :] or None
 
 
 def _oi_hist_last_row_age_seconds(rows: list) -> float | None:
