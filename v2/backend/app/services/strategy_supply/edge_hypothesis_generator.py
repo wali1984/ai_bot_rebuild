@@ -16,7 +16,10 @@ import json
 from datetime import datetime, timezone
 from typing import Any, Mapping
 
-from v2.backend.app.services.altdata.provider_feature_bridge import load_moralis_input
+from v2.backend.app.services.altdata.provider_feature_bridge import (
+    load_coinglass_input,
+    load_moralis_input,
+)
 from v2.backend.app.services.market_data.current_price_resolver import resolve_current_price
 
 HYPOTHESIS_KEY = "v2:strategy_supply:hypotheses:{symbol}:{timeframe}"
@@ -156,6 +159,26 @@ def _context(client: Any, symbol: str, timeframe: str) -> dict[str, Any]:
         if moralis_input.present and not moralis_input.stale
         else None
     )
+    # CoinGlass uses the same fail-closed provider boundary.  The deployed v1
+    # aggregate lacks the exact schema and temporal contract required by this
+    # loader, so it remains optional/missing instead of creating hypotheses
+    # directly from unverified Redis bytes.  A fresh v2 payload carries its
+    # validated clocks into the feature hash for future causal audit.
+    coinglass_input = load_coinglass_input(client, symbol, "1m")
+    coinglass_context = (
+        {
+            "schema_version": "validated_provider_input_v1",
+            "provider": "coinglass",
+            "symbol": symbol,
+            "timeframe": "1m",
+            "feature_cutoff": coinglass_input.feature_cutoff,
+            "available_at": coinglass_input.available_at,
+            "generated_at": coinglass_input.generated_at,
+            "features": dict(coinglass_input.features),
+        }
+        if coinglass_input.present and not coinglass_input.stale
+        else None
+    )
     return {
         "price": resolve_current_price(client, symbol),
         "ta": ta_closed if use_closed_ta else ta_live,
@@ -172,7 +195,7 @@ def _context(client: Any, symbol: str, timeframe: str) -> dict[str, Any]:
         "liquidation_levels": liquidation_context,
         "liquidation_levels_source": liquidation_context_source,
         "sweep_risk": _read_json(client, f"v2:market:sweep_risk:{symbol}:{timeframe}"),
-        "coinglass": _read_json(client, f"v2:features:coinglass:{symbol}:1m"),
+        "coinglass": coinglass_context,
         "confluence": _read_json(client, f"v2:altdata:confluence:{symbol}:1m"),
         "moralis": moralis_features,
         "microstructure": _read_json(client, f"v2:market:microstructure:{symbol}"),

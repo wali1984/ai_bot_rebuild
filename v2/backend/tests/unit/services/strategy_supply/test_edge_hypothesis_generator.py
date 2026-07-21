@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import json
 import time
+from datetime import UTC, datetime, timedelta
+
+import pytest
 
 from v2.backend.app.services.strategy_supply.edge_hypothesis_generator import (
     generate_hypotheses,
@@ -28,10 +31,7 @@ def _base_keys(symbol: str = "BTCUSDT") -> dict[str, dict]:
             "event_time": "2026-07-09T05:00:00Z",
         },
         f"v2:features:latest:{symbol}:1m": {"features": {"atr_bps": 40.0}, "atr_bps": 40.0},
-        f"v2:features:coinglass:{symbol}:1m": {
-            "features": {"coinglass_funding_rate_zscore": 2.4, "coinglass_long_ratio": 0.72,
-                          "coinglass_long_short_extreme_score": 0.8},
-        },
+        f"v2:features:coinglass:{symbol}:1m": _coinglass_v2_payload(symbol=symbol),
         f"v2:microstructure:trust_score:{symbol}:1m": {
             "composite_microstructure_trust_score": 0.74,
             "microstructure_trust_score": 0.74,
@@ -46,6 +46,41 @@ def _base_keys(symbol: str = "BTCUSDT") -> dict[str, dict]:
             "liquidation_levels_count_short": 2,
             "liquidation_cascade_risk": 0.12,
         },
+    }
+
+
+def _coinglass_v2_payload(
+    *,
+    symbol: str = "BTCUSDT",
+    available_at: datetime | None = None,
+) -> dict:
+    available = available_at or (datetime.now(UTC) - timedelta(seconds=2))
+    generated = available + timedelta(seconds=1)
+    cutoff = available - timedelta(seconds=30)
+
+    def utc(value: datetime) -> str:
+        return value.astimezone(UTC).isoformat(timespec="microseconds").replace(
+            "+00:00", "Z"
+        )
+
+    return {
+        "schema_version": "coinglass_aggregated_feature_payload_v2",
+        "provider": "coinglass",
+        "symbol": symbol,
+        "timeframe": "1m",
+        "feature_cutoff": utc(cutoff),
+        "available_at": utc(available),
+        "generated_at": utc(generated),
+        "actual_payload_present": True,
+        "provider_ready": True,
+        "decision_time_safe": True,
+        "temporal_contract_valid": True,
+        "features": {
+            "coinglass_long_ratio": 0.72,
+            "coinglass_long_short_extreme_score": 0.8,
+        },
+        "missing_feature_flags": [],
+        "stale_feature_flags": [],
     }
 
 
@@ -162,6 +197,100 @@ def test_unverified_moralis_envelope_cannot_create_paper_hypothesis() -> None:
     assert all("moralis" not in row["provider_features_used"] for row in rows)
     assert all("moralis" not in row["provider_feature_hashes"] for row in rows)
     assert all(row.get("moralis_context") is not True for row in rows)
+
+
+def test_current_v1_coinglass_payload_cannot_create_paper_hypothesis() -> None:
+    keys = _base_keys()
+    keys["v2:market:prices:BTCUSDT"] = {
+        "ticker_24hr": {
+            "lastPrice": "60000",
+            "bidPrice": "59997",
+            "askPrice": "60003",
+            "closeTime": 4102444800000,
+        },
+    }
+    payload = _coinglass_v2_payload()
+    payload["schema_version"] = "coinglass_aggregated_feature_payload_v1"
+    keys["v2:features:coinglass:BTCUSDT:1m"] = payload
+
+    rows = generate_hypotheses(FakeRedis(keys), "BTCUSDT", "1m")
+
+    assert "long_short_imbalance_squeeze" not in {
+        row.get("strategy_family") for row in rows
+    }
+    assert all("coinglass" not in row["provider_features_used"] for row in rows)
+    assert all("coinglass" not in row["provider_feature_hashes"] for row in rows)
+
+
+def test_stale_coinglass_v2_payload_is_optional_missing() -> None:
+    keys = _base_keys()
+    keys["v2:market:prices:BTCUSDT"] = {
+        "ticker_24hr": {"lastPrice": "60000", "closeTime": 4102444800000},
+    }
+    keys["v2:features:coinglass:BTCUSDT:1m"] = _coinglass_v2_payload(
+        available_at=datetime.now(UTC) - timedelta(minutes=10)
+    )
+
+    rows = generate_hypotheses(FakeRedis(keys), "BTCUSDT", "1m")
+
+    assert "long_short_imbalance_squeeze" not in {
+        row.get("strategy_family") for row in rows
+    }
+    assert all(row.get("coinglass_context") is not True for row in rows)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("decision_time_safe", 1),
+        ("provider_ready", "true"),
+        ("symbol", "btcusdt"),
+        ("features", {"coinglass_long_short_extreme_score": float("nan")}),
+    ],
+)
+def test_adversarial_coinglass_v2_payload_is_rejected(
+    field: str,
+    value: object,
+) -> None:
+    keys = _base_keys()
+    keys["v2:market:prices:BTCUSDT"] = {
+        "ticker_24hr": {"lastPrice": "60000", "closeTime": 4102444800000},
+    }
+    payload = _coinglass_v2_payload()
+    payload[field] = value
+    keys["v2:features:coinglass:BTCUSDT:1m"] = payload
+
+    rows = generate_hypotheses(FakeRedis(keys), "BTCUSDT", "1m")
+
+    assert "long_short_imbalance_squeeze" not in {
+        row.get("strategy_family") for row in rows
+    }
+    assert all(row.get("coinglass_context") is not True for row in rows)
+
+
+def test_fresh_valid_coinglass_v2_payload_flows_to_strategy_supply() -> None:
+    keys = _base_keys()
+    keys["v2:market:prices:BTCUSDT"] = {
+        "ticker_24hr": {
+            "lastPrice": "60000",
+            "bidPrice": "59997",
+            "askPrice": "60003",
+            "closeTime": 4102444800000,
+        },
+    }
+    keys["v2:features:coinglass:BTCUSDT:1m"] = _coinglass_v2_payload()
+
+    rows = generate_hypotheses(FakeRedis(keys), "BTCUSDT", "1m")
+    squeeze = next(
+        row
+        for row in rows
+        if row.get("strategy_family") == "long_short_imbalance_squeeze"
+    )
+
+    assert squeeze["side"] == "short"
+    assert squeeze["coinglass_context"] is True
+    assert "coinglass" in squeeze["provider_features_used"]
+    assert "coinglass" in squeeze["provider_feature_hashes"]
 
 
 def test_strategy_supply_caps_reference_notional_to_live_risk_profile() -> None:
