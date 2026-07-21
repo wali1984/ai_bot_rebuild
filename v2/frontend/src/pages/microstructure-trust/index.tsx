@@ -72,6 +72,15 @@ interface ConsumptionStatus {
   sample_block_reasons?: Array<Record<string, unknown>>;
 }
 
+interface CompositeSampleRow {
+  symbol?: string;
+  timeframe?: string;
+  public_orderbook_trust_score?: number;
+  composite_microstructure_trust_score?: number;
+  final_a_plus_eligible?: boolean;
+  missing_confirmations?: string[];
+}
+
 interface CompositeStatus {
   runtime_microstructure_rows?: number;
   public_orderbook_trust_score_alone_final_a_plus_rows?: number;
@@ -79,6 +88,7 @@ interface CompositeStatus {
   missing_confirmation_fields_above_threshold_rows?: number;
   hard_fail?: boolean;
   hard_fail_reasons?: string[];
+  sample_rows?: CompositeSampleRow[];
 }
 
 interface BootstrapStatus {
@@ -123,6 +133,15 @@ export default function MicrostructureTrustPage(): JSX.Element {
   const risk = usePayloadFile<ConsumptionStatus>(`${BASE}/risk_microstructure_consumption_status.json`, 15_000);
   const paper = usePayloadFile<ConsumptionStatus>(`${BASE}/paper_microstructure_cost_evidence_status.json`, 15_000);
   const sampleBlocks = risk.data?.sample_block_reasons ?? paper.data?.sample_block_reasons ?? [];
+  // The composite status file carries the authoritative per-symbol rows (public
+  // score + real missing confirmations); risk/paper block reasons only add the
+  // microstructure action, so join them by symbol+timeframe.
+  const compositeRows = composite.data?.sample_rows ?? [];
+  const actionFor = (symbol?: string, timeframe?: string): string => {
+    const match = sampleBlocks.find((row) => row.symbol === symbol && row.timeframe === timeframe);
+    const action = match?.microstructure_action;
+    return action != null ? String(action) : 'pending';
+  };
 
   return (
     <article
@@ -219,7 +238,16 @@ export default function MicrostructureTrustPage(): JSX.Element {
           <div className="cockpit-table-row cockpit-table-row--head" role="row">
             <span>Symbol</span><span>Timeframe</span><span>Action</span><span>Public</span><span>Composite</span><span>Missing confirmations</span>
           </div>
-          {sampleBlocks.length ? sampleBlocks.slice(0, 8).map((row, index) => (
+          {compositeRows.length ? compositeRows.slice(0, 8).map((row, index) => (
+            <div className="cockpit-table-row" role="row" key={`${row.symbol ?? 'row'}-${index}`}>
+              <span>{row.symbol ?? 'pending'}</span>
+              <span>{row.timeframe ?? 'pending'}</span>
+              <span>{actionFor(row.symbol, row.timeframe)}</span>
+              <span>{row.public_orderbook_trust_score ?? 'pending'}</span>
+              <span>{row.composite_microstructure_trust_score ?? 'pending'}</span>
+              <span>{row.missing_confirmations?.length ? row.missing_confirmations.join(', ') : 'none'}</span>
+            </div>
+          )) : sampleBlocks.length ? sampleBlocks.slice(0, 8).map((row, index) => (
             <div className="cockpit-table-row" role="row" key={`${row.symbol ?? 'row'}-${index}`}>
               <span>{String(row.symbol ?? 'pending')}</span>
               <span>{String(row.timeframe ?? 'pending')}</span>

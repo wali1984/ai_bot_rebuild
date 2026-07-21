@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import {
   CandlestickSeries,
   ColorType,
@@ -123,8 +123,9 @@ interface PortfolioData {
 }
 
 // ─── Symbol list ──────────────────────────────────────────────────────────────
+// No hardcoded symbol list: options come from the trader's saved watchlist plus
+// the live /api/v2/market/overview adaptive universe (operator policy).
 
-const HOT_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT', 'DOGEUSDT', 'ADAUSDT', 'AVAXUSDT'];
 const TIMEFRAMES = ['1m', '3m', '5m', '15m', '1h', '4h', '1d'] as const;
 type TF = (typeof TIMEFRAMES)[number];
 
@@ -155,6 +156,15 @@ function fmtPct(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n)) return '—';
   const p = Math.abs(n) <= 1 ? n * 100 : n;
   return `${p >= 0 ? '+' : ''}${p.toFixed(2)}%`;
+}
+
+/** Base-asset quantity (e.g. BTC units) — never a dollar amount, so no $ prefix. */
+function fmtBaseVol(n: number | null | undefined): string {
+  if (n == null || !Number.isFinite(n)) return '—';
+  if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(2)}B`;
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(2)}K`;
+  return n.toFixed(2);
 }
 
 function pnlColor(n: number | null | undefined): string {
@@ -679,6 +689,8 @@ export default function BinancePage(): JSX.Element {
   const high24h = ticker?.high_24h ?? restTicker?.high_24h ?? null;
   const low24h = ticker?.low_24h ?? restTicker?.low_24h ?? null;
   const volume24h = ticker?.volume_24h ?? restTicker?.volume_24h ?? null;
+  // volume_24h is in base-asset units (e.g. BTC); turnover_24h is the USD value.
+  const turnover24h = ticker?.turnover_24h ?? restTicker?.turnover_24h ?? null;
 
   const { envelope: accountEnv } = useRealtimeResource<ExchangeAccountData>({
     url: '/api/v2/account/exchange-readonly',
@@ -743,6 +755,29 @@ export default function BinancePage(): JSX.Element {
     mode: 'read_only',
   });
 
+  // Adaptive symbol universe for the selector: trader's saved watchlist first,
+  // then every symbol from the live market overview (no hardcoded lists).
+  const { envelope: overviewEnv } = useRealtimeResource<{ symbols?: string[] }>({
+    url: '/api/v2/market/overview',
+    source: '/api/v2/market/overview',
+    source_type: 'websocket',
+    pollIntervalMs: 30_000,
+    staleThresholdMs: 90_000,
+    mode: 'read_only',
+  });
+  const userWatchlist = user?.watchlist;
+  const overviewSymbols = overviewEnv.data?.symbols;
+  const symbolOptions = useMemo(() => {
+    const normalize = (value: unknown): string | null => {
+      if (typeof value !== 'string') return null;
+      const sym = value.trim().toUpperCase();
+      return /^[A-Z0-9]+$/.test(sym) ? sym : null;
+    };
+    const watchlist = (userWatchlist ?? []).map(normalize).filter((s): s is string => s !== null);
+    const universe = (overviewSymbols ?? []).map(normalize).filter((s): s is string => s !== null).sort();
+    return [...new Set([...watchlist, symbol, ...universe])];
+  }, [userWatchlist, overviewSymbols, symbol]);
+
   const exchangeAccount = accountEnv.data;
   const accountSnapshot = exchangeAccount?.account_snapshot;
   const portfolio = portfolioEnv.data;
@@ -785,7 +820,7 @@ export default function BinancePage(): JSX.Element {
           style={{ padding: '4px 8px', background: '#1e2230', border: '1px solid #2a2d3a', borderRadius: 4, color: '#fff', fontSize: 14, fontWeight: 700, fontFamily: 'var(--font-mono)', cursor: 'pointer' }}
           aria-label="Select trading symbol"
         >
-          {HOT_SYMBOLS.map((s) => <option key={s} value={s}>{s}</option>)}
+          {symbolOptions.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
 
         {/* Price */}
@@ -794,7 +829,7 @@ export default function BinancePage(): JSX.Element {
 
         {/* Stats */}
         <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-          {[['24h High', fmtPrice(high24h)], ['24h Low', fmtPrice(low24h)], ['24h Vol', fmtMoney(volume24h)]].map(([label, value]) => (
+          {[['24h High', fmtPrice(high24h)], ['24h Low', fmtPrice(low24h)], ['24h Vol', turnover24h != null ? fmtMoney(turnover24h) : fmtBaseVol(volume24h)]].map(([label, value]) => (
             <div key={label} style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
               <span style={{ fontSize: 10, color: '#7b7f8a', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</span>
               <span style={{ fontSize: 12, fontFamily: 'var(--font-mono)', color: '#c9cad4' }}>{value}</span>

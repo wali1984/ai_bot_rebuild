@@ -54,9 +54,15 @@ interface HedgeLockEntry {
 }
 
 interface HedgeLockStatus {
-  active_pairs: HedgeLockEntry[];
-  total_active: number;
-  config_enabled: boolean;
+  // Canonical field names returned by /api/v2/market-brain/hedge-lock-status
+  // (market_contracts.py): active_hedge_locks / count / hedge_lock_enabled_by_default.
+  active_hedge_locks?: HedgeLockEntry[];
+  count?: number;
+  hedge_lock_enabled_by_default?: boolean;
+  // Legacy aliases kept for backward compatibility with older payloads.
+  active_pairs?: HedgeLockEntry[];
+  total_active?: number;
+  config_enabled?: boolean;
 }
 
 interface AllBrainStates {
@@ -261,6 +267,9 @@ export default function MarketBrainPage(): JSX.Element {
   const states: BrainStateEntry[] = allStates.envelope.data?.states ?? ov?.results_sample ?? [];
   const eg = entryGate.envelope.data;
   const hl = hedgeLock.envelope.data;
+  const hedgePairs = hl?.active_hedge_locks ?? hl?.active_pairs ?? [];
+  const hedgeCount = hl?.count ?? hl?.total_active ?? hedgePairs.length;
+  const hedgeEnabled = hl?.hedge_lock_enabled_by_default ?? hl?.config_enabled ?? false;
 
   // Build symbol→TF→entry lookup
   const stateMap = new Map<string, Map<string, BrainStateEntry>>();
@@ -448,8 +457,8 @@ export default function MarketBrainPage(): JSX.Element {
             <div>
               <div style={S.grid3}>
                 <Metric label="Blocked Symbols" value={eg.symbol_exclusion_list?.length ?? 0} color="#ef4444" />
-                <Metric label="Allowed TFs" value={eg.allowed_entry_timeframes?.join(', ') ?? '—'} color="#10b981" />
-                <Metric label="Blocked Modes" value={eg.blocked_strategy_modes?.join(', ') ?? '—'} color="#f97316" />
+                <Metric label="Allowed TFs" value={eg.allowed_entry_timeframes?.length ? eg.allowed_entry_timeframes.join(', ') : '—'} color="#10b981" />
+                <Metric label="Blocked Modes" value={eg.blocked_strategy_modes?.length ? eg.blocked_strategy_modes.join(', ') : '—'} color="#f97316" />
                 <Metric label="Req. Positive Expected Move" value={String(eg.require_positive_expected_move)} />
                 <Metric label="Major Move Override" value={String(eg.major_move_override_enabled)} color="#f59e0b" />
               </div>
@@ -475,13 +484,13 @@ export default function MarketBrainPage(): JSX.Element {
         <div style={S.sectionTitle}>HedgeLock Status</div>
         <div className="glass" style={S.card}>
           <div style={{ marginBottom: 10, display: 'flex', gap: 12 }}>
-            <Metric label="Config Enabled" value={hl?.config_enabled ? 'YES' : 'NO (DEFAULT OFF)'} color={hl?.config_enabled ? '#f97316' : '#6b7280'} />
-            <Metric label="Active Pairs" value={hl?.total_active ?? 0} color="#8b5cf6" />
+            <Metric label="Config Enabled" value={hl ? (hedgeEnabled ? 'YES' : 'NO (DEFAULT OFF)') : '—'} color={hedgeEnabled ? '#f97316' : '#6b7280'} />
+            <Metric label="Active Pairs" value={hl ? hedgeCount : '—'} color="#8b5cf6" />
           </div>
           <div style={{ fontSize: 10, color: '#6b7280', marginBottom: 8 }}>
             HedgeLock is disabled by default. Enabling requires explicit human approval. Only activates after profitable excursion &gt;= 0.25%.
           </div>
-          {hl?.active_pairs?.length ? (
+          {hedgePairs.length ? (
             <div style={S.tableWrap}>
               <table style={S.table}>
                 <thead>
@@ -492,7 +501,7 @@ export default function MarketBrainPage(): JSX.Element {
                   </tr>
                 </thead>
                 <tbody>
-                  {hl.active_pairs.map(p => (
+                  {hedgePairs.map(p => (
                     <tr key={p.pair_id}>
                       <td style={tdStyle('#0d1117')}><span style={{ fontSize: 10 }}>{p.pair_id}</span></td>
                       <td style={tdStyle('#0d1117')}><b>{p.symbol}</b></td>

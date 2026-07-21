@@ -1,0 +1,307 @@
+/* ── ProChart + ProChartSymbolPanel internal styling ─────────────────────────
+   Imported by components/charts/ProChart.tsx and ProChartSymbolPanel.tsx.
+   Before this file existed no CSS anywhere targeted .prochart__* or
+   .symbol-panel*/.symbol-row*: the toolbar rendered as raw text lines, the
+   watchlist as default browser buttons, and price + freshness text collided
+   ("$66,528.40s"). Theme-aware via CSS variables only. */
+
+/* ── ProChart shell ── */
+.prochart {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* ── Indicator toggle toolbar ── */
+.prochart__controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.prochart__toggle {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+}
+
+.prochart__toggle:hover:not(:disabled) {
+  color: var(--text-secondary);
+  border-color: var(--text-muted);
+}
+
+.prochart__toggle.active {
+  border-color: color-mix(in oklch, var(--accent, #3b82f6) 60%, transparent);
+  background: color-mix(in oklch, var(--accent, #3b82f6) 12%, transparent);
+  color: var(--accent, #3b82f6);
+}
+
+.prochart__toggle:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.prochart__divider {
+  align-self: stretch;
+  width: 1px;
+  margin: 2px 4px;
+  background: var(--border);
+}
+
+.prochart__source {
+  display: inline-flex;
+  align-items: center;
+  max-width: 260px;
+  padding: 3px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--bg-elevated) 85%, transparent);
+  color: var(--text-muted);
+  font-size: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.prochart__signal {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.prochart__signal--long {
+  border: 1px solid color-mix(in oklch, var(--buy, #26a69a) 40%, transparent);
+  background: color-mix(in oklch, var(--buy, #26a69a) 12%, transparent);
+  color: var(--buy, #26a69a);
+}
+
+.prochart__signal--short {
+  border: 1px solid color-mix(in oklch, var(--sell, #ef5350) 40%, transparent);
+  background: color-mix(in oklch, var(--sell, #ef5350) 12%, transparent);
+  color: var(--sell, #ef5350);
+}
+
+/* ── Chart canvas ── */
+.prochart__canvas {
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+/* ── Pane labels (overlay the canvas; container is aria-hidden) ── */
+.prochart__pane-labels {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.prochart__pane-labels span {
+  position: absolute;
+  left: 10px;
+  padding: 1px 7px;
+  border-radius: 4px;
+  background: color-mix(in oklch, var(--bg-panel) 72%, transparent);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* ── Stats strip under the chart ── */
+.prochart__stats {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.prochart__stats strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.prochart__stats .text-buy {
+  color: var(--buy, #26a69a);
+}
+
+.prochart__stats .text-sell {
+  color: var(--sell, #ef5350);
+}
+
+/* ── Watchlist sidebar (ProChartSymbolPanel) ── */
+.symbol-panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-panel);
+}
+
+.symbol-panel__tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+}
+
+.symbol-panel__tabs button {
+  flex: 1;
+  padding: 9px 0;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.12s ease, border-color 0.12s ease;
+}
+
+.symbol-panel__tabs button:hover {
+  color: var(--text-secondary);
+}
+
+.symbol-panel__tabs button.active {
+  border-bottom-color: var(--accent, #3b82f6);
+  color: var(--accent, #3b82f6);
+}
+
+.symbol-panel__search {
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.symbol-panel__search input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-family: var(--font-mono);
+  outline: none;
+}
+
+.symbol-panel__search input:focus {
+  border-color: color-mix(in oklch, var(--accent, #3b82f6) 55%, transparent);
+}
+
+.symbol-panel__list {
+  display: flex;
+  flex-direction: column;
+  max-height: 60vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.symbol-panel__empty {
+  margin: 0;
+  padding: 16px 12px;
+  color: var(--text-muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+.symbol-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 10px;
+  border: none;
+  border-bottom: 1px solid color-mix(in oklch, var(--border) 55%, transparent);
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.1s ease;
+}
+
+.symbol-row:hover {
+  background: color-mix(in oklch, var(--text-primary) 5%, transparent);
+}
+
+.symbol-row--active {
+  background: color-mix(in oklch, var(--accent, #3b82f6) 10%, transparent);
+  box-shadow: inset 2px 0 0 var(--accent, #3b82f6);
+}
+
+.symbol-row__name {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* Price / freshness / signal cluster: explicit flex gap so the price and the
+   freshness age can never run together into e.g. "$66,528.40s". */
+.symbol-row__right {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.symbol-row__price {
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.symbol-row__freshness {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: 9.5px;
+  white-space: nowrap;
+}
+
+.symbol-row__freshness--stale {
+  color: var(--warn, #f59e0b);
+}
+
+.symbol-row__sig {
+  flex-shrink: 0;
+  font-size: 10px;
+}
+
+.symbol-row__sig--buy {
+  color: var(--buy, #26a69a);
+}
+
+.symbol-row__sig--sell {
+  color: var(--sell, #ef5350);
+}

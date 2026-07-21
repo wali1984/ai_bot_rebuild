@@ -607,6 +607,20 @@
   }
 }
 
+/* 1281–1720px: the 10-link trader nav no longer fits at full size next to the
+   brand column + actions, silently clipping the last item ("Alerts" → "Aler").
+   Tighten the brand column and link sizing so every item stays visible. */
+@media (min-width: 1281px) and (max-width: 1720px) {
+  .topbar-shell {
+    grid-template-columns: minmax(240px, 300px) minmax(0, 1fr) auto;
+  }
+
+  .topbar-primary-nav__link {
+    padding-inline: 7px;
+    font-size: 12px;
+  }
+}
+
 @media (min-width: 901px) and (max-width: 1280px) {
   .topbar-shell {
     grid-template-columns: minmax(306px, 320px) minmax(0, 1fr) auto;

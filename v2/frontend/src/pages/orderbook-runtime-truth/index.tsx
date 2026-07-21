@@ -84,6 +84,14 @@ function listValue(values: Array<number | string> | string[] | null | undefined)
   return values && values.length > 0 ? values.join(', ') : '—';
 }
 
+/** Long symbol lists (can be 100+ entries) render as a count plus a short
+ *  preview instead of a page-consuming wall of wrapped symbol text. */
+function countedListValue(values: string[] | null | undefined, previewCount = 6): string {
+  if (!values || values.length === 0) return '—';
+  if (values.length <= previewCount) return `${values.length}: ${values.join(', ')}`;
+  return `${values.length} total — ${values.slice(0, previewCount).join(', ')} +${values.length - previewCount} more`;
+}
+
 function symbolCoverage(value: Record<string, string[]> | null | undefined): string {
   if (!value) return '—';
   const rows = Object.entries(value).map(([exchange, symbols]) => `${exchange}:${symbols.length}`);
@@ -142,8 +150,8 @@ export default function OrderbookRuntimeTruthPage(): JSX.Element {
           <StatusMetric label="Incomplete configured symbols" value={listValue(replay.data?.configured_symbol_coverage?.incomplete_symbols)} />
           <StatusMetric label="Raw delta symbols" value={replay.data?.raw_delta_symbol_count} />
           <StatusMetric label="Feature-only symbols" value={replay.data?.feature_only_symbol_count} />
-          <StatusMetric label="Current sequence gaps" value={listValue(replay.data?.sequence_gap_symbols)} />
-          <StatusMetric label="Historical sequence gaps" value={listValue(replay.data?.historical_sequence_gap_symbols)} />
+          <StatusMetric label="Current sequence gaps" value={countedListValue(replay.data?.sequence_gap_symbols)} />
+          <StatusMetric label="Historical sequence gaps" value={countedListValue(replay.data?.historical_sequence_gap_symbols)} />
           <StatusMetric label="Disk bytes" value={replay.data?.disk_usage} />
           <StatusMetric label="Oldest replay" value={replay.data?.oldest_replay_timestamp} />
           <StatusMetric label="Newest replay" value={replay.data?.newest_replay_timestamp} />

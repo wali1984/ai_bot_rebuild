@@ -14,6 +14,7 @@ import { useMarketDataStream } from '../../hooks/useMarketDataStream';
 import { useRealtimeResource } from '../../hooks/useRealtimeResource';
 import type { ApiV2Envelope, MarketCandlesData, MarketDerivativesData, MarketIndicatorsData } from '../../types/apiV2';
 import type { ValidatedDataEnvelope } from '../../types/dataContract';
+import './proChartInternals.css';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 

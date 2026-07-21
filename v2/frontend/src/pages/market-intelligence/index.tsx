@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../../hooks/useAuth';
 import { useRealtimeResource } from '../../hooks/useRealtimeResource';
 import { FreshnessBadge } from '../../components/data/FreshnessBadge';
 import { SourceBadge } from '../../components/data/SourceBadge';
@@ -41,8 +42,6 @@ interface OverviewData {
 
 type SortKey = 'symbol' | 'last_price' | 'change_24h' | 'volume_24h' | 'turnover_24h' | 'high_24h' | 'low_24h';
 type TabId = 'overview' | 'gainers' | 'losers' | 'volume' | 'watchlist';
-
-const DEFAULT_WATCHLIST = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT'];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
@@ -202,7 +201,15 @@ export default function ResearchPage(): JSX.Element {
   const [sortKey, setSortKey] = useState<SortKey>('turnover_24h');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [search, setSearch] = useState('');
-  const [watchlist] = useState<Set<string>>(new Set(DEFAULT_WATCHLIST));
+  // The trader's saved watchlist (Account Settings / pro-chart persist it via
+  // /api/accounts/me/watchlist) — no hardcoded symbol lists (operator policy).
+  const { user } = useAuth();
+  const watchlist = useMemo(() => {
+    const symbols = (user?.watchlist ?? [])
+      .map((value) => value.trim().toUpperCase())
+      .filter((value) => /^[A-Z0-9]+$/.test(value));
+    return new Set(symbols);
+  }, [user?.watchlist]);
   const adaptiveCapital = useAdaptiveCapitalDashboard(30_000);
 
   const { envelope, loading } = useRealtimeResource<OverviewData>({
@@ -424,7 +431,9 @@ export default function ResearchPage(): JSX.Element {
             </div>
             {filteredSorted.length === 0 && (
               <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)' }}>
-                No matching symbols found for "{search}"
+                {activeTab === 'watchlist' && watchlist.size === 0
+                  ? 'No saved watchlist symbols yet — manage your watchlist in Account Settings.'
+                  : `No matching symbols found for "${search}"`}
               </div>
             )}
           </div>

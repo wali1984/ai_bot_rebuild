@@ -3,6 +3,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useRoles } from '../../auth/rbac';
 import { useRealtimeResource } from '../../hooks/useRealtimeResource';
 import type { MarketOverviewData } from '../../api/v2Market';
+import './proChartInternals.css';
 
 interface WatchlistSymbol {
   symbol: string;
