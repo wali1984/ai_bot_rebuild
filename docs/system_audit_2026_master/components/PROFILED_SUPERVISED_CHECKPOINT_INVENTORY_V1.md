@@ -23,8 +23,8 @@ reauthenticating all of the following:
 
 1. a sealed `AuthenticatedProfiledOptimizerCorpusV1` designated as the
    before-side inventory;
-2. a distinct sealed `AuthenticatedProfiledOptimizerCorpusV1` designated as
-   the after-side inventory;
+2. a distinct, exact-owner-sealed `AuthenticatedProfiledOptimizerCorpusV1`
+   designated as the after-side inventory;
 3. the exact sealed
    `AuthenticatedProfiledSupervisedOptimizerExecutionAuthorizationV1` produced
    for that before/after corpus pair;
@@ -35,9 +35,11 @@ reauthenticating all of the following:
 8. a strict retrospective clock sequence.
 
 The output is not a PyTorch, TensorFlow, ONNX, safetensors, or serving
-checkpoint. It is a self-describing binary evidence envelope whose content
+checkpoint. It is a V2 self-describing binary evidence envelope whose content
 address can later be referenced by a separately designed writer or converter.
-No such writer or converter is present in this slice.
+An independent strict decoder can replay the envelope's internal semantics
+without the originating Python object. No writer or converter is present in
+this slice.
 
 ## 2. Explicit non-goals and authority boundary
 
@@ -55,6 +57,12 @@ The component does not:
 - access an exchange;
 - authorize deployment, order submission, or execution; or
 - wire itself into any runtime service.
+
+It also does **not** prove that the before and after corpus objects were
+materialized in different processes, at different times, or on opposite sides
+of a real optimizer invocation. Exact object ownership and equal content are
+not temporal receipts. Both the upstream authorization and checkpoint result
+therefore require `independent_temporal_materialization_verified=false`.
 
 Every result requires these exact values:
 
@@ -82,15 +90,19 @@ or caller booleans:
 
 ```text
 AuthenticatedProfiledOptimizerCorpusV1 (before)
-AuthenticatedProfiledOptimizerCorpusV1 (after, distinct object graph)
+AuthenticatedProfiledOptimizerCorpusV1 (after, distinct exact factory result)
 AuthenticatedProfiledSupervisedOptimizerExecutionAuthorizationV1
 ```
 
-The builder calls `__post_init__()` on all three objects. That rechecks the
-process-private seals introduced by the authenticated admission/corpus layers.
-It then calls
+The builder calls `__post_init__()` on all three objects. That rechecks every
+nested corpus row, supervised target, causal clock range, corpus, and execution
+authorization plus the process-private corpus-layer seals. Corpus-layer seals
+hold a strong reference to the one exact public result that first bound them;
+they do not store `id(owner)`. The execution authorization additionally retains
+the exact before/after corpus owners. The builder then calls
 `validate_authenticated_profiled_optimizer_corpus_inventory_equality_v1()`
-again and compares the passed authorization with the freshly derived result.
+again, compares the passed authorization with the freshly derived result, and
+requires its retained owners to be the exact supplied pair.
 
 Consequences:
 
@@ -99,12 +111,18 @@ Consequences:
 - a coherently recomputed public corpus hash does not replace the private seal;
 - an authorization from another corpus pair is rejected;
 - passing the same corpus object as both before and after is rejected upstream;
-- shallowly shared row, target, or clock-range graphs are rejected upstream;
+- shallowly shared or recursively `dataclasses.replace()`-cloned row/corpus
+  graphs are rejected upstream;
+- an equal authorization created for another exact corpus pair is rejected;
 - an input cannot gain checkpoint authority by setting a boolean; and
 - the checkpoint layer does not weaken or reinterpret the external Ed25519
   witness boundary.
 
-The checkpoint therefore inherits the upstream requirement that manifest head
+These checks prove exact in-process factory provenance, pair ownership, nested
+material validity, and before/after content equality. They do not prove
+independent temporal materialization or optimizer/GPU execution.
+
+The checkpoint also inherits the upstream requirement that manifest head
 completion must be independently witnessed. A local HMAC, local completion
 candidate, caller assertion, or local coherent CAS history is insufficient.
 
@@ -202,6 +220,12 @@ State input is supplied to
 (name, dtype, shape, little_endian_contiguous_payload_bytes)
 ```
 
+The caller must also provide an exact positive `resource_budget_bytes`. The
+factory prevalidates the tuple count and conservative aggregate metadata charge
+against that budget before constructing even one tensor result. It then
+prevalidates exact names, dtypes, shapes, payload types, and aggregate payload
+bytes before hashing or building the snapshot.
+
 ### 7.1 Names
 
 Names must match `[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}`. Model names and optimizer
@@ -257,7 +281,9 @@ Each snapshot binds:
 - ordered model coordinate inventory;
 - ordered model state-content inventory;
 - ordered optimizer coordinate inventory; and
-- ordered optimizer state-content inventory.
+- ordered optimizer state-content inventory;
+- the caller-supplied resource budget; and
+- the exact conservative accounted resource bytes.
 
 At least one model tensor is required. An empty optimizer state is allowed
 because some optimizers initialize state lazily; its empty ordered inventory is
@@ -344,12 +370,17 @@ decision_time < label_available_at < observation_time
 
 No feature clock is renamed or treated as sample availability.
 
-## 11. Binary format
+## 11. Binary V2 format and strict replay
+
+The earlier in-memory V1 envelope from commit `a242c61299` was never written or
+wired. Its descriptor contained only frame name, byte count, and payload hash,
+so it is superseded rather than reinterpreted. The corrected envelope uses V2
+schema and magic.
 
 The deterministic in-memory candidate is encoded as:
 
 ```text
-8 bytes   magic: ASCII "APSCIV1" followed by NUL
+8 bytes   magic: ASCII "APSCIV2" followed by NUL
 8 bytes   unsigned big-endian canonical-header byte length
 N bytes   canonical ASCII JSON header
 frames    ordered binary frames until end of candidate
@@ -372,10 +403,45 @@ Frame order is:
 4. `ARTIFACT:OPTIMIZER_CONFIGURATION`; and
 5. `ARTIFACT:EXECUTION_ENVIRONMENT`.
 
-The canonical header includes an ordered descriptor for every frame: frame
-name, byte count, and payload SHA-256. It also contains all manifest, witness,
-optimizer-input, projection, state, artifact, clock, limitation, and authority
-material described above.
+The canonical header includes an index and ordered descriptor for every frame.
+Every tensor descriptor contains all of:
+
+- frame kind, index, and exact frame name;
+- role and unprefixed tensor name;
+- dtype and full ordered shape;
+- byte order and layout;
+- coordinate identity;
+- tensor-state identity;
+- byte count; and
+- payload SHA-256.
+
+Artifact descriptors carry their exact kind/name, byte count, and payload
+SHA-256. The header also contains full before/after snapshot descriptors,
+manifest, witness, optimizer-input, projection, artifact, clock, resource,
+limitation, and authority material described above.
+
+`decode_and_validate_profiled_supervised_checkpoint_binary_v2()` is an
+independent bytes-only decoder. It requires canonical ASCII JSON with exact key
+sets and no duplicate keys. It semantically replays ordered row digests,
+projection-mask identity, snapshot identities, tensor coordinate/state
+identities, ordered tensor inventory identities, artifact links, causal clock
+order, resource accounting, and all authority-false claims. It then consumes
+exactly one physical frame for every descriptor and rejects:
+
+- duplicate or ambiguous frame names;
+- descriptor or physical-frame reordering;
+- duplicate, missing, or extra frames;
+- truncated names, lengths, headers, or payloads;
+- trailing bytes;
+- payload tampering; and
+- descriptor dtype/shape/coordinate/state/count/hash mismatches.
+
+The decoder does not require or trust the originating in-process checkpoint
+object. A successful replay verifies the envelope's internal byte/semantic
+consistency only; it does not confer authority or prove who executed an
+optimizer. Its returned report is itself exact-owner sealed, rejects
+copy/deepcopy/pickle/`dataclasses.replace()` transfer, and fixes every
+checkpoint/model/prediction/paper/live/execution/runtime authority to false.
 
 Reauthentication regenerates the header and all candidate bytes from the
 sealed nested state. Both must equal the public result exactly.
@@ -394,18 +460,24 @@ circular hash definition.
 
 ## 12. Public-result anti-forgery design
 
-Every public dataclass result has:
+Every capability/evidence-bearing public dataclass result (tensor item, state
+snapshot, checkpoint inventory, and binary replay report) has:
 
 - an exact construction token;
 - a process-private `_FactorySeal` exact type;
 - a domain-specific seal domain;
 - an HMAC-SHA256 digest under a random module-private process key; and
-- the identity of the one exact object on which the seal first bound; and
+- a strong reference to the one exact object on which the seal first bound; and
 - full public-material revalidation in `__post_init__()`.
 
-The seal binds on the first valid factory construction. Reusing it on changed
-material fails even if a caller coherently recomputes every public SHA-256
-field. Nested results are reauthenticated before their identities are trusted.
+The seal stores the owner object itself, never `id(owner)`. Therefore CPython
+object-ID reuse cannot transfer a seal after collection; the seal keeps its
+owner alive for the seal lifecycle. It binds on the first valid factory
+construction. Reusing it on a different owner or changed material fails even
+if a caller coherently recomputes every public SHA-256 field. Nested results are
+reauthenticated before their identities are trusted. The upstream corpus row,
+causal clock range, corpus, and execution-authorization results use the same
+exact-owner rule, and the authorization retains its exact corpus pair.
 
 The public result types explicitly reject:
 
@@ -425,19 +497,45 @@ Raw checkpoint bytes can be copied as ordinary bytes. They carry no authority;
 only a reauthenticated in-process result is the inventory capability, and even
 that capability grants no file-write or runtime authority.
 
-## 13. Resource limits
+### 12.1 Same-process hostile-code limitation
+
+These seals protect against accidental copying, coherent public-field
+replacement, stale capability transfer, and ordinary copy/pickle mechanisms.
+They are **not** a security sandbox against arbitrary code executing in the
+same Python process. Such code can use Python introspection, `object.__new__`,
+`object.__setattr__`, module globals, debugger access, or native memory access.
+The random HMAC key and private fields must not be described as protection from
+a hostile same-process principal. Durable cross-process trust still requires
+external signed receipts and strict bytes-only replay.
+
+## 13. Resource budgets and immutable limits
 
 The following are parser/serialization resource bounds, not market or training
 quality thresholds:
 
 | Limit | Value |
 |---|---:|
-| State items | 1,000,000 |
-| One tensor payload | 2 GiB |
+| Immutable whole-envelope/state ceiling | 512 MiB |
+| Syntactic state-item count ceiling | 1,000,000 |
+| Per-item accounting charge before construction | 1,024 bytes plus exact variable material |
+| Per-corpus-row checkpoint accounting charge | 2,048 bytes |
+| Fixed checkpoint accounting charge | 16 KiB |
+| Legacy per-tensor syntactic ceiling | 2 GiB, subordinate to the 512 MiB effective ceiling |
 | Implementation artifact | 256 MiB |
 | Configuration artifact | 16 MiB |
 | Environment artifact | 16 MiB |
 | Canonical checkpoint header | 64 MiB |
+
+Both public factories require explicit positive caller budgets no greater than
+the immutable 512 MiB ceiling. A million-item tuple is rejected by aggregate
+accounting before any tensor result is constructed. A 2 GiB tensor is rejected
+before hashing or frame construction because it exceeds the effective
+whole-envelope ceiling. The checkpoint factory conservatively charges fixed
+metadata, every admitted corpus row, after-state tensor metadata/payload, and
+all artifact bytes before constructing the canonical header or any binary
+frame. After header generation it computes the exact encoded size before
+allocating the output buffer. It never builds a list of full frame-byte copies
+and joins it.
 
 These limits do not select symbols, observations, labels, regimes, leverage,
 margin, edge, loss, confidence, or optimizer hyperparameters.
@@ -460,8 +558,18 @@ The focused suite covers:
 - coherent top-level implementation substitution with a regenerated header,
   regenerated checkpoint bytes, and regenerated public inventory hash;
 - unchanged `dataclasses.replace()` capability duplication;
+- the recursive upstream `dataclasses.replace()` corpus-clone exploit;
+- exact authorization-to-corpus-pair ownership;
+- actual owner references instead of reusable integer IDs;
 - `copy.copy`, `copy.deepcopy`, and pickle rejection for nested and top-level
   capabilities;
+- independent bytes-only semantic replay of a valid V2 envelope;
+- complete tensor descriptor presence;
+- reordered, duplicated, truncated, trailing, and payload-tampered frames;
+- ambiguous, malformed, and mismatched tensor descriptors;
+- exact snapshot and checkpoint resource-budget preflight before builders;
+- bytes names, `shape=None`, wrong tuple arity, and malformed member counts
+  normalized to `ProfiledSupervisedCheckpointInventoryV1Error`;
 - equal, out-of-order, and non-canonical clocks;
 - model coordinate drift;
 - byte-identical no-op model state;
@@ -494,9 +602,10 @@ This slice intentionally leaves these blockers in place:
 
 1. an independently witnessed, current profiled manifest must exist at runtime;
 2. the optimizer must be invoked through a separately reviewed adapter that
-   captures before/after state at the declared phases;
-3. optimizer execution needs an independent execution receipt if the system is
-   to claim more than retrospective supplied-byte lineage;
+   captures before/after state at the declared phases and emits independently
+   verifiable temporal receipts;
+3. optimizer/GPU execution needs an independent execution receipt if the
+   system is to claim more than retrospective supplied-byte lineage;
 4. a durable checkpoint writer needs atomic write, fsync, directory fsync,
    readback, content-address verification, immutable-path, rollback, and
    anti-symlink contracts;
@@ -513,3 +622,39 @@ This slice intentionally leaves these blockers in place:
 
 Until all applicable blockers are closed, this component's correct runtime
 state is unwired and non-authoritative.
+
+Explicit current values remain:
+
+- `independent_temporal_materialization_verified=false`;
+- `optimizer_execution_independently_observed=false`;
+- every checkpoint/model/prediction/paper/live/execution authority `false`;
+  and
+- `runtime_wired=false`.
+
+## 17. 2026-07-21 independent-review remediation
+
+The NO-GO findings against the original in-memory slice were remediated in
+this branch as follows:
+
+1. Corpus-layer and checkpoint-layer seals now retain exact owners, forbid
+   ordinary graph transfer, and pair-bind execution authorization.
+2. The non-self-describing V1 binary was superseded by V2 with complete tensor
+   descriptors and a strict bytes-only semantic replay decoder.
+3. No seal stores a CPython integer object ID.
+4. State/checkpoint constructors prevalidate exact input/member types and
+   normalize malformed inputs to their component error type.
+5. Explicit caller resource budgets, conservative aggregate accounting, and a
+   512 MiB immutable ceiling run before tensor/frame construction.
+6. The implementation and this document now explicitly deny independent
+   temporal/GPU/optimizer-execution proof and same-process hostile-code
+   resistance.
+
+Verification at this point in the branch:
+
+- 80 admission, corpus, checkpoint, and new adversarial tests passed;
+- both modified implementation modules passed `py_compile`;
+- all modified Python files passed full Ruff and fatal-rule Ruff; and
+- `git diff --check` passed.
+
+No checkpoint was written, no service was started or restarted, no runtime was
+wired, and no paper/live/exchange path was touched by this remediation.

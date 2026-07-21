@@ -14,6 +14,13 @@ runs an optimizer or authorizes checkpoint/model publication, prediction,
 paper trading, live trading, order submission, generic trading execution, or
 runtime wiring.  PPO behavior-policy terms remain unavailable because this
 lane has no genuine behavior receipt contract.
+
+Factory seals retain their exact live result owners and ordinary copy,
+deepcopy, pickle, and dataclass-replacement transfer fails closed.  Distinct
+owner-bound before/after results prove neither independent temporal
+materialization nor optimizer/GPU execution; the authorization says so
+explicitly.  Same-process arbitrary code can access Python internals, so these
+seals are an accidental/coherent-copy boundary, not a hostile-code sandbox.
 """
 
 from __future__ import annotations
@@ -102,20 +109,34 @@ def _fail(*reasons: str) -> NoReturn:
 
 
 class _FactorySeal:
-    """One-time factory seal that cannot be reused for changed material."""
+    """One-time factory seal bound to one exact live result object.
 
-    __slots__ = ("_digest", "_domain")
+    The strong owner reference deliberately prevents CPython ``id`` reuse from
+    transferring a seal after its original owner is collected.  Public result
+    types reject copy/deepcopy/pickle, so a copied object graph cannot acquire a
+    copied seal whose owner was rewritten to the clone.
+    """
+
+    __slots__ = ("_digest", "_domain", "_owner")
 
     def __init__(self, *, domain: bytes, construction_token: object) -> None:
         if construction_token is not _FACTORY_SEAL_TOKEN or type(domain) is not bytes:
             _fail("PROFILED_OPTIMIZER_CORPUS_FACTORY_SEAL_CONSTRUCTION_FORBIDDEN")
         object.__setattr__(self, "_domain", bytes(domain))
         object.__setattr__(self, "_digest", None)
+        object.__setattr__(self, "_owner", None)
 
     def __setattr__(self, _name: str, _value: object) -> NoReturn:
         _fail("PROFILED_OPTIMIZER_CORPUS_FACTORY_SEAL_IMMUTABLE")
 
-    def validate_or_bind(self, *, domain: bytes, material: object, reason: str) -> None:
+    def validate_or_bind(
+        self,
+        *,
+        domain: bytes,
+        owner: object,
+        material: object,
+        reason: str,
+    ) -> None:
         if self._domain != domain:
             _fail(reason)
         expected = hmac.digest(
@@ -124,16 +145,32 @@ class _FactorySeal:
             "sha256",
         )
         current = self._digest
-        if current is None:
+        current_owner = self._owner
+        if current is None and current_owner is None:
             object.__setattr__(self, "_digest", expected)
-        elif type(current) is not bytes or not hmac.compare_digest(current, expected):
+            object.__setattr__(self, "_owner", owner)
+        elif (
+            type(current) is not bytes
+            or current_owner is not owner
+            or not hmac.compare_digest(current, expected)
+        ):
             _fail(reason)
+
+    def __copy__(self) -> NoReturn:
+        _fail("PROFILED_OPTIMIZER_CORPUS_FACTORY_SEAL_COPY_FORBIDDEN")
+
+    def __deepcopy__(self, _memo: object) -> NoReturn:
+        _fail("PROFILED_OPTIMIZER_CORPUS_FACTORY_SEAL_COPY_FORBIDDEN")
+
+    def __reduce_ex__(self, _protocol: int) -> NoReturn:
+        _fail("PROFILED_OPTIMIZER_CORPUS_FACTORY_SEAL_COPY_FORBIDDEN")
 
 
 def _require_factory_seal(
     value: object,
     *,
     domain: bytes,
+    owner: object,
     material: object,
     reason: str,
 ) -> None:
@@ -141,6 +178,7 @@ def _require_factory_seal(
         _fail(reason)
     cast(_FactorySeal, value).validate_or_bind(
         domain=domain,
+        owner=owner,
         material=material,
         reason=reason,
     )
@@ -509,9 +547,13 @@ class AuthenticatedProfiledOptimizerCorpusRowV1:
         _require_factory_seal(
             self._factory_seal,
             domain=_ROW_FACTORY_SEAL_DOMAIN,
+            owner=self,
             material=_corpus_factory_seal_material(self),
             reason="PROFILED_OPTIMIZER_CORPUS_ROW_FACTORY_SEAL_INVALID",
         )
+
+    def __reduce_ex__(self, _protocol: int) -> NoReturn:
+        _fail("PROFILED_OPTIMIZER_CORPUS_ROW_PICKLE_OR_COPY_FORBIDDEN")
 
 
 def _build_row(
@@ -686,9 +728,13 @@ class AuthenticatedProfiledOptimizerCausalClockRangeV1:
         _require_factory_seal(
             self._factory_seal,
             domain=_CLOCK_RANGE_FACTORY_SEAL_DOMAIN,
+            owner=self,
             material=_corpus_factory_seal_material(self),
             reason="PROFILED_OPTIMIZER_CORPUS_CLOCK_RANGE_FACTORY_SEAL_INVALID",
         )
+
+    def __reduce_ex__(self, _protocol: int) -> NoReturn:
+        _fail("PROFILED_OPTIMIZER_CORPUS_CLOCK_RANGE_PICKLE_OR_COPY_FORBIDDEN")
 
     def _as_material(self) -> dict[str, Any]:
         return {
@@ -996,9 +1042,13 @@ class AuthenticatedProfiledOptimizerCorpusV1:
         _require_factory_seal(
             self._factory_seal,
             domain=_CORPUS_FACTORY_SEAL_DOMAIN,
+            owner=self,
             material=_corpus_factory_seal_material(self),
             reason="PROFILED_OPTIMIZER_CORPUS_FACTORY_SEAL_INVALID",
         )
+
+    def __reduce_ex__(self, _protocol: int) -> NoReturn:
+        _fail("PROFILED_OPTIMIZER_CORPUS_PICKLE_OR_COPY_FORBIDDEN")
 
     def _common_material(self) -> dict[str, Any]:
         return {
@@ -1158,6 +1208,7 @@ class AuthenticatedProfiledSupervisedOptimizerExecutionAuthorizationV1:
     after_causal_clock_range_sha256: str
     inventory_equality_sha256: str
     before_after_inventory_equality_verified: bool
+    independent_temporal_materialization_verified: bool
     outcome_supervised_objective_only: bool
     behavior_receipt_bound: bool
     ppo_behavior_policy_terms_enabled: bool
@@ -1172,10 +1223,26 @@ class AuthenticatedProfiledSupervisedOptimizerExecutionAuthorizationV1:
     order_submission_authorized: bool
     execution_authorized: bool
     runtime_wired: bool
+    _before_corpus_owner: AuthenticatedProfiledOptimizerCorpusV1 = field(
+        repr=False,
+        compare=False,
+    )
+    _after_corpus_owner: AuthenticatedProfiledOptimizerCorpusV1 = field(
+        repr=False,
+        compare=False,
+    )
     _factory_seal: _FactorySeal = field(repr=False, compare=False)
     _construction_token: object = field(repr=False, compare=False)
 
     def __post_init__(self) -> None:
+        if (
+            type(self._before_corpus_owner) is not AuthenticatedProfiledOptimizerCorpusV1
+            or type(self._after_corpus_owner) is not AuthenticatedProfiledOptimizerCorpusV1
+            or self._before_corpus_owner is self._after_corpus_owner
+        ):
+            _fail("PROFILED_OPTIMIZER_EXECUTION_AUTHORIZATION_OWNER_PAIR_INVALID")
+        self._before_corpus_owner.__post_init__()
+        self._after_corpus_owner.__post_init__()
         material = self._material(include_identity=False)
         if (
             self._construction_token is not _EXECUTION_TOKEN
@@ -1207,6 +1274,7 @@ class AuthenticatedProfiledSupervisedOptimizerExecutionAuthorizationV1:
             or self.before_causal_clock_range_sha256 != self.after_causal_clock_range_sha256
             or self.inventory_equality_sha256 != stable_sha256(material)
             or self.before_after_inventory_equality_verified is not True
+            or self.independent_temporal_materialization_verified is not False
             or self.outcome_supervised_objective_only is not True
             or self.behavior_receipt_bound is not False
             or self.ppo_behavior_policy_terms_enabled is not False
@@ -1230,9 +1298,13 @@ class AuthenticatedProfiledSupervisedOptimizerExecutionAuthorizationV1:
         _require_factory_seal(
             self._factory_seal,
             domain=_EXECUTION_FACTORY_SEAL_DOMAIN,
+            owner=self,
             material=_corpus_factory_seal_material(self),
             reason="PROFILED_OPTIMIZER_EXECUTION_AUTHORIZATION_FACTORY_SEAL_INVALID",
         )
+
+    def __reduce_ex__(self, _protocol: int) -> NoReturn:
+        _fail("PROFILED_OPTIMIZER_EXECUTION_AUTHORIZATION_PICKLE_OR_COPY_FORBIDDEN")
 
     def _material(self, *, include_identity: bool) -> dict[str, Any]:
         material = {
@@ -1254,6 +1326,9 @@ class AuthenticatedProfiledSupervisedOptimizerExecutionAuthorizationV1:
             "after_causal_clock_range_sha256": self.after_causal_clock_range_sha256,
             "before_after_inventory_equality_verified": (
                 self.before_after_inventory_equality_verified
+            ),
+            "independent_temporal_materialization_verified": (
+                self.independent_temporal_materialization_verified
             ),
             "objective_lane": PROFILED_OPTIMIZER_OBJECTIVE_LANE,
             "outcome_supervised_objective_only": self.outcome_supervised_objective_only,
@@ -1344,6 +1419,7 @@ def validate_authenticated_profiled_optimizer_corpus_inventory_equality_v1(
         "before_causal_clock_range_sha256": (before.causal_clock_range.causal_clock_range_sha256),
         "after_causal_clock_range_sha256": (after.causal_clock_range.causal_clock_range_sha256),
         "before_after_inventory_equality_verified": True,
+        "independent_temporal_materialization_verified": False,
         "objective_lane": PROFILED_OPTIMIZER_OBJECTIVE_LANE,
         "outcome_supervised_objective_only": True,
         "behavior_receipt_bound": False,
@@ -1375,6 +1451,7 @@ def validate_authenticated_profiled_optimizer_corpus_inventory_equality_v1(
         after_causal_clock_range_sha256=(after.causal_clock_range.causal_clock_range_sha256),
         inventory_equality_sha256=stable_sha256(material),
         before_after_inventory_equality_verified=True,
+        independent_temporal_materialization_verified=False,
         outcome_supervised_objective_only=True,
         behavior_receipt_bound=False,
         ppo_behavior_policy_terms_enabled=False,
@@ -1389,12 +1466,43 @@ def validate_authenticated_profiled_optimizer_corpus_inventory_equality_v1(
         order_submission_authorized=False,
         execution_authorized=False,
         runtime_wired=False,
+        _before_corpus_owner=before,
+        _after_corpus_owner=after,
         _factory_seal=_FactorySeal(
             domain=_EXECUTION_FACTORY_SEAL_DOMAIN,
             construction_token=_FACTORY_SEAL_TOKEN,
         ),
         _construction_token=_EXECUTION_TOKEN,
     )
+
+
+def validate_authenticated_profiled_optimizer_execution_authorization_pair_v1(
+    *,
+    authorization: AuthenticatedProfiledSupervisedOptimizerExecutionAuthorizationV1,
+    before: AuthenticatedProfiledOptimizerCorpusV1,
+    after: AuthenticatedProfiledOptimizerCorpusV1,
+) -> None:
+    """Revalidate that an authorization belongs to this exact corpus pair.
+
+    Equal content from another pair is deliberately insufficient.  This is an
+    in-process capability-owner check, not evidence that the two corpus objects
+    were captured by independent processes or at independent times.
+    """
+
+    if (
+        type(authorization) is not AuthenticatedProfiledSupervisedOptimizerExecutionAuthorizationV1
+        or type(before) is not AuthenticatedProfiledOptimizerCorpusV1
+        or type(after) is not AuthenticatedProfiledOptimizerCorpusV1
+    ):
+        _fail("PROFILED_OPTIMIZER_EXECUTION_AUTHORIZATION_PAIR_TYPES_INVALID")
+    authorization.__post_init__()
+    before.__post_init__()
+    after.__post_init__()
+    if (
+        authorization._before_corpus_owner is not before
+        or authorization._after_corpus_owner is not after
+    ):
+        _fail("PROFILED_OPTIMIZER_EXECUTION_AUTHORIZATION_OWNER_PAIR_MISMATCH")
 
 
 __all__ = (
@@ -1409,4 +1517,5 @@ __all__ = (
     "AuthenticatedProfiledSupervisedOptimizerExecutionAuthorizationV1",
     "build_authenticated_profiled_optimizer_corpus_v1",
     "validate_authenticated_profiled_optimizer_corpus_inventory_equality_v1",
+    "validate_authenticated_profiled_optimizer_execution_authorization_pair_v1",
 )
