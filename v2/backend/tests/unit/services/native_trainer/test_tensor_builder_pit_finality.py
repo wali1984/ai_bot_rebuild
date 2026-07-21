@@ -232,6 +232,271 @@ def test_non_orderbook_source_with_causal_available_at_is_admitted() -> None:
     assert record.temporal_rejection_reasons == ()
 
 
+@pytest.mark.parametrize(
+    "authority_field",
+    ("trainer_authority", "source_receipt_authority", "feature_eligible"),
+)
+def test_explicit_false_source_authority_masks_otherwise_causal_payload(
+    authority_field: str,
+) -> None:
+    record = V2UnifiedFeatureTensorBuilder().build(
+        symbol="BTCUSDT",
+        timeframe="1m",
+        decision_time=DECISION_TIME,
+        payloads={
+            "funding": {
+                "funding_rate": 0.123456,
+                "event_time": "2026-07-18T11:59:58Z",
+                "ingested_at": "2026-07-18T11:59:59Z",
+                "available_at": "2026-07-18T11:59:59.500Z",
+                authority_field: False,
+            }
+        },
+    )
+
+    assert _fields(record)["funding_rate"] == 0.0
+    assert _missing(record)["funding_rate"] == 1
+    assert _stale(record)["funding_rate"] == 1
+    assert _available(record)["funding_rate"] == 0
+    assert (
+        f"FUNDING_{authority_field.upper()}_EXPLICIT_FALSE"
+        in record.temporal_rejection_reasons
+    )
+
+
+def test_explicit_false_ohlcv_authority_cannot_escape_through_derived_features(
+) -> None:
+    record = V2UnifiedFeatureTensorBuilder().build(
+        symbol="BTCUSDT",
+        timeframe="1m",
+        decision_time=DECISION_TIME,
+        payloads={
+            "ohlcv": {
+                "open": 100.0,
+                "high": 110.0,
+                "low": 90.0,
+                "close": 100.0,
+                "closed_candle": True,
+                "close_time": "2026-07-18T11:59:00Z",
+                "event_time": "2026-07-18T11:59:00Z",
+                "ingested_at": "2026-07-18T11:59:01Z",
+                "available_at": "2026-07-18T11:59:02Z",
+                "trainer_authority": False,
+            }
+        },
+    )
+
+    for name in (
+        "close",
+        "body_pct",
+        "log_return",
+        "ret_pct",
+        "volatility",
+        "volatility_pct",
+        "micro_volatility",
+        "range_pct",
+        "true_range_pct",
+    ):
+        assert _fields(record)[name] == 0.0
+        assert _missing(record)[name] == 1
+        assert _stale(record)[name] == 1
+        assert _available(record)[name] == 0
+    assert "OHLCV_TRAINER_AUTHORITY_EXPLICIT_FALSE" in (
+        record.temporal_rejection_reasons
+    )
+
+
+def test_explicit_false_orderbook_authority_cannot_escape_through_micro_depth(
+) -> None:
+    record = V2UnifiedFeatureTensorBuilder().build(
+        symbol="BTCUSDT",
+        timeframe="1m",
+        decision_time=DECISION_TIME,
+        payloads={
+            "orderbook": {
+                "orderbook_depth_usd": 500.0,
+                "best_bid": 100.0,
+                "best_ask": 101.0,
+                "best_bid_size": 3.0,
+                "best_ask_size": 1.0,
+                "event_time": "2026-07-18T11:59:58Z",
+                "ingested_at": "2026-07-18T11:59:59Z",
+                "available_at": "2026-07-18T11:59:59.500Z",
+                "source_receipt_authority": False,
+            }
+        },
+    )
+
+    for name in (
+        "orderbook_depth_usd",
+        "microstructure_liquidity_depth",
+        "bid_ask_spread_bps",
+        "depth_imbalance",
+    ):
+        assert _fields(record)[name] == 0.0
+        assert _missing(record)[name] == 1
+        assert _stale(record)[name] == 1
+        assert _available(record)[name] == 0
+    assert "ORDERBOOK_SOURCE_RECEIPT_AUTHORITY_EXPLICIT_FALSE" in (
+        record.temporal_rejection_reasons
+    )
+
+
+def test_denied_specialized_payload_does_not_mask_valid_independent_sources(
+) -> None:
+    record = V2UnifiedFeatureTensorBuilder().build(
+        symbol="BTCUSDT",
+        timeframe="1m",
+        decision_time=DECISION_TIME,
+        payloads={
+            "ohlcv": {
+                "open": 100.0,
+                "high": 110.0,
+                "low": 90.0,
+                "close": 100.0,
+                "closed_candle": True,
+                "close_time": "2026-07-18T11:59:00Z",
+                "available_at": "2026-07-18T11:59:01Z",
+                "trainer_authority": False,
+            },
+            "orderbook": {
+                "orderbook_depth_usd": 500.0,
+                "available_at": "2026-07-18T11:59:01Z",
+                "source_receipt_authority": False,
+            },
+            "features_latest": {
+                "available_at": "2026-07-18T11:59:02Z",
+                "features": {
+                    "volatility": 0.03,
+                    "range_pct": 0.04,
+                    "bid_ask_spread_bps": 2.5,
+                    "depth_imbalance": 0.25,
+                },
+            },
+            "microstructure": {
+                "available_at": "2026-07-18T11:59:03Z",
+                "microstructure_liquidity_depth": 750.0,
+                "micro_volatility": 0.02,
+            },
+        },
+    )
+
+    expected = {
+        "volatility": 0.03,
+        "range_pct": 0.04,
+        "bid_ask_spread_bps": 2.5,
+        "depth_imbalance": 0.25,
+        "microstructure_liquidity_depth": 750.0,
+        "micro_volatility": 0.02,
+    }
+    for name, value in expected.items():
+        assert _fields(record)[name] == pytest.approx(value)
+        assert _missing(record)[name] == 0
+        assert _stale(record)[name] == 0
+        assert _available(record)[name] == 1
+
+
+def _native_derivative_payloads(*, authority: bool) -> dict[str, object]:
+    def authority_contract() -> dict[str, bool]:
+        return {
+            "readiness_eligible": True,
+            "trainer_authority": authority,
+            "source_receipt_authority": authority,
+        }
+
+    return {
+        "open_interest_hist": [
+            {
+                "sumOpenInterest": "100",
+                "event_time": "2026-07-18T11:50:00Z",
+                "ingested_at": "2026-07-18T11:50:01Z",
+                "available_at": "2026-07-18T11:50:01Z",
+                "source_freshness": authority_contract(),
+                "cadence_evidence": {"source_receipt_authority": authority},
+            },
+            {
+                "sumOpenInterest": "110",
+                "event_time": "2026-07-18T11:55:00Z",
+                "ingested_at": "2026-07-18T11:55:01Z",
+                "available_at": "2026-07-18T11:55:01Z",
+                "source_freshness": authority_contract(),
+                "cadence_evidence": {"source_receipt_authority": authority},
+            },
+        ],
+        "long_short": {
+            "long_short_ratio": 1.2,
+            "long_account_ratio": 0.5454545,
+            "short_account_ratio": 0.4545455,
+            "event_time": "2026-07-18T11:55:00Z",
+            "ingested_at": "2026-07-18T11:55:01Z",
+            "available_at": "2026-07-18T11:55:01Z",
+            "source_freshness": authority_contract(),
+            "cadence_evidence": {"source_receipt_authority": authority},
+        },
+    }
+
+
+_NATIVE_DERIVATIVE_FEATURES = (
+    "oi_change_pct",
+    "open_interest_change_pct",
+    "long_short_ratio",
+    "long_account_ratio",
+    "short_account_ratio",
+)
+
+
+def test_nested_false_native_derivative_authority_stays_masked() -> None:
+    record = V2UnifiedFeatureTensorBuilder().build(
+        symbol="BTCUSDT",
+        timeframe="5m",
+        decision_time=DECISION_TIME,
+        payloads=_native_derivative_payloads(authority=False),
+    )
+
+    fields = _fields(record)
+    missing = _missing(record)
+    stale = _stale(record)
+    available = _available(record)
+    for name in _NATIVE_DERIVATIVE_FEATURES:
+        assert fields[name] == 0.0
+        assert missing[name] == 1
+        assert stale[name] == 1
+        assert available[name] == 0
+    assert {
+        "OPEN_INTEREST_HIST_TRAINER_AUTHORITY_EXPLICIT_FALSE",
+        "OPEN_INTEREST_HIST_SOURCE_RECEIPT_AUTHORITY_EXPLICIT_FALSE",
+        "LONG_SHORT_TRAINER_AUTHORITY_EXPLICIT_FALSE",
+        "LONG_SHORT_SOURCE_RECEIPT_AUTHORITY_EXPLICIT_FALSE",
+    } <= set(record.temporal_rejection_reasons)
+
+
+def test_eligible_native_derivative_authority_is_admitted() -> None:
+    record = V2UnifiedFeatureTensorBuilder().build(
+        symbol="BTCUSDT",
+        timeframe="5m",
+        decision_time=DECISION_TIME,
+        payloads=_native_derivative_payloads(authority=True),
+    )
+
+    expected = {
+        "oi_change_pct": 0.1,
+        "open_interest_change_pct": 0.1,
+        "long_short_ratio": 1.2,
+        "long_account_ratio": 0.5454545,
+        "short_account_ratio": 0.4545455,
+    }
+    fields = _fields(record)
+    missing = _missing(record)
+    stale = _stale(record)
+    available = _available(record)
+    for name, value in expected.items():
+        assert fields[name] == pytest.approx(value)
+        assert missing[name] == 0
+        assert stale[name] == 0
+        assert available[name] == 1
+    assert record.temporal_rejection_reasons == ()
+
+
 def test_exact_zero_from_primary_snapshot_is_not_replaced_by_fallbacks() -> None:
     record = V2UnifiedFeatureTensorBuilder().build(
         symbol="BTCUSDT",

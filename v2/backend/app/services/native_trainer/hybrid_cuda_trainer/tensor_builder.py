@@ -398,6 +398,32 @@ _FRESHNESS_FIELDS: tuple[str, ...] = (
     "is_fresh",
     "fresh",
 )
+_EXPLICIT_FALSE_SOURCE_AUTHORITY_FIELDS: tuple[str, ...] = (
+    "trainer_authority",
+    "source_receipt_authority",
+    "feature_eligible",
+)
+_SPECIALIZED_DERIVED_FEATURES_BY_PAYLOAD: dict[str, frozenset[str]] = {
+    "ohlcv": frozenset(
+        {
+            "body_pct",
+            "log_return",
+            "micro_volatility",
+            "range_pct",
+            "ret_pct",
+            "true_range_pct",
+            "volatility",
+            "volatility_pct",
+        }
+    ),
+    "orderbook": frozenset(
+        {
+            "bid_ask_spread_bps",
+            "depth_imbalance",
+            "microstructure_liquidity_depth",
+        }
+    ),
+}
 
 _SOURCE_LABELS_BY_PAYLOAD: dict[str, tuple[str, ...]] = {
     "prices": ("v2:market:prices",),
@@ -483,6 +509,50 @@ def _resolve_decision_time(
     # exact aware instant. Historical/replay producers are expected to carry a
     # durable decision_time, which takes precedence above.
     return datetime.now(tz=timezone.utc), "builder.observed_at"
+
+
+def _explicit_false_source_authority_reasons(
+    *,
+    payload_name: str,
+    payload: Any,
+    _seen_ids: set[int] | None = None,
+) -> tuple[str, ...]:
+    """Reject explicit negative authority without requiring legacy claims.
+
+    Older causal payloads may omit these authority fields. An explicit boolean
+    false, including one nested in source-freshness or cadence evidence, is a
+    producer instruction that the payload is not eligible at this consumer.
+    """
+
+    if not isinstance(payload, Mapping | list | tuple):
+        return ()
+    seen_ids = set() if _seen_ids is None else _seen_ids
+    payload_id = id(payload)
+    if payload_id in seen_ids:
+        return ()
+    seen_ids.add(payload_id)
+
+    reasons: list[str] = []
+    if isinstance(payload, Mapping):
+        prefix = payload_name.upper()
+        reasons.extend(
+            f"{prefix}_{field.upper()}_EXPLICIT_FALSE"
+            for field in _EXPLICIT_FALSE_SOURCE_AUTHORITY_FIELDS
+            if payload.get(field) is False
+        )
+        nested_values = payload.values()
+    else:
+        nested_values = payload
+    for nested in nested_values:
+        if isinstance(nested, Mapping | list | tuple):
+            reasons.extend(
+                _explicit_false_source_authority_reasons(
+                    payload_name=payload_name,
+                    payload=nested,
+                    _seen_ids=seen_ids,
+                )
+            )
+    return tuple(sorted(set(reasons)))
 
 
 def _source_temporal_state(
@@ -962,6 +1032,7 @@ class V2UnifiedFeatureTensorBuilder:
         temporal_reasons: list[str] = []
         invalid_source_labels: set[str] = set()
         invalid_payload_names: set[str] = set()
+        denied_specialized_derived_features: set[str] = set()
         source_payloads = payloads
 
         # Validate every mapped feature-bearing payload before any value is
@@ -969,9 +1040,21 @@ class V2UnifiedFeatureTensorBuilder:
         # escaping through a fallback whose static FEATURE_SPEC label names a
         # different source (for example liquidity_zones -> sweep_risk).
         for payload_name, source_labels in _SOURCE_LABELS_BY_PAYLOAD.items():
+            source_payload = source_payloads.get(payload_name)
+            authority_reasons = _explicit_false_source_authority_reasons(
+                payload_name=payload_name,
+                payload=source_payload,
+            )
             if payload_name in {"ohlcv", "orderbook"}:
+                if authority_reasons:
+                    temporal_reasons.extend(authority_reasons)
+                    invalid_source_labels.update(source_labels)
+                    invalid_payload_names.add(payload_name)
+                    denied_specialized_derived_features.update(
+                        _SPECIALIZED_DERIVED_FEATURES_BY_PAYLOAD[payload_name]
+                    )
                 continue
-            temporal_payload = source_payloads.get(payload_name)
+            temporal_payload = source_payload
             projection_reasons: tuple[str, ...] = ()
             if payload_name == "provider_feature_context":
                 temporal_payload, projection_reasons = _provider_context_temporal_view(
@@ -983,7 +1066,17 @@ class V2UnifiedFeatureTensorBuilder:
                 decision_time=resolved_decision_time,
                 require_available_at=True,
             )
-            reasons = tuple(sorted(set((*projection_reasons, *reasons))))
+            reasons = tuple(
+                sorted(
+                    set(
+                        (
+                            *authority_reasons,
+                            *projection_reasons,
+                            *reasons,
+                        )
+                    )
+                )
+            )
             if reasons:
                 temporal_reasons.extend(reasons)
                 invalid_source_labels.update(source_labels)
@@ -1004,7 +1097,7 @@ class V2UnifiedFeatureTensorBuilder:
         latest_features = latest.get("features") if isinstance(latest, Mapping) else None
 
         ohlcv, candle_reasons = _latest_kline(
-            source_payloads.get("ohlcv"),
+            validated_payloads.get("ohlcv"),
             decision_time_ms=decision_time_ms,
         )
         temporal_reasons.extend(candle_reasons)
@@ -1021,7 +1114,7 @@ class V2UnifiedFeatureTensorBuilder:
             invalid_source_labels.add("v2:market:ohlcv")
             ohlcv = {}
 
-        raw_orderbook = source_payloads.get("orderbook")
+        raw_orderbook = validated_payloads.get("orderbook")
         orderbook_available_override = None
         if (
             isinstance(raw_orderbook, Mapping)
@@ -1775,7 +1868,9 @@ class V2UnifiedFeatureTensorBuilder:
             strict=True,
         ):
             val = _finite_float(raw_by_name.get(name))
-            temporal_invalid = resolved_source in invalid_source_labels
+            temporal_invalid = resolved_source in invalid_source_labels or (
+                name in denied_specialized_derived_features and val is None
+            )
             missing = val is None or temporal_invalid
             stale = name in stale_input_flags or latest_not_current or temporal_invalid
             values.append(0.0 if missing else float(val))
