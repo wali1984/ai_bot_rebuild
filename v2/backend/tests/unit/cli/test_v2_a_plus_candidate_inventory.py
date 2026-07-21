@@ -14,6 +14,7 @@ from v2.backend.app.cli.v2_a_plus_candidate_inventory import (
     _blocker_class,
     _build_materialization_queue_row,
     _canonical_materialization_no_fill_reason,
+    _normalize_candidate,
     _prequeue_materialization_no_fill_reason,
     _publish_materialization_queue,
     build_inventory,
@@ -1022,6 +1023,166 @@ def test_future_feature_cutoff_never_allowed() -> None:
     assert timestamp["real_lookahead_block"] is True
     assert evaluation["eligible"] is False
     assert "FEATURE_CUTOFF_AFTER_DECISION_TIME_LOOKAHEAD" in evaluation["eligibility_block_reasons"]
+
+
+def test_feature_cutoff_after_available_at_is_invalid_lineage() -> None:
+    row = _paper_exploration_policy_row(
+        feature_cutoff="2026-07-10T02:00:00.500Z",
+        available_at="2026-07-10T02:00:00Z",
+        decision_time="2026-07-10T02:00:01Z",
+    )
+
+    timestamp = classify_timestamp_integrity(row)
+    evaluation = evaluate_paper_risk_controller_exploration(row)
+
+    assert timestamp["timestamp_integrity_status"] == "REAL_LOOKAHEAD_BLOCK"
+    assert timestamp["real_lookahead_block"] is True
+    assert "FEATURE_CUTOFF_AFTER_AVAILABLE_AT_INVALID_LINEAGE" in (
+        timestamp["timestamp_integrity_reasons"]
+    )
+    assert evaluation["eligible"] is False
+    assert "FEATURE_CUTOFF_AFTER_AVAILABLE_AT_INVALID_LINEAGE" in (
+        evaluation["eligibility_block_reasons"]
+    )
+
+
+def test_explicit_feature_availability_wins_over_legacy_generic_clock() -> None:
+    row = _paper_exploration_policy_row(
+        feature_cutoff="2026-07-10T02:00:00Z",
+        feature_available_at="2026-07-10T02:00:02Z",
+        available_at="2026-07-10T02:00:00Z",
+        decision_time="2026-07-10T02:00:01Z",
+    )
+
+    timestamp = classify_timestamp_integrity(row)
+    evaluation = evaluate_paper_risk_controller_exploration(row)
+
+    assert timestamp["timestamp_integrity_status"] == "TIMESTAMP_PLUMBING_REQUEUE"
+    assert timestamp["earliest_eligible_decision_time"] == (
+        "2026-07-10T02:00:02.000Z"
+    )
+    assert evaluation["eligible"] is False
+    assert "TIMESTAMP_PLUMBING_REQUEUE_NEXT_CYCLE" in (
+        evaluation["eligibility_block_reasons"]
+    )
+
+
+def test_normalizer_never_borrows_price_clock_for_feature_availability() -> None:
+    row = _paper_exploration_policy_row()
+    row.pop("available_at")
+    row["price_available_at"] = "2026-07-10T02:00:00.750Z"
+
+    normalized = _normalize_candidate(
+        row,
+        prediction={},
+        generated_utc="2026-07-10T02:00:01Z",
+    )
+
+    assert normalized["price_available_at"] == "2026-07-10T02:00:00.750Z"
+    assert normalized["feature_available_at"] is None
+    assert normalized["available_at"] is None
+    assert normalized["source_available_at"] is None
+
+
+def test_malformed_explicit_feature_availability_cannot_fall_back() -> None:
+    row = _paper_exploration_policy_row(
+        feature_available_at="not-a-time",
+        available_at="2026-07-10T02:00:00Z",
+    )
+
+    timestamp = classify_timestamp_integrity(row)
+    evaluation = evaluate_paper_risk_controller_exploration(row)
+
+    assert timestamp["timestamp_integrity_status"] == "TIMESTAMP_INTEGRITY_BLOCK"
+    assert timestamp["feature_available_at"] is None
+    assert timestamp["feature_available_at_source"] == "feature_available_at"
+    assert "FEATURE_AVAILABLE_AT_INVALID" in timestamp["timestamp_integrity_reasons"]
+    assert evaluation["eligible"] is False
+    assert "FEATURE_AVAILABLE_AT_INVALID" in evaluation["eligibility_block_reasons"]
+
+
+def test_valid_explicit_only_feature_availability_is_end_to_end_eligible() -> None:
+    row = _paper_exploration_policy_row(
+        feature_available_at="2026-07-10T02:00:01Z",
+        decision_time="2026-07-10T02:00:01Z",
+    )
+    row.pop("available_at")
+
+    timestamp = classify_timestamp_integrity(row)
+    evaluation = evaluate_paper_risk_controller_exploration(row)
+
+    assert timestamp["timestamp_integrity_status"] == "PASS"
+    assert timestamp["feature_available_at_source"] == "feature_available_at"
+    assert evaluation["eligible"] is True
+
+
+def test_normalizer_never_fabricates_decision_time_from_generation_clock() -> None:
+    row = _paper_exploration_policy_row()
+    row.pop("decision_time")
+    row["generated_at"] = "2026-07-10T02:00:02Z"
+
+    normalized = _normalize_candidate(
+        row,
+        prediction={},
+        generated_utc="2026-07-10T02:00:03Z",
+    )
+    timestamp = classify_timestamp_integrity(normalized)
+    evaluation = evaluate_paper_risk_controller_exploration(normalized)
+
+    assert normalized["decision_time"] is None
+    assert normalized["source_decision_time"] is None
+    assert normalized["inventory_generated_utc"] == "2026-07-10T02:00:03Z"
+    assert timestamp["timestamp_integrity_status"] == "TIMESTAMP_INTEGRITY_BLOCK"
+    assert "DECISION_TIME_MISSING" in timestamp["timestamp_integrity_reasons"]
+    assert evaluation["eligible"] is False
+    assert "DECISION_TIME_MISSING" in evaluation["eligibility_block_reasons"]
+
+
+def test_source_feature_availability_wins_over_legacy_generic_clock() -> None:
+    row = _paper_exploration_policy_row(
+        feature_cutoff="2026-07-10T02:00:00Z",
+        available_at="2026-07-10T02:00:00Z",
+        source_available_at="2026-07-10T02:00:02Z",
+        decision_time="2026-07-10T02:00:01Z",
+    )
+
+    timestamp = classify_timestamp_integrity(row)
+    evaluation = evaluate_paper_risk_controller_exploration(row)
+
+    assert timestamp["feature_available_at_source"] == "source_available_at"
+    assert timestamp["timestamp_integrity_status"] == "TIMESTAMP_PLUMBING_REQUEUE"
+    assert timestamp["earliest_eligible_decision_time"] == (
+        "2026-07-10T02:00:02.000Z"
+    )
+    assert evaluation["eligible"] is False
+    assert "TIMESTAMP_PLUMBING_REQUEUE_NEXT_CYCLE" in (
+        evaluation["eligibility_block_reasons"]
+    )
+
+
+def test_confirmed_future_leakage_block_always_dominates_requeue() -> None:
+    row = _paper_exploration_policy_row(
+        feature_cutoff="2026-07-10T02:00:00Z",
+        feature_available_at="2026-07-10T02:00:02Z",
+        available_at="2026-07-10T02:00:00Z",
+        decision_time="2026-07-10T02:00:01Z",
+        future_leakage_detected=True,
+    )
+
+    timestamp = classify_timestamp_integrity(row)
+    evaluation = evaluate_paper_risk_controller_exploration(row)
+
+    assert timestamp["timestamp_integrity_status"] == "REAL_LOOKAHEAD_BLOCK"
+    assert timestamp["real_lookahead_block"] is True
+    assert timestamp["timestamp_integrity_block"] is True
+    assert timestamp["requeue_for_next_cycle"] is False
+    assert timestamp["earliest_eligible_decision_time"] is None
+    assert "FUTURE_LEAKAGE_DETECTED" in timestamp["timestamp_integrity_reasons"]
+    assert evaluation["eligible"] is False
+    assert "FUTURE_LEAKAGE_DETECTED" in evaluation["eligibility_block_reasons"]
+    assert "TIMESTAMP_PLUMBING_REQUEUE_NEXT_CYCLE" not in (
+        evaluation["eligibility_block_reasons"]
+    )
 
 
 def test_paper_exploration_policy_treats_global_halt_quarantine_as_advisory_only() -> None:

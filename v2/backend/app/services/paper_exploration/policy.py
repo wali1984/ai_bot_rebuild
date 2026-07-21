@@ -411,6 +411,27 @@ def _delta_ms(later: datetime | None, earlier: datetime | None) -> int | None:
     return int(round((later - earlier).total_seconds() * 1000.0))
 
 
+def _resolve_feature_available_at(
+    row: Mapping[str, Any],
+) -> tuple[datetime | None, str | None, str | None]:
+    """Resolve one feature clock without falling through malformed claims."""
+
+    fields = (
+        "feature_available_at",
+        "entry_feature_available_at",
+        "source_available_at",
+        "available_at",
+    )
+    for field in fields:
+        if field not in row:
+            continue
+        parsed = _parse_time(row.get(field))
+        if parsed is None:
+            return None, field, f"{field.upper()}_INVALID"
+        return parsed, field, None
+    return None, None, None
+
+
 def _score_0_1(value: Any) -> float | None:
     numeric = _float(value)
     if numeric is None:
@@ -585,13 +606,11 @@ def classify_timestamp_integrity(row: Mapping[str, Any]) -> dict[str, Any]:
             row.get("kline_close_time"),
         )
     )
-    feature_cutoff = _parse_time(row.get("feature_cutoff"))
-    feature_available_at = _parse_time(
-        _first_present(
-            row.get("feature_available_at"),
-            row.get("entry_feature_available_at"),
-            row.get("available_at"),
-        )
+    feature_cutoff = _parse_time(
+        _first_present(row.get("feature_cutoff"), row.get("entry_feature_cutoff"))
+    )
+    feature_available_at, feature_available_at_source, availability_error = (
+        _resolve_feature_available_at(row)
     )
     snapshot_generated_at = _parse_time(
         _first_present(row.get("snapshot_generated_at"), row.get("feature_snapshot_generated_at"))
@@ -618,31 +637,54 @@ def classify_timestamp_integrity(row: Mapping[str, Any]) -> dict[str, Any]:
     candidate_decision_time = _parse_time(
         _first_present(row.get("candidate_decision_time"), row.get("decision_time"))
     )
-    available_at = _parse_time(row.get("available_at"))
-    decision_time = _parse_time(row.get("decision_time"))
+    # ``available_at`` is the feature-availability clock in this policy. If an
+    # explicit feature clock exists it must win over any legacy generic field,
+    # which may have been populated from an unrelated price observation.
+    available_at = feature_available_at
+    decision_time = _parse_time(
+        _first_present(row.get("decision_time"), row.get("source_decision_time"))
+    )
 
     reasons: list[str] = []
     status = "PASS"
+    timestamp_integrity_block = False
     real_lookahead_block = False
     requeue_for_next_cycle = False
     earliest_eligible = None
 
     if feature_cutoff is None:
         reasons.append("FEATURE_CUTOFF_MISSING")
+        timestamp_integrity_block = True
     if available_at is None:
-        reasons.append("AVAILABLE_AT_MISSING")
+        reasons.append(availability_error or "AVAILABLE_AT_MISSING")
+        timestamp_integrity_block = True
     if decision_time is None:
         reasons.append("DECISION_TIME_MISSING")
+        timestamp_integrity_block = True
+    if timestamp_integrity_block:
+        status = "TIMESTAMP_INTEGRITY_BLOCK"
 
     if row.get("future_leakage_detected") is True:
         status = "REAL_LOOKAHEAD_BLOCK"
+        timestamp_integrity_block = True
         real_lookahead_block = True
         reasons.append("FUTURE_LEAKAGE_DETECTED")
+    if feature_cutoff and feature_available_at and feature_cutoff > feature_available_at:
+        status = "REAL_LOOKAHEAD_BLOCK"
+        timestamp_integrity_block = True
+        real_lookahead_block = True
+        reasons.append("FEATURE_CUTOFF_AFTER_AVAILABLE_AT_INVALID_LINEAGE")
     if feature_cutoff and decision_time and feature_cutoff > decision_time:
         status = "REAL_LOOKAHEAD_BLOCK"
+        timestamp_integrity_block = True
         real_lookahead_block = True
         reasons.append("FEATURE_CUTOFF_AFTER_DECISION_TIME_LOOKAHEAD")
-    elif available_at and decision_time and available_at > decision_time:
+    elif (
+        not timestamp_integrity_block
+        and available_at
+        and decision_time
+        and available_at > decision_time
+    ):
         if feature_cutoff and feature_cutoff <= decision_time:
             status = "TIMESTAMP_PLUMBING_REQUEUE"
             requeue_for_next_cycle = True
@@ -650,6 +692,7 @@ def classify_timestamp_integrity(row: Mapping[str, Any]) -> dict[str, Any]:
             reasons.append("TIMESTAMP_PLUMBING_REQUEUE_NEXT_CYCLE")
         else:
             status = "REAL_LOOKAHEAD_BLOCK"
+            timestamp_integrity_block = True
             real_lookahead_block = True
             reasons.append("AVAILABLE_AT_AFTER_DECISION_TIME_WITHOUT_VALID_FEATURE_CUTOFF")
 
@@ -659,6 +702,7 @@ def classify_timestamp_integrity(row: Mapping[str, Any]) -> dict[str, Any]:
         "provider_event_time": _format_time(provider_event_time),
         "feature_cutoff": _format_time(feature_cutoff),
         "feature_available_at": _format_time(feature_available_at),
+        "feature_available_at_source": feature_available_at_source,
         "snapshot_generated_at": _format_time(snapshot_generated_at),
         "prediction_generated_at": _format_time(prediction_generated_at),
         "signal_generated_at": _format_time(signal_generated_at),
@@ -673,6 +717,7 @@ def classify_timestamp_integrity(row: Mapping[str, Any]) -> dict[str, Any]:
         "feature_cutoff_minus_decision_ms": _delta_ms(feature_cutoff, decision_time),
         "earliest_eligible_decision_time": _format_time(earliest_eligible),
         "requeue_for_next_cycle": requeue_for_next_cycle,
+        "timestamp_integrity_block": timestamp_integrity_block,
         "real_lookahead_block": real_lookahead_block,
         "decision_time_backdated": False,
     }
@@ -1252,22 +1297,14 @@ def evaluate_paper_risk_controller_exploration(row: Mapping[str, Any]) -> dict[s
             "EXPLORATION_REFERENCE_NOTIONAL_FROM_STOP_BPS"
         )
     timestamp_integrity = classify_timestamp_integrity(row)
-    # feature_cutoff falls back to the point-in-time features became available.
-    # available_at IS the moment the feature snapshot was usable, so it is a
-    # valid, conservative feature cutoff and preserves the look-ahead invariant
-    # feature_cutoff <= decision_time (available_at is always <= decision_time
-    # by construction of the snapshot). This lets exploration candidates whose
-    # bridge row carries available_at/source_available_at but no explicit
-    # feature_cutoff still be evaluated instead of hard-blocked on a plumbing gap.
     feature_cutoff = _parse_time(
         _first_present(
             row.get("feature_cutoff"),
-            row.get("available_at"),
-            row.get("source_available_at"),
+            row.get("entry_feature_cutoff"),
         )
     )
-    available_at = _parse_time(
-        _first_present(row.get("available_at"), row.get("source_available_at"))
+    available_at, _availability_source, _availability_error = (
+        _resolve_feature_available_at(row)
     )
     decision_time = _parse_time(
         _first_present(row.get("decision_time"), row.get("source_decision_time"))
@@ -1302,7 +1339,7 @@ def evaluate_paper_risk_controller_exploration(row: Mapping[str, Any]) -> dict[s
         blockers.append("AVAILABLE_AT_MISSING")
     if decision_time is None:
         blockers.append("DECISION_TIME_MISSING")
-    if timestamp_integrity["real_lookahead_block"]:
+    if timestamp_integrity["timestamp_integrity_block"]:
         blockers.extend(timestamp_integrity["timestamp_integrity_reasons"])
     elif timestamp_integrity["requeue_for_next_cycle"]:
         blockers.append("TIMESTAMP_PLUMBING_REQUEUE_NEXT_CYCLE")

@@ -2350,13 +2350,22 @@ def _normalize_candidate(
         prediction.get("entry_feature_snapshot_id"),
         _as_dict(prediction.get("entry_feature_snapshot")).get("feature_snapshot_id"),
     )
+    # Feature availability is lineage, not a market-price clock. A fresh mark
+    # may arrive before an older feature snapshot has been durably published;
+    # borrowing that price clock would make the snapshot appear PIT-eligible.
     available_at = _first_present(
+        _lineage_value(row, prediction, "feature_available_at"),
+        _lineage_value(row, prediction, "entry_feature_available_at"),
+        _lineage_value(row, prediction, "source_available_at"),
         _lineage_value(row, prediction, "available_at"),
-        price_available_at,
-        _as_dict(row.get("entry_zone")).get("available_at"),
-        _as_dict(prediction.get("entry_zone")).get("available_at"),
     )
-    decision_time = _first_present(row.get("decision_time"), row.get("preemptive_decision_time"), prediction.get("decision_time"), prediction.get("generated_at"), generated_utc)
+    decision_time = _first_present(
+        row.get("decision_time"),
+        row.get("preemptive_decision_time"),
+        row.get("source_decision_time"),
+        prediction.get("decision_time"),
+        prediction.get("source_decision_time"),
+    )
     prediction_age_seconds = _candidate_age_seconds(row, prediction)
     stale_prediction = (
         prediction_age_seconds is None
@@ -2710,10 +2719,22 @@ def _normalize_candidate(
             )
         ),
         "feature_cutoff": feature_cutoff,
+        "feature_available_at": available_at,
         "available_at": available_at,
         "decision_time": decision_time,
-        "source_available_at": _first_present(row.get("source_available_at"), row.get("available_at"), prediction.get("source_available_at"), prediction.get("available_at"), available_at),
-        "source_decision_time": _first_present(row.get("source_decision_time"), row.get("decision_time"), row.get("preemptive_decision_time"), prediction.get("source_decision_time"), prediction.get("decision_time"), prediction.get("generated_at"), decision_time),
+        "source_available_at": _first_present(
+            row.get("source_available_at"),
+            prediction.get("source_available_at"),
+            available_at,
+        ),
+        "source_decision_time": _first_present(
+            row.get("source_decision_time"),
+            row.get("decision_time"),
+            row.get("preemptive_decision_time"),
+            prediction.get("source_decision_time"),
+            prediction.get("decision_time"),
+            decision_time,
+        ),
         "source_generated_utc": _first_present(row.get("source_generated_utc"), row.get("generated_utc"), row.get("generated_at"), prediction.get("source_generated_utc"), prediction.get("generated_utc"), prediction.get("generated_at")),
         "inventory_generated_utc": generated_utc,
         "prediction_age_seconds": prediction_age_seconds,
