@@ -1250,6 +1250,7 @@ class V2HybridCheckpointManager:
         raw: dict[str, Any],
         *,
         ledger_records: tuple[_CausalGenerationRecord, ...],
+        verify_lineage_artifacts: bool = True,
     ) -> int:
         causal_fields = {
             "checkpoint_causal_order_schema_version",
@@ -1402,6 +1403,7 @@ class V2HybridCheckpointManager:
             observed_parent_generation = parent_manager._validate_causal_manifest(
                 parent_raw,
                 ledger_records=ledger_records,
+                verify_lineage_artifacts=verify_lineage_artifacts,
             )
             if observed_parent_generation == 0:
                 if (
@@ -1417,7 +1419,8 @@ class V2HybridCheckpointManager:
                 != raw.get("parent_policy_fingerprint")
             ):
                 raise ValueError("checkpoint_causal_parent_binding_mismatch")
-            parent_manager._validate_lineage_artifact(parent_raw)
+            if verify_lineage_artifacts:
+                parent_manager._validate_lineage_artifact(parent_raw)
         return generation
 
     def _parent_checkpoint_generation(
@@ -2014,6 +2017,7 @@ class V2HybridCheckpointManager:
         model_id: str | None = None,
         allowed_lineage_kinds: frozenset[str] | None = None,
         require_weight_blob: bool = False,
+        verify_lineage_artifacts: bool = True,
     ) -> list[tuple[tuple[int, int, datetime, str], CheckpointManifest]]:
         self._manifest_scan_errors = []
         manifests: list[
@@ -2078,6 +2082,7 @@ class V2HybridCheckpointManager:
                 checkpoint_generation = self._validate_causal_manifest(
                     raw,
                     ledger_records=ledger_records,
+                    verify_lineage_artifacts=verify_lineage_artifacts,
                 )
                 generated_utc = _strict_generated_utc(
                     raw.get("generated_utc"),
@@ -2269,11 +2274,13 @@ class V2HybridCheckpointManager:
         input_dim: int | None = None,
         model_id: str | None = None,
         allowed_lineage_kinds: frozenset[str] | None = None,
+        verify_lineage_artifacts: bool = True,
     ) -> CheckpointManifest | None:
         manifests = self._manifest_rows(
             input_dim=input_dim,
             model_id=model_id,
             allowed_lineage_kinds=allowed_lineage_kinds,
+            verify_lineage_artifacts=verify_lineage_artifacts,
         )
         if not manifests:
             return None
@@ -2286,13 +2293,21 @@ class V2HybridCheckpointManager:
         model_id: str | None = None,
         allowed_lineage_kinds: frozenset[str] | None = None,
         require_weight_blob: bool = False,
+        verify_lineage_artifacts: bool = True,
     ) -> tuple[CheckpointManifest, ...]:
-        """Return every matching manifest, newest first, or fail on scan damage."""
+        """Return every matching manifest, newest first, or fail on scan damage.
+
+        ``verify_lineage_artifacts=False`` is a metadata-only preflight for a
+        caller that must establish an external admission contract before any
+        NPZ is inspected. Such a caller must subsequently use
+        :meth:`verify_manifest_artifact` and an exact-ID guarded load.
+        """
         rows = self._manifest_rows(
             input_dim=input_dim,
             model_id=model_id,
             allowed_lineage_kinds=allowed_lineage_kinds,
             require_weight_blob=require_weight_blob,
+            verify_lineage_artifacts=verify_lineage_artifacts,
         )
         if self._manifest_scan_errors:
             raise RuntimeError("checkpoint_manifest_scan_invalid")
@@ -2567,18 +2582,26 @@ class V2HybridCheckpointManager:
         model: V2HybridPolicyModel,
         *,
         allowed_lineage_kinds: frozenset[str] | None = None,
+        expected_checkpoint_id: str | None = None,
     ) -> dict[str, Any]:
         # Report the newest same-shape metadata row for operator visibility, but
         # only deserialize a weight artifact with the exact architecture/model ID.
+        pre_deserialization_exact_id_guard = expected_checkpoint_id is not None
         latest_metadata_manifest = self.latest_manifest(
             input_dim=model.input_dim,
             allowed_lineage_kinds=allowed_lineage_kinds,
+            verify_lineage_artifacts=(
+                not pre_deserialization_exact_id_guard
+            ),
         )
         manifest_rows = self._manifest_rows(
             input_dim=model.input_dim,
             model_id=model.model_id,
             allowed_lineage_kinds=allowed_lineage_kinds,
             require_weight_blob=True,
+            verify_lineage_artifacts=(
+                not pre_deserialization_exact_id_guard
+            ),
         )
         if self._manifest_scan_errors:
             evidence_digest_invalid = any(
@@ -2600,6 +2623,20 @@ class V2HybridCheckpointManager:
                 ),
             }
         manifest = manifest_rows[0][1] if manifest_rows else None
+        if expected_checkpoint_id is not None and (
+            type(expected_checkpoint_id) is not str
+            or not expected_checkpoint_id
+            or expected_checkpoint_id != expected_checkpoint_id.strip()
+        ):
+            return {
+                "checkpoint_manifest_exists": manifest is not None,
+                "checkpoint_id": manifest.checkpoint_id if manifest else None,
+                "expected_checkpoint_id": expected_checkpoint_id,
+                "weight_blob_written": False,
+                "latest_checkpoint_loadable": False,
+                "model_state_restored": False,
+                "load_status": "EXPECTED_CHECKPOINT_ID_INVALID",
+            }
         if manifest is None:
             return {
                 "checkpoint_manifest_exists": latest_metadata_manifest is not None,
@@ -2611,8 +2648,45 @@ class V2HybridCheckpointManager:
                 "weight_blob_written": False,
                 "latest_checkpoint_loadable": False,
                 "model_state_restored": False,
-                "load_status": "NO_COMPATIBLE_WEIGHT_BLOB_MANIFEST",
+                "expected_checkpoint_id": expected_checkpoint_id,
+                "load_status": (
+                    "EXPECTED_CHECKPOINT_ID_NOT_AVAILABLE"
+                    if expected_checkpoint_id is not None
+                    else "NO_COMPATIBLE_WEIGHT_BLOB_MANIFEST"
+                ),
             }
+        if (
+            expected_checkpoint_id is not None
+            and manifest.checkpoint_id != expected_checkpoint_id
+        ):
+            return {
+                "checkpoint_manifest_exists": True,
+                "checkpoint_id": manifest.checkpoint_id,
+                "expected_checkpoint_id": expected_checkpoint_id,
+                "weight_blob_written": bool(manifest.weight_blob_written),
+                "latest_checkpoint_loadable": False,
+                "model_state_restored": False,
+                "load_status": "EXPECTED_CHECKPOINT_ID_MISMATCH",
+            }
+        if expected_checkpoint_id is not None:
+            try:
+                observed_generation = self._validate_causal_manifest(
+                    dict(manifest.__dict__),
+                    ledger_records=self._read_causal_ledger_with_tail_recovery(),
+                    verify_lineage_artifacts=True,
+                )
+                if observed_generation != manifest.checkpoint_generation:
+                    raise ValueError("checkpoint_generation_mismatch")
+            except (OSError, RuntimeError, TypeError, ValueError, OverflowError):
+                return {
+                    "checkpoint_manifest_exists": True,
+                    "checkpoint_id": manifest.checkpoint_id,
+                    "expected_checkpoint_id": expected_checkpoint_id,
+                    "weight_blob_written": bool(manifest.weight_blob_written),
+                    "latest_checkpoint_loadable": False,
+                    "model_state_restored": False,
+                    "load_status": "EXPECTED_CHECKPOINT_CAUSAL_LINEAGE_INVALID",
+                }
         resolved_weight_path = self._resolve_weight_path(
             manifest.weight_file_path, manifest.checkpoint_id
         )

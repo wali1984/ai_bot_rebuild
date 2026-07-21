@@ -6,6 +6,9 @@ from pathlib import Path
 
 import pytest
 
+from v2.backend.app.services.native_trainer.hybrid_cuda_trainer import (
+    checkpoint as checkpoint_module,
+)
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.checkpoint import (
     V2HybridCheckpointManager,
 )
@@ -747,6 +750,89 @@ def test_checkpoint_ids_are_parameter_content_addressed_and_hash_verified(
     tampered = manager.load_latest_weights(V2HybridPolicyModel(input_dim=4, seed=31))
     assert tampered["latest_checkpoint_loadable"] is False
     assert tampered["load_status"] == "WEIGHT_BLOB_SHA256_MISMATCH"
+
+
+def test_expected_checkpoint_guard_blocks_reselection_before_npz_deserialization(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("V2_TRAINER_HIDDEN_SIZE", "128")
+    monkeypatch.setenv("V2_TRAINER_RESIDUAL_BLOCKS", "1")
+    monkeypatch.setenv("V2_TRAINER_DROPOUT", "0")
+    manager = V2HybridCheckpointManager(tmp_path / ".local_models" / "serving")
+    model = V2HybridPolicyModel(input_dim=4, seed=33)
+    first = manager.write_checkpoint(
+        model=model,
+        input_dim=4,
+        device=model.device,
+        cuda_active=model.cuda_active,
+        lineage_kind="VERIFIED_SERVING_POLICY",
+        checkpoint_evidence={"checkpoint_role": "VERIFIED_SERVING_POLICY"},
+    )
+    if model.torch_available:
+        assert model.torch is not None and model.net is not None
+        with model.torch.no_grad():
+            next(model.net.parameters()).view(-1)[0].add_(0.001)
+    else:
+        model._fallback_weights[0] += 0.001  # noqa: SLF001
+    second = manager.write_checkpoint(
+        model=model,
+        input_dim=4,
+        device=model.device,
+        cuda_active=model.cuda_active,
+        lineage_kind="VERIFIED_SERVING_POLICY",
+        parent_checkpoint_id=first.checkpoint_id,
+        parent_policy_fingerprint=first.model_parameter_fingerprint,
+        checkpoint_evidence={"checkpoint_role": "VERIFIED_SERVING_POLICY"},
+    )
+    expected_load = manager.load_latest_weights(
+        V2HybridPolicyModel(input_dim=4, seed=33),
+        allowed_lineage_kinds=frozenset({"VERIFIED_SERVING_POLICY"}),
+        expected_checkpoint_id=second.checkpoint_id,
+    )
+    assert expected_load["latest_checkpoint_loadable"] is True
+    assert expected_load["checkpoint_id"] == second.checkpoint_id
+
+    def npz_deserialization_forbidden(
+        *_args: object,
+        **_kwargs: object,
+    ) -> None:
+        raise AssertionError(
+            "unexpected checkpoint must be rejected before NPZ deserialization"
+        )
+
+    monkeypatch.setattr(
+        checkpoint_module,
+        "_safe_npz_semantics",
+        npz_deserialization_forbidden,
+    )
+    metadata_only = manager.manifests(
+        input_dim=4,
+        model_id=model.model_id,
+        allowed_lineage_kinds=frozenset({"VERIFIED_SERVING_POLICY"}),
+        require_weight_blob=True,
+        verify_lineage_artifacts=False,
+    )
+    assert metadata_only[0].checkpoint_id == second.checkpoint_id
+    invalid_guard = manager.load_latest_weights(
+        V2HybridPolicyModel(input_dim=4, seed=33),
+        allowed_lineage_kinds=frozenset({"VERIFIED_SERVING_POLICY"}),
+        expected_checkpoint_id=f" {second.checkpoint_id}",
+    )
+    assert invalid_guard["load_status"] == "EXPECTED_CHECKPOINT_ID_INVALID"
+    assert invalid_guard["model_state_restored"] is False
+    result = manager.load_latest_weights(
+        V2HybridPolicyModel(input_dim=4, seed=33),
+        allowed_lineage_kinds=frozenset({"VERIFIED_SERVING_POLICY"}),
+        expected_checkpoint_id=first.checkpoint_id,
+    )
+
+    assert first.checkpoint_id != second.checkpoint_id
+    assert result["load_status"] == "EXPECTED_CHECKPOINT_ID_MISMATCH"
+    assert result["checkpoint_id"] == second.checkpoint_id
+    assert result["expected_checkpoint_id"] == first.checkpoint_id
+    assert result["latest_checkpoint_loadable"] is False
+    assert result["model_state_restored"] is False
 
 
 def test_checkpoint_rejects_manifest_evidence_swap(

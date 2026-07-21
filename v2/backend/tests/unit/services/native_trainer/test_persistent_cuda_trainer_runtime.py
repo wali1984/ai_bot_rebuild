@@ -2468,15 +2468,30 @@ def test_confidence_artifacts_compute_brier_ece_from_trusted_feedback(monkeypatc
 def test_historical_holdout_requires_durable_indexed_canonical_5m_labels(
     tmp_path: Path,
 ) -> None:
+    manifest_payload = {
+        "schema_version": runtime_module.HOLDOUT_MANIFEST_SCHEMA_VERSION,
+        "generated_utc": "2026-06-22T16:00:00Z",
+        "split_method": "STRICT_TEMPORAL_ORDER_NO_RANDOM_ROW_SPLIT",
+        "temporal_overlap": False,
+        "training_window": {"rows": 0},
+        "validation_window": {"rows": 0},
+        "holdout_window": {
+            "start_decision_time": "2026-06-22T09:00:00Z",
+            "end_decision_time": "2026-06-22T11:00:00Z",
+            "rows": 17,
+        },
+        "feature_ledger_high_water": {},
+        "label_archive_high_water": {},
+        "partition_evidence": {},
+    }
+    manifest_path = tmp_path / "holdout.json"
+    manifest_path.write_text(
+        json.dumps(manifest_payload),
+        encoding="utf-8",
+    )
     loaded = runtime_module._trusted_replay_holdout_examples(  # noqa: SLF001
         repo_root=tmp_path,
-        manifest={
-            "holdout_window": {
-                "start_decision_time": "2026-06-22T09:00:00Z",
-                "end_decision_time": "2026-06-22T11:00:00Z",
-                "rows": 17,
-            }
-        },
+        manifest={**manifest_payload, "manifest_path": str(manifest_path)},
         scan_limit=100_000,
         eval_limit=512,
     )
@@ -2565,7 +2580,19 @@ def _patch_unit_holdout_inputs(monkeypatch) -> None:
             "snapshots_scanned": 1,
             "holdout_candidates_found": 1,
             "holdout_sample_identity_hash": "a" * 64,
+            "_holdout_sample_identity_sha256s": ["c" * 64],
         },
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "_checkpoint_holdout_partition_contract",
+        lambda **_kwargs: (
+            {
+                "schema_version": "checkpoint_holdout_disjointness_proof_v1",
+                "training_holdout_disjoint_verified": True,
+            },
+            [],
+        ),
     )
 
 
@@ -2596,6 +2623,34 @@ def test_holdout_checkpoint_manifest_scan_failure_blocks_before_load(
 
     assert result["status"] == "BLOCKED_CHECKPOINT_MANIFEST_SCAN_INVALID"
     assert result["confidence_outcome_join_available"] is False
+
+
+def test_holdout_checkpoint_model_initialization_failure_is_fail_closed(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    _patch_unit_holdout_inputs(monkeypatch)
+
+    class _Model:
+        def __init__(self, *, input_dim):
+            raise RuntimeError(f"cannot construct model width {input_dim}")
+
+    class _Manager:  # pragma: no cover - constructor must not be reached
+        def __init__(self, _model_dir):
+            raise AssertionError("manifest scan must follow model construction")
+
+    monkeypatch.setattr(runtime_module, "V2HybridPolicyModel", _Model)
+    monkeypatch.setattr(runtime_module, "V2HybridCheckpointManager", _Manager)
+
+    result = runtime_module.build_trusted_replay_holdout_calibration(
+        repo_root=tmp_path,
+        model_dir=tmp_path / "models",
+        generated_utc="2026-06-22T12:00:00Z",
+    )
+
+    assert result["status"] == "BLOCKED_CHECKPOINT_MODEL_INITIALIZATION_FAILED"
+    assert result["confidence_outcome_join_available"] is False
+    assert result["evaluated_rows"] == 0
 
 
 def test_holdout_checkpoint_rejects_non_serving_lineage_before_artifact_load(
@@ -2672,6 +2727,55 @@ def test_holdout_checkpoint_invalid_artifact_fails_closed_before_model_load(
     ]
 
 
+def test_holdout_checkpoint_partition_blocks_before_npz_artifact_inspection(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    _patch_unit_holdout_inputs(monkeypatch)
+    serving = SimpleNamespace(
+        checkpoint_id="serving-overlaps-holdout",
+        lineage_kind=runtime_module.VERIFIED_SERVING_LINEAGE,
+    )
+
+    class _Manager:
+        def __init__(self, _model_dir):
+            pass
+
+        def manifests(self, **_kwargs):
+            return (serving,)
+
+        def verify_manifest_artifact(self, _manifest):  # pragma: no cover
+            raise AssertionError(
+                "NPZ semantic inspection must follow partition disjointness"
+            )
+
+        def load_latest_weights(self, *_args, **_kwargs):  # pragma: no cover
+            raise AssertionError("overlapping checkpoint must not be loaded")
+
+    monkeypatch.setattr(runtime_module, "V2HybridCheckpointManager", _Manager)
+    monkeypatch.setattr(
+        runtime_module,
+        "_checkpoint_holdout_partition_contract",
+        lambda **_kwargs: (
+            None,
+            ["CHECKPOINT_TRAINING_HOLDOUT_SAMPLE_OVERLAP"],
+        ),
+    )
+
+    result = runtime_module.build_trusted_replay_holdout_calibration(
+        repo_root=tmp_path,
+        model_dir=tmp_path / "models",
+        generated_utc="2026-06-22T12:00:00Z",
+    )
+
+    assert result["status"] == (
+        "BLOCKED_CHECKPOINT_HOLDOUT_PARTITION_NOT_DISJOINT"
+    )
+    assert result["checkpoint_holdout_partition_rejection_reasons"] == [
+        "CHECKPOINT_TRAINING_HOLDOUT_SAMPLE_OVERLAP"
+    ]
+
+
 def test_holdout_checkpoint_requires_full_serving_semantics_after_safe_load(
     tmp_path: Path,
     monkeypatch,
@@ -2701,6 +2805,8 @@ def test_holdout_checkpoint_requires_full_serving_semantics_after_safe_load(
             }
 
     class _Model:
+        model_id = "unit-model"
+
         def __init__(self, *, input_dim):
             self.input_dim = input_dim
 
@@ -2734,9 +2840,12 @@ def test_holdout_checkpoint_evaluates_only_after_verified_serving_safe_load(
     _patch_unit_holdout_inputs(monkeypatch)
     weight_path = tmp_path / "serving-1.weights.npz"
     weight_path.write_bytes(b"unit-safe-weight-blob")
+    weight_sha256 = runtime_module._sha256_path(weight_path)  # noqa: SLF001
+    assert weight_sha256 is not None
     serving = SimpleNamespace(
         checkpoint_id="serving-1",
         lineage_kind=runtime_module.VERIFIED_SERVING_LINEAGE,
+        weight_file_sha256=weight_sha256,
     )
 
     class _Manager:
@@ -2747,26 +2856,35 @@ def test_holdout_checkpoint_evaluates_only_after_verified_serving_safe_load(
             assert kwargs["allowed_lineage_kinds"] == frozenset(
                 {runtime_module.VERIFIED_SERVING_LINEAGE}
             )
+            assert kwargs["model_id"] == "unit-model"
+            assert kwargs["verify_lineage_artifacts"] is False
             return (serving,)
 
         def verify_manifest_artifact(self, _manifest):
-            return {"checkpoint_artifact_verified": True}
+            return {
+                "checkpoint_artifact_verified": True,
+                "weight_file_sha256": weight_sha256,
+                "observed_weight_file_sha256": weight_sha256,
+            }
 
         def load_latest_weights(self, _model, **kwargs):
             assert kwargs["allowed_lineage_kinds"] == frozenset(
                 {runtime_module.VERIFIED_SERVING_LINEAGE}
             )
+            assert kwargs["expected_checkpoint_id"] == "serving-1"
             return {
                 "checkpoint_id": "serving-1",
                 "latest_checkpoint_loadable": True,
                 "model_state_restored": True,
                 "resolved_weight_file_path": str(weight_path.resolve()),
+                "weight_file_sha256": weight_sha256,
                 "load_status": "LOADED",
             }
 
     class _Model:
         device = "cpu"
         cuda_active = False
+        model_id = "unit-model"
 
         def __init__(self, *, input_dim):
             self.input_dim = input_dim
@@ -2807,10 +2925,158 @@ def test_holdout_uses_exact_training_action_and_after_cost_semantics() -> None:
     trust_row = _unit_holdout_example().trust_row
 
     assert runtime_module._selected_action_outcome("long", trust_row) == 1.0
-    assert runtime_module._selected_action_outcome("hold", trust_row) == 0.0
+    assert runtime_module._selected_action_outcome("hold", trust_row) is None
     assert runtime_module._directional_accuracy_hit("long", trust_row) is True
     assert runtime_module._directional_accuracy_hit("short", trust_row) is False
     assert runtime_module._expected_after_cost_bps(7.0, trust_row) == 7.0
+
+
+def test_holdout_json_parser_rejects_exponent_overflow_nonfinite() -> None:
+    with pytest.raises(ValueError, match="nonfinite_json_number"):
+        runtime_module._strict_json_object(  # noqa: SLF001
+            b'{"nested":{"adversarial_number":1e999}}'
+        )
+
+
+def test_finite_float_rejects_integer_overflow_without_raising() -> None:
+    assert runtime_module.finite_float(10**10_000) is None
+
+
+def test_legacy_v1_holdout_path_is_unconditionally_disabled(tmp_path: Path) -> None:
+    result = (
+        runtime_module._legacy_v1_trusted_replay_holdout_examples_disabled(  # noqa: SLF001
+            repo_root=tmp_path,
+            manifest={},
+            scan_limit=100,
+            eval_limit=10,
+        )
+    )
+
+    assert result["status"] == (
+        "BLOCKED_LEGACY_V1_HOLDOUT_PROVENANCE_UNSUPPORTED"
+    )
+    assert result["examples"] == []
+    assert result["legacy_v1_feature_snapshot_admitted"] is False
+
+
+def test_holdout_clock_contract_requires_explicit_masa_and_ppo_clocks() -> None:
+    snapshot = {
+        "feature_cutoff": "2026-06-22T10:00:00Z",
+        "tensor_decision_time": "2026-06-22T10:00:01Z",
+        "ppo_decision_time": "2026-06-22T10:00:01Z",
+        "decision_time": "2026-06-22T10:00:01Z",
+        "generated_at": "2026-06-22T10:00:00Z",
+        "available_at": "2026-06-22T10:00:00Z",
+        "candle_closed_confirmed": True,
+        "source_hashes": {"record_sha256": "a" * 64},
+        "missing_mask": {"close": False},
+        "stale_mask": {"close": False},
+    }
+
+    clocks, reasons = runtime_module._holdout_snapshot_clock_contract(  # noqa: SLF001
+        snapshot
+    )
+
+    assert clocks is None
+    assert "MASA_FEATURE_CUTOFF_MISSING_OR_INVALID" in reasons
+    assert "PPO_FEATURE_CUTOFF_MISSING_OR_INVALID" in reasons
+
+
+def _checkpoint_partition_inputs(
+    *,
+    training_identities: list[str],
+    holdout_identities: list[str],
+) -> tuple[dict[str, object], SimpleNamespace]:
+    partition_digest = training_partition_digest([])
+    training_set_sha256 = runtime_module._sample_identity_set_sha256(  # noqa: SLF001
+        training_identities
+    )
+    holdout_set_sha256 = runtime_module._sample_identity_set_sha256(  # noqa: SLF001
+        holdout_identities
+    )
+    checkpoint = SimpleNamespace(
+        checkpoint_id="verified-serving-checkpoint",
+        checkpoint_evidence_digest="d" * 64,
+        consumed_ppo_update_keys=(),
+        training_partition_digest=partition_digest,
+        checkpoint_evidence={
+            "training_sample_identity_sha256s": training_identities,
+            "training_sample_identity_inventory_complete": True,
+            "training_sample_identity_domain": (
+                runtime_module.HOLDOUT_SAMPLE_IDENTITY_DOMAIN
+            ),
+            "training_sample_identity_set_sha256": training_set_sha256,
+            "training_sample_count": len(training_identities),
+            "training_partition_digest": partition_digest,
+        },
+    )
+    manifest = {
+        "partition_evidence": {
+            "training_partition_digest": partition_digest,
+            "training_sample_identity_set_sha256": training_set_sha256,
+            "training_sample_count": len(training_identities),
+            "holdout_sample_identity_set_sha256": holdout_set_sha256,
+            "holdout_sample_count": len(holdout_identities),
+            "training_holdout_disjoint": True,
+        }
+    }
+    return manifest, checkpoint
+
+
+def test_checkpoint_holdout_partition_accepts_complete_empty_training_set() -> None:
+    holdout_identities = ["b" * 64]
+    manifest, checkpoint = _checkpoint_partition_inputs(
+        training_identities=[],
+        holdout_identities=holdout_identities,
+    )
+
+    proof, reasons = runtime_module._checkpoint_holdout_partition_contract(  # noqa: SLF001
+        manifest_payload=manifest,
+        checkpoint=checkpoint,
+        holdout_sample_identity_sha256s=holdout_identities,
+    )
+
+    assert reasons == []
+    assert proof is not None
+    assert proof["training_sample_count"] == 0
+    assert proof["training_holdout_disjoint_verified"] is True
+
+
+def test_checkpoint_holdout_partition_rejects_exact_sample_overlap() -> None:
+    overlapping_identity = "b" * 64
+    manifest, checkpoint = _checkpoint_partition_inputs(
+        training_identities=[overlapping_identity],
+        holdout_identities=[overlapping_identity],
+    )
+
+    proof, reasons = runtime_module._checkpoint_holdout_partition_contract(  # noqa: SLF001
+        manifest_payload=manifest,
+        checkpoint=checkpoint,
+        holdout_sample_identity_sha256s=[overlapping_identity],
+    )
+
+    assert proof is None
+    assert reasons == ["CHECKPOINT_TRAINING_HOLDOUT_SAMPLE_OVERLAP"]
+
+
+def test_checkpoint_holdout_partition_rejects_missing_sample_inventory() -> None:
+    holdout_identities = ["b" * 64]
+    manifest, checkpoint = _checkpoint_partition_inputs(
+        training_identities=[],
+        holdout_identities=holdout_identities,
+    )
+    del checkpoint.checkpoint_evidence[
+        "training_sample_identity_sha256s"
+    ]
+
+    proof, reasons = runtime_module._checkpoint_holdout_partition_contract(  # noqa: SLF001
+        manifest_payload=manifest,
+        checkpoint=checkpoint,
+        holdout_sample_identity_sha256s=holdout_identities,
+    )
+
+    assert proof is None
+    assert "CHECKPOINT_TRAINING_SAMPLE_IDENTITY_INVENTORY_MISSING" in reasons
 
 
 def test_holdout_fails_closed_when_adaptive_label_contract_is_tampered() -> None:
@@ -2881,7 +3147,7 @@ def test_confidence_artifacts_activate_from_trusted_replay_holdout(
     assert "_calibration_rows" not in holdout
 
 
-def test_confidence_artifacts_reuse_recent_holdout_without_rescanning(monkeypatch) -> None:
+def test_confidence_artifacts_disable_unvalidated_recent_holdout_reuse(monkeypatch) -> None:
     monkeypatch.setattr(runtime_module, "_redis_json_list", lambda _key: [])
 
     def _unexpected_holdout(**_kwargs):
@@ -2916,14 +3182,20 @@ def test_confidence_artifacts_reuse_recent_holdout_without_rescanning(monkeypatc
     )
 
     calibration = artifacts["trusted_confidence_calibration_status.json"]
-    assert calibration["status"] == "ACTIVE_TRUSTED_HOLDOUT_CALIBRATION"
-    assert calibration["trusted_holdout_rows"] == 149
-    assert calibration["trusted_replay_holdout_checkpoint_hash"] == "hash_before"
-    assert calibration["holdout_calibration_reused"] is True
+    assert calibration["status"] == (
+        "BLOCKED_TRUSTED_HOLDOUT_CALIBRATION_CADENCE_DEFERRED_"
+        "REVALIDATION_REQUIRED"
+    )
+    assert calibration["trusted_holdout_rows"] == 0
+    assert calibration["trusted_replay_holdout_checkpoint_hash"] is None
+    assert calibration["holdout_calibration_reused"] is False
+    assert calibration["holdout_calibration_reuse_contract"] == (
+        "DISABLED_UNLESS_ALL_CAUSAL_IDENTITIES_ARE_REVALIDATED"
+    )
     assert calibration["holdout_calibration_reuse_age_seconds"] == 60.0
     assert calibration["holdout_calibration_min_interval_seconds"] == 900
-    assert calibration["brier_score"] == 0.04
-    assert calibration["ece"] == 0.2
+    assert calibration["brier_score"] is None
+    assert calibration["ece"] is None
 
 
 def test_holdout_calibration_due_respects_recent_active_publish() -> None:
@@ -2953,13 +3225,13 @@ def test_selected_action_outcome_uses_adaptive_training_target_not_static_band()
     trust_row = dict(_unit_holdout_example().trust_row)
     assert runtime_module._selected_action_outcome("long", trust_row) == 1.0
     assert runtime_module._selected_action_outcome("short", trust_row) == 0.0
-    assert runtime_module._selected_action_outcome("hold", trust_row) == 0.0
+    assert runtime_module._selected_action_outcome("hold", trust_row) is None
     assert runtime_module._selected_action_outcome("close_long", trust_row) is None
 
     trust_row["target_action"] = "hold"
     trust_row["target_action_index"] = 0
-    assert runtime_module._selected_action_outcome("hold", trust_row) == 1.0
-    assert runtime_module._selected_action_outcome("long", trust_row) == 0.0
+    assert runtime_module._selected_action_outcome("hold", trust_row) is None
+    assert runtime_module._selected_action_outcome("long", trust_row) is None
 
 
 def test_trainer_quality_artifact_computes_expected_move_mae_and_calibration(monkeypatch) -> None:

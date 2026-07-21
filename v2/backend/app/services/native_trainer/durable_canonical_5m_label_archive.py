@@ -2697,12 +2697,14 @@ class DurableCanonical5mLabelArchive:
         limit: int,
         archive_integrity_proof: Mapping[str, Any] | None = None,
         _allow_sparse_coverage: bool = False,
+        _require_receipt_cutoff: bool = False,
     ) -> tuple[list[dict[str, Any]] | None, dict[str, Any]]:
         """Return one complete contiguous range or a fail-closed proof."""
 
         normalized_symbol = str(symbol).strip().upper()
         start_ms = _strict_epoch_ms(start_close_time_ms)
         end_ms = _strict_epoch_ms(end_close_time_ms)
+        observed_us = _aware_epoch_us(training_observed_at)
         observed_ms = _aware_epoch_ms(training_observed_at)
         bounded_limit = _strict_positive_int(limit)
         reasons: list[str] = []
@@ -2714,12 +2716,14 @@ class DurableCanonical5mLabelArchive:
             reasons.append("LABEL_ARCHIVE_QUERY_END_CLOSE_INVALID")
         if start_ms is not None and end_ms is not None and end_ms < start_ms:
             reasons.append("LABEL_ARCHIVE_QUERY_RANGE_REVERSED")
-        if observed_ms is None:
+        if observed_us is None or observed_ms is None:
             reasons.append("TRAINING_OBSERVED_AT_MISSING_OR_INVALID")
         if bounded_limit is None or bounded_limit > MAX_QUERY_ROWS:
             reasons.append("LABEL_ARCHIVE_QUERY_LIMIT_INVALID")
         if not isinstance(_allow_sparse_coverage, bool):
             reasons.append("LABEL_ARCHIVE_QUERY_COVERAGE_MODE_INVALID")
+        if not isinstance(_require_receipt_cutoff, bool):
+            reasons.append("LABEL_ARCHIVE_QUERY_RECEIPT_CUTOFF_MODE_INVALID")
         if _allow_sparse_coverage and not isinstance(
             archive_integrity_proof,
             Mapping,
@@ -2745,6 +2749,7 @@ class DurableCanonical5mLabelArchive:
             "symbol": normalized_symbol,
             "start_close_time_ms": start_ms,
             "end_close_time_ms": end_ms,
+            "training_observed_at_epoch_us": observed_us,
             "training_observed_at_ms": observed_ms,
             "requested_limit": bounded_limit,
             "maximum_query_rows": MAX_QUERY_ROWS,
@@ -2758,6 +2763,7 @@ class DurableCanonical5mLabelArchive:
             "bounded_memory_contract": "O_QUERY_ROWS_AND_PAYLOAD_BYTES",
             "indexed_query_contract": "SYMBOL_PLUS_CANDLE_CLOSE_TIME_RANGE",
             "range_completeness_required": not _allow_sparse_coverage,
+            "receipt_commit_cutoff_required": _require_receipt_cutoff,
         }
         if reasons:
             proof.update(
@@ -3044,6 +3050,18 @@ class DurableCanonical5mLabelArchive:
                     if receipt_reasons:
                         reasons.extend(receipt_reasons)
                         continue
+                    receipt_prepared_us = _aware_epoch_us(
+                        str(receipt["commit_prepared_at"])
+                    )
+                    if _require_receipt_cutoff and (
+                        observed_us is None
+                        or receipt_prepared_us is None
+                        or receipt_prepared_us > observed_us
+                    ):
+                        reasons.append(
+                            "LABEL_ARCHIVE_APPEND_RECEIPT_AFTER_TRAINING_OBSERVED_AT"
+                        )
+                        continue
                     append_receipts_verified += 1
                     append_receipt_hashes.append(
                         str(receipt["receipt_sha256"])
@@ -3094,6 +3112,18 @@ class DurableCanonical5mLabelArchive:
                     )
                     if postcommit_reasons:
                         reasons.extend(postcommit_reasons)
+                        continue
+                    postcommit_readback_us = _aware_epoch_us(
+                        str(postcommit["postcommit_readback_at"])
+                    )
+                    if _require_receipt_cutoff and (
+                        observed_us is None
+                        or postcommit_readback_us is None
+                        or postcommit_readback_us > observed_us
+                    ):
+                        reasons.append(
+                            "LABEL_ARCHIVE_POSTCOMMIT_READBACK_AFTER_TRAINING_OBSERVED_AT"
+                        )
                         continue
                     if (
                         str(postcommit["append_receipt_sha256"])
@@ -3241,7 +3271,9 @@ class DurableCanonical5mLabelArchive:
             "symbol": normalized_symbol,
             "start_close_time_ms": start_ms,
             "end_close_time_ms": end_ms,
+            "training_observed_at_epoch_us": observed_us,
             "training_observed_at_ms": observed_ms,
+            "receipt_commit_cutoff_required": _require_receipt_cutoff,
             "candle_ids": [row["candle_id"] for row in rows],
             "content_sha256_by_close": [
                 {
@@ -3478,6 +3510,7 @@ class DurableCanonical5mLabelArchive:
         training_observed_at: datetime | str | int,
         horizon_seconds: int,
         archive_integrity_proof: Mapping[str, Any] | None = None,
+        require_receipt_committed_by_observation: bool = False,
     ) -> tuple[list[dict[str, Any]] | None, dict[str, Any]]:
         """Read the exact finalized-5m path needed by one trainer decision.
 
@@ -3598,9 +3631,12 @@ class DurableCanonical5mLabelArchive:
             symbol=normalized_symbol,
             start_close_time_ms=start_close_ms,
             end_close_time_ms=end_close_ms,
-            training_observed_at=observed_ms,
+            training_observed_at=training_observed_at,
             limit=expected_rows,
             archive_integrity_proof=archive_integrity_proof,
+            _require_receipt_cutoff=(
+                require_receipt_committed_by_observation
+            ),
         )
         proof["range_proof"] = range_proof
         if rows is None:
