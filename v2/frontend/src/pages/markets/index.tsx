@@ -148,6 +148,11 @@ interface IngestorRow {
   status?: string | null;
   provider_current?: boolean | null;
   provider_unusable_reason?: string | null;
+  // Codex honesty reclassification: optional enrichment sources (e.g. CoinAPI)
+  // render a calm optional state, never an alarming hard failure.
+  optional_source?: boolean | null;
+  requirement_class?: string | null;
+  core_data_plane_required?: boolean | null;
 }
 
 interface IngestorsStatusData {
@@ -198,7 +203,9 @@ function MarketIngestorCoverage({ data }: { data: IngestorsStatusData | null | u
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8 }}>
           {rows.map((row) => {
-            const color = ingestorColor(row.status);
+            const isOptional = row.optional_source === true;
+            const calmOptional = isOptional && String(row.status ?? '').toLowerCase() !== 'live';
+            const color = calmOptional ? 'var(--text-muted)' : ingestorColor(row.status);
             return (
               <div
                 key={row.name}
@@ -214,8 +221,8 @@ function MarketIngestorCoverage({ data }: { data: IngestorsStatusData | null | u
                   <strong style={{ fontSize: 12, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {row.title || row.name}
                   </strong>
-                  <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color }}>
-                    {String(row.status ?? 'unknown').toUpperCase()}
+                  <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color, whiteSpace: 'nowrap' }}>
+                    {String(row.status ?? 'unknown').toUpperCase()}{isOptional ? ' · OPTIONAL' : ''}
                   </span>
                 </div>
                 <div style={{ display: 'grid', gap: 3, fontSize: 10.5, color: 'var(--text-muted)' }}>
@@ -223,10 +230,15 @@ function MarketIngestorCoverage({ data }: { data: IngestorsStatusData | null | u
                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'var(--font-mono)' }}>
                     {row.redis_pattern || '—'}
                   </span>
+                  {isOptional ? (
+                    <span>
+                      {(row.requirement_class ?? 'OPTIONAL_ENRICHMENT').replace(/_/g, ' ').toLowerCase()} · not required for core data plane
+                    </span>
+                  ) : null}
                   {row.provider_unusable_reason ? (
                     <span
                       title={row.provider_unusable_reason}
-                      style={{ color: 'var(--warn, #f59e0b)', overflowWrap: 'anywhere', wordBreak: 'break-word', minWidth: 0 }}
+                      style={{ color: calmOptional ? 'var(--text-muted)' : 'var(--warn, #f59e0b)', overflowWrap: 'anywhere', wordBreak: 'break-word', minWidth: 0 }}
                     >
                       {row.provider_unusable_reason}
                     </span>

@@ -45,6 +45,11 @@ interface IngestorRow {
   provider_usable?: boolean;
   provider_unusable_reason?: string | null;
   must_not_label_as_current_source?: boolean;
+  // Codex honesty reclassification: optional enrichment sources must render a
+  // calm optional state instead of an alarming red OFFLINE (backend system_metrics).
+  optional_source?: boolean | null;
+  requirement_class?: string | null;
+  core_data_plane_required?: boolean | null;
 }
 
 interface IngestorStatusData {
@@ -307,9 +312,19 @@ function Stat({ label, value, color, mono }: { label: string; value: React.React
   );
 }
 
+/** Optional-enrichment feeds (optional_source=true, e.g. CoinAPI) are not part of
+ * the required core data plane: when they are not live they get a calm muted
+ * treatment instead of the alarming red failure colour. */
+function rowTone(row: IngestorRow): string {
+  if (row.optional_source === true && row.status !== 'live') return 'var(--text-muted, #8296B3)';
+  return STATUS_COLOR[row.status] ?? 'var(--text-muted)';
+}
+
 /** One ingestor as a full-field glass status card — every field from the real payload. */
 function IngestorStatusCard({ row }: { row: IngestorRow }) {
-  const color = STATUS_COLOR[row.status] ?? 'var(--text-muted)';
+  const isOptional = row.optional_source === true;
+  const calmOptional = isOptional && row.status !== 'live';
+  const color = rowTone(row);
   const hasErrors = (row.upstream_error_payloads ?? 0) > 0;
   const providerKnown = row.provider_current !== undefined || row.provider_usable !== undefined;
   return (
@@ -321,22 +336,32 @@ function IngestorStatusCard({ row }: { row: IngestorRow }) {
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 12 }}>
         <span style={{ minWidth: 0, fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.title}</span>
-        <span style={{ flex: '0 0 auto', padding: '2px 9px', borderRadius: 999, fontSize: 10, fontWeight: 800, letterSpacing: '0.04em', color, background: `color-mix(in oklch, ${color} 14%, transparent)`, border: `1px solid color-mix(in oklch, ${color} 40%, transparent)`, textTransform: 'uppercase' }}>{row.status.replace(/_/g, ' ')}</span>
+        <span style={{ flex: '0 0 auto', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          {isOptional ? (
+            <span style={{ padding: '2px 9px', borderRadius: 999, fontSize: 10, fontWeight: 800, letterSpacing: '0.04em', color: 'var(--text-muted)', border: '1px dashed var(--border)', textTransform: 'uppercase' }}>optional</span>
+          ) : null}
+          <span style={{ padding: '2px 9px', borderRadius: 999, fontSize: 10, fontWeight: 800, letterSpacing: '0.04em', color, background: `color-mix(in oklch, ${color} 14%, transparent)`, border: `1px solid color-mix(in oklch, ${color} 40%, transparent)`, textTransform: 'uppercase' }}>{row.status.replace(/_/g, ' ')}</span>
+        </span>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '10px 14px' }}>
-        <Stat label="Freshness" value={fmtAge(row.newest_event_age_seconds)} color={ageColor(row.status, row.newest_event_age_seconds, row.live_within_seconds)} mono />
+        <Stat label="Freshness" value={fmtAge(row.newest_event_age_seconds)} color={calmOptional ? 'var(--text-muted)' : ageColor(row.status, row.newest_event_age_seconds, row.live_within_seconds)} mono />
         <Stat label="Keys / symbols" value={row.key_count != null ? row.key_count.toLocaleString() : '—'} mono />
         <Stat label="Sampled payloads" value={row.sampled_payloads != null ? row.sampled_payloads.toLocaleString() : '—'} mono />
         <Stat label="Upstream errors" value={row.upstream_error_payloads ?? 0} color={hasErrors ? 'var(--sell, #FF5D7A)' : 'var(--buy, #21C784)'} mono />
         {providerKnown ? (
           <>
             <Stat label="Provider current" value={row.provider_current ? 'yes' : 'no'} color={row.provider_current ? 'var(--buy, #21C784)' : 'var(--text-muted)'} />
-            <Stat label="Provider usable" value={row.provider_usable ? 'yes' : 'no'} color={row.provider_usable ? 'var(--buy, #21C784)' : 'var(--sell, #FF5D7A)'} />
+            <Stat label="Provider usable" value={row.provider_usable ? 'yes' : 'no'} color={row.provider_usable ? 'var(--buy, #21C784)' : calmOptional ? 'var(--text-muted)' : 'var(--sell, #FF5D7A)'} />
           </>
         ) : null}
       </div>
+      {isOptional ? (
+        <div style={{ marginTop: 10, fontSize: 11, color: 'var(--text-muted)' }}>
+          {(row.requirement_class ?? 'OPTIONAL_ENRICHMENT').replace(/_/g, ' ').toLowerCase()} · not required for core data plane
+        </div>
+      ) : null}
       {row.provider_unusable_reason ? (
-        <div style={{ marginTop: 10, fontSize: 11, color: 'var(--sell, #FF5D7A)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={row.provider_unusable_reason}>⚠ {row.provider_unusable_reason.replace(/_/g, ' ')}</div>
+        <div style={{ marginTop: isOptional ? 4 : 10, fontSize: 11, color: calmOptional ? 'var(--text-muted)' : 'var(--sell, #FF5D7A)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={row.provider_unusable_reason}>{calmOptional ? 'ℹ' : '⚠'} {row.provider_unusable_reason.replace(/_/g, ' ')}</div>
       ) : null}
       <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--glass-border, var(--border))', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
         <span style={{ minWidth: 0, fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={row.redis_pattern}>{row.redis_pattern}</span>
@@ -359,14 +384,27 @@ function IngestorCardGrid({ rows }: { rows: IngestorRow[] }) {
     for (const r of rows) c[r.status] = (c[r.status] ?? 0) + 1;
     return c;
   }, [rows]);
-  const summary: Array<{ label: string; key: string }> = [
-    { label: 'Total', key: 'total' },
-    { label: 'Live', key: 'live' },
-    { label: 'Stale', key: 'stale' },
-    { label: 'Upstream error', key: 'upstream_error' },
-    { label: 'Offline', key: 'offline' },
-    { label: 'Not started', key: 'not_started' },
-  ];
+  // Fixed buckets first, then any additional statuses actually present in the
+  // payload (e.g. unknown_freshness) so the tiles always account for every row.
+  const summary: Array<{ label: string; key: string }> = useMemo(() => {
+    const fixed: Array<{ label: string; key: string }> = [
+      { label: 'Total', key: 'total' },
+      { label: 'Live', key: 'live' },
+      { label: 'Stale', key: 'stale' },
+      { label: 'Upstream error', key: 'upstream_error' },
+      { label: 'Offline', key: 'offline' },
+      { label: 'Not started', key: 'not_started' },
+    ];
+    const known = new Set(fixed.map((s) => s.key));
+    const extras = Object.keys(counts)
+      .filter((key) => !known.has(key))
+      .sort()
+      .map((key) => {
+        const label = key.replace(/_/g, ' ');
+        return { label: label.charAt(0).toUpperCase() + label.slice(1), key };
+      });
+    return [...fixed, ...extras];
+  }, [counts]);
   return (
     <div style={{ marginBottom: 18 }}>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 10, marginBottom: 14 }}>
@@ -392,6 +430,9 @@ function IngestorsHub({ rows }: { rows: IngestorRow[] }) {
     return [...map.entries()].map(([status, value]) => ({ name: status.replace(/_/g, ' '), status, value }));
   }, [rows]);
 
+  // Bars are capped at 1h so one very stale feed does not crush the scale, but
+  // labels/tooltips always report the TRUE measured age (stale_within can be
+  // 1-4h, so real multi-hour ages are reachable and must not read as "1.0h").
   const freshnessData = useMemo(
     () =>
       rows
@@ -399,10 +440,13 @@ function IngestorsHub({ rows }: { rows: IngestorRow[] }) {
           name: row.title,
           status: row.status,
           age: row.newest_event_age_seconds != null ? Math.min(row.newest_event_age_seconds, 3600) : null,
+          trueAge: row.newest_event_age_seconds,
+          clamped: row.newest_event_age_seconds != null && row.newest_event_age_seconds > 3600,
         }))
         .filter((row) => row.age != null),
     [rows],
   );
+  const anyAgeClamped = useMemo(() => freshnessData.some((row) => row.clamped), [freshnessData]);
 
   const coverageData = useMemo(
     () => rows.map((row) => ({ name: row.title, keys: row.key_count, status: row.status })),
@@ -444,14 +488,40 @@ function IngestorsHub({ rows }: { rows: IngestorRow[] }) {
             <CartesianGrid stroke="var(--chart-grid)" strokeDasharray="2 4" horizontal={false} />
             <XAxis type="number" tick={{ fontSize: 11, fill: 'var(--text-muted)' }} tickFormatter={(v: number) => fmtAge(v)} />
             <YAxis type="category" dataKey="name" width={170} tick={{ fontSize: 11, fill: 'var(--text-secondary)' }} />
-            <Tooltip contentStyle={tooltipStyle} formatter={(value) => fmtAge(Number(value))} cursor={{ fill: 'color-mix(in oklch, var(--text-muted) 8%, transparent)' }} />
-            <Bar dataKey="age" barSize={12} radius={[0, 4, 4, 0]} label={{ position: 'right', fontSize: 10, fill: 'var(--text-muted)', formatter: (v: React.ReactNode) => fmtAge(Number(v)) }}>
+            <Tooltip
+              contentStyle={tooltipStyle}
+              formatter={(value, _name, item) => {
+                const trueAge = (item as { payload?: { trueAge?: number | null } } | undefined)?.payload?.trueAge;
+                return fmtAge(trueAge ?? Number(value));
+              }}
+              cursor={{ fill: 'color-mix(in oklch, var(--text-muted) 8%, transparent)' }}
+            />
+            <Bar
+              dataKey="age"
+              barSize={12}
+              radius={[0, 4, 4, 0]}
+              label={(props: { x?: number | string; y?: number | string; width?: number | string; height?: number | string; index?: number }) => {
+                const entry = props.index != null ? freshnessData[props.index] : undefined;
+                const x = Number(props.x ?? 0) + Number(props.width ?? 0) + 6;
+                const y = Number(props.y ?? 0) + Number(props.height ?? 0) / 2 + 3.5;
+                return (
+                  <text x={x} y={y} fontSize={10} fill="var(--text-muted)">
+                    {entry ? fmtAge(entry.trueAge) : ''}
+                  </text>
+                );
+              }}
+            >
               {freshnessData.map((entry) => (
                 <Cell key={entry.name} fill={STATUS_COLOR[entry.status] ?? SERIES[0]} stroke="var(--bg-panel)" strokeWidth={1} />
               ))}
             </Bar>
           </BarChart>
         </ResponsiveContainer>
+        {anyAgeClamped ? (
+          <p style={{ margin: '8px 0 0', fontSize: 11, color: 'var(--text-muted)' }}>
+            Bars are capped at 1h for scale; labels and tooltips show the true measured age.
+          </p>
+        ) : null}
       </div>
 
       <div className="glass" style={panelStyle}>
@@ -477,8 +547,10 @@ interface TrendPoint {
   rowCount: number;
 }
 
-/** Detail view for one ingestor: per-symbol freshness, values, live trend. */
-function IngestorDetail({ name }: { name: string }) {
+/** Detail view for one ingestor: per-symbol freshness, values, live trend.
+ * liveWithin = the feed's own liveness contract from /api/v2/ingestors/status
+ * (live_within_seconds — e.g. moralis polls every 300s so 660s is still live). */
+function IngestorDetail({ name, liveWithin }: { name: string; liveWithin?: number | null }) {
   const metrics = useRealtimeResource<IngestorMetricsData>({
     url: `/api/v2/ingestors/${name}/metrics?limit=120`,
     source: `redis ingestor ${name}`,
@@ -533,21 +605,41 @@ function IngestorDetail({ name }: { name: string }) {
     [rows],
   );
 
+  // Fresh vs lagging is graded against the feed's own liveness contract, not a
+  // hardcoded 60s: a healthy slow-cadence feed (moralis, 660s) must not be
+  // painted as degraded.
   const freshSplit = useMemo(() => {
+    const threshold = liveWithin != null && liveWithin > 0 ? liveWithin : 60;
     let fresh = 0;
     let lagging = 0;
     for (const row of rows) {
       if (row.age_seconds == null) continue;
-      if (row.age_seconds <= 60) fresh += 1;
+      if (row.age_seconds <= threshold) fresh += 1;
       else lagging += 1;
     }
     return [
-      { name: 'fresh ≤60s', value: fresh, color: 'var(--buy, #21C784)' },
-      { name: 'lagging >60s', value: lagging, color: '#A8841F' },
+      { name: `fresh ≤${fmtAge(threshold)}`, value: fresh, color: 'var(--buy, #21C784)' },
+      { name: `lagging >${fmtAge(threshold)}`, value: lagging, color: '#A8841F' },
     ];
-  }, [rows]);
+  }, [rows, liveWithin]);
 
+  const envelopeWarnings = metrics.envelope.warnings ?? [];
   if (metrics.envelope.source_type === 'unavailable' && !data) {
+    // The metrics API answers explicitly for dead-ends (e.g. an unknown
+    // ingestor name): surface its warnings instead of a fake loading state.
+    if (envelopeWarnings.length > 0) {
+      return (
+        <div className="glass" style={{ ...panelStyle, textAlign: 'center', fontSize: 13 }}>
+          <div style={{ fontWeight: 700, color: 'var(--sell, #FF5D7A)', marginBottom: 6 }}>Ingestor data unavailable</div>
+          {envelopeWarnings.map((warning) => (
+            <div key={warning} style={{ color: 'var(--text-muted)', marginBottom: 2 }}>{warning}</div>
+          ))}
+          <div style={{ marginTop: 10 }}>
+            <Link to="/markets/ingestors" style={{ color: 'var(--accent, #22D3C5)', fontSize: 12, textDecoration: 'none' }}>← Back to ingestor hub</Link>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="glass" style={{ ...panelStyle, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
         Waiting for live data stream…
@@ -706,7 +798,7 @@ export default function MarketsIngestorsPage() {
                   width: 8,
                   height: 8,
                   borderRadius: '50%',
-                  background: STATUS_COLOR[row.status] ?? 'var(--text-muted)',
+                  background: rowTone(row),
                 }}
               />
               {row.title}
@@ -724,7 +816,7 @@ export default function MarketsIngestorsPage() {
                 <IngestorStatusCard row={active} />
               </div>
             ) : null}
-            <IngestorDetail name={name} />
+            <IngestorDetail name={name} liveWithin={active ? active.live_within_seconds : null} />
           </>
         ) : (
           <IngestorsHub rows={rows} />
