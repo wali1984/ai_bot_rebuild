@@ -1,5 +1,5 @@
 import { useRealtimeResource } from '../../hooks/useRealtimeResource';
-import { usePayloadFile } from '../../hooks/usePayloadFile';
+import { fmtAge, usePayloadFile } from '../../hooks/usePayloadFile';
 import { FreshnessBadge } from '../../components/data/FreshnessBadge';
 import { SourceBadge } from '../../components/data/SourceBadge';
 import { LoadingSkeleton } from '../../components/ui/LoadingSkeleton';
@@ -62,7 +62,7 @@ export default function ReplayPage(): JSX.Element {
     mode: 'read_only',
   });
 
-  const { data: summary } = usePayloadFile<ReplaySummary>(REPLAY_SUMMARY_PATH, 30_000);
+  const { data: summary, error: summaryError, loading: summaryLoading, ageSeconds: summaryAgeSeconds } = usePayloadFile<ReplaySummary>(REPLAY_SUMMARY_PATH, 30_000);
   const status = envelope.data;
   const hasLastRun = status?.last_run != null;
   const hasEvents = status?.bounded_events_count != null;
@@ -152,7 +152,22 @@ export default function ReplayPage(): JSX.Element {
                 ))}
               </div>
               <p style={{ margin: '12px 0 0', fontSize: 11, color: 'var(--text-muted)' }}>
-                Source: historical 30-day replay proof · Static proof fixture · Not a live runtime stream
+                Source: historical 30-day replay proof · Static proof fixture{summaryAgeSeconds != null ? ` · Snapshot age ${fmtAge(summaryAgeSeconds)}` : ''} · Not a live runtime stream
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* The proof payload silently vanished once before (dist keep-list gap
+            served the SPA shell as text/html); never hide the panel silently —
+            surface an honest unreachable state instead (final field audit). */}
+        {!summary && !summaryLoading && (
+          <div style={{ marginBottom: 24 }}>
+            <h2 style={{ margin: '0 0 12px', fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>Historical 30-Day Proof</h2>
+            <div className="glass" style={{ padding: '18px 20px', border: '1px solid color-mix(in oklch, var(--warn) 45%, transparent)' }}>
+              <p style={{ margin: 0, fontSize: 12, color: 'var(--warn)', fontWeight: 600 }}>Proof payload unreachable</p>
+              <p style={{ margin: '6px 0 0', fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', overflowWrap: 'anywhere' }}>
+                {REPLAY_SUMMARY_PATH}{summaryError ? ` — ${summaryError}` : ' — static payload not served (check the public/ payload keep-list)'}
               </p>
             </div>
           </div>
