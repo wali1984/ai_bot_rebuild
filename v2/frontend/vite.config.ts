@@ -84,6 +84,14 @@ export default defineConfig(({ command }) => ({
         secure: false,
         ws: true,
       },
+      // Frontend-truth evidence payloads (public Simple Status page) are served
+      // by the backend; without this proxy the SPA fallback returns index.html
+      // and /status-simple never leaves its "connecting" state.
+      "/operator_runtime": {
+        target: process.env.VITE_API_PROXY_TARGET ?? "http://127.0.0.1:8000",
+        changeOrigin: true,
+        secure: false,
+      },
     },
     allowedHosts: [
       "localhost",
@@ -107,6 +115,12 @@ export default defineConfig(({ command }) => ({
         changeOrigin: true,
         secure: false,
         ws: true,
+      },
+      // Same as server.proxy: frontend-truth payloads live on the backend.
+      "/operator_runtime": {
+        target: process.env.VITE_API_PROXY_TARGET ?? "http://127.0.0.1:8000",
+        changeOrigin: true,
+        secure: false,
       },
     },
   },

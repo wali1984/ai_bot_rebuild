@@ -285,8 +285,10 @@ export default function PublicStatusPage(): JSX.Element {
             {[
               { label: 'Market screener', status: 'Available', ok: true },
               { label: 'Symbol detail', status: 'Available', ok: true },
-              { label: 'Derivatives data', status: 'Available', ok: true },
-              { label: 'Signal preview', status: 'Available', ok: true },
+              // /derivatives and /signals redirect logged-out users to /login —
+              // the public status page must not imply public access to them.
+              { label: 'Derivatives data', status: 'Available (auth required)', ok: true },
+              { label: 'Signal preview', status: 'Available (auth required)', ok: true },
               { label: 'Portfolio', status: 'Available (auth required)', ok: true },
               { label: 'Alerts', status: 'Available (auth required)', ok: true },
               { label: 'Backtests', status: 'Coming soon', ok: false },

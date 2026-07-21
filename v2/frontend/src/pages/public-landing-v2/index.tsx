@@ -51,7 +51,7 @@ function changeColor(v: number | null | undefined): string {
 // ─── Sub-components ───────────────────────────────────────────────────────────
 const HERO_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT'] as const;
 
-function HeroPriceCard({ ticker }: { ticker: TickerRow | undefined; }): JSX.Element {
+function HeroPriceCard({ ticker, stale }: { ticker: TickerRow | undefined; stale: boolean }): JSX.Element {
   const sym = ticker?.symbol ?? 'BTC';
   const base = sym.replace('USDT', '');
   const price = ticker?.last_price;
@@ -60,6 +60,10 @@ function HeroPriceCard({ ticker }: { ticker: TickerRow | undefined; }): JSX.Elem
   const up = pct == null ? null : pct >= 0;
   const color = up == null ? 'rgba(190,210,230,0.4)' : up ? '#12b886' : '#ff6b6b';
   const borderColor = up == null ? 'rgba(255,255,255,0.06)' : up ? 'rgba(18,184,134,0.2)' : 'rgba(255,107,107,0.2)';
+  // Honest freshness: only claim LIVE while the overview envelope is fresh or
+  // delayed; a stale/offline feed must not keep asserting LIVE to the public.
+  const badgeLabel = ticker ? (stale ? 'STALE' : 'LIVE') : 'LOADING';
+  const badgeColor = ticker && stale ? '#f59e0b' : color;
 
   return (
     <div
@@ -90,12 +94,12 @@ function HeroPriceCard({ ticker }: { ticker: TickerRow | undefined; }): JSX.Elem
             fontFamily: 'var(--font-mono)',
             padding: '2px 6px',
             borderRadius: 4,
-            background: `${color}14`,
-            color,
+            background: `${badgeColor}14`,
+            color: badgeColor,
             letterSpacing: '0.06em',
           }}
         >
-          {ticker ? 'LIVE' : 'LOADING'}
+          {badgeLabel}
         </span>
       </div>
 
@@ -115,10 +119,13 @@ function HeroPriceCard({ ticker }: { ticker: TickerRow | undefined; }): JSX.Elem
   );
 }
 
-function MoverCard({ row, type }: { row: TickerRow; type: 'gainer' | 'loser' }): JSX.Element {
+function MoverCard({ row }: { row: TickerRow; type: 'gainer' | 'loser' }): JSX.Element {
   const base = row.symbol.replace('USDT', '');
   const pct = row.change_24h == null ? null : (Math.abs(row.change_24h) <= 1 ? row.change_24h * 100 : row.change_24h);
-  const color = type === 'gainer' ? '#12b886' : '#ff6b6b';
+  // Color by the actual sign of the move, never by list category: on quiet
+  // days the TOP LOSERS column contains positive movers and must not paint
+  // gains in loss-red.
+  const color = pct == null ? 'rgba(190,210,230,0.45)' : pct >= 0 ? '#12b886' : '#ff6b6b';
 
   return (
     <Link
@@ -231,6 +238,8 @@ export default function PublicLandingPage(): JSX.Element {
       : marketResource.error
         ? 'error'
         : 'idle';
+  const overviewFreshness = marketResource.envelope.freshness_status;
+  const overviewStale = overviewFreshness !== 'fresh' && overviewFreshness !== 'delayed';
 
   // Hero price cards — BTC, ETH, SOL, BNB
   const heroTickers = useMemo(() => {
@@ -295,7 +304,9 @@ export default function PublicLandingPage(): JSX.Element {
           style={{
             ...S.wrap,
             display: 'grid',
-            gridTemplateColumns: 'repeat(6, 1fr)',
+            // auto-fit + minmax so the rail wraps to 2-3 columns on narrow
+            // viewports instead of overlapping glyphs at fixed 6 columns.
+            gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
             gap: 0,
           }}
         >
@@ -437,7 +448,7 @@ export default function PublicLandingPage(): JSX.Element {
           {/* Hero price cards */}
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
             {HERO_SYMBOLS.map((sym, i) => (
-              <HeroPriceCard key={sym} ticker={heroTickers[i]} />
+              <HeroPriceCard key={sym} ticker={heroTickers[i]} stale={overviewStale} />
             ))}
           </div>
         </div>

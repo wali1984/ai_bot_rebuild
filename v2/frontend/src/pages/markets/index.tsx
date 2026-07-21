@@ -809,6 +809,9 @@ export default function MarketsPage(): JSX.Element {
         style={{
           display: 'flex',
           alignItems: 'center',
+          // Wrap on narrow viewports: the nowrap tab labels + fixed-width
+          // search must never overlap at 390px.
+          flexWrap: 'wrap',
           background: 'var(--bg-panel)',
           borderBottom: '1px solid var(--border)',
           padding: '0 16px',

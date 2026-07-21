@@ -28,6 +28,7 @@ import { useMarketDataStream } from '../../hooks/useMarketDataStream';
 import { useRealtimeResource } from '../../hooks/useRealtimeResource';
 import { useTraderSnapshot } from '../../hooks/useTraderSnapshot';
 import { CanonicalMetricValue } from '../../components/data/CanonicalMetric';
+import type { CanonicalMetric } from '../../selectors/accountSelectors';
 import { selectMarketBySymbol, selectMarketMetric } from '../../selectors/marketSelectors';
 import { SymbolIntelSection } from './intelPanels';
 import type {
@@ -942,6 +943,29 @@ export default function MarketPage(): JSX.Element {
   const signalLoading = Boolean(user) && signalResource.loading && !signalResource.envelope.data;
   const canonicalMarket = safeSymbol ? selectMarketBySymbol(traderSnapshot, safeSymbol) ?? {} : {};
   const canonicalMarketMetric = (fieldId: string) => selectMarketMetric(traderSnapshot, canonicalMarket, fieldId);
+  // The authenticated trader snapshot is 401-gated; for logged-out visitors fall
+  // back to the public /api/v2/market/{symbol} ticker so the canonical LAST /
+  // MARK / INDEX price cards render real, fresh values instead of "Source
+  // offline" (same pattern as the /markets BTC canonical cards).
+  const marketPriceMetric = (
+    fieldId: string,
+    publicKey: 'last_price' | 'mark_price' | 'index_price',
+  ): CanonicalMetric => {
+    const authed = canonicalMarketMetric(fieldId);
+    if (authed.value != null) return authed;
+    const publicValue = ticker?.[publicKey] ?? null;
+    if (publicValue == null) return authed;
+    const publicEnvelope = tickerResource.envelope;
+    return {
+      ...authed,
+      value: publicValue,
+      source: publicEnvelope.source ?? (safeSymbol ? `/api/v2/market/${safeSymbol}` : '/api/v2/market/{symbol}'),
+      sourceType: publicEnvelope.source_type ?? 'api',
+      timestamp: publicEnvelope.timestamp != null ? new Date(publicEnvelope.timestamp).toISOString() : null,
+      ageMs: publicEnvelope.lag_ms ?? null,
+      quality: 'valid',
+    };
+  };
   const change = ticker?.change_24h ?? null;
   const changeDisplay = useMemo(() => {
     if (change === null) return null;
@@ -1006,7 +1030,7 @@ export default function MarketPage(): JSX.Element {
           <span className="mdc-kicker">Perpetual Futures · Live Market</span>
           <h1>
             {symbol}
-            {safeSymbol && <span className="mdc-header__price"><CanonicalMetricValue metric={canonicalMarketMetric('market.last_price')} /></span>}
+            {safeSymbol && <span className="mdc-header__price"><CanonicalMetricValue metric={marketPriceMetric('market.last_price', 'last_price')} /></span>}
             {changeDisplay && (
               <span className={`mdc-header__change ${changeDisplay.positive ? 'mdc-pos' : 'mdc-neg'}`}>
                 {changeDisplay.positive ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
@@ -1019,15 +1043,15 @@ export default function MarketPage(): JSX.Element {
         <div className="mdc-header__strip">
           <div className="mdc-hstat">
             <span>Last Price</span>
-            <strong><CanonicalMetricValue metric={canonicalMarketMetric('market.last_price')} /></strong>
+            <strong><CanonicalMetricValue metric={marketPriceMetric('market.last_price', 'last_price')} /></strong>
           </div>
           <div className="mdc-hstat">
             <span>Mark Price</span>
-            <strong><CanonicalMetricValue metric={canonicalMarketMetric('market.mark_price')} /></strong>
+            <strong><CanonicalMetricValue metric={marketPriceMetric('market.mark_price', 'mark_price')} /></strong>
           </div>
           <div className="mdc-hstat">
             <span>Index Price</span>
-            <strong><CanonicalMetricValue metric={canonicalMarketMetric('market.index_price')} /></strong>
+            <strong><CanonicalMetricValue metric={marketPriceMetric('market.index_price', 'index_price')} /></strong>
           </div>
           {ticker ? (
             <>
@@ -1137,9 +1161,9 @@ export default function MarketPage(): JSX.Element {
 
             {ticker && (
               <div className="mdc-stats-grid">
-                <Stat label="Last price" value={<CanonicalMetricValue metric={canonicalMarketMetric('market.last_price')} />} />
-                <Stat label="Mark Price" value={<CanonicalMetricValue metric={canonicalMarketMetric('market.mark_price')} />} />
-                <Stat label="Index Price" value={<CanonicalMetricValue metric={canonicalMarketMetric('market.index_price')} />} />
+                <Stat label="Last price" value={<CanonicalMetricValue metric={marketPriceMetric('market.last_price', 'last_price')} />} />
+                <Stat label="Mark Price" value={<CanonicalMetricValue metric={marketPriceMetric('market.mark_price', 'mark_price')} />} />
+                <Stat label="Index Price" value={<CanonicalMetricValue metric={marketPriceMetric('market.index_price', 'index_price')} />} />
                 <Stat label="1h Change" value={fmtPct(ticker.change_1h ?? null)} tone={changeClass(ticker.change_1h ?? null)} />
                 <Stat label="4h Change" value={fmtPct(ticker.change_4h ?? null)} tone={changeClass(ticker.change_4h ?? null)} />
                 <Stat label="24h High" value={fmtPrice(ticker.high_24h)} tone="mdc-pos" />

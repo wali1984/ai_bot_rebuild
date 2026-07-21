@@ -24,6 +24,17 @@ function formatNumber(value: number, digits: number): string {
   });
 }
 
+// Registry price fields carry decimalPrecision=8 (micro-cap alt support), but
+// large quotes must not render as "65,545.70000000". Cap displayed decimals by
+// magnitude while keeping full precision available for sub-cent prices.
+function priceDigits(value: number, maxDigits: number): number {
+  const abs = Math.abs(value);
+  if (abs >= 100) return Math.min(maxDigits, 2);
+  if (abs >= 1) return Math.min(maxDigits, 4);
+  if (abs >= 0.01) return Math.min(maxDigits, 6);
+  return maxDigits;
+}
+
 function formatPercentValue(value: number, digits: number): string {
   const normalized = Math.abs(value) <= 1 ? value * 100 : value;
   return `${normalized.toFixed(digits)}%`;
@@ -46,7 +57,7 @@ export function canonicalMetricDisplay(metric: CanonicalMetric, emptyText = 'Sou
   const formatter = metric.definition?.displayFormatter;
   const num = finiteNumber(value);
   if (formatter === 'usd') return num === null ? String(value) : usdFormatter.format(num);
-  if (formatter === 'price') return num === null ? String(value) : formatNumber(num, precision(metric));
+  if (formatter === 'price') return num === null ? String(value) : formatNumber(num, priceDigits(num, precision(metric)));
   if (formatter === 'quantity') return num === null ? String(value) : formatNumber(num, precision(metric));
   if (formatter === 'percent') return num === null ? String(value) : formatPercentValue(num, precision(metric));
   if (formatter === 'ratio') return num === null ? String(value) : formatNumber(num, precision(metric));
