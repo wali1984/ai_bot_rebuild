@@ -384,21 +384,30 @@ struct AuditLedgerView: View {
     }
 
     private func summaryCard(_ s: AuditLedgerSummary) -> some View {
-        HStack(spacing: 12) {
+        // Tri-state chain health: OK (green), BROKEN (red), EMPTY/UNKNOWN (muted).
+        let chainColor: Color = {
+            if let ok = s.chain_ok { return ok ? NerVyx.validation : NerVyx.sell }
+            return NerVyx.textMuted
+        }()
+        let chainIcon: String = {
+            if let ok = s.chain_ok { return ok ? "link" : "link.badge.plus" }
+            return s.isKnownEmpty ? "tray" : "questionmark.circle"
+        }()
+        return HStack(spacing: 12) {
             Circle()
-                .fill(s.chain_ok ? NerVyx.validation.opacity(0.15) : NerVyx.sell.opacity(0.15))
+                .fill(chainColor.opacity(0.15))
                 .frame(width: 44, height: 44)
                 .overlay(
-                    Image(systemName: s.chain_ok ? "link" : "link.badge.plus")
+                    Image(systemName: chainIcon)
                         .font(.system(size: 18))
-                        .foregroundStyle(s.chain_ok ? NerVyx.validation : NerVyx.sell)
+                        .foregroundStyle(chainColor)
                 )
             VStack(alignment: .leading, spacing: 4) {
                 Text("Chain: \(s.chainLabel)")
                     .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(s.chain_ok ? NerVyx.validation : NerVyx.sell)
+                    .foregroundStyle(chainColor)
                 HStack(spacing: 10) {
-                    Text("Last event \(s.ageLabel)")
+                    Text(s.isKnownEmpty ? "No audit events recorded yet" : "Last event \(s.ageLabel)")
                         .font(.system(size: 12))
                         .foregroundStyle(NerVyx.textMuted)
                     if let ts = s.last_event_ts {
@@ -411,16 +420,16 @@ struct AuditLedgerView: View {
             Spacer()
             NerVyxBadge(
                 text: s.chainLabel,
-                color: s.chain_ok ? NerVyx.validation : NerVyx.sell,
+                color: chainColor,
                 small: true
             )
         }
         .padding(14)
-        .background(s.chain_ok ? NerVyx.validation.opacity(0.06) : NerVyx.sell.opacity(0.06))
+        .background(chainColor.opacity(0.06))
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .overlay(
             RoundedRectangle(cornerRadius: 12)
-                .stroke(s.chain_ok ? NerVyx.validation.opacity(0.25) : NerVyx.sell.opacity(0.25), lineWidth: 1)
+                .stroke(chainColor.opacity(0.25), lineWidth: 1)
         )
     }
 

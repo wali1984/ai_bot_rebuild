@@ -435,7 +435,7 @@ struct IngestorDetailView: View {
                 Spacer(minLength: 6)
                 Text(NerVyxFormat.age(metricRow.age_seconds))
                     .font(.system(size: 12, design: .monospaced))
-                    .foregroundStyle(ingestorFreshnessColor(metricRow.age_seconds))
+                    .foregroundStyle(ingestorFreshnessColor(metricRow.age_seconds, liveWithin: row.live_within_seconds))
             }
 
             HStack(alignment: .center, spacing: 12) {

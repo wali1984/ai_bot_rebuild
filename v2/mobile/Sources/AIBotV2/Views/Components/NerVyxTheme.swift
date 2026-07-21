@@ -374,8 +374,9 @@ struct StatChip: View {
 enum NerVyxFormat {
     static func money(_ value: Double?, decimals: Int = 2, signed: Bool = false) -> String {
         guard let value, value.isFinite else { return "—" }
-        let sign = signed && value > 0 ? "+" : ""
-        return "\(sign)$\(String(format: "%.\(decimals)f", value))"
+        // Sign goes BEFORE the dollar: "-$14.41", never "$-14.41".
+        let sign = value < 0 ? "-" : (signed && value > 0 ? "+" : "")
+        return "\(sign)$\(String(format: "%.\(decimals)f", abs(value)))"
     }
 
     static func percent(_ fraction: Double?, decimals: Int = 1) -> String {

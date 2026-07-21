@@ -1460,12 +1460,22 @@ public struct AdminRisk: Decodable, Equatable {
 // MARK: - Audit Ledger
 
 public struct AuditLedgerSummary: Decodable, Equatable {
-    public let chain_ok: Bool
+    /// nil when the ledger has no events yet (API sends chain_ok=null with chain_state=EMPTY).
+    public let chain_ok: Bool?
+    public let chain_state: String?
+    public let event_count_known_empty: Bool?
     public let tail_age_ms: Int?
     public let last_event_id: String?
     public let last_event_ts: String?
 
-    public var chainLabel: String { chain_ok ? "OK" : "BROKEN" }
+    /// True when the API verifiably reports an empty ledger (honest-empty, not an error).
+    public var isKnownEmpty: Bool {
+        chain_state?.uppercased() == "EMPTY" || event_count_known_empty == true
+    }
+    public var chainLabel: String {
+        if let chain_ok { return chain_ok ? "OK" : "BROKEN" }
+        return isKnownEmpty ? "EMPTY" : "UNKNOWN"
+    }
     public var ageLabel: String {
         guard let ms = tail_age_ms else { return "—" }
         let s = ms / 1000
@@ -1498,78 +1508,6 @@ public struct AuditLedgerEntry: Decodable, Identifiable, Equatable {
         guard let c = chain_status?.lowercased() else { return true }
         return !["broken", "mismatch", "false"].contains(c)
     }
-}
-
-// MARK: - Live Readiness
-
-public struct LiveReadinessGate: Decodable, Identifiable, Equatable {
-    public let id: String
-    public let name: String
-    public let sub: String
-    public let source_route_or_key: String
-    public let state: String
-
-    public var isPassed: Bool { state == "passed" }
-    public var isBlocked: Bool { state == "blocked" }
-    public var isLocked: Bool { state == "locked" }
-    public var displayState: String { state.uppercased() }
-    public var stateEmoji: String {
-        switch state {
-        case "passed": return "✓"
-        case "blocked": return "✗"
-        case "locked": return "⊘"
-        default: return "…"
-        }
-    }
-}
-
-// MARK: - Paper Activity / Executions
-
-public struct PaperActivityEvent: Decodable, Identifiable, Equatable {
-    public let event_id: String?
-    public let event_type: String?
-    public let symbol: String?
-    public let side: String?
-    public let action: String?
-    public let realized_pnl_usd: Double?
-    public let entry_price: Double?
-    public let exit_price: Double?
-    public let quantity: Double?
-    public let timestamp: String?
-    public let reason: String?
-    public let strategy_id: String?
-
-    public var id: String { event_id ?? UUID().uuidString }
-    public var displayType: String { event_type?.uppercased() ?? "EVENT" }
-    public var displaySymbol: String {
-        guard let s = symbol else { return "—" }
-        return s.hasSuffix("USDT") ? String(s.dropLast(4)) : s
-    }
-    public var isBuy: Bool { (side ?? action ?? "").lowercased().contains("long") || (side ?? action ?? "").lowercased().contains("buy") }
-    public var pnlSign: String { (realized_pnl_usd ?? 0) >= 0 ? "+" : "" }
-}
-
-public struct PaperActivityResponse: Decodable {
-    public let generated_utc: String
-    public let events: [PaperActivityEvent]
-    public let total_returned: Int?
-    public let mode: String?
-}
-
-// MARK: - Capital Productivity (extended from paper summary)
-
-public struct MobileCapitalProductivity: Decodable, Equatable {
-    public let generated_utc: String
-    public let win_rate_pct: Double?
-    public let profit_factor: Double?
-    public let mean_pnl_bps: Double?
-    public let max_drawdown_pct: Double?
-    public let total_trades: Int?
-    public let winning_trades: Int?
-    public let losing_trades: Int?
-    public let avg_win_usd: Double?
-    public let avg_loss_usd: Double?
-    public let expectancy_usd: Double?
 }
 
 // MARK: - Signal Matrix (for Predictions/Explainability)
@@ -1742,53 +1680,6 @@ public struct BacktestResults: Decodable, Equatable {
     public let policy_backtest: PolicyBacktest?
     public let generalization: BacktestGeneralization?
     public let replay_feedback: ReplayFeedback?
-}
-
-// MARK: - Realtime ai_brain snapshot blocks (streamed over the ai_brain WS resource)
-public struct AIBrainEdge: Decodable, Equatable {
-    public let policy_entropy: Double?
-    public let rollout_reward_avg_bps: Double?
-    public let rollout_reward_max_bps: Double?
-    public let rollout_reward_min_bps: Double?
-    public let online_learning_status: String?
-    public let last_weight_update: String?
-}
-
-public struct AIBrainBacktest: Decodable, Equatable {
-    public let available: Bool?
-    public let win_rate: Double?
-    public let profit_factor: Double?
-    public let expectancy_after_cost_bps: Double?
-    public let rows_evaluated: Int?
-    public let evidence_class: String?
-    public let backtest_is_a_plus_evidence: Bool?
-    public let validation_supervised_loss: Double?
-    public let train_loss: Double?
-    public let train_val_generalization_gap: Double?
-    public let overfit_gap_warning: Bool?
-    public let continuous_replay_active: Bool?
-    public let replay_examples_built: Int?
-    public let counterfactual_rows: Int?
-    public let counterfactual_pending: Int?
-}
-
-public struct AGradeRunway: Decodable, Equatable {
-    public let gate_status: String?
-    public let a_grade_new_entries_allowed: Bool?
-    public let A_grade_rows: Int?
-    public let near_A_grade_rows: Int?
-    public let closed_rows: Int?
-    public let preemptive_candidate_count: Int?
-    public let preemptive_accepted_count: Int?
-    public let preemptive_action_counts: [String: Int]?
-}
-
-public struct AIBrainSnapshot: Decodable, Equatable {
-    public let edge: AIBrainEdge?
-    public let backtest_replay: AIBrainBacktest?
-    public let a_grade_runway: AGradeRunway?
-    public let generated_at_utc: String?
-    public let freshness_status: String?
 }
 
 // MARK: - Markets overview (/api/v2/market/overview)
@@ -2400,23 +2291,4 @@ public struct DataHealthResponse: Decodable, Equatable {
     public let generated_at_utc: String?
     public let stale: Bool?
     public let live_gate: String?
-}
-
-// MARK: - System metrics (/api/v2/system/metrics)
-
-public struct SystemMetricsData: Decodable, Equatable {
-    public let cpu_percent: Double?
-    public let memory_percent: Double?
-    public let memory_used_gb: Double?
-    public let memory_total_gb: Double?
-    public let disk_percent: Double?
-    public let disk_used_gb: Double?
-    public let disk_total_gb: Double?
-    public let network_sent_mb: Double?
-    public let network_recv_mb: Double?
-}
-
-public struct SystemMetricsResponse: Decodable, Equatable {
-    public let data: SystemMetricsData?
-    public let generated_at_utc: String?
 }

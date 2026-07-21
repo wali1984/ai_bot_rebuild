@@ -95,6 +95,7 @@ struct iPadLayout: View {
                 }
                 Section("NERVYX OBSERVE") {
                     sidebarRow(.monitor,     "System Monitor",  "server.rack")
+                    sidebarRow(.serviceHealth, "Service Health", "stethoscope")
                     sidebarRow(.providers,   "Providers",       "antenna.radiowaves.left.and.right")
                 }
                 if auth.currentSession?.isAdmin == true {
