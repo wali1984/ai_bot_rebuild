@@ -42,6 +42,16 @@ class FakeRedis:
     def eval(self, script: str, numkeys: int, *args: Any) -> Any:
         keys = [str(item) for item in args[:numkeys]]
         argv = [str(item) for item in args[numkeys:]]
+        if "MORALIS_AGGREGATE_CAS_V1" in script:
+            current = self.data.get(keys[0])
+            if argv[0] == "0":
+                if current is not None:
+                    return 0
+            elif current != argv[1]:
+                return 0
+            self.data[keys[0]] = argv[2]
+            self.ttls[keys[0]] = int(argv[3])
+            return 1
         if "MORALIS_FENCED_CADENCE_CLAIM_V1" in script:
             if self.data.get(keys[0]) != argv[0]:
                 return [-1, 0]
@@ -118,7 +128,15 @@ class FakeClient:
         self.limiter = FakeLimiter(redis_client)
         self.calls: list[str] = []
 
-    def get(self, spec, *, chain: str, wallet: str | None = None, token: str | None = None, symbol: str | None = None):
+    def get(
+        self,
+        spec,
+        *,
+        chain: str,
+        wallet: str | None = None,
+        token: str | None = None,
+        symbol: str | None = None,
+    ):
         self.calls.append(spec.endpoint_id)
         return MoralisResponse(
             spec.endpoint_id,
@@ -127,7 +145,15 @@ class FakeClient:
             token,
             symbol,
             200,
-            {"result": [{"direction": "out", "value_usd": 100, "block_timestamp": "2026-07-08T12:00:00Z"}]},
+            {
+                "result": [
+                    {
+                        "direction": "out",
+                        "value_usd": 100,
+                        "block_timestamp": "2026-07-08T12:00:00Z",
+                    }
+                ]
+            },
             request_dispatched=True,
         )
 
@@ -208,7 +234,11 @@ def test_moralis_loop_no_watchlist_publishes_gray_and_makes_no_requests(monkeypa
     assert health["heartbeat_only"] is True
     assert health["missing_mask_true"] is True
     feature_payload = json.loads(redis_client.data["v2:features:moralis:BTCUSDT:1m"])
-    assert feature_payload["schema_version"] == "moralis_feature_bridge_v1"
+    assert feature_payload["schema_version"] == "moralis_feature_bridge_v2"
+    assert feature_payload["required_feature_count"] == 0
+    assert feature_payload["optional_feature_count"] == 7
+    assert feature_payload["available_at"] is None
+    assert feature_payload["publication_authority"] is False
     assert feature_payload["heartbeat_only"] is True
     assert feature_payload["dashboard_color"] == "GRAY"
     assert feature_payload["missing_feature_flags"]
