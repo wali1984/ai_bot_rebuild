@@ -23,8 +23,10 @@ import hmac
 import json
 import math
 import re
+import secrets
 import struct
 from dataclasses import dataclass, field, replace
+from dataclasses import fields as dataclass_fields
 from datetime import UTC, datetime
 from typing import Any, Final, NoReturn, cast
 
@@ -77,6 +79,14 @@ _CORPUS_TOKEN = object()
 _ROW_TOKEN = object()
 _CLOCK_RANGE_TOKEN = object()
 _EXECUTION_TOKEN = object()
+_FACTORY_SEAL_TOKEN = object()
+_FACTORY_SEAL_KEY = secrets.token_bytes(32)
+_ROW_FACTORY_SEAL_DOMAIN = b"authenticated_profiled_optimizer_corpus_row_factory_seal_v1"
+_CLOCK_RANGE_FACTORY_SEAL_DOMAIN = b"authenticated_profiled_optimizer_clock_range_factory_seal_v1"
+_CORPUS_FACTORY_SEAL_DOMAIN = b"authenticated_profiled_optimizer_corpus_factory_seal_v1"
+_EXECUTION_FACTORY_SEAL_DOMAIN = (
+    b"authenticated_profiled_supervised_optimizer_execution_factory_seal_v1"
+)
 
 
 class AuthenticatedProfiledOptimizerCorpusV1Error(RuntimeError):
@@ -89,6 +99,51 @@ class AuthenticatedProfiledOptimizerCorpusV1Error(RuntimeError):
 
 def _fail(*reasons: str) -> NoReturn:
     raise AuthenticatedProfiledOptimizerCorpusV1Error(*reasons) from None
+
+
+class _FactorySeal:
+    """One-time factory seal that cannot be reused for changed material."""
+
+    __slots__ = ("_digest", "_domain")
+
+    def __init__(self, *, domain: bytes, construction_token: object) -> None:
+        if construction_token is not _FACTORY_SEAL_TOKEN or type(domain) is not bytes:
+            _fail("PROFILED_OPTIMIZER_CORPUS_FACTORY_SEAL_CONSTRUCTION_FORBIDDEN")
+        object.__setattr__(self, "_domain", bytes(domain))
+        object.__setattr__(self, "_digest", None)
+
+    def __setattr__(self, _name: str, _value: object) -> NoReturn:
+        _fail("PROFILED_OPTIMIZER_CORPUS_FACTORY_SEAL_IMMUTABLE")
+
+    def validate_or_bind(self, *, domain: bytes, material: object, reason: str) -> None:
+        if self._domain != domain:
+            _fail(reason)
+        expected = hmac.digest(
+            _FACTORY_SEAL_KEY,
+            domain + b"\0" + _canonical_bytes(material, reason=reason),
+            "sha256",
+        )
+        current = self._digest
+        if current is None:
+            object.__setattr__(self, "_digest", expected)
+        elif type(current) is not bytes or not hmac.compare_digest(current, expected):
+            _fail(reason)
+
+
+def _require_factory_seal(
+    value: object,
+    *,
+    domain: bytes,
+    material: object,
+    reason: str,
+) -> None:
+    if type(value) is not _FactorySeal:
+        _fail(reason)
+    cast(_FactorySeal, value).validate_or_bind(
+        domain=domain,
+        material=material,
+        reason=reason,
+    )
 
 
 def _valid_sha256(value: object) -> bool:
@@ -164,6 +219,39 @@ def _label_value_sha256(value: object) -> str:
 
 def _false_downstream_authority(values: tuple[bool, ...]) -> bool:
     return all(value is False for value in values)
+
+
+def _corpus_factory_seal_value(value: object) -> object:
+    if type(value) is AuthenticatedProfiledOutcomeSupervisedTargetV1:
+        return {
+            "target_sha256": cast(
+                AuthenticatedProfiledOutcomeSupervisedTargetV1,
+                value,
+            ).target_sha256
+        }
+    row_type = globals().get("AuthenticatedProfiledOptimizerCorpusRowV1")
+    if row_type is not None and type(value) is row_type:
+        return {"row_inventory_sha256": cast(Any, value).row_inventory_sha256}
+    clock_type = globals().get("AuthenticatedProfiledOptimizerCausalClockRangeV1")
+    if clock_type is not None and type(value) is clock_type:
+        return {"causal_clock_range_sha256": cast(Any, value).causal_clock_range_sha256}
+    if type(value) is tuple:
+        return [_corpus_factory_seal_value(item) for item in cast(tuple[object, ...], value)]
+    if value is None or type(value) in {str, int, float, bool}:
+        return value
+    _fail("PROFILED_OPTIMIZER_CORPUS_FACTORY_SEAL_MATERIAL_INVALID")
+
+
+def _corpus_factory_seal_material(value: object) -> dict[str, object]:
+    try:
+        items = dataclass_fields(value)
+    except TypeError:
+        _fail("PROFILED_OPTIMIZER_CORPUS_FACTORY_SEAL_MATERIAL_INVALID")
+    return {
+        item.name: _corpus_factory_seal_value(getattr(value, item.name))
+        for item in items
+        if not item.name.startswith("_")
+    }
 
 
 def _validate_admission(admission: object) -> AuthenticatedProfiledOptimizerAdmissionV1:
@@ -311,6 +399,7 @@ class AuthenticatedProfiledOptimizerCorpusRowV1:
     order_submission_authorized: bool
     execution_authorized: bool
     runtime_wired: bool
+    _factory_seal: _FactorySeal = field(repr=False, compare=False)
     _construction_token: object = field(repr=False, compare=False)
 
     def __post_init__(self) -> None:
@@ -417,6 +506,12 @@ class AuthenticatedProfiledOptimizerCorpusRowV1:
             )
         ):
             _fail("PROFILED_OPTIMIZER_CORPUS_ROW_INVALID")
+        _require_factory_seal(
+            self._factory_seal,
+            domain=_ROW_FACTORY_SEAL_DOMAIN,
+            material=_corpus_factory_seal_material(self),
+            reason="PROFILED_OPTIMIZER_CORPUS_ROW_FACTORY_SEAL_INVALID",
+        )
 
 
 def _build_row(
@@ -483,6 +578,10 @@ def _build_row(
         order_submission_authorized=False,
         execution_authorized=False,
         runtime_wired=False,
+        _factory_seal=_FactorySeal(
+            domain=_ROW_FACTORY_SEAL_DOMAIN,
+            construction_token=_FACTORY_SEAL_TOKEN,
+        ),
         _construction_token=_ROW_TOKEN,
     )
 
@@ -532,6 +631,7 @@ class AuthenticatedProfiledOptimizerCausalClockRangeV1:
     observation_time: str
     ordered_row_clock_inventory_sha256: str
     causal_clock_range_sha256: str
+    _factory_seal: _FactorySeal = field(repr=False, compare=False)
     _construction_token: object = field(repr=False, compare=False)
 
     def __post_init__(self) -> None:
@@ -582,6 +682,12 @@ class AuthenticatedProfiledOptimizerCausalClockRangeV1:
         _clock(
             self.observation_time,
             reason="PROFILED_OPTIMIZER_CORPUS_CLOCK_RANGE_OBSERVATION_INVALID",
+        )
+        _require_factory_seal(
+            self._factory_seal,
+            domain=_CLOCK_RANGE_FACTORY_SEAL_DOMAIN,
+            material=_corpus_factory_seal_material(self),
+            reason="PROFILED_OPTIMIZER_CORPUS_CLOCK_RANGE_FACTORY_SEAL_INVALID",
         )
 
     def _as_material(self) -> dict[str, Any]:
@@ -661,6 +767,10 @@ def _clock_range(
     return AuthenticatedProfiledOptimizerCausalClockRangeV1(
         **material,
         causal_clock_range_sha256=stable_sha256(material),
+        _factory_seal=_FactorySeal(
+            domain=_CLOCK_RANGE_FACTORY_SEAL_DOMAIN,
+            construction_token=_FACTORY_SEAL_TOKEN,
+        ),
         _construction_token=_CLOCK_RANGE_TOKEN,
     )
 
@@ -751,6 +861,7 @@ class AuthenticatedProfiledOptimizerCorpusV1:
     order_submission_authorized: bool
     execution_authorized: bool
     runtime_wired: bool
+    _factory_seal: _FactorySeal = field(repr=False, compare=False)
     _construction_token: object = field(repr=False, compare=False)
 
     def __post_init__(self) -> None:
@@ -872,13 +983,21 @@ class AuthenticatedProfiledOptimizerCorpusV1:
             )
         ):
             _fail("PROFILED_OPTIMIZER_CORPUS_INVALID")
-        _clock(
+        witness_accepted = _clock(
             self.witness_accepted_at,
             reason="PROFILED_OPTIMIZER_CORPUS_WITNESS_ACCEPTED_AT_INVALID",
         )
-        _clock(
+        observation = _clock(
             self.observation_time,
             reason="PROFILED_OPTIMIZER_CORPUS_OBSERVATION_TIME_INVALID",
+        )
+        if observation >= witness_accepted:
+            _fail("PROFILED_OPTIMIZER_CORPUS_WITNESS_CLOCK_ORDER_INVALID")
+        _require_factory_seal(
+            self._factory_seal,
+            domain=_CORPUS_FACTORY_SEAL_DOMAIN,
+            material=_corpus_factory_seal_material(self),
+            reason="PROFILED_OPTIMIZER_CORPUS_FACTORY_SEAL_INVALID",
         )
 
     def _common_material(self) -> dict[str, Any]:
@@ -1015,6 +1134,10 @@ def build_authenticated_profiled_optimizer_corpus_v1(
         order_submission_authorized=False,
         execution_authorized=False,
         runtime_wired=False,
+        _factory_seal=_FactorySeal(
+            domain=_CORPUS_FACTORY_SEAL_DOMAIN,
+            construction_token=_FACTORY_SEAL_TOKEN,
+        ),
         _construction_token=_CORPUS_TOKEN,
     )
 
@@ -1049,6 +1172,7 @@ class AuthenticatedProfiledSupervisedOptimizerExecutionAuthorizationV1:
     order_submission_authorized: bool
     execution_authorized: bool
     runtime_wired: bool
+    _factory_seal: _FactorySeal = field(repr=False, compare=False)
     _construction_token: object = field(repr=False, compare=False)
 
     def __post_init__(self) -> None:
@@ -1103,6 +1227,12 @@ class AuthenticatedProfiledSupervisedOptimizerExecutionAuthorizationV1:
             )
         ):
             _fail("PROFILED_OPTIMIZER_EXECUTION_AUTHORIZATION_INVALID")
+        _require_factory_seal(
+            self._factory_seal,
+            domain=_EXECUTION_FACTORY_SEAL_DOMAIN,
+            material=_corpus_factory_seal_material(self),
+            reason="PROFILED_OPTIMIZER_EXECUTION_AUTHORIZATION_FACTORY_SEAL_INVALID",
+        )
 
     def _material(self, *, include_identity: bool) -> dict[str, Any]:
         material = {
@@ -1259,6 +1389,10 @@ def validate_authenticated_profiled_optimizer_corpus_inventory_equality_v1(
         order_submission_authorized=False,
         execution_authorized=False,
         runtime_wired=False,
+        _factory_seal=_FactorySeal(
+            domain=_EXECUTION_FACTORY_SEAL_DOMAIN,
+            construction_token=_FACTORY_SEAL_TOKEN,
+        ),
         _construction_token=_EXECUTION_TOKEN,
     )
 

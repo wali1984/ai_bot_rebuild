@@ -38,9 +38,11 @@ import hmac
 import json
 import math
 import re
+import secrets
 import struct
 from collections.abc import Sequence
 from dataclasses import dataclass, field
+from dataclasses import fields as dataclass_fields
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Final, NoReturn, cast
@@ -128,6 +130,10 @@ _IDENTIFIER_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:@/-]{0,127}$", re.ASCII)
 _ADMISSION_TOKEN = object()
 _TARGET_TOKEN = object()
 _VERIFIED_AUTHORIZATION_TOKEN = object()
+_FACTORY_SEAL_TOKEN = object()
+_FACTORY_SEAL_KEY = secrets.token_bytes(32)
+_TARGET_FACTORY_SEAL_DOMAIN = b"authenticated_profiled_outcome_target_factory_seal_v1"
+_ADMISSION_FACTORY_SEAL_DOMAIN = b"authenticated_profiled_optimizer_admission_factory_seal_v1"
 _MODEL_VECTOR_DOMAIN = b"authenticated_profiled_optimizer_model_input_float64_v1\0"
 _LOGICAL_MODEL_VECTOR_DOMAIN = b"canonical_feature_model_vector_v3\0"
 _LABEL_VALUE_DOMAIN = b"profiled_training_after_cost_label_float64_v1\0"
@@ -155,6 +161,56 @@ class AuthenticatedProfiledOptimizerAdmissionV1Error(RuntimeError):
 
 def _fail(*reasons: str) -> NoReturn:
     raise AuthenticatedProfiledOptimizerAdmissionV1Error(*reasons) from None
+
+
+class _FactorySeal:
+    """One-time factory seal that cannot be carried onto changed material."""
+
+    __slots__ = ("_digest", "_domain")
+
+    def __init__(self, *, domain: bytes, construction_token: object) -> None:
+        if construction_token is not _FACTORY_SEAL_TOKEN or type(domain) is not bytes:
+            _fail("PROFILED_OPTIMIZER_FACTORY_SEAL_CONSTRUCTION_FORBIDDEN")
+        object.__setattr__(self, "_domain", bytes(domain))
+        object.__setattr__(self, "_digest", None)
+
+    def __setattr__(self, _name: str, _value: object) -> NoReturn:
+        _fail("PROFILED_OPTIMIZER_FACTORY_SEAL_IMMUTABLE")
+
+    def validate_or_bind(self, *, domain: bytes, material: object, reason: str) -> None:
+        if self._domain != domain:
+            _fail(reason)
+        expected = hmac.digest(
+            _FACTORY_SEAL_KEY,
+            domain
+            + b"\0"
+            + _canonical_json_bytes(
+                material,
+                reason=reason,
+            ),
+            "sha256",
+        )
+        current = self._digest
+        if current is None:
+            object.__setattr__(self, "_digest", expected)
+        elif type(current) is not bytes or not hmac.compare_digest(current, expected):
+            _fail(reason)
+
+
+def _require_factory_seal(
+    value: object,
+    *,
+    domain: bytes,
+    material: object,
+    reason: str,
+) -> None:
+    if type(value) is not _FactorySeal:
+        _fail(reason)
+    cast(_FactorySeal, value).validate_or_bind(
+        domain=domain,
+        material=material,
+        reason=reason,
+    )
 
 
 def _valid_sha256(value: object) -> bool:
@@ -995,6 +1051,7 @@ class AuthenticatedProfiledOutcomeSupervisedTargetV1:
     canonical_finalized_label_bound: bool
     future_labels_excluded_from_feature_tensor: bool
     static_action_threshold_used: bool
+    _factory_seal: _FactorySeal = field(repr=False, compare=False)
     _construction_token: object = field(repr=False, compare=False)
 
     def __post_init__(self) -> None:
@@ -1017,14 +1074,18 @@ class AuthenticatedProfiledOutcomeSupervisedTargetV1:
             self._construction_token is not _TARGET_TOKEN
             or self.schema_version != AUTHENTICATED_PROFILED_OUTCOME_TARGET_V1_SCHEMA_VERSION
             or not _valid_sha256(self.label_binding_sha256)
+            or type(self.action_index) is not int
             or self.action_index not in {0, 1, 2}
+            or type(self.target_action) is not str
             or self.target_action != {0: "hold", 1: "long", 2: "short"}[self.action_index]
+            or type(self.signed_expected_move_after_cost_bps) is not float
             or not math.isfinite(self.signed_expected_move_after_cost_bps)
             or self.label_value_float64_sha256
             != _float64_sha256(
                 self.signed_expected_move_after_cost_bps,
                 reason="PROFILED_OPTIMIZER_TARGET_VALUE_INVALID",
             )
+            or type(self.horizon_seconds) is not int
             or self.horizon_seconds <= 0
             or self.target_sha256 != stable_sha256(material)
             or self.canonical_finalized_label_bound is not True
@@ -1035,6 +1096,12 @@ class AuthenticatedProfiledOutcomeSupervisedTargetV1:
         _clock(
             self.label_available_at,
             reason="PROFILED_OPTIMIZER_TARGET_LABEL_AVAILABLE_AT_INVALID",
+        )
+        _require_factory_seal(
+            self._factory_seal,
+            domain=_TARGET_FACTORY_SEAL_DOMAIN,
+            material=material,
+            reason="PROFILED_OPTIMIZER_OUTCOME_TARGET_FACTORY_SEAL_INVALID",
         )
 
 
@@ -1068,8 +1135,37 @@ def _outcome_target(
     return AuthenticatedProfiledOutcomeSupervisedTargetV1(
         **material,
         target_sha256=stable_sha256(material),
+        _factory_seal=_FactorySeal(
+            domain=_TARGET_FACTORY_SEAL_DOMAIN,
+            construction_token=_FACTORY_SEAL_TOKEN,
+        ),
         _construction_token=_TARGET_TOKEN,
     )
+
+
+def _admission_factory_seal_value(value: object) -> object:
+    if type(value) is AuthenticatedProfiledOutcomeSupervisedTargetV1:
+        return {
+            "target_sha256": cast(
+                AuthenticatedProfiledOutcomeSupervisedTargetV1,
+                value,
+            ).target_sha256
+        }
+    if type(value) is tuple:
+        return [_admission_factory_seal_value(item) for item in cast(tuple[object, ...], value)]
+    if value is None or type(value) in {str, int, float, bool}:
+        return value
+    _fail("PROFILED_OPTIMIZER_ADMISSION_FACTORY_SEAL_MATERIAL_INVALID")
+
+
+def _admission_factory_seal_material(
+    admission: AuthenticatedProfiledOptimizerAdmissionV1,
+) -> dict[str, object]:
+    return {
+        item.name: _admission_factory_seal_value(getattr(admission, item.name))
+        for item in dataclass_fields(admission)
+        if not item.name.startswith("_")
+    }
 
 
 @dataclass(frozen=True, slots=True)
@@ -1137,9 +1233,13 @@ class AuthenticatedProfiledOptimizerAdmissionV1:
     order_submission_authorized: bool
     execution_authorized: bool
     runtime_wired: bool
+    _factory_seal: _FactorySeal = field(repr=False, compare=False)
     _construction_token: object = field(repr=False, compare=False)
 
     def __post_init__(self) -> None:
+        if type(self.supervised_target) is not AuthenticatedProfiledOutcomeSupervisedTargetV1:
+            _fail("PROFILED_OPTIMIZER_ADMISSION_TARGET_EXACT_TYPE_REQUIRED")
+        self.supervised_target.__post_init__()
         if (
             self._construction_token is not _ADMISSION_TOKEN
             or self.schema_version != AUTHENTICATED_PROFILED_OPTIMIZER_ADMISSION_V1_SCHEMA_VERSION
@@ -1213,9 +1313,9 @@ class AuthenticatedProfiledOptimizerAdmissionV1:
             != PROFILED_TRAINING_PROJECTION_V1_CONFIGURATION_SHA256
             or self.feature_registry_sha256 != FEATURE_SOURCE_REGISTRY_V4_SHA256
             or self.feature_registry_abi_sha256 != FEATURE_SOURCE_REGISTRY_V4_ABI_SHA256
+            or type(self.model_input) is not tuple
             or self.model_input_float64_sha256 != _model_vector_sha256(self.model_input)
             or self.logical_model_vector_sha256 != _logical_model_vector_sha256(self.model_input)
-            or type(self.supervised_target) is not AuthenticatedProfiledOutcomeSupervisedTargetV1
             or self.supervised_target.label_binding_sha256 != self.label_binding_sha256
             or self.supervised_target.label_available_at != self.label_available_at
             or self.profiled_optimizer_admission_validated is not True
@@ -1238,8 +1338,7 @@ class AuthenticatedProfiledOptimizerAdmissionV1:
             )
         ):
             _fail("PROFILED_OPTIMIZER_ADMISSION_RESULT_INVALID")
-        self.supervised_target.__post_init__()
-        _clock(
+        witness_accepted = _clock(
             self.witness_accepted_at,
             reason="PROFILED_OPTIMIZER_RESULT_WITNESS_ACCEPTED_AT_INVALID",
         )
@@ -1289,8 +1388,15 @@ class AuthenticatedProfiledOptimizerAdmissionV1:
             and feature_generated <= training_generated <= decision < sample_available
             and decision < label_available < observation
             and sample_available < observation
+            and observation < witness_accepted
         ):
             _fail("PROFILED_OPTIMIZER_ADMISSION_RESULT_CLOCK_ORDER_INVALID")
+        _require_factory_seal(
+            self._factory_seal,
+            domain=_ADMISSION_FACTORY_SEAL_DOMAIN,
+            material=_admission_factory_seal_material(self),
+            reason="PROFILED_OPTIMIZER_ADMISSION_FACTORY_SEAL_INVALID",
+        )
 
 
 def admit_authenticated_profiled_optimizer_candidate_v1(
@@ -1569,6 +1675,10 @@ def admit_authenticated_profiled_optimizer_candidate_v1(
         order_submission_authorized=False,
         execution_authorized=False,
         runtime_wired=False,
+        _factory_seal=_FactorySeal(
+            domain=_ADMISSION_FACTORY_SEAL_DOMAIN,
+            construction_token=_FACTORY_SEAL_TOKEN,
+        ),
         _construction_token=_ADMISSION_TOKEN,
     )
 
