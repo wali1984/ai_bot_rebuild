@@ -7367,7 +7367,7 @@ def test_b_grade_resumption_requests_patch_after_three_zero_fill_cycles() -> Non
     ]
 
 
-def test_paper_risk_controller_exploration_classifies_no_trade_guardian_override() -> None:
+def test_paper_risk_controller_exploration_cannot_override_no_trade_at_admission() -> None:
     now = "2026-07-08T12:00:00.000Z"
     past = "2026-07-08T11:59:00.000Z"
     signal = {
@@ -7478,7 +7478,14 @@ def test_paper_risk_controller_exploration_classifies_no_trade_guardian_override
     assert classification["paper_risk_controller_exploration_loss_probability_bound"] == (
         paper_loop.PAPER_RISK_CONTROLLER_EXPLORATION_LOSS_PROBABILITY_BOUND
     )
-    assert _validated_admission_reasons(intent) == []
+    admission_reasons = paper_loop._paper_preemptive_admission_rejection_reasons(  # noqa: SLF001
+        intent
+    )
+    assert "PREEMPTIVE_DECISION_NO_TRADE_BINDING" in admission_reasons
+    assert any(
+        reason.startswith("PREEMPTIVE_BLOCK_ACTION_BINDING:")
+        for reason in admission_reasons
+    )
 
 
 def test_final_a_plus_false_rows_do_not_enter_a_plus_governance() -> None:
@@ -8407,7 +8414,7 @@ def test_missing_preemptive_decision_fails_paper_admission_closed() -> None:
     )
 
     assert "PREEMPTIVE_DECISION_MISSING_FAIL_CLOSED" in reasons
-    assert "PRE_TRADE_LOSS_PROBABILITY_MISSING" in reasons
+    assert "PRE_TRADE_LOSS_PROBABILITY_MISSING_FAIL_CLOSED" in reasons
 
 
 def test_high_pretrade_loss_probability_blocks_paper_admission() -> None:
@@ -8478,7 +8485,11 @@ def test_materialization_queue_preserves_calibrated_loss_probability_on_revalida
 
     assert "PRE_TRADE_LOSS_PROBABILITY_ABOVE_ALLOWED_BOUND" not in reasons
     assert "PAPER_RISK_CONTROLLER_EXPLORATION_LOSS_PROBABILITY_ABOVE_BOUND" not in reasons
-    assert "PREEMPTIVE_DECISION_NO_TRADE_REQUIRES_EXPLORATION_POLICY_OVERRIDE" not in reasons
+    assert "PREEMPTIVE_DECISION_NO_TRADE_BINDING" in reasons
+    assert any(
+        reason.startswith("PREEMPTIVE_BLOCK_ACTION_BINDING:")
+        for reason in reasons
+    )
 
 
 def test_materialization_queue_signal_copies_calibrated_loss_context_into_runtime_intent() -> None:
@@ -8601,7 +8612,14 @@ def test_materialization_queue_signal_copies_calibrated_loss_context_into_runtim
     assert intent["pre_trade_loss_probability"] == pytest.approx(0.28)
     assert allocation["pre_trade_loss_probability"] == pytest.approx(0.28)
     assert intent["runtime_revalidated_pre_trade_loss_probability"] == pytest.approx(0.92)
-    assert _validated_admission_reasons(intent) == []
+    final_admission_reasons = (
+        paper_loop._paper_preemptive_admission_rejection_reasons(intent)  # noqa: SLF001
+    )
+    assert "PREEMPTIVE_DECISION_NO_TRADE_BINDING" in final_admission_reasons
+    assert any(
+        reason.startswith("PREEMPTIVE_BLOCK_ACTION_BINDING:")
+        for reason in final_admission_reasons
+    )
 
 
 def test_tier_classification_never_rescales_completed_allocator_accounting() -> None:
