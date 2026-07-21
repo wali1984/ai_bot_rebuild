@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import sqlite3
+import uuid
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -12,6 +13,9 @@ import pytest
 from v2.backend.app.services.market_state_integrity.canonical_candles import (
     CanonicalCandle,
     canonical_candle_id,
+)
+from v2.backend.app.services.native_trainer import (
+    durable_canonical_5m_label_archive as label_archive_module,
 )
 from v2.backend.app.services.native_trainer.durable_canonical_5m_label_archive import (
     ARCHIVE_SCHEMA_VERSION,
@@ -81,6 +85,141 @@ def _path(rows: int = 49) -> list[dict[str, object]]:
     return [_candle(slot) for slot in range(rows)]
 
 
+def _rewrite_authenticated_append_receipt(
+    path: Path,
+    *,
+    transaction_id: str,
+    changes: dict[str, object],
+) -> None:
+    allowed_columns = {
+        "archive_chain_sha256",
+        "commit_prepared_at",
+        "total_unique_rows",
+    }
+    assert changes and set(changes) <= allowed_columns
+    with sqlite3.connect(path) as connection:
+        connection.row_factory = sqlite3.Row
+        receipt = connection.execute(
+            """
+            SELECT receipt_json
+            FROM canonical_5m_append_receipts
+            WHERE transaction_id = ?
+            """,
+            (transaction_id,),
+        ).fetchone()
+        assert receipt is not None
+        receipt_payload = json.loads(str(receipt["receipt_json"]))
+        receipt_payload.update(changes)
+        receipt_json = json.dumps(
+            receipt_payload,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        receipt_sha256 = hashlib.sha256(receipt_json.encode()).hexdigest()
+        connection.execute("DROP TRIGGER canonical_5m_receipts_no_update")
+        connection.execute(
+            """
+            UPDATE canonical_5m_append_receipts
+            SET archive_chain_sha256 = ?, commit_prepared_at = ?,
+                total_unique_rows = ?, receipt_json = ?, receipt_sha256 = ?
+            WHERE transaction_id = ?
+            """,
+            (
+                receipt_payload["archive_chain_sha256"],
+                receipt_payload["commit_prepared_at"],
+                receipt_payload["total_unique_rows"],
+                receipt_json,
+                receipt_sha256,
+                transaction_id,
+            ),
+        )
+
+        postcommit = connection.execute(
+            """
+            SELECT readback_receipt_json
+            FROM canonical_5m_postcommit_readback_receipts
+            WHERE transaction_id = ?
+            """,
+            (transaction_id,),
+        ).fetchone()
+        assert postcommit is not None
+        postcommit_payload = json.loads(
+            str(postcommit["readback_receipt_json"])
+        )
+        postcommit_payload["append_receipt_sha256"] = receipt_sha256
+        postcommit_json = json.dumps(
+            postcommit_payload,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        postcommit_sha256 = hashlib.sha256(
+            postcommit_json.encode()
+        ).hexdigest()
+        connection.execute(
+            "DROP TRIGGER canonical_5m_postcommit_receipts_no_update"
+        )
+        connection.execute(
+            """
+            UPDATE canonical_5m_postcommit_readback_receipts
+            SET append_receipt_sha256 = ?, readback_receipt_json = ?,
+                readback_receipt_sha256 = ?
+            WHERE transaction_id = ?
+            """,
+            (
+                receipt_sha256,
+                postcommit_json,
+                postcommit_sha256,
+                transaction_id,
+            ),
+        )
+        connection.commit()
+
+
+def _rewrite_authenticated_postcommit_clock(
+    path: Path,
+    *,
+    transaction_id: str,
+    postcommit_readback_at: str,
+) -> None:
+    with sqlite3.connect(path) as connection:
+        connection.row_factory = sqlite3.Row
+        postcommit = connection.execute(
+            """
+            SELECT readback_receipt_json
+            FROM canonical_5m_postcommit_readback_receipts
+            WHERE transaction_id = ?
+            """,
+            (transaction_id,),
+        ).fetchone()
+        assert postcommit is not None
+        payload = json.loads(str(postcommit["readback_receipt_json"]))
+        payload["postcommit_readback_at"] = postcommit_readback_at
+        receipt_json = json.dumps(
+            payload,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        receipt_sha256 = hashlib.sha256(receipt_json.encode()).hexdigest()
+        connection.execute(
+            "DROP TRIGGER canonical_5m_postcommit_receipts_no_update"
+        )
+        connection.execute(
+            """
+            UPDATE canonical_5m_postcommit_readback_receipts
+            SET postcommit_readback_at = ?, readback_receipt_json = ?,
+                readback_receipt_sha256 = ?
+            WHERE transaction_id = ?
+            """,
+            (
+                postcommit_readback_at,
+                receipt_json,
+                receipt_sha256,
+                transaction_id,
+            ),
+        )
+        connection.commit()
+
+
 @pytest.mark.parametrize(
     ("mutation", "reason"),
     (
@@ -146,6 +285,220 @@ def test_append_and_indexed_range_read_are_transaction_and_pit_verified(
     assert proof["contiguous_path_verified"] is True
     assert proof["loaded_rows"] == 49
     assert proof["range_sha256"]
+
+
+def test_same_wall_clock_appends_use_strict_causal_receipt_frontier(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "labels.sqlite3"
+    archive = DurableCanonical5mLabelArchive(path)
+    fixed_now = "2026-07-21T12:00:00.000Z"
+    reverse_lexical_ids = iter(
+        (
+            uuid.UUID(hex="f" * 32),
+            uuid.UUID(hex="0" * 32),
+        )
+    )
+    monkeypatch.setattr(label_archive_module, "utc_now", lambda: fixed_now)
+    monkeypatch.setattr(
+        label_archive_module.uuid,
+        "uuid4",
+        lambda: next(reverse_lexical_ids),
+    )
+
+    first = archive.append_candles([_candle(0)])
+    old_integrity = archive.verify_integrity()
+    old_frontier = old_integrity["verified_last_commit_prepared_at"]
+    with sqlite3.connect(path) as connection:
+        old_prefix = connection.execute(
+            """
+            SELECT transaction_id, commit_prepared_at, receipt_sha256
+            FROM canonical_5m_append_receipts
+            WHERE commit_prepared_at <= ?
+            ORDER BY commit_prepared_at ASC
+            """,
+            (old_frontier,),
+        ).fetchall()
+
+    second = archive.append_candles([_candle(1)])
+    current_integrity = archive.verify_integrity()
+    with sqlite3.connect(path) as connection:
+        reproduced_old_prefix = connection.execute(
+            """
+            SELECT transaction_id, commit_prepared_at, receipt_sha256
+            FROM canonical_5m_append_receipts
+            WHERE commit_prepared_at <= ?
+            ORDER BY commit_prepared_at ASC
+            """,
+            (old_frontier,),
+        ).fetchall()
+        receipts = connection.execute(
+            """
+            SELECT transaction_id, commit_prepared_at, receipt_json,
+                   receipt_sha256
+            FROM canonical_5m_append_receipts
+            ORDER BY commit_prepared_at ASC
+            """
+        ).fetchall()
+        postcommit_clocks = connection.execute(
+            """
+            SELECT receipt.commit_prepared_at, post.postcommit_readback_at
+            FROM canonical_5m_append_receipts AS receipt
+            JOIN canonical_5m_postcommit_readback_receipts AS post
+              ON post.transaction_id = receipt.transaction_id
+            ORDER BY receipt.commit_prepared_at ASC
+            """
+        ).fetchall()
+
+    assert first.transaction_id.endswith("f" * 32)
+    assert second.transaction_id.endswith("0" * 32)
+    assert [row[1] for row in receipts] == [
+        fixed_now,
+        "2026-07-21T12:00:00.001Z",
+    ]
+    assert old_prefix == reproduced_old_prefix
+    assert len(old_prefix) == 1
+    assert archive.integrity_proof_is_current(old_integrity) is False
+    assert current_integrity["archive_integrity_verified"] is True
+    assert current_integrity["append_receipt_ordering_verified"] is True
+    assert current_integrity["append_receipt_order"] == (
+        "COMMIT_PREPARED_AT_ASC_STRICT_UNIQUE"
+    )
+    assert current_integrity["append_receipt_cumulative_state_verified"] is True
+    assert current_integrity["postcommit_clock_causality_verified"] is True
+    assert current_integrity["verified_last_commit_prepared_at"] == (
+        "2026-07-21T12:00:00.001Z"
+    )
+    assert current_integrity["verified_last_postcommit_readback_at"] == (
+        "2026-07-21T12:00:00.001Z"
+    )
+    assert all(post >= commit for commit, post in postcommit_clocks)
+    assert postcommit_clocks[0][1] < postcommit_clocks[1][0]
+    for _, commit_prepared_at, receipt_json, receipt_sha256 in receipts:
+        assert json.loads(receipt_json)["commit_prepared_at"] == (
+            commit_prepared_at
+        )
+        assert hashlib.sha256(receipt_json.encode()).hexdigest() == (
+            receipt_sha256
+        )
+
+
+def test_authenticated_equal_append_receipt_clocks_fail_integrity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "labels.sqlite3"
+    archive = DurableCanonical5mLabelArchive(path)
+    fixed_now = "2026-07-21T12:00:00.000Z"
+    monkeypatch.setattr(label_archive_module, "utc_now", lambda: fixed_now)
+    archive.append_candles([])
+    second = archive.append_candles([])
+    _rewrite_authenticated_append_receipt(
+        path,
+        transaction_id=second.transaction_id,
+        changes={"commit_prepared_at": fixed_now},
+    )
+
+    integrity = archive.verify_integrity()
+
+    assert integrity["archive_integrity_verified"] is False
+    assert integrity["append_receipt_ordering_verified"] is False
+    assert (
+        "LABEL_ARCHIVE_APPEND_RECEIPT_COMMIT_PREPARED_AT_"
+        "NOT_STRICTLY_INCREASING"
+    ) in integrity["rejection_reasons"]
+
+
+def test_authenticated_noncanonical_append_receipt_clock_fails_integrity(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "labels.sqlite3"
+    archive = DurableCanonical5mLabelArchive(path)
+    appended = archive.append_candles([])
+    _rewrite_authenticated_append_receipt(
+        path,
+        transaction_id=appended.transaction_id,
+        changes={"commit_prepared_at": "2026-07-21T12:00:00+00:00"},
+    )
+
+    integrity = archive.verify_integrity()
+
+    assert integrity["archive_integrity_verified"] is False
+    assert (
+        "LABEL_ARCHIVE_APPEND_RECEIPT_COMMIT_PREPARED_AT_"
+        "NOT_CANONICAL_UTC_MILLISECOND"
+    ) in integrity["rejection_reasons"]
+
+
+def test_authenticated_receipt_cumulative_total_tamper_fails_integrity(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "labels.sqlite3"
+    archive = DurableCanonical5mLabelArchive(path)
+    appended = archive.append_candles([_candle(0)])
+    _rewrite_authenticated_append_receipt(
+        path,
+        transaction_id=appended.transaction_id,
+        changes={"total_unique_rows": 2},
+    )
+
+    integrity = archive.verify_integrity()
+
+    assert integrity["archive_integrity_verified"] is False
+    assert integrity["append_receipt_cumulative_state_verified"] is False
+    assert "LABEL_ARCHIVE_APPEND_RECEIPT_CUMULATIVE_TOTAL_MISMATCH" in (
+        integrity["rejection_reasons"]
+    )
+
+
+def test_authenticated_duplicate_receipt_chain_change_fails_integrity(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "labels.sqlite3"
+    archive = DurableCanonical5mLabelArchive(path)
+    candle = _candle(0)
+    archive.append_candles([candle])
+    duplicate = archive.append_candles([candle])
+    _rewrite_authenticated_append_receipt(
+        path,
+        transaction_id=duplicate.transaction_id,
+        changes={"archive_chain_sha256": "0" * 64},
+    )
+
+    integrity = archive.verify_integrity()
+
+    assert integrity["archive_integrity_verified"] is False
+    assert "LABEL_ARCHIVE_DUPLICATE_ONLY_RECEIPT_CHAIN_CHANGED" in integrity[
+        "rejection_reasons"
+    ]
+
+
+def test_authenticated_postcommit_before_prepared_clock_fails_integrity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "labels.sqlite3"
+    archive = DurableCanonical5mLabelArchive(path)
+    monkeypatch.setattr(
+        label_archive_module,
+        "utc_now",
+        lambda: "2026-07-21T12:00:00.000Z",
+    )
+    appended = archive.append_candles([])
+    _rewrite_authenticated_postcommit_clock(
+        path,
+        transaction_id=appended.transaction_id,
+        postcommit_readback_at="2026-07-21T11:59:59.999Z",
+    )
+
+    integrity = archive.verify_integrity()
+
+    assert integrity["archive_integrity_verified"] is False
+    assert integrity["postcommit_clock_causality_verified"] is False
+    assert "LABEL_ARCHIVE_POSTCOMMIT_READBACK_BEFORE_COMMIT_PREPARED" in (
+        integrity["rejection_reasons"]
+    )
 
 
 def test_exact_tail_transaction_attestation_binds_one_all_inserted_batch(

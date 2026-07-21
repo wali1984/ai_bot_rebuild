@@ -19,7 +19,7 @@ import uuid
 from collections.abc import Iterable, Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -77,6 +77,11 @@ ALLOWED_CANONICAL_SOURCES = frozenset(
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 _SYMBOL_RE = re.compile(r"^[A-Z0-9]{2,32}$")
 _INITIALIZATION_INTENT_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9:._-]{0,199}$")
+_CANONICAL_UTC_MILLISECOND_RE = re.compile(
+    r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T"
+    r"[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}Z$"
+)
+_APPEND_RECEIPT_ORDER = "COMMIT_PREPARED_AT_ASC_STRICT_UNIQUE"
 _GENESIS_CHAIN_SHA256 = hashlib.sha256(
     f"{ARCHIVE_SCHEMA_VERSION}:GENESIS".encode()
 ).hexdigest()
@@ -481,6 +486,32 @@ def stable_sha256(value: Any) -> str:
 
 def utc_now() -> str:
     return datetime.now(UTC).isoformat(timespec="milliseconds").replace(
+        "+00:00",
+        "Z",
+    )
+
+
+def _canonical_utc_millisecond(value: Any) -> datetime | None:
+    if not isinstance(value, str) or not _CANONICAL_UTC_MILLISECOND_RE.fullmatch(
+        value
+    ):
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        return None
+    normalized = parsed.astimezone(UTC)
+    canonical = normalized.isoformat(timespec="milliseconds").replace(
+        "+00:00",
+        "Z",
+    )
+    return normalized if canonical == value else None
+
+
+def _format_utc_millisecond(value: datetime) -> str:
+    return value.astimezone(UTC).isoformat(timespec="milliseconds").replace(
         "+00:00",
         "Z",
     )
@@ -1104,6 +1135,21 @@ class DurableCanonical5mLabelArchive:
             reasons.append("LABEL_ARCHIVE_INTEGRITY_PROOF_RETENTION_MISMATCH")
         if proof.get("automatic_pruning_enabled") is not False:
             reasons.append("LABEL_ARCHIVE_INTEGRITY_PROOF_PRUNING_MISMATCH")
+        if (
+            proof.get("append_receipt_ordering_verified") is not True
+            or proof.get("append_receipt_order") != _APPEND_RECEIPT_ORDER
+        ):
+            reasons.append(
+                "LABEL_ARCHIVE_INTEGRITY_PROOF_RECEIPT_ORDERING_UNVERIFIED"
+            )
+        if proof.get("append_receipt_cumulative_state_verified") is not True:
+            reasons.append(
+                "LABEL_ARCHIVE_INTEGRITY_PROOF_RECEIPT_STATE_UNVERIFIED"
+            )
+        if proof.get("postcommit_clock_causality_verified") is not True:
+            reasons.append(
+                "LABEL_ARCHIVE_INTEGRITY_PROOF_POSTCOMMIT_CLOCK_UNVERIFIED"
+            )
         verified_rows = proof.get("verified_rows")
         if (
             isinstance(verified_rows, bool)
@@ -1127,6 +1173,44 @@ class DurableCanonical5mLabelArchive:
                 "FROM canonical_5m_postcommit_readback_receipts"
             ).fetchone()[0]
         )
+        latest_append_clock = connection.execute(
+            """
+            SELECT commit_prepared_at
+            FROM canonical_5m_append_receipts
+            ORDER BY commit_prepared_at DESC
+            LIMIT 1
+            """
+        ).fetchone()
+        expected_last_append_clock = (
+            str(latest_append_clock["commit_prepared_at"])
+            if latest_append_clock is not None
+            else None
+        )
+        if proof.get("verified_last_commit_prepared_at") != (
+            expected_last_append_clock
+        ):
+            reasons.append(
+                "LABEL_ARCHIVE_INTEGRITY_PROOF_LAST_APPEND_CLOCK_STALE"
+            )
+        latest_postcommit_clock = connection.execute(
+            """
+            SELECT postcommit_readback_at
+            FROM canonical_5m_postcommit_readback_receipts
+            ORDER BY postcommit_readback_at DESC
+            LIMIT 1
+            """
+        ).fetchone()
+        expected_last_postcommit_clock = (
+            str(latest_postcommit_clock["postcommit_readback_at"])
+            if latest_postcommit_clock is not None
+            else None
+        )
+        if proof.get("verified_last_postcommit_readback_at") != (
+            expected_last_postcommit_clock
+        ):
+            reasons.append(
+                "LABEL_ARCHIVE_INTEGRITY_PROOF_LAST_POSTCOMMIT_CLOCK_STALE"
+            )
         proof_append_receipts = proof.get("verified_append_receipts")
         if (
             isinstance(proof_append_receipts, bool)
@@ -1226,6 +1310,83 @@ class DurableCanonical5mLabelArchive:
         )
 
     @staticmethod
+    def _next_append_commit_prepared_at(
+        connection: sqlite3.Connection,
+    ) -> str:
+        """Return the next immutable receipt clock inside the write lock.
+
+        ``BEGIN IMMEDIATE`` plus the process/file writer lease serializes this
+        read with the receipt insert.  The logical millisecond bump prevents
+        wall-clock ties or rollback from making append order ambiguous.  A
+        prior postcommit clock is also a lower bound so receipt visibility can
+        never move backward across transaction boundaries.
+        """
+
+        candidate = _canonical_utc_millisecond(utc_now())
+        if candidate is None:
+            raise Canonical5mArchiveError(
+                "append_receipt_candidate_clock_not_canonical_utc_millisecond"
+            )
+        prior_clock: datetime | None = None
+        prior_sources = (
+            (
+                "append_receipt",
+                connection.execute(
+                    """
+                    SELECT commit_prepared_at
+                    FROM canonical_5m_append_receipts
+                    ORDER BY commit_prepared_at DESC
+                    LIMIT 1
+                    """
+                ).fetchone(),
+                "commit_prepared_at",
+            ),
+            (
+                "postcommit_readback",
+                connection.execute(
+                    """
+                    SELECT postcommit_readback_at
+                    FROM canonical_5m_postcommit_readback_receipts
+                    ORDER BY postcommit_readback_at DESC
+                    LIMIT 1
+                    """
+                ).fetchone(),
+                "postcommit_readback_at",
+            ),
+        )
+        for source, row, column in prior_sources:
+            if row is None:
+                continue
+            parsed = _canonical_utc_millisecond(str(row[column]))
+            if parsed is None:
+                raise Canonical5mArchiveError(
+                    f"prior_{source}_clock_not_canonical_utc_millisecond"
+                )
+            prior_clock = (
+                parsed
+                if prior_clock is None or parsed > prior_clock
+                else prior_clock
+            )
+        if prior_clock is not None and candidate <= prior_clock:
+            try:
+                candidate = prior_clock + timedelta(milliseconds=1)
+            except OverflowError as exc:
+                raise Canonical5mArchiveError(
+                    "append_receipt_logical_clock_overflow"
+                ) from exc
+        return _format_utc_millisecond(candidate)
+
+    @staticmethod
+    def _postcommit_readback_clock(commit_prepared_at: Any) -> str:
+        prepared = _canonical_utc_millisecond(commit_prepared_at)
+        candidate = _canonical_utc_millisecond(utc_now())
+        if prepared is None or candidate is None:
+            raise Canonical5mArchiveError(
+                "postcommit_readback_clock_not_canonical_utc_millisecond"
+            )
+        return _format_utc_millisecond(max(prepared, candidate))
+
+    @staticmethod
     def _record_chain_sha256(
         *,
         previous_chain_sha256: str,
@@ -1312,6 +1473,11 @@ class DurableCanonical5mLabelArchive:
             reasons.append(
                 "LABEL_ARCHIVE_APPEND_RECEIPT_PRECOMMIT_READBACK_UNVERIFIED"
             )
+        if _canonical_utc_millisecond(receipt["commit_prepared_at"]) is None:
+            reasons.append(
+                "LABEL_ARCHIVE_APPEND_RECEIPT_COMMIT_PREPARED_AT_"
+                "NOT_CANONICAL_UTC_MILLISECOND"
+            )
         return reasons
 
     @staticmethod
@@ -1380,6 +1546,11 @@ class DurableCanonical5mLabelArchive:
             )
         if int(receipt["inserted_rows"]) < 0:
             reasons.append("LABEL_ARCHIVE_POSTCOMMIT_INSERTED_ROWS_INVALID")
+        if _canonical_utc_millisecond(receipt["postcommit_readback_at"]) is None:
+            reasons.append(
+                "LABEL_ARCHIVE_POSTCOMMIT_READBACK_AT_"
+                "NOT_CANONICAL_UTC_MILLISECOND"
+            )
         return reasons
 
     @staticmethod
@@ -1586,7 +1757,9 @@ class DurableCanonical5mLabelArchive:
             if conflicts:
                 raise Canonical5mIdentityConflictError(conflicts)
             total_unique_rows = actual_count + inserted
-            commit_prepared_at = utc_now()
+            commit_prepared_at = self._next_append_commit_prepared_at(
+                connection
+            )
             self._set_metadata(
                 connection,
                 key="total_unique_rows",
@@ -1735,7 +1908,9 @@ class DurableCanonical5mLabelArchive:
         finally:
             connection.close()
 
-        postcommit_readback_at = utc_now()
+        postcommit_readback_at = self._postcommit_readback_clock(
+            receipt["commit_prepared_at"]
+        )
         attestation_material = {
             "schema_version": POSTCOMMIT_READBACK_RECEIPT_SCHEMA_VERSION,
             "transaction_id": transaction_id,
@@ -1879,8 +2054,7 @@ class DurableCanonical5mLabelArchive:
                 LEFT JOIN canonical_5m_postcommit_readback_receipts AS post
                   ON post.transaction_id = receipt.transaction_id
                 WHERE post.transaction_id IS NULL
-                ORDER BY receipt.commit_prepared_at ASC,
-                         receipt.transaction_id ASC
+                ORDER BY receipt.commit_prepared_at ASC
                 LIMIT ?
                 """,
                 (bounded + 1,),
@@ -2211,8 +2385,7 @@ class DurableCanonical5mLabelArchive:
             if transaction_id is not None:
                 receipt = connection.execute(
                     """
-                    SELECT rowid AS receipt_rowid, transaction_id,
-                           receipt_schema_version,
+                    SELECT transaction_id, receipt_schema_version,
                            batch_sha256, attempted_rows, inserted_rows,
                            duplicate_rows, total_unique_rows,
                            archive_chain_sha256, receipt_sha256, receipt_json,
@@ -2228,12 +2401,19 @@ class DurableCanonical5mLabelArchive:
                     reasons.extend(
                         self._append_receipt_rejection_reasons(receipt)
                     )
-                    latest_receipt_rowid = int(
-                        connection.execute(
-                            "SELECT MAX(rowid) FROM canonical_5m_append_receipts"
-                        ).fetchone()[0]
-                    )
-                    if int(receipt["receipt_rowid"]) != latest_receipt_rowid:
+                    latest_receipt = connection.execute(
+                        """
+                        SELECT commit_prepared_at
+                        FROM canonical_5m_append_receipts
+                        ORDER BY commit_prepared_at DESC
+                        LIMIT 1
+                        """
+                    ).fetchone()
+                    if (
+                        latest_receipt is None
+                        or str(receipt["commit_prepared_at"])
+                        != str(latest_receipt["commit_prepared_at"])
+                    ):
                         reasons.append(
                             "LABEL_ARCHIVE_EXACT_TRANSACTION_NOT_LATEST_RECEIPT"
                         )
@@ -3758,6 +3938,12 @@ class DurableCanonical5mLabelArchive:
                 "verified_max_sequence": 0,
                 "verified_append_receipts": 0,
                 "verified_postcommit_readback_receipts": 0,
+                "append_receipt_ordering_verified": False,
+                "append_receipt_order": _APPEND_RECEIPT_ORDER,
+                "append_receipt_cumulative_state_verified": False,
+                "postcommit_clock_causality_verified": False,
+                "verified_last_commit_prepared_at": None,
+                "verified_last_postcommit_readback_at": None,
                 "archive_chain_sha256": None,
                 "retention_policy": None,
                 "automatic_pruning_enabled": None,
@@ -3779,6 +3965,12 @@ class DurableCanonical5mLabelArchive:
                 "verified_max_sequence": 0,
                 "verified_append_receipts": 0,
                 "verified_postcommit_readback_receipts": 0,
+                "append_receipt_ordering_verified": False,
+                "append_receipt_order": _APPEND_RECEIPT_ORDER,
+                "append_receipt_cumulative_state_verified": False,
+                "postcommit_clock_causality_verified": False,
+                "verified_last_commit_prepared_at": None,
+                "verified_last_postcommit_readback_at": None,
                 "archive_chain_sha256": None,
                 "retention_policy": None,
                 "automatic_pruning_enabled": None,
@@ -3791,6 +3983,15 @@ class DurableCanonical5mLabelArchive:
         verified_receipts = 0
         verified_postcommit_receipts = 0
         verified_max_sequence = 0
+        verified_receipt_clocks = 0
+        verified_receipt_states = 0
+        total_append_receipts = 0
+        previous_receipt_clock: datetime | None = None
+        previous_postcommit_clock: datetime | None = None
+        last_commit_prepared_at: str | None = None
+        last_postcommit_readback_at: str | None = None
+        expected_receipt_total = 0
+        expected_receipt_chain = _GENESIS_CHAIN_SHA256
         previous_chain = _GENESIS_CHAIN_SHA256
         try:
             connection.execute("BEGIN")
@@ -3929,6 +4130,11 @@ class DurableCanonical5mLabelArchive:
                 reasons.append(
                     "LABEL_ARCHIVE_POSTCOMMIT_READBACK_RECEIPT_MISSING"
                 )
+            total_append_receipts = int(
+                connection.execute(
+                    "SELECT COUNT(*) FROM canonical_5m_append_receipts"
+                ).fetchone()[0]
+            )
             receipt_cursor = connection.execute(
                 """
                 SELECT transaction_id, receipt_schema_version, batch_sha256,
@@ -3937,7 +4143,7 @@ class DurableCanonical5mLabelArchive:
                        receipt_json, commit_prepared_at,
                        precommit_readback_verified
                 FROM canonical_5m_append_receipts
-                ORDER BY commit_prepared_at ASC, transaction_id ASC
+                ORDER BY commit_prepared_at ASC
                 """
             )
             while True:
@@ -3950,20 +4156,97 @@ class DurableCanonical5mLabelArchive:
                 if receipt_reasons:
                     reasons.extend(receipt_reasons)
                     break
-                actual_transaction_rows = int(
-                    connection.execute(
-                        """
-                        SELECT COUNT(*) FROM canonical_5m_candles
-                        WHERE append_transaction_id = ?
-                        """,
-                        (str(receipt["transaction_id"]),),
-                    ).fetchone()[0]
+                receipt_clock = _canonical_utc_millisecond(
+                    receipt["commit_prepared_at"]
                 )
-                if actual_transaction_rows != int(receipt["inserted_rows"]):
+                if receipt_clock is None:
+                    reasons.append(
+                        "LABEL_ARCHIVE_APPEND_RECEIPT_COMMIT_PREPARED_AT_"
+                        "NOT_CANONICAL_UTC_MILLISECOND"
+                    )
+                    break
+                if (
+                    previous_receipt_clock is not None
+                    and receipt_clock <= previous_receipt_clock
+                ):
+                    reasons.append(
+                        "LABEL_ARCHIVE_APPEND_RECEIPT_COMMIT_PREPARED_AT_"
+                        "NOT_STRICTLY_INCREASING"
+                    )
+                    break
+                if (
+                    previous_postcommit_clock is not None
+                    and receipt_clock <= previous_postcommit_clock
+                ):
+                    reasons.append(
+                        "LABEL_ARCHIVE_APPEND_RECEIPT_NOT_AFTER_PRIOR_"
+                        "POSTCOMMIT_READBACK"
+                    )
+                    break
+                previous_receipt_clock = receipt_clock
+                last_commit_prepared_at = str(receipt["commit_prepared_at"])
+                verified_receipt_clocks += 1
+                transaction_rows = connection.execute(
+                    """
+                    SELECT sequence, symbol, candle_close_time_ms,
+                           content_sha256, previous_chain_sha256,
+                           record_chain_sha256
+                    FROM canonical_5m_candles
+                    WHERE append_transaction_id = ?
+                    ORDER BY sequence ASC
+                    LIMIT ?
+                    """,
+                    (
+                        str(receipt["transaction_id"]),
+                        MAX_APPEND_ROWS + 1,
+                    ),
+                ).fetchall()
+                inserted_rows = int(receipt["inserted_rows"])
+                if len(transaction_rows) != inserted_rows:
                     reasons.append(
                         "LABEL_ARCHIVE_APPEND_RECEIPT_INSERTED_ROWS_MISMATCH"
                     )
                     break
+                prior_expected_total = expected_receipt_total
+                expected_receipt_total += inserted_rows
+                if int(receipt["total_unique_rows"]) != expected_receipt_total:
+                    reasons.append(
+                        "LABEL_ARCHIVE_APPEND_RECEIPT_CUMULATIVE_TOTAL_MISMATCH"
+                    )
+                    break
+                receipt_chain = str(receipt["archive_chain_sha256"])
+                if transaction_rows:
+                    first_transaction_row = transaction_rows[0]
+                    last_transaction_row = transaction_rows[-1]
+                    if (
+                        int(first_transaction_row["sequence"])
+                        != prior_expected_total + 1
+                        or int(last_transaction_row["sequence"])
+                        != expected_receipt_total
+                    ):
+                        reasons.append(
+                            "LABEL_ARCHIVE_APPEND_RECEIPT_SEQUENCE_TRANSITION_"
+                            "MISMATCH"
+                        )
+                        break
+                    if (
+                        str(first_transaction_row["previous_chain_sha256"])
+                        != expected_receipt_chain
+                        or str(last_transaction_row["record_chain_sha256"])
+                        != receipt_chain
+                    ):
+                        reasons.append(
+                            "LABEL_ARCHIVE_APPEND_RECEIPT_CHAIN_TRANSITION_"
+                            "MISMATCH"
+                        )
+                        break
+                elif receipt_chain != expected_receipt_chain:
+                    reasons.append(
+                        "LABEL_ARCHIVE_DUPLICATE_ONLY_RECEIPT_CHAIN_CHANGED"
+                    )
+                    break
+                expected_receipt_chain = receipt_chain
+                verified_receipt_states += 1
                 verified_receipts += 1
                 identities = [
                     (
@@ -3971,19 +4254,7 @@ class DurableCanonical5mLabelArchive:
                         int(identity["candle_close_time_ms"]),
                         str(identity["content_sha256"]),
                     )
-                    for identity in connection.execute(
-                        """
-                        SELECT symbol, candle_close_time_ms, content_sha256
-                        FROM canonical_5m_candles
-                        WHERE append_transaction_id = ?
-                        ORDER BY symbol, candle_close_time_ms, content_sha256
-                        LIMIT ?
-                        """,
-                        (
-                            str(receipt["transaction_id"]),
-                            MAX_APPEND_ROWS + 1,
-                        ),
-                    )
+                    for identity in transaction_rows
                 ]
                 postcommit = connection.execute(
                     """
@@ -4008,6 +4279,23 @@ class DurableCanonical5mLabelArchive:
                 if postcommit_reasons:
                     reasons.extend(postcommit_reasons)
                     break
+                postcommit_clock = _canonical_utc_millisecond(
+                    postcommit["postcommit_readback_at"]
+                )
+                if postcommit_clock is None or postcommit_clock < receipt_clock:
+                    reasons.append(
+                        "LABEL_ARCHIVE_POSTCOMMIT_READBACK_BEFORE_COMMIT_PREPARED"
+                    )
+                    break
+                if (
+                    previous_postcommit_clock is not None
+                    and postcommit_clock <= previous_postcommit_clock
+                ):
+                    reasons.append(
+                        "LABEL_ARCHIVE_POSTCOMMIT_READBACK_AT_"
+                        "NOT_STRICTLY_INCREASING"
+                    )
+                    break
                 if (
                     str(postcommit["append_receipt_sha256"])
                     != str(receipt["receipt_sha256"])
@@ -4019,7 +4307,20 @@ class DurableCanonical5mLabelArchive:
                         "LABEL_ARCHIVE_POSTCOMMIT_READBACK_BINDING_MISMATCH"
                     )
                     break
+                previous_postcommit_clock = postcommit_clock
+                last_postcommit_readback_at = str(
+                    postcommit["postcommit_readback_at"]
+                )
                 verified_postcommit_receipts += 1
+            if expected_receipt_total != verified_rows:
+                reasons.append(
+                    "LABEL_ARCHIVE_APPEND_RECEIPT_CUMULATIVE_FINAL_TOTAL_"
+                    "MISMATCH"
+                )
+            if expected_receipt_chain != previous_chain:
+                reasons.append(
+                    "LABEL_ARCHIVE_APPEND_RECEIPT_FINAL_CHAIN_MISMATCH"
+                )
             if int(metadata.get("total_unique_rows") or 0) != verified_rows:
                 reasons.append("LABEL_ARCHIVE_TOTAL_UNIQUE_ROWS_MISMATCH")
             if metadata.get("archive_chain_sha256") != previous_chain:
@@ -4045,6 +4346,22 @@ class DurableCanonical5mLabelArchive:
             "verified_append_receipts": verified_receipts,
             "verified_postcommit_readback_receipts": (
                 verified_postcommit_receipts
+            ),
+            "append_receipt_ordering_verified": (
+                verified_receipt_clocks == total_append_receipts
+            ),
+            "append_receipt_order": _APPEND_RECEIPT_ORDER,
+            "append_receipt_cumulative_state_verified": (
+                verified_receipt_states == total_append_receipts
+                and expected_receipt_total == verified_rows
+                and expected_receipt_chain == previous_chain
+            ),
+            "postcommit_clock_causality_verified": (
+                verified_postcommit_receipts == total_append_receipts
+            ),
+            "verified_last_commit_prepared_at": last_commit_prepared_at,
+            "verified_last_postcommit_readback_at": (
+                last_postcommit_readback_at
             ),
             "archive_chain_sha256": previous_chain,
             "retention_policy": metadata.get("retention_policy"),

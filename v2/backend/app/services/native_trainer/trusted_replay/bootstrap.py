@@ -1,9 +1,9 @@
 """Trusted replay bootstrap from V2 feature snapshot archives."""
 from __future__ import annotations
 
+import bisect
 import hashlib
 import json
-import bisect
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
@@ -15,6 +15,9 @@ from v2.backend.app.services.market_state_integrity.canonical_candles import (
     canonical_candle_id,
     parse_ms,
     stable_hash,
+)
+from v2.backend.app.services.native_trainer.durable_canonical_5m_label_archive import (
+    default_archive_path as default_canonical_5m_label_archive_path,
 )
 from v2.backend.app.services.native_trainer.durable_feature_snapshot_archive import (
     SnapshotArchiveError,
@@ -35,7 +38,6 @@ from v2.backend.app.services.native_trainer.trusted_replay.dataset import (
     parse_utc,
     snapshot_to_final_candle,
 )
-
 
 GOAL_ID = "V2_TRUSTED_REPLAY_BOOTSTRAP_PAPER_EXPLORATION_AND_ONLINE_LEARNING_ACTIVATION"
 ARTIFACT_REL = Path("operator_runtime/v2_native_trainer/latest")
@@ -217,31 +219,52 @@ def _mtf_snapshot_from_feature_index(
 
 
 def build_temporal_split_manifest(decision_times: Iterable[tuple[str, str]]) -> dict[str, Any]:
-    ordered = sorted((str(ts), str(sample_id)) for ts, sample_id in decision_times)
-    total = len(ordered)
-    train_end = int(total * 0.70)
-    validation_end = int(total * 0.85)
+    """Return non-authoritative bootstrap status, never a holdout manifest.
+
+    Only the hybrid runtime knows the exact rows that actually entered a
+    checkpoint optimizer. A bootstrap-time fractional split cannot bind that
+    inventory and must not be published where the persistent verifier could
+    mistake it for checkpoint-specific authority.
+    """
+
+    observed = sorted((str(ts), str(sample_id)) for ts, sample_id in decision_times)
     return {
-        "schema_version": "trusted_replay_train_validation_holdout_manifest_v1",
+        "schema_version": "trusted_replay_holdout_manifest_producer_status_v1",
         "generated_utc": utc_now(),
-        "split_method": "STRICT_TEMPORAL_ORDER_NO_RANDOM_ROW_SPLIT",
-        "training_window": {
-            "rows": train_end,
-            "start_decision_time": ordered[0][0] if ordered[:train_end] else None,
-            "end_decision_time": ordered[train_end - 1][0] if train_end else None,
-        },
-        "validation_window": {
-            "rows": validation_end - train_end,
-            "start_decision_time": ordered[train_end][0] if validation_end > train_end else None,
-            "end_decision_time": ordered[validation_end - 1][0] if validation_end > train_end else None,
-        },
-        "holdout_window": {
-            "rows": total - validation_end,
-            "start_decision_time": ordered[validation_end][0] if total > validation_end else None,
-            "end_decision_time": ordered[-1][0] if total > validation_end else None,
-        },
-        "temporal_overlap": False,
+        "status": "BLOCKED_RUNTIME_CHECKPOINT_BINDING_REQUIRED",
+        "observed_bootstrap_rows": len(observed),
+        "observed_decision_time_sample_sha256": hashlib.sha256(
+            json.dumps(
+                observed,
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=False,
+            ).encode("utf-8")
+        ).hexdigest(),
+        "authoritative_manifest_published": False,
+        "legacy_v1_manifest_published": False,
+        "static_fractional_split_used": False,
+        "equal_decision_timestamps_partitioned": False,
+        "required_producer": "HYBRID_RUNTIME_POST_OPTIMIZER_CHECKPOINT_BINDING",
     }
+
+
+def _quarantine_legacy_v1_manifest(output_dir: Path) -> str | None:
+    manifest_path = output_dir / "trusted_replay_train_validation_holdout_manifest.json"
+    try:
+        payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, TypeError, ValueError):
+        return None
+    if not isinstance(payload, Mapping) or payload.get("schema_version") != (
+        "trusted_replay_train_validation_holdout_manifest_v1"
+    ):
+        return None
+    quarantine_path = output_dir / (
+        "trusted_replay_train_validation_holdout_manifest.legacy_v1_quarantined.json"
+    )
+    quarantine_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path.replace(quarantine_path)
+    return str(quarantine_path)
 
 
 def _source_hashes(snapshot: Mapping[str, Any]) -> dict[str, Any]:
@@ -410,6 +433,9 @@ def bootstrap_trusted_replay_dataset(
     loader = V2HybridTrainerDataLoader(
         io=V2OnlyJsonIO(client=client),
         trusted_replay_archive_root=archive_root,
+        canonical_5m_label_archive_path=(
+            default_canonical_5m_label_archive_path(repo_root)
+        ),
     )
     snapshot_keys = _scan_keys(client, "v2:features:snapshot:*", limit=scan_limit) if import_from_redis else []
     mtf_index = _build_feature_snapshot_candle_index(client, keys=snapshot_keys) if import_from_redis else {}
@@ -469,7 +495,7 @@ def bootstrap_trusted_replay_dataset(
         symbols.add(example.symbol)
         timeframes.add(example.timeframe)
         decision_times.append((str(row.get("decision_time") or ""), str(row.get("sample_id") or "")))
-    split_manifest = build_temporal_split_manifest(decision_times)
+    split_manifest_status = build_temporal_split_manifest(decision_times)
     point_in_time = {
         "schema_version": "trusted_replay_point_in_time_validation_v1",
         "generated_utc": utc_now(),
@@ -540,6 +566,7 @@ def bootstrap_trusted_replay_dataset(
         root=archive_root,
         rollover_status=archive_rollover,
     )
+    quarantined_legacy_manifests: list[str] = []
     for output_dir in (operator_dir, goal_dir, worklog_dir):
         if output_dir != operator_dir:
             for name, payload in archive_artifacts.items():
@@ -547,12 +574,24 @@ def bootstrap_trusted_replay_dataset(
         _write_json(output_dir / "trusted_replay_dataset_status.json", dataset_status)
         _write_json(output_dir / "trusted_replay_point_in_time_validation.json", point_in_time)
         _write_json(output_dir / "trusted_replay_label_distribution.json", label_distribution)
-        _write_json(output_dir / "trusted_replay_train_validation_holdout_manifest.json", split_manifest)
+        quarantined = _quarantine_legacy_v1_manifest(output_dir)
+        if quarantined is not None:
+            quarantined_legacy_manifests.append(quarantined)
+        _write_json(
+            output_dir
+            / "trusted_replay_train_validation_holdout_manifest_status.json",
+            {
+                **split_manifest_status,
+                "legacy_v1_manifest_quarantined": quarantined is not None,
+                "legacy_v1_manifest_quarantine_path": quarantined,
+            },
+        )
     return {
         "dataset_status": dataset_status,
         "point_in_time": point_in_time,
         "label_distribution": label_distribution,
-        "split_manifest": split_manifest,
+        "split_manifest_status": split_manifest_status,
+        "quarantined_legacy_manifests": quarantined_legacy_manifests,
         "archive_status": build_archive_status(root=archive_root),
         "reference_retention_status": build_reference_retention_status(root=archive_root),
         "archive_rollover_status": archive_rollover,

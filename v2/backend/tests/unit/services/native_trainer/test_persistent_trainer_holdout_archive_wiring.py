@@ -10,6 +10,12 @@ from v2.backend.app.services.market_state_integrity.canonical_candles import (
     CanonicalCandle,
 )
 from v2.backend.app.services.native_trainer import (
+    durable_canonical_5m_label_archive as label_archive_module,
+)
+from v2.backend.app.services.native_trainer import (
+    durable_feature_snapshot_ledger as feature_ledger_module,
+)
+from v2.backend.app.services.native_trainer import (
     persistent_cuda_trainer_runtime as runtime,
 )
 from v2.backend.app.services.native_trainer.durable_canonical_5m_label_archive import (
@@ -267,8 +273,72 @@ def _append_sources(
     ledger = DurableFeatureSnapshotLedger(default_ledger_path(repo_root))
     ledger.append_snapshots(records or [_feature_record()])
     archive = DurableCanonical5mLabelArchive(default_label_archive_path(repo_root))
-    archive.append_candles(_candles() if candles is None else candles)
+    label_rows = _candles() if candles is None else candles
+    if label_rows:
+        archive.append_candles(label_rows)
+    else:
+        archive.initialize_empty_archive(initialization_intent_id="unit-empty-label-prefix")
     return ledger, archive
+
+
+def _checkpoint_partition_contract(
+    holdout_identities: list[str],
+) -> tuple[dict[str, object], dict[str, object]]:
+    partition_digest = training_partition_digest([])
+    empty_training_sample_set = (
+        runtime._training_sample_identity_set_sha256([])  # noqa: SLF001
+    )
+    empty_feature_set = runtime._sample_identity_set_sha256([])  # noqa: SLF001
+    holdout_set = runtime._sample_identity_set_sha256(  # noqa: SLF001
+        holdout_identities
+    )
+    partition: dict[str, object] = {
+        "schema_version": runtime.HOLDOUT_PARTITION_SCHEMA_VERSION,
+        "identity_domain": runtime.HOLDOUT_SAMPLE_IDENTITY_DOMAIN,
+        "training_sample_identity_domain": (runtime.TRAINING_SAMPLE_IDENTITY_DOMAIN),
+        "validation_sample_identity_domain": (runtime.TRAINING_SAMPLE_IDENTITY_DOMAIN),
+        "training_partition_digest": partition_digest,
+        "training_sample_count": 0,
+        "training_sample_identity_set_sha256": empty_training_sample_set,
+        "validation_sample_count": 0,
+        "validation_sample_identity_set_sha256": empty_training_sample_set,
+        "training_feature_identity_count": 0,
+        "training_feature_identity_set_sha256": empty_feature_set,
+        "validation_feature_identity_count": 0,
+        "validation_feature_identity_set_sha256": empty_feature_set,
+        "holdout_sample_count": len(holdout_identities),
+        "holdout_sample_identity_set_sha256": holdout_set,
+        "training_validation_disjoint": True,
+        "training_holdout_disjoint": True,
+        "validation_holdout_disjoint": True,
+        "optional_missing_evidence_semantics": (runtime.OPTIONAL_MISSING_EVIDENCE_SEMANTICS),
+        "optional_missing_typed_negative_receipts_verified": False,
+        "optional_missing_observed_zero_claimed": False,
+    }
+    checkpoint_binding: dict[str, object] = {
+        "checkpoint_id": "unit-verified-serving-checkpoint",
+        "checkpoint_evidence_digest": "a" * 64,
+        "training_partition_digest": partition_digest,
+        "training_sample_identity_set_sha256": empty_training_sample_set,
+        "validation_sample_identity_set_sha256": empty_training_sample_set,
+        "training_feature_identity_set_sha256": empty_feature_set,
+        "validation_feature_identity_set_sha256": empty_feature_set,
+    }
+    return partition, checkpoint_binding
+
+
+def _signed_manifest(payload: dict[str, object]) -> dict[str, object]:
+    unsigned = {
+        str(key): value
+        for key, value in payload.items()
+        if str(key) not in {"manifest_path", "manifest_payload_sha256"}
+    }
+    return {
+        **unsigned,
+        "manifest_payload_sha256": runtime._stable_json_sha256(  # noqa: SLF001
+            unsigned
+        ),
+    }
 
 
 def _manifest(
@@ -303,7 +373,9 @@ def _manifest(
     assert label_high_water is not None
     items = ledger.query_fixed_cutoff(
         decision_time_cutoff=_iso(HOLDOUT_END),
-        training_observed_at=_iso(observation),
+        training_observed_at=_iso(
+            observation - timedelta(microseconds=1)
+        ),
         limit=proof_scan_limit,
     )
     holdout_identities = [
@@ -315,7 +387,9 @@ def _manifest(
         )
         <= HOLDOUT_END
     ]
-    empty_training_partition_digest = training_partition_digest([])
+    partition, checkpoint_binding = _checkpoint_partition_contract(
+        holdout_identities
+    )
     payload: dict[str, object] = {
         "schema_version": runtime.HOLDOUT_MANIFEST_SCHEMA_VERSION,
         "generated_utc": _iso(observation),
@@ -330,26 +404,18 @@ def _manifest(
         },
         "feature_ledger_high_water": feature_high_water,
         "label_archive_high_water": label_high_water,
-        "partition_evidence": {
-            "schema_version": runtime.HOLDOUT_PARTITION_SCHEMA_VERSION,
-            "identity_domain": runtime.HOLDOUT_SAMPLE_IDENTITY_DOMAIN,
-            "training_partition_digest": empty_training_partition_digest,
-            "training_sample_count": 0,
-            "training_sample_identity_set_sha256": (
-                runtime._sample_identity_set_sha256([])  # noqa: SLF001
-            ),
-            "holdout_sample_count": len(holdout_identities),
-            "holdout_sample_identity_set_sha256": (
-                runtime._sample_identity_set_sha256(  # noqa: SLF001
-                    holdout_identities
-                )
-            ),
-            "training_holdout_disjoint": True,
-        },
+        "partition_evidence": partition,
+        "checkpoint_binding": checkpoint_binding,
+        "checkpoint_sample_inventory_sha256": "b" * 64,
+        "mutable_redis_used": False,
     }
+    signed_payload = _signed_manifest(payload)
     path = repo_root / "trusted_replay_train_validation_holdout_manifest.json"
-    path.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
-    return {**payload, "manifest_path": str(path)}
+    path.write_text(
+        json.dumps(signed_payload, sort_keys=True),
+        encoding="utf-8",
+    )
+    return {**signed_payload, "manifest_path": str(path)}
 
 
 def _scenario(
@@ -421,14 +487,35 @@ def test_authenticated_holdout_is_exact_deterministic_and_cursor_free(
     assert first["network_label_fallback_used"] is False
     assert first["production_replay_cursor_read"] is False
     assert first["production_replay_cursor_written"] is False
-    for field in (
-        "selected_holdout_sample_order_sha256",
-        "evaluated_example_order_sha256",
-        "durable_label_path_identity_sha256",
-        "holdout_sample_identity_hash",
-    ):
-        assert first[field] == second[field]
-        assert len(str(first[field])) == 64
+    assert first["selected_holdout_sample_order_sha256"] == (
+        second["selected_holdout_sample_order_sha256"]
+    )
+    assert first["holdout_partition_sample_identity_set_sha256"] == (
+        second["holdout_partition_sample_identity_set_sha256"]
+    )
+    # Each evaluation intentionally freezes a new label-observation clock, so
+    # label-path and evaluated-row identities are evaluation-specific even
+    # when the immutable feature partition is unchanged.
+    for result in (first, second):
+        for field in (
+            "selected_holdout_sample_order_sha256",
+            "evaluated_example_order_sha256",
+            "durable_label_path_identity_sha256",
+            "holdout_sample_identity_hash",
+        ):
+            assert len(str(result[field])) == 64
+        feature_clock = runtime.parse_runtime_time(
+            result["feature_observation_cutoff"]
+        )
+        label_clock = runtime.parse_runtime_time(
+            result["label_evaluation_cutoff"]
+        )
+        manifest_clock = runtime.parse_runtime_time(manifest["generated_utc"])
+        assert feature_clock is not None
+        assert label_clock is not None
+        assert manifest_clock is not None
+        assert feature_clock == manifest_clock
+        assert label_clock >= feature_clock
     assert cursor.read_bytes() == cursor_before
 
 
@@ -542,8 +629,9 @@ def test_holdout_rejects_future_manifest_observation_clock(
     }
 
 
-def test_holdout_rejects_corrupt_full_label_archive(tmp_path: Path) -> None:
+def test_holdout_rejects_authenticated_label_prefix_tamper(tmp_path: Path) -> None:
     manifest, _ledger, archive = _scenario(tmp_path)
+    assert manifest["label_archive_high_water"]["verified_rows"] == 49
     with sqlite3.connect(archive.path) as connection:
         connection.execute("DROP TRIGGER canonical_5m_candles_no_update")
         connection.execute(
@@ -560,26 +648,30 @@ def test_holdout_rejects_corrupt_full_label_archive(tmp_path: Path) -> None:
     assert result["rows_rejected_by_reason"]
 
 
-def test_holdout_rejects_stale_label_proof_at_completion(
+def test_holdout_does_not_reuse_mutable_full_tail_label_proof(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
     manifest, _ledger, _archive = _scenario(tmp_path)
+
+    def _old_tail_proof_must_not_be_read(_self, _proof):
+        raise AssertionError("mutable full-tail proof was reused")
+
     monkeypatch.setattr(
         runtime.DurableCanonical5mLabelArchive,
         "integrity_proof_is_current",
-        lambda _self, _proof: False,
+        _old_tail_proof_must_not_be_read,
     )
 
     result = _evaluate(tmp_path, manifest)
 
     assert result["status"] == (
-        "BLOCKED_DURABLE_INDEXED_5M_LABEL_ARCHIVE_PROOF_STALE"
+        "VERIFIED_CURSOR_FREE_TRUSTED_REPLAY_HOLDOUT_EXAMPLES"
     )
-    assert result["examples"] == []
-    assert result["rows_rejected_by_reason"] == {
-        "LABEL_ARCHIVE_HIGH_WATER_CHANGED_DURING_EVALUATION": 1
-    }
+    assert len(result["examples"]) == 1
+    assert result["label_path_full_tail_integrity_proof_reused"] is False
+    assert result["initial_full_tail_integrity_proof_reused"] is False
+    assert result["label_archive_fixed_prefixes_current_at_completion"] is True
 
 
 def test_holdout_rejects_unfinished_higher_timeframe(tmp_path: Path) -> None:
@@ -625,7 +717,7 @@ def test_holdout_rejects_one_microsecond_timeframe_interval_error(
     assert result["rows_rejected_by_reason"]["TIMEFRAME_FINALITY_4H_INTERVAL_INVALID"] == 1
 
 
-def test_holdout_rejects_feature_append_after_manifest_cutoff(
+def test_holdout_ignores_valid_feature_suffix_after_manifest_cutoff(
     tmp_path: Path,
 ) -> None:
     manifest, ledger, _archive = _scenario(tmp_path)
@@ -638,14 +730,16 @@ def test_holdout_rejects_feature_append_after_manifest_cutoff(
 
     result = _evaluate(tmp_path, manifest)
 
-    assert result["status"] == "BLOCKED_FEATURE_LEDGER_HIGH_WATER_UNVERIFIED"
-    assert result["examples"] == []
-    assert result["rows_rejected_by_reason"] == {
-        "FEATURE_LEDGER_POSTCOMMIT_AFTER_OBSERVATION_CUTOFF": 1
-    }
+    assert result["status"] == (
+        "VERIFIED_CURSOR_FREE_TRUSTED_REPLAY_HOLDOUT_EXAMPLES"
+    )
+    assert len(result["examples"]) == 1
+    assert result["snapshots_scanned"] == 1
+    assert result["feature_ledger_fixed_prefix_current_at_completion"] is True
+    assert result["feature_ledger_full_integrity_verified_at_completion"] is True
 
 
-def test_holdout_rejects_label_append_after_manifest_cutoff(
+def test_holdout_admits_valid_label_suffix_after_manifest_before_evaluation(
     tmp_path: Path,
 ) -> None:
     manifest, _ledger, archive = _scenario(tmp_path)
@@ -653,11 +747,94 @@ def test_holdout_rejects_label_append_after_manifest_cutoff(
 
     result = _evaluate(tmp_path, manifest)
 
-    assert result["status"] == "BLOCKED_LABEL_ARCHIVE_HIGH_WATER_UNVERIFIED"
-    assert result["examples"] == []
-    assert result["rows_rejected_by_reason"] == {
-        "LABEL_ARCHIVE_POSTCOMMIT_AFTER_OBSERVATION_CUTOFF": 1
-    }
+    assert result["status"] == (
+        "VERIFIED_CURSOR_FREE_TRUSTED_REPLAY_HOLDOUT_EXAMPLES"
+    )
+    assert len(result["examples"]) == 1
+    assert result["manifest_label_archive_high_water"] == manifest[
+        "label_archive_high_water"
+    ]
+    assert result["evaluation_label_archive_high_water"][
+        "verified_rows"
+    ] == 50
+    assert result["label_archive_fixed_prefixes_current_at_completion"] is True
+
+
+def test_holdout_admits_required_labels_maturing_after_manifest(
+    tmp_path: Path,
+) -> None:
+    ledger, archive = _append_sources(tmp_path, candles=[])
+    manifest = _manifest(
+        tmp_path,
+        ledger=ledger,
+        archive=archive,
+        observation=datetime.now(UTC),
+    )
+    assert manifest["label_archive_high_water"]["verified_rows"] == 0
+
+    archive.append_candles(_candles())
+    result = _evaluate(tmp_path, manifest)
+
+    assert result["status"] == ("VERIFIED_CURSOR_FREE_TRUSTED_REPLAY_HOLDOUT_EXAMPLES")
+    assert len(result["examples"]) == 1
+    assert result["manifest_label_archive_high_water"]["verified_rows"] == 0
+    assert result["evaluation_label_archive_high_water"]["verified_rows"] == 49
+    assert result["feature_observation_cutoff"] != result["label_evaluation_cutoff"]
+    assert result["manifest_label_archive_prefix_current_at_completion"] is True
+    assert result["evaluation_label_archive_prefix_current_at_completion"] is True
+
+
+def test_holdout_accepts_real_concurrent_feature_and_label_suffixes(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    manifest, ledger, archive = _scenario(tmp_path)
+    original_feature_query = DurableFeatureSnapshotLedger.query_fixed_cutoff
+    original_label_path = DurableCanonical5mLabelArchive.verified_label_path
+    appended = {"feature": False, "label": False}
+
+    def _query_then_append_feature_suffix(self, **kwargs):
+        rows = original_feature_query(self, **kwargs)
+        if kwargs["after_sequence"] == 0 and not appended["feature"]:
+            suffix = ledger.append_snapshot(
+                _feature_record(
+                    "concurrent-feature-suffix",
+                    decision_time=DECISION + timedelta(microseconds=2),
+                )
+            )
+            assert suffix.inserted_rows == 1
+            appended["feature"] = True
+        return rows
+
+    def _read_path_then_append_label_suffix(self, **kwargs):
+        rows, proof = original_label_path(self, **kwargs)
+        if not appended["label"]:
+            suffix = archive.append_candles(_candles(start_slot=49, count=1))
+            assert suffix.inserted_rows == 1
+            appended["label"] = True
+        return rows, proof
+
+    monkeypatch.setattr(
+        DurableFeatureSnapshotLedger,
+        "query_fixed_cutoff",
+        _query_then_append_feature_suffix,
+    )
+    monkeypatch.setattr(
+        DurableCanonical5mLabelArchive,
+        "verified_label_path",
+        _read_path_then_append_label_suffix,
+    )
+
+    result = _evaluate(tmp_path, manifest)
+
+    assert appended == {"feature": True, "label": True}
+    assert result["status"] == ("VERIFIED_CURSOR_FREE_TRUSTED_REPLAY_HOLDOUT_EXAMPLES")
+    assert len(result["examples"]) == 1
+    assert result["feature_ledger_full_integrity_verified_at_completion"] is True
+    assert result["feature_ledger_fixed_prefix_current_at_completion"] is True
+    assert result["label_archive_full_integrity_verified_at_completion"] is True
+    assert result["label_archive_fixed_prefixes_current_at_completion"] is True
+    assert result["initial_full_tail_integrity_proof_reused"] is False
 
 
 def test_label_path_requires_receipt_before_exact_observation(
@@ -694,6 +871,91 @@ def test_label_path_requires_receipt_before_exact_observation(
     )
 
 
+def test_fixed_prefixes_exclude_receipts_exactly_equal_to_cutoff(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    boundary = datetime(2026, 7, 21, 12, 0, tzinfo=UTC)
+    monkeypatch.setattr(
+        feature_ledger_module,
+        "utc_now",
+        lambda: _iso(boundary),
+    )
+    monkeypatch.setattr(
+        label_archive_module,
+        "utc_now",
+        lambda: boundary.isoformat(timespec="milliseconds").replace(
+            "+00:00", "Z"
+        ),
+    )
+    ledger = DurableFeatureSnapshotLedger(default_ledger_path(tmp_path))
+    feature_append = ledger.append_snapshot(_feature_record("equal-cutoff"))
+    archive = DurableCanonical5mLabelArchive(default_label_archive_path(tmp_path))
+    archive.append_candles(_candles())
+
+    assert runtime.parse_runtime_time(
+        feature_append.postcommit_readback_at
+    ) == boundary
+    with sqlite3.connect(archive.path) as connection:
+        label_postcommit = connection.execute(
+            "SELECT postcommit_readback_at "
+            "FROM canonical_5m_postcommit_readback_receipts"
+        ).fetchone()[0]
+    assert runtime.parse_runtime_time(label_postcommit) == boundary
+
+    feature_high_water, feature_reasons = (
+        runtime._feature_ledger_integrity_checkpoint(  # noqa: SLF001
+            ledger=ledger,
+            report=ledger.verify_integrity_streaming(),
+            observation_cutoff=boundary,
+            scan_limit=100,
+        )
+    )
+    label_integrity = archive.verify_integrity()
+    label_high_water, label_reasons = (
+        runtime._label_archive_integrity_checkpoint(  # noqa: SLF001
+            archive=archive,
+            integrity=label_integrity,
+            observation_cutoff=boundary,
+            scan_limit=100,
+        )
+    )
+    assert feature_reasons == []
+    assert label_reasons == []
+    assert feature_high_water is not None
+    assert label_high_water is not None
+    assert feature_high_water["verified_records"] == 0
+    assert feature_high_water["verified_append_receipts"] == 0
+    assert label_high_water["verified_rows"] == 0
+    assert label_high_water["verified_append_receipts"] == 0
+
+    feature_rows = ledger.query_fixed_cutoff(
+        decision_time_cutoff=_iso(HOLDOUT_END),
+        training_observed_at=_iso(
+            boundary - timedelta(microseconds=1)
+        ),
+        limit=100,
+    )
+    label_rows, label_proof = archive.verified_label_path(
+        symbol="BTCUSDT",
+        decision_time=DECISION,
+        training_observed_at=boundary - timedelta(microseconds=1),
+        horizon_seconds=4 * 60 * 60,
+        archive_integrity_proof=None,
+        require_receipt_committed_by_observation=True,
+    )
+    assert feature_rows == []
+    assert label_rows is None
+    assert any(
+        reason
+        in {
+            "LABEL_ARCHIVE_APPEND_RECEIPT_AFTER_TRAINING_OBSERVED_AT",
+            "LABEL_ARCHIVE_POSTCOMMIT_READBACK_AFTER_TRAINING_OBSERVED_AT",
+        }
+        for reason in label_proof["rejection_reasons"]
+    )
+
+
 def test_holdout_rejects_scan_truncation_without_prefix_admission(
     tmp_path: Path,
 ) -> None:
@@ -706,6 +968,7 @@ def test_holdout_rejects_scan_truncation_without_prefix_admission(
                 decision_time=DECISION + timedelta(microseconds=2),
             ),
         ],
+        candles=[],
     )
 
     result = _evaluate(tmp_path, manifest, scan_limit=1)
@@ -725,15 +988,13 @@ def test_holdout_rejects_manifest_candidate_set_digest_mismatch(
         "holdout_sample_identity_set_sha256"
     ] = "0" * 64
     manifest_path = Path(str(manifest["manifest_path"]))
+    signed_manifest = _signed_manifest(manifest)
+    manifest = {
+        **signed_manifest,
+        "manifest_path": str(manifest_path),
+    }
     manifest_path.write_text(
-        json.dumps(
-            {
-                key: value
-                for key, value in manifest.items()
-                if key != "manifest_path"
-            },
-            sort_keys=True,
-        ),
+        json.dumps(signed_manifest, sort_keys=True),
         encoding="utf-8",
     )
 
@@ -749,6 +1010,7 @@ def test_holdout_rejects_manifest_candidate_set_digest_mismatch(
 def test_holdout_does_not_create_missing_label_storage(tmp_path: Path) -> None:
     label_path = default_label_archive_path(tmp_path)
     manifest_path = tmp_path / "trusted_replay_train_validation_holdout_manifest.json"
+    partition, checkpoint_binding = _checkpoint_partition_contract([])
     payload = {
         "schema_version": runtime.HOLDOUT_MANIFEST_SCHEMA_VERSION,
         "generated_utc": _iso(datetime.now(UTC)),
@@ -763,10 +1025,14 @@ def test_holdout_does_not_create_missing_label_storage(tmp_path: Path) -> None:
         },
         "feature_ledger_high_water": {},
         "label_archive_high_water": {},
-        "partition_evidence": {},
+        "partition_evidence": partition,
+        "checkpoint_binding": checkpoint_binding,
+        "checkpoint_sample_inventory_sha256": "b" * 64,
+        "mutable_redis_used": False,
     }
-    manifest_path.write_text(json.dumps(payload), encoding="utf-8")
-    manifest = {**payload, "manifest_path": str(manifest_path)}
+    signed_payload = _signed_manifest(payload)
+    manifest_path.write_text(json.dumps(signed_payload), encoding="utf-8")
+    manifest = {**signed_payload, "manifest_path": str(manifest_path)}
 
     result = _evaluate(tmp_path, manifest)
 

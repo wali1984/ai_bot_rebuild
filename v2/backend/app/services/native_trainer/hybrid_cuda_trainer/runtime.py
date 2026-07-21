@@ -86,6 +86,15 @@ from .publisher import (
 from .rewards import reward_stack_status
 from .safety import V2OnlyJsonIO, safety_scoreboard
 from .tensor_builder import FEATURE_SPEC
+from .training_sample_identity import (
+    TrainingSampleIdentityError,
+    build_checkpoint_sample_inventory,
+    checkpoint_inventory_evidence,
+    prepare_checkpoint_partition_manifest,
+    publish_checkpoint_partition_manifest,
+    read_published_checkpoint_partition_manifest,
+    stable_json_sha256,
+)
 from .training_state import (
     candidate_progress_decision,
     confidence_promotion_decision,
@@ -1539,6 +1548,143 @@ def _basic_checkpoint_load_verified(checkpoint_load: Mapping[str, Any]) -> bool:
     )
 
 
+_SAMPLE_INVENTORY_EXACT_COMPARISON_FIELDS = (
+    "training_sample_identity_sha256s",
+    "training_sample_identity_inventory_complete",
+    "training_sample_identity_domain",
+    "training_sample_identity_set_sha256",
+    "training_sample_count",
+    "training_sample_provenance_bindings_sha256",
+    "training_feature_identity_sha256s",
+    "training_feature_identity_inventory_complete",
+    "training_feature_identity_domain",
+    "training_feature_identity_set_sha256",
+    "training_feature_identity_count",
+    "validation_sample_identity_sha256s",
+    "validation_sample_identity_inventory_complete",
+    "validation_sample_identity_domain",
+    "validation_sample_identity_set_sha256",
+    "validation_sample_count",
+    "validation_sample_provenance_bindings_sha256",
+    "validation_feature_identity_sha256s",
+    "validation_feature_identity_inventory_complete",
+    "validation_feature_identity_domain",
+    "validation_feature_identity_set_sha256",
+    "validation_feature_identity_count",
+    "sample_inventory_training_observed_at",
+    "sample_inventory_feature_ledger_high_water",
+    "sample_inventory_label_archive_high_water",
+    "sample_inventory_durable_v3_only",
+    "sample_inventory_mutable_redis_used",
+    "optional_missing_evidence_semantics",
+    "optional_missing_typed_negative_receipts_verified",
+    "optional_missing_observed_zero_claimed",
+)
+
+
+def _sample_inventory_comparison_reasons(
+    planned: Mapping[str, Any],
+    actual: Mapping[str, Any],
+) -> tuple[str, ...]:
+    """Prove the optimizer consumed exactly the preflight-authenticated rows."""
+
+    return tuple(
+        f"ACTUAL_SAMPLE_INVENTORY_{field_name.upper()}_MISMATCH"
+        for field_name in _SAMPLE_INVENTORY_EXACT_COMPARISON_FIELDS
+        if planned.get(field_name) != actual.get(field_name)
+    )
+
+
+def _published_serving_checkpoint_binding(
+    repo_root: Path,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Resolve the manifest-bound serving activation pointer fail closed."""
+
+    status: dict[str, Any] = {
+        "schema_version": "published_serving_checkpoint_activation_status_v1",
+        "status": "BLOCKED_NO_DURABLE_ACTIVATION_MANIFEST",
+        "activation_manifest_verified": False,
+        "checkpoint_id": None,
+    }
+    try:
+        manifest = read_published_checkpoint_partition_manifest(
+            repo_root=repo_root,
+        )
+    except TrainingSampleIdentityError as exc:
+        status["rejection_reasons"] = [str(exc)[:512]]
+        return {}, status
+    binding = manifest.get("checkpoint_binding")
+    if not isinstance(binding, Mapping):
+        status["rejection_reasons"] = [
+            "HOLDOUT_MANIFEST_CHECKPOINT_BINDING_MISSING"
+        ]
+        return {}, status
+    copied = dict(binding)
+    status.update(
+        {
+            "status": "DURABLE_ACTIVATION_MANIFEST_VERIFIED",
+            "activation_manifest_verified": True,
+            "checkpoint_id": copied.get("checkpoint_id"),
+            "manifest_payload_sha256": manifest.get(
+                "manifest_payload_sha256"
+            ),
+        }
+    )
+    return copied, status
+
+
+def _serving_activation_binding_reasons(
+    *,
+    binding: Mapping[str, Any],
+    manifest: CheckpointManifest,
+    checkpoint_load: Mapping[str, Any],
+) -> tuple[str, ...]:
+    evidence = (
+        manifest.checkpoint_evidence
+        if isinstance(manifest.checkpoint_evidence, Mapping)
+        else {}
+    )
+    comparisons = {
+        "CHECKPOINT_ID": (
+            binding.get("checkpoint_id"),
+            manifest.checkpoint_id,
+        ),
+        "CHECKPOINT_LOAD_ID": (
+            binding.get("checkpoint_id"),
+            checkpoint_load.get("checkpoint_id"),
+        ),
+        "CHECKPOINT_EVIDENCE_DIGEST": (
+            binding.get("checkpoint_evidence_digest"),
+            manifest.checkpoint_evidence_digest,
+        ),
+        "TRAINING_PARTITION_DIGEST": (
+            binding.get("training_partition_digest"),
+            manifest.training_partition_digest,
+        ),
+        "TRAINING_SAMPLE_IDENTITY_SET": (
+            binding.get("training_sample_identity_set_sha256"),
+            evidence.get("training_sample_identity_set_sha256"),
+        ),
+        "VALIDATION_SAMPLE_IDENTITY_SET": (
+            binding.get("validation_sample_identity_set_sha256"),
+            evidence.get("validation_sample_identity_set_sha256"),
+        ),
+        "TRAINING_FEATURE_IDENTITY_SET": (
+            binding.get("training_feature_identity_set_sha256"),
+            evidence.get("training_feature_identity_set_sha256"),
+        ),
+        "VALIDATION_FEATURE_IDENTITY_SET": (
+            binding.get("validation_feature_identity_set_sha256"),
+            evidence.get("validation_feature_identity_set_sha256"),
+        ),
+    }
+    return tuple(
+        f"SERVING_ACTIVATION_{name}_MISMATCH"
+        for name, (expected, observed) in comparisons.items()
+        if expected != observed
+    )
+
+
 def run_hybrid_trainer_cycle(
     *,
     config: HybridTrainerConfig,
@@ -1673,11 +1819,28 @@ def run_hybrid_trainer_cycle(
         )
     )
 
+    producer_repo_root = Path(__file__).resolve().parents[6]
+    (
+        active_serving_binding,
+        active_serving_activation_status,
+    ) = _published_serving_checkpoint_binding(producer_repo_root)
+    active_serving_checkpoint_id = active_serving_binding.get("checkpoint_id")
     serving_model = V2HybridPolicyModel(input_dim=input_dim)
-    checkpoint_load = stores.serving.load_latest_weights(
-        serving_model,
-        allowed_lineage_kinds=frozenset({VERIFIED_SERVING_LINEAGE}),
-    )
+    if isinstance(active_serving_checkpoint_id, str) and active_serving_checkpoint_id:
+        checkpoint_load = stores.serving.load_latest_weights(
+            serving_model,
+            allowed_lineage_kinds=frozenset({VERIFIED_SERVING_LINEAGE}),
+            expected_checkpoint_id=active_serving_checkpoint_id,
+        )
+    else:
+        checkpoint_load = {
+            "checkpoint_manifest_exists": False,
+            "checkpoint_id": None,
+            "latest_checkpoint_loadable": False,
+            "model_state_restored": False,
+            "checkpoint_evidence_verified": False,
+            "load_status": "NO_DURABLE_ACTIVE_HOLDOUT_MANIFEST",
+        }
     prior_serving_manifest = _manifest_for_loaded_checkpoint(
         stores.serving,
         checkpoint_load,
@@ -1695,6 +1858,29 @@ def run_hybrid_trainer_cycle(
             checkpoint_load,
             expected_checkpoint_id=prior_serving_manifest.checkpoint_id,
         )
+        activation_reasons = _serving_activation_binding_reasons(
+            binding=active_serving_binding,
+            manifest=prior_serving_manifest,
+            checkpoint_load=checkpoint_load,
+        )
+        if activation_reasons:
+            prior_serving_contract_complete = False
+            prior_serving_contract_reasons = tuple(
+                dict.fromkeys(
+                    [*prior_serving_contract_reasons, *activation_reasons]
+                )
+            )
+            active_serving_activation_status.update(
+                {
+                    "status": "BLOCKED_ACTIVATION_CHECKPOINT_BINDING_MISMATCH",
+                    "checkpoint_binding_verified": False,
+                    "rejection_reasons": list(activation_reasons),
+                }
+            )
+        else:
+            active_serving_activation_status[
+                "checkpoint_binding_verified"
+            ] = prior_serving_contract_complete
 
     candidate_model = V2HybridPolicyModel(input_dim=input_dim)
     candidate_load = stores.candidate.load_latest_weights(
@@ -1728,6 +1914,7 @@ def run_hybrid_trainer_cycle(
         training_parent_load = stores.serving.load_latest_weights(
             training_model,
             allowed_lineage_kinds=frozenset({VERIFIED_SERVING_LINEAGE}),
+            expected_checkpoint_id=prior_serving_manifest.checkpoint_id,
         )
         if not _basic_checkpoint_load_verified(training_parent_load):
             raise RuntimeError("verified_serving_training_parent_reload_failed")
@@ -1775,6 +1962,82 @@ def run_hybrid_trainer_cycle(
         for attempt in optimizer_attempts
     ):
         raise RuntimeError("exact_ppo_claim_parent_policy_mismatch")
+    planned_training_examples = list(optimizer_plan.get("train_rows") or ())
+    planned_validation_examples = list(
+        optimizer_plan.get("validation_rows") or ()
+    )
+    planned_checkpoint_sample_inventory: dict[str, Any] = {}
+    checkpoint_sample_identity_status: dict[str, Any] = {
+        "schema_version": "checkpoint_training_sample_identity_status_v1",
+        "status": "BLOCKED_NOT_AUTHENTICATED",
+        "preflight_valid": False,
+        "actual_inventory_valid": False,
+        "planned_actual_exact_match": False,
+        "durable_feature_snapshot_ledger_required": True,
+        "mutable_redis_used": False,
+    }
+    # Re-authenticate against the exact cycle-start observation boundary used
+    # by the loader.  A later wall-clock sample could admit a label that became
+    # available after training began; using two samples would also manufacture
+    # different identities for unchanged optimizer rows.
+    checkpoint_sample_inventory_observed_at = training_observed_at
+    try:
+        planned_checkpoint_sample_inventory = build_checkpoint_sample_inventory(
+            training_examples=planned_training_examples,
+            validation_examples=planned_validation_examples,
+            repo_root=producer_repo_root,
+            training_observed_at=checkpoint_sample_inventory_observed_at,
+        )
+    except TrainingSampleIdentityError as exc:
+        released = stores.ledger.release_claims(
+            owner_id=optimizer_owner_id,
+            update_keys=ordered_update_keys,
+        )
+        if released != len(ordered_update_keys):
+            raise RuntimeError(
+                "checkpoint_sample_identity_preflight_claim_release_failed"
+            ) from exc
+        checkpoint_sample_identity_status.update(
+            {
+                "status": "BLOCKED_SAMPLE_IDENTITY_PREFLIGHT_FAILED",
+                "rejection_reasons": [str(exc)[:512]],
+                "preflight_claims_released": released,
+            }
+        )
+        optimizer_claim_status.update(
+            {
+                "checkpoint_sample_identity_preflight_valid": False,
+                "checkpoint_sample_identity_preflight_claims_released": (
+                    released
+                ),
+            }
+        )
+        # Preserve prediction publication and service liveness, but enter the
+        # optimizer with no rows. No unproved row may mutate model parameters.
+        optimizer_examples = []
+        optimizer_attempts = []
+        ordered_update_keys = []
+        optimizer_partition_digest = training_partition_digest([])
+    else:
+        checkpoint_sample_identity_status.update(
+            {
+                "status": "PREFLIGHT_AUTHENTICATED",
+                "preflight_valid": True,
+                "preflight_training_sample_count": (
+                    planned_checkpoint_sample_inventory.get(
+                        "training_sample_count"
+                    )
+                ),
+                "preflight_validation_sample_count": (
+                    planned_checkpoint_sample_inventory.get(
+                        "validation_sample_count"
+                    )
+                ),
+            }
+        )
+        optimizer_claim_status[
+            "checkpoint_sample_identity_preflight_valid"
+        ] = True
     optimizer_fence: dict[str, Any] = {
         "optimizer_write_ahead_fence_durable": False,
         "ordered_update_keys": [],
@@ -1793,7 +2056,91 @@ def run_hybrid_trainer_cycle(
         batch_size=config.batch_size,
         validation_fraction=config.validation_fraction,
     )
+    actual_checkpoint_sample_inventory: dict[str, Any] = {}
+    checkpoint_sample_evidence: dict[str, Any] = {}
+    sample_inventory_comparison_reasons: tuple[str, ...] = ()
+    if checkpoint_sample_identity_status["preflight_valid"] is True:
+        try:
+            actual_checkpoint_sample_inventory = (
+                build_checkpoint_sample_inventory(
+                    training_examples=list(
+                        training.optimizer_training_examples
+                    ),
+                    validation_examples=list(training.validation_examples),
+                    repo_root=producer_repo_root,
+                    training_observed_at=(
+                        checkpoint_sample_inventory_observed_at
+                    ),
+                )
+            )
+        except TrainingSampleIdentityError as exc:
+            sample_inventory_comparison_reasons = (
+                "ACTUAL_SAMPLE_INVENTORY_AUTHENTICATION_FAILED:" + str(exc)[:512],
+            )
+            checkpoint_sample_identity_status.update(
+                {
+                    "status": "BLOCKED_ACTUAL_SAMPLE_IDENTITY_FAILED",
+                    "rejection_reasons": list(
+                        sample_inventory_comparison_reasons
+                    ),
+                }
+            )
+        else:
+            sample_inventory_comparison_reasons = (
+                _sample_inventory_comparison_reasons(
+                    planned_checkpoint_sample_inventory,
+                    actual_checkpoint_sample_inventory,
+                )
+            )
+            exact_match = not sample_inventory_comparison_reasons
+            checkpoint_sample_identity_status.update(
+                {
+                    "status": (
+                        "AUTHENTICATED_EXACT_ACTUAL_OPTIMIZER_INVENTORY"
+                        if exact_match
+                        else "BLOCKED_PLANNED_ACTUAL_SAMPLE_IDENTITY_MISMATCH"
+                    ),
+                    "actual_inventory_valid": True,
+                    "planned_actual_exact_match": exact_match,
+                    "actual_training_sample_count": (
+                        actual_checkpoint_sample_inventory.get(
+                            "training_sample_count"
+                        )
+                    ),
+                    "actual_validation_sample_count": (
+                        actual_checkpoint_sample_inventory.get(
+                            "validation_sample_count"
+                        )
+                    ),
+                    "training_sample_identity_set_sha256": (
+                        actual_checkpoint_sample_inventory.get(
+                            "training_sample_identity_set_sha256"
+                        )
+                    ),
+                    "validation_sample_identity_set_sha256": (
+                        actual_checkpoint_sample_inventory.get(
+                            "validation_sample_identity_set_sha256"
+                        )
+                    ),
+                    "rejection_reasons": list(
+                        sample_inventory_comparison_reasons
+                    ),
+                }
+            )
+            if exact_match:
+                checkpoint_sample_evidence = {
+                    **checkpoint_inventory_evidence(
+                        actual_checkpoint_sample_inventory
+                    ),
+                    "training_partition_digest": optimizer_partition_digest,
+                }
     cycle_training_metrics = dict(training.metrics)
+    cycle_training_metrics[
+        "checkpoint_sample_identity_status"
+    ] = checkpoint_sample_identity_status
+    cycle_training_metrics[
+        "checkpoint_sample_identity_contract_valid"
+    ] = bool(checkpoint_sample_evidence)
     optimizer_steps = int(
         cycle_training_metrics.get("optimizer_steps_this_cycle") or 0
     )
@@ -1899,6 +2246,25 @@ def run_hybrid_trainer_cycle(
                 "EXACT_PPO_OPTIMIZER_CONTRACT_INVALID",
             ],
         }
+    if not checkpoint_sample_evidence:
+        sample_reason = "CHECKPOINT_SAMPLE_IDENTITY_CONTRACT_INVALID"
+        candidate_decision = {
+            **candidate_decision,
+            "candidate_progress_allowed": False,
+            "candidate_progress_rejected": True,
+            "candidate_progress_reason": sample_reason,
+            "candidate_progress_rejection_reasons": list(
+                dict.fromkeys(
+                    [
+                        *candidate_decision.get(
+                            "candidate_progress_rejection_reasons", []
+                        ),
+                        sample_reason,
+                        *sample_inventory_comparison_reasons,
+                    ]
+                )
+            ),
+        }
     confidence_decision = confidence_promotion_decision(
         training_metrics=cycle_training_metrics,
         calibration_state=training_model.confidence_calibration_state,
@@ -1935,6 +2301,70 @@ def run_hybrid_trainer_cycle(
             }
         )
 
+    checkpoint_partition_manifest: dict[str, Any] = {}
+    holdout_manifest_publication_status: dict[str, Any] = {
+        "schema_version": "checkpoint_holdout_manifest_publication_status_v1",
+        "status": "NOT_REQUIRED_NO_SERVING_PROMOTION",
+        "prepared": False,
+        "published": False,
+        "publication_paths": [],
+    }
+    if (
+        optimizer_mutated
+        and config.allow_weight_artifact_write
+        and checkpoint_promotion.get("checkpoint_promotion_allowed") is True
+        and checkpoint_sample_evidence
+    ):
+        try:
+            checkpoint_partition_manifest = (
+                prepare_checkpoint_partition_manifest(
+                    inventory=actual_checkpoint_sample_inventory,
+                    training_partition_digest=optimizer_partition_digest,
+                    repo_root=producer_repo_root,
+                    generated_utc=_utc_iso_microseconds(),
+                )
+            )
+        except TrainingSampleIdentityError as exc:
+            manifest_reason = (
+                "AUTHENTICATED_HOLDOUT_MANIFEST_UNAVAILABLE:" + str(exc)[:512]
+            )
+            holdout_manifest_publication_status.update(
+                {
+                    "status": "BLOCKED_MANIFEST_PREPARATION_FAILED",
+                    "rejection_reasons": [manifest_reason],
+                }
+            )
+            checkpoint_promotion.update(
+                {
+                    "checkpoint_promotion_allowed": False,
+                    "checkpoint_promotion_rejected": True,
+                    "checkpoint_promotion_reason": manifest_reason,
+                    "checkpoint_promotion_rejection_reasons": list(
+                        dict.fromkeys(
+                            [
+                                *checkpoint_promotion.get(
+                                    "checkpoint_promotion_rejection_reasons",
+                                    [],
+                                ),
+                                manifest_reason,
+                            ]
+                        )
+                    ),
+                }
+            )
+        else:
+            holdout_manifest_publication_status.update(
+                {
+                    "status": "PREPARED_PENDING_SERVING_ARTIFACT_VERIFICATION",
+                    "prepared": True,
+                    "manifest_payload_sha256": (
+                        checkpoint_partition_manifest.get(
+                            "manifest_payload_sha256"
+                        )
+                    ),
+                }
+            )
+
     parent_checkpoint_id = (
         training_parent_manifest.checkpoint_id
         if training_parent_manifest is not None
@@ -1951,16 +2381,23 @@ def run_hybrid_trainer_cycle(
     ledger_disposition: str | None = None
     checkpoint_weight_blob_written_this_cycle = False
 
-    if optimizer_mutated and config.allow_weight_artifact_write:
-        candidate_evidence = checkpoint_evidence(
-            checkpoint_role=NON_SERVING_CANDIDATE_LINEAGE,
-            ledger_disposition="NON_SERVING_CANDIDATE_PERSISTED",
-            candidate_decision=candidate_decision,
-            confidence_decision=confidence_decision,
-            serving_decision=checkpoint_promotion,
-            training_metrics=cycle_training_metrics,
-            ordered_update_keys=ordered_update_keys,
-        )
+    if (
+        optimizer_mutated
+        and config.allow_weight_artifact_write
+        and checkpoint_sample_evidence
+    ):
+        candidate_evidence = {
+            **checkpoint_evidence(
+                checkpoint_role=NON_SERVING_CANDIDATE_LINEAGE,
+                ledger_disposition="NON_SERVING_CANDIDATE_PERSISTED",
+                candidate_decision=candidate_decision,
+                confidence_decision=confidence_decision,
+                serving_decision=checkpoint_promotion,
+                training_metrics=cycle_training_metrics,
+                ordered_update_keys=ordered_update_keys,
+            ),
+            **checkpoint_sample_evidence,
+        }
         if candidate_decision.get("candidate_progress_allowed") is True:
             candidate_artifact = stores.candidate.write_checkpoint(
                 model=training_model,
@@ -1988,15 +2425,22 @@ def run_hybrid_trainer_cycle(
         if checkpoint_promotion.get("checkpoint_promotion_allowed") is True:
             if candidate_artifact is None:
                 raise RuntimeError("serving_promotion_without_verified_candidate")
-            serving_evidence = checkpoint_evidence(
-                checkpoint_role=VERIFIED_SERVING_LINEAGE,
-                ledger_disposition="SERVING_PROMOTED",
-                candidate_decision=candidate_decision,
-                confidence_decision=confidence_decision,
-                serving_decision=checkpoint_promotion,
-                training_metrics=cycle_training_metrics,
-                ordered_update_keys=ordered_update_keys,
-            )
+            if not checkpoint_partition_manifest:
+                raise RuntimeError(
+                    "serving_promotion_without_prepared_holdout_manifest"
+                )
+            serving_evidence = {
+                **checkpoint_evidence(
+                    checkpoint_role=VERIFIED_SERVING_LINEAGE,
+                    ledger_disposition="SERVING_PROMOTED",
+                    candidate_decision=candidate_decision,
+                    confidence_decision=confidence_decision,
+                    serving_decision=checkpoint_promotion,
+                    training_metrics=cycle_training_metrics,
+                    ordered_update_keys=ordered_update_keys,
+                ),
+                **checkpoint_sample_evidence,
+            }
             serving_artifact = stores.serving.write_checkpoint(
                 model=training_model,
                 input_dim=input_dim,
@@ -2013,6 +2457,7 @@ def run_hybrid_trainer_cycle(
             serving_artifact_load = stores.serving.load_latest_weights(
                 promoted_serving_model,
                 allowed_lineage_kinds=frozenset({VERIFIED_SERVING_LINEAGE}),
+                expected_checkpoint_id=serving_artifact.checkpoint_id,
             )
             promoted_complete, promoted_reasons = (
                 _verified_serving_checkpoint_evidence(
@@ -2025,6 +2470,86 @@ def run_hybrid_trainer_cycle(
                     "serving_checkpoint_reload_verification_failed:"
                     + ",".join(promoted_reasons)
                 )
+            unsigned_partition_manifest = {
+                str(key): value
+                for key, value in checkpoint_partition_manifest.items()
+                if str(key) != "manifest_payload_sha256"
+            }
+            unsigned_partition_manifest["checkpoint_binding"] = {
+                "checkpoint_id": serving_artifact.checkpoint_id,
+                "checkpoint_evidence_digest": (
+                    serving_artifact.checkpoint_evidence_digest
+                ),
+                "training_partition_digest": optimizer_partition_digest,
+                "training_sample_identity_set_sha256": (
+                    checkpoint_sample_evidence.get(
+                        "training_sample_identity_set_sha256"
+                    )
+                ),
+                "validation_sample_identity_set_sha256": (
+                    checkpoint_sample_evidence.get(
+                        "validation_sample_identity_set_sha256"
+                    )
+                ),
+                "training_feature_identity_set_sha256": (
+                    checkpoint_sample_evidence.get(
+                        "training_feature_identity_set_sha256"
+                    )
+                ),
+                "validation_feature_identity_set_sha256": (
+                    checkpoint_sample_evidence.get(
+                        "validation_feature_identity_set_sha256"
+                    )
+                ),
+            }
+            checkpoint_partition_manifest = {
+                **unsigned_partition_manifest,
+                "manifest_payload_sha256": stable_json_sha256(
+                    unsigned_partition_manifest
+                ),
+            }
+            published_manifest_paths = publish_checkpoint_partition_manifest(
+                manifest=checkpoint_partition_manifest,
+                repo_root=producer_repo_root,
+            )
+            activated_manifest = read_published_checkpoint_partition_manifest(
+                repo_root=producer_repo_root,
+            )
+            activated_binding = activated_manifest.get("checkpoint_binding")
+            if not isinstance(activated_binding, Mapping):
+                raise RuntimeError(
+                    "serving_activation_manifest_checkpoint_binding_missing"
+                )
+            activation_reasons = _serving_activation_binding_reasons(
+                binding=activated_binding,
+                manifest=serving_artifact,
+                checkpoint_load=serving_artifact_load,
+            )
+            if activation_reasons:
+                raise RuntimeError(
+                    "serving_activation_manifest_binding_failed:"
+                    + ",".join(activation_reasons)
+                )
+            holdout_manifest_publication_status.update(
+                {
+                    "status": (
+                        "PUBLISHED_READBACK_VERIFIED_AND_SERVING_ACTIVATED"
+                    ),
+                    "published": True,
+                    "postcommit_readback_verified": True,
+                    "serving_activation_binding_verified": True,
+                    "publication_paths": list(published_manifest_paths),
+                    "checkpoint_id": serving_artifact.checkpoint_id,
+                    "checkpoint_evidence_digest": (
+                        serving_artifact.checkpoint_evidence_digest
+                    ),
+                    "manifest_payload_sha256": (
+                        checkpoint_partition_manifest[
+                            "manifest_payload_sha256"
+                        ]
+                    ),
+                }
+            )
             serving_model = promoted_serving_model
             ledger_artifact = serving_artifact
             ledger_artifact_verification = stores.serving.verify_manifest_artifact(
@@ -2033,15 +2558,20 @@ def run_hybrid_trainer_cycle(
             ledger_disposition = "SERVING_PROMOTED"
             checkpoint_weight_blob_written_this_cycle = True
         elif optimizer_attempts and candidate_artifact is None:
-            rejected_evidence = checkpoint_evidence(
-                checkpoint_role=REJECTED_ATTEMPT_LINEAGE,
-                ledger_disposition="REJECTED_TRAINING_ATTEMPT_PERSISTED",
-                candidate_decision=candidate_decision,
-                confidence_decision=confidence_decision,
-                serving_decision=checkpoint_promotion,
-                training_metrics=cycle_training_metrics,
-                ordered_update_keys=ordered_update_keys,
-            )
+            rejected_evidence = {
+                **checkpoint_evidence(
+                    checkpoint_role=REJECTED_ATTEMPT_LINEAGE,
+                    ledger_disposition=(
+                        "REJECTED_TRAINING_ATTEMPT_PERSISTED"
+                    ),
+                    candidate_decision=candidate_decision,
+                    confidence_decision=confidence_decision,
+                    serving_decision=checkpoint_promotion,
+                    training_metrics=cycle_training_metrics,
+                    ordered_update_keys=ordered_update_keys,
+                ),
+                **checkpoint_sample_evidence,
+            }
             rejected_artifact = stores.rejected_attempt.write_checkpoint(
                 model=training_model,
                 input_dim=input_dim,
@@ -2128,6 +2658,15 @@ def run_hybrid_trainer_cycle(
             "optimizer_training_partition_digest": (
                 optimizer_partition_digest
             ),
+            "checkpoint_sample_identity_status": (
+                checkpoint_sample_identity_status
+            ),
+            "checkpoint_sample_identity_contract_valid": bool(
+                checkpoint_sample_evidence
+            ),
+            "checkpoint_holdout_manifest_publication": (
+                holdout_manifest_publication_status
+            ),
             "candidate_progress_decision": candidate_decision,
             "confidence_promotion_decision": confidence_decision,
             "serving_promotion_decision": checkpoint_promotion,
@@ -2139,6 +2678,9 @@ def run_hybrid_trainer_cycle(
             "training_parent_checkpoint_id": parent_checkpoint_id,
             "training_parent_policy_fingerprint": (
                 training_parent_fingerprint
+            ),
+            "active_serving_checkpoint_activation": (
+                active_serving_activation_status
             ),
             "candidate_policy_fingerprint": candidate_fingerprint,
             "prior_serving_contract_complete": (
@@ -2685,7 +3227,13 @@ def run_hybrid_trainer_cycle(
     training_metrics["batch_covers_available_examples"] = (
         training_metrics["selected_examples"] >= training_metrics["available_examples"]
     )
-    training_payload = asdict(training)
+    # Exact row objects are internal checkpoint-provenance working state. They
+    # must never be copied into public status JSON or operator artifacts.
+    training_payload = {
+        key: value
+        for key, value in vars(training).items()
+        if key not in {"optimizer_training_examples", "validation_examples"}
+    }
     training_payload["metrics"] = dict(training_metrics)
     resource_utilization = {
         "cuda_available": bool(training.cuda_active),

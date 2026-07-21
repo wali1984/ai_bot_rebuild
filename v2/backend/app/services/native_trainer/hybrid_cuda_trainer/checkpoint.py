@@ -2622,7 +2622,21 @@ class V2HybridCheckpointManager:
                     else "CHECKPOINT_MANIFEST_SCAN_INVALID"
                 ),
             }
-        manifest = manifest_rows[0][1] if manifest_rows else None
+        if expected_checkpoint_id is None:
+            manifest = manifest_rows[0][1] if manifest_rows else None
+        else:
+            # An external durable activation record may deliberately point to
+            # an older verified checkpoint while a newer artifact is staged but
+            # not yet activated. Exact-ID loads must select that bound manifest,
+            # not compare the requested ID only against the newest row.
+            manifest = next(
+                (
+                    candidate
+                    for _sort_key, candidate in manifest_rows
+                    if candidate.checkpoint_id == expected_checkpoint_id
+                ),
+                None,
+            )
         if expected_checkpoint_id is not None and (
             type(expected_checkpoint_id) is not str
             or not expected_checkpoint_id
@@ -2654,19 +2668,6 @@ class V2HybridCheckpointManager:
                     if expected_checkpoint_id is not None
                     else "NO_COMPATIBLE_WEIGHT_BLOB_MANIFEST"
                 ),
-            }
-        if (
-            expected_checkpoint_id is not None
-            and manifest.checkpoint_id != expected_checkpoint_id
-        ):
-            return {
-                "checkpoint_manifest_exists": True,
-                "checkpoint_id": manifest.checkpoint_id,
-                "expected_checkpoint_id": expected_checkpoint_id,
-                "weight_blob_written": bool(manifest.weight_blob_written),
-                "latest_checkpoint_loadable": False,
-                "model_state_restored": False,
-                "load_status": "EXPECTED_CHECKPOINT_ID_MISMATCH",
             }
         if expected_checkpoint_id is not None:
             try:

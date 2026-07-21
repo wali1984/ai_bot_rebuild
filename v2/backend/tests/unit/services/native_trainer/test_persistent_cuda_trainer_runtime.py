@@ -4,7 +4,7 @@ import json
 import os
 import time
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -339,6 +339,35 @@ def _write_retention_checkpoint(
     )
 
 
+def _verified_activation_for(checkpoint) -> tuple[dict[str, object], dict[str, object]]:
+    evidence = checkpoint.checkpoint_evidence
+    binding = {
+        "checkpoint_id": checkpoint.checkpoint_id,
+        "checkpoint_evidence_digest": checkpoint.checkpoint_evidence_digest,
+        "training_partition_digest": checkpoint.training_partition_digest,
+        "training_sample_identity_set_sha256": evidence.get(
+            "training_sample_identity_set_sha256"
+        ),
+        "validation_sample_identity_set_sha256": evidence.get(
+            "validation_sample_identity_set_sha256"
+        ),
+        "training_feature_identity_set_sha256": evidence.get(
+            "training_feature_identity_set_sha256"
+        ),
+        "validation_feature_identity_set_sha256": evidence.get(
+            "validation_feature_identity_set_sha256"
+        ),
+    }
+    return binding, {
+        "schema_version": "checkpoint_primary_activation_status_v1",
+        "status": "PRIMARY_ACTIVATION_MANIFEST_VERIFIED",
+        "primary_activation_manifest_verified": True,
+        "checkpoint_binding_verified": False,
+        "checkpoint_id": checkpoint.checkpoint_id,
+        "rejection_reasons": [],
+    }
+
+
 def test_checkpoint_retention_uses_causal_generation_not_touched_mtime(
     tmp_path: Path,
     monkeypatch,
@@ -363,6 +392,11 @@ def test_checkpoint_retention_uses_causal_generation_not_touched_mtime(
     os.utime(
         checkpoint_dir / f"{oldest.checkpoint_id}.weights.npz",
         (touched_time, touched_time),
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "_authoritative_serving_activation",
+        lambda _repo_root: _verified_activation_for(newest),
     )
 
     status = checkpoint_retention_status(
@@ -394,6 +428,11 @@ def test_checkpoint_retention_recovers_latest_complete_pair_without_caller_id(
         model=model,
         lineage_kind="VERIFIED_SERVING_POLICY",
     )
+    monkeypatch.setattr(
+        runtime_module,
+        "_authoritative_serving_activation",
+        lambda _repo_root: _verified_activation_for(checkpoint),
+    )
 
     status = checkpoint_retention_status(
         paths=paths,
@@ -404,13 +443,57 @@ def test_checkpoint_retention_recovers_latest_complete_pair_without_caller_id(
     assert status["latest_checkpoint_id"] == checkpoint.checkpoint_id
     assert (
         status["latest_checkpoint_id_source"]
-        == "newest_validated_causal_serving_checkpoint"
+        == "primary_manifest_bound_active_checkpoint"
     )
     pinned = set(status["pinned_checkpoints"])
     assert f"{checkpoint.checkpoint_id}.json" in pinned
     assert f"{checkpoint.checkpoint_id}.weights.npz" in pinned
     assert ".checkpoint-causal-order.jsonl" in pinned
     assert ".checkpoint-causal-order.lock" in pinned
+
+
+def test_checkpoint_retention_keeps_primary_bound_old_checkpoint_active_when_newer_is_staged(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    paths = PersistentTrainerPaths(repo_root=tmp_path)
+    manager = V2HybridCheckpointManager(paths.model_dir)
+    model = _retention_model(monkeypatch, seed=204)
+    active = _write_retention_checkpoint(
+        manager=manager,
+        model=model,
+        lineage_kind="VERIFIED_SERVING_POLICY",
+    )
+    _mutate_retention_model(model)
+    staged = _write_retention_checkpoint(
+        manager=manager,
+        model=model,
+        lineage_kind="VERIFIED_SERVING_POLICY",
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "_authoritative_serving_activation",
+        lambda _repo_root: _verified_activation_for(active),
+    )
+
+    status = checkpoint_retention_status(
+        paths=paths,
+        latest_checkpoint_id=active.checkpoint_id,
+        rollover_limit_gb=0,
+        apply_rollover=True,
+    )
+
+    assert status["active_verified_serving_checkpoint_id"] == active.checkpoint_id
+    assert status["active_manifest_bound_checkpoint_id"] == active.checkpoint_id
+    assert status["newest_verified_serving_artifact_id"] == staged.checkpoint_id
+    assert status["newest_unactivated_serving_artifact_id"] == staged.checkpoint_id
+    assert status["latest_checkpoint_id"] == active.checkpoint_id
+    assert status["primary_checkpoint_activation"]["checkpoint_binding_verified"] is True
+    pinned = set(status["pinned_checkpoints"])
+    assert f"{active.checkpoint_id}.json" in pinned
+    assert f"{active.checkpoint_id}.weights.npz" in pinned
+    assert f"{staged.checkpoint_id}.json" in pinned
+    assert f"{staged.checkpoint_id}.weights.npz" in pinned
 
 
 def test_checkpoint_retention_pins_lifecycle_stores_ledger_and_pending_reconciliation(
@@ -426,6 +509,11 @@ def test_checkpoint_retention_pins_lifecycle_stores_ledger_and_pending_reconcili
         manager=V2HybridCheckpointManager(root),
         model=model,
         lineage_kind="VERIFIED_SERVING_POLICY",
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "_authoritative_serving_activation",
+        lambda _repo_root: _verified_activation_for(serving),
     )
     candidate_manager = V2HybridCheckpointManager(candidate_dir)
     rejected_manager = V2HybridCheckpointManager(rejected_dir)
@@ -2483,7 +2571,19 @@ def test_historical_holdout_requires_durable_indexed_canonical_5m_labels(
         "feature_ledger_high_water": {},
         "label_archive_high_water": {},
         "partition_evidence": {},
+        "checkpoint_binding": {
+            "checkpoint_id": "unit-serving-checkpoint",
+            "checkpoint_evidence_digest": "a" * 64,
+            "training_partition_digest": "b" * 64,
+            "training_sample_identity_set_sha256": "c" * 64,
+            "validation_sample_identity_set_sha256": "d" * 64,
+            "training_feature_identity_set_sha256": "e" * 64,
+            "validation_feature_identity_set_sha256": "f" * 64,
+        },
     }
+    manifest_payload["manifest_payload_sha256"] = (
+        runtime_module._stable_json_sha256(manifest_payload)  # noqa: SLF001
+    )
     manifest_path = tmp_path / "holdout.json"
     manifest_path.write_text(
         json.dumps(manifest_payload),
@@ -2558,12 +2658,327 @@ def _unit_holdout_example() -> runtime_module.TrainingExample:
     )
 
 
-def _patch_unit_holdout_inputs(monkeypatch) -> None:
+def _run_two_clock_holdout_scenario(
+    tmp_path: Path,
+    monkeypatch,
+    *,
+    append_concurrent_suffix: bool,
+) -> tuple[dict[str, object], SimpleNamespace]:
+    feature_observation = datetime(
+        2026, 7, 21, 10, 0, tzinfo=UTC
+    )
+    label_evaluation = datetime(
+        2026, 7, 21, 12, 0, tzinfo=UTC
+    )
+    holdout_decision = datetime(
+        2026, 7, 21, 9, 0, tzinfo=UTC
+    )
+    holdout_end = holdout_decision + timedelta(minutes=1)
+
+    class _FixedDatetime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            if tz is None:
+                return label_evaluation.replace(tzinfo=None)
+            return label_evaluation.astimezone(tz)
+
+    monkeypatch.setattr(runtime_module, "datetime", _FixedDatetime)
+
+    feature_high_water = {
+        "high_water_sha256": "1" * 64,
+        "visible_records": 1,
+    }
+    manifest_label_high_water = {
+        "high_water_sha256": "2" * 64,
+        "visible_rows": 0,
+    }
+    evaluation_label_high_water = {
+        "high_water_sha256": "3" * 64,
+        "visible_rows": 49,
+    }
+    manifest_payload = {
+        "schema_version": runtime_module.HOLDOUT_MANIFEST_SCHEMA_VERSION,
+        "generated_utc": feature_observation.isoformat(),
+        "split_method": "STRICT_TEMPORAL_ORDER_NO_RANDOM_ROW_SPLIT",
+        "temporal_overlap": False,
+        "holdout_window": {
+            "start_decision_time": holdout_decision.isoformat(),
+            "end_decision_time": holdout_end.isoformat(),
+            "rows": 1,
+        },
+        "feature_ledger_high_water": feature_high_water,
+        "label_archive_high_water": manifest_label_high_water,
+        "partition_evidence": {},
+    }
+    manifest_path = tmp_path / "holdout.json"
+    manifest_path.write_text("{}", encoding="utf-8")
+    manifest = {
+        **manifest_payload,
+        "manifest_path": str(manifest_path),
+    }
+    manifest_identity = {
+        "path": str(manifest_path),
+        "file_sha256": "a" * 64,
+        "payload_sha256": "b" * 64,
+        "payload": manifest_payload,
+    }
+    monkeypatch.setattr(
+        runtime_module,
+        "_holdout_manifest_identity",
+        lambda **_kwargs: (dict(manifest_identity), []),
+    )
+
+    label_path = tmp_path / "labels.sqlite3"
+    feature_path = tmp_path / "features.sqlite3"
+    label_path.touch()
+    feature_path.touch()
+    monkeypatch.setattr(
+        runtime_module,
+        "default_canonical_5m_label_archive_path",
+        lambda _root: label_path,
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "default_feature_snapshot_ledger_path",
+        lambda _root: feature_path,
+    )
+
+    state = SimpleNamespace(
+        label_tail_revision=1,
+        feature_tail_revision=1,
+        label_integrity_revisions=[],
+        feature_integrity_revisions=[],
+        label_high_water_calls=[],
+        feature_high_water_calls=[],
+        label_path_calls=[],
+        feature_query_calls=[],
+        example_observation_cutoffs=[],
+        old_full_tail_proof_current_calls=0,
+    )
+
+    class _Archive:
+        def verify_integrity(self):
+            state.label_integrity_revisions.append(
+                state.label_tail_revision
+            )
+            return {
+                "archive_integrity_verified": True,
+                "tail_revision": state.label_tail_revision,
+            }
+
+        def integrity_proof_is_current(self, _proof):
+            state.old_full_tail_proof_current_calls += 1
+            raise AssertionError("old mutable-tail proof must not be reused")
+
+        def verified_label_path(self, **kwargs):
+            state.label_path_calls.append(dict(kwargs))
+            assert kwargs["archive_integrity_proof"] is None
+            if append_concurrent_suffix:
+                state.label_tail_revision += 1
+            return [
+                {"unit": "canonical-label-path-matured-after-manifest"}
+            ], {
+                "label_path_sha256": "4" * 64,
+                "range_proof": {"range_sha256": "5" * 64},
+                "label_available_at_ms": 1,
+            }
+
+    archive = _Archive()
+    monkeypatch.setattr(
+        runtime_module,
+        "DurableCanonical5mLabelArchive",
+        lambda _path: archive,
+    )
+
+    def _label_high_water(**kwargs):
+        cutoff = kwargs["observation_cutoff"]
+        state.label_high_water_calls.append(
+            (cutoff, kwargs["integrity"]["tail_revision"])
+        )
+        if cutoff == feature_observation:
+            return dict(manifest_label_high_water), []
+        if cutoff == label_evaluation:
+            return dict(evaluation_label_high_water), []
+        raise AssertionError(f"unexpected label cutoff: {cutoff!r}")
+
+    monkeypatch.setattr(
+        runtime_module,
+        "_label_archive_integrity_checkpoint",
+        _label_high_water,
+    )
+
+    item = SimpleNamespace(
+        sequence=1,
+        record={
+            "durable_snapshot_id": "holdout-feature-1",
+            "record_sha256": "6" * 64,
+            "frozen_envelope": {
+                "original_tensor_id": "holdout-tensor-1",
+                "symbol": "BTCUSDT",
+                "timeframe": "1m",
+                "ppo_decision_time": holdout_decision.isoformat(),
+            },
+        },
+        append_transaction_id="tx-1",
+        append_receipt_sha256="7" * 64,
+        postcommit_receipt_sha256="8" * 64,
+        postcommit_readback_at=(
+            feature_observation - timedelta(minutes=1)
+        ).isoformat(),
+    )
+
+    class _Ledger:
+        def verify_integrity_streaming(self):
+            state.feature_integrity_revisions.append(
+                state.feature_tail_revision
+            )
+            return SimpleNamespace(
+                integrity_verified=True,
+                tail_revision=state.feature_tail_revision,
+            )
+
+        def query_fixed_cutoff(self, **kwargs):
+            state.feature_query_calls.append(dict(kwargs))
+            if kwargs["after_sequence"] != 0:
+                return []
+            if append_concurrent_suffix:
+                state.feature_tail_revision += 1
+            return [item]
+
+    ledger = _Ledger()
+    monkeypatch.setattr(
+        runtime_module,
+        "DurableFeatureSnapshotLedger",
+        lambda _path: ledger,
+    )
+
+    def _feature_high_water(**kwargs):
+        state.feature_high_water_calls.append(
+            (
+                kwargs["observation_cutoff"],
+                kwargs["report"].tail_revision,
+            )
+        )
+        assert kwargs["observation_cutoff"] == feature_observation
+        return dict(feature_high_water), []
+
+    monkeypatch.setattr(
+        runtime_module,
+        "_feature_ledger_integrity_checkpoint",
+        _feature_high_water,
+    )
+    snapshot = {
+        "snapshot_id": "holdout-feature-1",
+        "content_sha256": "9" * 64,
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
+    }
+    tensor = _unit_holdout_example().tensor
+    clocks = {"ppo_decision_time": holdout_decision}
+    monkeypatch.setattr(
+        runtime_module,
+        "_snapshot_from_feature_ledger_item",
+        lambda _item: (dict(snapshot), tensor, []),
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "_holdout_snapshot_clock_contract",
+        lambda _snapshot: (dict(clocks), []),
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "_holdout_partition_reasons",
+        lambda **_kwargs: [],
+    )
+
+    def _example_from_sources(**kwargs):
+        state.example_observation_cutoffs.append(
+            kwargs["observation_cutoff"]
+        )
+        return _unit_holdout_example(), []
+
+    monkeypatch.setattr(
+        runtime_module,
+        "_holdout_example_from_verified_sources",
+        _example_from_sources,
+    )
+    result = runtime_module._trusted_replay_holdout_examples(  # noqa: SLF001
+        repo_root=tmp_path,
+        manifest=manifest,
+        scan_limit=100,
+        eval_limit=8,
+    )
+    state.feature_observation = feature_observation
+    state.label_evaluation = label_evaluation
+    return result, state
+
+
+def test_holdout_labels_can_mature_after_manifest_before_evaluation(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    result, state = _run_two_clock_holdout_scenario(
+        tmp_path,
+        monkeypatch,
+        append_concurrent_suffix=False,
+    )
+
+    assert result["status"] == (
+        "VERIFIED_CURSOR_FREE_TRUSTED_REPLAY_HOLDOUT_EXAMPLES"
+    )
+    assert len(result["examples"]) == 1
+    assert result["feature_observation_cutoff"] == (
+        state.feature_observation.isoformat()
+    )
+    assert result["label_evaluation_cutoff"] == (
+        state.label_evaluation.isoformat()
+    )
+    assert result["manifest_label_archive_high_water"]["visible_rows"] == 0
+    assert result["evaluation_label_archive_high_water"]["visible_rows"] == 49
+    assert state.label_path_calls[0]["training_observed_at"] == (
+        state.label_evaluation - timedelta(microseconds=1)
+    )
+    assert state.label_path_calls[0]["archive_integrity_proof"] is None
+    assert state.example_observation_cutoffs == [state.label_evaluation]
+    assert state.feature_query_calls[0]["training_observed_at"] == (
+        state.feature_observation - timedelta(microseconds=1)
+    ).isoformat()
+
+
+def test_holdout_completion_accepts_valid_concurrent_suffix_appends(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    result, state = _run_two_clock_holdout_scenario(
+        tmp_path,
+        monkeypatch,
+        append_concurrent_suffix=True,
+    )
+
+    assert result["status"] == (
+        "VERIFIED_CURSOR_FREE_TRUSTED_REPLAY_HOLDOUT_EXAMPLES"
+    )
+    assert state.label_integrity_revisions == [1, 2]
+    assert state.feature_integrity_revisions == [1, 2]
+    assert state.old_full_tail_proof_current_calls == 0
+    assert result["label_archive_full_integrity_verified_at_completion"] is True
+    assert result["label_archive_fixed_prefixes_current_at_completion"] is True
+    assert result["feature_ledger_full_integrity_verified_at_completion"] is True
+    assert result["feature_ledger_fixed_prefix_current_at_completion"] is True
+    assert result["initial_full_tail_integrity_proof_reused"] is False
+
+
+def _patch_unit_holdout_inputs(
+    monkeypatch,
+    *,
+    checkpoint_id: str = "serving-1",
+) -> None:
     monkeypatch.setattr(
         runtime_module,
         "_trusted_replay_holdout_manifest",
         lambda _repo_root: {
             "manifest_path": "/unit/holdout.json",
+            "checkpoint_binding": {"checkpoint_id": checkpoint_id},
             "holdout_window": {
                 "start_decision_time": "2026-06-22T09:00:00Z",
                 "end_decision_time": "2026-06-22T11:00:00Z",
@@ -2657,7 +3072,7 @@ def test_holdout_checkpoint_rejects_non_serving_lineage_before_artifact_load(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
-    _patch_unit_holdout_inputs(monkeypatch)
+    _patch_unit_holdout_inputs(monkeypatch, checkpoint_id="candidate-1")
     candidate = SimpleNamespace(
         checkpoint_id="candidate-1",
         lineage_kind="NON_SERVING_TRAINING_CANDIDATE",
@@ -2731,7 +3146,10 @@ def test_holdout_checkpoint_partition_blocks_before_npz_artifact_inspection(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
-    _patch_unit_holdout_inputs(monkeypatch)
+    _patch_unit_holdout_inputs(
+        monkeypatch,
+        checkpoint_id="serving-overlaps-holdout",
+    )
     serving = SimpleNamespace(
         checkpoint_id="serving-overlaps-holdout",
         lineage_kind=runtime_module.VERIFIED_SERVING_LINEAGE,
@@ -2984,12 +3402,28 @@ def test_holdout_clock_contract_requires_explicit_masa_and_ppo_clocks() -> None:
 
 def _checkpoint_partition_inputs(
     *,
-    training_identities: list[str],
+    training_sample_identities: list[str],
+    training_feature_identities: list[str],
+    validation_sample_identities: list[str],
+    validation_feature_identities: list[str],
     holdout_identities: list[str],
 ) -> tuple[dict[str, object], SimpleNamespace]:
     partition_digest = training_partition_digest([])
-    training_set_sha256 = runtime_module._sample_identity_set_sha256(  # noqa: SLF001
-        training_identities
+    training_sample_set_sha256 = (
+        runtime_module._training_sample_identity_set_sha256(  # noqa: SLF001
+            training_sample_identities
+        )
+    )
+    validation_sample_set_sha256 = (
+        runtime_module._training_sample_identity_set_sha256(  # noqa: SLF001
+            validation_sample_identities
+        )
+    )
+    training_feature_set_sha256 = runtime_module._sample_identity_set_sha256(  # noqa: SLF001
+        training_feature_identities
+    )
+    validation_feature_set_sha256 = runtime_module._sample_identity_set_sha256(  # noqa: SLF001
+        validation_feature_identities
     )
     holdout_set_sha256 = runtime_module._sample_identity_set_sha256(  # noqa: SLF001
         holdout_identities
@@ -3000,25 +3434,123 @@ def _checkpoint_partition_inputs(
         consumed_ppo_update_keys=(),
         training_partition_digest=partition_digest,
         checkpoint_evidence={
-            "training_sample_identity_sha256s": training_identities,
+            "training_sample_identity_sha256s": sorted(
+                training_sample_identities
+            ),
             "training_sample_identity_inventory_complete": True,
             "training_sample_identity_domain": (
+                runtime_module.TRAINING_SAMPLE_IDENTITY_DOMAIN
+            ),
+            "training_sample_identity_set_sha256": (
+                training_sample_set_sha256
+            ),
+            "training_sample_count": len(training_sample_identities),
+            "validation_sample_identity_sha256s": sorted(
+                validation_sample_identities
+            ),
+            "validation_sample_identity_inventory_complete": True,
+            "validation_sample_identity_domain": (
+                runtime_module.TRAINING_SAMPLE_IDENTITY_DOMAIN
+            ),
+            "validation_sample_identity_set_sha256": (
+                validation_sample_set_sha256
+            ),
+            "validation_sample_count": len(validation_sample_identities),
+            "training_feature_identity_sha256s": sorted(
+                training_feature_identities
+            ),
+            "training_feature_identity_inventory_complete": True,
+            "training_feature_identity_domain": (
                 runtime_module.HOLDOUT_SAMPLE_IDENTITY_DOMAIN
             ),
-            "training_sample_identity_set_sha256": training_set_sha256,
-            "training_sample_count": len(training_identities),
+            "training_feature_identity_set_sha256": (
+                training_feature_set_sha256
+            ),
+            "training_feature_identity_count": len(
+                training_feature_identities
+            ),
+            "validation_feature_identity_sha256s": sorted(
+                validation_feature_identities
+            ),
+            "validation_feature_identity_inventory_complete": True,
+            "validation_feature_identity_domain": (
+                runtime_module.HOLDOUT_SAMPLE_IDENTITY_DOMAIN
+            ),
+            "validation_feature_identity_set_sha256": (
+                validation_feature_set_sha256
+            ),
+            "validation_feature_identity_count": len(
+                validation_feature_identities
+            ),
             "training_partition_digest": partition_digest,
+            "optional_missing_evidence_semantics": (
+                runtime_module.OPTIONAL_MISSING_EVIDENCE_SEMANTICS
+            ),
+            "optional_missing_typed_negative_receipts_verified": False,
+            "optional_missing_observed_zero_claimed": False,
         },
     )
     manifest = {
         "partition_evidence": {
+            "schema_version": runtime_module.HOLDOUT_PARTITION_SCHEMA_VERSION,
+            "identity_domain": runtime_module.HOLDOUT_SAMPLE_IDENTITY_DOMAIN,
+            "training_sample_identity_domain": (
+                runtime_module.TRAINING_SAMPLE_IDENTITY_DOMAIN
+            ),
+            "validation_sample_identity_domain": (
+                runtime_module.TRAINING_SAMPLE_IDENTITY_DOMAIN
+            ),
             "training_partition_digest": partition_digest,
-            "training_sample_identity_set_sha256": training_set_sha256,
-            "training_sample_count": len(training_identities),
+            "training_sample_identity_set_sha256": (
+                training_sample_set_sha256
+            ),
+            "training_sample_count": len(training_sample_identities),
+            "validation_sample_identity_set_sha256": (
+                validation_sample_set_sha256
+            ),
+            "validation_sample_count": len(validation_sample_identities),
+            "training_feature_identity_set_sha256": (
+                training_feature_set_sha256
+            ),
+            "training_feature_identity_count": len(
+                training_feature_identities
+            ),
+            "validation_feature_identity_set_sha256": (
+                validation_feature_set_sha256
+            ),
+            "validation_feature_identity_count": len(
+                validation_feature_identities
+            ),
             "holdout_sample_identity_set_sha256": holdout_set_sha256,
             "holdout_sample_count": len(holdout_identities),
+            "training_validation_disjoint": True,
             "training_holdout_disjoint": True,
-        }
+            "validation_holdout_disjoint": True,
+            "optional_missing_evidence_semantics": (
+                runtime_module.OPTIONAL_MISSING_EVIDENCE_SEMANTICS
+            ),
+            "optional_missing_typed_negative_receipts_verified": False,
+            "optional_missing_observed_zero_claimed": False,
+        },
+        "checkpoint_binding": {
+            "checkpoint_id": checkpoint.checkpoint_id,
+            "checkpoint_evidence_digest": (
+                checkpoint.checkpoint_evidence_digest
+            ),
+            "training_partition_digest": partition_digest,
+            "training_sample_identity_set_sha256": (
+                training_sample_set_sha256
+            ),
+            "validation_sample_identity_set_sha256": (
+                validation_sample_set_sha256
+            ),
+            "training_feature_identity_set_sha256": (
+                training_feature_set_sha256
+            ),
+            "validation_feature_identity_set_sha256": (
+                validation_feature_set_sha256
+            ),
+        },
     }
     return manifest, checkpoint
 
@@ -3026,7 +3558,10 @@ def _checkpoint_partition_inputs(
 def test_checkpoint_holdout_partition_accepts_complete_empty_training_set() -> None:
     holdout_identities = ["b" * 64]
     manifest, checkpoint = _checkpoint_partition_inputs(
-        training_identities=[],
+        training_sample_identities=[],
+        training_feature_identities=[],
+        validation_sample_identities=[],
+        validation_feature_identities=[],
         holdout_identities=holdout_identities,
     )
 
@@ -3042,10 +3577,13 @@ def test_checkpoint_holdout_partition_accepts_complete_empty_training_set() -> N
     assert proof["training_holdout_disjoint_verified"] is True
 
 
-def test_checkpoint_holdout_partition_rejects_exact_sample_overlap() -> None:
+def test_checkpoint_holdout_partition_rejects_exact_feature_overlap() -> None:
     overlapping_identity = "b" * 64
     manifest, checkpoint = _checkpoint_partition_inputs(
-        training_identities=[overlapping_identity],
+        training_sample_identities=["a" * 64],
+        training_feature_identities=[overlapping_identity],
+        validation_sample_identities=[],
+        validation_feature_identities=[],
         holdout_identities=[overlapping_identity],
     )
 
@@ -3062,7 +3600,10 @@ def test_checkpoint_holdout_partition_rejects_exact_sample_overlap() -> None:
 def test_checkpoint_holdout_partition_rejects_missing_sample_inventory() -> None:
     holdout_identities = ["b" * 64]
     manifest, checkpoint = _checkpoint_partition_inputs(
-        training_identities=[],
+        training_sample_identities=[],
+        training_feature_identities=[],
+        validation_sample_identities=[],
+        validation_feature_identities=[],
         holdout_identities=holdout_identities,
     )
     del checkpoint.checkpoint_evidence[
@@ -3077,6 +3618,127 @@ def test_checkpoint_holdout_partition_rejects_missing_sample_inventory() -> None
 
     assert proof is None
     assert "CHECKPOINT_TRAINING_SAMPLE_IDENTITY_INVENTORY_MISSING" in reasons
+
+
+def test_holdout_manifest_identity_rejects_payload_digest_tamper(
+    tmp_path: Path,
+) -> None:
+    payload: dict[str, object] = {
+        "schema_version": runtime_module.HOLDOUT_MANIFEST_SCHEMA_VERSION,
+        "split_method": "STRICT_TEMPORAL_ORDER_NO_RANDOM_ROW_SPLIT",
+        "training_window": {
+            "rows": 0,
+            "start_decision_time": None,
+            "end_decision_time": None,
+        },
+        "validation_window": {
+            "rows": 0,
+            "start_decision_time": None,
+            "end_decision_time": None,
+        },
+        "holdout_window": {
+            "rows": 0,
+            "start_decision_time": None,
+            "end_decision_time": None,
+        },
+        "temporal_overlap": False,
+        "feature_ledger_high_water": {},
+        "label_archive_high_water": {},
+        "partition_evidence": {},
+        "checkpoint_binding": {
+            "checkpoint_id": "verified-serving-checkpoint",
+            "checkpoint_evidence_digest": "a" * 64,
+            "training_partition_digest": "b" * 64,
+            "training_sample_identity_set_sha256": "c" * 64,
+            "validation_sample_identity_set_sha256": "d" * 64,
+            "training_feature_identity_set_sha256": "e" * 64,
+            "validation_feature_identity_set_sha256": "f" * 64,
+        },
+        "manifest_payload_sha256": "0" * 64,
+    }
+    path = tmp_path / "holdout-manifest.json"
+    path.write_text(
+        json.dumps(payload, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    identity, reasons = runtime_module._holdout_manifest_identity(  # noqa: SLF001
+        repo_root=tmp_path,
+        manifest={**payload, "manifest_path": str(path)},
+    )
+
+    assert identity is None
+    assert reasons == ["HOLDOUT_MANIFEST_PAYLOAD_DIGEST_MISMATCH"]
+
+
+def test_checkpoint_holdout_partition_rejects_validation_and_binding_tamper() -> None:
+    manifest, checkpoint = _checkpoint_partition_inputs(
+        training_sample_identities=[],
+        training_feature_identities=[],
+        validation_sample_identities=["a" * 64],
+        validation_feature_identities=["b" * 64],
+        holdout_identities=["c" * 64],
+    )
+    partition = manifest["partition_evidence"]
+    binding = manifest["checkpoint_binding"]
+    assert isinstance(partition, dict)
+    assert isinstance(binding, dict)
+    partition["validation_sample_count"] = 2
+    partition["validation_holdout_disjoint"] = False
+    binding["checkpoint_evidence_digest"] = "e" * 64
+
+    proof, reasons = runtime_module._checkpoint_holdout_partition_contract(  # noqa: SLF001
+        manifest_payload=manifest,
+        checkpoint=checkpoint,
+        holdout_sample_identity_sha256s=["c" * 64],
+    )
+
+    assert proof is None
+    assert "MANIFEST_CHECKPOINT_PARTITION_BINDING_MISMATCH" in reasons
+    assert "MANIFEST_CHECKPOINT_EXACT_BINDING_MISMATCH" in reasons
+    assert "MANIFEST_VALIDATION_HOLDOUT_DISJOINTNESS_NOT_TRUE" in reasons
+
+
+def test_checkpoint_holdout_partition_rejects_validation_holdout_overlap() -> None:
+    overlapping_identity = "b" * 64
+    manifest, checkpoint = _checkpoint_partition_inputs(
+        training_sample_identities=[],
+        training_feature_identities=[],
+        validation_sample_identities=["a" * 64],
+        validation_feature_identities=[overlapping_identity],
+        holdout_identities=[overlapping_identity],
+    )
+
+    proof, reasons = runtime_module._checkpoint_holdout_partition_contract(  # noqa: SLF001
+        manifest_payload=manifest,
+        checkpoint=checkpoint,
+        holdout_sample_identity_sha256s=[overlapping_identity],
+    )
+
+    assert proof is None
+    assert reasons == ["CHECKPOINT_VALIDATION_HOLDOUT_SAMPLE_OVERLAP"]
+
+
+def test_checkpoint_holdout_partition_rejects_typed_negative_overclaim() -> None:
+    manifest, checkpoint = _checkpoint_partition_inputs(
+        training_sample_identities=[],
+        training_feature_identities=[],
+        validation_sample_identities=[],
+        validation_feature_identities=[],
+        holdout_identities=["b" * 64],
+    )
+    checkpoint.checkpoint_evidence[
+        "optional_missing_typed_negative_receipts_verified"
+    ] = True
+
+    proof, reasons = runtime_module._checkpoint_holdout_partition_contract(  # noqa: SLF001
+        manifest_payload=manifest,
+        checkpoint=checkpoint,
+        holdout_sample_identity_sha256s=["b" * 64],
+    )
+
+    assert proof is None
+    assert reasons == ["CHECKPOINT_OPTIONAL_TYPED_NEGATIVE_CLAIM_INVALID"]
 
 
 def test_holdout_fails_closed_when_adaptive_label_contract_is_tampered() -> None:

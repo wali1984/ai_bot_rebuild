@@ -587,6 +587,7 @@ def test_latest_checkpoint_uses_semantic_generation_not_filesystem_mtime(
         device="cpu",
         cuda_active=False,
     )
+    older_fingerprint = model_parameter_fingerprint(model)
     if model.torch_available:
         assert model.torch is not None and model.net is not None
         with model.torch.no_grad():
@@ -606,11 +607,19 @@ def test_latest_checkpoint_uses_semantic_generation_not_filesystem_mtime(
     loaded = manager.load_latest_weights(
         V2HybridPolicyModel(input_dim=4, seed=201)
     )
+    manifest_bound_model = V2HybridPolicyModel(input_dim=4, seed=201)
+    manifest_bound_load = manager.load_latest_weights(
+        manifest_bound_model,
+        expected_checkpoint_id=older.checkpoint_id,
+    )
 
     assert selected is not None
     assert selected.checkpoint_id == newer.checkpoint_id
     assert loaded["checkpoint_id"] == newer.checkpoint_id
     assert loaded["load_status"] == "LOADED"
+    assert manifest_bound_load["checkpoint_id"] == older.checkpoint_id
+    assert manifest_bound_load["load_status"] == "LOADED"
+    assert model_parameter_fingerprint(manifest_bound_model) == older_fingerprint
 
 
 def test_checkpoint_source_replacement_after_verification_cannot_change_loaded_bytes(

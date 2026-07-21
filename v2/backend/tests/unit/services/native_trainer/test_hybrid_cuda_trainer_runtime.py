@@ -1,12 +1,19 @@
 from __future__ import annotations
 
+import hashlib
+import json
+import sqlite3
 from collections import deque
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
+from v2.backend.app.services.market_state_integrity.canonical_candles import (
+    CanonicalCandle,
+)
 from v2.backend.app.services.native_trainer.durable_behavior_receipt_archive import (
     EVENT_ENTRY_ACCEPTED,
     EVENT_OUTCOME_FINALIZED,
@@ -16,11 +23,31 @@ from v2.backend.app.services.native_trainer.durable_behavior_receipt_archive imp
     canonical_sha256,
     receipt_lifecycle_status,
 )
+from v2.backend.app.services.native_trainer.durable_canonical_5m_label_archive import (
+    DurableCanonical5mLabelArchive,
+)
+from v2.backend.app.services.native_trainer.durable_canonical_5m_label_archive import (
+    default_archive_path as default_canonical_5m_label_archive_path,
+)
+from v2.backend.app.services.native_trainer.durable_feature_snapshot_ledger import (
+    FEATURE_REQUIREMENT_POLICY_ID,
+    PROVENANCE_CANONICAL_V3,
+    PROVENANCE_LEGACY_V1_IMPORT,
+    DurableFeatureSnapshotLedger,
+    build_feature_snapshot_record,
+    build_source_read_receipt,
+)
+from v2.backend.app.services.native_trainer.durable_feature_snapshot_ledger import (
+    default_ledger_path as default_feature_snapshot_ledger_path,
+)
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer import (
     data_loader as data_loader_mod,
 )
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer import (
     runtime as runtime_mod,
+)
+from v2.backend.app.services.native_trainer.hybrid_cuda_trainer import (
+    training_sample_identity as training_sample_identity_mod,
 )
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.checkpoint_lifecycle import (
     REJECTED_ATTEMPT_LINEAGE,
@@ -28,6 +55,7 @@ from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.checkpoint_lifec
     reconcile_checkpoint_consumption,
 )
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.config import (
+    DEFAULT_TIMEFRAMES,
     HybridTrainerConfig,
 )
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.data_loader import (
@@ -48,9 +76,26 @@ from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.runtime import (
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.tensor_builder import (
     FeatureTensorRecord,
 )
+from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.training_sample_identity import (
+    OPTIONAL_MISSING_EVIDENCE_SEMANTICS,
+    TrainingSampleIdentityError,
+    build_checkpoint_sample_inventory,
+    checkpoint_inventory_evidence,
+    checkpoint_partition_manifest_projection_status,
+    prepare_checkpoint_partition_manifest,
+    publish_checkpoint_partition_manifest,
+    read_published_checkpoint_partition_manifest,
+    sample_identity_set_sha256,
+    stable_json_sha256,
+)
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.training_state import (
     ppo_consumption_update_key,
     training_partition_digest,
+)
+from v2.backend.app.services.native_trainer.trusted_replay.dataset import (
+    HORIZON_SECONDS,
+    build_trusted_replay_row,
+    target_action_index,
 )
 
 
@@ -91,6 +136,1359 @@ def _runtime_test_example(symbol: str, timeframe: str, index: int) -> TrainingEx
             "available_at": "2026-07-11T00:00:30Z",
         },
     )
+
+
+_IDENTITY_BASE = datetime(2025, 1, 1, tzinfo=UTC)
+
+
+def _identity_utc(value: datetime) -> str:
+    return value.isoformat(timespec="microseconds").replace("+00:00", "Z")
+
+
+def _identity_source_receipt(
+    source_label: str,
+    *,
+    event: datetime,
+    seed: int,
+) -> dict[str, object]:
+    return build_source_read_receipt(
+        source_label=source_label,
+        payload_type="CANONICAL_JSON_SOURCE_PAYLOAD",
+        payload_sha256=f"{seed:064x}",
+        payload_byte_count=64,
+        event_time=_identity_utc(event),
+        available_at=_identity_utc(event + timedelta(milliseconds=100)),
+        consumer_observed_at=_identity_utc(event + timedelta(milliseconds=200)),
+        feature_cutoff=_identity_utc(event + timedelta(milliseconds=300)),
+        read_locator_type="SQLITE_IMMUTABLE_ROW",
+        read_locator=f"fixture.sqlite3/{source_label}/{seed}",
+        read_locator_version=f"row:{source_label}:{seed}",
+        finality_type=(
+            "CLOSED_INTERVAL" if source_label.startswith("closed_") else "VERSIONED_SNAPSHOT"
+        ),
+        finality_cutoff=_identity_utc(event + timedelta(milliseconds=50)),
+        finality_verified_at=_identity_utc(event + timedelta(milliseconds=150)),
+        finality_verifier="unit-test-finality-gate",
+    )
+
+
+def _identity_feature_record(
+    index: int,
+    *,
+    decision_minute: int,
+    optional_missing: bool = False,
+    legacy: bool = False,
+    omit_feature: str | None = None,
+    tamper_finality_timeframe: str | None = None,
+) -> dict[str, object]:
+    event = _IDENTITY_BASE + timedelta(minutes=decision_minute, seconds=-2)
+    decision = _IDENTITY_BASE + timedelta(minutes=decision_minute)
+    timeframe_receipts = {
+        timeframe: _identity_source_receipt(
+            f"closed_{timeframe}",
+            event=event,
+            seed=index * 100 + ordinal,
+        )
+        for ordinal, timeframe in enumerate(DEFAULT_TIMEFRAMES, start=1)
+    }
+    required_receipt = timeframe_receipts["5m"]
+    optional_receipt = _identity_source_receipt(
+        "optional_event",
+        event=event,
+        seed=index * 100 + 99,
+    )
+    # The ordinary receipt authenticates only the source read. It is not typed
+    # negative evidence of absence; missing remains a structural mask claim.
+    receipts = [
+        *(timeframe_receipts[timeframe] for timeframe in DEFAULT_TIMEFRAMES),
+        optional_receipt,
+    ]
+    timeframe_seconds = {
+        "1m": 60,
+        "5m": 5 * 60,
+        "15m": 15 * 60,
+        "1h": 60 * 60,
+        "4h": 4 * 60 * 60,
+    }
+    timeframe_finality: dict[str, dict[str, object]] = {}
+    for timeframe in DEFAULT_TIMEFRAMES:
+        receipt = timeframe_receipts[timeframe]
+        finality = receipt["finality_evidence"]
+        assert isinstance(finality, dict)
+        timeframe_finality[timeframe] = {
+            "timeframe": timeframe,
+            "candle_id": f"identity-candle:{timeframe}:{index}",
+            "candle_open_time": _identity_utc(
+                event - timedelta(seconds=timeframe_seconds[timeframe]) + timedelta(milliseconds=1)
+            ),
+            "candle_close_time": _identity_utc(event),
+            "candle_closed_confirmed": True,
+            "source_read_receipt_sha256": receipt["receipt_sha256"],
+            "source_label": receipt["source_label"],
+            "event_time": receipt["event_time"],
+            "available_at": receipt["available_at"],
+            "consumer_observed_at": receipt["consumer_observed_at"],
+            "feature_cutoff": receipt["feature_cutoff"],
+            "finality_cutoff": finality["finality_cutoff"],
+            "finality_verified_at": finality["finality_verified_at"],
+        }
+    if tamper_finality_timeframe is not None:
+        timeframe_finality[tamper_finality_timeframe]["candle_closed_confirmed"] = False
+    names = [
+        "close",
+        "fee_bps",
+        "spread_bps",
+        "expected_slippage_bps",
+        "funding_bps",
+        "finality_receipt_anchor_1m",
+        "finality_receipt_anchor_15m",
+        "finality_receipt_anchor_1h",
+        "finality_receipt_anchor_4h",
+        "last_liq_bps_24h",
+    ]
+    values = [
+        100.0,
+        0.1,
+        0.1,
+        0.1,
+        0.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.0 if optional_missing else float(index + 1),
+    ]
+    missing_mask = [0, 0, 0, 0, 0, 0, 0, 0, 0, 1 if optional_missing else 0]
+    stale_mask = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    availability_mask = [1, 1, 1, 1, 1, 1, 1, 1, 1, 0 if optional_missing else 1]
+    source_labels = [
+        "closed_5m",
+        "closed_5m",
+        "closed_5m",
+        "closed_5m",
+        "closed_5m",
+        "closed_1m",
+        "closed_15m",
+        "closed_1h",
+        "closed_4h",
+        "optional_event",
+    ]
+    receipt_bindings = [
+        required_receipt["receipt_sha256"],
+        required_receipt["receipt_sha256"],
+        required_receipt["receipt_sha256"],
+        required_receipt["receipt_sha256"],
+        required_receipt["receipt_sha256"],
+        timeframe_receipts["1m"]["receipt_sha256"],
+        timeframe_receipts["15m"]["receipt_sha256"],
+        timeframe_receipts["1h"]["receipt_sha256"],
+        timeframe_receipts["4h"]["receipt_sha256"],
+        optional_receipt["receipt_sha256"],
+    ]
+    requirements = [
+        "REQUIRED",
+        "REQUIRED",
+        "REQUIRED",
+        "REQUIRED",
+        "REQUIRED",
+        "REQUIRED",
+        "REQUIRED",
+        "REQUIRED",
+        "REQUIRED",
+        "OPTIONAL_EVENT_DEPENDENT",
+    ]
+    if omit_feature is not None:
+        omitted_index = names.index(omit_feature)
+        for vector in (
+            names,
+            values,
+            missing_mask,
+            stale_mask,
+            availability_mask,
+            source_labels,
+            receipt_bindings,
+            requirements,
+        ):
+            vector.pop(omitted_index)
+    return build_feature_snapshot_record(
+        provenance_classification=(
+            PROVENANCE_LEGACY_V1_IMPORT if legacy else PROVENANCE_CANONICAL_V3
+        ),
+        legacy_v1_snapshot_id=f"legacy:{index}" if legacy else None,
+        symbol="BTCUSDT",
+        timeframe="5m",
+        feature_snapshot_id=f"feature:identity:{index}",
+        tensor_decision_time=_identity_utc(decision),
+        temporal_rejection_reasons=[],
+        ordered_feature_names=names,
+        feature_values=values,
+        missing_mask=missing_mask,
+        stale_mask=stale_mask,
+        source_availability_mask=availability_mask,
+        ordered_feature_source_labels=source_labels,
+        feature_source_receipt_sha256s=receipt_bindings,
+        source_read_receipts=receipts,
+        feature_requirement_policy_id=FEATURE_REQUIREMENT_POLICY_ID,
+        ordered_feature_requirement_classes=requirements,
+        original_tensor_id=f"tensor:identity:{index}",
+        source_lineage_material={
+            "lineage_schema": "identity_fixture_v1",
+            "ordered_sources": [
+                *(f"closed_{timeframe}" for timeframe in DEFAULT_TIMEFRAMES),
+                "optional_event",
+            ],
+            "mtf_snapshot_id": f"mtf:identity:{index}",
+            "timeframe_finality": timeframe_finality,
+        },
+        feature_cutoff=_identity_utc(event + timedelta(seconds=1)),
+        masa_feature_cutoff=_identity_utc(event + timedelta(seconds=1, milliseconds=100)),
+        ppo_feature_cutoff=_identity_utc(event + timedelta(seconds=1, milliseconds=200)),
+        ppo_decision_time=_identity_utc(decision),
+        generated_at=_identity_utc(event + timedelta(seconds=1, milliseconds=500)),
+    )
+
+
+def _identity_candle(slot: int) -> dict[str, object]:
+    open_time = _IDENTITY_BASE + timedelta(minutes=5 * slot)
+    close_time = open_time + timedelta(minutes=5) - timedelta(milliseconds=1)
+    available_at = close_time + timedelta(milliseconds=1)
+    close_price = 100.0 + slot * 0.1
+    return CanonicalCandle(
+        symbol="BTCUSDT",
+        exchange="binance",
+        timeframe="5m",
+        candle_open_time=int(open_time.timestamp() * 1_000),
+        candle_close_time=int(close_time.timestamp() * 1_000),
+        event_time=int(close_time.timestamp() * 1_000),
+        ingested_at=int(available_at.timestamp() * 1_000),
+        available_at=int(available_at.timestamp() * 1_000),
+        is_closed=True,
+        source="binance_wss",
+        source_sequence_id=f"identity:{slot}",
+        raw_payload_hash=hashlib.sha256(f"identity:{slot}".encode()).hexdigest(),
+        ohlcv={
+            "open": 100.0 + max(0, slot - 1) * 0.1,
+            "high": close_price + 0.2,
+            "low": 99.8,
+            "close": close_price,
+            "volume": 1_000.0 + slot,
+            "quote_volume": 100_000.0 + slot,
+            "num_trades": 100 + slot,
+        },
+        is_backfilled=False,
+        feature_eligible=True,
+    ).to_dict()
+
+
+def _identity_seed_label_archive(
+    repo_root: Path,
+    *,
+    candle_count: int = 49,
+) -> str:
+    archive = DurableCanonical5mLabelArchive(default_canonical_5m_label_archive_path(repo_root))
+    archive.append_candles([_identity_candle(slot) for slot in range(candle_count)])
+    return _identity_utc(datetime.now(UTC))
+
+
+def _identity_tensor(record: dict[str, object]) -> FeatureTensorRecord:
+    envelope = record["frozen_envelope"]
+    assert isinstance(envelope, dict)
+    names = tuple(str(value) for value in envelope["ordered_feature_names"])
+    missing = tuple(int(value) for value in envelope["missing_mask"])
+    stale = tuple(int(value) for value in envelope["stale_mask"])
+    availability = tuple(int(value) for value in envelope["source_availability_mask"])
+    return FeatureTensorRecord(
+        tensor_id=str(envelope["original_tensor_id"]),
+        symbol=str(envelope["symbol"]),
+        timeframe=str(envelope["timeframe"]),
+        feature_snapshot_id=str(envelope["feature_snapshot_id"]),
+        values=tuple(float(value) for value in envelope["feature_values"]),
+        missing_mask=missing,
+        stale_mask=stale,
+        source_availability=availability,
+        feature_names=names,
+        source_labels=tuple(str(value) for value in envelope["ordered_feature_source_labels"]),
+        missing_feature_names=tuple(
+            name for name, flag in zip(names, missing, strict=True) if flag == 1
+        ),
+        stale_feature_names=tuple(
+            name for name, flag in zip(names, stale, strict=True) if flag == 1
+        ),
+        data_coverage_percent=(100.0 * sum(availability) / len(availability)),
+        source_availability_vector=availability,
+        decision_time=str(envelope["tensor_decision_time"]),
+        source_lineage_hash=str(envelope["source_lineage_sha256"]),
+        temporal_rejection_reasons=tuple(
+            str(value) for value in envelope["temporal_rejection_reasons"]
+        ),
+    )
+
+
+def _identity_example(
+    record: dict[str, object],
+    *,
+    repo_root: Path,
+    observation: str,
+    row_source: str,
+) -> TrainingExample:
+    envelope = record["frozen_envelope"]
+    assert isinstance(envelope, dict)
+    decision = str(envelope["ppo_decision_time"])
+    tensor = _identity_tensor(record)
+    ledger = DurableFeatureSnapshotLedger(default_feature_snapshot_ledger_path(repo_root))
+    items = ledger.query_fixed_cutoff(
+        decision_time_cutoff=observation,
+        training_observed_at=observation,
+        limit=32,
+    )
+    item = next(
+        item
+        for item in items
+        if dict(item.record["frozen_envelope"])["original_tensor_id"] == tensor.tensor_id
+    )
+    snapshot, _authenticated_envelope = (
+        training_sample_identity_mod._feature_snapshot_for_label_rebuild(  # noqa: SLF001
+            item
+        )
+    )
+    archive = DurableCanonical5mLabelArchive(default_canonical_5m_label_archive_path(repo_root))
+    integrity = archive.verify_integrity()
+    rows, proof = archive.verified_label_path(
+        symbol="BTCUSDT",
+        decision_time=decision,
+        training_observed_at=observation,
+        horizon_seconds=HORIZON_SECONDS["4h"],
+        archive_integrity_proof=integrity,
+        require_receipt_committed_by_observation=True,
+    )
+    assert rows is not None
+    label_path_sha256 = str(proof["label_path_sha256"])
+    source_key = f"durable_canonical_5m_label_archive:{archive.path}:" f"{label_path_sha256}"
+    replay_row, reasons = build_trusted_replay_row(
+        snapshot,
+        candles=rows,
+        training_observed_at=observation,
+        label_candle_source_key=source_key,
+    )
+    assert replay_row is not None, reasons
+    trust_row = {
+        **replay_row,
+        "row_source": row_source,
+        "trusted_replay_row": True,
+        "historical_replay_row": True,
+        "source_lineage": {
+            "durable_canonical_5m_label_archive": True,
+            "durable_canonical_5m_label_path_sha256": label_path_sha256,
+        },
+    }
+    action = target_action_index(replay_row["target_action"])
+    assert action is not None
+    return TrainingExample(
+        symbol=str(envelope["symbol"]),
+        timeframe=str(envelope["timeframe"]),
+        tensor=tensor,
+        label_action_index=action,
+        label_expected_move_after_cost_bps=float(replay_row["future_return_after_cost_bps"]),
+        payload_keys=(source_key,),
+        row_classification="TRAINABLE",
+        trust_row=trust_row,
+        decision_time=decision,
+        label_available_at=str(replay_row["label_available_at"]),
+    )
+
+
+def test_checkpoint_sample_inventory_empty_set_is_deterministic(
+    tmp_path: Path,
+) -> None:
+    inventory = build_checkpoint_sample_inventory(
+        training_examples=[],
+        validation_examples=[],
+        repo_root=tmp_path,
+        training_observed_at=_identity_utc(datetime.now(UTC)),
+    )
+
+    assert inventory["training_sample_identity_sha256s"] == []
+    assert inventory["training_sample_identity_inventory_complete"] is True
+    assert inventory["training_sample_identity_set_sha256"] == (sample_identity_set_sha256([]))
+    assert inventory["sample_inventory_mutable_redis_used"] is False
+
+
+def test_checkpoint_sample_inventory_authenticates_replay_and_optional_missing(
+    tmp_path: Path,
+) -> None:
+    fresh_record = _identity_feature_record(1, decision_minute=2)
+    replay_record = _identity_feature_record(
+        2,
+        decision_minute=3,
+        optional_missing=True,
+    )
+    ledger = DurableFeatureSnapshotLedger(default_feature_snapshot_ledger_path(tmp_path))
+    ledger.append_snapshots([fresh_record, replay_record])
+    observation = _identity_seed_label_archive(tmp_path)
+    fresh = _identity_example(
+        fresh_record,
+        repo_root=tmp_path,
+        observation=observation,
+        row_source="trusted_replay_archive",
+    )
+    replay = _identity_example(
+        replay_record,
+        repo_root=tmp_path,
+        observation=observation,
+        row_source="trusted_replay_archive",
+    )
+
+    inventory = build_checkpoint_sample_inventory(
+        training_examples=[fresh, replay],
+        repo_root=tmp_path,
+        training_observed_at=observation,
+    )
+
+    assert inventory["training_sample_count"] == 2
+    assert len(inventory["training_sample_identity_sha256s"]) == 2
+    assert inventory["sample_inventory_durable_v3_only"] is True
+    assert replay.tensor.missing_mask[-1] == 1
+    assert sum(replay.tensor.missing_mask) == 1
+    assert replay.tensor.missing_feature_names == ("last_liq_bps_24h",)
+    assert inventory["optional_missing_evidence_semantics"] == (OPTIONAL_MISSING_EVIDENCE_SEMANTICS)
+    assert inventory["optional_missing_typed_negative_receipts_verified"] is False
+    assert inventory["optional_missing_observed_zero_claimed"] is False
+
+
+def test_checkpoint_sample_inventory_is_stable_across_later_valid_appends(
+    tmp_path: Path,
+) -> None:
+    record = _identity_feature_record(31, decision_minute=2)
+    ledger = DurableFeatureSnapshotLedger(
+        default_feature_snapshot_ledger_path(tmp_path)
+    )
+    ledger.append_snapshot(record)
+    observation = _identity_seed_label_archive(tmp_path)
+    example = _identity_example(
+        record,
+        repo_root=tmp_path,
+        observation=observation,
+        row_source="trusted_replay_archive",
+    )
+    planned = build_checkpoint_sample_inventory(
+        training_examples=[example],
+        repo_root=tmp_path,
+        training_observed_at=observation,
+    )
+
+    # These are legitimate immutable suffix appends, but neither receipt was
+    # observable at the cycle-start cutoff used for the exact optimizer row.
+    ledger.append_snapshot(_identity_feature_record(32, decision_minute=3))
+    label_archive = DurableCanonical5mLabelArchive(
+        default_canonical_5m_label_archive_path(tmp_path)
+    )
+    label_archive.append_candles([_identity_candle(49)])
+
+    actual = build_checkpoint_sample_inventory(
+        training_examples=[example],
+        repo_root=tmp_path,
+        training_observed_at=observation,
+    )
+
+    assert runtime_mod._sample_inventory_comparison_reasons(planned, actual) == ()
+    assert planned["sample_inventory_feature_ledger_high_water"] == actual[
+        "sample_inventory_feature_ledger_high_water"
+    ]
+    assert planned["sample_inventory_label_archive_high_water"] == actual[
+        "sample_inventory_label_archive_high_water"
+    ]
+    assert planned["training_sample_provenance_bindings_sha256"] == actual[
+        "training_sample_provenance_bindings_sha256"
+    ]
+    assert (
+        actual["sample_inventory_feature_ledger_integrity"]["verified_records"]
+        == planned["sample_inventory_feature_ledger_integrity"]["verified_records"]
+        + 1
+    )
+    assert (
+        actual["sample_inventory_label_archive_integrity"]["verified_rows"]
+        == planned["sample_inventory_label_archive_integrity"]["verified_rows"]
+        + 1
+    )
+
+
+def test_feature_high_water_uses_verified_head_frontier_at_equal_clock(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    fixed_clock = "2026-07-21T12:00:00.000000Z"
+    monkeypatch.setattr(
+        "v2.backend.app.services.native_trainer.durable_feature_snapshot_ledger.utc_now",
+        lambda: fixed_clock,
+    )
+    ledger = DurableFeatureSnapshotLedger(
+        default_feature_snapshot_ledger_path(tmp_path)
+    )
+    ledger.append_snapshot(_identity_feature_record(33, decision_minute=2))
+    old_report = ledger.verify_integrity_streaming()
+    observation = datetime(2026, 7, 21, 12, 0, 0, 1, tzinfo=UTC)
+    old_high_water = (
+        training_sample_identity_mod.feature_ledger_fixed_observation_high_water(
+            ledger=ledger,
+            report=old_report,
+            observation_cutoff=observation,
+            scan_limit=8,
+        )
+    )
+
+    # This append is physically later but deliberately has the same durable
+    # clock.  The old integrity frontier must exclude it from the old prefix.
+    ledger.append_snapshot(_identity_feature_record(34, decision_minute=3))
+    stale_report_reproduction = (
+        training_sample_identity_mod.feature_ledger_fixed_observation_high_water(
+            ledger=ledger,
+            report=old_report,
+            observation_cutoff=observation,
+            scan_limit=8,
+        )
+    )
+    current_high_water = (
+        training_sample_identity_mod.feature_ledger_fixed_observation_high_water(
+            ledger=ledger,
+            report=ledger.verify_integrity_streaming(),
+            observation_cutoff=observation,
+            scan_limit=8,
+        )
+    )
+
+    assert stale_report_reproduction == old_high_water
+    assert current_high_water != old_high_water
+    assert current_high_water["verified_records"] == 2
+
+
+def test_label_high_water_uses_authenticated_monotonic_receipt_frontier(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    fixed_clock = "2026-07-21T12:00:00.000Z"
+    # Deliberately reverse lexical UUID order.  UUID sorting must never be able
+    # to insert a later valid receipt ahead of an already authenticated prefix.
+    transaction_ids = iter(("f" * 32, "0" * 32))
+    monkeypatch.setattr(
+        "v2.backend.app.services.native_trainer.durable_canonical_5m_label_archive.utc_now",
+        lambda: fixed_clock,
+    )
+    monkeypatch.setattr(
+        "v2.backend.app.services.native_trainer.durable_canonical_5m_label_archive.uuid.uuid4",
+        lambda: SimpleNamespace(hex=next(transaction_ids)),
+    )
+    archive = DurableCanonical5mLabelArchive(
+        default_canonical_5m_label_archive_path(tmp_path)
+    )
+    archive.append_candles([_identity_candle(slot) for slot in range(49)])
+    old_integrity = archive.verify_integrity()
+    assert old_integrity["append_receipt_ordering_verified"] is True
+    observation = datetime(2026, 7, 21, 12, 0, 0, 500, tzinfo=UTC)
+    old_high_water = (
+        training_sample_identity_mod.label_archive_fixed_observation_high_water(
+            archive=archive,
+            integrity=old_integrity,
+            observation_cutoff=observation,
+            scan_limit=64,
+        )
+    )
+
+    archive.append_candles([_identity_candle(49)])
+    stale_report_reproduction = (
+        training_sample_identity_mod.label_archive_fixed_observation_high_water(
+            archive=archive,
+            integrity=old_integrity,
+            observation_cutoff=observation,
+            scan_limit=64,
+        )
+    )
+    current_integrity = archive.verify_integrity()
+    current_same_cutoff = (
+        training_sample_identity_mod.label_archive_fixed_observation_high_water(
+            archive=archive,
+            integrity=current_integrity,
+            observation_cutoff=observation,
+            scan_limit=64,
+        )
+    )
+    later_high_water = (
+        training_sample_identity_mod.label_archive_fixed_observation_high_water(
+            archive=archive,
+            integrity=current_integrity,
+            observation_cutoff=datetime(
+                2026,
+                7,
+                21,
+                12,
+                0,
+                0,
+                1_500,
+                tzinfo=UTC,
+            ),
+            scan_limit=64,
+        )
+    )
+
+    assert stale_report_reproduction == old_high_water
+    assert current_same_cutoff == old_high_water
+    assert current_integrity["append_receipt_cumulative_state_verified"] is True
+    assert current_integrity["postcommit_clock_causality_verified"] is True
+    assert current_integrity["verified_last_commit_prepared_at"] == (
+        "2026-07-21T12:00:00.001Z"
+    )
+    assert later_high_water["verified_rows"] == 50
+
+
+def test_fixed_prefix_remains_verifiable_after_suffix_crosses_scan_limit(
+    tmp_path: Path,
+) -> None:
+    ledger = DurableFeatureSnapshotLedger(
+        default_feature_snapshot_ledger_path(tmp_path)
+    )
+    ledger.append_snapshot(_identity_feature_record(35, decision_minute=2))
+    observation = datetime.now(UTC)
+    ledger.append_snapshot(_identity_feature_record(36, decision_minute=3))
+
+    feature_high_water = (
+        training_sample_identity_mod.feature_ledger_fixed_observation_high_water(
+            ledger=ledger,
+            report=ledger.verify_integrity_streaming(),
+            observation_cutoff=observation,
+            scan_limit=1,
+        )
+    )
+
+    archive = DurableCanonical5mLabelArchive(
+        default_canonical_5m_label_archive_path(tmp_path)
+    )
+    archive.append_candles([_identity_candle(slot) for slot in range(49)])
+    label_observation = datetime.now(UTC)
+    archive.append_candles([_identity_candle(49)])
+    label_high_water = (
+        training_sample_identity_mod.label_archive_fixed_observation_high_water(
+            archive=archive,
+            integrity=archive.verify_integrity(),
+            observation_cutoff=label_observation,
+            scan_limit=49,
+        )
+    )
+
+    assert feature_high_water["verified_records"] == 1
+    assert feature_high_water["verified_append_receipts"] == 1
+    assert label_high_water["verified_rows"] == 49
+    assert label_high_water["verified_append_receipts"] == 1
+
+
+def test_checkpoint_sample_inventory_rejects_unsupported_label_lane(
+    tmp_path: Path,
+) -> None:
+    record = _identity_feature_record(16, decision_minute=2)
+    DurableFeatureSnapshotLedger(default_feature_snapshot_ledger_path(tmp_path)).append_snapshot(
+        record
+    )
+    observation = _identity_seed_label_archive(tmp_path)
+    example = _identity_example(
+        record,
+        repo_root=tmp_path,
+        observation=observation,
+        row_source="fresh_closed_trade",
+    )
+
+    with pytest.raises(
+        TrainingSampleIdentityError,
+        match="TRAINING_SAMPLE_LABEL_LANE_UNSUPPORTED:fresh_closed_trade",
+    ):
+        build_checkpoint_sample_inventory(
+            training_examples=[example],
+            repo_root=tmp_path,
+            training_observed_at=observation,
+        )
+
+
+@pytest.mark.parametrize(
+    ("mutation", "reason"),
+    (
+        ("action_label", "TRAINING_SAMPLE_ACTION_LABEL_MISMATCH"),
+        ("after_cost_label", "TRAINING_SAMPLE_AFTER_COST_LABEL_MISMATCH"),
+        (
+            "trust_action",
+            "TRAINING_SAMPLE_AUTHENTICATED_TRUST_FIELD_MISMATCH:target_action",
+        ),
+        (
+            "trust_missing",
+            "TRAINING_SAMPLE_AUTHENTICATED_TRUST_FIELD_MISSING:cost_evidence_hash",
+        ),
+        ("timing", "TRAINING_SAMPLE_LABEL_AVAILABLE_AT_MISMATCH"),
+        (
+            "cost",
+            "TRAINING_SAMPLE_AUTHENTICATED_TRUST_FIELD_MISMATCH:round_trip_cost_bps",
+        ),
+        ("path", "TRAINING_SAMPLE_DURABLE_LABEL_SOURCE_LINEAGE_MISMATCH"),
+        (
+            "archive_source_path",
+            "TRAINING_SAMPLE_AUTHENTICATED_TRUST_FIELD_MISMATCH:"
+            "trusted_replay_label_candle_source_key",
+        ),
+    ),
+)
+def test_checkpoint_sample_identity_rejects_label_or_trust_tampering(
+    tmp_path: Path,
+    mutation: str,
+    reason: str,
+) -> None:
+    record = _identity_feature_record(15, decision_minute=2)
+    DurableFeatureSnapshotLedger(default_feature_snapshot_ledger_path(tmp_path)).append_snapshot(
+        record
+    )
+    observation = _identity_seed_label_archive(tmp_path)
+    example = _identity_example(
+        record,
+        repo_root=tmp_path,
+        observation=observation,
+        row_source="trusted_replay_archive",
+    )
+    assert example.trust_row is not None
+    trust_row = dict(example.trust_row)
+    if mutation == "action_label":
+        mutated = replace(
+            example,
+            label_action_index=(example.label_action_index + 1) % 3,
+        )
+    elif mutation == "after_cost_label":
+        mutated = replace(
+            example,
+            label_expected_move_after_cost_bps=(example.label_expected_move_after_cost_bps + 1.0),
+        )
+    elif mutation == "trust_action":
+        trust_row["target_action"] = "short"
+        mutated = replace(example, trust_row=trust_row)
+    elif mutation == "trust_missing":
+        trust_row.pop("cost_evidence_hash")
+        mutated = replace(example, trust_row=trust_row)
+    elif mutation == "timing":
+        assert example.label_available_at is not None
+        changed_timing = _identity_utc(
+            datetime.fromisoformat(example.label_available_at.replace("Z", "+00:00"))
+            + timedelta(minutes=1)
+        )
+        trust_row["label_available_at"] = changed_timing
+        trust_row["outcome_available_at"] = changed_timing
+        mutated = replace(
+            example,
+            trust_row=trust_row,
+            label_available_at=changed_timing,
+        )
+    elif mutation == "cost":
+        trust_row["round_trip_cost_bps"] = float(trust_row["round_trip_cost_bps"]) + 1.0
+        mutated = replace(example, trust_row=trust_row)
+    elif mutation == "path":
+        trust_row["source_lineage"] = {
+            **dict(trust_row["source_lineage"]),
+            "durable_canonical_5m_label_path_sha256": "f" * 64,
+        }
+        mutated = replace(example, trust_row=trust_row)
+    else:
+        trust_row["trusted_replay_label_candle_source_key"] = "tampered:path"
+        mutated = replace(
+            example,
+            trust_row=trust_row,
+        )
+
+    build_checkpoint_sample_inventory(
+        training_examples=[example],
+        repo_root=tmp_path,
+        training_observed_at=observation,
+    )
+    with pytest.raises(TrainingSampleIdentityError, match=reason):
+        build_checkpoint_sample_inventory(
+            training_examples=[mutated],
+            repo_root=tmp_path,
+            training_observed_at=observation,
+        )
+
+
+def test_checkpoint_sample_inventory_rejects_duplicate_and_tampered_actual_rows(
+    tmp_path: Path,
+) -> None:
+    record = _identity_feature_record(3, decision_minute=2)
+    ledger = DurableFeatureSnapshotLedger(default_feature_snapshot_ledger_path(tmp_path))
+    ledger.append_snapshot(record)
+    observation = _identity_seed_label_archive(tmp_path)
+    example = _identity_example(
+        record,
+        repo_root=tmp_path,
+        observation=observation,
+        row_source="trusted_replay_archive",
+    )
+
+    with pytest.raises(
+        TrainingSampleIdentityError,
+        match="OPTIMIZER_TRAINING_SAMPLE_IDENTITY_DUPLICATE",
+    ):
+        build_checkpoint_sample_inventory(
+            training_examples=[example, example],
+            repo_root=tmp_path,
+            training_observed_at=observation,
+        )
+
+    tampered_tensor = replace(
+        example.tensor,
+        values=tuple(999.0 + index for index, _ in enumerate(example.tensor.values)),
+    )
+    tampered = replace(example, tensor=tampered_tensor)
+    with pytest.raises(
+        TrainingSampleIdentityError,
+        match="TRAINING_SAMPLE_FEATURE_VALUES_MISMATCH",
+    ):
+        build_checkpoint_sample_inventory(
+            training_examples=[tampered],
+            repo_root=tmp_path,
+            training_observed_at=observation,
+        )
+
+
+def test_checkpoint_sample_inventory_rejects_ledger_race(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    record = _identity_feature_record(4, decision_minute=2)
+    ledger = DurableFeatureSnapshotLedger(default_feature_snapshot_ledger_path(tmp_path))
+    ledger.append_snapshot(record)
+    observation = _identity_seed_label_archive(tmp_path)
+    example = _identity_example(
+        record,
+        repo_root=tmp_path,
+        observation=observation,
+        row_source="trusted_replay_archive",
+    )
+    original_verify = DurableFeatureSnapshotLedger.verify_integrity_streaming
+    calls = 0
+
+    def changing_integrity(self: DurableFeatureSnapshotLedger):
+        nonlocal calls
+        calls += 1
+        report = original_verify(self)
+        if calls == 2:
+            return replace(report, archive_chain_sha256="f" * 64)
+        return report
+
+    monkeypatch.setattr(
+        DurableFeatureSnapshotLedger,
+        "verify_integrity_streaming",
+        changing_integrity,
+    )
+
+    with pytest.raises(
+        TrainingSampleIdentityError,
+        match="FEATURE_LEDGER_HIGH_WATER_INTEGRITY_FRONTIER_MISMATCH",
+    ):
+        build_checkpoint_sample_inventory(
+            training_examples=[example],
+            repo_root=tmp_path,
+            training_observed_at=observation,
+        )
+
+
+def test_checkpoint_sample_inventory_rejects_trust_cost_without_durable_cost_input(
+    tmp_path: Path,
+) -> None:
+    authority_root = tmp_path / "cost-authority"
+    authority_record = _identity_feature_record(17, decision_minute=2)
+    DurableFeatureSnapshotLedger(
+        default_feature_snapshot_ledger_path(authority_root)
+    ).append_snapshot(authority_record)
+    authority_observation = _identity_seed_label_archive(authority_root)
+    authority_example = _identity_example(
+        authority_record,
+        repo_root=authority_root,
+        observation=authority_observation,
+        row_source="trusted_replay_archive",
+    )
+
+    missing_cost_root = tmp_path / "missing-cost"
+    missing_cost_record = _identity_feature_record(
+        17,
+        decision_minute=2,
+        omit_feature="fee_bps",
+    )
+    DurableFeatureSnapshotLedger(
+        default_feature_snapshot_ledger_path(missing_cost_root)
+    ).append_snapshot(missing_cost_record)
+    observation = _identity_seed_label_archive(missing_cost_root)
+    claimed_example = replace(
+        authority_example,
+        tensor=_identity_tensor(missing_cost_record),
+    )
+
+    with pytest.raises(
+        TrainingSampleIdentityError,
+        match="TRAINING_SAMPLE_DURABLE_LABEL_REBUILD_INVALID:COST_EVIDENCE_FEE_MISSING",
+    ):
+        build_checkpoint_sample_inventory(
+            training_examples=[claimed_example],
+            repo_root=missing_cost_root,
+            training_observed_at=observation,
+        )
+
+
+def test_checkpoint_sample_inventory_rejects_unfinished_higher_timeframe(
+    tmp_path: Path,
+) -> None:
+    authority_root = tmp_path / "finality-authority"
+    authority_record = _identity_feature_record(21, decision_minute=2)
+    DurableFeatureSnapshotLedger(
+        default_feature_snapshot_ledger_path(authority_root)
+    ).append_snapshot(authority_record)
+    authority_observation = _identity_seed_label_archive(authority_root)
+    authority_example = _identity_example(
+        authority_record,
+        repo_root=authority_root,
+        observation=authority_observation,
+        row_source="trusted_replay_archive",
+    )
+
+    unfinished_root = tmp_path / "unfinished-4h"
+    unfinished_record = _identity_feature_record(
+        21,
+        decision_minute=2,
+        tamper_finality_timeframe="4h",
+    )
+    DurableFeatureSnapshotLedger(
+        default_feature_snapshot_ledger_path(unfinished_root)
+    ).append_snapshot(unfinished_record)
+    observation = _identity_seed_label_archive(unfinished_root)
+    claimed_example = replace(
+        authority_example,
+        tensor=_identity_tensor(unfinished_record),
+    )
+
+    with pytest.raises(
+        TrainingSampleIdentityError,
+        match="TRAINING_SAMPLE_TIMEFRAME_FINALITY_INVALID:" "TIMEFRAME_FINALITY_4H_NOT_CLOSED",
+    ):
+        build_checkpoint_sample_inventory(
+            training_examples=[claimed_example],
+            repo_root=unfinished_root,
+            training_observed_at=observation,
+        )
+
+
+def test_checkpoint_sample_inventory_rejects_missing_canonical_label_path(
+    tmp_path: Path,
+) -> None:
+    authority_root = tmp_path / "path-authority"
+    record = _identity_feature_record(18, decision_minute=2)
+    DurableFeatureSnapshotLedger(
+        default_feature_snapshot_ledger_path(authority_root)
+    ).append_snapshot(record)
+    authority_observation = _identity_seed_label_archive(authority_root)
+    example = _identity_example(
+        record,
+        repo_root=authority_root,
+        observation=authority_observation,
+        row_source="trusted_replay_archive",
+    )
+
+    missing_path_root = tmp_path / "missing-path"
+    DurableFeatureSnapshotLedger(
+        default_feature_snapshot_ledger_path(missing_path_root)
+    ).append_snapshot(record)
+    observation = _identity_seed_label_archive(
+        missing_path_root,
+        candle_count=48,
+    )
+
+    with pytest.raises(
+        TrainingSampleIdentityError,
+        match="TRAINING_SAMPLE_DURABLE_LABEL_PATH_UNVERIFIED:"
+        ".*LABEL_ARCHIVE_RANGE_ROW_COUNT_MISMATCH",
+    ):
+        build_checkpoint_sample_inventory(
+            training_examples=[example],
+            repo_root=missing_path_root,
+            training_observed_at=observation,
+        )
+
+
+def test_checkpoint_sample_inventory_rejects_tampered_label_archive(
+    tmp_path: Path,
+) -> None:
+    record = _identity_feature_record(19, decision_minute=2)
+    DurableFeatureSnapshotLedger(default_feature_snapshot_ledger_path(tmp_path)).append_snapshot(
+        record
+    )
+    observation = _identity_seed_label_archive(tmp_path)
+    example = _identity_example(
+        record,
+        repo_root=tmp_path,
+        observation=observation,
+        row_source="trusted_replay_archive",
+    )
+    archive_path = default_canonical_5m_label_archive_path(tmp_path)
+    with sqlite3.connect(archive_path) as connection:
+        connection.execute("DROP TRIGGER canonical_5m_candles_no_update")
+        connection.execute("UPDATE canonical_5m_candles SET payload_json = '{}' WHERE sequence = 1")
+
+    with pytest.raises(
+        TrainingSampleIdentityError,
+        match="LABEL_ARCHIVE_INTEGRITY_UNVERIFIED",
+    ):
+        build_checkpoint_sample_inventory(
+            training_examples=[example],
+            repo_root=tmp_path,
+            training_observed_at=observation,
+        )
+
+
+def test_checkpoint_sample_inventory_accepts_valid_label_suffix_during_read(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    record = _identity_feature_record(20, decision_minute=2)
+    DurableFeatureSnapshotLedger(default_feature_snapshot_ledger_path(tmp_path)).append_snapshot(
+        record
+    )
+    observation = _identity_seed_label_archive(tmp_path)
+    example = _identity_example(
+        record,
+        repo_root=tmp_path,
+        observation=observation,
+        row_source="trusted_replay_archive",
+    )
+    original = DurableCanonical5mLabelArchive.verified_label_path
+    raced = False
+
+    def append_after_path(self: DurableCanonical5mLabelArchive, **kwargs):
+        nonlocal raced
+        result = original(self, **kwargs)
+        if not raced:
+            raced = True
+            self.append_candles([_identity_candle(49)])
+        return result
+
+    monkeypatch.setattr(
+        DurableCanonical5mLabelArchive,
+        "verified_label_path",
+        append_after_path,
+    )
+
+    inventory = build_checkpoint_sample_inventory(
+        training_examples=[example],
+        repo_root=tmp_path,
+        training_observed_at=observation,
+    )
+
+    assert raced is True
+    assert inventory["training_sample_count"] == 1
+    assert inventory["sample_inventory_label_archive_high_water"]["verified_rows"] == 49
+    assert DurableCanonical5mLabelArchive(
+        default_canonical_5m_label_archive_path(tmp_path)
+    ).verify_integrity()["verified_rows"] == 50
+
+
+def test_checkpoint_sample_inventory_rejects_legacy_and_truncated_scan(
+    tmp_path: Path,
+) -> None:
+    legacy_root = tmp_path / "legacy"
+    legacy_record = _identity_feature_record(
+        12,
+        decision_minute=2,
+        legacy=True,
+    )
+    DurableFeatureSnapshotLedger(default_feature_snapshot_ledger_path(legacy_root)).append_snapshot(
+        legacy_record
+    )
+    legacy_observation = _identity_seed_label_archive(legacy_root)
+    authority_root = tmp_path / "legacy-example-authority"
+    canonical_record = _identity_feature_record(12, decision_minute=2)
+    DurableFeatureSnapshotLedger(
+        default_feature_snapshot_ledger_path(authority_root)
+    ).append_snapshot(canonical_record)
+    authority_observation = _identity_seed_label_archive(authority_root)
+    legacy_example = _identity_example(
+        canonical_record,
+        repo_root=authority_root,
+        observation=authority_observation,
+        row_source="trusted_replay_archive",
+    )
+
+    with pytest.raises(
+        TrainingSampleIdentityError,
+        match="TRAINING_SAMPLE_NOT_IN_DURABLE_V3_LEDGER",
+    ):
+        build_checkpoint_sample_inventory(
+            training_examples=[legacy_example],
+            repo_root=legacy_root,
+            training_observed_at=legacy_observation,
+        )
+
+    truncated_root = tmp_path / "truncated"
+    records = [
+        _identity_feature_record(13, decision_minute=2),
+        _identity_feature_record(14, decision_minute=3),
+    ]
+    DurableFeatureSnapshotLedger(
+        default_feature_snapshot_ledger_path(truncated_root)
+    ).append_snapshots(records)
+    truncated_observation = _identity_seed_label_archive(truncated_root)
+    truncated_example = _identity_example(
+        records[0],
+        repo_root=truncated_root,
+        observation=truncated_observation,
+        row_source="trusted_replay_archive",
+    )
+    with pytest.raises(
+        TrainingSampleIdentityError,
+        match="FEATURE_LEDGER_SCAN_TRUNCATED_NO_PREFIX_ADMISSION",
+    ):
+        build_checkpoint_sample_inventory(
+            training_examples=[truncated_example],
+            repo_root=truncated_root,
+            training_observed_at=truncated_observation,
+            scan_limit=1,
+        )
+
+
+def test_partial_actual_optimizer_inventory_is_not_exact_match(
+    tmp_path: Path,
+) -> None:
+    records = [
+        _identity_feature_record(5, decision_minute=2),
+        _identity_feature_record(6, decision_minute=3),
+    ]
+    ledger = DurableFeatureSnapshotLedger(default_feature_snapshot_ledger_path(tmp_path))
+    ledger.append_snapshots(records)
+    observation = _identity_seed_label_archive(tmp_path)
+    examples = [
+        _identity_example(
+            record,
+            repo_root=tmp_path,
+            observation=observation,
+            row_source="trusted_replay_archive",
+        )
+        for record in records
+    ]
+    planned = build_checkpoint_sample_inventory(
+        training_examples=examples,
+        repo_root=tmp_path,
+        training_observed_at=observation,
+    )
+    actual = build_checkpoint_sample_inventory(
+        training_examples=examples[:1],
+        repo_root=tmp_path,
+        training_observed_at=observation,
+    )
+
+    reasons = runtime_mod._sample_inventory_comparison_reasons(planned, actual)
+
+    assert "ACTUAL_SAMPLE_INVENTORY_TRAINING_SAMPLE_COUNT_MISMATCH" in reasons
+    assert "ACTUAL_SAMPLE_INVENTORY_TRAINING_SAMPLE_IDENTITY_SET_SHA256_MISMATCH" in reasons
+
+
+def test_actual_inventory_comparison_binds_cycle_observation_cutoff() -> None:
+    planned = {"sample_inventory_training_observed_at": "2026-07-21T12:00:00.000000Z"}
+    actual = {"sample_inventory_training_observed_at": "2026-07-21T12:00:00.000001Z"}
+
+    reasons = runtime_mod._sample_inventory_comparison_reasons(planned, actual)
+
+    assert "ACTUAL_SAMPLE_INVENTORY_SAMPLE_INVENTORY_TRAINING_OBSERVED_AT_MISMATCH" in reasons
+
+
+def test_actual_inventory_comparison_binds_both_authenticated_high_waters() -> None:
+    planned = {
+        "sample_inventory_feature_ledger_high_water": {"high_water_sha256": "a" * 64},
+        "sample_inventory_label_archive_high_water": {"high_water_sha256": "b" * 64},
+    }
+    actual = {
+        "sample_inventory_feature_ledger_high_water": {"high_water_sha256": "c" * 64},
+        "sample_inventory_label_archive_high_water": {"high_water_sha256": "d" * 64},
+    }
+
+    reasons = runtime_mod._sample_inventory_comparison_reasons(planned, actual)
+
+    assert (
+        "ACTUAL_SAMPLE_INVENTORY_SAMPLE_INVENTORY_FEATURE_LEDGER_HIGH_WATER_MISMATCH"
+        in reasons
+    )
+    assert (
+        "ACTUAL_SAMPLE_INVENTORY_SAMPLE_INVENTORY_LABEL_ARCHIVE_HIGH_WATER_MISMATCH"
+        in reasons
+    )
+
+
+def test_checkpoint_inventory_evidence_digest_excludes_working_objects(
+    tmp_path: Path,
+) -> None:
+    record = _identity_feature_record(7, decision_minute=2)
+    ledger = DurableFeatureSnapshotLedger(default_feature_snapshot_ledger_path(tmp_path))
+    ledger.append_snapshot(record)
+    observation = _identity_seed_label_archive(tmp_path)
+    example = _identity_example(
+        record,
+        repo_root=tmp_path,
+        observation=observation,
+        row_source="trusted_replay_archive",
+    )
+    inventory = build_checkpoint_sample_inventory(
+        training_examples=[example],
+        repo_root=tmp_path,
+        training_observed_at=observation,
+    )
+
+    evidence = checkpoint_inventory_evidence(inventory)
+
+    assert all(not key.startswith("_") for key in evidence)
+    assert stable_json_sha256(evidence) == stable_json_sha256(
+        checkpoint_inventory_evidence(inventory)
+    )
+
+
+def test_checkpoint_partition_manifest_keeps_equal_timestamp_holdout_group(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    records = [
+        _identity_feature_record(8, decision_minute=2),
+        _identity_feature_record(9, decision_minute=3),
+        _identity_feature_record(10, decision_minute=4),
+        _identity_feature_record(11, decision_minute=4),
+    ]
+    ledger = DurableFeatureSnapshotLedger(default_feature_snapshot_ledger_path(tmp_path))
+    ledger.append_snapshots(records)
+    observation = _identity_seed_label_archive(tmp_path)
+    examples = [
+        _identity_example(
+            record,
+            repo_root=tmp_path,
+            observation=observation,
+            row_source="trusted_replay_archive",
+        )
+        for record in records
+    ]
+    inventory = build_checkpoint_sample_inventory(
+        training_examples=[examples[0]],
+        validation_examples=[examples[1]],
+        repo_root=tmp_path,
+        training_observed_at=observation,
+    )
+
+    manifest = prepare_checkpoint_partition_manifest(
+        inventory=inventory,
+        training_partition_digest=training_partition_digest([]),
+        repo_root=tmp_path,
+        generated_utc=_identity_utc(datetime.now(UTC)),
+    )
+
+    assert manifest["schema_version"] == ("trusted_replay_train_validation_holdout_manifest_v2")
+    assert manifest["training_window"]["rows"] == 1
+    assert manifest["validation_window"]["rows"] == 1
+    assert manifest["holdout_window"]["rows"] == 2
+    assert (
+        manifest["holdout_window"]["start_decision_time"]
+        == (manifest["holdout_window"]["end_decision_time"])
+    )
+    assert manifest["partition_evidence"]["training_holdout_disjoint"] is True
+    unsigned_manifest = {
+        str(key): value for key, value in manifest.items() if str(key) != "manifest_payload_sha256"
+    }
+    unsigned_manifest["checkpoint_binding"] = {
+        "checkpoint_id": "unit-serving-checkpoint",
+        "checkpoint_evidence_digest": "a" * 64,
+        "training_partition_digest": manifest["partition_evidence"]["training_partition_digest"],
+        "training_sample_identity_set_sha256": manifest["partition_evidence"][
+            "training_sample_identity_set_sha256"
+        ],
+        "validation_sample_identity_set_sha256": manifest["partition_evidence"][
+            "validation_sample_identity_set_sha256"
+        ],
+        "training_feature_identity_set_sha256": manifest["partition_evidence"][
+            "training_feature_identity_set_sha256"
+        ],
+        "validation_feature_identity_set_sha256": manifest["partition_evidence"][
+            "validation_feature_identity_set_sha256"
+        ],
+    }
+    manifest = {
+        **unsigned_manifest,
+        "manifest_payload_sha256": stable_json_sha256(unsigned_manifest),
+    }
+    publication_paths = publish_checkpoint_partition_manifest(
+        manifest=manifest,
+        repo_root=tmp_path,
+    )
+    assert len(publication_paths) == 3
+    assert all(
+        json.loads(Path(path).read_text(encoding="utf-8")) == manifest for path in publication_paths
+    )
+    assert read_published_checkpoint_partition_manifest(repo_root=tmp_path) == manifest
+
+    tampered_projection = dict(manifest)
+    tampered_projection["checkpoint_binding"] = {
+        **manifest["checkpoint_binding"],
+        "checkpoint_id": "tampered-serving-checkpoint",
+    }
+    tampered_unsigned = {
+        str(key): value
+        for key, value in tampered_projection.items()
+        if str(key) != "manifest_payload_sha256"
+    }
+    tampered_projection["manifest_payload_sha256"] = stable_json_sha256(tampered_unsigned)
+    Path(publication_paths[0]).write_text(
+        json.dumps(tampered_projection, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    assert read_published_checkpoint_partition_manifest(repo_root=tmp_path) == manifest
+    projection_status = checkpoint_partition_manifest_projection_status(repo_root=tmp_path)
+    assert projection_status["all_secondary_projections_match_primary"] is False
+    assert projection_status["secondary_projections"][0]["mismatch_reason"] == (
+        "HOLDOUT_MANIFEST_PROJECTION_READBACK_MISMATCH"
+    )
+
+    next_unsigned = {
+        str(key): value for key, value in manifest.items() if str(key) != "manifest_payload_sha256"
+    }
+    next_unsigned["checkpoint_binding"] = {
+        **manifest["checkpoint_binding"],
+        "checkpoint_id": "next-unit-serving-checkpoint",
+    }
+    next_manifest = {
+        **next_unsigned,
+        "manifest_payload_sha256": stable_json_sha256(next_unsigned),
+    }
+    real_atomic_write = training_sample_identity_mod._atomic_write_json  # noqa: SLF001
+    for crash_after_write in (1, 2):
+        publish_checkpoint_partition_manifest(
+            manifest=manifest,
+            repo_root=tmp_path,
+        )
+        writes = 0
+
+        def crash_after_secondary(
+            path: Path,
+            payload,
+            crash_after_write: int = crash_after_write,
+        ) -> None:
+            nonlocal writes
+            real_atomic_write(path, payload)
+            writes += 1
+            if writes == crash_after_write:
+                raise RuntimeError("simulated-publication-crash")
+
+        with monkeypatch.context() as scoped_patch:
+            scoped_patch.setattr(
+                training_sample_identity_mod,
+                "_atomic_write_json",
+                crash_after_secondary,
+            )
+            with pytest.raises(RuntimeError, match="simulated-publication-crash"):
+                publish_checkpoint_partition_manifest(
+                    manifest=next_manifest,
+                    repo_root=tmp_path,
+                )
+
+        assert read_published_checkpoint_partition_manifest(repo_root=tmp_path) == manifest
+        crash_status = checkpoint_partition_manifest_projection_status(repo_root=tmp_path)
+        assert crash_status["all_secondary_projections_match_primary"] is False
 
 
 def test_parallel_prediction_grid_loader_preserves_pair_order(
@@ -203,6 +1601,18 @@ def test_runtime_suppresses_rejected_candidate_forward_and_backtest(
 ) -> None:
     example = _runtime_test_example("BTCUSDT", "1m", 1)
     training_observation_cutoffs: list[str] = []
+    inventory_observation_cutoffs: list[str] = []
+    trainer_input_counts: list[int] = []
+
+    def fake_checkpoint_sample_inventory(**kwargs):
+        cutoff = kwargs["training_observed_at"]
+        inventory_observation_cutoffs.append(cutoff)
+        return build_checkpoint_sample_inventory(
+            training_examples=[],
+            validation_examples=[],
+            repo_root=tmp_path,
+            training_observed_at=cutoff,
+        )
 
     class FakeLoader:
         def __init__(self, **_kwargs) -> None:
@@ -297,7 +1707,8 @@ def test_runtime_suppresses_rejected_candidate_forward_and_backtest(
                 "split_metrics": {},
             }
 
-        def train(self, _examples, **_kwargs) -> PPOTrainingResult:
+        def train(self, examples, **_kwargs) -> PPOTrainingResult:
+            trainer_input_counts.append(len(examples))
             return PPOTrainingResult(
                 status="TEST_REJECTED_CANDIDATE",
                 device="cpu",
@@ -354,6 +1765,11 @@ def test_runtime_suppresses_rejected_candidate_forward_and_backtest(
     monkeypatch.setattr(runtime_mod, "V2HybridPredictionPublisher", FakePublisher)
     monkeypatch.setattr(
         runtime_mod,
+        "build_checkpoint_sample_inventory",
+        fake_checkpoint_sample_inventory,
+    )
+    monkeypatch.setattr(
+        runtime_mod,
         "run_policy_archive_backtest",
         lambda **_kwargs: (_ for _ in ()).throw(
             AssertionError("rejected candidate backtest attempted")
@@ -384,16 +1800,19 @@ def test_runtime_suppresses_rejected_candidate_forward_and_backtest(
         "SUPPRESSED_REJECTED_CANDIDATE_NO_VERIFIED_RESTORE"
     )
     assert result.status["model_serving_allowed"] is False
-    assert result.metrics["cuda_cpu_resource_utilization"]["policy_backtest"][
-        "status"
-    ] == (
+    assert result.metrics["cuda_cpu_resource_utilization"]["policy_backtest"]["status"] == (
         "SUPPRESSED_REJECTED_CANDIDATE_NO_VERIFIED_RESTORE"
     )
     assert len(training_observation_cutoffs) == 3
     assert len(set(training_observation_cutoffs)) == 1
-    assert datetime.fromisoformat(
-        training_observation_cutoffs[0].replace("Z", "+00:00")
-    ).tzinfo is not None
+    assert len(inventory_observation_cutoffs) == 2
+    assert inventory_observation_cutoffs[0] == inventory_observation_cutoffs[1]
+    assert inventory_observation_cutoffs[0] == training_observation_cutoffs[0]
+    assert trainer_input_counts == [1]
+    assert (
+        datetime.fromisoformat(training_observation_cutoffs[0].replace("Z", "+00:00")).tzinfo
+        is not None
+    )
 
 
 def test_decision_clock_is_strictly_after_exact_cost_observation() -> None:
@@ -402,9 +1821,9 @@ def test_decision_clock_is_strictly_after_exact_cost_observation() -> None:
     decision = runtime_mod._causal_decision_time_after_cost_observation(
         {
             "exact_cost_provenance": {
-                "consumer_observed_at": observed.isoformat(
-                    timespec="microseconds"
-                ).replace("+00:00", "Z")
+                "consumer_observed_at": observed.isoformat(timespec="microseconds").replace(
+                    "+00:00", "Z"
+                )
             }
         }
     )
@@ -434,9 +1853,7 @@ class _TerminalAttemptLedger:
             "activation_sequence": 1,
             "sync_sequence": self.sync_sequence,
             "sync_chain_hash": (
-                str(self.attempt["chain_hash"])
-                if self.sync_sequence
-                else "0" * 64
+                str(self.attempt["chain_hash"]) if self.sync_sequence else "0" * 64
             ),
             "ledger_row_count": 1,
             "legacy_terminal_attempts_not_archive_bound": 0,
@@ -566,9 +1983,7 @@ def test_terminal_ledger_attempt_advances_watermark_and_skips_historical_rescan(
     consumed = status["event_bindings"]["TRAINER_CONSUMED"]
     assert consumed["ppo_consumption_update_key"] == attempt["update_key"]
     assert consumed["ledger_disposition"] == attempt["disposition"]
-    assert consumed["finalized_outcome_digest"] == attempt[
-        "finalized_outcome_digest"
-    ]
+    assert consumed["finalized_outcome_digest"] == attempt["finalized_outcome_digest"]
 
 
 def test_synced_archive_event_deletion_revokes_watermark_readiness(
@@ -582,9 +1997,7 @@ def test_synced_archive_event_deletion_revokes_watermark_readiness(
     )
     # Resolve the event named by the ledger's exact per-sequence binding and
     # delete it after the watermark has already advanced.
-    bound_event_hash = str(
-        ledger.archive_sync_bindings()[0]["trainer_consumed_event_hash"]
-    )
+    bound_event_hash = str(ledger.archive_sync_bindings()[0]["trainer_consumed_event_hash"])
     paths = list(tmp_path.rglob(f"{bound_event_hash}.json"))
     assert len(paths) == 1
     assert first["archive_sync_after"]["archive_event_bindings_verified"] is True
@@ -710,9 +2123,10 @@ def test_startup_repairs_checkpoint_and_archive_crash_windows_without_replay(
         },
     )
     assert before_crash.ledger.attempt_rows() == []
-    assert receipt_lifecycle_status(receipt_hash, root=archive_root)[
-        "trainer_consumed_durable"
-    ] is False
+    assert (
+        receipt_lifecycle_status(receipt_hash, root=archive_root)["trainer_consumed_durable"]
+        is False
+    )
 
     # Simulated crash after the child checkpoint's atomic write but before the
     # terminal ledger commit. Startup discovers the dead fenced claim in the
@@ -730,9 +2144,10 @@ def test_startup_repairs_checkpoint_and_archive_crash_windows_without_replay(
     assert terminal["checkpoint_sha256"] == artifact.weight_file_sha256
     assert terminal["child_policy_fingerprint"] == artifact.model_parameter_fingerprint
     assert terminal["training_partition_digest"] == partition_digest
-    assert receipt_lifecycle_status(receipt_hash, root=archive_root)[
-        "trainer_consumed_durable"
-    ] is False
+    assert (
+        receipt_lifecycle_status(receipt_hash, root=archive_root)["trainer_consumed_durable"]
+        is False
+    )
 
     # Simulated second crash after the terminal ledger commit but before its
     # archive event. The next startup mirrors the exact ledger binding.
@@ -753,12 +2168,8 @@ def test_startup_repairs_checkpoint_and_archive_crash_windows_without_replay(
     assert consumed["ledger_chain_hash"] == terminal["chain_hash"]
     assert consumed["ledger_disposition"] == terminal["disposition"]
     assert consumed["checkpoint_id"] == artifact.checkpoint_id
-    assert consumed["child_policy_fingerprint"] == terminal[
-        "child_policy_fingerprint"
-    ]
-    assert consumed["finalized_outcome_digest"] == terminal[
-        "finalized_outcome_digest"
-    ]
+    assert consumed["child_policy_fingerprint"] == terminal["child_policy_fingerprint"]
+    assert consumed["finalized_outcome_digest"] == terminal["finalized_outcome_digest"]
     assert consumed["ledger_recorded_utc"] == terminal["recorded_utc"]
 
     # A further restart is idempotent, and the terminal row fences the same
@@ -778,9 +2189,7 @@ def test_startup_repairs_checkpoint_and_archive_crash_windows_without_replay(
     assert final_restart.ledger.attempt_rows([update_key]) == [terminal]
     assert replay_claim["claimed_update_keys"] == []
     assert replay_claim["unavailable_update_keys"] == [update_key]
-    assert receipt_lifecycle_status(receipt_hash, root=archive_root)[
-        "event_count"
-    ] == 4
+    assert receipt_lifecycle_status(receipt_hash, root=archive_root)["event_count"] == 4
 
 
 def test_consumption_sync_fails_closed_when_archive_is_missing(tmp_path: Path) -> None:
@@ -826,11 +2235,14 @@ def test_exact_claim_contract_rejects_cpu_fallback_key_echo_without_ppo() -> Non
         "optimizer_steps_this_cycle": 1,
     }
 
-    assert runtime_mod._exact_ppo_optimizer_contract_valid(  # noqa: SLF001
-        metrics=fallback_metrics,
-        optimizer_attempts=[attempt],
-        ordered_update_keys=[update_key],
-    ) is False
+    assert (
+        runtime_mod._exact_ppo_optimizer_contract_valid(  # noqa: SLF001
+            metrics=fallback_metrics,
+            optimizer_attempts=[attempt],
+            ordered_update_keys=[update_key],
+        )
+        is False
+    )
 
 
 def test_checkpoint_promotion_status_fields_surface_rejection_streak() -> None:

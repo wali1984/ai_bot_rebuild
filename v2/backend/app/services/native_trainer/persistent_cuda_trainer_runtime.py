@@ -101,6 +101,14 @@ from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.safety import V2
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.tensor_builder import (
     FeatureTensorRecord,
 )
+from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.training_sample_identity import (
+    OPTIONAL_MISSING_EVIDENCE_SEMANTICS,
+    SAMPLE_IDENTITY_DOMAIN as TRAINING_SAMPLE_IDENTITY_DOMAIN,
+    TrainingSampleIdentityError,
+    feature_ledger_fixed_observation_high_water,
+    label_archive_fixed_observation_high_water,
+    read_published_checkpoint_partition_manifest,
+)
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.training_state import (
     PPO_CONSUMPTION_LEDGER_SCHEMA_VERSION,
     training_partition_digest,
@@ -157,7 +165,7 @@ HOLDOUT_MANIFEST_SCHEMA_VERSION = (
     "trusted_replay_train_validation_holdout_manifest_v2"
 )
 HOLDOUT_OBSERVATION_POLICY = (
-    "AUTHENTICATED_ARCHIVE_HIGH_WATER_AND_POSTCOMMIT_FIXED_CUTOFF_V2"
+    "AUTHENTICATED_MANIFEST_FEATURE_AND_EVALUATION_LABEL_FIXED_PREFIX_V3"
 )
 HOLDOUT_SAMPLING_POLICY = (
     "COMPLETE_AUTHENTICATED_WINDOW_CONTENT_MINHASH_THEN_CAUSAL_ORDER_V2"
@@ -562,24 +570,58 @@ def _sha256_path(path: Path | None) -> str | None:
 
 
 def _trusted_replay_holdout_manifest(repo_root: Path) -> dict[str, Any]:
-    candidates = (
+    # The goal-state projection is the sole activation pointer.  Public and
+    # worklog copies are operator projections, never fallback authority: a
+    # crash while refreshing a secondary must leave the prior primary active.
+    path = (
         repo_root
         / "goal_state"
         / TRUSTED_REPLAY_GOAL_ID
-        / "trusted_replay_train_validation_holdout_manifest.json",
-        repo_root
-        / "v2/frontend/public/operator_runtime/v2_native_trainer/latest/trusted_replay_train_validation_holdout_manifest.json",
-        repo_root
-        / "claude_worklog/final_readiness"
-        / TRUSTED_REPLAY_GOAL_ID
-        / "latest/trusted_replay_train_validation_holdout_manifest.json",
+        / "trusted_replay_train_validation_holdout_manifest.json"
     )
-    for path in candidates:
-        payload = as_dict(read_json(path))
-        holdout = as_dict(payload.get("holdout_window"))
-        if holdout.get("start_decision_time") and holdout.get("end_decision_time"):
-            return {**payload, "manifest_path": str(path)}
+    payload = as_dict(read_json(path))
+    holdout = as_dict(payload.get("holdout_window"))
+    if holdout.get("start_decision_time") and holdout.get("end_decision_time"):
+        return {**payload, "manifest_path": str(path)}
     return {}
+
+
+def _authoritative_serving_activation(
+    repo_root: Path,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Read only the atomically replaced primary checkpoint activation."""
+
+    status: dict[str, Any] = {
+        "schema_version": "checkpoint_primary_activation_status_v1",
+        "status": "BLOCKED_PRIMARY_ACTIVATION_MANIFEST_UNAVAILABLE",
+        "primary_activation_manifest_verified": False,
+        "checkpoint_binding_verified": False,
+        "checkpoint_id": None,
+        "rejection_reasons": [],
+    }
+    try:
+        manifest = read_published_checkpoint_partition_manifest(
+            repo_root=Path(repo_root),
+        )
+    except (OSError, TrainingSampleIdentityError, TypeError, ValueError) as exc:
+        status["rejection_reasons"] = [str(exc)[:512]]
+        return {}, status
+    binding = manifest.get("checkpoint_binding")
+    if not isinstance(binding, Mapping):
+        status["rejection_reasons"] = [
+            "HOLDOUT_MANIFEST_CHECKPOINT_BINDING_MISSING"
+        ]
+        return {}, status
+    copied = dict(binding)
+    status.update(
+        {
+            "status": "PRIMARY_ACTIVATION_MANIFEST_VERIFIED",
+            "primary_activation_manifest_verified": True,
+            "checkpoint_id": copied.get("checkpoint_id"),
+            "manifest_payload_sha256": manifest.get("manifest_payload_sha256"),
+        }
+    )
+    return copied, status
 
 
 def _holdout_window(manifest: Mapping[str, Any]) -> tuple[datetime | None, datetime | None, int]:
@@ -821,6 +863,21 @@ def _holdout_manifest_identity(
         reasons.append("HOLDOUT_MANIFEST_FILE_PAYLOAD_MISMATCH")
     if file_payload.get("schema_version") != HOLDOUT_MANIFEST_SCHEMA_VERSION:
         reasons.append("HOLDOUT_MANIFEST_SCHEMA_INVALID")
+    unsigned_payload = {
+        str(key): value
+        for key, value in file_payload.items()
+        if str(key) != "manifest_payload_sha256"
+    }
+    try:
+        observed_unsigned_digest = _stable_json_sha256(unsigned_payload)
+    except (OverflowError, RecursionError, TypeError, ValueError):
+        observed_unsigned_digest = None
+    if (
+        _valid_sha256_text(file_payload.get("manifest_payload_sha256")) is None
+        or file_payload.get("manifest_payload_sha256")
+        != observed_unsigned_digest
+    ):
+        reasons.append("HOLDOUT_MANIFEST_PAYLOAD_DIGEST_MISMATCH")
     if file_payload.get("split_method") != (
         "STRICT_TEMPORAL_ORDER_NO_RANDOM_ROW_SPLIT"
     ):
@@ -834,6 +891,30 @@ def _holdout_manifest_identity(
         reasons.append("LABEL_ARCHIVE_HIGH_WATER_MISSING")
     if not isinstance(file_payload.get("partition_evidence"), Mapping):
         reasons.append("HOLDOUT_PARTITION_EVIDENCE_MISSING")
+    checkpoint_binding = file_payload.get("checkpoint_binding")
+    if not isinstance(checkpoint_binding, Mapping):
+        reasons.append("HOLDOUT_MANIFEST_CHECKPOINT_BINDING_MISSING")
+    else:
+        checkpoint_id = checkpoint_binding.get("checkpoint_id")
+        if (
+            type(checkpoint_id) is not str
+            or not checkpoint_id
+            or Path(checkpoint_id).name != checkpoint_id
+        ):
+            reasons.append("HOLDOUT_MANIFEST_CHECKPOINT_ID_INVALID")
+        for field_name in (
+            "checkpoint_evidence_digest",
+            "training_partition_digest",
+            "training_sample_identity_set_sha256",
+            "validation_sample_identity_set_sha256",
+            "training_feature_identity_set_sha256",
+            "validation_feature_identity_set_sha256",
+        ):
+            if _valid_sha256_text(checkpoint_binding.get(field_name)) is None:
+                reasons.append(
+                    "HOLDOUT_MANIFEST_CHECKPOINT_BINDING_"
+                    f"{field_name.upper()}_INVALID"
+                )
     if reasons:
         return None, sorted(set(reasons))
     try:
@@ -849,15 +930,35 @@ def _holdout_manifest_identity(
     }, []
 
 
-def _sample_identity_set_sha256(identities: Iterable[str]) -> str:
+def _identity_set_sha256(
+    identities: Iterable[str],
+    *,
+    domain: str,
+) -> str:
     ordered = sorted(set(str(value) for value in identities))
     if any(_valid_sha256_text(value) != value for value in ordered):
         raise ValueError("sample_identity_sha256_invalid")
     return _stable_json_sha256(
         {
-            "schema_version": HOLDOUT_SAMPLE_IDENTITY_DOMAIN,
+            "schema_version": domain,
             "ordered_sample_identity_sha256s": ordered,
         }
+    )
+
+
+def _sample_identity_set_sha256(identities: Iterable[str]) -> str:
+    return _identity_set_sha256(
+        identities,
+        domain=HOLDOUT_SAMPLE_IDENTITY_DOMAIN,
+    )
+
+
+def _training_sample_identity_set_sha256(
+    identities: Iterable[str],
+) -> str:
+    return _identity_set_sha256(
+        identities,
+        domain=TRAINING_SAMPLE_IDENTITY_DOMAIN,
     )
 
 
@@ -868,81 +969,18 @@ def _feature_ledger_integrity_checkpoint(
     observation_cutoff: datetime,
     scan_limit: int,
 ) -> tuple[dict[str, Any] | None, list[str]]:
-    if report.integrity_verified is not True:
-        return None, ["FEATURE_LEDGER_INTEGRITY_UNVERIFIED"]
-    if report.verified_records > scan_limit:
-        return None, ["FEATURE_LEDGER_HIGH_WATER_SCAN_TRUNCATED"]
-    projections: list[dict[str, Any]] = []
-    after_sequence = 0
     try:
-        while len(projections) < report.verified_records:
-            page = ledger.query_projection_outbox(
-                limit=min(
-                    FEATURE_LEDGER_MAX_QUERY_ROWS,
-                    report.verified_records - len(projections),
-                ),
-                after_sequence=after_sequence,
-            )
-            if not page:
-                break
-            for item in page:
-                projections.append(
-                    {
-                        "sequence": item.sequence,
-                        "append_receipt_sha256": item.append_receipt_sha256,
-                        "postcommit_receipt_sha256": (
-                            item.postcommit_receipt_sha256
-                        ),
-                        "postcommit_readback_at": item.postcommit_readback_at,
-                        "projection_sha256": _stable_json_sha256(item.projection),
-                    }
-                )
-            after_sequence = page[-1].sequence
-    except (
-        OSError,
-        sqlite3.Error,
-        FeatureSnapshotLedgerError,
-        OverflowError,
-        TypeError,
-        ValueError,
-    ) as exc:
-        return None, [f"FEATURE_LEDGER_HIGH_WATER_READ_FAILED:{type(exc).__name__}"]
-    if len(projections) != report.verified_records:
-        return None, ["FEATURE_LEDGER_HIGH_WATER_PROJECTION_COUNT_MISMATCH"]
-    postcommit_clocks = [
-        parse_runtime_time(item["postcommit_readback_at"])
-        for item in projections
-    ]
-    if any(value is None for value in postcommit_clocks):
-        return None, ["FEATURE_LEDGER_HIGH_WATER_POSTCOMMIT_CLOCK_INVALID"]
-    if any(
-        value is not None and value > observation_cutoff
-        for value in postcommit_clocks
-    ):
-        return None, ["FEATURE_LEDGER_POSTCOMMIT_AFTER_OBSERVATION_CUTOFF"]
-    material = {
-        "schema_version": HOLDOUT_FEATURE_HIGH_WATER_SCHEMA_VERSION,
-        "ledger_path": str(ledger.path),
-        "training_observed_at": observation_cutoff.isoformat(),
-        "integrity_schema_version": report.schema_version,
-        "verified_records": report.verified_records,
-        "verified_append_receipts": report.verified_append_receipts,
-        "verified_postcommit_receipts": report.verified_postcommit_receipts,
-        "verified_projection_outbox_rows": (
-            report.verified_projection_outbox_rows
-        ),
-        "total_record_bytes": report.total_record_bytes,
-        "archive_chain_sha256": report.archive_chain_sha256,
-        "ordered_projection_receipts_sha256": _stable_json_sha256(projections),
-        "max_postcommit_readback_at": (
-            max(value for value in postcommit_clocks if value is not None).isoformat()
-            if postcommit_clocks
-            else None
-        ),
-        "receipt_backed": True,
-        "postcommit_readback_verified": True,
-    }
-    return {**material, "high_water_sha256": _stable_json_sha256(material)}, []
+        return (
+            feature_ledger_fixed_observation_high_water(
+                ledger=ledger,
+                report=report,
+                observation_cutoff=observation_cutoff,
+                scan_limit=scan_limit,
+            ),
+            [],
+        )
+    except TrainingSampleIdentityError as exc:
+        return None, [str(exc)]
 
 
 def _label_archive_integrity_checkpoint(
@@ -952,92 +990,18 @@ def _label_archive_integrity_checkpoint(
     observation_cutoff: datetime,
     scan_limit: int,
 ) -> tuple[dict[str, Any] | None, list[str]]:
-    raw_verified_receipts = integrity.get("verified_append_receipts")
-    if (
-        integrity.get("archive_integrity_verified") is not True
-        or type(raw_verified_receipts) is not int
-        or raw_verified_receipts < 0
-    ):
-        return None, ["LABEL_ARCHIVE_HIGH_WATER_INTEGRITY_UNVERIFIED"]
-    verified_receipts = raw_verified_receipts
-    if verified_receipts > scan_limit:
-        return None, ["LABEL_ARCHIVE_HIGH_WATER_SCAN_TRUNCATED"]
-    rows: list[dict[str, Any]] = []
     try:
-        connection = sqlite3.connect(
-            archive.path.as_uri() + "?mode=ro",
-            uri=True,
-            timeout=60.0,
+        return (
+            label_archive_fixed_observation_high_water(
+                archive=archive,
+                integrity=integrity,
+                observation_cutoff=observation_cutoff,
+                scan_limit=scan_limit,
+            ),
+            [],
         )
-        connection.row_factory = sqlite3.Row
-        try:
-            connection.execute("PRAGMA query_only=ON")
-            connection.execute("BEGIN")
-            cursor = connection.execute(
-                """
-                SELECT receipt.transaction_id, receipt.receipt_sha256,
-                       receipt.commit_prepared_at,
-                       post.readback_receipt_sha256,
-                       post.postcommit_readback_at
-                FROM canonical_5m_append_receipts AS receipt
-                JOIN canonical_5m_postcommit_readback_receipts AS post
-                  ON post.transaction_id = receipt.transaction_id
-                ORDER BY receipt.commit_prepared_at ASC,
-                         receipt.transaction_id ASC
-                LIMIT ?
-                """,
-                (scan_limit + 1,),
-            )
-            for row in cursor:
-                rows.append(
-                    {
-                        "transaction_id": str(row["transaction_id"]),
-                        "append_receipt_sha256": str(row["receipt_sha256"]),
-                        "commit_prepared_at": str(row["commit_prepared_at"]),
-                        "postcommit_receipt_sha256": str(
-                            row["readback_receipt_sha256"]
-                        ),
-                        "postcommit_readback_at": str(
-                            row["postcommit_readback_at"]
-                        ),
-                    }
-                )
-            connection.rollback()
-        finally:
-            connection.close()
-    except (OSError, sqlite3.Error, TypeError, ValueError) as exc:
-        return None, [f"LABEL_ARCHIVE_HIGH_WATER_READ_FAILED:{type(exc).__name__}"]
-    if len(rows) > scan_limit:
-        return None, ["LABEL_ARCHIVE_HIGH_WATER_SCAN_TRUNCATED"]
-    if len(rows) != verified_receipts:
-        return None, ["LABEL_ARCHIVE_HIGH_WATER_RECEIPT_COUNT_MISMATCH"]
-    clocks: list[datetime] = []
-    for row in rows:
-        prepared = parse_runtime_time(row["commit_prepared_at"])
-        postcommit = parse_runtime_time(row["postcommit_readback_at"])
-        if prepared is None or postcommit is None or postcommit < prepared:
-            return None, ["LABEL_ARCHIVE_HIGH_WATER_RECEIPT_CLOCK_INVALID"]
-        if prepared > observation_cutoff or postcommit > observation_cutoff:
-            return None, ["LABEL_ARCHIVE_POSTCOMMIT_AFTER_OBSERVATION_CUTOFF"]
-        clocks.append(postcommit)
-    material = {
-        "schema_version": HOLDOUT_LABEL_HIGH_WATER_SCHEMA_VERSION,
-        "archive_path": str(archive.path),
-        "training_observed_at": observation_cutoff.isoformat(),
-        "archive_schema_version": integrity.get("schema_version"),
-        "verified_rows": integrity.get("verified_rows"),
-        "verified_max_sequence": integrity.get("verified_max_sequence"),
-        "verified_append_receipts": integrity.get("verified_append_receipts"),
-        "verified_postcommit_readback_receipts": integrity.get(
-            "verified_postcommit_readback_receipts"
-        ),
-        "archive_chain_sha256": integrity.get("archive_chain_sha256"),
-        "ordered_transaction_receipts_sha256": _stable_json_sha256(rows),
-        "max_postcommit_readback_at": max(clocks).isoformat() if clocks else None,
-        "receipt_backed": True,
-        "postcommit_readback_verified": True,
-    }
-    return {**material, "high_water_sha256": _stable_json_sha256(material)}, []
+    except TrainingSampleIdentityError as exc:
+        return None, [str(exc)]
 
 
 def _holdout_feature_sample_identity(
@@ -1071,6 +1035,10 @@ def _holdout_partition_reasons(
         reasons.append("HOLDOUT_PARTITION_IDENTITY_DOMAIN_INVALID")
     if partition.get("training_holdout_disjoint") is not True:
         reasons.append("HOLDOUT_PARTITION_DISJOINTNESS_NOT_ATTESTED")
+    if partition.get("validation_holdout_disjoint") is not True:
+        reasons.append("HOLDOUT_PARTITION_VALIDATION_DISJOINTNESS_NOT_ATTESTED")
+    if partition.get("training_validation_disjoint") is not True:
+        reasons.append("HOLDOUT_PARTITION_TRAINING_VALIDATION_DISJOINTNESS_NOT_ATTESTED")
     if type(partition.get("holdout_sample_count")) is not int:
         reasons.append("HOLDOUT_PARTITION_SAMPLE_COUNT_INVALID")
     elif int(partition["holdout_sample_count"]) != len(
@@ -1095,6 +1063,9 @@ def _holdout_partition_reasons(
     for field in (
         "training_partition_digest",
         "training_sample_identity_set_sha256",
+        "validation_sample_identity_set_sha256",
+        "training_feature_identity_set_sha256",
+        "validation_feature_identity_set_sha256",
         "holdout_sample_identity_set_sha256",
     ):
         if _valid_sha256_text(partition.get(field)) is None:
@@ -1104,6 +1075,32 @@ def _holdout_partition_reasons(
         or partition["training_sample_count"] < 0
     ):
         reasons.append("HOLDOUT_PARTITION_TRAINING_SAMPLE_COUNT_INVALID")
+    for field_name in (
+        "validation_sample_count",
+        "training_feature_identity_count",
+        "validation_feature_identity_count",
+    ):
+        value = partition.get(field_name)
+        if type(value) is not int or value < 0:
+            reasons.append(
+                f"HOLDOUT_PARTITION_{field_name.upper()}_INVALID"
+            )
+    if partition.get("training_sample_identity_domain") != (
+        TRAINING_SAMPLE_IDENTITY_DOMAIN
+    ):
+        reasons.append("HOLDOUT_PARTITION_TRAINING_SAMPLE_IDENTITY_DOMAIN_INVALID")
+    if partition.get("validation_sample_identity_domain") != (
+        TRAINING_SAMPLE_IDENTITY_DOMAIN
+    ):
+        reasons.append("HOLDOUT_PARTITION_VALIDATION_SAMPLE_IDENTITY_DOMAIN_INVALID")
+    if partition.get("optional_missing_evidence_semantics") != (
+        OPTIONAL_MISSING_EVIDENCE_SEMANTICS
+    ):
+        reasons.append("HOLDOUT_PARTITION_OPTIONAL_MISSING_SEMANTICS_INVALID")
+    if partition.get("optional_missing_typed_negative_receipts_verified") is not False:
+        reasons.append("HOLDOUT_PARTITION_OPTIONAL_TYPED_NEGATIVE_CLAIM_INVALID")
+    if partition.get("optional_missing_observed_zero_claimed") is not False:
+        reasons.append("HOLDOUT_PARTITION_OPTIONAL_ZERO_CLAIM_INVALID")
     return sorted(set(reasons))
 
 
@@ -2363,7 +2360,12 @@ def _trusted_replay_holdout_examples(
     scan_limit: int,
     eval_limit: int,
 ) -> dict[str, Any]:
-    """Build one fail-closed holdout from receipt-backed immutable ledgers."""
+    """Build one fail-closed holdout from two immutable ledger prefixes.
+
+    Feature evidence is fixed at checkpoint-manifest publication.  Label
+    evidence is independently fixed when evaluation begins, allowing causal
+    outcomes to mature without moving the feature or partition boundary.
+    """
 
     evaluation_started_at = datetime.now(timezone.utc)
     start, end, manifest_rows = _holdout_window(manifest)
@@ -2415,18 +2417,18 @@ def _trusted_replay_holdout_examples(
             },
         }
     manifest_payload = manifest_identity["payload"]
-    observation_cutoff = parse_runtime_time(
+    feature_observation_cutoff = parse_runtime_time(
         manifest_payload.get("generated_utc")
     )
     if (
-        observation_cutoff is None
-        or observation_cutoff <= end
-        or observation_cutoff > evaluation_started_at
+        feature_observation_cutoff is None
+        or feature_observation_cutoff <= end
+        or feature_observation_cutoff > evaluation_started_at
     ):
         cutoff_reason = (
             "MANIFEST_GENERATED_UTC_IN_FUTURE"
-            if observation_cutoff is not None
-            and observation_cutoff > evaluation_started_at
+            if feature_observation_cutoff is not None
+            and feature_observation_cutoff > evaluation_started_at
             else "MANIFEST_GENERATED_UTC_NOT_AFTER_HOLDOUT_END"
         )
         return {
@@ -2437,6 +2439,30 @@ def _trusted_replay_holdout_examples(
                 "payload_sha256"
             ],
             "rows_rejected_by_reason": {cutoff_reason: 1},
+        }
+    # Features are frozen at checkpoint-manifest publication, while labels
+    # are allowed to mature until this evaluation begins.  Query the strict
+    # predecessor of each boundary so a receipt stamped exactly at a boundary
+    # cannot be admitted ambiguously.
+    try:
+        feature_strict_prior_cutoff = feature_observation_cutoff - timedelta(
+            microseconds=1
+        )
+        label_evaluation_cutoff = evaluation_started_at
+        label_strict_prior_cutoff = label_evaluation_cutoff - timedelta(
+            microseconds=1
+        )
+    except OverflowError:
+        return {
+            **base_status,
+            "status": "BLOCKED_HOLDOUT_OBSERVATION_CUTOFF_INVALID",
+            "holdout_manifest_file_sha256": manifest_identity["file_sha256"],
+            "holdout_manifest_payload_sha256": manifest_identity[
+                "payload_sha256"
+            ],
+            "rows_rejected_by_reason": {
+                "HOLDOUT_STRICT_PRIOR_OBSERVATION_CUTOFF_UNREPRESENTABLE": 1
+            },
         }
     window_identity = {
         "schema_version": manifest_payload.get("schema_version"),
@@ -2453,7 +2479,10 @@ def _trusted_replay_holdout_examples(
             manifest_payload.get("partition_evidence")
         ).get("holdout_sample_identity_set_sha256"),
         "observation_policy": HOLDOUT_OBSERVATION_POLICY,
-        "observation_cutoff": observation_cutoff.isoformat(),
+        "observation_cutoff": feature_observation_cutoff.isoformat(),
+        "feature_observation_cutoff": (
+            feature_observation_cutoff.isoformat()
+        ),
     }
     base_status.update(
         {
@@ -2465,7 +2494,20 @@ def _trusted_replay_holdout_examples(
             "holdout_window_observation_sha256": _stable_json_sha256(
                 window_identity
             ),
-            "training_observed_at": observation_cutoff.isoformat(),
+            # Compatibility field: labels, and therefore the completed
+            # evaluation examples, are observed at evaluation start.
+            "training_observed_at": label_evaluation_cutoff.isoformat(),
+            "feature_observation_cutoff": (
+                feature_observation_cutoff.isoformat()
+            ),
+            "feature_strict_prior_observation_cutoff": (
+                feature_strict_prior_cutoff.isoformat()
+            ),
+            "label_evaluation_cutoff": label_evaluation_cutoff.isoformat(),
+            "label_strict_prior_evaluation_cutoff": (
+                label_strict_prior_cutoff.isoformat()
+            ),
+            "feature_and_label_observation_clocks_distinguished": True,
         }
     )
 
@@ -2510,41 +2552,77 @@ def _trusted_replay_holdout_examples(
             }
             or {"DURABLE_INDEXED_5M_LABEL_ARCHIVE_INTEGRITY_UNVERIFIED": 1},
         }
-    label_high_water, label_high_water_reasons = (
+    manifest_label_high_water, manifest_label_high_water_reasons = (
         _label_archive_integrity_checkpoint(
             archive=label_archive,
             integrity=label_integrity,
-            observation_cutoff=observation_cutoff,
+            observation_cutoff=feature_observation_cutoff,
             scan_limit=bounded_scan_limit,
         )
     )
-    if label_high_water is None:
+    if manifest_label_high_water is None:
         return {
             **base_status,
             "status": "BLOCKED_LABEL_ARCHIVE_HIGH_WATER_UNVERIFIED",
             "rows_rejected_by_reason": {
-                reason: 1 for reason in label_high_water_reasons
+                reason: 1 for reason in manifest_label_high_water_reasons
             },
         }
     if as_dict(manifest_payload.get("label_archive_high_water")) != (
-        label_high_water
+        manifest_label_high_water
     ):
         return {
             **base_status,
             "status": "BLOCKED_LABEL_ARCHIVE_HIGH_WATER_MISMATCH",
-            "observed_label_archive_high_water": label_high_water,
+            "observed_label_archive_high_water": manifest_label_high_water,
+            "observed_manifest_label_archive_high_water": (
+                manifest_label_high_water
+            ),
+            "expected_manifest_label_archive_high_water": as_dict(
+                manifest_payload.get("label_archive_high_water")
+            ),
             "rows_rejected_by_reason": {
                 "LABEL_ARCHIVE_HIGH_WATER_MISMATCH": 1
+            },
+        }
+    evaluation_label_high_water, evaluation_label_high_water_reasons = (
+        _label_archive_integrity_checkpoint(
+            archive=label_archive,
+            integrity=label_integrity,
+            observation_cutoff=label_evaluation_cutoff,
+            scan_limit=bounded_scan_limit,
+        )
+    )
+    if evaluation_label_high_water is None:
+        return {
+            **base_status,
+            "status": "BLOCKED_EVALUATION_LABEL_ARCHIVE_HIGH_WATER_UNVERIFIED",
+            "rows_rejected_by_reason": {
+                reason: 1 for reason in evaluation_label_high_water_reasons
             },
         }
     base_status.update(
         {
             "durable_canonical_5m_label_archive_integrity": label_integrity,
             "durable_canonical_5m_label_archive_integrity_verified": True,
-            "label_archive_integrity_checkpoint": label_high_water,
-            "label_archive_integrity_checkpoint_sha256": label_high_water[
-                "high_water_sha256"
-            ],
+            # Compatibility names retain the checkpoint-manifest prefix.
+            "label_archive_integrity_checkpoint": manifest_label_high_water,
+            "label_archive_integrity_checkpoint_sha256": (
+                manifest_label_high_water["high_water_sha256"]
+            ),
+            "manifest_label_archive_high_water": manifest_label_high_water,
+            "manifest_label_archive_high_water_sha256": (
+                manifest_label_high_water["high_water_sha256"]
+            ),
+            "evaluation_label_archive_high_water": (
+                evaluation_label_high_water
+            ),
+            "evaluation_label_archive_high_water_sha256": (
+                evaluation_label_high_water["high_water_sha256"]
+            ),
+            "manifest_label_prefix_reproduced_at_feature_cutoff": True,
+            "evaluation_label_prefix_frozen_at_evaluation_start": True,
+            "label_path_full_tail_integrity_proof_reused": False,
         }
     )
 
@@ -2581,7 +2659,7 @@ def _trusted_replay_holdout_examples(
         _feature_ledger_integrity_checkpoint(
             ledger=feature_ledger,
             report=feature_integrity,
-            observation_cutoff=observation_cutoff,
+            observation_cutoff=feature_observation_cutoff,
             scan_limit=bounded_scan_limit,
         )
     )
@@ -2619,7 +2697,9 @@ def _trusted_replay_holdout_examples(
         while len(scanned) <= bounded_scan_limit:
             page = feature_ledger.query_fixed_cutoff(
                 decision_time_cutoff=end.isoformat(),
-                training_observed_at=observation_cutoff.isoformat(),
+                training_observed_at=(
+                    feature_strict_prior_cutoff.isoformat()
+                ),
                 limit=min(
                     FEATURE_LEDGER_MAX_QUERY_ROWS,
                     bounded_scan_limit + 1 - len(scanned),
@@ -2778,9 +2858,12 @@ def _trusted_replay_holdout_examples(
             candle_rows, label_path_proof = label_archive.verified_label_path(
                 symbol=str(snapshot.get("symbol") or "").upper(),
                 decision_time=clocks["ppo_decision_time"],
-                training_observed_at=observation_cutoff,
+                training_observed_at=label_strict_prior_cutoff,
                 horizon_seconds=HORIZON_SECONDS["4h"],
-                archive_integrity_proof=label_integrity,
+                # A full-tail proof captured before this range read would be
+                # invalidated by an unrelated valid suffix append.  The range
+                # reader establishes a fresh local snapshot/proof instead.
+                archive_integrity_proof=None,
                 require_receipt_committed_by_observation=True,
             )
         except (OSError, sqlite3.Error, TypeError, ValueError) as exc:
@@ -2806,7 +2889,7 @@ def _trusted_replay_holdout_examples(
             clocks=clocks,
             candle_rows=candle_rows,
             label_path_proof=label_path_proof,
-            observation_cutoff=observation_cutoff,
+            observation_cutoff=label_evaluation_cutoff,
         )
         if example is None:
             for reason in example_reasons:
@@ -2837,23 +2920,48 @@ def _trusted_replay_holdout_examples(
         label_path_identities = []
 
     label_current = False
+    manifest_label_prefix_current = False
+    evaluation_label_prefix_current = False
+    label_full_integrity_verified_at_completion = False
     feature_current = False
+    feature_full_integrity_verified_at_completion = False
     try:
-        label_current = label_archive.integrity_proof_is_current(
-            label_integrity
-        )
         completion_label_integrity = label_archive.verify_integrity()
-        completion_label_high_water, _ = _label_archive_integrity_checkpoint(
-            archive=label_archive,
-            integrity=completion_label_integrity,
-            observation_cutoff=observation_cutoff,
-            scan_limit=bounded_scan_limit,
+        label_full_integrity_verified_at_completion = bool(
+            completion_label_integrity.get("archive_integrity_verified")
+            is True
+        )
+        completion_manifest_label_high_water, _ = (
+            _label_archive_integrity_checkpoint(
+                archive=label_archive,
+                integrity=completion_label_integrity,
+                observation_cutoff=feature_observation_cutoff,
+                scan_limit=bounded_scan_limit,
+            )
+        )
+        completion_evaluation_label_high_water, _ = (
+            _label_archive_integrity_checkpoint(
+                archive=label_archive,
+                integrity=completion_label_integrity,
+                observation_cutoff=label_evaluation_cutoff,
+                scan_limit=bounded_scan_limit,
+            )
+        )
+        manifest_label_prefix_current = bool(
+            label_full_integrity_verified_at_completion
+            and completion_manifest_label_high_water
+            == manifest_label_high_water
+            and completion_manifest_label_high_water
+            == as_dict(manifest_payload.get("label_archive_high_water"))
+        )
+        evaluation_label_prefix_current = bool(
+            label_full_integrity_verified_at_completion
+            and completion_evaluation_label_high_water
+            == evaluation_label_high_water
         )
         label_current = bool(
-            label_current
-            and completion_label_high_water == label_high_water
-            and completion_label_high_water
-            == as_dict(manifest_payload.get("label_archive_high_water"))
+            manifest_label_prefix_current
+            and evaluation_label_prefix_current
         )
     except (OSError, sqlite3.Error, TypeError, ValueError):
         label_current = False
@@ -2861,16 +2969,20 @@ def _trusted_replay_holdout_examples(
         completion_feature_integrity = (
             feature_ledger.verify_integrity_streaming()
         )
+        feature_full_integrity_verified_at_completion = bool(
+            completion_feature_integrity.integrity_verified is True
+        )
         completion_feature_high_water, _ = (
             _feature_ledger_integrity_checkpoint(
                 ledger=feature_ledger,
                 report=completion_feature_integrity,
-                observation_cutoff=observation_cutoff,
+                observation_cutoff=feature_observation_cutoff,
                 scan_limit=bounded_scan_limit,
             )
         )
         feature_current = bool(
-            completion_feature_high_water == feature_high_water
+            feature_full_integrity_verified_at_completion
+            and completion_feature_high_water == feature_high_water
             and completion_feature_high_water
             == as_dict(manifest_payload.get("feature_ledger_high_water"))
         )
@@ -2938,10 +3050,28 @@ def _trusted_replay_holdout_examples(
             label_path_identities
         ),
         "durable_label_ranges_verified": len(label_path_identities),
+        # Backward-compatible proof-current names now mean that a fresh full
+        # integrity verification succeeded and every immutable cutoff prefix
+        # reproduced exactly; the initial mutable tail proof is never reused.
         "archive_integrity_proof_current_at_completion": label_current,
+        "label_archive_fixed_prefixes_current_at_completion": label_current,
+        "manifest_label_archive_prefix_current_at_completion": (
+            manifest_label_prefix_current
+        ),
+        "evaluation_label_archive_prefix_current_at_completion": (
+            evaluation_label_prefix_current
+        ),
+        "label_archive_full_integrity_verified_at_completion": (
+            label_full_integrity_verified_at_completion
+        ),
         "feature_ledger_integrity_proof_current_at_completion": (
             feature_current
         ),
+        "feature_ledger_fixed_prefix_current_at_completion": feature_current,
+        "feature_ledger_full_integrity_verified_at_completion": (
+            feature_full_integrity_verified_at_completion
+        ),
+        "initial_full_tail_integrity_proof_reused": False,
         "holdout_manifest_current_at_completion": manifest_current,
         "holdout_partition_sample_identity_set_sha256": (
             _sample_identity_set_sha256(candidate_identity_sha256s)
@@ -2960,28 +3090,84 @@ def _checkpoint_holdout_partition_contract(
     partition = as_dict(manifest_payload.get("partition_evidence"))
     evidence = as_dict(checkpoint.checkpoint_evidence)
     reasons: list[str] = []
-    raw_training_identities = evidence.get("training_sample_identity_sha256s")
-    if type(raw_training_identities) is not list:
-        training_identities: list[str] = []
-        reasons.append("CHECKPOINT_TRAINING_SAMPLE_IDENTITY_INVENTORY_MISSING")
-    else:
-        training_identities = [str(value) for value in raw_training_identities]
-    if len(training_identities) > 250_000:
-        reasons.append("CHECKPOINT_TRAINING_SAMPLE_IDENTITY_INVENTORY_EXCEEDS_BOUND")
-    if any(_valid_sha256_text(value) is None for value in training_identities):
-        reasons.append("CHECKPOINT_TRAINING_SAMPLE_IDENTITY_INVALID")
-    if training_identities != sorted(training_identities):
-        reasons.append("CHECKPOINT_TRAINING_SAMPLE_IDENTITIES_NOT_SORTED")
-    if len(training_identities) != len(set(training_identities)):
-        reasons.append("CHECKPOINT_TRAINING_SAMPLE_IDENTITIES_NOT_UNIQUE")
-    if evidence.get("training_sample_identity_inventory_complete") is not True:
-        reasons.append("CHECKPOINT_TRAINING_SAMPLE_IDENTITY_INVENTORY_INCOMPLETE")
-    if evidence.get("training_sample_identity_domain") != (
-        HOLDOUT_SAMPLE_IDENTITY_DOMAIN
-    ):
-        reasons.append("CHECKPOINT_TRAINING_SAMPLE_IDENTITY_DOMAIN_INVALID")
+
+    def identity_inventory(
+        *,
+        lane: str,
+        kind: str,
+        expected_domain: str,
+    ) -> tuple[list[str], str | None]:
+        prefix = f"{lane.lower()}_{kind.lower()}_identity"
+        display = f"{lane}_{kind}_IDENTITY"
+        raw = evidence.get(f"{prefix}_sha256s")
+        if type(raw) is not list:
+            identities: list[str] = []
+            reasons.append(f"CHECKPOINT_{display}_INVENTORY_MISSING")
+        else:
+            identities = [str(value) for value in raw]
+        if len(identities) > 250_000:
+            reasons.append(f"CHECKPOINT_{display}_INVENTORY_EXCEEDS_BOUND")
+        if any(_valid_sha256_text(value) is None for value in identities):
+            reasons.append(f"CHECKPOINT_{display}_INVALID")
+        if identities != sorted(identities):
+            reasons.append(f"CHECKPOINT_{display}S_NOT_SORTED")
+        if len(identities) != len(set(identities)):
+            reasons.append(f"CHECKPOINT_{display}S_NOT_UNIQUE")
+        if evidence.get(f"{prefix}_inventory_complete") is not True:
+            reasons.append(f"CHECKPOINT_{display}_INVENTORY_INCOMPLETE")
+        if evidence.get(f"{prefix}_domain") != expected_domain:
+            reasons.append(f"CHECKPOINT_{display}_DOMAIN_INVALID")
+        try:
+            identity_set_sha256 = _identity_set_sha256(
+                identities,
+                domain=expected_domain,
+            )
+        except ValueError:
+            identity_set_sha256 = None
+            reasons.append(f"CHECKPOINT_{display}_INVALID")
+        if evidence.get(f"{prefix}_set_sha256") != identity_set_sha256:
+            reasons.append(f"CHECKPOINT_{display}_SET_MISMATCH")
+        count_field = (
+            f"{lane.lower()}_sample_count"
+            if kind == "SAMPLE"
+            else f"{lane.lower()}_feature_identity_count"
+        )
+        if (
+            type(evidence.get(count_field)) is not int
+            or evidence[count_field] != len(identities)
+        ):
+            reasons.append(f"CHECKPOINT_{display}_COUNT_MISMATCH")
+        return identities, identity_set_sha256
+
+    training_identities, training_set_sha256 = identity_inventory(
+        lane="TRAINING",
+        kind="SAMPLE",
+        expected_domain=TRAINING_SAMPLE_IDENTITY_DOMAIN,
+    )
+    validation_identities, validation_set_sha256 = identity_inventory(
+        lane="VALIDATION",
+        kind="SAMPLE",
+        expected_domain=TRAINING_SAMPLE_IDENTITY_DOMAIN,
+    )
+    training_feature_identities, training_feature_set_sha256 = (
+        identity_inventory(
+            lane="TRAINING",
+            kind="FEATURE",
+            expected_domain=HOLDOUT_SAMPLE_IDENTITY_DOMAIN,
+        )
+    )
+    validation_feature_identities, validation_feature_set_sha256 = (
+        identity_inventory(
+            lane="VALIDATION",
+            kind="FEATURE",
+            expected_domain=HOLDOUT_SAMPLE_IDENTITY_DOMAIN,
+        )
+    )
+    if len(training_identities) != len(training_feature_identities):
+        reasons.append("CHECKPOINT_TRAINING_SAMPLE_FEATURE_COUNT_MISMATCH")
+    if len(validation_identities) != len(validation_feature_identities):
+        reasons.append("CHECKPOINT_VALIDATION_SAMPLE_FEATURE_COUNT_MISMATCH")
     try:
-        training_set_sha256 = _sample_identity_set_sha256(training_identities)
         raw_holdout_identities = [
             str(value) for value in holdout_sample_identity_sha256s
         ]
@@ -2992,19 +3178,9 @@ def _checkpoint_holdout_partition_contract(
         holdout_identities = sorted(raw_holdout_identities)
         holdout_set_sha256 = _sample_identity_set_sha256(holdout_identities)
     except ValueError:
-        training_set_sha256 = None
         holdout_set_sha256 = None
         holdout_identities = []
         reasons.append("CHECKPOINT_OR_HOLDOUT_SAMPLE_IDENTITY_INVALID")
-    if evidence.get("training_sample_identity_set_sha256") != (
-        training_set_sha256
-    ):
-        reasons.append("CHECKPOINT_TRAINING_SAMPLE_IDENTITY_SET_MISMATCH")
-    if (
-        type(evidence.get("training_sample_count")) is not int
-        or evidence["training_sample_count"] != len(training_identities)
-    ):
-        reasons.append("CHECKPOINT_TRAINING_SAMPLE_COUNT_MISMATCH")
     try:
         expected_partition_digest = training_partition_digest(
             list(checkpoint.consumed_ppo_update_keys)
@@ -3018,10 +3194,24 @@ def _checkpoint_holdout_partition_contract(
         checkpoint.training_partition_digest
     ):
         reasons.append("CHECKPOINT_EVIDENCE_TRAINING_PARTITION_DIGEST_MISMATCH")
+    if evidence.get("optional_missing_evidence_semantics") != (
+        OPTIONAL_MISSING_EVIDENCE_SEMANTICS
+    ):
+        reasons.append("CHECKPOINT_OPTIONAL_MISSING_SEMANTICS_INVALID")
+    if evidence.get("optional_missing_typed_negative_receipts_verified") is not False:
+        reasons.append("CHECKPOINT_OPTIONAL_TYPED_NEGATIVE_CLAIM_INVALID")
+    if evidence.get("optional_missing_observed_zero_claimed") is not False:
+        reasons.append("CHECKPOINT_OPTIONAL_ZERO_CLAIM_INVALID")
     manifest_bindings = {
         "training_partition_digest": checkpoint.training_partition_digest,
         "training_sample_identity_set_sha256": training_set_sha256,
         "training_sample_count": len(training_identities),
+        "validation_sample_identity_set_sha256": validation_set_sha256,
+        "validation_sample_count": len(validation_identities),
+        "training_feature_identity_set_sha256": training_feature_set_sha256,
+        "training_feature_identity_count": len(training_feature_identities),
+        "validation_feature_identity_set_sha256": validation_feature_set_sha256,
+        "validation_feature_identity_count": len(validation_feature_identities),
         "holdout_sample_identity_set_sha256": holdout_set_sha256,
         "holdout_sample_count": len(holdout_identities),
     }
@@ -3030,11 +3220,33 @@ def _checkpoint_holdout_partition_contract(
         for field, expected in manifest_bindings.items()
     ):
         reasons.append("MANIFEST_CHECKPOINT_PARTITION_BINDING_MISMATCH")
-    overlap = sorted(set(training_identities) & set(holdout_identities))
-    if overlap:
+    if set(training_feature_identities) & set(validation_feature_identities):
+        reasons.append("CHECKPOINT_TRAINING_VALIDATION_FEATURE_IDENTITY_OVERLAP")
+    if set(training_feature_identities) & set(holdout_identities):
         reasons.append("CHECKPOINT_TRAINING_HOLDOUT_SAMPLE_OVERLAP")
+    if set(validation_feature_identities) & set(holdout_identities):
+        reasons.append("CHECKPOINT_VALIDATION_HOLDOUT_SAMPLE_OVERLAP")
+    if partition.get("training_validation_disjoint") is not True:
+        reasons.append("MANIFEST_TRAINING_VALIDATION_DISJOINTNESS_NOT_TRUE")
     if partition.get("training_holdout_disjoint") is not True:
         reasons.append("MANIFEST_TRAINING_HOLDOUT_DISJOINTNESS_NOT_TRUE")
+    if partition.get("validation_holdout_disjoint") is not True:
+        reasons.append("MANIFEST_VALIDATION_HOLDOUT_DISJOINTNESS_NOT_TRUE")
+    checkpoint_binding = as_dict(manifest_payload.get("checkpoint_binding"))
+    exact_checkpoint_bindings = {
+        "checkpoint_id": checkpoint.checkpoint_id,
+        "checkpoint_evidence_digest": checkpoint.checkpoint_evidence_digest,
+        "training_partition_digest": checkpoint.training_partition_digest,
+        "training_sample_identity_set_sha256": training_set_sha256,
+        "validation_sample_identity_set_sha256": validation_set_sha256,
+        "training_feature_identity_set_sha256": training_feature_set_sha256,
+        "validation_feature_identity_set_sha256": validation_feature_set_sha256,
+    }
+    if any(
+        checkpoint_binding.get(field) != expected
+        for field, expected in exact_checkpoint_bindings.items()
+    ):
+        reasons.append("MANIFEST_CHECKPOINT_EXACT_BINDING_MISMATCH")
     if reasons:
         return None, sorted(set(reasons))
     proof = {
@@ -3043,8 +3255,16 @@ def _checkpoint_holdout_partition_contract(
         "checkpoint_evidence_digest": checkpoint.checkpoint_evidence_digest,
         **manifest_bindings,
         "training_sample_identity_inventory_complete": True,
+        "validation_sample_identity_inventory_complete": True,
+        "training_feature_identity_inventory_complete": True,
+        "validation_feature_identity_inventory_complete": True,
+        "training_validation_intersection_count": 0,
         "training_holdout_intersection_count": 0,
+        "validation_holdout_intersection_count": 0,
+        "training_validation_disjoint_verified": True,
         "training_holdout_disjoint_verified": True,
+        "validation_holdout_disjoint_verified": True,
+        "checkpoint_binding_verified": True,
     }
     return {**proof, "proof_sha256": _stable_json_sha256(proof)}, []
 
@@ -3112,6 +3332,11 @@ def build_trusted_replay_holdout_calibration(
             "observation_policy",
             "sampling_policy",
             "training_observed_at",
+            "feature_observation_cutoff",
+            "feature_strict_prior_observation_cutoff",
+            "label_evaluation_cutoff",
+            "label_strict_prior_evaluation_cutoff",
+            "feature_and_label_observation_clocks_distinguished",
             "holdout_manifest_file_sha256",
             "holdout_manifest_payload_sha256",
             "holdout_window_observation_sha256",
@@ -3122,9 +3347,23 @@ def build_trusted_replay_holdout_calibration(
             "feature_ledger_integrity_checkpoint",
             "feature_ledger_integrity_checkpoint_sha256",
             "feature_ledger_integrity_proof_current_at_completion",
+            "feature_ledger_fixed_prefix_current_at_completion",
+            "feature_ledger_full_integrity_verified_at_completion",
             "label_archive_integrity_checkpoint",
             "label_archive_integrity_checkpoint_sha256",
+            "manifest_label_archive_high_water",
+            "manifest_label_archive_high_water_sha256",
+            "evaluation_label_archive_high_water",
+            "evaluation_label_archive_high_water_sha256",
+            "manifest_label_prefix_reproduced_at_feature_cutoff",
+            "evaluation_label_prefix_frozen_at_evaluation_start",
+            "label_path_full_tail_integrity_proof_reused",
             "archive_integrity_proof_current_at_completion",
+            "label_archive_fixed_prefixes_current_at_completion",
+            "manifest_label_archive_prefix_current_at_completion",
+            "evaluation_label_archive_prefix_current_at_completion",
+            "label_archive_full_integrity_verified_at_completion",
+            "initial_full_tail_integrity_proof_reused",
             "selected_holdout_sample_order_sha256",
             "evaluated_example_order_sha256",
             "holdout_sample_identity_hash",
@@ -3204,7 +3443,16 @@ def build_trusted_replay_holdout_calibration(
             "holdout_source_evidence": loaded_evidence,
             "reason": f"serving checkpoint manifest scan failed closed: {type(exc).__name__}",
         }
-    manifest_checkpoint = serving_manifests[0] if serving_manifests else None
+    checkpoint_binding = as_dict(manifest.get("checkpoint_binding"))
+    bound_checkpoint_id = checkpoint_binding.get("checkpoint_id")
+    manifest_checkpoint = next(
+        (
+            candidate
+            for candidate in serving_manifests
+            if candidate.checkpoint_id == bound_checkpoint_id
+        ),
+        None,
+    )
     if manifest_checkpoint is None:
         return {
             "schema_version": "trusted_replay_holdout_calibration_status_v1",
@@ -3217,8 +3465,9 @@ def build_trusted_replay_holdout_calibration(
             "evaluated_rows": 0,
             "holdout_source_evidence": loaded_evidence,
             "reason": (
-                "no compatible verified-serving checkpoint manifest has a "
-                "safe npz weight blob"
+                "the durable holdout manifest's exact checkpoint binding has "
+                "no compatible verified-serving checkpoint with a safe npz "
+                "weight blob"
             ),
         }
     if manifest_checkpoint.lineage_kind != VERIFIED_SERVING_LINEAGE:
@@ -4443,6 +4692,9 @@ def checkpoint_retention_status(
     rollover_limit_gb: int = 300,
     apply_rollover: bool = True,
 ) -> dict[str, Any]:
+    activation_binding, activation_status = _authoritative_serving_activation(
+        paths.repo_root
+    )
     checkpoint_dir = paths.model_dir
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
     candidate_dir = checkpoint_dir / "non_serving_training_candidates"
@@ -4688,11 +4940,88 @@ def checkpoint_retention_status(
                 and group.manifest.lineage_kind
                 == "NON_SERVING_TRAINING_CANDIDATE"
             ]
-            active_serving_id = (
+            newest_serving_artifact_id = (
                 serving_groups[-1].manifest.checkpoint_id
                 if serving_groups
                 else None
             )
+            active_serving_id: str | None = None
+            requested_active_id = activation_binding.get("checkpoint_id")
+            if isinstance(requested_active_id, str) and requested_active_id:
+                active_group = group_by_id.get(requested_active_id)
+                active_evidence = (
+                    active_group.manifest.checkpoint_evidence
+                    if active_group is not None
+                    and isinstance(active_group.manifest.checkpoint_evidence, Mapping)
+                    else {}
+                )
+                expected_activation_bindings = (
+                    {
+                        "checkpoint_id": active_group.manifest.checkpoint_id,
+                        "checkpoint_evidence_digest": (
+                            active_group.manifest.checkpoint_evidence_digest
+                        ),
+                        "training_partition_digest": (
+                            active_group.manifest.training_partition_digest
+                        ),
+                        "training_sample_identity_set_sha256": (
+                            active_evidence.get(
+                                "training_sample_identity_set_sha256"
+                            )
+                        ),
+                        "validation_sample_identity_set_sha256": (
+                            active_evidence.get(
+                                "validation_sample_identity_set_sha256"
+                            )
+                        ),
+                        "training_feature_identity_set_sha256": (
+                            active_evidence.get(
+                                "training_feature_identity_set_sha256"
+                            )
+                        ),
+                        "validation_feature_identity_set_sha256": (
+                            active_evidence.get(
+                                "validation_feature_identity_set_sha256"
+                            )
+                        ),
+                    }
+                    if active_group is not None
+                    else {}
+                )
+                binding_reasons: list[str] = []
+                if (
+                    active_group is None
+                    or active_group.manifest_path.parent != checkpoint_dir
+                    or active_group.manifest.lineage_kind
+                    != "VERIFIED_SERVING_POLICY"
+                ):
+                    binding_reasons.append(
+                        "PRIMARY_ACTIVATION_CHECKPOINT_NOT_IN_VERIFIED_SERVING_STORE"
+                    )
+                elif any(
+                    activation_binding.get(field_name) != expected
+                    for field_name, expected in expected_activation_bindings.items()
+                ):
+                    binding_reasons.append(
+                        "PRIMARY_ACTIVATION_CHECKPOINT_BINDING_MISMATCH"
+                    )
+                if binding_reasons:
+                    activation_status.update(
+                        {
+                            "status": "BLOCKED_PRIMARY_ACTIVATION_BINDING_INVALID",
+                            "checkpoint_binding_verified": False,
+                            "rejection_reasons": binding_reasons,
+                        }
+                    )
+                else:
+                    active_serving_id = requested_active_id
+                    activation_status.update(
+                        {
+                            "status": "PRIMARY_ACTIVATION_CHECKPOINT_VERIFIED",
+                            "checkpoint_binding_verified": True,
+                            "rejection_reasons": [],
+                        }
+                    )
             latest_candidate_id = (
                 candidate_groups[-1].manifest.checkpoint_id
                 if candidate_groups
@@ -4702,9 +5031,7 @@ def checkpoint_retention_status(
             latest_checkpoint_id_source = "caller" if latest_checkpoint_id else None
             if not effective_latest_checkpoint_id and active_serving_id:
                 effective_latest_checkpoint_id = active_serving_id
-                latest_checkpoint_id_source = (
-                    "newest_validated_causal_serving_checkpoint"
-                )
+                latest_checkpoint_id_source = "primary_manifest_bound_active_checkpoint"
             if latest_checkpoint_id and latest_checkpoint_id not in group_by_id:
                 scan_rejection_reasons.append(
                     "CALLER_LATEST_CHECKPOINT_NOT_IN_VALIDATED_SCAN"
@@ -4771,6 +5098,15 @@ def checkpoint_retention_status(
 
             if active_serving_id:
                 pin_parent_chain(active_serving_id, "ACTIVE_VERIFIED_SERVING")
+            if newest_serving_artifact_id:
+                pin_parent_chain(
+                    newest_serving_artifact_id,
+                    (
+                        "NEWEST_VERIFIED_SERVING_ARTIFACT"
+                        if newest_serving_artifact_id == active_serving_id
+                        else "NEWEST_STAGED_UNACTIVATED_SERVING_ARTIFACT"
+                    ),
+                )
             if latest_candidate_id:
                 pin_parent_chain(
                     latest_candidate_id,
@@ -4939,6 +5275,16 @@ def checkpoint_retention_status(
                 "latest_checkpoint_id": effective_latest_checkpoint_id,
                 "latest_checkpoint_id_source": latest_checkpoint_id_source,
                 "active_verified_serving_checkpoint_id": active_serving_id,
+                "active_manifest_bound_checkpoint_id": active_serving_id,
+                "newest_verified_serving_artifact_id": (
+                    newest_serving_artifact_id
+                ),
+                "newest_unactivated_serving_artifact_id": (
+                    newest_serving_artifact_id
+                    if newest_serving_artifact_id != active_serving_id
+                    else None
+                ),
+                "primary_checkpoint_activation": activation_status,
                 "best_checkpoint": best_checkpoint_id,
                 "pinned_checkpoints": sorted(pinned_names),
                 "pinned_checkpoint_reasons": {

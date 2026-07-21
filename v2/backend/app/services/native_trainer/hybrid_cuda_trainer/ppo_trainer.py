@@ -502,6 +502,17 @@ class PPOTrainingResult:
     loss_after: float | None
     action_distribution: dict[str, int]
     metrics: dict = field(default_factory=dict)
+    # Exact rows that entered the optimizer and held-out evaluator. Runtime
+    # re-authenticates these objects against the durable v3 feature ledger
+    # before any checkpoint can be persisted.
+    optimizer_training_examples: tuple[TrainingExample, ...] = field(
+        default_factory=tuple,
+        repr=False,
+    )
+    validation_examples: tuple[TrainingExample, ...] = field(
+        default_factory=tuple,
+        repr=False,
+    )
 
 
 class V2HybridPPOTrainer:
@@ -3138,6 +3149,8 @@ class V2HybridPPOTrainer:
                 loss_after=None,
                 action_distribution=self._action_distribution(rows),
                 metrics=metrics,
+                optimizer_training_examples=tuple(rows),
+                validation_examples=tuple(validation_rows),
             )
 
         initial_nonfinite_parameters = nonfinite_parameter_count()
@@ -4476,6 +4489,8 @@ class V2HybridPPOTrainer:
                 "uses_confidence_head": True,
                 "uses_masa_head": True,
             },
+            optimizer_training_examples=tuple(rows),
+            validation_examples=tuple(validation_rows),
         )
 
     def _train_fallback(
@@ -4674,6 +4689,8 @@ class V2HybridPPOTrainer:
                 "ppo_target_contract_present": True,
                 "masa_auxiliary_signal_present": True,
             },
+            optimizer_training_examples=tuple(rows),
+            validation_examples=tuple(validation_rows),
         )
 
     def _parameter_vector(self) -> list[float]:

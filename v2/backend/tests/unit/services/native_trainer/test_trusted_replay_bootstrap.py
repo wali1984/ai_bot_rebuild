@@ -11,6 +11,9 @@ from v2.backend.app.services.market_state_integrity.canonical_candles import (
     CanonicalCandle,
     canonical_candle_id,
 )
+from v2.backend.app.services.native_trainer.durable_canonical_5m_label_archive import (
+    DurableCanonical5mLabelArchive,
+)
 from v2.backend.app.services.native_trainer.durable_feature_snapshot_archive import (
     SnapshotArchiveError,
     append_snapshot,
@@ -18,13 +21,12 @@ from v2.backend.app.services.native_trainer.durable_feature_snapshot_archive imp
     content_sha256,
     load_snapshot,
 )
-from v2.backend.app.services.native_trainer.durable_canonical_5m_label_archive import (
-    DurableCanonical5mLabelArchive,
+from v2.backend.app.services.native_trainer.hybrid_cuda_trainer import (
+    data_loader as data_loader_mod,
 )
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.confidence import (
     profitability_target_from_trust_row,
 )
-from v2.backend.app.services.native_trainer.hybrid_cuda_trainer import data_loader as data_loader_mod
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.data_loader import (
     TrainingExample,
     V2HybridTrainerDataLoader,
@@ -40,8 +42,9 @@ from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.tensor_builder i
     V2UnifiedFeatureTensorBuilder,
 )
 from v2.backend.app.services.native_trainer.trusted_replay.bootstrap import (
-    build_temporal_split_manifest,
+    _quarantine_legacy_v1_manifest,
     bootstrap_trusted_replay_dataset,
+    build_temporal_split_manifest,
 )
 from v2.backend.app.services.native_trainer.trusted_replay.dataset import (
     TRUSTED_REPLAY_COST_EVIDENCE_SCHEMA_VERSION,
@@ -50,7 +53,6 @@ from v2.backend.app.services.native_trainer.trusted_replay.dataset import (
     target_action_index,
     trusted_replay_cost_evidence,
 )
-
 
 FEATURE_CUTOFF = "2026-06-22T00:00:00Z"
 AVAILABLE_AT = "2026-06-22T00:00:30Z"
@@ -606,17 +608,56 @@ def test_training_observation_cutoff_is_explicit_and_timezone_aware(
     assert reasons == ["TRAINING_OBSERVED_AT_MISSING_OR_INVALID"]
 
 
-def test_temporal_split_has_no_overlap() -> None:
+def test_bootstrap_does_not_claim_checkpoint_specific_temporal_split() -> None:
     items = [
         (f"2026-06-22T00:{minute:02d}:00Z", f"row-{minute}")
         for minute in range(20)
     ]
+    items.extend(
+        [
+            ("2026-06-22T00:19:00Z", "same-clock-a"),
+            ("2026-06-22T00:19:00Z", "same-clock-b"),
+        ]
+    )
 
-    manifest = build_temporal_split_manifest(items)
+    status = build_temporal_split_manifest(items)
 
-    assert manifest["temporal_overlap"] is False
-    assert manifest["training_window"]["end_decision_time"] < manifest["validation_window"]["start_decision_time"]
-    assert manifest["validation_window"]["end_decision_time"] < manifest["holdout_window"]["start_decision_time"]
+    assert status["status"] == "BLOCKED_RUNTIME_CHECKPOINT_BINDING_REQUIRED"
+    assert status["authoritative_manifest_published"] is False
+    assert status["legacy_v1_manifest_published"] is False
+    assert status["static_fractional_split_used"] is False
+    assert status["equal_decision_timestamps_partitioned"] is False
+    assert "training_window" not in status
+    assert "validation_window" not in status
+    assert "holdout_window" not in status
+
+
+def test_bootstrap_quarantines_only_legacy_v1_manifest(tmp_path: Path) -> None:
+    output_dir = tmp_path / "latest"
+    output_dir.mkdir(parents=True)
+    manifest_path = (
+        output_dir / "trusted_replay_train_validation_holdout_manifest.json"
+    )
+    legacy_payload = {
+        "schema_version": "trusted_replay_train_validation_holdout_manifest_v1",
+        "training_window": {"rows": 10},
+    }
+    manifest_path.write_text(json.dumps(legacy_payload), encoding="utf-8")
+
+    quarantined = _quarantine_legacy_v1_manifest(output_dir)
+
+    assert quarantined is not None
+    assert not manifest_path.exists()
+    assert json.loads(Path(quarantined).read_text(encoding="utf-8")) == (
+        legacy_payload
+    )
+
+    v2_payload = {
+        "schema_version": "trusted_replay_train_validation_holdout_manifest_v2"
+    }
+    manifest_path.write_text(json.dumps(v2_payload), encoding="utf-8")
+    assert _quarantine_legacy_v1_manifest(output_dir) is None
+    assert json.loads(manifest_path.read_text(encoding="utf-8")) == v2_payload
 
 
 def test_snapshot_hash_mismatch_rejected(tmp_path: Path) -> None:
