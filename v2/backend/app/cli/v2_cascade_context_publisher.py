@@ -9,8 +9,8 @@ Safety:
 from __future__ import annotations
 
 import argparse
-from datetime import UTC, datetime
 import json
+import math
 import os
 import subprocess
 import time
@@ -18,14 +18,15 @@ from collections import Counter
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
-from v2.backend.app.services.risk.fast_squeeze_detector import detect_squeeze
 from v2.backend.app.services.microstructure_trust.cascade_context import (
-    REQUIRED_SOURCES,
     build_cascade_context,
 )
-from v2.backend.app.services.microstructure_trust.feed_quality import iso_now
+from v2.backend.app.services.microstructure_trust.feed_quality import (
+    iso_now,
+    parse_time_ms,
+)
+from v2.backend.app.services.risk.fast_squeeze_detector import detect_squeeze
 from v2.backend.app.services.v2_symbol_runtime_universe import resolve_symbols
-
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 GOAL_ID = "V2_CASCADE_CONTEXT_PROVIDER_AND_NO_TRADE_SUPPLY_UNBLOCK"
@@ -253,6 +254,200 @@ def _detect_existing_paper_loop_pid() -> int | None:
 _MAJORS_FOR_CROSS_ASSET = ("BTCUSDT", "ETHUSDT", "SOLUSDT")
 
 
+def _first_valid_clock(payload: Mapping[str, Any], *fields: str) -> Any:
+    for field in fields:
+        value = payload.get(field)
+        if parse_time_ms(value) is not None:
+            return value
+    return None
+
+
+def _set_clock_if_missing(
+    payload: dict[str, Any],
+    field: str,
+    value: Any,
+) -> None:
+    # Preserve an explicit (even malformed) canonical clock so the downstream
+    # validator can reject it instead of silently replacing source evidence.
+    if payload.get(field) not in (None, ""):
+        return
+    if parse_time_ms(value) is not None:
+        payload[field] = value
+
+
+def _normalize_source_lineage(
+    source_name: str,
+    payload: Mapping[str, Any] | None,
+) -> dict[str, Any] | None:
+    """Map known live producer clocks without inventing publication time.
+
+    Every alias below is tied to a concrete producer contract: exchange event
+    time, local fetch/receive time, or the batch publication time already
+    present in the source payload.  No wall-clock call is allowed here.
+    Unknown shapes remain unchanged and therefore fail closed in
+    ``build_cascade_context``.
+    """
+    if not isinstance(payload, Mapping):
+        return None
+    out = dict(payload)
+    normalization = None
+
+    if source_name in {"open_interest", "long_short"}:
+        event = _first_valid_clock(
+            out,
+            "event_time",
+            "binance_time_ms",
+            "timestamp",
+        )
+        fetched = _first_valid_clock(out, "available_at", "fetched_utc")
+        _set_clock_if_missing(out, "event_time", event)
+        _set_clock_if_missing(out, "feature_cutoff", event)
+        _set_clock_if_missing(out, "ingested_at", fetched)
+        _set_clock_if_missing(out, "available_at", fetched)
+        normalization = "binance_event_and_fetch_clocks"
+    elif source_name in {"funding", "mark_index"}:
+        event = _first_valid_clock(out, "event_time", "event_time_ms")
+        received = _first_valid_clock(
+            out,
+            "ingested_at",
+            "received_at",
+        )
+        available = _first_valid_clock(out, "available_at")
+        _set_clock_if_missing(out, "feature_cutoff", event)
+        _set_clock_if_missing(out, "ingested_at", received)
+        _set_clock_if_missing(out, "available_at", available)
+        if source_name == "mark_index":
+            derived = derive_mark_index_divergence(out)
+            if derived is not None:
+                for field, value in derived.items():
+                    out.setdefault(field, value)
+        normalization = "binance_mark_price_event_receive_clocks"
+    elif source_name in {"orderbook", "spread"}:
+        event = _first_valid_clock(
+            out,
+            "event_time",
+            "event_time_ms",
+            "transaction_time",
+        )
+        received = _first_valid_clock(
+            out,
+            "ingested_at",
+            "received_at",
+        )
+        available = _first_valid_clock(out, "available_at")
+        _set_clock_if_missing(out, "feature_cutoff", event)
+        _set_clock_if_missing(out, "ingested_at", received)
+        _set_clock_if_missing(out, "available_at", available)
+        normalization = "orderbook_event_receive_availability_clocks"
+    elif source_name == "trade_tape":
+        trades = out.get("trades")
+        trade_times = [
+            parse_time_ms(row.get("T"))
+            for row in trades or []
+            if isinstance(row, Mapping)
+        ]
+        valid_trade_times = [value for value in trade_times if value is not None]
+        latest_trade_time = max(valid_trade_times) if valid_trade_times else None
+        received = _first_valid_clock(out, "ingested_at", "received_at")
+        available = _first_valid_clock(out, "available_at")
+        _set_clock_if_missing(out, "event_time", latest_trade_time)
+        _set_clock_if_missing(out, "feature_cutoff", latest_trade_time)
+        _set_clock_if_missing(out, "ingested_at", received)
+        _set_clock_if_missing(out, "available_at", available)
+        # The current agg-trade producer captures ``generated_utc`` before it
+        # performs its bounded WebSocket collection. It is therefore a cycle
+        # start clock, not ingestion or feature availability, and must not be
+        # promoted. Until the producer supplies literal receive/availability
+        # clocks this source remains intentionally masked.
+        normalization = "agg_trade_event_clock_only_no_availability_alias"
+    elif source_name == "liquidation_event" and out.get("semantic_kind") == (
+        "observed_binance_force_order_snapshots"
+    ):
+        # A complete local one-hour retention window proves that the observed
+        # lower bound is temporally usable.  It does not provide an
+        # authenticated, market-adaptive normalization distribution.  Keep
+        # the raw observation available for lineage, but never turn it into a
+        # decision score with a fixed USD/count divisor.
+        one_hour_window_valid = (
+            out.get("one_hour_retention_complete") is True
+            and out.get("retention_truncated") is False
+            and out.get("window_1h_ms") == 60 * 60 * 1000
+        )
+        if one_hour_window_valid:
+            try:
+                observed_notional = float(out["observed_notional_1h"])
+                observed_count = float(out["observed_count_1h"])
+            except (KeyError, TypeError, ValueError):
+                observed_notional = observed_count = float("nan")
+            if (
+                math.isfinite(observed_notional)
+                and observed_notional >= 0
+                and math.isfinite(observed_count)
+                and observed_count >= 0
+                and observed_count.is_integer()
+            ):
+                out["cascade_risk_semantics"] = (
+                    "OBSERVED_1H_LOWER_BOUND_REQUIRES_AUTHENTICATED_"
+                    "ADAPTIVE_NORMALIZATION"
+                )
+                out["cascade_observed_window_eligible"] = False
+                out["adaptive_normalization_available"] = False
+        out["observed_lower_bound_only"] = (
+            out.get("source_capture_complete") is not True
+        )
+        normalization = "observed_liquidation_lower_bound_contract"
+
+    if normalization is not None:
+        out["lineage_normalization"] = normalization
+    return out
+
+
+def _closed_candle_lineage(row: Any) -> dict[str, Any] | None:
+    if not isinstance(row, Mapping):
+        return None
+    if not any(
+        row.get(field) is True
+        for field in (
+            "candle_closed_confirmed",
+            "closed_candle",
+            "is_closed",
+        )
+    ):
+        return None
+    try:
+        close = float(row.get("close") or row.get("c"))
+    except (TypeError, ValueError):
+        return None
+    cutoff = _first_valid_clock(
+        row,
+        "candle_close_time",
+        "close_time",
+    )
+    ingested = _first_valid_clock(row, "ingested_at")
+    available = _first_valid_clock(row, "available_at")
+    cutoff_ms = parse_time_ms(cutoff)
+    ingested_ms = parse_time_ms(ingested)
+    available_ms = parse_time_ms(available)
+    if (
+        not math.isfinite(close)
+        or close <= 0
+        or cutoff_ms is None
+        or ingested_ms is None
+        or available_ms is None
+        or not cutoff_ms <= ingested_ms <= available_ms
+    ):
+        return None
+    return {
+        "close": close,
+        "feature_cutoff": cutoff,
+        "feature_cutoff_ms": cutoff_ms,
+        "ingested_at": ingested,
+        "ingested_at_ms": ingested_ms,
+        "available_at": available,
+        "available_at_ms": available_ms,
+    }
+
+
 def _cross_asset_source(redis_client: Any) -> dict[str, Any]:
     """BTC/ETH/SOL short-horizon change_pct fallback for the cross-asset component.
 
@@ -261,6 +456,8 @@ def _cross_asset_source(redis_client: Any) -> dict[str, Any]:
     without this fallback the component sat in every context's missing_mask.
     """
     out: dict[str, Any] = {}
+    admitted: list[dict[str, Any]] = []
+    covered_majors: list[str] = []
     for major in _MAJORS_FOR_CROSS_ASSET:
         payload = _safe_get_json(redis_client, f"v2:market:ohlcv:binance:{major}:5m")
         rows = None
@@ -273,25 +470,42 @@ def _cross_asset_source(redis_client: Any) -> dict[str, Any]:
             rows = payload
         if not rows or len(rows) < 2:
             continue
-
-        def _close(row: Any) -> float | None:
-            try:
-                if isinstance(row, Mapping):
-                    return float(row.get("close") or row.get("c"))
-                return float(row[4])
-            except (TypeError, ValueError, IndexError, KeyError):
-                return None
-
-        prev, last = _close(rows[-2]), _close(rows[-1])
-        if prev and last and prev > 0:
-            out[f"{major}_change_pct"] = (last - prev) / prev * 100.0
-    if out:
-        # Stamp freshness so the cascade context's max-age policy (600s for
-        # cross_asset) accepts the source instead of silently discarding it.
-        now_iso = datetime.now(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
-        out["generated_utc"] = now_iso
-        out["available_at"] = now_iso
-        out["event_time"] = now_iso
+        finalized = [
+            lineage
+            for lineage in (_closed_candle_lineage(row) for row in rows)
+            if lineage is not None
+        ]
+        finalized.sort(key=lambda row: int(row["feature_cutoff_ms"]))
+        if len(finalized) < 2:
+            continue
+        previous, latest = finalized[-2:]
+        previous_close = float(previous["close"])
+        latest_close = float(latest["close"])
+        if previous_close <= 0 or latest_close <= 0:
+            continue
+        out[f"{major}_change_pct"] = (
+            (latest_close - previous_close) / previous_close * 100.0
+        )
+        admitted.extend((previous, latest))
+        covered_majors.append(major)
+    if admitted:
+        # The derived feature becomes available only when every admitted
+        # dependency was available. These are literal candle clocks, not the
+        # publisher wall clock.
+        latest_cutoff = max(admitted, key=lambda row: row["feature_cutoff_ms"])
+        latest_ingest = max(admitted, key=lambda row: row["ingested_at_ms"])
+        latest_available = max(admitted, key=lambda row: row["available_at_ms"])
+        out["event_time"] = latest_cutoff["feature_cutoff"]
+        out["feature_cutoff"] = latest_cutoff["feature_cutoff"]
+        out["ingested_at"] = latest_ingest["ingested_at"]
+        out["available_at"] = latest_available["available_at"]
+        out["covered_majors"] = covered_majors
+        out["major_coverage_complete"] = (
+            len(covered_majors) == len(_MAJORS_FOR_CROSS_ASSET)
+        )
+        out["lineage_normalization"] = (
+            "finalized_5m_candle_dependency_envelope"
+        )
     return out
 
 def derive_orderbook_squeeze_inputs(payload: Any, depth_levels: int = 20) -> dict[str, Any] | None:
@@ -395,9 +609,9 @@ def _source_payloads(redis_client: Any, symbol: str, timeframe: str) -> dict[str
     event = _first_dict(
         redis_client,
         (
+            f"v2:market:liquidations:observed_aggregate:{symbol}",
             f"v2:market:liquidations:latest:{symbol}",
             f"v2:market:liquidations:{symbol}",
-            f"v2:market:liquidations:aggregate:{symbol}",
         ),
     )
     oi = _first_dict(redis_client, (f"v2:market:open_interest:{symbol}:{timeframe}", f"v2:market:open_interest:{symbol}"))
@@ -414,19 +628,30 @@ def _source_payloads(redis_client: Any, symbol: str, timeframe: str) -> dict[str
     )
     spread = _as_dict(orderbook) or _first_dict(redis_client, (f"v2:market:spread:{symbol}", f"v2:market:top_of_book:{symbol}"))
     tape = _first_dict(redis_client, (f"v2:market:agg_trades:{symbol}", f"v2:market:trades:{symbol}", f"v2:trade_tape:{symbol}"))
-    mark_index = _first_dict(redis_client, (f"v2:market:mark_index:{symbol}", f"v2:market:prices:{symbol}"))
+    mark_index = _first_dict(
+        redis_client,
+        (
+            f"v2:market:mark_index:{symbol}",
+            f"v2:market:funding:{symbol}",
+        ),
+    )
     cross_asset = _first_dict(redis_client, ("v2:market:cross_asset_regime", "v2:market:btc_eth_sol_regime"))
     return {
-        "coinank_level": levels,
-        "liquidation_event": event,
-        "open_interest": oi,
-        "funding": funding,
-        "long_short": long_short,
-        "orderbook": orderbook,
-        "spread": spread,
-        "trade_tape": tape,
-        "mark_index": mark_index,
-        "cross_asset": cross_asset or _cross_asset_source(redis_client),
+        "coinank_level": _normalize_source_lineage("coinank_level", levels),
+        "liquidation_event": _normalize_source_lineage(
+            "liquidation_event", event
+        ),
+        "open_interest": _normalize_source_lineage("open_interest", oi),
+        "funding": _normalize_source_lineage("funding", funding),
+        "long_short": _normalize_source_lineage("long_short", long_short),
+        "orderbook": _normalize_source_lineage("orderbook", orderbook),
+        "spread": _normalize_source_lineage("spread", spread),
+        "trade_tape": _normalize_source_lineage("trade_tape", tape),
+        "mark_index": _normalize_source_lineage("mark_index", mark_index),
+        "cross_asset": _normalize_source_lineage(
+            "cross_asset",
+            cross_asset or _cross_asset_source(redis_client),
+        ),
     }
 
 
@@ -529,11 +754,46 @@ def publish_once(
     contexts: list[dict[str, Any]] = []
     write_count = 0
     for symbol, timeframe in pairs:
+        source_payloads = _source_payloads(redis_client, symbol, timeframe)
         context = build_cascade_context(
             symbol=symbol,
             timeframe=timeframe,
-            sources=_source_payloads(redis_client, symbol, timeframe),
+            sources=source_payloads,
         )
+        liquidation_observation = source_payloads.get("liquidation_event")
+        if isinstance(liquidation_observation, Mapping):
+            context["liquidation_observation_contract"] = {
+                "semantic_kind": liquidation_observation.get("semantic_kind"),
+                "source_capture_semantics": liquidation_observation.get(
+                    "source_capture_semantics"
+                ),
+                "source_capture_complete": liquidation_observation.get(
+                    "source_capture_complete"
+                ),
+                "one_hour_retention_complete": liquidation_observation.get(
+                    "one_hour_retention_complete"
+                ),
+                "retention_window_complete": liquidation_observation.get(
+                    "retention_window_complete"
+                ),
+                "retention_truncated": liquidation_observation.get(
+                    "retention_truncated"
+                ),
+                "observed_lower_bound_only": liquidation_observation.get(
+                    "observed_lower_bound_only"
+                ),
+                "cascade_observed_window_eligible": liquidation_observation.get(
+                    "cascade_observed_window_eligible", False
+                ),
+                "cascade_risk_semantics": liquidation_observation.get(
+                    "cascade_risk_semantics"
+                ),
+                "feature_cutoff": liquidation_observation.get("feature_cutoff"),
+                "available_at": liquidation_observation.get("available_at"),
+                "source_redis_key": liquidation_observation.get(
+                    "source_redis_key"
+                ),
+            }
         # Fuse the fast-squeeze / MM-trap detector (previously computed nowhere:
         # zero runtime consumers). Its outputs ride on the same cascade-context
         # key so every downstream consumer gets squeeze probability/direction,
