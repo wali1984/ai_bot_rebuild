@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from v2.backend.app.cli import v2_portfolio_state_publisher as publisher
 from v2.backend.app.services.paper_accounting.mark_to_market import build_accounting_state
 
@@ -42,6 +44,26 @@ def test_accepted_fill_recomputes_equity_from_current_market_price(monkeypatch, 
                         "notional": 200.0,
                     }
                 ],
+                "open_positions": [
+                    {
+                        "position_id": "paper_pos_btc",
+                        "symbol": "BTCUSDT",
+                        "side": "long",
+                            "net_quantity": 2.0,
+                            "avg_entry_price": 100.0,
+                            "effective_leverage": 4.0,
+                            "maintenance_margin_rate": 0.005,
+                            "current_capital_accounting": {
+                                "accounting_scope": "CURRENT_EXECUTED_PAPER_POSITION",
+                                "effective_leverage": 4.0,
+                                "effective_leverage_validated": True,
+                                "maintenance_margin_rate": 0.005,
+                            },
+                            # Stale upstream field must not override 200 / 4.
+                        "allocated_margin_usd": 1.0,
+                    }
+                ],
+                "open_position_count": 1,
                 "held_by_paper_fill_gate": [{"intent_id": "held-1", "symbol": "ETHUSDT"}],
                 "accepted_count": 1,
                 "held_by_paper_fill_gate_count": 1,
@@ -83,6 +105,16 @@ def test_accepted_fill_recomputes_equity_from_current_market_price(monkeypatch, 
     assert result["order_counters_source"] == "v2:paper:ledger + v2:paper:closed_trades"
     assert result["unrealized_pnl_usd"] == 20.0
     assert result["equity"] == 10020.0
+    assert result["wallet_balance"] == 10000.0
+    assert result["used_margin_usd"] == pytest.approx(50.0)
+    assert result["available_margin"] == pytest.approx(9950.0)
+    assert result["paper_account_margin_status"]["invariant_holds"] is True
+    assert result["paper_account_margin_status"]["source"] == (
+        "V2_PAPER_LEDGER_OPEN_POSITIONS"
+    )
+    assert result["paper_account_margin_status"]["generated_utc"] == result[
+        "generated_utc"
+    ]
     assert result["live_gate_status"] == "enabled_operator_approved"
     assert result["positions"][0]["position_state"] == "accepted_paper_fill_open"
     assert all(row.get("open_position") is not True for row in result["positions"][1:])
@@ -533,6 +565,61 @@ def test_closed_trade_source_ids_remove_accepted_fill_from_open_inventory() -> N
     assert state["unrealized_pnl"] == 0.0
     assert state["realized_pnl"] == 1.0
     assert state["current_session_equity"] == 10001.0
+
+
+def test_closed_generation_filter_keeps_later_reopen_with_reused_ids() -> None:
+    common = {
+        "intent_id": "reused-intent",
+        "signal_id": "reused-signal",
+        "prediction_id": "reused-prediction",
+        "risk_decision_id": "reused-risk",
+        "orchestrator_decision_id": "reused-orchestrator",
+        "symbol": "BTCUSDT",
+        "side": "BUY",
+        "quantity": 1.0,
+    }
+    state = build_accounting_state(
+        [
+            {
+                **common,
+                "fill_price": 10.0,
+                "generated_utc": "2026-06-11T10:00:00Z",
+            },
+            {
+                **common,
+                "fill_price": 12.0,
+                "generated_utc": "2026-06-11T10:06:00Z",
+            },
+        ],
+        [
+            {
+                "close_id": "first-generation-close",
+                "symbol": "BTCUSDT",
+                "side": "long",
+                "source_fill_ids": ["reused-intent"],
+                "entry_signal_id": "reused-signal",
+                "entry_prediction_id": "reused-prediction",
+                "entry_time": "2026-06-11T10:00:00Z",
+                "exit_time": "2026-06-11T10:05:00Z",
+                "realized_pnl_usd": 1.0,
+            }
+        ],
+        {"BTCUSDT": (13.0, "TEST_MARK_PRICE", 1.0)},
+        initial_capital=10000.0,
+    )
+
+    assert state["accepted_fill_count"] == 2
+    assert state["accepted_closed_filter_count"] == 1
+    assert state["active_accepted_fill_count"] == 1
+    assert state["open_positions_count"] == 1
+    assert state["unrealized_pnl"] == pytest.approx(1.0)
+    assert state["current_session_equity"] == pytest.approx(10002.0)
+    assert state["accepted_closed_filter_sample"][0][
+        "closed_generation_match_type"
+    ] in {
+        "DERIVED_ENTRY_GENERATION_ID",
+        "LEGACY_STRONG_ID_WITH_TEMPORAL_EVIDENCE",
+    }
 
 
 def test_portfolio_publisher_does_not_double_count_closed_trade_ledger(monkeypatch, tmp_path):

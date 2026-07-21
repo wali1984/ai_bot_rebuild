@@ -6,7 +6,9 @@ evidence-driven dynamic controls based on rolling trade outcomes.
 Each (symbol, timeframe) bucket tracks:
     rolling_win_rate: fraction of recent trades that closed in profit
     rolling_ev_bps: average expected value after cost in bps
-    drawdown_contribution_usd: cumulative PnL loss from this bucket
+    drawdown_contribution_usd: compatibility alias for negative rolling
+        peak-to-trough drawdown (never lifetime loss accumulation)
+    max_drawdown_bps: rolling peak-to-trough drawdown in return bps
     slippage_failure_rate: fraction of fills where slippage exceeded estimate
     reversal_after_entry_rate: fraction of fills that reversed within 2 candles
     missed_tp_then_stop_rate: fraction of fills that nearly hit TP then hit SL
@@ -24,8 +26,9 @@ symbol or timeframe blacklist.
 from __future__ import annotations
 
 import json
+import math
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 # ── Static soak-test baseline (advisory only, not gate logic) ─────────────────
@@ -54,11 +57,20 @@ class OutcomeMemoryBucket:
     trade_count: int = 0
     rolling_win_rate: float | None = None
     rolling_ev_bps: float | None = None
+    max_drawdown_bps: float | None = None
     drawdown_contribution_usd: float = 0.0
+    rolling_max_drawdown_usd: float | None = None
+    drawdown_evidence_policy: str | None = None
     slippage_failure_rate: float | None = None
     reversal_after_entry_rate: float | None = None
     missed_tp_then_stop_rate: float | None = None
+    last_trade_ts: str | None = None
+    last_outcome_event_time: str | None = None
+    last_outcome_event_time_source: str | None = None
+    last_outcome_available_at: str | None = None
+    last_outcome_available_at_source: str | None = None
     last_updated: str = ""
+    last_updated_source: str | None = None
     block_reason: str | None = None
     degraded: bool = False
     degraded_since: str | None = None
@@ -67,6 +79,7 @@ class OutcomeMemoryBucket:
     outcome_memory_can_block_entries: bool = True
     trusted_trade_count: int = 0
     untrusted_trade_count: int = 0
+    trust_validation_version: str | None = None
     # Evidence-cannot-refresh valve: set by the loader when a degraded
     # timeframe aggregate's last outcome is older than the staleness bound —
     # the evaluator must treat the bucket as advisory (its own blocking is
@@ -77,7 +90,7 @@ class OutcomeMemoryBucket:
     baseline_trade_count: int = 0
 
     @classmethod
-    def from_dict(cls, d: dict[str, Any]) -> "OutcomeMemoryBucket":
+    def from_dict(cls, d: dict[str, Any]) -> OutcomeMemoryBucket:
         trade_count = d.get("trade_count")
         if trade_count is None:
             trade_count = d.get("total_trades")
@@ -93,11 +106,53 @@ class OutcomeMemoryBucket:
             trade_count=int(trade_count or 0),
             rolling_win_rate=_float_or_none(d.get("rolling_win_rate")),
             rolling_ev_bps=_float_or_none(d.get("rolling_ev_bps")),
-            drawdown_contribution_usd=float(d.get("drawdown_contribution_usd") or 0.0),
+            max_drawdown_bps=_float_or_none(d.get("max_drawdown_bps")),
+            drawdown_contribution_usd=(
+                _float_or_none(d.get("drawdown_contribution_usd")) or 0.0
+            ),
+            rolling_max_drawdown_usd=_float_or_none(
+                d.get("rolling_max_drawdown_usd")
+            ),
+            drawdown_evidence_policy=(
+                str(d.get("drawdown_evidence_policy"))
+                if d.get("drawdown_evidence_policy") not in (None, "")
+                else None
+            ),
             slippage_failure_rate=_float_or_none(d.get("slippage_failure_rate")),
             reversal_after_entry_rate=_float_or_none(d.get("reversal_after_entry_rate")),
             missed_tp_then_stop_rate=_float_or_none(d.get("missed_tp_then_stop_rate")),
+            last_trade_ts=(
+                str(d.get("last_trade_ts"))
+                if d.get("last_trade_ts") not in (None, "")
+                else None
+            ),
+            last_outcome_event_time=(
+                str(d.get("last_outcome_event_time") or d.get("last_trade_ts"))
+                if (d.get("last_outcome_event_time") or d.get("last_trade_ts"))
+                not in (None, "")
+                else None
+            ),
+            last_outcome_event_time_source=(
+                str(d.get("last_outcome_event_time_source"))
+                if d.get("last_outcome_event_time_source") not in (None, "")
+                else None
+            ),
+            last_outcome_available_at=(
+                str(d.get("last_outcome_available_at"))
+                if d.get("last_outcome_available_at") not in (None, "")
+                else None
+            ),
+            last_outcome_available_at_source=(
+                str(d.get("last_outcome_available_at_source"))
+                if d.get("last_outcome_available_at_source") not in (None, "")
+                else None
+            ),
             last_updated=str(d.get("last_updated") or ""),
+            last_updated_source=(
+                str(d.get("last_updated_source"))
+                if d.get("last_updated_source") not in (None, "")
+                else None
+            ),
             block_reason=d.get("block_reason"),
             degraded=bool(d.get("degraded")),
             degraded_since=d.get("degraded_since"),
@@ -114,6 +169,11 @@ class OutcomeMemoryBucket:
             ),
             trusted_trade_count=int(d.get("trusted_trade_count") or 0),
             untrusted_trade_count=int(d.get("untrusted_trade_count") or 0),
+            trust_validation_version=(
+                str(d.get("trust_validation_version"))
+                if d.get("trust_validation_version") not in (None, "")
+                else None
+            ),
             baseline_advisory_reasons=list(d.get("baseline_advisory_reasons") or []),
             baseline_evidence_date=d.get("baseline_evidence_date"),
             baseline_trade_count=int(d.get("baseline_trade_count") or 0),
@@ -126,11 +186,20 @@ class OutcomeMemoryBucket:
             "trade_count": self.trade_count,
             "rolling_win_rate": self.rolling_win_rate,
             "rolling_ev_bps": self.rolling_ev_bps,
+            "max_drawdown_bps": self.max_drawdown_bps,
             "drawdown_contribution_usd": self.drawdown_contribution_usd,
+            "rolling_max_drawdown_usd": self.rolling_max_drawdown_usd,
+            "drawdown_evidence_policy": self.drawdown_evidence_policy,
             "slippage_failure_rate": self.slippage_failure_rate,
             "reversal_after_entry_rate": self.reversal_after_entry_rate,
             "missed_tp_then_stop_rate": self.missed_tp_then_stop_rate,
+            "last_trade_ts": self.last_trade_ts,
+            "last_outcome_event_time": self.last_outcome_event_time,
+            "last_outcome_event_time_source": self.last_outcome_event_time_source,
+            "last_outcome_available_at": self.last_outcome_available_at,
+            "last_outcome_available_at_source": self.last_outcome_available_at_source,
             "last_updated": self.last_updated,
+            "last_updated_source": self.last_updated_source,
             "block_reason": self.block_reason,
             "degraded": self.degraded,
             "degraded_since": self.degraded_since,
@@ -139,6 +208,7 @@ class OutcomeMemoryBucket:
             "outcome_memory_can_block_entries": self.outcome_memory_can_block_entries,
             "trusted_trade_count": self.trusted_trade_count,
             "untrusted_trade_count": self.untrusted_trade_count,
+            "trust_validation_version": self.trust_validation_version,
             "baseline_advisory_reasons": list(self.baseline_advisory_reasons),
             "baseline_evidence_date": self.baseline_evidence_date,
             "baseline_trade_count": self.baseline_trade_count,
@@ -154,8 +224,9 @@ class OutcomeMemoryThresholds:
     """
     # Minimum acceptable rolling win rate
     min_win_rate: float = 0.35
-    # Maximum acceptable drawdown contribution per bucket (USD)
-    max_drawdown_usd: float = -10.0
+    # Deprecated compatibility input. Lifetime losing-dollar accumulation is
+    # not a drawdown and is never a standalone hard-block criterion.
+    max_drawdown_usd: float | None = None
     # Minimum acceptable rolling expected value per trade after costs (bps)
     min_rolling_ev_bps: float = -5.0
     # Maximum acceptable slippage failure rate
@@ -173,9 +244,22 @@ def _float_or_none(v: Any) -> float | None:
     if v is None:
         return None
     try:
-        return float(v)
+        parsed = float(v)
+        return parsed if math.isfinite(parsed) else None
     except (TypeError, ValueError):
         return None
+
+
+def _parse_aware_utc(value: Any) -> datetime | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        return None
+    return parsed.astimezone(UTC)
 
 
 def evaluate_outcome_memory_bucket(
@@ -201,7 +285,11 @@ def evaluate_outcome_memory_bucket(
         # stale aggregate data lacking model-lineage trust evidence.
         is_legacy_aggregate = (
             bucket.data_source == "REDIS_TIMEFRAME_AGGREGATE"
-            and bucket.trust_evidence_status in ("LEGACY_UNVERIFIED_OUTCOME_MEMORY", "UNVERIFIED_OUTCOME_MEMORY")
+            and bucket.trust_evidence_status
+            in (
+                "LEGACY_UNVERIFIED_OUTCOME_MEMORY",
+                "UNVERIFIED_OUTCOME_MEMORY",
+            )
             and not bucket.trusted_trade_count
         )
         if not (bucket.degraded and bucket.block_reason) or is_legacy_aggregate:
@@ -213,7 +301,9 @@ def evaluate_outcome_memory_bucket(
                 "trade_count": bucket.trade_count,
                 "rolling_win_rate": bucket.rolling_win_rate,
                 "rolling_ev_bps": bucket.rolling_ev_bps,
+                "max_drawdown_bps": bucket.max_drawdown_bps,
                 "drawdown_contribution_usd": bucket.drawdown_contribution_usd,
+                "drawdown_evidence_policy": bucket.drawdown_evidence_policy,
                 "trust_evidence_status": bucket.trust_evidence_status,
                 "trusted_trade_count": bucket.trusted_trade_count,
                 "untrusted_trade_count": bucket.untrusted_trade_count,
@@ -232,7 +322,9 @@ def evaluate_outcome_memory_bucket(
             "trade_count": bucket.trade_count,
             "rolling_win_rate": bucket.rolling_win_rate,
             "rolling_ev_bps": bucket.rolling_ev_bps,
+            "max_drawdown_bps": bucket.max_drawdown_bps,
             "drawdown_contribution_usd": bucket.drawdown_contribution_usd,
+            "drawdown_evidence_policy": bucket.drawdown_evidence_policy,
             "baseline_advisory_reasons": list(bucket.baseline_advisory_reasons),
             "trust_evidence_status": bucket.trust_evidence_status,
             "trusted_trade_count": bucket.trusted_trade_count,
@@ -249,7 +341,9 @@ def evaluate_outcome_memory_bucket(
             "trade_count": bucket.trade_count,
             "rolling_win_rate": bucket.rolling_win_rate,
             "rolling_ev_bps": bucket.rolling_ev_bps,
+            "max_drawdown_bps": bucket.max_drawdown_bps,
             "drawdown_contribution_usd": bucket.drawdown_contribution_usd,
+            "drawdown_evidence_policy": bucket.drawdown_evidence_policy,
             "trust_evidence_status": bucket.trust_evidence_status,
             "trusted_trade_count": bucket.trusted_trade_count,
             "untrusted_trade_count": bucket.untrusted_trade_count,
@@ -277,10 +371,11 @@ def evaluate_outcome_memory_bucket(
         reasons.append(
             f"WIN_RATE_DEGRADED:{bucket.rolling_win_rate:.2%}<{cfg.min_win_rate:.2%}"
         )
-    if bucket.drawdown_contribution_usd < cfg.max_drawdown_usd:
-        reasons.append(
-            f"DRAWDOWN_EXCEEDED:{bucket.drawdown_contribution_usd:.2f}usd<{cfg.max_drawdown_usd:.2f}usd"
-        )
+    # Rolling drawdown remains explicit evidence, but there is no fabricated
+    # absolute-dollar hard boundary. The old lifetime-loss accumulator could
+    # permanently block a strongly profitable bucket merely because its losing
+    # trades summed past a fixed dollar amount. Sustained adverse behavior is
+    # still fail-closed through rolling WR/EV and the other observed rates.
     if bucket.rolling_ev_bps is not None and bucket.rolling_ev_bps < cfg.min_rolling_ev_bps:
         reasons.append(
             f"ROLLING_EV_DEGRADED:{bucket.rolling_ev_bps:.2f}bps<{cfg.min_rolling_ev_bps:.2f}bps"
@@ -315,7 +410,9 @@ def evaluate_outcome_memory_bucket(
         "trade_count": bucket.trade_count,
         "rolling_win_rate": bucket.rolling_win_rate,
         "rolling_ev_bps": bucket.rolling_ev_bps,
+        "max_drawdown_bps": bucket.max_drawdown_bps,
         "drawdown_contribution_usd": bucket.drawdown_contribution_usd,
+        "drawdown_evidence_policy": bucket.drawdown_evidence_policy,
         "trust_evidence_status": bucket.trust_evidence_status,
         "trusted_trade_count": bucket.trusted_trade_count,
         "untrusted_trade_count": bucket.untrusted_trade_count,
@@ -381,16 +478,15 @@ def load_outcome_memory_bucket(
         # it re-arms the moment any fresh outcome on the timeframe updates it.
         if aggregate_bucket is not None and aggregate_bucket.degraded:
             _agg_age_seconds: float | None = None
-            try:
-                if aggregate_bucket.last_updated:
-                    _agg_updated = datetime.fromisoformat(
-                        str(aggregate_bucket.last_updated).replace("Z", "+00:00")
-                    )
-                    _agg_age_seconds = (
-                        datetime.now(timezone.utc) - _agg_updated
-                    ).total_seconds()
-            except Exception:  # noqa: BLE001
-                _agg_age_seconds = None
+            # Evidence freshness is the latest valid outcome availability,
+            # never this rebuild's processing timestamp (`last_updated`).
+            _evidence_available_at = _parse_aware_utc(
+                aggregate_bucket.last_outcome_available_at
+            )
+            if _evidence_available_at is not None:
+                _agg_age_seconds = (
+                    datetime.now(UTC) - _evidence_available_at
+                ).total_seconds()
             if _agg_age_seconds is None or _agg_age_seconds <= 5400.0:
                 return aggregate_bucket
             # Stale degraded aggregate: neutralize its block IN PLACE (it may

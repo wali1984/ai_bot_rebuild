@@ -6,6 +6,7 @@ from typing import Any
 
 from v2.backend.app.services.preemptive_edge_control.decision import (
     evaluate_candidate,
+    replay_preemptive_decision,
     summarize_decisions,
 )
 
@@ -19,4 +20,9 @@ def evaluate_preemptive_decision(
     return evaluate_candidate(candidate, **kwargs)
 
 
-__all__ = ["evaluate_preemptive_decision", "evaluate_candidate", "summarize_decisions"]
+__all__ = [
+    "evaluate_preemptive_decision",
+    "evaluate_candidate",
+    "replay_preemptive_decision",
+    "summarize_decisions",
+]

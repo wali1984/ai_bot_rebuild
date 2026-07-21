@@ -1,5 +1,7 @@
 # Data, temporal lineage, and feature-tensor reference
 
+> **2026-07-17 feature-generation addendum:** the 477-feature/1,908-value layout retained below is the 2026-07-16 audited deployment generation. Current source intentionally resolves 446 ordered features and four 446-value channels, or 1,784 values, after 31 provider features were removed. Local count/layout tests were reconciled and the combined trainer/PIT suite passed 374 tests at that source cut. This does not make old checkpoints, replay, caches, temporal buffers, or deployed model processes compatible with the new generation. A clean copy must version and bind the exact ordered feature-name digest, width, source generation, tensor ID, checkpoint, and replay/archive record; incompatible generations must be migrated or quarantined.
+
 - **Audit date:** 2026-07-16
 - **Scope:** source-to-feature-to-snapshot-to-tensor flow, point-in-time contracts, candle finality, dirty-sample admission, Redis and durable lineage
 - **Evidence basis:** direct source inspection; no live-state mutation and no exchange action
@@ -21,7 +23,7 @@ This document is the low-level contract for reproducing the data side of the nat
 | Domain/status snapshot contract | `v2/backend/app/domain/features/models.py`, `v2/backend/app/services/feature_snapshots/service.py` |
 | Optional provider PIT bridge | `v2/backend/app/services/provider_features/provider_feature_bridge.py` |
 | TA/provider unified bridge | `v2/backend/app/services/feature_pipeline/unified_feature_bridge.py` |
-| Exact 477-feature order and tensor assembly | `v2/backend/app/services/native_trainer/hybrid_cuda_trainer/tensor_builder.py` |
+| Version-specific ordered feature registry and tensor assembly | `v2/backend/app/services/native_trainer/hybrid_cuda_trainer/tensor_builder.py` |
 | Redis loading, MTF reconstruction, sample classification | `v2/backend/app/services/native_trainer/hybrid_cuda_trainer/data_loader.py` |
 | Durable feature archive | `v2/backend/app/services/native_trainer/durable_feature_snapshot_archive.py` |
 | Trusted replay labels | `v2/backend/app/services/native_trainer/trusted_replay/dataset.py` |
@@ -61,12 +63,13 @@ v2_native_feature_snapshot_v1
 TrainingDatasetLoader / V2UnifiedFeatureTensorBuilder
   fetch latest snapshot plus source payloads
   reconstruct 1m/5m/15m/1h/4h candle proof
-  resolve the 477 ordered numeric slots
+  resolve the ordered numeric slots (477 audited deployment; 446 current source)
   build missing, stale, and source-availability channels
                                   │
                                   ▼
 FeatureTensorRecord
-  477 values + 477 missing + 477 stale + 477 availability = 1,908 inputs
+  current source: 446 values + 446 missing + 446 stale + 446 availability = 1,784 inputs
+  audited deployment/history generation: 477 x four channels = 1,908 inputs
                                   │
                                   ▼
 prediction payload + replay snapshot
@@ -480,7 +483,7 @@ It uses:
 
 `v2_feature_snapshot_builder.py` writes this contract to public/local/worklog status files. It is not the same payload the CUDA loader reads from `v2:features:latest`, and its status worker must not be treated as evidence that the Redis-native trainer snapshot was persisted.
 
-## 10. Exact 477-feature schema
+## 10. Versioned feature schema: historical 477 and current 446
 
 The authoritative ordered registry is:
 
@@ -489,7 +492,7 @@ v2/backend/app/services/native_trainer/hybrid_cuda_trainer/tensor_builder.py:17-
 FEATURE_SPEC: tuple[tuple[feature_name, nominal_source_label], ...]
 ```
 
-Current locked cardinality:
+The 2026-07-16 deployed/audited generation had:
 
 ```text
 len(FEATURE_SPEC) == 477
@@ -497,7 +500,7 @@ feature names are unique
 155 names begin with taf_
 ```
 
-The cardinality and full-TA mapping are tested at `test_ta_full_feature_expansion.py:19-28`.
+The intended 2026-07-17 source generation has `len(FEATURE_SPEC) == 446`, still has unique names and retains all 155 `taf_*` entries. The local count/layout tests now lock 446/1,784. Neither cardinality alone identifies an ABI: persist the exact ordered-name digest and reject an incompatible tensor/checkpoint/replay generation.
 
 The registry spans these source families:
 
@@ -535,20 +538,20 @@ source_availability[i] = 0 when missing, else 1
 Coverage is:
 
 ```text
-data_coverage_percent = 100 * count(missing_mask == 0) / 477
+data_coverage_percent = 100 * count(missing_mask == 0) / len(FEATURE_SPEC)
 ```
 
-`model_vector` concatenates in this exact order (`tensor_builder.py:690-697`):
+`model_vector` concatenates in this exact channel order (`tensor_builder.py:690-697`). For the current 446-feature generation:
 
 | Offset, inclusive | Length | Channel |
 |---:|---:|---|
-| `0..476` | 477 | values |
-| `477..953` | 477 | missing mask cast to float |
-| `954..1430` | 477 | stale mask cast to float |
-| `1431..1907` | 477 | source availability cast to float |
-| total | **1,908** | model input |
+| `0..445` | 446 | values |
+| `446..891` | 446 | missing mask cast to float |
+| `892..1337` | 446 | stale mask cast to float |
+| `1338..1783` | 446 | source availability cast to float |
+| total | **1,784** | model input |
 
-`test_ta_full_feature_expansion.py:31-52` locks the 1,908 width and honest missing masks for absent TA fields.
+The historical 477 generation used offsets `0..476`, `477..953`, `954..1430`, and `1431..1907`, totaling 1,908. Current local tests lock 1,784 and honest missing masks for absent TA fields; cross-generation data and checkpoint compatibility remains unproved.
 
 ### 11.1 Availability is not temporal proof
 
@@ -811,7 +814,7 @@ A faithful but temporally safe copy needs all of the following:
 8. Reject missing or unparseable temporal proof for required features.
 9. Compute aggregate availability/cutoff from per-source maxima while retaining the full vector.
 10. Freeze and content-hash an immutable feature snapshot before tensor construction.
-11. Build the exact 477-slot values/missing/stale/availability layout in `FEATURE_SPEC` order.
+11. Build the exact versioned values/missing/stale/availability layout in `FEATURE_SPEC` order (446/1,784 current source; 477/1,908 historical deployment), and bind the ordered-name digest.
 12. Treat numeric presence separately from temporal availability.
 13. Never use Boolean truthiness to resolve numeric fallback values.
 14. Persist replay and durable archive evidence before declaring a prediction eligible.
@@ -894,7 +897,7 @@ Before calling a snapshot or training row point-in-time safe, answer all of thes
 8. Was any timing/finality value inferred from `generated_at`?
 9. Was a missing-mask or high-confidence exception used?
 10. Does the replay key exist and does the durable archive hash verify?
-11. Can the exact 1,908 input vector be reconstructed without reading newer Redis state?
+11. Can the exact generation-specific input vector (1,784 current source or 1,908 historical deployment) be reconstructed without reading newer Redis state, and does its ordered feature digest match the checkpoint?
 12. Does the prediction identify the exact weight artifact, not just architecture?
 
 If any answer is unknown, the row is not clean promotion evidence.

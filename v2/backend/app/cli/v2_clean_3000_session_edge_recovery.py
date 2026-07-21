@@ -8,6 +8,7 @@ win-rate, bootstrap, or A-grade statistics.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import time
 from datetime import datetime, timezone
@@ -36,9 +37,11 @@ STALE_PRE_RESET_FREEZE_REASONS = {
 # see paper_trade_management/exits.py) makes the ATR-stop cluster recoverable:
 # losses that closed BEFORE the repair deployment no longer drive the blocking
 # cluster flag, while 2+ NEW ATR-stop losses after the repair re-block
-# immediately. The artifact must record repair_test_passed=true and a
-# parseable repair_deployed_utc; anything else keeps the original fail-closed
-# behaviour. Loser buckets stay quarantined independently of this flag.
+# immediately. Authorization requires the current schema-v2 paper-runtime
+# evidence, exact run/cycle/process lineage, strict clocks/producer TTL, and
+# current source/test/output/command/receipt hashes. A boolean/timestamp-only
+# artifact keeps the original fail-closed behaviour. Loser buckets stay
+# quarantined independently of this authorization.
 ATR_EXIT_REPAIR_DEFAULT_STATUS_PATH = (
     REPO_ROOT
     / "goal_state/V2_A_PLUS_LIVE_READY_TRAINER_EDGE_REPAIR_AND_ZERO_TOLERANCE_TRADE_GATE"
@@ -50,6 +53,8 @@ ATR_EXIT_REPAIR_LEGACY_STATUS_PATH = (
     / "goal_state/V2_FABLE5_FULL_SYSTEM_A_PLUS_LIVE_READY_1000X_MACHINE_COMPLETION"
     / "atr_stop_cluster_repair_status.json"
 )
+# Historical path retained only so callers/tests can identify migration-era
+# state. It is never an authorization fallback.
 
 
 def _parse_utc(value: Any) -> datetime | None:
@@ -64,20 +69,266 @@ def _parse_utc(value: Any) -> datetime | None:
     return parsed.astimezone(timezone.utc)
 
 
-def _verified_exit_repair_deployed_utc() -> datetime | None:
-    paths = [ATR_EXIT_REPAIR_STATUS_PATH]
-    if ATR_EXIT_REPAIR_STATUS_PATH == ATR_EXIT_REPAIR_DEFAULT_STATUS_PATH:
-        paths.append(ATR_EXIT_REPAIR_LEGACY_STATUS_PATH)
-    for path in paths:
+def _verified_exit_repair_deployed_utc(
+    *,
+    observed_utc: str | None = None,
+    status_path: Path | None = None,
+) -> datetime | None:
+    """Authorize only an exact, current Phase 7 runtime-evidence contract.
+
+    The legacy goal artifact is intentionally not consulted.  A local boolean
+    such as ``repair_test_passed`` is not authority: current paper runtime
+    output, source/test attestations, and the complete receipt are independently
+    rehashed before pre-repair losses may be excluded.
+    """
+
+    def strict_utc(value: Any) -> datetime | None:
+        text = str(value or "")
+        if not text or (not text.endswith("Z") and "+" not in text[10:]):
+            return None
         try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
-        except Exception:
-            continue
-        if isinstance(payload, dict) and payload.get("repair_test_passed") is True:
-            deployed = _parse_utc(payload.get("repair_deployed_utc"))
-            if deployed is not None:
-                return deployed
-    return None
+            parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        if (
+            parsed.tzinfo is None
+            or parsed.utcoffset() is None
+            or parsed.utcoffset() != timezone.utc.utcoffset(parsed)
+        ):
+            return None
+        return parsed.astimezone(timezone.utc)
+
+    def canonical_sha256(value: Any) -> str:
+        return hashlib.sha256(
+            json.dumps(
+                value,
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=True,
+                allow_nan=False,
+            ).encode("utf-8")
+        ).hexdigest()
+
+    try:
+        loaded = json.loads(
+            (status_path or ATR_EXIT_REPAIR_STATUS_PATH).read_text(encoding="utf-8")
+        )
+    except (OSError, json.JSONDecodeError, TypeError, ValueError):
+        return None
+    if not isinstance(loaded, dict):
+        return None
+    payload = dict(loaded)
+    observed_at = strict_utc(
+        observed_utc
+        or datetime.now(timezone.utc)
+        .isoformat(timespec="microseconds")
+        .replace("+00:00", "Z")
+    )
+    generated_at = strict_utc(payload.get("generated_utc"))
+    deployed_at = strict_utc(payload.get("repair_deployed_utc"))
+    expires_at = strict_utc(payload.get("expires_at"))
+    ttl_seconds = payload.get("ttl_seconds")
+    if (
+        observed_at is None
+        or generated_at is None
+        or deployed_at is None
+        or expires_at is None
+        or isinstance(ttl_seconds, bool)
+        or not isinstance(ttl_seconds, int)
+        or ttl_seconds <= 0
+        or not (deployed_at <= generated_at <= observed_at <= expires_at)
+        or (expires_at - generated_at).total_seconds() != ttl_seconds
+        or payload.get("schema_version")
+        != "a_plus_phase7_exit_repair_status_v2"
+        or payload.get("repair_test_passed") is not True
+        or payload.get("paper_entry_freeze_clear_allowed_by_exit_repair")
+        is not True
+        or payload.get("paper_only") is not True
+        or payload.get("routes_to_live") is not False
+        or payload.get("places_real_order") is not False
+    ):
+        return None
+    pass_conditions = payload.get("pass_conditions")
+    runtime = payload.get("current_paper_exit_runtime_evidence")
+    receipt = payload.get("runtime_authorization_receipt")
+    if (
+        not isinstance(pass_conditions, dict)
+        or pass_conditions.get(
+            "canonical_current_paper_exit_runtime_evidence_present"
+        )
+        is not True
+        or not isinstance(runtime, dict)
+        or not isinstance(receipt, dict)
+    ):
+        return None
+    run_id = str(payload.get("run_id") or "")
+    cycle_id = str(payload.get("cycle_id") or "")
+    process_instance_id = str(payload.get("process_instance_id") or "")
+    runtime_output = runtime.get("runtime_output")
+    if (
+        not run_id
+        or not cycle_id
+        or not process_instance_id
+        or runtime.get("schema_version")
+        != "phase7_current_paper_exit_runtime_evidence_v1"
+        or runtime.get("run_id") != run_id
+        or runtime.get("cycle_id") != cycle_id
+        or runtime.get("process_instance_id") != process_instance_id
+        or runtime.get("generated_utc") != payload.get("generated_utc")
+        or runtime.get("expires_at") != payload.get("expires_at")
+        or runtime.get("ttl_seconds") != ttl_seconds
+        or runtime.get("paper_only") is not True
+        or runtime.get("routes_to_live") is not False
+        or runtime.get("places_real_order") is not False
+        or not isinstance(runtime_output, dict)
+    ):
+        return None
+    events = runtime_output.get("exit_events")
+    behaviors = runtime_output.get("behavior_observations")
+    paper_session_id = str(runtime_output.get("paper_session_id") or "")
+    if (
+        not paper_session_id
+        or not isinstance(events, list)
+        or not events
+        or not isinstance(behaviors, dict)
+    ):
+        return None
+    required_behaviors = {
+        "atr_stop_floor",
+        "regime_scaled_atr_stop",
+        "missing_atr_floor_fallback",
+        "mfe_breakeven_protection",
+        "model_reversal_precedence",
+        "atr_loser_bucket_quarantine",
+    }
+    if any(behaviors.get(name) is not True for name in required_behaviors):
+        return None
+    event_ids: set[str] = set()
+    for event in events:
+        if not isinstance(event, dict):
+            return None
+        event_time = strict_utc(event.get("event_time"))
+        available_at = strict_utc(event.get("available_at"))
+        generated_event_at = strict_utc(event.get("generated_at"))
+        event_id = str(event.get("exit_event_id") or "")
+        if (
+            not event_id
+            or event_id in event_ids
+            or event.get("run_id") != run_id
+            or event.get("cycle_id") != cycle_id
+            or event.get("process_instance_id") != process_instance_id
+            or event.get("paper_session_id") != paper_session_id
+            or event.get("paper_only") is not True
+            or event.get("routes_to_live") is not False
+            or not isinstance(event.get("source_hashes"), dict)
+            or not event.get("source_hashes")
+            or event_time is None
+            or available_at is None
+            or generated_event_at is None
+            or not (
+                event_time
+                >= deployed_at
+                and event_time
+                <= available_at
+                <= generated_event_at
+                <= generated_at
+            )
+        ):
+            return None
+        event_ids.add(event_id)
+    if runtime_output.get("observed_exit_count") != len(events):
+        return None
+    try:
+        runtime_output_sha256 = canonical_sha256(runtime_output)
+    except (TypeError, ValueError):
+        return None
+    if runtime.get("runtime_output_sha256") != runtime_output_sha256:
+        return None
+
+    expected_source_paths = (
+        "v2/backend/app/services/native_trainer/a_plus_phase7_exit_repair.py",
+        "v2/backend/app/services/paper_trade_management/exits.py",
+        "v2/backend/app/services/paper_trade_management/position_state.py",
+        "v2/backend/app/cli/v2_trade_management_paper_loop.py",
+        "v2/backend/app/cli/v2_clean_3000_session_edge_recovery.py",
+    )
+    expected_test_nodes = (
+        "v2/backend/tests/unit/cli/test_v2_trade_management_paper_loop.py::"
+        "test_phase7_current_runtime_artifact_contract_authorizes_pre_repair_only",
+        "v2/backend/tests/unit/cli/test_v2_clean_3000_session_edge_recovery.py::"
+        "test_phase7_current_runtime_artifact_contract_authorizes_pre_repair_only",
+    )
+    expected_test_paths = tuple(node.split("::", 1)[0] for node in expected_test_nodes)
+    try:
+        expected_sources = {
+            relative: hashlib.sha256((REPO_ROOT / relative).read_bytes()).hexdigest()
+            for relative in expected_source_paths
+        }
+        expected_tests = {
+            relative: hashlib.sha256((REPO_ROOT / relative).read_bytes()).hexdigest()
+            for relative in expected_test_paths
+        }
+    except OSError:
+        return None
+    receipt_completed = strict_utc(receipt.get("completed_at"))
+    receipt_expires = strict_utc(receipt.get("expires_at"))
+    runner_command = str(receipt.get("runner_command") or "")
+    authorization_material = {
+        "schema_version": payload.get("schema_version"),
+        "generated_utc": payload.get("generated_utc"),
+        "repair_deployed_utc": payload.get("repair_deployed_utc"),
+        "expires_at": payload.get("expires_at"),
+        "ttl_seconds": ttl_seconds,
+        "run_id": run_id,
+        "cycle_id": cycle_id,
+        "process_instance_id": process_instance_id,
+        "canonical_current_paper_exit_runtime_evidence_present": True,
+        "paper_entry_freeze_clear_allowed_by_exit_repair": True,
+        "runtime_output_sha256": runtime_output_sha256,
+    }
+    unsigned_receipt = dict(receipt)
+    claimed_receipt_hash = str(unsigned_receipt.pop("receipt_sha256", ""))
+    try:
+        receipt_hash_valid = claimed_receipt_hash == canonical_sha256(
+            unsigned_receipt
+        )
+    except (TypeError, ValueError):
+        receipt_hash_valid = False
+    if (
+        receipt.get("schema_version")
+        != "v2_a_plus_phase7_runtime_authorization_receipt_v1"
+        or receipt.get("run_id") != run_id
+        or receipt.get("cycle_id") != cycle_id
+        or receipt.get("process_instance_id") != process_instance_id
+        or receipt_completed is None
+        or receipt_expires is None
+        or not (
+            deployed_at
+            <= receipt_completed
+            <= generated_at
+            <= observed_at
+            <= receipt_expires
+        )
+        or receipt_expires != expires_at
+        or receipt.get("ttl_seconds") != ttl_seconds
+        or receipt.get("outcome") != "PASSED"
+        or receipt.get("exit_code") != 0
+        or receipt.get("paper_only") is not True
+        or receipt.get("routes_to_live") is not False
+        or receipt.get("places_real_order") is not False
+        or not runner_command
+        or receipt.get("runner_command_sha256")
+        != hashlib.sha256(runner_command.encode("utf-8")).hexdigest()
+        or receipt.get("pytest_nodeids") != list(expected_test_nodes)
+        or receipt.get("production_source_sha256") != expected_sources
+        or receipt.get("test_source_sha256") != expected_tests
+        or receipt.get("runtime_output_sha256") != runtime_output_sha256
+        or receipt.get("authorization_output_sha256")
+        != canonical_sha256(authorization_material)
+        or not receipt_hash_valid
+    ):
+        return None
+    return deployed_at
 
 
 def _row_exit_utc(row: dict[str, Any]) -> datetime | None:

@@ -29,7 +29,7 @@ LIVE_GATE = "blocked_human_only"
 
 
 def _utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+    return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
 def _iso_from_ms(value: Any) -> str | None:
@@ -108,7 +108,10 @@ def _normalize_row(row: Mapping[str, Any], *, available_at: str) -> dict[str, An
         "last_funding_rate": _float(row.get("r") or row.get("lastFundingRate")),
         "next_funding_time_ms": row.get("T") or row.get("nextFundingTime"),
         "event_time": event_time,
+        "generated_at": available_at,
+        "received_at": available_at,
         "available_at": available_at,
+        "expected_update_interval_seconds": 1.0,
         "source": "binance_usdm_wss_mark_price_all_symbols",
         "transport": "websocket_primary",
         "live_gate": LIVE_GATE,

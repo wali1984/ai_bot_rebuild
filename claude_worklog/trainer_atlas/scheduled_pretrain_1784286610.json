@@ -1,0 +1,147 @@
+{
+  "schema_version": "trainer_scheduled_pretrain_status_v1",
+  "generated_utc": "2026-07-17T10:57:34.262328Z",
+  "training_prefix_rows": 6671,
+  "heldout_rows": 2107,
+  "split_meta": {
+    "cache_path": "claude_worklog/trainer_atlas/scheduled_pretrain_cache.pkl",
+    "cache_hit": false,
+    "offline_replay_scan_cap": 100000,
+    "archive_view_root": "/tmp/v2_offline_archive_view_ty0w8dop",
+    "live_cursor_untouched": true,
+    "offline_cursor_seed": {
+      "seeded": true,
+      "hours_back": 16.0,
+      "manifest_offset": 956586811,
+      "manifest_size": 1082370050,
+      "seed_target_created_at": "2026-07-16T18:51:56.000Z"
+    },
+    "load_seconds": 335.911,
+    "examples": 8778,
+    "cache_written": true,
+    "h2l_proportional_split_fallback": {
+      "supply": 8778,
+      "requested_offset": 16000,
+      "effective_offset": 6671
+    },
+    "h2l_heldout_offset": 6671,
+    "h2l_requested_rows": 21000,
+    "h2l_heldout_rows": 2107,
+    "h2l_excluded_prefix_rows": 6671,
+    "cache_rebuilt_for_age": true
+  },
+  "paper_only": true,
+  "places_real_order": false,
+  "routes_to_live": false,
+  "leverage_mutated": false,
+  "margin_mutated": false,
+  "live_gate": "blocked_human_only",
+  "auto_promote": true,
+  "auto_restart": true,
+  "require_risk_gate": true,
+  "min_sortino": 0.0,
+  "max_cvar_loss_bps": null,
+  "gpu_free_vram_mb": 4837.0,
+  "gpu_min_free_vram_mb": 4096.0,
+  "pretrain": {
+    "epochs_run": 24,
+    "best_epoch": 19,
+    "best_validation_loss": 0.3069646954536438,
+    "stopped_early": true,
+    "gpu_utilization_max_pct": 98.0,
+    "gpu_utilization_mean_pct": 14.38,
+    "rows_per_second": 5415.9,
+    "saved": {
+      "offline_dir": "/home/wali/Desktop/AI BOT REBUILD/.local_models/v2_native_rl_masa_ppo_offline",
+      "is_live_dir": false,
+      "saved": true,
+      "checkpoint_id": "v2_hybrid_ckpt_42334d20e1bd47e9fc4c5e9c"
+    }
+  },
+  "head_to_head": {
+    "schema_version": "trainer_h2l_promotion_v1",
+    "input_dim": 1784,
+    "held_out_rows": 2107,
+    "live": {
+      "checkpoint_dir": ".local_models/v2_native_rl_masa_ppo",
+      "loaded": true,
+      "checkpoint_id": "v2_hybrid_ckpt_42334d20e1bd47e9fc4c5e9c",
+      "validation_supervised_loss": 54.06479263305664,
+      "validation_rows_evaluated": 2107
+    },
+    "offline": {
+      "checkpoint_dir": ".local_models/v2_native_rl_masa_ppo_offline",
+      "loaded": true,
+      "checkpoint_id": "v2_hybrid_ckpt_42334d20e1bd47e9fc4c5e9c",
+      "validation_supervised_loss": 35.314353942871094,
+      "validation_rows_evaluated": 2107
+    },
+    "min_improvement": 1.0,
+    "offline_loaded": true,
+    "live_loaded": true,
+    "heldout_overlap": {
+      "heldout_row_count": 2107,
+      "excluded_row_count": 6671,
+      "overlap_count": 0,
+      "overlap_samples": []
+    },
+    "paper_only": true,
+    "places_real_order": false,
+    "routes_to_live": false,
+    "leverage_mutated": false,
+    "margin_mutated": false,
+    "live_gate": "blocked_human_only",
+    "offline_better_by": 18.750439,
+    "risk_adjusted_validation": {
+      "live": {
+        "count": 1840,
+        "mean_return": -21.52131279749681,
+        "win_rate": 0.5266304347826087,
+        "sortino_ratio": -0.04231709019236334,
+        "downside_deviation": 508.5726050554536,
+        "cvar": -941.2444119365719,
+        "cvar_alpha": 0.05,
+        "worst_return": -9982.313468409198,
+        "loaded": true,
+        "trades": 1840
+      },
+      "offline": {
+        "count": 1924,
+        "mean_return": 110.66903107099547,
+        "win_rate": 0.7936590436590436,
+        "sortino_ratio": 3.7111499503193115,
+        "downside_deviation": 29.820684303385097,
+        "cvar": -103.6081200482014,
+        "cvar_alpha": 0.05,
+        "worst_return": -379.16591928251034,
+        "loaded": true,
+        "trades": 1924
+      },
+      "gate": {
+        "required": true,
+        "passed": true,
+        "failures": [],
+        "min_sortino": 0.0,
+        "max_cvar_loss_bps": null,
+        "offline_sortino": 3.7111499503193115,
+        "live_sortino": -0.04231709019236334,
+        "offline_cvar": -103.6081200482014,
+        "live_cvar": -941.2444119365719,
+        "offline_trades": 1924,
+        "live_trades": 1840,
+        "rule": "offline must meet min Sortino, produce OOS trades, stay within CVaR limit when configured, and not be worse than live on Sortino/CVaR"
+      }
+    },
+    "backup_dir": ".local_models/v2_native_rl_masa_ppo_backup_20260717T111005Z",
+    "promotion": {
+      "promoted_checkpoint_id": "v2_hybrid_ckpt_42334d20e1bd47e9fc4c5e9c",
+      "live_dir": ".local_models/v2_native_rl_masa_ppo"
+    },
+    "decision": "PROMOTED",
+    "promoted": true
+  },
+  "promoted": true,
+  "trainer_restarted": true,
+  "duration_seconds": 1094.1,
+  "phase": "COMPLETE"
+}

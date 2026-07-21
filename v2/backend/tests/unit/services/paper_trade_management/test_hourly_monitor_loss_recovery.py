@@ -59,11 +59,14 @@ def _fill_event(symbol="BTCUSDT", timeframe="15m", pnl=10.0, return_bps=20.0, ts
 
 
 def _closed_event(symbol="BTCUSDT", timeframe="15m", pnl=10.0, return_bps=20.0, ts: str | None = None):
+    close_ts = ts if ts is not None else _now_ts()
     return {
         "paper_result": "POSITION_CLOSED_PAPER_ONLY",
         "symbol": symbol,
         "timeframe": timeframe,
-        "generated_at": ts if ts is not None else _now_ts(),
+        "generated_at": close_ts,
+        "exit_price_utc": close_ts,
+        "outcome_available_at": close_ts,
         "realized_delta_usdt": pnl,
         "current_return_bps": return_bps,
         "paper_action": "paper_long",
@@ -72,6 +75,8 @@ def _closed_event(symbol="BTCUSDT", timeframe="15m", pnl=10.0, return_bps=20.0, 
         "prediction_id": "prediction-1",
         "signal_id": "signal-1",
         "decision_id": "decision-1",
+        "risk_decision_id": "risk-decision-1",
+        "orchestrator_decision_id": "orchestrator-decision-1",
         "feature_snapshot_id": "feature-snapshot-1",
         "mtf_snapshot_id": "mtf-snapshot-1",
         "feature_cutoff": "2026-06-08T20:59:00Z",
@@ -80,7 +85,7 @@ def _closed_event(symbol="BTCUSDT", timeframe="15m", pnl=10.0, return_bps=20.0, 
         "selected_action": "long",
         "model_version": "model-v1",
         "checkpoint_id": "checkpoint-v1",
-        "source_hashes": {"feature": "abc"},
+        "source_hashes": {"feature_vector_hash": "hash-feature-vector-1"},
     }
 
 
@@ -357,7 +362,7 @@ class TestUpdateBucket:
         bucket = _load_bucket(r, "v2:test")
         for i in range(4):
             bucket = _update_bucket(bucket, _closed_event(pnl=10.0))
-        bucket = _update_bucket(bucket, _closed_event(pnl=-5.0))
+        bucket = _update_bucket(bucket, _closed_event(pnl=-5.0, return_bps=-10.0))
         assert bucket["rolling_win_rate"] == 0.8
 
     def test_rolling_window_capped(self):
@@ -399,7 +404,12 @@ class TestUpdateOutcomeMemory:
     def test_updates_redis_buckets(self):
         events = [
             _closed_event(symbol="BTCUSDT", timeframe="15m", pnl=10.0),
-            _closed_event(symbol="BTCUSDT", timeframe="15m", pnl=-5.0),
+            _closed_event(
+                symbol="BTCUSDT",
+                timeframe="15m",
+                pnl=-5.0,
+                return_bps=-10.0,
+            ),
             _closed_event(symbol="ETHUSDT", timeframe="1h", pnl=8.0),
         ]
         path = _make_jsonl(events)
@@ -454,6 +464,147 @@ class TestUpdateOutcomeMemory:
         assert bucket["drawdown_contribution_usd"] == -20.0
         assert bucket["degraded"] is True
         assert "ROLLING_EV_DEGRADED" in bucket["block_reason"]
+
+    def test_rebuild_freshness_uses_outcome_availability_not_processing_time(
+        self,
+        monkeypatch,
+    ):
+        event = _closed_event(ts="2026-06-09T00:00:00Z")
+        event["generated_at"] = "2099-01-01T00:00:00Z"
+        monkeypatch.setattr(
+            "v2.backend.app.services.paper_trade_management.outcome_memory_updater._now_iso",
+            lambda: "2026-07-17T12:00:00Z",
+        )
+
+        first = build_outcome_memory_buckets_from_closed_trades([event])[
+            _bucket_key("BTCUSDT", "15m")
+        ]
+        assert first["last_outcome_event_time"] == "2026-06-09T00:00:00Z"
+        assert first["last_outcome_available_at"] == "2026-06-09T00:00:00Z"
+        assert first["last_updated"] == "2026-07-17T12:00:00Z"
+
+        monkeypatch.setattr(
+            "v2.backend.app.services.paper_trade_management.outcome_memory_updater._now_iso",
+            lambda: "2026-07-18T12:00:00Z",
+        )
+        rebuilt = build_outcome_memory_buckets_from_closed_trades([event])[
+            _bucket_key("BTCUSDT", "15m")
+        ]
+        assert rebuilt["last_outcome_available_at"] == first["last_outcome_available_at"]
+        assert rebuilt["last_updated"] == "2026-07-18T12:00:00Z"
+
+    def test_future_feature_lineage_is_quarantined_not_trusted(self):
+        event = _closed_event()
+        event["feature_cutoff"] = "2099-01-01T00:00:00Z"
+        event["available_at"] = "2099-01-01T00:00:01Z"
+
+        buckets = build_outcome_memory_buckets_from_closed_trades([event])
+        summary = rebuild_outcome_memory_from_closed_trades(
+            closed_trade_rows=[event],
+            write=False,
+        )
+
+        assert buckets == {}
+        assert summary["events_processed"] == 0
+        assert summary["quarantined_rows"] == 1
+        assert summary["rejection_reason_counts"][
+            "FEATURE_AVAILABLE_AT_AFTER_DECISION_TIME"
+        ] == 1
+        assert summary["rejection_reason_counts"][
+            "FEATURE_CUTOFF_AFTER_DECISION_TIME"
+        ] == 1
+
+    @pytest.mark.parametrize(
+        ("field", "invalid_value", "expected_reason"),
+        [
+            (
+                "risk_decision_id",
+                None,
+                "MISSING_TRUST_FIELD:risk_decision_id",
+            ),
+            ("source_hashes", {}, "MISSING_TRUST_FIELD:source_hashes"),
+            (
+                "source_hashes",
+                {"fake": "fake"},
+                "MISSING_CANONICAL_SOURCE_HASH:feature_vector_hash",
+            ),
+            (
+                "decision_time",
+                "2026-06-08T21:00:00",
+                "TRUST_TIMESTAMP_NOT_AWARE_UTC:decision_time",
+            ),
+            (
+                "exit_price_utc",
+                "2026-07-17T12:00:00",
+                "CLOSE_EVENT_TIME_NOT_AWARE_UTC",
+            ),
+        ],
+    )
+    def test_missing_or_malformed_trust_contract_is_quarantined(
+        self,
+        field,
+        invalid_value,
+        expected_reason,
+    ):
+        event = _closed_event()
+        event[field] = invalid_value
+
+        summary = rebuild_outcome_memory_from_closed_trades(
+            closed_trade_rows=[event],
+            write=False,
+        )
+
+        assert summary["events_processed"] == 0
+        assert summary["rejection_reason_counts"][expected_reason] == 1
+
+    def test_close_event_time_is_labeled_availability_fallback(self):
+        event = _closed_event()
+        del event["outcome_available_at"]
+
+        bucket = build_outcome_memory_buckets_from_closed_trades([event])[
+            _bucket_key("BTCUSDT", "15m")
+        ]
+
+        assert bucket["last_outcome_available_at"] == bucket["last_outcome_event_time"]
+        assert bucket["last_outcome_available_at_source"] == (
+            "CLOSE_EVENT_TIME_SYNCHRONOUS_AVAILABILITY_FALLBACK"
+        )
+
+    @pytest.mark.parametrize("return_bps", [None, float("nan"), float("inf")])
+    def test_missing_or_nonfinite_return_bps_is_quarantined(self, return_bps):
+        event = _closed_event(return_bps=return_bps)
+        summary = rebuild_outcome_memory_from_closed_trades(
+            closed_trade_rows=[event],
+            write=False,
+        )
+
+        assert summary["events_processed"] == 0
+        assert summary["quarantined_rows"] == 1
+        assert summary["rejection_reason_counts"][
+            "MISSING_OR_NONFINITE_REALIZED_RETURN_BPS"
+        ] == 1
+
+    def test_profitable_alternating_sample_is_not_latched_by_lifetime_losses(self):
+        rows = [
+            _closed_event(
+                pnl=100.0 if index % 2 == 0 else -2.0,
+                return_bps=100.0 if index % 2 == 0 else -2.0,
+            )
+            for index in range(20)
+        ]
+
+        bucket = build_outcome_memory_buckets_from_closed_trades(rows)[
+            _bucket_key("BTCUSDT", "15m")
+        ]
+        evaluated = evaluate_outcome_memory_bucket(OutcomeMemoryBucket.from_dict(bucket))
+
+        assert sum(row["realized_delta_usdt"] for row in rows) == 980.0
+        assert bucket["rolling_win_rate"] == 0.5
+        assert bucket["rolling_ev_bps"] == 49.0
+        assert bucket["max_drawdown_bps"] == 2.0
+        assert bucket["drawdown_contribution_usd"] == -2.0
+        assert bucket["degraded"] is False
+        assert evaluated["allowed"] is True
 
     def test_rebuild_dry_run_does_not_write_redis(self):
         rows = [

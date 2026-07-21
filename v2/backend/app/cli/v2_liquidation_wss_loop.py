@@ -173,6 +173,14 @@ def _build_daemon_status_payload(
         "last_error_type": live_state.get("last_error_type"),
         "last_error_utc": live_state.get("last_error_utc"),
         "last_session_stats": dict(live_state),
+        "observed_aggregate_key_template": (
+            "v2:market:liquidations:observed_aggregate:{symbol}"
+        ),
+        "observed_aggregate_capture_complete": False,
+        "observed_aggregate_downstream_contract_status": (
+            "NOT_WIRED_FAIL_CLOSED_REQUIRES_COVERAGE_AWARE_CONSUMER"
+        ),
+        "legacy_complete_aggregate_refresh_enabled": False,
         "writes_legacy_redis": False,
         "writes_exchange_orders": False,
         "no_synthetic_liquidation_events": True,

@@ -22,11 +22,13 @@ The paper lifecycle honors CLOSE directives as a TIER_0 exit.
 Paper-only by construction: no orders, no leverage/margin mutation, no live
 routing. Writes only the single guard status key.
 """
+
 from __future__ import annotations
 
 import argparse
 import json
 import time
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import Any
 
@@ -47,12 +49,13 @@ def _utc_now() -> str:
 
 
 def _f(value: Any) -> float | None:
+    if isinstance(value, bool) or value in (None, ""):
+        return None
     try:
-        if value in (None, ""):
-            return None
-        return float(value)
+        number = float(value)
     except (TypeError, ValueError):
         return None
+    return number if number == number and abs(number) != float("inf") else None
 
 
 def _redis_client():
@@ -69,10 +72,134 @@ def _get_json(r: Any, key: str) -> Any:
         return None
 
 
-def _open_positions(r: Any) -> list[dict[str, Any]]:
-    payload = _get_json(r, "v2:paper:positions")
-    rows = payload.get("positions") if isinstance(payload, dict) else payload
-    return [row for row in (rows or []) if isinstance(row, dict)]
+def _open_position_inputs(r: Any) -> tuple[list[Any], list[str]]:
+    try:
+        raw = r.get("v2:paper:positions")
+    except Exception:
+        return [], ["POSITION_COLLECTION_READ_FAILED"]
+    if raw in (None, ""):
+        return [], []
+    try:
+        payload = json.loads(raw) if isinstance(raw, str | bytes | bytearray) else raw
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return [], ["POSITION_COLLECTION_JSON_INVALID"]
+    if isinstance(payload, dict):
+        if "positions" not in payload:
+            return [], ["POSITION_COLLECTION_MISSING"]
+        rows = payload.get("positions")
+    else:
+        rows = payload
+    if not isinstance(rows, list):
+        return [], ["POSITION_COLLECTION_NOT_LIST"]
+    return list(rows), []
+
+
+def _paper_margin_inputs(
+    positions: list[dict[str, Any]],
+    ledger: Mapping[str, Any],
+    *,
+    expected_position_count: int | None = None,
+    input_rejection_reasons: tuple[str, ...] = (),
+) -> tuple[list[dict[str, Any]], dict[str, Any], dict[str, Any]]:
+    """Join canonical paper position rows to audited margin-accounting rows."""
+
+    margin_status = ledger.get("paper_account_margin_status")
+    margin_status = margin_status if isinstance(margin_status, Mapping) else {}
+    margin_rows = margin_status.get("position_margin_rows")
+    margin_rows = margin_rows if isinstance(margin_rows, list) else []
+    by_symbol: dict[str, dict[str, Any]] = {}
+    duplicate_symbols: set[str] = set()
+    for row in margin_rows:
+        if not isinstance(row, Mapping):
+            continue
+        symbol = str(row.get("symbol") or "").upper()
+        if not symbol:
+            continue
+        if symbol in by_symbol:
+            duplicate_symbols.add(symbol)
+            continue
+        by_symbol[symbol] = dict(row)
+
+    enriched: list[dict[str, Any]] = []
+    rejection_reasons: list[str] = list(input_rejection_reasons)
+    maintenance_margin_usd = 0.0
+    for position in positions:
+        symbol = str(position.get("symbol") or "").upper()
+        margin_row = by_symbol.get(symbol)
+        if margin_row is None:
+            rejection_reasons.append(f"MARGIN_ROW_MISSING:{symbol or 'UNKNOWN'}")
+            continue
+        rate = _f(margin_row.get("maintenance_margin_rate"))
+        notional = _f(margin_row.get("canonical_notional_usd"))
+        leverage = _f(margin_row.get("effective_leverage"))
+        if margin_row.get("valid") is not True:
+            rejection_reasons.append(f"MARGIN_ROW_INVALID:{symbol}")
+            continue
+        if margin_row.get("maintenance_margin_evidence_valid") is not True:
+            rejection_reasons.append(f"MAINTENANCE_MARGIN_EVIDENCE_INVALID:{symbol}")
+            continue
+        if rate is None or rate <= 0.0 or notional is None or notional <= 0.0:
+            rejection_reasons.append(f"MARGIN_ROW_NUMERIC_EVIDENCE_INVALID:{symbol}")
+            continue
+        if leverage is None or leverage < 1.0:
+            rejection_reasons.append(f"LEVERAGE_EVIDENCE_INVALID:{symbol}")
+            continue
+        joined = dict(position)
+        joined["maintenance_margin_rate"] = rate
+        joined["effective_leverage"] = leverage
+        joined["cascade_margin_row_id"] = margin_row.get("row_id")
+        joined["cascade_margin_rate_source"] = margin_row.get("maintenance_margin_rate_source")
+        enriched.append(joined)
+        maintenance_margin_usd += notional * rate
+
+    if duplicate_symbols:
+        rejection_reasons.extend(
+            f"DUPLICATE_MARGIN_ROWS:{symbol}" for symbol in sorted(duplicate_symbols)
+        )
+    margin_base = _f(margin_status.get("margin_base_usd"))
+    used_margin = _f(margin_status.get("used_margin_usd"))
+    free_margin = _f(margin_status.get("free_margin_usd"))
+    if margin_status.get("status") != "PASS":
+        rejection_reasons.append("PAPER_MARGIN_STATUS_NOT_PASS")
+    if margin_status.get("accounting_complete") is not True:
+        rejection_reasons.append("PAPER_MARGIN_ACCOUNTING_INCOMPLETE")
+    if margin_base is None or margin_base <= 0.0:
+        rejection_reasons.append("PAPER_MARGIN_BASE_INVALID")
+    if used_margin is None or used_margin < 0.0:
+        rejection_reasons.append("PAPER_USED_MARGIN_INVALID")
+    if free_margin is None or free_margin < 0.0:
+        rejection_reasons.append("PAPER_FREE_MARGIN_INVALID")
+    expected_count = (
+        len(positions) if expected_position_count is None else expected_position_count
+    )
+    if len(positions) != expected_count:
+        rejection_reasons.append("POSITION_INPUT_MAPPING_COUNT_MISMATCH")
+    if len(enriched) != expected_count:
+        rejection_reasons.append("POSITION_MARGIN_JOIN_INCOMPLETE")
+
+    evidence_complete = not rejection_reasons
+    account = {
+        "totalWalletBalance": margin_base,
+        "totalCrossWalletBalance": margin_base,
+        "totalMarginBalance": margin_base,
+        "totalInitialMargin": used_margin,
+        "totalMaintMargin": maintenance_margin_usd,
+        "availableBalance": free_margin,
+    }
+    evidence = {
+        "schema_version": "paper_cascade_margin_join_v1",
+        "status": "PASS" if evidence_complete else "BLOCKED",
+        "position_count": expected_count,
+        "mappable_position_count": len(positions),
+        "joined_position_count": len(enriched),
+        "margin_row_count": len(margin_rows),
+        "maintenance_margin_usd": (
+            round(maintenance_margin_usd, 8) if evidence_complete else None
+        ),
+        "calculated_maintenance_margin_usd": round(maintenance_margin_usd, 8),
+        "rejection_reasons": sorted(set(rejection_reasons)),
+    }
+    return enriched, account, evidence
 
 
 def _cascade_state(r: Any, symbol: str) -> dict[str, Any]:
@@ -96,7 +223,10 @@ def decide_directives(
 ) -> list[dict[str, Any]]:
     """Pure decision core (unit-tested): positions + cascade + shock -> directives."""
     directives: list[dict[str, Any]] = []
-    worst_breached = bool(portfolio_snapshot.get("worst_case_liquidation_breached"))
+    worst_breached = (
+        portfolio_snapshot.get("portfolio_level_computed") is True
+        and portfolio_snapshot.get("worst_case_liquidation_breached") is True
+    )
     for row in positions:
         symbol = str(row.get("symbol") or "").upper()
         if not symbol:
@@ -138,33 +268,159 @@ def decide_directives(
 
 
 def run_once(r: Any) -> dict[str, Any]:
-    positions = _open_positions(r)
+    position_inputs, position_input_rejections = _open_position_inputs(r)
+    expected_position_count = len(position_inputs)
+    positions: list[dict[str, Any]] = []
+    for index, row in enumerate(position_inputs):
+        if isinstance(row, Mapping):
+            positions.append(dict(row))
+        else:
+            position_input_rejections.append(f"POSITION_ROW_NOT_MAPPING:{index}")
     cascade_by_symbol = {
-        str(row.get("symbol") or "").upper(): _cascade_state(r, str(row.get("symbol") or "").upper())
+        str(row.get("symbol") or "").upper(): _cascade_state(
+            r, str(row.get("symbol") or "").upper()
+        )
         for row in positions
     }
     snapshot: dict[str, Any] = {}
-    if positions:
+    margin_evidence: dict[str, Any] = {
+        "schema_version": "paper_cascade_margin_join_v1",
+        "status": "NOT_APPLICABLE_NO_OPEN_POSITIONS",
+        "position_count": 0,
+        "mappable_position_count": 0,
+        "joined_position_count": 0,
+        "margin_row_count": 0,
+        "maintenance_margin_usd": None,
+        "calculated_maintenance_margin_usd": 0.0,
+        "rejection_reasons": [],
+    }
+    risk_applicable = expected_position_count > 0 or bool(position_input_rejections)
+    if risk_applicable:
         ledger = _get_json(r, "v2:paper:ledger") or {}
-        account = {
-            "wallet_balance": _f(ledger.get("paper_equity_usd"))
-            or _f(ledger.get("starting_equity_usd"))
-            or 0.0,
+        enriched_positions, account, margin_evidence = _paper_margin_inputs(
+            positions,
+            ledger if isinstance(ledger, Mapping) else {},
+            expected_position_count=expected_position_count,
+            input_rejection_reasons=tuple(position_input_rejections),
+        )
+        if margin_evidence["status"] == "PASS":
+            try:
+                snapshot = (
+                    build_portfolio_liquidation_snapshot(
+                        account=account,
+                        positions=enriched_positions,
+                        generated_utc=_utc_now(),
+                    )
+                    or {}
+                )
+            except Exception as exc:  # pure snapshot failure must be explicit
+                snapshot = {
+                    "portfolio_level_computed": False,
+                    "error": str(exc)[:120],
+                }
+        else:
+            snapshot = {
+                "portfolio_level_computed": False,
+                "risk_state": "UNTRUSTED_MARGIN_EVIDENCE",
+            }
+    computed_position_count = snapshot.get("computed_position_count")
+    position_count_matches = (
+        computed_position_count == expected_position_count
+        if type(computed_position_count) is int
+        else None
+    )
+    snapshot_breach = snapshot.get("worst_case_liquidation_breached")
+    snapshot_authoritative = snapshot.get("portfolio_risk_result_authoritative") is True
+    breach_conclusion_available = type(snapshot_breach) is bool
+    portfolio_risk_authoritative = (
+        risk_applicable
+        and margin_evidence.get("status") == "PASS"
+        and snapshot_authoritative
+        and position_count_matches is True
+        and breach_conclusion_available
+    )
+    portfolio_risk_block_reasons = list(margin_evidence.get("rejection_reasons") or [])
+    portfolio_risk_block_reasons.extend(snapshot.get("portfolio_risk_block_reasons") or [])
+    if risk_applicable and position_count_matches is False:
+        portfolio_risk_block_reasons.append("POSITION_COUNT_MISMATCH")
+    if (
+        risk_applicable
+        and margin_evidence.get("status") == "PASS"
+        and snapshot_authoritative
+        and not breach_conclusion_available
+    ):
+        portfolio_risk_block_reasons.append("PORTFOLIO_BREACH_CONCLUSION_UNKNOWN")
+    if risk_applicable and not portfolio_risk_authoritative and not portfolio_risk_block_reasons:
+        portfolio_risk_block_reasons.append("PORTFOLIO_RISK_SNAPSHOT_NOT_AUTHORITATIVE")
+    portfolio_risk_block_reasons = list(dict.fromkeys(portfolio_risk_block_reasons))
+    directive_snapshot = snapshot
+    if not portfolio_risk_authoritative:
+        directive_snapshot = {
+            **snapshot,
+            "portfolio_level_computed": False,
+            "worst_case_liquidation_breached": None,
         }
-        try:
-            snapshot = build_portfolio_liquidation_snapshot(
-                account=account, positions=positions, generated_utc=_utc_now()
-            ) or {}
-        except Exception as exc:  # snapshot is advisory; guard must not die on it
-            snapshot = {"error": str(exc)[:120]}
     payload = {
         "schema_version": "portfolio_cascade_guard_v1",
         "generated_utc": _utc_now(),
-        "open_position_count": len(positions),
-        "directives": decide_directives(positions, cascade_by_symbol, snapshot),
+        "open_position_count": expected_position_count,
+        "portfolio_position_count_expected": expected_position_count,
+        "portfolio_position_count_mappable": len(positions),
+        "portfolio_position_count_computed": computed_position_count,
+        "portfolio_position_count_matches": position_count_matches,
+        "portfolio_level_computed": portfolio_risk_authoritative,
+        "portfolio_risk_result_authoritative": portfolio_risk_authoritative,
+        "portfolio_risk_computation_blocked": (
+            risk_applicable and not portfolio_risk_authoritative
+        ),
+        "portfolio_risk_status": (
+            "NOT_APPLICABLE_NO_OPEN_POSITIONS"
+            if not risk_applicable
+            else "PASS"
+            if portfolio_risk_authoritative
+            else "BLOCKED"
+        ),
+        "portfolio_risk_block_reasons": portfolio_risk_block_reasons,
+        "portfolio_margin_evidence": margin_evidence,
+        "maintenance_margin_evidence_complete": snapshot.get(
+            "maintenance_margin_evidence_complete"
+        ),
+        "leverage_evidence_complete": snapshot.get("leverage_evidence_complete"),
+        "position_count_evidence_complete": snapshot.get(
+            "position_count_evidence_complete"
+        ),
+        "dropped_position_count": snapshot.get("dropped_position_count"),
+        "dropped_positions": snapshot.get("dropped_positions"),
+        "position_direction_evidence_complete": snapshot.get(
+            "position_direction_evidence_complete"
+        ),
+        "position_direction_conflicts": snapshot.get("position_direction_conflicts"),
+        "unrecognized_position_directions": snapshot.get(
+            "unrecognized_position_directions"
+        ),
+        "account_dependency_evidence_complete": snapshot.get(
+            "account_dependency_evidence_complete"
+        ),
+        "account_dependency_issues": snapshot.get("account_dependency_issues"),
+        "maintenance_margin_fallback_symbols": snapshot.get(
+            "maintenance_margin_fallback_symbols"
+        ),
+        "directives": decide_directives(positions, cascade_by_symbol, directive_snapshot),
         "cascade_by_symbol": cascade_by_symbol,
-        "worst_case_liquidation_breached": bool(snapshot.get("worst_case_liquidation_breached")),
-        "worst_case_liquidation_buffer_usd": snapshot.get("worst_case_liquidation_buffer_usd"),
+        "worst_case_liquidation_breached": (
+            snapshot_breach if portfolio_risk_authoritative else None
+        ),
+        "worst_case_liquidation_buffer_usd": (
+            snapshot.get("worst_case_liquidation_buffer_usd")
+            if portfolio_risk_authoritative
+            else None
+        ),
+        "calculated_worst_case_liquidation_breached": snapshot.get(
+            "calculated_worst_case_liquidation_breached"
+        ),
+        "calculated_worst_case_liquidation_buffer_usd": snapshot.get(
+            "calculated_worst_case_liquidation_buffer_usd"
+        ),
         "paper_only": True,
         "routes_to_live": False,
         "places_real_order": False,
@@ -173,7 +429,7 @@ def run_once(r: Any) -> dict[str, Any]:
     }
     try:
         r.set(GUARD_KEY, json.dumps(payload, default=str), ex=GUARD_TTL_SECONDS)
-    except Exception:
+    except Exception:  # noqa: S110 - paper-only telemetry remains best-effort
         pass
     return payload
 

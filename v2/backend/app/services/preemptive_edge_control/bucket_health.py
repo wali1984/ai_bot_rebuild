@@ -124,14 +124,25 @@ def build_bucket_health(closed_rows: list[dict[str, Any]]) -> dict[str, dict[str
                 b["atr_stop_count"] += 1
     for b in buckets.values():
         losses = b["gross_loss_usd"]
-        b["profit_factor"] = (b["gross_win_usd"] / losses) if losses > 0 else (
-            float("inf") if b["gross_win_usd"] > 0 else None
-        )
+        if losses > 0:
+            b["profit_factor"] = b["gross_win_usd"] / losses
+            b["profit_factor_unbounded_no_losses"] = False
+            b["profit_factor_semantics"] = "FINITE_GROSS_WINS_DIVIDED_BY_GROSS_LOSSES"
+        elif b["gross_win_usd"] > 0:
+            # Positive wins with no losses are mathematically unbounded, but
+            # JSON has no portable representation for infinity.  Keep the
+            # numeric field unavailable and publish the semantic state
+            # explicitly so downstream evidence remains strict-JSON hashable.
+            b["profit_factor"] = None
+            b["profit_factor_unbounded_no_losses"] = True
+            b["profit_factor_semantics"] = "UNBOUNDED_POSITIVE_WINS_WITH_NO_LOSSES"
+        else:
+            b["profit_factor"] = None
+            b["profit_factor_unbounded_no_losses"] = False
+            b["profit_factor_semantics"] = "UNAVAILABLE_NO_GROSS_WINS_OR_LOSSES"
         b["win_rate"] = b["wins"] / b["count"] if b["count"] else None
         b["notional_weighted_expectancy_bps"] = (
-            b["net_sum_usd"] / b["notional_sum_usd"] * 10000
-            if b["notional_sum_usd"] > 0
-            else None
+            b["net_sum_usd"] / b["notional_sum_usd"] * 10000 if b["notional_sum_usd"] > 0 else None
         )
         b["high_confidence_loss_rate"] = (
             b["high_confidence_loss_count"] / b["count"] if b["count"] else None
@@ -157,27 +168,36 @@ def candidate_bucket_assessment(
     evidence' rather than negative.
     """
     keys = candidate_bucket_keys(
-        symbol=symbol, side=side, timeframe=timeframe,
-        strategy_mode=strategy_mode, regime=regime,
+        symbol=symbol,
+        side=side,
+        timeframe=timeframe,
+        strategy_mode=strategy_mode,
+        regime=regime,
     )
     matched = {k: bucket_health[k] for k in keys if k in bucket_health}
     negative = []
     insufficient = []
-    worst_pf = None
-    worst_expectancy = None
+    unbounded_profit_factor = []
+    worst_pf: float | None = None
+    worst_expectancy: float | None = None
     hc_rates = []
     atr_rates = []
     for key, b in matched.items():
-        pf = b.get("profit_factor")
-        exp = b.get("notional_weighted_expectancy_bps")
+        pf = _f(b.get("profit_factor"))
+        exp = _f(b.get("notional_weighted_expectancy_bps"))
         if b["count"] < min_evidence_count:
             insufficient.append(key)
             continue
-        if pf is not None and pf != float("inf"):
+        pf_unbounded_no_losses = b.get("profit_factor_unbounded_no_losses") is True or pf == float(
+            "inf"
+        )
+        if pf_unbounded_no_losses:
+            unbounded_profit_factor.append(key)
+        if pf is not None and not pf_unbounded_no_losses:
             worst_pf = pf if worst_pf is None else min(worst_pf, pf)
         if exp is not None:
             worst_expectancy = exp if worst_expectancy is None else min(worst_expectancy, exp)
-        if (pf is not None and pf != float("inf") and pf < 1.0) or (
+        if (pf is not None and not pf_unbounded_no_losses and pf < 1.0) or (
             exp is not None and exp <= 0.0
         ):
             negative.append(key)
@@ -190,12 +210,12 @@ def candidate_bucket_assessment(
         "evidenced_bucket_count": len(matched) - len(insufficient),
         "insufficient_evidence_buckets": insufficient,
         "negative_buckets": negative,
+        "unbounded_profit_factor_buckets": unbounded_profit_factor,
+        "bucket_profit_factor_unbounded_no_losses": bool(unbounded_profit_factor),
         "bucket_profit_factor": worst_pf,
         "notional_weighted_bucket_expectancy": worst_expectancy,
         "recent_high_confidence_loss_rate": max(hc_rates) if hc_rates else None,
         "recent_ATR_stop_risk": max(atr_rates) if atr_rates else None,
         "bucket_negative": bool(negative),
-        "bucket_evidence_missing": len(matched) == 0 or (
-            len(matched) == len(insufficient)
-        ),
+        "bucket_evidence_missing": len(matched) == 0 or (len(matched) == len(insufficient)),
     }

@@ -33,6 +33,21 @@ def _closed_rows() -> list[dict]:
             "realized_pnl_usd": -1.0,
             "realized_pnl_bps": -10.0,
             "exit_price_utc": f"2026-06-19T00:{i:02d}:00Z",
+            "outcome_available_at": f"2026-06-19T00:{i:02d}:00Z",
+            "prediction_id": f"prediction-{i}",
+            "signal_id": f"signal-{i}",
+            "risk_decision_id": f"risk-decision-{i}",
+            "orchestrator_decision_id": f"orchestrator-decision-{i}",
+            "feature_snapshot_id": f"feature-snapshot-{i}",
+            "mtf_snapshot_id": f"mtf-snapshot-{i}",
+            "feature_cutoff": "2026-06-18T23:58:00Z",
+            "available_at": "2026-06-18T23:59:00Z",
+            "decision_time": "2026-06-18T23:59:30Z",
+            "selected_action": "long",
+            "side": "long",
+            "model_version": "model-v1",
+            "checkpoint_id": "checkpoint-v1",
+            "source_hashes": {"feature_vector_hash": f"hash-{i}"},
         }
         for i in range(20)
     ]

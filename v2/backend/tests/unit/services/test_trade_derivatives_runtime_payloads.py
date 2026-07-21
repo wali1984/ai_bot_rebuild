@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timedelta, timezone
 
 from v2.backend.app.services.operator_truth.trade_derivatives_runtime import (
+    _coinank_symbol_intel,
+    _global_regime,
     build_derivatives_payload,
     build_trade_terminal_payload,
 )
@@ -146,3 +149,109 @@ def test_trade_and_derivatives_payloads_use_direct_coinank_fallbacks() -> None:
     assert derivatives["modules"]["funding"]["data_status"] == "CURRENT_OR_RECENT"
     assert derivatives["modules"]["open_interest"]["rows"][0]["source_key"] == "latest:coinank:open_interest:BTCUSDT:15m"
     assert derivatives["modules"]["long_short"]["rows"][0]["long_short_ratio"] == 1.25
+
+
+def test_coinank_operator_truth_masks_invalid_global_snapshot() -> None:
+    client = FakeRedis()
+    client.data["v2:coinank:global:latest"] = {
+        "actual_payload_present": True,
+        "is_fresh": False,
+        "coverage_complete": True,
+        "temporal_contract_valid": True,
+        "available_at": "2026-07-20T05:00:00Z",
+        "feature_cutoff": "2026-07-20T04:00:00Z",
+        "market_regime_context": {
+            "total_open_interest_usd": 99_000_000.0,
+            "aggregate_long_short_ratio": 2.0,
+        },
+        "members": {
+            "market_sentiment": {"value": 5.5e16, "valid": False},
+        },
+    }
+
+    regime = _global_regime(client)
+
+    assert regime["data_status"] == "INVALID_OR_STALE_GLOBAL_REGIME_SOURCE"
+    assert regime["total_open_interest_usd"] is None
+    assert regime["aggregate_long_short_ratio"] is None
+    assert regime["market_sentiment"] is None
+    assert regime["missing_reason_if_any"] == "COINANK_GLOBAL_CONTRACT_INVALID_OR_STALE"
+
+
+def test_coinank_operator_truth_preserves_unknown_oi_unit_and_validates_usd_fields() -> None:
+    client = FakeRedis()
+    now = datetime.now(timezone.utc)
+    cutoff = (now - timedelta(seconds=60)).isoformat().replace("+00:00", "Z")
+    available = (now - timedelta(seconds=30)).isoformat().replace("+00:00", "Z")
+    generated = (now - timedelta(seconds=20)).isoformat().replace("+00:00", "Z")
+    client.data["v2:coinank:symbol:BTCUSDT"] = {
+        "actual_payload_present": True,
+        "feature_eligible": True,
+        "temporal_contract_valid": True,
+        "feature_cutoff": cutoff,
+        "available_at": available,
+        "generated_at": generated,
+        "coinank_derivatives_score": 0.75,
+        "features": {
+            "coinank_open_interest": 12_345.0,
+            "coinank_liquidation_long_turnover": 100.0,
+            "coinank_liquidation_short_turnover": 40.0,
+            "coinank_liquidation_imbalance_usd": 60.0,
+        },
+        "feature_units": {
+            "coinank_open_interest": "provider_reported_open_interest_unit_unknown",
+            "coinank_liquidation_long_turnover": "usd",
+            "coinank_liquidation_short_turnover": "usd",
+            "coinank_liquidation_imbalance_usd": "usd",
+        },
+    }
+
+    intel = _coinank_symbol_intel(client, "BTCUSDT")
+
+    assert intel["data_status"] == "CURRENT_OR_RECENT"
+    assert intel["coinank_open_interest"] == 12_345.0
+    assert intel["coinank_open_interest_unit"] == "provider_reported_open_interest_unit_unknown"
+    assert intel["coinank_open_interest_usd"] is None
+    assert intel["coinank_long_turnover_usd"] == 100.0
+    assert intel["coinank_short_turnover_usd"] == 40.0
+    assert intel["coinank_liquidation_imbalance_usd"] == 60.0
+
+    client.data["v2:coinank:symbol:BTCUSDT"]["feature_eligible"] = False
+    held = _coinank_symbol_intel(client, "BTCUSDT")
+    assert held["data_status"] == "INVALID_OR_STALE_COINANK_SYMBOL_SOURCE"
+    assert held["coinank_open_interest"] is None
+    assert held["coinank_long_turnover_usd"] is None
+
+
+def test_coinank_operator_truth_rejects_stale_and_inconsistent_clocks_even_with_true_flags() -> None:
+    client = FakeRedis()
+    now = datetime.now(timezone.utc)
+    stale = (now - timedelta(seconds=901)).isoformat().replace("+00:00", "Z")
+    generated = (now - timedelta(seconds=1)).isoformat().replace("+00:00", "Z")
+    client.data["v2:coinank:global:latest"] = {
+        "actual_payload_present": True,
+        "is_fresh": True,
+        "coverage_complete": True,
+        "temporal_contract_valid": True,
+        "feature_cutoff": stale,
+        "available_at": stale,
+        "generated_at": generated,
+        "members": {"funding_rate_avg": {"value": 0.0001, "valid": True}},
+    }
+    assert _global_regime(client)["data_status"] == "INVALID_OR_STALE_GLOBAL_REGIME_SOURCE"
+
+    future_cutoff = (now + timedelta(seconds=30)).isoformat().replace("+00:00", "Z")
+    available = (now - timedelta(seconds=5)).isoformat().replace("+00:00", "Z")
+    client.data["v2:coinank:symbol:BTCUSDT"] = {
+        "actual_payload_present": True,
+        "feature_eligible": True,
+        "temporal_contract_valid": True,
+        "feature_cutoff": future_cutoff,
+        "available_at": available,
+        "generated_at": generated,
+        "features": {"coinank_open_interest": 12_345.0},
+        "feature_units": {
+            "coinank_open_interest": "provider_reported_open_interest_unit_unknown"
+        },
+    }
+    assert _coinank_symbol_intel(client, "BTCUSDT")["data_status"] == "INVALID_OR_STALE_COINANK_SYMBOL_SOURCE"

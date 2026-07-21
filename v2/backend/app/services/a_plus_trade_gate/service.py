@@ -112,12 +112,17 @@ def _finite(value: Any) -> float | None:
 def _parse_utc(value: Any) -> datetime | None:
     if not isinstance(value, str) or not value.strip():
         return None
+    normalized = value.strip()
+    if normalized.endswith("Z"):
+        normalized = f"{normalized[:-1]}+00:00"
     try:
-        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(normalized)
     except ValueError:
         return None
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
+    # A timestamp without an explicit offset has no provable relationship to
+    # the UTC decision clock. Never assume that a naive producer meant UTC.
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        return None
     return parsed.astimezone(timezone.utc)
 
 
@@ -137,14 +142,53 @@ def _read_json(redis_client: Any, key: str) -> Any:
 
 
 def _fresh(payload: Any, *, max_age_seconds: float, now: datetime) -> bool:
+    """Return whether derived context was fresh and available by ``now``.
+
+    ``generated_utc``/``generated_at``/``generated_est`` are generation
+    clocks. ``available_at`` is the distinct time at which that generated
+    context became consumable. Generation is mandatory for these derived
+    regime/HTF/tape payloads. When ``available_at`` is present it is also
+    mandatory, must not precede generation, and governs availability; it is
+    never synthesized from or relabelled as a generation clock. Legacy
+    payloads without ``available_at`` remain eligible only when their actual
+    generation clock is fresh. Every supplied clock must be timezone-aware,
+    non-future, and inside the configured freshness window.
+    """
     if not isinstance(payload, Mapping):
         return False
-    generated = _parse_utc(
-        payload.get("generated_utc") or payload.get("generated_at") or payload.get("generated_est")
-    )
-    if generated is None:
+    if now.tzinfo is None or now.utcoffset() is None:
         return False
-    return (now - generated).total_seconds() <= max_age_seconds
+    max_age = _finite(max_age_seconds)
+    if max_age is None or max_age < 0:
+        return False
+    now_utc = now.astimezone(timezone.utc)
+
+    generated_clocks: list[datetime] = []
+    for field in ("generated_utc", "generated_at", "generated_est"):
+        if field not in payload:
+            continue
+        parsed = _parse_utc(payload.get(field))
+        if parsed is None:
+            return False
+        generated_clocks.append(parsed)
+    if not generated_clocks:
+        return False
+    # Multiple spelling variants are aliases for the same generation event;
+    # conflicting instants are ambiguous lineage and therefore fail closed.
+    generated = generated_clocks[0]
+    if any(clock != generated for clock in generated_clocks[1:]):
+        return False
+    generated_age = (now_utc - generated).total_seconds()
+    if generated_age < 0 or generated_age > max_age:
+        return False
+
+    if "available_at" not in payload:
+        return True
+    available = _parse_utc(payload.get("available_at"))
+    if available is None or available < generated:
+        return False
+    available_age = (now_utc - available).total_seconds()
+    return 0 <= available_age <= max_age
 
 
 def load_a_plus_context(

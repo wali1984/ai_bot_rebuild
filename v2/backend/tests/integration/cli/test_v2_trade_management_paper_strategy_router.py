@@ -74,29 +74,20 @@ def _utc_now_for_test() -> str:
 
 
 def _ms(iso_value: str) -> int:
-    return int(datetime.fromisoformat(iso_value.replace("Z", "+00:00")).astimezone(timezone.utc).timestamp() * 1000)
+    return int(
+        datetime.fromisoformat(iso_value.replace("Z", "+00:00"))
+        .astimezone(timezone.utc)
+        .timestamp()
+        * 1000
+    )
 
 
 def _closed_candles_from_returns(symbol: str, returns: list[float], *, start_ms: int) -> list[dict]:
     close = 100.0
     rows = []
     close_time = start_ms
-    rows.append({
-        "symbol": symbol,
-        "timeframe": "1m",
-        "close": close,
-        "close_time": close_time,
-        "candle_close_time": close_time,
-        "available_at": close_time + 1,
-        "candle_closed_confirmed": True,
-        "closed_candle": True,
-        "is_closed": True,
-        "feature_eligible": True,
-    })
-    for index, return_value in enumerate(returns, start=1):
-        close *= 1.0 + return_value
-        close_time = start_ms + index * 60_000
-        rows.append({
+    rows.append(
+        {
             "symbol": symbol,
             "timeframe": "1m",
             "close": close,
@@ -107,7 +98,25 @@ def _closed_candles_from_returns(symbol: str, returns: list[float], *, start_ms:
             "closed_candle": True,
             "is_closed": True,
             "feature_eligible": True,
-        })
+        }
+    )
+    for index, return_value in enumerate(returns, start=1):
+        close *= 1.0 + return_value
+        close_time = start_ms + index * 60_000
+        rows.append(
+            {
+                "symbol": symbol,
+                "timeframe": "1m",
+                "close": close,
+                "close_time": close_time,
+                "candle_close_time": close_time,
+                "available_at": close_time + 1,
+                "candle_closed_confirmed": True,
+                "closed_candle": True,
+                "is_closed": True,
+                "feature_eligible": True,
+            }
+        )
     return rows
 
 
@@ -260,7 +269,7 @@ def test_paper_audit_entry_gate_blocks_degraded_5m_outcome_memory(monkeypatch) -
     assert all(row.get("signal_id") != signal["signal_id"] for row in ledger["accepted"])
 
 
-def test_paper_audit_entry_gate_blocks_explicit_no_go_symbol(monkeypatch) -> None:
+def test_paper_audit_entry_gate_has_no_static_symbol_exclusion(monkeypatch) -> None:
     fake = FakeRedis()
     signal, prediction = _fresh_paper_signal_and_prediction(
         symbol="TRUMPUSDT",
@@ -284,8 +293,12 @@ def test_paper_audit_entry_gate_blocks_explicit_no_go_symbol(monkeypatch) -> Non
     assert status["intents_accepted"] == 0
     assert len(blocked) == 1
     assert blocked[0]["paper_fill_block_reason"] == "P0_ENTRY_GATE_BLOCKED"
-    assert "SYMBOL_EXPLICITLY_EXCLUDED_BY_OPERATOR:TRUMPUSDT" in blocked[0]["entry_gate_block_reasons"]
-    assert status["paper_audit_entry_gate_status"]["audit_symbol_block_count"] == 1
+    assert (
+        "SYMBOL_EXPLICITLY_EXCLUDED_BY_OPERATOR:TRUMPUSDT"
+        not in blocked[0]["entry_gate_block_reasons"]
+    )
+    assert "ADAPTIVE_TUNING_AUTHORITY_NOT_VALID" in blocked[0]["entry_gate_block_reasons"]
+    assert status["paper_audit_entry_gate_status"]["audit_symbol_block_count"] == 0
     assert status["paper_audit_entry_gate_status"]["live_path_changed"] is False
     assert all(row.get("signal_id") != signal["signal_id"] for row in ledger["accepted"])
 
@@ -386,9 +399,7 @@ def test_no_trade_mode_never_submits_new_paper_fill(monkeypatch) -> None:
     status = paper.run_once()
 
     ledger = json.loads(fake.store["v2:paper:ledger"])
-    blocked_short = [
-        row for row in ledger["blocked"] if row.get("signal_id") == "signal-short"
-    ]
+    blocked_short = [row for row in ledger["blocked"] if row.get("signal_id") == "signal-short"]
     assert status["intents_accepted"] == 0
     assert status["intents_blocked"] >= 1
     assert ledger["current_cycle_accepted_count"] == 0
@@ -748,6 +759,38 @@ def test_stale_predictions_excluded_from_paper_candidates() -> None:
     assert rows == []
 
 
+def _strategy_mode_opportunity_supply_evidence(
+    paper,
+    *,
+    trend_count: int,
+    mean_reversion_count: int,
+) -> dict:
+    rows = []
+    modes = ["trend_mode"] * trend_count + ["mean_reversion_mode"] * mean_reversion_count
+    for index, mode in enumerate(modes):
+        rows.append(
+            {
+                "source_id": f"opportunity-{index}",
+                "signal_id": f"signal-{index}",
+                "prediction_id": f"prediction-{index}",
+                "symbol": f"COIN{index}USDT",
+                "timeframe": "1m",
+                "strategy_mode": mode,
+                "feature_cutoff": "2026-07-17T00:00:00Z",
+                "available_at": "2026-07-17T00:00:01Z",
+                "decision_time": "2026-07-17T00:00:02Z",
+                "source_generated_at": "2026-07-17T00:00:02Z",
+                "source_expires_at": "2026-07-17T01:00:02Z",
+                "adaptive_stale_seconds": 3600,
+            }
+        )
+    return paper._paper_strategy_mode_opportunity_supply_evidence(  # noqa: SLF001
+        rows,
+        generated_at="2026-07-17T00:00:03Z",
+        available_at="2026-07-17T00:00:03Z",
+    )
+
+
 def test_strategy_mode_collapse_guard_blocks_majority_mode_only() -> None:
     paper = importlib.import_module("v2.backend.app.cli.v2_trade_management_paper_loop")
     ledger = {
@@ -767,7 +810,155 @@ def test_strategy_mode_collapse_guard_blocks_majority_mode_only() -> None:
     assert trend_guard["block_reason"] == paper.STRATEGY_MODE_COLLAPSE_BLOCK_REASON
     assert trend_guard["top_mode"] == "trend_mode"
     assert trend_guard["top_mode_share"] == 1.0
+    assert trend_guard["opportunity_supply_status"] == "FALLBACK_CURRENT_POLICY"
+    assert trend_guard["opportunity_supply_fallback_reasons"] == [
+        "OPPORTUNITY_SUPPLY_EVIDENCE_MISSING"
+    ]
     assert mean_reversion_guard["allowed"] is True
+    assert mean_reversion_guard["minority_mode_force_enabled"] is False
+    assert mean_reversion_guard["forced_trade"] is False
+
+
+def test_strategy_mode_collapse_adapts_to_balanced_pit_opportunity_supply() -> None:
+    paper = importlib.import_module("v2.backend.app.cli.v2_trade_management_paper_loop")
+    ledger = {
+        "closed_trades": [{"strategy_selected_mode": "trend_mode"} for _ in range(45)]
+        + [{"strategy_selected_mode": "mean_reversion_mode"} for _ in range(5)]
+    }
+    supply = _strategy_mode_opportunity_supply_evidence(
+        paper,
+        trend_count=25,
+        mean_reversion_count=25,
+    )
+
+    trend_guard = paper._paper_strategy_mode_collapse_guard(  # noqa: SLF001
+        ledger,
+        "trend_mode",
+        opportunity_supply_evidence=supply,
+        observed_at="2026-07-17T00:00:04Z",
+    )
+    minority_guard = paper._paper_strategy_mode_collapse_guard(  # noqa: SLF001
+        ledger,
+        "mean_reversion_mode",
+        opportunity_supply_evidence=supply,
+        observed_at="2026-07-17T00:00:04Z",
+    )
+
+    assert trend_guard["opportunity_supply_status"] == "PIT_EVIDENCE_VALID_ADAPTIVE"
+    assert trend_guard["opportunity_supply_fallback_reasons"] == []
+    assert trend_guard["opportunity_mode_shares"] == {
+        "mean_reversion_mode": 0.5,
+        "trend_mode": 0.5,
+    }
+    assert trend_guard["selected_major_mode_share_ceiling"] < 0.80
+    assert trend_guard["adaptive_ceiling_never_above_static_max"] is True
+    assert trend_guard["credible_excess_concentration"] is True
+    assert trend_guard["allowed"] is False
+    assert trend_guard["block_reason"] == paper.STRATEGY_MODE_COLLAPSE_BLOCK_REASON
+    assert minority_guard["allowed"] is True
+    assert minority_guard["blocking_scope"] == "DOMINANT_MODE_CANDIDATE_ONLY"
+    assert minority_guard["minority_mode_force_enabled"] is False
+    assert minority_guard["forced_trade"] is False
+
+
+def test_strategy_mode_collapse_preserves_credible_skewed_opportunity_supply() -> None:
+    paper = importlib.import_module("v2.backend.app.cli.v2_trade_management_paper_loop")
+    ledger = {
+        "closed_trades": [{"strategy_selected_mode": "trend_mode"} for _ in range(45)]
+        + [{"strategy_selected_mode": "mean_reversion_mode"} for _ in range(5)]
+    }
+    supply = _strategy_mode_opportunity_supply_evidence(
+        paper,
+        trend_count=45,
+        mean_reversion_count=5,
+    )
+
+    guard = paper._paper_strategy_mode_collapse_guard(  # noqa: SLF001
+        ledger,
+        "trend_mode",
+        opportunity_supply_evidence=supply,
+        observed_at="2026-07-17T00:00:04Z",
+    )
+
+    assert guard["opportunity_supply_status"] == "PIT_EVIDENCE_VALID_ADAPTIVE"
+    assert guard["selected_major_mode_share_ceiling"] <= 0.80
+    assert guard["selected_major_mode_share_ceiling"] == 0.80
+    assert guard["static_major_mode_threshold_exceeded"] is True
+    assert guard["credible_excess_concentration"] is False
+    assert guard["strategy_mode_collapse_detected"] is False
+    assert guard["allowed"] is True
+
+
+def test_strategy_mode_collapse_insufficient_supply_falls_back_to_current_policy() -> None:
+    paper = importlib.import_module("v2.backend.app.cli.v2_trade_management_paper_loop")
+    ledger = {
+        "closed_trades": [{"strategy_selected_mode": "trend_mode"} for _ in range(45)]
+        + [{"strategy_selected_mode": "mean_reversion_mode"} for _ in range(5)]
+    }
+    supply = _strategy_mode_opportunity_supply_evidence(
+        paper,
+        trend_count=5,
+        mean_reversion_count=5,
+    )
+
+    guard = paper._paper_strategy_mode_collapse_guard(  # noqa: SLF001
+        ledger,
+        "trend_mode",
+        opportunity_supply_evidence=supply,
+        observed_at="2026-07-17T00:00:04Z",
+    )
+
+    assert guard["opportunity_supply_status"] == "FALLBACK_CURRENT_POLICY"
+    assert (
+        "OPPORTUNITY_SUPPLY_SAMPLE_BELOW_CLOSED_POLICY_MINIMUM"
+        in guard["opportunity_supply_fallback_reasons"]
+    )
+    assert guard["selected_major_mode_share_ceiling"] == 0.80
+    assert guard["allowed"] is False
+
+
+def test_strategy_mode_collapse_stale_or_tampered_supply_falls_back() -> None:
+    paper = importlib.import_module("v2.backend.app.cli.v2_trade_management_paper_loop")
+    ledger = {
+        "closed_trades": [{"strategy_selected_mode": "trend_mode"} for _ in range(45)]
+        + [{"strategy_selected_mode": "mean_reversion_mode"} for _ in range(5)]
+    }
+    supply = _strategy_mode_opportunity_supply_evidence(
+        paper,
+        trend_count=25,
+        mean_reversion_count=25,
+    )
+    stale_guard = paper._paper_strategy_mode_collapse_guard(  # noqa: SLF001
+        ledger,
+        "trend_mode",
+        opportunity_supply_evidence=supply,
+        observed_at="2026-07-17T01:00:02Z",
+    )
+    tampered_supply = json.loads(json.dumps(supply))
+    tampered_supply["source_rows"][0]["strategy_mode"] = "breakout_mode"
+    tampered_guard = paper._paper_strategy_mode_collapse_guard(  # noqa: SLF001
+        ledger,
+        "trend_mode",
+        opportunity_supply_evidence=tampered_supply,
+        observed_at="2026-07-17T00:00:04Z",
+    )
+
+    assert stale_guard["opportunity_supply_status"] == "FALLBACK_CURRENT_POLICY"
+    assert (
+        "OPPORTUNITY_SUPPLY_STALE_AT_OBSERVATION"
+        in stale_guard["opportunity_supply_fallback_reasons"]
+    )
+    assert stale_guard["allowed"] is False
+    assert tampered_guard["opportunity_supply_status"] == "FALLBACK_CURRENT_POLICY"
+    assert any(
+        reason.startswith("OPPORTUNITY_SUPPLY_ROW_HASH_INVALID")
+        for reason in tampered_guard["opportunity_supply_fallback_reasons"]
+    )
+    assert (
+        "OPPORTUNITY_SUPPLY_SOURCE_HASH_INVALID"
+        in tampered_guard["opportunity_supply_fallback_reasons"]
+    )
+    assert tampered_guard["allowed"] is False
 
 
 def test_strategy_mode_collapse_guard_switches_to_active_policy_cohort() -> None:
@@ -827,8 +1018,7 @@ def test_strategy_mode_collapse_guard_uses_history_until_active_policy_sample_re
     paper = importlib.import_module("v2.backend.app.cli.v2_trade_management_paper_loop")
     ledger = {
         "closed_trades": [
-            {"strategy_selected_mode": "trend_mode", "side": "long"}
-            for _ in range(80)
+            {"strategy_selected_mode": "trend_mode", "side": "long"} for _ in range(80)
         ]
         + [
             {
@@ -899,10 +1089,16 @@ def test_paper_sizing_fails_closed_for_legacy_unversioned_adaptive_allocation() 
 
     assert intent["paper_sizing_source"] == "V2_ADAPTIVE_ALLOCATOR_INCOMPLETE_ATTRIBUTION"
     assert intent["paper_sizing_complete"] is False
-    assert intent["paper_allocation_block_reason"] == paper.ADAPTIVE_ALLOCATION_ATTRIBUTION_BLOCK_REASON
+    assert (
+        intent["paper_allocation_block_reason"]
+        == paper.ADAPTIVE_ALLOCATION_ATTRIBUTION_BLOCK_REASON
+    )
     assert "adaptive_capital_policy_version" in intent["paper_allocation_missing_fields"]
     assert "risk_budget_usd" in intent["paper_allocation_missing_fields"]
-    assert intent["strategy_size_multiplier_skipped_reason"] == "ADAPTIVE_ALLOCATION_BLOCKED_OR_INCOMPLETE"
+    assert (
+        intent["strategy_size_multiplier_skipped_reason"]
+        == "ADAPTIVE_ALLOCATION_BLOCKED_OR_INCOMPLETE"
+    )
     assert intent["quantity"] == 1.0
     assert intent["notional"] == 100.0
 
@@ -946,7 +1142,10 @@ def test_paper_sizing_fails_closed_without_selection_model_input_attribution() -
 
     assert intent["paper_sizing_source"] == "V2_ADAPTIVE_ALLOCATOR_INCOMPLETE_ATTRIBUTION"
     assert intent["paper_sizing_complete"] is False
-    assert intent["paper_allocation_block_reason"] == paper.ADAPTIVE_ALLOCATION_ATTRIBUTION_BLOCK_REASON
+    assert (
+        intent["paper_allocation_block_reason"]
+        == paper.ADAPTIVE_ALLOCATION_ATTRIBUTION_BLOCK_REASON
+    )
     assert intent["paper_allocation_missing_fields"] == [
         "leverage_selection_model_input",
         "margin_mode_selection_model_input",
@@ -1084,7 +1283,9 @@ def test_strategy_size_multiplier_rescales_adaptive_capital_accounting() -> None
     assert intent["adaptive_allocation"]["allocator_regime_score_source"] == (
         "strategy_router_regime_labels"
     )
-    assert intent["adaptive_allocation"]["allocator_regime_score_reason"] == "REGIME_LABEL_CHOP_RANGE"
+    assert (
+        intent["adaptive_allocation"]["allocator_regime_score_reason"] == "REGIME_LABEL_CHOP_RANGE"
+    )
     assert intent["adaptive_allocation"]["model_inputs"]["allocator_liquidity_score"] == 0.65
     assert intent["adaptive_allocation"]["model_inputs"]["allocator_regime_score"] == 0.75
     assert intent["quantity"] == 5.0
@@ -1257,10 +1458,19 @@ def test_build_allocation_input_derives_liquidity_and_regime_scores_from_context
         },
     )
 
-    assert row.liquidity_score == 0.65
+    assert row.liquidity_score == 0.0
     assert row.regime_score == 0.75
     assert intent["allocator_liquidity_score"] == 0.65
-    assert intent["allocator_liquidity_score_source"] == "market_microstructure.orderbook_depth_usd+spread_bps"
+    assert intent["allocator_liquidity_score_before_microstructure_trust_gate"] == 0.65
+    assert intent["allocator_liquidity_score_after_microstructure_trust_gate"] == 0.0
+    assert intent["allocator_microstructure_trust_gate_status"] == (
+        "BLOCKED_MISSING_MICROSTRUCTURE_TRUST_SCORE"
+    )
+    assert intent["allocator_microstructure_block_reason"] == ("MICROSTRUCTURE_TRUST_SCORE_MISSING")
+    assert (
+        intent["allocator_liquidity_score_source"]
+        == "market_microstructure.orderbook_depth_usd+spread_bps"
+    )
     assert intent["allocator_liquidity_score_reason"] == "DERIVED_FROM_ORDERBOOK_DEPTH_AND_SPREAD"
     assert intent["allocator_regime_score"] == 0.75
     assert intent["allocator_regime_score_source"] == "strategy_router_regime_labels"
@@ -1447,8 +1657,7 @@ def test_paper_drawdown_recovery_allows_clean_minority_side_reduce_size() -> Non
     paper = importlib.import_module("v2.backend.app.cli.v2_trade_management_paper_loop")
     ledger = {
         "closed_trades": [
-            {"side": "short", "strategy_selected_mode": "trend_mode"}
-            for _ in range(60)
+            {"side": "short", "strategy_selected_mode": "trend_mode"} for _ in range(60)
         ],
         "open_positions": [],
     }
@@ -1491,8 +1700,7 @@ def test_paper_drawdown_recovery_allows_clean_short_downside_edge() -> None:
     paper = importlib.import_module("v2.backend.app.cli.v2_trade_management_paper_loop")
     ledger = {
         "closed_trades": [
-            {"side": "long", "strategy_selected_mode": "trend_mode"}
-            for _ in range(60)
+            {"side": "long", "strategy_selected_mode": "trend_mode"} for _ in range(60)
         ],
         "open_positions": [],
     }
@@ -1531,8 +1739,7 @@ def test_paper_drawdown_recovery_tightens_confidence_floor_under_severe_drawdown
     paper = importlib.import_module("v2.backend.app.cli.v2_trade_management_paper_loop")
     ledger = {
         "closed_trades": [
-            {"side": "short", "strategy_selected_mode": "trend_mode"}
-            for _ in range(60)
+            {"side": "short", "strategy_selected_mode": "trend_mode"} for _ in range(60)
         ],
         "open_positions": [],
     }
@@ -1570,8 +1777,7 @@ def test_paper_drawdown_recovery_blocks_same_side_open_position() -> None:
     paper = importlib.import_module("v2.backend.app.cli.v2_trade_management_paper_loop")
     ledger = {
         "closed_trades": [
-            {"side": "short", "strategy_selected_mode": "trend_mode"}
-            for _ in range(60)
+            {"side": "short", "strategy_selected_mode": "trend_mode"} for _ in range(60)
         ],
         "open_positions": [{"symbol": "ETHUSDT", "side": "long", "net_quantity": 1.0}],
     }
@@ -1685,26 +1891,51 @@ def test_run_once_strategy_mode_collapse_blocks_majority_mode_fill(monkeypatch) 
     monkeypatch.setattr(paper, "_connect_redis", lambda: fake)
     monkeypatch.setattr(paper, "_read_lifecycle_state_file", lambda *a, **kw: {})
     monkeypatch.setattr(paper, "_read_accepted_fill_state_file", lambda *a, **kw: {})
+    original_route_strategy = paper.route_strategy
+
+    def _explicit_trend_route(**kwargs):
+        routed = original_route_strategy(**kwargs)
+        routed.update(
+            {
+                "selected_mode": "trend_mode",
+                "strategy_mode": "trend_mode",
+                "allowed_actions": ["hold", "long"],
+                "action_mask": {
+                    "hold": True,
+                    "long": True,
+                    "short": False,
+                    "close": False,
+                },
+                "block_reason": None,
+                "regime_labels": ["TREND"],
+            }
+        )
+        return routed
+
+    monkeypatch.setattr(paper, "route_strategy", _explicit_trend_route)
 
     status = paper.run_once()
     ledger = json.loads(fake.store["v2:paper:ledger"])
-    blocked = [
-        row for row in ledger["blocked"] if row.get("signal_id") == "signal-trend-long"
-    ]
+    blocked = [row for row in ledger["blocked"] if row.get("signal_id") == "signal-trend-long"]
 
     assert status["intents_accepted"] == 0
     assert ledger["current_cycle_accepted_count"] == 0
     assert len(blocked) == 1
-    assert blocked[0]["paper_fill_block_reason"] == paper.STRATEGY_MODE_COLLAPSE_BLOCK_REASON
+    # The semantically invalid/missing adaptive-tuner authority is the earlier
+    # P0 reason in this minimal fixture. The mode guard must still append its
+    # independent blocker and report the dominant-mode rejection below.
+    assert blocked[0]["paper_fill_block_reason"] == "P0_ENTRY_GATE_BLOCKED"
     assert "paper_strategy_mode_collapse_guard" not in blocked[0]
-    assert f"strategy_mode_collapse_guard:{paper.STRATEGY_MODE_COLLAPSE_BLOCK_REASON}" in blocked[0][
-        "local_block_reasons"
-    ]
     assert (
-        status["paper_strategy_mode_collapse_guard_status"]["blocked_majority_mode_fill_count"]
-        == 1
+        f"strategy_mode_collapse_guard:{paper.STRATEGY_MODE_COLLAPSE_BLOCK_REASON}"
+        in blocked[0]["local_block_reasons"]
     )
-    assert status["paper_directional_collapse_guard_status"]["blocked_majority_side_fill_count"] == 0
+    assert (
+        status["paper_strategy_mode_collapse_guard_status"]["blocked_majority_mode_fill_count"] == 1
+    )
+    assert (
+        status["paper_directional_collapse_guard_status"]["blocked_majority_side_fill_count"] == 0
+    )
 
 
 def test_quarantined_feedback_reports_exact_missing_field() -> None:
@@ -2018,9 +2249,12 @@ def test_mismatched_embedded_replay_feature_snapshot_is_not_trust_evidence() -> 
         },
     }
 
-    assert paper._feature_snapshots_from_replay_predictions(  # noqa: SLF001
-        {"pred_1": replay_prediction}
-    ) == {}
+    assert (
+        paper._feature_snapshots_from_replay_predictions(  # noqa: SLF001
+            {"pred_1": replay_prediction}
+        )
+        == {}
+    )
 
 
 def test_pre_remediation_fill_missing_feature_snapshot_is_noncritical_stale_lineage() -> None:
@@ -2088,7 +2322,10 @@ def test_pre_remediation_fill_missing_feature_snapshot_is_noncritical_stale_line
     assert rows[0]["missing_feedback_fields"] == ["feature_snapshot_id"]
     assert "stale_lineage" in rows[0]["missing_feedback_classifications"]
     assert "trust:missing_trust_feature_snapshot_id" in rows[0]["missing_feedback_classifications"]
-    assert "trust:trust_reconstruction:entry_prediction_not_found" in rows[0]["missing_feedback_classifications"]
+    assert (
+        "trust:trust_reconstruction:entry_prediction_not_found"
+        in rows[0]["missing_feedback_classifications"]
+    )
     assert rows[0]["quarantine_non_critical"] is False
     assert rows[0]["non_critical_quarantine_reason"] is None
 
@@ -2158,7 +2395,10 @@ def test_execution_success_metrics_use_closed_trade_outcomes_before_blocked_cand
     metrics = paper._read_recent_execution_metrics(fake)  # noqa: SLF001
 
     assert metrics["execution_success_probability"] == 0.666667
-    assert metrics["execution_success_metric_source"] == "V2_PAPER_CLOSED_TRADE_OUTCOMES_ALPHA_COMPLETE"
+    assert (
+        metrics["execution_success_metric_source"]
+        == "V2_PAPER_CLOSED_TRADE_OUTCOMES_ALPHA_COMPLETE"
+    )
     assert metrics["execution_success_sample_status"] == "ALPHA_COMPLETE_OUTCOME_SAMPLE"
     assert metrics["closed_trade_outcome_count"] == 3
     assert metrics["clean_closed_trade_outcome_count"] == 3
@@ -2249,8 +2489,12 @@ def test_paper_loop_quarantines_incomplete_trainer_feedback_rows(monkeypatch) ->
     assert ledger["trainer_feedback_quarantined_row_count"] == 1
     assert ledger["paper_closed_trade_outcome_label_status"]["trainer_feedback_total_rows"] == 1
     assert ledger["paper_closed_trade_outcome_label_status"]["trainer_feedback_rows_ready"] == 0
-    assert ledger["paper_closed_trade_outcome_label_status"]["trainer_feedback_consumable_rows"] == 0
-    assert ledger["paper_closed_trade_outcome_label_status"]["trainer_feedback_quarantined_rows"] == 1
+    assert (
+        ledger["paper_closed_trade_outcome_label_status"]["trainer_feedback_consumable_rows"] == 0
+    )
+    assert (
+        ledger["paper_closed_trade_outcome_label_status"]["trainer_feedback_quarantined_rows"] == 1
+    )
 
     trade_management_status = json.loads(fake.store["v2:paper:trade_management:status"])
     outcome_status = trade_management_status["paper_closed_trade_outcome_label_status"]
@@ -2354,10 +2598,14 @@ def test_candidate_correlation_context_fails_closed_when_candidate_candles_are_s
     stale_returns = [0.001, -0.0005, 0.0007, -0.0002] * 10
     fresh_returns = [0.001, -0.001, 0.001, -0.001] * 10
     fake.store["v2:market:ohlcv_closed:binance:ALPHAUSDT:1m"] = json.dumps(
-        _closed_candles_from_returns("ALPHAUSDT", stale_returns, start_ms=_ms("2026-06-15T16:00:00Z"))
+        _closed_candles_from_returns(
+            "ALPHAUSDT", stale_returns, start_ms=_ms("2026-06-15T16:00:00Z")
+        )
     )
     fake.store["v2:market:ohlcv_closed:binance:BETAUSDT:1m"] = json.dumps(
-        _closed_candles_from_returns("BETAUSDT", fresh_returns, start_ms=_ms("2026-06-20T00:30:00Z"))
+        _closed_candles_from_returns(
+            "BETAUSDT", fresh_returns, start_ms=_ms("2026-06-20T00:30:00Z")
+        )
     )
 
     contexts = paper._derive_candidate_correlation_contexts(  # noqa: SLF001
@@ -2369,7 +2617,9 @@ def test_candidate_correlation_context_fails_closed_when_candidate_candles_are_s
 
     assert contexts["ALPHAUSDT"]["correlation_exposure_pct"] == 1.0
     assert contexts["ALPHAUSDT"]["correlation_input_status"] == "STALE_LAST_CANDLE"
-    assert contexts["ALPHAUSDT"]["correlation_input_source"] == "MISSING_CANDIDATE_RETURNS_FAIL_CLOSED"
+    assert (
+        contexts["ALPHAUSDT"]["correlation_input_source"] == "MISSING_CANDIDATE_RETURNS_FAIL_CLOSED"
+    )
 
 
 def test_market_state_envelope_prefers_prediction_decision_time_over_stale_signal_time() -> None:

@@ -23,10 +23,12 @@ local/manual tests; synthetic data is written to
 v2:liquidation:enhanced:synthetic:{symbol}.
 """
 
-import json, logging, time, signal, sys, random, math
-from typing import Dict, Any, List, Tuple, Optional
+import json, logging, time, signal, sys, random
+from typing import Dict, Any, List, Tuple
 from datetime import datetime, timezone
 import redis
+
+from v2.backend.app.services.microstructure_trust.feed_quality import parse_time_ms, utc_now_ms
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -35,6 +37,7 @@ DEFAULT_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'XRPUSDT', 'SOLUSDT']
 
 REDIS_URL = "redis://localhost:6379/0"
 TTL_SECONDS = 300  # 5 minutes (real-time like orderbook)
+VALIDATED_SURFACE_SEMANTIC_KIND = "estimated_open_position_liquidation_surface"
 
 
 def _num(value):
@@ -46,6 +49,12 @@ def _num(value):
     except (TypeError, ValueError):
         return None
     return n if n == n and abs(n) != float("inf") else None
+
+
+def _truthy(value: Any) -> bool:
+    return value is True or value == 1 or str(value or "").strip().lower() in {
+        "1", "true", "yes", "on",
+    }
 
 
 def _resolve_adaptive_symbols(fallback: list) -> list:
@@ -116,8 +125,8 @@ class EnhancedLiquidationCalculator:
             liquidation_level_short = value('liq_level_short')
             if (
                 current_price <= 0
-                or long_open_interest < 0
-                or short_open_interest < 0
+                or long_open_interest <= 0
+                or short_open_interest <= 0
                 or liquidation_level_long <= 0
                 or liquidation_level_short <= 0
             ):
@@ -129,8 +138,7 @@ class EnhancedLiquidationCalculator:
             distance_to_long_liq = abs(current_price - liquidation_level_long)
             distance_to_short_liq = abs(current_price - liquidation_level_short)
             
-            total_oi = long_open_interest + short_open_interest
-            oi_ratio = long_open_interest / max(short_open_interest, 1)
+            oi_ratio = long_open_interest / short_open_interest
             
             # Imbalanced OI increases cascade risk
             imbalance_factor = abs(oi_ratio - 1.0) / max(oi_ratio, 1.0)
@@ -160,11 +168,8 @@ class EnhancedLiquidationCalculator:
             metrics['liquidation_count_1m'] = float(liquidation_count_1m)
             metrics['liquidation_volume_1m'] = liquidation_volume_1m
             
-            # Velocity acceleration (increasing trend)
-            velocity_trend = 1.0 if liquidation_count_1m > 25 else 0.5 if liquidation_count_1m > 10 else 0.0
-            
             # 3. Long/Short Ratio Dynamics (3 fields)
-            metrics['long_short_ratio'] = long_open_interest / max(short_open_interest, 1)
+            metrics['long_short_ratio'] = long_open_interest / short_open_interest
             
             # Ratio change indicator (0 = balanced, 1 = extreme long bias, -1 = extreme short bias)
             ratio = metrics['long_short_ratio']
@@ -182,19 +187,9 @@ class EnhancedLiquidationCalculator:
                 ratio_strength = min(1.0, (1.0 - ratio))
             metrics['long_short_ratio_strength'] = ratio_strength
             
-            # 4. Liquidation Zones (2 fields)
-            # Predict the next liquidation levels
-            price_range = current_price * 0.05  # 5% buffer
-            
-            # Long liquidation zone (below current price)
-            long_liq_zone = current_price - price_range
-            metrics['predicted_long_liq_zone'] = long_liq_zone
-            
-            # Short liquidation zone (above current price)
-            short_liq_zone = current_price + price_range
-            metrics['predicted_short_liq_zone'] = short_liq_zone
-            
-            # 5. Market Stress Indicator (1 field)
+            # 4. Market Stress Indicator (1 field). No price +/- percentage
+            # is emitted as a predicted liquidation zone: that would not be
+            # an estimator of open-position liquidation thresholds.
             # Composite of cascade + velocity + ratio imbalance
             cascade_stress = cascade_probability
             velocity_stress = min(1.0, liquidation_count_1m / 100)
@@ -269,14 +264,16 @@ class EnhancedLiquidationIngestor:
                 'liquidation_count_1m': random.randint(5, 50),
                 'liquidation_volume_1m': random.uniform(100000, 10000000),
             }
-        # REAL source: the ingested liquidation-levels engine + the CoinAnk
-        # liquidation bridge. Fails closed (returns {}) if neither has data.
+        # A production feature requires a validated, forward-looking open-
+        # position liquidation surface plus truthful side-split OI and exact
+        # one-minute activity windows. Realized forced-order clusters are
+        # retrospective evidence and cannot satisfy this contract.
         try:
             if self.redis is None:
                 return {}
             levels = self._read_liquidation_levels(symbol)
             coinank = self._read_coinank_features(symbol)
-            if not levels and not coinank:
+            if not levels or not coinank:
                 return {}
             price = None
             if levels:
@@ -287,19 +284,33 @@ class EnhancedLiquidationIngestor:
                 if pr:
                     book = json.loads(pr)
                     price = _num(book.get("mid") or book.get("bid_ask_mid"))
-            long_turn = _num(coinank.get("coinank_liquidation_long_turnover")) or 0.0
-            short_turn = _num(coinank.get("coinank_liquidation_short_turnover")) or 0.0
+            if str(coinank.get("coinank_open_interest_side_semantics") or "") != (
+                "split_long_short_open_interest"
+            ):
+                return {}
+            if int(_num(levels.get("liquidation_activity_window_seconds")) or 0) != 60:
+                return {}
+            long_oi = _num(coinank.get("coinank_long_open_interest"))
+            short_oi = _num(coinank.get("coinank_short_open_interest"))
+            count_1m = _num(levels.get("liquidation_count_1m"))
+            volume_1m = _num(levels.get("liquidation_volume_1m"))
+            if any(value is None for value in (long_oi, short_oi, count_1m, volume_1m)):
+                return {}
             data = {
-                'price': price or 0.0,
-                'long_oi': _num(coinank.get("coinank_open_interest")) or 0.0,
-                'short_oi': _num(coinank.get("coinank_open_interest")) or 0.0,
-                'liq_level_long': _num(levels.get("liquidation_long_level")) or 0.0,
-                'liq_level_short': _num(levels.get("liquidation_short_level")) or 0.0,
-                'liquidation_count_1m': int(_num(levels.get("liquidation_count_5m")) or 0),
-                'liquidation_volume_1m': long_turn + short_turn,
+                'price': price,
+                'long_oi': long_oi,
+                'short_oi': short_oi,
+                'liq_level_long': _num(levels.get("liquidation_long_level")),
+                'liq_level_short': _num(levels.get("liquidation_short_level")),
+                'liquidation_count_1m': count_1m,
+                'liquidation_volume_1m': volume_1m,
                 'liquidation_cascade_risk': _num(levels.get("liquidation_cascade_risk")),
                 'liquidation_pressure_direction': levels.get("liquidation_pressure_direction"),
                 'coinank_liquidation_imbalance_usd': _num(coinank.get("coinank_liquidation_imbalance_usd")),
+                'event_time': levels.get("event_time"),
+                'feature_cutoff': levels.get("feature_cutoff"),
+                'ingested_at': levels.get("ingested_at"),
+                'available_at': levels.get("available_at"),
                 '_real': True,
             }
             return data
@@ -308,7 +319,7 @@ class EnhancedLiquidationIngestor:
             return {}
 
     def _read_liquidation_levels(self, symbol: str) -> Dict[str, Any]:
-        """Freshest v2:liquidations:levels:{symbol}:{tf} row across timeframes."""
+        """Return only a validated PIT-safe estimated liquidation surface."""
         if self.redis is None:
             return {}
         for tf in ("1m", "5m", "15m", "1h"):
@@ -316,11 +327,46 @@ class EnhancedLiquidationIngestor:
                 raw = self.redis.get(f"v2:liquidations:levels:{symbol}:{tf}")
                 if raw:
                     payload = json.loads(raw)
-                    if isinstance(payload, dict):
+                    if isinstance(payload, dict) and self._validated_surface(payload):
                         return payload
             except Exception:
                 continue
         return {}
+
+    @staticmethod
+    def _validated_surface(payload: Dict[str, Any]) -> bool:
+        if str(payload.get("liquidation_semantic_kind") or "") != VALIDATED_SURFACE_SEMANTIC_KIND:
+            return False
+        if not _truthy(payload.get("liquidation_surface_validated")):
+            return False
+        if not _truthy(payload.get("liquidation_observation_coverage_complete")):
+            return False
+        if not _truthy(payload.get("liquidation_current_price_execution_grade")):
+            return False
+        if _truthy(payload.get("liquidation_is_stale")):
+            return False
+        clocks = [
+            parse_time_ms(payload.get(field))
+            for field in (
+                "event_time", "feature_cutoff", "ingested_at", "available_at"
+            )
+        ]
+        if any(clock is None for clock in clocks):
+            return False
+        event_ms, cutoff_ms, ingested_ms, available_ms = clocks
+        if not (
+            event_ms <= cutoff_ms <= ingested_ms <= available_ms <= utc_now_ms()
+        ):
+            return False
+        price = _num(payload.get("liquidation_current_price"))
+        long_level = _num(payload.get("liquidation_long_level"))
+        short_level = _num(payload.get("liquidation_short_level"))
+        return bool(
+            price is not None
+            and long_level is not None
+            and short_level is not None
+            and 0 < long_level < price < short_level
+        )
 
     def _read_coinank_features(self, symbol: str) -> Dict[str, Any]:
         """CoinAnk per-symbol liquidation features (v2:coinank:symbol:{symbol})."""
@@ -356,20 +402,26 @@ class EnhancedLiquidationIngestor:
             if is_real:
                 metrics.update({
                     "synthetic_data": False,
-                    "actual_payload_present": True,
-                    "excluded_from_training": False,
+                    "actual_payload_present": False,
+                    "excluded_from_training": True,
+                    "exclusion_reason": "UNVALIDATED_ENHANCED_LIQUIDATION_ESTIMATOR_SHADOW_ONLY",
                     "source": "liquidation_levels_engine+coinank_bridge",
+                    "semantic_kind": "enhanced_liquidation_candidate_shadow_only",
+                    "event_time": data.get("event_time"),
+                    "feature_cutoff": data.get("feature_cutoff"),
+                    "ingested_at": data.get("ingested_at"),
+                    "available_at": data.get("available_at"),
                     "generated_utc": datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z"),
                 })
-                key = f"v2:liquidation:enhanced:{symbol}"
+                key = f"v2:liquidation:enhanced:shadow:{symbol}"
                 self.redis.setex(key, TTL_SECONDS, json.dumps(metrics))
                 self._publish_status(
                     symbol,
-                    status="REAL_LIQUIDATION_PUBLISHED",
-                    message=f"Real enhanced liquidation metrics written to {key}.",
+                    status="BLOCKED_UNVALIDATED_ENHANCED_ESTIMATOR_SHADOW_ONLY",
+                    message=f"Candidate metrics written only to {key}; actual feature key was not updated.",
                 )
-                logger.info(f"✅ Wrote {len(metrics)} REAL enhanced liquidation metrics for {symbol} to {key}")
-                return True
+                logger.warning(f"Blocked trainer publication; wrote shadow-only liquidation candidate to {key}")
+                return False
 
             metrics.update({
                 "synthetic_data": True,
@@ -424,10 +476,10 @@ class EnhancedLiquidationIngestor:
             symbols: List of trading pairs
             interval: Seconds between cycles (default 60s, real-time)
         """
-        logger.info(f"🚀 Starting Enhanced Liquidation Detector")
+        logger.info("🚀 Starting Enhanced Liquidation Detector")
         logger.info(f"   Symbols: {len(symbols)}")
         logger.info(f"   Interval: {interval}s")
-        logger.info(f"   Output: v2:liquidation:enhanced:{{symbol}}")
+        logger.info("   Output: v2:liquidation:enhanced:{symbol}")
         logger.info(f"   TTL: {TTL_SECONDS}s")
         
         running = True

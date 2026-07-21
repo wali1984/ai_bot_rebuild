@@ -17,6 +17,7 @@ EXIT CODE: 0 = all 16 gates pass (verifier writes COMPLETE to GOAL_STATE)
 from __future__ import annotations
 
 import json
+import math
 import sys
 import time
 from datetime import datetime, timezone
@@ -348,6 +349,52 @@ def check_gates() -> list[dict]:
         mi = aa.get("model_inputs") or {}
         return mi.get(field) is not None
 
+    def _number(*values):
+        for value in values:
+            try:
+                parsed = float(value)
+            except (TypeError, ValueError):
+                continue
+            if math.isfinite(parsed):
+                return parsed
+        return None
+
+    def _capital_invariant_violation(trade: dict) -> dict | None:
+        aa = trade.get("adaptive_allocation") or {}
+        notional = _number(
+            trade.get("gross_notional_usd"),
+            trade.get("notional_usd"),
+            trade.get("notional_usdt"),
+            trade.get("notional"),
+            aa.get("gross_notional_usd"),
+            aa.get("target_notional_usd"),
+            aa.get("target_notional_usdt"),
+        )
+        margin = _number(trade.get("allocated_margin_usd"), aa.get("allocated_margin_usd"))
+        leverage = _number(trade.get("effective_leverage"), aa.get("effective_leverage"))
+        if notional is None or margin is None or leverage is None:
+            return {
+                "position_id": trade.get("position_id"),
+                "symbol": trade.get("symbol"),
+                "reason": "CAPITAL_VALUE_MISSING_OR_NON_NUMERIC",
+            }
+        expected_notional = margin * leverage
+        error = abs(notional - expected_notional)
+        tolerance = max(0.02, abs(notional) * 1e-6)
+        if notional <= 0.0 or margin <= 0.0 or leverage < 1.0 or error > tolerance:
+            return {
+                "position_id": trade.get("position_id"),
+                "symbol": trade.get("symbol"),
+                "notional_usd": notional,
+                "allocated_margin_usd": margin,
+                "effective_leverage": leverage,
+                "implied_notional_usd": expected_notional,
+                "absolute_error_usd": error,
+                "tolerance_usd": tolerance,
+                "reason": "NOTIONAL_MARGIN_LEVERAGE_INVARIANT_FAILED",
+            }
+        return None
+
     post_policy_trades = [
         t for t in strict_current_closed_trades
         if (t.get("exit_price_utc") or "") >= POST_POLICY_CUTOFF
@@ -357,16 +404,32 @@ def check_gates() -> list[dict]:
             f: sum(1 for t in post_policy_trades if _field_present(t, f)) / len(post_policy_trades) * 100
             for f in required_fields
         }
-        all_ok = all(v >= 100.0 for v in coverage.values())
+        capital_violations = [
+            violation
+            for trade in post_policy_trades
+            if (violation := _capital_invariant_violation(trade)) is not None
+        ]
+        all_ok = all(v >= 100.0 for v in coverage.values()) and not capital_violations
         results.append(gate(
-            "G10", "Notional/margin/leverage/margin_mode on 100% of post-policy outcomes",
+            "G10", "Capital fields present and mathematically consistent on 100% of post-policy outcomes",
             all_ok,
-            f"Coverage: {coverage}" if not all_ok else f"All required fields at 100% on {len(post_policy_trades)} post-policy trades",
-            {"post_policy_trades": len(post_policy_trades), "cutoff": POST_POLICY_CUTOFF, "coverage_pct": coverage},
+            (
+                f"Coverage: {coverage}; capital invariant violations={len(capital_violations)}"
+                if not all_ok
+                else f"All required fields and capital invariants valid on {len(post_policy_trades)} post-policy trades"
+            ),
+            {
+                "post_policy_trades": len(post_policy_trades),
+                "cutoff": POST_POLICY_CUTOFF,
+                "coverage_pct": coverage,
+                "capital_invariant_violation_count": len(capital_violations),
+                "capital_invariant_violation_examples": capital_violations[:20],
+                "capital_invariant": "gross_notional_usd ~= allocated_margin_usd * effective_leverage",
+            },
         ))
     elif strict_current_closed_trades:
         results.append(gate(
-            "G10", "Notional/margin/leverage/margin_mode on 100% of post-policy outcomes",
+            "G10", "Capital fields present and mathematically consistent on 100% of post-policy outcomes",
             False,
             f"No strict-evidence trades found after cutoff {POST_POLICY_CUTOFF}",
             {
@@ -376,16 +439,14 @@ def check_gates() -> list[dict]:
             },
         ))
     else:
-        # No current-session closed trades — waived pending new accumulation (same as G13/G14).
-        # Historical trades pre-date the adaptive-allocation schema; only current-session
-        # trades carry the required fields. Waive until first post-reset close occurs.
+        # Certification cannot infer complete field coverage from zero rows.
         results.append(gate(
-            "G10", "Notional/margin/leverage/margin_mode on 100% of post-policy outcomes",
-            True,
-            "INSUFFICIENT_DATA_WAIVED: 0 strict current-session closed trades (need >= 1 post-policy trade to evaluate)",
+            "G10", "Capital fields present and mathematically consistent on 100% of post-policy outcomes",
+            False,
+            "INSUFFICIENT_DATA: 0 strict current-session closed trades (need >= 1 post-policy trade to evaluate)",
             {
                 "post_policy_count": 0,
-                "waive_reason": "new_session_accumulating_or_reconstructed_only",
+                "block_reason": "new_session_accumulating_or_reconstructed_only",
                 "historical_excluded": hist_total,
                 "reconstructed_excluded": len(reconstructed_current_closed_trades),
             },
@@ -422,12 +483,13 @@ def check_gates() -> list[dict]:
         try:
             stress = json.loads(stress_path.read_text())
             n_failed = stress.get("failed", 999)
+            n_warned = stress.get("warned", 999)
             n_total = stress.get("total", 0)
             results.append(gate(
                 "G12", "Rare-event stress matrix: all 17 scenarios PASS",
-                n_failed == 0 and n_total >= 17,
-                f"failed={n_failed}/{n_total} (run {stress.get('run_utc', '?')})",
-                {"failed": n_failed, "total": n_total, "passed": stress.get("passed"), "run_utc": stress.get("run_utc")},
+                n_failed == 0 and n_warned == 0 and n_total >= 17,
+                f"failed={n_failed}, warned={n_warned}/{n_total} (run {stress.get('run_utc', '?')})",
+                {"failed": n_failed, "warned": n_warned, "total": n_total, "passed": stress.get("passed"), "run_utc": stress.get("run_utc")},
             ))
         except Exception as exc:
             results.append(gate(

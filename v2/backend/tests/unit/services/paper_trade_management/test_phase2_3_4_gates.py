@@ -316,15 +316,20 @@ def test_outcome_memory_insufficient_sample_allows_through() -> None:
     assert result["source"] == "INSUFFICIENT_SAMPLE_CURRENT_OUTCOME_MEMORY"
 
 
-def test_outcome_memory_blocks_excessive_drawdown() -> None:
+def test_outcome_memory_lifetime_loss_dollars_are_not_a_standalone_block() -> None:
     bucket = OutcomeMemoryBucket(
         symbol="XYZUSDT", timeframe="4h",
         trade_count=25, rolling_win_rate=0.60,
         drawdown_contribution_usd=-15.0,
+        max_drawdown_bps=20.0,
+        drawdown_evidence_policy=(
+            "ROLLING_PEAK_TO_TROUGH_DIAGNOSTIC_NO_LIFETIME_USD_HARD_BLOCK"
+        ),
     )
     result = evaluate_outcome_memory_bucket(bucket)
-    assert result["blocked"] is True
-    assert any("DRAWDOWN_EXCEEDED" in r for r in result["reasons"])
+    assert result["allowed"] is True
+    assert result["max_drawdown_bps"] == 20.0
+    assert not any("DRAWDOWN_EXCEEDED" in r for r in result["reasons"])
 
 
 def test_outcome_memory_blocks_negative_rolling_ev() -> None:
@@ -770,6 +775,7 @@ def test_entry_gate_fresh_degraded_aggregate_still_blocks() -> None:
                     "outcome_memory_can_block_entries": True,
                     "trusted_trade_count": 30,
                     "untrusted_trade_count": 0,
+                    "last_outcome_available_at": _now,
                     "last_updated": _now,
                 })
             return None
@@ -799,6 +805,9 @@ def test_entry_gate_stale_degraded_aggregate_decays_to_advisory() -> None:
     _stale = (
         _dt.datetime.now(_dt.timezone.utc) - _dt.timedelta(hours=2)
     ).strftime("%Y-%m-%dT%H:%M:%SZ")
+    _processed_now = _dt.datetime.now(_dt.timezone.utc).strftime(
+        "%Y-%m-%dT%H:%M:%SZ"
+    )
 
     class RedisStub:
         def get(self, key: str) -> str | None:
@@ -817,7 +826,8 @@ def test_entry_gate_stale_degraded_aggregate_decays_to_advisory() -> None:
                     "outcome_memory_can_block_entries": True,
                     "trusted_trade_count": 30,
                     "untrusted_trade_count": 0,
-                    "last_updated": _stale,
+                    "last_outcome_available_at": _stale,
+                    "last_updated": _processed_now,
                 })
             return None
 

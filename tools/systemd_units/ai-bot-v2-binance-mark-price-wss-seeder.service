@@ -1,0 +1,18 @@
+[Unit]
+Description=AI BOT V2 Binance USD-M all-symbol mark/index WebSocket producer (public data; V2 namespace only; paper-safe)
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
+# Public market data only. The worker writes PIT-stamped mark/index observations
+# to v2:market:mark_price:* and carries explicit no-order/no-account-mutation
+# assertions in every payload. It reconnects after 600 all-symbol messages so
+# the adaptive symbol universe is re-resolved roughly every ten minutes.
+ExecStart=/usr/bin/env bash -lc 'exec ./.venv/bin/python3 -m v2.backend.app.cli.v2_binance_mark_price_wss_seeder --write-redis --ttl-seconds 180 --max-messages 600 --min-symbols 0 --timeout-seconds 30'
+Restart=always
+RestartSec=1
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target

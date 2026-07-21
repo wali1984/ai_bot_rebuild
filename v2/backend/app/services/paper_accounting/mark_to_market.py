@@ -8,6 +8,11 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Any, Mapping
 
+from ..paper_trade_management.generation_identity import (
+    closed_generation_match,
+    entry_generation_identity,
+)
+
 
 LINEAGE_FIELDS = ("prediction_id", "risk_decision_id", "orchestrator_decision_id", "signal_id")
 
@@ -66,7 +71,7 @@ def fill_identity(row: Mapping[str, Any]) -> str:
         value = row.get(key)
         if value:
             return str(value)
-    return str(abs(hash(tuple(sorted((str(k), str(v)) for k, v in row.items())))))
+    return entry_generation_identity(row).generation_id
 
 
 def identity_values(row: Mapping[str, Any], keys: tuple[str, ...]) -> set[str]:
@@ -108,32 +113,38 @@ def suppress_accepted_rows_already_closed(
     accepted_rows: list[Mapping[str, Any]],
     closed_rows: list[Mapping[str, Any]],
 ) -> tuple[list[Mapping[str, Any]], list[dict[str, Any]]]:
-    closed_ids = closed_fill_identity_values(closed_rows)
-    if not closed_ids:
+    if not closed_rows:
         return list(accepted_rows), []
     active: list[Mapping[str, Any]] = []
     suppressed: list[dict[str, Any]] = []
     for row in accepted_rows:
-        accepted_ids = identity_values(
-            row,
-            (
-                "fill_id",
-                "paper_fill_id",
-                "ledger_row_id",
-                "intent_id",
-                "signal_id",
-                "prediction_id",
-                "source_prediction_id",
-                "trainer_prediction_id",
-            ),
-        )
-        matched = sorted(accepted_ids & closed_ids)
-        if matched:
+        matched_evidence = None
+        matched_closed_row = None
+        for closed_row in closed_rows:
+            evidence = closed_generation_match(row, closed_row)
+            if evidence is not None:
+                matched_evidence = evidence
+                matched_closed_row = closed_row
+                break
+        if matched_evidence is not None:
             suppressed.append(
                 {
                     "fill_id": fill_identity(row),
                     "symbol": str(row.get("symbol") or "").upper(),
-                    "matched_closed_source_ids": matched,
+                    "matched_closed_source_ids": list(
+                        matched_evidence.get("matched_ids") or []
+                    ),
+                    "closed_generation_match_type": matched_evidence.get(
+                        "match_type"
+                    ),
+                    "position_generation_id": matched_evidence.get(
+                        "position_generation_id"
+                    ),
+                    "matched_close_id": (
+                        matched_closed_row.get("close_id")
+                        if isinstance(matched_closed_row, Mapping)
+                        else None
+                    ),
                 }
             )
             continue

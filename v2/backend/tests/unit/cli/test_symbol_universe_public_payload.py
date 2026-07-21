@@ -52,6 +52,40 @@ def test_payload_preserves_symbol_roles_without_live_symbols(tmp_path: Path) -> 
     assert payload["live_gate"] == "blocked_human_only"
 
 
+def test_authoritative_legacy_scopes_prefer_majors_without_changing_membership(
+    tmp_path: Path,
+) -> None:
+    requested = ["XRPUSDT", "SOLUSDT", "ETHUSDT", "BTCUSDT"]
+    _write_status(
+        tmp_path,
+        "v2_scope_source",
+        {
+            "discovered_symbols": [*requested, "DOGEUSDT"],
+            "training_symbols": requested,
+            "paper_symbols": requested,
+            "binance_usdm_confirmed_symbols": [*requested, "DOGEUSDT"],
+        },
+    )
+
+    payload = build_payload(tmp_path)
+
+    assert payload["adaptive_scope_activation"]["active"] is False
+    assert payload["training_symbols"] == [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT",
+        "XRPUSDT",
+    ]
+    assert payload["paper_symbols"] == [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT",
+        "XRPUSDT",
+    ]
+    assert set(payload["training_symbols"]) == set(requested)
+    assert set(payload["paper_symbols"]) == set(requested)
+
+
 def test_training_or_paper_scope_matching_all_discovered_is_rejected(tmp_path: Path) -> None:
     discovered = ["BTCUSDT", "ETHUSDT"]
     _write_status(
@@ -231,3 +265,214 @@ def test_small_scoped_tradable_list_is_not_an_exchange_authority(tmp_path: Path)
     assert "IPUSDT" in payload["binance_usdm_confirmed_symbols"]
     assert payload["binance_usdm_delisted_pruned_symbols"] == []
     assert payload["binance_usdm_tradability_authority"] is None
+
+
+def _adaptive_evidence(symbol: str, *, proven_oos: bool = False) -> dict[str, object]:
+    row: dict[str, object] = {
+        "symbol": symbol,
+        "exchange_confirmed": True,
+        "candle_final": True,
+        "candle_close_time": "2026-07-20T05:05:00Z",
+        "feature_cutoff": "2026-07-20T05:05:00Z",
+        "event_time": "2026-07-20T05:05:00.100Z",
+        "ingested_at": "2026-07-20T05:05:00.200Z",
+        "available_at": "2026-07-20T05:05:00.200Z",
+        "market_event_time": "2026-07-20T05:09:30Z",
+        "market_ingested_at": "2026-07-20T05:09:30.050Z",
+        "market_available_at": "2026-07-20T05:09:30.050Z",
+        "generated_at": "2026-07-20T05:09:50Z",
+        "training_data_ready": True,
+        "closed_candle_count": 100,
+        "market_data_coverage_ratio": 1.0,
+        "closed_quote_volume_usd": 100_000_000.0,
+        "spread_bps": 0.5,
+        "top_book_depth_usd": 500_000.0,
+        "realized_volatility_bps": 50.0,
+        "absolute_move_bps": 100.0,
+    }
+    if proven_oos:
+        row.update(
+            {
+                "validation_sample_count": 90,
+                "after_cost_expectancy_bps": 12.0,
+                "after_cost_ci_lower_bps": 5.0,
+                "validation_out_of_sample": True,
+                "validation_after_cost": True,
+                "validation_leakage_free": True,
+                "validation_cutoff": "2026-07-20T04:00:00Z",
+                "validation_event_time": "2026-07-20T04:00:01Z",
+                "validation_ingested_at": "2026-07-20T04:00:02Z",
+                "validation_available_at": "2026-07-20T04:00:03Z",
+                "validation_generated_at": "2026-07-20T04:00:04Z",
+            }
+        )
+    return row
+
+
+def _adaptive_runtime_evidence(*rows: dict[str, object]) -> dict[str, object]:
+    return {
+        "schema_version": "v2_adaptive_symbol_selection_runtime_evidence_v1",
+        "decision_time": "2026-07-20T05:10:00Z",
+        "evidence_rows": list(rows),
+        "metrics": {"evidence_row_count": len(rows)},
+        "source_contract": {
+            "opportunity_and_volume": "canonical_finalized_5m_candles_only"
+        },
+    }
+
+
+def test_adaptive_scopes_publish_shadow_only_by_default(tmp_path: Path) -> None:
+    _write_status(
+        tmp_path,
+        "v2_scope_source",
+        {
+            "discovered_symbols": ["BTCUSDT", "ETHUSDT", "SOLUSDT"],
+            "training_symbols": ["BTCUSDT"],
+            "paper_symbols": ["BTCUSDT"],
+            "binance_usdm_confirmed_symbols": ["BTCUSDT", "ETHUSDT", "SOLUSDT"],
+        },
+    )
+
+    payload = build_payload(
+        tmp_path,
+        generated_at="2026-07-20T05:10:01Z",
+        adaptive_runtime_evidence=_adaptive_runtime_evidence(
+            _adaptive_evidence("BTCUSDT"),
+            _adaptive_evidence("ETHUSDT"),
+        ),
+    )
+
+    assert payload["training_symbols"] == ["BTCUSDT"]
+    assert payload["paper_symbols"] == ["BTCUSDT"]
+    assert payload["adaptive_training_selected_symbols"] == ["BTCUSDT", "ETHUSDT"]
+    assert payload["adaptive_paper_new_entry_symbols"] == []
+    activation = payload["adaptive_scope_activation"]
+    assert activation["active"] is False
+    assert activation["activation_blocked_reason"] == (
+        "default_off_requires_explicit_operator_activation"
+    )
+    assert payload["adaptive_guaranteed_1000x_claim"] is False
+    assert payload["adaptive_clock_contract"] == {
+        "selection_decision_time": "2026-07-20T05:10:00Z",
+        "publisher_generated_at": "2026-07-20T05:10:01Z",
+        "selection_decision_precedes_publisher_generation": True,
+        "decision_time_is_not_generated_at": True,
+    }
+
+
+def test_activation_request_is_blocked_until_scope_aware_consumers_are_bound(
+    tmp_path: Path,
+) -> None:
+    _write_status(
+        tmp_path,
+        "v2_scope_source",
+        {
+            "discovered_symbols": ["BTCUSDT", "ETHUSDT", "SOLUSDT"],
+            "training_symbols": ["BTCUSDT"],
+            "paper_symbols": ["BTCUSDT"],
+            "binance_usdm_confirmed_symbols": ["BTCUSDT", "ETHUSDT", "SOLUSDT"],
+        },
+    )
+
+    payload = build_payload(
+        tmp_path,
+        generated_at="2026-07-20T05:10:01Z",
+        adaptive_runtime_evidence=_adaptive_runtime_evidence(
+            _adaptive_evidence("BTCUSDT", proven_oos=True),
+            _adaptive_evidence("ETHUSDT"),
+        ),
+        activate_adaptive_scopes=True,
+    )
+
+    assert payload["training_symbols"] == ["BTCUSDT"]
+    assert payload["paper_symbols"] == ["BTCUSDT"]
+    activation = payload["adaptive_scope_activation"]
+    assert activation["requested"] is True
+    assert activation["scope_aware_consumers_bound"] is False
+    assert activation["active"] is False
+    assert activation["activation_blocked_reason"] == (
+        "scope_aware_training_paper_and_position_management_consumers_not_bound"
+    )
+
+
+def test_explicit_activation_replaces_authoritative_scopes_and_keeps_open_positions_management_only(
+    tmp_path: Path,
+) -> None:
+    _write_status(
+        tmp_path,
+        "v2_scope_source",
+        {
+            "discovered_symbols": ["BTCUSDT", "ETHUSDT", "SOLUSDT"],
+            "training_symbols": ["BTCUSDT"],
+            "paper_symbols": ["BTCUSDT"],
+            "binance_usdm_confirmed_symbols": ["BTCUSDT", "ETHUSDT", "SOLUSDT"],
+        },
+    )
+    _write_portfolio(
+        tmp_path,
+        {
+            "open_positions": [
+                {"symbol": "SOLUSDT", "open_position": True, "position_state": "long_open"}
+            ]
+        },
+    )
+
+    payload = build_payload(
+        tmp_path,
+        generated_at="2026-07-20T05:10:01Z",
+        adaptive_runtime_evidence=_adaptive_runtime_evidence(
+            _adaptive_evidence("BTCUSDT", proven_oos=True),
+            _adaptive_evidence("ETHUSDT"),
+        ),
+        activate_adaptive_scopes=True,
+        adaptive_scope_consumers_bound=True,
+    )
+
+    assert payload["training_symbols"] == ["BTCUSDT", "ETHUSDT"]
+    assert payload["paper_symbols"] == ["BTCUSDT"]
+    assert payload["live_data_symbols"] == ["SOLUSDT"]
+    assert payload["active_position_management_symbols"] == ["SOLUSDT"]
+    assert "SOLUSDT" not in payload["training_symbols"]
+    assert "SOLUSDT" not in payload["paper_symbols"]
+    assert payload["adaptive_scope_activation"]["active"] is True
+    assert payload["adaptive_scope_activation"][
+        "retained_open_positions_are_new_entry_eligible"
+    ] is False
+
+
+def test_activation_cannot_admit_evidence_outside_current_exchange_candidate_set(
+    tmp_path: Path,
+) -> None:
+    _write_status(
+        tmp_path,
+        "v2_scope_source",
+        {
+            "discovered_symbols": ["BTCUSDT"],
+            "training_symbols": ["BTCUSDT"],
+            "paper_symbols": ["BTCUSDT"],
+            "binance_usdm_confirmed_symbols": ["BTCUSDT"],
+        },
+    )
+
+    payload = build_payload(
+        tmp_path,
+        generated_at="2026-07-20T05:10:01Z",
+        adaptive_runtime_evidence=_adaptive_runtime_evidence(
+            _adaptive_evidence("FAKEUSDT", proven_oos=True),
+        ),
+        activate_adaptive_scopes=True,
+        adaptive_scope_consumers_bound=True,
+    )
+
+    assert payload["adaptive_scope_activation"]["active"] is True
+    assert payload["training_symbols"] == []
+    assert payload["paper_symbols"] == []
+    explanation = payload["adaptive_symbol_selection"]["symbol_explanations"][
+        "FAKEUSDT"
+    ]
+    assert explanation["training_eligible"] is False
+    assert "exchange_not_confirmed" in explanation["training_blockers"]
+    assert (
+        "source:symbol_not_in_current_exchange_confirmed_discovered_candidate_set"
+        in explanation["training_blockers"]
+    )

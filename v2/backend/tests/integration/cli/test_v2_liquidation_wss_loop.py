@@ -11,6 +11,8 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+
 
 class FakeRedis:
     def __init__(self) -> None:
@@ -18,6 +20,8 @@ class FakeRedis:
         self.write_log: list[tuple[str, str, int | None]] = []
         self.streams: dict[str, list[tuple[str, dict[str, str]]]] = {}
         self.xadd_log: list[tuple[str, dict[str, str], int | None, bool]] = []
+        self.expire_log: list[tuple[str, int]] = []
+        self.eval_failures_remaining = 0
 
     def ping(self) -> bool:
         return True
@@ -25,9 +29,24 @@ class FakeRedis:
     def get(self, key: str):
         return self.store.get(key)
 
-    def set(self, key: str, value: str, ex: int | None = None) -> bool:
+    def set(
+        self,
+        key: str,
+        value: str,
+        ex: int | None = None,
+        nx: bool = False,
+    ) -> bool:
+        if nx and key in self.store:
+            return False
         self.store[key] = value
         self.write_log.append((key, value, ex))
+        return True
+
+    def delete(self, key: str) -> int:
+        return 1 if self.store.pop(key, None) is not None else 0
+
+    def expire(self, key: str, seconds: int) -> bool:
+        self.expire_log.append((key, seconds))
         return True
 
     def xadd(
@@ -42,6 +61,42 @@ class FakeRedis:
         if maxlen is not None and len(self.streams[name]) > maxlen:
             self.streams[name] = self.streams[name][-maxlen:]
         return self.streams[name][-1][0]
+
+    def xrange(
+        self,
+        name: str,
+        min: str = "-",
+        max: str = "+",
+        count: int | None = None,
+    ):
+        def _ms(stream_id: str) -> int:
+            return int(str(stream_id).split("-", 1)[0])
+
+        lower = -1 if min == "-" else _ms(min)
+        upper = 2**63 - 1 if max == "+" else _ms(max)
+        rows = [
+            row for row in self.streams.get(name, [])
+            if lower <= _ms(row[0]) <= upper
+        ]
+        return rows if count is None else rows[:count]
+
+    def eval(self, _script: str, numkeys: int, *args):
+        assert numkeys == 2
+        if self.eval_failures_remaining:
+            self.eval_failures_remaining -= 1
+            raise RuntimeError("injected atomic append failure")
+        dedupe_key, stream_name, ttl, maxlen, *flat_fields = args
+        if dedupe_key in self.store:
+            return 0
+        fields = dict(zip(flat_fields[::2], flat_fields[1::2]))
+        self.xadd(
+            stream_name,
+            fields,
+            maxlen=int(maxlen),
+            approximate=True,
+        )
+        self.set(dedupe_key, "1", ex=int(ttl))
+        return 1
 
 
 def _svc():
@@ -63,6 +118,8 @@ def test_parse_force_order_event_sell_maps_to_short() -> None:
                 "p": "30000.0",
                 "ap": "30000.0",
                 "X": "FILLED",
+                "l": "0.5",
+                "z": "0.5",
                 "T": 1700000001000,
             },
         }
@@ -72,6 +129,9 @@ def test_parse_force_order_event_sell_maps_to_short() -> None:
     assert parsed.symbol == "BTCUSDT"
     assert parsed.side == "short"
     assert parsed.notional == 15000.0
+    assert parsed.quantity == 0.5
+    assert parsed.raw_order_quantity == 0.5
+    assert parsed.execution_quantity_source == "last_filled_quantity_l"
 
 
 def test_parse_force_order_event_buy_maps_to_long() -> None:
@@ -87,6 +147,8 @@ def test_parse_force_order_event_buy_maps_to_long() -> None:
                 "p": "1800.0",
                 "ap": "1800.0",
                 "X": "FILLED",
+                "l": "0.75",
+                "z": "1.0",
                 "T": 1700000002000,
             },
         }
@@ -95,7 +157,8 @@ def test_parse_force_order_event_buy_maps_to_long() -> None:
     assert parsed is not None
     assert parsed.symbol == "ETHUSDT"
     assert parsed.side == "long"
-    assert parsed.notional == 1800.0
+    assert parsed.notional == 1350.0
+    assert parsed.quantity == 0.75
 
 
 def test_parse_force_order_event_returns_none_for_non_force_order() -> None:
@@ -114,12 +177,117 @@ def test_parse_force_order_event_handles_bytes() -> None:
             "e": "forceOrder",
             "E": 1700000003000,
             "o": {"s": "SOLUSDT", "S": "SELL", "q": "10", "p": "20",
+                  "X": "FILLED", "l": "10", "z": "10",
                   "T": 1700000003000},
         }
     ).encode("utf-8")
     parsed = mod.parse_force_order_event(raw)
     assert parsed is not None
     assert parsed.symbol == "SOLUSDT"
+
+
+def test_parse_force_order_uses_last_fill_for_partial_execution() -> None:
+    mod = _svc()
+    parsed = mod.parse_force_order_event(json.dumps({
+        "e": "forceOrder", "E": 1700000003000,
+        "o": {
+            "s": "BTCUSDT", "S": "SELL", "q": "10", "p": "100",
+            "X": "PARTIALLY_FILLED", "l": "2", "z": "7",
+            "T": 1700000003000,
+        },
+    }))
+    assert parsed is not None
+    assert parsed.quantity == 2.0
+    assert parsed.raw_order_quantity == 10.0
+    assert parsed.accumulated_filled_quantity == 7.0
+    assert parsed.notional == 200.0
+    assert parsed.execution_quantity_source == "last_filled_quantity_l"
+
+
+def test_partial_then_filled_snapshots_use_non_overlapping_last_fills() -> None:
+    mod = _svc()
+
+    def parse(status: str, last: str, cumulative: str, event_time: int):
+        return mod.parse_force_order_event(json.dumps({
+            "e": "forceOrder", "E": event_time,
+            "o": {
+                "s": "BTCUSDT", "S": "SELL", "q": "10", "p": "100",
+                "X": status, "l": last, "z": cumulative, "T": event_time,
+            },
+        }))
+
+    partial = parse("PARTIALLY_FILLED", "2", "2", 1700000003000)
+    filled = parse("FILLED", "8", "10", 1700000004000)
+    assert partial is not None and filled is not None
+    assert partial.quantity == 2.0
+    assert filled.quantity == 8.0
+    assert partial.quantity + filled.quantity == filled.accumulated_filled_quantity
+
+
+@pytest.mark.parametrize(
+    ("status", "last", "cumulative", "expected_reason"),
+    [
+        ("FILLED", "0", "10", "missing_executed_quantity"),
+        ("FILLED", "2", "9", "filled_status_without_full_accumulated_quantity"),
+        ("PARTIALLY_FILLED", "2", "10", "partial_fill_has_terminal_accumulated_quantity"),
+        ("PARTIALLY_FILLED", "8", "7", "last_filled_quantity_exceeds_accumulated"),
+    ],
+)
+def test_parse_force_order_rejects_inconsistent_fill_lineage(
+    status: str,
+    last: str,
+    cumulative: str,
+    expected_reason: str,
+) -> None:
+    mod = _svc()
+    parsed, reason = mod._parse_force_order_event_detailed(json.dumps({
+        "e": "forceOrder", "E": 1700000003000,
+        "o": {
+            "s": "BTCUSDT", "S": "SELL", "q": "10", "p": "100",
+            "X": status, "l": last, "z": cumulative, "T": 1700000003000,
+        },
+    }))
+    assert parsed is None
+    assert reason == expected_reason
+
+
+@pytest.mark.parametrize("field", ["p", "q", "z", "l"])
+@pytest.mark.parametrize("bad_value", [True, "nan", "inf"])
+def test_parse_force_order_rejects_non_finite_or_boolean_execution_fields(
+    field: str,
+    bad_value,
+) -> None:
+    mod = _svc()
+    order = {
+        "s": "BTCUSDT", "S": "SELL", "q": "10", "p": "100",
+        "X": "FILLED", "l": "10", "z": "10", "T": 1700000003000,
+    }
+    order[field] = bad_value
+    parsed, reason = mod._parse_force_order_event_detailed(json.dumps({
+        "e": "forceOrder", "E": 1700000003000, "o": order,
+    }))
+    assert parsed is None
+    assert reason == f"invalid_numeric_field:{field}"
+
+
+def test_parse_force_order_rejects_coin_m_and_unknown_status() -> None:
+    mod = _svc()
+    coin_m = json.dumps({
+        "e": "forceOrder", "E": 1700000003000, "st": "CM",
+        "o": {
+            "s": "BTCUSD_PERP", "S": "SELL", "q": "10", "p": "100",
+            "X": "FILLED", "l": "10", "z": "10", "T": 1700000003000,
+        },
+    })
+    unknown_status = json.dumps({
+        "e": "forceOrder", "E": 1700000003000,
+        "o": {
+            "s": "BTCUSDT", "S": "SELL", "q": "10", "p": "100",
+            "X": "NEW", "l": "0", "z": "0", "T": 1700000003000,
+        },
+    })
+    assert mod.parse_force_order_event(coin_m) is None
+    assert mod.parse_force_order_event(unknown_status) is None
 
 
 def test_retention_ring_caps_at_capacity() -> None:
@@ -140,8 +308,11 @@ def test_retention_ring_caps_at_capacity() -> None:
 
 def test_retention_ring_aggregate_windows() -> None:
     mod = _svc()
-    ring = mod.RetentionRing(capacity=100)
     now_ms = 1700000000000
+    ring = mod.RetentionRing(
+        capacity=100,
+        coverage_start_ms=now_ms - mod.DEFAULT_WINDOW_24H_MS,
+    )
     ring.append(mod.ParsedLiquidation(
         symbol="BTCUSDT", side="long", notional=100.0,
         price=1.0, quantity=100.0, event_time_ms=now_ms - 30 * 1000))
@@ -152,22 +323,56 @@ def test_retention_ring_aggregate_windows() -> None:
         symbol="BTCUSDT", side="short", notional=25.0,
         price=1.0, quantity=25.0, event_time_ms=now_ms - 12 * 60 * 60 * 1000))
     agg = ring.aggregate(now_ms=now_ms)
-    assert agg["notional_1h"] == 150.0
-    assert agg["count_1h"] == 2
-    assert agg["long_count_1h"] == 1
-    assert agg["short_count_1h"] == 1
-    assert agg["notional_24h"] == 175.0
-    assert agg["count_24h"] == 3
-    assert agg["direction_bias_1h"] == 0.0
+    assert agg["observed_notional_1h"] == 150.0
+    assert agg["observed_count_1h"] == 2
+    assert agg["observed_long_count_1h"] == 1
+    assert agg["observed_short_count_1h"] == 1
+    assert agg["observed_notional_window"] == 175.0
+    assert agg["observed_count_window"] == 3
+    assert agg["observed_direction_bias_1h"] == 0.0
+    assert agg["retention_window_complete"] is True
+    assert agg["source_capture_complete"] is False
+    assert agg["aggregate_complete"] is False
+    assert agg["trainer_feature_wiring_status"] == "NOT_WIRED_FAIL_CLOSED"
+    assert agg["legacy_complete_aggregate_published"] is False
+    assert "notional_24h" not in agg
+    assert "count_24h" not in agg
+    assert "notional_1h" not in agg
+    assert "count_1h" not in agg
 
 
 def test_retention_ring_empty_aggregate() -> None:
     mod = _svc()
-    ring = mod.RetentionRing(capacity=10)
-    agg = ring.aggregate(now_ms=1700000000000)
-    assert agg["notional_1h"] == 0.0
-    assert agg["count_1h"] == 0
-    assert agg["direction_bias_1h"] is None
+    now_ms = 1700000000000
+    ring = mod.RetentionRing(
+        capacity=10,
+        coverage_start_ms=now_ms - mod.DEFAULT_WINDOW_1H_MS,
+    )
+    agg = ring.aggregate(now_ms=now_ms)
+    assert agg["observed_notional_1h"] == 0.0
+    assert agg["observed_count_1h"] == 0
+    assert agg["observed_direction_bias_1h"] is None
+    assert agg["retention_window_complete"] is False
+    assert "notional_24h" not in agg
+
+
+def test_retention_truncation_invalidates_coverage() -> None:
+    mod = _svc()
+    now_ms = 1700000000000
+    ring = mod.RetentionRing(
+        capacity=2,
+        coverage_start_ms=now_ms - mod.DEFAULT_WINDOW_24H_MS,
+    )
+    for index in range(3):
+        ring.append(mod.ParsedLiquidation(
+            symbol="BTCUSDT", side="long", notional=10.0,
+            price=10.0, quantity=1.0, event_time_ms=now_ms - index,
+        ))
+    aggregate = ring.aggregate(now_ms=now_ms)
+    assert ring.capacity is not None
+    assert len(ring.events) == 2
+    assert aggregate["retention_truncated"] is True
+    assert aggregate["retention_window_complete"] is False
 
 
 def test_compute_backoff_seconds_exponential_with_cap() -> None:
@@ -206,7 +411,8 @@ def test_write_event_to_redis_only_writes_v2_keys() -> None:
     )
     assert all(result.values())
     for k in r.store.keys():
-        assert k.startswith("v2:market:liquidations:")
+        assert k.startswith("v2:")
+    assert any(k.startswith("v2:market:liquidations:") for k in r.store)
 
 
 def test_write_event_to_stream_publishes_into_v2_liquidations_events() -> None:
@@ -223,7 +429,10 @@ def test_write_event_to_stream_publishes_into_v2_liquidations_events() -> None:
     assert len(r.streams[mod.KEY_EVENTS_STREAM]) == 1
     _, fields = r.streams[mod.KEY_EVENTS_STREAM][0]
     for key in ("symbol", "ts", "ingest_ts", "side", "price", "qty",
-                "notional", "source", "src_key", "src_id"):
+                "notional", "source", "src_key", "src_id", "event_time",
+                "ingested_at", "available_at", "generated_at", "feature_cutoff",
+                "raw_order_qty", "last_filled_qty", "accumulated_filled_qty",
+                "order_status", "execution_quantity_source", "product_type"):
         assert key in fields, f"missing field {key!r} in stream event"
     # WSS tape side "short" (SELL = trade hits bid) maps to LONG_LIQ
     # (the LONG position was liquidated).
@@ -233,6 +442,24 @@ def test_write_event_to_stream_publishes_into_v2_liquidations_events() -> None:
     # MAXLEN argument was passed
     assert r.xadd_log[0][2] == mod.DEFAULT_EVENTS_STREAM_MAXLEN
     assert r.xadd_log[0][3] is True
+
+
+def test_write_event_to_stream_deduplicates_src_id_with_expiring_key() -> None:
+    mod = _svc()
+    r = FakeRedis()
+    event = mod.ParsedLiquidation(
+        symbol="BTCUSDT", side="short", notional=10000.0,
+        price=20000.0, quantity=0.5, event_time_ms=1700000000000,
+        raw_order_quantity=0.5, last_filled_quantity=0.5,
+        accumulated_filled_quantity=0.5, order_status="FILLED",
+        execution_quantity_source="accumulated_filled_quantity_z",
+    )
+    assert mod.write_event_to_stream(r, symbol="BTCUSDT", latest_event=event)
+    assert not mod.write_event_to_stream(r, symbol="BTCUSDT", latest_event=event)
+    assert len(r.streams[mod.KEY_EVENTS_STREAM]) == 1
+    dedupe_writes = [row for row in r.write_log if row[0].startswith("v2:liquidations:dedupe:")]
+    assert dedupe_writes
+    assert dedupe_writes[0][2] == mod.DEFAULT_DEDUPE_TTL_SECONDS
 
 
 def test_write_event_to_stream_buy_maps_to_short_liq() -> None:
@@ -273,11 +500,13 @@ def test_consume_events_writes_when_symbol_in_scope() -> None:
         json.dumps({
             "e": "forceOrder", "E": 1700000001000,
             "o": {"s": "BTCUSDT", "S": "BUY", "q": "0.5", "p": "30000",
+                  "X": "FILLED", "l": "0.5", "z": "0.5",
                   "T": 1700000001000},
         }),
         json.dumps({
             "e": "forceOrder", "E": 1700000002000,
             "o": {"s": "XRPUSDT", "S": "SELL", "q": "1000", "p": "0.5",
+                  "X": "FILLED", "l": "1000", "z": "1000",
                   "T": 1700000002000},
         }),
         "not even json",
@@ -299,6 +528,7 @@ def test_consume_events_writes_when_symbol_in_scope() -> None:
     assert stats.events_filtered_by_symbol == 1
     assert stats.events_written == 1
     assert stats.parse_errors == 1
+    assert stats.events_quarantined == 1
     for k in r.store.keys():
         assert k.startswith("v2:")
 
@@ -310,6 +540,7 @@ def test_consume_events_respects_max_events_cap() -> None:
         json.dumps({
             "e": "forceOrder", "E": 1700000001000 + i * 1000,
             "o": {"s": "BTCUSDT", "S": "BUY", "q": "0.5", "p": "30000",
+                  "X": "FILLED", "l": "0.5", "z": "0.5",
                   "T": 1700000001000 + i * 1000},
         })
         for i in range(10)
@@ -326,6 +557,161 @@ def test_consume_events_respects_max_events_cap() -> None:
         )
     )
     assert stats.events_written == 3
+
+
+def test_atomic_stream_failure_is_retryable_without_double_counting() -> None:
+    mod = _svc()
+    r = FakeRedis()
+    r.eval_failures_remaining = 1
+    now_ms = 1700000005000
+    raw = json.dumps({
+        "e": "forceOrder", "E": 1700000001000,
+        "o": {
+            "s": "BTCUSDT", "S": "BUY", "q": "0.5", "p": "30000",
+            "X": "FILLED", "l": "0.5", "z": "0.5", "T": 1700000001000,
+        },
+    })
+    rings = {"BTCUSDT": mod.RetentionRing(coverage_start_ms=now_ms)}
+
+    async def source():
+        return [raw]
+
+    failed = asyncio.run(mod.consume_events(
+        event_source=source,
+        redis_client=r,
+        symbols=("BTCUSDT",),
+        now_ms_func=lambda: now_ms,
+        rings=rings,
+    ))
+    assert failed.redis_write_failures == 1
+    assert len(rings["BTCUSDT"].events) == 0
+
+    retried = asyncio.run(mod.consume_events(
+        event_source=source,
+        redis_client=r,
+        symbols=("BTCUSDT",),
+        now_ms_func=lambda: now_ms,
+        rings=rings,
+    ))
+    assert retried.events_written == 1
+    assert len(rings["BTCUSDT"].events) == 1
+    observed = json.loads(
+        r.store[mod.KEY_OBSERVED_AGGREGATE_TEMPLATE.format(symbol="BTCUSDT")]
+    )
+    assert observed["observed_count_1h"] == 1
+
+
+def test_out_of_order_event_does_not_regress_latest_or_feature_cutoff() -> None:
+    mod = _svc()
+    r = FakeRedis()
+    now_ms = 1700000010000
+
+    def raw(event_time: int, price: str) -> str:
+        return json.dumps({
+            "e": "forceOrder", "E": event_time,
+            "o": {
+                "s": "BTCUSDT", "S": "SELL", "q": "1", "p": price,
+                "X": "FILLED", "l": "1", "z": "1", "T": event_time,
+            },
+        })
+
+    async def source():
+        return [raw(1700000009000, "101"), raw(1700000001000, "99")]
+
+    stats = asyncio.run(mod.consume_events(
+        event_source=source,
+        redis_client=r,
+        symbols=("BTCUSDT",),
+        now_ms_func=lambda: now_ms,
+    ))
+    assert stats.events_written == 2
+    latest = json.loads(r.store[mod.KEY_LATEST_TEMPLATE.format(symbol="BTCUSDT")])
+    aggregate = json.loads(
+        r.store[mod.KEY_OBSERVED_AGGREGATE_TEMPLATE.format(symbol="BTCUSDT")]
+    )
+    assert latest["event_time"] == 1700000009000
+    assert aggregate["feature_cutoff"] == 1700000009000
+
+
+def test_consume_events_quarantines_future_clock_without_rewriting() -> None:
+    mod = _svc()
+    r = FakeRedis()
+    now_ms = 1700000000000
+
+    async def source():
+        return [json.dumps({
+            "e": "forceOrder", "E": now_ms + 60_000,
+            "o": {
+                "s": "BTCUSDT", "S": "BUY", "q": "0.5", "p": "30000",
+                "X": "FILLED", "l": "0.5", "z": "0.5",
+                "T": now_ms + 60_000,
+            },
+        })]
+
+    stats = asyncio.run(mod.consume_events(
+        event_source=source,
+        redis_client=r,
+        symbols=("BTCUSDT",),
+        now_ms_func=lambda: now_ms,
+    ))
+    assert stats.events_written == 0
+    assert stats.events_quarantined == 1
+    _, fields = r.streams[mod.KEY_QUARANTINE_STREAM][0]
+    assert fields["reason"] == "event_time_in_future"
+    assert (mod.KEY_QUARANTINE_STREAM, mod.DEFAULT_QUARANTINE_TTL_SECONDS) in r.expire_log
+
+
+def test_hydration_restores_retained_window_but_never_claims_true_24h() -> None:
+    mod = _svc()
+    r = FakeRedis()
+    now_ms = 1700000000000
+    event_ts = now_ms - 2 * 60 * 60 * 1000
+    r.streams[mod.KEY_EVENTS_STREAM] = [(
+        f"{event_ts}-0",
+        {
+            "symbol": "BTCUSDT", "side": "LONG_LIQ", "ts": str(event_ts),
+            "event_time": str(event_ts), "exchange_event_time": str(event_ts),
+            "feature_cutoff": str(event_ts),
+            "ingest_ts": str(event_ts + 1), "ingested_at": str(event_ts + 1),
+            "available_at": str(event_ts + 1), "generated_at": str(event_ts + 1),
+            "price": "100", "qty": "2", "notional": "200", "src_id": "one",
+            "source": "binance_wss_forceOrder",
+            "semantic_kind": mod.OBSERVED_AGGREGATE_SEMANTIC_KIND,
+            "product_type": "USD_M_USDT_ASSUMED_FROM_ENDPOINT",
+        },
+    )]
+    rings = {"BTCUSDT": mod.RetentionRing(coverage_start_ms=now_ms)}
+    result = mod.hydrate_retention_rings(
+        r, rings=rings, symbols=("BTCUSDT",), now_ms=now_ms
+    )
+    assert result["hydrated"] is True
+    assert result["events_loaded"] == 1
+    aggregate = rings["BTCUSDT"].aggregate(now_ms=now_ms)
+    assert aggregate["observed_notional_window"] == 200.0
+    assert aggregate["retention_window_complete"] is False
+    assert "notional_24h" not in aggregate
+
+
+@pytest.mark.parametrize("field", ["price", "qty", "notional"])
+@pytest.mark.parametrize("bad_value", ["nan", "inf", "-inf"])
+def test_hydration_rejects_non_finite_numeric_fields(
+    field: str,
+    bad_value: str,
+) -> None:
+    mod = _svc()
+    event_ts = 1700000000000
+    fields = {
+        "symbol": "BTCUSDT", "side": "LONG_LIQ",
+        "event_time": str(event_ts), "exchange_event_time": str(event_ts),
+        "feature_cutoff": str(event_ts), "ingested_at": str(event_ts + 1),
+        "available_at": str(event_ts + 1), "generated_at": str(event_ts + 1),
+        "price": "100", "qty": "2", "notional": "200",
+        "source": "binance_wss_forceOrder",
+        "semantic_kind": mod.OBSERVED_AGGREGATE_SEMANTIC_KIND,
+        "product_type": "USD_M_USDT_ASSUMED_FROM_ENDPOINT",
+    }
+    fields[field] = bad_value
+    assert mod._event_from_stream_fields(fields, now_ms=event_ts + 1000) is None
 
 
 def test_opt_in_disabled_by_default(monkeypatch) -> None:
@@ -492,6 +878,8 @@ def test_build_daemon_status_payload_has_required_freshness_fields() -> None:
         "writes_legacy_redis",
         "writes_exchange_orders",
         "no_synthetic_liquidation_events",
+        "observed_aggregate_downstream_contract_status",
+        "legacy_complete_aggregate_refresh_enabled",
     ):
         assert field in payload, f"missing required freshness field: {field}"
     assert payload["process_mode"] == "persistent_daemon"
@@ -502,6 +890,10 @@ def test_build_daemon_status_payload_has_required_freshness_fields() -> None:
     assert payload["writes_legacy_redis"] is False
     assert payload["writes_exchange_orders"] is False
     assert payload["no_synthetic_liquidation_events"] is True
+    assert payload["legacy_complete_aggregate_refresh_enabled"] is False
+    assert "NOT_WIRED_FAIL_CLOSED" in payload[
+        "observed_aggregate_downstream_contract_status"
+    ]
     assert payload["go_no_go"] == "V2_LIQUIDATION_WSS_CLIENT_PAPER_SHADOW_READY"
 
 

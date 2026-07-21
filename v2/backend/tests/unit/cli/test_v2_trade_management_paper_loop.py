@@ -1,16 +1,26 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import os
 import subprocess
 import sys
+from copy import deepcopy
+from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
 
 from v2.backend.app.cli import v2_trade_management_paper_loop as paper_loop
+from v2.backend.tests.unit.services.adaptive_capital_allocator.growth_receipt_test_utils import (
+    authorize_growth,
+    strict_growth_performance_status,
+)
+from v2.backend.tests.unit.cli.test_v2_clean_3000_session_edge_recovery import (
+    _authorized_phase7_artifact,
+)
 
 
 class _FakeRedis:
@@ -45,6 +55,3046 @@ class _FakeRedis:
                 yield key
 
 
+class _CallbackRedis(_FakeRedis):
+    """Fake Redis whose selected reads can publish data and advance a clock."""
+
+    def __init__(self, payloads: dict[str, object], callbacks: dict[str, object]):
+        super().__init__(payloads)
+        self.callbacks = callbacks
+
+    def get(self, key: str):
+        callback = self.callbacks.get(key)
+        if callable(callback):
+            value = callback()
+            return value if isinstance(value, str) else json.dumps(value)
+        return super().get(key)
+
+
+class _TtlRedis(_FakeRedis):
+    def __init__(self, payloads: dict[str, object], *, ttl_seconds: int = 3600):
+        super().__init__(payloads)
+        self.ttl_seconds = ttl_seconds
+
+    def ttl(self, key: str) -> int:
+        return self.ttl_seconds if key in self.payloads else -2
+
+
+def test_behavior_receipt_archive_root_is_cwd_independent_and_overrideable(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    foreign_cwd = tmp_path / "foreign-cwd"
+    custom_root = tmp_path / "custom-behavior-receipts"
+    foreign_cwd.mkdir()
+    monkeypatch.chdir(foreign_cwd)
+
+    default_root = paper_loop._paper_behavior_receipt_archive_root()  # noqa: SLF001
+    override_root = paper_loop._paper_behavior_receipt_archive_root(  # noqa: SLF001
+        custom_root
+    )
+
+    assert default_root == paper_loop.PAPER_BEHAVIOR_RECEIPT_ARCHIVE_ROOT.resolve()
+    assert default_root.is_absolute()
+    assert override_root == custom_root
+    assert str(foreign_cwd) not in str(default_root)
+    assert str(foreign_cwd) not in str(override_root)
+
+
+def _binance_usdm_market_filter_row() -> dict[str, object]:
+    return {
+        "symbol": "BTCUSDT",
+        "status": "TRADING",
+        "contractType": "PERPETUAL",
+        "baseAsset": "BTC",
+        "quoteAsset": "USDT",
+        "filters": [
+            {
+                "filterType": "LOT_SIZE",
+                "minQty": "0.001",
+                "maxQty": "1000",
+                "stepSize": "0.001",
+            },
+            {
+                "filterType": "MARKET_LOT_SIZE",
+                "minQty": "0.001",
+                "maxQty": "120",
+                "stepSize": "0.001",
+            },
+            {"filterType": "MIN_NOTIONAL", "notional": "5"},
+        ],
+    }
+
+
+def _stamped_binance_usdm_filter_redis(
+    monkeypatch,
+    row: dict[str, object] | None = None,
+) -> _TtlRedis:
+    from v2.backend.app.cli import v2_direct_orderbook_recorder as recorder
+
+    redis = _TtlRedis({})
+    monkeypatch.setattr(
+        recorder,
+        "utc_now_iso",
+        lambda: "2026-07-17T12:00:01Z",
+    )
+    assert recorder._safe_symbol_filter_cache_set(  # noqa: SLF001
+        redis,
+        "v2:exchange:symbol_filters:BTCUSDT",
+        row or _binance_usdm_market_filter_row(),
+        fetched_at="2026-07-17T12:00:00Z",
+    )
+    return redis
+
+
+def test_paper_exchange_filter_accepts_actual_usdm_market_shape(monkeypatch) -> None:
+    redis = _stamped_binance_usdm_filter_redis(monkeypatch)
+    monkeypatch.setattr(
+        paper_loop,
+        "_utc_iso",
+        lambda: "2026-07-17T12:00:02Z",
+    )
+
+    snapshot = paper_loop._paper_exchange_filter_snapshot(  # noqa: SLF001
+        redis,
+        "BTCUSDT",
+    )
+
+    assert snapshot["status"] == "READY"
+    assert snapshot["rejection_reasons"] == []
+    assert snapshot["source"] == ("BINANCE_FAPI_V1_EXCHANGE_INFO_REST_FALLBACK_CACHE")
+    assert snapshot["simulated_order_type"] == "MARKET_PAPER_IMMEDIATE_FILL"
+    assert snapshot["quantity_filter_applied"] == "MARKET_LOT_SIZE"
+    assert snapshot["min_qty"] == pytest.approx(0.001)
+    assert snapshot["step_size"] == pytest.approx(0.001)
+    assert snapshot["max_qty"] == pytest.approx(120.0)
+    assert snapshot["min_notional"] == pytest.approx(5.0)
+    assert "applyToMarket" not in snapshot["notional_filter"]
+
+
+def test_paper_exchange_filter_rejects_stale_fetch_even_with_positive_ttl(
+    monkeypatch,
+) -> None:
+    from v2.backend.app.cli import v2_direct_orderbook_recorder as recorder
+
+    redis = _TtlRedis({}, ttl_seconds=3600)
+    monkeypatch.setattr(
+        recorder,
+        "utc_now_iso",
+        lambda: "2026-07-17T12:00:01Z",
+    )
+    assert recorder._safe_symbol_filter_cache_set(  # noqa: SLF001
+        redis,
+        "v2:exchange:symbol_filters:BTCUSDT",
+        _binance_usdm_market_filter_row(),
+        fetched_at="2026-07-15T12:00:00Z",
+    )
+    monkeypatch.setattr(
+        paper_loop,
+        "_utc_iso",
+        lambda: "2026-07-17T12:00:02Z",
+    )
+
+    snapshot = paper_loop._paper_exchange_filter_snapshot(  # noqa: SLF001
+        redis,
+        "BTCUSDT",
+    )
+
+    assert snapshot["status"] == "BLOCKED"
+    assert "SYMBOL_FILTER_SOURCE_FETCH_STALE" in snapshot["rejection_reasons"]
+
+
+def test_paper_exchange_filter_rejects_source_payload_tampering(monkeypatch) -> None:
+    redis = _stamped_binance_usdm_filter_redis(monkeypatch)
+    key = "v2:exchange:symbol_filters:BTCUSDT"
+    tampered = json.loads(redis.payloads[key])
+    market_filter = next(
+        row for row in tampered["filters"] if row["filterType"] == "MARKET_LOT_SIZE"
+    )
+    market_filter["maxQty"] = "999"
+    redis.payloads[key] = json.dumps(tampered)
+    monkeypatch.setattr(
+        paper_loop,
+        "_utc_iso",
+        lambda: "2026-07-17T12:00:02Z",
+    )
+
+    snapshot = paper_loop._paper_exchange_filter_snapshot(  # noqa: SLF001
+        redis,
+        "BTCUSDT",
+    )
+
+    assert snapshot["status"] == "BLOCKED"
+    assert "SYMBOL_FILTER_SOURCE_PAYLOAD_HASH_INVALID" in snapshot["rejection_reasons"]
+
+
+def test_paper_exchange_filter_rejects_conflicting_top_level_alias(
+    monkeypatch,
+) -> None:
+    row = _binance_usdm_market_filter_row()
+    row["maxQty"] = "999"
+    redis = _stamped_binance_usdm_filter_redis(monkeypatch, row)
+    monkeypatch.setattr(
+        paper_loop,
+        "_utc_iso",
+        lambda: "2026-07-17T12:00:02Z",
+    )
+
+    snapshot = paper_loop._paper_exchange_filter_snapshot(  # noqa: SLF001
+        redis,
+        "BTCUSDT",
+    )
+
+    assert snapshot["status"] == "BLOCKED"
+    assert "SYMBOL_FILTER_TOP_LEVEL_ALIAS_CONFLICT:MAX_QTY:maxQty" in snapshot["rejection_reasons"]
+    assert snapshot["max_qty"] == pytest.approx(120.0)
+
+
+def test_paper_exchange_filter_rejects_dual_notional_contract(monkeypatch) -> None:
+    row = _binance_usdm_market_filter_row()
+    filters = row["filters"]
+    assert isinstance(filters, list)
+    filters.append(
+        {
+            "filterType": "NOTIONAL",
+            "minNotional": "5",
+            "applyMinToMarket": True,
+        }
+    )
+    redis = _stamped_binance_usdm_filter_redis(monkeypatch, row)
+    monkeypatch.setattr(
+        paper_loop,
+        "_utc_iso",
+        lambda: "2026-07-17T12:00:02Z",
+    )
+
+    snapshot = paper_loop._paper_exchange_filter_snapshot(  # noqa: SLF001
+        redis,
+        "BTCUSDT",
+    )
+
+    assert snapshot["status"] == "BLOCKED"
+    assert "SYMBOL_FILTER_NOTIONAL_FILTER_CONTRACT_INVALID" in snapshot["rejection_reasons"]
+
+
+def _decision_record_hash(record: dict[str, object]) -> str:
+    return hashlib.sha256(
+        json.dumps(record, sort_keys=True, default=str).encode("utf-8")
+    ).hexdigest()
+
+
+def _reseal_a_plus_context_and_gate_receipt(intent: dict[str, object]) -> None:
+    lineage = intent["a_plus_context_snapshot_lineage"]
+    assert isinstance(lineage, list)
+    snapshot_hash = paper_loop._paper_canonical_sha256(lineage)  # noqa: SLF001
+    intent["a_plus_context_snapshot_hash"] = snapshot_hash
+    snapshot = intent["a_plus_context_snapshot"]
+    assert isinstance(snapshot, dict)
+    snapshot["snapshot_hash"] = snapshot_hash
+    evaluation = intent["a_plus_gate_evaluation"]
+    assert isinstance(evaluation, dict)
+    evaluation["a_plus_context_snapshot_hash"] = snapshot_hash
+    gate_input_material = evaluation["gate_input_material"]
+    assert isinstance(gate_input_material, dict)
+    gate_input_material["a_plus_context_snapshot_hash"] = snapshot_hash
+    evaluation["gate_input_hash"] = paper_loop._paper_canonical_sha256(  # noqa: SLF001
+        gate_input_material
+    )
+    evaluation.pop("receipt_hash", None)
+    evaluation["receipt_hash"] = paper_loop._paper_canonical_sha256(  # noqa: SLF001
+        evaluation
+    )
+    intent["a_plus_gate_evaluation_hash"] = evaluation["receipt_hash"]
+
+
+def _final_admission_lineage_receipt(
+    *,
+    role: str,
+    redis_key: str,
+    observed_at: str,
+    derived: bool = False,
+) -> dict[str, object]:
+    receipt: dict[str, object] = {
+        "role": role,
+        "redis_key": redis_key,
+        "present": True,
+        "payload_hash": paper_loop._paper_canonical_sha256(  # noqa: SLF001
+            {"role": role, "source": redis_key}
+        ),
+        "hash_contract": (
+            "FULL_CANONICAL_DERIVED_PAYLOAD_SHA256_V1"
+            if derived
+            else "REDIS_KEY_AND_FULL_CANONICAL_PAYLOAD_SHA256_V1"
+        ),
+        "observed_at": observed_at,
+    }
+    if derived:
+        feedback_source_key = "v2:trainer:feedback:outcomes"
+        receipt.update(
+            {
+                "source_role": "feedback_rows",
+                "source_redis_key": feedback_source_key,
+                "source_payload_hash": paper_loop._paper_canonical_sha256(  # noqa: SLF001
+                    {"role": "feedback_rows", "source": feedback_source_key}
+                ),
+                "source_observed_at": "2026-07-17T11:59:59Z",
+                "derivation_started_at": "2026-07-17T12:00:00Z",
+                "generated_at": "2026-07-17T12:00:00.500000Z",
+                "available_at": "2026-07-17T12:00:01Z",
+            }
+        )
+    return receipt
+
+
+def _passing_final_admission_runtime_owner_status() -> dict[str, object]:
+    pass_conditions = {
+        "canonical_paper_writer_count_eq_1": True,
+        "canonical_service_scope_writer_count_eq_1": True,
+        "current_process_is_only_canonical_writer": True,
+        "forbidden_entry_process_count_zero": True,
+        "duplicate_paper_writer_count_zero": True,
+        "paper_online_runtime_active_false": True,
+        "paper_online_runtime_enabled_false": True,
+        "canonical_paper_runtime_enabled_true": True,
+        "toy_momentum_entry_writer_active_false": True,
+        "active_new_entry_owner_is_v2_trade_management_paper_loop": True,
+    }
+    return {
+        "schema_version": "paper_active_runtime_owner_status_v2",
+        "status": "PASS_ACTIVE_RUNTIME_OWNER_VALIDATION",
+        "active_new_entry_owner": "v2_trade_management_paper_loop",
+        "canonical_paper_writer_count": 1,
+        "canonical_service_scope_writer_count": 1,
+        "forbidden_entry_process_count": 0,
+        "duplicate_paper_writer_count": 0,
+        "current_process_is_only_canonical_writer": True,
+        "paper_online_runtime_active": False,
+        "paper_online_runtime_enabled": False,
+        "canonical_paper_runtime_enabled": True,
+        "toy_momentum_entry_writer_active": False,
+        "pass_conditions": pass_conditions,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+
+
+def _canonical_fail_closed_adaptive_tuning_state(
+    monkeypatch,
+    *,
+    session_id: str,
+) -> tuple[dict[str, object], str]:
+    from v2.backend.app.cli import v2_adaptive_gate_tuner as tuner
+
+    session_payload = {
+        "paper_session_id": session_id,
+        "reset_session_id": session_id,
+        "session_id": session_id,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+    session_raw = json.dumps(session_payload, sort_keys=True)
+    source_values = {
+        tuner.OUTCOMES_KEY: "[]",
+        tuner.PAPER_SESSION_KEY: session_raw,
+        **{key: None for key in tuner.MARKET_CANDLE_KEYS},
+        tuner.TRAINER_METRICS_KEY: None,
+    }
+    outcomes_cutoff = datetime(2026, 7, 17, 12, 0, tzinfo=timezone.utc)
+    clock = iter(
+        (
+            datetime(2026, 7, 17, 12, 0, 0, 500000, tzinfo=timezone.utc),
+            datetime(2026, 7, 17, 12, 0, 1, tzinfo=timezone.utc),
+        )
+    )
+    monkeypatch.setattr(tuner, "_utc_now", lambda: next(clock))
+    state = tuner._build_canonical_state(  # noqa: SLF001
+        outcomes={
+            "status": "INSUFFICIENT_CLEAN_EVIDENCE",
+            "evidence_sufficient": False,
+            "minimum_clean_outcomes_required": 20,
+            "source_row_count": 0,
+            "admitted_row_count": 0,
+            "rejected_row_count": 0,
+            "rejection_reason_counts": {},
+            "source_rejection_reason_counts": {},
+            "admitted_rows_material_hash_sha256": (
+                tuner._sha256_canonical([])  # noqa: SLF001
+            ),
+            "total_pnl_usd": 0.0,
+            "overall_win_rate": 0.0,
+        },
+        regime={"status": "INSUFFICIENT_MARKET_EVIDENCE"},
+        source_values=source_values,
+        source_manifest=tuner._source_manifest(source_values),  # noqa: SLF001
+        source_read_errors=[],
+        current_paper_session_id=session_id,
+        session_identity_errors=[],
+        outcomes_cutoff=outcomes_cutoff,
+        adaptive_confidence_threshold=0.80,
+        loss_probability_threshold=0.80,
+        enable_b_grade=False,
+        enable_a_grade=False,
+        volatility_factor=1.0,
+        trainer_performance_factor=1.0,
+        portfolio_performance_factor=0.7,
+        long_confidence_floor=0.80,
+        short_confidence_floor=0.80,
+        expectancy_floor=0.0,
+        entry_freeze_allowance=0.0,
+        a_plus_strictness=1.0,
+    )
+    assert (
+        tuner.adaptive_gate_tuning_rejection_reasons(
+            state,
+            observed_at="2026-07-17T12:00:02Z",
+            current_paper_session_id=session_id,
+            require_current_session=True,
+        )
+        == []
+    )
+    return state, session_raw
+
+
+@pytest.fixture
+def golden_a_grade_final_admission(
+    monkeypatch,
+) -> tuple[dict[str, object], _TtlRedis, object]:
+    """One complete A-grade row at the real final append contract boundary."""
+
+    from v2.backend.app.services.adaptive_capital_allocator import (
+        AllocationInput,
+        RiskEnvelope,
+        allocate_paper_candidate,
+    )
+    from v2.backend.app.services.binance_usdm_leverage_bracket_evidence import (
+        MAINNET_BASE_URL,
+        build_evidence_security_context,
+        build_symbol_evidence,
+        redis_key as bracket_redis_key,
+    )
+    from v2.backend.app.services.preemptive_edge_control.decision import (
+        evaluate_candidate as evaluate_preemptive_candidate,
+    )
+
+    symbol = "BTCUSDT"
+    timeframe = "1m"
+    side = "long"
+    prediction_id = "pred-final-golden-1"
+    signal_id = "signal-final-golden-1"
+    feature_snapshot_id = "feature-final-golden-1"
+    feature_vector_hash = "e" * 64
+    risk_decision_id = "risk-final-golden-1"
+    orchestrator_decision_id = "orch-final-golden-1"
+    risk_key = f"v2:decision:risk:{risk_decision_id}"
+    orchestrator_key = f"v2:decision:orchestrator:{orchestrator_decision_id}"
+    source_observed_at = "2026-07-17T12:00:02Z"
+    allocation_decision_time = "2026-07-17T12:00:05Z"
+    bracket_key_id = "paper-golden-bracket-key-v1"
+    paper_session_id = "paper-golden-session-2026-07-17"
+    tuning_state, paper_session_raw = _canonical_fail_closed_adaptive_tuning_state(
+        monkeypatch,
+        session_id=paper_session_id,
+    )
+    guardian_payload = {
+        "status": "ACTIVE",
+        "a_grade_new_entries_allowed": True,
+        "new_entries_allowed": True,
+    }
+    entry_freeze_payload = {
+        "schema_version": "paper_entry_freeze_v1",
+        "paper_new_entries_halted": False,
+        "new_entries_allowed": True,
+        "reason": None,
+    }
+    portfolio_state_payload = {
+        "equity_trusted": True,
+        "pnl_trusted": True,
+        "current_drawdown_bps": 0.0,
+    }
+    bracket_security_context = build_evidence_security_context(
+        trader_id="paper-golden-trader",
+        credential_ref="PAPER_BINANCE_GOLDEN_READONLY",
+        base_url=MAINNET_BASE_URL,
+        credential_account_specific=True,
+        hmac_key="paper-golden-local-evidence-auth-key-at-least-32-bytes",
+        auth_key_id=bracket_key_id,
+    )
+
+    redis = _stamped_binance_usdm_filter_redis(monkeypatch)
+    redis.ttl_seconds = 180
+    redis.set(
+        paper_loop.CONTINUOUS_EDGE_GUARDIAN_GATE_REDIS_KEY,
+        json.dumps(guardian_payload),
+    )
+    redis.set(
+        paper_loop.PAPER_ENTRY_FREEZE_REDIS_KEY,
+        json.dumps(entry_freeze_payload),
+    )
+    redis.set(
+        paper_loop.PAPER_PORTFOLIO_STATE_REDIS_KEY,
+        json.dumps(portfolio_state_payload),
+    )
+    redis.set(
+        paper_loop.PAPER_ADAPTIVE_TUNING_REDIS_KEY,
+        json.dumps(tuning_state),
+    )
+    redis.set(paper_loop.PAPER_SESSION_REDIS_KEY, paper_session_raw)
+    redis.set(paper_loop.PAPER_POSITIONS_REDIS_KEY, "[]")
+    redis.set(paper_loop.PAPER_CLOSED_TRADES_REDIS_KEY, "[]")
+    monkeypatch.setattr(
+        paper_loop,
+        "_paper_active_runtime_owner_status",
+        _passing_final_admission_runtime_owner_status,
+    )
+    monkeypatch.setattr(paper_loop, "_utc_iso", lambda: source_observed_at)
+    exchange_filter_snapshot = paper_loop._paper_exchange_filter_snapshot(  # noqa: SLF001
+        redis,
+        symbol,
+    )
+    assert exchange_filter_snapshot["status"] == "READY"
+    bracket_evidence_payload = build_symbol_evidence(
+        {
+            "symbol": symbol,
+            "brackets": [
+                {
+                    "bracket": 1,
+                    "initialLeverage": 3,
+                    "notionalFloor": 0,
+                    "notionalCap": 1_000_000_000,
+                    "maintMarginRatio": 0.004,
+                    "cum": 0,
+                }
+            ],
+        },
+        security_context=bracket_security_context,
+        fetched_at=datetime(2026, 7, 17, 12, 0, 1, tzinfo=timezone.utc),
+        freshness_seconds=600,
+        cache_ttl_seconds=900,
+    )
+    redis.set(
+        bracket_redis_key(symbol, security_context=bracket_security_context),
+        json.dumps(bracket_evidence_payload),
+        ex=900,
+    )
+    bracket_available_at = bracket_evidence_payload["available_at"]
+    bracket_expires_at = bracket_evidence_payload["expires_at"]
+    bracket_consumer_observed_at = "2026-07-17T12:00:06.000000Z"
+    bracket_checksum = bracket_evidence_payload["content_checksum_sha256"]
+    bracket_hmac = bracket_evidence_payload["evidence_hmac_sha256"]
+    bracket_binding = bracket_security_context.binding_id
+    bracket_environment = bracket_security_context.exchange_environment
+
+    record_common: dict[str, object] = {
+        "symbol": symbol,
+        "timeframe": timeframe,
+        "side": side,
+        "prediction_id": prediction_id,
+        "signal_id": signal_id,
+        "feature_snapshot_id": feature_snapshot_id,
+        "feature_vector_hash": feature_vector_hash,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "live_gate": paper_loop.LIVE_GATE_BLOCKED,
+        "generated_utc": "2026-07-17T12:00:01Z",
+        "expires_at": "2026-07-17T12:05:00Z",
+    }
+    raw_risk_record = {
+        **record_common,
+        "schema_version": "v2_per_id_risk_decision_record_v1",
+        "producer": "v2_risk_gateway_live_loop",
+        "risk_decision_id": risk_decision_id,
+        "orchestrator_decision_id": orchestrator_decision_id,
+        "risk_action": "allow",
+    }
+    raw_orchestrator_record = {
+        **record_common,
+        "schema_version": "v2_per_id_orchestrator_decision_record_v1",
+        "producer": "v2_orchestrator_arbitration_loop",
+        "orchestrator_decision_id": orchestrator_decision_id,
+        "orchestrator_action": "proceed_long",
+    }
+    redis.set(risk_key, json.dumps(raw_risk_record))
+    redis.set(orchestrator_key, json.dumps(raw_orchestrator_record))
+    risk_record = {
+        **raw_risk_record,
+        "_decision_record_key": risk_key,
+        "_decision_record_store": "PER_ID_DECISION_RECORD",
+    }
+    orchestrator_record = {
+        **raw_orchestrator_record,
+        "_decision_record_key": orchestrator_key,
+        "_decision_record_store": "PER_ID_DECISION_RECORD",
+    }
+
+    a_plus_sources = {
+        "trainer_metrics": "v2:trainer:hybrid_cuda:metrics",
+        "cross_asset": "v2:context:cross_asset",
+        "feedback_rows": "v2:trainer:feedback:outcomes",
+        "derived_side_performance": "IN_PROCESS_FROM_TRUSTED_FEEDBACK_ROWS",
+        "regime_decision": f"v2:regime:gate:{symbol}:{timeframe}",
+        "htf_context": f"v2:context:htf:{symbol}",
+        "trade_tape": f"v2:market:trade_tape_features:{symbol}",
+        "microstructure_trust": (f"v2:microstructure:trust_score:{symbol}:{timeframe}"),
+    }
+    a_plus_lineage = [
+        _final_admission_lineage_receipt(
+            role=role,
+            redis_key=redis_key,
+            observed_at=("2026-07-17T11:59:59Z" if role == "feedback_rows" else source_observed_at),
+            derived=role == "derived_side_performance",
+        )
+        for role, redis_key in a_plus_sources.items()
+    ]
+    a_plus_snapshot_hash = paper_loop._paper_canonical_sha256(  # noqa: SLF001
+        a_plus_lineage
+    )
+    a_plus_context_snapshot = {
+        "observed_at": source_observed_at,
+        "lineage": a_plus_lineage,
+        "snapshot_hash": a_plus_snapshot_hash,
+    }
+
+    revocable_sources = (
+        paper_loop._paper_revocable_control_source_materials(redis)  # noqa: SLF001
+    )
+    effective_entry_freeze = paper_loop._compose_paper_entry_freeze(  # noqa: SLF001
+        entry_freeze_payload,
+        portfolio_state_payload,
+    )
+    current_risk_state = paper_loop._paper_current_risk_state_from_sources(  # noqa: SLF001
+        revocable_sources
+    )
+    owner_projection = paper_loop._paper_runtime_owner_minimal_projection(  # noqa: SLF001
+        _passing_final_admission_runtime_owner_status()
+    )
+    position_source_key = revocable_sources["paper_position_or_ledger_source"]["source_key"]
+    pre_cycle_sources = {
+        "continuous_edge_guardian": (
+            paper_loop.CONTINUOUS_EDGE_GUARDIAN_GATE_REDIS_KEY,
+            revocable_sources["continuous_edge_guardian"],
+        ),
+        "paper_performance_circuit_breaker": (
+            "IN_PROCESS_PRE_CYCLE_PERFORMANCE_CIRCUIT",
+            {"status": "PASS"},
+        ),
+        "churn_equity_bleed_governor": (
+            "IN_PROCESS_PRE_CYCLE_CHURN_GOVERNOR",
+            {"status": "PASS"},
+        ),
+        "bucket_quarantine": (
+            "IN_PROCESS_PRE_CYCLE_BUCKET_QUARANTINE",
+            {"status": "PASS"},
+        ),
+        "b_grade_calibration_safety": (
+            "IN_PROCESS_PRE_CYCLE_CALIBRATION_SAFETY",
+            {"status": "PASS"},
+        ),
+        "paper_entry_freeze": (
+            "IN_PROCESS_COMPOSED_FROM_EXACT_REDIS_FREEZE_AND_PORTFOLIO_SOURCES",
+            effective_entry_freeze,
+        ),
+        "paper_entry_freeze_source": (
+            paper_loop.PAPER_ENTRY_FREEZE_REDIS_KEY,
+            revocable_sources["paper_entry_freeze_source"],
+        ),
+        "portfolio_state_source": (
+            paper_loop.PAPER_PORTFOLIO_STATE_REDIS_KEY,
+            revocable_sources["portfolio_state_source"],
+        ),
+        "adaptive_tuning_source": (
+            paper_loop.PAPER_ADAPTIVE_TUNING_REDIS_KEY,
+            revocable_sources["adaptive_tuning_source"],
+        ),
+        "paper_session_source": (
+            paper_loop.PAPER_SESSION_REDIS_KEY,
+            revocable_sources["paper_session_source"],
+        ),
+        "paper_position_or_ledger_source": (
+            position_source_key,
+            revocable_sources["paper_position_or_ledger_source"],
+        ),
+        "paper_closed_trades_source": (
+            paper_loop.PAPER_CLOSED_TRADES_REDIS_KEY,
+            revocable_sources["paper_closed_trades_source"],
+        ),
+        "high_confidence_loss_cluster": (
+            "IN_PROCESS_PRE_CYCLE_HIGH_CONFIDENCE_LOSS_CLUSTER",
+            {"status": "PASS"},
+        ),
+        "preemptive_bucket_health": (
+            "IN_PROCESS_PRE_CYCLE_PREEMPTIVE_BUCKET_HEALTH",
+            {"status": "PASS"},
+        ),
+        "current_risk_state": (
+            "IN_PROCESS_DERIVED_FROM_EXACT_PAPER_POSITION_AND_PORTFOLIO_SOURCES",
+            current_risk_state,
+        ),
+        "paper_runtime_owner": (
+            "PROCFS_AND_SYSTEMD_CURRENT_PROCESS_OWNER_PROJECTION",
+            owner_projection,
+        ),
+        "maintenance_bracket_security": (
+            "ENV_DERIVED_SECRET_FREE_SECURITY_BINDING",
+            {"status": "READY", "paper_only": True},
+        ),
+        "dynamic_risk_envelope": (
+            "IN_PROCESS_PRE_CYCLE_DYNAMIC_RISK_ENVELOPE",
+            {"status": "READY"},
+        ),
+    }
+    pre_cycle_lineage = [
+        paper_loop._paper_snapshot_lineage(  # noqa: SLF001
+            role=role,
+            redis_key=redis_key,
+            payload=payload,
+            observed_at=source_observed_at,
+        )
+        for role, (redis_key, payload) in pre_cycle_sources.items()
+    ]
+    pre_cycle_snapshot_hash = paper_loop._paper_canonical_sha256(  # noqa: SLF001
+        pre_cycle_lineage
+    )
+    pre_cycle_snapshot = {
+        "observed_at": source_observed_at,
+        "lineage": pre_cycle_lineage,
+        "snapshot_hash": pre_cycle_snapshot_hash,
+    }
+
+    precycle_exposure_snapshot = paper_loop._paper_precycle_current_mark_exposure_snapshot(  # noqa: SLF001
+        redis,
+        ledger={"open_positions": []},
+        ledger_observed_at=source_observed_at,
+        accepted_fill_proof_source=(
+            paper_loop._paper_accepted_fill_proof_source(redis)  # noqa: SLF001
+        ),
+    )
+    assert precycle_exposure_snapshot["status"] == "READY"
+    cycle_base_resource_evidence = paper_loop._paper_cycle_base_resource_evidence(  # noqa: SLF001
+        {
+            "equity": 10_000.0,
+            "available_margin": 5_000.0,
+            "wallet_balance": 10_000.0,
+            "drawdown_bps": 0.0,
+            "paper_session_starting_equity_usd": 10_000.0,
+            "current_equity_usd": 10_000.0,
+            "current_drawdown_fraction": 0.0,
+            "portfolio_state_present": True,
+            "portfolio_state_event_time": "2026-07-17T11:59:58Z",
+            "portfolio_state_generated_at": "2026-07-17T11:59:59Z",
+            "portfolio_state_available_at": "2026-07-17T12:00:00Z",
+            "portfolio_context_observed_at": source_observed_at,
+            "paper_ledger_generated_at": "2026-07-17T12:00:00Z",
+            "paper_ledger_observed_at": source_observed_at,
+        }
+    )
+    reservation_envelope = RiskEnvelope(max_effective_leverage=3.0)
+    dynamic_envelope_calculation_input = {
+        "schema_version": "paper_dynamic_envelope_calculation_input_v1",
+        "base_envelope": {
+            field: getattr(reservation_envelope, field)
+            for field in paper_loop.PAPER_DYNAMIC_ENVELOPE_FIELDS
+        },
+        "arguments": {
+            "win_rate": None,
+            "profit_factor": None,
+            "closed_trade_count": 0,
+            "current_drawdown_pct": 0.0,
+            "model_avg_confidence": None,
+            "paper_mode": True,
+            "after_cost_edge_lower_bound_bps": None,
+            "after_cost_edge_evidence_count": None,
+            "after_cost_edge_evidence_source": None,
+            "edge_available_at": None,
+            "liquidity_score": None,
+            "regime_quality_score": None,
+            "market_context_source": None,
+            "market_context_available_at": None,
+            "decision_time": None,
+        },
+    }
+    dynamic_envelope_evidence = paper_loop._paper_dynamic_envelope_reservation_evidence(  # noqa: SLF001
+        reservation_envelope,
+        evidence={
+            "schema_version": "golden_dynamic_envelope_input_v1",
+            "available_at": source_observed_at,
+            "decision_time": source_observed_at,
+        },
+        calculation_input_material=dynamic_envelope_calculation_input,
+    )
+    cycle_snapshot = paper_loop.build_cycle_reservation_snapshot(
+        cycle_identity="paper_cycle_reservation:golden:cycle-1:candidate:0",
+        candidate_symbol=symbol,
+        base_resource_evidence_hash=cycle_base_resource_evidence["evidence_hash"],
+        precycle_exposure_snapshot_hash=precycle_exposure_snapshot["snapshot_hash"],
+        dynamic_envelope_evidence_hash=dynamic_envelope_evidence["evidence_hash"],
+        base_equity_usd=10_000.0,
+        base_available_margin_usd=5_000.0,
+        realized_drawdown_fraction_of_equity=0.0,
+        precycle_total_notional_usd=0.0,
+        precycle_symbol_current_mark_notional_usd=0.0,
+        precycle_open_projected_max_loss_usd=0.0,
+        max_total_portfolio_risk_pct=(reservation_envelope.max_total_portfolio_risk_pct),
+        max_single_symbol_exposure_pct=(reservation_envelope.max_single_symbol_exposure_pct),
+        min_available_margin_buffer_pct=(reservation_envelope.min_available_margin_buffer_pct),
+        max_daily_drawdown_pct=reservation_envelope.max_daily_drawdown_pct,
+        max_loss_per_trade_pct=reservation_envelope.max_loss_per_trade_pct,
+        emergency_absolute_cap_usdt=(reservation_envelope.emergency_absolute_cap_usdt),
+        prior_accepted_rows=[],
+    )
+
+    allocation_lineage = {
+        "prediction_id": prediction_id,
+        "signal_id": signal_id,
+        "feature_snapshot_id": feature_snapshot_id,
+        "risk_decision_id": risk_decision_id,
+        "orchestrator_decision_id": orchestrator_decision_id,
+        "maintenance_bracket_evidence_id": bracket_checksum,
+        "maintenance_bracket_evidence_checksum_sha256": bracket_checksum,
+        "maintenance_bracket_evidence_hmac_sha256": bracket_hmac,
+        "maintenance_bracket_account_binding_id": bracket_binding,
+        "maintenance_bracket_environment_id": bracket_environment,
+        "maintenance_bracket_key_id": bracket_key_id,
+        "maintenance_bracket_id": 1,
+        "maintenance_bracket_available_at": bracket_available_at,
+        "maintenance_bracket_expires_at": bracket_expires_at,
+        paper_loop.CYCLE_RESERVATION_LINEAGE_KEY: cycle_snapshot["snapshot_hash"],
+    }
+    allocation_input = AllocationInput(
+        symbol=symbol,
+        timeframe=timeframe,
+        action=side,
+        price=100.0,
+        equity=10_000.0,
+        available_margin=5_000.0,
+        wallet_balance=10_000.0,
+        confidence_calibrated=0.90,
+        expected_move_after_cost_bps=100.0,
+        market_state_integrity_score=95.0,
+        volatility_bps=50.0,
+        liquidity_score=1.0,
+        spread_bps=1.0,
+        slippage_bps=1.0,
+        fee_bps=2.0,
+        expected_funding_bps=0.0,
+        stop_distance_bps=100.0,
+        maintenance_margin_rate=0.004,
+        permitted_leverage_values=(1.0, 2.0, 3.0),
+        min_qty=float(exchange_filter_snapshot["min_qty"]),
+        step_size=float(exchange_filter_snapshot["step_size"]),
+        max_qty=float(exchange_filter_snapshot["max_qty"]),
+        min_notional=float(exchange_filter_snapshot["min_notional"]),
+        lineage_ids=allocation_lineage,
+    )
+    allocation_result, _bound_input, bracket_context = (
+        paper_loop._paper_allocate_with_bracket_evidence(  # noqa: SLF001
+            allocation_input=allocation_input,
+            envelope=reservation_envelope,
+            redis_client=redis,
+            security_context=bracket_security_context,
+            allocation_decision_time=datetime(
+                2026,
+                7,
+                17,
+                12,
+                0,
+                5,
+                tzinfo=timezone.utc,
+            ),
+            allocate_fn=allocate_paper_candidate,
+            evidence_now_fn=lambda: datetime(
+                2026,
+                7,
+                17,
+                12,
+                0,
+                6,
+                tzinfo=timezone.utc,
+            ),
+        )
+    )
+    allocation = allocation_result.to_payload()
+    assert allocation["allocator_decision"] == "ALLOW_WITH_SIZE"
+    allocation.update(
+        {
+            "margin_mode": "isolated_paper_simulated",
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+            "live_order": False,
+            "test_order": False,
+            "leverage_mutation": False,
+            "margin_mode_mutation": False,
+        }
+    )
+    paper_loop._attach_paper_maintenance_bracket_context(  # noqa: SLF001
+        allocation,
+        bracket_context,
+    )
+
+    intent: dict[str, object] = {
+        "intent_id": "intent-final-golden-1",
+        "symbol": symbol,
+        "timeframe": timeframe,
+        "side": side,
+        "prediction_id": prediction_id,
+        "signal_id": signal_id,
+        "feature_snapshot_id": feature_snapshot_id,
+        "feature_vector_hash": feature_vector_hash,
+        "confidence_calibrated": 0.90,
+        "expected_move_after_cost_bps": 100.0,
+        "paper_session_id": paper_session_id,
+        "paper_opportunity_tier": paper_loop.PAPER_TIER_A_GRADE_EXECUTION,
+        "paper_opportunity_tier_reason": ("STRICT_UPSTREAM_PAPER_FILL_GATE_ALLOWED"),
+        "paper_fill_allowed_source": "STRICT_UPSTREAM_PAPER_FILL_GATE",
+        "paper_fill_allowed": True,
+        "valid_for_paper": True,
+        "decision": "ACCEPTED_PAPER_FILL",
+        "continuous_edge_guardian_new_entries_allowed": True,
+        "paper_reduced_budget_allocator_recomputed": False,
+        "pre_trade_allowed": True,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "live_order": False,
+        "test_order": False,
+        "order_submitted": False,
+        "test_order_submitted": False,
+        "leverage_mutated": False,
+        "margin_mutated": False,
+        "paper_sizing_complete": True,
+        "risk_decision_id": risk_decision_id,
+        "risk_decision_record": risk_record,
+        "risk_decision_record_key": risk_key,
+        "risk_decision_record_hash": _decision_record_hash(risk_record),
+        "risk_decision_record_resolved": True,
+        "risk_decision_source": "PER_ID_DECISION_RECORD",
+        "risk_controller_decision": "allow",
+        "orchestrator_decision_id": orchestrator_decision_id,
+        "orchestrator_decision_record": orchestrator_record,
+        "orchestrator_decision_record_key": orchestrator_key,
+        "orchestrator_decision_record_hash": _decision_record_hash(orchestrator_record),
+        "orchestrator_decision_record_resolved": True,
+        "orchestrator_decision_source": "PER_ID_DECISION_RECORD",
+        "orchestrator_decision": "proceed_long",
+        "advanced_indicator_status": "ADVANCED_INDICATOR_CONTEXT_FOUND",
+        "advanced_indicator_event_time": "2026-07-17T11:59:00Z",
+        "advanced_indicator_available_at": "2026-07-17T11:59:01Z",
+        "advanced_indicator_source_decision_time": "2026-07-17T11:59:02Z",
+        "advanced_indicator_generated_at": "2026-07-17T11:59:03Z",
+        "advanced_indicator_input_cutoff": "2026-07-17T11:59:03.500000Z",
+        "advanced_indicator_decision_time": "2026-07-17T11:59:04Z",
+        "advanced_indicator_lookup_observed_at": source_observed_at,
+        "advanced_indicator_source_hash": "a" * 64,
+        "altdata_lookup_observed_at": source_observed_at,
+        "long_short_lookup_observed_at": source_observed_at,
+        "a_plus_context_snapshot": a_plus_context_snapshot,
+        "a_plus_context_snapshot_lineage": a_plus_lineage,
+        "a_plus_context_snapshot_hash": a_plus_snapshot_hash,
+        "a_plus_context_snapshot_observed_at": source_observed_at,
+        "paper_pre_cycle_control_snapshot": pre_cycle_snapshot,
+        "paper_pre_cycle_control_snapshot_hash": pre_cycle_snapshot_hash,
+        "paper_pre_cycle_control_snapshot_observed_at": source_observed_at,
+        "runtime_cost_capture_decision_time": "2026-07-17T12:00:03Z",
+        "paper_allocation_decision_time": allocation_decision_time,
+        "paper_precycle_current_mark_exposure_snapshot": deepcopy(precycle_exposure_snapshot),
+        "paper_precycle_current_mark_exposure_snapshot_hash": (
+            precycle_exposure_snapshot["snapshot_hash"]
+        ),
+        "paper_precycle_exposure_snapshot_started_at": (
+            precycle_exposure_snapshot["snapshot_started_at"]
+        ),
+        "paper_precycle_exposure_snapshot_completed_at": (
+            precycle_exposure_snapshot["snapshot_completed_at"]
+        ),
+        "paper_cycle_base_resource_evidence": deepcopy(cycle_base_resource_evidence),
+        "paper_cycle_base_resource_evidence_hash": (cycle_base_resource_evidence["evidence_hash"]),
+        "paper_dynamic_envelope_reservation_evidence": deepcopy(dynamic_envelope_evidence),
+        "paper_dynamic_envelope_reservation_evidence_hash": (
+            dynamic_envelope_evidence["evidence_hash"]
+        ),
+        "paper_cycle_reservation_snapshot": deepcopy(cycle_snapshot),
+        "paper_cycle_reservation_snapshot_hash": cycle_snapshot["snapshot_hash"],
+        "paper_cycle_reservation_status": "PASS",
+        "paper_allocation_point_in_time_status": "PASS",
+        "paper_exchange_filter_snapshot": exchange_filter_snapshot,
+        "paper_exchange_filter_snapshot_hash": exchange_filter_snapshot["snapshot_hash"],
+        "paper_exchange_filter_status": "READY",
+        "paper_exchange_filter_available_at": exchange_filter_snapshot["available_at"],
+        "paper_exchange_filter_observed_at": exchange_filter_snapshot["observed_at"],
+        "maintenance_bracket_prevalidated": True,
+        "maintenance_bracket_evidence_status": "READY",
+        "maintenance_bracket_id": 1,
+        "maintenance_bracket_maint_margin_ratio": 0.004,
+        "maintenance_bracket_cum": 0.0,
+        "maintenance_bracket_max_initial_leverage": 3.0,
+        "maintenance_margin_rate": 0.004,
+        "maintenance_bracket_evidence_checksum_sha256": bracket_checksum,
+        "maintenance_bracket_evidence_hmac_sha256": bracket_hmac,
+        "maintenance_bracket_account_binding_id": bracket_binding,
+        "maintenance_bracket_environment_id": bracket_environment,
+        "maintenance_bracket_key_id": bracket_key_id,
+        "maintenance_bracket_source": ("BINANCE_USDM_AUTHENTICATED_ACCOUNT_BRACKET_PAPER_ONLY"),
+        "maintenance_bracket_available_at": bracket_available_at,
+        "maintenance_bracket_expires_at": bracket_expires_at,
+        "maintenance_bracket_consumer_observed_at": (bracket_consumer_observed_at),
+    }
+    intent["maintenance_bracket_evidence"] = {
+        "prevalidated": intent["maintenance_bracket_prevalidated"],
+        "bracket_id": intent["maintenance_bracket_id"],
+        "maint_margin_ratio": intent["maintenance_bracket_maint_margin_ratio"],
+        "cum": intent["maintenance_bracket_cum"],
+        "max_initial_leverage": intent["maintenance_bracket_max_initial_leverage"],
+        "evidence_hash": bracket_checksum,
+        "evidence_checksum_sha256": bracket_checksum,
+        "evidence_hmac_sha256": bracket_hmac,
+        "binding": bracket_binding,
+        "environment_id": bracket_environment,
+        "key_id": bracket_key_id,
+        "source": intent["maintenance_bracket_source"],
+        "available_at": bracket_available_at,
+        "expires_at": bracket_expires_at,
+        "consumer_observed_at": bracket_consumer_observed_at,
+    }
+    paper_loop._attach_paper_maintenance_bracket_context(  # noqa: SLF001
+        intent,
+        bracket_context,
+    )
+
+    intent.update(
+        {
+            "allocator_decision": allocation["allocator_decision"],
+            "allocation_id": allocation["allocation_id"],
+            "allocation_input_hash": allocation["allocation_input_hash"],
+            "quantity": allocation["target_quantity"],
+            "target_quantity": allocation["target_quantity"],
+            "fill_price": allocation_input.price,
+            "entry_price": allocation_input.price,
+            "notional": allocation["target_notional_usdt"],
+            "target_notional_usd": allocation["target_notional_usdt"],
+            "target_notional_usdt": allocation["target_notional_usdt"],
+            "gross_notional_usd": allocation["target_notional_usdt"],
+            "recommended_leverage": allocation["recommended_leverage"],
+            "effective_leverage": allocation["effective_leverage"],
+            "allocated_margin_usd": allocation["allocated_margin_usd"],
+            "expected_net_pnl_usd": allocation["expected_net_pnl_usd"],
+            "recommended_margin_mode": "isolated_paper_simulated",
+            "margin_mode_simulated": "isolated_paper_simulated",
+        }
+    )
+    paper_loop._seal_paper_allocator_economic_contract(  # noqa: SLF001
+        intent=intent,
+        allocation=allocation,
+        sealed_at=datetime(2026, 7, 17, 12, 0, 6, tzinfo=timezone.utc),
+    )
+    intent["adaptive_allocation"] = allocation
+    cycle_commit = paper_loop.build_candidate_commit_receipt(
+        snapshot=cycle_snapshot,
+        adaptive_allocation=allocation,
+        prior_accepted_rows=[],
+    )
+    assert cycle_commit["status"] == "PASS"
+    intent["paper_cycle_reservation_commit_receipt"] = cycle_commit
+    intent["paper_cycle_reservation_commit_receipt_hash"] = cycle_commit["receipt_hash"]
+    intent["paper_cycle_reservation_commit_status"] = "PASS"
+
+    preemptive_decision_time = "2026-07-17T12:00:07Z"
+    preemptive_candidate = {
+        "symbol": symbol,
+        "timeframe": timeframe,
+        "side": side,
+        "strategy_id": "trend_mode",
+        "market_regime": "TREND",
+        "prediction_id": prediction_id,
+        "signal_id": signal_id,
+        "risk_decision_id": risk_decision_id,
+        "orchestrator_decision_id": orchestrator_decision_id,
+        "decision_time": allocation_decision_time,
+        "feature_cutoff": "2026-07-17T11:59:50Z",
+        "available_at": "2026-07-17T11:59:55Z",
+        "confidence_raw": 0.90,
+        "confidence_calibrated": 0.90,
+        "expected_move_bps": 110.0,
+        "expected_move_after_cost_bps": 100.0,
+        "composite_microstructure_trust_score": 0.90,
+        "trade_tape_confirmation_score": 0.85,
+        "cross_venue_confirmation_score": 0.85,
+        "stop_distance_bps": 100.0,
+        "ATR_bps": 50.0,
+        "observed_spread_bps": 1.0,
+        "expected_slippage_bps": 1.0,
+        "pre_trade_fee_bps": 2.0,
+        "funding_bps": 0.0,
+        "gross_notional_usd": allocation["gross_notional_usd"],
+        "risk_budget_usd": allocation["risk_budget_usd"],
+        "orderbook_depth_usd": 1_000_000.0,
+        "cost_source_timestamp": "2026-07-17T12:00:03Z",
+        "runtime_cost_decision_time": "2026-07-17T12:00:03Z",
+        "advanced_indicator_event_time": "2026-07-17T11:59:56Z",
+        "advanced_indicator_available_at": "2026-07-17T11:59:58Z",
+        "advanced_indicator_context": {
+            "bullish_fvg_present": False,
+            "bearish_fvg_present": False,
+            "sweep_risk_long_side": 0.1,
+            "trade_tape_confirmation_score": 0.85,
+            "fvg_orderbook_trust_confluence": 0.90,
+            "fvg_expected_edge_after_cost": 100.0,
+            "distance_to_vwap_bps": 2.0,
+            "cvd_slope": 0.3,
+        },
+    }
+    preemptive = evaluate_preemptive_candidate(
+        preemptive_candidate,
+        bucket_health={
+            f"symbol:{symbol}": {
+                "count": 5,
+                "wins": 4,
+                "losses": 1,
+                "gross_win_usd": 8.0,
+                "gross_loss_usd": 2.0,
+                "net_sum_usd": 6.0,
+                "notional_sum_usd": 5_000.0,
+                "profit_factor": 4.0,
+                "win_rate": 0.8,
+                "notional_weighted_expectancy_bps": 12.0,
+                "high_confidence_loss_rate": 0.0,
+                "atr_stop_rate": 0.0,
+            }
+        },
+        continuous_edge_guardian_gate=deepcopy(guardian_payload),
+        bucket_quarantine_status={"blocked_bucket_keys": []},
+        adaptive_tuning_state=tuning_state,
+        decision_time=preemptive_decision_time,
+    )
+    assert preemptive["preemptive_decision"] == "ALLOW", preemptive["preemptive_decision_reasons"]
+    preemptive_decision_id = preemptive["preemptive_decision_id"]
+    preemptive_input_hash = preemptive["preemptive_input_hash"]
+    tuning_hash = preemptive["adaptive_tuning_state_hash"]
+    intent["preemptive_edge_control"] = preemptive
+    for field in (
+        "preemptive_decision",
+        "preemptive_decision_id",
+        "preemptive_decision_reasons",
+        "preemptive_action",
+        "preemptive_allowed",
+        "allow_paper_fill",
+        "preemptive_input_material",
+        "preemptive_input_hash",
+        "adaptive_tuning_state_hash",
+        "preemptive_decision_time",
+    ):
+        intent[field] = preemptive[field]
+
+    tuning_semantic_validation = paper_loop._paper_adaptive_tuning_semantic_validation(  # noqa: SLF001
+        tuning_state,
+        observed_at=source_observed_at,
+        current_paper_session_id=paper_session_id,
+    )
+    assert tuning_semantic_validation["status"] == "PASS"
+    tuning_lineage_receipt = paper_loop._paper_snapshot_lineage(  # noqa: SLF001
+        role="adaptive_gate_tuning",
+        redis_key=paper_loop.PAPER_ADAPTIVE_TUNING_REDIS_KEY,
+        payload=tuning_state,
+        observed_at=source_observed_at,
+    )
+    tuning_lineage_receipt.update(
+        {
+            "semantic_validation": tuning_semantic_validation,
+            "semantic_validation_receipt_hash": (tuning_semantic_validation["receipt_hash"]),
+            "semantic_validation_status": "PASS",
+            "semantic_validation_observed_at": source_observed_at,
+        }
+    )
+    entry_snapshot = {
+        "observed_at": source_observed_at,
+        "adaptive_confidence_floors": [0.80, 0.80],
+        "adaptive_confidence_floors_source": "ADAPTIVE_TUNING_SNAPSHOT",
+        "adaptive_tuning": tuning_lineage_receipt,
+        "outcome_memory": {
+            "payload_hash": paper_loop._paper_canonical_sha256(  # noqa: SLF001
+                {"outcomes": []}
+            ),
+            "observed_at": source_observed_at,
+        },
+        "side_performance": {
+            "payload_hash": paper_loop._paper_canonical_sha256(  # noqa: SLF001
+                {"side": side, "closed_count": 1}
+            ),
+            "generated_at": "2026-07-17T12:00:01Z",
+            "observed_at": source_observed_at,
+        },
+    }
+    entry_snapshot_hash = paper_loop._paper_canonical_sha256(  # noqa: SLF001
+        entry_snapshot
+    )
+    entry_snapshot["snapshot_hash"] = entry_snapshot_hash
+    intent["paper_entry_gate_snapshot"] = entry_snapshot
+    intent["paper_entry_gate_snapshot_hash"] = entry_snapshot_hash
+    intent["paper_entry_gate_snapshot_observed_at"] = source_observed_at
+
+    entry_gate_input_material = {
+        "schema_version": "paper_entry_gate_input_material_v1",
+        "symbol": symbol,
+        "timeframe": timeframe,
+        "side": side,
+        "strategy_mode": "",
+        "confidence_calibrated": 0.90,
+        "expected_move_after_cost_bps": 100.0,
+        "paper_entry_gate_snapshot_hash": entry_snapshot_hash,
+        "adaptive_confidence_floors": [0.80, 0.80],
+        "adaptive_confidence_floors_source": "ADAPTIVE_TUNING_SNAPSHOT",
+        "runtime_evidence_preloaded": True,
+    }
+    entry_gate_evaluation = {
+        "allowed": True,
+        "runtime_evidence_preloaded": True,
+        "evaluated_at": "2026-07-17T12:00:08Z",
+        "paper_entry_gate_snapshot_hash": entry_snapshot_hash,
+        "gate_input_material": entry_gate_input_material,
+        "gate_input_hash": paper_loop._paper_canonical_sha256(  # noqa: SLF001
+            entry_gate_input_material
+        ),
+    }
+    entry_gate_evaluation["receipt_hash"] = paper_loop._paper_canonical_sha256(
+        entry_gate_evaluation
+    )  # noqa: SLF001
+    intent["paper_entry_gate_evaluation"] = entry_gate_evaluation
+    intent["paper_entry_gate_evaluation_hash"] = entry_gate_evaluation["receipt_hash"]
+    intent["paper_entry_gate_evaluated_at"] = entry_gate_evaluation["evaluated_at"]
+
+    a_plus_gate_input_material = {
+        "schema_version": "paper_a_plus_gate_input_material_v1",
+        "symbol": symbol,
+        "timeframe": timeframe,
+        "side": side,
+        "strategy_id": "",
+        "confidence_calibrated": 0.90,
+        "atr_bps": None,
+        "prediction_id": prediction_id,
+        "feature_snapshot_id": feature_snapshot_id,
+        "feature_vector_hash": feature_vector_hash,
+        "risk_result": {"allowed": True, "reasons": []},
+        "risk_decision_id": risk_decision_id,
+        "risk_decision_record_hash": intent["risk_decision_record_hash"],
+        "orchestrator_decision_id": orchestrator_decision_id,
+        "orchestrator_decision_record_hash": intent["orchestrator_decision_record_hash"],
+        "preemptive_decision_id": preemptive_decision_id,
+        "preemptive_input_hash": preemptive_input_hash,
+        "allocation_id": allocation["allocation_id"],
+        "allocation_input_hash": allocation["allocation_input_hash"],
+        "paper_allocator_economic_contract_hash": intent["paper_allocator_economic_contract_hash"],
+        "a_plus_context_snapshot_hash": a_plus_snapshot_hash,
+        "paper_pre_cycle_control_snapshot_hash": pre_cycle_snapshot_hash,
+    }
+    a_plus_evaluation = {
+        "a_plus": True,
+        "allocation_id": allocation["allocation_id"],
+        "a_plus_context_snapshot_hash": a_plus_snapshot_hash,
+        "evaluated_at": "2026-07-17T12:00:09Z",
+        "gate_input_material": a_plus_gate_input_material,
+        "gate_input_hash": paper_loop._paper_canonical_sha256(  # noqa: SLF001
+            a_plus_gate_input_material
+        ),
+    }
+    a_plus_evaluation["receipt_hash"] = paper_loop._paper_canonical_sha256(a_plus_evaluation)  # noqa: SLF001
+    intent["a_plus_gate_evaluation"] = a_plus_evaluation
+    intent["a_plus_gate_evaluation_hash"] = a_plus_evaluation["receipt_hash"]
+    intent["a_plus_gate_evaluated_at"] = a_plus_evaluation["evaluated_at"]
+
+    monkeypatch.setattr(
+        paper_loop,
+        "_utc_iso",
+        lambda: "2026-07-17T12:00:10Z",
+    )
+    return intent, redis, bracket_security_context
+
+
+def test_golden_a_grade_passes_real_final_admission_contract(
+    golden_a_grade_final_admission,
+) -> None:
+    intent, redis, bracket_security_context = golden_a_grade_final_admission
+
+    contract = paper_loop._paper_final_admission_point_in_time_contract(  # noqa: SLF001
+        intent,
+        redis_client=redis,
+        maintenance_bracket_security_context=bracket_security_context,
+    )
+
+    assert contract["status"] == "PASS", contract["rejection_reasons"]
+    assert contract["schema_version"] == "paper_final_admission_contract_v3"
+    assert contract["rejection_reasons"] == []
+    assert contract["canonical_decision_record_revalidation"]["risk"]["exact_match"] is True
+    assert contract["canonical_decision_record_revalidation"]["orchestrator"]["exact_match"] is True
+    assert contract["exchange_filter_revalidation"]["changed_fields"] == []
+    assert contract["maintenance_bracket_revalidation"]["status"] == "READY"
+    assert contract["preemptive_semantic_revalidation"]["status"] == "PASS"
+    revocable = contract["revocable_control_commit_revalidation"]
+    assert revocable["schema_version"] == ("paper_revocable_control_commit_revalidation_v1")
+    assert revocable["status"] == "PASS"
+    assert revocable["cross_process_atomic"] is False
+    assert revocable["residual_toctou_risk"]
+    assert revocable["runtime_owner"]["current_projection_allows"] is True
+    assert all(
+        source["exact_match"] is True for source in revocable["source_revalidation"].values()
+    )
+    assert "paper-golden-local-evidence-auth-key" not in json.dumps(contract)
+
+
+def test_adaptive_tuning_consumer_rejects_legacy_unsealed_payload() -> None:
+    receipt = paper_loop._paper_adaptive_tuning_semantic_validation(  # noqa: SLF001
+        {
+            "enable_b_grade": True,
+            "adaptive_confidence_threshold": 0.40,
+        },
+        observed_at="2026-07-17T12:00:02Z",
+        current_paper_session_id="paper-session",
+    )
+
+    assert receipt["status"] == "BLOCKED"
+    assert "CANONICAL_ENVELOPE_SCHEMA_INVALID" in receipt["rejection_reasons"]
+    assert "PUBLICATION_RECEIPT_MISSING" in receipt["rejection_reasons"]
+
+
+def test_adaptive_tuning_exact_reader_rejects_duplicate_outer_json_keys(
+    monkeypatch,
+) -> None:
+    from v2.backend.app.cli import v2_adaptive_gate_tuner as tuner
+
+    session_id = "paper-strict-adaptive-reader-session"
+    state, _session_raw = _canonical_fail_closed_adaptive_tuning_state(
+        monkeypatch,
+        session_id=session_id,
+    )
+    ambiguous = tuner._canonical_json(state).replace(  # noqa: SLF001
+        '"paper_only":true',
+        '"paper_only":false,"paper_only":true',
+        1,
+    )
+    redis = _FakeRedis({paper_loop.PAPER_ADAPTIVE_TUNING_REDIS_KEY: ambiguous})
+
+    material = paper_loop._paper_exact_redis_json_source_material(  # noqa: SLF001
+        redis,
+        paper_loop.PAPER_ADAPTIVE_TUNING_REDIS_KEY,
+        expected_container="mapping",
+    )
+    payload = paper_loop._paper_exact_source_payload(  # noqa: SLF001
+        material,
+        expected_container="mapping",
+    )
+    receipt = paper_loop._paper_adaptive_tuning_semantic_validation(  # noqa: SLF001
+        payload,
+        observed_at="2026-07-17T12:00:02Z",
+        current_paper_session_id=session_id,
+    )
+
+    assert material["read_status"] == "MALFORMED"
+    assert material["payload"] is None
+    assert payload == {}
+    assert receipt["status"] == "BLOCKED"
+
+
+def test_adaptive_tuning_semantic_validation_blocks_huge_integer_without_raising(
+    monkeypatch,
+) -> None:
+    session_id = "paper-huge-integer-adaptive-session"
+    state, _session_raw = _canonical_fail_closed_adaptive_tuning_state(
+        monkeypatch,
+        session_id=session_id,
+    )
+    state["adaptive_confidence_threshold"] = 10**10_000
+
+    receipt = paper_loop._paper_adaptive_tuning_semantic_validation(  # noqa: SLF001
+        state,
+        observed_at="2026-07-17T12:00:02Z",
+        current_paper_session_id=session_id,
+    )
+
+    assert receipt["status"] == "BLOCKED"
+    assert receipt["rejection_reasons"] == ["CANONICAL_PAYLOAD_NUMERIC_INVALID"]
+    assert receipt["state_payload_hash"] is None
+
+
+def test_final_admission_rejects_unchanged_tuning_that_expires_during_validation(
+    golden_a_grade_final_admission,
+    monkeypatch,
+) -> None:
+    intent, redis, bracket_security_context = golden_a_grade_final_admission
+    monkeypatch.setattr(
+        paper_loop,
+        "_utc_iso",
+        lambda: "2026-07-17T13:00:01Z",
+    )
+
+    contract = paper_loop._paper_final_admission_point_in_time_contract(  # noqa: SLF001
+        intent,
+        redis_client=redis,
+        maintenance_bracket_security_context=bracket_security_context,
+    )
+
+    assert contract["status"] == "BLOCKED"
+    assert any("ADAPTIVE_TUNING" in reason for reason in contract["rejection_reasons"])
+
+
+def test_final_admission_rejects_paper_session_change_after_snapshot(
+    golden_a_grade_final_admission,
+) -> None:
+    intent, redis, bracket_security_context = golden_a_grade_final_admission
+    redis.set(
+        paper_loop.PAPER_SESSION_REDIS_KEY,
+        json.dumps(
+            {
+                "paper_session_id": "new-paper-session",
+                "reset_session_id": "new-paper-session",
+                "session_id": "new-paper-session",
+                "paper_only": True,
+                "routes_to_live": False,
+                "places_real_order": False,
+            }
+        ),
+    )
+
+    contract = paper_loop._paper_final_admission_point_in_time_contract(  # noqa: SLF001
+        intent,
+        redis_client=redis,
+        maintenance_bracket_security_context=bracket_security_context,
+    )
+
+    assert contract["status"] == "BLOCKED"
+    assert any("PAPER_SESSION" in reason for reason in contract["rejection_reasons"])
+
+
+def test_golden_a_grade_passes_real_append_and_persistence_boundaries(
+    golden_a_grade_final_admission,
+) -> None:
+    intent, redis, bracket_security_context = golden_a_grade_final_admission
+    accepted: list[dict[str, object]] = []
+
+    appended = paper_loop._paper_append_accepted_with_halted_probe_finalization(  # noqa: SLF001
+        accepted,
+        intent,
+        None,
+        redis_client=redis,
+        maintenance_bracket_security_context=bracket_security_context,
+    )
+
+    assert appended is True
+    assert accepted == [intent]
+    assert intent["paper_final_admission_status"] == "PASS"
+    cycle_commit = intent["paper_cycle_reservation_commit_receipt"]
+    assert isinstance(cycle_commit, dict)
+    assert cycle_commit["status"] == "PASS"
+    assert intent["paper_cycle_reservation_commit_receipt_hash"] == cycle_commit["receipt_hash"]
+    revocable = intent["paper_revocable_control_commit_revalidation"]
+    assert isinstance(revocable, dict)
+    assert revocable["status"] == "PASS"
+    assert (
+        intent["paper_revocable_control_commit_revalidation_receipt_hash"]
+        == revocable["receipt_hash"]
+    )
+    contract = intent["paper_final_admission_contract"]
+    assert isinstance(contract, dict)
+    bound = contract["bound_material"]
+    assert isinstance(bound, dict)
+    assert bound["cycle_reservation_contract"] == {
+        "paper_cycle_reservation_snapshot": intent["paper_cycle_reservation_snapshot"],
+        "paper_cycle_reservation_snapshot_hash": intent["paper_cycle_reservation_snapshot_hash"],
+        "paper_cycle_reservation_commit_receipt": cycle_commit,
+        "paper_cycle_reservation_commit_receipt_hash": cycle_commit["receipt_hash"],
+        "paper_cycle_reservation_commit_status": "PASS",
+        "cycle_identity": intent["paper_cycle_reservation_snapshot"]["cycle_identity"],
+    }
+    contract_without_hash = dict(contract)
+    receipt_hash = contract_without_hash.pop("receipt_hash")
+    assert receipt_hash == paper_loop._paper_canonical_sha256(  # noqa: SLF001
+        contract_without_hash
+    )
+
+    persisted, quarantined, _status = paper_loop._split_invalid_admission_accepted_rows(accepted)  # noqa: SLF001
+    assert quarantined == []
+    assert len(persisted) == 1
+    assert persisted[0]["paper_persisted_ledger_status"] == "PASS"
+
+
+def test_append_rejects_cycle_accepted_prefix_change(
+    golden_a_grade_final_admission,
+) -> None:
+    intent, redis, bracket_security_context = golden_a_grade_final_admission
+    prior = _synthetic_final_admission_sealed_row(
+        intent_id="intent-prior-prefix",
+        signal_id="signal-prior-prefix",
+        prediction_id="prediction-prior-prefix",
+    )
+    accepted: list[dict[str, object]] = [prior]
+
+    appended = paper_loop._paper_append_accepted_with_halted_probe_finalization(  # noqa: SLF001
+        accepted,
+        intent,
+        None,
+        redis_client=redis,
+        maintenance_bracket_security_context=bracket_security_context,
+    )
+
+    assert appended is False
+    assert accepted == [prior]
+    assert intent["paper_cycle_reservation_commit_status"] == "BLOCKED"
+    assert any(
+        "CYCLE_RESERVATION_ACCEPTED_PREFIX_CHANGED_AFTER_SNAPSHOT" in reason
+        for reason in intent["paper_fill_gate_block_reasons"]
+    )
+
+
+@pytest.mark.parametrize("mutation", ["halt", "remove"])
+def test_final_admission_exact_reread_rejects_guardian_halt_or_removal(
+    golden_a_grade_final_admission,
+    mutation: str,
+) -> None:
+    intent, redis, bracket_security_context = golden_a_grade_final_admission
+    if mutation == "halt":
+        redis.set(
+            paper_loop.CONTINUOUS_EDGE_GUARDIAN_GATE_REDIS_KEY,
+            json.dumps(
+                {
+                    "status": "A_GRADE_HALTED",
+                    "a_grade_new_entries_allowed": False,
+                    "new_entries_allowed": False,
+                }
+            ),
+        )
+    else:
+        redis.payloads.pop(paper_loop.CONTINUOUS_EDGE_GUARDIAN_GATE_REDIS_KEY)
+
+    contract = paper_loop._paper_final_admission_point_in_time_contract(  # noqa: SLF001
+        intent,
+        redis_client=redis,
+        maintenance_bracket_security_context=bracket_security_context,
+    )
+
+    receipt = contract["revocable_control_commit_revalidation"]
+    assert contract["status"] == "BLOCKED"
+    assert receipt["status"] == "BLOCKED"
+    guardian = receipt["source_revalidation"]["continuous_edge_guardian"]
+    assert guardian["exact_match"] is False
+    assert "CONTROL_SOURCE_CHANGED:continuous_edge_guardian" in receipt["rejection_reasons"]
+    if mutation == "remove":
+        assert guardian["read_status"] == "MISSING"
+        assert receipt["guardian"]["ttl_valid"] is False
+    else:
+        assert "GUARDIAN_CURRENTLY_BLOCKS_EXECUTION_TIER" in receipt["rejection_reasons"]
+
+
+@pytest.mark.parametrize("mutation", ["freeze", "portfolio_trust"])
+def test_final_admission_exact_reread_rejects_freeze_or_portfolio_truth_flip(
+    golden_a_grade_final_admission,
+    mutation: str,
+) -> None:
+    intent, redis, bracket_security_context = golden_a_grade_final_admission
+    if mutation == "freeze":
+        redis.set(
+            paper_loop.PAPER_ENTRY_FREEZE_REDIS_KEY,
+            json.dumps(
+                {
+                    "schema_version": "paper_entry_freeze_v1",
+                    "paper_new_entries_halted": True,
+                    "new_entries_allowed": False,
+                    "reason": "OPERATOR_PAPER_FREEZE",
+                }
+            ),
+        )
+        changed_role = "paper_entry_freeze_source"
+    else:
+        redis.set(
+            paper_loop.PAPER_PORTFOLIO_STATE_REDIS_KEY,
+            json.dumps(
+                {
+                    "equity_trusted": False,
+                    "pnl_trusted": True,
+                    "current_drawdown_bps": 0.0,
+                    "reason_if_untrusted": "PORTFOLIO_TRUTH_UNTRUSTED",
+                }
+            ),
+        )
+        changed_role = "portfolio_state_source"
+
+    contract = paper_loop._paper_final_admission_point_in_time_contract(  # noqa: SLF001
+        intent,
+        redis_client=redis,
+        maintenance_bracket_security_context=bracket_security_context,
+    )
+
+    receipt = contract["revocable_control_commit_revalidation"]
+    assert contract["status"] == "BLOCKED"
+    assert receipt["source_revalidation"][changed_role]["exact_match"] is False
+    assert receipt["effective_entry_freeze"]["paper_new_entries_halted"] is True
+    assert receipt["effective_entry_freeze"]["exact_match"] is False
+    if mutation == "portfolio_trust":
+        assert receipt["effective_entry_freeze"]["nonoverridable"] is True
+        assert "NONOVERRIDABLE_PORTFOLIO_TRUTH_FREEZE_ACTIVE" in receipt["rejection_reasons"]
+
+
+@pytest.mark.parametrize(
+    ("role", "key", "payload"),
+    [
+        (
+            "adaptive_tuning_source",
+            paper_loop.PAPER_ADAPTIVE_TUNING_REDIS_KEY,
+            {"adaptive_loss_probability_threshold": 0.91},
+        ),
+        (
+            "paper_position_or_ledger_source",
+            paper_loop.PAPER_POSITIONS_REDIS_KEY,
+            [{"symbol": "ETHUSDT", "mae_bps": 12.0}],
+        ),
+        (
+            "paper_closed_trades_source",
+            paper_loop.PAPER_CLOSED_TRADES_REDIS_KEY,
+            [{"close_id": "close-after-freeze", "symbol": "BTCUSDT"}],
+        ),
+    ],
+)
+def test_final_admission_exact_reread_rejects_adaptive_or_safety_source_change(
+    golden_a_grade_final_admission,
+    role: str,
+    key: str,
+    payload: object,
+) -> None:
+    intent, redis, bracket_security_context = golden_a_grade_final_admission
+    redis.set(key, json.dumps(payload))
+
+    contract = paper_loop._paper_final_admission_point_in_time_contract(  # noqa: SLF001
+        intent,
+        redis_client=redis,
+        maintenance_bracket_security_context=bracket_security_context,
+    )
+
+    receipt = contract["revocable_control_commit_revalidation"]
+    assert contract["status"] == "BLOCKED"
+    assert receipt["source_revalidation"][role]["exact_match"] is False
+    assert f"CONTROL_SOURCE_CHANGED:{role}" in receipt["rejection_reasons"]
+
+
+@pytest.mark.parametrize(
+    ("failure", "expected_status"),
+    [("malformed", "MALFORMED"), ("read_error", "READ_ERROR")],
+)
+def test_final_admission_fails_closed_on_revocable_source_decode_or_read_error(
+    golden_a_grade_final_admission,
+    monkeypatch,
+    failure: str,
+    expected_status: str,
+) -> None:
+    intent, redis, bracket_security_context = golden_a_grade_final_admission
+    if failure == "malformed":
+        redis.payloads[paper_loop.PAPER_ADAPTIVE_TUNING_REDIS_KEY] = "{bad-json"
+    else:
+        original_get = redis.get
+
+        def failing_get(key: str):
+            if key == paper_loop.PAPER_ADAPTIVE_TUNING_REDIS_KEY:
+                raise RuntimeError("simulated Redis read failure")
+            return original_get(key)
+
+        monkeypatch.setattr(redis, "get", failing_get)
+
+    contract = paper_loop._paper_final_admission_point_in_time_contract(  # noqa: SLF001
+        intent,
+        redis_client=redis,
+        maintenance_bracket_security_context=bracket_security_context,
+    )
+
+    receipt = contract["revocable_control_commit_revalidation"]
+    tuning = receipt["source_revalidation"]["adaptive_tuning_source"]
+    assert contract["status"] == "BLOCKED"
+    assert tuning["read_status"] == expected_status
+    assert (
+        f"CURRENT_CONTROL_SOURCE_NOT_READY:adaptive_tuning_source:" f"{expected_status}"
+    ) in receipt["rejection_reasons"]
+
+
+def test_exact_empty_safety_sources_clear_stale_file_fallback_rows() -> None:
+    redis = _FakeRedis(
+        {
+            paper_loop.PAPER_POSITIONS_REDIS_KEY: [],
+            paper_loop.PAPER_CLOSED_TRADES_REDIS_KEY: [],
+        }
+    )
+    sources = paper_loop._paper_revocable_control_source_materials(redis)  # noqa: SLF001
+
+    merged = paper_loop._paper_ledger_with_exact_safety_sources(  # noqa: SLF001
+        {
+            "open_positions": [{"symbol": "STALEUSDT"}],
+            "closed_trades": [{"close_id": "stale-close"}],
+        },
+        sources,
+    )
+
+    assert merged["open_positions"] == []
+    assert merged["positions"] == []
+    assert merged["closed_trades"] == []
+    assert merged["closes"] == []
+
+
+@pytest.mark.parametrize("owner_failure", ["blocked", "out_of_scope", "wrong_pid"])
+def test_final_admission_rechecks_current_in_scope_process_owner(
+    golden_a_grade_final_admission,
+    monkeypatch,
+    owner_failure: str,
+) -> None:
+    intent, redis, bracket_security_context = golden_a_grade_final_admission
+    owner = _passing_final_admission_runtime_owner_status()
+    conditions = owner["pass_conditions"]
+    assert isinstance(conditions, dict)
+    if owner_failure == "blocked":
+        owner["status"] = "BLOCKED_ACTIVE_RUNTIME_OWNER_VALIDATION"
+    elif owner_failure == "out_of_scope":
+        owner["canonical_service_scope_writer_count"] = 0
+        conditions["canonical_service_scope_writer_count_eq_1"] = False
+    else:
+        owner["current_process_is_only_canonical_writer"] = False
+        conditions["current_process_is_only_canonical_writer"] = False
+    monkeypatch.setattr(
+        paper_loop,
+        "_paper_active_runtime_owner_status",
+        lambda: owner,
+    )
+
+    contract = paper_loop._paper_final_admission_point_in_time_contract(  # noqa: SLF001
+        intent,
+        redis_client=redis,
+        maintenance_bracket_security_context=bracket_security_context,
+    )
+
+    receipt = contract["revocable_control_commit_revalidation"]
+    assert contract["status"] == "BLOCKED"
+    assert receipt["runtime_owner"]["current_projection_allows"] is False
+    assert receipt["runtime_owner"]["exact_match"] is False
+    assert "RUNTIME_OWNER_CURRENT_PROJECTION_BLOCKED" in receipt["rejection_reasons"]
+
+
+def test_portfolio_truth_freeze_is_nonoverridable_for_probation_at_commit(
+    golden_a_grade_final_admission,
+) -> None:
+    intent, redis, _bracket_security_context = golden_a_grade_final_admission
+    intent["paper_opportunity_tier"] = paper_loop.PAPER_TIER_POSITIVE_EDGE_PROBATION
+    redis.set(
+        paper_loop.PAPER_PORTFOLIO_STATE_REDIS_KEY,
+        json.dumps(
+            {
+                "equity_trusted": False,
+                "pnl_trusted": False,
+                "reason_if_untrusted": "PORTFOLIO_TRUTH_UNTRUSTED",
+            }
+        ),
+    )
+
+    receipt = paper_loop._paper_revocable_control_commit_revalidation(  # noqa: SLF001
+        intent,
+        redis_client=redis,
+        validation_started_at=datetime(
+            2026,
+            7,
+            17,
+            12,
+            0,
+            10,
+            tzinfo=timezone.utc,
+        ),
+    )
+
+    assert receipt["status"] == "BLOCKED"
+    assert receipt["effective_entry_freeze"]["nonoverridable"] is True
+    assert receipt["effective_entry_freeze"]["tier_override_allowed"] is False
+    assert "NONOVERRIDABLE_PORTFOLIO_TRUTH_FREEZE_ACTIVE" in receipt["rejection_reasons"]
+
+
+def test_final_admission_rejects_crossed_a_grade_source_reason_pair(
+    golden_a_grade_final_admission,
+) -> None:
+    intent, redis, bracket_security_context = golden_a_grade_final_admission
+    intent["paper_fill_allowed_source"] = "DYNAMIC_A_GRADE_PAPER_TAG"
+
+    contract = paper_loop._paper_final_admission_point_in_time_contract(  # noqa: SLF001
+        intent,
+        redis_client=redis,
+        maintenance_bracket_security_context=bracket_security_context,
+    )
+
+    assert contract["status"] == "BLOCKED"
+    assert "FINAL_ADMISSION_TIER_SOURCE_REASON_PAIR_INVALID" in contract["rejection_reasons"]
+
+
+def test_final_admission_rejects_coherently_resealed_false_preemptive_allow(
+    golden_a_grade_final_admission,
+) -> None:
+    from v2.backend.app.services.preemptive_edge_control.decision import (
+        evaluate_candidate,
+        recompute_preemptive_decision_id,
+    )
+
+    intent, redis, bracket_security_context = golden_a_grade_final_admission
+    original = intent["preemptive_edge_control"]
+    assert isinstance(original, dict)
+    original_material = original["preemptive_input_material"]
+    assert isinstance(original_material, dict)
+    candidate = deepcopy(original_material["candidate"])
+    candidate["expected_move_bps"] = -10.0
+    candidate["expected_move_after_cost_bps"] = -20.0
+    flags = original_material["control_flags"]
+    assert isinstance(flags, dict)
+    clocks = original_material["clocks"]
+    assert isinstance(clocks, dict)
+    truth = evaluate_candidate(
+        candidate,
+        bucket_health=deepcopy(original_material["resolved_bucket_health_snapshot"]),
+        continuous_edge_guardian_gate=deepcopy(original_material["continuous_edge_guardian_gate"]),
+        bucket_quarantine_status=deepcopy(original_material["bucket_quarantine_status"]),
+        allow_positive_edge_probation=flags["allow_positive_edge_probation"],
+        allow_paper_risk_controller_exploration=flags["allow_paper_risk_controller_exploration"],
+        allow_reduce_or_close=flags["allow_reduce_or_close"],
+        altdata_confluence=deepcopy(original_material["altdata_evidence"]),
+        adaptive_tuning_state=deepcopy(original_material["adaptive_tuning_state"]),
+        decision_time=clocks["preemptive_decision_time"],
+    )
+    assert truth["preemptive_decision"] == "NO_TRADE"
+
+    fabricated = deepcopy(truth)
+    fabricated["preemptive_decision"] = "ALLOW"
+    fabricated["preemptive_decision_reasons"] = []
+    fabricated["preemptive_action"] = "ALLOW_A_PLUS_CANDIDATE"
+    fabricated["preemptive_allowed"] = True
+    fabricated["allow_paper_fill"] = True
+    fabricated["allow_live_dry_run"] = True
+    fabricated["preemptive_decision_id"] = recompute_preemptive_decision_id(
+        fabricated["preemptive_input_material"]["candidate"],
+        "ALLOW",
+        [],
+        preemptive_input_hash=fabricated["preemptive_input_hash"],
+    )
+    intent["preemptive_edge_control"] = fabricated
+    for field in (
+        "preemptive_decision",
+        "preemptive_decision_id",
+        "preemptive_decision_reasons",
+        "preemptive_action",
+        "preemptive_allowed",
+        "allow_paper_fill",
+        "preemptive_input_material",
+        "preemptive_input_hash",
+        "adaptive_tuning_state_hash",
+        "preemptive_decision_time",
+    ):
+        intent[field] = fabricated[field]
+    a_plus_evaluation = intent["a_plus_gate_evaluation"]
+    assert isinstance(a_plus_evaluation, dict)
+    gate_input = a_plus_evaluation["gate_input_material"]
+    assert isinstance(gate_input, dict)
+    gate_input["preemptive_decision_id"] = fabricated["preemptive_decision_id"]
+    gate_input["preemptive_input_hash"] = fabricated["preemptive_input_hash"]
+    a_plus_evaluation["gate_input_hash"] = paper_loop._paper_canonical_sha256(gate_input)  # noqa: SLF001
+    a_plus_evaluation.pop("receipt_hash")
+    a_plus_evaluation["receipt_hash"] = paper_loop._paper_canonical_sha256(a_plus_evaluation)  # noqa: SLF001
+    intent["a_plus_gate_evaluation_hash"] = a_plus_evaluation["receipt_hash"]
+
+    contract = paper_loop._paper_final_admission_point_in_time_contract(  # noqa: SLF001
+        intent,
+        redis_client=redis,
+        maintenance_bracket_security_context=bracket_security_context,
+    )
+
+    assert contract["status"] == "BLOCKED"
+    assert (
+        "PREEMPTIVE_SEMANTIC_REPLAY_MISMATCH:preemptive_decision" in (contract["rejection_reasons"])
+    )
+
+
+def test_final_admission_rejects_resealed_derived_lineage_clock_inversion(
+    golden_a_grade_final_admission,
+) -> None:
+    intent, redis, bracket_security_context = golden_a_grade_final_admission
+    lineage = intent["a_plus_context_snapshot_lineage"]
+    assert isinstance(lineage, list)
+    derived = next(receipt for receipt in lineage if receipt["role"] == "derived_side_performance")
+    derived["derivation_started_at"] = "2026-07-17T12:00:00.750000Z"
+    _reseal_a_plus_context_and_gate_receipt(intent)
+
+    contract = paper_loop._paper_final_admission_point_in_time_contract(  # noqa: SLF001
+        intent,
+        redis_client=redis,
+        maintenance_bracket_security_context=bracket_security_context,
+    )
+
+    assert contract["status"] == "BLOCKED"
+    assert "A_PLUS_CONTEXT_DERIVATION_CLOCK_ORDER_INVALID" in contract["rejection_reasons"]
+    assert "A_PLUS_CONTEXT_SNAPSHOT_HASH_MISMATCH" not in contract["rejection_reasons"]
+    assert "A_PLUS_GATE_EVALUATION_RECEIPT_HASH_MISMATCH" not in contract["rejection_reasons"]
+
+
+def test_final_admission_rejects_risk_action_approve_even_when_record_is_current(
+    golden_a_grade_final_admission,
+) -> None:
+    intent, redis, bracket_security_context = golden_a_grade_final_admission
+    risk_record = intent["risk_decision_record"]
+    assert isinstance(risk_record, dict)
+    risk_record["risk_action"] = "approve"
+    intent["risk_decision_record_hash"] = _decision_record_hash(risk_record)
+    risk_key = str(intent["risk_decision_record_key"])
+    redis_record = {
+        key: value
+        for key, value in risk_record.items()
+        if key not in {"_decision_record_key", "_decision_record_store"}
+    }
+    redis.set(risk_key, json.dumps(redis_record))
+
+    a_plus_evaluation = intent["a_plus_gate_evaluation"]
+    assert isinstance(a_plus_evaluation, dict)
+    gate_input_material = a_plus_evaluation["gate_input_material"]
+    assert isinstance(gate_input_material, dict)
+    gate_input_material["risk_decision_record_hash"] = intent["risk_decision_record_hash"]
+    gate_input_material["risk_result"] = {"allowed": False, "reasons": []}
+    a_plus_evaluation["gate_input_hash"] = paper_loop._paper_canonical_sha256(gate_input_material)  # noqa: SLF001
+    a_plus_evaluation.pop("receipt_hash")
+    a_plus_evaluation["receipt_hash"] = paper_loop._paper_canonical_sha256(  # noqa: SLF001
+        a_plus_evaluation
+    )
+    intent["a_plus_gate_evaluation_hash"] = a_plus_evaluation["receipt_hash"]
+
+    contract = paper_loop._paper_final_admission_point_in_time_contract(  # noqa: SLF001
+        intent,
+        redis_client=redis,
+        maintenance_bracket_security_context=bracket_security_context,
+    )
+
+    assert contract["status"] == "BLOCKED"
+    assert contract["canonical_decision_record_revalidation"]["risk"]["exact_match"] is True
+    assert "FINAL_ADMISSION_RISK_DECISION_ACTION_INVALID:approve" in contract["rejection_reasons"]
+
+
+@pytest.mark.parametrize("mutation", ["remove", "change"])
+def test_final_admission_rejects_removed_or_changed_decision_record(
+    golden_a_grade_final_admission,
+    mutation: str,
+) -> None:
+    intent, redis, bracket_security_context = golden_a_grade_final_admission
+    risk_key = str(intent["risk_decision_record_key"])
+    if mutation == "remove":
+        redis.payloads.pop(risk_key)
+    else:
+        changed = json.loads(str(redis.payloads[risk_key]))
+        changed["risk_action"] = "deny"
+        redis.payloads[risk_key] = json.dumps(changed)
+
+    contract = paper_loop._paper_final_admission_point_in_time_contract(  # noqa: SLF001
+        intent,
+        redis_client=redis,
+        maintenance_bracket_security_context=bracket_security_context,
+    )
+
+    assert contract["status"] == "BLOCKED"
+    assert (
+        "FINAL_ADMISSION_RISK_DECISION_RECORD_CHANGED_OR_MISSING" in contract["rejection_reasons"]
+    )
+    assert contract["canonical_decision_record_revalidation"]["risk"]["exact_match"] is False
+
+
+def test_final_admission_rejects_current_exchange_filter_change(
+    golden_a_grade_final_admission,
+) -> None:
+    from v2.backend.app.cli import v2_direct_orderbook_recorder as recorder
+
+    intent, redis, bracket_security_context = golden_a_grade_final_admission
+    changed_row = _binance_usdm_market_filter_row()
+    market_lot = next(
+        row for row in changed_row["filters"] if row["filterType"] == "MARKET_LOT_SIZE"
+    )
+    market_lot["maxQty"] = "100"
+    assert recorder._safe_symbol_filter_cache_set(  # noqa: SLF001
+        redis,
+        "v2:exchange:symbol_filters:BTCUSDT",
+        changed_row,
+        fetched_at="2026-07-17T12:00:00Z",
+    )
+
+    contract = paper_loop._paper_final_admission_point_in_time_contract(  # noqa: SLF001
+        intent,
+        redis_client=redis,
+        maintenance_bracket_security_context=bracket_security_context,
+    )
+
+    assert contract["status"] == "BLOCKED"
+    assert "FINAL_ADMISSION_EXCHANGE_FILTER_CHANGED_OR_UNAVAILABLE" in contract["rejection_reasons"]
+    changed_fields = contract["exchange_filter_revalidation"]["changed_fields"]
+    assert "max_qty" in changed_fields
+    assert "payload_hash" in changed_fields
+
+
+def test_final_admission_rejects_bracket_expiry_equal_to_commit_clock(
+    golden_a_grade_final_admission,
+) -> None:
+    intent, redis, bracket_security_context = golden_a_grade_final_admission
+    expires_at = "2026-07-17T12:00:10Z"
+    intent["maintenance_bracket_expires_at"] = expires_at
+    bracket_evidence = intent["maintenance_bracket_evidence"]
+    assert isinstance(bracket_evidence, dict)
+    bracket_evidence["expires_at"] = expires_at
+
+    contract = paper_loop._paper_final_admission_point_in_time_contract(  # noqa: SLF001
+        intent,
+        redis_client=redis,
+        maintenance_bracket_security_context=bracket_security_context,
+    )
+
+    assert contract["status"] == "BLOCKED"
+    assert (
+        "MAINTENANCE_BRACKET_EVIDENCE_EXPIRED_BEFORE_FINAL_ADMISSION"
+        in (contract["rejection_reasons"])
+    )
+    assert (
+        "MAINTENANCE_BRACKET_EVIDENCE_EXPIRED_DURING_FINAL_ADMISSION"
+        in (contract["rejection_reasons"])
+    )
+
+
+def test_final_admission_rejects_missing_bracket_security_context(
+    golden_a_grade_final_admission,
+) -> None:
+    intent, redis, _bracket_security_context = golden_a_grade_final_admission
+
+    contract = paper_loop._paper_final_admission_point_in_time_contract(  # noqa: SLF001
+        intent,
+        redis_client=redis,
+        maintenance_bracket_security_context=None,
+    )
+
+    assert contract["status"] == "BLOCKED"
+    assert any(
+        reason.startswith(
+            "MAINTENANCE_BRACKET_FINAL_AUTHENTICATED_REREAD_BLOCKED:"
+            "EVIDENCE_SECURITY_CONTEXT_INVALID"
+        )
+        for reason in contract["rejection_reasons"]
+    )
+
+
+def test_final_admission_rejects_current_bracket_hmac_tamper(
+    golden_a_grade_final_admission,
+) -> None:
+    intent, redis, bracket_security_context = golden_a_grade_final_admission
+    raw_context = intent["paper_maintenance_margin_bracket_evidence"]
+    assert isinstance(raw_context, dict)
+    evidence_key = str(raw_context["evidence_key"])
+    current = json.loads(str(redis.payloads[evidence_key]))
+    current["evidence_hmac_sha256"] = "0" * 64
+    redis.payloads[evidence_key] = json.dumps(current)
+
+    contract = paper_loop._paper_final_admission_point_in_time_contract(  # noqa: SLF001
+        intent,
+        redis_client=redis,
+        maintenance_bracket_security_context=bracket_security_context,
+    )
+
+    assert contract["status"] == "BLOCKED"
+    assert any(
+        reason.startswith(
+            "MAINTENANCE_BRACKET_FINAL_AUTHENTICATED_REREAD_BLOCKED:"
+            "LEVERAGE_BRACKET_EVIDENCE_MALFORMED"
+        )
+        for reason in contract["rejection_reasons"]
+    )
+
+
+def test_persistence_rejects_golden_row_projection_mutation_after_append(
+    golden_a_grade_final_admission,
+) -> None:
+    intent, redis, bracket_security_context = golden_a_grade_final_admission
+    accepted: list[dict[str, object]] = []
+    assert paper_loop._paper_append_accepted_with_halted_probe_finalization(  # noqa: SLF001
+        accepted,
+        intent,
+        None,
+        redis_client=redis,
+        maintenance_bracket_security_context=bracket_security_context,
+    )
+    intent["quantity"] = float(intent["quantity"]) + 0.001
+
+    persisted, quarantined, _status = paper_loop._split_invalid_admission_accepted_rows(accepted)  # noqa: SLF001
+
+    assert persisted == []
+    assert len(quarantined) == 1
+    assert (
+        "PERSISTED_ADMISSION_ROW_MUTATED_AFTER_FINAL_SEAL"
+        in quarantined[0]["invalid_admission_integrity_block_reasons"]
+    )
+
+
+def test_persistence_rejects_golden_row_final_receipt_mutation_after_append(
+    golden_a_grade_final_admission,
+) -> None:
+    intent, redis, bracket_security_context = golden_a_grade_final_admission
+    accepted: list[dict[str, object]] = []
+    assert paper_loop._paper_append_accepted_with_halted_probe_finalization(  # noqa: SLF001
+        accepted,
+        intent,
+        None,
+        redis_client=redis,
+        maintenance_bracket_security_context=bracket_security_context,
+    )
+    contract = intent["paper_final_admission_contract"]
+    assert isinstance(contract, dict)
+    contract["receipt_hash"] = "0" * 64
+
+    persisted, quarantined, _status = paper_loop._split_invalid_admission_accepted_rows(accepted)  # noqa: SLF001
+
+    assert persisted == []
+    assert len(quarantined) == 1
+    assert (
+        "PERSISTED_ADMISSION_FINAL_RECEIPT_INVALID"
+        in quarantined[0]["invalid_admission_integrity_block_reasons"]
+    )
+
+
+def _synthetic_final_admission_sealed_row(
+    **overrides: object,
+) -> dict[str, object]:
+    row: dict[str, object] = {
+        "intent_id": "intent_persist_1",
+        "signal_id": "signal_persist_1",
+        "prediction_id": "prediction_persist_1",
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
+        "side": "long",
+        "quantity": 0.01,
+        "target_quantity": 0.01,
+        "fill_price": 50_000.0,
+        "entry_price": 50_000.0,
+        "notional": 500.0,
+        "target_notional_usd": 500.0,
+        "target_notional_usdt": 500.0,
+        "gross_notional_usd": 500.0,
+        "recommended_leverage": 2.0,
+        "effective_leverage": 2.0,
+        "allocated_margin_usd": 250.0,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "live_order": False,
+        "test_order": False,
+        "order_submitted": False,
+        "test_order_submitted": False,
+        "leverage_mutated": False,
+        "margin_mutated": False,
+        "paper_final_admission_status": "PASS",
+        "paper_final_admission_decision_time": "2026-07-17T12:00:03Z",
+    }
+    row.update(overrides)
+
+    precycle_material: dict[str, object] = {
+        "schema_version": "paper_precycle_current_mark_exposure_snapshot_v1",
+        "status": "READY",
+        "ledger_observed_at": "2026-07-17T12:00:00Z",
+        "snapshot_started_at": "2026-07-17T12:00:01Z",
+        "snapshot_completed_at": "2026-07-17T12:00:02Z",
+        "ledger_open_position_count": 0,
+        "validated_open_position_count": 0,
+        "validated_source_fill_count": 0,
+        "open_position_rows": [],
+        "current_mark_gross_notional_by_symbol_usd": {},
+        "current_mark_gross_notional_total_usd": 0.0,
+        "precycle_open_projected_max_loss_usd": 0.0,
+        "valuation_contract": "SUM_ABS_QUANTITY_TIMES_FRESH_CURRENT_MARK",
+        "projected_loss_contract": "SYNTHETIC_EMPTY_OPEN_BOOK",
+        "rejection_reasons": [],
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+    precycle_snapshot = {
+        **precycle_material,
+        "snapshot_hash": paper_loop._paper_canonical_sha256(  # noqa: SLF001
+            precycle_material
+        ),
+    }
+    base_resource_material: dict[str, object] = {
+        "schema_version": "paper_cycle_base_resource_evidence_v1",
+        "status": "READY",
+        "equity_usd": 10_000.0,
+        "available_margin_usd": 5_000.0,
+        "current_drawdown_fraction": 0.0,
+        "rejection_reasons": [],
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+    base_resource = {
+        **base_resource_material,
+        "evidence_hash": paper_loop._paper_canonical_sha256(  # noqa: SLF001
+            base_resource_material
+        ),
+    }
+    synthetic_base_envelope = {
+        "max_total_portfolio_risk_pct": 2.0,
+        "max_single_symbol_exposure_pct": 2.0,
+        "max_daily_drawdown_pct": 0.5,
+        "max_loss_per_trade_pct": 0.05,
+        "min_available_margin_buffer_pct": 0.1,
+        "max_correlation_exposure_pct": 0.18,
+        "min_liquidation_buffer_bps": 500.0,
+        "max_effective_leverage": 3.0,
+        "tail_loss_multiplier": 1.5,
+        "emergency_absolute_cap_usdt": None,
+    }
+    synthetic_dynamic_arguments = {
+        "win_rate": None,
+        "profit_factor": None,
+        "closed_trade_count": 0,
+        "current_drawdown_pct": 0.0,
+        "model_avg_confidence": None,
+        "paper_mode": True,
+        "after_cost_edge_lower_bound_bps": None,
+        "after_cost_edge_evidence_count": None,
+        "after_cost_edge_evidence_source": None,
+        "edge_available_at": None,
+        "liquidity_score": None,
+        "regime_quality_score": None,
+        "market_context_source": None,
+        "market_context_available_at": None,
+        "decision_time": None,
+    }
+    synthetic_dynamic_calculation = {
+        "schema_version": "paper_dynamic_envelope_calculation_input_v1",
+        "base_envelope": synthetic_base_envelope,
+        "arguments": synthetic_dynamic_arguments,
+    }
+    dynamic_envelope_material: dict[str, object] = {
+        "schema_version": "paper_dynamic_envelope_reservation_evidence_v1",
+        "status": "READY",
+        "limits": synthetic_base_envelope,
+        "source_evidence": {"source": "SYNTHETIC_TEST_EVIDENCE"},
+        "calculation_input_material": synthetic_dynamic_calculation,
+        "calculation_input_hash": paper_loop._paper_canonical_sha256(  # noqa: SLF001
+            synthetic_dynamic_calculation
+        ),
+        "rejection_reasons": [],
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+    dynamic_envelope = {
+        **dynamic_envelope_material,
+        "evidence_hash": paper_loop._paper_canonical_sha256(  # noqa: SLF001
+            dynamic_envelope_material
+        ),
+    }
+    symbol = str(row["symbol"])
+    cycle_snapshot = paper_loop.build_cycle_reservation_snapshot(
+        cycle_identity=f"paper_cycle_reservation:synthetic:{row['intent_id']}",
+        candidate_symbol=symbol,
+        base_resource_evidence_hash=base_resource["evidence_hash"],
+        precycle_exposure_snapshot_hash=precycle_snapshot["snapshot_hash"],
+        dynamic_envelope_evidence_hash=dynamic_envelope["evidence_hash"],
+        base_equity_usd=10_000.0,
+        base_available_margin_usd=5_000.0,
+        realized_drawdown_fraction_of_equity=0.0,
+        precycle_total_notional_usd=0.0,
+        precycle_symbol_current_mark_notional_usd=0.0,
+        precycle_open_projected_max_loss_usd=0.0,
+        max_total_portfolio_risk_pct=2.0,
+        max_single_symbol_exposure_pct=2.0,
+        min_available_margin_buffer_pct=0.1,
+        max_daily_drawdown_pct=0.5,
+        max_loss_per_trade_pct=0.05,
+        emergency_absolute_cap_usdt=None,
+        prior_accepted_rows=[],
+    )
+    allocation_lineage = {paper_loop.CYCLE_RESERVATION_LINEAGE_KEY: cycle_snapshot["snapshot_hash"]}
+    allocation_input = {
+        "symbol": symbol,
+        "lineage_ids": allocation_lineage,
+    }
+    allocation_input_material = {
+        "schema_version": "adaptive_capital_allocation_input_v1",
+        "mode": "paper",
+        "allocation_input": allocation_input,
+    }
+    allocation_input_hash = paper_loop._paper_canonical_sha256(  # noqa: SLF001
+        allocation_input_material
+    )
+    notional = float(row["gross_notional_usd"])
+    margin = float(row["allocated_margin_usd"])
+    max_loss = float(row.get("expected_max_loss_usd") or max(0.01, notional * 0.01))
+    allocation: dict[str, object] = {
+        "allocation_id": f"alloc_{str(allocation_input_hash)[:24]}",
+        "allocation_input_schema_version": "adaptive_capital_allocation_input_v1",
+        "allocation_input_hash_algorithm": "sha256(canonical-json-v1)",
+        "allocation_input_hash": allocation_input_hash,
+        "allocation_input_material": allocation_input_material,
+        "allocator_decision": "ALLOW_WITH_SIZE",
+        "symbol": symbol,
+        "lineage_ids": allocation_lineage,
+        "gross_notional_usd": notional,
+        "target_notional_usdt": notional,
+        "target_notional_usd": notional,
+        "allocated_margin_usd": margin,
+        "max_loss_if_stop_hit": max_loss,
+        "max_loss_usd": max_loss,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+    row["adaptive_allocation"] = allocation
+    row["allocation_id"] = allocation["allocation_id"]
+    row["paper_precycle_current_mark_exposure_snapshot"] = precycle_snapshot
+    row["paper_precycle_current_mark_exposure_snapshot_hash"] = precycle_snapshot["snapshot_hash"]
+    row["paper_precycle_exposure_snapshot_started_at"] = precycle_snapshot["snapshot_started_at"]
+    row["paper_precycle_exposure_snapshot_completed_at"] = precycle_snapshot[
+        "snapshot_completed_at"
+    ]
+    row["paper_cycle_base_resource_evidence"] = base_resource
+    row["paper_cycle_base_resource_evidence_hash"] = base_resource["evidence_hash"]
+    row["paper_dynamic_envelope_reservation_evidence"] = dynamic_envelope
+    row["paper_dynamic_envelope_reservation_evidence_hash"] = dynamic_envelope["evidence_hash"]
+    row["paper_cycle_reservation_snapshot"] = cycle_snapshot
+    row["paper_cycle_reservation_snapshot_hash"] = cycle_snapshot["snapshot_hash"]
+    row["paper_cycle_reservation_status"] = "PASS"
+    cycle_commit = paper_loop.build_candidate_commit_receipt(
+        snapshot=cycle_snapshot,
+        adaptive_allocation=allocation,
+        prior_accepted_rows=[],
+    )
+    row["paper_cycle_reservation_commit_receipt"] = cycle_commit
+    row["paper_cycle_reservation_commit_receipt_hash"] = cycle_commit["receipt_hash"]
+    row["paper_cycle_reservation_commit_status"] = "PASS"
+
+    revocable_receipt: dict[str, object] = {
+        "schema_version": "paper_revocable_control_commit_revalidation_v1",
+        "status": "PASS",
+        "validation_started_at": "2026-07-17T12:00:01Z",
+        "checked_at": "2026-07-17T12:00:02Z",
+        "source_revalidation": {},
+        "guardian": {},
+        "effective_entry_freeze": {},
+        "current_risk_state": {},
+        "runtime_owner": {},
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "cross_process_atomic": False,
+        "residual_toctou_risk": "REDIS_KEYS_ARE_NOT_ONE_CAS",
+        "rejection_reasons": [],
+    }
+    revocable_receipt["receipt_hash"] = paper_loop._paper_canonical_sha256(revocable_receipt)  # noqa: SLF001
+    row["paper_revocable_control_commit_revalidation"] = revocable_receipt
+    row["paper_revocable_control_commit_revalidation_receipt_hash"] = revocable_receipt[
+        "receipt_hash"
+    ]
+    row["paper_revocable_control_commit_revalidation_status"] = "PASS"
+    projection = paper_loop._paper_persisted_admission_projection(row)  # noqa: SLF001
+    projection_hash = paper_loop._paper_canonical_sha256(projection)  # noqa: SLF001
+    allocation_hash = paper_loop._paper_canonical_sha256(allocation)  # noqa: SLF001
+    cycle_bound = {
+        "paper_cycle_reservation_snapshot": cycle_snapshot,
+        "paper_cycle_reservation_snapshot_hash": cycle_snapshot["snapshot_hash"],
+        "paper_cycle_reservation_commit_receipt": cycle_commit,
+        "paper_cycle_reservation_commit_receipt_hash": cycle_commit["receipt_hash"],
+        "paper_cycle_reservation_commit_status": "PASS",
+        "cycle_identity": cycle_snapshot["cycle_identity"],
+    }
+    bound_material = {
+        "persisted_row_projection": projection,
+        "persisted_row_projection_hash": projection_hash,
+        "revocable_control_commit_revalidation": revocable_receipt,
+        "cycle_reservation_contract": cycle_bound,
+        "identity": {
+            "intent_id": row["intent_id"],
+            "symbol": symbol,
+            "allocation_id": allocation["allocation_id"],
+        },
+        "adaptive_allocation_hash": allocation_hash,
+        "allocator_contract": {
+            "allocation_hash": allocation_hash,
+            "allocation_id": allocation["allocation_id"],
+            "allocation_input_hash": allocation_input_hash,
+        },
+        "sizing": {
+            "notional": notional,
+            "allocated_margin_usd": margin,
+        },
+    }
+    bound_hash = paper_loop._paper_canonical_sha256(bound_material)  # noqa: SLF001
+    contract: dict[str, object] = {
+        "schema_version": "paper_final_admission_contract_v3",
+        "status": "PASS",
+        "final_decision_time": "2026-07-17T12:00:03Z",
+        "revocable_control_commit_revalidation": revocable_receipt,
+        "bound_material_hash": bound_hash,
+        "bound_material": bound_material,
+        "rejection_reasons": [],
+    }
+    contract["receipt_hash"] = paper_loop._paper_canonical_sha256(contract)  # noqa: SLF001
+    row["paper_final_admission_contract"] = contract
+    row["paper_final_admission_receipt_hash"] = contract["receipt_hash"]
+    row["paper_final_admission_bound_material_hash"] = bound_hash
+    return row
+
+
+def test_persisted_admission_contract_seals_unchanged_row() -> None:
+    row = _synthetic_final_admission_sealed_row()
+
+    valid, quarantined, _status = paper_loop._split_invalid_admission_accepted_rows([row])  # noqa: SLF001
+
+    assert quarantined == []
+    assert len(valid) == 1
+    assert valid[0]["paper_persisted_ledger_status"] == "PASS"
+    persisted = valid[0]["paper_persisted_ledger_contract"]
+    persisted_without_hash = dict(persisted)
+    persisted_hash = persisted_without_hash.pop("receipt_hash")
+    assert persisted_hash == paper_loop._paper_canonical_sha256(  # noqa: SLF001
+        persisted_without_hash
+    )
+
+
+def _current_mark_evidence(
+    *,
+    mark_price: float = 120.0,
+    freshness_state: str = "CURRENT",
+) -> dict[str, object]:
+    source_material = {
+        "redis_key": "v2:market:funding:BTCUSDT",
+        "selected_payload": {"markPrice": str(mark_price)},
+    }
+    return {
+        "mark_price": mark_price,
+        "mark_index_source": "TEST_CURRENT_MARK",
+        "mark_index_source_material": source_material,
+        "mark_index_source_hash": paper_loop._paper_canonical_sha256(  # noqa: SLF001
+            source_material
+        ),
+        "mark_index_event_time": "2026-07-17T12:00:00Z",
+        "mark_index_generated_at": "2026-07-17T12:00:00.250000Z",
+        "mark_index_available_at": "2026-07-17T12:00:00.500000Z",
+        "mark_index_observed_at": "2026-07-17T12:00:02Z",
+        "mark_index_freshness_state": freshness_state,
+    }
+
+
+def test_precycle_current_mark_snapshot_joins_every_source_fill_and_sums_loss(
+    monkeypatch,
+) -> None:
+    first = _synthetic_final_admission_sealed_row(
+        intent_id="intent-source-fill-1",
+        signal_id="signal-source-fill-1",
+        prediction_id="prediction-source-fill-1",
+    )
+    second = _synthetic_final_admission_sealed_row(
+        intent_id="intent-source-fill-2",
+        signal_id="signal-source-fill-2",
+        prediction_id="prediction-source-fill-2",
+    )
+    first["fill_id"] = first["ledger_row_id"] = "fill-source-1"
+    second["fill_id"] = second["ledger_row_id"] = "fill-source-2"
+    redis = _FakeRedis({"v2:paper:accepted_fills": [first, second]})
+    times = iter(
+        (
+            "2026-07-17T12:00:00.750000Z",
+            "2026-07-17T12:00:01Z",
+            "2026-07-17T12:00:03Z",
+        )
+    )
+    monkeypatch.setattr(paper_loop, "_utc_iso", lambda: next(times))
+    monkeypatch.setattr(
+        paper_loop,
+        "_read_v2_mark_index_evidence",
+        lambda _redis, _symbol: _current_mark_evidence(),
+    )
+    proof_source = paper_loop._paper_accepted_fill_proof_source(redis)  # noqa: SLF001
+
+    snapshot = paper_loop._paper_precycle_current_mark_exposure_snapshot(  # noqa: SLF001
+        redis,
+        ledger={
+            "open_positions": [
+                {
+                    "position_id": "position-source-aggregate",
+                    "symbol": "BTCUSDT",
+                    "net_quantity": 2.0,
+                    "source_fill_ids": ["fill-source-1", "fill-source-2"],
+                }
+            ]
+        },
+        ledger_observed_at="2026-07-17T12:00:00.500000Z",
+        accepted_fill_proof_source=proof_source,
+    )
+
+    assert snapshot["status"] == "READY", snapshot["rejection_reasons"]
+    assert snapshot["validated_open_position_count"] == 1
+    assert snapshot["validated_source_fill_count"] == 2
+    assert snapshot["current_mark_gross_notional_total_usd"] == pytest.approx(240.0)
+    assert snapshot["precycle_open_projected_max_loss_usd"] == pytest.approx(10.0)
+    assert snapshot["open_position_rows"][0]["source_fill_count"] == 2
+
+
+def test_precycle_current_mark_snapshot_blocks_missing_or_tampered_fill_proof(
+    monkeypatch,
+) -> None:
+    proof = _synthetic_final_admission_sealed_row()
+    proof["fill_id"] = proof["ledger_row_id"] = "fill-tampered"
+    allocation = proof["adaptive_allocation"]
+    assert isinstance(allocation, dict)
+    allocation["max_loss_usd"] = float(allocation["max_loss_if_stop_hit"]) + 1e-9
+    redis = _FakeRedis({"v2:paper:accepted_fills": [proof]})
+    times = iter(
+        (
+            "2026-07-17T12:00:00.750000Z",
+            "2026-07-17T12:00:01Z",
+            "2026-07-17T12:00:03Z",
+        )
+    )
+    monkeypatch.setattr(paper_loop, "_utc_iso", lambda: next(times))
+    monkeypatch.setattr(
+        paper_loop,
+        "_read_v2_mark_index_evidence",
+        lambda _redis, _symbol: _current_mark_evidence(),
+    )
+    proof_source = paper_loop._paper_accepted_fill_proof_source(redis)  # noqa: SLF001
+
+    snapshot = paper_loop._paper_precycle_current_mark_exposure_snapshot(  # noqa: SLF001
+        redis,
+        ledger={
+            "open_positions": [
+                {
+                    "position_id": "position-tampered",
+                    "symbol": "BTCUSDT",
+                    "net_quantity": 1.0,
+                    "source_fill_ids": ["fill-tampered", "fill-missing"],
+                }
+            ]
+        },
+        ledger_observed_at="2026-07-17T12:00:00.500000Z",
+        accepted_fill_proof_source=proof_source,
+    )
+
+    assert snapshot["status"] == "BLOCKED"
+    assert any(
+        reason.startswith("OPEN_POSITION_SOURCE_FILL_FINAL_V3_PROOF_INVALID")
+        for reason in snapshot["rejection_reasons"]
+    )
+    assert any(
+        reason.startswith("OPEN_POSITION_SOURCE_FILL_PROOF_MISSING")
+        for reason in snapshot["rejection_reasons"]
+    )
+    assert snapshot["validated_open_position_count"] == 0
+
+
+def test_precycle_current_mark_snapshot_blocks_stale_mark_but_empty_book_is_ready(
+    monkeypatch,
+) -> None:
+    proof = _synthetic_final_admission_sealed_row()
+    proof["fill_id"] = proof["ledger_row_id"] = "fill-stale-mark"
+    redis = _FakeRedis({"v2:paper:accepted_fills": [proof]})
+    times = iter(
+        (
+            "2026-07-17T12:00:00.750000Z",
+            "2026-07-17T12:00:01Z",
+            "2026-07-17T12:00:03Z",
+            "2026-07-17T12:00:04Z",
+            "2026-07-17T12:00:05Z",
+        )
+    )
+    monkeypatch.setattr(paper_loop, "_utc_iso", lambda: next(times))
+    monkeypatch.setattr(
+        paper_loop,
+        "_read_v2_mark_index_evidence",
+        lambda _redis, _symbol: _current_mark_evidence(freshness_state="STALE"),
+    )
+    proof_source = paper_loop._paper_accepted_fill_proof_source(redis)  # noqa: SLF001
+    blocked = paper_loop._paper_precycle_current_mark_exposure_snapshot(  # noqa: SLF001
+        redis,
+        ledger={
+            "open_positions": [
+                {
+                    "position_id": "position-stale-mark",
+                    "symbol": "BTCUSDT",
+                    "net_quantity": 1.0,
+                    "source_fill_ids": ["fill-stale-mark"],
+                }
+            ]
+        },
+        ledger_observed_at="2026-07-17T12:00:00.500000Z",
+        accepted_fill_proof_source=proof_source,
+    )
+    empty = paper_loop._paper_precycle_current_mark_exposure_snapshot(  # noqa: SLF001
+        redis,
+        ledger={"open_positions": []},
+        ledger_observed_at="2026-07-17T12:00:03.500000Z",
+        accepted_fill_proof_source={
+            "status": "MISSING",
+            "observed_at": "2026-07-17T12:00:03Z",
+            "rows": [],
+        },
+    )
+
+    assert blocked["status"] == "BLOCKED"
+    assert "OPEN_POSITION_CURRENT_MARK_EVIDENCE_INVALID:BTCUSDT" in blocked["rejection_reasons"]
+    assert empty["status"] == "READY", empty["rejection_reasons"]
+    assert empty["precycle_open_projected_max_loss_usd"] == 0.0
+
+
+def test_dynamic_envelope_reservation_evidence_requires_exact_semantic_replay(
+    golden_a_grade_final_admission,
+) -> None:
+    intent, _redis, _bracket_security_context = golden_a_grade_final_admission
+    evidence = intent["paper_dynamic_envelope_reservation_evidence"]
+    assert isinstance(evidence, dict)
+    assert (
+        paper_loop._paper_dynamic_envelope_semantic_rejection_reasons(  # noqa: SLF001
+            evidence
+        )
+        == []
+    )
+
+    tampered = deepcopy(evidence)
+    calculation = tampered["calculation_input_material"]
+    assert isinstance(calculation, dict)
+    arguments = calculation["arguments"]
+    assert isinstance(arguments, dict)
+    arguments.update(
+        {
+            "win_rate": 0.1,
+            "profit_factor": 0.2,
+            "closed_trade_count": 100,
+            "current_drawdown_pct": 0.04,
+            "model_avg_confidence": 0.9,
+            "after_cost_edge_lower_bound_bps": 10.0,
+            "after_cost_edge_scale_bps": 10.0,
+            "after_cost_edge_resolution_bps": math.ulp(10.0),
+            "after_cost_edge_evidence_count": 100,
+            "after_cost_edge_evidence_source": "TEST_AFTER_COST_LCB",
+            "edge_available_at": "2026-07-17T12:00:00Z",
+            "liquidity_score": 1.0,
+            "regime_quality_score": 1.0,
+            "market_context_source": "TEST_PIT_CONTEXT",
+            "market_context_available_at": "2026-07-17T12:00:00Z",
+            "decision_time": "2026-07-17T12:00:01Z",
+        }
+    )
+    tampered["calculation_input_hash"] = paper_loop._paper_canonical_sha256(  # noqa: SLF001
+        calculation
+    )
+
+    reasons = paper_loop._paper_dynamic_envelope_semantic_rejection_reasons(  # noqa: SLF001
+        tampered
+    )
+
+    assert "DYNAMIC_ENVELOPE_SEMANTIC_REPLAY_MISMATCH" in reasons
+
+
+def _promoted_growth_trainer_status(checkpoint_id: str) -> dict[str, object]:
+    return {
+        "schema_version": "v2_native_rl_masa_ppo_cuda_trainer_status_v1",
+        "generated_utc": "2026-07-19T12:00:00Z",
+        "status_payload_expires_at": "2026-07-19T12:10:00Z",
+        "status_publication_status": "ACTIVE",
+        "cycle_id": "trainer-cycle-promoted",
+        "process_instance_id": "trainer-instance-promoted",
+        "status_publication": {
+            "schema_version": "v2_trainer_expiring_status_publication_v1",
+            "publication_complete": True,
+            "component_results": {
+                "blocked_staging_status": True,
+                "heartbeat": True,
+                "metrics": True,
+                "feature_schema_status": True,
+                "status": True,
+            },
+            "generated_utc": "2026-07-19T12:00:00Z",
+            "expires_at": "2026-07-19T12:10:00Z",
+            "cycle_id": "trainer-cycle-promoted",
+            "process_instance_id": "trainer-instance-promoted",
+        },
+        "current_cycle_learning_envelope_identity": {
+            "cycle_id": "trainer-cycle-promoted",
+            "process_instance_id": "trainer-instance-promoted",
+            "checkpoint_id": checkpoint_id,
+            "candidate_policy_fingerprint": "a" * 64,
+            "envelope_sha256": "d" * 64,
+        },
+        "runtime_readiness_status": "READY",
+        "trainer_learning_ready": True,
+        "checkpoint_id": checkpoint_id,
+        "candidate_policy_fingerprint": "a" * 64,
+        "checkpoint_promotion_allowed": True,
+        "checkpoint_promotion_reason": ("PIT_EDGE_CONFIDENCE_PARETO_SERVING_PROMOTION_PASS"),
+        "mandatory_pit_edge_gate_passed": True,
+        "validation_split_pit_safe": True,
+        "validation_policy_edge_status": "VALID",
+        "validation_policy_edge_after_cost_bps": 20.0,
+        "validation_policy_edge_lower_confidence_bound_bps": 10.0,
+        "validation_policy_edge_rows_evaluated": 30,
+        "model_serving_allowed": True,
+        "model_serving_source": "VERIFIED_PROMOTED_SERVING_CHECKPOINT",
+        # Deliberately different from the candidate's 0.9 confidence: the
+        # candidate envelope must bind the exact allocation input, not a
+        # global/unpublished trainer average.
+        "avg_prediction_confidence": 0.1,
+        "current_cycle_verified_serving_checkpoint_evidence": {
+            "checkpoint_artifact_verified": True,
+            "causal_order_verified": True,
+            "lineage_kind": "VERIFIED_SERVING_POLICY",
+            "checkpoint_id": checkpoint_id,
+            "parent_checkpoint_id": "checkpoint-parent",
+            "model_parameter_fingerprint": "a" * 64,
+            "parent_policy_fingerprint": "c" * 64,
+            "weight_file_sha256": "b" * 64,
+            "exact_optimizer_contract_durable": True,
+            "ledger_disposition": "SERVING_PROMOTED",
+            "generated_utc": "2026-07-19T11:59:00Z",
+            "manager_semantic_verification_recomputed_this_cycle": True,
+        },
+    }
+
+
+def _positive_strict_growth_status() -> dict[str, object]:
+    return strict_growth_performance_status()
+
+
+def _candidate_growth_bundle(
+    trainer_status: dict[str, object],
+):
+    from v2.backend.app.services.adaptive_capital_allocator import AllocationInput
+
+    checkpoint_id = "checkpoint-promoted"
+    allocation_input = AllocationInput(
+        symbol="BTCUSDT",
+        timeframe="1m",
+        action="long",
+        price=100.0,
+        equity=10_000.0,
+        available_margin=5_000.0,
+        wallet_balance=10_000.0,
+        confidence_calibrated=0.9,
+        expected_move_after_cost_bps=100.0,
+        market_state_integrity_score=95.0,
+        liquidity_score=1.0,
+        regime_score=1.0,
+    )
+    allocation_input, _unused_envelope, _unused_receipt = authorize_growth(allocation_input)
+    point_in_time = {
+        "status": "PASS",
+        "decision_time": "2026-07-19T12:00:01Z",
+        "decision_time_semantics": "TEST_IMMUTABLE_CANDIDATE_CUTOFF",
+        "observed_component_times": {
+            "entry_spread_available_at": "2026-07-19T11:59:50Z",
+            "entry_feature_available_at": "2026-07-19T11:59:55Z",
+        },
+        "rejection_reasons": [],
+    }
+    return paper_loop._paper_candidate_dynamic_envelope_bundle(  # noqa: SLF001
+        symbol="BTCUSDT",
+        intent={
+            "allocator_market_evidence_status": "READY",
+            "regime_score": 1.0,
+            "microstructure_trust_score": 1.0,
+            "microstructure_adaptive_minimum": 0.5,
+            "microstructure_action": "ALLOW",
+        },
+        allocation_input=allocation_input,
+        point_in_time_evidence=point_in_time,
+        allocation_decision_time=datetime(
+            2026,
+            7,
+            19,
+            12,
+            0,
+            1,
+            tzinfo=timezone.utc,
+        ),
+        performance_status=_positive_strict_growth_status(),
+        trainer_status=trainer_status,
+        candidate_checkpoint_id=checkpoint_id,
+        candidate_checkpoint_id_source="signal.checkpoint_id",
+        current_drawdown_pct=0.0,
+    )
+
+
+def test_candidate_dynamic_envelope_requires_exact_promoted_positive_oos_receipt() -> None:
+    checkpoint_id = "checkpoint-promoted"
+    envelope, receipt = _candidate_growth_bundle(_promoted_growth_trainer_status(checkpoint_id))
+
+    assert envelope.max_effective_leverage > 3.0
+    assert receipt["status"] == "READY"
+    assert receipt["source_evidence"]["growth_authorization_status"] == "READY"
+    assert (
+        paper_loop._paper_dynamic_envelope_semantic_rejection_reasons(  # noqa: SLF001
+            receipt
+        )
+        == []
+    )
+
+
+def test_candidate_dynamic_envelope_missing_checkpoint_is_replayable_1x_block() -> None:
+    envelope, receipt = _candidate_growth_bundle({})
+
+    assert envelope.max_effective_leverage == 1.0
+    assert receipt["status"] == "READY"
+    assert receipt["source_evidence"]["growth_authorization_status"] == "BLOCKED"
+    assert (
+        paper_loop._paper_dynamic_envelope_semantic_rejection_reasons(  # noqa: SLF001
+            receipt
+        )
+        == []
+    )
+
+
+def test_candidate_dynamic_envelope_rejects_coherently_resealed_promotion_flag() -> None:
+    checkpoint_id = "checkpoint-promoted"
+    _envelope, receipt = _candidate_growth_bundle(_promoted_growth_trainer_status(checkpoint_id))
+    tampered = deepcopy(receipt)
+    calculation = tampered["calculation_input_material"]
+    authorization = calculation["growth_authorization_receipt"]
+    checkpoint = authorization["component_receipts"]["promoted_checkpoint"]
+    checkpoint["source_material"]["checkpoint_promotion_allowed"] = False
+    checkpoint["source_material_hash"] = paper_loop._paper_canonical_sha256(  # noqa: SLF001
+        checkpoint["source_material"]
+    )
+    checkpoint_material = dict(checkpoint)
+    checkpoint_material.pop("evidence_hash")
+    checkpoint["evidence_hash"] = paper_loop._paper_canonical_sha256(  # noqa: SLF001
+        checkpoint_material
+    )
+    authorization["component_receipt_hashes"]["promoted_checkpoint"] = checkpoint["evidence_hash"]
+    authorization_material = dict(authorization)
+    authorization_material.pop("evidence_hash")
+    authorization["evidence_hash"] = paper_loop._paper_canonical_sha256(  # noqa: SLF001
+        authorization_material
+    )
+    calculation["growth_authorization_receipt_hash"] = authorization["evidence_hash"]
+    tampered["calculation_input_hash"] = paper_loop._paper_canonical_sha256(  # noqa: SLF001
+        calculation
+    )
+
+    reasons = paper_loop._paper_dynamic_envelope_semantic_rejection_reasons(  # noqa: SLF001
+        tampered
+    )
+
+    assert "PROMOTED_CHECKPOINT_RECEIPT_SEMANTIC_REPLAY_MISMATCH" in reasons
+
+
+def test_candidate_cycle_reservation_rebind_changes_only_envelope_lineage() -> None:
+    checkpoint_id = "checkpoint-promoted"
+    envelope, receipt = _candidate_growth_bundle(_promoted_growth_trainer_status(checkpoint_id))
+    snapshot = paper_loop.build_cycle_reservation_snapshot(
+        cycle_identity="candidate-envelope-rebind",
+        candidate_symbol="BTCUSDT",
+        base_resource_evidence_hash="1" * 64,
+        precycle_exposure_snapshot_hash="2" * 64,
+        dynamic_envelope_evidence_hash="3" * 64,
+        base_equity_usd=10_000.0,
+        base_available_margin_usd=5_000.0,
+        realized_drawdown_fraction_of_equity=0.0,
+        precycle_total_notional_usd=0.0,
+        precycle_symbol_current_mark_notional_usd=0.0,
+        precycle_open_projected_max_loss_usd=0.0,
+        max_total_portfolio_risk_pct=envelope.max_total_portfolio_risk_pct,
+        max_single_symbol_exposure_pct=envelope.max_single_symbol_exposure_pct,
+        min_available_margin_buffer_pct=envelope.min_available_margin_buffer_pct,
+        max_daily_drawdown_pct=envelope.max_daily_drawdown_pct,
+        max_loss_per_trade_pct=envelope.max_loss_per_trade_pct,
+        emergency_absolute_cap_usdt=envelope.emergency_absolute_cap_usdt,
+        prior_accepted_rows=[],
+    )
+
+    rebound, reasons = paper_loop._paper_rebind_cycle_reservation_dynamic_envelope(  # noqa: SLF001
+        snapshot,
+        envelope=envelope,
+        envelope_receipt=receipt,
+    )
+
+    assert reasons == []
+    assert rebound["inputs"] == snapshot["inputs"]
+    assert rebound["derived"] == snapshot["derived"]
+    assert rebound["prior_reservations"] == snapshot["prior_reservations"]
+    assert (
+        rebound["evidence_bindings"]["dynamic_envelope_evidence_hash"] == (receipt["evidence_hash"])
+    )
+    assert rebound["snapshot_hash"] != snapshot["snapshot_hash"]
+    assert paper_loop.cycle_reservation_snapshot_rejection_reasons(rebound) == ()
+
+
+def test_persistence_rejects_coherently_resealed_final_contract_v2() -> None:
+    row = _synthetic_final_admission_sealed_row()
+    contract = row["paper_final_admission_contract"]
+    assert isinstance(contract, dict)
+    contract["schema_version"] = "paper_final_admission_contract_v2"
+    contract.pop("receipt_hash")
+    contract["receipt_hash"] = paper_loop._paper_canonical_sha256(  # noqa: SLF001
+        contract
+    )
+    row["paper_final_admission_receipt_hash"] = contract["receipt_hash"]
+
+    reasons = paper_loop._paper_persisted_admission_rejection_reasons(  # noqa: SLF001
+        row
+    )
+
+    assert "PERSISTED_ADMISSION_FINAL_RECEIPT_INVALID" in reasons
+
+
+def test_persistence_rejects_coherently_resealed_missing_revocable_receipt() -> None:
+    row = _synthetic_final_admission_sealed_row()
+    contract = row["paper_final_admission_contract"]
+    assert isinstance(contract, dict)
+    bound = contract["bound_material"]
+    assert isinstance(bound, dict)
+    contract.pop("revocable_control_commit_revalidation")
+    bound.pop("revocable_control_commit_revalidation")
+    contract["bound_material_hash"] = paper_loop._paper_canonical_sha256(  # noqa: SLF001
+        bound
+    )
+    row["paper_final_admission_bound_material_hash"] = contract["bound_material_hash"]
+    contract.pop("receipt_hash")
+    contract["receipt_hash"] = paper_loop._paper_canonical_sha256(  # noqa: SLF001
+        contract
+    )
+    row["paper_final_admission_receipt_hash"] = contract["receipt_hash"]
+
+    reasons = paper_loop._paper_persisted_admission_rejection_reasons(  # noqa: SLF001
+        row
+    )
+
+    assert "PERSISTED_ADMISSION_REVOCABLE_CONTROL_RECEIPT_MISSING" in reasons
+
+
+@pytest.mark.parametrize(
+    ("field", "mutated_value"),
+    [
+        ("quantity", 0.02),
+        ("effective_leverage", 5.0),
+        ("paper_opportunity_tier", "B_GRADE_EXPLORATION"),
+        ("routes_to_live", True),
+    ],
+)
+def test_persisted_admission_quarantines_post_final_mutation(
+    field: str,
+    mutated_value: object,
+) -> None:
+    row = _synthetic_final_admission_sealed_row()
+    row[field] = mutated_value
+
+    valid, quarantined, _status = paper_loop._split_invalid_admission_accepted_rows([row])  # noqa: SLF001
+
+    assert valid == []
+    assert len(quarantined) == 1
+    assert quarantined[0]["accepted_fill_quarantined"] is True
+    assert (
+        "PERSISTED_ADMISSION_ROW_MUTATED_AFTER_FINAL_SEAL"
+        in quarantined[0]["invalid_admission_integrity_block_reasons"]
+    )
+
+
+def test_a_plus_shared_snapshot_observes_sources_after_redis_reads(monkeypatch) -> None:
+    from v2.backend.app.services.a_plus_trade_gate import service as a_plus_service
+
+    pre_read = "2026-07-17T12:00:00Z"
+    generated_during_read = "2026-07-17T12:00:01Z"
+    post_read = "2026-07-17T12:00:02Z"
+    clock = {"now": pre_read}
+    utc_calls: list[str] = []
+
+    def publish_cross_asset() -> dict[str, object]:
+        clock["now"] = post_read
+        return {
+            "generated_utc": generated_during_read,
+            "available_at": generated_during_read,
+            "risk_on_score": 0.25,
+        }
+
+    redis = _CallbackRedis(
+        {},
+        {"v2:context:cross_asset": publish_cross_asset},
+    )
+
+    def utc_iso() -> str:
+        utc_calls.append(clock["now"])
+        return clock["now"]
+
+    monkeypatch.setattr(paper_loop, "_utc_iso", utc_iso)
+    context, lineage = paper_loop._read_a_plus_shared_context_snapshot(  # noqa: SLF001
+        redis,
+        paper_session_id="paper-session-read-clock",
+    )
+
+    receipt = next(row for row in lineage if row["role"] == "cross_asset")
+    observed = datetime.fromisoformat(receipt["observed_at"].replace("Z", "+00:00"))
+    assert utc_calls[0] == post_read
+    assert receipt["generated_at"] == generated_during_read
+    assert receipt["observed_at"] == post_read
+    assert (
+        a_plus_service._fresh(  # noqa: SLF001
+            context["cross_asset"],
+            max_age_seconds=1800.0,
+            now=observed,
+        )
+        is True
+    )
+
+
+def test_a_plus_scoped_snapshot_accepts_payload_generated_during_redis_read(
+    monkeypatch,
+) -> None:
+    from v2.backend.app.services.a_plus_trade_gate import service as a_plus_service
+
+    pre_read = "2026-07-17T13:00:00Z"
+    generated_during_read = "2026-07-17T13:00:01Z"
+    post_read = "2026-07-17T13:00:02Z"
+    clock = {"now": pre_read}
+    utc_calls: list[str] = []
+
+    def publish_regime() -> dict[str, object]:
+        clock["now"] = post_read
+        return {
+            "generated_utc": generated_during_read,
+            "available_at": generated_during_read,
+            "regime": "TRENDING",
+            "fail_closed": False,
+        }
+
+    redis = _CallbackRedis(
+        {},
+        {"v2:regime:gate:BTCUSDT:1m": publish_regime},
+    )
+
+    def utc_iso() -> str:
+        utc_calls.append(clock["now"])
+        return clock["now"]
+
+    monkeypatch.setattr(paper_loop, "_utc_iso", utc_iso)
+    snapshot = paper_loop._read_a_plus_scoped_context_snapshot(  # noqa: SLF001
+        redis,
+        symbol="BTCUSDT",
+        timeframe="1m",
+        shared_context={},
+        shared_lineage=[],
+    )
+
+    receipt = next(
+        row
+        for row in snapshot["paper_context_snapshot_lineage"]
+        if row["role"] == "regime_decision"
+    )
+    observed = datetime.fromisoformat(
+        snapshot["paper_context_snapshot_observed_at"].replace("Z", "+00:00")
+    )
+    assert utc_calls == [post_read]
+    assert receipt["generated_at"] == generated_during_read
+    assert receipt["observed_at"] == post_read
+    assert snapshot["paper_context_snapshot_observed_at"] == post_read
+    assert (
+        a_plus_service._fresh(  # noqa: SLF001
+            snapshot["regime_decision"],
+            max_age_seconds=1800.0,
+            now=observed,
+        )
+        is True
+    )
+
+
 def _preemptive_allow_decision(**overrides) -> dict[str, object]:
     decision = {
         "preemptive_decision_id": "test_preemptive_allow",
@@ -61,6 +3111,324 @@ def _preemptive_allow_decision(**overrides) -> dict[str, object]:
     }
     decision.update(overrides)
     return decision
+
+
+def test_high_confidence_cannot_replace_missing_economic_fill_prices() -> None:
+    row = {
+        "symbol": "BTCUSDT",
+        "side": "long",
+        "quantity": 0.1,
+        "notional": 100.0,
+        "confidence_calibrated": 0.99,
+        "prediction_id": "pred-economic",
+        "risk_decision_id": "rd-economic",
+        "orchestrator_decision_id": "dec-economic",
+        "signal_id": "sig-economic",
+    }
+
+    assert paper_loop._row_has_economic_fill_fields(row) is False  # noqa: SLF001
+
+    row.update({"entry_price": 1000.0, "fill_price": 1000.0})
+    assert paper_loop._row_has_economic_fill_fields(row) is True  # noqa: SLF001
+
+
+def test_margin_normalization_uses_executed_notional_and_preserves_upstream() -> None:
+    allocation = {
+        "allocated_margin_usd": 7.0,
+        "gross_notional_usd": 200.0,
+        "effective_leverage": 2.0,
+        "model_inputs": {
+            "selected_allocated_margin_usd": 7.0,
+            "maintenance_margin_rate": 0.005,
+            "risk_envelope": {"max_effective_leverage": 3.0},
+        },
+    }
+    rows = paper_loop._ensure_margin_leverage_consistency_rows(  # noqa: SLF001
+        [
+            {
+                "symbol": "BTCUSDT",
+                "side": "long",
+                "quantity": 2.0,
+                "entry_price": 50.0,
+                "fill_price": 50.0,
+                "notional": 200.0,
+                "gross_notional_usd": 200.0,
+                "effective_leverage": 2.0,
+                "allocated_margin_usd": 7.0,
+                "adaptive_allocation": allocation,
+            }
+        ]
+    )
+
+    row = rows[0]
+    assert row["notional"] == pytest.approx(100.0)
+    assert row["gross_notional_usd"] == pytest.approx(100.0)
+    assert row["allocated_margin_usd"] == pytest.approx(50.0)
+    assert row["allocated_margin_usd_upstream"] == pytest.approx(7.0)
+    assert row["gross_notional_usd_upstream"] == pytest.approx(200.0)
+    assert row["allocated_margin_usd"] * row["effective_leverage"] == pytest.approx(
+        row["gross_notional_usd"]
+    )
+    assert allocation["allocated_margin_usd"] == pytest.approx(7.0)
+    assert allocation["gross_notional_usd"] == pytest.approx(200.0)
+    assert allocation["model_inputs"]["selected_allocated_margin_usd"] == pytest.approx(7.0)
+    assert row["current_capital_accounting"]["allocated_margin_usd"] == pytest.approx(50.0)
+    expected_geometry = paper_loop.paper_isolated_liquidation_geometry(
+        side="long",
+        entry_price=50.0,
+        leverage=2.0,
+        maintenance_margin_rate=0.005,
+    )
+    assert expected_geometry is not None
+    assert row["liquidation_price_estimate"] == pytest.approx(expected_geometry[1])
+
+
+def test_unsealed_higher_paper_leverage_math_cannot_authorize_margin() -> None:
+    low_leverage, high_leverage = paper_loop._ensure_margin_leverage_consistency_rows(  # noqa: SLF001
+        [
+            {
+                "fill_id": "fill-low-leverage",
+                "symbol": "BTCUSDT",
+                "timeframe": "1m",
+                "side": "long",
+                "quantity": 10.0,
+                "fill_price": 100.0,
+                "effective_leverage": 2.0,
+                "adaptive_allocation": {
+                    "effective_leverage": 2.0,
+                    "model_inputs": {
+                        "maintenance_margin_rate": 0.005,
+                        "risk_envelope": {"max_effective_leverage": 5.0},
+                    },
+                },
+            },
+            {
+                "fill_id": "fill-high-leverage",
+                "symbol": "ETHUSDT",
+                "timeframe": "1m",
+                "side": "long",
+                "quantity": 10.0,
+                "fill_price": 100.0,
+                "effective_leverage": 5.0,
+                "adaptive_allocation": {
+                    "effective_leverage": 5.0,
+                    "model_inputs": {
+                        "maintenance_margin_rate": 0.005,
+                        "risk_envelope": {"max_effective_leverage": 5.0},
+                    },
+                },
+            },
+        ]
+    )
+
+    assert low_leverage["gross_notional_usd"] == pytest.approx(1_000.0)
+    assert high_leverage["gross_notional_usd"] == pytest.approx(1_000.0)
+    assert low_leverage["allocated_margin_usd"] == pytest.approx(500.0)
+    assert high_leverage["allocated_margin_usd"] == pytest.approx(200.0)
+    low_geometry = paper_loop.paper_isolated_liquidation_geometry(
+        side="long",
+        entry_price=100.0,
+        leverage=2.0,
+        maintenance_margin_rate=0.005,
+    )
+    high_geometry = paper_loop.paper_isolated_liquidation_geometry(
+        side="long",
+        entry_price=100.0,
+        leverage=5.0,
+        maintenance_margin_rate=0.005,
+    )
+    assert low_geometry is not None
+    assert high_geometry is not None
+    assert low_leverage["liquidation_price_estimate"] == pytest.approx(low_geometry[1])
+    assert high_leverage["liquidation_price_estimate"] == pytest.approx(high_geometry[1])
+    assert high_leverage["liquidation_buffer_bps"] < low_leverage["liquidation_buffer_bps"]
+
+    low_accepted, low_blocked, _ = paper_loop.reserve_paper_candidate_margin(
+        [low_leverage],
+        equity=400.0,
+        wallet_balance=400.0,
+        existing_open_positions=[],
+        min_available_margin_buffer_pct=0.0,
+    )
+    high_accepted, high_blocked, _ = paper_loop.reserve_paper_candidate_margin(
+        [high_leverage],
+        equity=400.0,
+        wallet_balance=400.0,
+        existing_open_positions=[],
+        min_available_margin_buffer_pct=0.0,
+    )
+    assert low_accepted == []
+    assert len(low_blocked) == 1
+    assert high_accepted == []
+    assert len(high_blocked) == 1
+    requirement = high_blocked[0]["paper_margin_requirement"]
+    assert requirement["requested_effective_leverage"] == 5.0
+    assert requirement["effective_leverage"] == 1.0
+    assert requirement["canonical_margin_usd"] == pytest.approx(1_000.0)
+    assert requirement["unauthenticated_leverage_claim_downgraded_to_one_x"] is True
+
+
+def test_portfolio_context_downgrades_unsealed_open_leverage_before_margin() -> None:
+    redis_client = _FakeRedis(
+        {
+            "v2:portfolio:state": {
+                "equity": 1_000.0,
+                "cash_balance": 1_000.0,
+                "wallet_balance": 1_000.0,
+                "current_drawdown_bps": 25.0,
+            }
+        }
+    )
+    existing_ledger = {
+        "open_positions": [
+            {
+                "position_id": "paper_pos_btc",
+                "symbol": "BTCUSDT",
+                "side": "long",
+                "net_quantity": 6.0,
+                "avg_entry_price": 100.0,
+                "effective_leverage": 3.0,
+                "maintenance_margin_rate": 0.005,
+                "current_capital_accounting": {
+                    "accounting_scope": "CURRENT_EXECUTED_PAPER_POSITION",
+                    "effective_leverage": 3.0,
+                    "effective_leverage_validated": True,
+                    "maintenance_margin_rate": 0.005,
+                },
+                "allocated_margin_usd": 1.0,
+            }
+        ]
+    }
+
+    context = paper_loop._portfolio_equity_context(  # noqa: SLF001
+        redis_client,
+        existing_ledger=existing_ledger,
+    )
+
+    # A flat ``effective_leverage_validated`` marker is not a durable final
+    # admission receipt. Historical/unsealed positions are therefore reserved
+    # conservatively at 1x instead of creating unproved buying power at 3x.
+    assert context["used_margin_usd"] == pytest.approx(600.0)
+    assert context["available_margin"] == pytest.approx(400.0)
+    assert context["free_margin_usd"] == pytest.approx(400.0)
+    assert context["paper_account_margin_status"]["invariant_holds"] is True
+    margin_row = context["paper_account_margin_status"]["position_margin_rows"][0]
+    assert margin_row["requested_effective_leverage"] == 3.0
+    assert margin_row["effective_leverage"] == 1.0
+    assert margin_row["unauthenticated_leverage_claim_downgraded_to_one_x"] is True
+
+
+@pytest.mark.parametrize("reported_equity", [0.0, -25.0])
+def test_portfolio_context_never_resurrects_nonpositive_equity_from_initial_capital(
+    reported_equity: float,
+) -> None:
+    redis_client = _FakeRedis(
+        {
+            "v2:portfolio:state": {
+                "equity": reported_equity,
+                "cash_balance": 1_000.0,
+                "wallet_balance": 1_000.0,
+                "initial_capital": 1_000.0,
+            }
+        }
+    )
+
+    context = paper_loop._portfolio_equity_context(  # noqa: SLF001
+        redis_client,
+        existing_ledger={"open_positions": []},
+    )
+
+    assert context["equity"] == reported_equity
+    assert context["available_margin"] == 0.0
+    assert context["free_margin_usd"] == 0.0
+    assert context["paper_account_margin_status"]["status"] == "FAIL_CLOSED"
+    assert context["paper_account_margin_status"]["failure_reasons"] == [
+        "PAPER_MARGIN_BASE_MISSING_OR_NON_POSITIVE"
+    ]
+
+
+def test_portfolio_context_never_resurrects_nonpositive_wallet_from_equity() -> None:
+    redis_client = _FakeRedis(
+        {
+            "v2:portfolio:state": {
+                "equity": 1_000.0,
+                "cash_balance": 1_000.0,
+                "wallet_balance": 0.0,
+                "initial_capital": 1_000.0,
+            }
+        }
+    )
+
+    context = paper_loop._portfolio_equity_context(  # noqa: SLF001
+        redis_client,
+        existing_ledger={"open_positions": []},
+    )
+
+    assert context["equity"] == 1_000.0
+    assert context["wallet_balance"] == 0.0
+    assert context["available_margin"] == 0.0
+    assert context["paper_account_margin_status"]["status"] == "FAIL_CLOSED"
+
+
+def test_portfolio_context_preserves_malformed_open_rows_for_fail_closed_accounting() -> None:
+    redis_client = _FakeRedis(
+        {
+            "v2:portfolio:state": {
+                "equity": 1_000.0,
+                "cash_balance": 1_000.0,
+                "wallet_balance": 1_000.0,
+            }
+        }
+    )
+
+    context = paper_loop._portfolio_equity_context(  # noqa: SLF001
+        redis_client,
+        existing_ledger={"open_positions": ["corrupt-open-position-row"]},
+    )
+
+    assert context["paper_ledger_open_position_count"] == 1
+    assert context["available_margin"] == 0.0
+    assert context["paper_account_margin_status"]["accounting_complete"] is False
+    assert context["paper_account_margin_status"]["invalid_open_position_margin_count"] == 1
+
+
+def test_margin_normalization_does_not_promote_recommendation_or_invent_maintenance() -> None:
+    allocation = {
+        "recommended_leverage": 10.0,
+        "target_notional_usd": 1_000.0,
+        "allocated_margin_usd": 100.0,
+        "model_inputs": {"selected_leverage": 10.0},
+    }
+    original = json.loads(json.dumps(allocation))
+
+    row = paper_loop._ensure_margin_leverage_consistency_rows(  # noqa: SLF001
+        [
+            {
+                "fill_id": "fill-recommendation-only",
+                "symbol": "BTCUSDT",
+                "timeframe": "1m",
+                "side": "long",
+                "quantity": 5.0,
+                "fill_price": 100.0,
+                "recommended_leverage": 10.0,
+                "adaptive_allocation": allocation,
+            }
+        ]
+    )[0]
+
+    assert row["effective_leverage"] == 1.0
+    assert row["allocated_margin_usd"] == pytest.approx(500.0)
+    assert row["maintenance_margin_rate"] is None
+    assert row["liquidation_price_estimate"] is None
+    assert row["liquidation_buffer_bps"] is None
+    assert row["paper_liquidation_validation_status"] == (
+        "UNAVAILABLE_MAINTENANCE_MARGIN_EVIDENCE_MISSING"
+    )
+    assert row["paper_margin_accounting_invalid_reason"] == (
+        "MAINTENANCE_MARGIN_RATE_MISSING_OR_INVALID"
+    )
+    assert row["current_capital_accounting"]["allocated_margin_usd"] == pytest.approx(500.0)
+    assert allocation == original
 
 
 def test_paper_trainer_model_quality_status_surfaces_checkpoint_blockers() -> None:
@@ -211,9 +3579,10 @@ def test_read_paper_signals_enriches_matched_native_policy_fields() -> None:
                 "selected_action_probability": 0.9,
                 "selected_action_log_prob": -0.10536051565782628,
                 "policy_value": 0.25,
-                "entry_policy_fields_source": (
-                    "V2_NATIVE_CUDA_TRAINER_ENTRY_FORWARD_PASS"
-                ),
+                "behavior_policy_sampling_mode": "DETERMINISTIC_ARGMAX_ALIGNMENT",
+                "behavior_policy_distribution_contract": ("EXPECTED_MOVE_ALIGNED_POLICY_V1"),
+                "ppo_on_policy_ineligible_reason": ("DETERMINISTIC_POLICY_NOT_ON_POLICY_SAMPLED"),
+                "entry_policy_fields_source": ("V2_NATIVE_CUDA_TRAINER_ENTRY_FORWARD_PASS"),
             },
         }
     )
@@ -223,9 +3592,9 @@ def test_read_paper_signals_enriches_matched_native_policy_fields() -> None:
     assert rows[0]["action_probabilities"] == [0.05, 0.9, 0.05]
     assert rows[0]["policy_value"] == 0.25
     assert rows[0]["selected_action_log_prob"] == -0.10536051565782628
-    assert rows[0]["paper_signal_policy_enrichment_prediction_id"] == (
-        "v2h_policy_entry"
-    )
+    assert rows[0]["behavior_policy_sampling_mode"] == ("DETERMINISTIC_ARGMAX_ALIGNMENT")
+    assert rows[0]["behavior_policy_distribution_contract"] == ("EXPECTED_MOVE_ALIGNED_POLICY_V1")
+    assert rows[0]["paper_signal_policy_enrichment_prediction_id"] == ("v2h_policy_entry")
 
 
 def test_read_paper_signals_rejects_future_native_policy_fields() -> None:
@@ -264,7 +3633,102 @@ def test_read_paper_signals_rejects_future_native_policy_fields() -> None:
     assert "paper_signal_policy_enrichment_prediction_id" not in rows[0]
 
 
-def test_trainer_feedback_derives_legacy_native_on_policy_fields_from_entry_probability() -> None:
+def test_read_paper_signals_never_leaks_exact_policy_proof_into_strategy_supply() -> None:
+    redis_client = _FakeRedis(
+        {
+            "v2:paper:confidence_threshold_trial:status": {"paused": False},
+            "v2:signals:paper": [
+                {
+                    "symbol": "JTOUSDT",
+                    "timeframe": "15m",
+                    "prediction_id": "strategy_supply_policy_match",
+                    "decision_time": "2026-07-11T05:00:00Z",
+                    "available_at": "2026-07-11T04:58:00Z",
+                    "feature_cutoff": "2026-07-11T04:55:00Z",
+                    "paper_fill_allowed": True,
+                    "valid_for_paper": True,
+                    "market_state_id": "mstate_strategy_supply_policy_match",
+                    "strategy_supply_hypothesis": True,
+                    # Even pre-existing proof is stripped rather than trusted.
+                    "behavior_policy_receipt": {"untrusted": "upstream"},
+                    "old_log_prob": -0.25,
+                    "old_value": 0.4,
+                    "rollout_id": "must-not-survive",
+                }
+            ],
+            "v2:trainer:hybrid_cuda:signals:paper:JTOUSDT:15m": {
+                "prediction_id": "strategy_supply_policy_match",
+                "decision_time": "2026-07-11T05:00:00Z",
+                "available_at": "2026-07-11T04:58:00Z",
+                "feature_cutoff": "2026-07-11T04:55:00Z",
+                "action_labels": ["hold", "long", "short"],
+                "action_probabilities": [0.1, 0.8, 0.1],
+                "selected_action_index": 1,
+                "selected_action_probability": 0.8,
+                "policy_value": 0.4,
+                "selected_action_log_prob": -0.2231435513142097,
+                "raw_action_logits": [0.0, 2.0, 0.0],
+                "raw_action_probabilities": [0.1065, 0.787, 0.1065],
+                "behavior_action_index": 1,
+                "behavior_action": "long",
+                "behavior_action_mask": [True, True, False],
+                "behavior_action_source": "NATIVE_CUDA_POLICY_CATEGORICAL_SAMPLE",
+                "behavior_policy_sampling_mode": "CATEGORICAL_SAMPLE",
+                "behavior_policy_distribution_contract": (
+                    "POSITIVE_EDGE_MASKED_RAW_LOGITS_SOFTMAX_V1"
+                ),
+                "behavior_policy_fingerprint": "a" * 64,
+                "behavior_policy_receipt": {"receipt_sha256": "b" * 64},
+                "behavior_policy_receipt_hash": "b" * 64,
+                "behavior_policy_receipt_key": "v2:receipt:must-not-copy",
+                "on_policy_action_receipt_valid": True,
+                "on_policy_sampling_selected": True,
+                "on_policy_sampling_plan_hash": "c" * 64,
+                "ppo_on_policy_entry_fields_present": True,
+                "entry_policy_fields_source": ("V2_NATIVE_CUDA_TRAINER_ENTRY_FORWARD_PASS"),
+            },
+        }
+    )
+
+    rows = paper_loop._read_paper_signals(redis_client)  # noqa: SLF001
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["action_probabilities"] == [0.1, 0.8, 0.1]
+    assert row["selected_action_index"] == 1
+    assert row["selected_action_probability"] == 0.8
+    assert row["policy_value"] == 0.4
+    for proof_field in (
+        "raw_action_logits",
+        "raw_action_probabilities",
+        "selected_action_log_prob",
+        "behavior_action_index",
+        "behavior_action",
+        "behavior_action_mask",
+        "behavior_action_source",
+        "behavior_policy_sampling_mode",
+        "behavior_policy_distribution_contract",
+        "behavior_policy_fingerprint",
+        "behavior_policy_receipt",
+        "behavior_policy_receipt_hash",
+        "behavior_policy_receipt_key",
+        "on_policy_action_receipt_valid",
+        "on_policy_sampling_selected",
+        "on_policy_sampling_plan_hash",
+        "old_log_prob",
+        "old_value",
+        "rollout_id",
+    ):
+        assert proof_field not in row
+    assert row["ppo_on_policy_entry_fields_present"] is False
+    assert row["ppo_on_policy_ineligible_reason"] == (
+        "STRATEGY_SUPPLY_ACTION_NOT_SAMPLED_FROM_CUDA_POLICY"
+    )
+    assert row["paper_learning_lane"] == "STRATEGY_SUPPLY_HYPOTHESIS_PAPER"
+    assert row["paper_signal_policy_enrichment_prediction_id"] == ("strategy_supply_policy_match")
+
+
+def test_trainer_feedback_keeps_deterministic_native_entry_outcome_supervised() -> None:
     rows = paper_loop._build_trainer_feedback_rows(  # noqa: SLF001
         close_events=[
             {
@@ -282,6 +3746,8 @@ def test_trainer_feedback_derives_legacy_native_on_policy_fields_from_entry_prob
                 "decision_time": "2026-07-08T04:19:20.458Z",
                 "selected_action_probability": 0.8,
                 "policy_value": 0.25,
+                "behavior_policy_sampling_mode": "DETERMINISTIC_ARGMAX_ALIGNMENT",
+                "behavior_policy_distribution_contract": ("EXPECTED_MOVE_ALIGNED_POLICY_V1"),
                 "realized_net_pnl_bps": 12.0,
                 "position_id": "",
             }
@@ -302,19 +3768,94 @@ def test_trainer_feedback_derives_legacy_native_on_policy_fields_from_entry_prob
     )
 
     assert len(rows) == 1
-    assert rows[0]["old_log_prob"] == pytest.approx(math.log(0.8))
-    assert rows[0]["old_value"] == 0.25
+    assert rows[0].get("old_log_prob") is None
+    assert rows[0].get("old_value") is None
     assert rows[0]["realized_after_cost_reward"] == 0.12
-    assert rows[0]["reward"] == 0.12
-    assert rows[0]["done"] is True
-    assert rows[0]["rollout_id"] == "v2h_legacy_native_policy"
-    assert rows[0]["ppo_on_policy_entry_fields_present"] is True
-    assert rows[0]["paper_learning_lane"] == "PPO_ON_POLICY_PAPER_EXPLORATION"
+    assert rows[0].get("reward") is None
+    assert rows[0].get("done") is None
+    assert rows[0].get("rollout_id") is None
+    assert rows[0]["ppo_on_policy_entry_fields_present"] is False
+    assert rows[0]["ppo_on_policy_ineligible_reason"] == (
+        "DETERMINISTIC_POLICY_NOT_ON_POLICY_SAMPLED"
+    )
+    assert rows[0]["paper_learning_lane"] == "OUTCOME_SUPERVISED_PAPER"
     assert rows[0]["routes_to_live"] is False
     assert rows[0]["places_real_order"] is False
 
 
-def test_trainer_feedback_uses_self_contained_native_trust_when_prediction_expired() -> None:
+def test_trainer_feedback_archive_verification_uses_custom_root(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def _capture_verify(receipt, *, root):
+        captured["receipt"] = receipt
+        captured["root"] = root
+        raise paper_loop.BehaviorReceiptArchiveError("EXPECTED_TEST_STOP")
+
+    monkeypatch.setattr(
+        paper_loop,
+        "behavior_receipt_rejection_reasons",
+        lambda *_args, **_kwargs: [],
+    )
+    monkeypatch.setattr(
+        paper_loop,
+        "verify_archived_behavior_receipt",
+        _capture_verify,
+    )
+    receipt = {"receipt_hash": "receipt-hash"}
+
+    rows = paper_loop._build_trainer_feedback_rows(  # noqa: SLF001
+        close_events=[
+            {
+                "trainer_feedback_id": "fb-custom-archive",
+                "prediction_id": "pred-custom-archive",
+                "symbol": "BTCUSDT",
+                "timeframe": "1m",
+                "side": "long",
+                "selected_action": "long",
+                "paper_only": True,
+                "routes_to_live": False,
+                "places_real_order": False,
+                "feature_cutoff": "2026-07-18T00:00:00Z",
+                "available_at": "2026-07-18T00:00:30Z",
+                "decision_time": "2026-07-18T00:01:00Z",
+                "behavior_policy_receipt": receipt,
+                "behavior_policy_receipt_hash": "receipt-hash",
+                "behavior_policy_receipt_key": (
+                    "v2:trainer:hybrid_cuda:on_policy_receipt:receipt-hash"
+                ),
+                "behavior_policy_receipt_write_success": True,
+                "realized_net_pnl_bps": 5.0,
+            }
+        ],
+        outcome_labels=[
+            {
+                "trainer_feedback_id": "fb-custom-archive",
+                "prediction_id": "pred-custom-archive",
+                "paper_only": True,
+                "routes_to_live": False,
+                "places_real_order": False,
+                "outcome_targets": {
+                    "directional_outcome": "UP",
+                    "realized_net_pnl_bps": 5.0,
+                },
+            }
+        ],
+        behavior_receipt_archive_root=tmp_path,
+    )
+
+    assert len(rows) == 1
+    assert captured == {"receipt": receipt, "root": tmp_path}
+    assert rows[0]["trainer_consumable"] is False
+    assert any(
+        "EXPECTED_TEST_STOP" in reason
+        for reason in rows[0]["ppo_on_policy_receipt_rejection_reasons"]
+    )
+
+
+def test_trainer_feedback_keeps_legacy_self_contained_native_row_outcome_supervised() -> None:
     feature_snapshot_id = "v2_fsnap_self_contained"
     common = {
         "trainer_feedback_id": "fb-native-self-contained",
@@ -345,6 +3886,8 @@ def test_trainer_feedback_uses_self_contained_native_trust_when_prediction_expir
         "expected_move_after_cost_bps": 10.25,
         "selected_action_probability": 0.8,
         "policy_value": 0.25,
+        "behavior_policy_sampling_mode": "CATEGORICAL_SAMPLE",
+        "behavior_policy_distribution_contract": "RAW_LOGITS_SOFTMAX_V1",
         "realized_net_pnl_bps": 12.0,
     }
     feature_snapshot = {
@@ -375,10 +3918,12 @@ def test_trainer_feedback_uses_self_contained_native_trust_when_prediction_expir
     assert len(rows) == 1
     assert rows[0]["trust_reconstructed"] is True
     assert rows[0]["trust_reconstruction_rejection_reasons"] == []
-    assert rows[0]["old_log_prob"] == pytest.approx(math.log(0.8))
-    assert rows[0]["old_value"] == 0.25
-    assert rows[0]["rollout_id"] == "paper_pos_JSTUSDT"
-    assert rows[0]["ppo_on_policy_entry_fields_present"] is True
+    assert rows[0].get("old_log_prob") is None
+    assert rows[0].get("old_value") is None
+    assert rows[0].get("rollout_id") is None
+    assert rows[0]["ppo_on_policy_entry_fields_present"] is False
+    assert rows[0]["ppo_on_policy_ineligible_reason"] == ("BEHAVIOR_POLICY_RECEIPT_INVALID")
+    assert rows[0]["paper_learning_lane"] == "OUTCOME_SUPERVISED_PAPER"
     assert rows[0]["routes_to_live"] is False
     assert rows[0]["places_real_order"] is False
 
@@ -431,6 +3976,10 @@ def test_exploration_rows_do_not_govern_strict_performance() -> None:
         "COUNTS_AS_A_PLUS_EVIDENCE_FALSE": 5,
     }
     assert status["state"] == "ACTIVE"
+    assert status["after_cost_edge_lower_bound_bps"] is None
+    assert status["after_cost_edge_scale_bps"] is None
+    assert status["after_cost_edge_resolution_bps"] is None
+    assert status["after_cost_edge_evidence_count"] == 0
     assert paper_loop._paper_strict_governance_exclusion_reasons(rows[0]) == [  # noqa: SLF001
         "NON_STRICT_PAPER_TIER",
         "COUNTS_AS_STRICT_PREEMPTIVE_EVIDENCE_FALSE",
@@ -461,14 +4010,13 @@ def test_reconstructed_rows_do_not_govern_strict_performance() -> None:
     ]
 
     assert paper_loop._paper_performance_source_rows(rows) == []  # noqa: SLF001
-    assert "RECONSTRUCTED_OR_ARCHIVE_ROW" in paper_loop._paper_strict_governance_exclusion_reasons(rows[0])  # noqa: SLF001
+    assert "RECONSTRUCTED_OR_ARCHIVE_ROW" in paper_loop._paper_strict_governance_exclusion_reasons(
+        rows[0]
+    )  # noqa: SLF001
 
 
 def test_strict_rows_still_govern_strict_performance() -> None:
-    rows = [
-        _strict_governance_close(trainer_feedback_id=f"strict-loss-{idx}")
-        for idx in range(5)
-    ]
+    rows = [_strict_governance_close(trainer_feedback_id=f"strict-loss-{idx}") for idx in range(5)]
 
     source_rows = paper_loop._paper_performance_source_rows(rows)  # noqa: SLF001
     status = paper_loop._paper_performance_circuit_breaker_status(rows)  # noqa: SLF001
@@ -477,6 +4025,103 @@ def test_strict_rows_still_govern_strict_performance() -> None:
     assert status["governed_closed_rows"] == 5
     assert status["state"] == "HALTED_PERFORMANCE"
     assert "CLOSED_5_EXPECTANCY_NON_POSITIVE" in status["block_reasons"]
+    assert status["after_cost_edge_lower_bound_bps"] == pytest.approx(-100.0)
+    assert status["after_cost_edge_scale_bps"] == pytest.approx(100.0)
+    assert status["after_cost_edge_resolution_bps"] == math.ulp(100.0)
+    assert status["after_cost_edge_evidence_count"] == 5
+    assert status["after_cost_edge_scale_evidence_count"] == 5
+    assert status["after_cost_edge_evidence_source"] == (
+        "STRICT_GOVERNED_CLOSED_OUTCOMES_REALIZED_AFTER_COST_PNL_BPS"
+    )
+    assert status["after_cost_edge_available_at"] is None
+    assert status["strict_after_cost_edge_cohort_status"] == "BLOCKED"
+    assert any(
+        "TIME_INVALID" in reason
+        for reason in status["strict_after_cost_edge_cohort_rejection_reasons"]
+    )
+
+
+def test_dynamic_envelope_context_requires_complete_component_proven_coverage() -> None:
+    decision_time = datetime(2026, 7, 17, 20, 0, tzinfo=timezone.utc)
+    signals = [
+        {
+            "symbol": "BTCUSDT",
+            "action": "long",
+            "liquidity_score": 0.8,
+            "liquidity_score_source": "orderbook:btc",
+            "liquidity_score_available_at": "2026-07-17T19:58:00Z",
+            "regime_quality_score": 0.7,
+            "regime_quality_score_source": "regime:btc",
+            "regime_quality_score_available_at": "2026-07-17T19:59:00Z",
+        },
+        {
+            "symbol": "ETHUSDT",
+            "action": "short",
+            "microstructure_trust_score": 0.6,
+            "microstructure_trust_source": "orderbook:eth",
+            "microstructure_trust_available_at": "2026-07-17T19:57:00Z",
+            "regime_confidence": 0.9,
+            "regime_confidence_source": "regime:eth",
+            "regime_confidence_available_at": "2026-07-17T19:59:30Z",
+        },
+        {"symbol": "SOLUSDT", "action": "hold"},
+    ]
+
+    context = paper_loop._paper_dynamic_envelope_market_context(  # noqa: SLF001
+        signals,
+        decision_time=decision_time,
+    )
+
+    assert context["coverage_complete"] is True
+    assert context["actionable_signal_count"] == 2
+    assert context["valid_context_rows"] == 2
+    assert context["liquidity_score"] == pytest.approx(0.6)
+    assert context["regime_quality_score"] == pytest.approx(0.7)
+    assert context["market_context_available_at"] == "2026-07-17T19:59:30Z"
+
+
+def test_dynamic_envelope_context_rejects_generic_signal_timestamp() -> None:
+    context = paper_loop._paper_dynamic_envelope_market_context(  # noqa: SLF001
+        [
+            {
+                "symbol": "BTCUSDT",
+                "action": "long",
+                "liquidity_score": 0.8,
+                "regime_quality_score": 0.7,
+                "available_at": "2026-07-17T19:59:00Z",
+                "source_available_time": "2026-07-17T19:59:00Z",
+            }
+        ],
+        decision_time=datetime(2026, 7, 17, 20, 0, tzinfo=timezone.utc),
+    )
+
+    assert context["coverage_complete"] is False
+    assert context["valid_context_rows"] == 0
+    assert context["liquidity_score"] is None
+    assert context["regime_quality_score"] is None
+
+
+def test_dynamic_envelope_context_valid_subset_cannot_raise_global_envelope() -> None:
+    complete = {
+        "symbol": "BTCUSDT",
+        "action": "long",
+        "liquidity_score": 0.8,
+        "regime_quality_score": 0.7,
+        "market_context_source": "context:btc",
+        "market_context_available_at": "2026-07-17T19:59:00Z",
+    }
+    missing = {"symbol": "ETHUSDT", "action": "short"}
+
+    context = paper_loop._paper_dynamic_envelope_market_context(  # noqa: SLF001
+        [complete, missing],
+        decision_time=datetime(2026, 7, 17, 20, 0, tzinfo=timezone.utc),
+    )
+
+    assert context["actionable_signal_count"] == 2
+    assert context["valid_context_rows"] == 1
+    assert context["coverage_complete"] is False
+    assert context["market_context_source"] is None
+    assert context["market_context_available_at"] is None
 
 
 def test_non_strict_rows_still_feed_trainer_feedback() -> None:
@@ -643,9 +4288,7 @@ def test_paper_exploration_supply_bridge_refresh_publishes_status() -> None:
     assert status["strategy_supply_bridge_rows_written"] == 1
     assert status["live_gate"] == "blocked_human_only"
     assert status["routes_to_live"] is False
-    supply_payload = json.loads(
-        redis.payloads["v2:paper:exploration:supply_status"]
-    )
+    supply_payload = json.loads(redis.payloads["v2:paper:exploration:supply_status"])
     materialization_payload = json.loads(
         redis.payloads["v2:paper:exploration:materialization_status"]
     )
@@ -660,9 +4303,7 @@ def test_paper_exploration_supply_bridge_refresh_publishes_status() -> None:
     assert materialization_payload["exact_no_fill_reason"] == (
         "PAPER_EXPLORATION_ACTIVE_REVALIDATION_IN_PROGRESS"
     )
-    assert materialization_payload["queue_resolution_state"] == (
-        "ACTIVE_REVALIDATION_IN_PROGRESS"
-    )
+    assert materialization_payload["queue_resolution_state"] == ("ACTIVE_REVALIDATION_IN_PROGRESS")
     assert materialization_payload["places_real_order"] is False
 
 
@@ -710,9 +4351,7 @@ def test_paper_exploration_supply_bridge_consumes_existing_queue_before_refresh(
     assert status["paper_loop_rows_after_bridge"] == 1
     assert status["routes_to_live"] is False
     assert status["places_real_order"] is False
-    supply_payload = json.loads(
-        redis.payloads["v2:paper:exploration:supply_status"]
-    )
+    supply_payload = json.loads(redis.payloads["v2:paper:exploration:supply_status"])
     assert supply_payload["existing_materialization_queue_consumed_first"] is True
     assert (
         supply_payload["materialization_queue_status"][
@@ -782,9 +4421,7 @@ def test_paper_exploration_queue_cycle_retains_active_signal_lineage() -> None:
     assert active_row["counts_as_A_plus"] is False
     assert active_row["counts_as_live_ready"] is False
     active_signal = status["_active_signal_rows"][0]
-    assert active_signal["materialization_queue_id"] == (
-        "paper_exploration_materialize_hyp-1"
-    )
+    assert active_signal["materialization_queue_id"] == ("paper_exploration_materialize_hyp-1")
     assert active_signal["source_prediction_status"] == "CURRENT_RUNTIME_PAPER_SIGNAL"
     assert active_signal["entry_feature_snapshot_id"] == "snap_hyp_1"
     assert active_signal["routes_to_live"] is False
@@ -809,9 +4446,7 @@ def test_materialization_queue_signal_uses_materialization_queue_id_without_queu
         }
     )
 
-    assert signal["materialization_queue_id"] == (
-        "paper_exploration_materialize_hyp-no-queue-id"
-    )
+    assert signal["materialization_queue_id"] == ("paper_exploration_materialize_hyp-no-queue-id")
     assert paper_loop._paper_exploration_queue_row_matches(  # noqa: SLF001
         {"materialization_queue_id": "paper_exploration_materialize_hyp-no-queue-id"},
         signal,
@@ -1000,16 +4635,11 @@ def test_paper_exploration_queue_counterfactual_preserves_decisions_and_lineage(
         "timeframe:4h",
     ]
     assert feedback["paper_performance_circuit_breaker_matched_blocked_bucket_keys"] == []
-    assert (
-        feedback["paper_performance_circuit_breaker_matched_blocked_bucket_proof"]
-        == []
-    )
+    assert feedback["paper_performance_circuit_breaker_matched_blocked_bucket_proof"] == []
     assert feedback["paper_performance_circuit_breaker_matched_loss_cluster_keys"] == [
         "loss_cluster_side:short"
     ]
-    assert feedback["paper_performance_circuit_breaker_advisory_bucket_keys"] == [
-        "side:short"
-    ]
+    assert feedback["paper_performance_circuit_breaker_advisory_bucket_keys"] == ["side:short"]
     assert feedback["paper_performance_circuit_breaker_advisory_bucket_proof"] == [
         {
             "bucket_key": "side:short",
@@ -1023,9 +4653,7 @@ def test_paper_exploration_queue_counterfactual_preserves_decisions_and_lineage(
         "loss_cluster_timeframe:4h"
     ]
     assert feedback["paper_performance_circuit_global_halt_only"] is False
-    assert feedback[
-        "paper_risk_controller_exploration_broad_quarantine_size_cap_required"
-    ] is True
+    assert feedback["paper_risk_controller_exploration_broad_quarantine_size_cap_required"] is True
     assert feedback["raw_safety_fields"]["routes_to_live"] is False
     assert feedback["invariant_checks"]["routes_to_live_is_false"] is True
     assert feedback["future_label_pending"] is True
@@ -1049,9 +4677,7 @@ def test_paper_exploration_queue_counterfactual_falls_back_to_decision_ids() -> 
                 "candidate_id": "hyp-compact",
                 "source_prediction_status": "CURRENT_RUNTIME_PAPER_SIGNAL",
                 "pre_trade_loss_probability": 0.92,
-                "loss_probability_reason": (
-                    "STRATEGY_SUPPLY_CALIBRATED_LOSS_PROBABILITY"
-                ),
+                "loss_probability_reason": ("STRATEGY_SUPPLY_CALIBRATED_LOSS_PROBABILITY"),
                 "loss_probability_reasons": [
                     "STRATEGY_SUPPLY_CALIBRATED_LOSS_PROBABILITY",
                     "CALIBRATION_PENALTY:microstructure_trust_below_allocator_minimum",
@@ -1070,9 +4696,7 @@ def test_paper_exploration_queue_counterfactual_falls_back_to_decision_ids() -> 
             "risk_decision_record_resolved": True,
             "risk_decision_source": "PER_ID_DECISION_RECORD",
             "orchestrator_decision_id": "dec_hyp_compact",
-            "orchestrator_decision_record_key": (
-                "v2:decision:orchestrator:dec_hyp_compact"
-            ),
+            "orchestrator_decision_record_key": ("v2:decision:orchestrator:dec_hyp_compact"),
             "orchestrator_decision_record_hash": "orch-hash-compact",
             "orchestrator_decision_record_resolved": True,
             "orchestrator_decision_source": "PER_ID_DECISION_RECORD",
@@ -1099,8 +4723,7 @@ def test_paper_exploration_queue_counterfactual_falls_back_to_decision_ids() -> 
     assert feedback["orchestrator_decision_id"] == "dec_hyp_compact"
     assert feedback["orchestrator_decision"] == "PASS"
     assert (
-        feedback["orchestrator_decision_record_key"]
-        == "v2:decision:orchestrator:dec_hyp_compact"
+        feedback["orchestrator_decision_record_key"] == "v2:decision:orchestrator:dec_hyp_compact"
     )
     assert feedback["orchestrator_decision_record_hash"] == "orch-hash-compact"
     assert feedback["orchestrator_decision_record_resolved"] is True
@@ -1177,20 +4800,14 @@ def test_paper_exploration_runtime_feedback_context_preserves_resolved_snapshot(
                     "FEATURE_SNAPSHOT_LATEST_FALLBACK_PIT_VALID_AFTER_MISSING_ID"
                 ),
                 "entry_feature_candle_closed_confirmed": True,
-                "paper_performance_circuit_breaker_candidate_bucket_keys": [
-                    "side:short"
-                ],
+                "paper_performance_circuit_breaker_candidate_bucket_keys": ["side:short"],
                 "paper_performance_circuit_breaker_matched_loss_cluster_keys": [
                     "loss_cluster_side:short"
                 ],
                 "paper_performance_circuit_global_halt_only": False,
                 "pre_trade_loss_probability": 0.79,
-                "loss_probability_reason": (
-                    "STRATEGY_SUPPLY_CALIBRATED_LOSS_PROBABILITY"
-                ),
-                "loss_probability_reasons": [
-                    "STRATEGY_SUPPLY_CALIBRATED_LOSS_PROBABILITY"
-                ],
+                "loss_probability_reason": ("STRATEGY_SUPPLY_CALIBRATED_LOSS_PROBABILITY"),
+                "loss_probability_reasons": ["STRATEGY_SUPPLY_CALIBRATED_LOSS_PROBABILITY"],
                 "loss_probability_calibration": {
                     "adjusted_loss_probability": 0.79,
                 },
@@ -1218,22 +4835,16 @@ def test_paper_exploration_runtime_feedback_context_preserves_resolved_snapshot(
         ),
         "entry_feature_candle_closed_confirmed": True,
         "paper_performance_circuit_breaker_candidate_bucket_keys": ["side:short"],
-        "paper_performance_circuit_breaker_matched_loss_cluster_keys": [
-            "loss_cluster_side:short"
-        ],
+        "paper_performance_circuit_breaker_matched_loss_cluster_keys": ["loss_cluster_side:short"],
         "paper_performance_circuit_global_halt_only": False,
         "pre_trade_loss_probability": 0.79,
         "loss_probability_reason": "STRATEGY_SUPPLY_CALIBRATED_LOSS_PROBABILITY",
-        "loss_probability_reasons": [
-            "STRATEGY_SUPPLY_CALIBRATED_LOSS_PROBABILITY"
-        ],
+        "loss_probability_reasons": ["STRATEGY_SUPPLY_CALIBRATED_LOSS_PROBABILITY"],
         "loss_probability_calibration": {
             "adjusted_loss_probability": 0.79,
         },
         "paper_risk_controller_exploration_loss_probability_bound": 0.62,
-        "risk_block_reasons": [
-            "PAPER_RISK_CONTROLLER_EXPLORATION_LOSS_PROBABILITY_ABOVE_BOUND"
-        ],
+        "risk_block_reasons": ["PAPER_RISK_CONTROLLER_EXPLORATION_LOSS_PROBABILITY_ABOVE_BOUND"],
     }
 
 
@@ -1259,9 +4870,7 @@ def test_compact_rows_preserve_per_id_decision_record_lineage() -> None:
                 "symbol": "VIRTUALUSDT",
                 "timeframe": "15m",
                 "risk_decision_id": "rd_dec_hyp-record-lineage",
-                "risk_decision_record_key": (
-                    "v2:decision:risk:rd_dec_hyp-record-lineage"
-                ),
+                "risk_decision_record_key": ("v2:decision:risk:rd_dec_hyp-record-lineage"),
                 "risk_decision_record_hash": "risk-hash-lineage",
                 "risk_decision_record_resolved": True,
                 "risk_decision_source": "PER_ID_DECISION_RECORD",
@@ -1277,9 +4886,7 @@ def test_compact_rows_preserve_per_id_decision_record_lineage() -> None:
         ]
     )[0]
 
-    assert compact["risk_decision_record_key"] == (
-        "v2:decision:risk:rd_dec_hyp-record-lineage"
-    )
+    assert compact["risk_decision_record_key"] == ("v2:decision:risk:rd_dec_hyp-record-lineage")
     assert compact["risk_decision_record_hash"] == "risk-hash-lineage"
     assert compact["risk_decision_record_resolved"] is True
     assert compact["risk_decision_source"] == "PER_ID_DECISION_RECORD"
@@ -1528,7 +5135,9 @@ def test_materialization_queue_cycle_preserves_future_source_pending_rows() -> N
     assert len(written_queue["pending_source_rows"]) == 1
 
 
-def test_materialization_queue_cycle_consumes_post_bridge_published_rows_with_current_time() -> None:
+def test_materialization_queue_cycle_consumes_post_bridge_published_rows_with_current_time() -> (
+    None
+):
     redis = _FakeRedis(
         {
             paper_loop.PAPER_EXPLORATION_MATERIALIZATION_QUEUE_KEY: {
@@ -1657,8 +5266,8 @@ def test_materialization_queue_status_carries_guardian_blockers() -> None:
     assert active_row["guardian_status"] == "A_GRADE_HALTED_PERFORMANCE"
     assert active_row["guardian_new_entries_allowed"] is False
     assert active_row["guardian_block_reasons"] == guardian_gate["failure_reasons"]
-    assert active_row["continuous_edge_guardian_block_reasons"] == (
-        guardian_gate["failure_reasons"]
+    assert (
+        active_row["continuous_edge_guardian_block_reasons"] == (guardian_gate["failure_reasons"])
     )
     assert active_row["paper_only"] is True
     assert active_row["routes_to_live"] is False
@@ -1682,16 +5291,12 @@ def test_materialization_queue_status_carries_guardian_blockers() -> None:
         redis.payloads[paper_loop.PAPER_EXPLORATION_MATERIALIZATION_QUEUE_KEY]
     )
     assert written_queue["guardian_new_entries_allowed"] is False
-    assert written_queue["rows"][0]["guardian_status"] == (
-        "A_GRADE_HALTED_PERFORMANCE"
-    )
+    assert written_queue["rows"][0]["guardian_status"] == ("A_GRADE_HALTED_PERFORMANCE")
     written_status = json.loads(
         redis.payloads[paper_loop.PAPER_EXPLORATION_MATERIALIZATION_QUEUE_STATUS_KEY]
     )
     assert written_status["guardian_new_entries_allowed"] is False
-    assert written_status["active_rows"][0]["guardian_status"] == (
-        "A_GRADE_HALTED_PERFORMANCE"
-    )
+    assert written_status["active_rows"][0]["guardian_status"] == ("A_GRADE_HALTED_PERFORMANCE")
 
 
 def test_materialization_queue_resolution_preserves_pending_source_rows() -> None:
@@ -1725,9 +5330,7 @@ def test_materialization_queue_resolution_preserves_pending_source_rows() -> Non
 
     assert payload["rows"] == [*remaining_active, *pending_source]
     assert payload["pending_source_rows"] == pending_source
-    assert payload["resolved_after_queue_ids"] == [
-        "paper_exploration_materialize_hyp-resolved"
-    ]
+    assert payload["resolved_after_queue_ids"] == ["paper_exploration_materialize_hyp-resolved"]
     assert payload["paper_only"] is True
     assert payload["routes_to_live"] is False
     assert payload["places_real_order"] is False
@@ -1783,9 +5386,7 @@ def test_materialization_status_summary_fields_marks_active_revalidation_in_prog
         }
     )
 
-    assert fields["exact_no_fill_reason"] == (
-        "PAPER_EXPLORATION_ACTIVE_REVALIDATION_IN_PROGRESS"
-    )
+    assert fields["exact_no_fill_reason"] == ("PAPER_EXPLORATION_ACTIVE_REVALIDATION_IN_PROGRESS")
     assert fields["queue_resolution_state"] == "ACTIVE_REVALIDATION_IN_PROGRESS"
 
 
@@ -1806,9 +5407,7 @@ def test_materialization_status_active_queue_overrides_prior_prequeue_resolution
         }
     )
 
-    assert fields["exact_no_fill_reason"] == (
-        "PAPER_EXPLORATION_ACTIVE_REVALIDATION_IN_PROGRESS"
-    )
+    assert fields["exact_no_fill_reason"] == ("PAPER_EXPLORATION_ACTIVE_REVALIDATION_IN_PROGRESS")
     assert fields["queue_resolution_state"] == "ACTIVE_REVALIDATION_IN_PROGRESS"
     assert fields["prequeue_rejected_count"] == 2
     assert fields["counterfactual_count"] == 2
@@ -1831,9 +5430,7 @@ def test_materialization_status_pending_queue_overrides_prior_prequeue_resolutio
         }
     )
 
-    assert fields["exact_no_fill_reason"] == (
-        "MIXED_PENDING_SOURCE_AND_TRUE_PREQUEUE_BLOCKERS"
-    )
+    assert fields["exact_no_fill_reason"] == ("MIXED_PENDING_SOURCE_AND_TRUE_PREQUEUE_BLOCKERS")
     assert fields["queue_resolution_state"] == "PENDING_SOURCE_TIME"
     assert fields["prequeue_rejected_count"] == 1
     assert fields["counterfactual_count"] == 1
@@ -1874,9 +5471,7 @@ def test_materialization_status_summary_classifies_true_prequeue_blockers() -> N
         }
     )
 
-    assert bucket_fields["exact_no_fill_reason"] == (
-        "ALL_CURRENT_ROWS_TRUE_BUCKET_QUARANTINE"
-    )
+    assert bucket_fields["exact_no_fill_reason"] == ("ALL_CURRENT_ROWS_TRUE_BUCKET_QUARANTINE")
     assert bucket_fields["prequeue_no_fill_reasons"] == [
         "MATERIALIZATION_PREQUEUE_ACTIVE_BUCKET_QUARANTINE:side_timeframe:long|15m"
     ]
@@ -1885,9 +5480,7 @@ def test_materialization_status_summary_classifies_true_prequeue_blockers() -> N
         "MATERIALIZATION_PREQUEUE_ACTIVE_BUCKET_QUARANTINE:side_timeframe:long|15m",
         "MATERIALIZATION_PREQUEUE_EXPECTED_MOVE_NOT_FAVORABLE_FOR_SIDE:short:182.1",
     ]
-    assert mixed_conflict_fields["exact_no_fill_reason"] == (
-        "MIXED_TRUE_PREQUEUE_BLOCKERS"
-    )
+    assert mixed_conflict_fields["exact_no_fill_reason"] == ("MIXED_TRUE_PREQUEUE_BLOCKERS")
     assert mixed_conflict_fields["prequeue_no_fill_reasons"] == [
         "MATERIALIZATION_PREQUEUE_ACTIVE_BUCKET_QUARANTINE:side_timeframe:long|15m",
         "MATERIALIZATION_PREQUEUE_SELECTED_SIDE_ECONOMICS_CONFLICT:"
@@ -1899,7 +5492,9 @@ def test_materialization_status_summary_classifies_true_prequeue_blockers() -> N
     assert mixed_conflict_fields["margin_mutated"] is False
 
 
-def test_materialization_status_summary_collapses_matching_prequeue_and_after_queue_bucket_blocks() -> None:
+def test_materialization_status_summary_collapses_matching_prequeue_and_after_queue_bucket_blocks() -> (
+    None
+):
     fields = paper_loop._paper_exploration_materialization_summary_fields(  # noqa: SLF001
         {
             "queued_count": 0,
@@ -1943,14 +5538,11 @@ def test_public_queue_status_includes_prequeue_exact_no_fill_reason() -> None:
     )
 
     assert "_active_queue_rows" not in public_status
-    assert public_status["exact_no_fill_reason"] == (
-        "ALL_CURRENT_ROWS_TRUE_BUCKET_QUARANTINE"
-    )
+    assert public_status["exact_no_fill_reason"] == ("ALL_CURRENT_ROWS_TRUE_BUCKET_QUARANTINE")
     assert public_status["prequeue_no_fill_reasons"] == [
         "MATERIALIZATION_PREQUEUE_ACTIVE_BUCKET_QUARANTINE:"
         "confidence_regime:0.7-0.8|MICROSTRUCTURE_MOMENTUM",
-        "MATERIALIZATION_PREQUEUE_HIGH_CONFIDENCE_LOSS_CLUSTER:"
-        "loss_cluster_symbol:INJUSDT",
+        "MATERIALIZATION_PREQUEUE_HIGH_CONFIDENCE_LOSS_CLUSTER:" "loss_cluster_symbol:INJUSDT",
     ]
     assert public_status["counterfactual_count"] == 8
     assert public_status["order_submitted"] is False
@@ -1971,8 +5563,7 @@ def test_materialization_last_cycle_counts_include_prequeue_feedback() -> None:
             "prequeue_rejected_count": 4,
             "prequeue_counterfactual_count": 4,
             "prequeue_rejected_reason_counts": {
-                "MATERIALIZATION_PREQUEUE_ACTIVE_BUCKET_QUARANTINE:"
-                "side_timeframe:short|4h": 4,
+                "MATERIALIZATION_PREQUEUE_ACTIVE_BUCKET_QUARANTINE:" "side_timeframe:short|4h": 4,
             },
         }
     )
@@ -1984,10 +5575,13 @@ def test_materialization_last_cycle_counts_include_prequeue_feedback() -> None:
     assert recomputed["queue_counterfactual_count"] == 0
     assert recomputed["prequeue_counterfactual_count"] == 4
     assert recomputed["counterfactual_count"] == 6
-    assert paper_loop._paper_exploration_last_cycle_rejected_rows_count(  # noqa: SLF001
-        public_status,
-        blocked_queue_ids={"q1", "q2"},
-    ) == 8
+    assert (
+        paper_loop._paper_exploration_last_cycle_rejected_rows_count(  # noqa: SLF001
+            public_status,
+            blocked_queue_ids={"q1", "q2"},
+        )
+        == 8
+    )
 
 
 def test_materialization_status_summary_classifies_pending_source_next_cycle() -> None:
@@ -2004,9 +5598,7 @@ def test_materialization_status_summary_classifies_pending_source_next_cycle() -
     assert fields["queued_count"] == 1
     assert fields["active_count"] == 0
     assert fields["pending_source_time_count"] == 1
-    assert fields["exact_no_fill_reason"] == (
-        "PAPER_EXPLORATION_PENDING_SOURCE_TIME_NEXT_CYCLE"
-    )
+    assert fields["exact_no_fill_reason"] == ("PAPER_EXPLORATION_PENDING_SOURCE_TIME_NEXT_CYCLE")
 
 
 def test_materialization_status_summary_classifies_mixed_prequeue_and_after_queue() -> None:
@@ -2028,9 +5620,7 @@ def test_materialization_status_summary_classifies_mixed_prequeue_and_after_queu
         }
     )
 
-    assert fields["exact_no_fill_reason"] == (
-        "MIXED_TRUE_PREQUEUE_AND_AFTER_QUEUE_BLOCKERS"
-    )
+    assert fields["exact_no_fill_reason"] == ("MIXED_TRUE_PREQUEUE_AND_AFTER_QUEUE_BLOCKERS")
     assert fields["after_queue_exact_no_fill_reason"] == (
         "ALL_CURRENT_ROWS_TRUE_ENTRY_GATE_BLOCKED"
     )
@@ -2056,9 +5646,7 @@ def test_materialization_status_summary_classifies_pending_source_and_prequeue()
         }
     )
 
-    assert fields["exact_no_fill_reason"] == (
-        "MIXED_PENDING_SOURCE_AND_TRUE_PREQUEUE_BLOCKERS"
-    )
+    assert fields["exact_no_fill_reason"] == ("MIXED_PENDING_SOURCE_AND_TRUE_PREQUEUE_BLOCKERS")
     assert fields["pending_source_time_count"] == 1
     assert fields["prequeue_no_fill_reasons"] == [
         "MATERIALIZATION_PREQUEUE_ACTIVE_BUCKET_QUARANTINE:side_timeframe:long|1h"
@@ -2141,7 +5729,9 @@ def test_accepted_fill_from_open_position_rehydrates_exploration_lineage() -> No
         }
     )
 
-    assert row["materialization_queue_id"] == "paper_exploration_materialize_hyp_replayed_exploration"
+    assert (
+        row["materialization_queue_id"] == "paper_exploration_materialize_hyp_replayed_exploration"
+    )
     assert row["materialization_queue_id_reconstructed_from_candidate_id"] is True
     assert row["tier"] == "PAPER_RISK_CONTROLLER_EXPLORATION"
     assert row["exploration_tier"] == "PAPER_RISK_CONTROLLER_EXPLORATION"
@@ -2313,22 +5903,31 @@ def test_closed_paper_exploration_shrink_guard_rows_normalize_before_write() -> 
 
 
 def test_paper_risk_exploration_classifier_rejects_conflicting_probation_marker() -> None:
-    assert paper_loop._is_paper_risk_controller_exploration_row(  # noqa: SLF001
-        {
-            "paper_opportunity_tier": "POSITIVE_EDGE_PROBATION_PAPER",
-            "explicit_paper_opportunity_tier": "PAPER_RISK_CONTROLLER_EXPLORATION",
-            "paper_fill_allowed_source": "POSITIVE_EDGE_PROBATION_PAPER_LOCAL_GATE",
-        }
-    ) is False
-    assert paper_loop._is_paper_risk_controller_exploration_row(  # noqa: SLF001
-        {
-            "paper_opportunity_tier": "PAPER_RISK_CONTROLLER_EXPLORATION",
-            "paper_fill_allowed_source": "PAPER_RISK_CONTROLLER_EXPLORATION_LOCAL_GATE",
-        }
-    ) is True
-    assert paper_loop._is_paper_risk_controller_exploration_row(  # noqa: SLF001
-        {"materialization_queue_id": "paper_exploration_materialize_hyp_123"}
-    ) is True
+    assert (
+        paper_loop._is_paper_risk_controller_exploration_row(  # noqa: SLF001
+            {
+                "paper_opportunity_tier": "POSITIVE_EDGE_PROBATION_PAPER",
+                "explicit_paper_opportunity_tier": "PAPER_RISK_CONTROLLER_EXPLORATION",
+                "paper_fill_allowed_source": "POSITIVE_EDGE_PROBATION_PAPER_LOCAL_GATE",
+            }
+        )
+        is False
+    )
+    assert (
+        paper_loop._is_paper_risk_controller_exploration_row(  # noqa: SLF001
+            {
+                "paper_opportunity_tier": "PAPER_RISK_CONTROLLER_EXPLORATION",
+                "paper_fill_allowed_source": "PAPER_RISK_CONTROLLER_EXPLORATION_LOCAL_GATE",
+            }
+        )
+        is True
+    )
+    assert (
+        paper_loop._is_paper_risk_controller_exploration_row(  # noqa: SLF001
+            {"materialization_queue_id": "paper_exploration_materialize_hyp_123"}
+        )
+        is True
+    )
 
 
 def test_active_safe_checkpoint_id_from_evidence_requires_loaded_native_weights() -> None:
@@ -2353,37 +5952,45 @@ def test_active_safe_checkpoint_id_from_evidence_requires_loaded_native_weights(
     assert missing_source is None
 
 
-def test_existing_accepted_fills_fallback_uses_lifecycle_open_positions(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(paper_loop, "_read_lifecycle_state_file", lambda: {
-        "open_positions": [
-            {
-                "position_id": "paper_pos_ORDIUSDT",
-                "symbol": "ORDIUSDT",
-                "timeframe": "4h",
-                "side": "long",
-                "net_quantity": 2.0,
-                "entry_price": 3.5,
-                "candidate_id": "hyp_replayed_exploration",
-                "prediction_id": "hyp_replayed_exploration",
-                "signal_id": "hyp_replayed_exploration",
-                "preemptive_decision_id": "pec_replayed_exploration",
-                "paper_opportunity_tier": "PAPER_RISK_CONTROLLER_EXPLORATION",
-                "adaptive_allocation": {
-                    "allocation_id": "alloc_real_replayed_exploration",
-                },
-                "source_hashes": {
-                    "feature_vector_hash": "strategy_supply_replayed",
-                    "latest": "latest-provider-hash",
-                },
-            }
-        ]
-    })
+def test_existing_accepted_fills_fallback_uses_lifecycle_open_positions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        paper_loop,
+        "_read_lifecycle_state_file",
+        lambda: {
+            "open_positions": [
+                {
+                    "position_id": "paper_pos_ORDIUSDT",
+                    "symbol": "ORDIUSDT",
+                    "timeframe": "4h",
+                    "side": "long",
+                    "net_quantity": 2.0,
+                    "entry_price": 3.5,
+                    "candidate_id": "hyp_replayed_exploration",
+                    "prediction_id": "hyp_replayed_exploration",
+                    "signal_id": "hyp_replayed_exploration",
+                    "preemptive_decision_id": "pec_replayed_exploration",
+                    "paper_opportunity_tier": "PAPER_RISK_CONTROLLER_EXPLORATION",
+                    "adaptive_allocation": {
+                        "allocation_id": "alloc_real_replayed_exploration",
+                    },
+                    "source_hashes": {
+                        "feature_vector_hash": "strategy_supply_replayed",
+                        "latest": "latest-provider-hash",
+                    },
+                }
+            ]
+        },
+    )
     monkeypatch.setattr(paper_loop, "_read_accepted_fill_state_file", lambda: {})
 
     rows = paper_loop._read_existing_accepted_fills(None)  # noqa: SLF001
     row = rows["paper_pos_ORDIUSDT"]
 
-    assert row["materialization_queue_id"] == "paper_exploration_materialize_hyp_replayed_exploration"
+    assert (
+        row["materialization_queue_id"] == "paper_exploration_materialize_hyp_replayed_exploration"
+    )
     assert row["tier"] == "PAPER_RISK_CONTROLLER_EXPLORATION"
     assert row["exploration_tier"] == "PAPER_RISK_CONTROLLER_EXPLORATION"
     assert row["paper_exploration_tier"] == "PAPER_RISK_CONTROLLER_EXPLORATION"
@@ -2440,7 +6047,9 @@ def test_repair_paper_exploration_public_lineage_rows_merges_open_position_conte
     )
     row = rows[0]
 
-    assert row["materialization_queue_id"] == "paper_exploration_materialize_hyp_replayed_exploration"
+    assert (
+        row["materialization_queue_id"] == "paper_exploration_materialize_hyp_replayed_exploration"
+    )
     assert row["tier"] == "PAPER_RISK_CONTROLLER_EXPLORATION"
     assert row["exploration_tier"] == "PAPER_RISK_CONTROLLER_EXPLORATION"
     assert row["paper_exploration_tier"] == "PAPER_RISK_CONTROLLER_EXPLORATION"
@@ -2467,7 +6076,9 @@ def test_repair_paper_exploration_public_lineage_rows_merges_open_position_conte
     assert row["raw_safety_fields"]["paper_only"] is True
 
 
-def test_paper_exploration_no_fill_reason_does_not_treat_a_plus_microstructure_as_market_integrity() -> None:
+def test_paper_exploration_no_fill_reason_does_not_treat_a_plus_microstructure_as_market_integrity() -> (
+    None
+):
     reason = paper_loop._paper_exploration_queue_no_fill_reason(  # noqa: SLF001
         [
             "PAPER_PERFORMANCE_CIRCUIT_BREAKER_BLOCKED",
@@ -2479,7 +6090,9 @@ def test_paper_exploration_no_fill_reason_does_not_treat_a_plus_microstructure_a
     assert reason == "PAPER_PERFORMANCE_CIRCUIT_BREAKER_BLOCKED_AFTER_QUEUE_CONSUMPTION"
 
 
-def test_paper_exploration_no_fill_reason_prioritizes_specific_loss_cluster_over_generic_performance() -> None:
+def test_paper_exploration_no_fill_reason_prioritizes_specific_loss_cluster_over_generic_performance() -> (
+    None
+):
     reason = paper_loop._paper_exploration_queue_no_fill_reason(  # noqa: SLF001
         [
             "PAPER_PERFORMANCE_CIRCUIT_BREAKER_BLOCKED",
@@ -2650,9 +6263,7 @@ def test_materialization_queue_performance_block_beats_soft_microstructure_reduc
 
     assert reason == "PAPER_PERFORMANCE_CIRCUIT_BREAKER_BLOCKED_AFTER_QUEUE_CONSUMPTION"
     assert exact_reason == "ALL_CURRENT_ROWS_PAPER_PERFORMANCE_CIRCUIT_BREAKER_BLOCKED"
-    assert components == [
-        "PAPER_PERFORMANCE_CIRCUIT_BREAKER_BLOCKED_AFTER_QUEUE_CONSUMPTION"
-    ]
+    assert components == ["PAPER_PERFORMANCE_CIRCUIT_BREAKER_BLOCKED_AFTER_QUEUE_CONSUMPTION"]
 
 
 def test_paper_exploration_no_fill_reason_prioritizes_negative_edge_over_performance() -> None:
@@ -2673,9 +6284,7 @@ def test_paper_exploration_no_fill_reason_prioritizes_negative_edge_over_perform
 
     assert reason == "TRUE_ENTRY_GATE_EXPECTED_MOVE_NOT_FAVORABLE_AFTER_QUEUE_CONSUMPTION"
     assert exact_reason == "TRUE_ENTRY_GATE_EXPECTED_MOVE_NOT_FAVORABLE_AFTER_QUEUE_CONSUMPTION"
-    assert components == [
-        "TRUE_ENTRY_GATE_EXPECTED_MOVE_NOT_FAVORABLE_AFTER_QUEUE_CONSUMPTION"
-    ]
+    assert components == ["TRUE_ENTRY_GATE_EXPECTED_MOVE_NOT_FAVORABLE_AFTER_QUEUE_CONSUMPTION"]
 
 
 def test_paper_exploration_no_fill_reason_ignores_positive_no_quarantine_evidence() -> None:
@@ -2692,7 +6301,9 @@ def test_paper_exploration_no_fill_reason_ignores_positive_no_quarantine_evidenc
     assert reason == "NON_EXECUTABLE_PAPER_TIER_AFTER_QUEUE_CONSUMPTION"
 
 
-def test_paper_exploration_no_fill_reason_classifies_strategy_router_without_false_quarantine() -> None:
+def test_paper_exploration_no_fill_reason_classifies_strategy_router_without_false_quarantine() -> (
+    None
+):
     reason = paper_loop._paper_exploration_queue_no_fill_reason(  # noqa: SLF001
         [
             "NOT_A_PLUS_CANDIDATE",
@@ -2705,7 +6316,9 @@ def test_paper_exploration_no_fill_reason_classifies_strategy_router_without_fal
     assert reason == "STRATEGY_ROUTER_BLOCKED_AFTER_QUEUE_CONSUMPTION"
 
 
-def test_paper_exploration_no_fill_reason_does_not_promote_router_loss_quarantine_to_true_bucket() -> None:
+def test_paper_exploration_no_fill_reason_does_not_promote_router_loss_quarantine_to_true_bucket() -> (
+    None
+):
     reason = paper_loop._paper_exploration_queue_no_fill_reason(  # noqa: SLF001
         [
             "NOT_A_PLUS_CANDIDATE",
@@ -2718,7 +6331,9 @@ def test_paper_exploration_no_fill_reason_does_not_promote_router_loss_quarantin
     assert reason == "NON_EXECUTABLE_PAPER_TIER_AFTER_QUEUE_CONSUMPTION"
 
 
-def test_paper_exploration_no_fill_reason_does_not_promote_generic_bucket_match_without_proof() -> None:
+def test_paper_exploration_no_fill_reason_does_not_promote_generic_bucket_match_without_proof() -> (
+    None
+):
     reason = paper_loop._paper_exploration_queue_no_fill_reason(  # noqa: SLF001
         [
             "BUCKET_HIGH_CONFIDENCE_LOSS_RATE_ELEVATED",
@@ -2732,7 +6347,9 @@ def test_paper_exploration_no_fill_reason_does_not_promote_generic_bucket_match_
     assert reason == "PAPER_PERFORMANCE_CIRCUIT_BREAKER_BLOCKED_AFTER_QUEUE_CONSUMPTION"
 
 
-def test_paper_exploration_no_fill_reason_prefers_performance_over_policy_when_bucket_health_present() -> None:
+def test_paper_exploration_no_fill_reason_prefers_performance_over_policy_when_bucket_health_present() -> (
+    None
+):
     reason = paper_loop._paper_exploration_queue_no_fill_reason(  # noqa: SLF001
         [
             "PAPER_PERFORMANCE_CIRCUIT_BREAKER_BLOCKED",
@@ -2747,7 +6364,9 @@ def test_paper_exploration_no_fill_reason_prefers_performance_over_policy_when_b
     assert reason == "PAPER_PERFORMANCE_CIRCUIT_BREAKER_BLOCKED_AFTER_QUEUE_CONSUMPTION"
 
 
-def test_paper_exploration_no_fill_reason_prefers_allocator_liquidity_over_generic_quarantine() -> None:
+def test_paper_exploration_no_fill_reason_prefers_allocator_liquidity_over_generic_quarantine() -> (
+    None
+):
     reason = paper_loop._paper_exploration_queue_no_fill_reason(  # noqa: SLF001
         [
             "allocator_decision_not_exploration_fill_eligible:BLOCK_INSUFFICIENT_LIQUIDITY",
@@ -2802,9 +6421,7 @@ def test_paper_exploration_performance_block_precedes_policy_revalidation() -> N
         ]
     )
 
-    assert reason == (
-        "PAPER_PERFORMANCE_CIRCUIT_BREAKER_BLOCKED_AFTER_QUEUE_CONSUMPTION"
-    )
+    assert reason == ("PAPER_PERFORMANCE_CIRCUIT_BREAKER_BLOCKED_AFTER_QUEUE_CONSUMPTION")
 
 
 def test_paper_exploration_policy_revalidation_not_added_for_above_floor_allocator_block() -> None:
@@ -2833,9 +6450,7 @@ def test_paper_exploration_exact_no_fill_reason_preserves_policy_revalidation() 
     )
 
     assert reason == "ALL_CURRENT_ROWS_EXPLORATION_POLICY_REVALIDATION_BLOCKED"
-    assert components == [
-        "EXPLORATION_POLICY_REVALIDATION_BLOCK_AFTER_QUEUE_CONSUMPTION"
-    ]
+    assert components == ["EXPLORATION_POLICY_REVALIDATION_BLOCK_AFTER_QUEUE_CONSUMPTION"]
 
 
 def test_paper_exploration_runtime_reasons_drop_secondary_non_executable_tier() -> None:
@@ -2872,9 +6487,7 @@ def test_paper_exploration_no_fill_reason_classifies_cost_write_invariant() -> N
         ]
     )
 
-    assert reason == (
-        "TRUE_PAPER_FILL_WRITE_INVARIANT_BLOCK_AFTER_QUEUE_CONSUMPTION"
-    )
+    assert reason == ("TRUE_PAPER_FILL_WRITE_INVARIANT_BLOCK_AFTER_QUEUE_CONSUMPTION")
 
 
 def test_paper_exploration_no_fill_reason_prefers_entry_gate_over_non_executable_tier() -> None:
@@ -2886,9 +6499,7 @@ def test_paper_exploration_no_fill_reason_prefers_entry_gate_over_non_executable
         ]
     )
 
-    assert reason == (
-        "TRUE_ENTRY_GATE_EXPECTED_MOVE_NOT_FAVORABLE_AFTER_QUEUE_CONSUMPTION"
-    )
+    assert reason == ("TRUE_ENTRY_GATE_EXPECTED_MOVE_NOT_FAVORABLE_AFTER_QUEUE_CONSUMPTION")
 
 
 def test_paper_exploration_no_fill_reason_classifies_symbol_exclusion() -> None:
@@ -2939,9 +6550,7 @@ def test_paper_exploration_compact_rejected_queue_rows_preserve_runtime_proof() 
                 "timeframe": "4h",
                 "side": "long",
                 "materialization_queue_result": "REJECTED_AFTER_QUEUE_REVALIDATION",
-                "materialization_no_fill_reason": (
-                    "TRUE_RISK_BLOCK_AFTER_QUEUE_CONSUMPTION"
-                ),
+                "materialization_no_fill_reason": ("TRUE_RISK_BLOCK_AFTER_QUEUE_CONSUMPTION"),
                 "materialization_no_fill_exact_reasons": [
                     "PAPER_RISK_CONTROLLER_EXPLORATION_LOSS_PROBABILITY_ABOVE_BOUND"
                 ],
@@ -3049,12 +6658,11 @@ def test_paper_exploration_queue_signal_uses_safe_timestamp_and_funding_bps() ->
     )
 
     assert signal["entry_feature_generated_at"] == "2026-07-10T03:00:00.000Z"
-    assert signal["entry_feature_generated_at_source"] == (
-        "entry_feature_available_at_fallback"
+    assert signal["entry_feature_generated_at_source"] == ("entry_feature_available_at_fallback")
+    assert (
+        "source_generated_utc_after_entry_feature_decision_time"
+        in signal["entry_feature_generated_at_rejections"]
     )
-    assert "source_generated_utc_after_entry_feature_decision_time" in signal[
-        "entry_feature_generated_at_rejections"
-    ]
     assert signal["expected_funding_bps"] == 1.0
     assert signal["expected_funding_bps_source"] == "paper_queue_expected_funding_usd_to_bps"
     assert signal["expected_funding_bps_fallback"] is False
@@ -3078,7 +6686,7 @@ def test_paper_exploration_queue_signal_uses_safe_timestamp_and_funding_bps() ->
     assert signal["places_real_order"] is False
 
 
-def test_materialization_queue_expected_net_restore_requires_favorable_signed_edge() -> None:
+def test_materialization_queue_expected_net_is_telemetry_only_and_never_overrides_current() -> None:
     intent = {
         "materialization_queue_id": "paper_exploration_materialize_hyp-restore",
         "side": "long",
@@ -3093,10 +6701,25 @@ def test_materialization_queue_expected_net_restore_requires_favorable_signed_ed
         allocation=allocation,
     )
 
-    assert intent["expected_net_pnl_usd"] == 0.42
-    assert allocation["expected_net_pnl_usd"] == 0.42
-    assert intent["paper_materialization_queue_expected_net_restore_applied"] is True
-    assert allocation["model_inputs"]["expected_net_pnl_usd"] == 0.42
+    assert intent["expected_net_pnl_usd"] == 0.0
+    assert allocation["expected_net_pnl_usd"] == 0.0
+    assert intent["materialization_queue_expected_net_pnl_usd"] == 0.42
+    assert allocation["materialization_queue_expected_net_pnl_usd"] == 0.42
+    assert intent["paper_materialization_queue_expected_net_restore_applied"] is False
+    assert allocation["paper_materialization_queue_expected_net_restore_applied"] is False
+    assert allocation["model_inputs"] == {}
+    receipt = intent["materialization_queue_expected_economics_receipt"]
+    assert receipt["authority"] == "HISTORICAL_QUEUE_TELEMETRY_ONLY"
+    assert receipt["queued_expected_net_pnl_usd"] == 0.42
+    assert receipt["current_allocator_expected_net_pnl_usd"] == 0.0
+    assert (
+        receipt["receipt_hash"] == intent["materialization_queue_expected_economics_receipt_hash"]
+    )
+    assert len(receipt["receipt_hash"]) == 64
+    assert (
+        intent["paper_materialization_queue_expected_net_restore_skipped_reason"]
+        == "STALE_QUEUE_ECONOMICS_NEVER_OVERRIDE_CURRENT_ALLOCATOR_ECONOMICS"
+    )
 
     short_intent = {
         "materialization_queue_id": "paper_exploration_materialize_hyp-no-restore",
@@ -3171,7 +6794,10 @@ def test_advanced_indicator_fallback_publishes_only_v2_market_keys() -> None:
     )
 
     published = context["advanced_indicator_source_keys"]
-    assert context["advanced_indicator_status"] == "ADVANCED_INDICATOR_CONTEXT_COMPUTED_FROM_CLOSED_CANDLES"
+    assert (
+        context["advanced_indicator_status"]
+        == "ADVANCED_INDICATOR_CONTEXT_COMPUTED_FROM_CLOSED_CANDLES"
+    )
     assert published
     assert all(key.startswith("v2:market:") for key in published)
     assert not any(key.startswith("v1:") or key.startswith("legacy:") for key in redis.payloads)
@@ -3221,6 +6847,7 @@ def test_advanced_indicator_reader_rejects_stale_contract_and_republishes() -> N
                 "schema_version": "v2_agg_trades_v1",
                 "symbol": "BTCUSDT",
                 "generated_utc": base.replace(minute=19, second=30).isoformat(),
+                "available_at": base.replace(minute=19, second=2).isoformat(),
                 "trade_count": 2,
                 "trades": [
                     {
@@ -3256,7 +6883,10 @@ def test_advanced_indicator_reader_rejects_stale_contract_and_republishes() -> N
         "BTCUSDT",
     )
 
-    assert context["advanced_indicator_status"] == "ADVANCED_INDICATOR_CONTEXT_COMPUTED_FROM_CLOSED_CANDLES"
+    assert (
+        context["advanced_indicator_status"]
+        == "ADVANCED_INDICATOR_CONTEXT_COMPUTED_FROM_CLOSED_CANDLES"
+    )
     assert context["advanced_indicator_invalid_contract_keys_repaired"]
     assert context["fvg_trade_tape_confirmation"] is not None
     assert "v2:market:trade_tape_features:BTCUSDT" not in redis.payloads
@@ -3429,9 +7059,7 @@ def test_halted_performance_fill_exempts_safe_risk_controller_override() -> None
 def test_sync_lifecycle_open_position_views_clears_stale_open_views() -> None:
     lifecycle = {
         "open_positions": [{"symbol": "BTCUSDT", "unrealized_pnl_usd": 1.2}],
-        "positions_by_symbol": {
-            "BTCUSDT": {"symbol": "BTCUSDT", "unrealized_pnl_usd": 1.2}
-        },
+        "positions_by_symbol": {"BTCUSDT": {"symbol": "BTCUSDT", "unrealized_pnl_usd": 1.2}},
         "unrealized_pnl_usd": 1.2,
         "total_open_notional": 100.0,
         "paper_position_lifecycle_status": {"open_positions_count": 1},
@@ -3439,9 +7067,7 @@ def test_sync_lifecycle_open_position_views_clears_stale_open_views() -> None:
             "evaluations": [{"symbol": "BTCUSDT", "allowed": True}],
             "blocked_count": 0,
         },
-        "paper_hedge_netting_status": {
-            "events": [{"symbol": "BTCUSDT", "event": "OPEN_POSITION"}]
-        },
+        "paper_hedge_netting_status": {"events": [{"symbol": "BTCUSDT", "event": "OPEN_POSITION"}]},
         "paper_exit_coordinator_status": {
             "evaluations": [{"symbol": "BTCUSDT", "should_close": False}]
         },
@@ -3464,9 +7090,9 @@ def test_sync_lifecycle_open_position_views_clears_stale_open_views() -> None:
     assert lifecycle["paper_hedge_netting_status"]["events"] == []
     assert lifecycle["paper_exit_coordinator_status"]["evaluations"] == []
     assert (
-        lifecycle["paper_stop_takeprofit_trailing_status"][
-            "trailing_stop_context_policy"
-        ]["position_decisions"]
+        lifecycle["paper_stop_takeprofit_trailing_status"]["trailing_stop_context_policy"][
+            "position_decisions"
+        ]
         == []
     )
 
@@ -3747,7 +7373,10 @@ def test_paper_risk_controller_exploration_classifies_no_trade_guardian_override
         classification=classification,
     )
 
-    assert classification["paper_opportunity_tier"] == paper_loop.PAPER_TIER_RISK_CONTROLLER_EXPLORATION
+    assert (
+        classification["paper_opportunity_tier"]
+        == paper_loop.PAPER_TIER_RISK_CONTROLLER_EXPLORATION
+    )
     assert classification["counts_as_A_plus"] is False
     assert classification["counts_as_live_ready"] is False
     assert classification["routes_to_live"] is False
@@ -3767,7 +7396,7 @@ def test_paper_risk_controller_exploration_classifies_no_trade_guardian_override
     assert classification["paper_risk_controller_exploration_loss_probability_bound"] == (
         paper_loop.PAPER_RISK_CONTROLLER_EXPLORATION_LOSS_PROBABILITY_BOUND
     )
-    assert paper_loop._paper_preemptive_admission_rejection_reasons(intent) == []  # noqa: SLF001
+    assert _validated_admission_reasons(intent) == []
 
 
 def test_final_a_plus_false_rows_do_not_enter_a_plus_governance() -> None:
@@ -3793,7 +7422,9 @@ def test_final_a_plus_false_rows_do_not_enter_a_plus_governance() -> None:
     assert status["routes_to_live"] is False
 
 
-def test_paper_risk_controller_exploration_ignores_advisory_only_router_quarantine_no_trade() -> None:
+def test_paper_risk_controller_exploration_ignores_advisory_only_router_quarantine_no_trade() -> (
+    None
+):
     now = "2026-07-08T12:00:00.000Z"
     past = "2026-07-08T11:59:00.000Z"
     signal = {
@@ -3832,9 +7463,7 @@ def test_paper_risk_controller_exploration_ignores_advisory_only_router_quaranti
         "strategy_regime_labels": ["RISK_OFF", "NO_TRADE"],
         "paper_performance_circuit_global_halt_only": True,
         "paper_performance_circuit_breaker_advisory_bucket_keys": ["side:long"],
-        "paper_performance_circuit_breaker_advisory_loss_cluster_keys": [
-            "loss_cluster_side:long"
-        ],
+        "paper_performance_circuit_breaker_advisory_loss_cluster_keys": ["loss_cluster_side:long"],
         "paper_performance_circuit_breaker_matched_blocked_bucket_keys": [],
         "paper_performance_circuit_breaker_matched_loss_cluster_keys": [],
         "preemptive_decision_id": "pec-loop-explore-advisory",
@@ -3908,16 +7537,12 @@ def test_materialization_queue_preemptive_revalidation_overwrites_stale_runtime_
         "materialization_queue_id": "paper_exploration_materialize_hyp-stale",
         "runtime_revalidated_preemptive_decision": "NO_TRADE",
         "runtime_revalidated_preemptive_decision_id": "pec-stale",
-        "runtime_revalidated_preemptive_decision_reasons": [
-            "BUCKET_QUARANTINE_MATCH"
-        ],
+        "runtime_revalidated_preemptive_decision_reasons": ["BUCKET_QUARANTINE_MATCH"],
     }
     allocation = {
         "model_inputs": {
             "runtime_revalidated_preemptive_decision": "NO_TRADE",
-            "runtime_revalidated_preemptive_decision_reasons": [
-                "BUCKET_QUARANTINE_MATCH"
-            ],
+            "runtime_revalidated_preemptive_decision_reasons": ["BUCKET_QUARANTINE_MATCH"],
         }
     }
     current_decision = {
@@ -3959,17 +7584,13 @@ def test_materialization_queue_signal_drops_stale_runtime_revalidation_fields() 
                 "tier": paper_loop.PAPER_TIER_RISK_CONTROLLER_EXPLORATION,
                 "runtime_revalidated_preemptive_decision": "NO_TRADE",
                 "runtime_revalidated_preemptive_decision_id": "pec-stale",
-                "runtime_revalidated_preemptive_decision_reasons": [
-                    "BUCKET_QUARANTINE_MATCH"
-                ],
+                "runtime_revalidated_preemptive_decision_reasons": ["BUCKET_QUARANTINE_MATCH"],
             },
         }
     )
 
     assert signal["paper_risk_controller_exploration"] is True
-    assert signal["paper_opportunity_tier"] == (
-        paper_loop.PAPER_TIER_RISK_CONTROLLER_EXPLORATION
-    )
+    assert signal["paper_opportunity_tier"] == (paper_loop.PAPER_TIER_RISK_CONTROLLER_EXPLORATION)
     assert signal["runtime_revalidated_preemptive_decision"] is None
     assert signal["runtime_revalidated_preemptive_decision_id"] is None
     assert signal["runtime_revalidated_preemptive_decision_reasons"] is None
@@ -3986,9 +7607,7 @@ def test_materialization_queue_advisory_quarantine_drops_runtime_bucket_match() 
                 "routes_to_live": False,
                 "places_real_order": False,
                 "paper_performance_circuit_global_halt_only": True,
-                "paper_performance_circuit_breaker_advisory_bucket_keys": [
-                    "side:long"
-                ],
+                "paper_performance_circuit_breaker_advisory_bucket_keys": ["side:long"],
                 "paper_performance_circuit_breaker_matched_blocked_bucket_keys": [],
                 "paper_performance_circuit_breaker_matched_loss_cluster_keys": [],
             },
@@ -4002,10 +7621,7 @@ def test_materialization_queue_advisory_quarantine_drops_runtime_bucket_match() 
 
     assert "BUCKET_QUARANTINE_MATCH" not in reasons
     assert "GUARDIAN_HALTED_OR_MISSING" in reasons
-    assert (
-        "allocator_decision_not_exploration_fill_eligible:BLOCK_NO_EDGE"
-        in reasons
-    )
+    assert "allocator_decision_not_exploration_fill_eligible:BLOCK_NO_EDGE" in reasons
 
 
 def test_materialization_queue_exact_quarantine_keeps_runtime_bucket_match() -> None:
@@ -4019,9 +7635,7 @@ def test_materialization_queue_exact_quarantine_keeps_runtime_bucket_match() -> 
                 "routes_to_live": False,
                 "places_real_order": False,
                 "paper_performance_circuit_global_halt_only": True,
-                "paper_performance_circuit_breaker_advisory_bucket_keys": [
-                    "side:long"
-                ],
+                "paper_performance_circuit_breaker_advisory_bucket_keys": ["side:long"],
                 "paper_performance_circuit_breaker_matched_blocked_bucket_keys": [
                     "symbol:DOGEUSDT"
                 ],
@@ -4252,10 +7866,7 @@ def test_materialization_queue_policy_snapshot_survives_floor_recompute_drift() 
     )
     assert classification["paper_risk_controller_exploration_above_floor"] is True
     assert classification["dynamic_exploration_floor"] == 0.66
-    assert (
-        classification["paper_risk_controller_exploration_policy_snapshot_retained"]
-        is True
-    )
+    assert classification["paper_risk_controller_exploration_policy_snapshot_retained"] is True
     assert (
         classification["runtime_recomputed_dynamic_exploration_floor"]
         > signal["confidence_executable_trade"]
@@ -4303,9 +7914,7 @@ def test_materialization_queue_policy_snapshot_does_not_override_exact_quarantin
     intent = {
         **signal,
         "paper_exploration_exact_blocked_bucket_keys": ["symbol:DOGEUSDT"],
-        "paper_performance_circuit_breaker_matched_blocked_bucket_keys": [
-            "symbol:DOGEUSDT"
-        ],
+        "paper_performance_circuit_breaker_matched_blocked_bucket_keys": ["symbol:DOGEUSDT"],
         "preemptive_decision_id": "pec-loop-exact-quarantine",
         "preemptive_decision": "NO_TRADE",
         "preemptive_action": "GUARDIAN_HALTED_AFTER_PIT_THRESHOLD_MET",
@@ -4356,16 +7965,15 @@ def test_materialization_queue_policy_snapshot_does_not_override_exact_quarantin
     assert classification["paper_opportunity_tier"] != (
         paper_loop.PAPER_TIER_RISK_CONTROLLER_EXPLORATION
     )
-    assert (
-        classification["paper_risk_controller_exploration_policy_snapshot_retained"]
-        is False
-    )
+    assert classification["paper_risk_controller_exploration_policy_snapshot_retained"] is False
     assert "LOSS_CLUSTER_OR_QUARANTINE_ACTIVE" in (
         classification["paper_risk_controller_exploration_block_reasons"] or []
     )
 
 
-def test_paper_risk_controller_exploration_ignores_broad_high_confidence_loss_cluster_gate() -> None:
+def test_paper_risk_controller_exploration_ignores_broad_high_confidence_loss_cluster_gate() -> (
+    None
+):
     now = "2026-07-08T12:00:00.000Z"
     past = "2026-07-08T11:59:00.000Z"
     signal = {
@@ -4460,9 +8068,12 @@ def test_paper_risk_controller_exploration_ignores_broad_high_confidence_loss_cl
         paper_loop.PAPER_TIER_RISK_CONTROLLER_EXPLORATION
     )
     assert classification["paper_risk_controller_exploration"] is True
-    assert classification[
-        "paper_risk_controller_exploration_high_confidence_loss_cluster_advisory_only"
-    ] is True
+    assert (
+        classification[
+            "paper_risk_controller_exploration_high_confidence_loss_cluster_advisory_only"
+        ]
+        is True
+    )
     assert classification["high_confidence_loss_cluster_bucket_match_reasons"] == []
     assert classification["routes_to_live"] is False
     assert classification["places_real_order"] is False
@@ -4583,9 +8194,7 @@ def test_paper_risk_controller_exploration_hard_quarantine_still_blocks_no_trade
         "strategy_router_block_reason": "PAPER_LOSS_BUCKET_QUARANTINE",
         "paper_performance_circuit_global_halt_only": True,
         "paper_performance_circuit_breaker_advisory_bucket_keys": ["side:long"],
-        "paper_performance_circuit_breaker_matched_blocked_bucket_keys": [
-            "side_timeframe:long|5m"
-        ],
+        "paper_performance_circuit_breaker_matched_blocked_bucket_keys": ["side_timeframe:long|5m"],
         "strategy_router_selected_mode": "no_trade_mode",
         "strategy_regime_labels": ["NO_TRADE"],
     }
@@ -4701,21 +8310,26 @@ def _allow_preemptive_decision() -> dict:
     }
 
 
+def _validated_admission_reasons(intent: dict) -> list[str]:
+    return paper_loop._paper_preemptive_admission_rejection_reasons(  # noqa: SLF001
+        intent,
+        adaptive_loss_probability_threshold=0.8,
+        adaptive_loss_probability_threshold_source=("EXPLICIT_ADAPTIVE_TUNING_SNAPSHOT"),
+        adaptive_tuning_validation_status="PASS",
+    )
+
+
 def test_missing_preemptive_decision_fails_paper_admission_closed() -> None:
     reasons = paper_loop._paper_preemptive_admission_rejection_reasons(  # noqa: SLF001
         {"paper_opportunity_tier": paper_loop.PAPER_TIER_A_GRADE_EXECUTION}
     )
 
     assert "PREEMPTIVE_DECISION_MISSING_FAIL_CLOSED" in reasons
-    # 2026-07-16 adaptive gating: missing loss-probability no longer hard
-    # fail-closes on its own; it becomes confidence-scoped (high-confidence
-    # intents may proceed). The missing preemptive decision above still
-    # blocks admission for this low/no-confidence intent.
-    assert "PRE_TRADE_LOSS_PROBABILITY_MISSING_ALLOW_HIGH_CONFIDENCE_ONLY" in reasons
+    assert "PRE_TRADE_LOSS_PROBABILITY_MISSING" in reasons
 
 
 def test_high_pretrade_loss_probability_blocks_paper_admission() -> None:
-    reasons = paper_loop._paper_preemptive_admission_rejection_reasons(  # noqa: SLF001
+    reasons = _validated_admission_reasons(
         {
             "paper_opportunity_tier": paper_loop.PAPER_TIER_A_GRADE_EXECUTION,
             "preemptive_edge_control": {
@@ -4778,14 +8392,11 @@ def test_materialization_queue_preserves_calibrated_loss_probability_on_revalida
         "EXIT_FEASIBILITY_LOW",
     ]
 
-    reasons = paper_loop._paper_preemptive_admission_rejection_reasons(intent)  # noqa: SLF001
+    reasons = _validated_admission_reasons(intent)
 
     assert "PRE_TRADE_LOSS_PROBABILITY_ABOVE_ALLOWED_BOUND" not in reasons
     assert "PAPER_RISK_CONTROLLER_EXPLORATION_LOSS_PROBABILITY_ABOVE_BOUND" not in reasons
-    assert (
-        "PREEMPTIVE_DECISION_NO_TRADE_REQUIRES_EXPLORATION_POLICY_OVERRIDE"
-        not in reasons
-    )
+    assert "PREEMPTIVE_DECISION_NO_TRADE_REQUIRES_EXPLORATION_POLICY_OVERRIDE" not in reasons
 
 
 def test_materialization_queue_signal_copies_calibrated_loss_context_into_runtime_intent() -> None:
@@ -4826,9 +8437,7 @@ def test_materialization_queue_signal_copies_calibrated_loss_context_into_runtim
             "preemptive_decision_id": "pec_source_ldo",
             "pre_trade_loss_probability": 0.28,
             "loss_probability_reason": "STRATEGY_SUPPLY_CALIBRATED_LOSS_PROBABILITY",
-            "loss_probability_reasons": [
-                "STRATEGY_SUPPLY_CALIBRATED_LOSS_PROBABILITY"
-            ],
+            "loss_probability_reasons": ["STRATEGY_SUPPLY_CALIBRATED_LOSS_PROBABILITY"],
             "loss_probability_calibration": {
                 "base_loss_probability": 0.405249,
                 "adjusted_loss_probability": 0.28,
@@ -4910,10 +8519,10 @@ def test_materialization_queue_signal_copies_calibrated_loss_context_into_runtim
     assert intent["pre_trade_loss_probability"] == pytest.approx(0.28)
     assert allocation["pre_trade_loss_probability"] == pytest.approx(0.28)
     assert intent["runtime_revalidated_pre_trade_loss_probability"] == pytest.approx(0.92)
-    assert paper_loop._paper_preemptive_admission_rejection_reasons(intent) == []  # noqa: SLF001
+    assert _validated_admission_reasons(intent) == []
 
 
-def test_exploration_budget_cap_derives_positive_paper_margin_from_scaled_notional() -> None:
+def test_tier_classification_never_rescales_completed_allocator_accounting() -> None:
     intent = {
         "paper_only": True,
         "routes_to_live": False,
@@ -4930,22 +8539,33 @@ def test_exploration_budget_cap_derives_positive_paper_margin_from_scaled_notion
         "model_inputs": {},
     }
 
-    paper_loop._apply_b_grade_exploration_budget_cap(  # noqa: SLF001
+    sizing_before = {
+        field: allocation[field]
+        for field in (
+            "target_notional_usdt",
+            "target_notional_usd",
+            "gross_notional_usd",
+            "allocated_margin_usd",
+            "recommended_leverage",
+            "effective_leverage",
+        )
+    }
+    paper_loop._apply_paper_tier_classification(  # noqa: SLF001
         intent=intent,
         allocation=allocation,
-        risk_budget_fraction_of_normal_adaptive=0.25,
+        classification={
+            "paper_opportunity_tier": paper_loop.PAPER_TIER_B_GRADE_EXPLORATION,
+            "risk_budget_fraction_of_normal_adaptive": 0.25,
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+        },
     )
 
-    scaled_notional = allocation["target_notional_usdt"]
-    assert scaled_notional > 0.0
-    assert allocation["allocated_margin_usd"] == pytest.approx(scaled_notional / 2.0)
-    assert intent["allocated_margin_usd"] == pytest.approx(scaled_notional / 2.0)
-    assert allocation["model_inputs"]["selected_allocated_margin_usd"] == pytest.approx(
-        scaled_notional / 2.0
-    )
-    assert allocation["paper_allocated_margin_usd_source"] == (
-        "DERIVED_FROM_SCALED_NOTIONAL_AND_RECOMMENDED_LEVERAGE"
-    )
+    assert {field: allocation[field] for field in sizing_before} == sizing_before
+    assert allocation["risk_budget_fraction_of_normal_adaptive"] == 0.25
+    assert "normal_adaptive_target_notional_usdt" not in allocation
+    assert "b_grade_exploration_budget_cap_applied" not in allocation
     assert intent["paper_only"] is True
     assert intent["places_real_order"] is False
     assert intent["routes_to_live"] is False
@@ -4979,9 +8599,7 @@ def test_strategy_supply_preserves_calibrated_loss_probability_before_tier_class
     assert intent["pre_trade_loss_probability"] == pytest.approx(0.3193)
     assert allocation["pre_trade_loss_probability"] == pytest.approx(0.3193)
     assert intent["runtime_revalidated_pre_trade_loss_probability"] == pytest.approx(0.92)
-    assert intent["pre_trade_loss_probability_source"] == (
-        "strategy_supply_calibrated_inventory"
-    )
+    assert intent["pre_trade_loss_probability_source"] == ("strategy_supply_calibrated_inventory")
 
 
 def test_queue_runtime_context_keeps_source_loss_and_moves_runtime_loss() -> None:
@@ -4993,9 +8611,7 @@ def test_queue_runtime_context_keeps_source_loss_and_moves_runtime_loss() -> Non
             "paper_opportunity_tier": paper_loop.PAPER_TIER_RISK_CONTROLLER_EXPLORATION,
             "pre_trade_loss_probability": 0.2903,
             "loss_probability_reason": "STRATEGY_SUPPLY_CALIBRATED_LOSS_PROBABILITY",
-            "loss_probability_reasons": [
-                "STRATEGY_SUPPLY_CALIBRATED_LOSS_PROBABILITY"
-            ],
+            "loss_probability_reasons": ["STRATEGY_SUPPLY_CALIBRATED_LOSS_PROBABILITY"],
             "loss_probability_calibration": {
                 "base_loss_probability": 0.44,
                 "adjusted_loss_probability": 0.2903,
@@ -5009,9 +8625,7 @@ def test_queue_runtime_context_keeps_source_loss_and_moves_runtime_loss() -> Non
         "preemptive_decision_id": "pec_runtime_ens",
         "preemptive_decision": "NO_TRADE",
         "preemptive_decision_reasons": ["NEGATIVE_BUCKET_HEALTH"],
-        "paper_fill_gate_block_reasons": [
-            "PRE_TRADE_LOSS_PROBABILITY_ABOVE_ALLOWED_BOUND"
-        ],
+        "paper_fill_gate_block_reasons": ["PRE_TRADE_LOSS_PROBABILITY_ABOVE_ALLOWED_BOUND"],
     }
 
     context = paper_loop._paper_exploration_queue_runtime_feedback_context(  # noqa: SLF001
@@ -5023,9 +8637,7 @@ def test_queue_runtime_context_keeps_source_loss_and_moves_runtime_loss() -> Non
     assert "pre_trade_loss_probability" not in context
     assert context["runtime_revalidated_pre_trade_loss_probability"] == pytest.approx(0.92)
     assert context["runtime_revalidated_preemptive_decision"] == "NO_TRADE"
-    assert context["runtime_revalidated_preemptive_decision_reasons"] == [
-        "NEGATIVE_BUCKET_HEALTH"
-    ]
+    assert context["runtime_revalidated_preemptive_decision_reasons"] == ["NEGATIVE_BUCKET_HEALTH"]
     assert merged["pre_trade_loss_probability"] == pytest.approx(0.2903)
     assert merged["pre_trade_loss_probability_source"] == (
         "strategy_supply_calibrated_materialization_queue"
@@ -5043,9 +8655,7 @@ def test_queue_rejection_uses_runtime_specific_reasons_when_source_loss_preserve
             "pre_trade_loss_probability": 0.2903,
             "paper_risk_controller_exploration_loss_probability_bound": 0.72,
             "loss_probability_reason": "STRATEGY_SUPPLY_CALIBRATED_LOSS_PROBABILITY",
-            "loss_probability_reasons": [
-                "STRATEGY_SUPPLY_CALIBRATED_LOSS_PROBABILITY"
-            ],
+            "loss_probability_reasons": ["STRATEGY_SUPPLY_CALIBRATED_LOSS_PROBABILITY"],
             "loss_probability_calibration": {
                 "base_loss_probability": 0.44,
                 "adjusted_loss_probability": 0.2903,
@@ -5124,7 +8734,7 @@ def test_preemptive_reduced_size_requires_guardian_approval_at_admission() -> No
 
 
 def test_positive_edge_probation_admission_can_pass_halted_guardian() -> None:
-    reasons = paper_loop._paper_preemptive_admission_rejection_reasons(  # noqa: SLF001
+    reasons = _validated_admission_reasons(
         {
             "paper_opportunity_tier": paper_loop.PAPER_TIER_POSITIVE_EDGE_PROBATION,
             "preemptive_edge_control": {
@@ -5206,9 +8816,7 @@ def test_preemptive_blocked_counterfactual_feedback_is_pending_and_timestamped()
     assert payload["row_count"] == 1
     row = payload["rows"][0]
     assert row["counterfactual_feedback_id"] == "preemptive_blocked_pec_blocked"
-    assert row["trainer_feedback_source"] == (
-        "V2_PREEMPTIVE_EDGE_CONTROL_BLOCKED_CANDIDATE"
-    )
+    assert row["trainer_feedback_source"] == ("V2_PREEMPTIVE_EDGE_CONTROL_BLOCKED_CANDIDATE")
     assert row["paper_session_id"] == "paper-session"
     assert row["decision_time"] == "2026-07-08T12:00:00Z"
     assert row["available_at"] == "2026-07-08T11:59:58Z"
@@ -5306,6 +8914,1108 @@ def test_global_performance_halt_preserves_probation_allocator_evidence() -> Non
     assert allocation["global_halt_preserves_probation_allocator_evidence"] is True
 
 
+def test_high_confidence_cannot_bypass_global_performance_halt() -> None:
+    intent = {
+        "paper_only": True,
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
+        "side": "long",
+        "confidence_calibrated": 0.99,
+    }
+    allocation = _allowed_allocation()
+
+    blocked = paper_loop._paper_block_new_entry_by_performance_circuit(  # noqa: SLF001
+        intent=intent,
+        allocation=allocation,
+        performance_circuit_breaker_status={
+            "new_entries_allowed": False,
+            "blocked_bucket_keys": [],
+        },
+    )
+
+    assert blocked is True
+    assert "paper_performance_circuit_high_confidence_bypass" not in intent
+    assert allocation["allocator_decision"] == "ALLOW_WITH_SIZE"
+
+
+def test_halted_probe_uses_explicit_calibrated_confidence_without_name_error() -> None:
+    intent = {
+        "paper_only": True,
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
+        "side": "long",
+        "confidence_calibrated": 0.82,
+        "quantity": 10.0,
+        "notional": 1000.0,
+        "notional_usd": 1000.0,
+        "notional_usdt": 1000.0,
+        "gross_notional_usd": 1000.0,
+        "effective_leverage": 2.0,
+        "allocated_margin_usd": 500.0,
+        "risk_budget_usd": 100.0,
+    }
+    allocation = _allowed_allocation(effective_leverage=2.0)
+    intent["adaptive_allocation"] = allocation
+    probe_context = {
+        "remaining": 1,
+        "open_positions_since_last_close": 0,
+        "seconds_since_last_close": 600.0,
+        "adaptive_confidence_floor": 0.75,
+        "open_symbols": [],
+    }
+
+    blocked = paper_loop._paper_block_new_entry_by_performance_circuit(  # noqa: SLF001
+        intent=intent,
+        allocation=allocation,
+        performance_circuit_breaker_status={
+            "new_entries_allowed": False,
+            "blocked_bucket_keys": [],
+        },
+        halted_empty_book_probe_context=probe_context,
+    )
+
+    assert blocked is False
+    assert intent["paper_halted_empty_book_probe"] is True
+    assert probe_context["remaining"] == 0
+    assert probe_context["provisional_admission_count"] == 1
+    assert probe_context.get("finalized_admission_count", 0) == 0
+    assert probe_context.get("admitted_symbols", []) == []
+    assert probe_context["pending_probe_token"]["token"] == intent["paper_halted_probe_token"]
+    assert intent["paper_halted_probe_reservation_state"] == "PENDING_DOWNSTREAM_GATES"
+    # The circuit evaluator no longer mutates a completed allocation.  The
+    # run loop must re-enter the allocator with this fraction before exchange
+    # quantization and every margin/risk derivation.
+    assert intent["quantity"] == pytest.approx(10.0)
+    assert intent["notional"] == pytest.approx(1000.0)
+    assert allocation["target_quantity"] == pytest.approx(10.0)
+    assert allocation["target_notional_usdt"] == pytest.approx(1000.0)
+    assert intent["paper_halted_probe_size_fraction"] == pytest.approx(0.25)
+    assert intent["paper_halted_probe_preallocation_reallocation_required"] is True
+    assert intent["paper_probe_preserves_all_non_performance_gates"] is True
+
+
+def test_halted_probe_never_erases_or_overrides_existing_safety_blockers() -> None:
+    intent = {
+        "paper_only": True,
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
+        "side": "long",
+        "confidence_calibrated": 0.99,
+        "paper_fill_allowed": False,
+        "paper_fill_block_reason": "P0_ENTRY_GATE_BLOCKED",
+        "paper_fill_gate_block_reasons": ["MISSING_THESIS_TIMEFRAME"],
+        "entry_gate_block_reasons": ["OUTCOME_MEMORY_BLOCK:SYMBOL"],
+        "local_block_reasons": ["entry_gate:OUTCOME_MEMORY_BLOCK:SYMBOL"],
+    }
+    allocation = _allowed_allocation()
+    probe_context = {
+        "remaining": 1,
+        "open_positions_since_last_close": 0,
+        "seconds_since_last_close": 3600.0,
+        "adaptive_confidence_floor": 0.75,
+        "open_symbols": [],
+    }
+
+    blocked = paper_loop._paper_block_new_entry_by_performance_circuit(  # noqa: SLF001
+        intent=intent,
+        allocation=allocation,
+        performance_circuit_breaker_status={
+            "new_entries_allowed": False,
+            "blocked_bucket_keys": [],
+        },
+        halted_empty_book_probe_context=probe_context,
+    )
+
+    assert blocked is True
+    assert probe_context["remaining"] == 1
+    assert probe_context.get("provisional_admission_count", 0) == 0
+    assert "paper_halted_empty_book_probe" not in intent
+    assert intent["paper_fill_block_reason"] == "P0_ENTRY_GATE_BLOCKED"
+    assert intent["paper_fill_gate_block_reasons"] == [
+        "MISSING_THESIS_TIMEFRAME",
+        paper_loop.PAPER_PERFORMANCE_CIRCUIT_BREAKER_BLOCK_REASON,
+    ]
+    assert intent["entry_gate_block_reasons"] == ["OUTCOME_MEMORY_BLOCK:SYMBOL"]
+    assert "entry_gate:OUTCOME_MEMORY_BLOCK:SYMBOL" in intent["local_block_reasons"]
+    assert any(
+        "P0_ENTRY_GATE_BLOCKED" in reason
+        for reason in probe_context["skip_diagnosis"]["preexisting_safety_blockers"]
+    )
+
+
+def test_halted_probe_missing_calibrated_confidence_fails_closed() -> None:
+    intent = {
+        "paper_only": True,
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
+        "side": "long",
+        "confidence_raw": 0.99,
+    }
+    allocation = _allowed_allocation()
+    probe_context = {
+        "remaining": 1,
+        "open_positions_since_last_close": 0,
+        "seconds_since_last_close": 600.0,
+        "adaptive_confidence_floor": 0.75,
+        "open_symbols": [],
+    }
+
+    blocked = paper_loop._paper_block_new_entry_by_performance_circuit(  # noqa: SLF001
+        intent=intent,
+        allocation=allocation,
+        performance_circuit_breaker_status={
+            "new_entries_allowed": False,
+            "blocked_bucket_keys": [],
+        },
+        halted_empty_book_probe_context=probe_context,
+    )
+
+    assert blocked is True
+    assert probe_context["remaining"] == 1
+    assert probe_context["skip_diagnosis"]["confidence"] is None
+    assert probe_context["skip_diagnosis"]["conf_pass"] is False
+
+
+def test_halted_probe_downstream_rejection_releases_token_for_next_candidate(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        paper_loop,
+        "_paper_final_admission_point_in_time_contract",
+        lambda *_args, **_kwargs: {
+            "status": "PASS",
+            "final_decision_time": "2026-07-17T12:00:00Z",
+            "bound_material_hash": "a" * 64,
+            "rejection_reasons": [],
+        },
+    )
+    probe_context = {
+        "remaining": 3,
+        "open_positions_since_last_close": 0,
+        "seconds_since_last_close": 600.0,
+        "adaptive_confidence_floor": 0.75,
+        "open_symbols": [],
+        "provisional_admission_count": 0,
+        "provisional_admitted_symbols": [],
+        "finalized_admission_count": 0,
+    }
+    status = {"new_entries_allowed": False, "blocked_bucket_keys": []}
+    first = {
+        "paper_only": True,
+        "symbol": "AAAUSDT",
+        "timeframe": "1m",
+        "side": "long",
+        "confidence_calibrated": 0.9,
+    }
+    assert (
+        paper_loop._paper_block_new_entry_by_performance_circuit(  # noqa: SLF001
+            intent=first,
+            allocation=_allowed_allocation(effective_leverage=2.0),
+            performance_circuit_breaker_status=status,
+            halted_empty_book_probe_context=probe_context,
+        )
+        is False
+    )
+    first_token = first["paper_halted_probe_token"]
+
+    # Simulate a downstream gate rejecting AAA: no accepted append occurs.
+    # Evaluating BBB releases AAA's pending token but does not consume the
+    # one-slot concurrent capacity.
+    second = {
+        "paper_only": True,
+        "symbol": "BBBUSDT",
+        "timeframe": "1m",
+        "side": "long",
+        "confidence_calibrated": 0.89,
+    }
+    assert (
+        paper_loop._paper_block_new_entry_by_performance_circuit(  # noqa: SLF001
+            intent=second,
+            allocation=_allowed_allocation(effective_leverage=2.0),
+            performance_circuit_breaker_status=status,
+            halted_empty_book_probe_context=probe_context,
+        )
+        is False
+    )
+    assert probe_context["last_released_probe_token"]["token"] == first_token
+    assert probe_context["last_released_probe_token"]["release_reason"] == (
+        "NEXT_CANDIDATE_CIRCUIT_EVALUATION"
+    )
+    assert probe_context["finalized_admission_count"] == 0
+
+    accepted: list[dict[str, object]] = []
+    assert (
+        paper_loop._paper_append_accepted_with_halted_probe_finalization(  # noqa: SLF001
+            accepted,
+            second,
+            probe_context,
+        )
+        is True
+    )
+    assert [row["symbol"] for row in accepted] == ["BBBUSDT"]
+    assert second["paper_halted_probe_reservation_state"] == ("FINALIZED_ACCEPTED")
+    assert probe_context["finalized_admission_count"] == 1
+    assert probe_context["admitted_symbols"] == ["BBBUSDT"]
+    assert probe_context["provisional_admission_count"] == 0
+    assert "pending_probe_token" not in probe_context
+
+    third = {
+        "paper_only": True,
+        "symbol": "CCCUSDT",
+        "timeframe": "1m",
+        "side": "long",
+        "confidence_calibrated": 0.88,
+    }
+    assert (
+        paper_loop._paper_block_new_entry_by_performance_circuit(  # noqa: SLF001
+            intent=third,
+            allocation=_allowed_allocation(effective_leverage=2.0),
+            performance_circuit_breaker_status=status,
+            halted_empty_book_probe_context=probe_context,
+        )
+        is True
+    )
+    assert "paper_halted_empty_book_probe" not in third
+    # Two candidate attempts were issued; the third was refused by capacity.
+    assert probe_context["remaining"] == 1
+
+
+def test_halted_probe_pending_token_is_candidate_identity_bound() -> None:
+    probe_context = {
+        "remaining": 3,
+        "open_positions_since_last_close": 0,
+        "seconds_since_last_close": 600.0,
+        "adaptive_confidence_floor": 0.75,
+        "open_symbols": [],
+        "admitted_symbols": [],
+        "finalized_admission_count": 0,
+    }
+    first = {
+        "paper_only": True,
+        "symbol": "AAAUSDT",
+        "timeframe": "1m",
+        "side": "long",
+        "confidence_calibrated": 0.9,
+    }
+    assert (
+        paper_loop._paper_block_new_entry_by_performance_circuit(  # noqa: SLF001
+            intent=first,
+            allocation=_allowed_allocation(effective_leverage=2.0),
+            performance_circuit_breaker_status={
+                "new_entries_allowed": False,
+                "blocked_bucket_keys": [],
+            },
+            halted_empty_book_probe_context=probe_context,
+        )
+        is False
+    )
+
+    # Even if another row accidentally copies the opaque token, the symbol
+    # binding prevents it from materializing AAA's pending reservation.
+    impostor = {
+        "paper_only": True,
+        "paper_halted_empty_book_probe": True,
+        "paper_halted_probe_token": first["paper_halted_probe_token"],
+        "symbol": "BBBUSDT",
+    }
+    accepted: list[dict[str, object]] = []
+    assert (
+        paper_loop._paper_append_accepted_with_halted_probe_finalization(  # noqa: SLF001
+            accepted,
+            impostor,
+            probe_context,
+        )
+        is False
+    )
+    assert accepted == []
+    assert impostor["paper_halted_probe_reservation_failure_reason"] == (
+        "HALTED_PROBE_PENDING_SYMBOL_MISMATCH"
+    )
+    assert probe_context["finalized_admission_count"] == 0
+    assert "pending_probe_token" not in probe_context
+
+
+def test_halted_probe_materialized_count_never_exceeds_adaptive_slots(monkeypatch) -> None:
+    monkeypatch.setattr(
+        paper_loop,
+        "_paper_final_admission_point_in_time_contract",
+        lambda *_args, **_kwargs: {
+            "status": "PASS",
+            "final_decision_time": "2026-07-17T12:00:00Z",
+            "bound_material_hash": "a" * 64,
+            "rejection_reasons": [],
+        },
+    )
+    probe_context = {
+        "remaining": 10,
+        "open_positions_since_last_close": 0,
+        "seconds_since_last_close": 3600.0,
+        "adaptive_confidence_floor": 0.75,
+        "open_symbols": [],
+        "admitted_symbols": [],
+        "provisional_admission_count": 0,
+        "provisional_admitted_symbols": [],
+        "finalized_admission_count": 0,
+    }
+    status = {"new_entries_allowed": False, "blocked_bucket_keys": []}
+    accepted: list[dict[str, object]] = []
+
+    for symbol in (
+        "AAAUSDT",
+        "AAAUSDT",
+        "BBBUSDT",
+        "CCCUSDT",
+        "DDDUSDT",
+        "EEEUSDT",
+    ):
+        intent = {
+            "paper_only": True,
+            "symbol": symbol,
+            "timeframe": "1m",
+            "side": "long",
+            "confidence_calibrated": 0.9,
+        }
+        blocked = paper_loop._paper_block_new_entry_by_performance_circuit(  # noqa: SLF001
+            intent=intent,
+            allocation=_allowed_allocation(effective_leverage=2.0),
+            performance_circuit_breaker_status=status,
+            halted_empty_book_probe_context=probe_context,
+        )
+        if not blocked:
+            assert (
+                paper_loop._paper_append_accepted_with_halted_probe_finalization(  # noqa: SLF001
+                    accepted,
+                    intent,
+                    probe_context,
+                )
+                is True
+            )
+
+    # One slot plus one per 30 minutes, capped at three.
+    assert len(accepted) == 3
+    assert probe_context["finalized_admission_count"] == 3
+    assert probe_context["admitted_symbols"] == [
+        "AAAUSDT",
+        "BBBUSDT",
+        "CCCUSDT",
+    ]
+    assert len(set(probe_context["admitted_symbols"])) == 3
+
+
+def test_paper_allocation_keeps_conservative_high_water_bracket_after_rounding() -> None:
+    from v2.backend.app.services.adaptive_capital_allocator import (
+        AllocationInput,
+        RiskEnvelope,
+        allocate_paper_candidate,
+    )
+    from v2.backend.app.services.binance_usdm_leverage_bracket_evidence import (
+        MAINNET_BASE_URL,
+        build_evidence_security_context,
+        build_symbol_evidence,
+        redis_key,
+    )
+
+    observed = datetime(2026, 7, 17, 12, 0, tzinfo=timezone.utc)
+    security_context = build_evidence_security_context(
+        trader_id="paper-test-trader",
+        credential_ref="PAPER_BINANCE_TEST_READONLY",
+        base_url=MAINNET_BASE_URL,
+        credential_account_specific=True,
+        hmac_key=b"paper-bracket-test-hmac-key-32-bytes-minimum",
+        auth_key_id="paper-bracket-test-key-v1",
+    )
+    evidence = build_symbol_evidence(
+        {
+            "symbol": "BTCUSDT",
+            "brackets": [
+                {
+                    "bracket": 1,
+                    "initialLeverage": 20,
+                    "notionalFloor": 0,
+                    "notionalCap": 500,
+                    "maintMarginRatio": "0.004",
+                    "cum": "0",
+                },
+                {
+                    "bracket": 2,
+                    "initialLeverage": 3,
+                    "notionalFloor": 500,
+                    "notionalCap": 1_000_000,
+                    "maintMarginRatio": "0.01",
+                    "cum": "3",
+                },
+            ],
+        },
+        security_context=security_context,
+        fetched_at=observed,
+    )
+    redis_client = _FakeRedis({redis_key("BTCUSDT", security_context=security_context): evidence})
+    row = AllocationInput(
+        symbol="BTCUSDT",
+        timeframe="1m",
+        action="long",
+        price=100.0,
+        equity=10_000.0,
+        available_margin=5_000.0,
+        wallet_balance=10_000.0,
+        confidence_calibrated=0.8,
+        expected_move_after_cost_bps=80.0,
+        market_state_integrity_score=95.0,
+        volatility_bps=50.0,
+        liquidity_score=1.0,
+        spread_bps=2.0,
+        slippage_bps=2.0,
+        fee_bps=4.0,
+        stop_distance_bps=3_000.0,
+        permitted_leverage_values=(1.0, 2.0, 3.0, 5.0, 10.0, 20.0),
+        lineage_ids={"prediction_id": "pred-bracket"},
+    )
+
+    result, effective_input, context = paper_loop._paper_allocate_with_bracket_evidence(  # noqa: SLF001
+        allocation_input=row,
+        envelope=RiskEnvelope(),
+        redis_client=redis_client,
+        security_context=security_context,
+        allocation_decision_time=observed.replace(minute=1),
+        allocate_fn=allocate_paper_candidate,
+        evidence_now_fn=lambda: observed.replace(minute=1),
+    )
+
+    assert result.decision in {"ALLOW_WITH_SIZE", "REDUCE_SIZE"}
+    assert result.gross_notional_usd < 500.0
+    assert context["conservative_total_symbol_notional_usd"] == pytest.approx(800.0)
+    assert context["status"] == "READY"
+    assert context["selected_bracket"] == 2
+    assert context["observed_post_allocation_bracket"] == 1
+    assert context["maintenance_margin_rate"] == pytest.approx(0.01)
+    assert context["maintenance_margin_cum"] == pytest.approx(3.0)
+    assert context["governing_notional_mode"] == ("CONSERVATIVE_GROSS_HIGH_WATER_TIER_NO_DOWNGRADE")
+    assert effective_input.maintenance_margin_rate == pytest.approx(0.01)
+    assert max(effective_input.permitted_leverage_values) <= 3.0
+    assert result.model_inputs["maintenance_margin_rate"] == pytest.approx(0.01)
+    lifecycle_evidence = paper_loop._paper_lifecycle_bracket_evidence(context)  # noqa: SLF001
+    assert lifecycle_evidence is not None
+    assert lifecycle_evidence["bracket_id"] == 2
+    assert lifecycle_evidence["maint_margin_ratio"] == pytest.approx(0.01)
+    assert lifecycle_evidence["cum"] == pytest.approx(3.0)
+    assert lifecycle_evidence["evidence_hash"] == context["content_checksum_sha256"]
+    assert lifecycle_evidence["evidence_hmac_sha256"] == context["evidence_hmac_sha256"]
+    assert lifecycle_evidence["binding"] == context["credential_binding_id"]
+    attached: dict[str, object] = {}
+    paper_loop._attach_paper_maintenance_bracket_context(  # noqa: SLF001
+        attached,
+        context,
+    )
+    assert (
+        attached["maintenance_bracket_evidence_checksum_sha256"]
+        == context["content_checksum_sha256"]
+    )
+    assert attached["maintenance_bracket_account_binding_id"] == context["credential_binding_id"]
+    assert attached["maintenance_bracket_binding"] == context["credential_binding_id"]
+    assert attached["maintenance_bracket_environment_id"] == "mainnet"
+    assert attached["maintenance_bracket_available_at"] == context["available_at"]
+    assert attached["maintenance_bracket_consumer_observed_at"] == context["consumer_observed_at"]
+
+    def overshooting_allocator(allocation_input, *, envelope):
+        allocated = allocate_paper_candidate(allocation_input, envelope=envelope)
+        if allocation_input.maintenance_margin_rate is not None and allocated.decision in {
+            "ALLOW_WITH_SIZE",
+            "REDUCE_SIZE",
+        }:
+            return replace(allocated, gross_notional_usd=1_500.0)
+        return allocated
+
+    overshoot_result, overshoot_input, overshoot_context = (
+        paper_loop._paper_allocate_with_bracket_evidence(  # noqa: SLF001
+            allocation_input=row,
+            envelope=RiskEnvelope(),
+            redis_client=redis_client,
+            security_context=security_context,
+            allocation_decision_time=observed.replace(minute=1),
+            allocate_fn=overshooting_allocator,
+            evidence_now_fn=lambda: observed.replace(minute=1),
+        )
+    )
+    assert overshoot_result.decision == "BLOCK_LIQUIDATION_RISK"
+    assert overshoot_input.maintenance_margin_rate is None
+    assert overshoot_context["status"] == (
+        "POST_ALLOCATION_NOTIONAL_EXCEEDS_CONSERVATIVE_HIGH_WATER"
+    )
+
+
+@pytest.mark.parametrize(
+    ("symbol", "authenticated_max_leverage", "expected_ceiling"),
+    (
+        ("BTCUSDT", 100, 75),
+        ("SOLUSDT", 100, 50),
+        ("DOGEUSDT", 100, 20),
+        ("BTCUSDT", 17, 17),
+    ),
+)
+def test_paper_allocation_derives_integer_leverage_ladder_from_authenticated_bracket(
+    monkeypatch,
+    symbol: str,
+    authenticated_max_leverage: int,
+    expected_ceiling: int,
+) -> None:
+    from v2.backend.app.services.adaptive_capital_allocator import (
+        AllocationInput,
+        RiskEnvelope,
+        allocate_paper_candidate,
+    )
+    from v2.backend.app.services.binance_usdm_leverage_bracket_evidence import (
+        MAINNET_BASE_URL,
+        build_evidence_security_context,
+        build_symbol_evidence,
+        redis_key,
+    )
+
+    monkeypatch.setenv("PAPER_MAX_LEVERAGE_MAJOR_TIER1", "75")
+    monkeypatch.setenv("PAPER_MAX_LEVERAGE_MAJOR_TIER2", "50")
+    monkeypatch.setenv("PAPER_MAX_LEVERAGE_ALT", "20")
+    observed = datetime(2026, 7, 17, 12, 0, tzinfo=timezone.utc)
+    decision_time = observed.replace(minute=1)
+    security_context = build_evidence_security_context(
+        trader_id="paper-test-trader",
+        credential_ref="PAPER_BINANCE_TEST_READONLY",
+        base_url=MAINNET_BASE_URL,
+        credential_account_specific=True,
+        hmac_key=b"paper-bracket-test-hmac-key-32-bytes-minimum",
+        auth_key_id="paper-bracket-test-key-v1",
+    )
+    evidence = build_symbol_evidence(
+        {
+            "symbol": symbol,
+            "brackets": [
+                {
+                    "bracket": 1,
+                    "initialLeverage": authenticated_max_leverage,
+                    "notionalFloor": 0,
+                    "notionalCap": 1_000_000,
+                    "maintMarginRatio": "0.004",
+                    "cum": "0",
+                },
+            ],
+        },
+        security_context=security_context,
+        fetched_at=observed,
+    )
+    redis_client = _FakeRedis({redis_key(symbol, security_context=security_context): evidence})
+    row = AllocationInput(
+        symbol=symbol,
+        timeframe="1m",
+        action="long",
+        price=100.0,
+        equity=10_000.0,
+        available_margin=5_000.0,
+        wallet_balance=10_000.0,
+        confidence_calibrated=0.8,
+        expected_move_after_cost_bps=80.0,
+        market_state_integrity_score=95.0,
+        volatility_bps=50.0,
+        liquidity_score=1.0,
+        spread_bps=2.0,
+        slippage_bps=2.0,
+        fee_bps=4.0,
+        stop_distance_bps=3_000.0,
+        permitted_leverage_values=(1.0,),
+        lineage_ids={"prediction_id": f"pred-bracket-{symbol}"},
+    )
+
+    result, effective_input, context = paper_loop._paper_allocate_with_bracket_evidence(  # noqa: SLF001
+        allocation_input=row,
+        envelope=RiskEnvelope(),
+        redis_client=redis_client,
+        security_context=security_context,
+        allocation_decision_time=decision_time,
+        allocate_fn=allocate_paper_candidate,
+        evidence_now_fn=lambda: decision_time,
+    )
+
+    assert result.decision in {"ALLOW_WITH_SIZE", "REDUCE_SIZE"}
+    assert context["status"] == "READY"
+    assert effective_input.permitted_leverage_values == tuple(
+        float(value) for value in range(1, expected_ceiling + 1)
+    )
+    assert effective_input.lineage_ids["authorized_symbol_leverage_ceiling"] == (
+        75.0 if symbol == "BTCUSDT" else 50.0 if symbol == "SOLUSDT" else 20.0
+    )
+    assert effective_input.lineage_ids["evidence_bound_leverage_ceiling"] == (expected_ceiling)
+    assert effective_input.lineage_ids["permitted_leverage_values_source"] == (
+        "AUTHENTICATED_MAINTENANCE_BRACKET_AND_AUTHORIZED_SYMBOL_CEILING"
+    )
+
+
+def test_paper_allocation_missing_bracket_evidence_fails_closed() -> None:
+    from v2.backend.app.services.adaptive_capital_allocator import (
+        AllocationInput,
+        RiskEnvelope,
+        allocate_paper_candidate,
+    )
+    from v2.backend.app.services.binance_usdm_leverage_bracket_evidence import (
+        MAINNET_BASE_URL,
+        build_evidence_security_context,
+    )
+
+    decision_time = datetime(2026, 7, 17, 12, 1, tzinfo=timezone.utc)
+    security_context = build_evidence_security_context(
+        trader_id="paper-test-trader",
+        credential_ref="PAPER_BINANCE_TEST_READONLY",
+        base_url=MAINNET_BASE_URL,
+        credential_account_specific=True,
+        hmac_key=b"paper-bracket-test-hmac-key-32-bytes-minimum",
+        auth_key_id="paper-bracket-test-key-v1",
+    )
+    row = AllocationInput(
+        symbol="BTCUSDT",
+        timeframe="1m",
+        action="long",
+        price=100.0,
+        equity=10_000.0,
+        available_margin=5_000.0,
+        wallet_balance=10_000.0,
+        confidence_calibrated=0.8,
+        expected_move_after_cost_bps=80.0,
+        market_state_integrity_score=95.0,
+        lineage_ids={"prediction_id": "pred-bracket-missing"},
+    )
+
+    result, effective_input, context = paper_loop._paper_allocate_with_bracket_evidence(  # noqa: SLF001
+        allocation_input=row,
+        envelope=RiskEnvelope(),
+        redis_client=_FakeRedis({}),
+        security_context=security_context,
+        allocation_decision_time=decision_time,
+        allocate_fn=allocate_paper_candidate,
+        evidence_now_fn=lambda: decision_time,
+    )
+
+    assert result.decision == "BLOCK_LIQUIDATION_RISK"
+    assert result.gross_notional_usd == 0.0
+    assert effective_input.maintenance_margin_rate is None
+    assert context["status"] == "CONSERVATIVE_BRACKET_EVIDENCE_UNUSABLE"
+    assert context["evidence_status"] == "LEVERAGE_BRACKET_EVIDENCE_MISSING"
+
+    unconfigured_result, unconfigured_input, unconfigured_context = (
+        paper_loop._paper_allocate_with_bracket_evidence(  # noqa: SLF001
+            allocation_input=row,
+            envelope=RiskEnvelope(),
+            redis_client=_FakeRedis({}),
+            security_context=None,
+            allocation_decision_time=decision_time,
+            allocate_fn=allocate_paper_candidate,
+            evidence_now_fn=lambda: decision_time,
+        )
+    )
+    assert unconfigured_result.decision == "BLOCK_LIQUIDATION_RISK"
+    assert unconfigured_input.maintenance_margin_rate is None
+    assert unconfigured_context["status"] == ("CONSERVATIVE_BRACKET_EVIDENCE_UNUSABLE")
+    assert unconfigured_context["evidence_status"] == ("EVIDENCE_SECURITY_CONTEXT_INVALID")
+
+
+def test_paper_allocation_point_in_time_contract_is_per_candidate_and_fail_closed() -> None:
+    decision_time = datetime(2026, 7, 17, 12, 1, tzinfo=timezone.utc)
+    intent = {
+        "entry_price_provenance_present": True,
+        "entry_price_source_available_at": "2026-07-17T12:00:50Z",
+        "entry_price_source_generated_utc": "2026-07-17T12:00:50Z",
+        "entry_price_utc": "2026-07-17T12:00:55Z",
+        "fill_price_utc": "2026-07-17T12:00:55Z",
+        "latest_price_utc": "2026-07-17T12:00:55Z",
+        "entry_feature_snapshot_id": "feature-1",
+        "entry_feature_cutoff": "2026-07-17T12:00:00Z",
+        "entry_feature_available_at": "2026-07-17T12:00:10Z",
+        "entry_feature_generated_at": "2026-07-17T12:00:11Z",
+        "entry_feature_decision_time": "2026-07-17T12:00:20Z",
+        "strategy_feature_cutoff": "2026-07-17T12:00:00Z",
+        "strategy_available_at": "2026-07-17T12:00:10Z",
+        "strategy_decision_time": "2026-07-17T12:00:20Z",
+        "strategy_temporal_contract_status": "PASS",
+        "actual_observed_spread_entry_bps": 2.0,
+        "bid_ask_spread_bps_fallback": False,
+        "entry_spread_event_time": "2026-07-17T12:00:40Z",
+        "entry_spread_generated_at": "2026-07-17T12:00:44Z",
+        "entry_spread_available_at": "2026-07-17T12:00:52Z",
+        "entry_spread_captured_at": "2026-07-17T12:00:56Z",
+        "entry_spread_decision_time": "2026-07-17T12:00:56Z",
+        "entry_spread_source_hash": "a" * 64,
+        "entry_spread_source_hash_contract": (
+            "REDIS_KEY_AND_FULL_CANONICAL_SOURCE_PAYLOAD_SHA256_V1"
+        ),
+        "paper_admission_decision_time": "2026-07-17T12:00:56Z",
+        "runtime_cost_capture_decision_time": "2026-07-17T12:00:56Z",
+        "microstructure_trust_score": 0.8,
+        "microstructure_available_at": "2026-07-17T12:00:45Z",
+        "microstructure_generated_at": "2026-07-17T12:00:44Z",
+        "microstructure_decision_time": "2026-07-17T12:00:50Z",
+        "microstructure_source_hash": "b" * 64,
+        "microstructure_source_hash_contract": (
+            "REDIS_KEY_AND_FULL_CANONICAL_SOURCE_PAYLOAD_SHA256_V1"
+        ),
+        "paper_exchange_filter_status": "READY",
+        "paper_exchange_filter_available_at": "2026-07-17T12:00:51Z",
+        "paper_exchange_filter_observed_at": "2026-07-17T12:00:57Z",
+    }
+
+    valid = paper_loop._paper_allocation_point_in_time_contract(  # noqa: SLF001
+        intent,
+        allocation_decision_time=decision_time,
+    )
+
+    assert valid["status"] == "PASS"
+    assert valid["decision_time"] == "2026-07-17T12:01:00Z"
+    assert valid["future_input_count"] == 0
+    assert "entry_spread_available_at" in valid["required_component_time_fields"]
+    assert valid["decision_time_semantics"] == (
+        "IMMUTABLE_CAPTURE_AFTER_ALL_CANDIDATE_ALLOCATION_INPUTS_BEFORE_FIRST_ALLOCATION"
+    )
+
+    future = dict(intent)
+    future["entry_spread_available_at"] = "2026-07-17T12:01:00.001Z"
+    future_result = paper_loop._paper_allocation_point_in_time_contract(  # noqa: SLF001
+        future,
+        allocation_decision_time=decision_time,
+    )
+    assert future_result["status"] == "BLOCKED"
+    assert future_result["future_input_count"] == 1
+    assert (
+        "ALLOCATION_INPUT_TIME_AFTER_DECISION:entry_spread_available_at"
+        in future_result["rejection_reasons"]
+    )
+
+    naive_and_missing = dict(intent)
+    naive_and_missing["entry_feature_available_at"] = "2026-07-17T12:00:10"
+    naive_and_missing.pop("entry_price_source_available_at")
+    invalid_result = paper_loop._paper_allocation_point_in_time_contract(  # noqa: SLF001
+        naive_and_missing,
+        allocation_decision_time=decision_time,
+    )
+    assert invalid_result["status"] == "BLOCKED"
+    assert (
+        "ALLOCATION_INPUT_TIME_UNPARSEABLE_OR_NAIVE:entry_feature_available_at"
+        in invalid_result["rejection_reasons"]
+    )
+    assert (
+        "ALLOCATION_INPUT_TIME_MISSING:entry_price_source_available_at"
+        in invalid_result["rejection_reasons"]
+    )
+
+
+def _liquidation_atr_test_allocation_input():
+    from v2.backend.app.services.adaptive_capital_allocator import AllocationInput
+
+    return AllocationInput(
+        symbol="BTCUSDT",
+        timeframe="1m",
+        action="long",
+        price=100.0,
+        equity=10_000.0,
+        available_margin=5_000.0,
+        wallet_balance=10_000.0,
+        confidence_calibrated=0.9,
+        expected_move_after_cost_bps=100.0,
+        market_state_integrity_score=1.0,
+        volatility_bps=12.0,
+        entry_atr_bps=12.0,
+        lineage_ids={"prediction_id": "prediction-atr-receipt"},
+    )
+
+
+def _liquidation_atr_test_snapshot(**overrides) -> dict[str, object]:
+    snapshot: dict[str, object] = {
+        "feature_snapshot_id": "feature-atr-receipt",
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
+        "feature_freshness_state": "CURRENT",
+        "candle_closed_confirmed": True,
+        "latest_unclosed_kline_excluded": True,
+        "candle_close_time": "2026-07-18T11:59:59Z",
+        "feature_cutoff": "2026-07-18T12:00:00Z",
+        "available_at": "2026-07-18T12:00:01Z",
+        "generated_at": "2026-07-18T12:00:02Z",
+        "features": {"atr_bps": 12.0},
+    }
+    snapshot.update(overrides)
+    return snapshot
+
+
+@pytest.mark.parametrize(
+    ("features", "expected_source_field", "expected_conversion"),
+    (
+        ({"atr_bps": 12.0}, "atr_bps", "BPS_IDENTITY"),
+        (
+            {"ta_NATR_14": 0.12},
+            "ta_NATR_14",
+            "PERCENT_UNITS_X_100_TO_BPS",
+        ),
+        (
+            {"ta_ATR_14": 0.12},
+            "ta_ATR_14",
+            "PRICE_UNITS_DIV_ENTRY_PRICE_X_10000_TO_BPS",
+        ),
+    ),
+)
+def test_paper_liquidation_atr_receipt_binds_only_canonical_final_snapshot(
+    features: dict[str, float],
+    expected_source_field: str,
+    expected_conversion: str,
+) -> None:
+    decision_time = datetime(2026, 7, 18, 12, 0, 3, tzinfo=timezone.utc)
+    intent = {
+        "entry_feature_snapshot": _liquidation_atr_test_snapshot(features=features),
+        "entry_atr_bps": 12.0,
+    }
+    allocation_input = paper_loop._paper_bind_liquidation_atr_evidence(  # noqa: SLF001
+        intent=intent,
+        allocation_input=_liquidation_atr_test_allocation_input(),
+        allocation_decision_time=decision_time,
+        point_in_time_status="PASS",
+    )
+
+    receipt = allocation_input.lineage_ids["paper_liquidation_atr_evidence"]
+    receipt_hash = allocation_input.lineage_ids["paper_liquidation_atr_evidence_sha256"]
+    assert intent["paper_liquidation_atr_evidence_status"] == "READY"
+    assert intent["paper_liquidation_atr_evidence"] == receipt
+    assert intent["paper_liquidation_atr_evidence_sha256"] == receipt_hash
+    assert receipt["schema_version"] == "paper_liquidation_atr_evidence_v1"
+    assert receipt["source"] == "CANONICAL_PIT_FINAL_ENTRY_FEATURE_SNAPSHOT"
+    assert receipt["atr_bps"] == pytest.approx(12.0)
+    assert receipt["atr_source_field"] == expected_source_field
+    assert receipt["atr_conversion"] == expected_conversion
+    assert receipt["allocation_decision_time"] == "2026-07-18T12:00:03Z"
+    assert len(receipt_hash) == 64
+
+
+@pytest.mark.parametrize(
+    ("snapshot_overrides", "reason_fragment"),
+    (
+        (
+            {"feature_freshness_state": "STALE"},
+            "PAPER_LIQUIDATION_ATR_FEATURE_SNAPSHOT_NOT_CURRENT",
+        ),
+        (
+            {"candle_closed_confirmed": False},
+            "PAPER_LIQUIDATION_ATR_CANDLE_NOT_FINAL",
+        ),
+        (
+            {"latest_unclosed_kline_excluded": False},
+            "PAPER_LIQUIDATION_ATR_UNCLOSED_KLINE_EXCLUSION_NOT_PROVEN",
+        ),
+        (
+            {"candle_close_time": None},
+            "PAPER_LIQUIDATION_ATR_TIME_INVALID:candle_close_time",
+        ),
+        (
+            {"candle_close_time": "2026-07-18T12:00:00"},
+            "PAPER_LIQUIDATION_ATR_TIME_INVALID:candle_close_time",
+        ),
+        (
+            {"candle_close_time": "2026-07-18T12:00:00.001Z"},
+            "PAPER_LIQUIDATION_ATR_TIME_ORDER_INVALID:candle_close_time>feature_cutoff",
+        ),
+        (
+            {"generated_at": "2026-07-18T12:00:04Z"},
+            "PAPER_LIQUIDATION_ATR_TIME_ORDER_INVALID:generated_at>allocation_decision_time",
+        ),
+        (
+            {"available_at": "2026-07-18T11:59:59Z"},
+            "PAPER_LIQUIDATION_ATR_TIME_ORDER_INVALID:feature_cutoff>available_at",
+        ),
+        (
+            {"symbol": "ETHUSDT"},
+            "PAPER_LIQUIDATION_ATR_FEATURE_SNAPSHOT_SYMBOL_MISMATCH",
+        ),
+        (
+            {"timeframe": "5m"},
+            "PAPER_LIQUIDATION_ATR_FEATURE_SNAPSHOT_TIMEFRAME_MISMATCH",
+        ),
+        (
+            {"feature_snapshot_id": ""},
+            "PAPER_LIQUIDATION_ATR_FEATURE_SNAPSHOT_ID_MISSING",
+        ),
+        (
+            {"features": {}},
+            "PAPER_LIQUIDATION_ATR_FEATURES_MISSING",
+        ),
+        (
+            {"features": {"atr_bps": 0.0}},
+            "PAPER_LIQUIDATION_ATR_POSITIVE_FINITE_VALUE_MISSING",
+        ),
+        (
+            {"generated_at": "2026-07-18T12:00:02"},
+            "PAPER_LIQUIDATION_ATR_TIME_INVALID:generated_at",
+        ),
+        (
+            {
+                "available_at": "2026-07-18T12:00:02.500000Z",
+                "generated_at": "2026-07-18T12:00:02Z",
+            },
+            "PAPER_LIQUIDATION_ATR_TIME_ORDER_INVALID:available_at>generated_at",
+        ),
+    ),
+)
+def test_paper_liquidation_atr_receipt_rejects_noncanonical_or_non_pit_snapshot(
+    snapshot_overrides: dict[str, object],
+    reason_fragment: str,
+) -> None:
+    intent = {
+        "entry_feature_snapshot": _liquidation_atr_test_snapshot(**snapshot_overrides),
+        "entry_atr_bps": 12.0,
+    }
+    allocation_input = paper_loop._paper_bind_liquidation_atr_evidence(  # noqa: SLF001
+        intent=intent,
+        allocation_input=_liquidation_atr_test_allocation_input(),
+        allocation_decision_time=datetime(2026, 7, 18, 12, 0, 3, tzinfo=timezone.utc),
+        point_in_time_status="PASS",
+    )
+
+    assert intent["paper_liquidation_atr_evidence_status"] == "BLOCKED"
+    assert reason_fragment in intent["paper_liquidation_atr_evidence_rejection_reasons"]
+    assert "paper_liquidation_atr_evidence" not in allocation_input.lineage_ids
+
+
+def test_paper_liquidation_atr_receipt_overwrites_untrusted_prebind_value_and_unlocks_adaptive_leverage(
+    monkeypatch,
+) -> None:
+    from v2.backend.app.services.adaptive_capital_allocator import (
+        RiskEnvelope,
+        allocate_paper_candidate,
+    )
+
+    monkeypatch.setenv("PAPER_LEVERAGE_LIQ_SAFETY_ATR_MULT", "5")
+    monkeypatch.setenv("PAPER_MAX_LEVERAGE_MAJOR_TIER1", "75")
+    intent = {
+        "entry_feature_snapshot": _liquidation_atr_test_snapshot(features={"atr_bps": 1.0}),
+        "entry_atr_bps": 500.0,
+        "entry_atr_bps_source": "UNVALIDATED_TOP_LEVEL_ALIAS",
+    }
+    prebind = replace(
+        _liquidation_atr_test_allocation_input(),
+        entry_atr_bps=500.0,
+        volatility_bps=1.0,
+        confidence_calibrated=1.0,
+        expected_move_after_cost_bps=1000.0,
+        stop_distance_bps=1.0,
+        spread_bps=0.0,
+        slippage_bps=0.0,
+        fee_bps=0.0,
+        expected_funding_bps=0.0,
+        maintenance_margin_rate=0.004,
+        permitted_leverage_values=tuple(float(value) for value in range(1, 76)),
+    )
+    bound = paper_loop._paper_bind_liquidation_atr_evidence(  # noqa: SLF001
+        intent=intent,
+        allocation_input=prebind,
+        allocation_decision_time=datetime(2026, 7, 18, 12, 0, 3, tzinfo=timezone.utc),
+        point_in_time_status="PASS",
+    )
+    authorized_bound, bound_envelope, _bound_growth_receipt = authorize_growth(
+        bound,
+        RiskEnvelope(max_effective_leverage=75.0),
+    )
+    result = allocate_paper_candidate(
+        authorized_bound,
+        bound_envelope,
+    )
+    control_intent = {
+        "entry_feature_snapshot": _liquidation_atr_test_snapshot(features={"atr_bps": 1.0}),
+    }
+    control_bound = paper_loop._paper_bind_liquidation_atr_evidence(  # noqa: SLF001
+        intent=control_intent,
+        allocation_input=replace(prebind, entry_atr_bps=1.0),
+        allocation_decision_time=datetime(2026, 7, 18, 12, 0, 3, tzinfo=timezone.utc),
+        point_in_time_status="PASS",
+    )
+    (
+        authorized_control_bound,
+        control_envelope,
+        _control_growth_receipt,
+    ) = authorize_growth(
+        control_bound,
+        RiskEnvelope(max_effective_leverage=75.0),
+    )
+    control_result = allocate_paper_candidate(
+        authorized_control_bound,
+        control_envelope,
+    )
+    rebound = paper_loop._paper_bind_liquidation_atr_evidence(  # noqa: SLF001
+        intent=intent,
+        allocation_input=bound,
+        allocation_decision_time=datetime(2026, 7, 18, 12, 0, 4, tzinfo=timezone.utc),
+        point_in_time_status="PASS",
+    )
+
+    assert bound.entry_atr_bps == 1.0
+    assert bound.lineage_ids["paper_liquidation_atr_prebind_entry_atr_bps"] == 500.0
+    assert bound.lineage_ids["paper_liquidation_atr_prebind_value_mismatch"] is True
+    assert rebound.lineage_ids["paper_liquidation_atr_prebind_entry_atr_bps"] == 500.0
+    assert rebound.lineage_ids["paper_liquidation_atr_prebind_value_mismatch"] is True
+    assert intent["entry_atr_bps"] == 500.0
+    assert intent["entry_atr_bps_source"] == "UNVALIDATED_TOP_LEVEL_ALIAS"
+    assert result.effective_leverage > 1.0
+    assert result.effective_leverage == control_result.effective_leverage
+    assert result.model_inputs["paper_liquidation_atr_bps"] == 1.0
+    assert result.model_inputs["phase8_recommendation_uses_exact_paper_liquidation_atr"] is True
+
+
+def test_paper_liquidation_atr_point_in_time_block_cannot_overwrite_prebind_value() -> None:
+    intent = {
+        "entry_feature_snapshot": _liquidation_atr_test_snapshot(features={"atr_bps": 1.0}),
+    }
+    prebind = replace(
+        _liquidation_atr_test_allocation_input(),
+        entry_atr_bps=500.0,
+    )
+
+    bound = paper_loop._paper_bind_liquidation_atr_evidence(  # noqa: SLF001
+        intent=intent,
+        allocation_input=prebind,
+        allocation_decision_time=datetime(2026, 7, 18, 12, 0, 3, tzinfo=timezone.utc),
+        point_in_time_status="BLOCKED",
+    )
+
+    assert bound.entry_atr_bps == 500.0
+    assert "paper_liquidation_atr_evidence" not in bound.lineage_ids
+    assert intent["paper_liquidation_atr_evidence_status"] == "BLOCKED"
+    assert intent["paper_liquidation_atr_evidence_rejection_reasons"] == [
+        "PAPER_LIQUIDATION_ATR_ALLOCATION_POINT_IN_TIME_NOT_PASS"
+    ]
+
+
+def test_paper_liquidation_atr_does_not_authorize_top_level_or_ta_flat_fallback() -> None:
+    intent = {
+        "entry_atr_bps": 12.0,
+        "entry_atr_bps_source": "v2_ta_flat_NATR_FALLBACK",
+        "ta_flat_atr_candle_closed_confirmed": True,
+    }
+    allocation_input = paper_loop._paper_bind_liquidation_atr_evidence(  # noqa: SLF001
+        intent=intent,
+        allocation_input=_liquidation_atr_test_allocation_input(),
+        allocation_decision_time=datetime(2026, 7, 18, 12, 0, 3, tzinfo=timezone.utc),
+        point_in_time_status="PASS",
+    )
+
+    assert intent["paper_liquidation_atr_evidence_status"] == "BLOCKED"
+    assert intent["paper_liquidation_atr_evidence_rejection_reasons"] == [
+        "PAPER_LIQUIDATION_ATR_CANONICAL_FEATURE_SNAPSHOT_MISSING"
+    ]
+    assert "paper_liquidation_atr_evidence" not in allocation_input.lineage_ids
+
+
+def test_adaptive_hedge_runtime_interlock_overrides_env_and_redis_flags(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(paper_loop, "PAPER_ADAPTIVE_HEDGE_ENABLED", True)
+    monkeypatch.setattr(
+        paper_loop,
+        "PAPER_ADAPTIVE_HEDGE_RUNTIME_SAFETY_INTERLOCK",
+        True,
+    )
+    redis_client = _FakeRedis({paper_loop.ADAPTIVE_HEDGE_ENABLED_REDIS_KEY: "true"})
+
+    assert paper_loop._adaptive_hedge_enabled(redis_client) is False  # noqa: SLF001
+
+
 def test_global_performance_halt_allows_clean_paper_risk_controller_exploration_bucket() -> None:
     intent = {
         "paper_only": True,
@@ -5384,12 +10094,8 @@ def test_global_performance_halt_caps_exploration_matching_broad_side_bucket() -
     assert blocked is False
     assert intent["paper_performance_circuit_breaker_blocked"] is False
     assert intent["paper_performance_circuit_breaker_matched_blocked_bucket_keys"] == []
-    assert intent["paper_performance_circuit_breaker_advisory_bucket_keys"] == [
-        "side:long"
-    ]
-    assert intent[
-        "paper_risk_controller_exploration_broad_quarantine_size_cap_required"
-    ] is True
+    assert intent["paper_performance_circuit_breaker_advisory_bucket_keys"] == ["side:long"]
+    assert intent["paper_risk_controller_exploration_broad_quarantine_size_cap_required"] is True
     assert allocation["allocator_decision"] == "ALLOW_WITH_SIZE"
     assert allocation["mandatory_size_haircut"] is True
 
@@ -5463,9 +10169,7 @@ def test_global_performance_halt_caps_broad_negative_bucket_metadata() -> None:
         "ADVISORY_SIZE_CAP_FOR_PAPER_EXPLORATION",
         "ADVISORY_SIZE_CAP_FOR_PAPER_EXPLORATION",
     ]
-    assert intent[
-        "paper_risk_controller_exploration_broad_quarantine_size_cap_required"
-    ] is True
+    assert intent["paper_risk_controller_exploration_broad_quarantine_size_cap_required"] is True
     assert allocation["allocator_decision"] == "ALLOW_WITH_SIZE"
     assert allocation["mandatory_size_haircut"] is True
 
@@ -5517,15 +10221,15 @@ def test_global_performance_halt_caps_immature_confidence_regime_bucket() -> Non
     assert intent["paper_performance_circuit_breaker_advisory_bucket_keys"] == [
         "confidence_regime:0.8-0.9|TREND"
     ]
-    assert intent["paper_performance_circuit_breaker_advisory_bucket_proof"][0][
-        "bucket_key"
-    ] == "confidence_regime:0.8-0.9|TREND"
-    assert intent["paper_performance_circuit_breaker_advisory_bucket_proof"][0][
-        "classification"
-    ] == "ADVISORY_SIZE_CAP_FOR_PAPER_EXPLORATION"
-    assert intent[
-        "paper_risk_controller_exploration_broad_quarantine_size_cap_required"
-    ] is True
+    assert (
+        intent["paper_performance_circuit_breaker_advisory_bucket_proof"][0]["bucket_key"]
+        == "confidence_regime:0.8-0.9|TREND"
+    )
+    assert (
+        intent["paper_performance_circuit_breaker_advisory_bucket_proof"][0]["classification"]
+        == "ADVISORY_SIZE_CAP_FOR_PAPER_EXPLORATION"
+    )
+    assert intent["paper_risk_controller_exploration_broad_quarantine_size_cap_required"] is True
     assert allocation["allocator_decision"] == "ALLOW_WITH_SIZE"
     assert allocation["mandatory_size_haircut"] is True
 
@@ -5579,15 +10283,20 @@ def test_global_performance_halt_blocks_mature_confidence_regime_bucket() -> Non
     assert intent["paper_performance_circuit_breaker_matched_blocked_bucket_keys"] == [
         "confidence_regime:0.8-0.9|TREND"
     ]
-    assert intent["paper_performance_circuit_breaker_matched_blocked_bucket_proof"][0][
-        "bucket_key"
-    ] == "confidence_regime:0.8-0.9|TREND"
-    assert intent["paper_performance_circuit_breaker_matched_blocked_bucket_proof"][0][
-        "classification"
-    ] == "HARD_BLOCK_FOR_PAPER_EXPLORATION"
-    assert intent["paper_performance_circuit_breaker_matched_blocked_bucket_proof"][0][
-        "profit_factor"
-    ] == 0.0
+    assert (
+        intent["paper_performance_circuit_breaker_matched_blocked_bucket_proof"][0]["bucket_key"]
+        == "confidence_regime:0.8-0.9|TREND"
+    )
+    assert (
+        intent["paper_performance_circuit_breaker_matched_blocked_bucket_proof"][0][
+            "classification"
+        ]
+        == "HARD_BLOCK_FOR_PAPER_EXPLORATION"
+    )
+    assert (
+        intent["paper_performance_circuit_breaker_matched_blocked_bucket_proof"][0]["profit_factor"]
+        == 0.0
+    )
     assert intent["paper_performance_circuit_breaker_advisory_bucket_keys"] == []
     assert allocation["allocator_decision"] == "BLOCK_PAPER_PERFORMANCE_CIRCUIT_BREAKER"
 
@@ -5621,16 +10330,15 @@ def test_global_performance_halt_blocks_exploration_matching_quarantine_bucket()
 
     assert blocked is True
     assert intent["paper_performance_circuit_breaker_blocked"] is True
-    assert "PAPER_BUCKET_QUARANTINE_BLOCKED_REENTRY" in intent[
-        "paper_performance_circuit_breaker_block_reasons"
-    ]
+    assert (
+        "PAPER_BUCKET_QUARANTINE_BLOCKED_REENTRY"
+        in intent["paper_performance_circuit_breaker_block_reasons"]
+    )
     assert intent["paper_performance_circuit_breaker_matched_blocked_bucket_keys"] == [
         "side_timeframe:long|15m"
     ]
     assert intent["paper_performance_circuit_breaker_advisory_bucket_keys"] == []
-    assert intent[
-        "paper_risk_controller_exploration_broad_quarantine_size_cap_required"
-    ] is False
+    assert intent["paper_risk_controller_exploration_broad_quarantine_size_cap_required"] is False
     assert allocation["allocator_decision"] == "BLOCK_PAPER_PERFORMANCE_CIRCUIT_BREAKER"
 
 
@@ -5675,9 +10383,7 @@ def test_global_performance_halt_caps_exploration_matching_broad_loss_cluster_di
     assert intent["paper_performance_circuit_breaker_advisory_loss_cluster_keys"] == [
         "loss_cluster_side:short"
     ]
-    assert intent[
-        "paper_risk_controller_exploration_broad_quarantine_size_cap_required"
-    ] is True
+    assert intent["paper_risk_controller_exploration_broad_quarantine_size_cap_required"] is True
     assert allocation["allocator_decision"] == "ALLOW_WITH_SIZE"
 
 
@@ -5716,9 +10422,10 @@ def test_global_performance_halt_blocks_exploration_matching_loss_cluster_symbol
     )
 
     assert blocked is True
-    assert "PAPER_HIGH_CONFIDENCE_LOSS_CLUSTER_BLOCKED_REENTRY" in intent[
-        "paper_performance_circuit_breaker_block_reasons"
-    ]
+    assert (
+        "PAPER_HIGH_CONFIDENCE_LOSS_CLUSTER_BLOCKED_REENTRY"
+        in intent["paper_performance_circuit_breaker_block_reasons"]
+    )
     assert intent["paper_performance_circuit_breaker_matched_blocked_bucket_keys"] == []
     assert intent["paper_performance_circuit_breaker_matched_loss_cluster_keys"] == [
         "loss_cluster_symbol:CLEANUSDT"
@@ -5726,9 +10433,7 @@ def test_global_performance_halt_blocks_exploration_matching_loss_cluster_symbol
     assert intent["paper_performance_circuit_breaker_advisory_loss_cluster_keys"] == [
         "loss_cluster_side:short"
     ]
-    assert intent[
-        "paper_risk_controller_exploration_broad_quarantine_size_cap_required"
-    ] is True
+    assert intent["paper_risk_controller_exploration_broad_quarantine_size_cap_required"] is True
     assert allocation["allocator_decision"] == "BLOCK_PAPER_PERFORMANCE_CIRCUIT_BREAKER"
 
 
@@ -5759,33 +10464,23 @@ def _allowed_allocation(**overrides):
     return payload
 
 
-def test_paper_adaptive_sizing_runtime_status_exposes_full_candidate_allocations(
+def test_paper_adaptive_sizing_runtime_status_exposes_hash_bound_operator_projections(
     monkeypatch,
 ) -> None:
     monkeypatch.setattr(paper_loop, "_utc_iso", lambda: "2026-06-22T13:30:00Z")
     allocation_rows = [
         _allowed_allocation(
             allocation_id=f"alloc-{index}",
-            allocator_decision=(
-                "ALLOW_WITH_SIZE" if index % 2 == 0 else "BLOCK_LOW_CONFIDENCE"
-            ),
-            paper_opportunity_tier=(
-                "B_GRADE_EXPLORATION_PAPER" if index % 2 == 0 else "NO_TRADE"
-            ),
-            source_tier=(
-                "B_GRADE_EXPLORATION_PAPER" if index % 2 == 0 else "NO_TRADE"
-            ),
-            policy_tier=(
-                "B_GRADE_EXPLORATION_PAPER" if index % 2 == 0 else "NO_TRADE"
-            ),
+            allocator_decision=("ALLOW_WITH_SIZE" if index % 2 == 0 else "BLOCK_LOW_CONFIDENCE"),
+            paper_opportunity_tier=("B_GRADE_EXPLORATION_PAPER" if index % 2 == 0 else "NO_TRADE"),
+            source_tier=("B_GRADE_EXPLORATION_PAPER" if index % 2 == 0 else "NO_TRADE"),
+            policy_tier=("B_GRADE_EXPLORATION_PAPER" if index % 2 == 0 else "NO_TRADE"),
             selected_action=("long" if index % 2 == 0 else "hold"),
             action=("long" if index % 2 == 0 else "hold"),
             expected_move_bps=(24.0 if index % 2 == 0 else -48.0),
             expected_move_after_cost_bps=(12.0 if index % 2 == 0 else 0.0),
             paper_fill_block_reason=(
-                None
-                if index % 2 == 0
-                else "MARKET_STATE_INTEGRITY_PAPER_GATE_BLOCKED"
+                None if index % 2 == 0 else "MARKET_STATE_INTEGRITY_PAPER_GATE_BLOCKED"
             ),
             local_block_reasons=(
                 []
@@ -5796,31 +10491,56 @@ def test_paper_adaptive_sizing_runtime_status_exposes_full_candidate_allocations
                 ]
             ),
             capital_class=(
-                "B_GRADE_EXPLORATION_FRACTIONAL_BUDGET"
-                if index % 2 == 0
-                else "NO_TRADE_ZERO_SIZE"
+                "B_GRADE_EXPLORATION_FRACTIONAL_BUDGET" if index % 2 == 0 else "NO_TRADE_ZERO_SIZE"
             ),
             guardian_status="A_GRADE_HALTED_PERFORMANCE",
             guardian_new_entries_allowed=False,
         )
         for index in range(30)
     ]
+    source_rows_before = deepcopy(allocation_rows)
 
     status = paper_loop._paper_adaptive_sizing_runtime_status(allocation_rows)  # noqa: SLF001
 
+    assert allocation_rows == source_rows_before
     assert status["paper_candidates_with_allocation"] == 30
     assert status["candidate_allocation_count"] == 30
     assert [row["allocation_id"] for row in status["candidate_allocations"]] == [
-        row["allocation_id"] for row in allocation_rows
+        row["allocation_id"] for row in allocation_rows[:5]
     ]
     assert all(row["paper_only"] is True for row in status["candidate_allocations"])
     assert all(row["places_real_order"] is False for row in status["candidate_allocations"])
     assert all(row["test_order"] is False for row in status["candidate_allocations"])
     assert all(row["leverage_mutation"] is False for row in status["candidate_allocations"])
     assert all(row["margin_mode_mutation"] is False for row in status["candidate_allocations"])
-    assert status["candidate_allocations_complete"] is True
+    assert status["candidate_allocations_complete"] is False
+    assert status["candidate_allocations_projection_only"] is True
+    assert status["candidate_allocations_projection_count"] == 5
+    assert status["candidate_allocations_projection_limit"] == 5
+    assert status["candidate_allocations_full_payload_omitted"] is True
+    assert status["candidate_allocations_authoritative_sources_unchanged"] is True
+    assert status["candidate_allocations_source_row_count"] == 30
+    assert len(status["candidate_allocations_source_hashes"]) == 30
+    source_hashes = [
+        row["source_row_canonical_sha256"] for row in status["candidate_allocations_source_hashes"]
+    ]
+    assert all(paper_loop._paper_valid_sha256(value) for value in source_hashes)  # noqa: SLF001
+    assert status["candidate_allocations_aggregate_sha256"] == (
+        paper_loop._paper_canonical_sha256(source_hashes)  # noqa: SLF001
+    )
+    assert status["candidate_allocations_all_source_rows_hashable"] is True
+    assert status["candidate_allocations_unhashable_source_row_count"] == 0
+    assert status["candidate_allocations_hash_contract"]["row_hash_algorithm"] == ("sha256")
+    assert "model_inputs" in status["candidate_allocations_omitted_fields"]
+    assert "model_inputs" not in status["candidate_allocations_operator_allowlisted_fields"]
+    assert all(
+        row["operator_projection_only"] is True
+        and row["full_source_payload_omitted"] is True
+        and "model_inputs" not in row
+        for row in status["candidate_allocations"]
+    )
     assert status["candidate_allocations_source"] == (
-        "paper_loop_allocation_rows_before_sample_truncation"
+        "paper_loop_allocation_rows_hash_bound_operator_projection_only"
     )
     assert status["candidate_allocations_selected_before_outcome"] is True
     assert status["candidate_allocations_future_labels_used_as_features"] is False
@@ -5830,8 +10550,9 @@ def test_paper_adaptive_sizing_runtime_status_exposes_full_candidate_allocations
     assert status["paper_evidence_lanes"]["paper_loop_fresh"] is True
     assert status["paper_evidence_lanes"]["rows_last_hour"] == 30
     assert status["paper_evidence_lanes"]["live_mutation_flags_all_false"] is True
-    assert len(status["sample_allocations"]) == 25
-    assert status["sample_allocations"] == status["candidate_allocations"][:25]
+    assert len(status["sample_allocations"]) == 5
+    assert status["sample_allocations"] == status["candidate_allocations"]
+    assert status["sample_allocations_projection_only"] is True
     assert status["accepted_allocation_count"] == 15
     assert status["allocator_pass_rows"] == 15
     assert status["blocked_allocation_count"] == 15
@@ -5863,10 +10584,7 @@ def test_paper_adaptive_sizing_runtime_status_exposes_full_candidate_allocations
         "long:positive": 15,
     }
     assert status["hold_with_directional_expected_move_bps_count"] == 15
-    assert (
-        status["hold_zero_after_cost_with_directional_expected_move_bps_count"]
-        == 15
-    )
+    assert status["hold_zero_after_cost_with_directional_expected_move_bps_count"] == 15
     assert status["paper_opportunity_tier_counts"] == {
         "B_GRADE_EXPLORATION_PAPER": 15,
         "NO_TRADE": 15,
@@ -5896,13 +10614,209 @@ def test_paper_adaptive_sizing_runtime_status_exposes_full_candidate_allocations
         for row in status["candidate_allocations"]
         if row["allocator_decision"] == "BLOCK_NON_EXECUTABLE_PAPER_TIER"
     ]
-    assert all(row["strategy_router_block_reason"] == "PPO_ACTION_NOT_TRADABLE" for row in blocked_rows)
-    assert all(row["strategy_router_block_reason_source"] == "local_block_reasons" for row in blocked_rows)
+    assert all(
+        row["strategy_router_block_reason"] == "PPO_ACTION_NOT_TRADABLE" for row in blocked_rows
+    )
+    assert all(
+        row["strategy_router_block_reason_source"] == "local_block_reasons" for row in blocked_rows
+    )
     assert status["allocator_microstructure_block_reason_counts"] == {"missing": 30}
     assert status["microstructure_trust_status_counts"] == {"missing": 30}
     assert status["missing_microstructure_trust_candidate_count"] == 0
     assert status["paper_only"] is True
     assert status["places_real_order"] is False
+
+
+def test_adaptive_sizing_operator_projection_rejects_recursive_material_and_detects_mutation(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(paper_loop, "_utc_iso", lambda: "2026-06-22T13:30:00Z")
+    rows: list[dict[str, object]] = []
+    for index in range(12):
+        nested_material = {
+            "bucket_quarantine_status": {
+                "sample_rows": [
+                    {
+                        "model_inputs": {
+                            "sentinel": f"SECRET_RECURSIVE_SENTINEL_{index}_" + "x" * 250_000
+                        }
+                    }
+                ]
+            },
+            "preemptive_input_material": {"replay_material": {"blob": "y" * 250_000}},
+        }
+        row = _allowed_allocation(
+            allocation_id=f"heavy-{index}",
+            paper_opportunity_tier="B_GRADE_EXPLORATION_PAPER",
+            final_size_reason="z" * 2_000,
+            local_block_reasons=["r" * 1_000 for _ in range(50)],
+        )
+        row.update(
+            {
+                "model_inputs": {"recursive": nested_material},
+                "preemptive_edge_control": {"recursive": nested_material},
+                "preemptive_input_material": {"recursive": nested_material},
+                "paper_final_admission_receipt": {"recursive": nested_material},
+            }
+        )
+        if index == 11:
+            row["allocator_reason"] = {"unexpected_nested_material": nested_material}
+        rows.append(row)
+    source_rows_before = deepcopy(rows)
+
+    status = paper_loop._paper_adaptive_sizing_runtime_status(rows)  # noqa: SLF001
+
+    assert rows == source_rows_before
+    assert status["candidate_allocation_count"] == 12
+    assert len(status["candidate_allocations"]) == 5
+    assert len(status["sample_allocations"]) == 5
+    assert len(status["candidate_allocations_source_hashes"]) == 12
+    assert status["candidate_allocations_all_source_rows_hashable"] is True
+    assert {
+        "model_inputs",
+        "preemptive_edge_control",
+        "preemptive_input_material",
+        "paper_final_admission_receipt",
+        "allocator_reason",
+    }.issubset(set(status["candidate_allocations_omitted_fields"]))
+    projected_json = json.dumps(status["candidate_allocations"], sort_keys=True)
+    assert "SECRET_RECURSIVE_SENTINEL" not in projected_json
+    for projection in status["candidate_allocations"]:
+        assert "model_inputs" not in projection
+        assert "preemptive_edge_control" not in projection
+        assert "preemptive_input_material" not in projection
+        assert "paper_final_admission_receipt" not in projection
+        assert len(projection["final_size_reason"]) == 512
+        assert len(projection["local_block_reasons"]) == 20
+        assert all(len(reason) == 256 for reason in projection["local_block_reasons"])
+        assert projection["projection_value_truncated_fields"] == [
+            "final_size_reason",
+            "local_block_reasons",
+        ]
+    first_published = paper_loop._paper_candidate_allocation_publication_row(rows[0])  # noqa: SLF001
+    first_hash = status["candidate_allocations_source_hashes"][0]["source_row_canonical_sha256"]
+    assert first_hash == paper_loop._paper_canonical_sha256(first_published)  # noqa: SLF001
+    first_aggregate_hash = status["candidate_allocations_aggregate_sha256"]
+    assert len(json.dumps(status, sort_keys=True)) < 250_000
+
+    rows[0]["model_inputs"]["recursive"]["bucket_quarantine_status"][  # type: ignore[index]
+        "sample_rows"
+    ][0]["model_inputs"]["sentinel"] = "MUTATED_SOURCE"  # type: ignore[index]
+    mutated_status = paper_loop._paper_adaptive_sizing_runtime_status(rows)  # noqa: SLF001
+
+    assert (
+        mutated_status["candidate_allocations_source_hashes"][0]["source_row_canonical_sha256"]
+        != first_hash
+    )
+    assert mutated_status["candidate_allocations_aggregate_sha256"] != (first_aggregate_hash)
+
+
+def test_bucket_health_unbounded_semantics_keep_candidate_source_hashable() -> None:
+    from v2.backend.app.services.preemptive_edge_control.bucket_health import (
+        build_bucket_health,
+    )
+
+    bucket_health = build_bucket_health(
+        [
+            {
+                "symbol": "BTCUSDT",
+                "side": "long",
+                "timeframe": "5m",
+                "strategy_selected_mode": "trend",
+                "market_regime_at_entry": "TRENDING",
+                "realized_net_pnl_usd": gain,
+                "realized_pnl_bps": gain,
+                "gross_notional_usd": 1_000.0,
+            }
+            for gain in (8.0, 5.0, 3.0)
+        ]
+    )
+    row = _allowed_allocation(
+        allocation_id="strict-json-bucket-health",
+        model_inputs={
+            "preemptive_input_material": {
+                "resolved_bucket_health_snapshot": bucket_health,
+            }
+        },
+    )
+
+    status = paper_loop._paper_adaptive_sizing_runtime_status([row])  # noqa: SLF001
+
+    assert status["candidate_allocations_all_source_rows_hashable"] is True
+    assert status["candidate_allocations_unhashable_source_row_count"] == 0
+    assert (
+        status["candidate_allocations_canonical_aggregate_contract"]["source_rows_all_hashable"]
+        is True
+    )
+    assert bucket_health["symbol:BTCUSDT"]["profit_factor"] is None
+    assert bucket_health["symbol:BTCUSDT"]["profit_factor_unbounded_no_losses"] is True
+    json.dumps(status, sort_keys=True, allow_nan=False)
+
+
+def test_top_level_operator_collection_bounds_recursive_rows_and_hashes_omitted_rows() -> None:
+    rows: list[dict[str, object]] = []
+    for index in range(12):
+        row = _allowed_allocation(
+            allocation_id=f"shadow-heavy-{index}",
+            decision="SHADOW_OBSERVATION_ONLY",
+            paper_fill_allowed=False,
+            paper_opportunity_tier="SHADOW_ONLY",
+        )
+        row["preemptive_edge_control"] = {
+            "resolved_bucket_health_snapshot": {
+                "sentinel": f"TOP_LEVEL_RECURSIVE_SENTINEL_{index}_" + "x" * 200_000
+            }
+        }
+        row["paper_runtime_market_evidence_rejection_reasons"] = ["r" * 1_000 for _ in range(40)]
+        rows.append(row)
+    rows_before = deepcopy(rows)
+
+    operator_status = paper_loop._paper_status_operator_row_collection(  # noqa: SLF001
+        rows,
+        source_collection="test.shadow_observations",
+        authoritative_source="v2:paper:shadow_observations",
+    )
+
+    assert rows == rows_before
+    assert len(operator_status["operator_rows"]) == 5
+    assert all(
+        row["operator_projection_only"] is True
+        and row["_producer_operator_projection_only"] is True
+        and row["full_source_payload_omitted"] is True
+        and "preemptive_edge_control" not in row
+        for row in operator_status["operator_rows"]
+    )
+    contract = operator_status["contract"]
+    assert contract["source_row_count"] == 12
+    assert contract["projection_count"] == 5
+    assert contract["projection_limit"] == 5
+    assert contract["source_rows_all_hashable"] is True
+    assert contract["unhashable_source_row_count"] == 0
+    assert contract["exact_aggregates"]["decision_counts"] == {"SHADOW_OBSERVATION_ONLY": 12}
+    assert "preemptive_edge_control" in contract["omitted_source_fields"]
+    serialized = json.dumps(operator_status, sort_keys=True)
+    assert "TOP_LEVEL_RECURSIVE_SENTINEL" not in serialized
+    assert len(serialized) < 200_000
+    contract_material = dict(contract)
+    embedded_contract_hash = contract_material.pop("contract_hash")
+    assert embedded_contract_hash == paper_loop._paper_canonical_sha256(  # noqa: SLF001
+        contract_material
+    )
+
+    original_aggregate = contract["source_rows_aggregate_sha256"]
+    original_projection_aggregate = contract["operator_projection_aggregate_sha256"]
+    rows[11]["preemptive_edge_control"]["resolved_bucket_health_snapshot"][  # type: ignore[index]
+        "sentinel"
+    ] = "MUTATED_OMITTED_FULL_SOURCE_ROW"
+    mutated_status = paper_loop._paper_status_operator_row_collection(  # noqa: SLF001
+        rows,
+        source_collection="test.shadow_observations",
+        authoritative_source="v2:paper:shadow_observations",
+    )
+    assert mutated_status["contract"]["source_rows_aggregate_sha256"] != (original_aggregate)
+    assert mutated_status["contract"]["operator_projection_aggregate_sha256"] == (
+        original_projection_aggregate
+    )
 
 
 def test_paper_evidence_lanes_expose_shadow_counterfactual_and_replay(monkeypatch) -> None:
@@ -5997,8 +10911,7 @@ def test_candidate_publication_derives_paper_accounting_aliases_from_decision_ti
     allocation.pop("take_profit_structure", None)
     allocation.pop("depth_impact_bps", None)
 
-    status = paper_loop._paper_adaptive_sizing_runtime_status([allocation])  # noqa: SLF001
-    published = status["candidate_allocations"][0]
+    published = paper_loop._paper_candidate_allocation_publication_row(allocation)  # noqa: SLF001
 
     assert published["paper_only"] is True
     assert published["places_real_order"] is False
@@ -6044,8 +10957,7 @@ def test_candidate_publication_derives_bounded_hedge_contract_from_budget(monkey
         },
     )
 
-    status = paper_loop._paper_adaptive_sizing_runtime_status([allocation])  # noqa: SLF001
-    published = status["candidate_allocations"][0]
+    published = paper_loop._paper_candidate_allocation_publication_row(allocation)  # noqa: SLF001
 
     assert published["hedge_enabled"] is True
     assert published["hedge_parent_id"] == "alloc-hedge"
@@ -6093,8 +11005,7 @@ def test_candidate_publication_disables_hedge_when_cost_exceeds_shortfall_reduct
         },
     )
 
-    status = paper_loop._paper_adaptive_sizing_runtime_status([allocation])  # noqa: SLF001
-    published = status["candidate_allocations"][0]
+    published = paper_loop._paper_candidate_allocation_publication_row(allocation)  # noqa: SLF001
 
     assert published["hedge_enabled"] is False
     assert published["hedge_budget_usd"] == 0.0
@@ -6118,7 +11029,9 @@ def test_candidate_publication_disables_hedge_when_cost_exceeds_shortfall_reduct
     } in published["paper_accounting_normalized_fields"]
 
 
-def test_candidate_publication_derives_zero_liquidation_rare_event_stress_suite(monkeypatch) -> None:
+def test_candidate_publication_derives_zero_liquidation_rare_event_stress_suite(
+    monkeypatch,
+) -> None:
     monkeypatch.setattr(paper_loop, "_utc_iso", lambda: "2026-06-22T13:30:00Z")
     allocation = _allowed_allocation(
         allocation_id="alloc-stress",
@@ -6139,8 +11052,8 @@ def test_candidate_publication_derives_zero_liquidation_rare_event_stress_suite(
         liquidation_buffer_bps=500.0,
     )
 
+    published = paper_loop._paper_candidate_allocation_publication_row(allocation)  # noqa: SLF001
     status = paper_loop._paper_adaptive_sizing_runtime_status([allocation])  # noqa: SLF001
-    published = status["candidate_allocations"][0]
     stress = published["pre_entry_stress_tests"]
 
     assert status["rare_event_stress_complete_candidate_count"] == 1
@@ -6170,8 +11083,8 @@ def test_paper_adaptive_sizing_status_blocks_missing_tier_allocations(monkeypatc
     monkeypatch.setattr(paper_loop, "_utc_iso", lambda: "2026-06-22T13:30:00Z")
     allocation = _allowed_allocation(allocation_id="alloc-missing-tier")
 
+    published = paper_loop._paper_candidate_allocation_publication_row(allocation)  # noqa: SLF001
     status = paper_loop._paper_adaptive_sizing_runtime_status([allocation])  # noqa: SLF001
-    published = status["candidate_allocations"][0]
 
     assert status["accepted_allocation_count"] == 0
     assert status["blocked_allocation_count"] == 1
@@ -6238,9 +11151,7 @@ def test_strategy_supply_shadow_candidate_allocation_rows_expose_positive_pass_r
     gate = {
         "status": "A_GRADE_HALTED_PERFORMANCE",
         "a_grade_new_entries_allowed": False,
-        "failure_reasons": [
-            {"reason": "INSUFFICIENT_REALTIME_A_GRADE_CLOSED_ECONOMIC_TRADES"}
-        ],
+        "failure_reasons": [{"reason": "INSUFFICIENT_REALTIME_A_GRADE_CLOSED_ECONOMIC_TRADES"}],
         "allowed_runtime_actions": ["reduce", "close"],
     }
     rows = paper_loop._strategy_supply_shadow_candidate_allocation_rows(  # noqa: SLF001
@@ -6284,9 +11195,7 @@ def test_strategy_supply_shadow_candidate_allocation_rows_expose_positive_pass_r
                 "preemptive_decision_id": "preemptive_1",
                 "pre_trade_loss_probability": 0.31,
                 "loss_probability_reason": "STRATEGY_SUPPLY_CALIBRATED_LOSS_PROBABILITY",
-                "loss_probability_reasons": [
-                    "STRATEGY_SUPPLY_CALIBRATED_LOSS_PROBABILITY"
-                ],
+                "loss_probability_reasons": ["STRATEGY_SUPPLY_CALIBRATED_LOSS_PROBABILITY"],
                 "loss_probability_calibration": {
                     "base_loss_probability": 0.4,
                     "adjusted_loss_probability": 0.31,
@@ -6300,6 +11209,7 @@ def test_strategy_supply_shadow_candidate_allocation_rows_expose_positive_pass_r
                     "available_at": "2026-06-22T13:29:55Z",
                     "generated_at": "2026-06-22T13:29:55Z",
                     "feature_cutoff": "2026-06-22T13:29:50Z",
+                    "candle_close_time": "2026-06-22T13:29:49Z",
                     "candle_closed_confirmed": True,
                     "latest_unclosed_kline_excluded": True,
                     "features": {
@@ -6329,15 +11239,9 @@ def test_strategy_supply_shadow_candidate_allocation_rows_expose_positive_pass_r
     assert row["allocator_decision"] == "ALLOW_WITH_SIZE"
     assert row["preemptive_decision"] == "BLOCK_GUARDIAN_HALTED"
     assert row["pre_trade_loss_probability"] == 0.31
-    assert row["pre_trade_loss_probability_source"] == (
-        "strategy_supply_calibrated_inventory"
-    )
-    assert row["loss_probability_reason"] == (
-        "STRATEGY_SUPPLY_CALIBRATED_LOSS_PROBABILITY"
-    )
-    assert row["loss_probability_reasons"] == [
-        "STRATEGY_SUPPLY_CALIBRATED_LOSS_PROBABILITY"
-    ]
+    assert row["pre_trade_loss_probability_source"] == ("strategy_supply_calibrated_inventory")
+    assert row["loss_probability_reason"] == ("STRATEGY_SUPPLY_CALIBRATED_LOSS_PROBABILITY")
+    assert row["loss_probability_reasons"] == ["STRATEGY_SUPPLY_CALIBRATED_LOSS_PROBABILITY"]
     assert row["loss_probability_calibration"]["adjusted_loss_probability"] == 0.31
     assert row["guardian_decision"] == "BLOCK_NEW_A_GRADE_ENTRIES"
     assert row["guardian_decision_id"].startswith("guardian_")
@@ -6441,7 +11345,14 @@ def test_current_cycle_candidate_allocations_exclude_historical_accepted_rows() 
         lifecycle_blocked_rows=[{"adaptive_allocation": lifecycle_blocked_allocation}],
     )
 
-    assert rows == [current_allocation]
+    assert len(rows) == 1
+    published = rows[0]
+    assert published["allocation_id"] == "current"
+    assert all(published.get(field) == value for field, value in current_allocation.items())
+    assert published.get("allocation_id") not in {
+        historical_allocation["allocation_id"],
+        lifecycle_blocked_allocation["allocation_id"],
+    }
 
 
 def test_current_cycle_candidate_allocations_publish_intent_runtime_evidence() -> None:
@@ -6475,9 +11386,7 @@ def test_current_cycle_candidate_allocations_publish_intent_runtime_evidence() -
             "places_real_order": False,
         },
         "paper_standalone_1m_eligibility_blocked": True,
-        "paper_standalone_1m_eligibility_blockers": [
-            paper_loop.PAPER_STANDALONE_1M_BLOCK_REASON
-        ],
+        "paper_standalone_1m_eligibility_blockers": [paper_loop.PAPER_STANDALONE_1M_BLOCK_REASON],
         "fee_bps": 4.0,
         "fee_bps_source": "exchange_fee_schedule",
         "fee_bps_fallback": False,
@@ -6562,9 +11471,7 @@ def test_current_cycle_candidate_allocations_publish_intent_runtime_evidence() -
     assert rows[0]["capital_class"] == "B_GRADE_EXPLORATION_FRACTIONAL_BUDGET"
     assert rows[0]["guardian_status"] == "A_GRADE_HALTED_PERFORMANCE"
     assert rows[0]["guardian_new_entries_allowed"] is False
-    assert rows[0]["guardian_block_reasons"] == [
-        {"reason": "ROLLING_100_WIN_RATE_BELOW_90P"}
-    ]
+    assert rows[0]["guardian_block_reasons"] == [{"reason": "ROLLING_100_WIN_RATE_BELOW_90P"}]
     assert rows[0]["guardian_allowed_runtime_actions"] == ["reduce", "close"]
     assert rows[0]["continuous_edge_guardian_status"] == "A_GRADE_HALTED_PERFORMANCE"
     assert rows[0]["continuous_edge_guardian_new_entries_allowed"] is False
@@ -6725,10 +11632,9 @@ def _missing_trust_allocation_input(intent: dict) -> object:
     )
 
 
-def test_missing_microstructure_trust_reduces_for_confident_paper_learning() -> None:
-    # 2026-07-16 adaptive gating: MISSING trust data fail-reduces (0.25 cap)
-    # for confident paper-learning intents instead of zeroing liquidity —
-    # zeroed liquidity blocked every allocation and pinned all fills to 1x.
+def test_missing_microstructure_trust_blocks_even_for_confident_paper_learning() -> None:
+    # Confidence is not market evidence. Missing trust must remain fail-closed
+    # even in paper learning so leverage cannot amplify an unevidenced book.
     intent = {
         "symbol": "BTCUSDT",
         "timeframe": "1m",
@@ -6739,12 +11645,11 @@ def test_missing_microstructure_trust_reduces_for_confident_paper_learning() -> 
         "market_state_integrity_score": 92.0,
     }
     allocation_input = _missing_trust_allocation_input(intent)
-    assert allocation_input.liquidity_score == 0.25
-    assert intent["allocator_microstructure_block_reason"] == (
-        "MICROSTRUCTURE_TRUST_SCORE_MISSING_REDUCED_FOR_CONFIDENT_PAPER_LEARNING"
-    )
+    assert allocation_input.liquidity_score == 0.0
+    assert allocation_input.risk_veto is True
+    assert intent["allocator_microstructure_block_reason"] == ("MICROSTRUCTURE_TRUST_SCORE_MISSING")
     assert intent["allocator_microstructure_trust_gate_status"] == (
-        "REDUCED_MISSING_MICROSTRUCTURE_TRUST_SCORE_CONFIDENT_PAPER"
+        "BLOCKED_MISSING_MICROSTRUCTURE_TRUST_SCORE"
     )
 
 
@@ -6850,8 +11755,7 @@ def test_build_allocation_input_uses_readonly_fee_schedule_before_configured_def
     assert allocation_input.fee_bps == pytest.approx(3.5)
     assert intent["fee_bps"] == pytest.approx(3.5)
     assert intent["fee_bps_source"] == (
-        "READ_ONLY_FEE_SCHEDULE_REDIS:v2:account:fee_schedule:BTCUSDT."
-        "taker_fee_rate:rate_to_bps"
+        "READ_ONLY_FEE_SCHEDULE_REDIS:v2:account:fee_schedule:BTCUSDT." "taker_fee_rate:rate_to_bps"
     )
     assert intent["fee_bps_fallback"] is False
     assert intent["fee_bps_readonly_schedule"] is True
@@ -7014,6 +11918,47 @@ def test_read_v2_feature_snapshot_for_signal_future_latest_does_not_bypass_pit()
     )
 
 
+@pytest.mark.parametrize(
+    ("candle_close_time", "expected_reason"),
+    (
+        (None, "CANDLE_CLOSE_TIME_MISSING_OR_UNPARSEABLE"),
+        ("2026-07-10T03:14:59.999", "CANDLE_CLOSE_TIME_MISSING_OR_UNPARSEABLE"),
+        ("2026-07-10T03:15:00.001Z", "CANDLE_CLOSE_TIME_AFTER_FEATURE_CUTOFF"),
+    ),
+)
+def test_read_v2_feature_snapshot_rejects_unproved_or_future_candle_close(
+    candle_close_time: str | None,
+    expected_reason: str,
+) -> None:
+    redis = _FakeRedis(
+        {
+            "v2:features:latest:BTCUSDT:15m": {
+                "feature_snapshot_id": "v2_fsnap_bad_close_time",
+                "symbol": "BTCUSDT",
+                "timeframe": "15m",
+                "feature_freshness_state": "CURRENT",
+                "available_at": "2026-07-10T03:27:58.000Z",
+                "generated_at": "2026-07-10T03:27:58.000Z",
+                "feature_cutoff": "2026-07-10T03:14:59.999Z",
+                "candle_close_time": candle_close_time,
+                "candle_closed_confirmed": True,
+                "latest_unclosed_kline_excluded": True,
+                "features": {"ta_ATR": 12.0},
+            }
+        }
+    )
+
+    snapshot = paper_loop._read_v2_feature_snapshot(  # noqa: SLF001
+        redis,
+        "BTCUSDT",
+        "15m",
+        decision_time="2026-07-10T03:28:00.000Z",
+    )
+
+    assert snapshot["features"] == {}
+    assert snapshot["unavailable_reason"] == expected_reason
+
+
 def test_build_allocation_input_marks_missing_thesis_timeframe_unknown() -> None:
     intent = {
         "symbol": "BTCUSDT",
@@ -7050,7 +11995,10 @@ def test_build_allocation_input_marks_missing_thesis_timeframe_unknown() -> None
 
     assert allocation_input.timeframe == paper_loop.UNKNOWN_THESIS_TIMEFRAME
     assert intent["timeframe_attribution_status"] == "MISSING_THESIS_TIMEFRAME"
-    assert intent["timeframe_attribution_rejection_reason"] == paper_loop.MISSING_THESIS_TIMEFRAME_BLOCK_REASON
+    assert (
+        intent["timeframe_attribution_rejection_reason"]
+        == paper_loop.MISSING_THESIS_TIMEFRAME_BLOCK_REASON
+    )
 
 
 def test_standalone_1m_without_dedicated_bucket_is_shadow_blocked() -> None:
@@ -7086,9 +12034,10 @@ def test_standalone_1m_without_dedicated_bucket_is_shadow_blocked() -> None:
     ]
     assert intent["paper_fill_block_reason"] == paper_loop.PAPER_STANDALONE_1M_GATE_BLOCK_REASON
     assert paper_loop.PAPER_STANDALONE_1M_BLOCK_REASON in intent["paper_fill_gate_block_reasons"]
-    assert f"standalone_1m_eligibility:{paper_loop.PAPER_STANDALONE_1M_BLOCK_REASON}" in intent[
-        "local_block_reasons"
-    ]
+    assert (
+        f"standalone_1m_eligibility:{paper_loop.PAPER_STANDALONE_1M_BLOCK_REASON}"
+        in intent["local_block_reasons"]
+    )
 
 
 def test_standalone_1m_with_dedicated_bucket_remains_eligible_for_paper_gate() -> None:
@@ -7170,9 +12119,7 @@ def test_standalone_1m_priority_bucket_evidence_allows_b_grade_collection_only()
     assert gate["paper_only_label_collection_priority_bucket_key"] == (
         "HUSDT|1m|long|paper_runtime_momentum|TREND|0.6-0.7"
     )
-    assert gate["standalone_1m_adaptive_policy"] == (
-        "PAPER_ONLY_PRIORITY_BUCKET_LABEL_COLLECTION"
-    )
+    assert gate["standalone_1m_adaptive_policy"] == ("PAPER_ONLY_PRIORITY_BUCKET_LABEL_COLLECTION")
     assert gate["blockers"] == []
     assert gate["counts_as_a_grade_evidence"] is False
     assert gate["a_grade_promotion_allowed"] is False
@@ -7490,6 +12437,36 @@ def test_write_payload_atomically_replaces_invalid_json(tmp_path) -> None:
     assert not list(tmp_path.glob("*.tmp"))
 
 
+def test_write_payload_replace_failure_preserves_target_and_cleans_temp(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    path = tmp_path / "paper_adaptive_sizing_runtime_status.json"
+    original_payload = {"cycle": "previous", "paper_only": True}
+    path.write_text(json.dumps(original_payload) + "\n", encoding="utf-8")
+    observed: dict[str, object] = {}
+
+    def reject_replace(source, destination) -> None:
+        observed["source"] = Path(source)
+        observed["destination"] = Path(destination)
+        observed["pending_payload"] = json.loads(Path(source).read_text(encoding="utf-8"))
+        assert json.loads(path.read_text(encoding="utf-8")) == original_payload
+        raise OSError("simulated atomic replace failure")
+
+    monkeypatch.setattr(paper_loop.os, "replace", reject_replace)
+
+    with pytest.raises(OSError, match="simulated atomic replace failure"):
+        paper_loop.write_payload(
+            {"cycle": "next", "paper_only": True},
+            path,
+        )
+
+    assert observed["destination"] == path
+    assert observed["pending_payload"] == {"cycle": "next", "paper_only": True}
+    assert json.loads(path.read_text(encoding="utf-8")) == original_payload
+    assert not list(tmp_path.glob("*.tmp"))
+
+
 def _write_fake_proc(
     proc_root,
     pid: int,
@@ -7499,9 +12476,7 @@ def _write_fake_proc(
 ) -> None:
     proc_dir = proc_root / str(pid)
     proc_dir.mkdir(parents=True)
-    proc_dir.joinpath("cmdline").write_bytes(
-        b"\0".join(arg.encode() for arg in argv) + b"\0"
-    )
+    proc_dir.joinpath("cmdline").write_bytes(b"\0".join(arg.encode() for arg in argv) + b"\0")
     proc_dir.joinpath("cgroup").write_text(cgroup, encoding="utf-8")
 
 
@@ -7513,15 +12488,13 @@ def test_paper_active_runtime_owner_status_passes_single_canonical_writer(
     monkeypatch.setattr(
         paper_loop,
         "_user_systemd_service_enabled",
-        lambda service_name: (
-            service_name == paper_loop.CANONICAL_PAPER_RUNTIME_SERVICE_NAME
-        ),
+        lambda service_name: (service_name == paper_loop.CANONICAL_PAPER_RUNTIME_SERVICE_NAME),
     )
     proc_root = tmp_path / "proc"
     proc_root.mkdir()
     _write_fake_proc(
         proc_root,
-        101,
+        os.getpid(),
         [
             "/repo/.venv/bin/python3",
             "-m",
@@ -7620,10 +12593,7 @@ def test_paper_active_runtime_owner_status_blocks_duplicate_or_forbidden_writer(
     assert status["canonical_paper_writer_count"] == 2
     assert status["forbidden_entry_process_count"] == 2
     assert status["duplicate_paper_writer_count"] == 3
-    assert (
-        status["active_new_entry_owner"]
-        == "BLOCKED_AMBIGUOUS_OR_FORBIDDEN_PAPER_RUNTIME_OWNER"
-    )
+    assert status["active_new_entry_owner"] == "BLOCKED_AMBIGUOUS_OR_FORBIDDEN_PAPER_RUNTIME_OWNER"
     assert status["paper_online_runtime_active"] is True
     assert status["paper_online_runtime_enabled"] is True
     assert status["toy_momentum_entry_writer_active"] is True
@@ -7733,9 +12703,10 @@ def test_controlled_one_shot_cutover_marker_rejects_incomplete_canary_contract(
     assert "LIVE_GATE_NOT_BLOCKED_HUMAN_ONLY" in marker["cutover_marker_write_rejection_reasons"]
     assert "NO_CHALLENGER_CANARY_INTENTS" in marker["cutover_marker_write_rejection_reasons"]
     assert "NO_CHALLENGER_CANARY_PENDING_ROWS" in marker["cutover_marker_write_rejection_reasons"]
-    assert "CHALLENGER_CANARY_BINDING_MISSING_ROWS_UNKNOWN" in marker[
-        "cutover_marker_write_rejection_reasons"
-    ]
+    assert (
+        "CHALLENGER_CANARY_BINDING_MISSING_ROWS_UNKNOWN"
+        in marker["cutover_marker_write_rejection_reasons"]
+    )
     assert not marker_path.exists()
 
 
@@ -7780,6 +12751,27 @@ def test_compact_accepted_fill_state_omits_snapshot_but_keeps_trust_and_executio
             "runtime_cost_capture_unexplained_missing_fields": [],
             "runtime_cost_capture_order_cost_applicable": False,
             "runtime_cost_capture_no_order_reason": "NO_TRADE_ZERO_SIZE_PAPER_INTENT",
+            "paper_allocation_decision_time": "2026-06-22T13:00:01Z",
+            "maintenance_margin_rate": 0.0065,
+            "maintenance_margin_cum": 0.0,
+            "maintenance_margin_rate_source": "BINANCE_USDM_BRACKET",
+            "maintenance_margin_evidence_available_at": "2026-06-22T12:59:59Z",
+            "maintenance_margin_evidence_status": "READY",
+            "maintenance_margin_formula_mode": "BRACKET_RATIO_AND_CUM",
+            "maintenance_bracket_id": 1,
+            "maintenance_bracket_max_initial_leverage": 75,
+            "maintenance_bracket_evidence_id": "bracket-evidence-1",
+            "maintenance_bracket_evidence_checksum_sha256": "c" * 64,
+            "maintenance_bracket_evidence_hmac_sha256": "h" * 64,
+            "maintenance_bracket_account_binding_id": "binding-1",
+            "maintenance_bracket_environment_id": "mainnet",
+            "maintenance_bracket_key_id": "key-1",
+            "maintenance_bracket_expires_at": "2026-06-22T13:09:59Z",
+            "paper_maintenance_margin_bracket_evidence": {
+                "status": "READY",
+                "selected_bracket": 1,
+                "evidence_id": "bracket-evidence-1",
+            },
             "adaptive_allocation": {
                 "target_notional_usd": 200.0,
                 "target_notional_usdt": 200.0,
@@ -7794,8 +12786,19 @@ def test_compact_accepted_fill_state_omits_snapshot_but_keeps_trust_and_executio
                 "take_profit_price": 101.5,
                 "hedge_enabled": False,
                 "depth_impact_bps": 0.25,
+                "maintenance_margin_rate": 0.0065,
+                "maintenance_margin_cum": 0.0,
+                "maintenance_bracket_evidence_id": "bracket-evidence-1",
+                "maintenance_bracket_account_binding_id": "binding-1",
+                "maintenance_bracket_environment_id": "mainnet",
                 "model_inputs": {
                     "confidence_calibrated": 0.75,
+                    "maintenance_margin_rate": 0.0065,
+                    "permitted_leverage_values": [1.0, 2.0, 3.0],
+                    "paper_risk_budget_fraction": 0.25,
+                    "maintenance_bracket_evidence_id": "bracket-evidence-1",
+                    "maintenance_bracket_account_binding_id": "binding-1",
+                    "maintenance_bracket_environment_id": "mainnet",
                     "huge_feature_vector": [9, 9, 9],
                 },
             },
@@ -7824,6 +12827,13 @@ def test_compact_accepted_fill_state_omits_snapshot_but_keeps_trust_and_executio
     assert compact["runtime_cost_capture_unexplained_missing_fields"] == []
     assert compact["runtime_cost_capture_order_cost_applicable"] is False
     assert compact["runtime_cost_capture_no_order_reason"] == "NO_TRADE_ZERO_SIZE_PAPER_INTENT"
+    assert compact["paper_allocation_decision_time"] == "2026-06-22T13:00:01Z"
+    assert compact["maintenance_margin_rate"] == pytest.approx(0.0065)
+    assert compact["maintenance_margin_cum"] == pytest.approx(0.0)
+    assert compact["maintenance_bracket_evidence_id"] == "bracket-evidence-1"
+    assert compact["maintenance_bracket_account_binding_id"] == "binding-1"
+    assert compact["maintenance_bracket_environment_id"] == "mainnet"
+    assert compact["paper_maintenance_margin_bracket_evidence"]["status"] == "READY"
     assert compact["adaptive_allocation"]["target_notional_usd"] == 200.0
     assert compact["adaptive_allocation"]["target_notional_usdt"] == 200.0
     assert compact["adaptive_allocation"]["gross_notional_usd"] == 200.0
@@ -7839,7 +12849,19 @@ def test_compact_accepted_fill_state_omits_snapshot_but_keeps_trust_and_executio
     assert compact["adaptive_allocation"]["take_profit_price"] == 101.5
     assert compact["adaptive_allocation"]["hedge_enabled"] is False
     assert compact["adaptive_allocation"]["depth_impact_bps"] == 0.25
+    assert compact["adaptive_allocation"]["maintenance_margin_rate"] == 0.0065
+    assert compact["adaptive_allocation"]["maintenance_margin_cum"] == 0.0
+    assert compact["adaptive_allocation"]["maintenance_bracket_evidence_id"] == (
+        "bracket-evidence-1"
+    )
     assert compact["adaptive_allocation"]["model_inputs"]["confidence_calibrated"] == 0.75
+    assert compact["adaptive_allocation"]["model_inputs"]["maintenance_margin_rate"] == 0.0065
+    assert compact["adaptive_allocation"]["model_inputs"]["permitted_leverage_values"] == [
+        1.0,
+        2.0,
+        3.0,
+    ]
+    assert compact["adaptive_allocation"]["model_inputs"]["paper_risk_budget_fraction"] == 0.25
     assert "huge_feature_vector" not in compact["adaptive_allocation"]["model_inputs"]
     assert "partial_fills" not in compact
     assert "all_partial_fills" not in compact
@@ -8124,15 +13146,20 @@ def test_default_writer_lock_contends_across_different_working_directories(
     second_cwd.mkdir()
     repo_root = Path(paper_loop.__file__).resolve().parents[4]
     env = {**os.environ, "PYTHONPATH": str(repo_root)}
+    shared_lock_path = (tmp_path / "shared-paper-loop-writer.lock").resolve()
     holder_code = (
+        "from pathlib import Path;"
         "from v2.backend.app.cli import v2_trade_management_paper_loop as p;"
-        "h=p._try_acquire_loop_lock();"
+        f"p.PAPER_LOOP_LOCK_PATH=Path({str(shared_lock_path)!r});"
+        "h=p._try_acquire_loop_lock(p.PAPER_LOOP_LOCK_PATH);"
         "print('LOCKED' if h is not None else 'FAILED', flush=True);"
         "input()"
     )
     contender_code = (
+        "from pathlib import Path;"
         "from v2.backend.app.cli import v2_trade_management_paper_loop as p;"
-        "h=p._try_acquire_loop_lock();"
+        f"p.PAPER_LOOP_LOCK_PATH=Path({str(shared_lock_path)!r});"
+        "h=p._try_acquire_loop_lock(p.PAPER_LOOP_LOCK_PATH);"
         "print('BLOCKED' if h is None else 'ACQUIRED')"
     )
     holder = subprocess.Popen(
@@ -8287,8 +13314,7 @@ def test_paper_runtime_cost_capture_summary_preserves_true_zero_without_cost_row
 
 def test_paper_candidate_cost_field_coverage_tracks_order_applicable_fields() -> None:
     complete = {
-        field: f"value-{field}"
-        for field in paper_loop.PHASE2_RUNTIME_COST_CAPTURE_REQUIRED_FIELDS
+        field: f"value-{field}" for field in paper_loop.PHASE2_RUNTIME_COST_CAPTURE_REQUIRED_FIELDS
     }
     complete.update(
         {
@@ -8300,8 +13326,7 @@ def test_paper_candidate_cost_field_coverage_tracks_order_applicable_fields() ->
         }
     )
     no_order = {
-        field: f"value-{field}"
-        for field in paper_loop.PHASE2_RUNTIME_COST_CAPTURE_REQUIRED_FIELDS
+        field: f"value-{field}" for field in paper_loop.PHASE2_RUNTIME_COST_CAPTURE_REQUIRED_FIELDS
     }
     no_order.update(
         {
@@ -8337,8 +13362,7 @@ def test_paper_candidate_cost_field_coverage_tracks_order_applicable_fields() ->
 
 def test_paper_candidate_cost_field_coverage_fails_unexplained_order_applicable_gap() -> None:
     row = {
-        field: f"value-{field}"
-        for field in paper_loop.PHASE2_RUNTIME_COST_CAPTURE_REQUIRED_FIELDS
+        field: f"value-{field}" for field in paper_loop.PHASE2_RUNTIME_COST_CAPTURE_REQUIRED_FIELDS
     }
     row.update(
         {
@@ -8391,7 +13415,9 @@ def test_existing_ledger_payload_overlays_lifecycle_state(monkeypatch, tmp_path)
         json.dumps(
             {
                 "accepted_fills": [{"fill_id": "state-fill", "symbol": "BTCUSDT"}],
-                "closed_trades": [{"trainer_feedback_id": "close-1", "source_fill_ids": ["state-fill"]}],
+                "closed_trades": [
+                    {"trainer_feedback_id": "close-1", "source_fill_ids": ["state-fill"]}
+                ],
                 "outcome_labels": [{"trainer_feedback_id": "close-1", "winner": True}],
                 "open_positions": [{"position_id": "pos-1", "symbol": "BTCUSDT"}],
             }
@@ -8565,20 +13591,33 @@ def test_attach_paper_sizing_preserves_decision_time_context_on_allocation() -> 
     assert allocation["mark_index_divergence_bps"] == 0.3
     assert allocation["mark_price"] == 100.03
     assert allocation["index_price"] == 100.0
-    assert allocation["margin_mode"] == "cross_paper_simulated"
+    assert allocation["margin_mode"] == "isolated_paper_simulated"
+    assert allocation["recommended_margin_mode"] == "isolated_paper_simulated"
+    assert allocation["margin_mode_counterfactual_upstream"] == ("cross_paper_simulated")
+    assert allocation["margin_mode_execution_reconciliation_reason"] == (
+        "CROSS_MARGIN_DISABLED_NO_ACCOUNT_WIDE_LIQUIDATION_MODEL"
+    )
+    assert intent["margin_mode_simulated"] == "isolated_paper_simulated"
     assert allocation["generated_at"] == "2026-06-22T12:59:05Z"
     assert allocation["live_gate"] == "blocked_human_only"
 
 
-def test_v2_mark_index_evidence_uses_positive_premium_index_values() -> None:
-    redis_client = _FakeRedis({
-        "v2:market:funding:BANKUSDT": {
-            "symbol": "BANKUSDT",
-            "markPrice": "0.03776715",
-            "indexPrice": "0.03768583",
-            "time": 1782175051004,
-        },
-    })
+def test_v2_mark_index_evidence_uses_positive_premium_index_values(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(paper_loop, "_utc_iso", lambda: "2026-06-22T13:00:00Z")
+    redis_client = _FakeRedis(
+        {
+            "v2:market:funding:BANKUSDT": {
+                "symbol": "BANKUSDT",
+                "markPrice": "0.03776715",
+                "indexPrice": "0.03768583",
+                "time": "2026-06-22T12:59:57Z",
+                "generated_at": "2026-06-22T12:59:58Z",
+                "available_at": "2026-06-22T12:59:59Z",
+            },
+        }
+    )
 
     evidence = paper_loop._read_v2_mark_index_evidence(redis_client, "BANKUSDT")  # noqa: SLF001
 
@@ -8588,23 +13627,108 @@ def test_v2_mark_index_evidence_uses_positive_premium_index_values() -> None:
     assert evidence["mark_index_source"] == (
         "V2_MARKET_FUNDING_PREMIUM_INDEX:v2:market:funding:BANKUSDT"
     )
-    assert evidence["mark_index_available_at"].endswith("Z")
+    assert evidence["mark_index_event_time"] == "2026-06-22T12:59:57.000Z"
+    assert evidence["mark_index_generated_at"] == "2026-06-22T12:59:58.000Z"
+    assert evidence["mark_index_available_at"] == "2026-06-22T12:59:59.000Z"
+    assert len(evidence["mark_index_source_hash"]) == 64
+    assert evidence["mark_index_source_hash_contract"] == (
+        "REDIS_KEY_OUTER_SELECTED_PATH_PAYLOAD_AND_FIELD_MAP_SHA256_V2"
+    )
+    assert evidence["mark_index_freshness_state"] == "CURRENT"
+    assert evidence["mark_index_evidence_age_seconds"] == pytest.approx(3.0)
+    assert evidence["mark_index_source_hash"] == (
+        paper_loop._paper_canonical_sha256(  # noqa: SLF001
+            evidence["mark_index_source_material"]
+        )
+    )
+
+
+def test_v2_mark_index_evidence_accepts_canonical_mark_price_with_lineage(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        paper_loop,
+        "_utc_iso",
+        lambda: "2026-07-17T12:00:02.500Z",
+    )
+    redis_client = _FakeRedis(
+        {
+            "v2:market:mark_price:BTCUSDT": {
+                "schema_version": "binance_usdm_mark_price_wss_v1",
+                "symbol": "BTCUSDT",
+                "mark_price": 50002.0,
+                "index_price": 50000.0,
+                "event_time": "2026-07-17T12:00:00Z",
+                "generated_at": "2026-07-17T12:00:01Z",
+                "available_at": "2026-07-17T12:00:02Z",
+                "expected_update_interval_seconds": 1.0,
+                "source": "binance_usdm_wss_mark_price_all_symbols",
+            }
+        }
+    )
+
+    evidence = paper_loop._read_v2_mark_index_evidence(  # noqa: SLF001
+        redis_client,
+        "BTCUSDT",
+    )
+
+    assert evidence["mark_price"] == pytest.approx(50002.0)
+    assert evidence["index_price"] == pytest.approx(50000.0)
+    assert evidence["mark_index_source"].endswith("v2:market:mark_price:BTCUSDT")
+    assert evidence["mark_index_expected_cadence_seconds"] == pytest.approx(1.0)
+    assert evidence["mark_index_evidence_age_seconds"] == pytest.approx(2.5)
+
+
+def test_v2_mark_index_skips_incomplete_funding_for_complete_prices(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(paper_loop, "_utc_iso", lambda: "2026-07-17T12:00:04Z")
+    redis_client = _FakeRedis(
+        {
+            "v2:market:funding:BTCUSDT": {
+                "symbol": "BTCUSDT",
+                "markPrice": "50001",
+                "indexPrice": "50000",
+                "time": "2026-07-17T12:00:00Z",
+            },
+            "v2:market:prices:BTCUSDT": {
+                "symbol": "BTCUSDT",
+                "markPrice": "50002",
+                "indexPrice": "50000",
+                "time": "2026-07-17T12:00:00Z",
+                "generated_at": "2026-07-17T12:00:01Z",
+                "available_at": "2026-07-17T12:00:02Z",
+                "expected_update_interval_seconds": 5,
+            },
+        }
+    )
+
+    evidence = paper_loop._read_v2_mark_index_evidence(  # noqa: SLF001
+        redis_client,
+        "BTCUSDT",
+    )
+
+    assert evidence["mark_price"] == pytest.approx(50002.0)
+    assert evidence["mark_index_source"].endswith("v2:market:prices:BTCUSDT")
+    assert evidence["mark_index_source_material"]["selected_path"] == "root"
 
 
 def test_v2_mark_index_evidence_does_not_fabricate_zero_or_missing_values() -> None:
-    redis_client = _FakeRedis({
-        "v2:market:funding:BTCUSDT": {
-            "symbol": "BTCUSDT",
-            "markPrice": "0",
-            "indexPrice": "0",
-            "time": 1782175051004,
-        },
-        "v2:market:prices:BTCUSDT": {
-            "symbol": "BTCUSDT",
-            "funding": None,
-            "fetched_utc": "2026-06-22T13:00:00Z",
-        },
-    })
+    redis_client = _FakeRedis(
+        {
+            "v2:market:funding:BTCUSDT": {
+                "symbol": "BTCUSDT",
+                "markPrice": "0",
+                "indexPrice": "0",
+                "time": 1782175051004,
+            },
+            "v2:market:prices:BTCUSDT": {
+                "symbol": "BTCUSDT",
+                "funding": None,
+                "fetched_utc": "2026-06-22T13:00:00Z",
+            },
+        }
+    )
 
     evidence = paper_loop._read_v2_mark_index_evidence(redis_client, "BTCUSDT")  # noqa: SLF001
 
@@ -8613,18 +13737,20 @@ def test_v2_mark_index_evidence_does_not_fabricate_zero_or_missing_values() -> N
 
 def test_v2_long_short_ratio_evidence_reads_v2_market_payload(monkeypatch) -> None:
     monkeypatch.setattr(paper_loop, "_utc_iso", lambda: "2026-06-22T13:00:30Z")
-    redis_client = _FakeRedis({
-        "v2:market:long_short:BANKUSDT": {
-            "symbol": "BANKUSDT",
-            "period": "5m",
-            "longShortRatio": "1.25",
-            "longAccount": "0.5556",
-            "shortAccount": "0.4444",
-            "timestamp": 1782175051004,
-            "source": "binance_global_long_short_account_ratio",
-            "fetched_utc": "2026-06-22T13:00:10Z",
+    redis_client = _FakeRedis(
+        {
+            "v2:market:long_short:BANKUSDT": {
+                "symbol": "BANKUSDT",
+                "period": "5m",
+                "longShortRatio": "1.25",
+                "longAccount": "0.5556",
+                "shortAccount": "0.4444",
+                "timestamp": "2026-06-22T13:00:00Z",
+                "source": "binance_global_long_short_account_ratio",
+                "fetched_utc": "2026-06-22T13:00:10Z",
+            }
         }
-    })
+    )
 
     evidence = paper_loop._read_v2_long_short_ratio_evidence(redis_client, "BANKUSDT")  # noqa: SLF001
 
@@ -8637,9 +13763,14 @@ def test_v2_long_short_ratio_evidence_reads_v2_market_payload(monkeypatch) -> No
     )
     assert evidence["long_short_available_at"] == "2026-06-22T13:00:10.000Z"
     assert evidence["long_short_captured_at"] == "2026-06-22T13:00:30Z"
+    assert evidence["long_short_event_time"] == "2026-06-22T13:00:00.000Z"
+    assert len(evidence["long_short_source_hash"]) == 64
+    assert evidence["long_short_source_hash_contract"] == (
+        "REDIS_KEY_AND_FULL_CANONICAL_SOURCE_PAYLOAD_SHA256_V1"
+    )
 
 
-def test_attach_long_short_ratio_context_is_telemetry_only() -> None:
+def test_attach_long_short_ratio_context_is_pit_valid_adaptive_b_grade_input() -> None:
     intent = {
         "symbol": "BANKUSDT",
         "decision_time": "2026-06-22T13:00:20Z",
@@ -8651,8 +13782,13 @@ def test_attach_long_short_ratio_context_is_telemetry_only() -> None:
         "short_account_ratio": 0.4444,
         "long_short_period": "5m",
         "long_short_source": "binance_global_long_short_account_ratio:v2:market:long_short:BANKUSDT",
+        "long_short_event_time": "2026-06-22T13:00:00Z",
         "long_short_available_at": "2026-06-22T13:00:10Z",
         "long_short_captured_at": "2026-06-22T13:00:30Z",
+        "long_short_source_hash": "a" * 64,
+        "long_short_source_hash_contract": (
+            "REDIS_KEY_AND_FULL_CANONICAL_SOURCE_PAYLOAD_SHA256_V1"
+        ),
     }
 
     paper_loop._attach_long_short_ratio_context(intent, evidence)  # noqa: SLF001
@@ -8661,8 +13797,11 @@ def test_attach_long_short_ratio_context_is_telemetry_only() -> None:
     assert intent["long_account_ratio"] == 0.5556
     assert intent["short_account_ratio"] == 0.4444
     assert intent["long_short_ratio_status"] == "V2_LONG_SHORT_RATIO_ATTACHED"
-    assert intent["long_short_ratio_decision_effect"] == "TELEMETRY_ONLY_NO_ADMISSION_CHANGE"
-    assert intent["long_short_decision_time"] == "2026-06-22T13:00:20Z"
+    assert intent["long_short_ratio_decision_effect"] == (
+        "PIT_VALID_INPUT_TO_ADAPTIVE_B_GRADE_CONFIDENCE_AND_BUDGET"
+    )
+    assert intent["long_short_decision_time"] == "2026-06-22T13:00:30Z"
+    assert intent["long_short_source_hash"] == "a" * 64
     assert intent["paper_fill_allowed"] is False
 
 
@@ -8677,15 +13816,19 @@ def test_attach_long_short_ratio_context_rejects_future_available_at() -> None:
         "long_short_period": "5m",
         "long_short_source": "binance_global_long_short_account_ratio:v2:market:long_short:BANKUSDT",
         "long_short_event_time": "2026-06-22T13:00:00Z",
-        "long_short_available_at": "2026-06-22T13:00:21Z",
+        "long_short_available_at": "2026-06-22T13:00:31Z",
         "long_short_captured_at": "2026-06-22T13:00:30Z",
+        "long_short_source_hash": "a" * 64,
+        "long_short_source_hash_contract": (
+            "REDIS_KEY_AND_FULL_CANONICAL_SOURCE_PAYLOAD_SHA256_V1"
+        ),
     }
 
     paper_loop._attach_long_short_ratio_context(intent, evidence)  # noqa: SLF001
 
     assert intent["long_short_ratio_status"] == "REJECTED_LONG_SHORT_AVAILABLE_AFTER_DECISION"
     assert intent["long_short_ratio_decision_effect"] == (
-        "REJECTED_PIT_TELEMETRY_ONLY_NO_ADMISSION_CHANGE"
+        "REJECTED_PIT_RAISES_ADAPTIVE_B_GRADE_CONFIDENCE_FLOOR"
     )
     assert "long_short_ratio" not in intent
     assert "long_short_available_at" not in intent
@@ -8694,20 +13837,22 @@ def test_attach_long_short_ratio_context_rejects_future_available_at() -> None:
         "binance_global_long_short_account_ratio:v2:market:long_short:BANKUSDT"
     )
     assert intent["rejected_long_short_event_time"] == "2026-06-22T13:00:00Z"
-    assert intent["rejected_long_short_available_at"] == "2026-06-22T13:00:21Z"
+    assert intent["rejected_long_short_available_at"] == "2026-06-22T13:00:31Z"
     assert intent["rejected_long_short_captured_at"] == "2026-06-22T13:00:30Z"
-    assert intent["rejected_long_short_decision_time"] == "2026-06-22T13:00:20Z"
+    assert intent["rejected_long_short_decision_time"] == "2026-06-22T13:00:30Z"
     assert intent["paper_fill_allowed"] is False
 
 
 def test_v2_long_short_ratio_evidence_does_not_fabricate_missing_values() -> None:
-    redis_client = _FakeRedis({
-        "v2:market:long_short:BANKUSDT": {
-            "symbol": "BANKUSDT",
-            "longShortRatio": "0",
-            "fetched_utc": "2026-06-22T13:00:10Z",
+    redis_client = _FakeRedis(
+        {
+            "v2:market:long_short:BANKUSDT": {
+                "symbol": "BANKUSDT",
+                "longShortRatio": "0",
+                "fetched_utc": "2026-06-22T13:00:10Z",
+            }
         }
-    })
+    )
     intent = {}
 
     evidence = paper_loop._read_v2_long_short_ratio_evidence(redis_client, "BANKUSDT")  # noqa: SLF001
@@ -8715,6 +13860,27 @@ def test_v2_long_short_ratio_evidence_does_not_fabricate_missing_values() -> Non
 
     assert evidence == {}
     assert intent["long_short_ratio_status"] == "MISSING_V2_LONG_SHORT_RATIO"
+    assert "long_short_ratio" not in intent
+
+
+def test_attach_long_short_ratio_rejects_stale_refreshed_payload() -> None:
+    intent: dict[str, object] = {}
+    evidence = {
+        "long_short_ratio": 1.25,
+        "long_short_period": "5m",
+        "long_short_source": "binance:v2:market:long_short:BTCUSDT",
+        "long_short_event_time": "2026-07-16T07:00:00Z",
+        "long_short_available_at": "2026-07-16T07:00:10Z",
+        "long_short_captured_at": "2026-07-17T12:00:00Z",
+        "long_short_source_hash": "a" * 64,
+        "long_short_source_hash_contract": (
+            "REDIS_KEY_AND_FULL_CANONICAL_SOURCE_PAYLOAD_SHA256_V1"
+        ),
+    }
+
+    paper_loop._attach_long_short_ratio_context(intent, evidence)  # noqa: SLF001
+
+    assert intent["long_short_ratio_status"] == ("REJECTED_LONG_SHORT_EVIDENCE_STALE")
     assert "long_short_ratio" not in intent
 
 
@@ -9192,6 +14358,7 @@ def test_direct_orderbook_features_feed_production_grade_cost_contract() -> None
                 "available_at": "2026-06-22T12:59:59.500Z",
                 "received_at": "2026-06-22T12:59:59.500Z",
                 "event_time": "2026-06-22T12:59:59.000Z",
+                "generated_at": "2026-06-22T12:59:59.250Z",
                 "depth_5_bid_usd": 12559.017389,
                 "depth_5_ask_usd": 7525.206321,
                 "depth_20_bid_usd": 93566.472852,
@@ -9201,6 +14368,9 @@ def test_direct_orderbook_features_feed_production_grade_cost_contract() -> None
                 "estimated_price_impact_bps": 1.6058845596,
             },
             "v2:microstructure:trust_score:ARBUSDT:1m": {
+                "schema_version": "microstructure_trust_score_v2",
+                "symbol": "ARBUSDT",
+                "timeframe": "1m",
                 "microstructure_trust_score": 0.82,
                 "orderbook_trust_score": 0.82,
                 "orderbook_trust_tier": "HIGH_TRUST",
@@ -9213,6 +14383,7 @@ def test_direct_orderbook_features_feed_production_grade_cost_contract() -> None
                 "trade_tape_confirmation_score": 0.8,
                 "cross_venue_confirmation_score": 0.8,
                 "sweep_risk_score": 0.1,
+                "generated_at": "2026-06-22T12:59:59.250Z",
                 "available_at": "2026-06-22T12:59:59.500Z",
                 "decision_time": "2026-06-22T13:00:00.000Z",
             },
@@ -9264,6 +14435,16 @@ def test_direct_orderbook_features_feed_production_grade_cost_contract() -> None
     assert market_microstructure["ask_depth_usd"] == pytest.approx(7525.206321)
     assert market_microstructure["market_depth_usd"] == pytest.approx(89967.454721)
     assert market_microstructure["depth_derived_price_impact_bps"] == pytest.approx(1.60588456)
+    assert market_microstructure["entry_spread_event_time"] == "2026-06-22T12:59:59.000Z"
+    assert market_microstructure["entry_spread_generated_at"] == "2026-06-22T12:59:59.250Z"
+    assert len(market_microstructure["entry_spread_source_hash"]) == 64
+    assert market_microstructure["entry_spread_source_hash_contract"] == (
+        "REDIS_KEY_AND_FULL_CANONICAL_SOURCE_PAYLOAD_SHA256_V1"
+    )
+    assert len(market_microstructure["microstructure_source_hash"]) == 64
+    assert market_microstructure["microstructure_source_hash_contract"] == (
+        "REDIS_KEY_AND_FULL_CANONICAL_SOURCE_PAYLOAD_SHA256_V1"
+    )
 
     paper_loop._attach_runtime_cost_capture_contract(  # noqa: SLF001
         intent,
@@ -9367,9 +14548,7 @@ def test_runtime_cost_capture_rejects_disallowed_cost_source_family() -> None:
     assert intent["cost_source_allowed"] is False
     assert "cost_source_family" not in intent
     assert intent["runtime_cost_capture_missing_fields"] == []
-    assert intent["runtime_cost_capture_source_reject_reasons"] == [
-        "DISALLOWED_COST_SOURCE"
-    ]
+    assert intent["runtime_cost_capture_source_reject_reasons"] == ["DISALLOWED_COST_SOURCE"]
     assert intent["production_grade_cost_flag"] is False
     assert intent["fallback_cost_flag"] is True
     assert "source:DISALLOWED_COST_SOURCE" in reasons
@@ -9733,7 +14912,9 @@ def test_runtime_cost_capture_contract_fallback_rows_do_not_pass_challenger_owne
     assert intent["paper_policy_owner_open_allowed"] is False
 
 
-def test_runtime_cost_capture_marks_zero_size_no_trade_rows_complete_without_training_credit() -> None:
+def test_runtime_cost_capture_marks_zero_size_no_trade_rows_complete_without_training_credit() -> (
+    None
+):
     intent = {
         "symbol": "BANKUSDT",
         "timeframe": "15m",
@@ -9822,9 +15003,10 @@ def test_runtime_cost_capture_explains_no_order_missing_cost_without_production_
     assert intent["runtime_cost_capture_order_cost_applicable"] is False
     assert intent["runtime_cost_capture_no_order_reason"] == "NO_TRADE_ZERO_SIZE_PAPER_INTENT"
     assert intent["runtime_cost_capture_missing_fields"]
-    assert intent["runtime_cost_capture_explained_missing_fields"] == intent[
-        "runtime_cost_capture_missing_fields"
-    ]
+    assert (
+        intent["runtime_cost_capture_explained_missing_fields"]
+        == intent["runtime_cost_capture_missing_fields"]
+    )
     assert intent["runtime_cost_capture_unexplained_missing_fields"] == []
     assert intent["fallback_cost_flag"] is True
     assert intent["production_grade_cost_flag"] is False
@@ -9845,7 +15027,10 @@ def test_old_policy_owner_cannot_open_new_economic_paper_fills() -> None:
 
     assert reasons == ["OLD_POLICY_NEW_ECONOMIC_PAPER_OPENS_DISABLED"]
     assert intent["paper_policy_owner_open_allowed"] is False
-    assert intent["paper_policy_owner_open_block_reason"] == "OLD_POLICY_NEW_ECONOMIC_PAPER_OPENS_DISABLED"
+    assert (
+        intent["paper_policy_owner_open_block_reason"]
+        == "OLD_POLICY_NEW_ECONOMIC_PAPER_OPENS_DISABLED"
+    )
 
 
 def test_missing_runtime_owner_identity_cannot_open_new_economic_paper_fills() -> None:
@@ -9864,7 +15049,10 @@ def test_missing_runtime_owner_identity_cannot_open_new_economic_paper_fills() -
     assert reasons[0] == paper_loop.PAPER_RUNTIME_OWNER_BLOCK_REASON
     assert "paper_policy_owner_missing" in reasons
     assert intent["paper_policy_owner_open_allowed"] is False
-    assert intent["paper_policy_owner_open_block_reason"] == paper_loop.PAPER_RUNTIME_OWNER_BLOCK_REASON
+    assert (
+        intent["paper_policy_owner_open_block_reason"]
+        == paper_loop.PAPER_RUNTIME_OWNER_BLOCK_REASON
+    )
 
 
 def test_mismatched_runtime_owner_identity_cannot_open_new_economic_paper_fills() -> None:
@@ -9998,23 +15186,24 @@ def test_positive_edge_probation_owner_gate_blocks_without_bounded_exit_plan() -
 
 
 def test_learning_lane_accepted_fill_normalization_derives_exit_plan_and_safety_flags() -> None:
+    normalized = paper_loop._normalize_learning_lane_paper_row(  # noqa: SLF001
+        {
+            "paper_opportunity_tier": paper_loop.PAPER_TIER_POSITIVE_EDGE_PROBATION,
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+            "counts_as_A_plus": None,
+            "counts_as_final_a_plus": None,
+            "counts_as_live_ready": None,
+            "side": "long",
+            "entry_price": 10.0,
+            "gross_notional_usd": 80.0,
+            "recommended_notional_usd": 80.0,
+            "stop_distance_bps": 25.0,
+        }
+    )
     valid_rows, quarantined_rows, status = paper_loop._split_invalid_admission_accepted_rows(  # noqa: SLF001
-        [
-            {
-                "paper_opportunity_tier": paper_loop.PAPER_TIER_POSITIVE_EDGE_PROBATION,
-                "paper_only": True,
-                "routes_to_live": False,
-                "places_real_order": False,
-                "counts_as_A_plus": None,
-                "counts_as_final_a_plus": None,
-                "counts_as_live_ready": None,
-                "side": "long",
-                "entry_price": 10.0,
-                "gross_notional_usd": 80.0,
-                "recommended_notional_usd": 80.0,
-                "stop_distance_bps": 25.0,
-            }
-        ]
+        [_synthetic_final_admission_sealed_row(**normalized)]
     )
 
     assert quarantined_rows == []
@@ -10281,8 +15470,12 @@ def test_missing_owner_attribution_rows_are_explicit_pre_cutover_not_challenger_
 
     assert normalized["candidate_id"] == paper_loop.UNATTRIBUTED_PRE_CUTOVER_CANDIDATE_ID
     assert normalized["policy_id"] == paper_loop.UNATTRIBUTED_PRE_CUTOVER_CANDIDATE_ID
-    assert normalized["paper_policy_owner"] == paper_loop.PAPER_POLICY_OWNER_UNATTRIBUTED_PRE_CUTOVER
-    assert normalized["policy_fingerprint"] == paper_loop.UNATTRIBUTED_PRE_CUTOVER_POLICY_FINGERPRINT
+    assert (
+        normalized["paper_policy_owner"] == paper_loop.PAPER_POLICY_OWNER_UNATTRIBUTED_PRE_CUTOVER
+    )
+    assert (
+        normalized["policy_fingerprint"] == paper_loop.UNATTRIBUTED_PRE_CUTOVER_POLICY_FINGERPRINT
+    )
     assert normalized["model_source"] == paper_loop.UNATTRIBUTED_PRE_CUTOVER_MODEL_SOURCE
     assert normalized["paper_owner_attribution_complete"] is False
     assert set(normalized["paper_owner_attribution_missing_fields"]) == {
@@ -10297,7 +15490,9 @@ def test_missing_owner_attribution_rows_are_explicit_pre_cutover_not_challenger_
     assert normalized["a_grade_promotion_allowed"] is False
     assert normalized["challenger_credit_allowed"] is False
     assert compact["candidate_id"] == paper_loop.UNATTRIBUTED_PRE_CUTOVER_CANDIDATE_ID
-    assert compact["paper_owner_attribution_status"] == "INCOMPLETE_OR_PRE_CUTOVER_OWNER_ATTRIBUTION"
+    assert (
+        compact["paper_owner_attribution_status"] == "INCOMPLETE_OR_PRE_CUTOVER_OWNER_ATTRIBUTION"
+    )
 
 
 def test_pre_cutover_owner_attribution_does_not_keep_challenger_model_identity() -> None:
@@ -10318,8 +15513,12 @@ def test_pre_cutover_owner_attribution_does_not_keep_challenger_model_identity()
 
     assert normalized["candidate_id"] == paper_loop.UNATTRIBUTED_PRE_CUTOVER_CANDIDATE_ID
     assert normalized["policy_id"] == paper_loop.UNATTRIBUTED_PRE_CUTOVER_CANDIDATE_ID
-    assert normalized["paper_policy_owner"] == paper_loop.PAPER_POLICY_OWNER_UNATTRIBUTED_PRE_CUTOVER
-    assert normalized["policy_fingerprint"] == paper_loop.UNATTRIBUTED_PRE_CUTOVER_POLICY_FINGERPRINT
+    assert (
+        normalized["paper_policy_owner"] == paper_loop.PAPER_POLICY_OWNER_UNATTRIBUTED_PRE_CUTOVER
+    )
+    assert (
+        normalized["policy_fingerprint"] == paper_loop.UNATTRIBUTED_PRE_CUTOVER_POLICY_FINGERPRINT
+    )
     assert normalized["model_source"] == paper_loop.UNATTRIBUTED_PRE_CUTOVER_MODEL_SOURCE
     assert normalized["paper_owner_attribution_complete"] is False
     assert normalized["paper_owner_attribution_missing_fields"] == ["pre_cutover_owner_attribution"]
@@ -10345,7 +15544,9 @@ def test_active_cuda_owner_attribution_rewrites_stale_frozen_candidate_id() -> N
 
     assert normalized["candidate_id"] == paper_loop.CHALLENGER_V2_ACTIVE_CUDA_CANDIDATE_ID
     assert normalized["policy_id"] == paper_loop.CHALLENGER_V2_ACTIVE_CUDA_CANDIDATE_ID
-    assert normalized["policy_fingerprint"] == paper_loop.CHALLENGER_V2_ACTIVE_CUDA_POLICY_FINGERPRINT
+    assert (
+        normalized["policy_fingerprint"] == paper_loop.CHALLENGER_V2_ACTIVE_CUDA_POLICY_FINGERPRINT
+    )
     assert normalized["model_source"] == paper_loop.CHALLENGER_V2_MODEL_SOURCE
     assert normalized["paper_owner_attribution_complete"] is True
     assert normalized["paper_owner_attribution_missing_fields"] == []
@@ -10476,7 +15677,10 @@ def test_owner_attribution_status_allows_current_challenger_and_quarantines_hist
     assert status["current_incomplete_count"] == 0
     assert status["persistent_incomplete_or_pre_cutover_count"] == 1
     assert status["current_owner_counts"] == {paper_loop.PAPER_POLICY_OWNER_CHALLENGER_V2: 1}
-    assert status["persistent_owner_counts"][paper_loop.PAPER_POLICY_OWNER_UNATTRIBUTED_PRE_CUTOVER] == 1
+    assert (
+        status["persistent_owner_counts"][paper_loop.PAPER_POLICY_OWNER_UNATTRIBUTED_PRE_CUTOVER]
+        == 1
+    )
     assert status["pre_cutover_rows_block_challenger_credit"] is True
 
 
@@ -10841,38 +16045,40 @@ def test_trainer_model_quality_runtime_status_publishes_phase_9_contract(
     monkeypatch,
 ) -> None:
     monkeypatch.setattr(paper_loop, "_utc_iso", lambda: "2026-06-22T13:45:00Z")
-    quality = paper_loop._paper_b_grade_model_quality_status([  # noqa: SLF001
-        {
-            "paper_only": True,
-            "paper_opportunity_tier": "B_GRADE_EXPLORATION_PAPER",
-            "calibration_label_purpose": "B_GRADE_EXPLORATION_OUTCOME_LABEL",
-            "symbol": "BTCUSDT",
-            "timeframe": "1m",
-            "selected_action": "long",
-            "strategy_id": "trend",
-            "market_regime_at_entry": "bull",
-            "confidence_calibrated": 0.8,
-            "expected_move_after_cost_bps": 10.0,
-            "realized_net_pnl_bps": 12.0,
-            "directional_outcome": "UP",
-            "action_was_profitable": True,
-        },
-        {
-            "paper_only": True,
-            "paper_opportunity_tier": "B_GRADE_EXPLORATION_PAPER",
-            "calibration_label_purpose": "B_GRADE_EXPLORATION_OUTCOME_LABEL",
-            "symbol": "ETHUSDT",
-            "timeframe": "5m",
-            "selected_action": "short",
-            "strategy_id": "breakout",
-            "market_regime_at_entry": "bear",
-            "confidence_calibrated": 0.7,
-            "expected_move_after_cost_bps": 8.0,
-            "realized_net_pnl_bps": 6.0,
-            "directional_outcome": "DOWN",
-            "action_was_profitable": True,
-        },
-    ])
+    quality = paper_loop._paper_b_grade_model_quality_status(
+        [  # noqa: SLF001
+            {
+                "paper_only": True,
+                "paper_opportunity_tier": "B_GRADE_EXPLORATION_PAPER",
+                "calibration_label_purpose": "B_GRADE_EXPLORATION_OUTCOME_LABEL",
+                "symbol": "BTCUSDT",
+                "timeframe": "1m",
+                "selected_action": "long",
+                "strategy_id": "trend",
+                "market_regime_at_entry": "bull",
+                "confidence_calibrated": 0.8,
+                "expected_move_after_cost_bps": 10.0,
+                "realized_net_pnl_bps": 12.0,
+                "directional_outcome": "UP",
+                "action_was_profitable": True,
+            },
+            {
+                "paper_only": True,
+                "paper_opportunity_tier": "B_GRADE_EXPLORATION_PAPER",
+                "calibration_label_purpose": "B_GRADE_EXPLORATION_OUTCOME_LABEL",
+                "symbol": "ETHUSDT",
+                "timeframe": "5m",
+                "selected_action": "short",
+                "strategy_id": "breakout",
+                "market_regime_at_entry": "bear",
+                "confidence_calibrated": 0.7,
+                "expected_move_after_cost_bps": 8.0,
+                "realized_net_pnl_bps": 6.0,
+                "directional_outcome": "DOWN",
+                "action_was_profitable": True,
+            },
+        ]
+    )
     status = paper_loop._paper_trainer_model_quality_runtime_status(  # noqa: SLF001
         quality,
         {
@@ -10968,12 +16174,14 @@ def test_b_grade_bucket_promotion_readiness_never_promotes_learning_only_bucket(
     assert bucket["counts_as_a_grade_evidence"] is False
     assert bucket["a_grade_promotion_allowed"] is False
     assert bucket["a_grade_execution_tier_if_candidate_now"] == "SHADOW_ONLY"
-    assert "B_GRADE_OUTCOMES_ARE_LEARNING_ONLY_NOT_A_GRADE_EVIDENCE" in bucket[
-        "promotion_blocker_reasons"
-    ]
-    assert "UNTOUCHED_HOLDOUT_AND_FROZEN_POLICY_NOT_VERIFIED_FOR_BUCKET" in bucket[
-        "promotion_blocker_reasons"
-    ]
+    assert (
+        "B_GRADE_OUTCOMES_ARE_LEARNING_ONLY_NOT_A_GRADE_EVIDENCE"
+        in bucket["promotion_blocker_reasons"]
+    )
+    assert (
+        "UNTOUCHED_HOLDOUT_AND_FROZEN_POLICY_NOT_VERIFIED_FOR_BUCKET"
+        in bucket["promotion_blocker_reasons"]
+    )
 
 
 def test_b_grade_exploration_budget_fraction_uses_uncertainty_and_drawdown() -> None:
@@ -11157,15 +16365,20 @@ def test_adaptive_threshold_runtime_status_counts_b_grade_floor_blocks() -> None
     assert status["adaptive_signal_stale_threshold"]["evaluated_rows"] == 2
     assert status["adaptive_signal_stale_threshold"]["adaptive_stricter_than_static_rows"] == 1
     assert status["adaptive_drawdown_recovery_confidence_floor"]["evaluated_rows"] == 2
-    assert status["adaptive_drawdown_recovery_confidence_floor"]["dynamic_never_below_static_rows"] == 2
+    assert (
+        status["adaptive_drawdown_recovery_confidence_floor"]["dynamic_never_below_static_rows"]
+        == 2
+    )
     assert status["adaptive_drawdown_recovery_confidence_floor"]["dynamic_tightened_rows"] == 1
     assert status["adaptive_directional_collapse_guard"]["evaluated_rows"] == 0
     assert "paper_signal_stale_seconds" not in status["remaining_static_threshold_blockers"]
-    assert "paper_drawdown_recovery_min_confidence" not in status["remaining_static_threshold_blockers"]
+    assert (
+        "paper_drawdown_recovery_min_confidence"
+        not in status["remaining_static_threshold_blockers"]
+    )
     assert "directional_collapse_guard" in status["remaining_static_threshold_blockers"]
     assert (
-        status["pass_conditions"]["adaptive_drawdown_recovery_threshold_never_below_static"]
-        is True
+        status["pass_conditions"]["adaptive_drawdown_recovery_threshold_never_below_static"] is True
     )
     assert status["pass_conditions"]["ready_allowed"] is False
     assert status["routes_to_live"] is False
@@ -11176,8 +16389,7 @@ def test_adaptive_threshold_runtime_status_counts_b_grade_floor_blocks() -> None
 def test_adaptive_directional_collapse_guard_tightens_large_one_sided_samples() -> None:
     ledger = {
         "closed_trades": (
-            [{"side": "short"} for _ in range(540)]
-            + [{"side": "long"} for _ in range(60)]
+            [{"side": "short"} for _ in range(540)] + [{"side": "long"} for _ in range(60)]
         )
     }
 
@@ -11202,11 +16414,12 @@ def test_adaptive_directional_collapse_guard_tightens_large_one_sided_samples() 
     assert long_guard["adaptive_directional_collapse_detected"] is True
 
 
-def test_adaptive_threshold_runtime_status_removes_directional_static_blocker_when_guard_adaptive() -> None:
+def test_adaptive_threshold_runtime_status_removes_directional_static_blocker_when_guard_adaptive() -> (
+    None
+):
     ledger = {
         "closed_trades": (
-            [{"side": "short"} for _ in range(540)]
-            + [{"side": "long"} for _ in range(60)]
+            [{"side": "short"} for _ in range(540)] + [{"side": "long"} for _ in range(60)]
         )
     }
     rows = [
@@ -11247,7 +16460,10 @@ def test_adaptive_threshold_runtime_status_removes_directional_static_blocker_wh
     assert directional["evaluated_rows"] == 1
     assert directional["adaptive_never_looser_than_static_rows"] == 1
     assert directional["adaptive_tightened_rows"] == 1
-    assert status["pass_conditions"]["adaptive_directional_collapse_guard_evaluated_rows_gt_zero"] is True
+    assert (
+        status["pass_conditions"]["adaptive_directional_collapse_guard_evaluated_rows_gt_zero"]
+        is True
+    )
     assert (
         status["pass_conditions"]["adaptive_directional_collapse_guard_never_looser_than_static"]
         is True
@@ -11278,9 +16494,7 @@ def test_b_grade_canary_supply_status_reports_paper_only_pending_supply(monkeypa
         "paper_policy_owner": "challenger_v2",
         "candidate_id": "challenger_v2_cuda_exitless_83d35e31eea385da1a283b8e",
         "policy_id": "challenger_v2_cuda_exitless_83d35e31eea385da1a283b8e",
-        "policy_fingerprint": (
-            "83d35e31eea385da1a283b8efab3102ac292be2904724d11777f2b7a32e68630"
-        ),
+        "policy_fingerprint": ("83d35e31eea385da1a283b8efab3102ac292be2904724d11777f2b7a32e68630"),
         "challenger_canary_id": "CHALLENGER_B_GRADE_PAPER_CANARY",
         "challenger_canary_profile": "CHALLENGER_B_GRADE_PAPER_CANARY",
         "paper_canary_profile": "CHALLENGER_B_GRADE_PAPER_CANARY",
@@ -11334,9 +16548,7 @@ def test_b_grade_canary_supply_status_keeps_no_trade_strategy_blocked(monkeypatc
         "paper_policy_owner": "challenger_v2",
         "candidate_id": "challenger_v2_cuda_exitless_83d35e31eea385da1a283b8e",
         "policy_id": "challenger_v2_cuda_exitless_83d35e31eea385da1a283b8e",
-        "policy_fingerprint": (
-            "83d35e31eea385da1a283b8efab3102ac292be2904724d11777f2b7a32e68630"
-        ),
+        "policy_fingerprint": ("83d35e31eea385da1a283b8efab3102ac292be2904724d11777f2b7a32e68630"),
         "challenger_canary_id": "CHALLENGER_B_GRADE_PAPER_CANARY",
         "challenger_canary_profile": "CHALLENGER_B_GRADE_PAPER_CANARY",
         "paper_canary_profile": "CHALLENGER_B_GRADE_PAPER_CANARY",
@@ -11387,9 +16599,7 @@ def test_b_grade_canary_supply_status_treats_short_negative_edge_as_favorable() 
         "paper_policy_owner": "challenger_v2",
         "candidate_id": "challenger_v2_cuda_exitless_83d35e31eea385da1a283b8e",
         "policy_id": "challenger_v2_cuda_exitless_83d35e31eea385da1a283b8e",
-        "policy_fingerprint": (
-            "83d35e31eea385da1a283b8efab3102ac292be2904724d11777f2b7a32e68630"
-        ),
+        "policy_fingerprint": ("83d35e31eea385da1a283b8efab3102ac292be2904724d11777f2b7a32e68630"),
         "challenger_canary_id": "CHALLENGER_B_GRADE_PAPER_CANARY",
         "challenger_canary_profile": "CHALLENGER_B_GRADE_PAPER_CANARY",
         "paper_canary_profile": "CHALLENGER_B_GRADE_PAPER_CANARY",
@@ -11460,9 +16670,7 @@ def test_b_grade_canary_supply_status_counts_lifecycle_supply_when_current_cycle
         "paper_policy_owner": "challenger_v2",
         "candidate_id": "challenger_v2_cuda_exitless_83d35e31eea385da1a283b8e",
         "policy_id": "challenger_v2_cuda_exitless_83d35e31eea385da1a283b8e",
-        "policy_fingerprint": (
-            "83d35e31eea385da1a283b8efab3102ac292be2904724d11777f2b7a32e68630"
-        ),
+        "policy_fingerprint": ("83d35e31eea385da1a283b8efab3102ac292be2904724d11777f2b7a32e68630"),
         "challenger_canary_id": "CHALLENGER_B_GRADE_PAPER_CANARY",
         "challenger_canary_profile": "CHALLENGER_B_GRADE_PAPER_CANARY",
         "paper_canary_profile": "CHALLENGER_B_GRADE_PAPER_CANARY",
@@ -11524,9 +16732,7 @@ def test_open_position_replay_binds_missing_b_grade_canary_identity() -> None:
         "paper_policy_owner": "challenger_v2",
         "candidate_id": "challenger_v2_cuda_exitless_83d35e31eea385da1a283b8e",
         "policy_id": "challenger_v2_cuda_exitless_83d35e31eea385da1a283b8e",
-        "policy_fingerprint": (
-            "83d35e31eea385da1a283b8efab3102ac292be2904724d11777f2b7a32e68630"
-        ),
+        "policy_fingerprint": ("83d35e31eea385da1a283b8efab3102ac292be2904724d11777f2b7a32e68630"),
         "confidence_calibrated": 0.66,
         "expected_move_after_cost_bps": -40.0,
         "production_grade_cost_flag": True,
@@ -11558,9 +16764,7 @@ def test_open_position_replay_binds_missing_b_grade_canary_identity() -> None:
     assert replayed["routes_to_live"] is False
     assert replayed["places_real_order"] is False
     assert replayed["counts_as_a_grade_evidence"] is False
-    assert replayed["challenger_canary_binding_status"] == (
-        "BOUND_CHALLENGER_B_GRADE_PAPER_CANARY"
-    )
+    assert replayed["challenger_canary_binding_status"] == ("BOUND_CHALLENGER_B_GRADE_PAPER_CANARY")
     assert "challenger_canary_id" in replayed["challenger_canary_binding_backfilled_fields"]
     assert paper_loop._paper_b_grade_lifecycle_canary_row(replayed) is True  # noqa: SLF001
 
@@ -11875,9 +17079,7 @@ def test_churn_equity_bleed_post_backfill_quarantines_same_signal_duplicates() -
     assert blocked[0]["paper_fill_block_reason"] == (
         paper_loop.PAPER_CHURN_EQUITY_BLEED_BLOCK_REASON
     )
-    assert blocked[0]["paper_churn_equity_bleed_block_stage"] == (
-        "POST_BACKFILL_PRE_LIFECYCLE"
-    )
+    assert blocked[0]["paper_churn_equity_bleed_block_stage"] == ("POST_BACKFILL_PRE_LIFECYCLE")
     assert blocked[0]["paper_churn_equity_bleed_governor_block_reasons"] == [
         "DUPLICATE_CURRENT_CYCLE_SIGNAL"
     ]
@@ -11924,9 +17126,7 @@ def _forward_canary_closed_row(symbol: str, side: str, **overrides) -> dict:
         "paper_policy_owner": "challenger_v2",
         "candidate_id": "challenger_v2_cuda_exitless_83d35e31eea385da1a283b8e",
         "policy_id": "challenger_v2_cuda_exitless_83d35e31eea385da1a283b8e",
-        "policy_fingerprint": (
-            "83d35e31eea385da1a283b8efab3102ac292be2904724d11777f2b7a32e68630"
-        ),
+        "policy_fingerprint": ("83d35e31eea385da1a283b8efab3102ac292be2904724d11777f2b7a32e68630"),
         "challenger_canary_id": "CHALLENGER_B_GRADE_PAPER_CANARY",
         "challenger_canary_profile": "CHALLENGER_B_GRADE_PAPER_CANARY",
         "paper_canary_profile": "CHALLENGER_B_GRADE_PAPER_CANARY",
@@ -12075,9 +17275,9 @@ def test_forward_canary_evidence_rejects_missing_canary_identity(monkeypatch) ->
     assert status["rows_rejected_by_reason"] == {
         "MISSING_CHALLENGER_B_GRADE_PAPER_CANARY_IDENTITY": 1
     }
-    assert status["sample_rejected_forward_canary_outcomes"][0]["forward_canary_rejection_reasons"] == [
-        "MISSING_CHALLENGER_B_GRADE_PAPER_CANARY_IDENTITY"
-    ]
+    assert status["sample_rejected_forward_canary_outcomes"][0][
+        "forward_canary_rejection_reasons"
+    ] == ["MISSING_CHALLENGER_B_GRADE_PAPER_CANARY_IDENTITY"]
 
 
 def test_forward_canary_evidence_status_passes_only_complete_paper_canary_set(monkeypatch) -> None:
@@ -12307,7 +17507,10 @@ def test_forward_canary_archive_replaces_duplicate_with_cost_complete_row(
     assert archive["archived_closed_outcome_rows"] == 1
     assert archive["duplicate_closed_outcome_rows"] == 1
     assert archive["closed_outcomes"][0]["production_grade_cost_flag"] is True
-    assert archive["closed_outcomes"][0]["runtime_cost_capture_status"] == "PRODUCTION_GRADE_COST_CAPTURE"
+    assert (
+        archive["closed_outcomes"][0]["runtime_cost_capture_status"]
+        == "PRODUCTION_GRADE_COST_CAPTURE"
+    )
 
 
 def test_confidence_trial_positive_edge_becomes_b_grade_paper_only_exploration() -> None:
@@ -12345,14 +17548,15 @@ def test_confidence_trial_positive_edge_becomes_b_grade_paper_only_exploration()
         allocation=allocation,
         classification=classification,
     )
-    paper_loop._apply_b_grade_exploration_budget_cap(  # noqa: SLF001
-        intent=intent,
-        allocation=allocation,
-        risk_budget_fraction_of_normal_adaptive=fraction,
-    )
 
     assert intent["paper_only"] is True
     assert intent["places_real_order"] is False
+    assert allocation["target_notional_usdt"] == 1000.0
+    assert allocation["target_quantity"] == 10.0
+    assert allocation["risk_budget_usd"] == 100.0
+    assert allocation["risk_budget_fraction_of_normal_adaptive"] == fraction
+    assert "b_grade_exploration_budget_cap_applied" not in allocation
+    assert "paper_reduced_budget_allocator_recomputed" not in allocation
 
 
 def test_reduced_size_microstructure_becomes_a_plus_bootstrap_paper_only() -> None:
@@ -12406,22 +17610,16 @@ def test_reduced_size_microstructure_becomes_a_plus_bootstrap_paper_only() -> No
         allocation=allocation,
         classification=classification,
     )
-    paper_loop._apply_b_grade_exploration_budget_cap(  # noqa: SLF001
-        intent=intent,
-        allocation=allocation,
-        risk_budget_fraction_of_normal_adaptive=fraction,
-    )
 
     assert intent["paper_only"] is True
     assert intent["places_real_order"] is False
-    assert allocation["target_notional_usdt"] < allocation["normal_adaptive_target_notional_usdt"]
     assert intent["counts_as_final_a_plus"] is False
-    assert allocation["b_grade_exploration_budget_cap_applied"] is True
-    assert allocation["normal_adaptive_risk_budget_usd"] == 100.0
-    assert allocation["risk_budget_usd"] == round(100.0 * fraction, 8)
-    assert allocation["target_notional_usdt"] == round(1000.0 * fraction, 8)
-    assert allocation["target_quantity"] == round(10.0 * fraction, 12)
+    assert allocation["risk_budget_usd"] == 100.0
+    assert allocation["target_notional_usdt"] == 1000.0
+    assert allocation["target_quantity"] == 10.0
     assert allocation["model_inputs"]["risk_budget_fraction_of_normal_adaptive"] == fraction
+    assert "b_grade_exploration_budget_cap_applied" not in allocation
+    assert "paper_reduced_budget_allocator_recomputed" not in allocation
 
 
 def test_reduced_size_bootstrap_requires_explicit_guardian_new_entries_allowed() -> None:
@@ -12576,7 +17774,9 @@ def test_continuous_edge_guardian_halt_downgrades_new_a_grade_to_shadow_only() -
     )
 
     assert classification["paper_opportunity_tier"] == "SHADOW_ONLY"
-    assert classification["paper_opportunity_tier_reason"] == "CONTINUOUS_EDGE_GUARDIAN_A_GRADE_HALTED"
+    assert (
+        classification["paper_opportunity_tier_reason"] == "CONTINUOUS_EDGE_GUARDIAN_A_GRADE_HALTED"
+    )
     assert classification["pre_guardian_paper_opportunity_tier"] == "A_GRADE_EXECUTION_PAPER"
     assert classification["pre_guardian_paper_opportunity_tier_reason"] == (
         "STRICT_UPSTREAM_PAPER_FILL_GATE_ALLOWED"
@@ -12604,9 +17804,7 @@ def test_continuous_edge_guardian_halt_downgrades_new_a_grade_to_shadow_only() -
     assert intent["pre_guardian_policy_tier"] == "A_GRADE_EXECUTION_PAPER"
     assert intent["guardian_status"] == "A_GRADE_HALTED_PERFORMANCE"
     assert intent["guardian_new_entries_allowed"] is False
-    assert intent["guardian_block_reasons"] == [
-        {"reason": "ROLLING_100_WIN_RATE_BELOW_90P"}
-    ]
+    assert intent["guardian_block_reasons"] == [{"reason": "ROLLING_100_WIN_RATE_BELOW_90P"}]
     assert intent["guardian_allowed_runtime_actions"] == ["reduce", "close"]
     assert allocation["source_tier"] == "SHADOW_ONLY"
     assert allocation["model_inputs"]["source_tier"] == "SHADOW_ONLY"
@@ -12627,7 +17825,9 @@ def test_dynamic_positive_edge_below_a_grade_becomes_b_grade_when_exploration_ga
             "paper_only": True,
             "places_real_order": False,
         },
-        allocation=_allowed_allocation(confidence_calibrated=0.64, expected_move_after_cost_bps=8.0),
+        allocation=_allowed_allocation(
+            confidence_calibrated=0.64, expected_move_after_cost_bps=8.0
+        ),
         integrity_gate={"allowed": True},
         local_trade_gates_pass=False,
         exploration_trade_gates_pass=True,
@@ -12637,7 +17837,10 @@ def test_dynamic_positive_edge_below_a_grade_becomes_b_grade_when_exploration_ga
     )
 
     assert classification["paper_opportunity_tier"] == "B_GRADE_EXPLORATION_PAPER"
-    assert classification["paper_opportunity_tier_reason"] == "DYNAMIC_POSITIVE_EDGE_BELOW_A_GRADE_EXPLORATION"
+    assert (
+        classification["paper_opportunity_tier_reason"]
+        == "DYNAMIC_POSITIVE_EDGE_BELOW_A_GRADE_EXPLORATION"
+    )
     assert classification["paper_only"] is True
     assert classification["places_real_order"] is False
     assert classification["risk_budget_fraction_of_normal_adaptive"] > 0.0
@@ -12733,11 +17936,13 @@ def test_invalid_admission_feedback_rows_are_quarantined_by_lineage() -> None:
         "fill-bad",
         "pred-bad",
     ]
-    assert paper_loop.P0_ENTRY_GATE_NOT_EXPLORATION_RELAXABLE_REASON in quarantined[0][
-        "quarantine_reasons"
-    ]
-    assert paper_loop.P0_ENTRY_GATE_NOT_EXPLORATION_RELAXABLE_FEEDBACK_CLASSIFICATION in (
-        quarantined[0]["missing_feedback_classifications"]
+    assert (
+        paper_loop.P0_ENTRY_GATE_NOT_EXPLORATION_RELAXABLE_REASON
+        in quarantined[0]["quarantine_reasons"]
+    )
+    assert (
+        paper_loop.P0_ENTRY_GATE_NOT_EXPLORATION_RELAXABLE_FEEDBACK_CLASSIFICATION
+        in (quarantined[0]["missing_feedback_classifications"])
     )
     assert quarantined[0]["counts_as_production_grade_training_evidence"] is False
     assert quarantined[1]["trainer_consumable"] is True
@@ -12761,25 +17966,23 @@ def test_invalid_admission_accepted_rows_are_split_to_quarantine() -> None:
             "counts_as_production_grade_training_evidence": True,
             "counts_as_a_grade_evidence": True,
         },
-        {
-            "fill_id": "fill-valid",
-            "signal_id": "signal-valid",
-            "symbol": "ETHUSDT",
-            "entry_price": 2500.0,
-            "entry_gate_block_reasons": [],
-            "paper_only": True,
-            "routes_to_live": False,
-            "places_real_order": False,
-            "trainer_consumable": True,
-        },
+        _synthetic_final_admission_sealed_row(
+            fill_id="fill-valid",
+            signal_id="signal-valid",
+            symbol="ETHUSDT",
+            entry_price=2500.0,
+            fill_price=2500.0,
+            entry_gate_block_reasons=[],
+            trainer_consumable=True,
+        ),
     ]
 
-    valid_rows, quarantine_rows, status = (
-        paper_loop._split_invalid_admission_accepted_rows(rows)  # noqa: SLF001
-    )
+    valid_rows, quarantine_rows, status = paper_loop._split_invalid_admission_accepted_rows(rows)  # noqa: SLF001
     compact_quarantine = paper_loop._compact_rows_for_state(quarantine_rows)  # noqa: SLF001
 
-    assert valid_rows == [rows[1]]
+    assert len(valid_rows) == 1
+    assert valid_rows[0]["fill_id"] == "fill-valid"
+    assert valid_rows[0]["paper_persisted_ledger_status"] == "PASS"
     assert len(quarantine_rows) == 1
     assert rows[0].get("accepted_fill_quarantined") is None
     assert quarantine_rows[0]["fill_id"] == "signal-btc-1m"
@@ -12787,9 +17990,7 @@ def test_invalid_admission_accepted_rows_are_split_to_quarantine() -> None:
     assert quarantine_rows[0]["accepted_fill_quarantine_reason"] == (
         paper_loop.P0_ENTRY_GATE_NOT_EXPLORATION_RELAXABLE_REASON
     )
-    assert quarantine_rows[0]["invalid_admission_entry_gate_block_reasons"] == [
-        invalid_reason
-    ]
+    assert quarantine_rows[0]["invalid_admission_entry_gate_block_reasons"] == [invalid_reason]
     assert quarantine_rows[0]["trainer_consumable"] is False
     assert quarantine_rows[0]["counts_as_production_grade_training_evidence"] is False
     assert quarantine_rows[0]["counts_as_a_grade_evidence"] is False
@@ -12832,15 +18033,14 @@ def test_no_trade_materialization_accepted_row_is_quarantined() -> None:
         }
     ]
 
-    valid_rows, quarantine_rows, status = (
-        paper_loop._split_invalid_admission_accepted_rows(rows)  # noqa: SLF001
-    )
+    valid_rows, quarantine_rows, status = paper_loop._split_invalid_admission_accepted_rows(rows)  # noqa: SLF001
 
     assert valid_rows == []
     assert len(quarantine_rows) == 1
     assert quarantine_rows[0]["accepted_fill_quarantined"] is True
-    assert "LIFECYCLE_OR_NO_TRADE_STRATEGY_NOT_ENTRY_EVIDENCE" in (
-        quarantine_rows[0]["invalid_admission_entry_gate_block_reasons"]
+    assert (
+        "LIFECYCLE_OR_NO_TRADE_STRATEGY_NOT_ENTRY_EVIDENCE"
+        in (quarantine_rows[0]["invalid_admission_entry_gate_block_reasons"])
     )
     assert (
         "no_trade_entry_evidence:intent.strategy_id=NO_TRADE"
@@ -13001,7 +18201,10 @@ def test_priority_bucket_candidate_becomes_paper_only_b_grade_label_collection()
     )
     assert classification["calibration_label_purpose"] == "B_GRADE_EXPLORATION_OUTCOME_LABEL"
     assert classification["paper_only_label_collection_priority"] is True
-    assert classification["paper_only_label_collection_priority_reason"] == "PRIORITY_UNDERPOWERED_BUCKET"
+    assert (
+        classification["paper_only_label_collection_priority_reason"]
+        == "PRIORITY_UNDERPOWERED_BUCKET"
+    )
     assert classification["counts_as_a_grade_evidence"] is False
     assert classification["a_grade_promotion_allowed"] is False
     assert classification["live_ready_implication"] is False
@@ -13025,9 +18228,7 @@ def test_priority_bucket_candidate_becomes_paper_only_b_grade_label_collection()
     assert allocation["source_tier"] == "B_GRADE_EXPLORATION_PAPER"
     assert allocation["capital_class"] == "B_GRADE_EXPLORATION_FRACTIONAL_BUDGET"
     assert allocation["model_inputs"]["source_tier"] == "B_GRADE_EXPLORATION_PAPER"
-    assert allocation["model_inputs"]["capital_class"] == (
-        "B_GRADE_EXPLORATION_FRACTIONAL_BUDGET"
-    )
+    assert allocation["model_inputs"]["capital_class"] == ("B_GRADE_EXPLORATION_FRACTIONAL_BUDGET")
 
 
 def test_size_adjusted_trend_entry_is_not_lifecycle_no_trade() -> None:
@@ -13055,7 +18256,9 @@ def test_size_adjusted_trend_entry_is_not_lifecycle_no_trade() -> None:
             "paper_only": True,
             "places_real_order": False,
         },
-        allocation=_allowed_allocation(confidence_calibrated=0.66, expected_move_after_cost_bps=-14.0),
+        allocation=_allowed_allocation(
+            confidence_calibrated=0.66, expected_move_after_cost_bps=-14.0
+        ),
         integrity_gate={"allowed": True},
         local_trade_gates_pass=False,
         exploration_trade_gates_pass=True,
@@ -13065,11 +18268,16 @@ def test_size_adjusted_trend_entry_is_not_lifecycle_no_trade() -> None:
     )
 
     assert classification["paper_opportunity_tier"] == "B_GRADE_EXPLORATION_PAPER"
-    assert classification["paper_opportunity_tier_reason"] == "DYNAMIC_POSITIVE_EDGE_BELOW_A_GRADE_EXPLORATION"
+    assert (
+        classification["paper_opportunity_tier_reason"]
+        == "DYNAMIC_POSITIVE_EDGE_BELOW_A_GRADE_EXPLORATION"
+    )
     assert "lifecycle_or_no_trade_strategy_reasons" not in classification
 
 
-def test_size_adjusted_trend_entry_with_reduce_only_router_canonical_mode_is_not_lifecycle_no_trade() -> None:
+def test_size_adjusted_trend_entry_with_reduce_only_router_canonical_mode_is_not_lifecycle_no_trade() -> (
+    None
+):
     classification = paper_loop._classify_paper_opportunity_tier(  # noqa: SLF001
         signal={
             "selected_action": "short",
@@ -13096,7 +18304,9 @@ def test_size_adjusted_trend_entry_with_reduce_only_router_canonical_mode_is_not
             "paper_only": True,
             "places_real_order": False,
         },
-        allocation=_allowed_allocation(confidence_calibrated=0.66, expected_move_after_cost_bps=-14.0),
+        allocation=_allowed_allocation(
+            confidence_calibrated=0.66, expected_move_after_cost_bps=-14.0
+        ),
         integrity_gate={"allowed": True},
         local_trade_gates_pass=False,
         exploration_trade_gates_pass=True,
@@ -13128,7 +18338,9 @@ def test_no_trade_strategy_mode_cannot_be_b_grade_executable() -> None:
             "expected_move_after_cost_bps": 10.0,
             "strategy_selected_mode": "no_trade_mode",
         },
-        allocation=_allowed_allocation(confidence_calibrated=0.72, expected_move_after_cost_bps=10.0),
+        allocation=_allowed_allocation(
+            confidence_calibrated=0.72, expected_move_after_cost_bps=10.0
+        ),
         integrity_gate={"allowed": True},
         local_trade_gates_pass=False,
         exploration_trade_gates_pass=True,
@@ -13161,7 +18373,9 @@ def test_no_trade_regime_label_blocks_dynamic_b_grade_exploration() -> None:
             "expected_move_after_cost_bps": -9.0,
             "market_regime_at_entry": "MODEL_DISAGREEMENT,NO_TRADE",
         },
-        allocation=_allowed_allocation(confidence_calibrated=0.68, expected_move_after_cost_bps=-9.0),
+        allocation=_allowed_allocation(
+            confidence_calibrated=0.68, expected_move_after_cost_bps=-9.0
+        ),
         integrity_gate={"allowed": True},
         local_trade_gates_pass=False,
         exploration_trade_gates_pass=True,
@@ -13193,7 +18407,9 @@ def test_canonical_risk_off_strategy_mode_cannot_be_b_grade_entry_evidence() -> 
             "strategy_mode": "risk_off_no_trade",
             "strategy_canonical_mode": "risk_off_no_trade",
         },
-        allocation=_allowed_allocation(confidence_calibrated=0.72, expected_move_after_cost_bps=14.0),
+        allocation=_allowed_allocation(
+            confidence_calibrated=0.72, expected_move_after_cost_bps=14.0
+        ),
         integrity_gate={"allowed": True},
         local_trade_gates_pass=False,
         exploration_trade_gates_pass=True,
@@ -13206,9 +18422,9 @@ def test_canonical_risk_off_strategy_mode_cannot_be_b_grade_entry_evidence() -> 
     assert classification["paper_opportunity_tier_reason"] == (
         "LIFECYCLE_OR_NO_TRADE_STRATEGY_NOT_ENTRY_EVIDENCE"
     )
-    assert "intent.strategy_mode=NO_TRADE" in classification[
-        "lifecycle_or_no_trade_strategy_reasons"
-    ]
+    assert (
+        "intent.strategy_mode=NO_TRADE" in classification["lifecycle_or_no_trade_strategy_reasons"]
+    )
 
 
 def test_lifecycle_strategy_mode_cannot_be_b_grade_entry_evidence() -> None:
@@ -13227,7 +18443,9 @@ def test_lifecycle_strategy_mode_cannot_be_b_grade_entry_evidence() -> None:
             "strategy_router_selected_mode": "reduce_size_mode",
             "entry_reason": "reduce_size_mode",
         },
-        allocation=_allowed_allocation(confidence_calibrated=0.68, expected_move_after_cost_bps=-9.0),
+        allocation=_allowed_allocation(
+            confidence_calibrated=0.68, expected_move_after_cost_bps=-9.0
+        ),
         integrity_gate={"allowed": True},
         local_trade_gates_pass=False,
         exploration_trade_gates_pass=True,
@@ -13240,12 +18458,14 @@ def test_lifecycle_strategy_mode_cannot_be_b_grade_entry_evidence() -> None:
     assert classification["paper_opportunity_tier_reason"] == (
         "LIFECYCLE_OR_NO_TRADE_STRATEGY_NOT_ENTRY_EVIDENCE"
     )
-    assert "intent.strategy_router_selected_mode=LIFECYCLE_ACTION" in classification[
-        "lifecycle_or_no_trade_strategy_reasons"
-    ]
-    assert "intent.entry_reason=LIFECYCLE_ACTION" in classification[
-        "lifecycle_or_no_trade_strategy_reasons"
-    ]
+    assert (
+        "intent.strategy_router_selected_mode=LIFECYCLE_ACTION"
+        in classification["lifecycle_or_no_trade_strategy_reasons"]
+    )
+    assert (
+        "intent.entry_reason=LIFECYCLE_ACTION"
+        in classification["lifecycle_or_no_trade_strategy_reasons"]
+    )
 
 
 def test_feedback_entry_context_uses_audited_strategy_as_entry_reason() -> None:
@@ -13296,12 +18516,8 @@ def test_feedback_entry_context_uses_audited_strategy_as_entry_reason() -> None:
             "strategy_feature_snapshot_feature_cutoff": "2026-07-06T01:59:59Z",
             "strategy_feature_snapshot_candle_closed_confirmed": True,
             "strategy_feature_snapshot_latest_unclosed_kline_excluded": True,
-            "strategy_regime_feature_source_map": {
-                "trend_strength": "feature_snapshot.ta_ADX"
-            },
-            "strategy_cross_asset_context_status": (
-                "ATTACHED_PIT_BTC_ETH_SOL_PREDICTION_GRID"
-            ),
+            "strategy_regime_feature_source_map": {"trend_strength": "feature_snapshot.ta_ADX"},
+            "strategy_cross_asset_context_status": ("ATTACHED_PIT_BTC_ETH_SOL_PREDICTION_GRID"),
             "strategy_cross_asset_context_source": "PIT_PREDICTION_GRID",
             "regime_labels": ["TREND"],
             "explanation": {},
@@ -13343,12 +18559,8 @@ def test_strategy_router_provenance_survives_publication_and_compaction() -> Non
         "strategy_feature_snapshot_feature_cutoff": "2026-07-06T01:59:59Z",
         "strategy_feature_snapshot_candle_closed_confirmed": True,
         "strategy_feature_snapshot_latest_unclosed_kline_excluded": True,
-        "strategy_regime_feature_source_map": {
-            "trend_strength": "feature_snapshot.ta_ADX"
-        },
-        "strategy_cross_asset_context_status": (
-            "ATTACHED_PIT_BTC_ETH_SOL_PREDICTION_GRID"
-        ),
+        "strategy_regime_feature_source_map": {"trend_strength": "feature_snapshot.ta_ADX"},
+        "strategy_cross_asset_context_status": ("ATTACHED_PIT_BTC_ETH_SOL_PREDICTION_GRID"),
         "strategy_cross_asset_context_source": "PIT_PREDICTION_GRID",
         "strategy_cross_asset_available_symbol_count": 3,
     }
@@ -13452,8 +18664,14 @@ def test_strategy_router_feature_snapshot_context_maps_pit_regime_inputs() -> No
     assert envelope["liquidation_context"]["nearest_distance_bps"] == 23.8
     assert envelope["microstructure_context"]["order_flow_imbalance"] == pytest.approx(0.2)
     assert envelope["oi_funding_context"]["long_short_ratio"] == 2.48
-    assert envelope["strategy_regime_feature_source_map"]["trend_strength"] == "feature_snapshot.ta_ADX"
-    assert envelope["strategy_regime_feature_source_map"]["atr_percentile"] == "feature_snapshot.atr_percentile"
+    assert (
+        envelope["strategy_regime_feature_source_map"]["trend_strength"]
+        == "feature_snapshot.ta_ADX"
+    )
+    assert (
+        envelope["strategy_regime_feature_source_map"]["atr_percentile"]
+        == "feature_snapshot.atr_percentile"
+    )
     assert volatility_liquidity["bid_ask_spread_bps"] == 1.29
     assert volatility_liquidity["orderbook_depth_usd"] == 270466.33
     assert volatility_liquidity["expected_slippage_bps"] == 0.44
@@ -13476,10 +18694,11 @@ def test_strategy_router_microstructure_context_uses_pit_fakeout_probability() -
     redis_client = _FakeRedis(
         {
             "v2:microstructure:trust_score:DOGEUSDT:1m": {
+                "schema_version": "microstructure_trust_score_v2",
                 "symbol": "DOGEUSDT",
                 "timeframe": "1m",
                 "available_at": "2026-07-06T02:29:45Z",
-                "generated_at": "2026-07-06T02:29:50Z",
+                "generated_at": "2026-07-06T02:29:40Z",
                 "microstructure_trust_score": 0.71,
                 "orderbook_trust_score": 0.69,
                 "microstructure_action": "ALLOW",
@@ -13512,6 +18731,7 @@ def test_strategy_router_microstructure_context_rejects_future_fakeout_probabili
     redis_client = _FakeRedis(
         {
             "v2:microstructure:trust_score:DOGEUSDT:1m": {
+                "schema_version": "microstructure_trust_score_v2",
                 "symbol": "DOGEUSDT",
                 "timeframe": "1m",
                 "available_at": "2026-07-06T02:30:10Z",
@@ -13532,9 +18752,7 @@ def test_strategy_router_microstructure_context_rejects_future_fakeout_probabili
     envelope: dict[str, object] = {}
     paper_loop._attach_strategy_router_microstructure_context(envelope, trust)  # noqa: SLF001
 
-    assert trust["microstructure_trust_status"] == (
-        "REJECTED_MICROSTRUCTURE_TRUST_AFTER_DECISION"
-    )
+    assert trust["microstructure_trust_status"] == ("REJECTED_MICROSTRUCTURE_TRUST_AFTER_DECISION")
     assert "fakeout_reversal_probability" not in envelope
     assert envelope["microstructure_context"]["microstructure_trust_status"] == (
         "REJECTED_MICROSTRUCTURE_TRUST_AFTER_DECISION"
@@ -13590,9 +18808,7 @@ def test_strategy_router_cross_asset_context_uses_pit_prediction_grid() -> None:
     assert envelope["cross_asset_btc_eth_sol_regime"] == "btc_eth_sol_risk_off"
     assert envelope["market_wide_risk"] == "risk_off"
     assert envelope["public_intel_context"]["source"] == "PIT_PREDICTION_GRID"
-    assert envelope["public_intel_context"]["market_breadth_score"] == pytest.approx(
-        -1 / 3
-    )
+    assert envelope["public_intel_context"]["market_breadth_score"] == pytest.approx(-1 / 3)
     assert len(envelope["public_intel_context"]["source_rows"]) == 3
 
 
@@ -13633,8 +18849,16 @@ def test_strategy_router_cross_asset_context_rejects_future_prediction_rows() ->
 
 def test_positive_edge_below_a_grade_row_becomes_dynamic_b_grade_exploration() -> None:
     classification = paper_loop._classify_paper_opportunity_tier(  # noqa: SLF001
-        signal={"selected_action": "long", "confidence_calibrated": 0.65, "expected_move_after_cost_bps": 12.0},
-        intent={"side": "long", "confidence_calibrated": 0.65, "expected_move_after_cost_bps": 12.0},
+        signal={
+            "selected_action": "long",
+            "confidence_calibrated": 0.65,
+            "expected_move_after_cost_bps": 12.0,
+        },
+        intent={
+            "side": "long",
+            "confidence_calibrated": 0.65,
+            "expected_move_after_cost_bps": 12.0,
+        },
         allocation=_allowed_allocation(),
         integrity_gate={"allowed": True},
         local_trade_gates_pass=True,
@@ -13644,7 +18868,10 @@ def test_positive_edge_below_a_grade_row_becomes_dynamic_b_grade_exploration() -
     )
 
     assert classification["paper_opportunity_tier"] == "B_GRADE_EXPLORATION_PAPER"
-    assert classification["paper_opportunity_tier_reason"] == "DYNAMIC_POSITIVE_EDGE_BELOW_A_GRADE_EXPLORATION"
+    assert (
+        classification["paper_opportunity_tier_reason"]
+        == "DYNAMIC_POSITIVE_EDGE_BELOW_A_GRADE_EXPLORATION"
+    )
     assert classification["paper_only"] is True
     assert classification["places_real_order"] is False
 
@@ -13666,7 +18893,9 @@ def test_negative_edge_trial_is_no_trade_not_b_grade_exploration() -> None:
     )
 
     assert classification["paper_opportunity_tier"] == "NO_TRADE"
-    assert classification["paper_opportunity_tier_reason"] == "EXPECTED_EDGE_NOT_FAVORABLE_AFTER_COST"
+    assert (
+        classification["paper_opportunity_tier_reason"] == "EXPECTED_EDGE_NOT_FAVORABLE_AFTER_COST"
+    )
 
 
 def _phase1_closed_trade_row(
@@ -13757,9 +18986,10 @@ def test_paper_performance_governor_mirror_uses_current_circuit_breaker() -> Non
     assert governor["new_entries_allowed"] is False
     assert governor["closed_outcome_count"] == 5
     assert governor["profit_factor"] == circuit["aggregate"]["profit_factor"]
-    assert governor["notional_weighted_expectancy_bps"] == circuit["aggregate"][
-        "notional_weighted_expectancy_bps"
-    ]
+    assert (
+        governor["notional_weighted_expectancy_bps"]
+        == circuit["aggregate"]["notional_weighted_expectancy_bps"]
+    )
     assert "CLOSED_5_PROFIT_FACTOR_BELOW_1" in governor["state_reasons"]
     assert governor["pass_conditions"]["mirrors_current_performance_circuit_breaker"] is True
     assert governor["paper_only"] is True
@@ -13876,17 +19106,16 @@ def test_paper_effective_entry_gate_blocks_when_performance_halted() -> None:
     assert "performance_circuit_breaker" in effective["blocking_components"]
     assert "CLOSED_5_PROFIT_FACTOR_BELOW_1" in effective["halt_reasons"]
     assert (
-        effective["component_statuses"]["manual_or_portfolio_freeze"][
-            "new_entries_allowed"
-        ]
-        is True
+        effective["component_statuses"]["manual_or_portfolio_freeze"]["new_entries_allowed"] is True
     )
     assert effective["paper_only"] is True
     assert effective["routes_to_live"] is False
     assert effective["places_real_order"] is False
 
 
-def test_paper_performance_circuit_breaker_blocks_pf_below_one_even_if_expectancy_positive() -> None:
+def test_paper_performance_circuit_breaker_blocks_pf_below_one_even_if_expectancy_positive() -> (
+    None
+):
     rows = [
         {
             **_phase1_closed_trade_row(
@@ -13920,7 +19149,9 @@ def test_paper_performance_circuit_breaker_blocks_pf_below_one_even_if_expectanc
     assert status["pass_conditions"]["negative_pf_blocks_new_entries"] is True
 
 
-def test_paper_performance_circuit_breaker_blocks_expectancy_non_positive_even_if_pf_above_one() -> None:
+def test_paper_performance_circuit_breaker_blocks_expectancy_non_positive_even_if_pf_above_one() -> (
+    None
+):
     rows = [
         {
             **_phase1_closed_trade_row(
@@ -13954,7 +19185,9 @@ def test_paper_performance_circuit_breaker_blocks_expectancy_non_positive_even_i
     assert status["pass_conditions"]["negative_expectancy_blocks_new_entries"] is True
 
 
-def test_paper_performance_circuit_breaker_blocks_high_confidence_loss_cluster_even_with_positive_edge() -> None:
+def test_paper_performance_circuit_breaker_blocks_high_confidence_loss_cluster_even_with_positive_edge() -> (
+    None
+):
     rows = [
         _phase1_closed_trade_row(
             100.0,
@@ -13991,10 +19224,7 @@ def test_paper_performance_circuit_breaker_blocks_high_confidence_loss_cluster_e
     assert cluster["high_confidence_loss_count"] == 2
     assert status["new_entries_allowed"] is False
     assert "HIGH_CONFIDENCE_LOSS_CLUSTER" in status["block_reasons"]
-    assert (
-        status["pass_conditions"]["high_confidence_loss_cluster_blocks_new_entries"]
-        is True
-    )
+    assert status["pass_conditions"]["high_confidence_loss_cluster_blocks_new_entries"] is True
     assert status["paper_only"] is True
     assert status["routes_to_live"] is False
     assert status["places_real_order"] is False
@@ -14009,9 +19239,7 @@ def test_non_strict_high_confidence_loss_cluster_surfaces_but_does_not_block(
     # removed), but it MUST still surface in the non-blocking calibration
     # diagnostic so trainer/UI keep visibility of the miscalibration.
     rows = _high_confidence_loss_fixture_rows()
-    monkeypatch.setattr(
-        paper_loop, "_paper_verified_exit_repair_deployed_utc", lambda: None
-    )
+    monkeypatch.setattr(paper_loop, "_paper_verified_exit_repair_deployed_utc", lambda: None)
 
     status = paper_loop._paper_performance_circuit_breaker_status(  # noqa: SLF001
         rows,
@@ -14042,9 +19270,7 @@ def test_high_confidence_loss_cluster_forces_shadow_only_not_reduced_size(
     monkeypatch,
 ) -> None:
     rows = _high_confidence_loss_fixture_rows()
-    monkeypatch.setattr(
-        paper_loop, "_paper_verified_exit_repair_deployed_utc", lambda: None
-    )
+    monkeypatch.setattr(paper_loop, "_paper_verified_exit_repair_deployed_utc", lambda: None)
     cake = next(row for row in rows if row["symbol"] == "CAKEUSDT")
     # Phase 1: the fixture (bootstrap-reduced-size) losses no longer self-govern
     # the strict circuit, so this test now supplies an EXPLICIT quarantine on the
@@ -14107,9 +19333,7 @@ def test_high_confidence_loss_cluster_forces_shadow_only_not_reduced_size(
     )
     assert classification["counts_as_final_a_plus"] is False
     assert classification["routes_to_live"] is False
-    assert "side:long" in classification[
-        "paper_bucket_quarantine_matched_blocked_bucket_keys"
-    ]
+    assert "side:long" in classification["paper_bucket_quarantine_matched_blocked_bucket_keys"]
 
 
 def test_reduced_size_bootstrap_requires_guardian_new_entry_approval() -> None:
@@ -14192,19 +19416,17 @@ def test_halted_guardian_blocks_reduced_size_bootstrap() -> None:
     assert classification["paper_opportunity_tier_reason"] == (
         "REDUCED_SIZE_BOOTSTRAP_REQUIRES_GUARDIAN_NEW_ENTRIES_ALLOWED"
     )
-    assert classification["continuous_edge_guardian_status"] == (
-        "A_GRADE_HALTED_PERFORMANCE"
-    )
+    assert classification["continuous_edge_guardian_status"] == ("A_GRADE_HALTED_PERFORMANCE")
     assert classification["routes_to_live"] is False
     assert classification["places_real_order"] is False
 
 
-def test_high_confidence_loss_bucket_does_not_block_unrelated_bucket_when_bucket_specific_recovery_enabled() -> None:
+def test_high_confidence_loss_bucket_does_not_block_unrelated_bucket_when_bucket_specific_recovery_enabled() -> (
+    None
+):
     bucket_status = {
         "status": "ACTIVE_WITH_QUARANTINES",
-        "blocked_bucket_keys": [
-            "CAKEUSDT|5m|breakout_mode|BREAKOUT,HIGH_VOLATILITY,TREND"
-        ],
+        "blocked_bucket_keys": ["CAKEUSDT|5m|breakout_mode|BREAKOUT,HIGH_VOLATILITY,TREND"],
         "quarantined_buckets": [
             {
                 "bucket_key": "CAKEUSDT|5m|breakout_mode|BREAKOUT,HIGH_VOLATILITY,TREND",
@@ -14259,9 +19481,7 @@ def test_high_confidence_loss_cluster_preserves_close_reduce_only(monkeypatch) -
     # longer govern the STRICT circuit — so new entries are not halted by them —
     # but they must still surface in the non-blocking calibration diagnostic and
     # close/reduce/mark-to-market/feedback must remain permitted.
-    monkeypatch.setattr(
-        paper_loop, "_paper_verified_exit_repair_deployed_utc", lambda: None
-    )
+    monkeypatch.setattr(paper_loop, "_paper_verified_exit_repair_deployed_utc", lambda: None)
     status = paper_loop._paper_performance_circuit_breaker_status(  # noqa: SLF001
         _high_confidence_loss_fixture_rows(),
         generated_utc="2026-07-07T21:20:00Z",
@@ -14342,18 +19562,85 @@ def test_bucket_quarantine_blocks_same_bad_bucket_reentry() -> None:
     )
 
     quarantined_by_key = {
-        row["bucket_key"]: row
-        for row in status["bucket_quarantine_status"]["quarantined_buckets"]
+        row["bucket_key"]: row for row in status["bucket_quarantine_status"]["quarantined_buckets"]
     }
     assert "ETHUSDT|15m|breakout_squeeze|squeeze" in quarantined_by_key
-    assert "HIGH_CONFIDENCE_LOSS_RATE_ABOVE_ADAPTIVE_BOUND" in quarantined_by_key[
-        "ETHUSDT|15m|breakout_squeeze|squeeze"
-    ]["block_reasons"]
+    assert (
+        "HIGH_CONFIDENCE_LOSS_RATE_ABOVE_ADAPTIVE_BOUND"
+        in quarantined_by_key["ETHUSDT|15m|breakout_squeeze|squeeze"]["block_reasons"]
+    )
     assert blocked is True
     assert intent["paper_fill_allowed"] is False
     assert intent["places_real_order"] is False
     assert intent["routes_to_live"] is False
     assert allocation["allocator_decision"] == "BLOCK_PAPER_PERFORMANCE_CIRCUIT_BREAKER"
+
+
+def test_bucket_quarantine_samples_are_bounded_hash_bound_operator_projections() -> None:
+    rows = []
+    for index in range(7):
+        row = _phase1_closed_trade_row(
+            -12.0 - index,
+            symbol="ETHUSDT",
+            timeframe="15m",
+            strategy_id="breakout_squeeze",
+            regime="squeeze",
+            confidence=0.94,
+            close_reason="MODEL_STOP",
+        )
+        row.update(
+            {
+                "position_id": f"position-{index}",
+                "preemptive_input_hash": hashlib.sha256(f"preemptive-{index}".encode()).hexdigest(),
+                "preemptive_input_material": {
+                    "bucket_quarantine_status": {
+                        "quarantined_buckets": [
+                            {"sample_rows": [{"recursive_payload": "x" * 250_000}]}
+                        ]
+                    }
+                },
+                "model_inputs": {"full_feature_tensor": "y" * 250_000},
+                "paper_final_admission_contract": {"full_bound_material": "z" * 250_000},
+            }
+        )
+        rows.append(row)
+    original_rows = deepcopy(rows)
+
+    status = paper_loop._paper_bucket_quarantine_status(  # noqa: SLF001
+        rows,
+        generated_utc="2026-07-18T04:00:00Z",
+    )
+    bucket = next(
+        row
+        for row in status["quarantined_buckets"]
+        if row["bucket_key"] == "ETHUSDT|15m|breakout_squeeze|squeeze"
+    )
+
+    assert rows == original_rows
+    assert bucket["sample_rows_source_count"] == 7
+    assert bucket["sample_rows_projection_count"] == 5
+    assert bucket["sample_rows_projection_limit"] == 5
+    assert bucket["sample_rows_projection_only"] is True
+    assert bucket["sample_rows_full_payload_omitted"] is True
+    assert bucket["sample_rows_all_full_source_hashes_bound"] is True
+    assert [row["position_id"] for row in bucket["sample_rows"]] == [
+        "position-2",
+        "position-3",
+        "position-4",
+        "position-5",
+        "position-6",
+    ]
+    for source_row, projected_row in zip(rows[-5:], bucket["sample_rows"], strict=True):
+        assert projected_row["source_row_canonical_sha256"] == (
+            paper_loop._paper_canonical_sha256(source_row)  # noqa: SLF001
+        )
+        assert projected_row["operator_projection_only"] is True
+        assert projected_row["nested_replay_material_omitted"] is True
+        assert "preemptive_input_material" not in projected_row
+        assert "model_inputs" not in projected_row
+        assert "paper_final_admission_contract" not in projected_row
+    assert len(json.dumps(bucket["sample_rows"], sort_keys=True)) < 50_000
+    assert len(json.dumps(status, sort_keys=True)) < 250_000
 
 
 def test_negative_phase3_side_and_strategy_regime_buckets_block_reentry() -> None:
@@ -14370,9 +19657,7 @@ def test_negative_phase3_side_and_strategy_regime_buckets_block_reentry() -> Non
             ),
             "side": "short",
         }
-        for idx, symbol in enumerate(
-            ["BARDUSDT", "CRVUSDT", "DASHUSDT", "INJUSDT", "WLDUSDT"]
-        )
+        for idx, symbol in enumerate(["BARDUSDT", "CRVUSDT", "DASHUSDT", "INJUSDT", "WLDUSDT"])
     ]
 
     status = paper_loop._paper_performance_circuit_breaker_status(  # noqa: SLF001
@@ -14380,19 +19665,17 @@ def test_negative_phase3_side_and_strategy_regime_buckets_block_reentry() -> Non
         generated_utc="2026-07-02T10:00:00Z",
     )
     quarantined_by_key = {
-        row["bucket_key"]: row
-        for row in status["bucket_quarantine_status"]["quarantined_buckets"]
+        row["bucket_key"]: row for row in status["bucket_quarantine_status"]["quarantined_buckets"]
     }
 
     assert "BUCKET_QUARANTINE_ACTIVE" in status["block_reasons"]
     assert "side:short" in quarantined_by_key
     assert "strategy_regime:trend_mode|TREND" in quarantined_by_key
-    assert "NEGATIVE_EXPECTANCY_SIDE_BUCKET" in quarantined_by_key[
-        "side:short"
-    ]["block_reasons"]
-    assert "NEGATIVE_PROFIT_FACTOR_STRATEGY_REGIME_BUCKET" in quarantined_by_key[
-        "strategy_regime:trend_mode|TREND"
-    ]["block_reasons"]
+    assert "NEGATIVE_EXPECTANCY_SIDE_BUCKET" in quarantined_by_key["side:short"]["block_reasons"]
+    assert (
+        "NEGATIVE_PROFIT_FACTOR_STRATEGY_REGIME_BUCKET"
+        in quarantined_by_key["strategy_regime:trend_mode|TREND"]["block_reasons"]
+    )
 
     intent = {
         "paper_only": True,
@@ -14411,15 +19694,15 @@ def test_negative_phase3_side_and_strategy_regime_buckets_block_reentry() -> Non
     )
 
     assert blocked is True
-    assert "PAPER_BUCKET_QUARANTINE_BLOCKED_REENTRY" in intent[
-        "paper_performance_circuit_breaker_block_reasons"
-    ]
-    assert "side:short" in intent[
-        "paper_performance_circuit_breaker_matched_blocked_bucket_keys"
-    ]
-    assert "strategy_regime:trend_mode|TREND" in intent[
-        "paper_performance_circuit_breaker_matched_blocked_bucket_keys"
-    ]
+    assert (
+        "PAPER_BUCKET_QUARANTINE_BLOCKED_REENTRY"
+        in intent["paper_performance_circuit_breaker_block_reasons"]
+    )
+    assert "side:short" in intent["paper_performance_circuit_breaker_matched_blocked_bucket_keys"]
+    assert (
+        "strategy_regime:trend_mode|TREND"
+        in intent["paper_performance_circuit_breaker_matched_blocked_bucket_keys"]
+    )
     assert intent["paper_fill_allowed"] is False
     assert allocation["allocator_decision"] == "BLOCK_PAPER_PERFORMANCE_CIRCUIT_BREAKER"
 
@@ -14450,10 +19733,7 @@ def test_positive_expectancy_pf_only_side_bucket_is_watch_only_not_quarantine() 
         [profitable, loss],
         generated_utc="2026-07-10T06:55:00Z",
     )
-    quarantined_by_key = {
-        row["bucket_key"]: row
-        for row in status["quarantined_buckets"]
-    }
+    quarantined_by_key = {row["bucket_key"]: row for row in status["quarantined_buckets"]}
 
     assert "side:long" in quarantined_by_key
     side_bucket = quarantined_by_key["side:long"]
@@ -14496,9 +19776,7 @@ def test_atr_stop_loss_cluster_quarantines_matching_bucket() -> None:
     )
 
     assert status["status"] == "ACTIVE_WITH_QUARANTINES"
-    assert status["quarantined_buckets"][0]["bucket_key"] == (
-        "SOLUSDT|1m|range_scalp|chop"
-    )
+    assert status["quarantined_buckets"][0]["bucket_key"] == ("SOLUSDT|1m|range_scalp|chop")
     assert "ATR_STOP_LOSS_CLUSTER" in status["quarantined_buckets"][0]["block_reasons"]
     assert status["paper_only"] is True
     assert status["places_real_order"] is False
@@ -14510,12 +19788,11 @@ def test_atr_stop_loss_cluster_quarantines_side_timeframe_bucket_when_aggregate_
     # Pin the exit-repair artifact and give rows post-repair exit timestamps so
     # this exercises the statistical (thin-bucket) path, not the
     # missing-timestamp integrity fail-closed path.
-    artifact = tmp_path / "atr_stop_cluster_repair_status.json"
-    artifact.write_text(
-        '{"repair_test_passed": true, "repair_deployed_utc": "2026-07-01T00:00:00Z"}',
-        encoding="utf-8",
+    monkeypatch.setattr(
+        paper_loop,
+        "_paper_verified_exit_repair_deployed_utc",
+        lambda: datetime(2026, 7, 1, tzinfo=timezone.utc),
     )
-    monkeypatch.setattr(paper_loop, "PAPER_EXIT_REPAIR_STATUS_PATH", artifact)
     rows = [
         {
             **_phase1_closed_trade_row(
@@ -14562,8 +19839,7 @@ def test_atr_stop_loss_cluster_quarantines_side_timeframe_bucket_when_aggregate_
         generated_utc="2026-07-02T10:00:00Z",
     )
     quarantined_by_key = {
-        row["bucket_key"]: row
-        for row in status["bucket_quarantine_status"]["quarantined_buckets"]
+        row["bucket_key"]: row for row in status["bucket_quarantine_status"]["quarantined_buckets"]
     }
 
     # 2026-07-14: two thin timestamped ATR losses stay BUCKET-scoped -- the
@@ -14578,12 +19854,14 @@ def test_atr_stop_loss_cluster_quarantines_side_timeframe_bucket_when_aggregate_
     assert "timeframe:1h" not in quarantined_by_key
     assert "side_timeframe:short|1h" in quarantined_by_key
     assert "strategy_side_timeframe:trend_mode|short|1h" in quarantined_by_key
-    assert "ATR_STOP_LOSS_CLUSTER_SIDE_TIMEFRAME_BUCKET" in quarantined_by_key[
-        "side_timeframe:short|1h"
-    ]["block_reasons"]
-    assert "ATR_STOP_LOSS_CLUSTER_STRATEGY_SIDE_TIMEFRAME_BUCKET" in quarantined_by_key[
-        "strategy_side_timeframe:trend_mode|short|1h"
-    ]["block_reasons"]
+    assert (
+        "ATR_STOP_LOSS_CLUSTER_SIDE_TIMEFRAME_BUCKET"
+        in quarantined_by_key["side_timeframe:short|1h"]["block_reasons"]
+    )
+    assert (
+        "ATR_STOP_LOSS_CLUSTER_STRATEGY_SIDE_TIMEFRAME_BUCKET"
+        in quarantined_by_key["strategy_side_timeframe:trend_mode|short|1h"]["block_reasons"]
+    )
 
     intent = {
         "paper_only": True,
@@ -14602,15 +19880,18 @@ def test_atr_stop_loss_cluster_quarantines_side_timeframe_bucket_when_aggregate_
     )
 
     assert blocked is True
-    assert "PAPER_BUCKET_QUARANTINE_BLOCKED_REENTRY" in intent[
-        "paper_performance_circuit_breaker_block_reasons"
-    ]
-    assert "side_timeframe:short|1h" in intent[
-        "paper_performance_circuit_breaker_matched_blocked_bucket_keys"
-    ]
-    assert "strategy_side_timeframe:trend_mode|short|1h" in intent[
-        "paper_performance_circuit_breaker_matched_blocked_bucket_keys"
-    ]
+    assert (
+        "PAPER_BUCKET_QUARANTINE_BLOCKED_REENTRY"
+        in intent["paper_performance_circuit_breaker_block_reasons"]
+    )
+    assert (
+        "side_timeframe:short|1h"
+        in intent["paper_performance_circuit_breaker_matched_blocked_bucket_keys"]
+    )
+    assert (
+        "strategy_side_timeframe:trend_mode|short|1h"
+        in intent["paper_performance_circuit_breaker_matched_blocked_bucket_keys"]
+    )
     assert intent["paper_fill_allowed"] is False
     assert intent["places_real_order"] is False
     assert intent["routes_to_live"] is False
@@ -14721,9 +20002,14 @@ def test_no_trade_tier_blocks_executable_allocator_decision() -> None:
     assert intent["allocator_decision"] == "BLOCK_NON_EXECUTABLE_PAPER_TIER"
     assert allocation["allocator_decision"] == "BLOCK_NON_EXECUTABLE_PAPER_TIER"
     assert intent["pre_non_executable_paper_tier"] == "NO_TRADE"
-    assert intent["pre_non_executable_paper_tier_reason"] == "EXPECTED_EDGE_NOT_FAVORABLE_AFTER_COST"
+    assert (
+        intent["pre_non_executable_paper_tier_reason"] == "EXPECTED_EDGE_NOT_FAVORABLE_AFTER_COST"
+    )
     assert intent["non_executable_paper_tier_block_reason"] == "NON_EXECUTABLE_PAPER_TIER:NO_TRADE"
-    assert allocation["pre_non_executable_paper_tier_reason"] == "EXPECTED_EDGE_NOT_FAVORABLE_AFTER_COST"
+    assert (
+        allocation["pre_non_executable_paper_tier_reason"]
+        == "EXPECTED_EDGE_NOT_FAVORABLE_AFTER_COST"
+    )
     assert intent["paper_fill_allowed"] is False
     assert intent["paper_sizing_complete"] is False
     assert intent["gross_notional_usd"] == 0.0
@@ -14770,9 +20056,10 @@ def test_no_trade_tier_preserves_existing_performance_circuit_block() -> None:
         reason == "paper_tier:NON_EXECUTABLE_PAPER_TIER:NO_TRADE"
         for reason in intent["local_block_reasons"]
     )
-    assert paper_loop.PAPER_PERFORMANCE_CIRCUIT_BREAKER_BLOCK_REASON in intent[
-        "paper_fill_gate_block_reasons"
-    ]
+    assert (
+        paper_loop.PAPER_PERFORMANCE_CIRCUIT_BREAKER_BLOCK_REASON
+        in intent["paper_fill_gate_block_reasons"]
+    )
     assert intent["paper_fill_allowed"] is False
     assert intent["gross_notional_usd"] == 0.0
     assert allocation["gross_notional_usd"] == 0.0
@@ -14789,19 +20076,16 @@ def test_no_trade_tier_preserves_existing_allocator_block_reason() -> None:
         "paper_fill_allowed": True,
         "paper_sizing_complete": True,
         "paper_allocation_block_reason": (
-            "allocator_decision_not_exploration_fill_eligible:"
-            "BLOCK_INSUFFICIENT_LIQUIDITY"
+            "allocator_decision_not_exploration_fill_eligible:" "BLOCK_INSUFFICIENT_LIQUIDITY"
         ),
         "local_block_reasons": [
-            "allocator_decision_not_exploration_fill_eligible:"
-            "BLOCK_INSUFFICIENT_LIQUIDITY"
+            "allocator_decision_not_exploration_fill_eligible:" "BLOCK_INSUFFICIENT_LIQUIDITY"
         ],
     }
     allocation = _allowed_allocation(paper_opportunity_tier="NO_TRADE")
     allocation["allocator_decision"] = "BLOCK_INSUFFICIENT_LIQUIDITY"
     allocation["paper_allocation_block_reason"] = (
-        "allocator_decision_not_exploration_fill_eligible:"
-        "BLOCK_INSUFFICIENT_LIQUIDITY"
+        "allocator_decision_not_exploration_fill_eligible:" "BLOCK_INSUFFICIENT_LIQUIDITY"
     )
 
     blocked = paper_loop._block_non_executable_paper_tier(  # noqa: SLF001
@@ -14816,8 +20100,7 @@ def test_no_trade_tier_preserves_existing_allocator_block_reason() -> None:
         "NON_EXECUTABLE_PAPER_TIER:NO_TRADE"
     )
     assert intent["non_executable_paper_tier_primary_block_reason"] == (
-        "allocator_decision_not_exploration_fill_eligible:"
-        "BLOCK_INSUFFICIENT_LIQUIDITY"
+        "allocator_decision_not_exploration_fill_eligible:" "BLOCK_INSUFFICIENT_LIQUIDITY"
     )
     assert intent["non_executable_paper_tier_secondary_to_existing_block"] is True
     assert not any(
@@ -14829,15 +20112,16 @@ def test_no_trade_tier_preserves_existing_allocator_block_reason() -> None:
         "BLOCK_INSUFFICIENT_LIQUIDITY"
     ) in intent["local_block_reasons"]
     assert (
-        "allocator_decision_not_exploration_fill_eligible:"
-        "BLOCK_INSUFFICIENT_LIQUIDITY"
+        "allocator_decision_not_exploration_fill_eligible:" "BLOCK_INSUFFICIENT_LIQUIDITY"
     ) in intent["paper_fill_gate_block_reasons"]
     assert intent["paper_fill_allowed"] is False
     assert intent["gross_notional_usd"] == 0.0
     assert allocation["gross_notional_usd"] == 0.0
 
 
-def test_blocked_directional_candidate_can_emit_shadow_observation_without_fill_implication() -> None:
+def test_blocked_directional_candidate_can_emit_shadow_observation_without_fill_implication() -> (
+    None
+):
     intent = {
         "intent_id": "intent-shadow-1",
         "symbol": "BTCUSDT",
@@ -15110,9 +20394,7 @@ def test_exploration_tier_status_separates_legacy_missing_tiers() -> None:
         "PAPER_ONLY_COLLECT_MORE_B_GRADE_LABELS_FOR_PROMISING_UNDERPOWERED_BUCKET": 1
     }
     assert status["b_grade_exploration_live_routing_blocked"] is True
-    assert status["blocked_final_reason_counts"] == {
-        "NON_EXECUTABLE_PAPER_TIER:NO_TRADE": 1
-    }
+    assert status["blocked_final_reason_counts"] == {"NON_EXECUTABLE_PAPER_TIER:NO_TRADE": 1}
     assert status["blocked_upstream_tier_reason_counts"] == {
         "EXPECTED_EDGE_NOT_FAVORABLE_AFTER_COST": 1
     }
@@ -15122,7 +20404,11 @@ def test_exploration_tier_status_separates_legacy_missing_tiers() -> None:
     assert status["blocked_lifecycle_or_no_trade_strategy_reason_counts"] == {
         "intent.strategy_selected_mode=NO_TRADE": 1
     }
-    assert status["sample_blocked_fills"][0]["accepted_fill_state_compacted"] is True
+    assert status["sample_blocked_fills"][0]["operator_projection_only"] is True
+    assert status["sample_blocked_fills"][0]["full_source_payload_omitted"] is True
+    assert status["sample_blocked_fills_operator_contract"]["source_row_count"] == 1
+    assert status["sample_blocked_fills_operator_contract"]["source_rows_all_hashable"] is True
+    assert status["sample_b_grade_exploration_fills"][0]["operator_projection_only"] is True
 
 
 def test_exploration_tier_status_uses_current_accepted_rows_for_primary_counts() -> None:
@@ -15163,6 +20449,42 @@ def test_exploration_tier_status_uses_current_accepted_rows_for_primary_counts()
     }
     assert status["b_grade_exploration_accepted_count"] == 1
     assert status["persistent_b_grade_exploration_accepted_count"] == 1
+
+
+def test_exploration_tier_status_bounds_heavy_blocked_operator_sample() -> None:
+    blocked_rows = []
+    for index in range(12):
+        blocked_rows.append(
+            {
+                "intent_id": f"blocked-heavy-{index}",
+                "symbol": "BTCUSDT",
+                "timeframe": "5m",
+                "side": "long",
+                "decision": "BLOCKED",
+                "paper_opportunity_tier": "NO_TRADE",
+                "paper_fill_allowed": False,
+                "paper_only": True,
+                "places_real_order": False,
+                "preemptive_edge_control": {
+                    "sentinel": f"EXPLORATION_RECURSIVE_SENTINEL_{index}_" + "x" * 200_000
+                },
+            }
+        )
+
+    status = paper_loop._paper_exploration_tier_status(  # noqa: SLF001
+        accepted_rows=[],
+        current_accepted_rows=[],
+        blocked_rows=blocked_rows,
+        shadow_rows=[],
+        held_rows=[],
+    )
+
+    assert len(status["sample_blocked_fills"]) == 5
+    assert status["sample_blocked_fills_operator_contract"]["source_row_count"] == 12
+    assert status["sample_blocked_fills_operator_contract"]["projection_limit"] == 5
+    serialized = json.dumps(status, sort_keys=True)
+    assert "EXPLORATION_RECURSIVE_SENTINEL" not in serialized
+    assert len(serialized) < 200_000
 
 
 def test_merge_persistent_accepted_fills_preserves_policy_funding_metadata() -> None:
@@ -15257,6 +20579,7 @@ def test_merge_persistent_accepted_fills_preserves_policy_funding_metadata() -> 
 
 # ─── CG-F038: SHORT trend_mode blocked at entry gate ─────────────────────────
 
+
 def test_cg_f038_short_trend_mode_blocked_by_default() -> None:
     """
     CG-F038 (upgraded to R29-D2 regime gate): SHORT trend_mode must be blocked by
@@ -15290,9 +20613,9 @@ def test_cg_f038_short_trend_mode_blocked_by_default() -> None:
 
     assert result["allowed"] is False, "SHORT trend_mode must be blocked by default (no liq data)"
     block_reasons = result.get("reasons", [])
-    assert any("REGIME_GATE_NO_CASCADE_DATA" in r for r in block_reasons), (
-        f"Expected REGIME_GATE_NO_CASCADE_DATA in reasons, got {block_reasons}"
-    )
+    assert any(
+        "REGIME_GATE_NO_CASCADE_DATA" in r for r in block_reasons
+    ), f"Expected REGIME_GATE_NO_CASCADE_DATA in reasons, got {block_reasons}"
 
 
 def test_cg_f038_long_trend_mode_still_allowed() -> None:
@@ -15316,9 +20639,9 @@ def test_cg_f038_long_trend_mode_still_allowed() -> None:
     )
 
     block_reasons = result.get("reasons", [])
-    assert not any("REGIME_GATE" in r for r in block_reasons), (
-        f"long:trend_mode must not be regime-gated, got {block_reasons}"
-    )
+    assert not any(
+        "REGIME_GATE" in r for r in block_reasons
+    ), f"long:trend_mode must not be regime-gated, got {block_reasons}"
 
 
 def test_cg_f038_short_trend_mode_blocked_side_mode_in_default_frozenset() -> None:
@@ -15335,12 +20658,12 @@ def test_cg_f038_short_trend_mode_blocked_side_mode_in_default_frozenset() -> No
         "Static side:mode hard blocks are retired; blocking is adaptive "
         "(regime gate + outcome-memory buckets)"
     )
-    assert cfg.short_trend_mode_regime_gate_enabled is True, (
-        "R29-D2 regime gate must remain enabled as the adaptive replacement"
-    )
-    assert cfg.short_trend_cascade_risk_min == 0.30, (
-        "R29-D2 cascade risk floor must default to 0.30"
-    )
+    assert (
+        cfg.short_trend_mode_regime_gate_enabled is True
+    ), "R29-D2 regime gate must remain enabled as the adaptive replacement"
+    assert (
+        cfg.short_trend_cascade_risk_min == 0.30
+    ), "R29-D2 cascade risk floor must default to 0.30"
 
 
 def test_r29_d2_short_trend_blocked_low_cascade_risk() -> None:
@@ -15375,12 +20698,12 @@ def test_r29_d2_short_trend_blocked_low_cascade_risk() -> None:
 
     assert result["allowed"] is False
     block_reasons = result.get("reasons", [])
-    assert any("REGIME_GATE_INSUFFICIENT_CASCADE_RISK" in r for r in block_reasons), (
-        f"Expected REGIME_GATE_INSUFFICIENT_CASCADE_RISK, got {block_reasons}"
-    )
-    assert any("0.0470" in r for r in block_reasons), (
-        f"Block reason should contain cascade_risk value, got {block_reasons}"
-    )
+    assert any(
+        "REGIME_GATE_INSUFFICIENT_CASCADE_RISK" in r for r in block_reasons
+    ), f"Expected REGIME_GATE_INSUFFICIENT_CASCADE_RISK, got {block_reasons}"
+    assert any(
+        "0.0470" in r for r in block_reasons
+    ), f"Block reason should contain cascade_risk value, got {block_reasons}"
 
 
 def test_r29_d2_short_trend_allowed_high_cascade_risk() -> None:
@@ -15414,12 +20737,12 @@ def test_r29_d2_short_trend_allowed_high_cascade_risk() -> None:
     )
 
     block_reasons = result.get("reasons", [])
-    assert not any("REGIME_GATE" in r for r in block_reasons), (
-        f"HIGH cascade_risk should pass regime gate, got block_reasons={block_reasons}"
-    )
-    assert result["allowed"] is True, (
-        f"HIGH cascade_risk SHORT trend entry should be allowed, reasons={block_reasons}"
-    )
+    assert not any(
+        "REGIME_GATE" in r for r in block_reasons
+    ), f"HIGH cascade_risk should pass regime gate, got block_reasons={block_reasons}"
+    assert (
+        result["allowed"] is True
+    ), f"HIGH cascade_risk SHORT trend entry should be allowed, reasons={block_reasons}"
 
 
 def test_r29_d2_stale_liq_data_blocks_short_trend() -> None:
@@ -15451,9 +20774,9 @@ def test_r29_d2_stale_liq_data_blocks_short_trend() -> None:
     )
 
     assert result["allowed"] is False
-    assert any("REGIME_GATE_NO_CASCADE_DATA" in r for r in result.get("reasons", [])), (
-        "Stale data must be treated as missing → REGIME_GATE_NO_CASCADE_DATA"
-    )
+    assert any(
+        "REGIME_GATE_NO_CASCADE_DATA" in r for r in result.get("reasons", [])
+    ), "Stale data must be treated as missing → REGIME_GATE_NO_CASCADE_DATA"
 
 
 def test_r29_d2_gate_disabled_allows_short_trend_without_liq_check() -> None:
@@ -15476,9 +20799,9 @@ def test_r29_d2_gate_disabled_allows_short_trend_without_liq_check() -> None:
     )
 
     block_reasons = result.get("reasons", [])
-    assert not any("REGIME_GATE" in r for r in block_reasons), (
-        f"Disabled gate must not emit regime block reasons, got {block_reasons}"
-    )
+    assert not any(
+        "REGIME_GATE" in r for r in block_reasons
+    ), f"Disabled gate must not emit regime block reasons, got {block_reasons}"
 
 
 def test_r29_d2_short_mean_reversion_not_gated() -> None:
@@ -15502,9 +20825,9 @@ def test_r29_d2_short_mean_reversion_not_gated() -> None:
     )
 
     block_reasons = result.get("reasons", [])
-    assert not any("REGIME_GATE" in r for r in block_reasons), (
-        f"Regime gate must only apply to trend_mode SHORT, got {block_reasons}"
-    )
+    assert not any(
+        "REGIME_GATE" in r for r in block_reasons
+    ), f"Regime gate must only apply to trend_mode SHORT, got {block_reasons}"
 
 
 def test_r29_d4_trend_mode_uses_wider_atr_multiplier() -> None:
@@ -15549,9 +20872,9 @@ def test_r29_d4_trend_mode_uses_wider_atr_multiplier() -> None:
         atr_bps=30.0,  # ATR = 30 bps
     )
     # With 3.0x: stop at -90 bps. At -70 bps, should NOT close.
-    assert result["should_close"] is False, (
-        f"trend_mode with 3.0x ATR should NOT stop at -70 bps (stop is -90 bps), got {result}"
-    )
+    assert (
+        result["should_close"] is False
+    ), f"trend_mode with 3.0x ATR should NOT stop at -70 bps (stop is -90 bps), got {result}"
 
 
 def test_r29_d4_non_trend_mode_uses_default_atr_multiplier() -> None:
@@ -15595,15 +20918,15 @@ def test_r29_d4_non_trend_mode_uses_default_atr_multiplier() -> None:
         atr_bps=30.0,
     )
     # mean_reversion_mode: default 2.0x stop at -60 bps. At -70 bps, SHOULD close.
-    assert result["should_close"] is True, (
-        f"mean_reversion_mode should stop at -70 bps with 2.0x multiplier (stop=-60), got {result}"
-    )
-    assert result.get("close_reason") == "TIER_1_ATR_VOLATILITY_STOP", (
-        f"Expected TIER_1_ATR_VOLATILITY_STOP, got {result.get('close_reason')}"
-    )
-    assert result.get("atr_stop_multiplier_used") == 2.0, (
-        f"Non-trend mode must use 2.0x multiplier, got {result.get('atr_stop_multiplier_used')}"
-    )
+    assert (
+        result["should_close"] is True
+    ), f"mean_reversion_mode should stop at -70 bps with 2.0x multiplier (stop=-60), got {result}"
+    assert (
+        result.get("close_reason") == "TIER_1_ATR_VOLATILITY_STOP"
+    ), f"Expected TIER_1_ATR_VOLATILITY_STOP, got {result.get('close_reason')}"
+    assert (
+        result.get("atr_stop_multiplier_used") == 2.0
+    ), f"Non-trend mode must use 2.0x multiplier, got {result.get('atr_stop_multiplier_used')}"
 
 
 def test_r29_d4_default_trend_mode_multiplier_is_3x() -> None:
@@ -15612,9 +20935,9 @@ def test_r29_d4_default_trend_mode_multiplier_is_3x() -> None:
 
     cfg = PaperExitConfig()
     assert cfg.atr_stop_multiplier == 2.0, "Default ATR multiplier must remain 2.0"
-    assert cfg.atr_stop_multiplier_trend_mode == 3.0, (
-        "R29-D4 trend_mode ATR multiplier must default to 3.0"
-    )
+    assert (
+        cfg.atr_stop_multiplier_trend_mode == 3.0
+    ), "R29-D4 trend_mode ATR multiplier must default to 3.0"
 
 
 def test_r30_d1_synusdt_trend_mode_blocked_by_default() -> None:
@@ -15623,6 +20946,7 @@ def test_r30_d1_synusdt_trend_mode_blocked_by_default() -> None:
         PaperEntryGateConfig,
         evaluate_entry_gate,
     )
+
     cfg = PaperEntryGateConfig()
     result = evaluate_entry_gate(
         symbol="SYNUSDT",
@@ -15634,9 +20958,9 @@ def test_r30_d1_synusdt_trend_mode_blocked_by_default() -> None:
         config=cfg,
     )
     assert result["allowed"] is False
-    assert any("TREND_MODE_MICRO_CAP_GAP_RISK" in r for r in result.get("reasons", [])), (
-        f"SYNUSDT trend_mode should be blocked as micro-cap gap risk, got {result['reasons']}"
-    )
+    assert any(
+        "TREND_MODE_MICRO_CAP_GAP_RISK" in r for r in result.get("reasons", [])
+    ), f"SYNUSDT trend_mode should be blocked as micro-cap gap risk, got {result['reasons']}"
 
 
 def test_r30_d1_all_known_gap_risk_tokens_blocked() -> None:
@@ -15645,6 +20969,7 @@ def test_r30_d1_all_known_gap_risk_tokens_blocked() -> None:
         PaperEntryGateConfig,
         evaluate_entry_gate,
     )
+
     cfg = PaperEntryGateConfig()
     known_gap_risk = ["SYNUSDT", "RAVEUSDT", "LITUSDT", "CAPUSDT", "EPICUSDT"]
     for sym in known_gap_risk:
@@ -15659,9 +20984,9 @@ def test_r30_d1_all_known_gap_risk_tokens_blocked() -> None:
                 config=cfg,
             )
             block_reasons = result.get("reasons", [])
-            assert any("TREND_MODE_MICRO_CAP_GAP_RISK" in r for r in block_reasons), (
-                f"{sym} {side} trend_mode should be gap-risk blocked, got {block_reasons}"
-            )
+            assert any(
+                "TREND_MODE_MICRO_CAP_GAP_RISK" in r for r in block_reasons
+            ), f"{sym} {side} trend_mode should be gap-risk blocked, got {block_reasons}"
 
 
 def test_r30_d1_gap_risk_token_allowed_in_mean_reversion() -> None:
@@ -15670,6 +20995,7 @@ def test_r30_d1_gap_risk_token_allowed_in_mean_reversion() -> None:
         PaperEntryGateConfig,
         evaluate_entry_gate,
     )
+
     cfg = PaperEntryGateConfig()
     # SYNUSDT in mean_reversion_mode — NOT blocked by R30-D1
     result = evaluate_entry_gate(
@@ -15682,9 +21008,9 @@ def test_r30_d1_gap_risk_token_allowed_in_mean_reversion() -> None:
         config=cfg,
     )
     block_reasons = result.get("reasons", [])
-    assert not any("TREND_MODE_MICRO_CAP_GAP_RISK" in r for r in block_reasons), (
-        f"SYNUSDT mean_reversion_mode must NOT be gap-risk blocked, got {block_reasons}"
-    )
+    assert not any(
+        "TREND_MODE_MICRO_CAP_GAP_RISK" in r for r in block_reasons
+    ), f"SYNUSDT mean_reversion_mode must NOT be gap-risk blocked, got {block_reasons}"
 
 
 def test_r30_d1_btcusdt_not_in_gap_risk_exclusion() -> None:
@@ -15693,6 +21019,7 @@ def test_r30_d1_btcusdt_not_in_gap_risk_exclusion() -> None:
         PaperEntryGateConfig,
         evaluate_entry_gate,
     )
+
     cfg = PaperEntryGateConfig()
     result = evaluate_entry_gate(
         symbol="BTCUSDT",
@@ -15704,29 +21031,35 @@ def test_r30_d1_btcusdt_not_in_gap_risk_exclusion() -> None:
         config=cfg,
     )
     block_reasons = result.get("reasons", [])
-    assert not any("TREND_MODE_MICRO_CAP_GAP_RISK" in r for r in block_reasons), (
-        f"BTCUSDT must NOT be in gap-risk exclusion, got {block_reasons}"
-    )
+    assert not any(
+        "TREND_MODE_MICRO_CAP_GAP_RISK" in r for r in block_reasons
+    ), f"BTCUSDT must NOT be in gap-risk exclusion, got {block_reasons}"
 
 
 def test_r30_d1_default_exclusion_set_contains_evidence_tokens() -> None:
     """R30-D1: Default trend_mode_micro_cap_exclusion contains all 5 evidence-backed tokens."""
     from v2.backend.app.services.paper_trade_management.entry_gate import PaperEntryGateConfig
+
     cfg = PaperEntryGateConfig()
     required = {"SYNUSDT", "RAVEUSDT", "LITUSDT", "CAPUSDT", "EPICUSDT"}
-    assert required <= cfg.trend_mode_micro_cap_exclusion, (
-        f"Missing gap-risk tokens: {required - cfg.trend_mode_micro_cap_exclusion}"
-    )
+    assert (
+        required <= cfg.trend_mode_micro_cap_exclusion
+    ), f"Missing gap-risk tokens: {required - cfg.trend_mode_micro_cap_exclusion}"
 
 
-def test_bucket_quarantine_pre_repair_losses_do_not_halt_globally(tmp_path, monkeypatch) -> None:
+def test_phase7_current_runtime_artifact_contract_authorizes_pre_repair_only(
+    tmp_path, monkeypatch
+) -> None:
     """A+ goal Phase 1/8: after a verified exit repair, buckets whose loss
     evidence entirely pre-dates the repair stay bucket-blocked but no longer
     escalate to a global entry halt. Post-repair losses re-escalate; a missing
     artifact or missing exit timestamps keep the original fail-closed halt."""
     artifact = tmp_path / "atr_stop_cluster_repair_status.json"
     artifact.write_text(
-        '{"repair_test_passed": true, "repair_deployed_utc": "2026-07-06T18:00:00Z"}',
+        json.dumps(
+            _authorized_phase7_artifact(repair_deployed_utc="2026-07-06T18:00:00Z"),
+            sort_keys=True,
+        ),
         encoding="utf-8",
     )
     monkeypatch.setattr(paper_loop, "PAPER_EXIT_REPAIR_STATUS_PATH", artifact)
@@ -15746,7 +21079,10 @@ def test_bucket_quarantine_pre_repair_losses_do_not_halt_globally(tmp_path, monk
         row["exit_price_utc"] = "2026-07-06T05:00:00.000Z"
 
     # Two pre-repair ATR losses -> bucket quarantined but non-escalating.
-    pre_repair = wins + [_atr_loss("2026-07-06T01:34:09.533Z"), _atr_loss("2026-07-06T02:01:00.000Z")]
+    pre_repair = wins + [
+        _atr_loss("2026-07-06T01:34:09.533Z"),
+        _atr_loss("2026-07-06T02:01:00.000Z"),
+    ]
     status = paper_loop._paper_bucket_quarantine_status(  # noqa: SLF001
         pre_repair, generated_utc="2026-07-06T19:00:00Z"
     )
@@ -15768,7 +21104,10 @@ def test_bucket_quarantine_pre_repair_losses_do_not_halt_globally(tmp_path, monk
     # Post-repair losses re-block their buckets immediately; two thin losses
     # stay bucket-scoped (2026-07-14), a third distinct loss is systemic
     # breadth and escalates the global halt.
-    post_repair = pre_repair + [_atr_loss("2026-07-06T19:30:00.000Z"), _atr_loss("2026-07-06T19:40:00.000Z")]
+    post_repair = pre_repair + [
+        _atr_loss("2026-07-06T19:30:00.000Z"),
+        _atr_loss("2026-07-06T19:40:00.000Z"),
+    ]
     circuit_post = paper_loop._paper_performance_circuit_breaker_status(  # noqa: SLF001
         post_repair, generated_utc="2026-07-06T20:00:00Z"
     )
@@ -15799,6 +21138,30 @@ def test_bucket_quarantine_pre_repair_losses_do_not_halt_globally(tmp_path, monk
         pre_repair, generated_utc="2026-07-06T19:00:00Z"
     )
     assert status_no_artifact["global_halt_required"] is True
+
+
+def test_phase7_paper_consumer_never_uses_legacy_fallback_authorization(
+    tmp_path, monkeypatch
+) -> None:
+    missing_canonical = tmp_path / "missing-canonical.json"
+    legacy = tmp_path / "legacy" / "atr_stop_cluster_repair_status.json"
+    legacy.parent.mkdir()
+    legacy.write_text(
+        json.dumps(
+            _authorized_phase7_artifact(repair_deployed_utc="2026-07-06T18:00:00Z"),
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(paper_loop, "PAPER_EXIT_REPAIR_STATUS_PATH", missing_canonical)
+    monkeypatch.setattr(paper_loop, "PAPER_EXIT_REPAIR_LEGACY_STATUS_PATH", legacy)
+
+    assert (
+        paper_loop._paper_verified_exit_repair_deployed_utc(  # noqa: SLF001
+            observed_utc="2026-07-18T00:05:00Z"
+        )
+        is None
+    )
 
 
 class TestForbiddenMarkerExecutablePosition:
@@ -15933,7 +21296,14 @@ class TestHighConfidenceLossClusterGate:
             "cluster_detected": True,
             "cluster_evidence_missing": False,
             "high_confidence_loss_count": 6,
-            "affected_symbols": ["CRVUSDT", "WLDUSDT", "AEROUSDT", "XPLUSDT", "CAKEUSDT", "AVNTUSDT"],
+            "affected_symbols": [
+                "CRVUSDT",
+                "WLDUSDT",
+                "AEROUSDT",
+                "XPLUSDT",
+                "CAKEUSDT",
+                "AVNTUSDT",
+            ],
             "quarantined_sides": ["short"],
             "quarantined_timeframes": ["4h"],
             "quarantined_strategy_modes": ["breakout_mode"],
@@ -15966,16 +21336,12 @@ class TestHighConfidenceLossClusterGate:
             signal={
                 "selected_action": intent.get("side"),
                 "confidence_calibrated": intent.get("confidence_calibrated"),
-                "expected_move_after_cost_bps": intent.get(
-                    "expected_move_after_cost_bps"
-                ),
+                "expected_move_after_cost_bps": intent.get("expected_move_after_cost_bps"),
             },
             intent=intent,
             allocation=_allowed_allocation(
                 confidence_calibrated=intent.get("confidence_calibrated"),
-                expected_move_after_cost_bps=intent.get(
-                    "expected_move_after_cost_bps"
-                ),
+                expected_move_after_cost_bps=intent.get("expected_move_after_cost_bps"),
             ),
             integrity_gate={"allowed": True},
             local_trade_gates_pass=False,
@@ -15987,7 +21353,7 @@ class TestHighConfidenceLossClusterGate:
             ),
             high_confidence_loss_cluster_gate=cluster_gate,
             preemptive_decision=_allow_preemptive_decision(),
-    )
+        )
 
     @staticmethod
     def _policy_sampled_intent(**overrides) -> dict:
@@ -16081,9 +21447,7 @@ class TestHighConfidenceLossClusterGate:
             preemptive_decision=_allow_preemptive_decision(),
         )
 
-        assert classification["paper_opportunity_tier"] == (
-            "PAPER_RISK_CONTROLLER_EXPLORATION"
-        )
+        assert classification["paper_opportunity_tier"] == ("PAPER_RISK_CONTROLLER_EXPLORATION")
         assert classification["paper_risk_controller_exploration_block_reasons"] == []
         assert (
             classification[
@@ -16091,10 +21455,7 @@ class TestHighConfidenceLossClusterGate:
             ]
             is True
         )
-        assert (
-            classification["policy_sampled_paper_exploration_cluster_advisory_only"]
-            is True
-        )
+        assert classification["policy_sampled_paper_exploration_cluster_advisory_only"] is True
         assert classification["routes_to_live"] is False
         assert classification["places_real_order"] is False
         assert classification["counts_as_A_plus"] is False
@@ -16110,9 +21471,7 @@ class TestHighConfidenceLossClusterGate:
                 "PAPER_HIGH_CONFIDENCE_LOSS_CLUSTER_BLOCKED_REENTRY",
                 "PAPER_PERFORMANCE_CIRCUIT_BREAKER_BLOCKED",
             ],
-            paper_risk_controller_exploration_block_reasons=[
-                "LOSS_CLUSTER_OR_QUARANTINE_ACTIVE"
-            ],
+            paper_risk_controller_exploration_block_reasons=["LOSS_CLUSTER_OR_QUARANTINE_ACTIVE"],
             paper_opportunity_tier_reason="NON_EXECUTABLE_PAPER_TIER:NO_TRADE",
         )
         classification = paper_loop._classify_paper_opportunity_tier(  # noqa: SLF001
@@ -16155,9 +21514,7 @@ class TestHighConfidenceLossClusterGate:
             preemptive_decision=_allow_preemptive_decision(),
         )
 
-        assert classification["paper_opportunity_tier"] == (
-            "PAPER_RISK_CONTROLLER_EXPLORATION"
-        )
+        assert classification["paper_opportunity_tier"] == ("PAPER_RISK_CONTROLLER_EXPLORATION")
         assert classification["policy_sampled_paper_exploration_candidate"] is True
         assert classification["strict_paper_fill_allowed_upstream"] is False
         assert classification["routes_to_live"] is False
@@ -16228,13 +21585,9 @@ class TestHighConfidenceLossClusterGate:
             preemptive_decision=_allow_preemptive_decision(),
         )
 
-        assert classification["paper_opportunity_tier"] == (
-            "PAPER_RISK_CONTROLLER_EXPLORATION"
-        )
+        assert classification["paper_opportunity_tier"] == ("PAPER_RISK_CONTROLLER_EXPLORATION")
         assert (
-            classification[
-                "policy_sampled_paper_exploration_allocator_circuit_advisory_only"
-            ]
+            classification["policy_sampled_paper_exploration_allocator_circuit_advisory_only"]
             is True
         )
         assert classification["paper_exploration_exact_blocked_bucket_keys"] == []
@@ -16265,9 +21618,7 @@ class TestHighConfidenceLossClusterGate:
                         "bucket_key": "side_timeframe:long|15m",
                         "bucket_type": "side_timeframe",
                         "closed_outcome_count": 3,
-                        "block_reasons": [
-                            "HIGH_CONFIDENCE_LOSS_RATE_ABOVE_ADAPTIVE_BOUND"
-                        ],
+                        "block_reasons": ["HIGH_CONFIDENCE_LOSS_RATE_ABOVE_ADAPTIVE_BOUND"],
                         "profit_factor": 0.4,
                         "notional_weighted_expectancy_bps": -15.0,
                     }
@@ -16315,18 +21666,20 @@ class TestHighConfidenceLossClusterGate:
         assert classification["paper_opportunity_tier_reason"] == (
             "HIGH_CONFIDENCE_LOSS_CLUSTER_BUCKET_QUARANTINED"
         )
-        assert "HIGH_CONFIDENCE_LOSS_CLUSTER_SIDE_QUARANTINED" in classification[
-            "high_confidence_loss_cluster_bucket_match_reasons"
-        ]
+        assert (
+            "HIGH_CONFIDENCE_LOSS_CLUSTER_SIDE_QUARANTINED"
+            in classification["high_confidence_loss_cluster_bucket_match_reasons"]
+        )
         assert classification["counts_as_final_a_plus"] is False
 
     def test_cluster_symbol_quarantine_blocks_even_unquarantined_side(self) -> None:
         intent = self._bootstrap_intent(symbol="CAKEUSDT", side="long")
         classification = self._classify(intent, cluster_gate=self._cluster_gate())
         assert classification["paper_opportunity_tier"] == "SHADOW_ONLY"
-        assert "HIGH_CONFIDENCE_LOSS_CLUSTER_SYMBOL_QUARANTINED" in classification[
-            "high_confidence_loss_cluster_bucket_match_reasons"
-        ]
+        assert (
+            "HIGH_CONFIDENCE_LOSS_CLUSTER_SYMBOL_QUARANTINED"
+            in classification["high_confidence_loss_cluster_bucket_match_reasons"]
+        )
 
     def test_unrelated_bucket_not_blocked_by_cluster_gate(self) -> None:
         intent = self._bootstrap_intent(symbol="DOGEUSDT", side="long", timeframe="15m")
@@ -16371,12 +21724,10 @@ class TestHighConfidenceLossClusterGate:
             portfolio_drawdown_bps=0.0,
             high_confidence_loss_cluster_gate=self._cluster_gate(),
             preemptive_decision=_allow_preemptive_decision(),
-    )
+        )
         assert classification["paper_opportunity_tier"] == "A_GRADE_EXECUTION_PAPER"
         assert classification["counts_as_final_a_plus"] is False
-        assert classification[
-            "final_a_plus_denied_by_high_confidence_loss_cluster"
-        ] is True
+        assert classification["final_a_plus_denied_by_high_confidence_loss_cluster"] is True
 
 
 class TestCgF044StateFileOverrideAndSyntheticQuarantine:
@@ -16403,9 +21754,7 @@ class TestCgF044StateFileOverrideAndSyntheticQuarantine:
             "paper_session_id": "sess_a",
         }
 
-    def test_state_file_does_not_override_non_empty_redis_closes(
-        self, monkeypatch
-    ) -> None:
+    def test_state_file_does_not_override_non_empty_redis_closes(self, monkeypatch) -> None:
         redis_rows = [self._real_close(i) for i in range(18)]
         fake = _FakeRedis(
             {
@@ -16428,9 +21777,7 @@ class TestCgF044StateFileOverrideAndSyntheticQuarantine:
         assert payload["closed_trades"][0]["close_id"] == "close_0"
         assert len(payload["outcome_labels"]) == 1
 
-    def test_state_file_still_rescues_when_redis_read_is_empty(
-        self, monkeypatch
-    ) -> None:
+    def test_state_file_still_rescues_when_redis_read_is_empty(self, monkeypatch) -> None:
         fake = _FakeRedis({})
         rescue_rows = [self._real_close(0)]
         monkeypatch.setattr(
@@ -16457,10 +21804,7 @@ class TestCgF044StateFileOverrideAndSyntheticQuarantine:
         assert restored_compact in kept
         assert len(quarantined) == 1
         assert quarantined[0]["position_id"] == "pos_incomplete"
-        assert (
-            quarantined[0]["quarantine_reason"]
-            == "NO_EXIT_EVIDENCE_SYNTHETIC_OR_TEST_ROW"
-        )
+        assert quarantined[0]["quarantine_reason"] == "NO_EXIT_EVIDENCE_SYNTHETIC_OR_TEST_ROW"
         assert quarantined[0]["counts_as_closed_trade"] is False
 
     def test_exit_time_alone_counts_as_exit_evidence(self) -> None:
@@ -16480,16 +21824,24 @@ class TestCgF044StateFileOverrideAndSyntheticQuarantine:
 # ---------------------------------------------------------------------------
 # Policy-intent decision-record dereference (operator mission 2026-07-10):
 # risk/orchestrator IDs on CUDA-policy signals must resolve into decision
-# records (canonical preview by matching ID; DENY wins) or fall back to the
-# loop's inline gates with exact dereference blockers — never guessed.
+# records (exact immutable Redis key; DENY wins). Previews and embedded values
+# are observations only and never authorize a fill.
 # ---------------------------------------------------------------------------
+
 
 def _dereference_intent(**overrides):
     intent = {
         "symbol": "BTCUSDT",
         "timeframe": "1m",
+        "side": "long",
         "risk_decision_id": "rd_dec_x1",
         "orchestrator_decision_id": "dec_x1",
+        "prediction_id": "pred_x1",
+        "source_prediction_id": "pred_x1",
+        "signal_id": "sig_x1",
+        "feature_snapshot_id": "fs_x1",
+        "feature_vector_hash": "hash_x1",
+        "input_feature_hash": "hash_x1",
     }
     intent.update(overrides)
     return intent
@@ -16510,7 +21862,51 @@ def _dereference_kwargs(intent, **overrides):
     return kwargs
 
 
-def test_policy_sampled_exploration_dereferences_risk_decision_record() -> None:
+def _canonical_decision_records(
+    *,
+    risk_action: str = "allow",
+    orchestrator_action: str = "proceed_long",
+    risk_overrides: dict | None = None,
+    orchestrator_overrides: dict | None = None,
+) -> dict[str, dict]:
+    common = {
+        "prediction_id": "pred_x1",
+        "signal_id": "sig_x1",
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
+        "feature_snapshot_id": "fs_x1",
+        "feature_vector_hash": "hash_x1",
+        "input_feature_hash": "hash_x1",
+        "generated_utc": "2026-07-10T19:59:00Z",
+        "created_at": "2026-07-10T19:59:00Z",
+        "expires_at": "2026-07-10T21:59:00Z",
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+    risk = {
+        **common,
+        "risk_decision_id": "rd_dec_x1",
+        "orchestrator_decision_id": "dec_x1",
+        "risk_action": risk_action,
+        "decision": risk_action,
+        "producer": "v2_risk_gateway_live_loop",
+        **(risk_overrides or {}),
+    }
+    orchestrator = {
+        **common,
+        "orchestrator_decision_id": "dec_x1",
+        "orchestrator_action": orchestrator_action,
+        "decision": orchestrator_action,
+        "producer": "v2_orchestrator_arbitration_loop",
+        **(orchestrator_overrides or {}),
+    }
+    return {
+        "v2:decision:risk:rd_dec_x1": risk,
+        "v2:decision:orchestrator:dec_x1": orchestrator,
+    }
+
+
+def test_policy_sampled_exploration_never_uses_risk_preview_as_authority() -> None:
     intent = _dereference_intent()
     preview = {
         "risk_decision_id": "rd_dec_x1",
@@ -16522,12 +21918,14 @@ def test_policy_sampled_exploration_dereferences_risk_decision_record() -> None:
     out = paper_loop._paper_policy_intent_decision_dereference(  # noqa: SLF001
         **_dereference_kwargs(intent, risk_preview=preview)
     )
-    assert out["risk_decision_record_resolved"] is True
-    assert out["risk_controller_decision"] == "PASS"
-    assert out["risk_decision_source"] == "DASHBOARD_PREVIEW_MATCHED_ID_ONLY"
+    assert out["risk_decision_record_resolved"] is False
+    assert out["risk_controller_decision"] == "PENDING:RISK_DECISION_RECORD_REQUIRED"
+    assert out["risk_decision_source"] == "CANONICAL_RISK_DECISION_REQUIRED"
+    assert out["risk_preview_observed"] is True
+    assert out["decision_preview_authoritative"] is False
 
 
-def test_policy_sampled_exploration_dereferences_orchestrator_decision_record() -> None:
+def test_policy_sampled_exploration_never_uses_orchestrator_preview_as_authority() -> None:
     intent = _dereference_intent()
     preview = {
         "orchestrator_decision_id": "dec_x1",
@@ -16539,8 +21937,10 @@ def test_policy_sampled_exploration_dereferences_orchestrator_decision_record() 
     out = paper_loop._paper_policy_intent_decision_dereference(  # noqa: SLF001
         **_dereference_kwargs(intent, orchestrator_preview=preview)
     )
-    assert out["orchestrator_decision_record_resolved"] is True
-    assert out["orchestrator_decision"] == "PASS"
+    assert out["orchestrator_decision_record_resolved"] is False
+    assert out["orchestrator_decision"] == ("PENDING:ORCHESTRATOR_DECISION_RECORD_REQUIRED")
+    assert out["orchestrator_preview_observed"] is True
+    assert out["decision_preview_authoritative"] is False
 
 
 def test_missing_risk_record_blocks_with_exact_reason() -> None:
@@ -16548,12 +21948,10 @@ def test_missing_risk_record_blocks_with_exact_reason() -> None:
     out = paper_loop._paper_policy_intent_decision_dereference(  # noqa: SLF001
         **_dereference_kwargs(intent)
     )
-    assert "RISK_DECISION_RECORD_MISSING_BY_ID" in out[
-        "decision_record_dereference_blockers"
-    ]
-    # Inline gates are the live paper risk gateway when no record matches.
-    assert out["risk_decision_source"] == "INLINE_PAPER_GATE_FALLBACK"
-    assert out["risk_controller_decision"] == "PASS"
+    assert "RISK_DECISION_RECORD_MISSING_BY_ID" in out["decision_record_dereference_blockers"]
+    assert out["risk_decision_source"] == "CANONICAL_RISK_DECISION_REQUIRED"
+    assert out["risk_controller_decision"] == "PENDING:RISK_DECISION_RECORD_REQUIRED"
+    assert out["paper_inline_pre_trade_observation"]["authoritative_for_risk"] is False
 
 
 def test_missing_orchestrator_record_blocks_with_exact_reason() -> None:
@@ -16561,24 +21959,23 @@ def test_missing_orchestrator_record_blocks_with_exact_reason() -> None:
     out = paper_loop._paper_policy_intent_decision_dereference(  # noqa: SLF001
         **_dereference_kwargs(intent)
     )
-    assert "ORCHESTRATOR_DECISION_RECORD_MISSING_BY_ID" in out[
-        "decision_record_dereference_blockers"
-    ]
-    assert out["orchestrator_decision"] == "PASS"
-    assert out["orchestrator_decision_source"] == "INLINE_PAPER_GATE_FALLBACK"
+    assert (
+        "ORCHESTRATOR_DECISION_RECORD_MISSING_BY_ID" in out["decision_record_dereference_blockers"]
+    )
+    assert out["orchestrator_decision"] == ("PENDING:ORCHESTRATOR_DECISION_RECORD_REQUIRED")
+    assert out["orchestrator_decision_source"] == ("CANONICAL_ORCHESTRATOR_DECISION_REQUIRED")
 
 
 def test_stale_decision_record_blocks_with_exact_reason() -> None:
     intent = _dereference_intent()
-    preview = {
-        "risk_decision_id": "rd_dec_x1",
-        "symbol": "BTCUSDT",
-        "timeframe": "1m",
-        "risk_action": "allow",
-        "created_at": "2026-07-10T18:00:00Z",
-    }
+    records = _canonical_decision_records(
+        risk_overrides={
+            "generated_utc": "2026-07-10T18:00:00Z",
+            "created_at": "2026-07-10T18:00:00Z",
+        }
+    )
     out = paper_loop._paper_policy_intent_decision_dereference(  # noqa: SLF001
-        **_dereference_kwargs(intent, risk_preview=preview)
+        _PerIdDecisionRedisStub(records), **_dereference_kwargs(intent)
     )
     assert "RISK_DECISION_RECORD_STALE" in out["decision_record_dereference_blockers"]
     assert out["risk_decision_record_resolved"] is False
@@ -16586,33 +21983,74 @@ def test_stale_decision_record_blocks_with_exact_reason() -> None:
 
 def test_candidate_mismatched_decision_record_blocks() -> None:
     intent = _dereference_intent()
-    preview = {
-        "risk_decision_id": "rd_dec_x1",
-        "symbol": "ETHUSDT",
-        "timeframe": "1m",
-        "risk_action": "allow",
-        "created_at": "2026-07-10T19:55:00Z",
-    }
+    records = _canonical_decision_records(risk_overrides={"symbol": "ETHUSDT"})
     out = paper_loop._paper_policy_intent_decision_dereference(  # noqa: SLF001
-        **_dereference_kwargs(intent, risk_preview=preview)
+        _PerIdDecisionRedisStub(records), **_dereference_kwargs(intent)
     )
-    assert "RISK_DECISION_RECORD_CANDIDATE_MISMATCH" in out[
-        "decision_record_dereference_blockers"
-    ]
+    assert "RISK_DECISION_RECORD_CANDIDATE_MISMATCH" in out["decision_record_dereference_blockers"]
     assert out["risk_decision_record_resolved"] is False
+
+
+@pytest.mark.parametrize(
+    ("overrides", "reason"),
+    [
+        (
+            {"producer": "v2_trade_management_paper_loop"},
+            "RISK_DECISION_RECORD_PRODUCER_MISMATCH",
+        ),
+        (
+            {"expires_at": None},
+            "RISK_DECISION_RECORD_EXPIRY_MISSING_OR_INVALID",
+        ),
+        (
+            {"expires_at": "2026-07-10T19:59:30Z"},
+            "RISK_DECISION_RECORD_EXPIRED",
+        ),
+        (
+            {"prediction_id": "other_prediction"},
+            "RISK_DECISION_RECORD_PREDICTION_MISMATCH",
+        ),
+        (
+            {"feature_vector_hash": "other_hash"},
+            "RISK_DECISION_RECORD_FEATURE_HASH_MISMATCH",
+        ),
+    ],
+)
+def test_noncanonical_or_identity_mismatched_risk_record_never_resolves(
+    overrides: dict,
+    reason: str,
+) -> None:
+    intent = _dereference_intent()
+    records = _canonical_decision_records(risk_overrides=overrides)
+
+    out = paper_loop._paper_policy_intent_decision_dereference(  # noqa: SLF001
+        _PerIdDecisionRedisStub(records), **_dereference_kwargs(intent)
+    )
+
+    assert reason in out["decision_record_dereference_blockers"]
+    assert out["risk_decision_record_resolved"] is False
+    assert out["risk_controller_decision"] == "PENDING:RISK_DECISION_RECORD_REQUIRED"
+
+
+def test_naive_canonical_decision_timestamp_is_rejected() -> None:
+    intent = _dereference_intent()
+    records = _canonical_decision_records(risk_overrides={"generated_utc": "2026-07-10T19:59:00"})
+
+    out = paper_loop._paper_policy_intent_decision_dereference(  # noqa: SLF001
+        _PerIdDecisionRedisStub(records), **_dereference_kwargs(intent)
+    )
+
+    assert (
+        "RISK_DECISION_RECORD_GENERATED_TIME_MISSING_OR_INVALID"
+        in out["decision_record_dereference_blockers"]
+    )
 
 
 def test_resolved_deny_record_wins_over_inline_gates() -> None:
     intent = _dereference_intent()
-    preview = {
-        "risk_decision_id": "rd_dec_x1",
-        "symbol": "BTCUSDT",
-        "timeframe": "1m",
-        "risk_action": "deny",
-        "created_at": "2026-07-10T19:55:00Z",
-    }
+    records = _canonical_decision_records(risk_action="deny")
     out = paper_loop._paper_policy_intent_decision_dereference(  # noqa: SLF001
-        **_dereference_kwargs(intent, risk_preview=preview)
+        _PerIdDecisionRedisStub(records), **_dereference_kwargs(intent)
     )
     assert out["risk_controller_decision"].startswith("DENY:")
 
@@ -16655,7 +22093,7 @@ def test_resolved_records_allow_fill_gate_to_continue_and_stay_paper_only() -> N
     assert row["places_real_order"] is False
 
 
-def test_exploration_dereference_never_overwrites_existing_decisions() -> None:
+def test_embedded_pass_cannot_bypass_missing_canonical_decisions() -> None:
     intent = _dereference_intent(
         risk_controller_decision="PASS",
         orchestrator_decision="PASS",
@@ -16663,8 +22101,25 @@ def test_exploration_dereference_never_overwrites_existing_decisions() -> None:
     out = paper_loop._paper_policy_intent_decision_dereference(  # noqa: SLF001
         **_dereference_kwargs(intent)
     )
-    assert "risk_controller_decision" not in out
-    assert "orchestrator_decision" not in out
+    assert out["embedded_risk_decision_observation"] == "PASS"
+    assert out["embedded_risk_decision_authoritative"] is False
+    assert out["embedded_orchestrator_decision_observation"] == "PASS"
+    assert out["embedded_orchestrator_decision_authoritative"] is False
+    assert out["risk_controller_decision"] == "PENDING:RISK_DECISION_RECORD_REQUIRED"
+    assert out["orchestrator_decision"] == ("PENDING:ORCHESTRATOR_DECISION_RECORD_REQUIRED")
+
+
+def test_per_id_record_builder_never_fabricates_missing_decision_pass() -> None:
+    records = paper_loop._paper_per_id_decision_records(  # noqa: SLF001
+        {
+            "symbol": "BTCUSDT",
+            "timeframe": "1m",
+            "risk_decision_id": "rd_pending",
+            "orchestrator_decision_id": "dec_pending",
+        }
+    )
+
+    assert records == []
 
 
 class _PerIdDecisionRedisStub:
@@ -16680,22 +22135,7 @@ class _PerIdDecisionRedisStub:
 
 def test_risk_and_orchestrator_per_id_records_resolved_from_store() -> None:
     intent = _dereference_intent()
-    records = {
-        "v2:decision:risk:rd_dec_x1": {
-            "risk_decision_id": "rd_dec_x1",
-            "symbol": "BTCUSDT",
-            "timeframe": "1m",
-            "risk_action": "allow",
-            "created_at": "2026-07-10T19:59:00Z",
-        },
-        "v2:decision:orchestrator:dec_x1": {
-            "orchestrator_decision_id": "dec_x1",
-            "symbol": "BTCUSDT",
-            "timeframe": "1m",
-            "input_decision_action": "allow",
-            "created_at": "2026-07-10T19:59:00Z",
-        },
-    }
+    records = _canonical_decision_records()
     out = paper_loop._paper_policy_intent_decision_dereference(  # noqa: SLF001
         _PerIdDecisionRedisStub(records), **_dereference_kwargs(intent)
     )
@@ -16707,8 +22147,30 @@ def test_risk_and_orchestrator_per_id_records_resolved_from_store() -> None:
     assert out["orchestrator_decision"] == "PASS"
 
 
-def test_per_id_decision_store_writes_risk_orchestrator_and_indexes() -> None:
-    redis = _FakeRedis({})
+def test_directional_orchestrator_action_resolves_as_paper_allow() -> None:
+    intent = _dereference_intent()
+    records = _canonical_decision_records(orchestrator_action="proceed_long")
+
+    out = paper_loop._paper_policy_intent_decision_dereference(  # noqa: SLF001
+        _PerIdDecisionRedisStub(records), **_dereference_kwargs(intent)
+    )
+
+    assert out["orchestrator_decision_record_resolved"] is True
+    assert out["orchestrator_decision"] == "PASS"
+    assert paper_loop._paper_decision_action("proceed_short") == "allow"  # noqa: SLF001
+
+
+def test_paper_per_id_decision_store_is_read_only_observer() -> None:
+    records = _canonical_decision_records(
+        risk_overrides={"risk_decision_id": "rd_store_1"},
+        orchestrator_overrides={"orchestrator_decision_id": "orch_store_1"},
+    )
+    records = {
+        "v2:decision:risk:rd_store_1": records["v2:decision:risk:rd_dec_x1"],
+        "v2:decision:orchestrator:orch_store_1": records["v2:decision:orchestrator:dec_x1"],
+    }
+    redis = _FakeRedis(records)
+    keys_before = set(redis.payloads)
     status = paper_loop._write_paper_per_id_decision_store(  # noqa: SLF001
         redis,
         [
@@ -16737,47 +22199,15 @@ def test_per_id_decision_store_writes_risk_orchestrator_and_indexes() -> None:
         ],
     )
 
-    assert status["risk_records_written"] == 1
-    assert status["orchestrator_records_written"] == 1
+    assert status["risk_records_written"] == 0
+    assert status["orchestrator_records_written"] == 0
+    assert status["index_records_written"] == 0
+    assert status["canonical_records_written"] == 0
+    assert status["risk_records_existing"] == 1
+    assert status["orchestrator_records_existing"] == 1
     assert status["missing_record_count"] == 0
-    risk = json.loads(redis.payloads["v2:decision:risk:rd_store_1"])
-    orchestrator = json.loads(redis.payloads["v2:decision:orchestrator:orch_store_1"])
-    candidate_index = json.loads(
-        redis.payloads["v2:decision:index:by_candidate:hyp_store_1"]
-    )
-    signal_index = json.loads(redis.payloads["v2:decision:index:by_signal:sig_store_1"])
-
-    assert risk["risk_decision_id"] == "rd_store_1"
-    assert risk["risk_action"] == "allow"
-    assert risk["max_loss_usd"] == 0.42
-    assert risk["routes_to_live"] is False
-    assert risk["places_real_order"] is False
-    assert orchestrator["orchestrator_decision_id"] == "orch_store_1"
-    assert orchestrator["orchestrator_action"] == "allow"
-    assert orchestrator["route"] == "paper"
-    assert candidate_index["decision_record_keys"] == [
-        "v2:decision:risk:rd_store_1",
-        "v2:decision:orchestrator:orch_store_1",
-    ]
-    assert signal_index["candidate_id"] == "hyp_store_1"
-
-    second_status = paper_loop._write_paper_per_id_decision_store(  # noqa: SLF001
-        redis,
-        [
-            {
-                "candidate_id": "hyp_store_1",
-                "prediction_id": "pred_store_1",
-                "signal_id": "sig_store_1",
-                "risk_decision_id": "rd_store_1",
-                "orchestrator_decision_id": "orch_store_1",
-                "symbol": "BTCUSDT",
-                "timeframe": "1m",
-                "side": "long",
-            }
-        ],
-    )
-    assert second_status["risk_records_existing"] == 1
-    assert second_status["orchestrator_records_existing"] == 1
+    assert status["consumer_role"] == "READ_ONLY_CANONICAL_DECISION_OBSERVER"
+    assert set(redis.payloads) == keys_before
 
 
 def test_last_write_preview_not_used_as_per_id_lineage() -> None:
@@ -16793,20 +22223,14 @@ def test_last_write_preview_not_used_as_per_id_lineage() -> None:
         None, **_dereference_kwargs(intent, risk_preview=preview)
     )
     assert out["risk_decision_source"] != "PER_ID_DECISION_RECORD"
-    assert out["risk_decision_source"] == "DASHBOARD_PREVIEW_MATCHED_ID_ONLY"
+    assert out["risk_decision_source"] == "CANONICAL_RISK_DECISION_REQUIRED"
+    assert out["risk_preview_observed"] is True
+    assert out["decision_preview_authoritative"] is False
 
 
 def test_per_id_deny_record_wins_and_stays_paper_only() -> None:
     intent = _dereference_intent()
-    records = {
-        "v2:decision:risk:rd_dec_x1": {
-            "risk_decision_id": "rd_dec_x1",
-            "symbol": "BTCUSDT",
-            "timeframe": "1m",
-            "risk_action": "deny",
-            "created_at": "2026-07-10T19:59:00Z",
-        }
-    }
+    records = _canonical_decision_records(risk_action="deny")
     out = paper_loop._paper_policy_intent_decision_dereference(  # noqa: SLF001
         _PerIdDecisionRedisStub(records), **_dereference_kwargs(intent)
     )
@@ -16857,33 +22281,45 @@ def test_probation_supervisor_freeze_keeps_bootstrap_exploration_alive() -> None
         "paper_risk_controller_exploration_eligible": True,
         "paper_exploration_paper_fill_allowed": True,
     }
-    assert _paper_risk_controller_exploration_can_override_entry_freeze(
-        intent=intent, paper_entry_freeze=freeze
-    ) is True
+    assert (
+        _paper_risk_controller_exploration_can_override_entry_freeze(
+            intent=intent, paper_entry_freeze=freeze
+        )
+        is True
+    )
 
     # The symbol named in the freeze reason stays blocked.
     fil = {**intent, "symbol": "FILUSDT"}
-    assert _paper_risk_controller_exploration_can_override_entry_freeze(
-        intent=fil, paper_entry_freeze=freeze
-    ) is False
+    assert (
+        _paper_risk_controller_exploration_can_override_entry_freeze(
+            intent=fil, paper_entry_freeze=freeze
+        )
+        is False
+    )
 
     # Truth-integrity freezes never carve out.
     truth_freeze = {
         "paper_new_entries_halted": True,
         "reason": "PORTFOLIO_TRUTH_UNTRUSTED",
     }
-    assert _paper_risk_controller_exploration_can_override_entry_freeze(
-        intent=intent, paper_entry_freeze=truth_freeze
-    ) is False
+    assert (
+        _paper_risk_controller_exploration_can_override_entry_freeze(
+            intent=intent, paper_entry_freeze=truth_freeze
+        )
+        is False
+    )
 
     # Non-probation freezes still require the circuit-breaker scoped flags.
     generic_freeze = {
         "paper_new_entries_halted": True,
         "reason": "PERFORMANCE_CIRCUIT_GLOBAL_HALT",
     }
-    assert _paper_risk_controller_exploration_can_override_entry_freeze(
-        intent=intent, paper_entry_freeze=generic_freeze
-    ) is False
+    assert (
+        _paper_risk_controller_exploration_can_override_entry_freeze(
+            intent=intent, paper_entry_freeze=generic_freeze
+        )
+        is False
+    )
 
 
 def test_session_performance_sizing_factor_adapts_both_directions() -> None:
@@ -16891,10 +22327,7 @@ def test_session_performance_sizing_factor_adapts_both_directions() -> None:
     from app.cli import v2_trade_management_paper_loop as loop
 
     def _rows(n, pnl_usd, notional=100.0):
-        return [
-            {"realized_net_pnl_usd": pnl_usd, "gross_notional_usd": notional}
-            for _ in range(n)
-        ]
+        return [{"realized_net_pnl_usd": pnl_usd, "gross_notional_usd": notional} for _ in range(n)]
 
     # Below the minimum sample: neutral 1.0 regardless of results.
     loop._set_session_performance_sizing_evidence(_rows(3, 5.0))
@@ -17022,9 +22455,7 @@ def test_material_bucket_still_escalates_global_halt(_post_repair_epoch) -> None
     ]
     status = paper_loop._paper_bucket_quarantine_status(rows, generated_utc="2026-07-14T09:00:00Z")
     assert status["global_halt_required"] is True
-    assert any(
-        b.get("escalates_global_halt") for b in status["quarantined_buckets"]
-    )
+    assert any(b.get("escalates_global_halt") for b in status["quarantined_buckets"])
 
 
 def test_distinct_loss_breadth_escalates_across_thin_buckets(_post_repair_epoch) -> None:
@@ -17033,8 +22464,529 @@ def test_distinct_loss_breadth_escalates_across_thin_buckets(_post_repair_epoch)
     material-sample floor. Uses 3 strategies x 2 rows (win smaller than loss)."""
     rows = []
     for i, strat in enumerate(("s_alpha", "s_beta", "s_gamma")):
-        rows.append(_quarantine_row(symbol=f"W{i}USDT", pnl_bps=5.0, notional_usd=5.0, strategy=strat))
-        rows.append(_quarantine_row(symbol=f"L{i}USDT", pnl_bps=-60.0, notional_usd=25.0, strategy=strat))
+        rows.append(
+            _quarantine_row(symbol=f"W{i}USDT", pnl_bps=5.0, notional_usd=5.0, strategy=strat)
+        )
+        rows.append(
+            _quarantine_row(symbol=f"L{i}USDT", pnl_bps=-60.0, notional_usd=25.0, strategy=strat)
+        )
     status = paper_loop._paper_bucket_quarantine_status(rows, generated_utc="2026-07-14T09:00:00Z")
     assert status["blocking_distinct_loss_row_count"] >= 3
     assert status["global_halt_required"] is True
+
+
+def _allocator_market_evidence_input(
+    *,
+    intent_overrides: dict | None = None,
+    signal_overrides: dict | None = None,
+    microstructure_overrides: dict | None = None,
+    correlation_context: dict | None = None,
+):
+    intent = {
+        "symbol": "ETHUSDT",
+        "timeframe": "1m",
+        "side": "long",
+        "entry_price": 100.0,
+        "confidence_calibrated": 0.8,
+        "expected_move_after_cost_bps": 20.0,
+        "market_state_integrity_score": 92.0,
+        "strategy_regime_labels": ["TREND"],
+        "strategy_router_selected_mode": "trend_following",
+    }
+    intent.update(intent_overrides or {})
+    signal = {
+        "timeframe": "1m",
+        "price_target": 100.0,
+        "expected_funding_bps": 0.5,
+    }
+    signal.update(signal_overrides or {})
+    market_microstructure = {
+        "liquidity_score": 0.8,
+        "bid_ask_spread_bps": 1.2,
+        "orderbook_depth_usd": 100000.0,
+        "microstructure_trust_score": 0.82,
+        "microstructure_adaptive_minimum": 0.70,
+        "microstructure_action": "ALLOW",
+    }
+    market_microstructure.update(microstructure_overrides or {})
+    contexts = {
+        "ETHUSDT": {
+            "correlation_exposure_pct": 0.0,
+            "correlation_input_status": "NO_OPEN_POSITIONS",
+            "correlation_input_source": "NO_OPEN_POSITIONS",
+            "correlation_pair_count": 0,
+            "correlation_required_pair_count": 0,
+            "correlation_unresolved_open_symbols": [],
+        }
+    }
+    if correlation_context is not None:
+        contexts["ETHUSDT"] = correlation_context
+    allocation_input = paper_loop._build_allocation_input(  # noqa: SLF001
+        intent=intent,
+        signal=signal,
+        prediction={"features": {}},
+        portfolio_context={
+            "equity": 10000.0,
+            "available_margin": 9000.0,
+            "wallet_balance": 10000.0,
+            "drawdown_bps": 0.0,
+        },
+        symbol_exposures={},
+        total_exposure=0.0,
+        market_microstructure=market_microstructure,
+        correlation_contexts_by_symbol=contexts,
+    )
+    return intent, allocation_input
+
+
+@pytest.mark.parametrize(
+    ("market_microstructure", "expected_reason"),
+    [
+        (
+            {"orderbook_depth_usd": 100000.0},
+            "FAIL_CLOSED_PARTIAL_ORDERBOOK_LIQUIDITY_DEPTH_ONLY",
+        ),
+        (
+            {"bid_ask_spread_bps": 1.2},
+            "FAIL_CLOSED_PARTIAL_ORDERBOOK_LIQUIDITY_SPREAD_ONLY",
+        ),
+        ({}, "FAIL_CLOSED_NO_AUTHORITATIVE_LIQUIDITY_SCORE"),
+    ],
+)
+def test_allocator_partial_or_missing_liquidity_evidence_is_not_executable(
+    market_microstructure: dict,
+    expected_reason: str,
+) -> None:
+    intent: dict = {}
+    score, _source, reason = paper_loop._derive_allocator_liquidity_score(  # noqa: SLF001
+        intent=intent,
+        signal={"liquidity_score": 0.99},
+        prediction={"market_liquidity_score": 0.98},
+        features={"depth_liquidity_score": 0.97},
+        market_microstructure=market_microstructure,
+        spread_bps=1.2,
+        feature_source_name="entry_features",
+    )
+
+    assert score == 0.0
+    assert reason == expected_reason
+    assert intent["upstream_reported_liquidity_score_authoritative"] is False
+
+
+def test_allocator_explicit_liquidity_or_complete_book_pair_is_executable() -> None:
+    explicit_score, _, explicit_reason = paper_loop._derive_allocator_liquidity_score(  # noqa: SLF001
+        intent={},
+        signal={},
+        prediction={},
+        features={},
+        market_microstructure={"liquidity_score": 0.83, "bid_ask_spread_bps": 1.2},
+        spread_bps=1.2,
+        feature_source_name="entry_features",
+    )
+    paired_score, _, paired_reason = paper_loop._derive_allocator_liquidity_score(  # noqa: SLF001
+        intent={},
+        signal={},
+        prediction={},
+        features={},
+        market_microstructure={
+            "orderbook_depth_usd": 100000.0,
+            "bid_ask_spread_bps": 1.2,
+        },
+        spread_bps=1.2,
+        feature_source_name="entry_features",
+    )
+
+    assert explicit_score == pytest.approx(0.83)
+    assert explicit_reason == "EXPLICIT_LIQUIDITY_SCORE"
+    assert paired_score > 0.0
+    assert paired_reason == "DERIVED_FROM_ORDERBOOK_DEPTH_AND_SPREAD"
+
+
+@pytest.mark.parametrize(
+    ("adaptive_minimum", "reason"),
+    [
+        (None, "MICROSTRUCTURE_ADAPTIVE_MINIMUM_MISSING"),
+        ("invalid", "MICROSTRUCTURE_ADAPTIVE_MINIMUM_INVALID"),
+        (0.0, "MICROSTRUCTURE_ADAPTIVE_MINIMUM_INVALID"),
+        (1.01, "MICROSTRUCTURE_ADAPTIVE_MINIMUM_INVALID"),
+    ],
+)
+def test_allocator_missing_or_invalid_adaptive_microstructure_minimum_blocks(
+    adaptive_minimum,
+    reason: str,
+) -> None:
+    intent, allocation_input = _allocator_market_evidence_input(
+        microstructure_overrides={
+            "microstructure_adaptive_minimum": adaptive_minimum,
+        }
+    )
+
+    assert allocation_input.liquidity_score == 0.0
+    assert allocation_input.risk_veto is True
+    assert intent["allocator_microstructure_block_reason"] == reason
+
+
+@pytest.mark.parametrize(
+    "action",
+    ["", "UNKNOWN_ACTION", "NO_TRADE", "SHADOW_ONLY", "CLOSE_OR_REDUCE_ONLY"],
+)
+def test_allocator_missing_unknown_or_protective_microstructure_action_blocks(
+    action: str,
+) -> None:
+    intent, allocation_input = _allocator_market_evidence_input(
+        microstructure_overrides={"microstructure_action": action}
+    )
+
+    assert allocation_input.liquidity_score == 0.0
+    assert allocation_input.risk_veto is True
+    assert str(intent["allocator_microstructure_trust_gate_status"]).startswith("BLOCKED_")
+
+
+def test_allocator_upstream_regime_labels_and_score_are_diagnostic_only() -> None:
+    intent, allocation_input = _allocator_market_evidence_input(
+        intent_overrides={
+            "strategy_regime_labels": None,
+            "strategy_router_selected_mode": None,
+        },
+        signal_overrides={
+            "regime_score": 0.95,
+            "strategy_regime_labels": ["TREND"],
+            "strategy_router_selected_mode": "trend_following",
+            "strategy_selected_mode": "trend_following",
+            "market_regime": "TREND",
+        },
+    )
+
+    assert intent["allocator_regime_score"] == 0.0
+    assert intent["allocator_regime_score_reason"] == "FAIL_CLOSED_NO_REGIME_SCORE"
+    assert intent["upstream_reported_regime_score_authoritative"] is False
+    assert intent["upstream_reported_strategy_regime_labels_authoritative"] is False
+    assert intent["upstream_reported_strategy_modes_authoritative"] is False
+    assert intent["upstream_reported_market_regimes_authoritative"] is False
+    assert allocation_input.strategy_selected_mode is None
+    assert allocation_input.market_regime is None
+    assert allocation_input.risk_veto is True
+    assert "FAIL_CLOSED_NO_REGIME_SCORE" in str(allocation_input.risk_veto_reason)
+
+
+def test_allocator_router_no_trade_regime_sets_explicit_risk_veto() -> None:
+    intent, allocation_input = _allocator_market_evidence_input(
+        intent_overrides={"strategy_regime_labels": ["NO_TRADE"]}
+    )
+
+    assert intent["allocator_regime_score_reason"] == ("REGIME_LABEL_NO_TRADE_OR_BLOCKED")
+    assert allocation_input.risk_veto is True
+    assert "REGIME_LABEL_NO_TRADE_OR_BLOCKED" in str(allocation_input.risk_veto_reason)
+
+
+def _correlation_returns(scale: float = 1.0) -> dict[int, float]:
+    return {index: scale * float(index + 1) for index in range(30)}
+
+
+def _correlation_ready_diagnostics(symbol: str) -> dict:
+    return {
+        "status": "READY",
+        "source": f"v2:market:ohlcv_closed:binance:{symbol}:1m",
+        "source_hash": paper_loop._paper_canonical_sha256(  # noqa: SLF001
+            {"symbol": symbol, "accepted": True}
+        ),
+        "source_hash_contract": paper_loop.CORRELATION_CHILD_SOURCE_HASH_CONTRACT,
+        "feature_cutoff": "2026-07-17T11:59:00Z",
+        "source_available_at": "2026-07-17T11:59:01Z",
+        "raw_candle_count": 31,
+        "accepted_candle_count": 31,
+        "return_count": 30,
+    }
+
+
+def test_candidate_correlation_requires_every_distinct_open_symbol_pair(
+    monkeypatch,
+) -> None:
+    def fake_returns(_redis, symbol: str, *, generated_utc: str):
+        del generated_utc
+        if symbol == "SOLUSDT":
+            return None, {"status": "MISSING_MARKET_CANDLES"}
+        return (
+            _correlation_returns(1.0 if symbol == "ETHUSDT" else 2.0),
+            _correlation_ready_diagnostics(symbol),
+        )
+
+    monkeypatch.setattr(
+        paper_loop,
+        "_read_symbol_correlation_returns",
+        fake_returns,
+    )
+
+    context = paper_loop._derive_candidate_correlation_contexts(  # noqa: SLF001
+        object(),
+        candidate_symbols=["ETHUSDT"],
+        open_symbols=["BTCUSDT", "SOLUSDT"],
+        generated_utc="2026-07-17T12:00:00Z",
+    )["ETHUSDT"]
+
+    assert context["correlation_input_status"] == ("INCOMPLETE_REQUIRED_OPEN_PAIR_COVERAGE")
+    assert context["correlation_pair_count"] == 1
+    assert context["correlation_required_pair_count"] == 2
+    assert context["correlation_unresolved_open_symbols"] == ["SOLUSDT"]
+    assert context["correlation_exposure_pct"] == (paper_loop.CORRELATION_FAIL_CLOSED_EXPOSURE_PCT)
+
+
+def test_candidate_correlation_includes_same_cycle_accepted_symbol_pair(
+    monkeypatch,
+) -> None:
+    def fake_returns(_redis, symbol: str, *, generated_utc: str):
+        del generated_utc
+        return (
+            _correlation_returns(1.0 if symbol == "ETHUSDT" else -2.0),
+            _correlation_ready_diagnostics(symbol),
+        )
+
+    monkeypatch.setattr(
+        paper_loop,
+        "_read_symbol_correlation_returns",
+        fake_returns,
+    )
+
+    # run_once passes already accepted same-cycle symbols in open_symbols.
+    context = paper_loop._derive_candidate_correlation_contexts(  # noqa: SLF001
+        object(),
+        candidate_symbols=["ETHUSDT"],
+        open_symbols=["BTCUSDT"],
+        generated_utc="2026-07-17T12:00:00Z",
+    )["ETHUSDT"]
+
+    assert context["correlation_input_status"] == "READY"
+    assert context["correlation_pair_count"] == 1
+    assert context["correlation_required_pair_count"] == 1
+    assert context["correlation_unresolved_open_symbols"] == []
+    assert context["correlation_source_hash_contract"] == (
+        paper_loop.CORRELATION_AGGREGATE_SOURCE_HASH_CONTRACT
+    )
+    assert context["correlation_source_hash"] == (
+        paper_loop._paper_canonical_sha256(  # noqa: SLF001
+            context["correlation_source_material"]
+        )
+    )
+    assert context["correlation_source_child_count"] == 2
+
+
+def test_allocator_rejects_ready_label_without_complete_correlation_pair_contract() -> None:
+    intent, allocation_input = _allocator_market_evidence_input(
+        correlation_context={
+            "correlation_exposure_pct": 0.10,
+            "correlation_input_status": "READY",
+            "correlation_input_source": "MARKET_OHLCV_RETURN_CORRELATION",
+            "correlation_pair_count": 1,
+            "correlation_required_pair_count": 2,
+            "correlation_unresolved_open_symbols": ["SOLUSDT"],
+        }
+    )
+
+    assert intent["correlation_evidence_executable"] is False
+    assert allocation_input.risk_veto is True
+    assert "CANONICAL_CORRELATION_EVIDENCE_NOT_EXECUTABLE" in str(allocation_input.risk_veto_reason)
+
+
+def test_allocator_rejects_tampered_correlation_aggregate_source_material(
+    monkeypatch,
+) -> None:
+    def fake_returns(_redis, symbol: str, *, generated_utc: str):
+        del generated_utc
+        return _correlation_returns(), _correlation_ready_diagnostics(symbol)
+
+    monkeypatch.setattr(
+        paper_loop,
+        "_read_symbol_correlation_returns",
+        fake_returns,
+    )
+    context = paper_loop._derive_candidate_correlation_contexts(  # noqa: SLF001
+        object(),
+        candidate_symbols=["ETHUSDT"],
+        open_symbols=["BTCUSDT"],
+        generated_utc="2026-07-17T12:00:00Z",
+    )["ETHUSDT"]
+    _intent, valid_input = _allocator_market_evidence_input(correlation_context=context)
+    assert valid_input.risk_veto is False
+
+    tampered = deepcopy(context)
+    tampered["correlation_source_material"]["child_sources"][0]["source_key"] = (
+        "v2:market:ohlcv_closed:binance:FORGED:1m"
+    )
+    intent, blocked_input = _allocator_market_evidence_input(correlation_context=tampered)
+
+    assert intent["correlation_source_lineage_valid"] is False
+    assert blocked_input.risk_veto is True
+    assert "CANONICAL_CORRELATION_EVIDENCE_NOT_EXECUTABLE" in str(blocked_input.risk_veto_reason)
+
+
+def test_microstructure_trust_reader_rejects_noncanonical_schema_identity() -> None:
+    redis_client = _FakeRedis(
+        {
+            "v2:microstructure:trust_score:ETHUSDT:1m": {
+                "schema_version": "legacy_or_unknown_schema",
+                "symbol": "ETHUSDT",
+                "timeframe": "1m",
+                "available_at": "2026-07-17T11:59:58Z",
+                "generated_at": "2026-07-17T11:59:57Z",
+                "microstructure_trust_score": 0.99,
+                "adaptive_minimum": 0.70,
+                "microstructure_action": "ALLOW",
+            }
+        }
+    )
+
+    trust = paper_loop._read_v2_microstructure_trust(  # noqa: SLF001
+        redis_client,
+        "ETHUSDT",
+        decision_time="2026-07-17T12:00:00Z",
+        timeframe="1m",
+    )
+
+    assert trust["microstructure_trust_status"] == (
+        "REJECTED_MICROSTRUCTURE_TRUST_CONTRACT_INVALID"
+    )
+    assert trust["microstructure_trust_required_schema_version"] == (
+        "microstructure_trust_score_v2"
+    )
+    assert trust["microstructure_trust_invalid_contract_keys"][0]["reasons"] == [
+        "SCHEMA_VERSION_MISMATCH"
+    ]
+
+
+def _final_correlation_candle_rows(*, explicit_final: bool) -> list[dict]:
+    decision_ms = int(datetime(2026, 7, 17, 12, 0, tzinfo=timezone.utc).timestamp() * 1000)
+    rows: list[dict] = []
+    for index in range(31):
+        close_ms = decision_ms - ((31 - index) * 60_000)
+        row = {
+            "candle_close_time": close_ms,
+            "available_at": close_ms + 1_000,
+            "close": 100.0 + index,
+        }
+        if explicit_final:
+            row["candle_closed_confirmed"] = True
+        rows.append(row)
+    return rows
+
+
+def test_correlation_reader_rejects_dict_candles_without_explicit_finality() -> None:
+    key = "v2:market:ohlcv:binance:ETHUSDT:1m"
+    returns, diagnostics = paper_loop._read_symbol_correlation_returns(  # noqa: SLF001
+        _FakeRedis({key: {"rows": _final_correlation_candle_rows(explicit_final=False)}}),
+        "ETHUSDT",
+        generated_utc="2026-07-17T12:00:00Z",
+    )
+
+    assert returns is None
+    assert diagnostics["status"] == "MISSING_ACCEPTED_CANDLES"
+    assert diagnostics["reject_counts"] == {"CANDLE_FINALITY_NOT_EXPLICITLY_CONFIRMED": 31}
+
+
+def test_correlation_reader_prefers_explicit_closed_candle_source() -> None:
+    closed_key = "v2:market:ohlcv_closed:binance:ETHUSDT:1m"
+    generic_key = "v2:market:ohlcv:binance:ETHUSDT:1m"
+    returns, diagnostics = paper_loop._read_symbol_correlation_returns(  # noqa: SLF001
+        _FakeRedis(
+            {
+                closed_key: {"rows": _final_correlation_candle_rows(explicit_final=True)},
+                generic_key: {"rows": _final_correlation_candle_rows(explicit_final=False)},
+            }
+        ),
+        "ETHUSDT",
+        generated_utc="2026-07-17T12:00:00Z",
+    )
+
+    assert returns is not None
+    assert len(returns) == paper_loop.CORRELATION_MIN_RETURN_POINTS
+    assert diagnostics["status"] == "READY"
+    assert diagnostics["source"] == closed_key
+
+
+def test_correlation_candle_clocks_reject_naive_iso_timestamps() -> None:
+    assert paper_loop._parse_epoch_ms("2026-07-17T11:59:00") is None  # noqa: SLF001
+    assert (
+        paper_loop._parse_epoch_ms(  # noqa: SLF001
+            "2026-07-17T11:59:00Z"
+        )
+        is not None
+    )
+    decision_ms = int(datetime(2026, 7, 17, 12, 0, tzinfo=timezone.utc).timestamp() * 1000)
+    assert (
+        paper_loop._correlation_candle_point(  # noqa: SLF001
+            {
+                "candle_close_time": "2026-07-17T11:59:00",
+                "available_at": "2026-07-17T11:59:01Z",
+                "close": 100.0,
+                "candle_closed_confirmed": True,
+            },
+            generated_ms=decision_ms,
+            source_key="v2:market:ohlcv_closed:binance:ETHUSDT:1m",
+        )
+        == "MISSING_CANDLE_CLOSE_TIME"
+    )
+    assert (
+        paper_loop._correlation_candle_point(  # noqa: SLF001
+            {
+                "candle_close_time": "2026-07-17T11:59:00Z",
+                "available_at": "2026-07-17T11:59:01",
+                "close": 100.0,
+                "candle_closed_confirmed": True,
+            },
+            generated_ms=decision_ms,
+            source_key="v2:market:ohlcv_closed:binance:ETHUSDT:1m",
+        )
+        == "MISSING_AVAILABLE_AT"
+    )
+    returns, diagnostics = paper_loop._correlation_returns_from_candles(  # noqa: SLF001
+        _final_correlation_candle_rows(explicit_final=True),
+        generated_utc="2026-07-17T12:00:00",
+        source_key="v2:market:ohlcv_closed:binance:ETHUSDT:1m",
+    )
+    assert returns == {}
+    assert diagnostics["accepted_candle_count"] == 0
+    assert diagnostics["reject_counts"] == {"DECISION_TIME_NOT_AWARE_OR_INVALID": 31}
+
+
+def test_correlation_source_hash_binds_source_availability_finality_and_decision() -> None:
+    source_key = "v2:market:ohlcv_closed:binance:ETHUSDT:1m"
+    rows = _final_correlation_candle_rows(explicit_final=True)
+    _returns, base = paper_loop._correlation_returns_from_candles(  # noqa: SLF001
+        rows,
+        generated_utc="2026-07-17T12:00:00Z",
+        source_key=source_key,
+    )
+    changed_availability = deepcopy(rows)
+    changed_availability[0]["available_at"] += 1
+    _returns, availability = paper_loop._correlation_returns_from_candles(  # noqa: SLF001
+        changed_availability,
+        generated_utc="2026-07-17T12:00:00Z",
+        source_key=source_key,
+    )
+    changed_finality = deepcopy(rows)
+    changed_finality[0].pop("candle_closed_confirmed")
+    changed_finality[0]["is_closed"] = True
+    _returns, finality = paper_loop._correlation_returns_from_candles(  # noqa: SLF001
+        changed_finality,
+        generated_utc="2026-07-17T12:00:00Z",
+        source_key=source_key,
+    )
+    _returns, source = paper_loop._correlation_returns_from_candles(  # noqa: SLF001
+        rows,
+        generated_utc="2026-07-17T12:00:00Z",
+        source_key="v2:market:ohlcv_closed:binance:ETHUSDT:5m",
+    )
+    _returns, decision = paper_loop._correlation_returns_from_candles(  # noqa: SLF001
+        rows,
+        generated_utc="2026-07-17T12:00:01Z",
+        source_key=source_key,
+    )
+
+    hashes = {
+        base["source_hash"],
+        availability["source_hash"],
+        finality["source_hash"],
+        source["source_hash"],
+        decision["source_hash"],
+    }
+    assert len(hashes) == 5
+    assert base["source_hash_contract"].endswith("CANONICAL_SHA256_V2")

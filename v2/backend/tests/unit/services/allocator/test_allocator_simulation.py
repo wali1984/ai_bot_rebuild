@@ -225,6 +225,7 @@ def test_allocate_paper_candidate_still_accepts_negative_signed_short_move() -> 
             spread_bps=1.0,
             slippage_bps=1.0,
             fee_bps=2.0,
+            maintenance_margin_rate=0.005,
             min_qty=0.0001,
             step_size=0.0001,
             min_notional=5.0,

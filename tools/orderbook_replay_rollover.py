@@ -23,25 +23,38 @@ def get_directory_size(path: Path) -> int:
     return total
 
 def get_oldest_date_dirs():
-    """Get list of (mtime, path) for date directories, oldest first."""
+    """Get (date_name, mtime, path) for date dirs across ALL exchanges, oldest first.
+
+    Real layout is orderbook_replay/{exchange}/{symbol}/{date}/. The previous
+    version only walked binance/ (whose symbols are empty) and never touched
+    kucoin/ — where ~all the data lives — so it deleted nothing while over cap.
+
+    Never returns the current UTC day so active writes are not disrupted; FIFO
+    deletes the oldest calendar day first across every exchange/symbol.
+    """
     date_dirs = []
-    binance_path = ORDERBOOK_REPLAY_PATH / "binance"
-    if not binance_path.exists():
+    if not ORDERBOOK_REPLAY_PATH.exists():
         return date_dirs
 
-    for symbol_dir in binance_path.iterdir():
-        if not symbol_dir.is_dir():
+    today = datetime.utcnow().strftime("%Y-%m-%d")
+    for exchange_dir in ORDERBOOK_REPLAY_PATH.iterdir():
+        if not exchange_dir.is_dir():
             continue
-        for date_dir in symbol_dir.iterdir():
-            if not date_dir.is_dir():
+        for symbol_dir in exchange_dir.iterdir():
+            if not symbol_dir.is_dir():
                 continue
-            try:
-                mtime = date_dir.stat().st_mtime
-                date_dirs.append((mtime, date_dir))
-            except (OSError, PermissionError):
-                pass
+            for date_dir in symbol_dir.iterdir():
+                if not date_dir.is_dir() or date_dir.name >= today:
+                    continue
+                try:
+                    mtime = date_dir.stat().st_mtime
+                    # Sort by date-dir NAME (YYYY-MM-DD) so the oldest calendar
+                    # day is purged first across all symbols, mtime as tiebreak.
+                    date_dirs.append((date_dir.name, mtime, date_dir))
+                except (OSError, PermissionError):
+                    pass
 
-    return sorted(date_dirs)  # oldest first
+    return sorted(date_dirs)  # oldest date-name first
 
 def rollover():
     """Delete oldest data until orderbook_replay is <= 100GB."""
@@ -62,7 +75,7 @@ def rollover():
     deleted_count = 0
     freed_bytes = 0
 
-    for mtime, date_dir in date_dirs:
+    for date_name, mtime, date_dir in date_dirs:
         if current_size <= MAX_SIZE_BYTES:
             break
 
@@ -74,8 +87,7 @@ def rollover():
             current_size -= freed
             deleted_count += 1
 
-            mtime_str = datetime.fromtimestamp(mtime).isoformat()
-            print(f"Deleted {date_dir.relative_to(ORDERBOOK_REPLAY_PATH)} ({freed / 1024**3:.1f}GB) from {mtime_str}")
+            print(f"Deleted {date_dir.relative_to(ORDERBOOK_REPLAY_PATH)} ({freed / 1024**3:.1f}GB) [{date_name}]")
         except (OSError, PermissionError) as e:
             print(f"Failed to delete {date_dir}: {e}")
 

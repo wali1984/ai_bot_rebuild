@@ -1,15 +1,21 @@
 from __future__ import annotations
 
 import json
+from copy import deepcopy
 from pathlib import Path
 
+from v2.backend.app.cli import v2_trade_management_paper_loop as paper_loop
 from v2.backend.app.services.continuous_edge_guardian.guardian import (
     BLOCKED_MARKER,
     ContinuousEdgeGuardianPaths,
     acquire_realtime_a_grade_evidence,
+    build_capital_allocation_snapshot,
     build_guardian_payloads,
+    build_hedge_engine_status,
+    build_zero_liquidation_status,
     compute_economic_metrics,
     run_once,
+    validate_realtime_evidence_row,
 )
 
 
@@ -1143,6 +1149,23 @@ def test_realtime_acquisition_admits_verified_pre_outcome_a_grade_feedback(tmp_p
     assert admitted[0]["trust_source_ids"]["prediction_id"] == "pred-1"
 
 
+def test_operator_projection_cannot_be_used_as_canonical_realtime_evidence() -> None:
+    candidate = _verified_candidate(
+        operator_projection_only=True,
+        _producer_operator_projection_only=True,
+        full_source_payload_omitted=True,
+    )
+    outcome = _verified_outcome()
+
+    reasons = validate_realtime_evidence_row(
+        outcome,
+        candidate=candidate,
+        generated_utc="2026-06-22T13:00:00Z",
+    )
+
+    assert "CANDIDATE_OPERATOR_PROJECTION_NOT_CANONICAL_EVIDENCE" in reasons
+
+
 def test_prediction_id_alone_is_not_sufficient_trust(tmp_path: Path) -> None:
     paths = ContinuousEdgeGuardianPaths(repo_root=tmp_path)
     candidate = _verified_candidate(
@@ -1794,6 +1817,186 @@ def test_holdout_prediction_coverage_requires_no_trade_action(tmp_path: Path) ->
     assert phase3_coverage["counts_as_a_grade_evidence"] is False
     assert "INSUFFICIENT_UNTOUCHED_HOLDOUT_ACTION_COVERAGE" in failure_reasons
     assert payloads["a_grade_execution_gate.json"]["a_grade_new_entries_allowed"] is False
+
+
+def test_hash_bound_aggregate_blocks_hostile_candidate_omitted_from_operator_sample(
+    tmp_path: Path,
+) -> None:
+    stress_suite = {
+        scenario: {"adverse_move_bps": 10.0}
+        for scenario in paper_loop.RARE_EVENT_STRESS_SCENARIOS
+    }
+    stress_suite.update(
+        {
+            "execution_uncertainty_bps": 1.0,
+            "correlation_stress_bps": 1.0,
+            "maintenance_margin_uncertainty_bps": 1.0,
+            "status": "COMPLETE_RARE_EVENT_STRESS_SUITE",
+        }
+    )
+
+    def safe_candidate(index: int) -> dict[str, object]:
+        return {
+            "allocation_id": f"safe-{index}",
+            "symbol": f"S{index}USDT",
+            "timeframe": "5m",
+            "side": "long",
+            "paper_opportunity_tier": "A_GRADE_EXECUTION_PAPER",
+            "source_tier": "A_GRADE_EXECUTION_PAPER",
+            "allocator_decision": "ALLOW_WITH_SIZE",
+            "risk_budget_usd": 50.0,
+            "gross_notional_usd": 1000.0,
+            "allocated_margin_usd": 500.0,
+            "recommended_leverage": 2.0,
+            "recommended_margin_mode": "isolated_paper_simulated",
+            "expected_net_pnl_usd": 20.0,
+            "expected_shortfall_usd": 50.0,
+            "hedge_budget_usd": 0.0,
+            "hedge_enabled": False,
+            "liquidation_buffer_bps": 100.0,
+            "pre_entry_stress_tests": deepcopy(stress_suite),
+            "rare_event_stress_suite": deepcopy(stress_suite),
+            "rare_event_stress_status": "COMPLETE_RARE_EVENT_STRESS_SUITE",
+            "decision_time": "2026-06-22T12:00:00Z",
+            "available_at": "2026-06-22T11:59:59Z",
+            "feature_cutoff": "2026-06-22T11:55:00Z",
+            "generated_at": "2026-06-22T12:00:00Z",
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+            "leverage_mutation": False,
+            "margin_mode_mutation": False,
+        }
+
+    rows = [safe_candidate(index) for index in range(5)]
+    hostile = safe_candidate(5)
+    hostile.update(
+        {
+            "allocation_id": "hostile-omitted-row",
+            "recommended_leverage": 7.0,
+            "recommended_margin_mode": "cross_paper_simulated",
+            "pre_entry_stress_tests": {
+                "gap_shock": {"adverse_move_bps": 10.0},
+                "status": "PARTIAL_RARE_EVENT_STRESS_SUITE",
+            },
+            "rare_event_stress_suite": {
+                "gap_shock": {"adverse_move_bps": 10.0},
+                "status": "PARTIAL_RARE_EVENT_STRESS_SUITE",
+            },
+            "rare_event_stress_status": "PARTIAL_RARE_EVENT_STRESS_SUITE",
+            "martingale": True,
+            "hedge_enabled": True,
+            "hedge_budget_usd": 0.0,
+            "hedge_parent_id": "hostile-parent",
+        }
+    )
+    rows.append(hostile)
+
+    paper_sizing = paper_loop._paper_adaptive_sizing_runtime_status(rows)  # noqa: SLF001
+
+    assert paper_sizing["candidate_allocation_count"] == 6
+    assert len(paper_sizing["candidate_allocations"]) == 5
+    assert all(
+        row["allocation_id"] != "hostile-omitted-row"
+        for row in paper_sizing["candidate_allocations"]
+    )
+    contract = paper_sizing[
+        "candidate_allocations_canonical_aggregate_contract"
+    ]
+    assert contract["source_row_count"] == 6
+    assert contract["zero_liquidation"]["failed_a_grade_candidate_count"] == 1
+    assert contract["hedge"]["failed_active_hedge_candidate_count"] == 1
+
+    zero_liquidation = build_zero_liquidation_status(
+        paper_sizing=paper_sizing,
+        realtime_metrics={"liquidation_event_count": 0},
+        holdout_metrics={"liquidation_event_count": 0},
+        generated_utc="2026-06-22T12:01:00Z",
+        source_paths={},
+    )
+    hedge = build_hedge_engine_status(
+        paper_sizing=paper_sizing,
+        feedback_rows=[],
+        generated_utc="2026-06-22T12:01:00Z",
+        source_paths={},
+    )
+    capital = build_capital_allocation_snapshot(
+        paper_sizing=paper_sizing,
+        edge_ready=True,
+        source_path=tmp_path / "paper_adaptive_sizing_runtime_status.json",
+    )
+
+    assert zero_liquidation["status"] == (
+        "BLOCKED_RARE_EVENT_STRESS_SUITE_INCOMPLETE"
+    )
+    assert zero_liquidation["candidate_count"] == 6
+    assert zero_liquidation["operator_projection_candidate_count"] == 5
+    assert zero_liquidation["passed_a_grade_candidate_count"] == 5
+    assert zero_liquidation["blocker_counts"]["MARTINGALE_NOT_ALLOWED"] == 1
+    assert zero_liquidation["canonical_aggregate_contract_valid"] is True
+    assert hedge["status"] == "BLOCKED_HEDGE_CONTRACT_INCOMPLETE"
+    assert hedge["active_hedge_candidate_count"] == 1
+    assert hedge["accepted_bounded_hedge_candidate_count"] == 0
+    assert hedge["canonical_aggregate_contract_valid"] is True
+    assert capital["candidate_allocation_count"] == 6
+    assert capital["recommended_leverage_counts"] == {"2.0": 5, "7.0": 1}
+    assert capital["recommended_margin_mode_counts"] == {
+        "cross_paper_simulated": 1,
+        "isolated_paper_simulated": 5,
+    }
+    assert capital["canonical_aggregate_contract_valid"] is True
+
+    tampered = deepcopy(paper_sizing)
+    tampered_zero = tampered[
+        "candidate_allocations_canonical_aggregate_contract"
+    ]["zero_liquidation"]
+    tampered_zero.update(
+        {
+            "passed_a_grade_candidate_count": 6,
+            "failed_a_grade_candidate_count": 0,
+            "all_a_grade_candidates_pass": True,
+            "blocker_counts": {},
+        }
+    )
+    tampered_result = build_zero_liquidation_status(
+        paper_sizing=tampered,
+        realtime_metrics={"liquidation_event_count": 0},
+        holdout_metrics={"liquidation_event_count": 0},
+        generated_utc="2026-06-22T12:01:00Z",
+        source_paths={},
+    )
+
+    assert tampered_result["status"] == (
+        "BLOCKED_CANONICAL_CANDIDATE_AGGREGATE_INVALID"
+    )
+    assert "CANONICAL_CANDIDATE_AGGREGATE_CONTRACT_HASH_MISMATCH" in (
+        tampered_result["canonical_aggregate_contract_errors"]
+    )
+
+    non_json_row = safe_candidate(0)
+    non_json_row["preemptive_input_material"] = {
+        "legacy_bucket_health": {"profit_factor": float("inf")}
+    }
+    unhashable_sizing = paper_loop._paper_adaptive_sizing_runtime_status(  # noqa: SLF001
+        [non_json_row]
+    )
+    assert unhashable_sizing["candidate_allocations_all_source_rows_hashable"] is False
+    unhashable_result = build_zero_liquidation_status(
+        paper_sizing=unhashable_sizing,
+        realtime_metrics={"liquidation_event_count": 0},
+        holdout_metrics={"liquidation_event_count": 0},
+        generated_utc="2026-06-22T12:01:00Z",
+        source_paths={},
+    )
+    assert unhashable_result["status"] == (
+        "BLOCKED_CANONICAL_CANDIDATE_AGGREGATE_INVALID"
+    )
+    assert "CANONICAL_CANDIDATE_SOURCE_HASH_INVALID" in unhashable_result[
+        "canonical_aggregate_contract_errors"
+    ]
+    assert "CANONICAL_CONTRACT_SOURCE_ROWS_NOT_ALL_HASHABLE" in unhashable_result[
+        "canonical_aggregate_contract_errors"
+    ]
 
 
 def test_probation_tier_counts_as_guardian_economic_evidence() -> None:

@@ -10,13 +10,20 @@ from __future__ import annotations
 from v2.backend.app.services.adaptive_capital_allocator import (
     AllocationInput,
     allocate_live_candidate,
-    allocate_paper_candidate,
+)
+from v2.backend.app.services.adaptive_capital_allocator.allocator import (
+    PAPER_LIQUIDATION_ATR_EVIDENCE_HASH_LINEAGE_KEY,
+    PAPER_LIQUIDATION_ATR_EVIDENCE_LINEAGE_KEY,
+    build_paper_liquidation_atr_evidence,
+)
+from v2.backend.tests.unit.services.adaptive_capital_allocator.growth_receipt_test_utils import (
+    allocate_authorized_growth as allocate_paper_candidate,
 )
 
 _EQUITY = 200.0
 
 
-def _mk(**overrides) -> AllocationInput:
+def _mk(*, with_liquidation_atr_evidence: bool = True, **overrides) -> AllocationInput:
     base = dict(
         symbol="BTCUSDT",
         timeframe="5m",
@@ -33,12 +40,43 @@ def _mk(**overrides) -> AllocationInput:
         slippage_bps=2.0,
         fee_bps=4.0,
         expected_funding_bps=0.0,
+        maintenance_margin_rate=0.005,
         min_notional=5.0,
         step_size=0.0001,
         min_qty=0.0001,
         lineage_ids={"signal_id": "phase2"},
     )
     base.update(overrides)
+    if with_liquidation_atr_evidence:
+        entry_atr_bps = base.get("entry_atr_bps", base["volatility_bps"])
+        base["entry_atr_bps"] = entry_atr_bps
+        receipt, reasons = build_paper_liquidation_atr_evidence(
+            feature_snapshot={
+                "feature_snapshot_id": "adaptive-ramp-snapshot",
+                "symbol": base["symbol"],
+                "timeframe": base["timeframe"],
+                "feature_freshness_state": "CURRENT",
+                    "candle_closed_confirmed": True,
+                    "latest_unclosed_kline_excluded": True,
+                    "candle_close_time": "2026-07-18T11:59:59Z",
+                    "feature_cutoff": "2026-07-18T12:00:00Z",
+                "available_at": "2026-07-18T12:00:01Z",
+                "generated_at": "2026-07-18T12:00:02Z",
+                "features": {"atr_bps": entry_atr_bps},
+            },
+            symbol=base["symbol"],
+            timeframe=base["timeframe"],
+            entry_price=base["price"],
+            allocation_decision_time="2026-07-18T12:00:03Z",
+        )
+        assert not reasons
+        assert receipt is not None
+        lineage_ids = dict(base.get("lineage_ids") or {})
+        lineage_ids[PAPER_LIQUIDATION_ATR_EVIDENCE_LINEAGE_KEY] = receipt
+        lineage_ids[PAPER_LIQUIDATION_ATR_EVIDENCE_HASH_LINEAGE_KEY] = receipt[
+            "evidence_sha256"
+        ]
+        base["lineage_ids"] = lineage_ids
     return AllocationInput(**base)
 
 
@@ -74,35 +112,36 @@ def test_low_liquidation_buffer_caps_leverage() -> None:
 
 
 def test_high_spread_caps_leverage() -> None:
-    # Extreme spread/slippage (cost >= 2x edge in paper mode) still fail-closes
-    # the whole allocation, even at maximum confidence: no leverage, no size.
+    # Expected edge is already after cost, so paper cost pressure reduces size
+    # and leverage continuously instead of creating a second admission cliff.
     res = allocate_paper_candidate(_mk(spread_bps=60.0, slippage_bps=35.0))
-    assert res.decision == "BLOCK_SPREAD_SLIPPAGE"
+    assert res.decision in {"ALLOW_WITH_SIZE", "REDUCE_SIZE"}
     assert res.recommended_leverage == 1.0
-    assert res.gross_notional_usd == 0.0  # blocked on spread/slippage cost
-    # Below the 0.75-confidence override band, a costly book still caps dynamic
-    # leverage to 1x relative to the same candidate with a clean book.
+    assert res.gross_notional_usd > 0.0
+    # The discrete permitted ladder may select 1x for both, while the continuous
+    # target still declines with the costlier book.
     clean = allocate_paper_candidate(_mk(confidence_calibrated=0.70))
     costly = allocate_paper_candidate(
         _mk(confidence_calibrated=0.70, spread_bps=40.0, slippage_bps=30.0)
     )
     assert costly.recommended_leverage == 1.0
-    assert costly.recommended_leverage < clean.recommended_leverage
+    assert costly.model_inputs["leverage_target"] < clean.model_inputs["leverage_target"]
 
 
 def test_high_funding_cost_caps_leverage() -> None:
-    # Below the 0.75-confidence override band, heavy funding drag caps leverage
-    # to 1x while the same candidate without funding cost earns dynamic leverage.
+    # Heavy funding drag continuously shrinks the evidence-supported target.
     res = allocate_paper_candidate(_mk(confidence_calibrated=0.70, expected_funding_bps=60.0))
     baseline = allocate_paper_candidate(_mk(confidence_calibrated=0.70))
     assert res.recommended_leverage == 1.0
-    assert res.recommended_leverage < baseline.recommended_leverage
-    # Deliberate paper-mode override (operator 1000x objective): >=0.75
-    # confidence may keep the trainer leverage target despite funding drag,
-    # but the override must be explicitly labeled for auditability.
-    override = allocate_paper_candidate(_mk(expected_funding_bps=60.0))
-    assert override.model_inputs["leverage_selection_reason"] == (
-        "after_cost_edge_small_but_confidence_override"
+    assert res.model_inputs["leverage_target"] < baseline.model_inputs["leverage_target"]
+    # Maximum confidence is still only evidence; it cannot bypass funding drag.
+    high_confidence_costly = allocate_paper_candidate(_mk(expected_funding_bps=60.0))
+    high_confidence_clean = allocate_paper_candidate(_mk())
+    assert high_confidence_costly.model_inputs["leverage_target"] < (
+        high_confidence_clean.model_inputs["leverage_target"]
+    )
+    assert high_confidence_costly.model_inputs["leverage_selection_reason"] == (
+        "continuous_market_evidence_within_supplied_dynamic_envelope"
     )
 
 
@@ -121,15 +160,17 @@ def test_good_bucket_pf_expands_paper_utilization() -> None:
 
 def test_loss_cluster_freezes_exact_bucket() -> None:
     # Portfolio drawdown pressure (the loss-cluster proxy at the allocator layer)
-    # caps leverage back to 1x below the 0.85-confidence override band.
+    # continuously shrinks leverage back to the permitted 1x rung.
     res = allocate_paper_candidate(_mk(confidence_calibrated=0.80, drawdown_bps=400.0))
     assert res.recommended_leverage == 1.0
-    assert res.model_inputs["leverage_selection_reason"] == "drawdown_pressure_caps_leverage_at_1x"
+    assert res.model_inputs["leverage_drawdown_resilience"] == 0.2
+    assert res.model_inputs["leverage_selection_reason"] == (
+        "continuous_market_evidence_within_supplied_dynamic_envelope"
+    )
 
 
 def test_portfolio_drawdown_caps_total_margin() -> None:
-    # Below the 0.85-confidence override band, drawdown still shrinks leverage
-    # monotonically down to 1x.
+    # Drawdown shrinks leverage monotonically down to 1x.
     normal = allocate_paper_candidate(_mk(confidence_calibrated=0.80))
     drawn = allocate_paper_candidate(_mk(confidence_calibrated=0.80, drawdown_bps=400.0))
     assert drawn.recommended_leverage < normal.recommended_leverage

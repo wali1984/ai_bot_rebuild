@@ -214,7 +214,7 @@ Preserve a vector/map of each contributing source/timeframe cutoff and availabil
 
 Freeze `FEATURE_SPEC` as a generated, versioned contract:
 
-- 477 ordered names;
+- 446 ordered names for the intended current source generation; preserve 477 only as the audited historical/deployed generation;
 - source/family for each;
 - dtype/unit/range/normalization;
 - missing/stale/availability semantics;
@@ -222,13 +222,13 @@ Freeze `FEATURE_SPEC` as a generated, versioned contract:
 - per-source time envelope;
 - schema/order hash.
 
-The current model vector is exactly:
+The intended current-source model vector is exactly:
 
 ```text
-values[477] || missing[477] || stale[477] || availability[477]
+values[446] || missing[446] || stale[446] || availability[446] = 1,784
 ```
 
-The copy must reproduce ordering byte-for-byte for checkpoint parity. Any correction/reorder adds a new schema and incompatible checkpoint lineage.
+The historical deployment/checkpoint-parity generation used four 477-value channels, or 1,908 values. The copy must reproduce ordering byte-for-byte for the selected generation and bind its digest to every checkpoint/replay row. Any correction, addition, removal, or reorder creates a new schema and incompatible checkpoint lineage.
 
 ## 8. Model/training reconstruction
 
@@ -438,7 +438,8 @@ Minimum recovery exercises:
 
 ### Stage 3 — features/archive/replay
 
-- reproduce 477 fields/1,908 tensor, per-source lineage and durable archive.
+- reproduce the versioned ordered tensor generation—446 fields/1,784 values for current source and 477/1,908 only for the audited historical generation—with an exact feature-spec digest, per-source lineage and durable archive;
+- reject or explicitly migrate every checkpoint, cache, temporal buffer and replay/archive row whose generation/digest/width differs.
 
 **Gate:** golden snapshot/tensor hashes and injected future/stale/write-failure rejection.
 
@@ -503,7 +504,7 @@ The system is reconstructed only when a clean host can be built from versioned d
 - every supported service installed from the manifest;
 - every input/output contract identified;
 - exact timestamp lineage and closed-candle proof;
-- golden 477/1,908 tensor parity;
+- golden generation-specific tensor parity (current source 446/1,784), including exact ordered feature-spec digest and explicit incompatible-generation rejection;
 - exact checkpoint/weight identity and reproducible inference;
 - clean, non-overlapping training/evaluation data;
 - risk deny and invalid transition fail closed;

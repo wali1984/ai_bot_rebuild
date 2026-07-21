@@ -1159,6 +1159,14 @@ def validate_realtime_evidence_row(
     for source_name, source_row in (("candidate", candidate), ("outcome", outcome)):
         if source_row is None:
             continue
+        if (
+            source_row.get("operator_projection_only") is True
+            or source_row.get("_producer_operator_projection_only") is True
+            or source_row.get("full_source_payload_omitted") is True
+        ):
+            reasons.append(
+                f"{source_name.upper()}_OPERATOR_PROJECTION_NOT_CANONICAL_EVIDENCE"
+            )
         if source_row.get("paper_only") is not True:
             reasons.append(f"{source_name.upper()}_PAPER_ONLY_FLAG_MISSING_OR_FALSE")
         if source_row.get("places_real_order") is not False:
@@ -2854,6 +2862,136 @@ def build_strategy_brain_status(
     }
 
 
+def canonical_json_sha256(value: Any) -> str | None:
+    try:
+        canonical = json.dumps(
+            value,
+            sort_keys=True,
+            separators=(",", ":"),
+            default=str,
+            allow_nan=False,
+        )
+    except (TypeError, ValueError):
+        return None
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def valid_sha256(value: Any) -> bool:
+    text = str(value or "")
+    return len(text) == 64 and all(character in "0123456789abcdef" for character in text)
+
+
+def validate_candidate_canonical_aggregate_contract(
+    paper_sizing: Mapping[str, Any],
+) -> tuple[dict[str, Any], list[str]]:
+    contract = mapping_or_empty(
+        paper_sizing.get("candidate_allocations_canonical_aggregate_contract")
+    )
+    errors: list[str] = []
+    if not contract:
+        return {}, ["CANONICAL_CANDIDATE_AGGREGATE_CONTRACT_MISSING"]
+    if contract.get("schema_version") != "paper_candidate_canonical_aggregate_contract_v1":
+        errors.append("CANONICAL_CANDIDATE_AGGREGATE_SCHEMA_INVALID")
+    if contract.get("contract_hash_algorithm") != "sha256(canonical-json-v1)":
+        errors.append("CANONICAL_CANDIDATE_AGGREGATE_HASH_ALGORITHM_INVALID")
+    if contract.get("operator_projection_is_canonical_evidence") is not False:
+        errors.append("OPERATOR_PROJECTION_MISCLASSIFIED_AS_CANONICAL_EVIDENCE")
+
+    source_count = int(paper_sizing.get("candidate_allocation_count") or 0)
+    source_hash_entries = paper_sizing.get("candidate_allocations_source_hashes")
+    source_hash_entries = source_hash_entries if isinstance(source_hash_entries, list) else []
+    source_hash_indices = [
+        entry.get("source_row_index")
+        for entry in source_hash_entries
+        if isinstance(entry, Mapping)
+    ]
+    source_hashes = [
+        entry.get("source_row_canonical_sha256")
+        for entry in source_hash_entries
+        if isinstance(entry, Mapping)
+    ]
+    if len(source_hashes) != source_count:
+        errors.append("CANONICAL_CANDIDATE_SOURCE_HASH_COUNT_MISMATCH")
+    if source_hash_indices != list(range(source_count)):
+        errors.append("CANONICAL_CANDIDATE_SOURCE_HASH_INDEX_ORDER_INVALID")
+    if not all(valid_sha256(value) for value in source_hashes):
+        errors.append("CANONICAL_CANDIDATE_SOURCE_HASH_INVALID")
+    source_hash_aggregate = canonical_json_sha256(source_hashes)
+    if source_hash_aggregate != paper_sizing.get("candidate_allocations_aggregate_sha256"):
+        errors.append("CANONICAL_CANDIDATE_SOURCE_HASH_AGGREGATE_MISMATCH")
+    if source_hash_aggregate != contract.get("source_rows_aggregate_sha256"):
+        errors.append("CANONICAL_CONTRACT_SOURCE_HASH_AGGREGATE_MISMATCH")
+    contract_source_row_count = contract.get("source_row_count")
+    if int(
+        contract_source_row_count
+        if contract_source_row_count is not None
+        else -1
+    ) != source_count:
+        errors.append("CANONICAL_CONTRACT_SOURCE_ROW_COUNT_MISMATCH")
+    contract_evaluated_row_count = contract.get("contract_evaluated_row_count")
+    if int(
+        contract_evaluated_row_count
+        if contract_evaluated_row_count is not None
+        else -1
+    ) != source_count:
+        errors.append("CANONICAL_CONTRACT_EVALUATED_ROW_COUNT_MISMATCH")
+    if contract.get("source_rows_all_hashable") is not True:
+        errors.append("CANONICAL_CONTRACT_SOURCE_ROWS_NOT_ALL_HASHABLE")
+
+    projection_rows = all_mapping_rows(paper_sizing.get("candidate_allocations"))
+    projection_count = int(
+        paper_sizing.get("candidate_allocations_projection_count") or 0
+    )
+    projection_limit = int(
+        paper_sizing.get("candidate_allocations_projection_limit") or 0
+    )
+    if int(paper_sizing.get("candidate_allocations_source_row_count") or 0) != source_count:
+        errors.append("OPERATOR_PROJECTION_SOURCE_ROW_COUNT_MISMATCH")
+    if projection_count != len(projection_rows):
+        errors.append("OPERATOR_PROJECTION_ROW_COUNT_MISMATCH")
+    if projection_limit <= 0 or projection_limit > 5:
+        errors.append("OPERATOR_PROJECTION_LIMIT_INVALID")
+    if projection_count > projection_limit or projection_count > source_count:
+        errors.append("OPERATOR_PROJECTION_COVERAGE_INVALID")
+    for projection in projection_rows:
+        source_row_index = projection.get("source_row_index")
+        if not isinstance(source_row_index, int) or not (
+            0 <= source_row_index < len(source_hashes)
+        ):
+            errors.append("OPERATOR_PROJECTION_SOURCE_INDEX_INVALID")
+            continue
+        if projection.get("operator_projection_only") is not True:
+            errors.append("OPERATOR_PROJECTION_MARKER_MISSING")
+        if projection.get("source_row_canonical_sha256") != source_hashes[
+            source_row_index
+        ]:
+            errors.append("OPERATOR_PROJECTION_SOURCE_HASH_BINDING_MISMATCH")
+
+    fact_hashes = contract.get("contract_fact_hashes")
+    fact_hashes = fact_hashes if isinstance(fact_hashes, list) else []
+    if len(fact_hashes) != source_count:
+        errors.append("CANONICAL_CONTRACT_FACT_HASH_COUNT_MISMATCH")
+    if not all(valid_sha256(value) for value in fact_hashes):
+        errors.append("CANONICAL_CONTRACT_FACT_HASH_INVALID")
+    if canonical_json_sha256(fact_hashes) != contract.get(
+        "contract_fact_hashes_aggregate_sha256"
+    ):
+        errors.append("CANONICAL_CONTRACT_FACT_HASH_AGGREGATE_MISMATCH")
+    if contract.get("contract_fact_hashes_all_hashable") is not True:
+        errors.append("CANONICAL_CONTRACT_FACT_ROWS_NOT_ALL_HASHABLE")
+
+    contract_material = dict(contract)
+    embedded_contract_hash = contract_material.pop("contract_hash", None)
+    if not valid_sha256(embedded_contract_hash):
+        errors.append("CANONICAL_CANDIDATE_AGGREGATE_CONTRACT_HASH_INVALID")
+    elif canonical_json_sha256(contract_material) != embedded_contract_hash:
+        errors.append("CANONICAL_CANDIDATE_AGGREGATE_CONTRACT_HASH_MISMATCH")
+    for section in ("zero_liquidation", "hedge", "capital"):
+        if not isinstance(contract.get(section), Mapping):
+            errors.append(f"CANONICAL_CANDIDATE_AGGREGATE_{section.upper()}_MISSING")
+    return dict(contract), sorted(set(errors))
+
+
 def build_zero_liquidation_status(
     *,
     paper_sizing: Mapping[str, Any],
@@ -2864,6 +3002,12 @@ def build_zero_liquidation_status(
 ) -> dict[str, Any]:
     paper_sizing = mapping_or_empty(paper_sizing)
     candidates = all_mapping_rows(paper_sizing.get("candidate_allocations"))
+    projection_only = paper_sizing.get("candidate_allocations_projection_only") is True
+    canonical_contract, canonical_contract_errors = (
+        validate_candidate_canonical_aggregate_contract(paper_sizing)
+        if projection_only
+        else ({}, [])
+    )
     a_grade_candidates = [row for row in candidates if is_a_grade_candidate(row)]
     blocker_counts: dict[str, int] = {}
     candidate_samples: list[dict[str, Any]] = []
@@ -2979,11 +3123,51 @@ def build_zero_liquidation_status(
                 }
             )
 
-    if realtime_liquidations > 0 or holdout_liquidations > 0:
+    exact_candidate_count = len(candidates)
+    exact_a_grade_candidate_count = len(a_grade_candidates)
+    if projection_only:
+        exact_candidate_count = int(
+            first_present(
+                paper_sizing.get("candidate_allocation_count"),
+                canonical_contract.get("source_row_count"),
+                0,
+            )
+            or 0
+        )
+        zero_aggregate = mapping_or_empty(
+            canonical_contract.get("zero_liquidation")
+        )
+        exact_a_grade_candidate_count = int(
+            zero_aggregate.get("a_grade_candidate_count") or 0
+        )
+        passed_candidates = int(
+            zero_aggregate.get("passed_a_grade_candidate_count") or 0
+        )
+        blocker_counts = {
+            str(key): int(value)
+            for key, value in mapping_or_empty(
+                zero_aggregate.get("blocker_counts")
+            ).items()
+        }
+        for error in canonical_contract_errors:
+            increment_count(blocker_counts, error)
+        if realtime_liquidations > 0:
+            increment_count(blocker_counts, "REALTIME_LIQUIDATION_EVENT_RECORDED")
+        if holdout_liquidations > 0:
+            increment_count(
+                blocker_counts,
+                "REPLAY_OR_HOLDOUT_LIQUIDATION_EVENT_RECORDED",
+            )
+
+    if projection_only and canonical_contract_errors:
+        status = "BLOCKED_CANONICAL_CANDIDATE_AGGREGATE_INVALID"
+    elif realtime_liquidations > 0 or holdout_liquidations > 0:
         status = "BLOCKED_LIQUIDATION_EVENT_RECORDED"
-    elif not a_grade_candidates:
+    elif exact_a_grade_candidate_count <= 0:
         status = "BLOCKED_NO_A_GRADE_CANDIDATES_STRESS_VERIFIED"
     elif blocker_counts:
+        status = "BLOCKED_RARE_EVENT_STRESS_SUITE_INCOMPLETE"
+    elif projection_only and passed_candidates != exact_a_grade_candidate_count:
         status = "BLOCKED_RARE_EVENT_STRESS_SUITE_INCOMPLETE"
     else:
         status = "PASSED_ZERO_LIQUIDATION_RARE_EVENT_STRESS_SUITE"
@@ -3013,14 +3197,31 @@ def build_zero_liquidation_status(
         "required_pre_entry_stress_scenarios": list(RARE_EVENT_STRESS_SCENARIOS),
         "required_buffer_components": list(RARE_EVENT_BUFFER_COMPONENTS),
         "runtime_actions_on_failure": ["reduce_exposure", "close", "hedge_if_expected_shortfall_improves", "halt_entries"],
-        "candidate_count": len(candidates),
-        "a_grade_candidate_count": len(a_grade_candidates),
+        "candidate_count": exact_candidate_count,
+        "operator_projection_candidate_count": len(candidates),
+        "a_grade_candidate_count": exact_a_grade_candidate_count,
         "passed_a_grade_candidate_count": passed_candidates,
         "realtime_liquidation_event_count": realtime_liquidations,
         "replay_or_holdout_liquidation_event_count": holdout_liquidations,
         "blocker_counts": {key: blocker_counts[key] for key in sorted(blocker_counts)},
         "candidate_samples": candidate_samples,
         "candidate_sample_limit": ZERO_LIQUIDATION_SAMPLE_LIMIT,
+        "candidate_samples_are_operator_diagnostics_only": projection_only,
+        "candidate_projection_only": projection_only,
+        "canonical_aggregate_contract_valid": (
+            not canonical_contract_errors if projection_only else None
+        ),
+        "canonical_aggregate_contract_errors": canonical_contract_errors,
+        "canonical_aggregate_contract_hash": canonical_contract.get(
+            "contract_hash"
+        ),
+        "all_candidate_gate_evidence_source": (
+            "hash_bound_canonical_candidate_aggregate_contract"
+            if projection_only and not canonical_contract_errors
+            else "full_candidate_rows"
+            if not projection_only
+            else "invalid_or_missing_canonical_candidate_aggregate_contract"
+        ),
         "source_paths": dict(source_paths),
     }
 
@@ -3033,6 +3234,12 @@ def build_capital_allocation_snapshot(
 ) -> dict[str, Any]:
     paper_sizing = mapping_or_empty(paper_sizing)
     candidates = all_mapping_rows(paper_sizing.get("candidate_allocations"))
+    projection_only = paper_sizing.get("candidate_allocations_projection_only") is True
+    canonical_contract, canonical_contract_errors = (
+        validate_candidate_canonical_aggregate_contract(paper_sizing)
+        if projection_only
+        else ({}, [])
+    )
     candidate_count = int(first_present(paper_sizing.get("candidate_allocation_count"), len(candidates)) or 0)
     accepted_count = int(first_present(paper_sizing.get("accepted_allocation_count"), 0) or 0)
     blocked_count = int(first_present(paper_sizing.get("blocked_allocation_count"), 0) or 0)
@@ -3098,6 +3305,9 @@ def build_capital_allocation_snapshot(
             or (finite_float(row.get("gross_notional_usd")) or 0.0) <= 0.0
         )
     ]
+    a_grade_candidate_count = len(a_grade_candidates)
+    accepted_a_grade_candidate_count = len(accepted_a_grade_candidates)
+    underfunded_a_grade_candidate_count = len(underfunded_a_grade_candidates)
 
     no_edge_count = 0
     below_grade_count = 0
@@ -3141,6 +3351,113 @@ def build_capital_allocation_snapshot(
         elif has_below_grade:
             below_grade_count += 1
 
+    if projection_only and not canonical_contract_errors:
+        capital_aggregate = mapping_or_empty(canonical_contract.get("capital"))
+        candidate_count = int(capital_aggregate.get("candidate_count") or 0)
+        allocator_decision_counts = {
+            str(key): int(value)
+            for key, value in mapping_or_empty(
+                capital_aggregate.get("allocator_decision_counts")
+            ).items()
+        }
+        original_decision_counts = {
+            str(key): int(value)
+            for key, value in mapping_or_empty(
+                capital_aggregate.get("original_allocator_decision_counts")
+            ).items()
+        }
+        paper_tier_counts = {
+            str(key): int(value)
+            for key, value in mapping_or_empty(
+                capital_aggregate.get("paper_opportunity_tier_counts")
+            ).items()
+        }
+        leverage_counts = {
+            str(key): int(value)
+            for key, value in mapping_or_empty(
+                capital_aggregate.get("recommended_leverage_counts")
+            ).items()
+        }
+        margin_mode_counts = {
+            str(key): int(value)
+            for key, value in mapping_or_empty(
+                capital_aggregate.get("recommended_margin_mode_counts")
+            ).items()
+        }
+        classification_counts = mapping_or_empty(
+            capital_aggregate.get("classification_counts")
+        )
+        no_edge_count = int(classification_counts.get("no_edge") or 0)
+        below_grade_count = int(classification_counts.get("below_grade") or 0)
+        risk_constrained_count = int(
+            classification_counts.get("risk_constrained") or 0
+        )
+        allowed_before_tier_block_count = int(
+            capital_aggregate.get(
+                "allowed_before_non_executable_tier_block_count"
+            )
+            or 0
+        )
+        a_grade_candidate_count = int(
+            capital_aggregate.get("a_grade_candidate_count") or 0
+        )
+        accepted_a_grade_candidate_count = int(
+            capital_aggregate.get("accepted_a_grade_candidate_count") or 0
+        )
+        underfunded_a_grade_candidate_count = int(
+            capital_aggregate.get("underfunded_a_grade_candidate_count") or 0
+        )
+        numeric_sums = mapping_or_empty(capital_aggregate.get("numeric_sums"))
+        allocated_margin_usd = float(
+            numeric_sums.get("allocated_margin_usd") or 0.0
+        )
+        gross_notional_usd = float(
+            numeric_sums.get("gross_notional_usd") or 0.0
+        )
+        risk_budget_usd = float(numeric_sums.get("risk_budget_usd") or 0.0)
+        hedge_budget_usd = float(numeric_sums.get("hedge_budget_usd") or 0.0)
+        expected_net_pnl_usd = float(
+            numeric_sums.get("expected_net_pnl_usd") or 0.0
+        )
+        expected_shortfall_usd = float(
+            numeric_sums.get("expected_shortfall_usd") or 0.0
+        )
+        account_context = mapping_or_empty(
+            capital_aggregate.get("account_context")
+        )
+        equity = finite_float(
+            first_present(
+                paper_sizing.get("total_equity_usd"),
+                paper_sizing.get("equity"),
+                account_context.get("equity"),
+                account_context.get("wallet_balance"),
+            )
+        )
+        wallet_balance = finite_float(
+            first_present(
+                paper_sizing.get("wallet_balance"),
+                account_context.get("wallet_balance"),
+            )
+        )
+        available_margin = finite_float(
+            first_present(
+                paper_sizing.get("available_equity_usd"),
+                paper_sizing.get("available_margin_usd"),
+                paper_sizing.get("available_margin"),
+                account_context.get("available_equity_usd"),
+                account_context.get("available_margin_usd"),
+                account_context.get("available_margin"),
+            )
+        )
+        existing_portfolio_exposure_usd = finite_float(
+            first_present(
+                paper_sizing.get("total_exposure_usdt"),
+                paper_sizing.get("total_exposure_usd"),
+                account_context.get("total_exposure_usdt"),
+                account_context.get("total_exposure_usd"),
+            )
+        )
+
     denominator = candidate_count if candidate_count > 0 else len(candidates)
     available_idle_capital_usd = None
     if available_margin is not None:
@@ -3152,7 +3469,10 @@ def build_capital_allocation_snapshot(
         return available_idle_capital_usd * (count / denominator)
 
     idle_capital_allocator_bug_usd = (
-        available_idle_capital_usd if underfunded_a_grade_candidates and available_idle_capital_usd is not None else 0.0
+        available_idle_capital_usd
+        if underfunded_a_grade_candidate_count > 0
+        and available_idle_capital_usd is not None
+        else 0.0
     )
     classified_idle = sum(
         value or 0.0
@@ -3167,7 +3487,7 @@ def build_capital_allocation_snapshot(
     if available_idle_capital_usd is not None:
         unclassified_idle_capital_usd = max(available_idle_capital_usd - classified_idle, 0.0)
 
-    if underfunded_a_grade_candidates:
+    if underfunded_a_grade_candidate_count > 0:
         capital_classification = "ALLOCATOR_UNDERDEPLOYMENT"
     elif allowed_before_tier_block_count > 0:
         capital_classification = "POSITIVE_EDGE_BELOW_A_GRADE_IDLE"
@@ -3215,8 +3535,11 @@ def build_capital_allocation_snapshot(
         existing_portfolio_exposure_usd / equity if equity and equity > 0 and existing_portfolio_exposure_usd is not None else None
     )
     status = (
+        "BLOCKED_CANONICAL_CANDIDATE_AGGREGATE_INVALID"
+        if projection_only and canonical_contract_errors
+        else
         "A_GRADE_CAPITAL_READY"
-        if edge_ready and accepted_a_grade_candidates
+        if edge_ready and accepted_a_grade_candidate_count > 0
         else "BLOCKED_UNTIL_A_GRADE_EDGE_PROVEN"
         if not edge_ready
         else "BLOCKED_NO_A_GRADE_ALLOCATIONS"
@@ -3236,9 +3559,11 @@ def build_capital_allocation_snapshot(
         "candidate_allocation_count": candidate_count,
         "accepted_allocation_count": accepted_count,
         "blocked_allocation_count": blocked_count,
-        "a_grade_candidate_count": len(a_grade_candidates),
-        "accepted_a_grade_candidate_count": len(accepted_a_grade_candidates),
-        "underfunded_a_grade_candidate_count": len(underfunded_a_grade_candidates),
+        "a_grade_candidate_count": a_grade_candidate_count,
+        "accepted_a_grade_candidate_count": accepted_a_grade_candidate_count,
+        "underfunded_a_grade_candidate_count": (
+            underfunded_a_grade_candidate_count
+        ),
         "allowed_before_non_executable_tier_block_count": allowed_before_tier_block_count,
         "allocator_decision_counts": dict(allocator_decision_counts),
         "original_allocator_decision_counts": original_decision_counts,
@@ -3264,6 +3589,23 @@ def build_capital_allocation_snapshot(
         "idle_capital_risk_constrained_usd": idle_slice(risk_constrained_count),
         "idle_capital_allocator_bug_usd": idle_capital_allocator_bug_usd,
         "idle_capital_unclassified_usd": unclassified_idle_capital_usd,
+        "operator_projection_candidate_count": len(candidates),
+        "candidate_samples_are_operator_diagnostics_only": projection_only,
+        "candidate_projection_only": projection_only,
+        "canonical_aggregate_contract_valid": (
+            not canonical_contract_errors if projection_only else None
+        ),
+        "canonical_aggregate_contract_errors": canonical_contract_errors,
+        "canonical_aggregate_contract_hash": canonical_contract.get(
+            "contract_hash"
+        ),
+        "all_candidate_aggregate_source": (
+            "hash_bound_canonical_candidate_aggregate_contract"
+            if projection_only and not canonical_contract_errors
+            else "full_candidate_rows"
+            if not projection_only
+            else "invalid_or_missing_canonical_candidate_aggregate_contract"
+        ),
         "diagnostic_count_basis": {
             "no_edge_candidate_count": no_edge_count,
             "below_grade_candidate_count": below_grade_count,
@@ -3343,6 +3685,12 @@ def build_hedge_engine_status(
 ) -> dict[str, Any]:
     paper_sizing = mapping_or_empty(paper_sizing)
     candidates = all_mapping_rows(paper_sizing.get("candidate_allocations"))
+    projection_only = paper_sizing.get("candidate_allocations_projection_only") is True
+    canonical_contract, canonical_contract_errors = (
+        validate_candidate_canonical_aggregate_contract(paper_sizing)
+        if projection_only
+        else ({}, [])
+    )
     active_candidates = [row for row in candidates if hedge_candidate_is_active(row)]
     blocker_counts: dict[str, int] = {}
     accepted_candidates: list[dict[str, Any]] = []
@@ -3429,9 +3777,61 @@ def build_hedge_engine_status(
         if aliased_field(row, HEDGE_REQUIRED_FIELD_ALIASES, "pair_net_pnl") in (None, ""):
             outcome_missing_pair_net_pnl += 1
 
-    if not active_candidates:
+    exact_candidate_count = len(candidates)
+    exact_active_candidate_count = len(active_candidates)
+    exact_passed_active_candidate_count = len(accepted_candidates)
+    exact_hedge_enabled_candidate_count = sum(
+        1 for row in candidates if row.get("hedge_enabled") is True
+    )
+    exact_positive_hedge_budget_candidate_count = sum(
+        1
+        for row in candidates
+        if (
+            finite_float(
+                aliased_field(row, HEDGE_REQUIRED_FIELD_ALIASES, "hedge_budget")
+            )
+            or 0.0
+        )
+        > 0.0
+    )
+    if projection_only:
+        hedge_aggregate = mapping_or_empty(canonical_contract.get("hedge"))
+        exact_candidate_count = int(
+            first_present(
+                paper_sizing.get("candidate_allocation_count"),
+                canonical_contract.get("source_row_count"),
+                0,
+            )
+            or 0
+        )
+        exact_active_candidate_count = int(
+            hedge_aggregate.get("active_hedge_candidate_count") or 0
+        )
+        exact_passed_active_candidate_count = int(
+            hedge_aggregate.get("passed_active_hedge_candidate_count") or 0
+        )
+        exact_hedge_enabled_candidate_count = int(
+            hedge_aggregate.get("hedge_enabled_candidate_count") or 0
+        )
+        exact_positive_hedge_budget_candidate_count = int(
+            hedge_aggregate.get("positive_hedge_budget_candidate_count") or 0
+        )
+        blocker_counts = {
+            str(key): int(value)
+            for key, value in mapping_or_empty(
+                hedge_aggregate.get("blocker_counts")
+            ).items()
+        }
+        for error in canonical_contract_errors:
+            increment_count(blocker_counts, error)
+
+    if projection_only and canonical_contract_errors:
+        status = "BLOCKED_CANONICAL_CANDIDATE_AGGREGATE_INVALID"
+    elif exact_active_candidate_count <= 0:
         status = "NO_ACTIVE_HEDGES_SELECTED"
     elif blocker_counts:
+        status = "BLOCKED_HEDGE_CONTRACT_INCOMPLETE"
+    elif exact_passed_active_candidate_count != exact_active_candidate_count:
         status = "BLOCKED_HEDGE_CONTRACT_INCOMPLETE"
     else:
         status = "PASSED_BOUNDED_HEDGE_ADMISSION_CONTRACT"
@@ -3453,17 +3853,35 @@ def build_hedge_engine_status(
             "parent_and_hedge_legs_count_as_one_economic_outcome": True,
             "required_fields": list(HEDGE_REQUIRED_FIELD_ALIASES),
         },
-        "candidate_count": len(candidates),
-        "active_hedge_candidate_count": len(active_candidates),
-        "accepted_bounded_hedge_candidate_count": len(accepted_candidates),
-        "hedge_enabled_candidate_count": sum(1 for row in candidates if row.get("hedge_enabled") is True),
-        "positive_hedge_budget_candidate_count": sum(
-            1 for row in candidates
-            if (finite_float(aliased_field(row, HEDGE_REQUIRED_FIELD_ALIASES, "hedge_budget")) or 0.0) > 0.0
+        "candidate_count": exact_candidate_count,
+        "operator_projection_candidate_count": len(candidates),
+        "active_hedge_candidate_count": exact_active_candidate_count,
+        "accepted_bounded_hedge_candidate_count": (
+            exact_passed_active_candidate_count
+        ),
+        "hedge_enabled_candidate_count": exact_hedge_enabled_candidate_count,
+        "positive_hedge_budget_candidate_count": (
+            exact_positive_hedge_budget_candidate_count
         ),
         "blocker_counts": {key: blocker_counts[key] for key in sorted(blocker_counts)},
         "candidate_samples": candidate_samples,
         "candidate_sample_limit": HEDGE_ENGINE_SAMPLE_LIMIT,
+        "candidate_samples_are_operator_diagnostics_only": projection_only,
+        "candidate_projection_only": projection_only,
+        "canonical_aggregate_contract_valid": (
+            not canonical_contract_errors if projection_only else None
+        ),
+        "canonical_aggregate_contract_errors": canonical_contract_errors,
+        "canonical_aggregate_contract_hash": canonical_contract.get(
+            "contract_hash"
+        ),
+        "all_candidate_gate_evidence_source": (
+            "hash_bound_canonical_candidate_aggregate_contract"
+            if projection_only and not canonical_contract_errors
+            else "full_candidate_rows"
+            if not projection_only
+            else "invalid_or_missing_canonical_candidate_aggregate_contract"
+        ),
         "hedged_feedback_row_count": len(hedged_outcome_rows),
         "hedged_economic_outcome_group_count": len(hedged_groups),
         "hedged_outcome_rows_missing_pair_net_pnl": outcome_missing_pair_net_pnl,
@@ -3983,7 +4401,7 @@ def build_guardian_payloads(
             "untouched_holdout_rows": str(paths.holdout_rows_path),
         },
     )
-    hedge_engine_blocked = hedge_engine["status"] == "BLOCKED_HEDGE_CONTRACT_INCOMPLETE"
+    hedge_engine_blocked = str(hedge_engine["status"]).startswith("BLOCKED_")
     strategy_brain_ready = strategy_brain["status"] == "ACTIVE_A_GRADE_STRATEGY_BRAIN"
     zero_liquidation_ready = zero_liquidation["status"] == "PASSED_ZERO_LIQUIDATION_RARE_EVENT_STRESS_SUITE"
     execution_ready = edge_ready and not hedge_engine_blocked and strategy_brain_ready and zero_liquidation_ready

@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import json
-import os
+import math
+from collections.abc import Mapping
 from typing import Any
 
-import redis
+CONSERVATIVE_MICROSTRUCTURE_TRUST_THRESHOLD = 0.45
 
 
 def _f(value: Any) -> float | None:
@@ -18,27 +18,39 @@ def _f(value: Any) -> float | None:
         return None
 
 
-def _get_adaptive_microstructure_trust_threshold() -> float:
-    """Get adaptive microstructure trust threshold from Redis.
+def _valid_probability(value: Any) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return None
+    parsed = _f(value)
+    if parsed is None or not math.isfinite(parsed) or not 0.0 <= parsed <= 1.0:
+        return None
+    return parsed
 
-    Returns adaptive threshold based on market conditions and model quality.
-    Defaults to 0.45 if adaptive state unavailable.
+
+def adaptive_microstructure_trust_threshold(
+    adaptive_tuning_state: Mapping[str, Any] | None,
+) -> float:
+    """Derive the trust floor from one caller-supplied tuning snapshot.
+
+    The evaluator is deliberately I/O-free.  A malformed explicit threshold
+    cannot fall through to a more permissive B-grade threshold, and a missing
+    or invalid snapshot uses the conservative trust floor.
     """
-    try:
-        redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379")
-        client = redis.from_url(redis_url, decode_responses=True)
-        tuning_state = client.get("v2:orchestrator:adaptive_gate_tuning_state")
-        if tuning_state:
-            data = json.loads(tuning_state)
-            # When B-grade enabled, we can accept slightly lower trust scores
-            # because we have more historical data to learn from
-            if data.get("enable_b_grade") is True:
-                return 0.35  # Adaptive lower threshold when confidence in outcomes is high
-            # When B-grade disabled, keep stricter threshold
-            return 0.40
-    except Exception:
-        pass
-    return 0.45  # Conservative default
+    if not isinstance(adaptive_tuning_state, Mapping):
+        return CONSERVATIVE_MICROSTRUCTURE_TRUST_THRESHOLD
+
+    if "adaptive_microstructure_trust_threshold" in adaptive_tuning_state:
+        explicit = _valid_probability(
+            adaptive_tuning_state.get("adaptive_microstructure_trust_threshold")
+        )
+        return explicit if explicit is not None else CONSERVATIVE_MICROSTRUCTURE_TRUST_THRESHOLD
+
+    enable_b_grade = adaptive_tuning_state.get("enable_b_grade")
+    if enable_b_grade is True:
+        return 0.35
+    if enable_b_grade is False:
+        return 0.40
+    return CONSERVATIVE_MICROSTRUCTURE_TRUST_THRESHOLD
 
 
 def assess_candidate_loss_risk(
@@ -49,6 +61,7 @@ def assess_candidate_loss_risk(
     regime: dict[str, Any],
     exit_plan: dict[str, Any],
     microstructure_trust_score: float | None,
+    adaptive_tuning_state: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     risk = 0.20
     reasons: list[str] = []
@@ -95,7 +108,7 @@ def assess_candidate_loss_risk(
         risk = max(risk, 0.65)
         reasons.append("EXIT_FEASIBILITY_WEAK")
 
-    adaptive_trust_threshold = _get_adaptive_microstructure_trust_threshold()
+    adaptive_trust_threshold = adaptive_microstructure_trust_threshold(adaptive_tuning_state)
     if microstructure_trust_score is None:
         risk = max(risk, 0.70)
         reasons.append("MICROSTRUCTURE_TRUST_MISSING")
@@ -106,4 +119,5 @@ def assess_candidate_loss_risk(
     return {
         "pre_trade_loss_probability": round(min(1.0, risk), 8),
         "pre_trade_loss_risk_reasons": reasons,
+        "adaptive_microstructure_trust_threshold_used": adaptive_trust_threshold,
     }

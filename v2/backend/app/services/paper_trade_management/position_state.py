@@ -15,6 +15,9 @@ PAPER_ENTRY_COST_ACCOUNTING_VERSION = "PAPER_ENTRY_COST_BASIS_V1"
 PAPER_POSITION_RECONSTRUCTION_SCHEMA_VERSION = (
     "PAPER_OPEN_POSITION_RECONSTRUCTION_V2"
 )
+EXACT_ON_POLICY_POSITION_LINEAGE_SCHEMA_VERSION = (
+    "PAPER_EXACT_ON_POLICY_POSITION_LINEAGE_V1"
+)
 _BINANCE_USDM_BRACKET_SOURCE = (
     "BINANCE_USDM_USER_DATA_GET_FAPI_V1_LEVERAGE_BRACKET"
 )
@@ -82,8 +85,34 @@ _PAPER_POSITION_RECONSTRUCTION_FIELDS = (
     "paper_only",
     "places_real_order",
 )
+_EXACT_ON_POLICY_POSITION_RECONSTRUCTION_FIELDS = (
+    "exact_on_policy_position_lineage_schema_version",
+    "behavior_policy_receipt_hash",
+    "behavior_policy_receipt_archive_entry_event_hash",
+    "behavior_policy_receipt_archive_verified_at_entry",
+    "behavior_policy_receipt_archive_retention_required",
+    "behavior_policy_receipt_entry_event_pending",
+    "on_policy_action_receipt_prevalidated",
+    "on_policy_action_receipt_valid",
+    "exact_on_policy_entry_outbox_record_id",
+    "exact_on_policy_entry_outbox_state",
+    "exact_on_policy_sealed_fill_sha256",
+    "behavior_policy_fingerprint",
+    "behavior_policy_checkpoint_hash",
+    "selected_action",
+    "selected_action_index",
+    "selected_action_log_prob",
+    "old_log_prob",
+    "old_value",
+    "rollout_id",
+    "trajectory_index",
+    "decision_time",
+    "opened_est",
+    "source_fill_ids",
+)
 PAPER_POSITION_RECONSTRUCTION_PERSISTENCE_FIELDS = (
     *_PAPER_POSITION_RECONSTRUCTION_FIELDS,
+    *_EXACT_ON_POLICY_POSITION_RECONSTRUCTION_FIELDS,
     "position_reconstruction_hash",
 )
 
@@ -141,6 +170,43 @@ def _paper_position_reconstruction_material(row: dict[str, Any]) -> dict[str, An
     material["maintenance_bracket_prevalidated"] = (
         material.get("maintenance_bracket_prevalidated") is True
     )
+    exact_claimed = bool(
+        row.get("ppo_on_policy_entry_fields_present") is True
+        or row.get("behavior_policy_receipt_entry_event_pending") is True
+        or row.get("on_policy_action_receipt_prevalidated") is True
+        or row.get("on_policy_action_receipt_valid") is True
+        or row.get("behavior_policy_receipt_archive_entry_event_hash")
+    )
+    if exact_claimed:
+        exact_lineage = {
+            field_name: row.get(field_name)
+            for field_name in _EXACT_ON_POLICY_POSITION_RECONSTRUCTION_FIELDS
+        }
+        for field_name in (
+            "selected_action_index",
+            "trajectory_index",
+        ):
+            value = coerce_float(exact_lineage.get(field_name))
+            exact_lineage[field_name] = (
+                int(value)
+                if value is not None and value.is_integer()
+                else value
+            )
+        for field_name in (
+            "selected_action_log_prob",
+            "old_log_prob",
+            "old_value",
+        ):
+            exact_lineage[field_name] = coerce_float(
+                exact_lineage.get(field_name)
+            )
+        source_fill_ids = exact_lineage.get("source_fill_ids")
+        exact_lineage["source_fill_ids"] = (
+            [str(value) for value in source_fill_ids if value not in (None, "")]
+            if isinstance(source_fill_ids, list | tuple)
+            else []
+        )
+        material["exact_on_policy_lineage"] = exact_lineage
     return material
 
 
@@ -393,6 +459,198 @@ def validate_paper_position_reconstruction(
                     reasons.append(
                         "POSITION_RECONSTRUCTION_EFFECTIVE_LEVERAGE_NOT_PERMITTED"
                     )
+            if (
+                model_inputs.get("mode") == "paper"
+                and effective_leverage is not None
+                and math.isfinite(effective_leverage)
+                and effective_leverage > 1.0
+            ):
+                allocation_lineage = allocation.get("lineage_ids")
+                allocation_lineage = (
+                    allocation_lineage
+                    if isinstance(allocation_lineage, dict)
+                    else {}
+                )
+                atr_receipt = allocation_lineage.get(
+                    "paper_liquidation_atr_evidence"
+                )
+                atr_receipt_hash = allocation_lineage.get(
+                    "paper_liquidation_atr_evidence_sha256"
+                )
+                allocation_input_material = allocation.get(
+                    "allocation_input_material"
+                )
+                allocation_input_material = (
+                    allocation_input_material
+                    if isinstance(allocation_input_material, dict)
+                    else {}
+                )
+                allocation_input = allocation_input_material.get(
+                    "allocation_input"
+                )
+                allocation_input = (
+                    allocation_input
+                    if isinstance(allocation_input, dict)
+                    else {}
+                )
+                allocation_input_lineage = allocation_input.get("lineage_ids")
+                allocation_input_lineage = (
+                    allocation_input_lineage
+                    if isinstance(allocation_input_lineage, dict)
+                    else {}
+                )
+                try:
+                    canonical_allocation_input = json.dumps(
+                        allocation_input_material,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                        default=str,
+                        allow_nan=False,
+                    )
+                except (TypeError, ValueError):
+                    canonical_allocation_input = None
+                recomputed_allocation_input_hash = (
+                    hashlib.sha256(
+                        canonical_allocation_input.encode("utf-8")
+                    ).hexdigest()
+                    if canonical_allocation_input is not None
+                    else None
+                )
+                paper_liquidation_geometry = None
+                maintenance_rate_for_geometry = coerce_float(
+                    model_inputs.get("maintenance_margin_rate_effective")
+                )
+                try:
+                    from v2.backend.app.services.adaptive_capital_allocator.allocator import (  # noqa: PLC0415
+                        paper_isolated_liquidation_geometry,
+                        validate_paper_liquidation_atr_evidence,
+                    )
+
+                    validated_atr_bps, atr_validation_reasons = (
+                        validate_paper_liquidation_atr_evidence(
+                            atr_receipt
+                            if isinstance(atr_receipt, dict)
+                            else None,
+                            atr_receipt_hash,
+                            symbol=str(row.get("symbol") or ""),
+                            timeframe=str(
+                                allocation_input.get("timeframe")
+                                or allocation.get("timeframe")
+                                or ""
+                            ),
+                            entry_atr_bps=allocation_input.get(
+                                "entry_atr_bps"
+                            ),
+                        )
+                    )
+                    normalized_side = str(row.get("side") or "").strip().lower()
+                    if (
+                        entry_price is not None
+                        and math.isfinite(entry_price)
+                        and maintenance_rate_for_geometry is not None
+                        and math.isfinite(maintenance_rate_for_geometry)
+                    ):
+                        paper_liquidation_geometry = (
+                            paper_isolated_liquidation_geometry(
+                                side=(
+                                    "long"
+                                    if normalized_side in {"long", "buy"}
+                                    else "short"
+                                ),
+                                entry_price=entry_price,
+                                leverage=effective_leverage,
+                                maintenance_margin_rate=(
+                                    maintenance_rate_for_geometry
+                                ),
+                            )
+                        )
+                except Exception:
+                    validated_atr_bps = None
+                    atr_validation_reasons = [
+                        "PAPER_LIQUIDATION_ATR_VALIDATOR_UNAVAILABLE"
+                    ]
+                model_atr_bps = coerce_float(
+                    model_inputs.get("paper_liquidation_atr_bps")
+                )
+                if (
+                    atr_validation_reasons
+                    or validated_atr_bps is None
+                    or model_atr_bps is None
+                    or not _accounting_values_match(
+                        validated_atr_bps,
+                        model_atr_bps,
+                    )
+                    or model_inputs.get("paper_liquidation_atr_evidence_sha256")
+                    != atr_receipt_hash
+                    or allocation_input_material.get("mode") != "paper"
+                    or allocation_input.get("symbol") != row.get("symbol")
+                    or allocation_input_lineage.get(
+                        "paper_liquidation_atr_evidence"
+                    )
+                    != atr_receipt
+                    or allocation_input_lineage.get(
+                        "paper_liquidation_atr_evidence_sha256"
+                    )
+                    != atr_receipt_hash
+                    or not _is_lower_sha256_hex(
+                        allocation.get("allocation_input_hash")
+                    )
+                    or recomputed_allocation_input_hash
+                    != allocation.get("allocation_input_hash")
+                    or model_inputs.get("allocation_input_hash")
+                    != allocation.get("allocation_input_hash")
+                ):
+                    reasons.append(
+                        "POSITION_RECONSTRUCTION_PAPER_LIQUIDATION_ATR_RECEIPT_INVALID"
+                    )
+                required_buffer = coerce_float(
+                    model_inputs.get("paper_required_liquidation_buffer_bps")
+                )
+                selected_residual_buffer = coerce_float(
+                    allocation.get("liquidation_buffer_bps")
+                )
+                maintenance_rate = maintenance_rate_for_geometry
+                stop_distance = coerce_float(model_inputs.get("stop_distance_bps"))
+                fee_bps = coerce_float(model_inputs.get("fee_bps"))
+                slippage_bps = coerce_float(model_inputs.get("slippage_bps"))
+                funding_bps = coerce_float(model_inputs.get("expected_funding_bps"))
+                recomputed_residual_buffer = None
+                if (
+                    paper_liquidation_geometry is not None
+                    and maintenance_rate is not None
+                    and math.isfinite(maintenance_rate)
+                    and stop_distance is not None
+                    and math.isfinite(stop_distance)
+                    and fee_bps is not None
+                    and math.isfinite(fee_bps)
+                    and slippage_bps is not None
+                    and math.isfinite(slippage_bps)
+                    and funding_bps is not None
+                    and math.isfinite(funding_bps)
+                ):
+                    recomputed_residual_buffer = (
+                        paper_liquidation_geometry[0]
+                        - stop_distance
+                        - max(0.0, fee_bps)
+                        - max(0.0, slippage_bps)
+                        - abs(funding_bps)
+                    )
+                if (
+                    model_inputs.get("paper_liquidation_buffer_contract_status")
+                    != "READY"
+                    or required_buffer is None
+                    or required_buffer <= 0.0
+                    or selected_residual_buffer is None
+                    or selected_residual_buffer + 1e-8 < required_buffer
+                    or recomputed_residual_buffer is None
+                    or not _accounting_values_match(
+                        selected_residual_buffer,
+                        recomputed_residual_buffer,
+                    )
+                ):
+                    reasons.append(
+                        "POSITION_RECONSTRUCTION_PAPER_LIQUIDATION_BUFFER_INVALID"
+                    )
 
     bracket_max_leverage = coerce_float(
         row.get("maintenance_bracket_max_initial_leverage")
@@ -493,6 +751,114 @@ def validate_paper_position_reconstruction(
             )
     if str(row.get("entry_cost_basis_status") or "").strip() == "":
         reasons.append("POSITION_RECONSTRUCTION_ENTRY_COST_BASIS_STATUS_MISSING")
+    exact_claimed = bool(
+        row.get("ppo_on_policy_entry_fields_present") is True
+        or row.get("behavior_policy_receipt_entry_event_pending") is True
+        or row.get("on_policy_action_receipt_prevalidated") is True
+        or row.get("on_policy_action_receipt_valid") is True
+        or row.get("behavior_policy_receipt_archive_entry_event_hash")
+    )
+    if exact_claimed:
+        if (
+            row.get("exact_on_policy_position_lineage_schema_version")
+            != EXACT_ON_POLICY_POSITION_LINEAGE_SCHEMA_VERSION
+        ):
+            reasons.append(
+                "POSITION_RECONSTRUCTION_EXACT_ON_POLICY_LINEAGE_SCHEMA_INVALID"
+            )
+        for field_name in (
+            "behavior_policy_receipt_hash",
+            "behavior_policy_receipt_archive_entry_event_hash",
+            "exact_on_policy_entry_outbox_record_id",
+            "exact_on_policy_sealed_fill_sha256",
+            "behavior_policy_fingerprint",
+            "behavior_policy_checkpoint_hash",
+        ):
+            if not _is_lower_sha256_hex(row.get(field_name)):
+                reasons.append(
+                    "POSITION_RECONSTRUCTION_EXACT_ON_POLICY_"
+                    f"{field_name.upper()}_INVALID"
+                )
+        if row.get("behavior_policy_receipt_archive_verified_at_entry") is not True:
+            reasons.append(
+                "POSITION_RECONSTRUCTION_EXACT_ON_POLICY_ENTRY_ARCHIVE_NOT_VERIFIED"
+            )
+        if row.get("behavior_policy_receipt_archive_retention_required") is not True:
+            reasons.append(
+                "POSITION_RECONSTRUCTION_EXACT_ON_POLICY_ARCHIVE_RETENTION_NOT_REQUIRED"
+            )
+        if row.get("behavior_policy_receipt_entry_event_pending") is not False:
+            reasons.append(
+                "POSITION_RECONSTRUCTION_EXACT_ON_POLICY_ENTRY_EVENT_STILL_PENDING"
+            )
+        if row.get("on_policy_action_receipt_prevalidated") is not True:
+            reasons.append(
+                "POSITION_RECONSTRUCTION_EXACT_ON_POLICY_RECEIPT_NOT_PREVALIDATED"
+            )
+        if row.get("on_policy_action_receipt_valid") is not True:
+            reasons.append(
+                "POSITION_RECONSTRUCTION_EXACT_ON_POLICY_RECEIPT_NOT_VALID"
+            )
+        if row.get("exact_on_policy_entry_outbox_state") not in {
+            "ENTRY_EVENT_APPENDED",
+            "COMMITTED",
+        }:
+            reasons.append(
+                "POSITION_RECONSTRUCTION_EXACT_ON_POLICY_OUTBOX_STATE_INVALID"
+            )
+        if str(row.get("selected_action") or "").lower() not in {
+            "long",
+            "short",
+        }:
+            reasons.append(
+                "POSITION_RECONSTRUCTION_EXACT_ON_POLICY_ACTION_INVALID"
+            )
+        for field_name in (
+            "selected_action_log_prob",
+            "old_log_prob",
+            "old_value",
+        ):
+            value = coerce_float(row.get(field_name))
+            if value is None or not math.isfinite(value):
+                reasons.append(
+                    "POSITION_RECONSTRUCTION_EXACT_ON_POLICY_"
+                    f"{field_name.upper()}_INVALID"
+                )
+        selected_log_prob = coerce_float(row.get("selected_action_log_prob"))
+        old_log_prob = coerce_float(row.get("old_log_prob"))
+        if (
+            selected_log_prob is not None
+            and old_log_prob is not None
+            and not math.isclose(
+                selected_log_prob,
+                old_log_prob,
+                rel_tol=1e-12,
+                abs_tol=1e-12,
+            )
+        ):
+            reasons.append(
+                "POSITION_RECONSTRUCTION_EXACT_ON_POLICY_LOG_PROBABILITY_MISMATCH"
+            )
+        for field_name in ("selected_action_index", "trajectory_index"):
+            value = coerce_float(row.get(field_name))
+            if value is None or not value.is_integer() or value < 0.0:
+                reasons.append(
+                    "POSITION_RECONSTRUCTION_EXACT_ON_POLICY_"
+                    f"{field_name.upper()}_INVALID"
+                )
+        if len(normalized_source_ids) != 1:
+            reasons.append(
+                "POSITION_RECONSTRUCTION_EXACT_ON_POLICY_REQUIRES_ONE_SOURCE_FILL"
+            )
+        policy_decision_time = parse_aware_utc(row.get("decision_time"))
+        if policy_decision_time is None:
+            reasons.append(
+                "POSITION_RECONSTRUCTION_EXACT_ON_POLICY_DECISION_TIME_INVALID"
+            )
+        elif opened_time is not None and policy_decision_time > opened_time:
+            reasons.append(
+                "POSITION_RECONSTRUCTION_EXACT_ON_POLICY_DECISION_AFTER_ENTRY"
+            )
     if row.get("position_state") != "OPEN_POSITION":
         reasons.append("POSITION_RECONSTRUCTION_STATE_NOT_OPEN")
     if row.get("paper_only") is not True or row.get("places_real_order") is not False:
@@ -771,7 +1137,16 @@ class PaperNetPosition:
     behavior_policy_receipt_hash: str | None = None
     behavior_policy_receipt_key: str | None = None
     behavior_policy_receipt_write_success: bool | None = None
+    exact_on_policy_position_lineage_schema_version: str | None = None
+    behavior_policy_receipt_archive_entry_event_hash: str | None = None
+    behavior_policy_receipt_archive_verified_at_entry: bool | None = None
+    behavior_policy_receipt_archive_retention_required: bool | None = None
+    behavior_policy_receipt_entry_event_pending: bool | None = None
+    on_policy_action_receipt_prevalidated: bool | None = None
     on_policy_action_receipt_valid: bool | None = None
+    exact_on_policy_entry_outbox_record_id: str | None = None
+    exact_on_policy_entry_outbox_state: str | None = None
+    exact_on_policy_sealed_fill_sha256: str | None = None
     on_policy_sampling_selected: bool | None = None
     on_policy_sampling_requested: bool | None = None
     on_policy_sampling_plan_hash: str | None = None
@@ -2129,6 +2504,65 @@ class PaperNetPosition:
             "paper_only": True,
             "places_real_order": False,
         }
+        exact_claimed = bool(
+            self.ppo_on_policy_entry_fields_present is True
+            or self.behavior_policy_receipt_entry_event_pending is True
+            or self.on_policy_action_receipt_prevalidated is True
+            or self.on_policy_action_receipt_valid is True
+            or self.behavior_policy_receipt_archive_entry_event_hash
+        )
+        if exact_claimed:
+            material.update(
+                {
+                    "exact_on_policy_position_lineage_schema_version": (
+                        self.exact_on_policy_position_lineage_schema_version
+                    ),
+                    "behavior_policy_receipt_hash": (
+                        self.behavior_policy_receipt_hash
+                    ),
+                    "behavior_policy_receipt_archive_entry_event_hash": (
+                        self.behavior_policy_receipt_archive_entry_event_hash
+                    ),
+                    "behavior_policy_receipt_archive_verified_at_entry": (
+                        self.behavior_policy_receipt_archive_verified_at_entry
+                    ),
+                    "behavior_policy_receipt_archive_retention_required": (
+                        self.behavior_policy_receipt_archive_retention_required
+                    ),
+                    "behavior_policy_receipt_entry_event_pending": (
+                        self.behavior_policy_receipt_entry_event_pending
+                    ),
+                    "on_policy_action_receipt_prevalidated": (
+                        self.on_policy_action_receipt_prevalidated
+                    ),
+                    "on_policy_action_receipt_valid": (
+                        self.on_policy_action_receipt_valid
+                    ),
+                    "exact_on_policy_entry_outbox_record_id": (
+                        self.exact_on_policy_entry_outbox_record_id
+                    ),
+                    "exact_on_policy_entry_outbox_state": (
+                        self.exact_on_policy_entry_outbox_state
+                    ),
+                    "exact_on_policy_sealed_fill_sha256": (
+                        self.exact_on_policy_sealed_fill_sha256
+                    ),
+                    "behavior_policy_fingerprint": (
+                        self.behavior_policy_fingerprint
+                    ),
+                    "behavior_policy_checkpoint_hash": (
+                        self.behavior_policy_checkpoint_hash
+                    ),
+                    "selected_action": self.selected_action,
+                    "selected_action_index": self.selected_action_index,
+                    "selected_action_log_prob": self.selected_action_log_prob,
+                    "old_log_prob": self.old_log_prob,
+                    "old_value": self.old_value,
+                    "rollout_id": self.rollout_id,
+                    "trajectory_index": self.trajectory_index,
+                    "decision_time": self.decision_time,
+                }
+            )
         reconstruction_hash = paper_position_reconstruction_hash(material)
         if reconstruction_hash is None:
             raise ValueError("PAPER_POSITION_RECONSTRUCTION_HASH_FAILED")
@@ -2436,7 +2870,34 @@ class PaperNetPosition:
             "behavior_policy_receipt_write_success": (
                 self.behavior_policy_receipt_write_success
             ),
+            "exact_on_policy_position_lineage_schema_version": (
+                self.exact_on_policy_position_lineage_schema_version
+            ),
+            "behavior_policy_receipt_archive_entry_event_hash": (
+                self.behavior_policy_receipt_archive_entry_event_hash
+            ),
+            "behavior_policy_receipt_archive_verified_at_entry": (
+                self.behavior_policy_receipt_archive_verified_at_entry
+            ),
+            "behavior_policy_receipt_archive_retention_required": (
+                self.behavior_policy_receipt_archive_retention_required
+            ),
+            "behavior_policy_receipt_entry_event_pending": (
+                self.behavior_policy_receipt_entry_event_pending
+            ),
+            "on_policy_action_receipt_prevalidated": (
+                self.on_policy_action_receipt_prevalidated
+            ),
             "on_policy_action_receipt_valid": self.on_policy_action_receipt_valid,
+            "exact_on_policy_entry_outbox_record_id": (
+                self.exact_on_policy_entry_outbox_record_id
+            ),
+            "exact_on_policy_entry_outbox_state": (
+                self.exact_on_policy_entry_outbox_state
+            ),
+            "exact_on_policy_sealed_fill_sha256": (
+                self.exact_on_policy_sealed_fill_sha256
+            ),
             "on_policy_sampling_selected": self.on_policy_sampling_selected,
             "on_policy_sampling_requested": self.on_policy_sampling_requested,
             "on_policy_sampling_plan_hash": self.on_policy_sampling_plan_hash,
@@ -2837,12 +3298,14 @@ def maintenance_bracket_evidence_from_payload(
 def position_from_fill(fill: dict[str, Any], *, fill_id: str, side: str, quantity: float, price: float) -> PaperNetPosition:
     symbol = str(fill.get("symbol") or "").upper()
     entry_time_utc = (
-        utc_iso_from_any(fill.get("fill_price_utc"))
-        or utc_iso_from_any(fill.get("generated_utc"))
+        utc_iso_from_any(fill.get("entry_time"))
+        or utc_iso_from_any(fill.get("execution_time"))
+        or utc_iso_from_any(fill.get("paper_fill_materialized_at"))
+        or utc_iso_from_any(fill.get("fill_price_utc"))
         or utc_iso_from_any(fill.get("entry_price_utc"))
         or utc_iso_from_any(fill.get("fill_time_est"))
         or utc_iso_from_any(fill.get("entry_generation_time_utc"))
-        or utc_iso_from_any(fill.get("entry_time"))
+        or utc_iso_from_any(fill.get("generated_utc"))
         or utc_iso_from_any(fill.get("opened_est"))
         or utc_now_iso()
     )
@@ -3333,6 +3796,18 @@ def position_from_fill(fill: dict[str, Any], *, fill_id: str, side: str, quantit
         allocation.get("on_policy_action_receipt_valid"),
         allocation_model_inputs.get("on_policy_action_receipt_valid"),
     )
+    on_policy_action_receipt_prevalidated = first_present(
+        fill.get("on_policy_action_receipt_prevalidated"),
+        allocation.get("on_policy_action_receipt_prevalidated"),
+        allocation_model_inputs.get("on_policy_action_receipt_prevalidated"),
+    )
+    behavior_policy_receipt_entry_event_pending = first_present(
+        fill.get("behavior_policy_receipt_entry_event_pending"),
+        allocation.get("behavior_policy_receipt_entry_event_pending"),
+        allocation_model_inputs.get(
+            "behavior_policy_receipt_entry_event_pending"
+        ),
+    )
     on_policy_sampling_selected = first_present(
         fill.get("on_policy_sampling_selected"),
         allocation.get("on_policy_sampling_selected"),
@@ -3607,10 +4082,74 @@ def position_from_fill(fill: dict[str, Any], *, fill_id: str, side: str, quantit
             if behavior_policy_receipt_write_success is not None
             else None
         ),
+        exact_on_policy_position_lineage_schema_version=(
+            first_present(
+                fill.get("exact_on_policy_position_lineage_schema_version"),
+                allocation.get(
+                    "exact_on_policy_position_lineage_schema_version"
+                ),
+                allocation_model_inputs.get(
+                    "exact_on_policy_position_lineage_schema_version"
+                ),
+            )
+            or (
+                EXACT_ON_POLICY_POSITION_LINEAGE_SCHEMA_VERSION
+                if ppo_on_policy_entry_fields_present is True
+                else None
+            )
+        ),
+        behavior_policy_receipt_archive_entry_event_hash=first_present(
+            fill.get("behavior_policy_receipt_archive_entry_event_hash"),
+            allocation.get("behavior_policy_receipt_archive_entry_event_hash"),
+            allocation_model_inputs.get(
+                "behavior_policy_receipt_archive_entry_event_hash"
+            ),
+        ),
+        behavior_policy_receipt_archive_verified_at_entry=first_present(
+            fill.get("behavior_policy_receipt_archive_verified_at_entry"),
+            allocation.get("behavior_policy_receipt_archive_verified_at_entry"),
+            allocation_model_inputs.get(
+                "behavior_policy_receipt_archive_verified_at_entry"
+            ),
+        ),
+        behavior_policy_receipt_archive_retention_required=first_present(
+            fill.get("behavior_policy_receipt_archive_retention_required"),
+            allocation.get(
+                "behavior_policy_receipt_archive_retention_required"
+            ),
+            allocation_model_inputs.get(
+                "behavior_policy_receipt_archive_retention_required"
+            ),
+        ),
+        behavior_policy_receipt_entry_event_pending=(
+            bool(behavior_policy_receipt_entry_event_pending)
+            if behavior_policy_receipt_entry_event_pending is not None
+            else None
+        ),
+        on_policy_action_receipt_prevalidated=(
+            bool(on_policy_action_receipt_prevalidated)
+            if on_policy_action_receipt_prevalidated is not None
+            else None
+        ),
         on_policy_action_receipt_valid=(
             bool(on_policy_action_receipt_valid)
             if on_policy_action_receipt_valid is not None
             else None
+        ),
+        exact_on_policy_entry_outbox_record_id=first_present(
+            fill.get("exact_on_policy_entry_outbox_record_id"),
+            allocation.get("exact_on_policy_entry_outbox_record_id"),
+            allocation_model_inputs.get("exact_on_policy_entry_outbox_record_id"),
+        ),
+        exact_on_policy_entry_outbox_state=first_present(
+            fill.get("exact_on_policy_entry_outbox_state"),
+            allocation.get("exact_on_policy_entry_outbox_state"),
+            allocation_model_inputs.get("exact_on_policy_entry_outbox_state"),
+        ),
+        exact_on_policy_sealed_fill_sha256=first_present(
+            fill.get("exact_on_policy_sealed_fill_sha256"),
+            allocation.get("exact_on_policy_sealed_fill_sha256"),
+            allocation_model_inputs.get("exact_on_policy_sealed_fill_sha256"),
         ),
         on_policy_sampling_selected=(
             bool(on_policy_sampling_selected)

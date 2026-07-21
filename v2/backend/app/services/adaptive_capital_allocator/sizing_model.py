@@ -7,10 +7,25 @@ def clamp(value: float, low: float, high: float) -> float:
     return max(low, min(high, value))
 
 
-def confidence_adjustment(row: AllocationInput) -> float:
-    ppo = row.ppo_action_probability if row.ppo_action_probability is not None else row.confidence_calibrated
-    masa = row.masa_confidence if row.masa_confidence is not None else row.confidence_calibrated
+def confidence_adjustment(
+    row: AllocationInput,
+    *,
+    continuous_from_zero: bool = False,
+) -> float:
+    """Scale confidence while preserving the legacy live transform by default."""
+    ppo = (
+        row.ppo_action_probability
+        if row.ppo_action_probability is not None
+        else row.confidence_calibrated
+    )
+    masa = (
+        row.masa_confidence
+        if row.masa_confidence is not None
+        else row.confidence_calibrated
+    )
     blended = (row.confidence_calibrated * 0.6) + (ppo * 0.25) + (masa * 0.15)
+    if continuous_from_zero:
+        return clamp(blended, 0.0, 1.0)
     return clamp((blended - 0.50) / 0.25, 0.0, 1.0)
 
 
@@ -54,10 +69,18 @@ def regime_adjustment(row: AllocationInput) -> float:
     return clamp(row.regime_score, 0.2, 1.25)
 
 
-def adaptive_budget_pct(row: AllocationInput, envelope: RiskEnvelope) -> float:
+def adaptive_budget_pct(
+    row: AllocationInput,
+    envelope: RiskEnvelope,
+    *,
+    continuous_confidence_from_zero: bool = False,
+) -> float:
     raw = (
         envelope.max_loss_per_trade_pct
-        * confidence_adjustment(row)
+        * confidence_adjustment(
+            row,
+            continuous_from_zero=continuous_confidence_from_zero,
+        )
         * edge_adjustment(row)
         * market_state_adjustment(row)
         * volatility_adjustment(row)
