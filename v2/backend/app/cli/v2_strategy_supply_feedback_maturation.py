@@ -26,7 +26,9 @@ def _redis_client(redis_url: str | None) -> Any | None:
     except Exception:
         return None
     try:
-        return redis.Redis.from_url(redis_url, decode_responses=True)
+        # Exact canonical exit-label OHLCV validation requires the original
+        # Redis bytes; JSON helpers decode binary values explicitly.
+        return redis.Redis.from_url(redis_url, decode_responses=False)
     except Exception:
         return None
 

@@ -7,17 +7,20 @@ keys; it never places, cancels, tests, or modifies exchange orders.
 from __future__ import annotations
 
 import argparse
-from collections import Counter
 import hashlib
 import json
 import math
 import os
 import sys
 import time
+from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
+from v2.backend.app.services.paper_trade_management.entry_gate import (
+    expected_move_after_cost_favorable_for_side,
+)
 from v2.backend.app.services.strategy_supply.edge_hypothesis_generator import (
     GATE_CLEAN_POSITIVE_HYPOTHESIS_KEY,
     HYPOTHESIS_KEY,
@@ -28,9 +31,6 @@ from v2.backend.app.services.strategy_supply.edge_hypothesis_generator import (
     STATUS_KEY,
     STRATEGY_FAMILIES,
     generate_hypotheses,
-)
-from v2.backend.app.services.paper_trade_management.entry_gate import (
-    expected_move_after_cost_favorable_for_side,
 )
 from v2.backend.app.services.v2_symbol_runtime_universe import resolve_symbols
 
@@ -45,7 +45,16 @@ def _redis_client() -> Any:
     except Exception as exc:  # pragma: no cover - environment dependent
         raise RuntimeError("redis package is required for strategy supply publishing") from exc
     url = os.environ.get("V2_REDIS_URL") or os.environ.get("REDIS_URL") or "redis://127.0.0.1:6379/0"
-    client = redis.Redis.from_url(url, decode_responses=True, socket_connect_timeout=1.0, socket_timeout=5.0)
+    # Binary responses are required so strategy supply can validate and hash
+    # the exact canonical closed-OHLCV bytes.  All JSON readers in the called
+    # services decode bytes explicitly; a decode_responses=True client would
+    # force the causal TA boundary to mask the source.
+    client = redis.Redis.from_url(
+        url,
+        decode_responses=False,
+        socket_connect_timeout=1.0,
+        socket_timeout=5.0,
+    )
     client.ping()
     return client
 

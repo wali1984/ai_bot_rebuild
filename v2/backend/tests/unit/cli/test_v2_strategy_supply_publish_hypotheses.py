@@ -4,15 +4,57 @@ import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+import pytest
+
 from v2.backend.app.cli.v2_strategy_supply_publish_hypotheses import (
     _positive_net_usd,
+    _redis_client,
     publish_strategy_supply,
 )
+from v2.backend.app.services.altdata import canonical_confluence_consumer
+from v2.backend.app.services.market_state_integrity.canonical_candles import (
+    canonical_from_binance_rest,
+)
+from v2.backend.app.services.native_trainer.ohlcv_closed_window_schema import (
+    TIMEFRAME_DURATION_MS,
+)
+from v2.backend.app.services.strategy_supply import causal_native_ta
+from v2.backend.app.services.strategy_supply import (
+    edge_hypothesis_generator as edge_generator,
+)
+
+_FROZEN_NATIVE_TA_NOW: datetime | None = None
+
+
+@pytest.fixture(autouse=True)
+def _freeze_native_ta_test_clock(monkeypatch: pytest.MonkeyPatch):
+    """Keep runtime fixtures deterministic across a candle-close boundary."""
+
+    frozen = datetime.now(UTC)
+    frozen_text = frozen.isoformat(timespec="microseconds").replace(
+        "+00:00", "Z"
+    )
+    global _FROZEN_NATIVE_TA_NOW
+    _FROZEN_NATIVE_TA_NOW = frozen
+    monkeypatch.setattr(causal_native_ta, "_now", lambda: frozen)
+    monkeypatch.setattr(
+        canonical_confluence_consumer,
+        "_utc_now",
+        lambda: frozen,
+    )
+    monkeypatch.setattr(edge_generator, "_utc_now", lambda: frozen_text)
+    yield
+    _FROZEN_NATIVE_TA_NOW = None
 
 
 class FakeRedis:
     def __init__(self, data: dict[str, object]) -> None:
-        self.data = {key: json.dumps(value) for key, value in data.items()}
+        self.data = {
+            key: value
+            if type(value) in (bytes, str)
+            else json.dumps(value)
+            for key, value in data.items()
+        }
         self.set_calls: list[tuple[str, int | None]] = []
 
     def get(self, key: str):
@@ -22,6 +64,45 @@ class FakeRedis:
         assert key.startswith("v2:strategy_supply:")
         self.data[key] = value
         self.set_calls.append((key, ex))
+
+
+def _canonical_closed_ohlcv_bytes(
+    *, symbol: str = "BTCUSDT", timeframe: str = "1m", count: int = 100
+) -> bytes:
+    duration_ms = TIMEFRAME_DURATION_MS[timeframe]
+    assert _FROZEN_NATIVE_TA_NOW is not None
+    now_ms = int(_FROZEN_NATIVE_TA_NOW.timestamp() * 1000)
+    latest_close_ms = (now_ms // duration_ms) * duration_ms - 1
+    rows: list[dict] = []
+    for index in range(count):
+        close_time = latest_close_ms - (count - 1 - index) * duration_ms
+        open_time = close_time - duration_ms + 1
+        close_price = 60_000.0 - (count - 1 - index) * 10.0
+        open_price = close_price - 5.0
+        volume = 1_000.0 + index
+        source_row = [
+            open_time,
+            str(open_price),
+            str(close_price + 120.0),
+            str(open_price - 120.0),
+            str(close_price),
+            str(volume),
+            close_time,
+            str(volume * close_price),
+            100 + index,
+            str(volume / 2.0),
+            str((volume / 2.0) * close_price),
+            "0",
+        ]
+        rows.append(
+            canonical_from_binance_rest(
+                source_row,
+                symbol=symbol,
+                timeframe=timeframe,
+                ingested_at=close_time + 1,
+            ).to_dict()
+        )
+    return json.dumps(rows, sort_keys=True, separators=(",", ":")).encode()
 
 
 def _runtime_keys(symbol: str = "BTCUSDT") -> dict[str, object]:
@@ -49,10 +130,9 @@ def _runtime_keys(symbol: str = "BTCUSDT") -> dict[str, object]:
                 "closeTime": 4102444800000,
             },
         },
-        f"v2:features:latest:{symbol}:1m": {
-            "features": {"atr_bps": 40.0},
-            "atr_bps": 40.0,
-        },
+        f"v2:market:ohlcv_closed:binance:{symbol}:1m": (
+            _canonical_closed_ohlcv_bytes(symbol=symbol)
+        ),
         f"v2:features:coinglass:{symbol}:1m": {
             "schema_version": "coinglass_aggregated_feature_payload_v2",
             "provider": "coinglass",
@@ -145,3 +225,29 @@ def test_strategy_supply_publish_rejects_inconsistent_selected_side_positive() -
             "expected_move_after_cost_bps": -18.0,
         }
     ) is True
+
+
+def test_strategy_supply_runtime_redis_client_preserves_exact_bytes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import redis
+
+    captured: dict[str, object] = {}
+
+    class Client:
+        def ping(self) -> bool:
+            return True
+
+    def from_url(url: str, **kwargs: object) -> Client:
+        captured["url"] = url
+        captured.update(kwargs)
+        return Client()
+
+    monkeypatch.setattr(redis.Redis, "from_url", staticmethod(from_url))
+    monkeypatch.setenv("V2_REDIS_URL", "redis://example.invalid:6379/9")
+
+    client = _redis_client()
+
+    assert isinstance(client, Client)
+    assert captured["url"] == "redis://example.invalid:6379/9"
+    assert captured["decode_responses"] is False

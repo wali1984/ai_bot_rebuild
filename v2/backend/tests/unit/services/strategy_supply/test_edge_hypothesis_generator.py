@@ -2,20 +2,63 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import time
 from datetime import UTC, datetime, timedelta
 
 import pytest
 
+from v2.backend.app.services.altdata import canonical_confluence_consumer
+from v2.backend.app.services.market_state_integrity.canonical_candles import (
+    canonical_from_binance_rest,
+)
+from v2.backend.app.services.native_trainer.ohlcv_closed_window_schema import (
+    TIMEFRAME_DURATION_MS,
+)
+from v2.backend.app.services.strategy_supply import causal_native_ta
+from v2.backend.app.services.strategy_supply import (
+    edge_hypothesis_generator as edge_generator,
+)
+from v2.backend.app.services.strategy_supply.causal_native_ta import (
+    load_causal_native_ta,
+)
 from v2.backend.app.services.strategy_supply.edge_hypothesis_generator import (
     generate_hypotheses,
 )
 
+_FROZEN_NATIVE_TA_NOW: datetime | None = None
+
+
+@pytest.fixture(autouse=True)
+def _freeze_native_ta_test_clock(monkeypatch: pytest.MonkeyPatch):
+    """Keep ordinary fixtures deterministic across a candle-close boundary."""
+
+    frozen = datetime.now(UTC)
+    frozen_text = frozen.isoformat(timespec="microseconds").replace(
+        "+00:00", "Z"
+    )
+    global _FROZEN_NATIVE_TA_NOW
+    _FROZEN_NATIVE_TA_NOW = frozen
+    monkeypatch.setattr(causal_native_ta, "_now", lambda: frozen)
+    monkeypatch.setattr(
+        canonical_confluence_consumer,
+        "_utc_now",
+        lambda: frozen,
+    )
+    monkeypatch.setattr(edge_generator, "_utc_now", lambda: frozen_text)
+    yield
+    _FROZEN_NATIVE_TA_NOW = None
+
 
 class FakeRedis:
-    def __init__(self, data: dict[str, dict]) -> None:
-        self._data = {k: json.dumps(v) for k, v in data.items()}
+    def __init__(self, data: dict[str, object]) -> None:
+        self._data = {
+            key: value
+            if type(value) in (bytes, str)
+            else json.dumps(value)
+            for key, value in data.items()
+        }
         self.read_keys: list[str] = []
 
     def get(self, key: str):
@@ -26,13 +69,74 @@ class FakeRedis:
         self._data[key] = value
 
 
-def _base_keys(symbol: str = "BTCUSDT") -> dict[str, dict]:
+def _canonical_closed_ohlcv_bytes(
+    *,
+    symbol: str = "BTCUSDT",
+    timeframe: str = "1m",
+    count: int = 100,
+    latest_interval_offset: int = 0,
+    half_range_usd: float = 120.0,
+    price_step_usd: float = 10.0,
+    observed_at_ms: int | None = None,
+) -> bytes:
+    duration_ms = TIMEFRAME_DURATION_MS[timeframe]
+    if observed_at_ms is None:
+        assert _FROZEN_NATIVE_TA_NOW is not None
+        now_ms = int(_FROZEN_NATIVE_TA_NOW.timestamp() * 1000)
+    else:
+        now_ms = observed_at_ms
+    latest_close_ms = (
+        (now_ms // duration_ms) * duration_ms
+        - 1
+        - latest_interval_offset * duration_ms
+    )
+    rows: list[dict] = []
+    for index in range(count):
+        close_time = latest_close_ms - (count - 1 - index) * duration_ms
+        open_time = close_time - duration_ms + 1
+        close_price = 60_000.0 - (count - 1 - index) * price_step_usd
+        open_price = close_price - price_step_usd / 2.0
+        high_price = max(open_price, close_price) + half_range_usd
+        low_price = min(open_price, close_price) - half_range_usd
+        volume = 1_000.0 + index
+        quote_volume = volume * close_price
+        taker_buy_volume = volume / 2.0
+        source_row = [
+            open_time,
+            str(open_price),
+            str(high_price),
+            str(low_price),
+            str(close_price),
+            str(volume),
+            close_time,
+            str(quote_volume),
+            100 + index,
+            str(taker_buy_volume),
+            str(taker_buy_volume * close_price),
+            "0",
+        ]
+        rows.append(
+            canonical_from_binance_rest(
+                source_row,
+                symbol=symbol,
+                timeframe=timeframe,
+                ingested_at=close_time + 1,
+            ).to_dict()
+        )
+    return json.dumps(rows, sort_keys=True, separators=(",", ":")).encode(
+        "utf-8"
+    )
+
+
+def _base_keys(symbol: str = "BTCUSDT") -> dict[str, object]:
     return {
         f"v2:orderbook:top:binance:{symbol}": {
             "best_bid": 60000.0, "best_ask": 60006.0,
             "event_time": "2026-07-09T05:00:00Z",
         },
-        f"v2:features:latest:{symbol}:1m": {"features": {"atr_bps": 40.0}, "atr_bps": 40.0},
+        f"v2:market:ohlcv_closed:binance:{symbol}:1m": (
+            _canonical_closed_ohlcv_bytes(symbol=symbol)
+        ),
         f"v2:features:coinglass:{symbol}:1m": _coinglass_v2_payload(symbol=symbol),
         f"v2:microstructure:trust_score:{symbol}:1m": {
             "composite_microstructure_trust_score": 0.74,
@@ -99,7 +203,7 @@ def test_price_missing_yields_exact_reason():
 
 def test_atr_missing_yields_exact_reason():
     keys = _base_keys()
-    keys.pop("v2:features:latest:BTCUSDT:1m")
+    keys.pop("v2:market:ohlcv_closed:binance:BTCUSDT:1m")
     keys["v2:market:prices:BTCUSDT"] = {
         "ticker_24hr": {"lastPrice": "60000", "closeTime": 4102444800000},
     }
@@ -127,6 +231,7 @@ def test_funding_squeeze_hypothesis_generated_with_usd_economics():
         assert row["feature_vector_hash"].startswith("strategy_supply_")
         assert row["feature_cutoff"] <= row["decision_time"]
         assert row["available_at"] <= row["decision_time"]
+        assert row["ta_temporal_contract_valid"] is True
         assert isinstance(row["provider_feature_hashes"], dict)
         assert row["current_price"] == 60000.0
         assert row["reason_if_rejected"] == row["why_rejected"]
@@ -608,7 +713,12 @@ def test_strategy_supply_lifts_capped_trust_only_with_execution_grade_evidence()
 def test_negative_economics_rejected_not_hidden():
     keys = _base_keys()
     # Tiny ATR -> target cannot cover cost -> must be rejected with reason.
-    keys["v2:features:latest:BTCUSDT:1m"] = {"features": {"atr_bps": 2.0}, "atr_bps": 2.0}
+    keys["v2:market:ohlcv_closed:binance:BTCUSDT:1m"] = (
+        _canonical_closed_ohlcv_bytes(
+            half_range_usd=1.0,
+            price_step_usd=0.01,
+        )
+    )
     keys["v2:market:prices:BTCUSDT"] = {
         "ticker_24hr": {"lastPrice": "60000", "closeTime": 4102444800000},
     }
@@ -616,3 +726,247 @@ def test_negative_economics_rejected_not_hidden():
     directional = [r for r in rows if r.get("side")]
     assert directional, "signals should still be evaluated"
     assert all(r["why_rejected"] is not None for r in directional)
+
+
+@pytest.mark.parametrize("timeframe", ("1m", "5m", "15m", "1h", "4h"))
+def test_native_ta_uses_exact_current_closed_window_and_honest_clocks(
+    timeframe: str,
+) -> None:
+    exact_bytes = _canonical_closed_ohlcv_bytes(timeframe=timeframe)
+    key = f"v2:market:ohlcv_closed:binance:BTCUSDT:{timeframe}"
+
+    payload, status = load_causal_native_ta(
+        FakeRedis({key: exact_bytes}),
+        symbol="BTCUSDT",
+        timeframe=timeframe,
+    )
+
+    assert payload is not None
+    assert status["state"] == "PRESENT"
+    assert payload["source_exact_payload_sha256"] == hashlib.sha256(
+        exact_bytes
+    ).hexdigest()
+    assert len(payload["in_process_ta_content_sha256"]) == 64
+    assert payload["feature_cutoff"] <= payload["source_available_at"]
+    assert payload["source_available_at"] <= payload["read_observed_at"]
+    assert payload["read_observed_at"] <= payload["computed_available_at"]
+    assert payload["candle_closed_confirmed"] is True
+    assert payload["latest_completed_interval_verified"] is True
+    assert payload["cached_ta_compatibility_consumed"] is False
+    assert payload["latest_feature_snapshot_consumed"] is False
+    assert payload["zero_fill_used"] is False
+    assert payload["generic_consumer_eligible"] is False
+    assert payload["live_execution_authorized"] is False
+
+
+def test_unfinished_canonical_window_is_masked_without_zero_fill() -> None:
+    key = "v2:market:ohlcv_closed:binance:BTCUSDT:1m"
+    rows = json.loads(_canonical_closed_ohlcv_bytes())
+    rows[-1]["is_closed"] = False
+    exact_bytes = json.dumps(rows, sort_keys=True, separators=(",", ":")).encode()
+
+    payload, status = load_causal_native_ta(
+        FakeRedis({key: exact_bytes}),
+        symbol="BTCUSDT",
+        timeframe="1m",
+    )
+
+    assert payload is None
+    assert status["state"] == "MASKED"
+    assert status["rejection_reason"].endswith(
+        "ohlcv_closed_finality_flags_invalid"
+    )
+    assert status["zero_fill_used"] is False
+
+
+def test_decoded_canonical_window_is_not_reencoded_as_exact_bytes() -> None:
+    key = "v2:market:ohlcv_closed:binance:BTCUSDT:1m"
+    decoded = _canonical_closed_ohlcv_bytes().decode("utf-8")
+
+    payload, status = load_causal_native_ta(
+        FakeRedis({key: decoded}),
+        symbol="BTCUSDT",
+        timeframe="1m",
+    )
+
+    assert payload is None
+    assert status["rejection_reason"] == "EXACT_BINARY_CLOSED_OHLCV_UNAVAILABLE"
+
+
+def test_native_ta_masks_window_that_becomes_stale_during_computation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    duration_ms = TIMEFRAME_DURATION_MS["1m"]
+    read_observed = datetime.now(UTC)
+    read_ms = int(read_observed.timestamp() * 1000)
+    next_boundary_ms = ((read_ms // duration_ms) + 1) * duration_ms
+    computed_after_boundary = datetime.fromtimestamp(
+        (next_boundary_ms + 1) / 1000.0,
+        tz=UTC,
+    )
+    observed_times = iter((read_observed, computed_after_boundary))
+    monkeypatch.setattr(causal_native_ta, "_now", lambda: next(observed_times))
+    key = "v2:market:ohlcv_closed:binance:BTCUSDT:1m"
+
+    payload, status = load_causal_native_ta(
+        FakeRedis(
+            {
+                key: _canonical_closed_ohlcv_bytes(
+                    observed_at_ms=read_ms,
+                )
+            }
+        ),
+        symbol="BTCUSDT",
+        timeframe="1m",
+    )
+
+    assert payload is None
+    assert status["rejection_reason"] == (
+        "CANONICAL_CLOSED_OHLCV_BECAME_STALE_DURING_COMPUTATION"
+    )
+
+
+def test_future_available_canonical_window_is_masked() -> None:
+    key = "v2:market:ohlcv_closed:binance:BTCUSDT:1m"
+    rows = json.loads(_canonical_closed_ohlcv_bytes())
+    future_ms = int(time.time() * 1000) + 60_000
+    rows[-1]["ingested_at"] = future_ms
+    rows[-1]["available_at"] = future_ms
+    exact_bytes = json.dumps(rows, sort_keys=True, separators=(",", ":")).encode()
+
+    payload, status = load_causal_native_ta(
+        FakeRedis({key: exact_bytes}),
+        symbol="BTCUSDT",
+        timeframe="1m",
+    )
+
+    assert payload is None
+    assert status["rejection_reason"] == (
+        "CANONICAL_CLOSED_OHLCV_AVAILABLE_AFTER_READ_OBSERVATION"
+    )
+
+
+def test_strategy_decision_masks_ta_when_next_candle_closes_after_computation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    keys = _base_keys()
+    source_bytes = keys["v2:market:ohlcv_closed:binance:BTCUSDT:1m"]
+    assert isinstance(source_bytes, bytes)
+    rows = json.loads(source_bytes)
+    valid_before_ms = rows[-1]["candle_close_time"] + 60_001
+    stale_decision = datetime.fromtimestamp(valid_before_ms / 1000.0, tz=UTC)
+    monkeypatch.setattr(
+        edge_generator,
+        "_utc_now",
+        lambda: stale_decision.isoformat(timespec="microseconds").replace(
+            "+00:00", "Z"
+        ),
+    )
+
+    hypotheses = generate_hypotheses(FakeRedis(keys), "BTCUSDT", "1m")
+
+    assert hypotheses[0]["why_rejected"] == "ATR_NOISE_MISSING_NO_STOP_BASIS"
+    assert hypotheses[0]["ta_input_state"] == "MASKED"
+    assert hypotheses[0]["ta_input_rejection_reason"] == (
+        "CANONICAL_CLOSED_OHLCV_STALE_AT_DECISION_TIME"
+    )
+    assert hypotheses[0]["ta_temporal_contract_valid"] is False
+
+
+def test_malformed_canonical_window_is_masked() -> None:
+    key = "v2:market:ohlcv_closed:binance:BTCUSDT:1m"
+    payload, status = load_causal_native_ta(
+        FakeRedis({key: b'{"not":"a closed window"}'}),
+        symbol="BTCUSDT",
+        timeframe="1m",
+    )
+
+    assert payload is None
+    assert status["rejection_reason"].endswith(
+        "ohlcv_closed_top_level_requires_exact_list"
+    )
+
+
+def test_noncontiguous_calculation_suffix_is_masked() -> None:
+    key = "v2:market:ohlcv_closed:binance:BTCUSDT:1m"
+    rows = json.loads(_canonical_closed_ohlcv_bytes())
+    del rows[-10]
+    exact_bytes = json.dumps(rows, sort_keys=True, separators=(",", ":")).encode()
+
+    payload, status = load_causal_native_ta(
+        FakeRedis({key: exact_bytes}),
+        symbol="BTCUSDT",
+        timeframe="1m",
+    )
+
+    assert payload is None
+    assert status["rejection_reason"].endswith(
+        "ohlcv_closed_required_contiguous_window_unavailable"
+    )
+
+
+def test_stale_canonical_window_is_masked_by_completed_interval_identity() -> None:
+    key = "v2:market:ohlcv_closed:binance:BTCUSDT:1m"
+    payload, status = load_causal_native_ta(
+        FakeRedis(
+            {
+                key: _canonical_closed_ohlcv_bytes(
+                    latest_interval_offset=1,
+                )
+            }
+        ),
+        symbol="BTCUSDT",
+        timeframe="1m",
+    )
+
+    assert payload is None
+    assert status["rejection_reason"] == (
+        "CANONICAL_CLOSED_OHLCV_LATEST_COMPLETED_INTERVAL_MISMATCH"
+    )
+
+
+def test_canonical_window_identity_mismatch_is_masked() -> None:
+    key = "v2:market:ohlcv_closed:binance:ETHUSDT:1m"
+    payload, status = load_causal_native_ta(
+        FakeRedis({key: _canonical_closed_ohlcv_bytes(symbol="BTCUSDT")}),
+        symbol="ETHUSDT",
+        timeframe="1m",
+    )
+
+    assert payload is None
+    assert status["rejection_reason"].endswith(
+        "ohlcv_closed_source_binding_invalid"
+    )
+
+
+def test_forged_ta_compatibility_and_latest_snapshots_are_never_read() -> None:
+    keys = _base_keys()
+    keys["v2:features:ta_closed:BTCUSDT:1m"] = {
+        "consumer_eligible": True,
+        "candle_closed_confirmed": True,
+        "indicators": {"ta_NATR": 999.0, "ta_RSI": 1.0},
+    }
+    keys["v2:features:ta:BTCUSDT:1m"] = {
+        "consumer_eligible": True,
+        "indicators": {"ta_NATR": 999.0},
+    }
+    keys["v2:features:latest:BTCUSDT:1m"] = {
+        "consumer_eligible": True,
+        "atr_bps": 999_999.0,
+        "features": {"atr_bps": 999_999.0},
+    }
+    client = FakeRedis(keys)
+
+    rows = generate_hypotheses(client, "BTCUSDT", "1m")
+
+    assert "v2:features:ta_closed:BTCUSDT:1m" not in client.read_keys
+    assert "v2:features:ta:BTCUSDT:1m" not in client.read_keys
+    assert "v2:features:latest:BTCUSDT:1m" not in client.read_keys
+    assert rows
+    assert all(row["ta_cached_compatibility_consumed"] is False for row in rows)
+    assert all(row["latest_feature_snapshot_consumed"] is False for row in rows)
+    assert all(
+        row.get("ta_source_exact_payload_sha256")
+        == row["provider_feature_hashes"]["canonical_closed_ohlcv_exact_bytes"]
+        for row in rows
+    )

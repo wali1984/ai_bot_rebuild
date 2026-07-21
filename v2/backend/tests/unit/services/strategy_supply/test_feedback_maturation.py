@@ -5,21 +5,32 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import pytest
+
+from v2.backend.app.cli import v2_strategy_supply_feedback_maturation as feedback_cli
+from v2.backend.app.services.market_state_integrity.canonical_candles import (
+    canonical_from_binance_rest,
+)
+from v2.backend.app.services.market_state_integrity.sample_rejection import classify_training_sample
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.data_loader import (
     V2HybridTrainerDataLoader,
     _trainer_feedback_row_usable,
 )
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.safety import V2OnlyJsonIO
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.tensor_builder import FEATURE_SPEC
-from v2.backend.app.services.market_state_integrity.sample_rejection import classify_training_sample
+from v2.backend.app.services.native_trainer.ohlcv_closed_window_schema import (
+    TIMEFRAME_DURATION_MS,
+)
 from v2.backend.app.services.strategy_supply import feedback_maturation as maturation
 
 
 class FakeRedis:
     def __init__(self, payloads: dict[str, Any] | None = None) -> None:
         self.payloads = dict(payloads or {})
+        self.read_keys: list[str] = []
 
     def get(self, key: str) -> Any:
+        self.read_keys.append(key)
         value = self.payloads.get(key)
         if isinstance(value, (dict, list)):
             return json.dumps(value)
@@ -115,6 +126,59 @@ def _exit_snapshot(close: float = 101.0) -> dict[str, Any]:
     }
 
 
+def _canonical_exit_window(
+    close: float = 101.0,
+    *,
+    symbol: str = "BTCUSDT",
+    timeframe: str = "1m",
+    label_boundary: datetime = datetime(
+        2026, 6, 21, 12, 1, tzinfo=timezone.utc
+    ),
+) -> bytes:
+    duration_ms = TIMEFRAME_DURATION_MS[timeframe]
+    latest_close_ms = int(label_boundary.timestamp() * 1000) - 1
+    rows: list[dict[str, Any]] = []
+    for index in range(5):
+        close_time = latest_close_ms - (4 - index) * duration_ms
+        open_time = close_time - duration_ms + 1
+        selected_close = close if index == 4 else close - (4 - index) * 0.25
+        open_price = selected_close - 0.1
+        volume = 1_000.0 + index
+        source_row = [
+            open_time,
+            str(open_price),
+            str(selected_close + 0.5),
+            str(open_price - 0.5),
+            str(selected_close),
+            str(volume),
+            close_time,
+            str(volume * selected_close),
+            100 + index,
+            str(volume / 2.0),
+            str((volume / 2.0) * selected_close),
+            "0",
+        ]
+        rows.append(
+            canonical_from_binance_rest(
+                source_row,
+                symbol=symbol,
+                timeframe=timeframe,
+                ingested_at=close_time + 1,
+            ).to_dict()
+        )
+    return json.dumps(rows, sort_keys=True, separators=(",", ":")).encode()
+
+
+def _exit_redis(close: float = 101.0) -> FakeRedis:
+    return FakeRedis(
+        {
+            "v2:market:ohlcv_closed:binance:BTCUSDT:1m": (
+                _canonical_exit_window(close)
+            )
+        }
+    )
+
+
 def _write_pending(path: Path, row: dict[str, Any]) -> None:
     maturation.append_jsonl(path, row)
 
@@ -125,7 +189,7 @@ def test_strategy_supply_feedback_maturation_publishes_trainer_consumable_row(tm
     rejected_path = tmp_path / "strategy_supply_rejected_evidence.jsonl"
     status_path = tmp_path / "status.json"
     _write_pending(pending_path, _pending_row())
-    redis = FakeRedis({"v2:features:latest:BTCUSDT:1m": _exit_snapshot()})
+    redis = _exit_redis()
 
     status = maturation.mature_strategy_supply_feedback(
         pending_path=pending_path,
@@ -185,7 +249,7 @@ def test_strategy_supply_feedback_maturation_rejects_future_leaking_entry_snapsh
         pending_path=pending_path,
         matured_path=matured_path,
         rejected_path=rejected_path,
-        redis_client=FakeRedis({"v2:features:latest:BTCUSDT:1m": _exit_snapshot()}),
+        redis_client=_exit_redis(),
         now=datetime(2026, 6, 21, 12, 1, 2, tzinfo=timezone.utc),
         publish_to_redis=True,
     )
@@ -207,7 +271,7 @@ def test_strategy_supply_feedback_maturation_waits_for_label_window(tmp_path: Pa
         pending_path=pending_path,
         matured_path=matured_path,
         rejected_path=rejected_path,
-        redis_client=FakeRedis({"v2:features:latest:BTCUSDT:1m": _exit_snapshot()}),
+        redis_client=_exit_redis(),
         now=datetime(2026, 6, 21, 12, 0, 30, tzinfo=timezone.utc),
         publish_to_redis=True,
     )
@@ -224,7 +288,7 @@ def test_strategy_supply_feedback_maturation_republishes_existing_matured_rows(
     matured_path = tmp_path / "strategy_supply_matured_evidence.jsonl"
     rejected_path = tmp_path / "strategy_supply_rejected_evidence.jsonl"
     _write_pending(pending_path, _pending_row())
-    redis = FakeRedis({"v2:features:latest:BTCUSDT:1m": _exit_snapshot()})
+    redis = _exit_redis()
 
     first_status = maturation.mature_strategy_supply_feedback(
         pending_path=pending_path,
@@ -254,3 +318,234 @@ def test_strategy_supply_feedback_maturation_republishes_existing_matured_rows(
     assert payload[0]["trainer_feedback_source"] == maturation.FEEDBACK_SOURCE
     assert payload[0]["accepted_for_training"] is True
     assert payload[0]["reject_reasons"] == []
+
+
+def test_feedback_maturation_ignores_forged_latest_feature_snapshot(
+    tmp_path: Path,
+) -> None:
+    pending_path = tmp_path / "strategy_supply_pending_evidence.jsonl"
+    matured_path = tmp_path / "strategy_supply_matured_evidence.jsonl"
+    rejected_path = tmp_path / "strategy_supply_rejected_evidence.jsonl"
+    _write_pending(pending_path, _pending_row())
+    redis = _exit_redis(close=101.0)
+    redis.payloads["v2:features:latest:BTCUSDT:1m"] = _exit_snapshot(
+        close=9_999.0
+    )
+
+    status = maturation.mature_strategy_supply_feedback(
+        pending_path=pending_path,
+        matured_path=matured_path,
+        rejected_path=rejected_path,
+        redis_client=redis,
+        now=datetime(2026, 6, 21, 12, 1, 2, tzinfo=timezone.utc),
+        publish_to_redis=False,
+    )
+
+    assert status["matured_rows"] == 1
+    assert "v2:features:latest:BTCUSDT:1m" not in redis.read_keys
+    matured = maturation.load_jsonl(matured_path)
+    assert matured[0]["exit_price"] == 101.0
+    assert matured[0]["exit_feature_cutoff"] == "2026-06-21T12:00:59.999Z"
+    feedback = matured[0]["trainer_feedback_row"]
+    assert feedback["exit_label_boundary_exact_candle_selected"] is True
+    assert feedback["exit_cached_latest_feature_snapshot_consumed"] is False
+    assert maturation.canonical_exit_lineage_rejection_reasons(feedback) == []
+    assert (
+        feedback["source_hashes"]["canonical_exit_ohlcv_exact_bytes"]
+        == matured[0]["exit_source_exact_payload_sha256"]
+    )
+    forged_horizon = dict(feedback)
+    forged_horizon["exit_label_close_time"] = "2026-06-21T12:00:00.000Z"
+    assert "EXIT_LABEL_HORIZON_BOUNDARY_MISMATCH" in (
+        maturation.canonical_exit_lineage_rejection_reasons(forged_horizon)
+    )
+
+
+def test_feedback_exit_label_requires_exact_binary_canonical_source() -> None:
+    key = "v2:market:ohlcv_closed:binance:BTCUSDT:1m"
+    decoded = _canonical_exit_window().decode()
+
+    snapshot, reason = maturation.canonical_exit_snapshot(
+        FakeRedis({key: decoded}),
+        "BTCUSDT",
+        "1m",
+        label_close_time=datetime(2026, 6, 21, 12, 1, tzinfo=timezone.utc),
+        now=datetime(2026, 6, 21, 12, 1, 2, tzinfo=timezone.utc),
+    )
+
+    assert snapshot is None
+    assert reason == "EXACT_BINARY_EXIT_OHLCV_UNAVAILABLE"
+
+
+def test_feedback_exit_label_does_not_substitute_a_later_candle() -> None:
+    key = "v2:market:ohlcv_closed:binance:BTCUSDT:1m"
+    later_window = _canonical_exit_window(
+        label_boundary=datetime(2026, 6, 21, 12, 2, tzinfo=timezone.utc)
+    )
+    rows = json.loads(later_window)
+    rows = [
+        row
+        for row in rows
+        if row["candle_close_time"]
+        != int(datetime(2026, 6, 21, 12, 1, tzinfo=timezone.utc).timestamp() * 1000)
+        - 1
+    ]
+    exact_bytes = json.dumps(rows, sort_keys=True, separators=(",", ":")).encode()
+
+    snapshot, reason = maturation.canonical_exit_snapshot(
+        FakeRedis({key: exact_bytes}),
+        "BTCUSDT",
+        "1m",
+        label_close_time=datetime(2026, 6, 21, 12, 1, tzinfo=timezone.utc),
+        now=datetime(2026, 6, 21, 12, 2, 2, tzinfo=timezone.utc),
+    )
+
+    assert snapshot is None
+    assert reason == "CANONICAL_EXIT_LABEL_CANDLE_UNAVAILABLE"
+
+
+def test_feedback_exit_label_rejects_future_available_selected_candle() -> None:
+    key = "v2:market:ohlcv_closed:binance:BTCUSDT:1m"
+    rows = json.loads(_canonical_exit_window())
+    future_available = int(
+        datetime(2026, 6, 21, 12, 2, tzinfo=timezone.utc).timestamp() * 1000
+    )
+    rows[-1]["ingested_at"] = future_available
+    rows[-1]["available_at"] = future_available
+    exact_bytes = json.dumps(rows, sort_keys=True, separators=(",", ":")).encode()
+
+    snapshot, reason = maturation.canonical_exit_snapshot(
+        FakeRedis({key: exact_bytes}),
+        "BTCUSDT",
+        "1m",
+        label_close_time=datetime(2026, 6, 21, 12, 1, tzinfo=timezone.utc),
+        now=datetime(2026, 6, 21, 12, 1, 2, tzinfo=timezone.utc),
+    )
+
+    assert snapshot is None
+    assert reason == "CANONICAL_EXIT_CANDLE_AVAILABLE_AFTER_MATURATION_TIME"
+
+
+def test_feedback_exit_label_uses_first_completed_boundary_after_unaligned_horizon() -> None:
+    key = "v2:market:ohlcv_closed:binance:BTCUSDT:1m"
+    as_of = datetime(2026, 6, 21, 12, 2, 2, tzinfo=timezone.utc)
+    requested_horizon = datetime(
+        2026, 6, 21, 12, 1, 30, tzinfo=timezone.utc
+    )
+    exact_bytes = _canonical_exit_window(
+        label_boundary=datetime(2026, 6, 21, 12, 2, tzinfo=timezone.utc)
+    )
+
+    snapshot, reason = maturation.canonical_exit_snapshot(
+        FakeRedis({key: exact_bytes}),
+        "BTCUSDT",
+        "1m",
+        label_close_time=requested_horizon,
+        now=as_of,
+        observation_time=as_of,
+    )
+
+    assert reason is None
+    assert snapshot is not None
+    assert snapshot["candle_close_boundary"] == "2026-06-21T12:02:00.000Z"
+    assert maturation.exit_snapshot_rejection_reasons(
+        snapshot,
+        label_close_time=requested_horizon,
+        now=as_of,
+    ) == []
+
+
+def test_forged_generic_exit_snapshot_is_noncanonical() -> None:
+    reasons = maturation.exit_snapshot_rejection_reasons(
+        _exit_snapshot(),
+        label_close_time=datetime(2026, 6, 21, 12, 1, tzinfo=timezone.utc),
+        now=datetime(2026, 6, 21, 12, 1, 2, tzinfo=timezone.utc),
+    )
+
+    assert reasons == ["NONCANONICAL_EXIT_FEATURE_SNAPSHOT"]
+
+
+def test_feedback_cli_redis_client_preserves_exact_bytes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import redis
+
+    captured: dict[str, object] = {}
+
+    class Client:
+        pass
+
+    def from_url(url: str, **kwargs: object) -> Client:
+        captured["url"] = url
+        captured.update(kwargs)
+        return Client()
+
+    monkeypatch.setattr(redis.Redis, "from_url", staticmethod(from_url))
+
+    client = feedback_cli._redis_client("redis://example.invalid:6379/8")
+
+    assert isinstance(client, Client)
+    assert captured["decode_responses"] is False
+
+
+def test_feedback_redis_merge_quarantines_legacy_noncanonical_strategy_row() -> None:
+    unrelated = {
+        "trainer_feedback_source": "OTHER_FEEDBACK_SOURCE",
+        "trainer_feedback_id": "other-1",
+    }
+    legacy = {
+        "trainer_feedback_source": maturation.FEEDBACK_SOURCE,
+        "trainer_feedback_id": "legacy-latest-derived",
+        "trainer_consumable": True,
+    }
+    redis = FakeRedis(
+        {maturation.TRAINER_FEEDBACK_REDIS_KEY: [unrelated, legacy]}
+    )
+
+    added, quarantined = maturation.merge_feedback_rows_into_redis(redis, [])
+
+    assert added == 0
+    assert quarantined == 1
+    retained = json.loads(redis.payloads[maturation.TRAINER_FEEDBACK_REDIS_KEY])
+    assert retained == [unrelated]
+
+
+def test_legacy_noncanonical_matured_row_does_not_block_canonical_repair(
+    tmp_path: Path,
+) -> None:
+    pending_path = tmp_path / "strategy_supply_pending_evidence.jsonl"
+    matured_path = tmp_path / "strategy_supply_matured_evidence.jsonl"
+    rejected_path = tmp_path / "strategy_supply_rejected_evidence.jsonl"
+    pending = _pending_row()
+    _write_pending(pending_path, pending)
+    maturation.append_jsonl(
+        matured_path,
+        {
+            **pending,
+            "schema_version": "strategy_supply_matured_evidence_v1",
+            "trainer_feedback_row": {
+                "trainer_feedback_source": maturation.FEEDBACK_SOURCE,
+                "trainer_feedback_id": "legacy-latest-derived",
+                "trainer_consumable": True,
+            },
+        },
+    )
+
+    status = maturation.mature_strategy_supply_feedback(
+        pending_path=pending_path,
+        matured_path=matured_path,
+        rejected_path=rejected_path,
+        redis_client=_exit_redis(),
+        now=datetime(2026, 6, 21, 12, 1, 2, tzinfo=timezone.utc),
+        publish_to_redis=False,
+    )
+
+    assert status["existing_noncanonical_exit_rows_quarantined"] == 1
+    assert status["new_matured_rows_appended"] == 1
+    assert status["matured_rows"] == 1
+    assert status["matured_ledger_rows_total"] == 2
+    ledger = maturation.load_jsonl(matured_path)
+    assert len(ledger) == 2
+    assert maturation.canonical_exit_lineage_rejection_reasons(
+        ledger[-1]["trainer_feedback_row"]
+    ) == []

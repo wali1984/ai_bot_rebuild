@@ -13,8 +13,9 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import datetime, timezone
-from typing import Any, Mapping
+from collections.abc import Mapping
+from datetime import UTC, datetime
+from typing import Any
 
 from v2.backend.app.services.altdata.canonical_confluence_consumer import (
     CanonicalConfluenceContractError,
@@ -25,6 +26,9 @@ from v2.backend.app.services.altdata.provider_feature_bridge import (
     load_moralis_input,
 )
 from v2.backend.app.services.market_data.current_price_resolver import resolve_current_price
+from v2.backend.app.services.strategy_supply.causal_native_ta import (
+    load_causal_native_ta,
+)
 
 HYPOTHESIS_KEY = "v2:strategy_supply:hypotheses:{symbol}:{timeframe}"
 POSITIVE_HYPOTHESIS_KEY = "v2:strategy_supply:positive_hypotheses:{symbol}:{timeframe}"
@@ -68,7 +72,11 @@ STRATEGY_FAMILIES = (
 
 
 def _utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+    return (
+        datetime.now(UTC)
+        .isoformat(timespec="microseconds")
+        .replace("+00:00", "Z")
+    )
 
 
 def _float(value: Any) -> float | None:
@@ -139,17 +147,15 @@ def _context(client: Any, symbol: str, timeframe: str) -> dict[str, Any]:
             f"v2:market:liquidation_levels:{symbol}",
         ],
     )
-    # Prefer the confirmed-closed-candle TA payload so hypothesis decisions
-    # are repaint-free; candle_closed_confirmed is only trusted when the TA
-    # worker stamped it from raw close-boundary proof. Falls back to the live
-    # payload (which includes the in-progress candle) without claiming the
-    # closed-candle confirmation.
-    ta_closed = _read_json(client, f"v2:features:ta_closed:{symbol}:{timeframe}")
-    ta_live = _read_json(client, f"v2:features:ta:{symbol}:{timeframe}")
-    use_closed_ta = (
-        isinstance(ta_closed, Mapping)
-        and ta_closed.get("candle_closed_confirmed") is True
-        and bool(ta_closed.get("indicators"))
+    # The TA publisher's compatibility snapshots intentionally carry
+    # consumer_eligible=false.  Rebuild TA in this process from one exact
+    # binary read of the canonical closed window; invalid/missing input is an
+    # explicit optional mask and never falls back to a compatibility key or
+    # the unverifiable ``features:latest`` surface.
+    ta_context, ta_input_status = load_causal_native_ta(
+        client,
+        symbol=symbol,
+        timeframe=timeframe,
     )
     # Moralis is a receipt-gated optional input.  Reading the raw Redis
     # envelope here previously bypassed the canonical consumer boundary and
@@ -208,15 +214,9 @@ def _context(client: Any, symbol: str, timeframe: str) -> dict[str, Any]:
     )
     return {
         "price": resolve_current_price(client, symbol),
-        "ta": ta_closed if use_closed_ta else ta_live,
-        "ta_live": ta_live,
-        "ta_closed": ta_closed if use_closed_ta else None,
-        "ta_source_key": (
-            f"v2:features:ta_closed:{symbol}:{timeframe}"
-            if use_closed_ta
-            else f"v2:features:ta:{symbol}:{timeframe}"
-        ),
-        "latest": _read_json(client, f"v2:features:latest:{symbol}:{timeframe}"),
+        "ta": ta_context,
+        "ta_input_status": ta_input_status,
+        "ta_source_key": f"v2:market:ohlcv_closed:binance:{symbol}:{timeframe}",
         "fvg": _read_json(client, f"v2:market:fvg:{symbol}:{timeframe}"),
         "liquidity_zones": _read_json(client, f"v2:market:liquidity_zones:{symbol}"),
         "liquidation_levels": liquidation_context,
@@ -249,8 +249,7 @@ def _hash_payload(payload: Any) -> str:
 
 def _provider_feature_hashes(ctx: Mapping[str, Any]) -> dict[str, str]:
     sources = {
-        "ta": ctx.get("ta"),
-        "latest": ctx.get("latest"),
+        "native_closed_ohlcv_ta": ctx.get("ta"),
         "fvg": ctx.get("fvg"),
         "liquidity_zones": ctx.get("liquidity_zones"),
         "liquidation_levels": ctx.get("liquidation_levels"),
@@ -266,11 +265,17 @@ def _provider_feature_hashes(ctx: Mapping[str, Any]) -> dict[str, str]:
         "trade_tape": ctx.get("trade_tape"),
         "trade_tape_confirmation": ctx.get("trade_tape_confirmation"),
     }
-    return {
+    hashes = {
         name: _hash_payload(payload)
         for name, payload in sources.items()
         if payload not in (None, "", [], {})
     }
+    ta = ctx.get("ta")
+    if isinstance(ta, Mapping):
+        exact_source_hash = ta.get("source_exact_payload_sha256")
+        if isinstance(exact_source_hash, str) and len(exact_source_hash) == 64:
+            hashes["canonical_closed_ohlcv_exact_bytes"] = exact_source_hash
+    return hashes
 
 
 def _provider_features_used(ctx: Mapping[str, Any], *, signal_context: Any = None) -> list[str]:
@@ -278,8 +283,7 @@ def _provider_features_used(ctx: Mapping[str, Any], *, signal_context: Any = Non
     if signal_context not in (None, ""):
         labels.append(str(signal_context))
     for label, key in (
-        ("ta", "ta"),
-        ("latest_features", "latest"),
+        ("native_closed_ohlcv_ta", "ta"),
         ("fvg", "fvg"),
         ("liquidity_zones", "liquidity_zones"),
         ("coinank_liquidations", "liquidation_levels"),
@@ -297,6 +301,72 @@ def _provider_features_used(ctx: Mapping[str, Any], *, signal_context: Any = Non
         if ctx.get(key) not in (None, "", [], {}):
             labels.append(label)
     return list(dict.fromkeys(labels))
+
+
+def _parse_utc(value: Any) -> datetime | None:
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except (OverflowError, ValueError):
+        return None
+    if parsed.tzinfo is None:
+        return None
+    return parsed.astimezone(UTC)
+
+
+def _max_clock_text(values: list[Any]) -> str | None:
+    parsed = [(stamp, value) for value in values if (stamp := _parse_utc(value))]
+    if not parsed:
+        return None
+    return str(max(parsed, key=lambda item: item[0])[1])
+
+
+def _causal_input_clocks(
+    ctx: Mapping[str, Any],
+    *,
+    price_payload: Mapping[str, Any] | None,
+) -> tuple[str | None, str | None]:
+    """Return latest known economic cutoff and input-availability clocks."""
+
+    feature_cutoffs: list[Any] = []
+    available_clocks: list[Any] = []
+    for name in ("ta", "coinglass", "confluence"):
+        payload = ctx.get(name)
+        if not isinstance(payload, Mapping):
+            continue
+        feature_cutoffs.append(payload.get("feature_cutoff"))
+        available_clocks.append(payload.get("available_at"))
+    if isinstance(price_payload, Mapping):
+        available_clocks.append(price_payload.get("available_at"))
+    return _max_clock_text(feature_cutoffs), _max_clock_text(available_clocks)
+
+
+def _ta_clock_order_valid(ta_context: Mapping[str, Any], decision_time: str) -> bool:
+    clocks = [
+        _parse_utc(ta_context.get("feature_cutoff")),
+        _parse_utc(ta_context.get("source_available_at")),
+        _parse_utc(ta_context.get("read_observed_at")),
+        _parse_utc(ta_context.get("computed_available_at")),
+        _parse_utc(decision_time),
+    ]
+    if any(clock is None for clock in clocks):
+        return False
+    validated = [clock for clock in clocks if clock is not None]
+    ordered = all(
+        validated[index] <= validated[index + 1]
+        for index in range(len(validated) - 1)
+    )
+    valid_before = _parse_utc(
+        ta_context.get("latest_completed_interval_valid_before")
+    )
+    decision = _parse_utc(decision_time)
+    return bool(
+        ordered
+        and valid_before is not None
+        and decision is not None
+        and decision < valid_before
+    )
 
 
 def _feature_vector_hash(
@@ -346,7 +416,20 @@ def _contract_base(
         generated=generated,
     )
     ta_ctx = ctx.get("ta") if isinstance(ctx.get("ta"), Mapping) else {}
+    ta_input_status = (
+        ctx.get("ta_input_status")
+        if isinstance(ctx.get("ta_input_status"), Mapping)
+        else {}
+    )
     candle_closed_confirmed = ta_ctx.get("candle_closed_confirmed") is True
+    ta_temporal_contract_valid = bool(ta_ctx) and _ta_clock_order_valid(
+        ta_ctx,
+        generated,
+    )
+    feature_cutoff, input_available_at = _causal_input_clocks(
+        ctx,
+        price_payload=price_payload,
+    )
     return {
         "schema_version": "edge_hypothesis_v1",
         "hypothesis_id": hypothesis_id,
@@ -358,14 +441,35 @@ def _contract_base(
         "side": side,
         "generated_utc": generated,
         "generated_at": generated,
-        "feature_cutoff": generated,
+        "feature_cutoff": feature_cutoff,
         "decision_time": generated,
-        "available_at": generated,
+        "available_at": input_available_at,
         "entry_feature_candle_closed_confirmed": candle_closed_confirmed,
         "candle_closed_confirmed": candle_closed_confirmed,
         "last_closed_candle_open_ts_ms": ta_ctx.get("last_closed_candle_open_ts_ms"),
         "last_closed_candle_close_ts_ms": ta_ctx.get("last_closed_candle_close_ts_ms"),
         "ta_source_key": ctx.get("ta_source_key"),
+        "ta_source_exact_payload_sha256": (
+            ta_ctx.get("source_exact_payload_sha256")
+            or ta_input_status.get("source_exact_payload_sha256")
+        ),
+        "ta_source_available_at": (
+            ta_ctx.get("source_available_at")
+            or ta_input_status.get("source_available_at")
+        ),
+        "ta_read_observed_at": (
+            ta_ctx.get("read_observed_at")
+            or ta_input_status.get("read_observed_at")
+        ),
+        "ta_computed_available_at": (
+            ta_ctx.get("computed_available_at")
+            or ta_input_status.get("computed_available_at")
+        ),
+        "ta_input_state": ta_input_status.get("state"),
+        "ta_input_rejection_reason": ta_input_status.get("rejection_reason"),
+        "ta_temporal_contract_valid": ta_temporal_contract_valid,
+        "ta_cached_compatibility_consumed": False,
+        "latest_feature_snapshot_consumed": False,
         "current_price": current_price,
         "price_source": (price_payload or {}).get("source"),
         "price_available_at": (price_payload or {}).get("available_at"),
@@ -573,20 +677,14 @@ def _ta_indicators(ctx: Mapping[str, Any]) -> Mapping[str, Any]:
 
 
 def _atr_bps(ctx: Mapping[str, Any], price: float | None) -> float | None:
-    direct = _float(_dig(ctx.get("latest"), "atr_bps", "entry_atr_bps", "atr_noise_bps"))
-    if direct is not None and direct > 0:
-        return direct
     indicators = _ta_indicators(ctx)
-    latest_features = ctx.get("latest") if isinstance(ctx.get("latest"), Mapping) else {}
-    latest_map = latest_features.get("features") if isinstance(latest_features.get("features"), Mapping) else {}
     # NATR is percent of price -> bps = pct * 100
-    natr = _float(indicators.get("ta_NATR")) or _float(latest_map.get("ta_NATR"))
+    natr = _float(indicators.get("ta_NATR"))
     if natr is not None and natr > 0:
         return natr * 100.0
     atr_abs = (
         _float(indicators.get("ta_ATR_14"))
         or _float(indicators.get("ta_ATR"))
-        or _float(latest_map.get("atr_14"))
     )
     if atr_abs is not None and atr_abs > 0 and price and price > 0:
         return atr_abs / price * 10_000.0
@@ -928,7 +1026,7 @@ def _truthy(value: Any) -> bool:
 
 
 def _epoch_ms_now() -> int:
-    return int(datetime.now(timezone.utc).timestamp() * 1000)
+    return int(datetime.now(UTC).timestamp() * 1000)
 
 
 def _liquidation_no_events_observed(payload: Mapping[str, Any]) -> bool:
@@ -1133,6 +1231,26 @@ def generate_hypotheses(client: Any, symbol: str, timeframe: str) -> list[dict[s
     price_payload = ctx["price"]
     price = _float(price_payload.get("price")) if isinstance(price_payload, Mapping) else None
     generated = _utc_now()
+    ta_context = ctx.get("ta")
+    if isinstance(ta_context, Mapping) and not _ta_clock_order_valid(
+        ta_context,
+        generated,
+    ):
+        ctx = dict(ctx)
+        ctx["ta"] = None
+        prior_status = (
+            dict(ctx.get("ta_input_status") or {})
+            if isinstance(ctx.get("ta_input_status"), Mapping)
+            else {}
+        )
+        ctx["ta_input_status"] = {
+            **prior_status,
+            "state": "MASKED",
+            "rejection_reason": "CANONICAL_CLOSED_OHLCV_STALE_AT_DECISION_TIME",
+            "strategy_in_process_causal_input": False,
+            "zero_fill_used": False,
+            "live_execution_authorized": False,
+        }
     rows: list[dict[str, Any]] = []
 
     if price is None or price <= 0:
@@ -1365,7 +1483,7 @@ def generate_hypotheses(client: Any, symbol: str, timeframe: str) -> list[dict[s
             "coinank_context_present": bool(coinank_context),
             "coinglass_context": bool(ctx.get("coinglass")),
             "moralis_context": bool(ctx.get("moralis")),
-            "ta_context": bool(ctx.get("ta") or ctx.get("latest")),
+            "ta_context": bool(ctx.get("ta")),
             "approves_trade_alone": False,
             "must_pass_gates": ["preemptive", "risk", "orchestrator", "allocator"],
         })

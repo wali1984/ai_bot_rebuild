@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
+from collections.abc import Mapping
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 from v2.backend.app.services.market_state_integrity.sample_rejection import (
     classify_training_sample,
@@ -14,7 +16,11 @@ from v2.backend.app.services.native_trainer.feedback_enrichment import (
     REQUIRED_FEEDBACK_FIELDS,
     REQUIRED_TRUST_ENVELOPE_FIELDS,
 )
-
+from v2.backend.app.services.native_trainer.ohlcv_closed_window_schema import (
+    TIMEFRAME_DURATION_MS,
+    OHLCVClosedWindowValidationError,
+    validate_ohlcv_closed_window,
+)
 
 TRAINER_FEEDBACK_REDIS_KEY = "v2:trainer:feedback:outcomes"
 MATURATION_STATUS_REDIS_KEY = "v2:trainer:strategy_supply_feedback_maturation_status"
@@ -206,9 +212,130 @@ def entry_snapshot_rejection_reasons(row: Mapping[str, Any]) -> list[str]:
     return sorted(set(reasons))
 
 
-def latest_exit_snapshot(client: Any | None, symbol: str, timeframe: str) -> dict[str, Any] | None:
-    payload = read_redis_json(client, f"v2:features:latest:{symbol.upper()}:{timeframe}")
-    return dict(payload) if isinstance(payload, Mapping) else None
+def canonical_exit_snapshot(
+    client: Any | None,
+    symbol: str,
+    timeframe: str,
+    *,
+    label_close_time: datetime,
+    now: datetime,
+    observation_time: datetime | None = None,
+) -> tuple[dict[str, Any] | None, str | None]:
+    """Select exactly the closed candle containing the label horizon.
+
+    The Redis client must return bytes.  Re-encoding a decoded compatibility
+    view cannot preserve the exact canonical source identity.  Rows after the
+    selected label candle may exist in the captured window, but are never used
+    to price the label.
+    """
+
+    source_key = f"v2:market:ohlcv_closed:binance:{symbol.upper()}:{timeframe}"
+    try:
+        raw = client.get(source_key) if client is not None else None
+    except Exception:
+        raw = None
+    # ``now`` is the maturation pass's as-of cutoff.  It is deliberately not
+    # reused as a Redis observation receipt: production captures the read
+    # clock immediately after GET.  Tests/replay may inject one clock so the
+    # historical point-in-time calculation remains deterministic.
+    read_observed_at = (
+        observation_time or datetime.now(timezone.utc)
+    ).astimezone(timezone.utc)
+    if type(raw) is not bytes or not raw:
+        return None, "EXACT_BINARY_EXIT_OHLCV_UNAVAILABLE"
+    try:
+        window = validate_ohlcv_closed_window(
+            raw,
+            symbol=symbol.upper(),
+            timeframe=timeframe,
+        )
+    except OHLCVClosedWindowValidationError as exc:
+        return None, f"CANONICAL_EXIT_OHLCV_INVALID:{exc}"
+
+    duration_ms = TIMEFRAME_DURATION_MS[timeframe]
+    label_boundary_ms = math.ceil(label_close_time.timestamp() * 1000.0)
+    target_close_ms = (
+        ((label_boundary_ms + duration_ms - 1) // duration_ms) * duration_ms - 1
+    )
+    selected = next(
+        (
+            row
+            for row in window.rows
+            if row.candle_close_time == target_close_ms
+        ),
+        None,
+    )
+    if selected is None:
+        return None, "CANONICAL_EXIT_LABEL_CANDLE_UNAVAILABLE"
+
+    now_ms = math.floor(now.timestamp() * 1000.0)
+    if selected.available_at > now_ms:
+        return None, "CANONICAL_EXIT_CANDLE_AVAILABLE_AFTER_MATURATION_TIME"
+    read_observed_ms = math.floor(read_observed_at.timestamp() * 1000.0)
+    if window.max_available_at > read_observed_ms:
+        return None, "CANONICAL_EXIT_OHLCV_AVAILABLE_AFTER_READ_OBSERVATION"
+
+    feature_cutoff = utc_iso(
+        datetime.fromtimestamp(selected.candle_close_time / 1000.0, tz=timezone.utc)
+    )
+    close_boundary = utc_iso(
+        datetime.fromtimestamp(
+            (selected.candle_close_time + 1) / 1000.0,
+            tz=timezone.utc,
+        )
+    )
+    source_available_at = utc_iso(
+        datetime.fromtimestamp(selected.available_at / 1000.0, tz=timezone.utc)
+    )
+    snapshot_id = "strategy_supply_exit:" + hashlib.sha256(
+        (
+            f"{window.exact_payload_sha256}|{selected.candle_id}|"
+            f"{target_close_ms}"
+        ).encode()
+    ).hexdigest()[:24]
+    computed_available_at = (
+        observation_time or datetime.now(timezone.utc)
+    ).astimezone(timezone.utc)
+    if computed_available_at < read_observed_at:
+        return None, "CANONICAL_EXIT_COMPUTATION_CLOCK_BEFORE_READ"
+    read_observed_text = utc_iso(read_observed_at)
+    computed_available_text = utc_iso(computed_available_at)
+    return (
+        {
+            "schema_version": "strategy_supply_canonical_exit_label_v1",
+            "feature_snapshot_id": snapshot_id,
+            "symbol": symbol.upper(),
+            "timeframe": timeframe,
+            "features": {"close": float(selected.close)},
+            "feature_cutoff": feature_cutoff,
+            "candle_close_boundary": close_boundary,
+            "label_close_time": utc_iso(label_close_time),
+            "available_at": computed_available_text,
+            "generated_at": computed_available_text,
+            "source_available_at": source_available_at,
+            "read_observed_at": read_observed_text,
+            "computed_available_at": computed_available_text,
+            "source_ohlcv_key": source_key,
+            "source_exact_payload_sha256": window.exact_payload_sha256,
+            "source_exact_payload_byte_count": window.exact_payload_byte_count,
+            "source_hash_role": "content_identity_not_authentication",
+            "source_hash_authenticates_exchange": False,
+            "source_hash_authorizes_consumption": False,
+            "selected_candle_id": selected.candle_id,
+            "selected_candle_raw_payload_hash": selected.raw_payload_hash,
+            "selected_candle_close_ts_ms": selected.candle_close_time,
+            "candle_closed_confirmed": True,
+            "closed_candles_only": True,
+            "exact_source_schema_validated": True,
+            "label_boundary_exact_candle_selected": True,
+            "cached_latest_feature_snapshot_consumed": False,
+            "zero_fill_used": False,
+            "trainer_consumable": False,
+            "trainer_admission_granted": False,
+            "live_execution_authorized": False,
+        },
+        None,
+    )
 
 
 def exit_snapshot_rejection_reasons(
@@ -219,21 +346,80 @@ def exit_snapshot_rejection_reasons(
 ) -> list[str]:
     if not isinstance(snapshot, Mapping) or not snapshot_features(snapshot):
         return ["MISSING_EXIT_FEATURE_SNAPSHOT"]
-    if snapshot.get("candle_closed_confirmed") is False:
+    if (
+        snapshot.get("schema_version")
+        != "strategy_supply_canonical_exit_label_v1"
+        or snapshot.get("exact_source_schema_validated") is not True
+        or snapshot.get("label_boundary_exact_candle_selected") is not True
+        or snapshot.get("cached_latest_feature_snapshot_consumed") is not False
+    ):
+        return ["NONCANONICAL_EXIT_FEATURE_SNAPSHOT"]
+    if (
+        snapshot.get("candle_closed_confirmed") is not True
+        or snapshot.get("closed_candles_only") is not True
+    ):
         return ["UNFINISHED_EXIT_FEATURE_CANDLE"]
-    feature_cutoff = snapshot_time(snapshot, "feature_cutoff", "candle_close_time", "source_event_time_est")
+    feature_cutoff = snapshot_time(
+        snapshot,
+        "feature_cutoff",
+        "candle_close_time",
+        "source_event_time_est",
+    )
+    close_boundary = snapshot_time(snapshot, "candle_close_boundary")
     available_at = snapshot_time(snapshot, "available_at", "generated_at", "source_available_time")
+    source_available_at = snapshot_time(snapshot, "source_available_at")
+    read_observed_at = snapshot_time(snapshot, "read_observed_at")
+    computed_available_at = snapshot_time(snapshot, "computed_available_at")
     reasons: list[str] = []
     if feature_cutoff is None:
         reasons.append("MISSING_OR_UNPARSEABLE_EXIT_FEATURE_CUTOFF")
-    elif feature_cutoff < label_close_time:
-        reasons.append("EXIT_FEATURE_BEFORE_LABEL_CLOSE")
     elif feature_cutoff > now:
         reasons.append("EXIT_FEATURE_CUTOFF_AFTER_NOW")
+    if close_boundary is None:
+        reasons.append("MISSING_OR_UNPARSEABLE_EXIT_CANDLE_CLOSE_BOUNDARY")
+    else:
+        duration_ms = TIMEFRAME_DURATION_MS.get(str(snapshot.get("timeframe") or ""))
+        if duration_ms is None:
+            reasons.append("EXIT_CANDLE_TIMEFRAME_UNSUPPORTED")
+        else:
+            requested_ms = math.ceil(label_close_time.timestamp() * 1000.0)
+            expected_boundary_ms = (
+                (requested_ms + duration_ms - 1) // duration_ms
+            ) * duration_ms
+            observed_boundary_ms = math.floor(close_boundary.timestamp() * 1000.0)
+            if observed_boundary_ms != expected_boundary_ms:
+                reasons.append("EXIT_CANDLE_CLOSE_BOUNDARY_MISMATCH")
     if available_at is None:
         reasons.append("MISSING_OR_UNPARSEABLE_EXIT_AVAILABLE_AT")
     elif available_at > now:
         reasons.append("EXIT_AVAILABLE_AT_AFTER_NOW")
+    if source_available_at is None:
+        reasons.append("MISSING_OR_UNPARSEABLE_EXIT_SOURCE_AVAILABLE_AT")
+    elif source_available_at > now:
+        reasons.append("EXIT_SOURCE_AVAILABLE_AT_AFTER_NOW")
+    if read_observed_at is None:
+        reasons.append("MISSING_OR_UNPARSEABLE_EXIT_READ_OBSERVED_AT")
+    elif read_observed_at > now:
+        reasons.append("EXIT_READ_OBSERVED_AT_AFTER_NOW")
+    if computed_available_at is None:
+        reasons.append("MISSING_OR_UNPARSEABLE_EXIT_COMPUTED_AVAILABLE_AT")
+    elif computed_available_at > now:
+        reasons.append("EXIT_COMPUTED_AVAILABLE_AT_AFTER_NOW")
+    if (
+        feature_cutoff is not None
+        and source_available_at is not None
+        and read_observed_at is not None
+        and computed_available_at is not None
+        and available_at is not None
+        and not (
+            feature_cutoff
+            <= source_available_at
+            <= read_observed_at
+            <= computed_available_at
+            == available_at
+        )
+    ):
+        reasons.append("EXIT_AVAILABILITY_CLOCK_ORDER_INVALID")
     if snapshot_price(snapshot) is None:
         reasons.append("MISSING_EXIT_PRICE")
     return sorted(set(reasons))
@@ -451,6 +637,127 @@ def apply_trainer_gate_fields(row: dict[str, Any], *, entry_snapshot: Mapping[st
     row["reject_reasons"] = list(sample.get("reject_reasons") or [])
 
 
+def canonical_exit_lineage_rejection_reasons(row: Mapping[str, Any]) -> list[str]:
+    reasons: list[str] = []
+    if (
+        row.get("exit_feature_snapshot_schema_version")
+        != "strategy_supply_canonical_exit_label_v1"
+    ):
+        reasons.append("EXIT_LABEL_SCHEMA_INVALID")
+    if row.get("exit_label_boundary_exact_candle_selected") is not True:
+        reasons.append("EXIT_LABEL_BOUNDARY_NOT_CANONICALLY_SELECTED")
+    if row.get("exit_cached_latest_feature_snapshot_consumed") is not False:
+        reasons.append("EXIT_LATEST_COMPATIBILITY_CONSUMPTION_UNVERIFIED")
+
+    source_hash = row.get("exit_source_exact_payload_sha256")
+    candle_hash = row.get("exit_selected_candle_raw_payload_hash")
+    for name, value in (
+        ("EXIT_SOURCE_EXACT_PAYLOAD_HASH_INVALID", source_hash),
+        ("EXIT_SELECTED_CANDLE_RAW_HASH_INVALID", candle_hash),
+    ):
+        if (
+            type(value) is not str
+            or len(value) != 64
+            or any(character not in "0123456789abcdef" for character in value)
+        ):
+            reasons.append(name)
+    candle_id = row.get("exit_selected_candle_id")
+    if (
+        type(candle_id) is not str
+        or len(candle_id) != 24
+        or any(character not in "0123456789abcdef" for character in candle_id)
+    ):
+        reasons.append("EXIT_SELECTED_CANDLE_ID_MISSING")
+    source_byte_count = row.get("exit_source_exact_payload_byte_count")
+    if type(source_byte_count) is not int or source_byte_count <= 0:
+        reasons.append("EXIT_SOURCE_EXACT_PAYLOAD_BYTE_COUNT_INVALID")
+
+    symbol = str(row.get("symbol") or "").upper()
+    timeframe = str(row.get("timeframe") or "")
+    expected_key = f"v2:market:ohlcv_closed:binance:{symbol}:{timeframe}"
+    if row.get("exit_source_ohlcv_key") != expected_key:
+        reasons.append("EXIT_SOURCE_KEY_IDENTITY_MISMATCH")
+
+    feature_cutoff = parse_utc(row.get("exit_feature_cutoff"))
+    close_boundary = parse_utc(row.get("exit_candle_close_boundary"))
+    label_close_time = parse_utc(row.get("exit_label_close_time"))
+    source_available = parse_utc(row.get("exit_source_available_at"))
+    read_observed = parse_utc(row.get("exit_read_observed_at"))
+    computed_available = parse_utc(row.get("exit_computed_available_at"))
+    if feature_cutoff is None or close_boundary is None:
+        reasons.append("EXIT_CANDLE_CLOCKS_INVALID")
+    elif feature_cutoff + timedelta(milliseconds=1) != close_boundary:
+        reasons.append("EXIT_CANDLE_CUTOFF_BOUNDARY_MISMATCH")
+    duration_ms = TIMEFRAME_DURATION_MS.get(timeframe)
+    if label_close_time is None or duration_ms is None:
+        reasons.append("EXIT_LABEL_HORIZON_INVALID")
+    elif close_boundary is not None:
+        label_ms = math.ceil(label_close_time.timestamp() * 1000.0)
+        expected_boundary_ms = (
+            (label_ms + duration_ms - 1) // duration_ms
+        ) * duration_ms
+        observed_boundary_ms = math.floor(close_boundary.timestamp() * 1000.0)
+        if observed_boundary_ms != expected_boundary_ms:
+            reasons.append("EXIT_LABEL_HORIZON_BOUNDARY_MISMATCH")
+    selected_close_ms = row.get("exit_selected_candle_close_ts_ms")
+    if (
+        type(selected_close_ms) is not int
+        or feature_cutoff is None
+        or selected_close_ms
+        != math.floor(feature_cutoff.timestamp() * 1000.0)
+    ):
+        reasons.append("EXIT_SELECTED_CANDLE_CLOSE_IDENTITY_MISMATCH")
+    if (
+        source_available is None
+        or read_observed is None
+        or computed_available is None
+    ):
+        reasons.append("EXIT_AVAILABILITY_CLOCKS_INVALID")
+    elif feature_cutoff is not None and not (
+        feature_cutoff
+        <= source_available
+        <= read_observed
+        <= computed_available
+    ):
+        reasons.append("EXIT_AVAILABILITY_CLOCK_ORDER_INVALID")
+
+    source_hashes = row.get("source_hashes")
+    if not isinstance(source_hashes, Mapping):
+        reasons.append("EXIT_SOURCE_HASH_LEDGER_MISSING")
+    else:
+        if source_hashes.get("canonical_exit_ohlcv_exact_bytes") != source_hash:
+            reasons.append("EXIT_SOURCE_HASH_LEDGER_MISMATCH")
+        if source_hashes.get("canonical_exit_candle_raw_payload") != candle_hash:
+            reasons.append("EXIT_CANDLE_HASH_LEDGER_MISMATCH")
+    label_hashes = row.get("label_source_hashes")
+    if not isinstance(label_hashes, Mapping):
+        reasons.append("EXIT_LABEL_SOURCE_HASH_LEDGER_MISSING")
+    else:
+        if label_hashes.get("canonical_exit_ohlcv_exact_bytes") != source_hash:
+            reasons.append("EXIT_LABEL_SOURCE_HASH_LEDGER_MISMATCH")
+        if label_hashes.get("canonical_exit_candle_raw_payload") != candle_hash:
+            reasons.append("EXIT_LABEL_CANDLE_HASH_LEDGER_MISMATCH")
+    return sorted(set(reasons))
+
+
+def enforce_canonical_exit_lineage(row: dict[str, Any]) -> list[str]:
+    reasons = canonical_exit_lineage_rejection_reasons(row)
+    if not reasons:
+        return []
+    row["accepted_for_training"] = False
+    row["valid_for_training"] = False
+    existing_reasons = row.get("reject_reasons")
+    normalized_existing = (
+        [str(reason) for reason in existing_reasons]
+        if isinstance(existing_reasons, list)
+        else []
+    )
+    row["reject_reasons"] = sorted(set([*normalized_existing, *reasons]))
+    row["quarantine_reason"] = "INVALID_CANONICAL_EXIT_LABEL_LINEAGE"
+    row["quarantine_reasons"] = reasons
+    return reasons
+
+
 def trainer_feedback_row_for_publish(record: Mapping[str, Any]) -> dict[str, Any] | None:
     row = record.get("trainer_feedback_row")
     if not isinstance(row, Mapping):
@@ -459,6 +766,7 @@ def trainer_feedback_row_for_publish(record: Mapping[str, Any]) -> dict[str, Any
     entry_snapshot = trainer_entry_feature_snapshot({**dict(record), **feedback_row})
     feedback_row["entry_feature_snapshot"] = entry_snapshot
     apply_trainer_gate_fields(feedback_row, entry_snapshot=entry_snapshot)
+    enforce_canonical_exit_lineage(feedback_row)
     missing_feedback, missing_trust = feedback_missing_fields(feedback_row)
     feedback_row["missing_feedback_fields"] = missing_feedback
     feedback_row["missing_trust_fields"] = missing_trust
@@ -590,12 +898,26 @@ def build_feedback_row(
     realized_net_usd = notional_usd * realized_net_bps / 10_000.0
     identity = row_identity(pending)
     feedback_id = "strategy_supply_feedback:" + hashlib.sha256(
-        f"{identity}|{exit_snapshot.get('feature_cutoff')}|{exit_price}".encode("utf-8")
+        (
+            f"{identity}|{exit_snapshot.get('feature_cutoff')}|{exit_price}|"
+            f"{exit_snapshot.get('selected_candle_id')}|"
+            f"{exit_snapshot.get('source_exact_payload_sha256')}"
+        ).encode()
     ).hexdigest()[:24]
     feature_snapshot_id = first_present(pending.get("entry_feature_snapshot_id"), pending.get("feature_snapshot_id"))
-    source_hashes = pending.get("source_hashes") if isinstance(pending.get("source_hashes"), Mapping) else {}
+    source_hashes = (
+        dict(pending.get("source_hashes") or {})
+        if isinstance(pending.get("source_hashes"), Mapping)
+        else {}
+    )
     if not source_hashes and isinstance(pending.get("provider_hashes"), Mapping):
         source_hashes = dict(pending.get("provider_hashes") or {})
+    exit_source_hash = exit_snapshot.get("source_exact_payload_sha256")
+    exit_candle_hash = exit_snapshot.get("selected_candle_raw_payload_hash")
+    if isinstance(exit_source_hash, str) and exit_source_hash:
+        source_hashes["canonical_exit_ohlcv_exact_bytes"] = exit_source_hash
+    if isinstance(exit_candle_hash, str) and exit_candle_hash:
+        source_hashes["canonical_exit_candle_raw_payload"] = exit_candle_hash
     entry_snapshot = trainer_entry_feature_snapshot(pending)
     contexts = build_contexts(pending)
     market_regime = first_present(pending.get("market_regime"), pending.get("market_regime_at_entry"), "unknown")
@@ -611,6 +933,40 @@ def build_feedback_row(
         "feature_snapshot_id": feature_snapshot_id,
         "entry_feature_snapshot_id": feature_snapshot_id,
         "entry_feature_snapshot": entry_snapshot,
+        "exit_feature_snapshot_schema_version": exit_snapshot.get(
+            "schema_version"
+        ),
+        "exit_feature_snapshot_id": exit_snapshot.get("feature_snapshot_id"),
+        "exit_label_close_time": exit_snapshot.get("label_close_time"),
+        "exit_feature_cutoff": exit_snapshot.get("feature_cutoff"),
+        "exit_candle_close_boundary": exit_snapshot.get(
+            "candle_close_boundary"
+        ),
+        "exit_source_available_at": exit_snapshot.get("source_available_at"),
+        "exit_read_observed_at": exit_snapshot.get("read_observed_at"),
+        "exit_computed_available_at": exit_snapshot.get(
+            "computed_available_at"
+        ),
+        "exit_source_ohlcv_key": exit_snapshot.get("source_ohlcv_key"),
+        "exit_source_exact_payload_sha256": exit_source_hash,
+        "exit_source_exact_payload_byte_count": exit_snapshot.get(
+            "source_exact_payload_byte_count"
+        ),
+        "exit_selected_candle_id": exit_snapshot.get("selected_candle_id"),
+        "exit_selected_candle_raw_payload_hash": exit_candle_hash,
+        "exit_selected_candle_close_ts_ms": exit_snapshot.get(
+            "selected_candle_close_ts_ms"
+        ),
+        "exit_label_boundary_exact_candle_selected": (
+            exit_snapshot.get("label_boundary_exact_candle_selected") is True
+        ),
+        "exit_cached_latest_feature_snapshot_consumed": exit_snapshot.get(
+            "cached_latest_feature_snapshot_consumed"
+        ),
+        "label_source_hashes": {
+            "canonical_exit_ohlcv_exact_bytes": exit_source_hash,
+            "canonical_exit_candle_raw_payload": exit_candle_hash,
+        },
         "market_state_id": first_present(pending.get("market_state_id"), f"strategy_supply_market_state:{feature_snapshot_id}"),
         "timeframe": timeframe,
         "symbol": symbol,
@@ -686,6 +1042,7 @@ def build_feedback_row(
     }
     row.update(contexts)
     apply_trainer_gate_fields(row, entry_snapshot=entry_snapshot)
+    enforce_canonical_exit_lineage(row)
     missing_feedback, missing_trust = feedback_missing_fields(row)
     row["missing_feedback_fields"] = missing_feedback
     row["missing_trust_fields"] = missing_trust
@@ -703,11 +1060,25 @@ def build_feedback_row(
     return row
 
 
-def merge_feedback_rows_into_redis(client: Any | None, rows: list[dict[str, Any]]) -> int:
-    if client is None or not rows:
-        return 0
+def merge_feedback_rows_into_redis(
+    client: Any | None,
+    rows: list[dict[str, Any]],
+) -> tuple[int, int]:
+    if client is None:
+        return 0, 0
     existing_payload = read_redis_json(client, TRAINER_FEEDBACK_REDIS_KEY)
-    existing = list(existing_payload) if isinstance(existing_payload, list) else []
+    raw_existing = list(existing_payload) if isinstance(existing_payload, list) else []
+    existing: list[Any] = []
+    quarantined_noncanonical = 0
+    for item in raw_existing:
+        if (
+            isinstance(item, Mapping)
+            and item.get("trainer_feedback_source") == FEEDBACK_SOURCE
+            and canonical_exit_lineage_rejection_reasons(item)
+        ):
+            quarantined_noncanonical += 1
+            continue
+        existing.append(item)
     seen = {
         str(item.get("trainer_feedback_id"))
         for item in existing
@@ -721,9 +1092,9 @@ def merge_feedback_rows_into_redis(client: Any | None, rows: list[dict[str, Any]
         existing.append(row)
         seen.add(feedback_id)
         added += 1
-    if added:
+    if added or quarantined_noncanonical:
         client.set(TRAINER_FEEDBACK_REDIS_KEY, json.dumps(existing, sort_keys=True))
-    return added
+    return added, quarantined_noncanonical
 
 
 def mature_strategy_supply_feedback(
@@ -736,14 +1107,25 @@ def mature_strategy_supply_feedback(
     now: datetime | None = None,
     publish_to_redis: bool = False,
 ) -> dict[str, Any]:
+    clock_injected = now is not None
     now_dt = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
     generated_utc = utc_iso(now_dt)
     pending_rows = load_jsonl(pending_path)
     existing_matured_rows = load_jsonl(matured_path)
-    existing_matured = {row_identity(row) for row in existing_matured_rows}
+    canonical_existing_matured_rows = [
+        row
+        for row in existing_matured_rows
+        if isinstance(row.get("trainer_feedback_row"), Mapping)
+        and not canonical_exit_lineage_rejection_reasons(
+            row.get("trainer_feedback_row")
+        )
+    ]
+    existing_matured = {
+        row_identity(row) for row in canonical_existing_matured_rows
+    }
     existing_rejected = {row_identity(row) for row in load_jsonl(rejected_path)}
     feedback_rows: list[dict[str, Any]] = []
-    for row in existing_matured_rows:
+    for row in canonical_existing_matured_rows:
         feedback_row = trainer_feedback_row_for_publish(row)
         if feedback_row is not None and feedback_row.get("trainer_consumable") is True:
             feedback_rows.append(feedback_row)
@@ -755,19 +1137,29 @@ def mature_strategy_supply_feedback(
         "rejected_path": str(rejected_path),
         "pending_rows": len(pending_rows),
         "pending_rows_waiting_for_label": 0,
-        "matured_rows": len(existing_matured_rows),
+        "exit_snapshot_rejection_reason_counts": {},
+        "matured_ledger_rows_total": len(existing_matured_rows),
+        "existing_noncanonical_exit_rows_quarantined": (
+            len(existing_matured_rows) - len(canonical_existing_matured_rows)
+        ),
+        "matured_rows": len(canonical_existing_matured_rows),
         "new_matured_rows_appended": 0,
         "positive_outcomes": sum(
-            1 for row in existing_matured_rows if row.get("trade_outcome") == "WIN"
+            1
+            for row in canonical_existing_matured_rows
+            if row.get("trade_outcome") == "WIN"
         ),
         "negative_outcomes": sum(
-            1 for row in existing_matured_rows if row.get("trade_outcome") == "LOSS"
+            1
+            for row in canonical_existing_matured_rows
+            if row.get("trade_outcome") == "LOSS"
         ),
         "dirty_rows_excluded": 0,
         "future_leakage_violations": 0,
         "trainer_feedback_rows_ready": len(feedback_rows),
         "existing_matured_trainer_feedback_rows_ready": len(feedback_rows),
         "trainer_feedback_rows_published_to_redis": 0,
+        "noncanonical_existing_redis_feedback_rows_quarantined": 0,
         "PPO_rows_consumed": 0,
         "MASA_rows_consumed": 0,
         "checkpoint_after_consumption": None,
@@ -823,14 +1215,29 @@ def mature_strategy_supply_feedback(
             continue
         symbol = str(row.get("symbol") or "").upper()
         timeframe = str(row.get("timeframe") or "")
-        exit_snapshot = latest_exit_snapshot(redis_client, symbol, timeframe)
+        exit_snapshot, exit_load_reason = canonical_exit_snapshot(
+            redis_client,
+            symbol,
+            timeframe,
+            label_close_time=label_close_time,
+            now=now_dt,
+            observation_time=now_dt if clock_injected else None,
+        )
+        exit_validation_now = (
+            now_dt if clock_injected else datetime.now(timezone.utc)
+        )
         exit_reasons = exit_snapshot_rejection_reasons(
             exit_snapshot,
             label_close_time=label_close_time,
-            now=now_dt,
+            now=exit_validation_now,
         )
+        if exit_load_reason is not None:
+            exit_reasons = sorted(set([exit_load_reason, *exit_reasons]))
         if exit_reasons:
             status["pending_rows_waiting_for_label"] += 1
+            rejection_counts = status["exit_snapshot_rejection_reason_counts"]
+            for reason in exit_reasons:
+                rejection_counts[reason] = int(rejection_counts.get(reason, 0)) + 1
             continue
         assert isinstance(exit_snapshot, Mapping)
         feedback_row = build_feedback_row(
@@ -847,6 +1254,22 @@ def mature_strategy_supply_feedback(
             "label_close_time": utc_iso(label_close_time),
             "exit_feature_cutoff": exit_snapshot.get("feature_cutoff"),
             "exit_available_at": first_present(exit_snapshot.get("available_at"), exit_snapshot.get("generated_at")),
+            "exit_candle_close_boundary": exit_snapshot.get(
+                "candle_close_boundary"
+            ),
+            "exit_read_observed_at": exit_snapshot.get("read_observed_at"),
+            "exit_computed_available_at": exit_snapshot.get(
+                "computed_available_at"
+            ),
+            "exit_source_ohlcv_key": exit_snapshot.get("source_ohlcv_key"),
+            "exit_source_exact_payload_sha256": exit_snapshot.get(
+                "source_exact_payload_sha256"
+            ),
+            "exit_selected_candle_id": exit_snapshot.get("selected_candle_id"),
+            "exit_selected_candle_raw_payload_hash": exit_snapshot.get(
+                "selected_candle_raw_payload_hash"
+            ),
+            "exit_cached_latest_feature_snapshot_consumed": False,
             "exit_price": feedback_row.get("exit_price"),
             "realized_net_pnl_usd": feedback_row.get("realized_net_pnl_usd"),
             "realized_net_pnl_bps": feedback_row.get("realized_net_pnl_bps"),
@@ -861,6 +1284,7 @@ def mature_strategy_supply_feedback(
         append_jsonl(matured_path, matured_record)
         existing_matured.add(identity)
         feedback_rows.append(feedback_row)
+        status["matured_ledger_rows_total"] += 1
         status["matured_rows"] += 1
         status["new_matured_rows_appended"] += 1
         if feedback_row.get("trade_outcome") == "WIN":
@@ -870,10 +1294,14 @@ def mature_strategy_supply_feedback(
         if feedback_row.get("trainer_consumable") is True:
             status["trainer_feedback_rows_ready"] += 1
     if publish_to_redis:
-        status["trainer_feedback_rows_published_to_redis"] = merge_feedback_rows_into_redis(
+        published_count, quarantined_count = merge_feedback_rows_into_redis(
             redis_client,
             [row for row in feedback_rows if row.get("trainer_consumable") is True],
         )
+        status["trainer_feedback_rows_published_to_redis"] = published_count
+        status[
+            "noncanonical_existing_redis_feedback_rows_quarantined"
+        ] = quarantined_count
     if status_path is not None:
         status_path.parent.mkdir(parents=True, exist_ok=True)
         status_path.write_text(json.dumps(status, indent=2, sort_keys=True) + "\n")
