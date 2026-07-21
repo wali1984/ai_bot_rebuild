@@ -7,7 +7,7 @@ from __future__ import annotations
 import importlib
 import json
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
 
@@ -39,31 +39,65 @@ def _mod():
     return importlib.import_module("v2.backend.app.cli.v2_trade_management_paper_loop")
 
 
+def _valid_market_price_payload(price: str) -> dict:
+    available_at = datetime.now(timezone.utc) - timedelta(milliseconds=100)
+    event_time = available_at - timedelta(milliseconds=100)
+    return {
+        "symbol": "BTCUSDT",
+        "ticker_24hr": {
+            "symbol": "BTCUSDT",
+            "lastPrice": price,
+            "closeTime": event_time.isoformat().replace("+00:00", "Z"),
+        },
+        "fetched_utc": available_at.isoformat().replace("+00:00", "Z"),
+    }
+
+
 def test_read_v2_market_price_pulls_lastprice_from_v2_market_prices() -> None:
     mod = _mod()
     r = FakeRedis()
     r.store["v2:market:prices:BTCUSDT"] = json.dumps({
-        "ticker_24hr": {"lastPrice": "65000.42"},
-        "fetched_utc": "2026-05-18T18:00:00Z",
+        "symbol": "BTCUSDT",
+        "ticker_24hr": {
+            "symbol": "BTCUSDT",
+            "lastPrice": "65000.42",
+            "closeTime": "2026-05-18T18:00:00.000Z",
+        },
+        "fetched_utc": "2026-05-18T18:00:00.250Z",
     })
-    px, source, source_utc = mod._read_v2_market_price(r, "BTCUSDT")
+    px, source, source_utc = mod._read_v2_market_price(
+        r,
+        "BTCUSDT",
+        lookup_observed_at="2026-05-18T18:00:00.500Z",
+    )
     assert px == 65000.42
     assert source == mod.ENTRY_PRICE_SOURCE_V2_MARKET
-    assert source_utc == "2026-05-18T18:00:00Z"
+    assert source_utc == "2026-05-18T18:00:00.250Z"
 
 
 def test_read_v2_market_price_falls_back_to_features_only_when_current() -> None:
     mod = _mod()
     r = FakeRedis()
     r.store["v2:features:latest:BTCUSDT:1m"] = json.dumps({
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
         "feature_freshness_state": "CURRENT",
         "features": {"close_price": "70000.0"},
-        "generated_at": "2026-05-18T18:01:00Z",
+        "candle_close_time": "2026-05-18T18:00:59.999Z",
+        "feature_cutoff": "2026-05-18T18:00:59.999Z",
+        "available_at": "2026-05-18T18:01:00.100Z",
+        "generated_at": "2026-05-18T18:01:00.050Z",
+        "candle_closed_confirmed": True,
+        "latest_candle_temporally_valid": True,
     })
-    px, source, source_utc = mod._read_v2_market_price(r, "BTCUSDT")
+    px, source, source_utc = mod._read_v2_market_price(
+        r,
+        "BTCUSDT",
+        lookup_observed_at="2026-05-18T18:01:30.000Z",
+    )
     assert px == 70000.0
     assert source == mod.ENTRY_PRICE_SOURCE_V2_FEATURES
-    assert source_utc == "2026-05-18T18:01:00Z"
+    assert source_utc == "2026-05-18T18:01:00.100Z"
 
 
 def test_read_v2_market_price_refuses_stale_feature_snapshot() -> None:
@@ -539,9 +573,33 @@ def test_run_once_blocks_candidate_missing_runtime_market_evidence(monkeypatch) 
 
 def test_attach_entry_price_provenance_with_real_price_fills_all_fields() -> None:
     mod = _mod()
-    intent: dict = {}
+    r = FakeRedis()
+    r.store["v2:market:prices:BTCUSDT"] = json.dumps({
+        "symbol": "BTCUSDT",
+        "ticker_24hr": {
+            "symbol": "BTCUSDT",
+            "lastPrice": "12345.67",
+            "closeTime": "2026-05-18T18:01:59.000Z",
+        },
+        "fetched_utc": "2026-05-18T18:02:00.000Z",
+    })
+    evidence = mod._read_v2_market_price_evidence(
+        r,
+        "BTCUSDT",
+        lookup_observed_at="2026-05-18T18:02:00.500Z",
+    )
+    price, source, source_utc = mod.verified_market_price_tuple(
+        evidence,
+        expected_symbol="BTCUSDT",
+        expected_timeframe="1m",
+    )
+    intent: dict = {"symbol": "BTCUSDT"}
     mod._attach_entry_price_provenance(
-        intent, 12345.67, mod.ENTRY_PRICE_SOURCE_V2_MARKET, "2026-05-18T18:02:00Z"
+        intent,
+        price,
+        source,
+        source_utc,
+        market_price_evidence=evidence,
     )
     assert intent["entry_price"] == 12345.67
     assert intent["entry_price_source"] == mod.ENTRY_PRICE_SOURCE_V2_MARKET
@@ -600,10 +658,9 @@ def test_run_once_writes_v2_paper_positions_with_provenance_when_market_availabl
             "major_move_evidence_score": 0.75,
         }
     ])
-    r.store["v2:market:prices:BTCUSDT"] = json.dumps({
-        "ticker_24hr": {"lastPrice": "55000.0"},
-        "fetched_utc": "2026-05-18T18:03:00Z",
-    })
+    r.store["v2:market:prices:BTCUSDT"] = json.dumps(
+        _valid_market_price_payload("55000.0")
+    )
     r.store["v2:portfolio:state"] = json.dumps({
         "equity": 10000.0,
         "available_margin": 10000.0,
@@ -663,10 +720,9 @@ def test_accepted_fill_entry_price_is_immutable_across_market_price_updates(monk
             "major_move_evidence_score": 0.75,
         }
     ])
-    r.store["v2:market:prices:BTCUSDT"] = json.dumps({
-        "ticker_24hr": {"lastPrice": "55000.0"},
-        "fetched_utc": "2026-05-18T18:03:00Z",
-    })
+    r.store["v2:market:prices:BTCUSDT"] = json.dumps(
+        _valid_market_price_payload("55000.0")
+    )
     r.store["v2:portfolio:state"] = json.dumps({
         "equity": 10000.0,
         "available_margin": 10000.0,
@@ -691,10 +747,9 @@ def test_accepted_fill_entry_price_is_immutable_across_market_price_updates(monk
     # forward with entry_price and fill_price unchanged — that is the immutability
     # contract.  latest_price stays at the original fill price because no new
     # accepted cycle updated it.
-    r.store["v2:market:prices:BTCUSDT"] = json.dumps({
-        "ticker_24hr": {"lastPrice": "55100.0"},
-        "fetched_utc": "2026-05-18T18:04:00Z",
-    })
+    r.store["v2:market:prices:BTCUSDT"] = json.dumps(
+        _valid_market_price_payload("55100.0")
+    )
     mod.run_once()
     second = json.loads(r.store["v2:paper:ledger"])["accepted"][0]
     assert second["entry_price"] == 55000.0
@@ -732,10 +787,9 @@ def test_run_once_models_slippage_and_derives_squeeze_evidence_when_sources_pres
             "major_move_evidence_score": 0.75,
         }
     ])
-    r.store["v2:market:prices:BTCUSDT"] = json.dumps({
-        "ticker_24hr": {"lastPrice": "55000.0"},
-        "fetched_utc": "2026-05-18T18:03:00Z",
-    })
+    r.store["v2:market:prices:BTCUSDT"] = json.dumps(
+        _valid_market_price_payload("55000.0")
+    )
     r.store["v2:portfolio:state"] = json.dumps({
         "equity": 10000.0,
         "available_margin": 10000.0,
@@ -817,10 +871,9 @@ def test_run_once_directional_collapse_blocks_new_majority_side_fill(monkeypatch
             "major_move_evidence_score": 0.75,
         }
     ])
-    r.store["v2:market:prices:BTCUSDT"] = json.dumps({
-        "ticker_24hr": {"lastPrice": "55000.0"},
-        "fetched_utc": "2026-05-18T18:03:00Z",
-    })
+    r.store["v2:market:prices:BTCUSDT"] = json.dumps(
+        _valid_market_price_payload("55000.0")
+    )
     r.store["v2:portfolio:state"] = json.dumps({
         "equity": 10000.0,
         "available_margin": 10000.0,

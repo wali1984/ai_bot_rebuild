@@ -88,6 +88,14 @@ from v2.backend.app.services.paper_trade_management.position_state import atr_bp
 from v2.backend.app.services.paper_trade_management.position_validity import (
     validate_paper_fill_write_invariant,
 )
+from v2.backend.app.services.paper_trade_management.market_price_evidence import (
+    MARKET_PRICE_EVIDENCE_MISSING,
+    MARKET_PRICE_EVIDENCE_SOURCE_FEATURE,
+    MARKET_PRICE_EVIDENCE_SOURCE_TICKER,
+    read_market_price_evidence,
+    verified_market_price_tuple,
+    verify_market_price_evidence,
+)
 from v2.backend.app.services.paper_exploration import (
     PAPER_RISK_CONTROLLER_EXPLORATION_TIER,
     build_paper_exploration_exit_plan,
@@ -5880,9 +5888,9 @@ def _paper_exploration_last_cycle_rejected_rows_count(
 # which V2-owned input the fill price came from. NEVER fabricate a
 # price; NEVER use legacy Redis as current truth; NEVER substitute a
 # static sample value.
-ENTRY_PRICE_SOURCE_V2_MARKET = "V2_MARKET_PRICES_TICKER_24HR_LAST_PRICE"
-ENTRY_PRICE_SOURCE_V2_FEATURES = "V2_FEATURES_LATEST_FRESH_CLOSE_PRICE"
-ENTRY_PRICE_BLOCKER_MISSING_FILL = "MISSING_V2_MARKET_PRICE_FOR_FILL"
+ENTRY_PRICE_SOURCE_V2_MARKET = MARKET_PRICE_EVIDENCE_SOURCE_TICKER
+ENTRY_PRICE_SOURCE_V2_FEATURES = MARKET_PRICE_EVIDENCE_SOURCE_FEATURE
+ENTRY_PRICE_BLOCKER_MISSING_FILL = MARKET_PRICE_EVIDENCE_MISSING
 EXIT_PRICE_BLOCKER_MISSING_EXIT = "MISSING_V2_MARKET_PRICE_FOR_EXIT"
 REALIZED_EXIT_NOT_RECORDED = "REALIZED_EXIT_NOT_RECORDED_IN_V2_INPUTS"
 ENTRY_SPREAD_SOURCE_V2_ORDERBOOK = "V2_MARKET_ORDERBOOK_TOP_OF_BOOK"
@@ -6701,53 +6709,74 @@ def _attach_advanced_indicator_context(
         intent.setdefault("advanced_indicator_status", "ADVANCED_INDICATOR_CONTEXT_MISSING")
 
 
-def _read_v2_market_price(r, symbol: str) -> tuple[float | None, str, str | None]:
-    """Read the last price for ``symbol`` from V2-owned market data.
+def _read_v2_market_price_evidence(
+    r,
+    symbol: str,
+    *,
+    timeframe: str = "1m",
+    lookup_observed_at: Any = None,
+) -> dict[str, Any]:
+    """Read one canonical V2 paper-price evidence envelope.
 
-    Search order is strict and V2-only:
-
-    1. ``v2:market:prices:{symbol}.ticker_24hr.lastPrice``
-    2. ``v2:features:latest:{symbol}:1m.features.close_price`` only when
-       the snapshot's ``feature_freshness_state`` is ``CURRENT``.
-
-    Returns ``(price, source_label, generated_utc)``. When neither
-    source is available, returns ``(None, MISSING blocker, None)`` so
-    the caller can attach the explicit MISSING marker to the paper
-    payload instead of fabricating a price.
+    ``lookup_observed_at`` exists for deterministic PIT tests.  Production
+    callers omit it; the evidence service captures a UTC clock immediately
+    after each Redis ``get``.
     """
-    if r is None or not symbol:
-        return None, ENTRY_PRICE_BLOCKER_MISSING_FILL, None
-    try:
-        raw = r.get(f"{V2_REDIS_PREFIX}market:prices:{symbol}")
-    except Exception:
-        raw = None
-    if raw:
-        try:
-            payload = json.loads(raw)
-        except (ValueError, TypeError):
-            payload = None
-        if isinstance(payload, dict):
-            ticker = payload.get("ticker_24hr") if isinstance(payload.get("ticker_24hr"), dict) else None
-            if isinstance(ticker, dict):
-                px = _coerce_float(ticker.get("lastPrice"))
-                if px is not None and px > 0:
-                    return px, ENTRY_PRICE_SOURCE_V2_MARKET, payload.get("fetched_utc")
-    try:
-        raw = r.get(f"{V2_REDIS_PREFIX}features:latest:{symbol}:1m")
-    except Exception:
-        raw = None
-    if raw:
-        try:
-            payload = json.loads(raw)
-        except (ValueError, TypeError):
-            payload = None
-        if isinstance(payload, dict) and payload.get("feature_freshness_state") == "CURRENT":
-            feats = payload.get("features") if isinstance(payload.get("features"), dict) else {}
-            for key in ("close_price", "last_price", "lastPrice"):
-                px = _coerce_float(feats.get(key))
-                if px is not None and px > 0:
-                    return px, ENTRY_PRICE_SOURCE_V2_FEATURES, payload.get("generated_at")
-    return None, ENTRY_PRICE_BLOCKER_MISSING_FILL, None
+
+    if lookup_observed_at is None:
+        return read_market_price_evidence(r, symbol, timeframe=timeframe)
+    return read_market_price_evidence(
+        r,
+        symbol,
+        timeframe=timeframe,
+        clock=lambda: lookup_observed_at,
+    )
+
+
+def _read_v2_market_price(
+    r,
+    symbol: str,
+    *,
+    timeframe: str = "1m",
+    lookup_observed_at: Any = None,
+) -> tuple[float | None, str, str | None]:
+    """Compatibility tuple backed only by verified structured evidence."""
+
+    evidence = _read_v2_market_price_evidence(
+        r,
+        symbol,
+        timeframe=timeframe,
+        lookup_observed_at=lookup_observed_at,
+    )
+    return verified_market_price_tuple(
+        evidence,
+        expected_symbol=symbol,
+        expected_timeframe=timeframe,
+    )
+
+
+def _paper_lifecycle_mark_symbols(
+    existing_ledger: Mapping[str, Any],
+    accepted_fills: list[dict[str, Any]],
+) -> list[str]:
+    """Return every base symbol whose open lifecycle can consume a mark."""
+
+    symbols = {
+        str(row.get("symbol") or "").upper()
+        for row in accepted_fills
+        if isinstance(row, dict) and row.get("symbol")
+    }
+    for row in existing_ledger.get("open_positions") or []:
+        if isinstance(row, dict) and row.get("symbol"):
+            symbols.add(str(row["symbol"]).upper())
+    positions_by_symbol = existing_ledger.get("positions_by_symbol")
+    if isinstance(positions_by_symbol, Mapping):
+        for key, row in positions_by_symbol.items():
+            symbol = row.get("symbol") if isinstance(row, Mapping) else None
+            normalized = str(symbol or key or "").upper().split("::", 1)[0]
+            if normalized:
+                symbols.add(normalized)
+    return sorted(symbol for symbol in symbols if symbol)
 
 
 def _timestamp_to_utc_iso(value: Any) -> str | None:
@@ -7181,7 +7210,14 @@ def _read_v2_feature_snapshot_for_signal(
     return resolved
 
 
-def _attach_entry_price_provenance(intent: dict, price: float | None, source: str, source_utc: str | None) -> None:
+def _attach_entry_price_provenance(
+    intent: dict,
+    price: float | None,
+    source: str,
+    source_utc: str | None,
+    *,
+    market_price_evidence: Mapping[str, Any] | None = None,
+) -> None:
     """Attach entry / fill / latest price provenance to a paper intent.
 
     Paper has no clock skew between intent and fill (no exchange
@@ -7189,8 +7225,40 @@ def _attach_entry_price_provenance(intent: dict, price: float | None, source: st
     construction. Each field gets its own provenance label so
     consumers can audit which V2-owned input fed the value.
     """
+    expected_symbol = str(intent.get("symbol") or "").upper() or None
+    evidence_verification = verify_market_price_evidence(
+        market_price_evidence,
+        expected_symbol=expected_symbol,
+        expected_timeframe="1m",
+    )
+    verified_price = _coerce_float(evidence_verification.get("price"))
+    tuple_matches_evidence = (
+        evidence_verification.get("valid") is True
+        and verified_price is not None
+        and _coerce_float(price) == verified_price
+        and source == market_price_evidence.get("source_label")
+        and source_utc == market_price_evidence.get("available_at")
+    )
+    intent["entry_price_evidence"] = (
+        dict(market_price_evidence)
+        if isinstance(market_price_evidence, Mapping)
+        else None
+    )
+    intent["entry_price_evidence_status"] = (
+        "VALID" if tuple_matches_evidence else "REJECTED"
+    )
+    intent["entry_price_evidence_rejection_reasons"] = (
+        []
+        if tuple_matches_evidence
+        else sorted(
+            set(
+                list(evidence_verification.get("reasons") or [])
+                + (["ENTRY_PRICE_TUPLE_EVIDENCE_BINDING_MISMATCH"] if price is not None else [])
+            )
+        )
+    )
     now = _utc_iso()
-    if price is not None and price > 0:
+    if tuple_matches_evidence:
         intent["entry_price"] = float(price)
         intent["entry_price_source"] = source
         intent["entry_price_utc"] = now
@@ -29737,8 +29805,23 @@ def run_once() -> dict:
         # paper fill; the provenance fields ride along regardless so
         # the recorder can quote MISSING markers when no price was
         # available, and never fabricate a price.
-        px, px_source, px_source_utc = _read_v2_market_price(r, symbol)
-        _attach_entry_price_provenance(intent, px, px_source, px_source_utc)
+        entry_price_evidence = _read_v2_market_price_evidence(
+            r,
+            symbol,
+            timeframe="1m",
+        )
+        px, px_source, px_source_utc = verified_market_price_tuple(
+            entry_price_evidence,
+            expected_symbol=symbol,
+            expected_timeframe="1m",
+        )
+        _attach_entry_price_provenance(
+            intent,
+            px,
+            px_source,
+            px_source_utc,
+            market_price_evidence=entry_price_evidence,
+        )
         entry_feature_decision_time = str(
             _first_present(
                 intent.get("decision_time"),
@@ -31977,13 +32060,28 @@ def run_once() -> dict:
     if post_backfill_churn_blocked:
         blocked.extend(post_backfill_churn_blocked)
     mark_prices: dict[str, dict[str, Any]] = {}
-    for symbol in sorted({str(row.get("symbol") or "").upper() for row in accepted_for_ledger if row.get("symbol")}):
-        px, px_source, px_source_utc = _read_v2_market_price(r, symbol)
+    for symbol in _paper_lifecycle_mark_symbols(
+        existing_ledger,
+        accepted_for_ledger,
+    ):
+        market_price_evidence = _read_v2_market_price_evidence(
+            r,
+            symbol,
+            timeframe="1m",
+        )
+        px, px_source, px_source_utc = verified_market_price_tuple(
+            market_price_evidence,
+            expected_symbol=symbol,
+            expected_timeframe="1m",
+        )
         exit_microstructure = _read_v2_orderbook_microstructure(r, symbol)
         mark_prices[symbol] = {
             "price": px,
             "source": px_source,
             "source_utc": px_source_utc,
+            "market_price_evidence_required": True,
+            "market_price_requested_timeframe": "1m",
+            "market_price_evidence": market_price_evidence,
             "actual_observed_spread_exit_bps": exit_microstructure.get("bid_ask_spread_bps"),
             "exit_spread_source": exit_microstructure.get("source"),
             "exit_spread_available_at": exit_microstructure.get("entry_spread_available_at"),

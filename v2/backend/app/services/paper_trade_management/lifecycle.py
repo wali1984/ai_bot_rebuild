@@ -15,6 +15,7 @@ from .generation_identity import (
     normalize_timestamp,
 )
 from .hedging import evaluate_adaptive_hedge_trigger, evaluate_adaptive_hedge_unwind
+from .market_price_evidence import verify_market_price_evidence
 from .netting import classify_fill
 from .outcomes import build_close_event, capture_close_outcome_availability
 from .policy_funding_repair import repair_policy_funding_rows
@@ -1874,9 +1875,48 @@ def _restore_path_telemetry_from_prior(position: PaperNetPosition, prior: dict[s
     position.mae_usd = max(float(position.mae_usd), adverse_delta * quantity)
 
 
+def _structured_market_price_evidence_required(
+    mark_prices: dict[str, Any],
+    symbol: str,
+) -> bool:
+    value = mark_prices.get(symbol.upper())
+    return (
+        isinstance(value, dict)
+        and value.get("market_price_evidence_required") is True
+    )
+
+
 def _mark_for_symbol(mark_prices: dict[str, Any], symbol: str, fallback: float | None) -> tuple[float | None, str | None]:
     value = mark_prices.get(symbol.upper())
     if isinstance(value, dict):
+        if value.get("market_price_evidence_required") is True:
+            evidence = value.get("market_price_evidence")
+            expected_timeframe = str(
+                value.get("market_price_requested_timeframe") or ""
+            ).lower()
+            verification = verify_market_price_evidence(
+                evidence,
+                expected_symbol=symbol,
+                expected_timeframe=expected_timeframe,
+            )
+            evidence_price = coerce_float(verification.get("price"))
+            mapped_price = coerce_float(value.get("price"))
+            if (
+                verification.get("valid") is not True
+                or evidence_price is None
+                or mapped_price != evidence_price
+            ):
+                reasons = list(verification.get("reasons") or [])
+                if mapped_price != evidence_price:
+                    reasons.append("LIFECYCLE_MARK_PRICE_EVIDENCE_BINDING_MISMATCH")
+                reason = (
+                    ",".join(sorted(set(reasons)))
+                    or "INVALID_MARKET_PRICE_EVIDENCE"
+                )
+                return None, f"MARK_PRICE_EVIDENCE_REJECTED:{reason}"
+            return evidence_price, str(
+                evidence.get("source_label") or "VERIFIED_V2_MARK_PRICE"
+            )
         try:
             price = float(value.get("price"))
         except (TypeError, ValueError):
@@ -2714,6 +2754,27 @@ def reconcile_paper_lifecycle(
             # not close them independently.
             continue
         mark, mark_source = _mark_for_symbol(mark_prices, symbol, position.last_mark_price or position.avg_entry_price)
+        if mark is None and _structured_market_price_evidence_required(
+            mark_prices,
+            symbol,
+        ):
+            # A structured mark explicitly opts into fail-closed evidence.
+            # Preserve the position's prior mark and produce no close/outcome;
+            # using the entry/last mark here would launder rejected evidence
+            # through a lifecycle fallback.
+            exit_evaluations.append(
+                {
+                    "symbol": symbol,
+                    "should_close": False,
+                    "close_reason": None,
+                    "mark_price_source": mark_source,
+                    "blocker": "VERIFIED_MARKET_PRICE_EVIDENCE_REQUIRED",
+                    "paper_only": True,
+                    "routes_to_live": False,
+                    "places_real_order": False,
+                }
+            )
+            continue
         maintenance_bracket = _maintenance_bracket_for_symbol(mark_prices, symbol)
         exit_spread_bps, exit_spread_source, exit_spread_available_at = _exit_spread_from_mapping(
             mark_prices.get(symbol.upper()) if isinstance(mark_prices, dict) else None
