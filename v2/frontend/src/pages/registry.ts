@@ -112,17 +112,13 @@ import riskControlMeta from './risk-control/meta';
 import riskControlRbac from './risk-control/rbac';
 import riskControlRoute from './risk-control/route';
 
-import exchangeManagerMeta from './exchange-manager/meta';
-import exchangeManagerRbac from './exchange-manager/rbac';
-import exchangeManagerRoute from './exchange-manager/route';
-
+// exchange-manager + config-admin cockpit fixture pages removed:
+// '/admin/exchange-manager' and '/admin/config-admin' are legacy redirects
+// (MERGED_LEGACY_PATHS) to the live /admin/exchanges and /admin/config pages,
+// so the static-fixture components were unreachable dead code.
 import externalManualPositionQuarantineMeta from './external-manual-position-quarantine/meta';
 import externalManualPositionQuarantineRbac from './external-manual-position-quarantine/rbac';
 import externalManualPositionQuarantineRoute from './external-manual-position-quarantine/route';
-
-import configAdminMeta from './config-admin/meta';
-import configAdminRbac from './config-admin/rbac';
-import configAdminRoute from './config-admin/route';
 
 import strategyAdminMeta from './strategy-admin/meta';
 import strategyAdminRbac from './strategy-admin/rbac';
@@ -338,9 +334,7 @@ const RAW_PAGES: ReadonlyArray<PageModule> = [
   { meta: positionsMeta, rbac: positionsRbac, route: positionsRoute, Component: lazy(() => import('./positions')) },
   { meta: riskMeta, rbac: riskRbac, route: riskRoute, Component: lazy(() => import('./risk')) },
   { meta: riskControlMeta, rbac: riskControlRbac, route: riskControlRoute, Component: lazy(() => import('./risk-control')) },
-  { meta: exchangeManagerMeta, rbac: exchangeManagerRbac, route: exchangeManagerRoute, Component: lazy(() => import('./exchange-manager')) },
   { meta: externalManualPositionQuarantineMeta, rbac: externalManualPositionQuarantineRbac, route: externalManualPositionQuarantineRoute, Component: lazy(() => import('./external-manual-position-quarantine')) },
-  { meta: configAdminMeta, rbac: configAdminRbac, route: configAdminRoute, Component: lazy(() => import('./config-admin')) },
   { meta: strategyAdminMeta, rbac: strategyAdminRbac, route: strategyAdminRoute, Component: lazy(() => import('./strategy-admin')) },
   { meta: trainerAdminMeta, rbac: trainerAdminRbac, route: trainerAdminRoute, Component: lazy(() => import('./trainer-admin')) },
   { meta: orchestratorAdminMeta, rbac: orchestratorAdminRbac, route: orchestratorAdminRoute, Component: lazy(() => import('./orchestrator-admin')) },

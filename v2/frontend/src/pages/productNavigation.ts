@@ -364,20 +364,9 @@ export const PAGE_OVERRIDES: Record<string, ProductPageOverride> = {
     hideFromNav: true,
     path: '/admin/execution-admin',
   },
-  'exchange-manager': {
-    title: 'Exchanges',
-    surface: 'admin',
-    navCategory: 'exchanges',
-    hideFromNav: true,
-    path: '/admin/exchange-manager',
-  },
-  'config-admin': {
-    title: 'Config Admin',
-    surface: 'admin',
-    navCategory: 'config',
-    hideFromNav: true,
-    path: '/admin/config-admin',
-  },
+  // 'exchange-manager' and 'config-admin' overrides removed with their fixture
+  // page modules; '/admin/exchange-manager' and '/admin/config-admin' remain as
+  // MERGED_LEGACY_PATHS redirects to /admin/exchanges and /admin/config.
   'user-status': {
     title: 'Simple Status',
     surface: 'public',
