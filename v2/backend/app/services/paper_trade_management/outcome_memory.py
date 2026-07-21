@@ -421,7 +421,7 @@ def evaluate_outcome_memory_bucket(
 
 def load_outcome_memory_bucket(
     symbol: str,
-    timeframe: str,
+    timeframe: str | None,
     redis_client: Any | None,
 ) -> OutcomeMemoryBucket:
     """Load outcome memory from Redis.
@@ -430,8 +430,17 @@ def load_outcome_memory_bucket(
     bucket carries advisory baseline metadata but does not block entries until
     current outcome-memory evidence exists for the bucket.
     """
-    sym = symbol.upper().strip()
-    tf = timeframe.lower().strip()
+    sym = str(symbol or "").upper().strip()
+    tf = str(timeframe or "").lower().strip()
+    if not tf:
+        return OutcomeMemoryBucket(
+            symbol=sym,
+            timeframe="",
+            data_source="ADVISORY_MISSING_TIMEFRAME",
+            trust_evidence_status="MISSING_TIMEFRAME_FAIL_CLOSED_AT_ENTRY_ROW",
+            outcome_memory_can_block_entries=False,
+            baseline_advisory_reasons=["MISSING_THESIS_TIMEFRAME"],
+        )
     key = f"v2:paper:outcome_memory:{sym}:{tf}"
 
     _min_trade_count = 20  # mirrors OutcomeMemoryThresholds.min_trade_count_for_dynamic

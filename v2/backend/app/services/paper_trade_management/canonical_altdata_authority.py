@@ -35,6 +35,7 @@ CANONICAL_ALTDATA_DECISION_CONTEXT_FIELDS = (
     "altdata_confluence_engine_generated_at",
     "altdata_generated_at",
     "altdata_available_at",
+    "altdata_lookup_observed_at",
     "altdata_providers_present",
     "provider_features_used",
     "provider_features_missing",
@@ -267,6 +268,8 @@ def resolve_paper_canonical_altdata(
 ) -> tuple[dict[str, Any] | None, dict[str, Any]]:
     """Rebuild paper alt-data once and mask every failure without fallback."""
 
+    rebuilt: dict[str, Any] | None = None
+    reconstruction_error: str | None = None
     try:
         rebuilt = rebuild_canonical_confluence(
             redis_client,
@@ -274,17 +277,24 @@ def resolve_paper_canonical_altdata(
             timeframe=timeframe,
         )
     except CanonicalConfluenceContractError:
-        return None, _normalized_lineage(
-            None,
-            reconstruction_error="canonical_confluence_contract_error_masked",
-        )
+        reconstruction_error = "canonical_confluence_contract_error_masked"
     except Exception:
-        return None, _normalized_lineage(
-            None,
-            reconstruction_error="canonical_confluence_boundary_unavailable_masked",
-        )
+        reconstruction_error = "canonical_confluence_boundary_unavailable_masked"
 
-    lineage = _normalized_lineage(rebuilt)
+    # This is the consumer-observation clock for the completed lookup attempt,
+    # not a producer clock.  It is present even when optional provider data is
+    # unavailable or masked so final admission can prove when absence was
+    # observed without inventing source availability.
+    lookup_observed_at = (
+        datetime.now(UTC)
+        .isoformat(timespec="microseconds")
+        .replace("+00:00", "Z")
+    )
+    lineage = _normalized_lineage(
+        rebuilt,
+        reconstruction_error=reconstruction_error,
+    )
+    lineage["altdata_lookup_observed_at"] = lookup_observed_at
     admitted = lineage.get("altdata_canonical_reconstruction_admitted") is True
     return (rebuilt if admitted else None), lineage
 
@@ -367,6 +377,7 @@ def paper_altdata_admission_rejection_reasons(
         "altdata_confluence_engine_generated_at",
         "altdata_generated_at",
         "altdata_available_at",
+        "altdata_lookup_observed_at",
     )
     clocks = [_canonical_utc(intent.get(field)) for field in clock_fields]
     if any(value is None for value in clocks):

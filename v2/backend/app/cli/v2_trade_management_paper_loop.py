@@ -2045,6 +2045,22 @@ PAPER_FINAL_ADMISSION_DURABLE_FIELDS = (
     "paper_final_admission_decision_time",
     "paper_final_admission_bound_material_hash",
     "paper_final_admission_receipt_hash",
+    "paper_economic_final_admission_contract",
+    "paper_economic_final_admission_status",
+    "paper_economic_final_admission_decision_time",
+    "paper_economic_final_admission_bound_material_hash",
+    "paper_economic_final_admission_receipt_hash",
+    "paper_economic_revocable_control_commit_revalidation",
+    "paper_economic_revocable_control_commit_revalidation_receipt_hash",
+    "paper_economic_revocable_control_commit_revalidation_status",
+    "paper_economic_fill_materialized",
+    "paper_economic_materialization_status",
+    "paper_fill_materialized_at",
+    "paper_fill_materialization_receipt",
+    "paper_fill_materialization_receipt_hash",
+    "fill_price_observed_at",
+    "entry_time",
+    "execution_time",
     "paper_persisted_ledger_contract",
     "paper_persisted_ledger_contract_hash",
     "paper_persisted_ledger_status",
@@ -2101,6 +2117,8 @@ PAPER_FINAL_ADMISSION_DURABLE_FIELDS = (
     "paper_revocable_control_commit_revalidation",
     "paper_revocable_control_commit_revalidation_receipt_hash",
     "paper_revocable_control_commit_revalidation_status",
+    "paper_economic_revocable_control_commit_revalidation_receipt_hash",
+    "paper_economic_revocable_control_commit_revalidation_status",
     "ordinary_scale_free_paper_admission_revalidated",
     "ordinary_scale_free_paper_admission_rejection_reasons",
     "ordinary_paper_admission_evidence",
@@ -4400,46 +4418,6 @@ def _altdata_feature_hash(payload: Any) -> str | None:
     # to retain the same apparent lineage.
     canonical = json.dumps(dict(payload), sort_keys=True, separators=(",", ":"), default=str)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
-
-
-def _altdata_provider_lineage(
-    r,
-    *,
-    symbol: str,
-    timeframe: str,
-    confluence: Mapping[str, Any] | None,
-) -> dict[str, Any]:
-    symbol = str(symbol or "").upper()
-    timeframe = str(timeframe or "1m")
-    confluence_payload = dict(confluence) if isinstance(confluence, Mapping) else {}
-    features = confluence_payload.get("features")
-    feature_map = features if isinstance(features, Mapping) else {}
-    coinglass = _read_json_key(r, f"{V2_REDIS_PREFIX}features:coinglass:{symbol}:{timeframe}")
-    moralis = _read_json_key(r, f"{V2_REDIS_PREFIX}features:moralis:{symbol}:{timeframe}")
-    santiment = _read_json_key(r, f"{V2_REDIS_PREFIX}features:santiment:{symbol}:1h")
-    lookup_observed_at = _utc_iso()
-    return {
-        "provider_features_used": sorted(
-            name for name, value in feature_map.items() if value is not None
-        ),
-        "provider_features_missing": sorted(
-            name for name, value in feature_map.items() if value is None
-        ),
-        "coinglass_feature_hash": _altdata_feature_hash(coinglass),
-        "moralis_feature_hash": _altdata_feature_hash(moralis),
-        "santiment_feature_hash": _altdata_feature_hash(santiment),
-        "altdata_confluence_hash": _altdata_feature_hash(confluence_payload),
-        # These clocks have deliberately distinct meanings.  A producer's
-        # generation time does not prove when the payload became observable.
-        "altdata_feature_cutoff": confluence_payload.get("feature_cutoff"),
-        "altdata_available_at": confluence_payload.get("available_at"),
-        "altdata_generated_at": _first_present(
-            confluence_payload.get("generated_at"),
-            confluence_payload.get("generated_utc"),
-        ),
-        "altdata_lookup_observed_at": lookup_observed_at,
-        "altdata_provider_hash_source": "FULL_CANONICAL_PROVIDER_PAYLOAD_SHA256_V1",
-    }
 
 
 def _paper_exact_redis_json_source_material(
@@ -19286,26 +19264,6 @@ def _apply_preemptive_decision_context(
             target["runtime_revalidated_preemptive_decision_reasons"] = runtime_reasons_list
 
 
-def _stamp_paper_runtime_preemptive_decision_time(
-    preemptive_decision: dict[str, Any],
-) -> None:
-    """Stamp when this paper-loop recomputation actually finished.
-
-    The generic preemptive schema preserves an upstream candidate clock when
-    one exists.  That clock remains useful source lineage, but it predates the
-    paper loop's in-process alt-data reconstruction and therefore cannot be
-    reused as this runtime decision's causal boundary.
-    """
-
-    decision_time = (
-        datetime.now(UTC)
-        .isoformat(timespec="microseconds")
-        .replace("+00:00", "Z")
-    )
-    preemptive_decision["preemptive_decision_time"] = decision_time
-    preemptive_decision["preemptive_decision_time_et"] = _operator_et_iso(decision_time)
-
-
 def _preemptive_decision_rejection_reason_for_tier(
     preemptive_decision: dict[str, Any] | None,
     *,
@@ -19509,16 +19467,45 @@ def _paper_preemptive_admission_rejection_reasons(
         )
         or ""
     ).upper()
+    coherent_actions_by_decision = {
+        "ALLOW": {"ALLOW_A_PLUS_CANDIDATE"},
+        "PAPER_RISK_CONTROLLER_EXPLORATION": {
+            "ALLOW_PAPER_RISK_CONTROLLER_EXPLORATION"
+        },
+        "POSITIVE_EDGE_PROBATION_PAPER": {"ALLOW_PROBATION_PAPER"},
+        "REDUCE_SIZE_PAPER_ONLY": {"ALLOW_REDUCE_SIZE_PAPER", "REDUCE_SIZE"},
+        "REDUCE_SIZE": {"ALLOW_REDUCE_SIZE_PAPER", "REDUCE_SIZE"},
+        "SHADOW_ONLY": {"SHADOW_ONLY"},
+        "CLOSE_OR_REDUCE_ONLY": {"SHADOW_ONLY", "CLOSE_OR_REDUCE_ONLY"},
+        "REQUIRE_HEDGE": {"REQUIRE_HEDGE"},
+    }
+    if decision == "NO_TRADE":
+        action_coherent = action == "BLOCK" or action.startswith("BLOCK_")
+    elif decision in coherent_actions_by_decision:
+        action_coherent = action in coherent_actions_by_decision[decision]
+    else:
+        action_coherent = False
+    if not action_coherent:
+        reasons.append(
+            "PREEMPTIVE_ACTION_DECISION_INCOHERENT:"
+            f"decision={decision or 'MISSING'}:action={action or 'MISSING'}"
+        )
     if action == "BLOCK" or action.startswith("BLOCK_") or decision in {
         "BLOCK",
         "NO_TRADE",
     }:
-        reasons.append(f"PREEMPTIVE_BLOCK_ACTION_BINDING:{action or decision}")
+        denying_token = action if action == "BLOCK" or action.startswith("BLOCK_") else decision
+        reasons.append(f"PREEMPTIVE_BLOCK_ACTION_BINDING:{denying_token}")
     if action in {"SHADOW_ONLY", "CLOSE_OR_REDUCE_ONLY"} or decision in {
         "SHADOW_ONLY",
         "CLOSE_OR_REDUCE_ONLY",
     }:
-        reasons.append(f"PREEMPTIVE_NON_ENTRY_ACTION_BINDING:{action or decision}")
+        denying_token = (
+            action
+            if action in {"SHADOW_ONLY", "CLOSE_OR_REDUCE_ONLY"}
+            else decision
+        )
+        reasons.append(f"PREEMPTIVE_NON_ENTRY_ACTION_BINDING:{denying_token}")
     hedge_required = (
         action == "REQUIRE_HEDGE"
         or decision == "REQUIRE_HEDGE"
@@ -23618,16 +23605,9 @@ def _admit_and_append_paper_fill(
     authoritative_ordinary_router_result: Mapping[str, Any] | None = None,
     authoritative_ordinary_router_input_material: Mapping[str, Any] | None = None,
     authoritative_current_position_state: Any = None,
-    require_final_admission_contract: bool = False,
+    economic_materialization: bool = False,
 ) -> list[str]:
-    """Append through the sole binding paper-fill acceptance path.
-
-    The normal runtime path sets ``require_final_admission_contract`` and
-    therefore retains the stronger revocable-control, point-in-time, cycle
-    reservation, and halted-probe finalization boundary. A direct append is
-    available only to side-effect-free contract tests without a runtime data
-    client; every runtime caller must provide the stronger final contract.
-    """
+    """Admit only through the authenticated paper candidate-list boundary."""
 
     reasons = _paper_fill_binding_admission_rejection_reasons(
         intent,
@@ -23697,41 +23677,39 @@ def _admit_and_append_paper_fill(
     )
     intent["paper_binding_admission_blocked"] = False
     intent["paper_binding_admission_block_reasons"] = []
-    if redis_client is not None and not require_final_admission_contract:
-        reasons = ["PAPER_RUNTIME_FINAL_ADMISSION_CONTRACT_REQUIRED"]
+    if redis_client is None:
+        reasons = ["PAPER_RUNTIME_FINAL_ADMISSION_AUTHORITY_UNAVAILABLE"]
         _apply_preemptive_admission_block(intent, reasons)
         intent["paper_binding_admission_passed"] = False
         intent["paper_binding_admission_blocked"] = True
         intent["paper_binding_admission_block_reasons"] = reasons
         return reasons
-    if require_final_admission_contract:
-        final_append_succeeded = _paper_append_accepted_with_halted_probe_finalization(
-            accepted,
-            intent,
-            halted_empty_book_probe_context,
-            redis_client=redis_client,
-            maintenance_bracket_security_context=(maintenance_bracket_security_context),
-            authoritative_ordinary_router_result=(authoritative_ordinary_router_result),
-            authoritative_ordinary_router_input_material=(
-                authoritative_ordinary_router_input_material
-            ),
-            authoritative_current_position_state=(authoritative_current_position_state),
+    final_append_succeeded = _paper_append_accepted_with_halted_probe_finalization(
+        accepted,
+        intent,
+        halted_empty_book_probe_context,
+        redis_client=redis_client,
+        maintenance_bracket_security_context=(maintenance_bracket_security_context),
+        authoritative_ordinary_router_result=(authoritative_ordinary_router_result),
+        authoritative_ordinary_router_input_material=(
+            authoritative_ordinary_router_input_material
+        ),
+        authoritative_current_position_state=(authoritative_current_position_state),
+        economic_materialization=economic_materialization,
+    )
+    if final_append_succeeded:
+        return []
+    final_reasons = sorted(
+        set(
+            list(intent.get("paper_fill_gate_block_reasons") or [])
+            + list(intent.get("local_block_reasons") or [])
+            + [str(intent.get("paper_fill_block_reason") or "FINAL_ADMISSION_BLOCKED")]
         )
-        if final_append_succeeded:
-            return []
-        final_reasons = sorted(
-            set(
-                list(intent.get("paper_fill_gate_block_reasons") or [])
-                + list(intent.get("local_block_reasons") or [])
-                + [str(intent.get("paper_fill_block_reason") or "FINAL_ADMISSION_BLOCKED")]
-            )
-        )
-        intent["paper_binding_admission_passed"] = False
-        intent["paper_binding_admission_blocked"] = True
-        intent["paper_binding_admission_block_reasons"] = final_reasons
-        return final_reasons
-    accepted.append(intent)
-    return []
+    )
+    intent["paper_binding_admission_passed"] = False
+    intent["paper_binding_admission_blocked"] = True
+    intent["paper_binding_admission_block_reasons"] = final_reasons
+    return final_reasons
 
 
 def _paper_filter_post_backfill_current_churn_duplicates(
@@ -27208,7 +27186,10 @@ def _paper_stamp_fill_materialization_time(
         accepted_intent.get("decision_time"),
         accepted_intent.get("entry_feature_decision_time"),
     )
-    final_decision_time = accepted_intent.get("paper_final_admission_decision_time")
+    final_decision_time = _first_present(
+        accepted_intent.get("paper_economic_final_admission_decision_time"),
+        accepted_intent.get("paper_final_admission_decision_time"),
+    )
     price_observed_at = _first_present(
         accepted_intent.get("fill_price_observed_at"),
         accepted_intent.get("fill_price_utc"),
@@ -27240,6 +27221,32 @@ def _paper_stamp_fill_materialization_time(
     accepted_intent["entry_time"] = str(observed_at)
     accepted_intent["execution_time"] = str(observed_at)
     accepted_intent["paper_execution_mode"] = "PAPER_SIMULATION_ONLY"
+    materialization_receipt = {
+        "schema_version": "paper_fill_materialization_receipt_v1",
+        "intent_id": accepted_intent.get("intent_id"),
+        "signal_id": accepted_intent.get("signal_id"),
+        "allocation_id": accepted_intent.get("allocation_id"),
+        "symbol": accepted_intent.get("symbol"),
+        "side": accepted_intent.get("side"),
+        "fill_price_observed_at": str(price_observed_at),
+        "economic_final_admission_decision_time": str(final_decision_time),
+        "economic_final_admission_receipt_hash": accepted_intent.get(
+            "paper_economic_final_admission_receipt_hash"
+        ),
+        "paper_fill_materialized_at": str(observed_at),
+        "entry_time": str(observed_at),
+        "execution_time": str(observed_at),
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+    materialization_receipt["receipt_hash"] = _paper_canonical_sha256(
+        materialization_receipt
+    )
+    accepted_intent["paper_fill_materialization_receipt"] = materialization_receipt
+    accepted_intent["paper_fill_materialization_receipt_hash"] = (
+        materialization_receipt["receipt_hash"]
+    )
     return []
 
 
@@ -27253,14 +27260,28 @@ def _paper_append_accepted_with_halted_probe_finalization(
     authoritative_ordinary_router_result: Mapping[str, Any] | None = None,
     authoritative_ordinary_router_input_material: Mapping[str, Any] | None = None,
     authoritative_current_position_state: Any = None,
+    economic_materialization: bool = False,
 ) -> bool:
-    """Revalidate and append one fill; atomically finalize any probe token.
+    """Revalidate and append one candidate or economically materialized fill.
 
-    Both normal and probe fills must pass the same final PIT/accounting contract
-    at the list materialization boundary. A probe additionally fails closed
-    unless its pending token, symbol, and current slot capacity match. Slot and
-    symbol state changes only after the row has actually been appended.
+    Candidate-list admission preserves the authenticated prefix used by cycle
+    reservation.  Economic materialization is a second, fresh PIT/revocable
+    revalidation after cumulative margin reservation; it stamps execution time
+    immediately before the sole economic accepted-list append.
     """
+
+    if redis_client is None:
+        failure_reason = "PAPER_RUNTIME_FINAL_ADMISSION_AUTHORITY_UNAVAILABLE"
+        accepted_intent["decision"] = "BLOCKED_FINAL_ADMISSION_AUTHORITY_UNAVAILABLE"
+        accepted_intent["paper_fill_allowed"] = False
+        accepted_intent["paper_fill_block_reason"] = failure_reason
+        accepted_intent["paper_fill_gate_block_reasons"] = sorted(
+            set(
+                list(accepted_intent.get("paper_fill_gate_block_reasons") or [])
+                + [failure_reason]
+            )
+        )
+        return False
 
     def final_contract_allows() -> bool:
         cycle_snapshot = accepted_intent.get("paper_cycle_reservation_snapshot")
@@ -27342,32 +27363,53 @@ def _paper_append_accepted_with_halted_probe_finalization(
                 authoritative_ordinary_router_input_material
             ),
             authoritative_current_position_state=(authoritative_current_position_state),
+            economic_materialization=economic_materialization,
         )
-        accepted_intent["paper_final_admission_contract"] = final_contract
-        accepted_intent["paper_final_admission_status"] = final_contract.get("status")
-        accepted_intent["paper_final_admission_decision_time"] = final_contract.get(
+        final_prefix = (
+            "paper_economic_final_admission"
+            if economic_materialization
+            else "paper_final_admission"
+        )
+        accepted_intent[f"{final_prefix}_contract"] = final_contract
+        accepted_intent[f"{final_prefix}_status"] = final_contract.get("status")
+        accepted_intent[f"{final_prefix}_decision_time"] = final_contract.get(
             "final_decision_time"
         )
-        accepted_intent["paper_final_admission_bound_material_hash"] = final_contract.get(
+        accepted_intent[f"{final_prefix}_bound_material_hash"] = final_contract.get(
             "bound_material_hash"
         )
-        accepted_intent["paper_final_admission_receipt_hash"] = final_contract.get("receipt_hash")
+        accepted_intent[f"{final_prefix}_receipt_hash"] = final_contract.get(
+            "receipt_hash"
+        )
         revocable_receipt = final_contract.get("revocable_control_commit_revalidation")
-        accepted_intent["paper_revocable_control_commit_revalidation"] = (
+        revocable_prefix = (
+            "paper_economic_revocable_control_commit_revalidation"
+            if economic_materialization
+            else "paper_revocable_control_commit_revalidation"
+        )
+        accepted_intent[revocable_prefix] = (
             deepcopy(revocable_receipt) if isinstance(revocable_receipt, Mapping) else {}
         )
-        accepted_intent["paper_revocable_control_commit_revalidation_receipt_hash"] = (
+        accepted_intent[f"{revocable_prefix}_receipt_hash"] = (
             revocable_receipt.get("receipt_hash")
             if isinstance(revocable_receipt, Mapping)
             else None
         )
-        accepted_intent["paper_revocable_control_commit_revalidation_status"] = (
+        accepted_intent[f"{revocable_prefix}_status"] = (
             revocable_receipt.get("status") if isinstance(revocable_receipt, Mapping) else "BLOCKED"
         )
         if final_contract.get("status") == "PASS":
             return True
-        failure_reason = "PAPER_FINAL_ADMISSION_CONTRACT_BLOCKED"
-        accepted_intent["decision"] = "BLOCKED_FINAL_ADMISSION_CONTRACT"
+        failure_reason = (
+            "PAPER_ECONOMIC_FINAL_ADMISSION_CONTRACT_BLOCKED"
+            if economic_materialization
+            else "PAPER_FINAL_ADMISSION_CONTRACT_BLOCKED"
+        )
+        accepted_intent["decision"] = (
+            "BLOCKED_ECONOMIC_FINAL_ADMISSION_CONTRACT"
+            if economic_materialization
+            else "BLOCKED_FINAL_ADMISSION_CONTRACT"
+        )
         accepted_intent["paper_fill_allowed"] = False
         accepted_intent["paper_fill_block_reason"] = failure_reason
         contract_reasons = list(final_contract.get("rejection_reasons") or [])
@@ -27381,7 +27423,14 @@ def _paper_append_accepted_with_halted_probe_finalization(
         accepted_intent["local_block_reasons"] = sorted(
             set(
                 list(accepted_intent.get("local_block_reasons") or [])
-                + [f"final_admission:{reason}" for reason in contract_reasons]
+                + [
+                    (
+                        f"economic_final_admission:{reason}"
+                        if economic_materialization
+                        else f"final_admission:{reason}"
+                    )
+                    for reason in contract_reasons
+                ]
             )
         )
         if accepted_intent.get("paper_halted_empty_book_probe") is True:
@@ -27393,10 +27442,56 @@ def _paper_append_accepted_with_halted_probe_finalization(
             accepted_intent["paper_halted_probe_reservation_failure_reason"] = failure_reason
         return False
 
-    if accepted_intent.get("paper_halted_empty_book_probe") is not True:
+    def stamp_economic_materialization_or_block() -> bool:
+        materialization_reasons = _paper_stamp_fill_materialization_time(
+            accepted_intent
+        )
+        if not materialization_reasons:
+            accepted_intent["paper_economic_fill_materialized"] = True
+            accepted_intent["paper_economic_materialization_status"] = "PASS"
+            return True
+        failure_reason = "PAPER_FILL_MATERIALIZATION_CLOCK_BLOCKED"
+        accepted_intent["decision"] = "BLOCKED_FILL_MATERIALIZATION_CLOCK"
+        accepted_intent["paper_fill_allowed"] = False
+        accepted_intent["paper_fill_block_reason"] = failure_reason
+        accepted_intent["paper_economic_fill_materialized"] = False
+        accepted_intent["paper_economic_materialization_status"] = "BLOCKED"
+        accepted_intent["paper_economic_materialization_rejection_reasons"] = (
+            materialization_reasons
+        )
+        accepted_intent["paper_fill_gate_block_reasons"] = sorted(
+            set(
+                list(accepted_intent.get("paper_fill_gate_block_reasons") or [])
+                + [failure_reason]
+                + materialization_reasons
+            )
+        )
+        accepted_intent["local_block_reasons"] = sorted(
+            set(
+                list(accepted_intent.get("local_block_reasons") or [])
+                + [f"economic_materialization:{reason}" for reason in materialization_reasons]
+            )
+        )
+        return False
+
+    probe_candidate_already_admitted = bool(
+        economic_materialization
+        and accepted_intent.get("paper_halted_empty_book_probe") is True
+        and accepted_intent.get("paper_halted_probe_reservation_state")
+        == "FINALIZED_ACCEPTED"
+    )
+
+    if (
+        accepted_intent.get("paper_halted_empty_book_probe") is not True
+        or probe_candidate_already_admitted
+    ):
         if not final_contract_allows():
             return False
-        accepted_intent["paper_candidate_list_admitted_at"] = _utc_iso()
+        if economic_materialization:
+            if not stamp_economic_materialization_or_block():
+                return False
+        else:
+            accepted_intent["paper_candidate_list_admitted_at"] = _utc_iso()
         accepted_rows.append(accepted_intent)
         return True
 
@@ -27465,10 +27560,11 @@ def _paper_append_accepted_with_halted_probe_finalization(
     if not final_contract_allows():
         return False
 
-    # This is candidate-list admission, not economic fill materialization.
-    # Lifecycle reconciliation and its post-filters remain authoritative for
-    # ``entry_time``/``execution_time`` and durable receipt publication.
-    accepted_intent["paper_candidate_list_admitted_at"] = _utc_iso()
+    if economic_materialization:
+        if not stamp_economic_materialization_or_block():
+            return False
+    else:
+        accepted_intent["paper_candidate_list_admitted_at"] = _utc_iso()
     accepted_rows.append(accepted_intent)
     finalized_count = int(context.get("finalized_admission_count") or 0) + 1
     context["finalized_admission_count"] = finalized_count
@@ -35599,9 +35695,20 @@ PAPER_PERSISTED_ADMISSION_CRITICAL_FIELDS = (
 
 def _paper_persisted_admission_projection(
     row: Mapping[str, Any],
+    *,
+    economic_materialization: bool = False,
 ) -> dict[str, Any]:
     """Project fields that no downstream persistence step may rewrite."""
 
+    economic_critical_fields = {
+        "paper_economic_revocable_control_commit_revalidation_receipt_hash",
+        "paper_economic_revocable_control_commit_revalidation_status",
+    }
+    critical_fields = tuple(
+        field
+        for field in PAPER_PERSISTED_ADMISSION_CRITICAL_FIELDS
+        if economic_materialization or field not in economic_critical_fields
+    )
     nested_fields = (
         "adaptive_allocation",
         "paper_normal_adaptive_allocation_contract",
@@ -35619,6 +35726,11 @@ def _paper_persisted_admission_projection(
         "paper_cycle_reservation_snapshot",
         "paper_cycle_reservation_commit_receipt",
         "paper_revocable_control_commit_revalidation",
+        *(
+            ("paper_economic_revocable_control_commit_revalidation",)
+            if economic_materialization
+            else ()
+        ),
         "paper_maintenance_margin_bracket_evidence",
         "maintenance_bracket_evidence",
         "mark_index_source_material",
@@ -35632,7 +35744,7 @@ def _paper_persisted_admission_projection(
         "critical_fields": {
             field: row.get(field)
             for field in (
-                *PAPER_PERSISTED_ADMISSION_CRITICAL_FIELDS,
+                *critical_fields,
                 *PAPER_FINAL_ADMISSION_COMPONENT_TIME_FIELDS,
             )
         },
@@ -35646,9 +35758,64 @@ def _paper_persisted_admission_rejection_reasons(
     row: Mapping[str, Any],
 ) -> list[str]:
     reasons: list[str] = []
-    contract = row.get("paper_final_admission_contract")
+    economic_contract = row.get("paper_economic_final_admission_contract")
+    economic_materialized = row.get("paper_economic_fill_materialized") is True
+    final_prefix = (
+        "paper_economic_final_admission"
+        if economic_materialized and isinstance(economic_contract, Mapping)
+        else "paper_final_admission"
+    )
+    revocable_prefix = (
+        "paper_economic_revocable_control_commit_revalidation"
+        if final_prefix == "paper_economic_final_admission"
+        else "paper_revocable_control_commit_revalidation"
+    )
+    contract = row.get(f"{final_prefix}_contract")
     if not isinstance(contract, Mapping):
         return ["PERSISTED_ADMISSION_FINAL_CONTRACT_MISSING"]
+    if economic_materialized:
+        materialization_receipt = row.get("paper_fill_materialization_receipt")
+        if not isinstance(materialization_receipt, Mapping):
+            reasons.append("PERSISTED_ADMISSION_MATERIALIZATION_RECEIPT_MISSING")
+        else:
+            materialization_material = dict(materialization_receipt)
+            materialization_hash = materialization_material.pop("receipt_hash", None)
+            materialization_aliases_match = all(
+                materialization_receipt.get(receipt_field) == row.get(row_field)
+                for receipt_field, row_field in (
+                    ("intent_id", "intent_id"),
+                    ("signal_id", "signal_id"),
+                    ("allocation_id", "allocation_id"),
+                    ("symbol", "symbol"),
+                    ("side", "side"),
+                    ("fill_price_observed_at", "fill_price_observed_at"),
+                    (
+                        "economic_final_admission_decision_time",
+                        "paper_economic_final_admission_decision_time",
+                    ),
+                    (
+                        "economic_final_admission_receipt_hash",
+                        "paper_economic_final_admission_receipt_hash",
+                    ),
+                    ("paper_fill_materialized_at", "paper_fill_materialized_at"),
+                    ("entry_time", "entry_time"),
+                    ("execution_time", "execution_time"),
+                )
+            )
+            if (
+                materialization_receipt.get("schema_version")
+                != "paper_fill_materialization_receipt_v1"
+                or materialization_receipt.get("paper_only") is not True
+                or materialization_receipt.get("routes_to_live") is not False
+                or materialization_receipt.get("places_real_order") is not False
+                or not _paper_valid_sha256(materialization_hash)
+                or materialization_hash
+                != _paper_canonical_sha256(materialization_material)
+                or materialization_hash
+                != row.get("paper_fill_materialization_receipt_hash")
+                or not materialization_aliases_match
+            ):
+                reasons.append("PERSISTED_ADMISSION_MATERIALIZATION_RECEIPT_INVALID")
     contract_without_hash = dict(contract)
     receipt_hash = contract_without_hash.pop("receipt_hash", None)
     if (
@@ -35656,7 +35823,7 @@ def _paper_persisted_admission_rejection_reasons(
         or contract.get("status") != "PASS"
         or not _paper_valid_sha256(receipt_hash)
         or receipt_hash != _paper_canonical_sha256(contract_without_hash)
-        or receipt_hash != row.get("paper_final_admission_receipt_hash")
+        or receipt_hash != row.get(f"{final_prefix}_receipt_hash")
     ):
         reasons.append("PERSISTED_ADMISSION_FINAL_RECEIPT_INVALID")
     revocable_receipt = contract.get("revocable_control_commit_revalidation")
@@ -35680,9 +35847,9 @@ def _paper_persisted_admission_rejection_reasons(
         ):
             reasons.append("PERSISTED_ADMISSION_REVOCABLE_CONTROL_RECEIPT_INVALID")
         if (
-            dict(revocable_receipt) != row.get("paper_revocable_control_commit_revalidation")
-            or revocable_hash != row.get("paper_revocable_control_commit_revalidation_receipt_hash")
-            or row.get("paper_revocable_control_commit_revalidation_status") != "PASS"
+            dict(revocable_receipt) != row.get(revocable_prefix)
+            or revocable_hash != row.get(f"{revocable_prefix}_receipt_hash")
+            or row.get(f"{revocable_prefix}_status") != "PASS"
         ):
             reasons.append("PERSISTED_ADMISSION_REVOCABLE_CONTROL_TOP_LEVEL_MISMATCH")
     bound_material = contract.get("bound_material")
@@ -35691,7 +35858,7 @@ def _paper_persisted_admission_rejection_reasons(
         not isinstance(bound_material, Mapping)
         or not _paper_valid_sha256(bound_material_hash)
         or bound_material_hash != _paper_canonical_sha256(bound_material)
-        or bound_material_hash != row.get("paper_final_admission_bound_material_hash")
+        or bound_material_hash != row.get(f"{final_prefix}_bound_material_hash")
     ):
         reasons.append("PERSISTED_ADMISSION_BOUND_MATERIAL_INVALID")
         return sorted(set(reasons))
@@ -35727,7 +35894,12 @@ def _paper_persisted_admission_rejection_reasons(
         reasons.append("PERSISTED_ADMISSION_CYCLE_RESERVATION_BOUND_MATERIAL_MISMATCH")
     sealed_projection = bound_material.get("persisted_row_projection")
     sealed_projection_hash = bound_material.get("persisted_row_projection_hash")
-    current_projection = _paper_persisted_admission_projection(row)
+    current_projection = _paper_persisted_admission_projection(
+        row,
+        economic_materialization=(
+            final_prefix == "paper_economic_final_admission"
+        ),
+    )
     if (
         not isinstance(sealed_projection, Mapping)
         or not _paper_valid_sha256(sealed_projection_hash)
@@ -35736,9 +35908,9 @@ def _paper_persisted_admission_rejection_reasons(
         or dict(sealed_projection) != current_projection
     ):
         reasons.append("PERSISTED_ADMISSION_ROW_MUTATED_AFTER_FINAL_SEAL")
-    if row.get("paper_final_admission_status") != "PASS":
+    if row.get(f"{final_prefix}_status") != "PASS":
         reasons.append("PERSISTED_ADMISSION_TOP_LEVEL_STATUS_NOT_PASS")
-    if row.get("paper_final_admission_decision_time") != contract.get("final_decision_time"):
+    if row.get(f"{final_prefix}_decision_time") != contract.get("final_decision_time"):
         reasons.append("PERSISTED_ADMISSION_FINAL_TIME_MISMATCH")
     return sorted(set(reasons))
 
@@ -35747,13 +35919,24 @@ def _seal_paper_persisted_ledger_contract(
     row: Mapping[str, Any],
 ) -> dict[str, Any]:
     sealed = dict(row)
-    projection = _paper_persisted_admission_projection(sealed)
+    projection = _paper_persisted_admission_projection(
+        sealed,
+        economic_materialization=(
+            sealed.get("paper_economic_fill_materialized") is True
+        ),
+    )
+    final_prefix = (
+        "paper_economic_final_admission"
+        if sealed.get("paper_economic_fill_materialized") is True
+        and isinstance(sealed.get("paper_economic_final_admission_contract"), Mapping)
+        else "paper_final_admission"
+    )
     material = {
         "schema_version": "paper_persisted_ledger_contract_v1",
         "observed_at": _utc_iso(),
-        "final_admission_receipt_hash": sealed.get("paper_final_admission_receipt_hash"),
+        "final_admission_receipt_hash": sealed.get(f"{final_prefix}_receipt_hash"),
         "final_admission_bound_material_hash": sealed.get(
-            "paper_final_admission_bound_material_hash"
+            f"{final_prefix}_bound_material_hash"
         ),
         "projection_hash": _paper_canonical_sha256(projection),
         "projection": projection,
@@ -36419,6 +36602,7 @@ def _paper_final_admission_point_in_time_contract(
     authoritative_ordinary_router_result: Mapping[str, Any] | None = None,
     authoritative_ordinary_router_input_material: Mapping[str, Any] | None = None,
     authoritative_current_position_state: Any = None,
+    economic_materialization: bool = False,
 ) -> dict[str, Any]:
     """Revalidate the complete candidate at the actual list-append boundary.
 
@@ -37798,36 +37982,8 @@ def _paper_final_admission_point_in_time_contract(
         ):
             reject("ADVANCED_INDICATOR_COMPUTED_CUTOFF_DECISION_MISMATCH")
 
-    if intent.get("altdata_confluence_present") is True or intent.get(
-        "altdata_confluence_hash"
-    ) not in (None, ""):
-        for field in (
-            "altdata_feature_cutoff",
-            "altdata_generated_at",
-            "altdata_available_at",
-        ):
-            if intent.get(field) in (None, ""):
-                reject(f"ALTDATA_TIME_MISSING:{field}")
-        if not _paper_valid_sha256(intent.get("altdata_confluence_hash")):
-            reject("ALTDATA_CONFLUENCE_HASH_INVALID")
-        if intent.get("altdata_provider_hash_source") != (
-            "FULL_CANONICAL_PROVIDER_PAYLOAD_SHA256_V1"
-        ):
-            reject("ALTDATA_HASH_CONTRACT_INVALID")
-        for field in (
-            "coinglass_feature_hash",
-            "santiment_feature_hash",
-            "moralis_feature_hash",
-        ):
-            if intent.get(field) not in (None, "") and not _paper_valid_sha256(intent.get(field)):
-                reject(f"ALTDATA_PROVIDER_HASH_INVALID:{field}")
-        for left, right in (
-            ("altdata_feature_cutoff", "altdata_generated_at"),
-            ("altdata_generated_at", "altdata_available_at"),
-            ("altdata_available_at", "altdata_lookup_observed_at"),
-            ("altdata_lookup_observed_at", "preemptive_decision_time"),
-        ):
-            require_order(left, right)
+    for altdata_reason in _paper_altdata_admission_rejection_reasons(intent):
+        reject(altdata_reason)
 
     if intent.get("mark_price") not in (None, "") or intent.get("index_price") not in (
         None,
@@ -39353,16 +39509,24 @@ def _paper_final_admission_point_in_time_contract(
             reject("FINAL_ADMISSION_REVOCABLE_CONTROL_CLOCK_INVALID")
     final_utc = commit_utc
     persisted_projection_row = dict(intent)
-    persisted_projection_row["paper_revocable_control_commit_revalidation"] = (
+    projection_revocable_prefix = (
+        "paper_economic_revocable_control_commit_revalidation"
+        if economic_materialization
+        else "paper_revocable_control_commit_revalidation"
+    )
+    persisted_projection_row[projection_revocable_prefix] = (
         revocable_control_revalidation
     )
-    persisted_projection_row["paper_revocable_control_commit_revalidation_receipt_hash"] = (
+    persisted_projection_row[f"{projection_revocable_prefix}_receipt_hash"] = (
         revocable_control_revalidation.get("receipt_hash")
     )
-    persisted_projection_row["paper_revocable_control_commit_revalidation_status"] = (
+    persisted_projection_row[f"{projection_revocable_prefix}_status"] = (
         revocable_control_revalidation.get("status")
     )
-    persisted_row_projection = _paper_persisted_admission_projection(persisted_projection_row)
+    persisted_row_projection = _paper_persisted_admission_projection(
+        persisted_projection_row,
+        economic_materialization=economic_materialization,
+    )
     persisted_row_projection_hash = _paper_canonical_sha256(persisted_row_projection)
     if not _paper_valid_sha256(persisted_row_projection_hash):
         reject("FINAL_ADMISSION_PERSISTED_PROJECTION_HASH_INVALID")
@@ -43443,6 +43607,7 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
     intents: list[dict] = []
     risk_decisions: list[dict] = []
     accepted: list[dict] = []
+    paper_final_authority_by_fill_identity: dict[str, dict[str, Any]] = {}
     blocked: list[dict] = []
     shadow_observations: list[dict] = []
     held_by_gate_intents: list[dict] = []
@@ -45532,7 +45697,7 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             decision_time=preemptive_runtime_decision_time,
         )
         preemptive_decision.update(_canonical_altdata_lineage)
-        _stamp_paper_runtime_preemptive_decision_time(preemptive_decision)
+        preemptive_decision["preemptive_evaluated_at"] = _utc_iso()
         _apply_preemptive_decision_context(
             intent=intent,
             allocation=allocation_payload,
@@ -47045,6 +47210,12 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                 if accepted_intent.get("strategy_supply_hypothesis") is True
                 else "OUTCOME_SUPERVISED_PAPER"
             )
+        candidate_fill_identity = _accepted_fill_identity(accepted_intent)
+        paper_final_authority_by_fill_identity[candidate_fill_identity] = {
+            "ordinary_router_result": deepcopy(raw_strategy_router),
+            "ordinary_router_input_material": deepcopy(ordinary_router_input_material),
+            "current_position_state": deepcopy(current_position_state),
+        }
         binding_admission_reasons = _admit_and_append_paper_fill(
             accepted,
             accepted_intent,
@@ -47065,7 +47236,6 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             authoritative_ordinary_router_result=raw_strategy_router,
             authoritative_ordinary_router_input_material=(ordinary_router_input_material),
             authoritative_current_position_state=current_position_state,
-            require_final_admission_contract=True,
         )
         # ``v2:paper:intents`` publishes the original per-candidate object.
         # Copy the finalized row back so PASS/BLOCKED receipts are durable on
@@ -47401,7 +47571,10 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             if isinstance(_existing_positions_by_symbol, Mapping)
             else []
         )
-    _pre_reservation_current_ids = {_accepted_fill_identity(row) for row in accepted}
+    _pre_reservation_current_order = [
+        _accepted_fill_identity(row) for row in accepted
+    ]
+    _pre_reservation_current_ids = set(_pre_reservation_current_order)
     (
         accepted,
         paper_margin_reservation_blocked,
@@ -47426,14 +47599,124 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
     if paper_margin_reservation_blocked:
         blocked.extend(paper_margin_reservation_blocked)
     _reserved_current_by_id = {_accepted_fill_identity(row): row for row in accepted}
+    reserved_candidates_in_prefix_order = [
+        _reserved_current_by_id[row_id]
+        for row_id in _pre_reservation_current_order
+        if row_id in _reserved_current_by_id
+    ]
+    reserved_candidates_in_prefix_order = _ensure_margin_leverage_consistency_rows(
+        reserved_candidates_in_prefix_order
+    )
+
+    # Candidate-list admission above authenticates the prefix used by later
+    # allocations.  It is not an economic fill.  After cumulative account-wide
+    # margin reservation and final economic normalization, every surviving row
+    # must re-pass the complete PIT/revocable/write-invariant boundary, receive
+    # an execution/materialization clock, and only then enter the economic
+    # accepted list consumed by lifecycle reconciliation.
+    economically_materialized_accepted: list[dict[str, Any]] = []
+    economic_finalization_blocked: list[dict[str, Any]] = []
+    for reserved_candidate in reserved_candidates_in_prefix_order:
+        reserved_identity = _accepted_fill_identity(reserved_candidate)
+        authority = paper_final_authority_by_fill_identity.get(reserved_identity, {})
+        economic_reasons = _admit_and_append_paper_fill(
+            economically_materialized_accepted,
+            reserved_candidate,
+            redis_client=r,
+            adaptive_loss_probability_threshold=reserved_candidate.get(
+                "adaptive_loss_probability_threshold_used"
+            ),
+            adaptive_loss_probability_threshold_source=reserved_candidate.get(
+                "adaptive_loss_probability_threshold_source"
+            ),
+            adaptive_tuning_validation_status=(
+                _adaptive_tuning_validation_receipt.get("status")
+            ),
+            paper_entry_freeze=paper_entry_freeze,
+            existing_ledger=existing_ledger,
+            halted_empty_book_probe_context=halted_empty_book_probe_context,
+            maintenance_bracket_security_context=(
+                paper_maintenance_bracket_security_context
+            ),
+            authoritative_ordinary_router_result=authority.get(
+                "ordinary_router_result"
+            ),
+            authoritative_ordinary_router_input_material=authority.get(
+                "ordinary_router_input_material"
+            ),
+            authoritative_current_position_state=authority.get(
+                "current_position_state"
+            ),
+            economic_materialization=True,
+        )
+        for published_intent in intents:
+            if _accepted_fill_identity(published_intent) == reserved_identity:
+                published_intent.update(reserved_candidate)
+                break
+        if economic_reasons:
+            economic_finalization_blocked.append(reserved_candidate)
+
+    if economic_finalization_blocked:
+        blocked.extend(economic_finalization_blocked)
+    accepted = economically_materialized_accepted
+    _economically_materialized_by_id = {
+        _accepted_fill_identity(row): row for row in accepted
+    }
     accepted_for_ledger = [
-        (_reserved_current_by_id[row_id] if row_id in _reserved_current_by_id else row)
+        (
+            _economically_materialized_by_id[row_id]
+            if row_id in _economically_materialized_by_id
+            else row
+        )
         for row in accepted_for_ledger
         if (
             (row_id := _accepted_fill_identity(row)) not in _pre_reservation_current_ids
-            or row_id in _reserved_current_by_id
+            or row_id in _economically_materialized_by_id
         )
     ]
+    # Release reservations for any row rejected by the fresh economic boundary
+    # and publish accounting that matches the rows actually handed to lifecycle.
+    final_reserved_margin_usd = sum(
+        _coerce_float(row.get("paper_margin_reserved_usd")) or 0.0
+        for row in accepted
+    )
+    reservation_audit = paper_margin_reservation_status
+    paper_margin_reservation_status = build_paper_margin_status(
+        equity=portfolio_context["equity"],
+        wallet_balance=portfolio_context["wallet_balance"],
+        open_positions=list(_existing_open_positions_for_margin),
+        min_available_margin_buffer_pct=(
+            portfolio_dynamic_paper_envelope.min_available_margin_buffer_pct
+        ),
+        newly_reserved_margin_usd=final_reserved_margin_usd,
+    )
+    paper_margin_reservation_status.update(
+        {
+            "reservation_status": (
+                "PASS"
+                if paper_margin_reservation_status.get("invariant_holds") is True
+                and not paper_margin_reservation_blocked
+                and not economic_finalization_blocked
+                else "PARTIAL_OR_BLOCKED"
+            ),
+            "reservation_order": reservation_audit.get("reservation_order", []),
+            "reservation_rows": reservation_audit.get("reservation_rows", []),
+            "candidate_count": reservation_audit.get("candidate_count", 0),
+            "reserved_candidate_count": len(accepted),
+            "blocked_candidate_count": (
+                len(paper_margin_reservation_blocked)
+                + len(economic_finalization_blocked)
+            ),
+            "economic_materialization_count": len(accepted),
+            "economic_finalization_blocked_count": len(
+                economic_finalization_blocked
+            ),
+            "generated_utc": _utc_iso(),
+            "atomic_scope": "CURRENT_PAPER_CYCLE_PRE_LIFECYCLE",
+            "cross_process_atomic": False,
+            "single_active_writer_required": True,
+        }
+    )
     _existing_open_rows = existing_ledger.get("open_positions")
     if not isinstance(_existing_open_rows, list):
         _existing_open_rows = []
