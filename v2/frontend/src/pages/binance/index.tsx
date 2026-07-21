@@ -11,7 +11,7 @@ import {
 import { useMarketDataStream } from '../../hooks/useMarketDataStream';
 import { useRealtimeResource } from '../../hooks/useRealtimeResource';
 import { useAuth } from '../../hooks/useAuth';
-import type { MarketCandlesData } from '../../types/apiV2';
+import type { MarketCandlesData, MarketTickerData } from '../../types/apiV2';
 import { AdaptiveCapitalTelemetryPanel } from '../../components/trading/AdaptiveCapitalTelemetryPanel';
 import { useAdaptiveCapitalDashboard } from '../../data/adaptiveCapitalProductivity';
 import meta from './meta';
@@ -659,11 +659,26 @@ export default function BinancePage(): JSX.Element {
   const ticker = stream.ticker?.data;
   const bids = stream.depth?.data?.bids ?? [];
   const asks = stream.depth?.data?.asks ?? [];
-  const lastPrice = ticker?.last_price ?? null;
-  const change24h = ticker?.change_24h ?? null;
-  const high24h = ticker?.high_24h ?? null;
-  const low24h = ticker?.low_24h ?? null;
-  const volume24h = ticker?.volume_24h ?? null;
+
+  // REST/API fallback for the header ticker strip. The native combined WSS can
+  // deliver bookTicker/depth/trade frames while @ticker/@markPrice frames never
+  // arrive (observed live), which left the price strip permanently '—' under a
+  // green Live dot. /api/v2/market/{symbol} carries the same 24h fields, so
+  // each field falls back to it independently.
+  const { envelope: tickerFallbackEnv } = useRealtimeResource<MarketTickerData>({
+    url: `/api/v2/market/${symbol}`,
+    source: `/api/v2/market/${symbol}`,
+    source_type: 'websocket',
+    pollIntervalMs: 5_000,
+    staleThresholdMs: 20_000,
+    mode: 'read_only',
+  });
+  const restTicker = tickerFallbackEnv.data;
+  const lastPrice = ticker?.last_price ?? restTicker?.last_price ?? null;
+  const change24h = ticker?.change_24h ?? restTicker?.change_24h ?? null;
+  const high24h = ticker?.high_24h ?? restTicker?.high_24h ?? null;
+  const low24h = ticker?.low_24h ?? restTicker?.low_24h ?? null;
+  const volume24h = ticker?.volume_24h ?? restTicker?.volume_24h ?? null;
 
   const { envelope: accountEnv } = useRealtimeResource<ExchangeAccountData>({
     url: '/api/v2/account/exchange-readonly',

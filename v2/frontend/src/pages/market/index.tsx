@@ -84,6 +84,10 @@ interface SignalData {
   target_1?: number | null;
   stop?: number | null;
   risk_reward?: number | null;
+  /** Trainer-declared freshness of the prediction (e.g. 'LIVE' | 'STALE'). */
+  source_freshness?: string | null;
+  generated_at?: string | null;
+  market_age_seconds?: number | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -750,6 +754,33 @@ function LongShortBar({ long, short }: { long: number | null; short: number | nu
 // Signal panel
 // ---------------------------------------------------------------------------
 
+function signalAgeSeconds(signal: SignalData): number | null {
+  const direct = finite(signal.market_age_seconds);
+  if (direct !== null) return Math.max(0, Math.round(direct));
+  if (typeof signal.generated_at === 'string' && signal.generated_at.trim()) {
+    const generatedMs = Date.parse(signal.generated_at);
+    if (Number.isFinite(generatedMs)) return Math.max(0, Math.round((Date.now() - generatedMs) / 1000));
+  }
+  return null;
+}
+
+function fmtSignalAge(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`;
+  return `${Math.floor(seconds / 86400)}d`;
+}
+
+/** Confidence is a probability, not a signed change — render without '+'. */
+function fmtConfidence(v: unknown): string {
+  const n = finite(v);
+  if (n === null) return '—';
+  const pct = Math.abs(n) <= 1 ? n * 100 : n;
+  return `${pct.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
+}
+
+const SIGNAL_STALE_AGE_SECONDS = 600;
+
 function SignalPanel({ signal, loading }: { signal: SignalData | null; loading: boolean }): JSX.Element {
   if (loading) {
     return (
@@ -769,19 +800,39 @@ function SignalPanel({ signal, loading }: { signal: SignalData | null; loading: 
   const action = signal.selected_action;
   const isBuy = /long|buy/i.test(action);
   const isSell = /short|sell/i.test(action);
+  // Surface the trainer-declared freshness: a days-old HOLD must never read as
+  // a live "Active Prediction". source_freshness comes straight from the API;
+  // market_age_seconds/generated_at back it up if the flag is absent.
+  const ageSeconds = signalAgeSeconds(signal);
+  const declaredStale = (signal.source_freshness ?? '').trim().toUpperCase() === 'STALE';
+  const isStale = declaredStale || (ageSeconds !== null && ageSeconds > SIGNAL_STALE_AGE_SECONDS);
   return (
     <div className="mdc-signal-panel">
       <div className="mdc-signal-panel__head">
         {isBuy ? <TrendingUp size={15} /> : isSell ? <TrendingDown size={15} /> : <Sparkles size={15} />}
         <span className={isBuy ? 'mdc-pos' : isSell ? 'mdc-neg' : ''}>{action}</span>
+        {isStale && (
+          <span
+            className="mdc-signal-panel__stale-chip"
+            title={signal.generated_at ? `Generated ${signal.generated_at}` : 'Prediction is stale'}
+          >
+            Stale{ageSeconds !== null ? ` · ${fmtSignalAge(ageSeconds)} old` : ''}
+          </span>
+        )}
       </div>
       <div className="mdc-signal-panel__grid">
-        <Stat label="Confidence" value={fmtPct(signal.confidence)} />
+        <Stat label="Confidence" value={fmtConfidence(signal.confidence)} />
         <Stat label="Entry" value={fmtPrice(signal.entry)} />
         <Stat label="Target" value={fmtPrice(signal.target_1)} />
         <Stat label="Stop" value={fmtPrice(signal.stop)} />
         <Stat label="R/R" value={signal.risk_reward != null ? `${signal.risk_reward.toFixed(2)}x` : '—'} />
       </div>
+      {(ageSeconds !== null || signal.generated_at) && (
+        <div className="mdc-signal-panel__meta">
+          {ageSeconds !== null ? `Generated ${fmtSignalAge(ageSeconds)} ago` : `Generated ${signal.generated_at}`}
+          {isStale ? ' · not a live prediction' : ''}
+        </div>
+      )}
     </div>
   );
 }

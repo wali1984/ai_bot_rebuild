@@ -4,6 +4,7 @@ import { ProChart } from '../../components/charts/ProChart';
 import { ProChartSymbolPanel } from '../../components/charts/ProChartSymbolPanel';
 import { useTraderContext } from '../../hooks/useTraderContext';
 import meta from './meta';
+import './proChart.css';
 
 const TIMEFRAMES = ['1m', '3m', '5m', '15m', '1h', '4h', '1d', '1w'] as const;
 type TF = typeof TIMEFRAMES[number];

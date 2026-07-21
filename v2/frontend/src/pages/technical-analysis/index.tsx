@@ -81,6 +81,15 @@ export default function TechnicalAnalysisPage(): JSX.Element {
   const data = ta.envelope.data;
   const fpData = fp.envelope.data;
 
+  // The classification VALUE can itself declare staleness (raw evidence:
+  // 'STALE_REDIS_EVIDENCE'); a transport-freshness dot beside it read as a
+  // live badge on stale evidence. Content-declared staleness wins.
+  const fpClassification = fpData?.classification ?? fpData?.trainer_status ?? null;
+  const fpClassificationFreshness: 'fresh' | 'stale' =
+    fpClassification !== null && /stale|offline|missing|frozen|blocked/i.test(fpClassification)
+      ? 'stale'
+      : fp.envelope.freshness_status === 'fresh' ? 'fresh' : 'stale';
+
   return (
     <article
       data-testid="page-technical-analysis"
@@ -124,7 +133,7 @@ export default function TechnicalAnalysisPage(): JSX.Element {
           <section style={{ marginBottom: 24 }}>
             <h2 style={{ fontSize: 15, fontWeight: 600, margin: '0 0 12px', color: 'var(--text-primary)' }}>Feature Pipeline</h2>
             <KPIGrid columns={3}>
-              <MetricCard label="Classification" value={fpData.classification ?? fpData.trainer_status ?? '—'} freshness={fp.envelope.freshness_status === 'fresh' ? 'fresh' : 'stale'} />
+              <MetricCard label="Classification" value={fpClassification ?? '—'} freshness={fpClassificationFreshness} />
               <MetricCard label="Predictions Built" value={(fpData.snapshots_built ?? fpData.count)?.toString() ?? '—'} />
               <MetricCard label="Feature Coverage" value={fpData.data_coverage != null ? `${fpData.data_coverage.toFixed(1)}%` : (fpData.feature_count != null ? `${fpData.feature_count} feats` : '—')} />
             </KPIGrid>

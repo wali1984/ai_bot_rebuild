@@ -656,7 +656,20 @@ function handleBackendSnapshotMessage(
   if (payload.depth && depth === null) return null;
   if (payload.trades && trades === null) return null;
   if (payload.candles && candles === null) return null;
-  const nextTicker = payload.ticker ? ticker : current?.ticker ?? null;
+  // Backend snapshots can be partial/incremental (e.g. book-ticker-only frames
+  // with null 24h fields). Field-merge onto the prior ticker instead of
+  // replacing the whole envelope so previously-known fields (last price, 24h
+  // high/low/volume) are never wiped back to null by a sparser frame.
+  let mergedTicker: ApiV2Envelope<MarketTickerData> | null = null;
+  if (ticker) {
+    const mergedTickerData = mergeTickerData(current?.ticker?.data, ticker.data ?? {});
+    mergedTicker = {
+      ...ticker,
+      data: mergedTickerData,
+      missing_fields: tickerMissingFields(mergedTickerData),
+    };
+  }
+  const nextTicker = payload.ticker ? mergedTicker : current?.ticker ?? null;
   const nextDepth = payload.depth ? depth : current?.depth ?? null;
   const nextTrades = payload.trades ? trades : current?.trades ?? null;
   const nextCandles = payload.candles ? candles : current?.candles ?? null;

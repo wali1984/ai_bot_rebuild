@@ -10,6 +10,41 @@ import { marketFavoriteSymbolSet } from '../../lib/traderPageHelpers';
 
 export { marketFavoriteSymbolSet };
 
+// ── Watchlist persistence ────────────────────────────────────────────────────
+// Stars survive reload via localStorage. An explicitly-stored empty list is
+// honored (user unstarred everything); defaults apply only when nothing has
+// ever been stored or the stored value is unreadable.
+const WATCHLIST_STORAGE_KEY = 'ai_bot_v2.market_watchlist.v1';
+
+function loadStoredFavorites(): Set<string> {
+  if (typeof window === 'undefined') return marketFavoriteSymbolSet([]);
+  try {
+    const raw = window.localStorage.getItem(WATCHLIST_STORAGE_KEY);
+    if (raw !== null) {
+      const parsed = JSON.parse(raw) as unknown;
+      if (Array.isArray(parsed)) {
+        const valid = parsed
+          .filter((s): s is string => typeof s === 'string')
+          .map((s) => s.toUpperCase().trim())
+          .filter((s) => /^[A-Z0-9]{3,20}$/.test(s));
+        return new Set(valid);
+      }
+    }
+  } catch {
+    // Unreadable storage falls back to defaults below.
+  }
+  return marketFavoriteSymbolSet([]);
+}
+
+function persistFavorites(favorites: Set<string>): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(WATCHLIST_STORAGE_KEY, JSON.stringify([...favorites].sort()));
+  } catch {
+    // Storage may be unavailable (private mode/quota); stars still work for the session.
+  }
+}
+
 interface TickerRow {
   symbol: string;
   last_price: number | null;
@@ -559,7 +594,7 @@ export default function MarketsPage(): JSX.Element {
   const [sortKey, setSortKey] = useState<SortKey>('turnover_24h');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [tab, setTab] = useState<TabId>('overview');
-  const [favorites, setFavorites] = useState<Set<string>>(() => marketFavoriteSymbolSet([]));
+  const [favorites, setFavorites] = useState<Set<string>>(loadStoredFavorites);
 
   function handleSort(key: SortKey): void {
     if (sortKey === key) {
@@ -571,12 +606,11 @@ export default function MarketsPage(): JSX.Element {
   }
 
   function toggleFavorite(symbol: string): void {
-    setFavorites((prev) => {
-      const next = new Set(prev);
-      if (next.has(symbol)) next.delete(symbol);
-      else next.add(symbol);
-      return next;
-    });
+    const next = new Set(favorites);
+    if (next.has(symbol)) next.delete(symbol);
+    else next.add(symbol);
+    persistFavorites(next);
+    setFavorites(next);
   }
 
   const allTickers = useMemo((): TickerRow[] => {

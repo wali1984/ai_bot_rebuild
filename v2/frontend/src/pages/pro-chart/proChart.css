@@ -1,0 +1,171 @@
+/* ── Pro Chart page (/chart/:symbol) ─────────────────────────────────────────
+   Structural classes referenced by pages/pro-chart/index.tsx. Before this file
+   existed the page shipped completely unstyled (raw header text, default
+   browser buttons, sidebar stacked under the chart). */
+
+.pro-chart-page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 20px 28px;
+  min-height: calc(100vh - 56px);
+  color: var(--text-primary);
+  box-sizing: border-box;
+}
+
+/* ── Header ── */
+.pro-chart-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px 18px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.pro-chart-header__symbol {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.pro-chart-header__name {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+  line-height: 1.15;
+}
+
+.pro-chart-header__exchange {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.pro-chart-header__timeframes {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.tf-btn {
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+}
+
+.tf-btn:hover {
+  color: var(--text-secondary);
+  border-color: var(--text-muted);
+}
+
+.tf-btn--active,
+.tf-btn--active:hover {
+  border-color: var(--accent);
+  background: color-mix(in oklch, var(--accent) 14%, transparent);
+  color: var(--accent);
+}
+
+.pro-chart-header__right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+
+/* Base pill style scoped to this page (global .status-pill only gets
+   responsive word-wrap rules). */
+.pro-chart-page .status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  line-height: 1.4;
+}
+
+/* ── Status strip ── */
+.pro-chart-status-strip {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+}
+
+.pro-chart-status-strip__item {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: color-mix(in oklch, var(--bg-panel) 80%, transparent);
+  color: var(--text-muted);
+}
+
+.pro-chart-status-strip__item--safe {
+  color: var(--ok, #26a69a);
+  border-color: color-mix(in oklch, var(--ok, #26a69a) 35%, transparent);
+  background: color-mix(in oklch, var(--ok, #26a69a) 8%, transparent);
+}
+
+.pro-chart-status-strip__item--blocked {
+  color: var(--error, #ef5350);
+  border-color: color-mix(in oklch, var(--error, #ef5350) 35%, transparent);
+  background: color-mix(in oklch, var(--error, #ef5350) 8%, transparent);
+  font-weight: 700;
+}
+
+/* ── Layout: chart + sidebar ── */
+.pro-chart-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 14px;
+  align-items: start;
+  min-height: 0;
+}
+
+.pro-chart-main {
+  min-width: 0;
+}
+
+.pro-chart-sidebar {
+  min-width: 0;
+}
+
+@media (max-width: 1000px) {
+  .pro-chart-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 760px) {
+  .pro-chart-page {
+    padding: 12px 12px 20px;
+  }
+
+  .pro-chart-header__name {
+    font-size: 18px;
+  }
+}

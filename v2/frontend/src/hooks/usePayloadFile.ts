@@ -53,6 +53,19 @@ function payloadAgeSeconds(payload: Record<string, unknown>): number | null {
   return null;
 }
 
+/** Payload prefixes pruned from the deployed dist bundle: in production the
+ *  static HTTP path can only answer with the SPA HTML shell (200 text/html),
+ *  so the initial fetch is guaranteed to fail to parse. Skip it and ride the
+ *  backend WS resolver immediately instead of painting an error/pending state
+ *  first. The watchdog HTTP failover in useRealtimeResource stays active, so
+ *  a dead WS still degrades exactly as before. */
+const PRUNED_STATIC_PAYLOAD_PREFIXES = ['/operator_runtime/'] as const;
+
+function initialHttpFetchCanSucceed(path: string): boolean {
+  if (!import.meta.env.PROD) return true;
+  return !PRUNED_STATIC_PAYLOAD_PREFIXES.some((prefix) => path.startsWith(prefix));
+}
+
 /** Stream any safe static JSON payload, falling back to interval fetch if the socket is unavailable. */
 export function usePayloadFile<T>(
   path: string,
@@ -67,7 +80,7 @@ export function usePayloadFile<T>(
     pollIntervalMs: intervalMs,
     staleThresholdMs: Math.max(intervalMs * 3, 30_000),
     enabled,
-    initialFetch: true,
+    initialFetch: initialHttpFetchCanSucceed(path),
     mode: 'read_only',
   });
 

@@ -494,6 +494,25 @@
   gap: 8px;
 }
 
+.mdc-signal-panel__stale-chip {
+  margin-left: auto;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--mdc-gold);
+  background: rgba(219, 168, 76, 0.14);
+  border: 1px solid rgba(219, 168, 76, 0.38);
+  white-space: nowrap;
+}
+
+.mdc-signal-panel__meta {
+  font-size: 0.72rem;
+  color: var(--mdc-muted);
+}
+
 .mdc-inline-link {
   display: inline-flex;
   align-items: center;
