@@ -765,7 +765,8 @@ def evaluate_candidate(
         or (altdata_present and altdata_euphoria is not None and altdata_euphoria >= 0.70)
     )
 
-    loss_probability = _f(loss.get("pre_trade_loss_probability")) or 1.0
+    parsed_loss_probability = _f(loss.get("pre_trade_loss_probability"))
+    loss_probability = 1.0 if parsed_loss_probability is None else parsed_loss_probability
     confidence_risk = _f(confidence.get("confidence_overstatement_risk")) or 0.0
     exit_score = _f(exit_plan.get("exit_feasibility_score")) or 0.0
     expected_edge = _f(cost.get("expected_edge_after_cost_bps"))

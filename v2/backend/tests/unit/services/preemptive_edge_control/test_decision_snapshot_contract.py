@@ -143,6 +143,25 @@ def _allow_decision() -> dict[str, object]:
     )
 
 
+def test_exact_zero_loss_probability_is_not_replaced_by_missing_evidence_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        decision_module,
+        "assess_candidate_loss_risk",
+        lambda **_kwargs: {
+            "pre_trade_loss_probability": 0.0,
+            "pre_trade_loss_risk_reasons": [],
+        },
+    )
+
+    result = _allow_decision()
+
+    assert result["pre_trade_loss_probability"] == 0.0
+    assert result["preemptive_decision"] == "ALLOW"
+    assert result["allow_paper_fill"] is True
+
+
 def test_explicit_aware_decision_time_overrides_candidate_model_clock() -> None:
     result = _evaluate(decision_time="2026-07-17T12:00:00-04:00")
 

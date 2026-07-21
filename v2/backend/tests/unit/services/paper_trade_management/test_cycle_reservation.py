@@ -93,6 +93,9 @@ def _allocation(
     margin: float,
     max_loss: float,
     leverage: float | None = None,
+    price: float = 100.0,
+    timeframe: str = "1m",
+    action: str = "long",
     snapshot_hash: str | None = None,
     suffix: str = "candidate",
 ) -> dict[str, Any]:
@@ -105,15 +108,14 @@ def _allocation(
     }
     if snapshot_hash is not None:
         lineage[CYCLE_RESERVATION_LINEAGE_KEY] = snapshot_hash
-    price = 100.0
     selected_leverage = leverage if leverage is not None else notional / margin
     material = {
         "schema_version": "adaptive_capital_allocation_input_v1",
         "mode": "paper",
         "allocation_input": {
             "symbol": symbol,
-            "timeframe": "1m",
-            "action": "long",
+            "timeframe": timeframe,
+            "action": action,
             "price": price,
             "permitted_leverage_values": (selected_leverage,),
             "lineage_ids": copy.deepcopy(lineage),
@@ -151,8 +153,8 @@ def _allocation(
         },
         "allocator_decision": "ALLOW_WITH_SIZE",
         "symbol": symbol,
-        "timeframe": "1m",
-        "action": "long",
+        "timeframe": timeframe,
+        "action": action,
         "target_quantity": quantity,
         "target_notional_usdt": notional,
         "target_notional_usd": notional,

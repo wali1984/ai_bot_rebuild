@@ -14,12 +14,15 @@ from pathlib import Path
 import pytest
 
 from v2.backend.app.cli import v2_trade_management_paper_loop as paper_loop
+from v2.backend.tests.unit.cli.test_v2_clean_3000_session_edge_recovery import (
+    _authorized_phase7_artifact,
+)
 from v2.backend.tests.unit.services.adaptive_capital_allocator.growth_receipt_test_utils import (
     authorize_growth,
     strict_growth_performance_status,
 )
-from v2.backend.tests.unit.cli.test_v2_clean_3000_session_edge_recovery import (
-    _authorized_phase7_artifact,
+from v2.backend.tests.unit.services.paper_trade_management.test_cycle_reservation import (
+    _allocation as _cycle_reservation_allocation,
 )
 
 
@@ -456,6 +459,87 @@ def _canonical_fail_closed_adaptive_tuning_state(
     return state, session_raw
 
 
+def _canonical_ready_adaptive_tuning_state(
+    monkeypatch,
+    *,
+    session_id: str,
+) -> tuple[dict[str, object], str]:
+    from v2.backend.app.cli import v2_adaptive_gate_tuner as tuner
+    from v2.backend.tests.unit.cli.test_v2_adaptive_gate_tuner import (
+        _clean_row as _adaptive_tuner_clean_row,
+    )
+    from v2.backend.tests.unit.cli.test_v2_adaptive_gate_tuner import (
+        _source_values as _adaptive_tuner_source_values,
+    )
+
+    session_payload = {
+        "paper_session_id": session_id,
+        "reset_session_id": session_id,
+        "session_id": session_id,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+    session_raw = json.dumps(session_payload, sort_keys=True)
+    rows = [
+        _adaptive_tuner_clean_row(
+            index,
+            pnl=1.0 if index < 15 else -0.25,
+            confidence=0.90,
+            session_id=session_id,
+        )
+        for index in range(20)
+    ]
+    for row in rows:
+        row["grade"] = "A"
+    source_values = _adaptive_tuner_source_values(rows)
+    source_values[tuner.PAPER_SESSION_KEY] = session_raw
+    outcomes_cutoff = datetime(2026, 7, 17, 12, 0, tzinfo=timezone.utc)
+    clock = iter(
+        (
+            datetime(2026, 7, 17, 12, 0, 0, 500000, tzinfo=timezone.utc),
+            datetime(2026, 7, 17, 12, 0, 1, tzinfo=timezone.utc),
+        )
+    )
+    monkeypatch.setattr(tuner, "_utc_now", lambda: next(clock))
+    state = tuner._build_canonical_state(  # noqa: SLF001
+        outcomes={},
+        regime={},
+        source_values=source_values,
+        source_manifest=[],
+        source_read_errors=[],
+        current_paper_session_id=session_id,
+        session_identity_errors=[],
+        outcomes_cutoff=outcomes_cutoff,
+        adaptive_confidence_threshold=0.0,
+        loss_probability_threshold=0.0,
+        enable_b_grade=False,
+        enable_a_grade=False,
+        volatility_factor=0.0,
+        trainer_performance_factor=0.0,
+        portfolio_performance_factor=0.0,
+        long_confidence_floor=0.0,
+        short_confidence_floor=0.0,
+        expectancy_floor=0.0,
+        entry_freeze_allowance=0.0,
+        a_plus_strictness=0.0,
+    )
+    assert state["evidence_sufficient"] is True
+    assert state["economic_edge_positive"] is True
+    assert state["a_grade_ready"] is True
+    assert float(state["adaptive_loss_probability_threshold"]) > 0.20
+    assert (
+        tuner.adaptive_gate_tuning_rejection_reasons(
+            state,
+            observed_at="2026-07-17T12:00:02Z",
+            current_paper_session_id=session_id,
+            require_current_session=True,
+        )
+        == []
+    )
+    return state, session_raw
+
+
 @pytest.fixture
 def golden_a_grade_final_admission(
     monkeypatch,
@@ -492,7 +576,7 @@ def golden_a_grade_final_admission(
     allocation_decision_time = "2026-07-17T12:00:05Z"
     bracket_key_id = "paper-golden-bracket-key-v1"
     paper_session_id = "paper-golden-session-2026-07-17"
-    tuning_state, paper_session_raw = _canonical_fail_closed_adaptive_tuning_state(
+    tuning_state, paper_session_raw = _canonical_ready_adaptive_tuning_state(
         monkeypatch,
         session_id=paper_session_id,
     )
@@ -2305,41 +2389,39 @@ def _synthetic_final_admission_sealed_row(
         emergency_absolute_cap_usdt=None,
         prior_accepted_rows=[],
     )
-    allocation_lineage = {paper_loop.CYCLE_RESERVATION_LINEAGE_KEY: cycle_snapshot["snapshot_hash"]}
-    allocation_input = {
-        "symbol": symbol,
-        "lineage_ids": allocation_lineage,
-    }
-    allocation_input_material = {
-        "schema_version": "adaptive_capital_allocation_input_v1",
-        "mode": "paper",
-        "allocation_input": allocation_input,
-    }
-    allocation_input_hash = paper_loop._paper_canonical_sha256(  # noqa: SLF001
-        allocation_input_material
-    )
     notional = float(row["gross_notional_usd"])
-    margin = float(row["allocated_margin_usd"])
+    leverage = float(row["effective_leverage"])
+    margin = round(notional / leverage, 8)
+    price = float(row["entry_price"])
     max_loss = float(row.get("expected_max_loss_usd") or max(0.01, notional * 0.01))
-    allocation: dict[str, object] = {
-        "allocation_id": f"alloc_{str(allocation_input_hash)[:24]}",
-        "allocation_input_schema_version": "adaptive_capital_allocation_input_v1",
-        "allocation_input_hash_algorithm": "sha256(canonical-json-v1)",
-        "allocation_input_hash": allocation_input_hash,
-        "allocation_input_material": allocation_input_material,
-        "allocator_decision": "ALLOW_WITH_SIZE",
-        "symbol": symbol,
-        "lineage_ids": allocation_lineage,
-        "gross_notional_usd": notional,
-        "target_notional_usdt": notional,
-        "target_notional_usd": notional,
-        "allocated_margin_usd": margin,
-        "max_loss_if_stop_hit": max_loss,
-        "max_loss_usd": max_loss,
-        "paper_only": True,
-        "routes_to_live": False,
-        "places_real_order": False,
-    }
+    allocation = _cycle_reservation_allocation(
+        symbol,
+        notional=notional,
+        margin=margin,
+        max_loss=max_loss,
+        leverage=leverage,
+        price=price,
+        timeframe=str(row["timeframe"]),
+        action=str(row["side"]),
+        snapshot_hash=str(cycle_snapshot["snapshot_hash"]),
+        suffix=str(row["intent_id"]),
+    )
+    allocation_input_hash = allocation["allocation_input_hash"]
+    row.update(
+        {
+            "quantity": allocation["target_quantity"],
+            "target_quantity": allocation["target_quantity"],
+            "fill_price": price,
+            "entry_price": price,
+            "notional": notional,
+            "target_notional_usd": notional,
+            "target_notional_usdt": notional,
+            "gross_notional_usd": notional,
+            "recommended_leverage": leverage,
+            "effective_leverage": leverage,
+            "allocated_margin_usd": margin,
+        }
+    )
     row["adaptive_allocation"] = allocation
     row["allocation_id"] = allocation["allocation_id"]
     row["paper_precycle_current_mark_exposure_snapshot"] = precycle_snapshot
@@ -22383,7 +22465,17 @@ def test_portfolio_cascade_guard_decision_core() -> None:
     assert d["ALTBUSDT"]["action"] == "RIDE_TIGHTEN"  # winner rides the move
     assert "CALMUSDT" not in d
 
-    breach = {"worst_case_liquidation_breached": True}
+    unauthenticated_breach = {"worst_case_liquidation_breached": True}
+    d_untrusted = {
+        x["symbol"]: x
+        for x in decide_directives(positions, cascade, unauthenticated_breach)
+    }
+    assert "CALMUSDT" not in d_untrusted
+
+    breach = {
+        "portfolio_level_computed": True,
+        "worst_case_liquidation_breached": True,
+    }
     d2 = {x["symbol"]: x for x in decide_directives(positions, cascade, breach)}
     assert d2["CALMUSDT"]["action"] == "CLOSE"  # portfolio breach closes losers
     assert d2["ALTBUSDT"]["action"] == "RIDE_TIGHTEN"
