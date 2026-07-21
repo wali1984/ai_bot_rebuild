@@ -92,9 +92,7 @@ from v2.backend.app.services.native_trainer.trusted_replay.dataset import (
 PROFILED_OBSERVATION_MANIFEST_V1_SCHEMA_VERSION: Final = (
     "profiled_training_fixed_observation_manifest_v1"
 )
-PROFILED_OBSERVATION_ENTRY_V1_SCHEMA_VERSION: Final = (
-    "profiled_training_fixed_observation_entry_v1"
-)
+PROFILED_OBSERVATION_ENTRY_V1_SCHEMA_VERSION: Final = "profiled_training_fixed_observation_entry_v1"
 PROFILED_OBSERVATION_CONTEXT_V1_SCHEMA_VERSION: Final = (
     "profiled_training_fixed_observation_context_v1"
 )
@@ -104,10 +102,11 @@ PROFILED_OBSERVATION_LABEL_BINDING_V1_SCHEMA_VERSION: Final = (
 PROFILED_OBSERVATION_TENSOR_BINDING_V1_SCHEMA_VERSION: Final = (
     "profiled_training_example_tensor_binding_v1"
 )
-PROFILED_OBSERVATION_AUTH_ALGORITHM: Final = "HMAC-SHA256"
-PROFILED_OBSERVATION_AUTH_DOMAIN: Final = (
-    "v2/native-trainer/profiled-fixed-observation-manifest/v1"
+PROFILED_OBSERVATION_TRAINING_EXAMPLE_ADAPTER_CONTRACT_VERSION: Final = (
+    "profiled_training_example_adapter_postcommit_availability_v1"
 )
+PROFILED_OBSERVATION_AUTH_ALGORITHM: Final = "HMAC-SHA256"
+PROFILED_OBSERVATION_AUTH_DOMAIN: Final = "v2/native-trainer/profiled-fixed-observation-manifest/v1"
 PROFILED_OBSERVATION_AUTH_SEPARATOR: Final = (
     PROFILED_OBSERVATION_AUTH_DOMAIN.encode("ascii") + b"\0"
 )
@@ -117,8 +116,7 @@ PROFILED_OBSERVATION_ENTRY_CHAIN_GENESIS: Final = hashlib.sha256(
 PROFILED_OBSERVATION_LABEL_STATUS_ADMITTED: Final = "ADMITTED_FINALIZED_LABEL"
 PROFILED_OBSERVATION_LABEL_STATUS_UNAVAILABLE: Final = "LABEL_NOT_AVAILABLE_AT_OBSERVATION"
 PROFILED_OBSERVATION_RUNTIME_STATUS: Final = (
-    "UNWIRED_BOUNDED_REOPEN_EXTERNAL_MONOTONIC_HEAD_REQUIRED_"
-    "NO_OPTIMIZER_OR_SERVING_AUTHORITY"
+    "UNWIRED_BOUNDED_REOPEN_EXTERNAL_MONOTONIC_HEAD_REQUIRED_" "NO_OPTIMIZER_OR_SERVING_AUTHORITY"
 )
 PROFILED_OBSERVATION_ORDERED_DIGEST_SCHEMA_VERSION: Final = (
     "profiled_training_ordered_canonical_stream_digest_v1"
@@ -131,6 +129,9 @@ PROFILED_OBSERVATION_ENTRY_IDENTITY_DIGEST_DOMAIN: Final = (
 )
 PROFILED_OBSERVATION_EXCLUSION_DIGEST_DOMAIN: Final = (
     "v2/native-trainer/profiled-observation/ordered-ledger-exclusions/v1"
+)
+PROFILED_OBSERVATION_PAGE_ENTRY_DIGEST_DOMAIN: Final = (
+    "v2/native-trainer/profiled-observation/ordered-authenticated-page-entries/v1"
 )
 
 # Serialization/cryptographic resource limits, never market-selection gates.
@@ -222,6 +223,8 @@ _EXPECTED_SCHEMA_SQL: Final = {
 _BUILD_TOKEN = object()
 _PAGE_TOKEN = object()
 _EXAMPLE_TOKEN = object()
+_AUTHENTICATED_MANIFEST_TOKEN = object()
+_AUTHENTICATED_INVENTORY_PAGE_TOKEN = object()
 
 
 class ProfiledTrainingObservationManifestV1Error(RuntimeError):
@@ -238,6 +241,23 @@ def _fail(*reasons: str) -> NoReturn:
 
 def _valid_sha256(value: object) -> bool:
     return type(value) is str and _SHA256_RE.fullmatch(value) is not None
+
+
+def _training_example_adapter_contract() -> dict[str, Any]:
+    """Authenticated semantics that must change with any adapter revision."""
+
+    return {
+        "schema_version": PROFILED_OBSERVATION_TRAINING_EXAMPLE_ADAPTER_CONTRACT_VERSION,
+        "trust_row_available_at_source_field": "postcommit_readback_at",
+        "trust_row_available_at_semantics": (
+            "TRAINER_SAMPLE_DURABLY_AVAILABLE_AT_LEDGER_POSTCOMMIT_READBACK"
+        ),
+        "record_generated_at_must_not_exceed_decision_time": True,
+        "postcommit_readback_at_must_exceed_decision_time": True,
+        "postcommit_readback_at_must_exceed_record_generated_at": True,
+        "label_available_at_must_exceed_decision_time": True,
+        "future_labels_not_in_feature_tensor": True,
+    }
 
 
 def _canonical_json(value: object, *, reason: str, maximum_bytes: int) -> str:
@@ -279,11 +299,15 @@ def _strict_json(raw: str, *, reason: str, maximum_bytes: int) -> dict[str, Any]
         )
     except (RecursionError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
         raise ProfiledTrainingObservationManifestV1Error(reason) from exc
-    if type(value) is not dict or _canonical_json(
-        value,
-        reason=reason,
-        maximum_bytes=maximum_bytes,
-    ) != raw:
+    if (
+        type(value) is not dict
+        or _canonical_json(
+            value,
+            reason=reason,
+            maximum_bytes=maximum_bytes,
+        )
+        != raw
+    ):
         _fail(reason)
     return cast(dict[str, Any], value)
 
@@ -410,46 +434,24 @@ def _sample_binding(sample: ProfiledTrainingLedgerSampleV1) -> dict[str, Any]:
         "cost_capture_artifact_sha256": sample.cost_capture_artifact_sha256,
         "cost_capture_receipt_sha256": sample.cost_capture_receipt_sha256,
         "cost_cas_object_inventory_sha256": sample.cost_cas_object_inventory_sha256,
-        "auxiliary_feature_receipt_sha256s": list(
-            sample.auxiliary_feature_receipt_sha256s
-        ),
-        "expected_holding_horizon_seconds": (
-            sample.expected_holding_horizon_seconds
-        ),
+        "auxiliary_feature_receipt_sha256s": list(sample.auxiliary_feature_receipt_sha256s),
+        "expected_holding_horizon_seconds": (sample.expected_holding_horizon_seconds),
         "cost_evidence_available_at": sample.cost_evidence_available_at,
         "decision_reference_price": sample.decision_reference_price,
         "decision_reference_best_bid": sample.decision_reference_best_bid,
         "decision_reference_best_ask": sample.decision_reference_best_ask,
-        "decision_reference_full_spread_bps": (
-            sample.decision_reference_full_spread_bps
-        ),
+        "decision_reference_full_spread_bps": (sample.decision_reference_full_spread_bps),
         "decision_reference_price_source": sample.decision_reference_price_source,
-        "decision_reference_price_available_at": (
-            sample.decision_reference_price_available_at
-        ),
-        "decision_reference_price_binding_sha256": (
-            sample.decision_reference_price_binding_sha256
-        ),
-        "decision_reference_price_payload_sha256": (
-            sample.decision_reference_price_payload_sha256
-        ),
-        "decision_reference_price_receipt_sha256": (
-            sample.decision_reference_price_receipt_sha256
-        ),
-        "physical_feature_values_sha256": stable_sha256(
-            list(sample.physical_feature_values)
-        ),
-        "auxiliary_label_values_sha256": stable_sha256(
-            list(sample.auxiliary_label_values)
-        ),
+        "decision_reference_price_available_at": (sample.decision_reference_price_available_at),
+        "decision_reference_price_binding_sha256": (sample.decision_reference_price_binding_sha256),
+        "decision_reference_price_payload_sha256": (sample.decision_reference_price_payload_sha256),
+        "decision_reference_price_receipt_sha256": (sample.decision_reference_price_receipt_sha256),
+        "physical_feature_values_sha256": stable_sha256(list(sample.physical_feature_values)),
+        "auxiliary_label_values_sha256": stable_sha256(list(sample.auxiliary_label_values)),
         "logical_model_vector_sha256": sample.logical_model_vector_sha256,
         "logical_projection_sha256": sample.logical_projection_sha256,
-        "logical_profile_selection_mask_sha256": (
-            sample.logical_profile_selection_mask_sha256
-        ),
-        "logical_enabled_slot_ordinals_sha256": (
-            sample.logical_enabled_slot_ordinals_sha256
-        ),
+        "logical_profile_selection_mask_sha256": (sample.logical_profile_selection_mask_sha256),
+        "logical_enabled_slot_ordinals_sha256": (sample.logical_enabled_slot_ordinals_sha256),
         "append_transaction_id": sample.append_transaction_id,
         "append_receipt_sha256": sample.append_receipt_sha256,
         "postcommit_receipt_sha256": sample.postcommit_receipt_sha256,
@@ -525,11 +527,7 @@ def _label_binding(
             _fail("PROFILED_OBSERVATION_LABEL_INTEGRITY_PROOF_MOVED_DURING_BUILD")
         reasons = tuple(
             sorted(
-                {
-                    str(reason)
-                    for reason in path_proof.get("rejection_reasons") or ()
-                    if str(reason)
-                }
+                {str(reason) for reason in path_proof.get("rejection_reasons") or () if str(reason)}
             )
         )
         return None, reasons or ("PROFILED_OBSERVATION_LABEL_PATH_UNAVAILABLE",)
@@ -554,12 +552,11 @@ def _label_binding(
         or not _valid_sha256(range_proof.get("range_sha256"))
     ):
         _fail("PROFILED_OBSERVATION_LABEL_PATH_PROOF_INVALID")
-    if (
-        path_proof.get("horizon_seconds")
-        != sample.expected_holding_horizon_seconds
-        or range_proof.get("end_close_time_ms")
-        != rows[-1].get("candle_close_time")
-    ):
+    if path_proof.get(
+        "horizon_seconds"
+    ) != sample.expected_holding_horizon_seconds or range_proof.get("end_close_time_ms") != rows[
+        -1
+    ].get("candle_close_time"):
         _fail("PROFILED_OBSERVATION_LABEL_HORIZON_BINDING_MISMATCH")
     epoch_delta = decision_clock - datetime(1970, 1, 1, tzinfo=UTC)
     decision_epoch_us = (
@@ -567,13 +564,10 @@ def _label_binding(
         + epoch_delta.seconds * 1_000_000
         + epoch_delta.microseconds
     )
-    expected_target_us = (
-        decision_epoch_us + sample.expected_holding_horizon_seconds * 1_000_000
-    )
+    expected_target_us = decision_epoch_us + sample.expected_holding_horizon_seconds * 1_000_000
     if (
         path_proof.get("horizon_target_time_epoch_us") != expected_target_us
-        or path_proof.get("horizon_target_time_ms")
-        != (expected_target_us + 999) // 1_000
+        or path_proof.get("horizon_target_time_ms") != (expected_target_us + 999) // 1_000
     ):
         _fail("PROFILED_OBSERVATION_LABEL_HORIZON_TARGET_MISMATCH")
     entry_price = sample.decision_reference_price
@@ -661,9 +655,7 @@ def _label_binding(
             "candle_close_time_ms": row.get("candle_close_time"),
             "available_at_ms": row.get("available_at"),
             "raw_payload_hash": row.get("raw_payload_hash"),
-            "content_sha256": hashlib.sha256(
-                canonical_label_json(row).encode("utf-8")
-            ).hexdigest(),
+            "content_sha256": hashlib.sha256(canonical_label_json(row).encode("utf-8")).hexdigest(),
         }
         for row in rows
     ]
@@ -673,27 +665,15 @@ def _label_binding(
         "cost_capture_artifact_sha256": sample.cost_capture_artifact_sha256,
         "cost_capture_receipt_sha256": sample.cost_capture_receipt_sha256,
         "cost_cas_object_inventory_sha256": sample.cost_cas_object_inventory_sha256,
-        "auxiliary_feature_receipt_sha256s": list(
-            sample.auxiliary_feature_receipt_sha256s
-        ),
+        "auxiliary_feature_receipt_sha256s": list(sample.auxiliary_feature_receipt_sha256s),
         "cost_evidence_available_at": sample.cost_evidence_available_at,
         "decision_reference_price": entry_price,
         "decision_reference_price_source": sample.decision_reference_price_source,
-        "decision_reference_price_available_at": (
-            sample.decision_reference_price_available_at
-        ),
-        "decision_reference_price_binding_sha256": (
-            sample.decision_reference_price_binding_sha256
-        ),
-        "decision_reference_price_payload_sha256": (
-            sample.decision_reference_price_payload_sha256
-        ),
-        "decision_reference_price_receipt_sha256": (
-            sample.decision_reference_price_receipt_sha256
-        ),
-        "expected_holding_horizon_seconds": (
-            sample.expected_holding_horizon_seconds
-        ),
+        "decision_reference_price_available_at": (sample.decision_reference_price_available_at),
+        "decision_reference_price_binding_sha256": (sample.decision_reference_price_binding_sha256),
+        "decision_reference_price_payload_sha256": (sample.decision_reference_price_payload_sha256),
+        "decision_reference_price_receipt_sha256": (sample.decision_reference_price_receipt_sha256),
+        "expected_holding_horizon_seconds": (sample.expected_holding_horizon_seconds),
         "fee_bps_per_side": fee_bps,
         "full_spread_bps": spread_bps,
         "expected_slippage_bps_per_side": slippage_bps,
@@ -729,9 +709,7 @@ def _label_binding(
         "label_expected_move_after_cost_bps_float64_sha256": label_value_sha256,
         "label_horizon_seconds": sample.expected_holding_horizon_seconds,
         "label_horizon_source": "AUTHENTICATED_CAUSAL_COST_BINDING",
-        "label_horizon_target_time_epoch_us": path_proof.get(
-            "horizon_target_time_epoch_us"
-        ),
+        "label_horizon_target_time_epoch_us": path_proof.get("horizon_target_time_epoch_us"),
         "label_horizon_target_time_ms": path_proof.get("horizon_target_time_ms"),
         "label_final_candle_close_time_ms": rows[-1].get("candle_close_time"),
         "label_path_sha256": path_proof.get("label_path_sha256"),
@@ -739,9 +717,7 @@ def _label_binding(
         "label_path_candle_count": len(rows),
         "label_path_candle_identities_sha256": stable_sha256(candle_identities),
         "label_append_receipt_sha256s": range_proof.get("append_receipt_sha256"),
-        "label_postcommit_receipt_sha256s": range_proof.get(
-            "postcommit_readback_receipt_sha256"
-        ),
+        "label_postcommit_receipt_sha256s": range_proof.get("postcommit_readback_receipt_sha256"),
         "directional_cost_evidence": directional_cost_material,
         "directional_cost_evidence_sha256": directional_cost_evidence_sha256,
         "future_labels_not_in_feature_tensor": True,
@@ -786,15 +762,9 @@ def _tensor_binding(
         "feature_snapshot_id": sample.feature_snapshot_id,
         "logical_feature_count": LOGICAL_MODEL_FEATURE_COUNT,
         "logical_model_input_count": LOGICAL_MODEL_INPUT_COUNT,
-        "logical_ordered_feature_names_sha256": stable_sha256(
-            list(LOGICAL_ORDERED_FEATURE_NAMES)
-        ),
-        "logical_profile_selection_mask_sha256": (
-            sample.logical_profile_selection_mask_sha256
-        ),
-        "logical_enabled_slot_ordinals_sha256": (
-            sample.logical_enabled_slot_ordinals_sha256
-        ),
+        "logical_ordered_feature_names_sha256": stable_sha256(list(LOGICAL_ORDERED_FEATURE_NAMES)),
+        "logical_profile_selection_mask_sha256": (sample.logical_profile_selection_mask_sha256),
+        "logical_enabled_slot_ordinals_sha256": (sample.logical_enabled_slot_ordinals_sha256),
         "logical_projection_sha256": sample.logical_projection_sha256,
         "feature_registry_sha256": FEATURE_SOURCE_REGISTRY_V4_SHA256,
         "feature_registry_abi_sha256": FEATURE_SOURCE_REGISTRY_V4_ABI_SHA256,
@@ -885,8 +855,7 @@ def _schema_objects(connection: sqlite3.Connection) -> dict[str, tuple[str, str]
             " ".join(str(row["sql"]).split()),
         )
         for row in connection.execute(
-            "SELECT name, type, sql FROM sqlite_master "
-            "WHERE name IN (?, ?, ?, ?, ?, ?, ?)",
+            "SELECT name, type, sql FROM sqlite_master " "WHERE name IN (?, ?, ?, ?, ?, ?, ?)",
             tuple(_EXPECTED_SCHEMA_OBJECTS),
         )
     }
@@ -957,17 +926,13 @@ def _verify_metadata_row(
         or type(metadata.get("auth_key_id")) is not str
         or _AUTH_KEY_ID_RE.fullmatch(metadata["auth_key_id"]) is None
         or (
-            expected_auth_key_id is not None
-            and metadata.get("auth_key_id") != expected_auth_key_id
+            expected_auth_key_id is not None and metadata.get("auth_key_id") != expected_auth_key_id
         )
-        or path.name
-        != f"profiled_training_observation_{metadata.get('manifest_id')}.sqlite3"
+        or path.name != f"profiled_training_observation_{metadata.get('manifest_id')}.sqlite3"
     ):
         _fail("PROFILED_OBSERVATION_METADATA_AUTHENTICATION_INVALID")
     unsigned_for_id = {
-        key_name: value
-        for key_name, value in metadata.items()
-        if key_name != "manifest_id"
+        key_name: value for key_name, value in metadata.items() if key_name != "manifest_id"
     }
     if metadata["manifest_id"] != stable_sha256(unsigned_for_id):
         _fail("PROFILED_OBSERVATION_MANIFEST_ID_INVALID")
@@ -987,6 +952,7 @@ def _verify_metadata_row(
     unavailable = metadata.get("label_unavailable_count")
     exclusions = metadata.get("ledger_exclusion_count")
     context = metadata.get("observation_context")
+    adapter_contract = _training_example_adapter_contract()
     if (
         type(total) is not int
         or total < 0
@@ -999,17 +965,17 @@ def _verify_metadata_row(
         or exclusions < 0
         or type(context) is not dict
         or metadata.get("observation_context_sha256") != stable_sha256(context)
+        or context.get("training_example_adapter_contract") != adapter_contract
+        or context.get("training_example_adapter_contract_sha256")
+        != stable_sha256(adapter_contract)
         or metadata.get("observation_time") != context.get("observation_time")
-        or metadata.get("retrospective_cutoff_at")
-        != metadata.get("observation_time")
-        or context.get("retrospective_cutoff_at")
-        != metadata.get("observation_time")
+        or metadata.get("retrospective_cutoff_at") != metadata.get("observation_time")
+        or context.get("retrospective_cutoff_at") != metadata.get("observation_time")
         or metadata.get("factory_wall_clock_observed_at")
         != context.get("factory_wall_clock_observed_at")
         or metadata.get("ordered_digest_schema_version")
         != PROFILED_OBSERVATION_ORDERED_DIGEST_SCHEMA_VERSION
-        or metadata.get("ordered_digest_algorithm")
-        != PROFILED_OBSERVATION_ORDERED_DIGEST_ALGORITHM
+        or metadata.get("ordered_digest_algorithm") != PROFILED_OBSERVATION_ORDERED_DIGEST_ALGORITHM
         or metadata.get("ordered_entry_identity_digest_domain")
         != PROFILED_OBSERVATION_ENTRY_IDENTITY_DIGEST_DOMAIN
         or metadata.get("ordered_entry_identity_count") != total
@@ -1018,8 +984,7 @@ def _verify_metadata_row(
         != PROFILED_OBSERVATION_EXCLUSION_DIGEST_DOMAIN
         or metadata.get("ordered_ledger_exclusion_count") != exclusions
         or not _valid_sha256(metadata.get("ledger_exclusion_inventory_sha256"))
-        or metadata.get("entry_chain_genesis_sha256")
-        != PROFILED_OBSERVATION_ENTRY_CHAIN_GENESIS
+        or metadata.get("entry_chain_genesis_sha256") != PROFILED_OBSERVATION_ENTRY_CHAIN_GENESIS
         or not _valid_sha256(metadata.get("entry_chain_head_sha256"))
         or metadata.get("bounded_runtime_reopen") is not True
         or metadata.get("full_ledger_scan_required_on_runtime_reopen") is not False
@@ -1182,9 +1147,7 @@ def _verify_entry_row(
     if sample_binding.get("sample_identity_sha256") != stable_sha256(sample_unsigned):
         _fail("PROFILED_OBSERVATION_SAMPLE_IDENTITY_INVALID")
     admitted = entry.get("label_status") == PROFILED_OBSERVATION_LABEL_STATUS_ADMITTED
-    unavailable = (
-        entry.get("label_status") == PROFILED_OBSERVATION_LABEL_STATUS_UNAVAILABLE
-    )
+    unavailable = entry.get("label_status") == PROFILED_OBSERVATION_LABEL_STATUS_UNAVAILABLE
     reasons = entry.get("label_rejection_reasons")
     if (
         not (admitted or unavailable)
@@ -1256,9 +1219,7 @@ def _verify_complete_entry_stream(
                 {
                     "ordinal": expected_ordinal,
                     "ledger_sequence": sample_binding["ledger_sequence"],
-                    "sample_identity_sha256": sample_binding[
-                        "sample_identity_sha256"
-                    ],
+                    "sample_identity_sha256": sample_binding["sample_identity_sha256"],
                     "label_status": entry["label_status"],
                     "entry_sha256": row["entry_sha256"],
                     "entry_chain_sha256": row["entry_chain_sha256"],
@@ -1279,8 +1240,7 @@ def _verify_complete_entry_stream(
         or admitted + unavailable != total
         or identity_digest.count != total
         or previous_chain != metadata.get("entry_chain_head_sha256")
-        or identity_digest.hexdigest()
-        != metadata.get("ordered_entry_identities_sha256")
+        or identity_digest.hexdigest() != metadata.get("ordered_entry_identities_sha256")
     ):
         _fail("PROFILED_OBSERVATION_ENTRY_INVENTORY_AUTHENTICATION_INVALID")
 
@@ -1318,6 +1278,236 @@ class ProfiledTrainingObservationManifestBuildV1:
             reason="PROFILED_OBSERVATION_BUILD_WALL_CLOCK_INVALID",
         ):
             _fail("PROFILED_OBSERVATION_BUILD_CLOCK_ORDER_INVALID")
+
+
+@dataclass(frozen=True, slots=True)
+class AuthenticatedProfiledTrainingObservationManifestV1:
+    """Immutable scalar result of authenticating one complete manifest.
+
+    This result proves only local file, schema, metadata, HMAC, and complete
+    entry-inventory integrity.  It deliberately does not claim that the
+    manifest is the externally witnessed monotonic successor of any earlier
+    manifest.
+    """
+
+    manifest_path: Path
+    manifest_file_device: int
+    manifest_file_inode: int
+    manifest_file_byte_count: int
+    manifest_id: str
+    metadata_sha256: str
+    metadata_auth_tag: str
+    observation_time: str
+    retrospective_cutoff_at: str
+    factory_wall_clock_observed_at: str
+    auth_algorithm: str
+    auth_domain: str
+    auth_key_id: str
+    observation_context_sha256: str
+    feature_ledger_path: str
+    feature_ledger_path_sha256: str
+    feature_ledger_high_water_sha256: str
+    feature_ledger_verified_records: int
+    feature_ledger_prefix_head_sequence: int
+    feature_ledger_archive_chain_sha256: str
+    feature_ledger_ordered_receipts_sha256: str
+    label_archive_path: str
+    label_archive_path_sha256: str
+    label_archive_high_water_sha256: str
+    label_archive_verified_rows: int
+    label_archive_prefix_head_sequence: int
+    label_archive_archive_chain_sha256: str
+    label_archive_ordered_receipts_sha256: str
+    entry_chain_genesis_sha256: str
+    entry_chain_head_sha256: str
+    ordered_entry_identities_sha256: str
+    total_profiled_samples: int
+    admitted_example_count: int
+    label_unavailable_count: int
+    ledger_exclusion_count: int
+    ledger_exclusion_inventory_sha256: str
+    full_manifest_authentication_verified: bool
+    full_entry_inventory_verified: bool
+    external_monotonic_manifest_head_verified: bool
+    full_consumption_external_ack_verified: bool
+    optimizer_admission_authorized: bool
+    checkpoint_write_authorized: bool
+    model_write_authorized: bool
+    prediction_authorized: bool
+    paper_trading_authorized: bool
+    live_execution_authorized: bool
+    execution_authorized: bool
+    runtime_wired: bool
+    _authenticated_manifest_key_sha256: str = field(repr=False, compare=False)
+    _construction_token: object = field(repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        hashes = (
+            self.manifest_id,
+            self.metadata_sha256,
+            self.metadata_auth_tag,
+            self.observation_context_sha256,
+            self.feature_ledger_path_sha256,
+            self.feature_ledger_high_water_sha256,
+            self.feature_ledger_archive_chain_sha256,
+            self.feature_ledger_ordered_receipts_sha256,
+            self.label_archive_path_sha256,
+            self.label_archive_high_water_sha256,
+            self.label_archive_archive_chain_sha256,
+            self.label_archive_ordered_receipts_sha256,
+            self.entry_chain_genesis_sha256,
+            self.entry_chain_head_sha256,
+            self.ordered_entry_identities_sha256,
+            self.ledger_exclusion_inventory_sha256,
+            self._authenticated_manifest_key_sha256,
+        )
+        false_authority = (
+            self.external_monotonic_manifest_head_verified,
+            self.full_consumption_external_ack_verified,
+            self.optimizer_admission_authorized,
+            self.checkpoint_write_authorized,
+            self.model_write_authorized,
+            self.prediction_authorized,
+            self.paper_trading_authorized,
+            self.live_execution_authorized,
+            self.execution_authorized,
+            self.runtime_wired,
+        )
+        if (
+            self._construction_token is not _AUTHENTICATED_MANIFEST_TOKEN
+            or not self.manifest_path.is_absolute()
+            or self.manifest_path.name
+            != f"profiled_training_observation_{self.manifest_id}.sqlite3"
+            or self.manifest_file_device < 0
+            or self.manifest_file_inode <= 0
+            or self.manifest_file_byte_count <= 0
+            or not all(_valid_sha256(value) for value in hashes)
+            or self.auth_algorithm != PROFILED_OBSERVATION_AUTH_ALGORITHM
+            or self.auth_domain != PROFILED_OBSERVATION_AUTH_DOMAIN
+            or _AUTH_KEY_ID_RE.fullmatch(self.auth_key_id) is None
+            or self.total_profiled_samples
+            != self.admitted_example_count + self.label_unavailable_count
+            or any(
+                type(value) is not int or value < 0
+                for value in (
+                    self.feature_ledger_verified_records,
+                    self.feature_ledger_prefix_head_sequence,
+                    self.label_archive_verified_rows,
+                    self.label_archive_prefix_head_sequence,
+                    self.total_profiled_samples,
+                    self.admitted_example_count,
+                    self.label_unavailable_count,
+                    self.ledger_exclusion_count,
+                )
+            )
+            or self.feature_ledger_prefix_head_sequence > self.feature_ledger_verified_records
+            or self.label_archive_prefix_head_sequence != self.label_archive_verified_rows
+            or self.full_manifest_authentication_verified is not True
+            or self.full_entry_inventory_verified is not True
+            or any(value is not False for value in false_authority)
+        ):
+            _fail("PROFILED_OBSERVATION_AUTHENTICATED_MANIFEST_RESULT_INVALID")
+        observation = _clock(
+            self.observation_time,
+            reason="PROFILED_OBSERVATION_AUTHENTICATED_CUTOFF_INVALID",
+        )
+        if self.retrospective_cutoff_at != self.observation_time or observation > _clock(
+            self.factory_wall_clock_observed_at,
+            reason="PROFILED_OBSERVATION_AUTHENTICATED_FACTORY_CLOCK_INVALID",
+        ):
+            _fail("PROFILED_OBSERVATION_AUTHENTICATED_CLOCK_ORDER_INVALID")
+
+
+@dataclass(frozen=True, slots=True)
+class AuthenticatedProfiledTrainingObservationInventoryPageV1:
+    """Bounded authenticated entry inventory page without sample reopening."""
+
+    manifest_id: str
+    observation_time: str
+    auth_key_id: str
+    requested_after_ordinal: int
+    page_start_ordinal: int
+    page_end_ordinal: int
+    scanned_entry_count: int
+    admitted_entry_count: int
+    label_unavailable_count: int
+    page_start_previous_entry_chain_sha256: str
+    page_end_entry_chain_sha256: str
+    ordered_page_entries_sha256: str
+    next_after_ordinal: int
+    has_more_manifest_entries: bool
+    manifest_summary_bound: bool
+    page_authentication_verified: bool
+    external_monotonic_manifest_head_verified: bool
+    full_consumption_external_ack_verified: bool
+    optimizer_admission_authorized: bool
+    checkpoint_write_authorized: bool
+    model_write_authorized: bool
+    prediction_authorized: bool
+    paper_trading_authorized: bool
+    live_execution_authorized: bool
+    execution_authorized: bool
+    runtime_wired: bool
+    _construction_token: object = field(repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        false_authority = (
+            self.external_monotonic_manifest_head_verified,
+            self.full_consumption_external_ack_verified,
+            self.optimizer_admission_authorized,
+            self.checkpoint_write_authorized,
+            self.model_write_authorized,
+            self.prediction_authorized,
+            self.paper_trading_authorized,
+            self.live_execution_authorized,
+            self.execution_authorized,
+            self.runtime_wired,
+        )
+        if (
+            self._construction_token is not _AUTHENTICATED_INVENTORY_PAGE_TOKEN
+            or not _valid_sha256(self.manifest_id)
+            or _AUTH_KEY_ID_RE.fullmatch(self.auth_key_id) is None
+            or any(
+                not _valid_sha256(value)
+                for value in (
+                    self.page_start_previous_entry_chain_sha256,
+                    self.page_end_entry_chain_sha256,
+                    self.ordered_page_entries_sha256,
+                )
+            )
+            or self.requested_after_ordinal < 0
+            or self.page_start_ordinal
+            != (
+                self.requested_after_ordinal + 1
+                if self.scanned_entry_count
+                else self.requested_after_ordinal
+            )
+            or self.page_end_ordinal
+            != (
+                self.requested_after_ordinal + self.scanned_entry_count
+                if self.scanned_entry_count
+                else self.requested_after_ordinal
+            )
+            or self.next_after_ordinal != self.page_end_ordinal
+            or self.scanned_entry_count != self.admitted_entry_count + self.label_unavailable_count
+            or any(
+                type(value) is not int or value < 0
+                for value in (
+                    self.scanned_entry_count,
+                    self.admitted_entry_count,
+                    self.label_unavailable_count,
+                )
+            )
+            or type(self.has_more_manifest_entries) is not bool
+            or self.manifest_summary_bound is not True
+            or self.page_authentication_verified is not True
+            or any(value is not False for value in false_authority)
+        ):
+            _fail("PROFILED_OBSERVATION_AUTHENTICATED_INVENTORY_PAGE_INVALID")
+        _clock(
+            self.observation_time,
+            reason="PROFILED_OBSERVATION_AUTHENTICATED_PAGE_CUTOFF_INVALID",
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -1389,8 +1579,7 @@ class ProfiledTrainingObservationPageV1:
             or self.scanned_entry_count < 0
             or type(self.label_unavailable_scanned) is not int
             or not 0 <= self.label_unavailable_scanned <= self.scanned_entry_count
-            or len(self.examples) + self.label_unavailable_scanned
-            != self.scanned_entry_count
+            or len(self.examples) + self.label_unavailable_scanned != self.scanned_entry_count
             or self.runtime_wired is not False
             or tuple(item.ordinal for item in self.examples)
             != tuple(sorted(item.ordinal for item in self.examples))
@@ -1527,26 +1716,21 @@ def build_profiled_training_observation_manifest_v1(
                 nonlocal context, observation_context_sha256
                 if context is not None:
                     _fail("PROFILED_OBSERVATION_HIGH_WATER_CONSUMER_REENTERED")
+                adapter_contract = _training_example_adapter_contract()
                 context = {
                     "schema_version": PROFILED_OBSERVATION_CONTEXT_V1_SCHEMA_VERSION,
                     "observation_time": observation_text,
                     "retrospective_cutoff_at": observation_text,
                     "factory_wall_clock_observed_at": factory_clock_text,
-                    "receipt_visibility_semantics": (
-                        "STRICTLY_BEFORE_RETROSPECTIVE_CUTOFF"
-                    ),
+                    "receipt_visibility_semantics": ("STRICTLY_BEFORE_RETROSPECTIVE_CUTOFF"),
                     "feature_ledger_path": str(ledger.path),
                     "feature_ledger_path_sha256": _path_sha256(ledger.path),
                     "feature_ledger_high_water": dict(high_water),
-                    "feature_ledger_high_water_sha256": high_water.get(
-                        "high_water_sha256"
-                    ),
+                    "feature_ledger_high_water_sha256": high_water.get("high_water_sha256"),
                     "label_archive_path": str(label_archive.path),
                     "label_archive_path_sha256": _path_sha256(label_archive.path),
                     "label_archive_high_water": label_high_water,
-                    "label_archive_high_water_sha256": label_high_water.get(
-                        "high_water_sha256"
-                    ),
+                    "label_archive_high_water_sha256": label_high_water.get("high_water_sha256"),
                     "trusted_cost_store_root": str(cost_root),
                     "trusted_cost_store_root_sha256": _path_sha256(cost_root),
                     "physical_model_feature_count": PHYSICAL_MODEL_FEATURE_COUNT,
@@ -1557,14 +1741,16 @@ def build_profiled_training_observation_manifest_v1(
                     "logical_model_input_count": LOGICAL_MODEL_INPUT_COUNT,
                     "feature_registry_sha256": FEATURE_SOURCE_REGISTRY_V4_SHA256,
                     "feature_registry_abi_sha256": FEATURE_SOURCE_REGISTRY_V4_ABI_SHA256,
-                    "projection_schema_version": (
-                        PROFILED_TRAINING_PROJECTION_V1_SCHEMA_VERSION
-                    ),
+                    "projection_schema_version": (PROFILED_TRAINING_PROJECTION_V1_SCHEMA_VERSION),
                     "projection_implementation_sha256": (
                         PROFILED_TRAINING_PROJECTION_V1_IMPLEMENTATION_SHA256
                     ),
                     "projection_configuration_sha256": (
                         PROFILED_TRAINING_PROJECTION_V1_CONFIGURATION_SHA256
+                    ),
+                    "training_example_adapter_contract": adapter_contract,
+                    "training_example_adapter_contract_sha256": stable_sha256(
+                        adapter_contract
                     ),
                 }
                 observation_context_sha256 = stable_sha256(context)
@@ -1608,9 +1794,7 @@ def build_profiled_training_observation_manifest_v1(
                         reason="PROFILED_OBSERVATION_ENTRY_JSON_INVALID",
                         maximum_bytes=MAX_PROFILED_OBSERVATION_ENTRY_BYTES,
                     )
-                    entry_sha256 = hashlib.sha256(
-                        entry_json.encode("ascii")
-                    ).hexdigest()
+                    entry_sha256 = hashlib.sha256(entry_json.encode("ascii")).hexdigest()
                     chain = _entry_chain(previous_chain, entry_sha256)
                     sample_binding = cast(dict[str, Any], entry["sample_binding"])
                     connection.execute(
@@ -1633,16 +1817,10 @@ def build_profiled_training_observation_manifest_v1(
                                 role=b"entry-row",
                                 payload=_entry_row_auth_payload(
                                     ordinal=ordinal,
-                                    ledger_sequence=sample_binding[
-                                        "ledger_sequence"
-                                    ],
-                                    durable_snapshot_id=sample_binding[
-                                        "durable_snapshot_id"
-                                    ],
+                                    ledger_sequence=sample_binding["ledger_sequence"],
+                                    durable_snapshot_id=sample_binding["durable_snapshot_id"],
                                     label_status=entry["label_status"],
-                                    observation_context_sha256=(
-                                        observation_context_sha256
-                                    ),
+                                    observation_context_sha256=(observation_context_sha256),
                                     entry_sha256=entry_sha256,
                                     previous_entry_chain_sha256=previous_chain,
                                     entry_chain_sha256=chain,
@@ -1655,9 +1833,7 @@ def build_profiled_training_observation_manifest_v1(
                         {
                             "ordinal": ordinal,
                             "ledger_sequence": sample_binding["ledger_sequence"],
-                            "sample_identity_sha256": sample_binding[
-                                "sample_identity_sha256"
-                            ],
+                            "sample_identity_sha256": sample_binding["sample_identity_sha256"],
                             "label_status": entry["label_status"],
                             "entry_sha256": entry_sha256,
                             "entry_chain_sha256": chain,
@@ -1680,8 +1856,7 @@ def build_profiled_training_observation_manifest_v1(
                 )
             except ProfiledTrainingLedgerLoaderV1Error as exc:
                 raise ProfiledTrainingObservationManifestV1Error(
-                    "PROFILED_OBSERVATION_SOURCE_VERIFICATION_FAILED:"
-                    f"{type(exc).__name__}:{exc}"
+                    "PROFILED_OBSERVATION_SOURCE_VERIFICATION_FAILED:" f"{type(exc).__name__}:{exc}"
                 ) from exc
             if (
                 context is None
@@ -1700,17 +1875,13 @@ def build_profiled_training_observation_manifest_v1(
                     observation_cutoff=observation,
                     scan_limit=max(
                         int(completion_integrity.get("verified_rows") or 0),
-                        int(
-                            completion_integrity.get("verified_append_receipts")
-                            or 0
-                        ),
+                        int(completion_integrity.get("verified_append_receipts") or 0),
                         1,
                     ),
                 )
             except Exception as exc:
                 raise ProfiledTrainingObservationManifestV1Error(
-                    "PROFILED_OBSERVATION_LABEL_COMPLETION_PROOF_FAILED:"
-                    f"{type(exc).__name__}"
+                    "PROFILED_OBSERVATION_LABEL_COMPLETION_PROOF_FAILED:" f"{type(exc).__name__}"
                 ) from exc
             if completion_high_water != label_high_water:
                 _fail("PROFILED_OBSERVATION_LABEL_HIGH_WATER_MOVED_DURING_BUILD")
@@ -1731,9 +1902,7 @@ def build_profiled_training_observation_manifest_v1(
                 "ordered_digest_schema_version": (
                     PROFILED_OBSERVATION_ORDERED_DIGEST_SCHEMA_VERSION
                 ),
-                "ordered_digest_algorithm": (
-                    PROFILED_OBSERVATION_ORDERED_DIGEST_ALGORITHM
-                ),
+                "ordered_digest_algorithm": (PROFILED_OBSERVATION_ORDERED_DIGEST_ALGORITHM),
                 "ordered_entry_identity_digest_domain": (
                     PROFILED_OBSERVATION_ENTRY_IDENTITY_DIGEST_DOMAIN
                 ),
@@ -1745,9 +1914,7 @@ def build_profiled_training_observation_manifest_v1(
                 "entry_chain_genesis_sha256": PROFILED_OBSERVATION_ENTRY_CHAIN_GENESIS,
                 "entry_chain_head_sha256": previous_chain,
                 "source_page_size": scan.source_page_size,
-                "maximum_resident_source_page_rows": (
-                    scan.maximum_resident_page_row_count
-                ),
+                "maximum_resident_source_page_rows": (scan.maximum_resident_page_row_count),
                 "maximum_resident_entry_rows": 1 if ordinal else 0,
                 "factory_memory_semantics": (
                     "KEYSET_SOURCE_PAGE_PLUS_ONE_ENTRY_NO_FULL_SAMPLE_OR_ENTRY_INVENTORY"
@@ -1797,9 +1964,7 @@ def build_profiled_training_observation_manifest_v1(
             os.close(file_descriptor)
         if manifest_id is None:
             _fail("PROFILED_OBSERVATION_MANIFEST_ID_NOT_FINALIZED")
-        manifest_path = output_root / (
-            f"profiled_training_observation_{manifest_id}.sqlite3"
-        )
+        manifest_path = output_root / (f"profiled_training_observation_{manifest_id}.sqlite3")
         if manifest_path.exists():
             existing, existing_metadata = _read_metadata(
                 manifest_path,
@@ -1868,6 +2033,433 @@ def build_profiled_training_observation_manifest_v1(
     )
 
 
+def _open_promotion_manifest_descriptor(path: Path) -> tuple[int, os.stat_result]:
+    """Open one exact private manifest inode for promotion-grade authentication."""
+
+    try:
+        descriptor = os.open(
+            path,
+            os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0),
+        )
+        opened = os.fstat(descriptor)
+        path_stat = os.stat(path, follow_symlinks=False)
+    except OSError as exc:
+        raise ProfiledTrainingObservationManifestV1Error(
+            f"PROFILED_OBSERVATION_PROMOTION_PATH_OPEN_FAILED:{type(exc).__name__}"
+        ) from exc
+    if (
+        not stat.S_ISREG(opened.st_mode)
+        or opened.st_uid != os.geteuid()
+        or opened.st_nlink != 1
+        or stat.S_IMODE(opened.st_mode) != 0o600
+        or (opened.st_dev, opened.st_ino, opened.st_size)
+        != (path_stat.st_dev, path_stat.st_ino, path_stat.st_size)
+    ):
+        os.close(descriptor)
+        _fail("PROFILED_OBSERVATION_PROMOTION_PATH_PROTECTION_INVALID")
+    return descriptor, opened
+
+
+def _require_authenticated_high_water(
+    raw: object,
+    *,
+    expected_path: object,
+    expected_path_sha256: object,
+    kind: str,
+) -> dict[str, Any]:
+    if (
+        type(raw) is not dict
+        or type(expected_path) is not str
+        or not expected_path
+        or type(expected_path_sha256) is not str
+    ):
+        _fail(f"PROFILED_OBSERVATION_{kind}_HIGH_WATER_INVALID")
+    high_water = cast(dict[str, Any], raw)
+    unsigned = {name: value for name, value in high_water.items() if name != "high_water_sha256"}
+    if (
+        high_water.get("high_water_sha256") != stable_sha256(unsigned)
+        or expected_path
+        != high_water.get("ledger_path" if kind == "FEATURE_LEDGER" else "archive_path")
+        or expected_path_sha256 != _path_sha256(Path(cast(str, expected_path)))
+        or high_water.get("fixed_observation_prefix_only") is not True
+        or high_water.get("later_valid_append_suffix_ignored") is not True
+        or high_water.get(
+            "full_ledger_integrity_verified_at_reproduction"
+            if kind == "FEATURE_LEDGER"
+            else "full_archive_integrity_verified_at_reproduction"
+        )
+        is not True
+        or high_water.get("receipt_backed") is not True
+        or high_water.get("postcommit_readback_verified") is not True
+        or not _valid_sha256(high_water.get("archive_chain_sha256"))
+        or not _valid_sha256(high_water.get("ordered_transaction_receipts_sha256"))
+    ):
+        _fail(f"PROFILED_OBSERVATION_{kind}_HIGH_WATER_INVALID")
+    return high_water
+
+
+def authenticate_profiled_training_observation_manifest_v1(
+    *,
+    manifest_path: Path,
+    hmac_key: bytes | bytearray | memoryview,
+    expected_auth_key_id: str,
+    expected_manifest_id: str,
+    expected_observation_time: str,
+) -> AuthenticatedProfiledTrainingObservationManifestV1:
+    """Fully authenticate one immutable manifest and return scalar bindings.
+
+    The complete entry stream is checked in bounded pages.  The returned object
+    is suitable input to a local head *candidate*, not evidence of an external
+    monotonic append.
+    """
+
+    key = _validated_key(hmac_key)
+    path = _exact_absolute_path(
+        manifest_path,
+        reason="PROFILED_OBSERVATION_MANIFEST_PATH_INVALID",
+    )
+    if (
+        type(expected_auth_key_id) is not str
+        or _AUTH_KEY_ID_RE.fullmatch(expected_auth_key_id) is None
+    ):
+        _fail("PROFILED_OBSERVATION_AUTH_KEY_ID_INVALID")
+    if not _valid_sha256(expected_manifest_id):
+        _fail("PROFILED_OBSERVATION_EXPECTED_MANIFEST_ID_INVALID")
+    expected_observation = _canonical_clock(
+        _clock(
+            expected_observation_time,
+            reason="PROFILED_OBSERVATION_EXPECTED_CUTOFF_INVALID",
+        )
+    )
+    descriptor, opened = _open_promotion_manifest_descriptor(path)
+    connection: sqlite3.Connection | None = None
+    try:
+        connection, metadata = _read_metadata(
+            path,
+            key=key,
+            expected_auth_key_id=expected_auth_key_id,
+            full_database_check=True,
+        )
+        if (
+            metadata.get("manifest_id") != expected_manifest_id
+            or metadata.get("observation_time") != expected_observation
+        ):
+            _fail("PROFILED_OBSERVATION_EXPECTED_MANIFEST_BINDING_MISMATCH")
+        metadata_row = connection.execute(
+            "SELECT metadata_sha256, auth_tag FROM observation_manifest_metadata "
+            "WHERE singleton = 1"
+        ).fetchone()
+        if metadata_row is None:
+            _fail("PROFILED_OBSERVATION_METADATA_MISSING")
+        _verify_complete_entry_stream(connection, metadata=metadata, key=key)
+        context = metadata.get("observation_context")
+        if type(context) is not dict:
+            _fail("PROFILED_OBSERVATION_AUTHENTICATED_CONTEXT_INVALID")
+        feature_high_water = _require_authenticated_high_water(
+            context.get("feature_ledger_high_water"),
+            expected_path=context.get("feature_ledger_path"),
+            expected_path_sha256=context.get("feature_ledger_path_sha256"),
+            kind="FEATURE_LEDGER",
+        )
+        label_high_water = _require_authenticated_high_water(
+            context.get("label_archive_high_water"),
+            expected_path=context.get("label_archive_path"),
+            expected_path_sha256=context.get("label_archive_path_sha256"),
+            kind="LABEL_ARCHIVE",
+        )
+        feature_records = feature_high_water.get("verified_records")
+        feature_head = feature_high_water.get("authenticated_prefix_head_sequence")
+        label_rows = label_high_water.get("verified_rows")
+        label_head = label_high_water.get("verified_max_sequence")
+        if (
+            type(feature_records) is not int
+            or feature_records < 0
+            or type(feature_head) is not int
+            or not 0 <= feature_head <= feature_records
+            or type(label_rows) is not int
+            or label_rows < 0
+            or type(label_head) is not int
+            or label_head != label_rows
+            or feature_high_water.get("training_observed_at") != metadata.get("observation_time")
+            or label_high_water.get("training_observed_at") != metadata.get("observation_time")
+        ):
+            _fail("PROFILED_OBSERVATION_AUTHENTICATED_HIGH_WATER_COUNTS_INVALID")
+        connection.rollback()
+        connection.close()
+        connection = None
+        final_descriptor_stat = os.fstat(descriptor)
+        final_path_stat = os.stat(path, follow_symlinks=False)
+        stable_identity = (
+            opened.st_dev,
+            opened.st_ino,
+            opened.st_size,
+            opened.st_uid,
+            opened.st_mode,
+            opened.st_nlink,
+            opened.st_mtime_ns,
+            opened.st_ctime_ns,
+        )
+        if stable_identity != (
+            final_descriptor_stat.st_dev,
+            final_descriptor_stat.st_ino,
+            final_descriptor_stat.st_size,
+            final_descriptor_stat.st_uid,
+            final_descriptor_stat.st_mode,
+            final_descriptor_stat.st_nlink,
+            final_descriptor_stat.st_mtime_ns,
+            final_descriptor_stat.st_ctime_ns,
+        ) or stable_identity != (
+            final_path_stat.st_dev,
+            final_path_stat.st_ino,
+            final_path_stat.st_size,
+            final_path_stat.st_uid,
+            final_path_stat.st_mode,
+            final_path_stat.st_nlink,
+            final_path_stat.st_mtime_ns,
+            final_path_stat.st_ctime_ns,
+        ):
+            _fail("PROFILED_OBSERVATION_PROMOTION_PATH_INODE_MOVED")
+    except OSError as exc:
+        raise ProfiledTrainingObservationManifestV1Error(
+            f"PROFILED_OBSERVATION_PROMOTION_PATH_RECHECK_FAILED:{type(exc).__name__}"
+        ) from exc
+    finally:
+        if connection is not None:
+            if connection.in_transaction:
+                connection.rollback()
+            connection.close()
+        os.close(descriptor)
+    return AuthenticatedProfiledTrainingObservationManifestV1(
+        manifest_path=path,
+        manifest_file_device=int(opened.st_dev),
+        manifest_file_inode=int(opened.st_ino),
+        manifest_file_byte_count=int(opened.st_size),
+        manifest_id=cast(str, metadata["manifest_id"]),
+        metadata_sha256=str(metadata_row["metadata_sha256"]),
+        metadata_auth_tag=str(metadata_row["auth_tag"]),
+        observation_time=cast(str, metadata["observation_time"]),
+        retrospective_cutoff_at=cast(str, metadata["retrospective_cutoff_at"]),
+        factory_wall_clock_observed_at=cast(str, metadata["factory_wall_clock_observed_at"]),
+        auth_algorithm=cast(str, metadata["auth_algorithm"]),
+        auth_domain=cast(str, metadata["auth_domain"]),
+        auth_key_id=cast(str, metadata["auth_key_id"]),
+        observation_context_sha256=cast(str, metadata["observation_context_sha256"]),
+        feature_ledger_path=cast(str, context["feature_ledger_path"]),
+        feature_ledger_path_sha256=cast(str, context["feature_ledger_path_sha256"]),
+        feature_ledger_high_water_sha256=cast(str, feature_high_water["high_water_sha256"]),
+        feature_ledger_verified_records=cast(int, feature_high_water["verified_records"]),
+        feature_ledger_prefix_head_sequence=cast(
+            int, feature_high_water["authenticated_prefix_head_sequence"]
+        ),
+        feature_ledger_archive_chain_sha256=cast(str, feature_high_water["archive_chain_sha256"]),
+        feature_ledger_ordered_receipts_sha256=cast(
+            str, feature_high_water["ordered_transaction_receipts_sha256"]
+        ),
+        label_archive_path=cast(str, context["label_archive_path"]),
+        label_archive_path_sha256=cast(str, context["label_archive_path_sha256"]),
+        label_archive_high_water_sha256=cast(str, label_high_water["high_water_sha256"]),
+        label_archive_verified_rows=cast(int, label_high_water["verified_rows"]),
+        label_archive_prefix_head_sequence=cast(int, label_high_water["verified_max_sequence"]),
+        label_archive_archive_chain_sha256=cast(str, label_high_water["archive_chain_sha256"]),
+        label_archive_ordered_receipts_sha256=cast(
+            str, label_high_water["ordered_transaction_receipts_sha256"]
+        ),
+        entry_chain_genesis_sha256=cast(str, metadata["entry_chain_genesis_sha256"]),
+        entry_chain_head_sha256=cast(str, metadata["entry_chain_head_sha256"]),
+        ordered_entry_identities_sha256=cast(str, metadata["ordered_entry_identities_sha256"]),
+        total_profiled_samples=cast(int, metadata["total_profiled_samples"]),
+        admitted_example_count=cast(int, metadata["admitted_example_count"]),
+        label_unavailable_count=cast(int, metadata["label_unavailable_count"]),
+        ledger_exclusion_count=cast(int, metadata["ledger_exclusion_count"]),
+        ledger_exclusion_inventory_sha256=cast(str, metadata["ledger_exclusion_inventory_sha256"]),
+        full_manifest_authentication_verified=True,
+        full_entry_inventory_verified=True,
+        external_monotonic_manifest_head_verified=False,
+        full_consumption_external_ack_verified=False,
+        optimizer_admission_authorized=False,
+        checkpoint_write_authorized=False,
+        model_write_authorized=False,
+        prediction_authorized=False,
+        paper_trading_authorized=False,
+        live_execution_authorized=False,
+        execution_authorized=False,
+        runtime_wired=False,
+        _authenticated_manifest_key_sha256=hashlib.sha256(key).hexdigest(),
+        _construction_token=_AUTHENTICATED_MANIFEST_TOKEN,
+    )
+
+
+def authenticate_profiled_training_observation_inventory_page_v1(
+    *,
+    authenticated_manifest: AuthenticatedProfiledTrainingObservationManifestV1,
+    hmac_key: bytes | bytearray | memoryview,
+    after_ordinal: int = 0,
+    limit: int = MAX_PROFILED_OBSERVATION_PAGE_ROWS,
+) -> AuthenticatedProfiledTrainingObservationInventoryPageV1:
+    """Authenticate one bounded inventory page against a full-auth summary."""
+
+    if (
+        type(authenticated_manifest) is not AuthenticatedProfiledTrainingObservationManifestV1
+        or authenticated_manifest._construction_token is not _AUTHENTICATED_MANIFEST_TOKEN
+    ):
+        _fail("PROFILED_OBSERVATION_AUTHENTICATED_MANIFEST_EXACT_TYPE_REQUIRED")
+    key = _validated_key(hmac_key)
+    if hashlib.sha256(key).hexdigest() != (
+        authenticated_manifest._authenticated_manifest_key_sha256
+    ):
+        _fail("PROFILED_OBSERVATION_AUTHENTICATED_MANIFEST_KEY_MISMATCH")
+    if type(after_ordinal) is not int or after_ordinal < 0:
+        _fail("PROFILED_OBSERVATION_AFTER_ORDINAL_INVALID")
+    if type(limit) is not int or not 0 < limit <= MAX_PROFILED_OBSERVATION_PAGE_ROWS:
+        _fail("PROFILED_OBSERVATION_PAGE_LIMIT_INVALID")
+    if after_ordinal > authenticated_manifest.total_profiled_samples:
+        _fail("PROFILED_OBSERVATION_AFTER_ORDINAL_OUTSIDE_MANIFEST")
+    descriptor, opened = _open_promotion_manifest_descriptor(authenticated_manifest.manifest_path)
+    connection: sqlite3.Connection | None = None
+    try:
+        if (
+            int(opened.st_dev) != authenticated_manifest.manifest_file_device
+            or int(opened.st_ino) != authenticated_manifest.manifest_file_inode
+            or int(opened.st_size) != authenticated_manifest.manifest_file_byte_count
+        ):
+            _fail("PROFILED_OBSERVATION_AUTHENTICATED_MANIFEST_INODE_MISMATCH")
+        connection, metadata = _read_metadata(
+            authenticated_manifest.manifest_path,
+            key=key,
+            expected_auth_key_id=authenticated_manifest.auth_key_id,
+            full_database_check=False,
+        )
+        if (
+            metadata.get("manifest_id") != authenticated_manifest.manifest_id
+            or metadata.get("observation_time") != authenticated_manifest.observation_time
+            or metadata.get("entry_chain_head_sha256")
+            != authenticated_manifest.entry_chain_head_sha256
+            or metadata.get("ordered_entry_identities_sha256")
+            != authenticated_manifest.ordered_entry_identities_sha256
+            or metadata.get("total_profiled_samples")
+            != authenticated_manifest.total_profiled_samples
+        ):
+            _fail("PROFILED_OBSERVATION_PAGE_MANIFEST_SUMMARY_MISMATCH")
+        context_sha256 = cast(str, metadata["observation_context_sha256"])
+        if after_ordinal == 0:
+            previous_chain = PROFILED_OBSERVATION_ENTRY_CHAIN_GENESIS
+        else:
+            anchor = connection.execute(
+                "SELECT ordinal, ledger_sequence, durable_snapshot_id, label_status, "
+                "observation_context_sha256, entry_json, entry_sha256, "
+                "previous_entry_chain_sha256, entry_chain_sha256, auth_tag "
+                "FROM observation_manifest_entries WHERE ordinal = ?",
+                (after_ordinal,),
+            ).fetchone()
+            if anchor is None:
+                _fail("PROFILED_OBSERVATION_CURSOR_ANCHOR_MISSING")
+            _verify_entry_row(
+                anchor,
+                key=key,
+                observation_context_sha256=context_sha256,
+            )
+            previous_chain = str(anchor["entry_chain_sha256"])
+        page_start_previous_chain = previous_chain
+        rows = list(
+            connection.execute(
+                "SELECT ordinal, ledger_sequence, durable_snapshot_id, label_status, "
+                "observation_context_sha256, entry_json, entry_sha256, "
+                "previous_entry_chain_sha256, entry_chain_sha256, auth_tag "
+                "FROM observation_manifest_entries WHERE ordinal > ? "
+                "ORDER BY ordinal ASC LIMIT ?",
+                (after_ordinal, limit),
+            )
+        )
+        expected_count = min(
+            limit,
+            authenticated_manifest.total_profiled_samples - after_ordinal,
+        )
+        if len(rows) != expected_count:
+            _fail("PROFILED_OBSERVATION_ENTRY_INVENTORY_OMISSION")
+        digest = _OrderedCanonicalStreamDigest(domain=PROFILED_OBSERVATION_PAGE_ENTRY_DIGEST_DOMAIN)
+        admitted = 0
+        unavailable = 0
+        for expected_ordinal, row in enumerate(rows, start=after_ordinal + 1):
+            if row["ordinal"] != expected_ordinal:
+                _fail("PROFILED_OBSERVATION_ENTRY_ORDINAL_GAP")
+            entry = _verify_entry_row(
+                row,
+                key=key,
+                observation_context_sha256=context_sha256,
+                expected_previous_chain=previous_chain,
+            )
+            sample_binding = cast(dict[str, Any], entry["sample_binding"])
+            digest.append(
+                {
+                    "ordinal": expected_ordinal,
+                    "ledger_sequence": row["ledger_sequence"],
+                    "durable_snapshot_id": row["durable_snapshot_id"],
+                    "sample_identity_sha256": sample_binding["sample_identity_sha256"],
+                    "label_status": row["label_status"],
+                    "entry_sha256": row["entry_sha256"],
+                    "previous_entry_chain_sha256": row["previous_entry_chain_sha256"],
+                    "entry_chain_sha256": row["entry_chain_sha256"],
+                }
+            )
+            previous_chain = str(row["entry_chain_sha256"])
+            if row["label_status"] == PROFILED_OBSERVATION_LABEL_STATUS_ADMITTED:
+                admitted += 1
+            else:
+                unavailable += 1
+        next_after = int(rows[-1]["ordinal"]) if rows else after_ordinal
+        has_more = next_after < authenticated_manifest.total_profiled_samples
+        if not has_more and previous_chain != authenticated_manifest.entry_chain_head_sha256:
+            _fail("PROFILED_OBSERVATION_ENTRY_CHAIN_HEAD_MISMATCH")
+        connection.rollback()
+        connection.close()
+        connection = None
+        final_stat = os.stat(
+            authenticated_manifest.manifest_path,
+            follow_symlinks=False,
+        )
+        if (
+            opened.st_dev,
+            opened.st_ino,
+            opened.st_size,
+        ) != (final_stat.st_dev, final_stat.st_ino, final_stat.st_size):
+            _fail("PROFILED_OBSERVATION_PROMOTION_PATH_INODE_MOVED")
+    finally:
+        if connection is not None:
+            if connection.in_transaction:
+                connection.rollback()
+            connection.close()
+        os.close(descriptor)
+    return AuthenticatedProfiledTrainingObservationInventoryPageV1(
+        manifest_id=authenticated_manifest.manifest_id,
+        observation_time=authenticated_manifest.observation_time,
+        auth_key_id=authenticated_manifest.auth_key_id,
+        requested_after_ordinal=after_ordinal,
+        page_start_ordinal=after_ordinal + 1 if rows else after_ordinal,
+        page_end_ordinal=next_after,
+        scanned_entry_count=len(rows),
+        admitted_entry_count=admitted,
+        label_unavailable_count=unavailable,
+        page_start_previous_entry_chain_sha256=page_start_previous_chain,
+        page_end_entry_chain_sha256=previous_chain,
+        ordered_page_entries_sha256=digest.hexdigest(),
+        next_after_ordinal=next_after,
+        has_more_manifest_entries=has_more,
+        manifest_summary_bound=True,
+        page_authentication_verified=True,
+        external_monotonic_manifest_head_verified=False,
+        full_consumption_external_ack_verified=False,
+        optimizer_admission_authorized=False,
+        checkpoint_write_authorized=False,
+        model_write_authorized=False,
+        prediction_authorized=False,
+        paper_trading_authorized=False,
+        live_execution_authorized=False,
+        execution_authorized=False,
+        runtime_wired=False,
+        _construction_token=_AUTHENTICATED_INVENTORY_PAGE_TOKEN,
+    )
+
+
 def _example_from_authenticated_entry(
     *,
     entry: Mapping[str, Any],
@@ -1883,9 +2475,7 @@ def _example_from_authenticated_entry(
         or entry.get("training_example_adapter_available") is not True
     ):
         _fail("PROFILED_OBSERVATION_ADMITTED_ENTRY_BINDING_INVALID")
-    label_unsigned = {
-        key: value for key, value in label.items() if key != "label_binding_sha256"
-    }
+    label_unsigned = {key: value for key, value in label.items() if key != "label_binding_sha256"}
     directional_cost = label.get("directional_cost_evidence")
     tensor_unsigned = {
         key: value for key, value in tensor_binding.items() if key != "tensor_binding_sha256"
@@ -1897,21 +2487,16 @@ def _example_from_authenticated_entry(
         or label.get("archive_high_water_sha256") is None
         or label.get("label_expected_move_after_cost_bps_float64_sha256")
         != _float64_label_sha256(label.get("label_expected_move_after_cost_bps"))
-        or label.get("label_horizon_seconds")
-        != sample.expected_holding_horizon_seconds
-        or label.get("label_horizon_source")
-        != "AUTHENTICATED_CAUSAL_COST_BINDING"
+        or label.get("label_horizon_seconds") != sample.expected_holding_horizon_seconds
+        or label.get("label_horizon_source") != "AUTHENTICATED_CAUSAL_COST_BINDING"
         or type(directional_cost) is not dict
-        or label.get("directional_cost_evidence_sha256")
-        != stable_sha256(directional_cost)
-        or directional_cost.get("cost_capture_binding_sha256")
-        != sample.cost_capture_binding_sha256
+        or label.get("directional_cost_evidence_sha256") != stable_sha256(directional_cost)
+        or directional_cost.get("cost_capture_binding_sha256") != sample.cost_capture_binding_sha256
         or directional_cost.get("cost_cas_object_inventory_sha256")
         != sample.cost_cas_object_inventory_sha256
         or directional_cost.get("expected_holding_horizon_seconds")
         != sample.expected_holding_horizon_seconds
-        or directional_cost.get("decision_reference_price")
-        != sample.decision_reference_price
+        or directional_cost.get("decision_reference_price") != sample.decision_reference_price
         or directional_cost.get("decision_reference_price_source")
         != sample.decision_reference_price_source
         or directional_cost.get("decision_reference_price_binding_sha256")
@@ -1921,10 +2506,8 @@ def _example_from_authenticated_entry(
         or directional_cost.get("decision_reference_price_receipt_sha256")
         != sample.decision_reference_price_receipt_sha256
         or label.get("auxiliary_cost_values_excluded_from_model_vector") is not True
-        or tensor_binding.get("logical_model_vector_sha256")
-        != sample.logical_model_vector_sha256
-        or tensor_binding.get("logical_projection_sha256")
-        != sample.logical_projection_sha256
+        or tensor_binding.get("logical_model_vector_sha256") != sample.logical_model_vector_sha256
+        or tensor_binding.get("logical_projection_sha256") != sample.logical_projection_sha256
         or tensor_binding.get("logical_feature_count") != LOGICAL_MODEL_FEATURE_COUNT
         or tensor_binding.get("logical_model_input_count") != LOGICAL_MODEL_INPUT_COUNT
         or tensor_binding.get("feature_registry_sha256") != FEATURE_SOURCE_REGISTRY_V4_SHA256
@@ -1937,8 +2520,10 @@ def _example_from_authenticated_entry(
     )
     if len(configured_sources) != LOGICAL_MODEL_FEATURE_COUNT:
         _fail("PROFILED_OBSERVATION_CONFIGURED_SOURCE_ABI_INVALID")
-    coverage = 100.0 * sum(sample.logical_source_availability_mask) / len(
-        sample.logical_source_availability_mask
+    coverage = (
+        100.0
+        * sum(sample.logical_source_availability_mask)
+        / len(sample.logical_source_availability_mask)
     )
     tensor = FeatureTensorRecord(
         tensor_id=cast(str, tensor_binding["tensor_id"]),
@@ -1963,35 +2548,52 @@ def _example_from_authenticated_entry(
         _fail("PROFILED_OBSERVATION_TRAINING_EXAMPLE_MODEL_VECTOR_MISMATCH")
     label_available_at = cast(str, label["label_available_at"])
     decision = _clock(sample.decision_time, reason="PROFILED_OBSERVATION_DECISION_TIME_INVALID")
+    record_generated = _clock(
+        sample.generated_at,
+        reason="PROFILED_OBSERVATION_RECORD_GENERATED_AT_INVALID",
+    )
+    trainer_sample_available = _clock(
+        sample.postcommit_readback_at,
+        reason="PROFILED_OBSERVATION_SAMPLE_AVAILABLE_AT_INVALID",
+    )
     label_available = _clock(
         label_available_at,
         reason="PROFILED_OBSERVATION_LABEL_AVAILABLE_AT_INVALID",
     )
-    if label_available <= decision:
+    if (
+        label_available <= decision
+        or record_generated > decision
+        or trainer_sample_available <= decision
+        or trainer_sample_available <= record_generated
+    ):
         _fail("PROFILED_OBSERVATION_TRAINING_EXAMPLE_TIMING_INVALID")
     horizon_seconds = cast(int, label["label_horizon_seconds"])
     trust_row = {
         "row_source": "profiled_training_fixed_observation_manifest_v1",
+        "training_example_adapter_contract_version": (
+            PROFILED_OBSERVATION_TRAINING_EXAMPLE_ADAPTER_CONTRACT_VERSION
+        ),
+        "training_example_adapter_contract_sha256": stable_sha256(
+            _training_example_adapter_contract()
+        ),
         "row_classification": "TRAINABLE",
         "learning_mode": "outcome_supervised",
         "update_lane": "PROFILED_OUTCOME_SUPERVISED_UNWIRED",
         "decision_time": sample.decision_time,
         "feature_cutoff": sample.feature_cutoff,
-        "available_at": sample.generated_at,
-        "available_at_semantics": "FEATURE_RECORD_GENERATED_BEFORE_DECISION",
+        "available_at": sample.postcommit_readback_at,
+        "available_at_semantics": (
+            "TRAINER_SAMPLE_DURABLY_AVAILABLE_AT_LEDGER_POSTCOMMIT_READBACK"
+        ),
         "record_generated_at": sample.generated_at,
         "trainer_sample_available_at": sample.postcommit_readback_at,
         "trainer_sample_available_at_source": "LEDGER_POSTCOMMIT_READBACK_RECEIPT",
         "postcommit_readback_at": sample.postcommit_readback_at,
         "cost_evidence_available_at": sample.cost_evidence_available_at,
-        "decision_reference_price_available_at": (
-            sample.decision_reference_price_available_at
-        ),
+        "decision_reference_price_available_at": (sample.decision_reference_price_available_at),
         "decision_reference_price": sample.decision_reference_price,
         "decision_reference_price_source": sample.decision_reference_price_source,
-        "decision_reference_price_binding_sha256": (
-            sample.decision_reference_price_binding_sha256
-        ),
+        "decision_reference_price_binding_sha256": (sample.decision_reference_price_binding_sha256),
         "label_available_at": label_available_at,
         "outcome_available_at": label_available_at,
         "label_horizon_seconds": horizon_seconds,
@@ -2075,9 +2677,10 @@ def read_profiled_training_observation_page_v1(
     )
     if type(ledger) is not DurableFeatureSnapshotLedger:
         _fail("PROFILED_OBSERVATION_LEDGER_EXACT_TYPE_REQUIRED")
-    if type(expected_auth_key_id) is not str or _AUTH_KEY_ID_RE.fullmatch(
-        expected_auth_key_id
-    ) is None:
+    if (
+        type(expected_auth_key_id) is not str
+        or _AUTH_KEY_ID_RE.fullmatch(expected_auth_key_id) is None
+    ):
         _fail("PROFILED_OBSERVATION_AUTH_KEY_ID_INVALID")
     if not _valid_sha256(expected_manifest_id):
         _fail("PROFILED_OBSERVATION_EXPECTED_MANIFEST_ID_INVALID")
@@ -2111,8 +2714,7 @@ def read_profiled_training_observation_page_v1(
             or context.get("trusted_cost_store_root") != str(cost_root)
             or context.get("logical_model_feature_count") != LOGICAL_MODEL_FEATURE_COUNT
             or context.get("logical_model_input_count") != LOGICAL_MODEL_INPUT_COUNT
-            or context.get("feature_registry_abi_sha256")
-            != FEATURE_SOURCE_REGISTRY_V4_ABI_SHA256
+            or context.get("feature_registry_abi_sha256") != FEATURE_SOURCE_REGISTRY_V4_ABI_SHA256
         ):
             _fail("PROFILED_OBSERVATION_REOPEN_CONTEXT_INVALID")
         high_water = context.get("feature_ledger_high_water")
@@ -2193,9 +2795,7 @@ def read_profiled_training_observation_page_v1(
                 ) from exc
             if _sample_binding(sample) != sample_binding:
                 _fail("PROFILED_OBSERVATION_DIRECT_SAMPLE_BINDING_MISMATCH")
-            examples.append(
-                _example_from_authenticated_entry(entry=entry, sample=sample)
-            )
+            examples.append(_example_from_authenticated_entry(entry=entry, sample=sample))
         next_after = int(rows[-1]["ordinal"]) if rows else after_ordinal
         has_more = next_after < total_entries
         if not has_more and previous_chain != metadata.get("entry_chain_head_sha256"):
@@ -2226,6 +2826,8 @@ def read_profiled_training_observation_page_v1(
 
 
 __all__ = [
+    "AuthenticatedProfiledTrainingObservationInventoryPageV1",
+    "AuthenticatedProfiledTrainingObservationManifestV1",
     "MAX_PROFILED_OBSERVATION_PAGE_ROWS",
     "MIN_PROFILED_OBSERVATION_HMAC_KEY_BYTES",
     "PROFILED_OBSERVATION_AUTH_ALGORITHM",
@@ -2238,10 +2840,13 @@ __all__ = [
     "PROFILED_OBSERVATION_ORDERED_DIGEST_ALGORITHM",
     "PROFILED_OBSERVATION_ORDERED_DIGEST_SCHEMA_VERSION",
     "PROFILED_OBSERVATION_RUNTIME_STATUS",
+    "PROFILED_OBSERVATION_TRAINING_EXAMPLE_ADAPTER_CONTRACT_VERSION",
     "ProfiledTrainingObservationExampleV1",
     "ProfiledTrainingObservationManifestBuildV1",
     "ProfiledTrainingObservationManifestV1Error",
     "ProfiledTrainingObservationPageV1",
+    "authenticate_profiled_training_observation_inventory_page_v1",
+    "authenticate_profiled_training_observation_manifest_v1",
     "build_profiled_training_observation_manifest_v1",
     "read_profiled_training_observation_page_v1",
 ]

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import shutil
 import sqlite3
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -27,7 +29,10 @@ from v2.backend.app.services.native_trainer.profiled_model_feature_snapshot_reco
 )
 from v2.backend.app.services.native_trainer.profiled_training_observation_manifest_v1 import (
     PROFILED_OBSERVATION_RUNTIME_STATUS,
+    PROFILED_OBSERVATION_TRAINING_EXAMPLE_ADAPTER_CONTRACT_VERSION,
     ProfiledTrainingObservationManifestV1Error,
+    authenticate_profiled_training_observation_inventory_page_v1,
+    authenticate_profiled_training_observation_manifest_v1,
     build_profiled_training_observation_manifest_v1,
     read_profiled_training_observation_page_v1,
 )
@@ -70,9 +75,7 @@ def _label_candles(
     entry_price: float,
     rows: int = 49,
 ) -> list[dict[str, Any]]:
-    decision = datetime.fromisoformat(
-        decision_time.replace("Z", "+00:00")
-    ).astimezone(UTC)
+    decision = datetime.fromisoformat(decision_time.replace("Z", "+00:00")).astimezone(UTC)
     slot_start = decision.replace(
         minute=(decision.minute // 5) * 5,
         second=0,
@@ -299,9 +302,7 @@ def test_later_valid_ledger_suffix_does_not_move_fixed_observation_page(
         .isoformat(timespec="microseconds")
         .replace("+00:00", "Z"),
     )
-    ledger.append_snapshot(
-        loader_support._generic_same_width_record(suffix="post-observation")
-    )
+    ledger.append_snapshot(loader_support._generic_same_width_record(suffix="post-observation"))
 
     page = read_profiled_training_observation_page_v1(
         manifest_path=built.manifest_path,
@@ -317,9 +318,7 @@ def test_later_valid_ledger_suffix_does_not_move_fixed_observation_page(
     assert page.manifest_id == built.manifest_id
     assert page.observation_time == observation
     assert page.examples[0].runtime_wired is False
-    assert PROFILED_OBSERVATION_RUNTIME_STATUS.endswith(
-        "NO_OPTIMIZER_OR_SERVING_AUTHORITY"
-    )
+    assert PROFILED_OBSERVATION_RUNTIME_STATUS.endswith("NO_OPTIMIZER_OR_SERVING_AUTHORITY")
 
 
 def test_factory_reads_every_page_under_one_high_water_when_rows_exceed_page_size(
@@ -333,9 +332,9 @@ def test_factory_reads_every_page_under_one_high_water_when_rows_exceed_page_siz
     )
     generic = loader_support._generic_same_width_record(suffix="manifest-page-two")
     observed = datetime.fromisoformat(observation.replace("Z", "+00:00"))
-    commit_clock = (observed - timedelta(seconds=1)).isoformat(
-        timespec="microseconds"
-    ).replace("+00:00", "Z")
+    commit_clock = (
+        (observed - timedelta(seconds=1)).isoformat(timespec="microseconds").replace("+00:00", "Z")
+    )
     monkeypatch.setattr(feature_ledger_module, "utc_now", lambda: commit_clock)
     append = ledger.append_snapshot(generic)
     assert append.inserted_rows == 1
@@ -502,12 +501,14 @@ def test_label_entry_uses_authenticated_decision_orderbook_mid_not_prior_close(
     assert directional["decision_reference_price_source"] == (
         "AUTHENTICATED_CAUSAL_COST_ORDERBOOK_DEPTH_CAS_MID"
     )
-    assert directional["decision_reference_price_payload_sha256"] == sample[
-        "decision_reference_price_payload_sha256"
-    ]
-    assert directional["decision_reference_price_receipt_sha256"] == sample[
-        "decision_reference_price_receipt_sha256"
-    ]
+    assert (
+        directional["decision_reference_price_payload_sha256"]
+        == sample["decision_reference_price_payload_sha256"]
+    )
+    assert (
+        directional["decision_reference_price_receipt_sha256"]
+        == sample["decision_reference_price_receipt_sha256"]
+    )
     assert directional["raw_return_bps"] == pytest.approx(
         ((final_close - reference_mid) / reference_mid) * 10_000.0
     )
@@ -516,9 +517,7 @@ def test_label_entry_uses_authenticated_decision_orderbook_mid_not_prior_close(
         directional["long_round_trip_cost_bps"]
     )
     assert label_binding["label_horizon_seconds"] == 900
-    assert label_binding["label_horizon_seconds"] == sample[
-        "expected_holding_horizon_seconds"
-    ]
+    assert label_binding["label_horizon_seconds"] == sample["expected_holding_horizon_seconds"]
     target_us = label_binding["label_horizon_target_time_epoch_us"]
     final_close_us = label_binding["label_final_candle_close_time_ms"] * 1_000
     assert target_us <= final_close_us < target_us + 300_000_000
@@ -552,26 +551,78 @@ def test_manifest_distinguishes_generated_decision_postcommit_and_observation_cl
     )
     trust = page.examples[0].training_example.trust_row
     assert trust is not None
+    with sqlite3.connect(built.manifest_path) as connection:
+        metadata_row = connection.execute(
+            "SELECT metadata_json FROM observation_manifest_metadata WHERE singleton = 1"
+        ).fetchone()
+    assert metadata_row is not None
+    metadata = json.loads(str(metadata_row[0]))
+    context = metadata["observation_context"]
+    adapter_contract = context["training_example_adapter_contract"]
     record_generated = datetime.fromisoformat(
         str(trust["record_generated_at"]).replace("Z", "+00:00")
     )
-    decision = datetime.fromisoformat(
-        str(trust["decision_time"]).replace("Z", "+00:00")
-    )
+    decision = datetime.fromisoformat(str(trust["decision_time"]).replace("Z", "+00:00"))
     trainer_sample_available = datetime.fromisoformat(
         str(trust["trainer_sample_available_at"]).replace("Z", "+00:00")
     )
     observed = datetime.fromisoformat(observation.replace("Z", "+00:00"))
 
     assert record_generated < decision < trainer_sample_available < observed
-    assert trust["available_at"] == trust["record_generated_at"]
-    assert trust["trainer_sample_available_at_source"] == (
-        "LEDGER_POSTCOMMIT_READBACK_RECEIPT"
+    assert PROFILED_OBSERVATION_TRAINING_EXAMPLE_ADAPTER_CONTRACT_VERSION == (
+        "profiled_training_example_adapter_postcommit_availability_v1"
     )
+    assert adapter_contract["schema_version"] == (
+        PROFILED_OBSERVATION_TRAINING_EXAMPLE_ADAPTER_CONTRACT_VERSION
+    )
+    assert adapter_contract["trust_row_available_at_source_field"] == (
+        "postcommit_readback_at"
+    )
+    assert adapter_contract["record_generated_at_must_not_exceed_decision_time"] is True
+    assert adapter_contract["postcommit_readback_at_must_exceed_decision_time"] is True
+    assert adapter_contract["postcommit_readback_at_must_exceed_record_generated_at"] is True
+    assert context["training_example_adapter_contract_sha256"] == (
+        manifest_module.stable_sha256(adapter_contract)
+    )
+    assert trust["training_example_adapter_contract_version"] == (
+        PROFILED_OBSERVATION_TRAINING_EXAMPLE_ADAPTER_CONTRACT_VERSION
+    )
+    assert trust["training_example_adapter_contract_sha256"] == (
+        context["training_example_adapter_contract_sha256"]
+    )
+    assert trust["available_at"] == trust["postcommit_readback_at"]
+    assert trust["available_at"] == trust["trainer_sample_available_at"]
+    assert trust["available_at"] != trust["record_generated_at"]
+    assert trainer_sample_available > record_generated
+    assert trust["available_at_semantics"] == (
+        "TRAINER_SAMPLE_DURABLY_AVAILABLE_AT_LEDGER_POSTCOMMIT_READBACK"
+    )
+    assert trust["trainer_sample_available_at_source"] == ("LEDGER_POSTCOMMIT_READBACK_RECEIPT")
     assert trust["trainer_sample_available_at"] == trust["postcommit_readback_at"]
-    assert datetime.fromisoformat(
-        str(trust["decision_reference_price_available_at"]).replace("Z", "+00:00")
-    ) <= decision
+    assert (
+        datetime.fromisoformat(
+            str(trust["decision_reference_price_available_at"]).replace("Z", "+00:00")
+        )
+        <= decision
+    )
+
+    revised_contract = {
+        **adapter_contract,
+        "schema_version": "profiled_training_example_adapter_postcommit_availability_v2",
+    }
+    revised_context = {
+        **context,
+        "training_example_adapter_contract": revised_contract,
+        "training_example_adapter_contract_sha256": manifest_module.stable_sha256(
+            revised_contract
+        ),
+    }
+    revised_metadata_without_id = {
+        **{name: value for name, value in metadata.items() if name != "manifest_id"},
+        "observation_context": revised_context,
+        "observation_context_sha256": manifest_module.stable_sha256(revised_context),
+    }
+    assert manifest_module.stable_sha256(revised_metadata_without_id) != built.manifest_id
 
 
 def test_future_retrospective_cutoff_is_rejected_by_factory_wall_clock(
@@ -590,8 +641,10 @@ def test_future_retrospective_cutoff_is_rejected_by_factory_wall_clock(
         lambda: trusted_wall_clock,
     )
     future_cutoff = (
-        trusted_wall_clock + timedelta(microseconds=1)
-    ).isoformat(timespec="microseconds").replace("+00:00", "Z")
+        (trusted_wall_clock + timedelta(microseconds=1))
+        .isoformat(timespec="microseconds")
+        .replace("+00:00", "Z")
+    )
 
     with pytest.raises(
         ProfiledTrainingObservationManifestV1Error,
@@ -773,17 +826,17 @@ def test_page_requires_exact_external_manifest_pin(
         auth_key_id=AUTH_KEY_ID,
         hmac_key=AUTH_KEY,
     )
-    expected_manifest_id = (
-        "0" * 64 if wrong_field == "manifest_id" else built.manifest_id
-    )
+    expected_manifest_id = "0" * 64 if wrong_field == "manifest_id" else built.manifest_id
     expected_observation_time = built.observation_time
     if wrong_field == "observation_time":
         expected_observation_time = (
-            datetime.fromisoformat(
-                built.observation_time.replace("Z", "+00:00")
+            (
+                datetime.fromisoformat(built.observation_time.replace("Z", "+00:00"))
+                + timedelta(microseconds=1)
             )
-            + timedelta(microseconds=1)
-        ).isoformat(timespec="microseconds").replace("+00:00", "Z")
+            .isoformat(timespec="microseconds")
+            .replace("+00:00", "Z")
+        )
 
     with pytest.raises(
         ProfiledTrainingObservationManifestV1Error,
@@ -797,4 +850,154 @@ def test_page_requires_exact_external_manifest_pin(
             expected_auth_key_id=AUTH_KEY_ID,
             expected_manifest_id=expected_manifest_id,
             expected_observation_time=expected_observation_time,
+        )
+
+
+def test_full_manifest_authentication_returns_only_non_authoritative_scalar_summary(
+    tmp_path: Path,
+    authenticated_base_evidence: Any,
+) -> None:
+    ledger, archive, observation, cost_root = _setup_sources(
+        tmp_path,
+        authenticated_base_evidence,
+    )
+    built = build_profiled_training_observation_manifest_v1(
+        ledger=ledger,
+        trusted_immutable_cost_store_root=cost_root,
+        label_archive=archive,
+        manifest_root=(tmp_path / "manifests").absolute(),
+        training_observed_at=observation,
+        auth_key_id=AUTH_KEY_ID,
+        hmac_key=AUTH_KEY,
+    )
+
+    authenticated = authenticate_profiled_training_observation_manifest_v1(
+        manifest_path=built.manifest_path,
+        hmac_key=AUTH_KEY,
+        expected_auth_key_id=AUTH_KEY_ID,
+        expected_manifest_id=built.manifest_id,
+        expected_observation_time=built.observation_time,
+    )
+    page = authenticate_profiled_training_observation_inventory_page_v1(
+        authenticated_manifest=authenticated,
+        hmac_key=AUTH_KEY,
+        limit=1,
+    )
+
+    assert authenticated.manifest_id == built.manifest_id
+    assert authenticated.feature_ledger_verified_records == 2
+    assert authenticated.feature_ledger_prefix_head_sequence == 1
+    assert authenticated.label_archive_verified_rows == 49
+    assert authenticated.label_archive_prefix_head_sequence == 49
+    assert authenticated.full_manifest_authentication_verified is True
+    assert authenticated.full_entry_inventory_verified is True
+    assert authenticated.external_monotonic_manifest_head_verified is False
+    assert authenticated.full_consumption_external_ack_verified is False
+    assert authenticated.optimizer_admission_authorized is False
+    assert authenticated.checkpoint_write_authorized is False
+    assert authenticated.model_write_authorized is False
+    assert authenticated.prediction_authorized is False
+    assert authenticated.paper_trading_authorized is False
+    assert authenticated.live_execution_authorized is False
+    assert authenticated.execution_authorized is False
+    assert authenticated.runtime_wired is False
+    assert page.scanned_entry_count == 1
+    assert page.admitted_entry_count == 1
+    assert page.label_unavailable_count == 0
+    assert page.page_start_previous_entry_chain_sha256 == (
+        manifest_module.PROFILED_OBSERVATION_ENTRY_CHAIN_GENESIS
+    )
+    assert page.page_end_entry_chain_sha256 == authenticated.entry_chain_head_sha256
+    assert page.has_more_manifest_entries is False
+    assert page.external_monotonic_manifest_head_verified is False
+    assert page.runtime_wired is False
+
+
+def test_full_authentication_rejects_key_key_id_tamper_and_unsafe_path_bindings(
+    tmp_path: Path,
+    authenticated_base_evidence: Any,
+) -> None:
+    ledger, archive, observation, cost_root = _setup_sources(
+        tmp_path,
+        authenticated_base_evidence,
+    )
+    built = build_profiled_training_observation_manifest_v1(
+        ledger=ledger,
+        trusted_immutable_cost_store_root=cost_root,
+        label_archive=archive,
+        manifest_root=(tmp_path / "manifests").absolute(),
+        training_observed_at=observation,
+        auth_key_id=AUTH_KEY_ID,
+        hmac_key=AUTH_KEY,
+    )
+    call = {
+        "manifest_path": built.manifest_path,
+        "hmac_key": AUTH_KEY,
+        "expected_auth_key_id": AUTH_KEY_ID,
+        "expected_manifest_id": built.manifest_id,
+        "expected_observation_time": built.observation_time,
+    }
+
+    with pytest.raises(
+        ProfiledTrainingObservationManifestV1Error,
+        match="PROFILED_OBSERVATION_METADATA_AUTHENTICATION_INVALID",
+    ):
+        authenticate_profiled_training_observation_manifest_v1(**{**call, "hmac_key": b"x" * 32})
+    with pytest.raises(
+        ProfiledTrainingObservationManifestV1Error,
+        match="PROFILED_OBSERVATION_METADATA_AUTHENTICATION_INVALID",
+    ):
+        authenticate_profiled_training_observation_manifest_v1(
+            **{**call, "expected_auth_key_id": "unit/wrong-manifest-key"}
+        )
+
+    os.chmod(built.manifest_path, 0o640)
+    with pytest.raises(
+        ProfiledTrainingObservationManifestV1Error,
+        match="PROFILED_OBSERVATION_PROMOTION_PATH_PROTECTION_INVALID",
+    ):
+        authenticate_profiled_training_observation_manifest_v1(**call)
+    os.chmod(built.manifest_path, 0o600)
+
+    hardlink = tmp_path / "manifest-hardlink.sqlite3"
+    os.link(built.manifest_path, hardlink)
+    with pytest.raises(
+        ProfiledTrainingObservationManifestV1Error,
+        match="PROFILED_OBSERVATION_PROMOTION_PATH_PROTECTION_INVALID",
+    ):
+        authenticate_profiled_training_observation_manifest_v1(**call)
+    hardlink.unlink()
+
+    symlink_root = tmp_path / "symlink-manifest"
+    symlink_root.mkdir()
+    symlink = symlink_root / built.manifest_path.name
+    symlink.symlink_to(built.manifest_path)
+    with pytest.raises(
+        ProfiledTrainingObservationManifestV1Error,
+        match="PROFILED_OBSERVATION_PROMOTION_PATH_OPEN_FAILED",
+    ):
+        authenticate_profiled_training_observation_manifest_v1(**{**call, "manifest_path": symlink})
+
+    tamper_root = tmp_path / "tampered-manifest"
+    tamper_root.mkdir()
+    tampered = tamper_root / built.manifest_path.name
+    shutil.copyfile(built.manifest_path, tampered)
+    os.chmod(tampered, 0o600)
+    connection = sqlite3.connect(tampered)
+    try:
+        connection.execute("DROP TRIGGER observation_manifest_metadata_no_update")
+        connection.execute(
+            "UPDATE observation_manifest_metadata SET metadata_sha256 = ?",
+            ("f" * 64,),
+        )
+        connection.commit()
+    finally:
+        connection.close()
+    with pytest.raises(
+        ProfiledTrainingObservationManifestV1Error,
+        match="PROFILED_OBSERVATION_MANIFEST_SCHEMA_INVALID|"
+        "PROFILED_OBSERVATION_METADATA_AUTHENTICATION_INVALID",
+    ):
+        authenticate_profiled_training_observation_manifest_v1(
+            **{**call, "manifest_path": tampered}
         )
