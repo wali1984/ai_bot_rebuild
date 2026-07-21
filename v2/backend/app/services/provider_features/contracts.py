@@ -56,8 +56,13 @@ COINGLASS_CANONICAL_FEATURE_MAP: dict[str, str] = {
     "coinglass_long_ratio": "long_account_ratio",
     "coinglass_short_ratio": "short_account_ratio",
     "coinglass_long_short_extreme_score": "long_short_extreme_score",
-    "coinglass_liquidation_buy_usd_1m": "liquidation_buy_usd_1m",
-    "coinglass_liquidation_sell_usd_1m": "liquidation_sell_usd_1m",
+    # CoinGlass Standard exposes the admitted liquidation history at 1h.
+    # Never alias these observations to the legacy ``*_1m`` tensor names:
+    # doing so changes the measurement window by 60x while keeping the old
+    # label and makes provider collisions impossible to reason about.
+    "coinglass_liquidation_buy_usd_1h": "liquidation_buy_usd_1h",
+    "coinglass_liquidation_sell_usd_1h": "liquidation_sell_usd_1h",
+    "coinglass_liquidation_total_usd_1h": "liquidation_total_usd_1h",
     "coinglass_liquidation_imbalance_usd": "liquidation_imbalance_usd",
     "coinglass_liquidation_cascade_score": "liquidation_cascade_risk",
     "coinglass_nearest_liq_zone_above_usd": "nearest_liquidation_level_above",
@@ -113,8 +118,7 @@ def endpoint_to_feature_mapping() -> dict[str, Any]:
             "ttl_seconds": spec.ttl_seconds,
             "feature_outputs": list(spec.feature_outputs),
             "canonical_outputs": [
-                COINGLASS_CANONICAL_FEATURE_MAP.get(name, name)
-                for name in spec.feature_outputs
+                COINGLASS_CANONICAL_FEATURE_MAP.get(name, name) for name in spec.feature_outputs
             ],
             "optional_if_forbidden": bool(spec.optional_if_plan_forbidden),
         }
@@ -134,8 +138,7 @@ def endpoint_to_feature_mapping() -> dict[str, Any]:
             "ttl_seconds": spec.ttl_seconds,
             "feature_outputs": list(spec.feature_outputs),
             "canonical_outputs": [
-                MORALIS_CANONICAL_FEATURE_MAP.get(name, name)
-                for name in spec.feature_outputs
+                MORALIS_CANONICAL_FEATURE_MAP.get(name, name) for name in spec.feature_outputs
             ],
             "requires_wallet": bool(spec.requires_wallet),
             "requires_token": bool(spec.requires_token),

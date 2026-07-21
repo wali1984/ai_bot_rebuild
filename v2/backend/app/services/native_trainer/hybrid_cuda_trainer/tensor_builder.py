@@ -609,6 +609,67 @@ def _source_temporal_state(
     )
 
 
+def _provider_context_temporal_view(payload: Any) -> tuple[Any, tuple[str, ...]]:
+    """Project provider context to evidence that authorized admitted features.
+
+    Provider bridge diagnostics describe rejected optional providers as well as
+    admitted ones. Empty violation lists, provider-name inventories, and
+    exclusion-reason strings are not feature observations and must not be
+    recursively interpreted as rows. The admitted feature map and its exact
+    per-feature source lineage remain in the independent temporal validation
+    surface, so a future or malformed source row still fails the whole context
+    closed.
+    """
+
+    if not isinstance(payload, Mapping):
+        return payload, ()
+    view = {
+        field: payload[field]
+        for field in (*_SOURCE_CLOCK_FIELDS, *_FRESHNESS_FIELDS)
+        if field in payload
+    }
+    features = payload.get("provider_features")
+    if isinstance(features, Mapping):
+        view["provider_features"] = features
+
+    reasons: list[str] = []
+    if payload.get("temporal_contract_version") == "provider_feature_temporal_contract_v2":
+        if payload.get("temporal_contract_valid") is not True:
+            reasons.append("PROVIDER_FEATURE_CONTEXT_TEMPORAL_CONTRACT_NOT_VALID")
+        for field in (
+            "point_in_time_violations",
+            "temporal_contract_violations",
+        ):
+            value = payload.get(field)
+            if type(value) is not list or value:
+                reasons.append(f"PROVIDER_FEATURE_CONTEXT_{field.upper()}_PRESENT")
+        lineage = payload.get("feature_source_lineage")
+        feature_names = {str(name) for name in features} if isinstance(features, Mapping) else set()
+        if not isinstance(lineage, Mapping) or set(map(str, lineage)) != feature_names:
+            reasons.append("PROVIDER_FEATURE_CONTEXT_FEATURE_LINEAGE_NOT_EXACT")
+        else:
+            admitted_lineage: dict[str, Any] = {}
+            for name in sorted(feature_names):
+                row = lineage.get(name)
+                if not isinstance(row, Mapping):
+                    reasons.append("PROVIDER_FEATURE_CONTEXT_FEATURE_LINEAGE_ROW_INVALID")
+                    continue
+                digest = row.get("source_payload_sha256")
+                if (
+                    type(row.get("provider")) is not str
+                    or not row.get("provider")
+                    or type(row.get("source_key")) is not str
+                    or not row.get("source_key")
+                    or type(digest) is not str
+                    or len(digest) != 64
+                    or any(character not in "0123456789abcdef" for character in digest)
+                ):
+                    reasons.append("PROVIDER_FEATURE_CONTEXT_FEATURE_LINEAGE_IDENTITY_INVALID")
+                admitted_lineage[name] = row
+            view["feature_source_lineage"] = admitted_lineage
+    return view, tuple(sorted(set(reasons)))
+
+
 def _canonical_json_value(value: Any) -> Any:
     if isinstance(value, Mapping):
         return {
@@ -910,12 +971,19 @@ class V2UnifiedFeatureTensorBuilder:
         for payload_name, source_labels in _SOURCE_LABELS_BY_PAYLOAD.items():
             if payload_name in {"ohlcv", "orderbook"}:
                 continue
+            temporal_payload = source_payloads.get(payload_name)
+            projection_reasons: tuple[str, ...] = ()
+            if payload_name == "provider_feature_context":
+                temporal_payload, projection_reasons = _provider_context_temporal_view(
+                    temporal_payload
+                )
             _available_ms, reasons = _source_temporal_state(
                 payload_name=payload_name,
-                payload=source_payloads.get(payload_name),
+                payload=temporal_payload,
                 decision_time=resolved_decision_time,
                 require_available_at=True,
             )
+            reasons = tuple(sorted(set((*projection_reasons, *reasons))))
             if reasons:
                 temporal_reasons.extend(reasons)
                 invalid_source_labels.update(source_labels)

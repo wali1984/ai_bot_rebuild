@@ -2,8 +2,12 @@ from __future__ import annotations
 
 import json
 
-from v2.backend.app.services.feature_pipeline.ta_flat_hash_adapter import publish_flat_ta
-from v2.backend.app.services.feature_pipeline.unified_feature_bridge import build_unified_feature_payload
+from v2.backend.app.services.feature_pipeline.ta_flat_hash_adapter import (
+    publish_flat_ta,
+)
+from v2.backend.app.services.feature_pipeline.unified_feature_bridge import (
+    build_unified_feature_payload,
+)
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.tensor_builder import (
     V2UnifiedFeatureTensorBuilder,
 )
@@ -114,6 +118,18 @@ def test_unified_feature_bridge_combines_ta_and_provider_features() -> None:
     assert payload["features"]["RSI"] == 55.0
     assert payload["features"]["funding_rate"] == 0.0003
     assert payload["point_in_time_safe"] is True
+    provider_context = payload["provider_feature_context"]
+    assert provider_context["available_at"] == "2026-07-08T12:00:00Z"
+    assert provider_context["feature_cutoff"] == "2026-07-08T11:59:00Z"
+    record = V2UnifiedFeatureTensorBuilder().build(
+        symbol="BTCUSDT",
+        timeframe="1m",
+        decision_time="2026-07-08T12:01:00Z",
+        payloads={"provider_feature_context": provider_context},
+    )
+    funding_index = record.feature_names.index("funding_rate")
+    assert record.values[funding_index] == 0.0003
+    assert not record.temporal_rejection_reasons
 
 
 def test_tensor_builder_consumes_provider_bridge_features_without_new_dimension() -> None:
@@ -121,12 +137,16 @@ def test_tensor_builder_consumes_provider_bridge_features_without_new_dimension(
     record = builder.build(
         symbol="BTCUSDT",
         timeframe="1m",
+        decision_time="2026-07-08T12:01:00Z",
         payloads={
             "provider_feature_context": {
+                "available_at": "2026-07-08T12:00:00Z",
+                "feature_cutoff": "2026-07-08T11:59:00Z",
+                "decision_time": "2026-07-08T12:01:00Z",
                 "provider_features": {
                     "funding_rate": 0.0004,
                     "open_interest": 12345,
-                }
+                },
             }
         },
     )
@@ -135,3 +155,40 @@ def test_tensor_builder_consumes_provider_bridge_features_without_new_dimension(
     assert record.values[funding_index] == 0.0004
     assert record.values[oi_index] == 12345
     assert record.source_labels[funding_index] == "provider_feature_bridge"
+
+
+def test_tensor_builder_rejects_future_admitted_provider_feature_lineage() -> None:
+    record = V2UnifiedFeatureTensorBuilder().build(
+        symbol="BTCUSDT",
+        timeframe="1m",
+        decision_time="2026-07-08T12:01:00Z",
+        payloads={
+            "provider_feature_context": {
+                "temporal_contract_version": "provider_feature_temporal_contract_v2",
+                "temporal_contract_valid": True,
+                "point_in_time_violations": [],
+                "temporal_contract_violations": [],
+                "available_at": "2026-07-08T12:00:00Z",
+                "feature_cutoff": "2026-07-08T11:59:00Z",
+                "decision_time": "2026-07-08T12:01:00Z",
+                "provider_features": {"funding_rate": 0.0004},
+                "feature_source_lineage": {
+                    "funding_rate": {
+                        "provider": "coinglass",
+                        "source_key": "v2:features:coinglass:BTCUSDT:1m",
+                        "source_payload_sha256": "a" * 64,
+                        "available_at": "2026-07-08T12:01:00.001Z",
+                        "feature_cutoff": "2026-07-08T11:59:00Z",
+                    }
+                },
+            }
+        },
+    )
+
+    funding_index = record.feature_names.index("funding_rate")
+    assert record.values[funding_index] == 0.0
+    assert record.missing_mask[funding_index] == 1
+    assert (
+        "PROVIDER_FEATURE_CONTEXT_AVAILABLE_AT_AFTER_DECISION_TIME"
+        in record.temporal_rejection_reasons
+    )
