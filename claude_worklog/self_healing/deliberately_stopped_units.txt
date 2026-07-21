@@ -36,3 +36,4 @@ ai-bot-v2-codex-watchdog.service
 # Keep it held until the causal provider-loader gate is released and verified.
 ai-bot-v2-cascade-context-publisher.service
 ai-bot-v2-strategy-supply-publisher.service
+ai-bot-v2-microstructure-feed-quality-monitor.service
