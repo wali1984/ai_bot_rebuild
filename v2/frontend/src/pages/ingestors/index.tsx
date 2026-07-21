@@ -13,8 +13,11 @@ const RUNTIME_TRUTH_PATH = '/operator_runtime/v2_runtime_truth/latest/operator_r
 const NATIVE_INGESTORS_LIVE_PATH = '/operator_runtime/v2_native_ingestors/live/latest/v2_native_ingestors_live_status.json';
 
 interface FreshnessEntry {
-  total: number;
-  fresh_ttl_positive: number;
+  observed_key_count: number;
+  storage_ttl_positive_count: number;
+  persistent_key_count: number;
+  scan_complete: boolean;
+  source_event_freshness_inferred_from_ttl: false;
 }
 
 interface IngestorEntry {
@@ -86,6 +89,12 @@ function statusBadge(active: boolean, status: string): JSX.Element {
   return <span className={`badge ${cls}`}>{status || label}</span>;
 }
 
+function coreHeartbeatClass(classification: string | undefined): string {
+  return classification?.startsWith('INGESTOR_CORE_HEARTBEATS_CURRENT')
+    ? 'metric--ok'
+    : 'metric--warn';
+}
+
 export default function IngestorsPage(): JSX.Element {
   const { data, error, ageSeconds } = usePayloadFile<IngestorsPayload>(
     INGESTORS_STATUS_PATH,
@@ -145,7 +154,7 @@ export default function IngestorsPage(): JSX.Element {
           </div>
           <div className="metric">
             <span className="metric-label">Ingestor health</span>
-            <span className={`metric-value ${runtimeTruth?.ingestor_status === 'INGESTORS_OK' ? 'metric--ok' : 'metric--warn'}`}>
+            <span className={`metric-value ${coreHeartbeatClass(runtimeTruth?.ingestor_status)}`}>
                   {publicRuntimeCopy(runtimeTruth?.ingestor_status)}
             </span>
           </div>
@@ -195,7 +204,7 @@ export default function IngestorsPage(): JSX.Element {
             <div className="cockpit-analytics-grid">
               <div className="metric">
                 <span className="metric-label">Classification</span>
-                <span className={`metric-value ${data.classification === 'INGESTORS_OK' ? 'metric--ok' : 'metric--warn'}`}>
+                <span className={`metric-value ${coreHeartbeatClass(data.classification)}`}>
                   {publicRuntimeCopy(data.classification)}
                 </span>
               </div>
@@ -285,14 +294,19 @@ export default function IngestorsPage(): JSX.Element {
             </div>
           </Panel>
 
-          <Panel id="ingestors-freshness" title="Redis Key Freshness">
+          <Panel id="ingestors-freshness" title="Redis Key Retention (Not Source Freshness)">
             <div className="cockpit-analytics-grid">
               {Object.entries(data.redis_freshness).map(([label, f]) => (
                 <div key={label} className="metric">
                   <span className="metric-label">{label}</span>
-                  <span className={`metric-value ${f.fresh_ttl_positive > 0 ? 'metric--ok' : 'metric--block'}`}>
-                    {f.fresh_ttl_positive} / {f.total} fresh
+                  <span className="metric-value">
+                    {f.storage_ttl_positive_count} expiring / {f.persistent_key_count} persistent /{' '}
+                    {f.observed_key_count} observed
                   </span>
+                  <small className="small">
+                    {f.scan_complete ? 'complete bounded scan' : 'truncated bounded scan'}; TTL does not prove
+                    source-event freshness
+                  </small>
                 </div>
               ))}
             </div>
