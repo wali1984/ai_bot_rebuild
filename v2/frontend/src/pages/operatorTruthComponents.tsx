@@ -50,6 +50,13 @@ function controlPlaneValue(payload: OperatorTruthPayload): string {
     ?? (payload.supervisor_status.stale_or_conflicting ? 'SUPERVISOR_STATUS_STALE_OR_CONFLICTING' : 'CURRENT_RUNTIME_SNAPSHOT');
 }
 
+function isoAgeSeconds(iso: string | null | undefined): number | null {
+  if (!iso) return null;
+  const ms = new Date(iso).getTime();
+  if (Number.isNaN(ms)) return null;
+  return Math.max(0, Math.round((Date.now() - ms) / 1000));
+}
+
 function formatAge(seconds: number | null | undefined): string {
   if (seconds === null || seconds === undefined) return 'unknown age';
   if (seconds < 60) return `${seconds}s`;
@@ -236,8 +243,18 @@ export function RuntimeTruthMatrix({ payload }: { payload: OperatorTruthPayload 
   );
 }
 
+const OBSERVER_REALTIME_MAX_AGE_SECONDS = 600;
+
 export function LiveObserverShadowTwinPanel({ payload }: { payload: OperatorTruthPayload }): JSX.Element {
   const observer = payload.live_observer_shadow_twin;
+  const observerGeneratedAt = typeof observer?.generated_at === 'string' ? observer.generated_at : null;
+  const observerAgeSeconds = isoAgeSeconds(observerGeneratedAt);
+  const observerIsCurrent = observerAgeSeconds !== null && observerAgeSeconds <= OBSERVER_REALTIME_MAX_AGE_SECONDS;
+  const observerChipLabel = !observer
+    ? 'MISSING_EVIDENCE'
+    : observerIsCurrent
+      ? 'REALTIME_RUNTIME_EVIDENCE'
+      : `STALE_OBSERVER_EVIDENCE · ${observerAgeSeconds === null ? 'unknown age' : `${formatAge(observerAgeSeconds)} old`}`;
   const riskResult = nestedText(observer, ['legacy_shadow_twin', 'risk_decision', 'risk_result']);
   const riskReason = nestedText(observer, ['legacy_shadow_twin', 'risk_decision', 'risk_reason_code']);
   const paperResult = nestedText(observer, ['legacy_shadow_twin', 'paper_ledger_entry', 'paper_result']);
@@ -249,9 +266,10 @@ export function LiveObserverShadowTwinPanel({ payload }: { payload: OperatorTrut
     <Panel
       id="live-observer-shadow-twin"
       title="Legacy Live Observer / V2 Shadow Twin"
-      right={<span className={observer ? 'chip solid-ok' : 'chip solid-warn'}>{observer ? 'REALTIME_RUNTIME_EVIDENCE' : 'MISSING_EVIDENCE'}</span>}
+      right={<span className={observer && observerIsCurrent ? 'chip solid-ok' : 'chip solid-warn'}>{observerChipLabel}</span>}
     >
       <div className="cockpit-lineage-grid">
+        <div><span>evidence generated</span><strong className={observerIsCurrent ? undefined : statusClass('stale')}>{observerGeneratedAt ? `${observerGeneratedAt} (${observerAgeSeconds === null ? 'unknown age' : `${formatAge(observerAgeSeconds)} old`})` : 'MISSING_EVIDENCE'}</strong></div>
         <div><span>bridge status</span><strong>{nestedText(observer, ['legacy_read_only_bridge', 'status'])}</strong></div>
         <div><span>source stream</span><strong>{sourceStream}</strong></div>
         <div><span>legacy signal_id</span><strong>{nestedText(observer, ['legacy_shadow_twin', 'normalized_signal', 'signal_id'])}</strong></div>
@@ -263,6 +281,11 @@ export function LiveObserverShadowTwinPanel({ payload }: { payload: OperatorTrut
         <div><span>V2 Redis namespace</span><strong>{nestedText(observer, ['v2_bounded_redis_namespace', 'status'])}</strong></div>
         <div><span>trainer parity</span><strong>{nestedText(observer, ['trainer_bridge_parity', 'parity_status'])}</strong></div>
       </div>
+      {observer && !observerIsCurrent ? (
+        <p className="cockpit-evidence-gap">
+          Observer snapshot is not current — the values above are a historical snapshot from {observerGeneratedAt ?? 'an unknown time'}{observerAgeSeconds !== null ? ` (${formatAge(observerAgeSeconds)} old)` : ''}, not live runtime state.
+        </p>
+      ) : null}
       <p className="cockpit-evidence-note">
         This bridge observes legacy account-access evidence and mirrors it into V2 execution/shadow records. It does not write old Redis, does not command the legacy trader, and Risk Gateway remains final authority.
       </p>
@@ -349,43 +372,68 @@ export function PaperOnlineRuntimeStatusPanel({ payload }: { payload: PaperOnlin
   );
 }
 
+const COINANK_FRESH_MAX_AGE_SECONDS = 600;
+
 export function CoinankMarketIntelligencePanel({ payload, error, context = 'Market Intelligence' }: { payload: CoinankMarketIntelligencePayload | null; error?: string | null; context?: string }): JSX.Element {
-  const source = payload?.source ?? 'MISSING_EVIDENCE';
-  const availability = payload?.availability ?? {};
-  const endpointCounts = payload?.endpoint_key_counts ?? {};
-  const missing = payload?.missing_evidence ?? [];
-  const activeSymbols = Array.isArray(payload?.active_symbols) ? payload.active_symbols : [];
-  const hotSymbols = Array.isArray(payload?.hot_symbols) ? payload.hot_symbols : [];
-  const requiredTfs = Array.isArray(payload?.required_tfs) ? payload.required_tfs : [];
-  const requiredTfStatus = payload?.required_tfs_status ?? {};
-  const forbiddenSourceChecks = payload?.forbidden_source_checks ?? {};
+  // Current live schema: coinank_direct_runtime_status_v1 (classification /
+  // current_call_log_health / direct_key_counts / generated_utc). Legacy plan-3
+  // keys are used only as fallbacks for old payload snapshots.
+  const generatedIso = payload?.generated_utc ?? payload?.generated_at ?? null;
+  const payloadAge = isoAgeSeconds(generatedIso);
+  const payloadIsFresh = payloadAge !== null && payloadAge <= COINANK_FRESH_MAX_AGE_SECONDS;
+  const classification = payload?.classification ?? payload?.source ?? 'MISSING_EVIDENCE';
+  const chipLabel = !payload
+    ? 'MISSING_EVIDENCE'
+    : payloadIsFresh
+      ? classification
+      : `STALE_COINANK_EVIDENCE · ${payloadAge === null ? 'unknown age' : `${formatAge(payloadAge)} old`}`;
+  const callLog = payload?.current_call_log_health;
+  const keyCounts = payload?.direct_key_counts;
+  const missing = Array.isArray(payload?.missing_api_blockers) && payload.missing_api_blockers.length
+    ? payload.missing_api_blockers
+    : payload?.missing_evidence ?? [];
+  const disabledEndpoints = payload?.intentionally_disabled_endpoints ? Object.keys(payload.intentionally_disabled_endpoints) : [];
+  const neverSuccessful = Array.isArray(payload?.never_successful_active_endpoints) ? payload.never_successful_active_endpoints : [];
+  const featureInput = payload?.v2_redis_feature_input as Record<string, unknown> | undefined;
   return (
     <Panel
       id={`coinank-market-intelligence-${context.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}
-      title={`${context} - CoinAnk Plan-3 Read-Only Bridge`}
-      right={<span className={payload ? 'chip solid-ok' : 'chip solid-warn'}>{source}</span>}
+      title={`${context} - CoinAnk Direct Read-Only Runtime`}
+      right={sourceChip(chipLabel)}
     >
       {payload ? (
         <>
           <div className="cockpit-analytics-grid">
-            <Metric label="Payload generated" value={payload.generated_at} />
-            <Metric label="Live gate" value={payload.live_gate_status} />
-            <Metric label="Endpoint manifest" value={payload.endpoint_manifest_version} />
-            <Metric label="Active symbols" value={activeSymbols.length} />
-            <Metric label="Global 11 contract" value={payload.global_11_key_contract_status} />
-            <Metric label="CVD keys" value={endpointCounts.agg_cvd ?? 0} />
-            <Metric label="SMC keys" value={endpointCounts.indicator_smc ?? 0} />
-            <Metric label="Weighted funding keys" value={endpointCounts.weighted_funding ?? 0} />
+            <Metric label="Payload generated" value={generatedIso ?? 'MISSING_EVIDENCE'} detail={payloadAge === null ? undefined : `${formatAge(payloadAge)} old`} />
+            <Metric label="Classification" value={classification} />
+            <Metric label="Endpoints tracked" value={payload.endpoints_count ?? 'MISSING_EVIDENCE'} />
+            <Metric
+              label="Recent calls OK"
+              value={callLog?.recent_success_count != null && callLog?.recent_sample_size != null ? `${callLog.recent_success_count}/${callLog.recent_sample_size}` : 'MISSING_EVIDENCE'}
+              detail={callLog?.recent_window_seconds != null ? `last ${Math.round(callLog.recent_window_seconds / 60)}m window` : undefined}
+            />
+            <Metric label="Recent errors" value={callLog?.recent_error_count ?? 'MISSING_EVIDENCE'} />
+            <Metric label="Recent empty" value={callLog?.recent_empty_count ?? 'MISSING_EVIDENCE'} detail={callLog?.recent_empty_endpoints?.length ? callLog.recent_empty_endpoints.slice(0, 3).join(', ') : undefined} />
+            <Metric label="Feature keys (features:coinank)" value={keyCounts?.features_coinank ?? 'MISSING_EVIDENCE'} />
+            <Metric label="Global feature keys" value={keyCounts?.features_global_coinank ?? 'MISSING_EVIDENCE'} />
+            <Metric label="Latest keys" value={keyCounts?.latest_coinank ?? 'MISSING_EVIDENCE'} />
           </div>
           <div className="cockpit-lineage-grid">
-            <div><span>Required TFs</span><strong>{requiredTfs.length ? requiredTfs.map((tf) => `${tf}:${requiredTfStatus[tf] ? 'yes' : 'missing'}`).join(' / ') : 'MISSING_EVIDENCE'}</strong></div>
-            <div><span>Hot symbols</span><strong>{hotSymbols.length ? hotSymbols.slice(0, 8).join(', ') : 'MISSING_EVIDENCE'}</strong></div>
-            <div><span>Liquidation orders</span><strong>{String(availability.liquidation_orders ?? false)}</strong></div>
-            <div><span>Long/short</span><strong>{String(availability.long_short ?? false)}</strong></div>
-            <div><span>Forbidden last-price/KLine source</span><strong>{String(forbiddenSourceChecks.kline_endpoint_keys_observed ?? false)}</strong></div>
-            <div><span>Forbidden orderbook source</span><strong>{String(forbiddenSourceChecks.orderbook_endpoint_keys_observed ?? false)}</strong></div>
+            <div><span>Runtime mode</span><strong>{payload.runtime_mode ?? 'MISSING_EVIDENCE'}</strong></div>
+            <div><span>Ingestor service</span><strong>{payload.direct_ingestor_service ?? 'MISSING_EVIDENCE'}</strong></div>
+            <div><span>Global aggregator</span><strong>{payload.direct_global_aggregator_service ?? 'MISSING_EVIDENCE'}</strong></div>
+            <div><span>Heartbeat</span><strong>{payload.heartbeat_present == null ? 'MISSING_EVIDENCE' : payload.heartbeat_present ? `present${payload.heartbeat_ttl_seconds != null ? ` (TTL ${payload.heartbeat_ttl_seconds}s)` : ''}` : 'absent'}</strong></div>
+            <div><span>Global aggregate</span><strong>{nestedText(payload.global_aggregate_result, ['classification'])}</strong></div>
+            <div><span>V2 feature input</span><strong>{featureInput ? `${featureInput.enabled ? 'enabled' : 'disabled'} · ${valueText(featureInput.read_key_count ?? 'MISSING_EVIDENCE')} keys read` : 'MISSING_EVIDENCE'}</strong></div>
+            <div><span>Disabled endpoints (by design)</span><strong>{disabledEndpoints.length ? disabledEndpoints.join(', ') : 'none'}</strong></div>
+            <div><span>Never-successful active endpoints</span><strong>{neverSuccessful.length ? neverSuccessful.slice(0, 6).join(', ') : 'none'}</strong></div>
           </div>
-          <p className="cockpit-evidence-note">{payload.data_truth_rule}</p>
+          {!payloadIsFresh ? (
+            <p className="cockpit-evidence-gap">
+              CoinAnk status payload is not current — values above are a historical snapshot from {generatedIso ?? 'an unknown time'}{payloadAge !== null ? ` (${formatAge(payloadAge)} old)` : ''}.
+            </p>
+          ) : null}
+          <p className="cockpit-evidence-note">{payload.data_truth_rule ?? 'Read-only CoinAnk direct-runtime status evidence; absent fields stay MISSING_EVIDENCE and are never guessed.'}</p>
           {missing.length ? (
             <details className="mission-evidence-details">
               <summary>

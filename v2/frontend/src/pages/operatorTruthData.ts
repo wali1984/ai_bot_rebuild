@@ -180,33 +180,73 @@ export interface TonightReadinessPayload {
   exchange_actions: boolean;
 }
 
+export interface CoinankCallLogHealth {
+  recent_success_count?: number;
+  recent_error_count?: number;
+  recent_empty_count?: number;
+  recent_sample_size?: number;
+  recent_window_seconds?: number;
+  recent_success_endpoints?: string[];
+  recent_empty_endpoints?: string[];
+  recent_error_examples?: unknown[];
+  sample_size?: number;
+}
+
 export interface CoinankMarketIntelligencePayload {
-  generated_at: string;
-  source: string;
-  live_gate_status: string;
-  legacy_source_file_hash: string | null;
+  // Current live schema: coinank_direct_runtime_status_v1
+  schema_version?: string;
+  classification?: string;
+  generated_utc?: string;
+  generated_est?: string;
+  freshness_seconds?: number;
+  last_update_age_seconds?: number;
+  runtime_mode?: string;
+  worker_id?: string;
+  endpoints_count?: number;
+  metrics_count?: number;
+  current_endpoint_success_count?: number;
+  current_endpoint_error_count?: number;
+  current_call_log_health?: CoinankCallLogHealth;
+  direct_key_counts?: Record<string, number>;
+  direct_ingestor_service?: string;
+  direct_global_aggregator_service?: string;
+  direct_legacy_key_write_enabled?: boolean;
+  heartbeat_present?: boolean;
+  heartbeat_ttl_seconds?: number;
+  missing_api_blockers?: string[];
+  never_successful_active_endpoints?: string[];
+  intentionally_disabled_endpoints?: Record<string, unknown>;
+  global_aggregate_result?: Record<string, unknown>;
+  v2_redis_feature_input?: Record<string, unknown>;
+  v2_redis_global_write_enabled?: boolean;
+  // Legacy plan-3 bridge schema (older payload snapshots; retained optional for
+  // backward compatibility with tradingPlatformPanels consumers)
+  generated_at?: string;
+  source?: string;
+  live_gate_status?: string;
+  legacy_source_file_hash?: string | null;
   legacy_monitor_file_hash?: string | null;
-  endpoint_manifest_version: string;
-  required_tfs: string[];
-  required_tfs_status: Record<string, boolean>;
-  active_symbols: string[];
-  hot_symbols: string[];
-  endpoint_count: number | null;
-  radar_symbols: unknown;
-  availability: Record<string, boolean>;
-  endpoint_key_counts: Record<string, number>;
-  sample_endpoint_keys: Record<string, string[]>;
-  global_11_key_contract_status: string;
-  unified_features_sample_status: Record<string, string | null | undefined>;
-  forbidden_source_checks: Record<string, boolean>;
-  runtime_classifications: string[];
-  missing_evidence: string[];
-  stale_evidence: string[];
-  current_blockers: Array<{ id: string; severity: string; detail: string }>;
-  legacy_redis_writes_by_this_task: boolean;
-  legacy_bot_modified_by_this_task: boolean;
-  exchange_actions_by_this_task: boolean;
-  data_truth_rule: string;
+  endpoint_manifest_version?: string;
+  required_tfs?: string[];
+  required_tfs_status?: Record<string, boolean>;
+  active_symbols?: string[];
+  hot_symbols?: string[];
+  endpoint_count?: number | null;
+  radar_symbols?: unknown;
+  availability?: Record<string, boolean>;
+  endpoint_key_counts?: Record<string, number>;
+  sample_endpoint_keys?: Record<string, string[]>;
+  global_11_key_contract_status?: string;
+  unified_features_sample_status?: Record<string, string | null | undefined>;
+  forbidden_source_checks?: Record<string, boolean>;
+  runtime_classifications?: string[];
+  missing_evidence?: string[];
+  stale_evidence?: string[];
+  current_blockers?: Array<{ id: string; severity: string; detail: string }>;
+  legacy_redis_writes_by_this_task?: boolean;
+  legacy_bot_modified_by_this_task?: boolean;
+  exchange_actions_by_this_task?: boolean;
+  data_truth_rule?: string;
 }
 
 const operatorTruthPayloadPath = '/operator_truth/latest/operator_truth_payload.json';
