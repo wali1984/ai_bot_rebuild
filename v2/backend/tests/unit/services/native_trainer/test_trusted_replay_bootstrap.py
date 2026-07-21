@@ -283,7 +283,7 @@ def test_costs_cannot_flip_small_down_move_into_profitable_long() -> None:
     assert row is not None, reasons
     assert row["raw_future_return_15m_bps"] == pytest.approx(-1.0)
     assert row["counterfactual_long_net_pnl_bps"] == pytest.approx(-4.25)
-    assert row["counterfactual_short_net_pnl_bps"] == pytest.approx(-2.25)
+    assert row["counterfactual_short_net_pnl_bps"] == pytest.approx(-1.75)
     assert row["target_action"] == "hold"
     assert row["future_return_after_cost_bps"] == 0.0
     assert row["directional_outcome"] == "DOWN"
@@ -292,6 +292,51 @@ def test_costs_cannot_flip_small_down_move_into_profitable_long() -> None:
     assert row["actual_behavior_trade_outcome"] == "LOSS"
     assert row["actual_behavior_action_was_profitable"] is False
     assert row["trade_outcome"] == "BREAKEVEN"
+
+
+@pytest.mark.parametrize(
+    ("funding_bps", "expected_action", "expected_long", "expected_short"),
+    (
+        (5.0, "short", -8.0, 2.0),
+        (-5.0, "long", 2.0, -8.0),
+    ),
+)
+def test_funding_cashflow_direction_can_credit_only_the_receiving_side(
+    funding_bps: float,
+    expected_action: str,
+    expected_long: float,
+    expected_short: float,
+) -> None:
+    snapshot = _snapshot()
+    snapshot["features"]["expected_funding_bps"] = funding_bps  # type: ignore[index]
+    snapshot["content_sha256"] = content_sha256(snapshot)
+
+    row, reasons = _build_replay(
+        snapshot,
+        candles=_candles(
+            horizon_closes={
+                "5m": 100.0,
+                "15m": 100.0,
+                "1h": 100.0,
+                "4h": 100.0,
+            }
+        ),
+    )
+
+    assert row is not None, reasons
+    assert row["base_execution_cost_bps"] == pytest.approx(3.0)
+    assert row["counterfactual_long_net_pnl_bps"] == pytest.approx(
+        expected_long
+    )
+    assert row["counterfactual_short_net_pnl_bps"] == pytest.approx(
+        expected_short
+    )
+    assert row["target_action"] == expected_action
+    assert row["long_funding_cost_bps"] == pytest.approx(funding_bps)
+    assert row["short_funding_cost_bps"] == pytest.approx(-funding_bps)
+    assert row["round_trip_funding_drag_bps"] == pytest.approx(
+        abs(funding_bps)
+    )
 
 
 def test_missing_cost_component_fails_closed_without_flat_fallback() -> None:
@@ -375,6 +420,10 @@ def test_replay_label_contract_has_no_static_threshold_or_cost_fallback() -> Non
     assert row["action_dead_zone_bps"] == pytest.approx(
         row["round_trip_cost_bps"]
     )
+    assert row["base_execution_cost_bps"] == pytest.approx(3.0)
+    assert row["long_round_trip_cost_bps"] == pytest.approx(3.25)
+    assert row["short_round_trip_cost_bps"] == pytest.approx(2.75)
+    assert row["conservative_round_trip_cost_bps"] == pytest.approx(3.25)
     assert row["round_trip_fee_drag_bps"] == pytest.approx(
         2.0 * row["fee_bps"]
     )
@@ -1018,6 +1067,10 @@ def test_counterfactual_economics_are_standardized_and_not_exact_close_ledger() 
     assert economics["short"]["net_pnl_usd"] == pytest.approx(
         economics["short"]["net_pnl_bps"] / 10_000.0
     )
+    assert economics["long"]["funding_cost_bps"] == pytest.approx(0.25)
+    assert economics["short"]["funding_cost_bps"] == pytest.approx(-0.25)
+    assert economics["long"]["total_cost_bps"] == pytest.approx(3.25)
+    assert economics["short"]["total_cost_bps"] == pytest.approx(2.75)
     assert economics["confidence_exact_close_contract_claimed"] is False
     assert row["confidence_exact_close_contract_eligible"] is False
     assert row["confidence_target_action_not_substituted_from_hindsight"] is True

@@ -54,13 +54,13 @@ FUTURE_LABEL_PREFIXES = (
 )
 PIT_SAFE_REALIZED_FEATURES = {"realized_slippage_error"}
 TRUSTED_REPLAY_COST_EVIDENCE_SCHEMA_VERSION = (
-    "v2_trusted_replay_pit_cost_evidence_v1"
+    "v2_trusted_replay_pit_directional_cost_evidence_v2"
 )
 TRUSTED_REPLAY_LABEL_POLICY_VERSION = (
-    "v2_trusted_replay_adaptive_after_cost_action_v1"
+    "v2_trusted_replay_adaptive_directional_after_cost_action_v2"
 )
 TRUSTED_REPLAY_COUNTERFACTUAL_ECONOMICS_SCHEMA_VERSION = (
-    "v2_trusted_replay_standardized_counterfactual_economics_v1"
+    "v2_trusted_replay_standardized_directional_counterfactual_economics_v2"
 )
 # These are evidence aliases, not fallback values.  A replay row is rejected
 # unless one explicit, finite field exists for every component in the archived
@@ -775,18 +775,30 @@ def _cost_component_evidence(
     if source in (None, ""):
         source = f"{payload_name}.{selected_field}"
     round_trip_multiplier = COST_COMPONENT_ROUND_TRIP_MULTIPLIERS[component]
-    absolute_or_positive_bps = (
-        abs(float(selected_value))
-        if component == "funding"
-        else float(selected_value)
-    )
+    signed_component_bps = float(selected_value) * round_trip_multiplier
+    if component == "funding":
+        # Binance's venue-rate sign is a cashflow direction, not an unsigned
+        # execution drag: positive funding is paid by LONG and received by
+        # SHORT; negative funding reverses those cashflows.
+        long_cost_drag_bps = signed_component_bps
+        short_cost_drag_bps = -signed_component_bps
+        conservative_cost_drag_bps = abs(signed_component_bps)
+    else:
+        long_cost_drag_bps = signed_component_bps
+        short_cost_drag_bps = signed_component_bps
+        conservative_cost_drag_bps = signed_component_bps
     return {
         "component": component,
         "field": selected_field,
         "source": str(source),
         "signed_bps": float(selected_value),
         "round_trip_multiplier": round_trip_multiplier,
-        "cost_drag_bps": absolute_or_positive_bps * round_trip_multiplier,
+        "long_cost_drag_bps": long_cost_drag_bps,
+        "short_cost_drag_bps": short_cost_drag_bps,
+        "conservative_cost_drag_bps": conservative_cost_drag_bps,
+        # Compatibility telemetry only. Directional labels must use the
+        # explicit long/short fields above.
+        "cost_drag_bps": conservative_cost_drag_bps,
         "raw_value": raw_value,
     }, []
 
@@ -849,11 +861,36 @@ def trusted_replay_cost_evidence(
     assert feature_cutoff is not None
     assert available_at is not None
     assert snapshot_hash is not None
-    total_cost_bps = sum(
-        float(component["cost_drag_bps"])
+    base_execution_cost_bps = sum(
+        float(component["conservative_cost_drag_bps"])
+        for name, component in components.items()
+        if name != "funding"
+    )
+    long_total_cost_bps = sum(
+        float(component["long_cost_drag_bps"])
         for component in components.values()
     )
-    if not math.isfinite(total_cost_bps) or total_cost_bps < 0.0:
+    short_total_cost_bps = sum(
+        float(component["short_cost_drag_bps"])
+        for component in components.values()
+    )
+    conservative_total_cost_bps = sum(
+        float(component["conservative_cost_drag_bps"])
+        for component in components.values()
+    )
+    if (
+        not all(
+            math.isfinite(value)
+            for value in (
+                base_execution_cost_bps,
+                long_total_cost_bps,
+                short_total_cost_bps,
+                conservative_total_cost_bps,
+            )
+        )
+        or base_execution_cost_bps < 0.0
+        or conservative_total_cost_bps < 0.0
+    ):
         return None, ["COST_EVIDENCE_TOTAL_NONFINITE_OR_NEGATIVE"]
     material = {
         "schema_version": TRUSTED_REPLAY_COST_EVIDENCE_SCHEMA_VERSION,
@@ -869,11 +906,21 @@ def trusted_replay_cost_evidence(
                 "round_trip_multiplier": component[
                     "round_trip_multiplier"
                 ],
+                "long_cost_drag_bps": component["long_cost_drag_bps"],
+                "short_cost_drag_bps": component["short_cost_drag_bps"],
+                "conservative_cost_drag_bps": component[
+                    "conservative_cost_drag_bps"
+                ],
                 "cost_drag_bps": component["cost_drag_bps"],
             }
             for name, component in sorted(components.items())
         },
-        "total_cost_bps": total_cost_bps,
+        "base_execution_cost_bps": base_execution_cost_bps,
+        "long_total_cost_bps": long_total_cost_bps,
+        "short_total_cost_bps": short_total_cost_bps,
+        "conservative_total_cost_bps": conservative_total_cost_bps,
+        # Compatibility identity for consumers that have not yet split sides.
+        "total_cost_bps": conservative_total_cost_bps,
     }
     evidence_hash = hashlib.sha256(
         json.dumps(
@@ -891,8 +938,12 @@ def trusted_replay_cost_evidence(
             for name in sorted(components)
         ),
         "flat_round_trip_cost_fallback_used": False,
-        "action_dead_zone_bps": total_cost_bps,
-        "action_dead_zone_source": "EXPLICIT_PIT_COMPONENT_SUM_NO_STATIC_ACTION_THRESHOLD",
+        "action_dead_zone_bps": conservative_total_cost_bps,
+        "long_action_dead_zone_bps": long_total_cost_bps,
+        "short_action_dead_zone_bps": short_total_cost_bps,
+        "action_dead_zone_source": (
+            "EXPLICIT_PIT_DIRECTIONAL_COMPONENT_SUM_NO_STATIC_ACTION_THRESHOLD"
+        ),
     }, []
 
 
@@ -996,10 +1047,25 @@ def build_trusted_replay_row(
         ) * 10_000.0
 
     raw_return_15m_bps = returns["15m"]
-    costs_bps = float(cost_evidence["total_cost_bps"])
+    # ``round_trip_cost_bps`` remains the conservative magnitude-only
+    # compatibility envelope.  Labels must use the side-specific totals:
+    # positive venue funding is a LONG cost and SHORT credit; negative funding
+    # reverses those cashflows.
+    costs_bps = float(cost_evidence["conservative_total_cost_bps"])
+    base_execution_cost_bps = float(
+        cost_evidence["base_execution_cost_bps"]
+    )
+    long_costs_bps = float(cost_evidence["long_total_cost_bps"])
+    short_costs_bps = float(cost_evidence["short_total_cost_bps"])
     action_dead_zone_bps = float(cost_evidence["action_dead_zone_bps"])
-    long_net_bps = raw_return_15m_bps - costs_bps
-    short_net_bps = -raw_return_15m_bps - costs_bps
+    long_action_dead_zone_bps = float(
+        cost_evidence["long_action_dead_zone_bps"]
+    )
+    short_action_dead_zone_bps = float(
+        cost_evidence["short_action_dead_zone_bps"]
+    )
+    long_net_bps = raw_return_15m_bps - long_costs_bps
+    short_net_bps = -raw_return_15m_bps - short_costs_bps
     target_action = target_action_from_net_edges(
         long_net_bps=long_net_bps,
         short_net_bps=short_net_bps,
@@ -1088,6 +1154,12 @@ def build_trusted_replay_row(
     round_trip_funding_drag_bps = float(
         cost_components["funding"]["cost_drag_bps"]
     )
+    long_funding_cost_bps = float(
+        cost_components["funding"]["long_cost_drag_bps"]
+    )
+    short_funding_cost_bps = float(
+        cost_components["funding"]["short_cost_drag_bps"]
+    )
     target_exit_price = _candle_price(
         horizon_candles["15m"],
         "close",
@@ -1112,17 +1184,29 @@ def build_trusted_replay_row(
         "cost_evidence_hash": cost_evidence["cost_evidence_hash"],
         "cost_scope": "DECISION_TIME_EXPECTED_COUNTERFACTUAL_NOT_EXACT_PAPER_CLOSE_LEDGER",
         "component_costs_usd": standardized_costs_usd,
+        "base_execution_cost_bps": base_execution_cost_bps,
+        "base_execution_cost_usd": base_execution_cost_bps / 10_000.0,
+        "conservative_total_cost_bps": costs_bps,
+        "conservative_total_cost_usd": costs_bps / 10_000.0,
         "long": {
             "gross_pnl_bps": raw_return_15m_bps,
             "net_pnl_bps": long_net_bps,
             "gross_pnl_usd": raw_return_15m_bps / 10_000.0,
             "net_pnl_usd": long_net_bps / 10_000.0,
+            "funding_cost_bps": long_funding_cost_bps,
+            "funding_cost_usd": long_funding_cost_bps / 10_000.0,
+            "total_cost_bps": long_costs_bps,
+            "total_cost_usd": long_costs_bps / 10_000.0,
         },
         "short": {
             "gross_pnl_bps": -raw_return_15m_bps,
             "net_pnl_bps": short_net_bps,
             "gross_pnl_usd": -raw_return_15m_bps / 10_000.0,
             "net_pnl_usd": short_net_bps / 10_000.0,
+            "funding_cost_bps": short_funding_cost_bps,
+            "funding_cost_usd": short_funding_cost_bps / 10_000.0,
+            "total_cost_bps": short_costs_bps,
+            "total_cost_usd": short_costs_bps / 10_000.0,
         },
         "hold": {
             "gross_pnl_bps": 0.0,
@@ -1131,8 +1215,11 @@ def build_trusted_replay_row(
             "net_pnl_usd": 0.0,
         },
         "net_formula": (
-            "directional_gross_bps-(2*fee_bps)-spread_bps-"
-            "(2*slippage_bps)-abs(funding_bps)"
+            "long=gross-base_execution-signed_funding;"
+            "short=gross-base_execution+signed_funding"
+        ),
+        "funding_sign_convention": (
+            "POSITIVE_VENUE_RATE_LONG_PAYS_SHORT_RECEIVES"
         ),
         "confidence_exact_close_contract_claimed": False,
     }
@@ -1264,6 +1351,10 @@ def build_trusted_replay_row(
         "future_return_4h_bps": returns["4h"],
         "raw_future_return_15m_bps": raw_return_15m_bps,
         "round_trip_cost_bps": costs_bps,
+        "base_execution_cost_bps": base_execution_cost_bps,
+        "long_round_trip_cost_bps": long_costs_bps,
+        "short_round_trip_cost_bps": short_costs_bps,
+        "conservative_round_trip_cost_bps": costs_bps,
         "fee_bps": fee_bps,
         "spread_bps": spread_bps,
         "slippage_bps": slippage_bps,
@@ -1272,7 +1363,11 @@ def build_trusted_replay_row(
         "round_trip_spread_drag_bps": round_trip_spread_drag_bps,
         "round_trip_slippage_drag_bps": round_trip_slippage_drag_bps,
         "round_trip_funding_drag_bps": round_trip_funding_drag_bps,
+        "long_funding_cost_bps": long_funding_cost_bps,
+        "short_funding_cost_bps": short_funding_cost_bps,
         "action_dead_zone_bps": action_dead_zone_bps,
+        "long_action_dead_zone_bps": long_action_dead_zone_bps,
+        "short_action_dead_zone_bps": short_action_dead_zone_bps,
         "action_dead_zone_source": cost_evidence["action_dead_zone_source"],
         "cost_evidence_schema_version": cost_evidence["schema_version"],
         "cost_evidence_hash": cost_evidence["cost_evidence_hash"],
@@ -1364,7 +1459,15 @@ def build_trusted_replay_row(
             "round_trip_slippage_drag_bps": round_trip_slippage_drag_bps,
             "round_trip_funding_drag_bps": round_trip_funding_drag_bps,
             "round_trip_cost_bps": costs_bps,
+            "base_execution_cost_bps": base_execution_cost_bps,
+            "long_round_trip_cost_bps": long_costs_bps,
+            "short_round_trip_cost_bps": short_costs_bps,
+            "conservative_round_trip_cost_bps": costs_bps,
+            "long_funding_cost_bps": long_funding_cost_bps,
+            "short_funding_cost_bps": short_funding_cost_bps,
             "action_dead_zone_bps": action_dead_zone_bps,
+            "long_action_dead_zone_bps": long_action_dead_zone_bps,
+            "short_action_dead_zone_bps": short_action_dead_zone_bps,
             "cost_evidence_hash": cost_evidence["cost_evidence_hash"],
             "cost_evidence_schema_version": cost_evidence["schema_version"],
             "MFE": mfe,
