@@ -12,6 +12,11 @@ const curatedPublicEntries = [
   "icons",
   "manifest.webmanifest",
   "service-worker.js",
+  // Report-center static payloads consumed by /admin/reports
+  // (REPORTS_ENDPOINT = /v2_report_center/latest/report_index.json). Without
+  // this entry the SPA fallback serves index.html for that path and the whole
+  // reports view dies with a false "report center not generating" incident.
+  "v2_report_center",
 ];
 
 // In Vite 8 + @vitejs/plugin-react 6, the React Refresh preamble (which

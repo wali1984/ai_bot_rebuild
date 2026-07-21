@@ -4,6 +4,7 @@ import { FreshnessBadge } from '../../components/data/FreshnessBadge';
 
 const SURFACES_ENDPOINT = '/api/v2/admin/monitoring/data-surfaces';
 const PIPELINE_ENDPOINT = '/api/v2/pipeline/status';
+const MONITOR_ROUTES_ENDPOINT = '/api/v2/admin/monitoring/routes';
 
 const SC = { ok: '#22c55e', warn: '#f59e0b', error: '#ef4444', unknown: '#6b7280', info: '#60a5fa' };
 
@@ -17,6 +18,8 @@ interface DataSurface {
 }
 interface SurfacesPayload { surfaces?: DataSurface[]; generated_at?: string; }
 interface PipelinePayload { live_gate?: string; symbols?: string[]; allowed_run_types?: string[]; }
+interface MonitorRoute { path?: string; surface?: string; owner?: string; expected?: boolean; }
+interface MonitorRoutesPayload { routes?: MonitorRoute[]; total?: number; timestamp?: string; source?: string; source_type?: string; }
 
 const TABS = ['Sources', 'Pipeline', 'Monitors'] as const;
 type Tab = typeof TABS[number];
@@ -25,9 +28,13 @@ export default function AdminDataPage(): JSX.Element {
   const [tab, setTab] = useState<Tab>('Sources');
   const { envelope: se, loading } = useRealtimeResource<SurfacesPayload>({ url: SURFACES_ENDPOINT, source: 'admin-data', pollIntervalMs: 30_000 });
   const { envelope: pe } = useRealtimeResource<PipelinePayload>({ url: PIPELINE_ENDPOINT, source: 'admin-pipeline', pollIntervalMs: 30_000 });
+  const { envelope: me, loading: monitorsLoading } = useRealtimeResource<MonitorRoutesPayload>({
+    url: MONITOR_ROUTES_ENDPOINT, source: 'admin-data-monitors', pollIntervalMs: 60_000, enabled: tab === 'Monitors',
+  });
 
   const surfaces = se.data?.surfaces || [];
   const pipeline = pe.data;
+  const monitorRoutes = me.data?.routes || [];
 
   return (
     <div data-testid="admin-data-page" style={{ display: 'flex', flexDirection: 'column', gap: 18, background: 'radial-gradient(44% 28% at 15% 0%, rgba(124,92,255,0.12), transparent 70%), radial-gradient(38% 30% at 90% 4%, rgba(59,130,246,0.08), transparent 72%), var(--bg-base)' }}>
@@ -77,7 +84,12 @@ export default function AdminDataPage(): JSX.Element {
                 </div>
                 <Chip label={s.source_type || 'api'} color={SC.info} />
                 <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{s.owner || '—'}</span>
-                <Chip label={(s.status || 'pending').toUpperCase()} color={s.status === 'ok' ? SC.ok : s.status === 'error' ? SC.error : SC.warn} />
+                {/* The data-surfaces payload is a static registry with no health field.
+                    Only render a health chip when the backend actually reports one;
+                    otherwise show a neutral registry chip instead of a fake PENDING warning. */}
+                {s.status
+                  ? <Chip label={s.status.toUpperCase()} color={s.status === 'ok' ? SC.ok : s.status === 'error' ? SC.error : SC.warn} />
+                  : <Chip label="REGISTERED" color={SC.unknown} />}
               </div>
             ))}
           </div>
@@ -112,11 +124,35 @@ export default function AdminDataPage(): JSX.Element {
       )}
 
       {tab === 'Monitors' && (
-        <div className="glass" style={{ padding: '16px' }}>
-          <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-            Monitor registry available via <span style={{ fontFamily: 'var(--font-mono)', color: SC.info }}>/api/v2/admin/monitoring/routes</span>. Wire monitor heartbeats here to show active/broken/unused monitor scripts.
+        monitorsLoading && !me.data ? (
+          <div style={{ color: 'var(--text-muted)', fontSize: 12, padding: '12px 0' }}>Loading monitored route registry…</div>
+        ) : monitorRoutes.length > 0 ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                {me.data?.total ?? monitorRoutes.length} monitored routes · source <span style={{ fontFamily: 'var(--font-mono)', color: SC.info }}>{me.data?.source ?? MONITOR_ROUTES_ENDPOINT}</span>
+              </span>
+              <Chip label={(me.data?.source_type ?? 'static_snapshot').toUpperCase()} color={SC.unknown} />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              {monitorRoutes.map((r, i) => (
+                <div key={r.path || i} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: 12, alignItems: 'center', padding: '8px 14px', borderRadius: 6, background: 'var(--bg-elevated)', border: '1px solid var(--admin-border)' }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>{r.path || '—'}</span>
+                  <Chip label={r.surface || 'unknown'} color={SC.info} />
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{r.owner || '—'}</span>
+                  <Chip label={r.expected ? 'EXPECTED' : 'UNEXPECTED'} color={r.expected ? SC.ok : SC.warn} />
+                </div>
+              ))}
+            </div>
+            <div className="glass" style={{ padding: '10px 14px', fontSize: 11, color: 'var(--text-muted)' }}>
+              This is the static monitored-route registry snapshot. Per-monitor heartbeats (last run / last success / alerts) are not yet published by the backend; this table will stay registry-only until that contract exists.
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="glass" style={{ padding: '14px', color: 'var(--text-muted)', fontSize: 12 }}>
+            No monitored routes returned from <span style={{ fontFamily: 'var(--font-mono)', color: SC.info }}>{MONITOR_ROUTES_ENDPOINT}</span>
+          </div>
+        )
       )}
     </div>
   );

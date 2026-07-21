@@ -7,6 +7,7 @@ import { relativeAge } from '../../data/adminFieldRegistry';
 const TRAINER_ENDPOINT = '/api/v2/trainer/status';
 const RISK_ENDPOINT = '/api/v2/risk/status';
 const PAPER_RUNTIME_ENDPOINT = '/api/v2/paper/runtime-status';
+const SIGNALS_ENDPOINT = '/api/v2/signals';
 
 const SC = { ok: '#22c55e', warn: '#f59e0b', error: '#ef4444', unknown: '#6b7280', info: '#60a5fa' };
 function sColor(s?: string | null) {
@@ -135,6 +136,45 @@ interface EnterpriseAiBrainSnapshot {
   provider_confluence_available?: boolean;
 }
 
+interface ActiveSignal {
+  symbol?: string | null;
+  timeframe?: string | null;
+  selected_action?: string | null;
+  side?: string | null;
+  actionable?: boolean | null;
+  actionable_reason_code?: string | null;
+  confidence_calibrated?: number | null;
+  confidence_executable_trade?: number | null;
+  confidence_display_label?: string | null;
+  source_freshness?: string | null;
+  market_age_seconds?: number | null;
+  generated_at?: string | null;
+  model_version?: string | null;
+  signal_id?: string | null;
+  prediction_id?: string | null;
+  strategy?: string | null;
+  live_gate?: string | null;
+  exchange_action_taken?: boolean | null;
+  paper_fill_allowed?: boolean | null;
+  blocked_reason?: string | null;
+  data_coverage_percent?: number | null;
+  lineage_summary?: Record<string, string | null | undefined> | null;
+}
+
+interface SignalsPayload {
+  active_signal?: ActiveSignal | null;
+  trader_id?: string | null;
+  paper_account_id?: string | null;
+}
+
+function marketAgeText(seconds: number | null | undefined): string {
+  if (typeof seconds !== 'number' || !Number.isFinite(seconds)) return '—';
+  if (seconds < 90) return `${Math.round(seconds)}s`;
+  if (seconds < 5400) return `${Math.round(seconds / 60)}m`;
+  if (seconds < 172_800) return `${(seconds / 3600).toFixed(1)}h`;
+  return `${(seconds / 86_400).toFixed(1)}d`;
+}
+
 const TABS = ['Model', 'Predictions', 'Signals', 'Risk Checks'] as const;
 type Tab = typeof TABS[number];
 
@@ -151,6 +191,9 @@ export default function AdminIntelligencePage(): JSX.Element {
     mode: 'paper',
   });
   const enterpriseAiSnapshot = useEnterpriseRealtimeResource<EnterpriseAiBrainSnapshot>('ai_brain');
+  const { envelope: sigEnvelope, loading: signalsLoading } = useRealtimeResource<SignalsPayload>({
+    url: SIGNALS_ENDPOINT, source: 'admin-intelligence-signals', pollIntervalMs: 15_000, enabled: tab === 'Signals',
+  });
 
   const t = te.data;
   const r = re.data?.data;
@@ -344,11 +387,51 @@ export default function AdminIntelligencePage(): JSX.Element {
         </div>
       )}
 
-      {tab === 'Signals' && (
-        <div className="glass" style={{ padding: '16px' }}>
-          <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Signal stream data requires <span style={{ fontFamily: 'var(--font-mono)', color: SC.info }}>/api/v2/signals</span> endpoint. Wire signal publisher to populate this tab.</div>
-        </div>
-      )}
+      {tab === 'Signals' && (() => {
+        const sig = sigEnvelope.data?.active_signal ?? null;
+        if (signalsLoading && !sigEnvelope.data) {
+          return <div className="glass" style={{ padding: '16px', color: 'var(--text-muted)', fontSize: 12 }}>Loading active paper signal…</div>;
+        }
+        if (!sig) {
+          return (
+            <div className="glass" style={{ padding: '16px', color: 'var(--text-muted)', fontSize: 12 }}>
+              No active paper signal published on <span style={{ fontFamily: 'var(--font-mono)', color: SC.info }}>{SIGNALS_ENDPOINT}</span>. Trainer signal lane is quiet — this is the honest runtime state, not a UI failure.
+            </div>
+          );
+        }
+        const stale = (sig.source_freshness || '').toUpperCase() === 'STALE';
+        const lineage = Object.entries(sig.lineage_summary ?? {});
+        return (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14 }}>
+            <div className="glass" style={{ padding: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Active Paper Signal</div>
+                <Chip label={stale ? `STALE · ${marketAgeText(sig.market_age_seconds)} old` : (sig.source_freshness || 'UNKNOWN').toUpperCase()} color={stale ? SC.warn : sig.source_freshness ? SC.ok : SC.unknown} />
+              </div>
+              <Field label="Symbol / TF" value={`${sig.symbol ?? '—'} ${sig.timeframe ?? ''}`.trim()} mono />
+              <Field label="Action" value={(sig.selected_action ?? sig.side ?? '—').toUpperCase()} mono accent={sig.actionable ? SC.ok : SC.warn} />
+              <Field label="Actionable" value={sig.actionable ? 'YES' : `NO — ${(sig.actionable_reason_code ?? 'unknown').replace(/_/g, ' ')}`} mono accent={sig.actionable ? SC.ok : SC.warn} />
+              <Field label={sig.confidence_display_label || 'Confidence (calibrated)'} value={sig.confidence_calibrated != null ? sig.confidence_calibrated.toFixed(4) : '—'} mono />
+              <Field label="Executable-trade confidence" value={sig.confidence_executable_trade != null ? sig.confidence_executable_trade.toFixed(4) : '—'} mono />
+              <Field label="Data coverage" value={sig.data_coverage_percent != null ? `${sig.data_coverage_percent.toFixed(1)}%` : '—'} mono />
+              <Field label="Generated" value={relativeAge(sig.generated_at ?? undefined)} />
+              <Field label="Strategy" value={sig.strategy || '—'} />
+              <Field label="Model version" value={sig.model_version || '—'} mono full />
+              <Field label="Signal ID" value={sig.signal_id || '—'} mono full />
+            </div>
+            <div className="glass" style={{ padding: '16px' }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>Gate & Lineage</div>
+              <Field label="Live gate" value={sig.live_gate || 'blocked_human_only'} mono accent={SC.error} />
+              <Field label="Exchange action taken" value={sig.exchange_action_taken ? 'YES' : 'NO'} mono accent={sig.exchange_action_taken ? SC.error : SC.ok} />
+              <Field label="Paper fill allowed" value={sig.paper_fill_allowed ? 'YES' : 'NO'} mono accent={sig.paper_fill_allowed ? SC.ok : SC.warn} />
+              {sig.blocked_reason && <Field label="Blocked reason" value={sig.blocked_reason} full />}
+              {lineage.map(([k, v]) => (
+                <Field key={k} label={k.replace(/_/g, ' ')} value={v || '—'} mono full />
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       {tab === 'Risk Checks' && latestDecision?.required_blocks_checked && (
         <div className="glass" style={{ padding: '16px' }}>

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useRealtimeResource } from '../../hooks/useRealtimeResource';
 import { FreshnessBadge } from '../../components/data/FreshnessBadge';
 import { DangerousControlPanel } from '../../components/controls/DangerousControlPanel';
+import { PipelineControlPanel } from '../../components/trading/PipelineControlPanel';
 import meta from './meta';
 
 const PIPELINE_ENDPOINT = '/api/v2/pipeline/status';
@@ -224,9 +225,11 @@ export default function AdminOrchestrationPage(): JSX.Element {
       )}
 
       {tab === 'Control' && (
-        <div className="glass" style={{ padding: '16px' }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>Pipeline Control</div>
-          <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Pipeline run controls (trainer_cycle, replay, backtest, full_pipeline) are triggered via <span style={{ fontFamily: 'var(--font-mono)', color: SC.info }}>POST /api/v2/pipeline/run</span>. Implement control buttons here after operator approval gate is confirmed.</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div className="glass" style={{ padding: '10px 14px', fontSize: 11, color: 'var(--text-muted)' }}>
+            Run requests go to <span style={{ fontFamily: 'var(--font-mono)', color: SC.info }}>POST /api/v2/pipeline/run</span> (operator role required). The API only records the request to the control stream for workers — nothing executes inline and no exchange action is possible. Live trading stays BLOCKED.
+          </div>
+          <PipelineControlPanel surface="admin-orchestration" />
         </div>
       )}
     </div>

@@ -38,6 +38,9 @@ interface TrainerAdminData {
   calibration_score: number | null;
   input_dim?: number | null;
   feature_schema_status?: string | null;
+  /** Canonical key on /api/v2/trainer/status (legacy alias: checkpoint). */
+  checkpoint_id?: string | null;
+  /** Canonical key on /api/v2/trainer/status (legacy alias: model_version). */
   model_id?: string | null;
   temporal_encoder?: string | null;
   temporal_encoder_enabled?: boolean | null;
@@ -152,8 +155,8 @@ export default function TrainerAdminPage(): JSX.Element {
         <KV label="Promotion Reason" value={loading ? '…' : (challenger?.promotion_reason ?? 'runtime key missing')} color={challenger?.promotion_allowed ? 'var(--buy)' : 'var(--warn)'} />
         <KV label="Holdout Trades" value={loading ? '…' : String(challenger?.backtests_processed?.untouched_holdout_trade_count ?? '—')} color={(challenger?.backtests_processed?.untouched_holdout_trade_count ?? 0) >= 100 ? 'var(--buy)' : 'var(--warn)'} />
         <KV label="Replay Windows" value={loading ? '…' : String(challenger?.replay_windows_processed ?? '—')} />
-        <KV label="Model Version" value={loading ? '…' : (data?.model_version ?? '—')} />
-        <KV label="Checkpoint" value={loading ? '…' : (data?.checkpoint ?? '—')} />
+        <KV label="Model Version" value={loading ? '…' : (data?.model_id ?? data?.model_version ?? '—')} />
+        <KV label="Checkpoint" value={loading ? '…' : (data?.checkpoint_id ?? data?.checkpoint ?? '—')} />
         <KV label="Epoch" value={loading ? '…' : data?.current_epoch != null && data?.total_epochs != null ? `${data.current_epoch}/${data.total_epochs}` : '—'} />
         <KV label="Loss" value={loading ? '…' : (data?.loss?.toFixed(6) ?? '—')} />
         <KV label="Val Loss" value={loading ? '…' : (data?.val_loss?.toFixed(6) ?? '—')} />
