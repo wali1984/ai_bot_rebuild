@@ -31,6 +31,11 @@ from v2.backend.app.services.altdata.coinank_scheduler import (
     select_parameter_batch,
     validate_critical_response,
 )
+from v2.backend.app.services.altdata.coinank_receipts import (
+    build_coinank_flat_snapshot,
+    causal_request_receipt_fields,
+    request_with_causal_receipt,
+)
 try:
     from config import get_live_config
     _config = get_live_config()
@@ -430,8 +435,6 @@ WORKING_COINANK_ENDPOINTS = {
     "liquidation_allExchange_intervals": {"path": "/api/liquidation/allExchange/intervals", "params": ["baseCoin"], "mode": "base"},
     "liquidation_aggregated_history": {"path": "/api/liquidation/aggregated-history", "params": ["baseCoin", "interval", "endTime", "size"], "mode": "fund_history_base_interval_end"},
     "liquidation_history": {"path": "/api/liquidation/history", "params": ["exchange", "symbol", "interval", "endTime", "size"], "mode": "symbol_exchange_interval_end"},
-    "liqMap_getLiqHeatMapSymbol": {"path": "/api/liqMap/getLiqHeatMapSymbol", "params": [], "mode": "static"},
-
     # Instruments (last-price disabled by default — use Binance/KuCoin for price)
     # "instruments_getLastPrice" is only included when COINANK_ENABLE_LASTPRICE=1
     "instruments_getCoinMarketCap": {"path": "/api/instruments/getCoinMarketCap", "params": ["baseCoin"], "mode": "base"},
@@ -669,7 +672,9 @@ INTERVALS_PRIORITY = list(REQUIRED_COINANK_TFS)
 COINANK_ENABLE_KLINE     = os.getenv("COINANK_ENABLE_KLINE",     "0") == "1"
 COINANK_ENABLE_ORDERBOOK = os.getenv("COINANK_ENABLE_ORDERBOOK", "0") == "1"
 COINANK_ENABLE_LASTPRICE = os.getenv("COINANK_ENABLE_LASTPRICE", "0") == "1"
-COINANK_ENABLE_PLAN4     = os.getenv("COINANK_ENABLE_PLAN4",     "0") == "1"
+# This runtime is operator-pinned to CoinAnk Plan3.  Plan4 liquidation-map
+# routes are not registered, irrespective of ambient environment variables.
+COINANK_ENABLE_PLAN4     = False
 
 COINANK_ACTIVE_SYMBOL_LIMIT   = int(os.getenv("COINANK_ACTIVE_SYMBOL_LIMIT",   "40"))
 COINANK_HOT_FULL_SYMBOL_LIMIT = int(os.getenv("COINANK_HOT_FULL_SYMBOL_LIMIT", "12"))
@@ -811,8 +816,6 @@ _endpoint_min_interval = {
     "rsiMap_list": 90,
     "liquidation_allExchange_intervals": 30,
     "liquidation_history": 45,
-    "liqMap_getLiqHeatMapSymbol": 45,
-
     # New Plan-3 endpoints
     "marketOrder_getCvd": 15,
     "marketOrder_getAggCvd": 30,
@@ -900,8 +903,6 @@ CATEGORY_OF = {
     "liquidation_allExchange_intervals": "liquidations",
     "liquidation_aggregated_history": "liquidations",
     "liquidation_history": "liquidations",
-    "liqMap_getLiqHeatMapSymbol": "liquidations",
-
     # Funding
     "fundingRate_history": "funding",
     "fundingRate_current": "funding",
@@ -1539,10 +1540,19 @@ def build_param_sets(key: str):
         return params_list[:COINANK_PARAM_SET_LIMIT]
     return params_list
 
-def fetch_endpoint(key: str, path: str, params: dict):
+def fetch_endpoint(
+    key: str,
+    path: str,
+    params: dict,
+    request_receipt: dict | None = None,
+):
     _validate_params(key, params)  # harmless log-only check
     url = BASE_URL + path
     update_counter("api_calls")
+    if request_receipt is not None:
+        if not isinstance(request_receipt, dict):
+            raise ValueError("COINANK_REQUEST_RECEIPT_NOT_DICT")
+        request_receipt.clear()
     
     try:
         # Small jitter to spread calls (kept tiny; pacing is primarily enforced by _rate_gate)
@@ -1555,7 +1565,15 @@ def fetch_endpoint(key: str, path: str, params: dict):
         verbose_log(f"Fetching {key} with params: {list(params.keys())}")
         first_n_sample(f"API_CALL", {"endpoint": key, "url": url, "params": params})
         
-        resp = SESSION.get(url, params=params, timeout=timeout)
+        resp, observed_receipt = request_with_causal_receipt(
+            SESSION,
+            url=url,
+            params=params,
+            timeout=timeout,
+            now_ms=_now_ms,
+        )
+        if request_receipt is not None:
+            request_receipt.update(observed_receipt)
         
         if resp.status_code == 429:
             # Handle rate limit: bump endpoint's min_iv with Retry-After when present
@@ -1592,9 +1610,21 @@ def fetch_endpoint(key: str, path: str, params: dict):
         update_counter("errors")
         return None
 
-def persist(key: str, params: dict, data: dict, r, session_stats=None):
+def persist(
+    key: str,
+    params: dict,
+    data: dict,
+    r,
+    session_stats=None,
+    *,
+    request_receipt: dict,
+):
     WRITE_FILES = os.getenv("COINANK_WRITE_FILES", "1") == "1"  # default ON for data collection
     ts = _now_ms()
+    receipt_fields = causal_request_receipt_fields(
+        request_receipt,
+        persisted_at_ms=ts,
+    )
     safe_key = key.replace('/', '_')
     
     # Extract interval/timeframe from parameters for file organization
@@ -1606,7 +1636,13 @@ def persist(key: str, params: dict, data: dict, r, session_stats=None):
             interval = str(interval).upper()
     
     # Create the record
-    rec = {"ts": ts, "endpoint": key, "params": params, "data": data}
+    rec = {
+        "ts": ts,
+        **receipt_fields,
+        "endpoint": key,
+        "params": params,
+        "data": data,
+    }
     
     # Write to file only if enabled (to reduce I/O overhead)
     if WRITE_FILES:
@@ -1810,7 +1846,8 @@ def persist(key: str, params: dict, data: dict, r, session_stats=None):
                         
                         # Create feature record with normalized structure including ALL fields
                         feature_record = {
-                            "ts_epoch_ms": ts,  # Required by live4.md (request time)
+                            "ts_epoch_ms": ts,  # Local persistence-attempt time.
+                            **receipt_fields,
                             "source_ts_ms": source_ts_ms,  # API server time if available
                             "timestamp": source_ts_ms,  # Use source timestamp for freshness
                             "ts_ms": source_ts_ms,
@@ -1887,18 +1924,19 @@ def persist(key: str, params: dict, data: dict, r, session_stats=None):
                         flat_sym = _canonical_usdt(str(base_coin))
                         if is_canonical_family_endpoint:
                             flat_key = f"latest:coinank:{family}:{flat_sym}:{interval_param}"
-                            r.set(flat_key, json.dumps({
-                                "ts_ms": ts,
-                                "timestamp": ts,
-                                "symbol": flat_sym,
-                                "exchange": exchange,
-                                "family": family,
-                                "endpoint": key,
-                                "endpoint_variant": endpoint_variant or None,
-                                "request_parameters": request_parameters,
-                                "interval": interval_param,
-                                "data": data
-                            }), ex=_feat_ttl)
+                            flat_payload = build_coinank_flat_snapshot(
+                                persisted_at_ms=ts,
+                                request_receipt=request_receipt,
+                                symbol=flat_sym,
+                                exchange=exchange,
+                                family=family,
+                                endpoint=key,
+                                endpoint_variant=endpoint_variant or None,
+                                request_parameters=request_parameters,
+                                interval=interval_param,
+                                data=data,
+                            )
+                            r.set(flat_key, json.dumps(flat_payload), ex=_feat_ttl)
                             if session_stats:
                                 session_stats["redis_writes"] += 1
 
@@ -1910,18 +1948,27 @@ def persist(key: str, params: dict, data: dict, r, session_stats=None):
                                 else key
                             )
                             ep_flat_key = f"latest:coinank_endpoint:{ep_identity}:{flat_sym}:{interval_param}"
-                            r.set(ep_flat_key, json.dumps({
-                                "ts_ms": ts,
-                                "timestamp": ts,
-                                "symbol": flat_sym,
-                                "exchange": exchange,
-                                "family": family,
-                                "endpoint": key,
-                                "endpoint_variant": endpoint_variant or None,
-                                "request_parameters": request_parameters,
-                                "interval": interval_param,
-                                "data": data if isinstance(data, (dict, list)) else {"value": data},
-                            }), ex=_feat_ttl)
+                            ep_flat_payload = build_coinank_flat_snapshot(
+                                persisted_at_ms=ts,
+                                request_receipt=request_receipt,
+                                symbol=flat_sym,
+                                exchange=exchange,
+                                family=family,
+                                endpoint=key,
+                                endpoint_variant=endpoint_variant or None,
+                                request_parameters=request_parameters,
+                                interval=interval_param,
+                                data=(
+                                    data
+                                    if isinstance(data, (dict, list))
+                                    else {"value": data}
+                                ),
+                            )
+                            r.set(
+                                ep_flat_key,
+                                json.dumps(ep_flat_payload),
+                                ex=_feat_ttl,
+                            )
                             if session_stats:
                                 session_stats["redis_writes"] += 1
                         except Exception:
@@ -2393,7 +2440,11 @@ def loop():
     
     # Safe preflight: Test SESSION configuration
     try:
-        debug_log(f"Session headers: {dict(SESSION.headers)}")
+        debug_log(
+            "Session headers configured: "
+            f"{sorted(str(name).lower() for name in SESSION.headers)}; "
+            f"apikey_present={bool(SESSION.headers.get('apikey'))}"
+        )
         debug_log(f"Base URL: {BASE_URL}")
         verbose_log("Session configuration validated")
     except Exception as e:
@@ -2447,7 +2498,13 @@ def loop():
             if ep in CRITICAL_COINANK_SCHEDULER_ENDPOINTS:
                 return
             # Respect existing rate gates
-            data = fetch_endpoint(ep, WORKING_COINANK_ENDPOINTS.get(ep, {}).get('path', ''), p)
+            request_receipt = {}
+            data = fetch_endpoint(
+                ep,
+                WORKING_COINANK_ENDPOINTS.get(ep, {}).get('path', ''),
+                p,
+                request_receipt=request_receipt,
+            )
             # Update cursor regardless of content to avoid endless retry
             try:
                 end_ms = int(p.get("endTime")) if p.get("endTime") else None
@@ -2457,7 +2514,14 @@ def loop():
                 pass
             if data and isinstance(data, dict) and data.get("success"):
                 try:
-                    persist(ep, p, data, r, message_counters)
+                    persist(
+                        ep,
+                        p,
+                        data,
+                        r,
+                        message_counters,
+                        request_receipt=request_receipt,
+                    )
                 except Exception:
                     pass
         except Exception:
@@ -2687,8 +2751,16 @@ def loop():
         for scheduled_record in scheduled_records:
             p = scheduled_record["params"]
             call_succeeded = False
-            data = fetch_endpoint(key, spec['path'], p)
-            response_available_at_ms = _now_ms()
+            request_receipt = {}
+            data = fetch_endpoint(
+                key,
+                spec['path'],
+                p,
+                request_receipt=request_receipt,
+            )
+            response_available_at_ms = int(
+                request_receipt.get("response_observed_at_ms") or _now_ms()
+            )
             time.sleep(0.01)
             if data is None:
                 metrics = _metrics.setdefault(key, {"succ": 0, "err": 0, "empty": 0, "last_ts": _now_ms(), "full_prints": 0})
@@ -2750,7 +2822,14 @@ def loop():
                         except Exception:
                             pass
                 else:
-                    persist(key, p, data, r, message_counters)
+                    persist(
+                        key,
+                        p,
+                        data,
+                        r,
+                        message_counters,
+                        request_receipt=request_receipt,
+                    )
                     call_succeeded = (
                         bool(semantic_validation["valid"])
                         if semantic_validation is not None
