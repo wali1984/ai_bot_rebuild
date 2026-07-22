@@ -198,6 +198,7 @@ No active authorized real submitter was observed; release mode was effectively n
 - [Profiled trainer external witness client V1](system_audit_2026_master/components/PROFILED_TRAINING_EXTERNAL_WITNESS_CLIENT_V1.md)
 - [Profiled trainer external witness journal V1](system_audit_2026_master/components/PROFILED_TRAINING_EXTERNAL_WITNESS_JOURNAL_V1.md)
 - [Profiled trainer external witness runtime V1](system_audit_2026_master/components/PROFILED_TRAINING_EXTERNAL_WITNESS_RUNTIME_V1.md)
+- [Profiled trainer observation coordinator state V1](system_audit_2026_master/components/PROFILED_TRAINING_OBSERVATION_COORDINATOR_STATE_V1.md)
 - [Decision/risk/paper/live execution](system_audit_2026_master/components/DECISION_RISK_PAPER_AND_LIVE_EXECUTION.md)
 - [API/auth/storage/web/mobile](system_audit_2026_master/components/API_AUTH_STORAGE_WEB_AND_MOBILE.md)
 - [Config/contracts/change impact](system_audit_2026_master/components/CONFIG_KEYS_CONTRACTS_AND_CHANGE_IMPACT.md)
