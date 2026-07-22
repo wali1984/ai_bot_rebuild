@@ -11,6 +11,11 @@ The caller must supply authoritative, time-bounded fee-schedule bytes plus a
 self-hashed source receipt and equally explicit expected-notional policy bytes
 plus a self-hashed causal source receipt.  There is no configured fee,
 notional, spread, impact, funding, or freshness fallback in this module.
+
+When supplied as a pair, the optional fee-transport envelope and consumer
+receipt preserve the broker reader's HMAC, eight-object CAS, rotation, and
+point-in-time verification in lineage only.  They add no physical model slot
+and grant no trainer or execution authority.
 """
 
 from __future__ import annotations
@@ -88,6 +93,55 @@ _DEPTH_SCHEMA = "direct_orderbook_depth_v1"
 _FEATURES_SCHEMA = "direct_orderbook_features_v1"
 _MARK_SCHEMA = "binance_usdm_mark_price_wss_v1"
 _FEE_SOURCE_TRANSPORT = "DETACHED_SIGNED_BINANCE_USDM_COMMISSION_RESPONSE_UNWIRED"
+_FEE_BROKER_TRANSPORT = "AUTHENTICATED_BINANCE_USDM_COMMISSION_BROKER_HMAC_V1"
+_FEE_BROKER_SCHEMA_VERSION = "v2_binance_usdm_commission_evidence_broker_v1"
+_FEE_BROKER_CONSUMER_RECEIPT_SCHEMA_VERSION = (
+    "v2_binance_usdm_commission_consumer_read_receipt_v1"
+)
+_FEE_BROKER_CONSUMER_RECEIPT_FIELDS = frozenset(
+    """
+    schema_version receipt_kind broker_schema_version producer source request_method
+    request_path symbol decision_time source_available_at broker_available_at
+    consumer_observed_at consumer_checked_at expires_at broker_envelope_sha256
+    broker_envelope_evidence_hmac_sha256 rotation_receipt_sha256 raw_response_sha256
+    fee_artifact_sha256 fee_receipt_sha256 credential_binding_fingerprint_sha256
+    evidence_auth_algorithm evidence_auth_key_id verification_checks broker_cas_object_count
+    exchange_credentials_read trainer_authority prediction_authority paper_authority
+    live_authority content_checksum_sha256 evidence_hmac_sha256
+    """.split()
+)
+_FEE_BROKER_ENVELOPE_FIELDS = frozenset(
+    """
+    schema_version producer source request_method request_path security_type symbol
+    exchange_environment base_url_origin trader_id credential_ref credential_binding_id
+    credential_binding_fingerprint_sha256 credential_ref_read_only_assertion
+    credential_ref_read_only_assertion_semantics exchange_key_permissions_proven_by_connector
+    evidence_auth_algorithm evidence_auth_key_id request_started_at response_observed_at
+    source_available_at broker_generated_at broker_available_at broker_available_at_semantics
+    expires_at raw_response_sha256 raw_response_byte_count raw_response_cas_address
+    raw_response_stored_in_redis sanitized_request_identity_sha256
+    sanitized_request_identity_cas_address fee_artifact_sha256 fee_artifact_cas_address
+    fee_receipt_sha256 fee_receipt_payload_sha256 fee_receipt_cas_address
+    refresh_policy_artifact_cas_address refresh_policy_receipt_sha256
+    refresh_policy_receipt_payload_sha256 refresh_policy_receipt_cas_address
+    rotation_artifact_cas_address rotation_receipt_sha256 rotation_receipt_cas_address
+    taker_commission_bps maker_commission_bps rpi_commission_bps request_weight
+    shared_budget_required shared_budget_scope raw_response_stored_in_redis
+    exchange_credentials_stored read_only trainer_authority prediction_authority
+    paper_authority live_authority places_real_order order_submitted leverage_mutated
+    margin_mutated content_checksum_sha256 evidence_hmac_sha256
+    """.split()
+)
+_FEE_BROKER_VERIFICATION_CHECKS = [
+    "CANONICAL_REDIS_ENVELOPE",
+    "ENVELOPE_CONTENT_CHECKSUM",
+    "ENVELOPE_HMAC",
+    "EIGHT_IMMUTABLE_CAS_READBACKS",
+    "CAS_ENVELOPE_HASH_BINDINGS",
+    "FEE_REFRESH_ROTATION_CONTENT_BINDINGS",
+    "BROKER_SOURCE_CONSUMER_DECISION_CLOCK_ORDER",
+    "EVIDENCE_EXPIRY",
+]
 _NOTIONAL_SOURCE_TRANSPORT = "DURABLE_CAUSAL_POLICY_LEDGER"
 _CLOCK_FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$", re.ASCII)
@@ -1266,6 +1320,219 @@ def _validate_fee_evidence(
     )
 
 
+def _validate_fee_transport_provenance(
+    *,
+    store: ImmutableSourcePayloadStore,
+    envelope_bytes: object,
+    consumer_receipt_bytes: object,
+    fee_artifact_bytes: bytes,
+    fee_raw_response_bytes: bytes,
+    fee_receipt: Mapping[str, Any],
+    symbol: str,
+    decision_iso: str,
+    decision_at: datetime,
+) -> tuple[
+    dict[str, Any] | None,
+    tuple[tuple[SourcePayloadAddress, bytes], ...],
+    str | None,
+]:
+    """Bind an optional authenticated broker transport without changing the ABI."""
+
+    if envelope_bytes is None and consumer_receipt_bytes is None:
+        return None, (), None
+    if type(envelope_bytes) is not bytes or type(consumer_receipt_bytes) is not bytes:
+        _validation("CAUSAL_COST_FEE_BROKER_TRANSPORT_PAIR_REQUIRED")
+    typed_envelope_bytes = cast(bytes, envelope_bytes)
+    typed_consumer_receipt_bytes = cast(bytes, consumer_receipt_bytes)
+    envelope = _parse_exact_json_bytes(
+        typed_envelope_bytes,
+        reason="CAUSAL_COST_FEE_BROKER_ENVELOPE_JSON_INVALID",
+    )
+    receipt = _parse_exact_json_bytes(
+        typed_consumer_receipt_bytes,
+        reason="CAUSAL_COST_FEE_BROKER_CONSUMER_RECEIPT_JSON_INVALID",
+    )
+    if frozenset(envelope) != _FEE_BROKER_ENVELOPE_FIELDS:
+        _validation("CAUSAL_COST_FEE_BROKER_ENVELOPE_FIELDS_INVALID")
+    if frozenset(receipt) != _FEE_BROKER_CONSUMER_RECEIPT_FIELDS:
+        _validation("CAUSAL_COST_FEE_BROKER_CONSUMER_RECEIPT_FIELDS_INVALID")
+
+    false_authority = {
+        "exchange_credentials_read": False,
+        "trainer_authority": False,
+        "prediction_authority": False,
+        "paper_authority": False,
+        "live_authority": False,
+    }
+    expected_envelope = {
+        "schema_version": _FEE_BROKER_SCHEMA_VERSION,
+        "producer": "v2_binance_usdm_commission_evidence_broker",
+        "source": "BINANCE_USDM_USER_DATA_GET_FAPI_V1_COMMISSION_RATE",
+        "request_method": "GET",
+        "request_path": "/fapi/v1/commissionRate",
+        "security_type": "USER_DATA",
+        "symbol": symbol,
+        "evidence_auth_algorithm": "HMAC-SHA256",
+        "request_weight": 20,
+        "shared_budget_required": True,
+        "shared_budget_scope": "host_redis",
+        "raw_response_stored_in_redis": False,
+        "exchange_credentials_stored": False,
+        "read_only": True,
+        "trainer_authority": False,
+        "prediction_authority": False,
+        "paper_authority": False,
+        "live_authority": False,
+        "places_real_order": False,
+        "order_submitted": False,
+        "leverage_mutated": False,
+        "margin_mutated": False,
+    }
+    expected_receipt = {
+        "schema_version": _FEE_BROKER_CONSUMER_RECEIPT_SCHEMA_VERSION,
+        "receipt_kind": "AUTHENTICATED_BROKER_CONSUMER_READ",
+        "broker_schema_version": _FEE_BROKER_SCHEMA_VERSION,
+        "producer": expected_envelope["producer"],
+        "source": expected_envelope["source"],
+        "request_method": "GET",
+        "request_path": "/fapi/v1/commissionRate",
+        "symbol": symbol,
+        "decision_time": decision_iso,
+        "evidence_auth_algorithm": "HMAC-SHA256",
+        "verification_checks": _FEE_BROKER_VERIFICATION_CHECKS,
+        "broker_cas_object_count": 8,
+        **false_authority,
+    }
+    if any(envelope.get(name) != value for name, value in expected_envelope.items()):
+        _validation("CAUSAL_COST_FEE_BROKER_ENVELOPE_IDENTITY_INVALID")
+    if any(receipt.get(name) != value for name, value in expected_receipt.items()):
+        _validation("CAUSAL_COST_FEE_BROKER_CONSUMER_RECEIPT_IDENTITY_INVALID")
+
+    envelope_sha256 = hashlib.sha256(typed_envelope_bytes).hexdigest()
+    consumer_receipt_sha256 = hashlib.sha256(typed_consumer_receipt_bytes).hexdigest()
+    fee_artifact_sha256 = hashlib.sha256(fee_artifact_bytes).hexdigest()
+    raw_response_sha256 = hashlib.sha256(fee_raw_response_bytes).hexdigest()
+    required_hashes = (
+        envelope.get("content_checksum_sha256"),
+        envelope.get("evidence_hmac_sha256"),
+        envelope.get("rotation_receipt_sha256"),
+        envelope.get("credential_binding_fingerprint_sha256"),
+        receipt.get("content_checksum_sha256"),
+        receipt.get("evidence_hmac_sha256"),
+        receipt.get("broker_envelope_evidence_hmac_sha256"),
+    )
+    if any(
+        type(value) is not str or _SHA256_RE.fullmatch(value) is None
+        for value in required_hashes
+    ):
+        _validation("CAUSAL_COST_FEE_BROKER_HASH_INVALID")
+    envelope_checksum_material = {
+        key: value
+        for key, value in envelope.items()
+        if key not in {"content_checksum_sha256", "evidence_hmac_sha256"}
+    }
+    receipt_checksum_material = {
+        key: value
+        for key, value in receipt.items()
+        if key not in {"content_checksum_sha256", "evidence_hmac_sha256"}
+    }
+    if (
+        envelope.get("content_checksum_sha256") != _sha256(envelope_checksum_material)
+        or receipt.get("content_checksum_sha256") != _sha256(receipt_checksum_material)
+        or receipt.get("broker_envelope_sha256") != envelope_sha256
+        or receipt.get("broker_envelope_evidence_hmac_sha256")
+        != envelope.get("evidence_hmac_sha256")
+        or receipt.get("rotation_receipt_sha256")
+        != envelope.get("rotation_receipt_sha256")
+        or receipt.get("raw_response_sha256") != raw_response_sha256
+        or envelope.get("raw_response_sha256") != raw_response_sha256
+        or receipt.get("fee_artifact_sha256") != fee_artifact_sha256
+        or envelope.get("fee_artifact_sha256") != fee_artifact_sha256
+        or receipt.get("fee_receipt_sha256") != fee_receipt.get("receipt_sha256")
+        or envelope.get("fee_receipt_sha256") != fee_receipt.get("receipt_sha256")
+        or receipt.get("credential_binding_fingerprint_sha256")
+        != envelope.get("credential_binding_fingerprint_sha256")
+        or receipt.get("evidence_auth_key_id") != envelope.get("evidence_auth_key_id")
+    ):
+        _validation("CAUSAL_COST_FEE_BROKER_TRANSPORT_BINDING_INVALID")
+
+    source_iso, source_at = _clock(
+        receipt.get("source_available_at"),
+        reason="CAUSAL_COST_FEE_BROKER_SOURCE_AVAILABLE_AT_INVALID",
+    )
+    broker_iso, broker_at = _clock(
+        receipt.get("broker_available_at"),
+        reason="CAUSAL_COST_FEE_BROKER_AVAILABLE_AT_INVALID",
+    )
+    observed_iso, observed_at = _clock(
+        receipt.get("consumer_observed_at"),
+        reason="CAUSAL_COST_FEE_BROKER_CONSUMER_OBSERVED_AT_INVALID",
+    )
+    checked_iso, checked_at = _clock(
+        receipt.get("consumer_checked_at"),
+        reason="CAUSAL_COST_FEE_BROKER_CONSUMER_CHECKED_AT_INVALID",
+    )
+    expires_iso, expires_at = _clock(
+        receipt.get("expires_at"),
+        reason="CAUSAL_COST_FEE_BROKER_EXPIRES_AT_INVALID",
+    )
+    if (
+        not source_at <= broker_at <= observed_at <= checked_at <= decision_at < expires_at
+        or envelope.get("source_available_at") != source_iso
+        or envelope.get("broker_available_at") != broker_iso
+        or envelope.get("expires_at") != expires_iso
+        or receipt.get("decision_time") != decision_iso
+    ):
+        _validation("CAUSAL_COST_FEE_BROKER_TEMPORAL_BINDING_INVALID")
+    _label(
+        receipt.get("evidence_auth_key_id"),
+        reason="CAUSAL_COST_FEE_BROKER_AUTH_KEY_ID_INVALID",
+    )
+
+    envelope_address = _put_exact(
+        store,
+        typed_envelope_bytes,
+        failure_reason="CAUSAL_COST_FEE_BROKER_ENVELOPE_CAS_FAILED",
+    )
+    receipt_address = _put_exact(
+        store,
+        typed_consumer_receipt_bytes,
+        failure_reason="CAUSAL_COST_FEE_BROKER_CONSUMER_RECEIPT_CAS_FAILED",
+    )
+    provenance = {
+        "schema_version": "causal_cost_fee_transport_provenance_v1",
+        "source_transport": _FEE_BROKER_TRANSPORT,
+        "verification_status": (
+            "BROKER_READER_VERIFIED_HMAC_EIGHT_CAS_OBJECTS_AND_PIT;"
+            "SIGNED_CONSUMER_RECEIPT_STRUCTURALLY_BOUND"
+        ),
+        "broker_envelope_sha256": envelope_sha256,
+        "broker_envelope_cas_address": _address_mapping(envelope_address),
+        "broker_envelope_evidence_hmac_sha256": envelope["evidence_hmac_sha256"],
+        "consumer_receipt_payload_sha256": consumer_receipt_sha256,
+        "consumer_receipt_cas_address": _address_mapping(receipt_address),
+        "consumer_receipt_evidence_hmac_sha256": receipt["evidence_hmac_sha256"],
+        "rotation_receipt_sha256": receipt["rotation_receipt_sha256"],
+        "source_available_at": source_iso,
+        "broker_available_at": broker_iso,
+        "consumer_observed_at": observed_iso,
+        "consumer_checked_at": checked_iso,
+        "decision_time": decision_iso,
+        "expires_at": expires_iso,
+        "evidence_auth_algorithm": "HMAC-SHA256",
+        "evidence_auth_key_id": receipt["evidence_auth_key_id"],
+        **false_authority,
+    }
+    return (
+        provenance,
+        (
+            (envelope_address, typed_envelope_bytes),
+            (receipt_address, typed_consumer_receipt_bytes),
+        ),
+        consumer_receipt_sha256,
+    )
+
+
 def _validate_notional_evidence(
     *,
     store: ImmutableSourcePayloadStore,
@@ -1525,6 +1792,8 @@ def build_causal_cost_evidence_v1(
     feature_snapshot_identity: object,
     decision_time: object,
     counterfactual_holding_horizon_seconds: object,
+    fee_transport_envelope_bytes: object = None,
+    fee_transport_consumer_receipt_bytes: object = None,
 ) -> CausalCostEvidenceV1Result:
     """Build four audit-only float32 scalars from complete causal evidence.
 
@@ -1581,6 +1850,19 @@ def build_causal_cost_evidence_v1(
         receipt=fee_schedule_receipt,
         symbol=normalized_symbol,
         decision_at=decision_at,
+    )
+    fee_transport_provenance, fee_transport_objects, fee_transport_receipt_sha256 = (
+        _validate_fee_transport_provenance(
+            store=store,
+            envelope_bytes=fee_transport_envelope_bytes,
+            consumer_receipt_bytes=fee_transport_consumer_receipt_bytes,
+            fee_artifact_bytes=cast(bytes, fee_schedule_artifact_bytes),
+            fee_raw_response_bytes=cast(bytes, fee_schedule_raw_response_bytes),
+            fee_receipt=fee_receipt,
+            symbol=normalized_symbol,
+            decision_iso=decision_iso,
+            decision_at=decision_at,
+        )
     )
     spread_value, impact_value, orderbook_derivation = _validate_orderbook_sources(
         depth=payloads["orderbook_depth"],
@@ -1651,8 +1933,32 @@ def build_causal_cost_evidence_v1(
             AtomicRedisSourceReadBatch, atomic_capture
         ).batch_material_sha256,
         "profiled_39_record_id": None,
+        **(
+            {
+                "fee_transport_consumer_receipt_payload_sha256": (
+                    fee_transport_receipt_sha256
+                )
+            }
+            if fee_transport_receipt_sha256 is not None
+            else {}
+        ),
     }
     module_sha256 = _module_code_sha256()
+    fee_required_child_roles = ["authoritative_fee_schedule"]
+    fee_child_bindings: tuple[dict[str, Any], ...] = (
+        {
+            "input_role": "authoritative_fee_schedule",
+            "receipt_sha256": fee_receipt["receipt_sha256"],
+        },
+    )
+    if fee_transport_receipt_sha256 is not None:
+        fee_required_child_roles.append("authenticated_fee_transport_consumer_read")
+        fee_child_bindings += (
+            {
+                "input_role": "authenticated_fee_transport_consumer_read",
+                "receipt_payload_sha256": fee_transport_receipt_sha256,
+            },
+        )
     specs = (
         (
             "fee_bps",
@@ -1660,14 +1966,9 @@ def build_causal_cost_evidence_v1(
             {
                 "component_semantics": "TAKER_FEE_BPS_PER_SIDE",
                 "formula": "RAW_TAKER_COMMISSION_RATE_TIMES_10000",
-                "required_child_roles": ["authoritative_fee_schedule"],
+                "required_child_roles": fee_required_child_roles,
             },
-            (
-                {
-                    "input_role": "authoritative_fee_schedule",
-                    "receipt_sha256": fee_receipt["receipt_sha256"],
-                },
-            ),
+            fee_child_bindings,
             {
                 "raw_taker_commission_rate": _parse_detached_response_bytes(
                     cast(bytes, fee_schedule_raw_response_bytes)
@@ -1786,13 +2087,20 @@ def build_causal_cost_evidence_v1(
         "market_sources": market_sources,
         "market_source_read_receipts": source_receipts,
         "fee_source": fee_source,
+        **(
+            {"fee_transport_provenance": fee_transport_provenance}
+            if fee_transport_provenance is not None
+            else {}
+        ),
         "notional_source": notional_source,
         "funding_settlement_contract": funding_derivation,
         "market_source_authenticity_status": (
             "RECORDER_KEY_SCHEMA_TRANSPORT_SEMANTICS_REDERIVED_NO_UPSTREAM_SIGNATURE"
         ),
         "fee_source_authenticity_status": (
-            "DETACHED_STRUCTURAL_VALIDATION_ONLY_FACTORY_SIGNED_CAPTURE_PENDING"
+            "BROKER_READER_HMAC_CAS_AND_PIT_VERIFIED_WITH_SIGNED_RECEIPT_PERSISTED"
+            if fee_transport_provenance is not None
+            else "DETACHED_STRUCTURAL_VALIDATION_ONLY_FACTORY_SIGNED_CAPTURE_PENDING"
         ),
         "no_static_fallback_or_floor": True,
         "optional_provider_dependencies": [],
@@ -1834,6 +2142,7 @@ def build_causal_cost_evidence_v1(
             *market_objects,
             *notional_objects,
             *fee_objects,
+            *fee_transport_objects,
             *source_receipt_objects,
             (artifact_address, artifact_bytes),
         ),

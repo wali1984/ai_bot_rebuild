@@ -40,6 +40,9 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, Final, NoReturn, cast
 
+from v2.backend.app.services.binance_usdm_commission_evidence_broker import (
+    CredentiallessCommissionEvidence,
+)
 from v2.backend.app.services.native_trainer.adaptive_ohlcv_feature_selection_profile_v1 import (
     ADAPTIVE_OHLCV_FEATURE_SELECTION_PROFILE_V1,
 )
@@ -136,6 +139,9 @@ AUTHENTICATED_COST_EVIDENCE_REQUIRED_MODE: Final = (
     "AUTHENTICATED_COST_EVIDENCE_REQUIRED"
 )
 MASKED_COST_OBSERVATION_MODE: Final = "MASKED_COST_OBSERVATION"
+BROKER_AUTHENTICATED_COST_EVIDENCE_WITH_MASKED_FALLBACK_MODE: Final = (
+    "BROKER_AUTHENTICATED_COST_EVIDENCE_WITH_MASKED_FALLBACK"
+)
 PROFILED_MASKED_COST_OBSERVATION_V1_SCHEMA_VERSION: Final = (
     "profiled_masked_cost_observation_v1"
 )
@@ -1782,11 +1788,13 @@ class ProfiledBaseFeaturePublisherV1:
             build_binance_usdm_commission_refresh_policy_v1
         ),
         commission_capture_function: Callable[..., Any] = (capture_binance_usdm_commission_rate_v1),
+        commission_evidence_reader: Callable[..., dict[str, Any]] | None = None,
         causal_cost_builder: Callable[..., CausalCostEvidenceV1Result] = (
             build_causal_cost_evidence_v1
         ),
         commission_fingerprint_hmac_key: bytes | None = None,
         commission_cost_mode: str = AUTHENTICATED_COST_EVIDENCE_REQUIRED_MODE,
+        exchange_credentials_loaded_by_publisher: bool = False,
         cost_recapture_waiter: Callable[[datetime], datetime] | None = None,
     ) -> None:
         self.redis_client = redis_client
@@ -1827,15 +1835,21 @@ class ProfiledBaseFeaturePublisherV1:
             or not callable(expected_notional_builder)
             or not callable(commission_refresh_builder)
             or not callable(commission_capture_function)
+            or (
+                commission_evidence_reader is not None
+                and not callable(commission_evidence_reader)
+            )
             or not callable(causal_cost_builder)
             or (cost_recapture_waiter is not None and not callable(cost_recapture_waiter))
             or (
                 commission_fingerprint_hmac_key is not None
                 and type(commission_fingerprint_hmac_key) is not bytes
             )
+            or type(exchange_credentials_loaded_by_publisher) is not bool
             or commission_cost_mode
             not in {
                 AUTHENTICATED_COST_EVIDENCE_REQUIRED_MODE,
+                BROKER_AUTHENTICATED_COST_EVIDENCE_WITH_MASKED_FALLBACK_MODE,
                 MASKED_COST_OBSERVATION_MODE,
             }
             or (
@@ -1843,7 +1857,25 @@ class ProfiledBaseFeaturePublisherV1:
                 and (
                     cost_evidence_factory is not None
                     or commission_fingerprint_hmac_key is not None
+                    or commission_evidence_reader is not None
                 )
+            )
+            or (
+                commission_cost_mode
+                == BROKER_AUTHENTICATED_COST_EVIDENCE_WITH_MASKED_FALLBACK_MODE
+                and (
+                    commission_evidence_reader is None
+                    or commission_fingerprint_hmac_key is not None
+                    or cost_evidence_factory is not None
+                )
+            )
+            or (
+                commission_cost_mode == AUTHENTICATED_COST_EVIDENCE_REQUIRED_MODE
+                and commission_evidence_reader is not None
+            )
+            or (
+                exchange_credentials_loaded_by_publisher
+                and commission_cost_mode != AUTHENTICATED_COST_EVIDENCE_REQUIRED_MODE
             )
         ):
             _fail(
@@ -1872,9 +1904,13 @@ class ProfiledBaseFeaturePublisherV1:
         self.expected_notional_builder = expected_notional_builder
         self.commission_refresh_builder = commission_refresh_builder
         self.commission_capture_function = commission_capture_function
+        self.commission_evidence_reader = commission_evidence_reader
         self.causal_cost_builder = causal_cost_builder
         self._commission_fingerprint_hmac_key = commission_fingerprint_hmac_key
         self.commission_cost_mode = commission_cost_mode
+        self.exchange_credentials_loaded_by_publisher = (
+            exchange_credentials_loaded_by_publisher
+        )
         self.cost_recapture_waiter = cost_recapture_waiter or (
             lambda target_at: wait_for_prospective_decision_v1(
                 target_at,
@@ -2124,12 +2160,65 @@ class ProfiledBaseFeaturePublisherV1:
             )
         return notional, market
 
+    def _broker_commission_evidence_for_parent(
+        self,
+        *,
+        parent_record: dict[str, Any],
+    ) -> tuple[CredentiallessCommissionEvidence | None, str]:
+        """Read one authenticated fee schedule or return a safe mask reason."""
+
+        reader = self.commission_evidence_reader
+        if reader is None:
+            return None, "COMMISSION_BROKER_READER_NOT_CONFIGURED"
+        envelope = cast(dict[str, Any], parent_record["frozen_envelope"])
+        symbol = cast(str, envelope["symbol"])
+        decision_time = cast(str, envelope["tensor_decision_time"])
+        try:
+            result = reader(
+                symbol=symbol,
+                decision_time=decision_time,
+                now_fn=self.clock,
+            )
+        except Exception as exc:  # noqa: BLE001 - dependency detail stays masked
+            return None, f"COMMISSION_BROKER_READER_EXCEPTION_{type(exc).__name__.upper()}"
+        if type(result) is not dict:
+            return None, "COMMISSION_BROKER_READER_RESULT_INVALID"
+        status = result.get("status")
+        if (
+            type(status) is not str
+            or not status.isascii()
+            or not 1 <= len(status) <= 192
+            or re.fullmatch(r"[A-Z0-9_]+", status, re.ASCII) is None
+        ):
+            return None, "COMMISSION_BROKER_READER_STATUS_INVALID"
+        evidence = result.get("evidence")
+        if status != "READY":
+            return None, status
+        if (
+            type(evidence) is not CredentiallessCommissionEvidence
+            or evidence.symbol != symbol
+            or evidence.decision_time != decision_time
+            or evidence.exchange_credentials_read is not False
+            or any(
+                getattr(evidence, field) is not False
+                for field in (
+                    "trainer_authority",
+                    "prediction_authority",
+                    "paper_authority",
+                    "live_authority",
+                )
+            )
+        ):
+            return None, "COMMISSION_BROKER_READY_EVIDENCE_INVALID"
+        return evidence, status
+
     def _build_runtime_cost_evidence(
         self,
         *,
         parent_record: dict[str, Any],
         enrichment_store: ImmutableSourcePayloadStore,
         decision_at: datetime,
+        commission_evidence: CredentiallessCommissionEvidence | None = None,
     ) -> tuple[CausalCostEvidenceV1Result, int]:
         envelope = cast(dict[str, Any], parent_record["frozen_envelope"])
         symbol = cast(str, envelope["symbol"])
@@ -2178,54 +2267,93 @@ class ProfiledBaseFeaturePublisherV1:
             feature_snapshot_identity=parent_record["durable_snapshot_id"],
             feature_snapshot_decision_time=decision_at,
         )
-        policy_at, policy_clock = self._sample_clock(
-            "PROFILED_BASE_PUBLISHER_COMMISSION_POLICY_CLOCK_INVALID"
-        )
-        if policy_at >= decision_at:
-            _fail(
-                ProfiledBaseFeaturePublisherV1Error,
-                COST_EVIDENCE_UNAVAILABLE_PARENT_NOT_APPENDED,
-                "PROFILED_BASE_PUBLISHER_COMMISSION_POLICY_AFTER_DECISION",
+        if commission_evidence is None:
+            policy_at, policy_clock = self._sample_clock(
+                "PROFILED_BASE_PUBLISHER_COMMISSION_POLICY_CLOCK_INVALID"
             )
-        # This refresh receipt authenticates the notional source PTTL, so do
-        # not overclaim that it also binds the three market-source lifetimes.
-        # Their minimum remains exclusively the just-in-time recapture input.
-        notional_pttl_ms = notional_capture.results[0].pttl_ms
-        if notional_pttl_ms < 1_000:
-            _fail(
-                ProfiledBaseFeaturePublisherV1Error,
-                COST_EVIDENCE_UNAVAILABLE_PARENT_NOT_APPENDED,
-                "PROFILED_BASE_PUBLISHER_NOTIONAL_PTTL_SUBSECOND_UNUSABLE",
+            if policy_at >= decision_at:
+                _fail(
+                    ProfiledBaseFeaturePublisherV1Error,
+                    COST_EVIDENCE_UNAVAILABLE_PARENT_NOT_APPENDED,
+                    "PROFILED_BASE_PUBLISHER_COMMISSION_POLICY_AFTER_DECISION",
+                )
+            # This refresh receipt authenticates the notional source PTTL, so do
+            # not overclaim that it also binds the three market-source lifetimes.
+            # Their minimum remains exclusively the just-in-time recapture input.
+            notional_pttl_ms = notional_capture.results[0].pttl_ms
+            if notional_pttl_ms < 1_000:
+                _fail(
+                    ProfiledBaseFeaturePublisherV1Error,
+                    COST_EVIDENCE_UNAVAILABLE_PARENT_NOT_APPENDED,
+                    "PROFILED_BASE_PUBLISHER_NOTIONAL_PTTL_SUBSECOND_UNUSABLE",
+                )
+            refresh_interval_seconds = min(
+                IMMUTABLE_MAX_COMMISSION_EVIDENCE_SAFETY_HORIZON_SECONDS,
+                notional_pttl_ms // 1_000,
             )
-        refresh_interval_seconds = min(
-            IMMUTABLE_MAX_COMMISSION_EVIDENCE_SAFETY_HORIZON_SECONDS,
-            notional_pttl_ms // 1_000,
-        )
-        refresh_policy = self.commission_refresh_builder(
-            store=enrichment_store,
-            symbol=symbol,
-            policy_id=COMMISSION_REFRESH_POLICY_ID,
-            policy_version=COMMISSION_REFRESH_POLICY_VERSION,
-            refresh_interval_seconds=refresh_interval_seconds,
-            adaptive_input_receipt_sha256=notional.source_read_receipt_sha256,
-            generated_at=policy_clock,
-            available_at=policy_clock,
-            recorded_at=policy_clock,
-        )
-        commission = self.commission_capture_function(
-            store=enrichment_store,
-            symbol=symbol,
-            refresh_policy=refresh_policy,
-            fallback_reason=COMMISSION_CAPTURE_FALLBACK_REASON,
-            credential_fingerprint_hmac_key=self._commission_fingerprint_hmac_key,
-            now_fn=self.clock,
-        )
+            refresh_policy = self.commission_refresh_builder(
+                store=enrichment_store,
+                symbol=symbol,
+                policy_id=COMMISSION_REFRESH_POLICY_ID,
+                policy_version=COMMISSION_REFRESH_POLICY_VERSION,
+                refresh_interval_seconds=refresh_interval_seconds,
+                adaptive_input_receipt_sha256=notional.source_read_receipt_sha256,
+                generated_at=policy_clock,
+                available_at=policy_clock,
+                recorded_at=policy_clock,
+            )
+            commission = self.commission_capture_function(
+                store=enrichment_store,
+                symbol=symbol,
+                refresh_policy=refresh_policy,
+                fallback_reason=COMMISSION_CAPTURE_FALLBACK_REASON,
+                credential_fingerprint_hmac_key=self._commission_fingerprint_hmac_key,
+                now_fn=self.clock,
+            )
+            fee_artifact_bytes = commission.fee_artifact_bytes
+            fee_raw_response_bytes = commission.raw_response_bytes
+            fee_schedule_receipt = commission.fee_schedule_receipt
+            auxiliary_cas_bytes = (
+                len(refresh_policy.artifact_bytes)
+                + len(refresh_policy.receipt_bytes)
+                + len(commission.sanitized_request_identity_bytes)
+            )
+            fee_transport_envelope_bytes = None
+            fee_transport_consumer_receipt_bytes = None
+        else:
+            if (
+                type(commission_evidence) is not CredentiallessCommissionEvidence
+                or commission_evidence.symbol != symbol
+                or commission_evidence.decision_time != decision_text
+                or commission_evidence.exchange_credentials_read is not False
+                or commission_evidence.trainer_authority is not False
+                or commission_evidence.prediction_authority is not False
+                or commission_evidence.paper_authority is not False
+                or commission_evidence.live_authority is not False
+            ):
+                _fail(
+                    ProfiledBaseFeaturePublisherV1Error,
+                    COST_EVIDENCE_UNAVAILABLE_PARENT_NOT_APPENDED,
+                    "PROFILED_BASE_PUBLISHER_BROKER_COMMISSION_EVIDENCE_INVALID",
+                )
+            fee_artifact_bytes = commission_evidence.fee_artifact_bytes
+            fee_raw_response_bytes = commission_evidence.raw_response_bytes
+            fee_schedule_receipt = commission_evidence.fee_schedule_receipt
+            fee_transport_envelope_bytes = commission_evidence.broker_envelope_bytes
+            fee_transport_consumer_receipt_bytes = (
+                commission_evidence.broker_consumer_receipt_bytes
+            )
+            # The broker created its own separately accounted immutable CAS.
+            # The cost builder below accounts for every object copied into this
+            # publisher's enrichment CAS, so no broker-side bytes are charged
+            # again to the publisher's local materialization budget.
+            auxiliary_cas_bytes = 0
         result = self.causal_cost_builder(
             atomic_capture=market_capture,
             source_payload_store=enrichment_store,
-            fee_schedule_artifact_bytes=commission.fee_artifact_bytes,
-            fee_schedule_raw_response_bytes=commission.raw_response_bytes,
-            fee_schedule_receipt=commission.fee_schedule_receipt,
+            fee_schedule_artifact_bytes=fee_artifact_bytes,
+            fee_schedule_raw_response_bytes=fee_raw_response_bytes,
+            fee_schedule_receipt=fee_schedule_receipt,
             expected_notional_usd=notional.expected_notional_usd,
             expected_notional_policy_artifact_bytes=notional.notional_artifact_bytes,
             expected_notional_policy_receipt=notional.notional_receipt,
@@ -2233,6 +2361,10 @@ class ProfiledBaseFeaturePublisherV1:
             feature_snapshot_identity=parent_record["durable_snapshot_id"],
             decision_time=decision_text,
             counterfactual_holding_horizon_seconds=(CAUSAL_COST_COUNTERFACTUAL_HORIZON_SECONDS),
+            fee_transport_envelope_bytes=fee_transport_envelope_bytes,
+            fee_transport_consumer_receipt_bytes=(
+                fee_transport_consumer_receipt_bytes
+            ),
         )
         if type(result) is not CausalCostEvidenceV1Result:
             _fail(
@@ -2240,11 +2372,6 @@ class ProfiledBaseFeaturePublisherV1:
                 COST_EVIDENCE_UNAVAILABLE_PARENT_NOT_APPENDED,
                 "PROFILED_BASE_PUBLISHER_COST_FACTORY_RESULT_INVALID",
             )
-        auxiliary_cas_bytes = (
-            len(refresh_policy.artifact_bytes)
-            + len(refresh_policy.receipt_bytes)
-            + len(commission.sanitized_request_identity_bytes)
-        )
         return result, auxiliary_cas_bytes
 
     def _cost_evidence_for_parent(
@@ -2253,6 +2380,7 @@ class ProfiledBaseFeaturePublisherV1:
         parent_record: dict[str, Any],
         enrichment_store: ImmutableSourcePayloadStore,
         decision_at: datetime,
+        commission_evidence: CredentiallessCommissionEvidence | None = None,
     ) -> tuple[CausalCostEvidenceV1Result, int]:
         try:
             if self.cost_evidence_factory is not None:
@@ -2267,6 +2395,7 @@ class ProfiledBaseFeaturePublisherV1:
                     parent_record=parent_record,
                     enrichment_store=enrichment_store,
                     decision_at=decision_at,
+                    commission_evidence=commission_evidence,
                 )
             if type(result) is not CausalCostEvidenceV1Result:
                 _fail(
@@ -2897,7 +3026,29 @@ class ProfiledBaseFeaturePublisherV1:
             if feature_ledger.path.is_file()
             else None
         )
-        if self.commission_cost_mode == MASKED_COST_OBSERVATION_MODE:
+        broker_commission_evidence: CredentiallessCommissionEvidence | None = None
+        commission_evidence_status = "DIRECT_CAPTURE_NOT_YET_ATTEMPTED"
+        commission_evidence_read_attempted = False
+        if (
+            self.commission_cost_mode
+            == BROKER_AUTHENTICATED_COST_EVIDENCE_WITH_MASKED_FALLBACK_MODE
+        ):
+            commission_evidence_read_attempted = True
+            (
+                broker_commission_evidence,
+                commission_evidence_status,
+            ) = self._broker_commission_evidence_for_parent(parent_record=record)
+        elif self.commission_cost_mode == MASKED_COST_OBSERVATION_MODE:
+            commission_evidence_status = "COMMISSION_EVIDENCE_NOT_CONFIGURED"
+        use_masked_cost_observation = (
+            self.commission_cost_mode == MASKED_COST_OBSERVATION_MODE
+            or (
+                self.commission_cost_mode
+                == BROKER_AUTHENTICATED_COST_EVIDENCE_WITH_MASKED_FALLBACK_MODE
+                and broker_commission_evidence is None
+            )
+        )
+        if use_masked_cost_observation:
             if existing_snapshot is not None and existing_snapshot.record != record:
                 _fail(
                     ProfiledBaseFeaturePublisherV1StateError,
@@ -3042,6 +3193,9 @@ class ProfiledBaseFeaturePublisherV1:
                 "cost_observation_binding_sha256": mask_binding_sha256,
                 "cost_values_or_receipts_fabricated": False,
                 "commission_capture_attempted": False,
+                "commission_evidence_read_attempted": commission_evidence_read_attempted,
+                "commission_evidence_status": commission_evidence_status,
+                "commission_evidence_authenticated": False,
                 "cost_source_read_attempted": False,
                 "source_provenance_shard_index": shard_index,
                 "source_provenance_shard_rolled": rolled,
@@ -3115,6 +3269,7 @@ class ProfiledBaseFeaturePublisherV1:
             parent_record=record,
             enrichment_store=enrichment_store,
             decision_at=decision_at,
+            commission_evidence=broker_commission_evidence,
         )
         _, cost_artifact_available_at = self._sample_clock(
             "PROFILED_BASE_PUBLISHER_COST_ARTIFACT_AVAILABLE_CLOCK_INVALID"
@@ -3260,6 +3415,13 @@ class ProfiledBaseFeaturePublisherV1:
             "source_pair_projected_ledger_bytes": projected_pair,
             "materialized_evidence_bytes": materialized_evidence_bytes,
             "runtime_cost_auxiliary_cas_bytes": runtime_cost_auxiliary_cas_bytes,
+            "commission_evidence_read_attempted": commission_evidence_read_attempted,
+            "commission_evidence_status": (
+                commission_evidence_status
+                if commission_evidence_read_attempted
+                else "DIRECT_CAPTURE_COMPLETED"
+            ),
+            "commission_evidence_authenticated": True,
             "pair_ledger_record_accounting_multiplier": (PAIR_LEDGER_RECORD_ACCOUNTING_MULTIPLIER),
             "pair_auxiliary_cas_sqlite_accounting_overhead_bytes": (
                 PAIR_AUXILIARY_CAS_SQLITE_ACCOUNTING_OVERHEAD_BYTES
@@ -3769,6 +3931,13 @@ class ProfiledBaseFeaturePublisherV1:
                 self.commission_cost_mode
                 == AUTHENTICATED_COST_EVIDENCE_REQUIRED_MODE
             ),
+            "commission_broker_reader_available": (
+                self.commission_cost_mode
+                == BROKER_AUTHENTICATED_COST_EVIDENCE_WITH_MASKED_FALLBACK_MODE
+            ),
+            "exchange_credentials_loaded_by_publisher": (
+                self.exchange_credentials_loaded_by_publisher
+            ),
             "legacy_feature_redis_write_performed": False,
             "market_performance_thresholds_applied": False,
             "singleton_writer_lock": lock_metadata,
@@ -3785,6 +3954,7 @@ class ProfiledBaseFeaturePublisherV1:
 
 __all__ = [
     "AUTHENTICATED_COST_EVIDENCE_REQUIRED_MODE",
+    "BROKER_AUTHENTICATED_COST_EVIDENCE_WITH_MASKED_FALLBACK_MODE",
     "BOOTSTRAP_EVIDENCE_BYTES_PER_SYMBOL",
     "CANONICAL_KEY_PREFIX",
     "COST_EVIDENCE_UNAVAILABLE_PARENT_NOT_APPENDED",

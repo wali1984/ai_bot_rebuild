@@ -14,6 +14,12 @@ from v2.backend.app.cli import v2_profiled_base_feature_publisher as cli_module
 from v2.backend.app.cli.v2_profiled_base_feature_publisher import (
     bounded_cycle_summary,
 )
+from v2.backend.app.services import (
+    binance_usdm_commission_evidence_broker as commission_broker_module,
+)
+from v2.backend.app.services.binance_usdm_commission_evidence_broker import (
+    CredentiallessCommissionEvidence,
+)
 from v2.backend.app.services.native_trainer import (
     binance_usdm_commission_capture_v1 as commission_capture_module,
 )
@@ -59,6 +65,7 @@ from v2.backend.app.services.native_trainer.ohlcv_closed_window_schema import (
 from v2.backend.app.services.native_trainer.profiled_base_feature_publisher_v1 import (
     AUTHENTICATED_COST_EVIDENCE_REQUIRED_MODE,
     BOOTSTRAP_EVIDENCE_BYTES_PER_SYMBOL,
+    BROKER_AUTHENTICATED_COST_EVIDENCE_WITH_MASKED_FALLBACK_MODE,
     DEFAULT_RESOURCE_SUSTAINABILITY_HORIZON_SECONDS,
     DISK_RESERVE_POLICY_V1,
     DYNAMIC_SYMBOL_SELECTION_KEY,
@@ -89,6 +96,9 @@ from v2.backend.app.services.native_trainer.source_provenance_ledger_v4 import (
     TrainerSourceProvenanceLedgerV4DurabilityError,
 )
 from v2.backend.app.services.orderbook_recorder import features as orderbook_features
+from v2.backend.tests.unit.services import (
+    test_binance_usdm_commission_evidence_broker as commission_broker_support,
+)
 from v2.backend.tests.unit.services.native_trainer import (
     test_binance_usdm_commission_capture_v1 as commission_support,
 )
@@ -523,6 +533,7 @@ def _publisher(
     cost_evidence_factory=_test_cost_evidence_factory,  # type: ignore[no-untyped-def]
     commission_fingerprint_hmac_key: bytes | None = None,
     commission_cost_mode: str = AUTHENTICATED_COST_EVIDENCE_REQUIRED_MODE,
+    commission_evidence_reader=None,  # type: ignore[no-untyped-def]
 ) -> ProfiledBaseFeaturePublisherV1:
     return ProfiledBaseFeaturePublisherV1(
         redis_client=redis_client,
@@ -542,6 +553,7 @@ def _publisher(
         cost_evidence_factory=cost_evidence_factory,
         commission_fingerprint_hmac_key=commission_fingerprint_hmac_key,
         commission_cost_mode=commission_cost_mode,
+        commission_evidence_reader=commission_evidence_reader,
     )
 
 
@@ -773,6 +785,167 @@ def test_runtime_default_cost_chain_uses_ordered_atomic_sources_and_real_factori
     unchanged = publisher.run_cycle()
     assert unchanged["unchanged_symbols"] == ["BTCUSDT"]
     assert len(http_calls) == 1
+
+
+def _credentialless_fee_evidence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> CredentiallessCommissionEvidence:
+    _result, broker_redis, store, context, calls, clock = (
+        commission_broker_support._publish(  # noqa: SLF001 - cross-boundary E2E fixture
+            tmp_path,
+            monkeypatch,
+            start_at=FIXED_CLOCK - timedelta(seconds=2),
+        )
+    )
+    selected = commission_broker_module.read_authenticated_commission_evidence(
+        broker_redis,
+        store=store,
+        security_context=context,
+        symbol="BTCUSDT",
+        decision_time=FIXED_CLOCK,
+        now_fn=clock,
+    )
+    assert len(calls) == 1
+    assert selected["status"] == "READY"
+    evidence = selected["evidence"]
+    assert type(evidence) is CredentiallessCommissionEvidence
+    return evidence
+
+
+def test_broker_reader_builds_strict_pair_without_exchange_credentials(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payloads = _payloads()
+    server_at = FIXED_CLOCK - timedelta(milliseconds=500)
+    payloads[DYNAMIC_SYMBOL_SELECTION_KEY] = json.dumps(
+        {
+            "generated_utc": server_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "symbols": ["BTCUSDT"],
+        },
+        sort_keys=True,
+    ).encode()
+    notional_status = notional_support._status()
+    notional_status["generated_utc"] = _iso(
+        server_at - timedelta(milliseconds=100)
+    )
+    payloads[CAUSAL_EXPECTED_NOTIONAL_SOURCE_KEY] = json.dumps(
+        notional_status
+    ).encode("utf-8")
+    payloads.update(
+        _runtime_cost_source_payloads(symbol="BTCUSDT", decision_at=FIXED_CLOCK)
+    )
+    redis_client = _Redis(payloads, pttl_ms=1_501, server_time=server_at)
+    evidence = _credentialless_fee_evidence(tmp_path, monkeypatch)
+    reads: list[dict[str, Any]] = []
+
+    def reader(**kwargs: Any) -> dict[str, Any]:
+        reads.append(dict(kwargs))
+        return {"status": "READY", "evidence": evidence}
+
+    publisher = _publisher(
+        tmp_path,
+        redis_client,
+        cost_evidence_factory=None,
+        commission_cost_mode=(
+            BROKER_AUTHENTICATED_COST_EVIDENCE_WITH_MASKED_FALLBACK_MODE
+        ),
+        commission_evidence_reader=reader,
+    )
+    publisher.clock = lambda: FIXED_CLOCK - timedelta(microseconds=100)
+
+    def forbidden_direct_capture(**_kwargs: Any) -> Any:
+        raise AssertionError(
+            "credentialless broker mode must not load or call exchange credentials"
+        )
+
+    publisher.commission_capture_function = forbidden_direct_capture
+
+    status = publisher.run_cycle()
+
+    assert status["published_symbols"] == ["BTCUSDT"], status["failures"]
+    assert status["masked_cost_observation_symbol_count"] == 0
+    assert status["commission_broker_reader_available"] is True
+    assert status["commission_credentials_available"] is False
+    assert status["exchange_credentials_loaded_by_publisher"] is False
+    assert len(reads) == 1
+    assert reads[0]["symbol"] == "BTCUSDT"
+    assert reads[0]["decision_time"] == _iso(FIXED_CLOCK)
+    publication = status["publications"][0]
+    assert publication["commission_evidence_read_attempted"] is True
+    assert publication["commission_evidence_status"] == "READY"
+    assert publication["commission_evidence_authenticated"] is True
+    assert publication["runtime_cost_auxiliary_cas_bytes"] == 0
+    cost_store = ImmutableSourcePayloadStore(Path(publication["cost_store_root"]))
+    cost_artifact_bytes = cost_store.get(publication["cost_capture_artifact_sha256"])
+    cost_contract = json.loads(cost_artifact_bytes)
+    transport = cost_contract["fee_transport_provenance"]
+    assert transport["broker_envelope_sha256"] == evidence.broker_envelope_sha256
+    assert (
+        transport["consumer_receipt_payload_sha256"]
+        == evidence.broker_consumer_receipt_sha256
+    )
+    assert transport["exchange_credentials_read"] is False
+    assert cost_contract["fee_source_authenticity_status"] == (
+        "BROKER_READER_HMAC_CAS_AND_PIT_VERIFIED_WITH_SIGNED_RECEIPT_PERSISTED"
+    )
+    assert cost_store.get(evidence.broker_envelope_sha256) == evidence.broker_envelope_bytes
+    assert cost_store.get(evidence.broker_consumer_receipt_sha256) == (
+        evidence.broker_consumer_receipt_bytes
+    )
+    ledger = DurableFeatureSnapshotLedger(
+        (tmp_path / "feature-ledger.sqlite3").absolute()
+    )
+    assert ledger.verify_integrity_streaming().verified_records == 2
+
+
+def test_broker_missing_or_stale_evidence_masks_without_bad_training_row(
+    tmp_path: Path,
+) -> None:
+    redis_client = _Redis(_payloads())
+    reads: list[dict[str, Any]] = []
+
+    def reader(**kwargs: Any) -> dict[str, Any]:
+        reads.append(dict(kwargs))
+        return {"status": "COMMISSION_EVIDENCE_MISSING", "evidence": None}
+
+    publisher = _publisher(
+        tmp_path,
+        redis_client,
+        cost_evidence_factory=None,
+        commission_cost_mode=(
+            BROKER_AUTHENTICATED_COST_EVIDENCE_WITH_MASKED_FALLBACK_MODE
+        ),
+        commission_evidence_reader=reader,
+    )
+
+    def forbidden_cost_dependency(*_args: Any, **_kwargs: Any) -> Any:
+        raise AssertionError("missing broker evidence must mask before reading cost sources")
+
+    publisher.commission_capture_function = forbidden_cost_dependency
+    publisher.expected_notional_builder = forbidden_cost_dependency
+    publisher.commission_refresh_builder = forbidden_cost_dependency
+    publisher.causal_cost_builder = forbidden_cost_dependency
+
+    status = publisher.run_cycle()
+
+    assert status["published_symbol_count"] == 0
+    assert status["masked_cost_observation_symbols"] == ["BTCUSDT"]
+    assert status["failed_symbols"] == []
+    assert status["commission_broker_reader_available"] is True
+    assert status["exchange_credentials_loaded_by_publisher"] is False
+    assert len(reads) == 1
+    observation = status["masked_cost_observations"][0]
+    assert observation["commission_evidence_read_attempted"] is True
+    assert observation["commission_evidence_status"] == "COMMISSION_EVIDENCE_MISSING"
+    assert observation["commission_evidence_authenticated"] is False
+    assert observation["cost_source_read_attempted"] is False
+    assert observation["authority"]["child_trainer_admission_authorized"] is False
+    ledger = DurableFeatureSnapshotLedger(
+        (tmp_path / "feature-ledger.sqlite3").absolute()
+    )
+    assert ledger.verify_integrity_streaming().verified_records == 1
 
 
 @pytest.mark.parametrize(
@@ -2375,3 +2548,76 @@ def test_cli_missing_protected_credentials_fail_before_redis(
     captured = capsys.readouterr()
     assert redis_called is False
     assert "PROFILED_BASE_PUBLISHER_SYSTEMD_CREDENTIALS_DIRECTORY_INVALID" in captured.err
+
+
+def test_cli_broker_mode_loads_only_verifier_context_and_no_exchange_bundle(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    client = object()
+    security_context = object()
+    broker_store = object()
+    captured_arguments: dict[str, Any] = {}
+
+    def forbidden_exchange_bundle() -> Any:
+        raise AssertionError("broker-reader publisher must not load exchange credentials")
+
+    monkeypatch.setattr(
+        cli_module,
+        "load_profiled_base_publisher_runtime_credentials_if_available",
+        forbidden_exchange_bundle,
+    )
+    monkeypatch.setattr(
+        cli_module,
+        "consumer_security_context_from_systemd_credentials",
+        lambda: security_context,
+    )
+    monkeypatch.setattr(cli_module, "_raw_redis_client", lambda _url: client)
+    monkeypatch.setattr(
+        cli_module,
+        "default_commission_broker_store",
+        lambda _path: broker_store,
+    )
+
+    class FakePublisher:
+        status_path = (tmp_path / "status.json").absolute()
+
+        def run_cycle(self) -> dict[str, Any]:
+            return {
+                "classification": "CYCLE_COMPLETE_MASKED_COST_OBSERVATIONS",
+                "commission_cost_mode": (
+                    BROKER_AUTHENTICATED_COST_EVIDENCE_WITH_MASKED_FALLBACK_MODE
+                ),
+                "commission_credentials_available": False,
+                "commission_broker_reader_available": True,
+                "exchange_credentials_loaded_by_publisher": False,
+                "authority_semantics": {
+                    "published_child_trainer_admission_authorized": False,
+                },
+            }
+
+    def fake_publisher(**kwargs: Any) -> FakePublisher:
+        captured_arguments.update(kwargs)
+        return FakePublisher()
+
+    monkeypatch.setattr(cli_module, "ProfiledBaseFeaturePublisherV1", fake_publisher)
+    cli_module._STOP = False  # noqa: SLF001
+    broker_root = (tmp_path / "broker").absolute()
+
+    exit_code = cli_module.main(
+        ["--once", "--commission-broker-data-root", str(broker_root)]
+    )
+
+    assert exit_code == 0
+    assert captured_arguments["redis_client"] is client
+    assert captured_arguments["commission_cost_mode"] == (
+        BROKER_AUTHENTICATED_COST_EVIDENCE_WITH_MASKED_FALLBACK_MODE
+    )
+    reader = captured_arguments["commission_evidence_reader"]
+    assert callable(reader)
+    assert reader.keywords["store"] is broker_store
+    assert reader.keywords["security_context"] is security_context
+    rendered = capsys.readouterr().out
+    assert '"commission_broker_reader_available":true' in rendered
+    assert '"exchange_credentials_loaded_by_publisher":false' in rendered

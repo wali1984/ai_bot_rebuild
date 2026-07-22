@@ -22,8 +22,11 @@ from v2.backend.app.services import (
     binance_usdm_leverage_bracket_runtime_credentials as runtime_credentials,
 )
 from v2.backend.app.services.binance_usdm_commission_evidence_broker import (
+    CommissionEvidenceBrokerError,
+    adaptive_commission_request_pacing_ms,
     capture_and_publish_next_commission_evidence,
     default_commission_broker_store,
+    read_adaptive_commission_rotation_universe,
 )
 from v2.backend.app.services.binance_usdm_leverage_bracket_evidence import (
     DEFAULT_CACHE_TTL_SECONDS,
@@ -299,15 +302,49 @@ def main(argv: list[str] | None = None) -> int:
         commission_store = default_commission_broker_store(data_root)
 
         def commission_runner(published_symbols: tuple[str, ...]) -> dict[str, Any]:
-            return capture_and_publish_next_commission_evidence(
-                adapter=adapter,
-                redis_client=redis_client,
-                store=commission_store,
-                security_context=security_context,
-                symbols=published_symbols,
-                priority_symbols=args.commission_priority_symbol,
-                environ=os.environ,
+            pacing_ms = adaptive_commission_request_pacing_ms(os.environ)
+            universe = read_adaptive_commission_rotation_universe(redis_client)
+            if universe.get("status") != "READY":
+                return {
+                    "status": "DEFERRED",
+                    "reason": universe.get("status"),
+                    "claim_ttl_ms": pacing_ms,
+                    "request_executed": False,
+                    "request_count": 0,
+                }
+            authenticated = set(published_symbols)
+            selected = tuple(
+                symbol for symbol in universe["symbols"] if symbol in authenticated
             )
+            if not selected:
+                return {
+                    "status": "DEFERRED",
+                    "reason": "DYNAMIC_COMMISSION_UNIVERSE_NOT_BRACKET_AUTHENTICATED",
+                    "claim_ttl_ms": pacing_ms,
+                    "request_executed": False,
+                    "request_count": 0,
+                }
+            try:
+                return capture_and_publish_next_commission_evidence(
+                    adapter=adapter,
+                    redis_client=redis_client,
+                    store=commission_store,
+                    security_context=security_context,
+                    symbols=selected,
+                    priority_symbols=args.commission_priority_symbol,
+                    environ=os.environ,
+                )
+            except Exception as exc:  # noqa: BLE001 - isolate bracket service
+                reason = (
+                    exc.reason
+                    if isinstance(exc, CommissionEvidenceBrokerError)
+                    else f"COMMISSION_BROKER_TURN_EXCEPTION_{type(exc).__name__.upper()}"
+                )
+                return {
+                    "status": "DEFERRED",
+                    "reason": reason,
+                    "claim_ttl_ms": pacing_ms,
+                }
 
     def emit_commission(payload: dict[str, Any]) -> None:
         safe = {

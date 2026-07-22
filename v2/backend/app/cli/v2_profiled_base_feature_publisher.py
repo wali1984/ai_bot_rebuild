@@ -12,11 +12,23 @@ import time
 from pathlib import Path
 from typing import Any
 
+from v2.backend.app.services.binance_usdm_commission_evidence_broker import (
+    CommissionEvidenceBrokerError,
+    default_commission_broker_store,
+    read_authenticated_commission_evidence,
+)
+from v2.backend.app.services.binance_usdm_leverage_bracket_evidence import (
+    LeverageBracketEvidenceError,
+)
+from v2.backend.app.services.binance_usdm_leverage_bracket_runtime_credentials import (
+    consumer_security_context_from_systemd_credentials,
+)
 from v2.backend.app.services.native_trainer.binance_usdm_commission_capture_v1 import (
     capture_binance_usdm_commission_rate_v1,
 )
 from v2.backend.app.services.native_trainer.profiled_base_feature_publisher_v1 import (
     AUTHENTICATED_COST_EVIDENCE_REQUIRED_MODE,
+    BROKER_AUTHENTICATED_COST_EVIDENCE_WITH_MASKED_FALLBACK_MODE,
     DEFAULT_RESOURCE_SUSTAINABILITY_HORIZON_SECONDS,
     MASKED_COST_OBSERVATION_MODE,
     ProfiledBaseFeaturePublisherV1,
@@ -69,6 +81,19 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--redis-url",
         default=os.environ.get("REDIS_URL", "redis://127.0.0.1:6379/0"),
+    )
+    parser.add_argument(
+        "--commission-broker-data-root",
+        type=Path,
+        default=(
+            Path(value)
+            if (value := os.environ.get("PROFILED_BASE_COMMISSION_BROKER_DATA_ROOT"))
+            else None
+        ),
+        help=(
+            "absolute broker CAS root; uses only the protected evidence-verification "
+            "credential and never loads Binance API credentials"
+        ),
     )
     parser.add_argument(
         "--data-root",
@@ -197,7 +222,7 @@ def bounded_cycle_summary(status: dict[str, Any], *, status_path: Path) -> dict[
         if type(authority_semantics) is dict
         else False
     )
-    return {
+    summary = {
         "schema_version": "profiled_base_feature_publisher_cli_cycle_summary_v1",
         "classification": status.get("classification"),
         "cycle_started_at": status.get("cycle_started_at"),
@@ -233,6 +258,12 @@ def bounded_cycle_summary(status: dict[str, Any], *, status_path: Path) -> dict[
         "commission_credentials_available": (
             status.get("commission_credentials_available") is True
         ),
+        "commission_broker_reader_available": (
+            status.get("commission_broker_reader_available") is True
+        ),
+        "exchange_credentials_loaded_by_publisher": (
+            status.get("exchange_credentials_loaded_by_publisher") is True
+        ),
         "credential_ref_read_only_assertion": True,
         "credential_ref_read_only_assertion_semantics": (
             "OPERATOR_PROVISIONING_LABEL_NOT_BINANCE_PERMISSION_PROOF"
@@ -242,14 +273,28 @@ def bounded_cycle_summary(status: dict[str, Any], *, status_path: Path) -> dict[
         "paper_trading_authorized": False,
         "live_execution_authorized": False,
     }
+    return {key: value for key, value in summary.items() if value is not None}
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
-        runtime_credentials = (
-            load_profiled_base_publisher_runtime_credentials_if_available()
-        )
+        if (
+            args.commission_broker_data_root is not None
+            and not args.commission_broker_data_root.is_absolute()
+        ):
+            raise ProfiledBaseFeaturePublisherV1Error(
+                "PROFILED_BASE_PUBLISHER_COMMISSION_BROKER_DATA_ROOT_INVALID"
+            )
+        broker_data_root = _absolute(args.commission_broker_data_root)
+        if broker_data_root is not None:
+            broker_security_context = consumer_security_context_from_systemd_credentials()
+            runtime_credentials = None
+        else:
+            broker_security_context = None
+            runtime_credentials = (
+                load_profiled_base_publisher_runtime_credentials_if_available()
+            )
         client = _raw_redis_client(str(args.redis_url))
         publisher_arguments: dict[str, Any] = {
             "redis_client": client,
@@ -263,7 +308,22 @@ def main(argv: list[str] | None = None) -> int:
             ),
             "boundary_retry_limit": int(args.boundary_retries),
         }
-        if runtime_credentials is None:
+        if broker_data_root is not None:
+            broker_store = default_commission_broker_store(broker_data_root)
+            publisher_arguments.update(
+                {
+                    "commission_cost_mode": (
+                        BROKER_AUTHENTICATED_COST_EVIDENCE_WITH_MASKED_FALLBACK_MODE
+                    ),
+                    "commission_evidence_reader": functools.partial(
+                        read_authenticated_commission_evidence,
+                        client,
+                        store=broker_store,
+                        security_context=broker_security_context,
+                    ),
+                }
+            )
+        elif runtime_credentials is None:
             publisher_arguments["commission_cost_mode"] = (
                 MASKED_COST_OBSERVATION_MODE
             )
@@ -280,6 +340,7 @@ def main(argv: list[str] | None = None) -> int:
                     "commission_fingerprint_hmac_key": (
                         runtime_credentials.fingerprint_hmac_key
                     ),
+                    "exchange_credentials_loaded_by_publisher": True,
                 }
             )
         publisher = ProfiledBaseFeaturePublisherV1(
@@ -313,11 +374,21 @@ def main(argv: list[str] | None = None) -> int:
                     break
                 time.sleep(min(wait, 1.0))
         return 0
-    except (ProfiledBasePublisherCredentialError, ProfiledBaseFeaturePublisherV1Error) as exc:
+    except (
+        CommissionEvidenceBrokerError,
+        LeverageBracketEvidenceError,
+        ProfiledBasePublisherCredentialError,
+        ProfiledBaseFeaturePublisherV1Error,
+    ) as exc:
         reasons = (
             [exc.reason]
-            if isinstance(exc, ProfiledBasePublisherCredentialError)
+            if isinstance(
+                exc,
+                ProfiledBasePublisherCredentialError | CommissionEvidenceBrokerError,
+            )
             else list(exc.reasons)
+            if isinstance(exc, ProfiledBaseFeaturePublisherV1Error)
+            else [str(exc)]
         )
         payload = {
             "schema_version": "profiled_base_feature_publisher_cli_error_v1",
@@ -342,7 +413,12 @@ def main(argv: list[str] | None = None) -> int:
         )
         return (
             _CONFIG_EXIT_STATUS
-            if isinstance(exc, ProfiledBasePublisherCredentialError)
+            if isinstance(
+                exc,
+                ProfiledBasePublisherCredentialError
+                | CommissionEvidenceBrokerError
+                | LeverageBracketEvidenceError,
+            )
             else 1
         )
 

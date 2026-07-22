@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -85,6 +86,39 @@ class _Redis:
         raise AssertionError("unexpected Lua script")
 
 
+class _UniverseRedis:
+    def __init__(
+        self,
+        payload: bytes,
+        *,
+        pttl_ms: int = 60_000,
+        payload_byte_count: int | None = None,
+        server_at: datetime | None = None,
+    ) -> None:
+        self.payload = payload
+        self.pttl_ms = pttl_ms
+        self.payload_byte_count = (
+            len(payload) if payload_byte_count is None else payload_byte_count
+        )
+        self.server_at = server_at or datetime(2026, 7, 22, 5, 0, 1, tzinfo=UTC)
+
+    def eval(self, script: str, key_count: int, *args: Any) -> list[Any]:
+        assert script == broker._DYNAMIC_UNIVERSE_READ_LUA  # noqa: SLF001
+        assert key_count == 1
+        assert args == (
+            broker.DYNAMIC_COMMISSION_UNIVERSE_KEY,
+            broker.MAX_DYNAMIC_UNIVERSE_PAYLOAD_BYTES,
+        )
+        return [
+            b"string",
+            self.payload_byte_count,
+            self.payload,
+            self.pttl_ms,
+            str(int(self.server_at.timestamp())).encode(),
+            self.server_at.microsecond,
+        ]
+
+
 def _store(tmp_path: Path) -> ImmutableSourcePayloadStore:
     return ImmutableSourcePayloadStore(tmp_path / "commission-cas")
 
@@ -147,6 +181,7 @@ def _publish(
     monkeypatch: pytest.MonkeyPatch,
     *,
     symbols: tuple[str, ...] = ("BTCUSDT",),
+    start_at: datetime | None = None,
 ) -> tuple[
     dict[str, Any],
     _Redis,
@@ -160,7 +195,7 @@ def _publish(
     store = _store(tmp_path)
     context = _context()
     calls: list[dict[str, Any]] = []
-    clock = _Clock(datetime(2026, 7, 22, 5, 0, tzinfo=UTC))
+    clock = _Clock(start_at or datetime(2026, 7, 22, 5, 0, tzinfo=UTC))
     result = broker.capture_and_publish_next_commission_evidence(
         adapter=_adapter(),
         redis_client=redis,
@@ -198,6 +233,66 @@ def test_adaptive_plan_rotates_one_priority_gap_under_exact_weight_budget() -> N
     assert plan.projected_revisit_ms == 1_590_000
     assert plan.refresh_interval_seconds == 1_600
     assert plan.continuous_coverage_feasible is False
+
+
+def test_dynamic_rotation_universe_atomically_excludes_invalid_symbol_metadata() -> None:
+    payload = json.dumps(
+        {
+            "generated_utc": "2026-07-22T05:00:00Z",
+            "symbols": ["BTCUSDT", "币安人生USDT", "ETHUSDT"],
+        },
+        sort_keys=True,
+    ).encode()
+
+    selected = broker.read_adaptive_commission_rotation_universe(
+        _UniverseRedis(payload)
+    )
+
+    assert selected["status"] == "READY"
+    assert selected["symbols"] == ("BTCUSDT", "ETHUSDT")
+    assert selected["rejected_symbols"] == ("币安人生USDT",)
+    assert selected["source_pttl_ms"] == 60_000
+    assert selected["selection_metadata_only"] is True
+    assert selected["trainer_authority"] is False
+    assert selected["live_authority"] is False
+
+
+@pytest.mark.parametrize(
+    ("redis_client", "expected_status"),
+    [
+        (
+            _UniverseRedis(
+                b'{"generated_utc":"2026-07-22T05:00:00Z","symbols":["BTCUSDT"]}',
+                pttl_ms=0,
+            ),
+            "COMMISSION_BROKER_DYNAMIC_UNIVERSE_SOURCE_INVALID",
+        ),
+        (
+            _UniverseRedis(
+                b"",
+                payload_byte_count=broker.MAX_DYNAMIC_UNIVERSE_PAYLOAD_BYTES + 1,
+            ),
+            "COMMISSION_BROKER_DYNAMIC_UNIVERSE_SOURCE_INVALID",
+        ),
+        (
+            _UniverseRedis(
+                b'{"generated_utc":"2026-07-22T05:00:02Z","symbols":["BTCUSDT"]}',
+            ),
+            "COMMISSION_BROKER_DYNAMIC_UNIVERSE_CLOCK_INVALID",
+        ),
+    ],
+)
+def test_dynamic_rotation_universe_stale_oversized_or_future_source_defers(
+    redis_client: _UniverseRedis,
+    expected_status: str,
+) -> None:
+    selected = broker.read_adaptive_commission_rotation_universe(redis_client)
+
+    assert selected == {
+        "status": expected_status,
+        "symbols": (),
+        "rejected_symbols": (),
+    }
 
 
 def test_159_symbol_invocation_executes_exactly_one_read_only_route(
@@ -362,6 +457,25 @@ def test_credentialless_reader_returns_exact_causal_cost_inputs(
     assert fee_bps == pytest.approx(4.0)
     assert source["request_path"] if "request_path" in source else True
     assert receipt["receipt_sha256"] == evidence.fee_receipt_sha256
+    consumer_receipt = json.loads(evidence.broker_consumer_receipt_bytes)
+    supplied_hmac = consumer_receipt.pop("evidence_hmac_sha256")
+    assert hmac.compare_digest(
+        supplied_hmac,
+        hmac.new(
+            _HMAC_KEY,
+            broker._CONSUMER_READ_RECEIPT_HMAC_DOMAIN  # noqa: SLF001
+            + broker._canonical_bytes(consumer_receipt),  # noqa: SLF001
+            hashlib.sha256,
+        ).hexdigest(),
+    )
+    assert consumer_receipt["broker_cas_object_count"] == 8
+    assert consumer_receipt["decision_time"] == evidence.decision_time
+    assert consumer_receipt["broker_envelope_sha256"] == (
+        evidence.broker_envelope_sha256
+    )
+    assert evidence.broker_consumer_receipt_sha256 == hashlib.sha256(
+        evidence.broker_consumer_receipt_bytes
+    ).hexdigest()
     assert evidence.trainer_authority is False
     assert evidence.live_authority is False
 
@@ -395,6 +509,29 @@ def test_wrong_hmac_or_past_decision_fails_closed(
     assert wrong_key["evidence"] is None
     assert past_decision["status"] == "COMMISSION_BROKER_DECISION_TEMPORAL_ADMISSION_FAILED"
     assert past_decision["evidence"] is None
+
+
+def test_noncanonical_but_hmac_valid_redis_envelope_fails_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _result, redis, store, context, _calls, clock = _publish(tmp_path, monkeypatch)
+    key = broker.redis_key("BTCUSDT", security_context=context)
+    redis.values[key] = json.dumps(json.loads(redis.values[key]), indent=2)
+
+    selected = broker.read_authenticated_commission_evidence(
+        redis,
+        store=store,
+        security_context=context,
+        symbol="BTCUSDT",
+        decision_time=datetime(2026, 7, 22, 5, 0, 15, tzinfo=UTC),
+        now_fn=clock,
+    )
+
+    assert selected == {
+        "status": "COMMISSION_BROKER_REDIS_EVIDENCE_NOT_CANONICAL",
+        "evidence": None,
+    }
 
 
 def test_monotonic_redis_cas_rejects_older_authenticated_envelope(

@@ -76,6 +76,9 @@ ROTATION_ARTIFACT_SCHEMA_VERSION: Final = (
 ROTATION_RECEIPT_SCHEMA_VERSION: Final = (
     "v2_binance_usdm_commission_rotation_receipt_v1"
 )
+CONSUMER_READ_RECEIPT_SCHEMA_VERSION: Final = (
+    "v2_binance_usdm_commission_consumer_read_receipt_v1"
+)
 PRODUCER: Final = "v2_binance_usdm_commission_evidence_broker"
 SOURCE: Final = "BINANCE_USDM_USER_DATA_GET_FAPI_V1_COMMISSION_RATE"
 SECURITY_TYPE: Final = "USER_DATA"
@@ -86,17 +89,24 @@ POLICY_VERSION: Final = "v1"
 REDIS_KEY_PREFIX: Final = "v2:binance_usdm:commission_evidence:"
 REDIS_VERSION_KEY_PREFIX: Final = "v2:binance_usdm:commission_evidence_version:"
 REDIS_CLAIM_KEY_PREFIX: Final = "v2:binance_usdm:commission_rotation_claim:"
+DYNAMIC_COMMISSION_UNIVERSE_KEY: Final = (
+    "v2:symbol_universe:dynamic_discovered_symbols"
+)
 
 # Computational/resource bounds, never market, strategy, leverage, or risk
 # thresholds.  The evidence expiry ceiling is owned by the capture factory.
 MAX_ROTATION_SYMBOLS: Final = 1_024
 MAX_REDIS_EVIDENCE_BYTES: Final = 256 * 1_024
 MAX_ROTATION_RECEIPT_BYTES: Final = 64 * 1_024
+MAX_DYNAMIC_UNIVERSE_PAYLOAD_BYTES: Final = 256 * 1_024
 MAX_REDIS_TTL_MS: Final = (1 << 53) - 1
 
 _BROKER_HMAC_DOMAIN: Final = b"AI_BOT_BINANCE_USDM_COMMISSION_BROKER_V1\x00"
 _ROTATION_RECEIPT_DOMAIN: Final = (
     b"AI_BOT_BINANCE_USDM_COMMISSION_ROTATION_RECEIPT_V1\x00"
+)
+_CONSUMER_READ_RECEIPT_HMAC_DOMAIN: Final = (
+    b"AI_BOT_BINANCE_USDM_COMMISSION_CONSUMER_READ_RECEIPT_V1\x00"
 )
 _HEX_SHA256_RE = re.compile(r"^[0-9a-f]{64}$", re.ASCII)
 _EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
@@ -167,6 +177,18 @@ end
 return {1, tonumber(ARGV[2])}
 """
 
+_DYNAMIC_UNIVERSE_READ_LUA: Final = """
+local redis_type = redis.call('TYPE', KEYS[1])
+local payload_bytes = redis.call('STRLEN', KEYS[1])
+local payload = ''
+if redis_type == 'string' and payload_bytes <= tonumber(ARGV[1]) then
+  payload = redis.call('GET', KEYS[1])
+end
+local ttl = redis.call('PTTL', KEYS[1])
+local server_time = redis.call('TIME')
+return {redis_type, payload_bytes, payload, ttl, server_time[1], server_time[2]}
+"""
+
 
 class CommissionEvidenceBrokerError(RuntimeError):
     """Stable, credential-safe fail-closed broker error."""
@@ -208,6 +230,8 @@ class CredentiallessCommissionEvidence:
     fee_artifact_bytes: bytes = field(repr=False)
     raw_response_bytes: bytes = field(repr=False)
     fee_schedule_receipt: dict[str, Any] = field(repr=False)
+    broker_envelope_bytes: bytes = field(repr=False)
+    broker_consumer_receipt_bytes: bytes = field(repr=False)
     source_available_at: str
     broker_available_at: str
     consumer_observed_at: str
@@ -217,6 +241,8 @@ class CredentiallessCommissionEvidence:
     raw_response_sha256: str
     fee_artifact_sha256: str
     fee_receipt_sha256: str
+    broker_envelope_sha256: str
+    broker_consumer_receipt_sha256: str
     credential_binding_fingerprint_sha256: str
     request_weight: int
     exchange_credentials_read: bool = False
@@ -340,6 +366,185 @@ def _symbols(values: Iterable[object]) -> tuple[str, ...]:
     return result
 
 
+def _lua_text(value: object, *, reason: str) -> str:
+    if type(value) is bytes:
+        try:
+            return cast(bytes, value).decode("utf-8", errors="strict")
+        except UnicodeDecodeError:
+            _fail(reason)
+    if type(value) is str:
+        return cast(str, value)
+    _fail(reason)
+
+
+def _lua_int(value: object, *, reason: str) -> int:
+    if type(value) is int:
+        return cast(int, value)
+    text = _lua_text(value, reason=reason)
+    if re.fullmatch(r"-?[0-9]+", text, re.ASCII) is None:
+        _fail(reason)
+    try:
+        return int(text)
+    except ValueError:
+        _fail(reason)
+
+
+def read_adaptive_commission_rotation_universe(
+    redis_client: Any,
+    *,
+    source_key: str = DYNAMIC_COMMISSION_UNIVERSE_KEY,
+) -> dict[str, Any]:
+    """Read the expiring trainer universe atomically as scheduling metadata.
+
+    The source selects which symbols receive fee evidence; it is never copied
+    into a training row and grants no trainer or trading authority. Invalid
+    symbol strings are reported and excluded exactly as they are by the
+    profiled publisher's own dynamic-universe boundary.
+    """
+
+    if source_key != DYNAMIC_COMMISSION_UNIVERSE_KEY:
+        _fail("COMMISSION_BROKER_DYNAMIC_UNIVERSE_KEY_INVALID")
+    if redis_client is None:
+        return {
+            "status": "DYNAMIC_COMMISSION_UNIVERSE_REDIS_UNAVAILABLE",
+            "symbols": (),
+            "rejected_symbols": (),
+        }
+    try:
+        reply = redis_client.eval(
+            _DYNAMIC_UNIVERSE_READ_LUA,
+            1,
+            source_key,
+            MAX_DYNAMIC_UNIVERSE_PAYLOAD_BYTES,
+        )
+    except Exception:
+        return {
+            "status": "DYNAMIC_COMMISSION_UNIVERSE_REDIS_READ_FAILED",
+            "symbols": (),
+            "rejected_symbols": (),
+        }
+    try:
+        if type(reply) not in {list, tuple} or len(reply) != 6:
+            _fail("COMMISSION_BROKER_DYNAMIC_UNIVERSE_REPLY_INVALID")
+        redis_type = _lua_text(
+            reply[0], reason="COMMISSION_BROKER_DYNAMIC_UNIVERSE_TYPE_INVALID"
+        )
+        payload_byte_count = _lua_int(
+            reply[1], reason="COMMISSION_BROKER_DYNAMIC_UNIVERSE_SIZE_INVALID"
+        )
+        payload_text = _lua_text(
+            reply[2], reason="COMMISSION_BROKER_DYNAMIC_UNIVERSE_PAYLOAD_INVALID"
+        )
+        pttl_ms = _lua_int(
+            reply[3], reason="COMMISSION_BROKER_DYNAMIC_UNIVERSE_PTTL_INVALID"
+        )
+        server_seconds = _lua_int(
+            reply[4], reason="COMMISSION_BROKER_DYNAMIC_UNIVERSE_CLOCK_INVALID"
+        )
+        server_microseconds = _lua_int(
+            reply[5], reason="COMMISSION_BROKER_DYNAMIC_UNIVERSE_CLOCK_INVALID"
+        )
+        if redis_type == "none" and payload_byte_count == 0 and pttl_ms == -2:
+            return {
+                "status": "DYNAMIC_COMMISSION_UNIVERSE_MISSING",
+                "symbols": (),
+                "rejected_symbols": (),
+            }
+        payload_bytes = payload_text.encode("utf-8", errors="strict")
+        if (
+            redis_type != "string"
+            or not 0 < payload_byte_count <= MAX_DYNAMIC_UNIVERSE_PAYLOAD_BYTES
+            or len(payload_bytes) != payload_byte_count
+            or pttl_ms <= 0
+            or server_seconds < 0
+            or not 0 <= server_microseconds < 1_000_000
+        ):
+            _fail("COMMISSION_BROKER_DYNAMIC_UNIVERSE_SOURCE_INVALID")
+
+        def reject_duplicates(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+            parsed: dict[str, Any] = {}
+            for key, value in pairs:
+                if key in parsed:
+                    raise ValueError("duplicate")
+                parsed[key] = value
+            return parsed
+
+        decoded = json.loads(
+            payload_text,
+            object_pairs_hook=reject_duplicates,
+            parse_constant=lambda _value: (_ for _ in ()).throw(
+                ValueError("nonfinite")
+            ),
+        )
+        if type(decoded) is not dict or set(decoded) != {"generated_utc", "symbols"}:
+            _fail("COMMISSION_BROKER_DYNAMIC_UNIVERSE_PAYLOAD_INVALID")
+        raw_symbols = decoded.get("symbols")
+        generated_text = decoded.get("generated_utc")
+        if (
+            type(raw_symbols) is not list
+            or not 1 <= len(raw_symbols) <= MAX_ROTATION_SYMBOLS
+            or any(type(item) is not str for item in raw_symbols)
+            or len(set(raw_symbols)) != len(raw_symbols)
+            or type(generated_text) is not str
+        ):
+            _fail("COMMISSION_BROKER_DYNAMIC_UNIVERSE_PAYLOAD_INVALID")
+        server_at = _EPOCH + timedelta(
+            seconds=server_seconds,
+            microseconds=server_microseconds,
+        )
+        generated_at = datetime.strptime(
+            generated_text,
+            "%Y-%m-%dT%H:%M:%SZ",
+        ).replace(tzinfo=UTC)
+        if generated_at > server_at:
+            _fail("COMMISSION_BROKER_DYNAMIC_UNIVERSE_CLOCK_INVALID")
+        accepted: list[str] = []
+        rejected: list[str] = []
+        for candidate in raw_symbols:
+            try:
+                accepted.append(normalize_symbol(candidate))
+            except LeverageBracketEvidenceError:
+                rejected.append(candidate)
+        if not accepted or len(set(accepted)) != len(accepted):
+            _fail("COMMISSION_BROKER_DYNAMIC_UNIVERSE_SYMBOLS_INVALID")
+        server_observed_at = server_at.isoformat(timespec="microseconds").replace(
+            "+00:00", "Z"
+        )
+        expires_at = (server_at + timedelta(milliseconds=pttl_ms)).isoformat(
+            timespec="microseconds"
+        ).replace("+00:00", "Z")
+        return {
+            "status": "READY",
+            "source_key": source_key,
+            "source_payload_sha256": _sha256_bytes(payload_bytes),
+            "source_payload_byte_count": payload_byte_count,
+            "source_pttl_ms": pttl_ms,
+            "server_observed_at": server_observed_at,
+            "source_expires_at": expires_at,
+            "symbols": tuple(sorted(accepted)),
+            "rejected_symbols": tuple(sorted(rejected)),
+            "selection_metadata_only": True,
+            "trainer_authority": False,
+            "prediction_authority": False,
+            "paper_authority": False,
+            "live_authority": False,
+        }
+    except (
+        CommissionEvidenceBrokerError,
+        json.JSONDecodeError,
+        OverflowError,
+        TypeError,
+        UnicodeError,
+        ValueError,
+    ) as exc:
+        reason = (
+            exc.reason
+            if isinstance(exc, CommissionEvidenceBrokerError)
+            else "COMMISSION_BROKER_DYNAMIC_UNIVERSE_PAYLOAD_INVALID"
+        )
+        return {"status": reason, "symbols": (), "rejected_symbols": ()}
+
+
 def _prefix(context: EvidenceSecurityContext) -> str:
     return (
         f"{context.exchange_environment}:{context.trader_id}:"
@@ -434,6 +639,17 @@ def _budget_per_minute(environ: Mapping[str, str] | None) -> int:
     return budget
 
 
+def adaptive_commission_request_pacing_ms(
+    environ: Mapping[str, str] | None = None,
+) -> int:
+    """Derive the minimum request spacing from the host-shared weight budget."""
+
+    calls_per_minute = _budget_per_minute(environ) // BINANCE_USDM_COMMISSION_REQUEST_WEIGHT
+    if calls_per_minute < 1:
+        _fail("COMMISSION_BROKER_RATE_BUDGET_BELOW_ONE_REQUEST")
+    return math.ceil(60_000 / calls_per_minute)
+
+
 def _content_checksum(payload: Mapping[str, Any]) -> str:
     material = {
         key: value
@@ -452,6 +668,72 @@ def _evidence_hmac(
         _BROKER_HMAC_DOMAIN + _canonical_bytes(material),
         hashlib.sha256,
     ).hexdigest()
+
+
+def _consumer_read_receipt(
+    *,
+    envelope: Mapping[str, Any],
+    envelope_bytes: bytes,
+    decision_time: str,
+    consumer_observed_at: str,
+    consumer_checked_at: str,
+    security_context: EvidenceSecurityContext,
+) -> tuple[bytes, str]:
+    """Seal the exact successful consumer verification for durable lineage."""
+
+    material: dict[str, Any] = {
+        "schema_version": CONSUMER_READ_RECEIPT_SCHEMA_VERSION,
+        "receipt_kind": "AUTHENTICATED_BROKER_CONSUMER_READ",
+        "broker_schema_version": SCHEMA_VERSION,
+        "producer": PRODUCER,
+        "source": SOURCE,
+        "request_method": BINANCE_USDM_COMMISSION_METHOD,
+        "request_path": BINANCE_USDM_COMMISSION_ENDPOINT,
+        "symbol": envelope["symbol"],
+        "decision_time": decision_time,
+        "source_available_at": envelope["source_available_at"],
+        "broker_available_at": envelope["broker_available_at"],
+        "consumer_observed_at": consumer_observed_at,
+        "consumer_checked_at": consumer_checked_at,
+        "expires_at": envelope["expires_at"],
+        "broker_envelope_sha256": _sha256_bytes(envelope_bytes),
+        "broker_envelope_evidence_hmac_sha256": envelope[
+            "evidence_hmac_sha256"
+        ],
+        "rotation_receipt_sha256": envelope["rotation_receipt_sha256"],
+        "raw_response_sha256": envelope["raw_response_sha256"],
+        "fee_artifact_sha256": envelope["fee_artifact_sha256"],
+        "fee_receipt_sha256": envelope["fee_receipt_sha256"],
+        "credential_binding_fingerprint_sha256": envelope[
+            "credential_binding_fingerprint_sha256"
+        ],
+        "evidence_auth_algorithm": AUTH_ALGORITHM,
+        "evidence_auth_key_id": security_context.auth_key_id,
+        "verification_checks": [
+            "CANONICAL_REDIS_ENVELOPE",
+            "ENVELOPE_CONTENT_CHECKSUM",
+            "ENVELOPE_HMAC",
+            "EIGHT_IMMUTABLE_CAS_READBACKS",
+            "CAS_ENVELOPE_HASH_BINDINGS",
+            "FEE_REFRESH_ROTATION_CONTENT_BINDINGS",
+            "BROKER_SOURCE_CONSUMER_DECISION_CLOCK_ORDER",
+            "EVIDENCE_EXPIRY",
+        ],
+        "broker_cas_object_count": 8,
+        "exchange_credentials_read": False,
+        "trainer_authority": False,
+        "prediction_authority": False,
+        "paper_authority": False,
+        "live_authority": False,
+    }
+    material["content_checksum_sha256"] = _sha256_bytes(_canonical_bytes(material))
+    material["evidence_hmac_sha256"] = hmac.new(
+        security_context.hmac_key,
+        _CONSUMER_READ_RECEIPT_HMAC_DOMAIN + _canonical_bytes(material),
+        hashlib.sha256,
+    ).hexdigest()
+    encoded = _canonical_bytes(material)
+    return encoded, _sha256_bytes(encoded)
 
 
 def _seal(payload: dict[str, Any], *, security_context: EvidenceSecurityContext) -> None:
@@ -622,9 +904,7 @@ def build_adaptive_rotation_plan(
         _fail("COMMISSION_BROKER_PRIORITY_SYMBOLS_INVALID")
     budget = _budget_per_minute(environ)
     calls_per_minute = budget // BINANCE_USDM_COMMISSION_REQUEST_WEIGHT
-    if calls_per_minute < 1:
-        _fail("COMMISSION_BROKER_RATE_BUDGET_BELOW_ONE_REQUEST")
-    pacing_ms = math.ceil(60_000 / calls_per_minute)
+    pacing_ms = adaptive_commission_request_pacing_ms(environ)
     observed_iso, observed_at = _now(
         now_fn,
         reason="COMMISSION_BROKER_ROTATION_OBSERVED_CLOCK_INVALID",
@@ -1206,11 +1486,23 @@ def read_authenticated_commission_evidence(
     if raw in (None, b"", ""):
         return {"status": "COMMISSION_EVIDENCE_MISSING", "evidence": None}
     try:
+        if isinstance(raw, str):
+            try:
+                redis_envelope_bytes = raw.encode("ascii", errors="strict")
+            except UnicodeError:
+                _fail("COMMISSION_BROKER_REDIS_EVIDENCE_INVALID")
+        elif type(raw) is bytes:
+            redis_envelope_bytes = cast(bytes, raw)
+        else:
+            _fail("COMMISSION_BROKER_REDIS_EVIDENCE_INVALID")
         envelope = _decode_envelope(
             raw,
             symbol=canonical_symbol,
             security_context=context,
         )
+        canonical_envelope_bytes = _canonical_bytes(envelope)
+        if not hmac.compare_digest(redis_envelope_bytes, canonical_envelope_bytes):
+            _fail("COMMISSION_BROKER_REDIS_EVIDENCE_NOT_CANONICAL")
         raw_bytes = _read_cas(
             store,
             envelope.get("raw_response_cas_address"),
@@ -1410,6 +1702,14 @@ def read_authenticated_commission_evidence(
             "expires_at"
         ) != expires_iso:
             _fail("COMMISSION_BROKER_FEE_ARTIFACT_CLOCK_BINDING_INVALID")
+        consumer_receipt_bytes, consumer_receipt_sha256 = _consumer_read_receipt(
+            envelope=envelope,
+            envelope_bytes=canonical_envelope_bytes,
+            decision_time=decision_iso,
+            consumer_observed_at=observed_iso,
+            consumer_checked_at=checked_iso,
+            security_context=context,
+        )
     except (
         CommissionEvidenceBrokerError,
         json.JSONDecodeError,
@@ -1429,6 +1729,8 @@ def read_authenticated_commission_evidence(
         fee_artifact_bytes=artifact_bytes,
         raw_response_bytes=raw_bytes,
         fee_schedule_receipt=cast(dict[str, Any], receipt),
+        broker_envelope_bytes=canonical_envelope_bytes,
+        broker_consumer_receipt_bytes=consumer_receipt_bytes,
         source_available_at=cast(str, envelope["source_available_at"]),
         broker_available_at=cast(str, envelope["broker_available_at"]),
         consumer_observed_at=observed_iso,
@@ -1438,6 +1740,8 @@ def read_authenticated_commission_evidence(
         raw_response_sha256=cast(str, envelope["raw_response_sha256"]),
         fee_artifact_sha256=cast(str, envelope["fee_artifact_sha256"]),
         fee_receipt_sha256=cast(str, envelope["fee_receipt_sha256"]),
+        broker_envelope_sha256=_sha256_bytes(canonical_envelope_bytes),
+        broker_consumer_receipt_sha256=consumer_receipt_sha256,
         credential_binding_fingerprint_sha256=cast(
             str, envelope["credential_binding_fingerprint_sha256"]
         ),
@@ -1470,6 +1774,8 @@ def default_commission_broker_store(data_root: Path) -> ImmutableSourcePayloadSt
 
 
 __all__ = [
+    "CONSUMER_READ_RECEIPT_SCHEMA_VERSION",
+    "DYNAMIC_COMMISSION_UNIVERSE_KEY",
     "FALLBACK_REASON",
     "MAX_REDIS_EVIDENCE_BYTES",
     "POLICY_ID",
@@ -1484,11 +1790,13 @@ __all__ = [
     "CommissionEvidenceBrokerError",
     "CommissionRotationPlan",
     "CredentiallessCommissionEvidence",
+    "adaptive_commission_request_pacing_ms",
     "build_adaptive_rotation_plan",
     "capture_and_publish_next_commission_evidence",
     "credential_binding_for_adapter",
     "default_commission_broker_store",
     "read_authenticated_commission_evidence",
+    "read_adaptive_commission_rotation_universe",
     "redis_claim_key",
     "redis_key",
     "redis_version_key",
