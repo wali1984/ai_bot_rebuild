@@ -553,7 +553,7 @@ def test_immutable_dropin_pins_one_exact_committed_release() -> None:
         "ai-bot-v2-profiled-training-observation-coordinator.service.d/"
         "90-immutable-release.conf"
     ).read_text(encoding="utf-8")
-    release_sha = "0936557c844b6c9f27f4e080a6040e2b0358c061"
+    release_sha = "37080a1cd015d5d51c0248f7b7e7fabbb9c24253"
     release_root = (
         "/home/wali/ai_bot_local_data/deployments/ai_bot_rebuild/" + release_sha
     )
