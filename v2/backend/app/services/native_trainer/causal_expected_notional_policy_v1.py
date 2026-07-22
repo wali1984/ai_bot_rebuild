@@ -74,6 +74,9 @@ CAUSAL_EXPECTED_NOTIONAL_CLASSIFICATION: Final = (
 CAUSAL_EXPECTED_NOTIONAL_DOWNSTREAM_STATUS: Final = (
     "FACTORY_ONLY_UNWIRED_NO_TRAINER_PREDICTION_PAPER_OR_LIVE_AUTHORITY"
 )
+CAUSAL_EXPECTED_NOTIONAL_ZERO_CANDIDATE_REASON: Final = (
+    "EXPECTED_NOTIONAL_CANDIDATE_SUPPLY_ZERO_NO_POLICY_ARTIFACT"
+)
 
 _AGGREGATE_SCHEMA = "paper_candidate_canonical_aggregate_contract_v1"
 _AGGREGATE_HASH_ALGORITHM = "sha256(canonical-json-v1)"
@@ -158,6 +161,7 @@ _SOURCE_RECEIPT_FIELDS = frozenset(
         "receipt_sha256",
     }
 )
+CAUSAL_EXPECTED_NOTIONAL_SOURCE_RECEIPT_FIELDS: Final = _SOURCE_RECEIPT_FIELDS
 _COMPATIBLE_ARTIFACT_FIELDS = frozenset(
     {
         "schema_version",
@@ -651,7 +655,7 @@ def _verified_status_aggregate(
     if type(raw_count) is not int or raw_count < 0:
         _validation("EXPECTED_NOTIONAL_CANDIDATE_COUNT_INVALID")
     if raw_count == 0:
-        _validation("EXPECTED_NOTIONAL_CANDIDATE_SUPPLY_ZERO_NO_POLICY_ARTIFACT")
+        _validation(CAUSAL_EXPECTED_NOTIONAL_ZERO_CANDIDATE_REASON)
     count = raw_count
     count_fields = (
         status.get("paper_candidates_with_allocation"),
@@ -1189,8 +1193,10 @@ __all__ = [
     "CAUSAL_EXPECTED_NOTIONAL_POLICY_V1_SCHEMA_VERSION",
     "CAUSAL_EXPECTED_NOTIONAL_SOURCE_KEY",
     "CAUSAL_EXPECTED_NOTIONAL_SOURCE_PRODUCER",
+    "CAUSAL_EXPECTED_NOTIONAL_SOURCE_RECEIPT_FIELDS",
     "CAUSAL_EXPECTED_NOTIONAL_SOURCE_RECEIPT_V1_SCHEMA_VERSION",
     "CAUSAL_EXPECTED_NOTIONAL_SOURCE_TRANSPORT",
+    "CAUSAL_EXPECTED_NOTIONAL_ZERO_CANDIDATE_REASON",
     "CausalExpectedNotionalPolicyTokenV1",
     "CausalExpectedNotionalPolicyV1Error",
     "CausalExpectedNotionalPolicyV1IntegrityError",

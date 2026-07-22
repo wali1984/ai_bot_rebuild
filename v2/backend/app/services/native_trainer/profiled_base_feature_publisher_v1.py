@@ -74,8 +74,14 @@ from v2.backend.app.services.native_trainer.canonical_ohlcv_multitimeframe_captu
     build_canonical_ohlcv_multitimeframe_capture_set_v1,
     canonical_ohlcv_multitimeframe_capture_set_v1_contract,
 )
+from v2.backend.app.services.native_trainer.causal_adaptive_cold_start_notional_policy_v1 import (
+    CAUSAL_ADAPTIVE_COLD_START_NOTIONAL_PORTFOLIO_SOURCE_KEY,
+    CausalAdaptiveColdStartNotionalPolicyV1Error,
+    build_causal_adaptive_cold_start_notional_policy_v1,
+)
 from v2.backend.app.services.native_trainer.causal_cost_evidence_v1 import (
     CAUSAL_COST_COUNTERFACTUAL_HORIZON_SECONDS,
+    CAUSAL_COST_NOTIONAL_PROVENANCE_VERIFIED_STATUS,
     CAUSAL_COST_ORDERED_FEATURE_NAMES,
     CausalCostEvidenceV1Error,
     CausalCostEvidenceV1Result,
@@ -83,6 +89,7 @@ from v2.backend.app.services.native_trainer.causal_cost_evidence_v1 import (
 )
 from v2.backend.app.services.native_trainer.causal_expected_notional_policy_v1 import (
     CAUSAL_EXPECTED_NOTIONAL_SOURCE_KEY,
+    CAUSAL_EXPECTED_NOTIONAL_ZERO_CANDIDATE_REASON,
     CausalExpectedNotionalPolicyV1Error,
     build_causal_expected_notional_policy_v1,
 )
@@ -187,6 +194,14 @@ COST_TEMPORAL_RETRY_REASONS: Final = frozenset(
         "CAUSAL_COST_ATOMIC_CAPTURE_AFTER_DECISION",
         "EXPECTED_NOTIONAL_ATOMIC_CAPTURE_AFTER_DECISION",
         "EXPECTED_NOTIONAL_SOURCE_EXPIRED_AT_DECISION",
+        "COLD_START_NOTIONAL_PORTFOLIO_CAPTURE_AFTER_DECISION",
+        "COLD_START_NOTIONAL_PORTFOLIO_EXPIRED_AT_DECISION",
+        "COLD_START_NOTIONAL_CONTROL_CAPTURE_AFTER_DECISION",
+        "COLD_START_NOTIONAL_ZERO_CANDIDATE_EXPIRED_AT_DECISION",
+        "COLD_START_NOTIONAL_CANDIDATE_MARGIN_CYCLE_MISMATCH",
+        "COLD_START_NOTIONAL_CANDIDATE_MARGIN_CYCLE_ID_MISMATCH",
+        "COLD_START_NOTIONAL_MARKET_CAPTURE_AFTER_DECISION",
+        "COLD_START_NOTIONAL_MARKET_EXPIRED_AT_DECISION",
         "PROFILED_BASE_PUBLISHER_COMMISSION_POLICY_AFTER_DECISION",
         "PROFILED_BASE_PUBLISHER_COST_RECAPTURE_WINDOW_MISSED",
         "PROFILED_BASE_PUBLISHER_NOTIONAL_PTTL_SUBSECOND_UNUSABLE",
@@ -1246,6 +1261,7 @@ def _error_reasons(exc: BaseException) -> tuple[str, ...]:
         | FeatureSnapshotLedgerError
         | SourcePayloadStoreError
         | AtomicRedisSourceReadError
+        | CausalAdaptiveColdStartNotionalPolicyV1Error
         | CausalExpectedNotionalPolicyV1Error
         | BinanceUSDMCommissionCaptureV1Error
         | CausalCostEvidenceV1Error,
@@ -1843,6 +1859,9 @@ class ProfiledBaseFeaturePublisherV1:
             read_atomic_redis_sources
         ),
         expected_notional_builder: Callable[..., Any] = (build_causal_expected_notional_policy_v1),
+        cold_start_notional_builder: Callable[..., Any] = (
+            build_causal_adaptive_cold_start_notional_policy_v1
+        ),
         commission_refresh_builder: Callable[..., Any] = (
             build_binance_usdm_commission_refresh_policy_v1
         ),
@@ -1892,6 +1911,7 @@ class ProfiledBaseFeaturePublisherV1:
             or (cost_evidence_factory is not None and not callable(cost_evidence_factory))
             or not callable(atomic_redis_reader)
             or not callable(expected_notional_builder)
+            or not callable(cold_start_notional_builder)
             or not callable(commission_refresh_builder)
             or not callable(commission_capture_function)
             or (
@@ -1961,6 +1981,7 @@ class ProfiledBaseFeaturePublisherV1:
         self.cost_evidence_factory = cost_evidence_factory
         self.atomic_redis_reader = atomic_redis_reader
         self.expected_notional_builder = expected_notional_builder
+        self.cold_start_notional_builder = cold_start_notional_builder
         self.commission_refresh_builder = commission_refresh_builder
         self.commission_capture_function = commission_capture_function
         self.commission_evidence_reader = commission_evidence_reader
@@ -2233,6 +2254,22 @@ class ProfiledBaseFeaturePublisherV1:
             )
         return notional, market
 
+    def _read_cold_start_control_sources(self) -> AtomicRedisSourceReadBatch:
+        capture = self.atomic_redis_reader(
+            self.redis_client,
+            (
+                CAUSAL_EXPECTED_NOTIONAL_SOURCE_KEY,
+                CAUSAL_ADAPTIVE_COLD_START_NOTIONAL_PORTFOLIO_SOURCE_KEY,
+            ),
+        )
+        if type(capture) is not AtomicRedisSourceReadBatch:
+            _fail(
+                ProfiledBaseFeaturePublisherV1Error,
+                COST_EVIDENCE_UNAVAILABLE_PARENT_NOT_APPENDED,
+                "PROFILED_BASE_PUBLISHER_COLD_START_CONTROL_READER_RESULT_INVALID",
+            )
+        return capture
+
     def _broker_commission_evidence_for_parent(
         self,
         *,
@@ -2333,13 +2370,35 @@ class ProfiledBaseFeaturePublisherV1:
             captures = self._read_cost_sources(symbol=symbol)
 
         notional_capture, market_capture = captures
-        notional = self.expected_notional_builder(
-            atomic_capture=notional_capture,
-            source_payload_store=enrichment_store,
-            symbol=symbol,
-            feature_snapshot_identity=parent_record["durable_snapshot_id"],
-            feature_snapshot_decision_time=decision_at,
-        )
+        try:
+            notional = self.expected_notional_builder(
+                atomic_capture=notional_capture,
+                source_payload_store=enrichment_store,
+                symbol=symbol,
+                feature_snapshot_identity=parent_record["durable_snapshot_id"],
+                feature_snapshot_decision_time=decision_at,
+            )
+            notional_refresh_pttl_ms = notional_capture.results[0].pttl_ms
+        except CausalExpectedNotionalPolicyV1Error as exc:
+            if exc.reason != CAUSAL_EXPECTED_NOTIONAL_ZERO_CANDIDATE_REASON:
+                raise
+            control_capture = self._read_cold_start_control_sources()
+            notional = self.cold_start_notional_builder(
+                control_atomic_capture=control_capture,
+                market_atomic_capture=market_capture,
+                source_payload_store=enrichment_store,
+                symbol=symbol,
+                feature_snapshot_identity=parent_record["durable_snapshot_id"],
+                feature_snapshot_decision_time=decision_at,
+            )
+            notional_refresh_pttl_ms = min(
+                result.pttl_ms
+                for batch in (
+                    control_capture,
+                    market_capture,
+                )
+                for result in batch.results
+            )
         if commission_evidence is None:
             policy_at, policy_clock = self._sample_clock(
                 "PROFILED_BASE_PUBLISHER_COMMISSION_POLICY_CLOCK_INVALID"
@@ -2353,8 +2412,7 @@ class ProfiledBaseFeaturePublisherV1:
             # This refresh receipt authenticates the notional source PTTL, so do
             # not overclaim that it also binds the three market-source lifetimes.
             # Their minimum remains exclusively the just-in-time recapture input.
-            notional_pttl_ms = notional_capture.results[0].pttl_ms
-            if notional_pttl_ms < 1_000:
+            if notional_refresh_pttl_ms < 1_000:
                 _fail(
                     ProfiledBaseFeaturePublisherV1Error,
                     COST_EVIDENCE_UNAVAILABLE_PARENT_NOT_APPENDED,
@@ -2362,7 +2420,7 @@ class ProfiledBaseFeaturePublisherV1:
                 )
             refresh_interval_seconds = min(
                 IMMUTABLE_MAX_COMMISSION_EVIDENCE_SAFETY_HORIZON_SECONDS,
-                notional_pttl_ms // 1_000,
+                notional_refresh_pttl_ms // 1_000,
             )
             refresh_policy = self.commission_refresh_builder(
                 store=enrichment_store,
@@ -2430,6 +2488,10 @@ class ProfiledBaseFeaturePublisherV1:
             expected_notional_usd=notional.expected_notional_usd,
             expected_notional_policy_artifact_bytes=notional.notional_artifact_bytes,
             expected_notional_policy_receipt=notional.notional_receipt,
+            expected_notional_policy_source_receipt_bytes=(
+                notional.source_read_receipt_bytes
+            ),
+            expected_notional_policy_factory_token=notional,
             symbol=symbol,
             feature_snapshot_identity=parent_record["durable_snapshot_id"],
             decision_time=decision_text,
@@ -2475,6 +2537,26 @@ class ProfiledBaseFeaturePublisherV1:
                     ProfiledBaseFeaturePublisherV1Error,
                     COST_EVIDENCE_UNAVAILABLE_PARENT_NOT_APPENDED,
                     "PROFILED_BASE_PUBLISHER_COST_FACTORY_RESULT_INVALID",
+                )
+            result_contract = result.contract
+            notional_source = result_contract.get("notional_source")
+            provenance = (
+                notional_source.get("policy_provenance")
+                if type(notional_source) is dict
+                else None
+            )
+            if (
+                type(provenance) is not dict
+                or provenance.get("verification_status")
+                != CAUSAL_COST_NOTIONAL_PROVENANCE_VERIFIED_STATUS
+                or provenance.get("source_receipt_supplied") is not True
+                or provenance.get("factory_token_revalidated") is not True
+                or provenance.get("strict_publisher_eligible") is not True
+            ):
+                _fail(
+                    ProfiledBaseFeaturePublisherV1Error,
+                    COST_EVIDENCE_UNAVAILABLE_PARENT_NOT_APPENDED,
+                    "PROFILED_BASE_PUBLISHER_NOTIONAL_POLICY_PROVENANCE_UNVERIFIED",
                 )
             if type(auxiliary_cas_bytes) is not int or auxiliary_cas_bytes < 0:
                 _fail(
@@ -3344,6 +3426,10 @@ class ProfiledBaseFeaturePublisherV1:
             decision_at=decision_at,
             commission_evidence=broker_commission_evidence,
         )
+        runtime_notional_source = cast(
+            dict[str, Any],
+            cost_evidence.contract["notional_source"],
+        )
         _, cost_artifact_available_at = self._sample_clock(
             "PROFILED_BASE_PUBLISHER_COST_ARTIFACT_AVAILABLE_CLOCK_INVALID"
         )
@@ -3488,6 +3574,16 @@ class ProfiledBaseFeaturePublisherV1:
             "source_pair_projected_ledger_bytes": projected_pair,
             "materialized_evidence_bytes": materialized_evidence_bytes,
             "runtime_cost_auxiliary_cas_bytes": runtime_cost_auxiliary_cas_bytes,
+            "expected_notional_usd": runtime_notional_source[
+                "expected_notional_usd"
+            ],
+            "expected_notional_policy_id": runtime_notional_source["policy_id"],
+            "expected_notional_policy_version": runtime_notional_source[
+                "policy_version"
+            ],
+            "expected_notional_policy_source_key": runtime_notional_source[
+                "policy_source_key"
+            ],
             "commission_evidence_read_attempted": commission_evidence_read_attempted,
             "commission_evidence_status": (
                 commission_evidence_status

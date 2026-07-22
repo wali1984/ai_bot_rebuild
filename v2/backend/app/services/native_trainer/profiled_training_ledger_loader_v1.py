@@ -49,6 +49,10 @@ from v2.backend.app.services.native_trainer.causal_cost_evidence_v1 import (
     CAUSAL_COST_EVIDENCE_V1_IMPLEMENTATION_ID,
     CAUSAL_COST_EVIDENCE_V1_IMPLEMENTATION_SHA256,
     CAUSAL_COST_EVIDENCE_V1_SCHEMA_VERSION,
+    CAUSAL_COST_NOTIONAL_POLICY_PROVENANCE_SCHEMA_VERSION,
+    CAUSAL_COST_NOTIONAL_PROVENANCE_NOT_SUPPLIED_STATUS,
+    CAUSAL_COST_NOTIONAL_PROVENANCE_SOURCE_ONLY_STATUS,
+    CAUSAL_COST_NOTIONAL_PROVENANCE_VERIFIED_STATUS,
     CAUSAL_COST_ORDERED_FEATURE_NAMES,
     CAUSAL_COST_SOURCE_RECEIPT_V1_SCHEMA_VERSION,
 )
@@ -260,6 +264,57 @@ _PARENT_FALSE_AUTHORIZATION = {
     "paper_trading_authorized": False,
     "live_execution_authorized": False,
     "runtime_wired": False,
+}
+_NOTIONAL_POLICY_PROVENANCE_BASE_FIELDS = frozenset(
+    {
+        "schema_version",
+        "verification_status",
+        "source_receipt_supplied",
+        "factory_token_revalidated",
+        "strict_publisher_eligible",
+        "bound_source_object_count",
+        "bound_source_payload_byte_count",
+        "trainer_authority",
+        "prediction_authority",
+        "paper_authority",
+        "live_authority",
+        "order_authority",
+    }
+)
+_NOTIONAL_POLICY_PROVENANCE_SUPPLIED_FIELDS = frozenset(
+    {
+        *_NOTIONAL_POLICY_PROVENANCE_BASE_FIELDS,
+        "source_receipt_schema_version",
+        "source_receipt_sha256",
+        "source_receipt_payload_sha256",
+        "source_receipt_payload_byte_count",
+        "source_receipt_cas_address",
+        "policy_version_rederived",
+        "bound_sources",
+    }
+)
+_NOTIONAL_BOUND_SOURCE_FIELDS = frozenset(
+    {
+        "role",
+        "source_key",
+        "payload_sha256",
+        "payload_byte_count",
+        "payload_cas_address",
+    }
+)
+_NOTIONAL_BOUND_SOURCE_ATOMIC_FIELDS = frozenset(
+    {
+        *_NOTIONAL_BOUND_SOURCE_FIELDS,
+        "atomic_batch_id",
+        "atomic_batch_material_sha256",
+    }
+)
+_NOTIONAL_FALSE_AUTHORITY = {
+    "trainer_authority": False,
+    "prediction_authority": False,
+    "paper_authority": False,
+    "live_authority": False,
+    "order_authority": False,
 }
 _TRAINING_LINEAGE_FIELDS = frozenset(
     {
@@ -1348,6 +1403,186 @@ def _reopen_cost_cas(
         bind_embedded_address(fee_source.get(address_field))
     for address_field in ("artifact_cas_address", "input_receipt_cas_address"):
         bind_embedded_address(notional_source.get(address_field))
+
+    policy_provenance_value = notional_source.get("policy_provenance")
+    if policy_provenance_value is not None:
+        if type(policy_provenance_value) is not dict:
+            _fail("PROFILED_TRAINING_COST_NOTIONAL_PROVENANCE_INVALID")
+        policy_provenance = cast(dict[str, Any], policy_provenance_value)
+        source_receipt_supplied = policy_provenance.get("source_receipt_supplied")
+        expected_provenance_fields = (
+            _NOTIONAL_POLICY_PROVENANCE_SUPPLIED_FIELDS
+            if source_receipt_supplied is True
+            else _NOTIONAL_POLICY_PROVENANCE_BASE_FIELDS
+        )
+        if (
+            set(policy_provenance) != expected_provenance_fields
+            or policy_provenance.get("schema_version")
+            != CAUSAL_COST_NOTIONAL_POLICY_PROVENANCE_SCHEMA_VERSION
+            or type(source_receipt_supplied) is not bool
+            or any(
+                policy_provenance.get(name) is not value
+                for name, value in _NOTIONAL_FALSE_AUTHORITY.items()
+            )
+        ):
+            _fail("PROFILED_TRAINING_COST_NOTIONAL_PROVENANCE_INVALID")
+        if source_receipt_supplied is False:
+            if (
+                policy_provenance.get("verification_status")
+                != CAUSAL_COST_NOTIONAL_PROVENANCE_NOT_SUPPLIED_STATUS
+                or policy_provenance.get("factory_token_revalidated") is not False
+                or policy_provenance.get("strict_publisher_eligible") is not False
+                or policy_provenance.get("bound_source_object_count") != 0
+                or policy_provenance.get("bound_source_payload_byte_count") != 0
+            ):
+                _fail("PROFILED_TRAINING_COST_NOTIONAL_PROVENANCE_INVALID")
+        else:
+            verification_status = policy_provenance.get("verification_status")
+            factory_token_revalidated = policy_provenance.get(
+                "factory_token_revalidated"
+            )
+            strict_publisher_eligible = policy_provenance.get(
+                "strict_publisher_eligible"
+            )
+            if (
+                verification_status
+                not in {
+                    CAUSAL_COST_NOTIONAL_PROVENANCE_VERIFIED_STATUS,
+                    CAUSAL_COST_NOTIONAL_PROVENANCE_SOURCE_ONLY_STATUS,
+                }
+                or factory_token_revalidated
+                is not (
+                    verification_status
+                    == CAUSAL_COST_NOTIONAL_PROVENANCE_VERIFIED_STATUS
+                )
+                or strict_publisher_eligible is not factory_token_revalidated
+                or policy_provenance.get("policy_version_rederived") is not True
+                or not _valid_sha256(policy_provenance.get("source_receipt_sha256"))
+            ):
+                _fail("PROFILED_TRAINING_COST_NOTIONAL_PROVENANCE_INVALID")
+            source_receipt_address = policy_provenance.get(
+                "source_receipt_cas_address"
+            )
+            if (
+                type(source_receipt_address) is not dict
+                or policy_provenance.get("source_receipt_payload_sha256")
+                != source_receipt_address.get("payload_sha256")
+                or policy_provenance.get("source_receipt_payload_byte_count")
+                != source_receipt_address.get("payload_byte_count")
+            ):
+                _fail("PROFILED_TRAINING_COST_NOTIONAL_PROVENANCE_INVALID")
+            bind_embedded_address(source_receipt_address)
+
+            bound_sources = policy_provenance.get("bound_sources")
+            bound_source_object_count = policy_provenance.get(
+                "bound_source_object_count"
+            )
+            bound_source_payload_byte_count = policy_provenance.get(
+                "bound_source_payload_byte_count"
+            )
+            if (
+                type(bound_sources) is not list
+                or not bound_sources
+                or type(bound_source_object_count) is not int
+                or bound_source_object_count != len(bound_sources)
+                or type(bound_source_payload_byte_count) is not int
+                or bound_source_payload_byte_count <= 0
+            ):
+                _fail("PROFILED_TRAINING_COST_NOTIONAL_BOUND_SOURCES_INVALID")
+            observed_bound_bytes = 0
+            for bound_source_value in bound_sources:
+                if type(bound_source_value) is not dict:
+                    _fail("PROFILED_TRAINING_COST_NOTIONAL_BOUND_SOURCE_INVALID")
+                bound_source = cast(dict[str, Any], bound_source_value)
+                if frozenset(bound_source) not in {
+                    _NOTIONAL_BOUND_SOURCE_FIELDS,
+                    _NOTIONAL_BOUND_SOURCE_ATOMIC_FIELDS,
+                }:
+                    _fail("PROFILED_TRAINING_COST_NOTIONAL_BOUND_SOURCE_INVALID")
+                bound_address = bound_source.get("payload_cas_address")
+                if (
+                    type(bound_source.get("role")) is not str
+                    or not bound_source.get("role")
+                    or type(bound_source.get("source_key")) is not str
+                    or not bound_source.get("source_key")
+                    or type(bound_address) is not dict
+                    or bound_source.get("payload_sha256")
+                    != bound_address.get("payload_sha256")
+                    or bound_source.get("payload_byte_count")
+                    != bound_address.get("payload_byte_count")
+                ):
+                    _fail("PROFILED_TRAINING_COST_NOTIONAL_BOUND_SOURCE_INVALID")
+                if frozenset(bound_source) == _NOTIONAL_BOUND_SOURCE_ATOMIC_FIELDS:
+                    atomic_batch_id = bound_source.get("atomic_batch_id")
+                    atomic_material_sha256 = bound_source.get(
+                        "atomic_batch_material_sha256"
+                    )
+                    if (
+                        type(atomic_batch_id) is not str
+                        or type(atomic_material_sha256) is not str
+                        or not _valid_sha256(atomic_material_sha256)
+                        or atomic_batch_id
+                        != f"trainer_atomic_redis_source_read_v2_{atomic_material_sha256}"
+                    ):
+                        _fail(
+                            "PROFILED_TRAINING_COST_NOTIONAL_BOUND_SOURCE_INVALID"
+                        )
+                bind_embedded_address(bound_address)
+                observed_bound_bytes += cast(int, bound_source["payload_byte_count"])
+            if observed_bound_bytes != bound_source_payload_byte_count:
+                _fail("PROFILED_TRAINING_COST_NOTIONAL_BOUND_SOURCES_INVALID")
+
+            source_receipt_payload = objects.get(
+                cast(str, source_receipt_address.get("payload_sha256"))
+            )
+            if source_receipt_payload is None:
+                _fail("PROFILED_TRAINING_COST_NOTIONAL_SOURCE_RECEIPT_MISSING")
+            try:
+                source_receipt_value = json.loads(
+                    source_receipt_payload.decode("ascii", errors="strict")
+                )
+            except (json.JSONDecodeError, RecursionError, UnicodeError, ValueError) as exc:
+                raise ProfiledTrainingLedgerLoaderV1Error(
+                    "PROFILED_TRAINING_COST_NOTIONAL_SOURCE_RECEIPT_JSON_INVALID"
+                ) from exc
+            if type(source_receipt_value) is not dict:
+                _fail("PROFILED_TRAINING_COST_NOTIONAL_SOURCE_RECEIPT_JSON_INVALID")
+            source_receipt = cast(dict[str, Any], source_receipt_value)
+            unsigned_source_receipt = {
+                name: value
+                for name, value in source_receipt.items()
+                if name != "receipt_sha256"
+            }
+            if (
+                _canonical_json(source_receipt).encode("ascii", errors="strict")
+                != source_receipt_payload
+                or source_receipt.get("schema_version")
+                != policy_provenance.get("source_receipt_schema_version")
+                or source_receipt.get("receipt_sha256")
+                != policy_provenance.get("source_receipt_sha256")
+                or source_receipt.get("receipt_sha256")
+                != stable_sha256(unsigned_source_receipt)
+                or source_receipt.get("symbol") != binding.get("symbol")
+                or source_receipt.get("feature_snapshot_identity")
+                != parent_durable_snapshot_id
+                or source_receipt.get("decision_time") != binding.get("decision_time")
+                or source_receipt.get("policy_id") != notional_source.get("policy_id")
+                or source_receipt.get("expected_notional_usd")
+                != notional_source.get("expected_notional_usd")
+                or source_receipt.get("source_generated_at")
+                != notional_source.get("effective_at")
+                or source_receipt.get("available_at")
+                != notional_source.get("available_at")
+                or source_receipt.get("expires_at") != notional_source.get("expires_at")
+                or source_receipt.get("fallback_used") is not False
+                or source_receipt.get("static_default_used") is not False
+                or source_receipt.get("read_only") is not True
+                or any(
+                    source_receipt.get(name) is not value
+                    for name, value in _NOTIONAL_FALSE_AUTHORITY.items()
+                )
+            ):
+                _fail("PROFILED_TRAINING_COST_NOTIONAL_SOURCE_RECEIPT_INVALID")
     if inventory != expected_inventory:
         _fail("PROFILED_TRAINING_COST_CAS_INVENTORY_NOT_EXACT")
 

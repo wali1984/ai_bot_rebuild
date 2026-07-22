@@ -88,6 +88,10 @@ from v2.backend.app.services.paper_trade_management.position_state import atr_bp
 from v2.backend.app.services.paper_trade_management.position_validity import (
     validate_paper_fill_write_invariant,
 )
+from v2.backend.app.services.paper_trade_management.margin_accounting import (
+    build_paper_margin_status,
+    reserve_paper_candidate_margin,
+)
 from v2.backend.app.services.paper_exploration import (
     PAPER_RISK_CONTROLLER_EXPLORATION_TIER,
     build_paper_exploration_exit_plan,
@@ -120,6 +124,9 @@ PAPER_EXPLORATION_MATERIALIZATION_COUNTERFACTUAL_KEY = (
 )
 PAPER_ADAPTIVE_SIZING_RUNTIME_STATUS_REDIS_KEY = (
     f"{V2_REDIS_PREFIX}paper:adaptive_sizing_runtime_status"
+)
+PAPER_ACCOUNT_MARGIN_STATUS_REDIS_KEY = (
+    f"{V2_REDIS_PREFIX}paper:account_margin_status"
 )
 DEFAULT_PAYLOAD_PATH = Path(
     "v2/frontend/public/operator_runtime/v2_trade_management_paper/live/latest/v2_trade_management_paper_live_status.json"
@@ -659,6 +666,10 @@ POSITIVE_EDGE_PROBATION_MIN_EXIT_FEASIBILITY = 0.55
 PAPER_RISK_CONTROLLER_EXPLORATION_MAX_RISK_FRACTION_OF_NORMAL = 0.05
 PAPER_RISK_CONTROLLER_EXPLORATION_LOSS_PROBABILITY_BOUND = 0.72
 PAPER_RISK_CONTROLLER_EXPLORATION_MIN_EXIT_FEASIBILITY = 0.50
+ADAPTIVE_SIZING_OPERATOR_PROJECTION_LIMIT = 5
+ADAPTIVE_SIZING_OPERATOR_TEXT_LIMIT = 512
+ADAPTIVE_SIZING_OPERATOR_LIST_LIMIT = 20
+ADAPTIVE_SIZING_OPERATOR_LIST_TEXT_LIMIT = 256
 B_GRADE_MODEL_QUALITY_BUCKET_LIMIT = 250
 B_GRADE_BUCKET_PROMOTION_MIN_SAMPLE_COUNT = 30
 B_GRADE_BUCKET_PROMOTION_MIN_WIN_RATE = 0.90
@@ -763,6 +774,46 @@ def _runtime_default_symbol() -> str:
 
 def _utc_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
+def _paper_canonical_sha256(value: Any) -> str | None:
+    try:
+        canonical = json.dumps(
+            value,
+            sort_keys=True,
+            separators=(",", ":"),
+            default=str,
+            allow_nan=False,
+        )
+    except (TypeError, ValueError):
+        return None
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _paper_valid_sha256(value: Any) -> bool:
+    text = str(value or "")
+    return len(text) == 64 and all(character in "0123456789abcdef" for character in text)
+
+
+def _paper_cycle_id(
+    *,
+    generated_utc: str,
+    paper_session_id: Any,
+    writer_identity: Mapping[str, Any],
+) -> str:
+    """Derive one deterministic identity shared by all cycle control payloads."""
+
+    material = {
+        "schema_version": "paper_trade_management_cycle_identity_v1",
+        "generated_utc": generated_utc,
+        "paper_session_id": str(paper_session_id or "NO_PAPER_SESSION"),
+        "writer_identity": dict(writer_identity),
+        "writer_pid": os.getpid(),
+    }
+    digest = _paper_canonical_sha256(material)
+    if digest is None:  # The bounded material above must always be canonical JSON.
+        raise ValueError("PAPER_CYCLE_ID_MATERIAL_NOT_CANONICAL")
+    return f"paper_cycle:{digest}"
 
 
 _OPERATOR_ET_ZONE = ZoneInfo("America/New_York")
@@ -2576,6 +2627,50 @@ def _safe_write(r, key: str, value: str, ex: int | None = None) -> bool:
         return True
     except Exception:
         return False
+
+
+def _safe_write_paper_cycle_control_bundle(
+    r: Any,
+    *,
+    adaptive_sizing_runtime_status: Mapping[str, Any],
+    account_margin_status: Mapping[str, Any],
+    ex: int,
+) -> bool:
+    """Publish the two trainer control inputs as one Redis transaction."""
+
+    if r is None or type(ex) is not int or ex <= 0:
+        return False
+    payloads = (
+        (
+            PAPER_ADAPTIVE_SIZING_RUNTIME_STATUS_REDIS_KEY,
+            adaptive_sizing_runtime_status,
+        ),
+        (PAPER_ACCOUNT_MARGIN_STATUS_REDIS_KEY, account_margin_status),
+    )
+    try:
+        serialized = [
+            (
+                key,
+                json.dumps(
+                    payload,
+                    allow_nan=False,
+                    separators=(",", ":"),
+                    sort_keys=True,
+                ),
+            )
+            for key, payload in payloads
+        ]
+        pipeline = r.pipeline(transaction=True)
+        for key, value in serialized:
+            pipeline.set(key, value, ex=ex)
+        results = pipeline.execute()
+    except Exception:
+        return False
+    return (
+        isinstance(results, (list, tuple))
+        and len(results) == len(payloads)
+        and all(result not in (None, False) for result in results)
+    )
 
 
 def _paper_exploration_bridge_enabled() -> bool:
@@ -14658,14 +14753,919 @@ def _paper_evidence_lanes_status(
     }
 
 
+ADAPTIVE_SIZING_OPERATOR_PROJECTION_FIELDS = (
+    "allocation_id",
+    "candidate_id",
+    "row_id",
+    "intent_id",
+    "prediction_id",
+    "signal_id",
+    "decision_id",
+    "allocator_decision_id",
+    "risk_decision_id",
+    "orchestrator_decision_id",
+    "preemptive_decision_id",
+    "guardian_decision_id",
+    "feature_snapshot_id",
+    "entry_feature_snapshot_id",
+    "paper_session_id",
+    "symbol",
+    "timeframe",
+    "side",
+    "selected_action",
+    "action",
+    "strategy_id",
+    "strategy_family",
+    "strategy_selected_mode",
+    "strategy_router_selected_mode",
+    "market_regime",
+    "market_regime_at_entry",
+    "source_tier",
+    "policy_tier",
+    "paper_opportunity_tier",
+    "paper_execution_tier",
+    "capital_class",
+    "candidate_allocation_source",
+    "decision",
+    "allocator_decision",
+    "original_allocator_decision_before_paper_tier_block",
+    "allocator_reason",
+    "final_size_reason",
+    "capital_allocation_reason",
+    "paper_opportunity_tier_reason",
+    "paper_fill_block_reason",
+    "paper_allocation_block_reason",
+    "non_executable_paper_tier_block_reason",
+    "hedge_admission_block_reason",
+    "strategy_router_block_reason",
+    "strategy_router_block_reason_source",
+    "guardian_status",
+    "guardian_decision",
+    "continuous_edge_guardian_status",
+    "allocator_microstructure_block_reason",
+    "microstructure_trust_status",
+    "preemptive_decision",
+    "preemptive_action",
+    "trainer_feedback_source",
+    "selector_policy_fingerprint",
+    "frozen_selector_fingerprint",
+    "model_version",
+    "checkpoint_id",
+    "feature_cutoff",
+    "available_at",
+    "entry_feature_available_at",
+    "entry_feature_cutoff",
+    "entry_feature_decision_time",
+    "decision_time",
+    "generated_at",
+    "generated_utc",
+    "allocation_published_at",
+    "entry_price_utc",
+    "confidence_raw",
+    "confidence_calibrated",
+    "selected_action_probability",
+    "expected_move_bps",
+    "predicted_move_bps",
+    "expected_move_after_cost_bps",
+    "pre_trade_loss_probability",
+    "pre_trade_profit_probability",
+    "pre_trade_expected_reward_to_risk",
+    "risk_budget_usd",
+    "risk_budget_pct",
+    "risk_budget_pct_of_equity",
+    "risk_budget_pct_of_available_margin",
+    "risk_budget_fraction_of_normal_adaptive",
+    "equity",
+    "wallet_balance",
+    "available_margin",
+    "available_margin_usd",
+    "available_equity_usd",
+    "total_exposure_usdt",
+    "total_exposure_usd",
+    "gross_notional_usd",
+    "target_notional_usd",
+    "target_notional_usdt",
+    "target_quantity",
+    "allocated_margin_usd",
+    "normal_adaptive_gross_notional_usd",
+    "normal_adaptive_allocated_margin_usd",
+    "recommended_leverage",
+    "effective_leverage",
+    "leverage",
+    "recommended_margin_mode",
+    "margin_mode",
+    "stop_distance_bps",
+    "liquidation_price_estimate",
+    "liquidation_buffer_bps",
+    "rare_event_stress_status",
+    "rare_event_required_liquidation_buffer_bps",
+    "modeled_999_adverse_move_bps",
+    "execution_uncertainty_bps",
+    "correlation_stress_bps",
+    "maintenance_margin_uncertainty_bps",
+    "expected_fees_usd",
+    "expected_slippage_usd",
+    "expected_funding_usd",
+    "expected_funding_bps",
+    "expected_net_pnl_usd",
+    "normal_adaptive_expected_net_pnl_usd",
+    "expected_shortfall_usd",
+    "max_loss_if_stop_hit",
+    "risk_reward",
+    "risk_of_ruin_contribution",
+    "portfolio_exposure_after_trade",
+    "correlation_exposure_after_trade",
+    "hedge_budget_usd",
+    "hedge_enabled",
+    "hedge_parent_id",
+    "hedge_child_id",
+    "hedge_intent",
+    "hedge_ratio",
+    "hedge_expected_shortfall_reduction_usd",
+    "expected_shortfall_before",
+    "expected_shortfall_after",
+    "maximum_duration",
+    "unwind_plan",
+    "hedge_cost_usd",
+    "take_profit_structure",
+    "take_profit_price",
+    "observed_spread_bps",
+    "actual_observed_spread_entry_bps",
+    "depth_impact_bps",
+    "depth_price_impact_bps",
+    "depth_utilization_pct",
+    "maker_probability",
+    "taker_probability",
+    "latency_ms",
+    "mark_price",
+    "index_price",
+    "mark_index_divergence_bps",
+    "local_block_reasons",
+    "guardian_block_reasons",
+    "continuous_edge_guardian_block_reasons",
+    "paper_fill_gate_block_reasons",
+    "entry_gate_block_reasons",
+    "preemptive_decision_reasons",
+    "preemptive_block_reasons",
+    "rare_event_stress_missing_inputs",
+    "strategy_supply_trainer_feedback_blockers",
+    "loss_probability_reasons",
+    "paper_fill_allowed",
+    "guardian_new_entries_allowed",
+    "continuous_edge_guardian_new_entries_allowed",
+    "continuous_edge_guardian_forced_shadow_only",
+    "strategy_supply_shadow_evidence_only",
+    "strategy_supply_hypothesis",
+    "candidate_selected_before_outcome",
+    "candidate_selected_after_outcome",
+    "post_outcome_candidate_selection",
+    "future_labels_used_as_features",
+    "counterfactual_label_pending",
+    "counterfactual_label_matured",
+    "counts_as_a_grade_evidence",
+    "a_grade_promotion_allowed",
+    "live_ready_implication",
+    "non_executable_paper_tier_blocked",
+    "candidate_allocation_publication_blocked",
+    "martingale",
+    "martingale_enabled",
+    "unlimited_grid",
+    "grid_unbounded",
+    "cross_margin_used_to_delay_liquidation",
+    "paper_only",
+    "routes_to_live",
+    "places_real_order",
+    "live_order",
+    "test_order",
+    "test_orders",
+    "leverage_mutation",
+    "margin_mode_mutation",
+    "transfer_or_withdrawal",
+    "replay_snapshot_id",
+    "replay_snapshot_key",
+)
+
+ADAPTIVE_SIZING_OPERATOR_LIST_FIELDS = frozenset(
+    {
+        "local_block_reasons",
+        "guardian_block_reasons",
+        "continuous_edge_guardian_block_reasons",
+        "paper_fill_gate_block_reasons",
+        "entry_gate_block_reasons",
+        "preemptive_decision_reasons",
+        "preemptive_block_reasons",
+        "rare_event_stress_missing_inputs",
+        "strategy_supply_trainer_feedback_blockers",
+        "loss_probability_reasons",
+    }
+)
+
+ADAPTIVE_SIZING_SUMMARY_FIELDS = (
+    "allocator_decision",
+    "decision",
+    "source_tier",
+    "paper_opportunity_tier",
+    "paper_execution_tier",
+    "opportunity_tier",
+    "paper_opportunity_tier_reason",
+    "paper_fill_block_reason",
+    "paper_allocation_block_reason",
+    "strategy_router_selected_mode",
+    "strategy_router_block_reason",
+    "local_block_reasons",
+    "guardian_status",
+    "guardian_new_entries_allowed",
+    "allocator_microstructure_block_reason",
+    "microstructure_trust_status",
+    "selected_action",
+    "action",
+    "side",
+    "expected_move_bps",
+    "predicted_move_bps",
+    "expected_move_after_cost_bps",
+    "non_executable_paper_tier_blocked",
+    "rare_event_stress_status",
+    "allocation_published_at",
+    "generated_utc",
+    "generated_at",
+    "decision_time",
+    "entry_price_utc",
+    "places_real_order",
+    "live_order",
+    "routes_to_live",
+    "test_order",
+    "test_orders",
+    "leverage_mutation",
+    "margin_mode_mutation",
+    "transfer_or_withdrawal",
+    "paper_fill_allowed",
+    "strategy_supply_shadow_evidence_only",
+    "continuous_edge_guardian_forced_shadow_only",
+    "counterfactual_label_pending",
+    "counterfactual_label_matured",
+    "preemptive_decision",
+    "replay_snapshot_id",
+    "replay_snapshot_key",
+    "trainer_feedback_source",
+)
+
+
+def _paper_adaptive_sizing_operator_projection(
+    row: Mapping[str, Any],
+    *,
+    source_row_index: int,
+    source_row_canonical_sha256: str | None,
+) -> tuple[dict[str, Any], set[str]]:
+    projection: dict[str, Any] = {}
+    included_source_fields: set[str] = set()
+    truncated_fields: list[str] = []
+    for field in ADAPTIVE_SIZING_OPERATOR_PROJECTION_FIELDS:
+        if field not in row or row[field] in (None, ""):
+            continue
+        value = row[field]
+        if field in ADAPTIVE_SIZING_OPERATOR_LIST_FIELDS:
+            if not isinstance(value, (list, tuple)):
+                continue
+            bounded_values: list[Any] = []
+            for item in value[:ADAPTIVE_SIZING_OPERATOR_LIST_LIMIT]:
+                if isinstance(item, bool) or isinstance(item, int):
+                    bounded_values.append(item)
+                elif isinstance(item, float) and math.isfinite(item):
+                    bounded_values.append(item)
+                elif isinstance(item, str):
+                    bounded_values.append(item[:ADAPTIVE_SIZING_OPERATOR_LIST_TEXT_LIMIT])
+                    if len(item) > ADAPTIVE_SIZING_OPERATOR_LIST_TEXT_LIMIT:
+                        truncated_fields.append(field)
+            if len(value) > ADAPTIVE_SIZING_OPERATOR_LIST_LIMIT:
+                truncated_fields.append(field)
+            projection[field] = bounded_values
+            included_source_fields.add(field)
+            continue
+        if isinstance(value, bool) or isinstance(value, int):
+            projection[field] = value
+        elif isinstance(value, float) and math.isfinite(value):
+            projection[field] = value
+        elif isinstance(value, str):
+            projection[field] = value[:ADAPTIVE_SIZING_OPERATOR_TEXT_LIMIT]
+            if len(value) > ADAPTIVE_SIZING_OPERATOR_TEXT_LIMIT:
+                truncated_fields.append(field)
+        else:
+            continue
+        included_source_fields.add(field)
+
+    omitted_fields = set(row).difference(included_source_fields)
+    projection_derived_fields: list[str] = []
+    stress_suite = row.get("pre_entry_stress_tests")
+    if not isinstance(stress_suite, Mapping):
+        stress_suite = row.get("rare_event_stress_suite")
+    if isinstance(stress_suite, Mapping):
+        for scenario in RARE_EVENT_STRESS_SCENARIOS:
+            scenario_payload = stress_suite.get(scenario)
+            if isinstance(scenario_payload, Mapping):
+                scenario_value = _first_present(
+                    scenario_payload.get("required_buffer_bps"),
+                    scenario_payload.get("adverse_move_bps"),
+                    scenario_payload.get("shock_bps"),
+                    scenario_payload.get("stress_bps"),
+                    scenario_payload.get("bps"),
+                )
+            else:
+                scenario_value = scenario_payload
+            parsed_scenario_value = _coerce_float(scenario_value)
+            if parsed_scenario_value is None or not math.isfinite(parsed_scenario_value):
+                continue
+            field = f"{scenario}_bps"
+            projection[field] = abs(parsed_scenario_value)
+            projection_derived_fields.append(field)
+    projection.update(
+        {
+            "schema_version": "paper_adaptive_sizing_operator_projection_v1",
+            "source_row_index": source_row_index,
+            "source_row_canonical_sha256": source_row_canonical_sha256,
+            "source_row_hash_status": (
+                "BOUND_FULL_PUBLISHED_SOURCE_ROW"
+                if source_row_canonical_sha256 is not None
+                else "FULL_PUBLISHED_SOURCE_ROW_NOT_CANONICALLY_HASHABLE"
+            ),
+            "operator_projection_only": True,
+            "full_source_payload_omitted": True,
+            "source_allocation_row_mutated": False,
+            "omitted_source_field_count": len(omitted_fields),
+            "omitted_source_fields_sha256": _paper_canonical_sha256(
+                sorted(omitted_fields)
+            ),
+            "projection_value_truncated_fields": sorted(set(truncated_fields)),
+            "projection_derived_fields": projection_derived_fields,
+        }
+    )
+    return projection, omitted_fields
+
+
+def _paper_adaptive_sizing_summary_row(row: Mapping[str, Any]) -> dict[str, Any]:
+    summary = {field: row.get(field) for field in ADAPTIVE_SIZING_SUMMARY_FIELDS}
+    local_reasons = row.get("local_block_reasons")
+    summary["local_block_reasons"] = (
+        [value for value in local_reasons if isinstance(value, (str, int, float, bool))]
+        if isinstance(local_reasons, (list, tuple))
+        else []
+    )
+    return summary
+
+
+def _paper_candidate_zero_liquidation_contract_facts(
+    row: Mapping[str, Any],
+) -> dict[str, Any]:
+    tier = str(
+        _first_present(
+            row.get("paper_opportunity_tier"),
+            row.get("explicit_paper_opportunity_tier"),
+            row.get("candidate_selection_tier"),
+            row.get("admission_tier"),
+            row.get("candidate_tier"),
+        )
+        or ""
+    ).strip().upper()
+    applicable = tier == PAPER_TIER_A_GRADE_EXECUTION
+    if not applicable:
+        return {
+            "applicable_a_grade_candidate": False,
+            "passed": None,
+            "block_reasons": [],
+        }
+
+    suite = row.get("pre_entry_stress_tests")
+    if not isinstance(suite, Mapping):
+        suite = row.get("rare_event_stress_suite")
+    if not isinstance(suite, Mapping):
+        suite = {}
+    block_reasons: list[str] = []
+    scenario_values: list[float] = []
+    for scenario in RARE_EVENT_STRESS_SCENARIOS:
+        scenario_payload = suite.get(scenario)
+        if isinstance(scenario_payload, Mapping):
+            scenario_value = _first_present(
+                scenario_payload.get("required_buffer_bps"),
+                scenario_payload.get("adverse_move_bps"),
+                scenario_payload.get("shock_bps"),
+                scenario_payload.get("stress_bps"),
+                scenario_payload.get("bps"),
+            )
+        else:
+            scenario_value = _first_present(
+                scenario_payload,
+                row.get(f"{scenario}_bps"),
+                row.get(f"stress_{scenario}_bps"),
+                row.get(f"rare_event_{scenario}_bps"),
+                row.get(f"{scenario}_required_buffer_bps"),
+            )
+        parsed = _coerce_float(scenario_value)
+        if parsed is None or not math.isfinite(parsed):
+            block_reasons.append(f"MISSING_STRESS_SCENARIO_{scenario.upper()}")
+        else:
+            scenario_values.append(abs(parsed))
+
+    component_values: list[float] = []
+    for component in RARE_EVENT_BUFFER_COMPONENT_FIELDS:
+        parsed = _coerce_float(
+            _first_present(
+                suite.get(component),
+                row.get(component),
+                row.get(f"rare_event_{component}"),
+                row.get(f"stress_{component}"),
+            )
+        )
+        if parsed is None or not math.isfinite(parsed):
+            block_reasons.append(f"MISSING_BUFFER_COMPONENT_{component.upper()}")
+        else:
+            component_values.append(abs(parsed))
+
+    stress_status = str(
+        _first_present(
+            row.get("rare_event_stress_status"),
+            row.get("stress_test_status"),
+            suite.get("status"),
+        )
+        or ""
+    ).strip().upper()
+    if stress_status not in {
+        "COMPLETE_RARE_EVENT_STRESS_SUITE",
+        "PASSED_ZERO_LIQUIDATION_RARE_EVENT_STRESS_SUITE",
+        "PASSED_RARE_EVENT_STRESS_SUITE",
+    }:
+        block_reasons.append("RARE_EVENT_STRESS_STATUS_NOT_COMPLETE")
+
+    liquidation_buffer_bps = _coerce_float(row.get("liquidation_buffer_bps"))
+    if (
+        liquidation_buffer_bps is None
+        or not math.isfinite(liquidation_buffer_bps)
+        or liquidation_buffer_bps <= 0.0
+    ):
+        block_reasons.append("MISSING_POSITIVE_LIQUIDATION_BUFFER_BPS")
+    required_buffer_bps = None
+    if (
+        len(scenario_values) == len(RARE_EVENT_STRESS_SCENARIOS)
+        and len(component_values) == len(RARE_EVENT_BUFFER_COMPONENT_FIELDS)
+    ):
+        required_buffer_bps = max(scenario_values) + sum(component_values)
+        if (
+            liquidation_buffer_bps is not None
+            and liquidation_buffer_bps < required_buffer_bps
+        ):
+            block_reasons.append("LIQUIDATION_BUFFER_BELOW_RARE_EVENT_REQUIREMENT")
+
+    if bool(row.get("martingale") or row.get("martingale_enabled")):
+        block_reasons.append("MARTINGALE_NOT_ALLOWED")
+    if bool(row.get("unlimited_grid") or row.get("grid_unbounded")):
+        block_reasons.append("UNLIMITED_GRID_NOT_ALLOWED")
+    if "HEDGELOCK" in str(
+        _first_present(
+            row.get("hedge_intent"),
+            row.get("hedge_state"),
+            row.get("strategy"),
+        )
+        or ""
+    ).upper():
+        block_reasons.append("UNBOUNDED_HEDGELOCK_NOT_ALLOWED")
+    if row.get("cross_margin_used_to_delay_liquidation") is True:
+        block_reasons.append("CROSS_MARGIN_USED_TO_DELAY_LIQUIDATION_NOT_ALLOWED")
+    block_reasons = sorted(set(block_reasons))
+    return {
+        "applicable_a_grade_candidate": True,
+        "passed": not block_reasons,
+        "block_reasons": block_reasons,
+        "scenario_count": len(scenario_values),
+        "buffer_component_count": len(component_values),
+        "liquidation_buffer_bps": liquidation_buffer_bps,
+        "required_liquidation_buffer_bps": (
+            round(required_buffer_bps, 8) if required_buffer_bps is not None else None
+        ),
+    }
+
+
+PAPER_HEDGE_CONTRACT_FIELD_ALIASES = {
+    "hedge_parent_id": ("hedge_parent_id",),
+    "hedge_child_id": ("hedge_child_id",),
+    "hedge_intent": ("hedge_intent",),
+    "hedge_ratio": ("hedge_ratio",),
+    "hedge_budget": ("hedge_budget", "hedge_budget_usd"),
+    "expected_shortfall_before": (
+        "expected_shortfall_before",
+        "expected_shortfall_before_usd",
+    ),
+    "expected_shortfall_after": (
+        "expected_shortfall_after",
+        "expected_shortfall_after_usd",
+    ),
+    "maximum_duration": (
+        "maximum_duration",
+        "maximum_duration_seconds",
+        "hedge_maximum_duration_seconds",
+    ),
+    "unwind_plan": ("unwind_plan", "hedge_unwind_plan"),
+}
+
+
+def _paper_candidate_hedge_contract_value(
+    row: Mapping[str, Any],
+    field: str,
+) -> Any:
+    return _first_present(
+        *(row.get(alias) for alias in PAPER_HEDGE_CONTRACT_FIELD_ALIASES[field])
+    )
+
+
+def _paper_candidate_hedge_contract_facts(
+    row: Mapping[str, Any],
+) -> dict[str, Any]:
+    hedge_budget = _coerce_float(
+        _paper_candidate_hedge_contract_value(row, "hedge_budget")
+    )
+    active = bool(
+        row.get("hedge_enabled") is True
+        or (hedge_budget is not None and hedge_budget > 0.0)
+        or any(
+            _paper_candidate_hedge_contract_value(row, field) not in (None, "")
+            for field in (
+                "hedge_parent_id",
+                "hedge_child_id",
+                "hedge_intent",
+                "hedge_ratio",
+            )
+        )
+    )
+    if not active:
+        return {
+            "active_hedge_candidate": False,
+            "passed": None,
+            "block_reasons": [],
+            "hedge_enabled": row.get("hedge_enabled") is True,
+            "positive_hedge_budget": bool(
+                hedge_budget is not None and hedge_budget > 0.0
+            ),
+        }
+
+    block_reasons: list[str] = []
+    for field in PAPER_HEDGE_CONTRACT_FIELD_ALIASES:
+        if _paper_candidate_hedge_contract_value(row, field) in (None, ""):
+            block_reasons.append(f"MISSING_{field.upper()}")
+
+    expected_shortfall_before = _coerce_float(
+        _paper_candidate_hedge_contract_value(row, "expected_shortfall_before")
+    )
+    expected_shortfall_after = _coerce_float(
+        _paper_candidate_hedge_contract_value(row, "expected_shortfall_after")
+    )
+    explicit_cost = _coerce_float(row.get("hedge_cost_usd"))
+    if explicit_cost is not None:
+        hedge_cost = abs(explicit_cost)
+    else:
+        hedge_cost = sum(
+            abs(value)
+            for field in (
+                "hedge_fees_usd",
+                "hedge_spread_usd",
+                "hedge_slippage_usd",
+                "hedge_funding_usd",
+                "hedge_basis_risk_usd",
+                "hedge_model_uncertainty_usd",
+                "expected_fees_usd",
+                "expected_slippage_usd",
+                "expected_funding_usd",
+            )
+            if (value := _coerce_float(row.get(field))) is not None
+        )
+    shortfall_reduction = None
+    if expected_shortfall_before is not None and expected_shortfall_after is not None:
+        shortfall_reduction = expected_shortfall_before - expected_shortfall_after
+        if shortfall_reduction <= hedge_cost:
+            block_reasons.append("EXPECTED_SHORTFALL_REDUCTION_NOT_GREATER_THAN_COSTS")
+    else:
+        block_reasons.append("EXPECTED_SHORTFALL_REDUCTION_UNVERIFIED")
+
+    maximum_duration = _paper_candidate_hedge_contract_value(
+        row,
+        "maximum_duration",
+    )
+    unwind_plan = _paper_candidate_hedge_contract_value(row, "unwind_plan")
+    if maximum_duration in (None, "") or unwind_plan in (None, ""):
+        block_reasons.append("HEDGE_EXIT_PLAN_NOT_BOUNDED")
+    if "HEDGELOCK" in str(
+        _first_present(
+            row.get("hedge_intent"),
+            row.get("strategy"),
+            row.get("strategy_id"),
+        )
+        or ""
+    ).upper():
+        block_reasons.append("INDEFINITE_HEDGELOCK_NOT_ALLOWED")
+    block_reasons = sorted(set(block_reasons))
+    return {
+        "active_hedge_candidate": True,
+        "passed": not block_reasons,
+        "block_reasons": block_reasons,
+        "hedge_enabled": row.get("hedge_enabled") is True,
+        "positive_hedge_budget": bool(
+            hedge_budget is not None and hedge_budget > 0.0
+        ),
+        "expected_shortfall_reduction_usd": shortfall_reduction,
+        "hedge_cost_usd": hedge_cost,
+    }
+
+
+def _paper_candidate_capital_contract_facts(
+    row: Mapping[str, Any],
+) -> dict[str, Any]:
+    tier = str(row.get("paper_opportunity_tier") or "UNKNOWN")
+    allocator_decision = str(row.get("allocator_decision") or "UNKNOWN")
+    original_decision = str(
+        row.get("original_allocator_decision_before_paper_tier_block") or "UNKNOWN"
+    )
+    text = " ".join(
+        str(value or "")
+        for value in (
+            row.get("allocator_decision"),
+            row.get("original_allocator_decision_before_paper_tier_block"),
+            row.get("allocator_reason"),
+            row.get("paper_opportunity_tier"),
+            row.get("paper_opportunity_tier_reason"),
+            row.get("risk_veto_reason_if_blocked"),
+            row.get("final_size_reason"),
+        )
+    ).upper()
+    no_edge = "NO_EDGE" in text or "NON_POSITIVE_DECISION_TIME_EXPECTED_EDGE" in text
+    below_grade = (
+        "LOW_CONFIDENCE" in text
+        or "NON_EXECUTABLE_PAPER_TIER" in text
+        or "NO_TRADE" in text
+        or "BELOW_GRADE" in text
+    )
+    risk_constrained = any(
+        token in text
+        for token in (
+            "SPREAD",
+            "SLIPPAGE",
+            "RISK",
+            "LIQUIDATION",
+            "DRAWDOWN",
+            "CONCENTRATION",
+            "CORRELATION",
+        )
+    )
+    classification = (
+        "no_edge"
+        if no_edge
+        else "risk_constrained"
+        if risk_constrained
+        else "below_grade"
+        if below_grade
+        else "unclassified"
+    )
+    allocated_margin = _coerce_float(row.get("allocated_margin_usd")) or 0.0
+    gross_notional = _coerce_float(row.get("gross_notional_usd")) or 0.0
+    a_grade = tier == PAPER_TIER_A_GRADE_EXECUTION
+    allowed = allocator_decision.startswith("ALLOW")
+    original_allowed = str(
+        _first_present(
+            row.get("original_allocator_decision_before_paper_tier_block"),
+            row.get("allocator_decision"),
+        )
+        or ""
+    ).startswith("ALLOW")
+    return {
+        "allocator_decision": allocator_decision,
+        "original_allocator_decision": original_decision,
+        "paper_opportunity_tier": tier,
+        "recommended_leverage": str(
+            row.get("recommended_leverage")
+            if row.get("recommended_leverage") not in (None, "")
+            else "UNKNOWN"
+        ),
+        "recommended_margin_mode": str(
+            row.get("recommended_margin_mode")
+            if row.get("recommended_margin_mode") not in (None, "")
+            else "UNKNOWN"
+        ),
+        "classification": classification,
+        "allowed_before_non_executable_tier_block": bool(
+            "ALLOW_WITH_SIZE" in text and "NON_EXECUTABLE_PAPER_TIER" in text
+        ),
+        "a_grade_candidate": a_grade,
+        "accepted_a_grade_candidate": bool(
+            a_grade and allowed and allocated_margin > 0.0
+        ),
+        "underfunded_a_grade_candidate": bool(
+            a_grade
+            and original_allowed
+            and (allocated_margin <= 0.0 or gross_notional <= 0.0)
+        ),
+        "numeric_sums": {
+            field: _coerce_float(row.get(field)) or 0.0
+            for field in (
+                "allocated_margin_usd",
+                "gross_notional_usd",
+                "risk_budget_usd",
+                "hedge_budget_usd",
+                "expected_net_pnl_usd",
+                "expected_shortfall_usd",
+            )
+        },
+        "account_context": {
+            field: _coerce_float(row.get(field))
+            for field in (
+                "equity",
+                "wallet_balance",
+                "available_margin",
+                "available_margin_usd",
+                "available_equity_usd",
+                "total_exposure_usdt",
+                "total_exposure_usd",
+            )
+        },
+    }
+
+
+def _paper_candidate_canonical_aggregate_contract(
+    *,
+    source_hashes: list[str | None],
+    contract_facts: list[dict[str, Any]],
+) -> dict[str, Any]:
+    fact_hashes = [
+        _paper_canonical_sha256(
+            {
+                "source_row_index": index,
+                "source_row_canonical_sha256": source_hashes[index],
+                "contract_facts": facts,
+            }
+        )
+        for index, facts in enumerate(contract_facts)
+    ]
+    zero_blockers: Counter[str] = Counter()
+    zero_count = 0
+    zero_passed = 0
+    hedge_blockers: Counter[str] = Counter()
+    hedge_active = 0
+    hedge_passed = 0
+    hedge_enabled = 0
+    positive_hedge_budget = 0
+    capital_counts: dict[str, Counter[str]] = {
+        "allocator_decision_counts": Counter(),
+        "original_allocator_decision_counts": Counter(),
+        "paper_opportunity_tier_counts": Counter(),
+        "recommended_leverage_counts": Counter(),
+        "recommended_margin_mode_counts": Counter(),
+        "classification_counts": Counter(),
+    }
+    capital_sums: Counter[str] = Counter()
+    capital_boolean_counts: Counter[str] = Counter()
+    account_context: dict[str, float | None] = {}
+    for facts in contract_facts:
+        zero = facts["zero_liquidation"]
+        if zero["applicable_a_grade_candidate"] is True:
+            zero_count += 1
+            if zero["passed"] is True:
+                zero_passed += 1
+            zero_blockers.update(zero["block_reasons"])
+        hedge = facts["hedge"]
+        hedge_enabled += int(hedge["hedge_enabled"] is True)
+        positive_hedge_budget += int(hedge["positive_hedge_budget"] is True)
+        if hedge["active_hedge_candidate"] is True:
+            hedge_active += 1
+            if hedge["passed"] is True:
+                hedge_passed += 1
+            hedge_blockers.update(hedge["block_reasons"])
+        capital = facts["capital"]
+        for counter_name, field in (
+            ("allocator_decision_counts", "allocator_decision"),
+            ("original_allocator_decision_counts", "original_allocator_decision"),
+            ("paper_opportunity_tier_counts", "paper_opportunity_tier"),
+            ("recommended_leverage_counts", "recommended_leverage"),
+            ("recommended_margin_mode_counts", "recommended_margin_mode"),
+            ("classification_counts", "classification"),
+        ):
+            capital_counts[counter_name][str(capital[field])] += 1
+        for field, value in capital["numeric_sums"].items():
+            capital_sums[field] += float(value)
+        for field in (
+            "allowed_before_non_executable_tier_block",
+            "a_grade_candidate",
+            "accepted_a_grade_candidate",
+            "underfunded_a_grade_candidate",
+        ):
+            capital_boolean_counts[field] += int(capital[field] is True)
+        for field, value in capital["account_context"].items():
+            if field not in account_context and value is not None:
+                account_context[field] = value
+
+    material = {
+        "schema_version": "paper_candidate_canonical_aggregate_contract_v1",
+        "producer": "v2_trade_management_paper_loop",
+        "paper_only": True,
+        "contract_hash_algorithm": "sha256(canonical-json-v1)",
+        "operator_projection_is_canonical_evidence": False,
+        "source_row_count": len(source_hashes),
+        "source_rows_all_hashable": all(
+            _paper_valid_sha256(source_hash) for source_hash in source_hashes
+        ),
+        "source_rows_aggregate_sha256": _paper_canonical_sha256(source_hashes),
+        "contract_evaluated_row_count": len(contract_facts),
+        "contract_fact_hashes": fact_hashes,
+        "contract_fact_hashes_all_hashable": all(
+            _paper_valid_sha256(fact_hash) for fact_hash in fact_hashes
+        ),
+        "contract_fact_hashes_aggregate_sha256": _paper_canonical_sha256(fact_hashes),
+        "zero_liquidation": {
+            "a_grade_candidate_count": zero_count,
+            "passed_a_grade_candidate_count": zero_passed,
+            "failed_a_grade_candidate_count": zero_count - zero_passed,
+            "all_a_grade_candidates_pass": bool(
+                zero_count > 0 and zero_passed == zero_count
+            ),
+            "blocker_counts": dict(sorted(zero_blockers.items())),
+        },
+        "hedge": {
+            "active_hedge_candidate_count": hedge_active,
+            "passed_active_hedge_candidate_count": hedge_passed,
+            "failed_active_hedge_candidate_count": hedge_active - hedge_passed,
+            "all_active_hedge_candidates_pass": hedge_passed == hedge_active,
+            "hedge_enabled_candidate_count": hedge_enabled,
+            "positive_hedge_budget_candidate_count": positive_hedge_budget,
+            "blocker_counts": dict(sorted(hedge_blockers.items())),
+        },
+        "capital": {
+            "candidate_count": len(contract_facts),
+            **{
+                name: dict(sorted(counter.items()))
+                for name, counter in capital_counts.items()
+            },
+            "a_grade_candidate_count": capital_boolean_counts["a_grade_candidate"],
+            "accepted_a_grade_candidate_count": capital_boolean_counts[
+                "accepted_a_grade_candidate"
+            ],
+            "underfunded_a_grade_candidate_count": capital_boolean_counts[
+                "underfunded_a_grade_candidate"
+            ],
+            "allowed_before_non_executable_tier_block_count": capital_boolean_counts[
+                "allowed_before_non_executable_tier_block"
+            ],
+            "numeric_sums": {
+                field: round(value, 12)
+                for field, value in sorted(capital_sums.items())
+            },
+            "account_context": account_context,
+        },
+    }
+    return {
+        **material,
+        "contract_hash": _paper_canonical_sha256(material),
+    }
+
+
 def _paper_adaptive_sizing_runtime_status(
     allocation_rows: list[dict[str, Any]],
+    *,
+    generated_utc: str | None = None,
+    paper_cycle_id: str | None = None,
 ) -> dict[str, Any]:
-    published_rows = [
-        _paper_candidate_allocation_publication_row(row)
-        for row in allocation_rows
-        if isinstance(row, dict)
-    ]
+    if type(allocation_rows) is not list:
+        raise ValueError("PAPER_ADAPTIVE_SIZING_SOURCE_ROWS_NOT_LIST")
+    cycle_generated_utc = generated_utc or _utc_iso()
+    published_rows: list[dict[str, Any]] = []
+    operator_rows: list[dict[str, Any]] = []
+    source_hash_entries: list[dict[str, Any]] = []
+    source_hashes: list[str | None] = []
+    contract_facts: list[dict[str, Any]] = []
+    omitted_fields: set[str] = set()
+    for source_row in allocation_rows:
+        if type(source_row) is not dict:
+            raise ValueError("PAPER_ADAPTIVE_SIZING_SOURCE_ROW_INVALID")
+        published = _paper_candidate_allocation_publication_row(source_row)
+        source_row_index = len(published_rows)
+        source_hash = _paper_canonical_sha256(published)
+        source_hashes.append(source_hash)
+        source_hash_entries.append(
+            {
+                "source_row_index": source_row_index,
+                "source_row_canonical_sha256": source_hash,
+            }
+        )
+        contract_facts.append(
+            {
+                "zero_liquidation": (
+                    _paper_candidate_zero_liquidation_contract_facts(published)
+                ),
+                "hedge": _paper_candidate_hedge_contract_facts(published),
+                "capital": _paper_candidate_capital_contract_facts(published),
+            }
+        )
+        projection, row_omitted_fields = _paper_adaptive_sizing_operator_projection(
+            published,
+            source_row_index=source_row_index,
+            source_row_canonical_sha256=source_hash,
+        )
+        omitted_fields.update(row_omitted_fields)
+        if len(operator_rows) < ADAPTIVE_SIZING_OPERATOR_PROJECTION_LIMIT:
+            operator_rows.append(projection)
+        published_rows.append(_paper_adaptive_sizing_summary_row(published))
     accepted_count = sum(
         1
         for row in published_rows
@@ -14737,10 +15737,61 @@ def _paper_adaptive_sizing_runtime_status(
         "fixed_runtime_notional_removed": True,
         "paper_candidates_with_allocation": len(published_rows),
         "candidate_allocation_count": len(published_rows),
-        "candidate_allocations": published_rows,
-        "candidate_allocations_complete": True,
+        "candidate_allocations": operator_rows,
+        "candidate_allocations_complete": False,
+        "candidate_allocations_projection_only": True,
+        "candidate_allocations_projection_count": len(operator_rows),
+        "candidate_allocations_projection_limit": (
+            ADAPTIVE_SIZING_OPERATOR_PROJECTION_LIMIT
+        ),
+        "candidate_allocations_full_payload_omitted": True,
+        "candidate_allocations_authoritative_sources_unchanged": True,
+        "candidate_allocations_source_row_count": len(published_rows),
+        "candidate_allocations_source_hashes": source_hash_entries,
+        "candidate_allocations_all_source_rows_hashable": all(
+            source_hash is not None for source_hash in source_hashes
+        ),
+        "candidate_allocations_unhashable_source_row_count": sum(
+            source_hash is None for source_hash in source_hashes
+        ),
+        "candidate_allocations_aggregate_sha256": _paper_canonical_sha256(
+            source_hashes
+        ),
+        "candidate_allocations_hash_contract": {
+            "schema_version": "paper_candidate_allocation_operator_hash_contract_v1",
+            "row_hash_algorithm": "sha256",
+            "row_canonicalization": (
+                "json.dumps(sort_keys=True,separators=(',',':'),default=str,allow_nan=False)"
+            ),
+            "source_row_definition": (
+                "full_paper_candidate_allocation_publication_row_before_operator_projection"
+            ),
+            "source_row_order": "paper_loop_allocation_rows_source_order",
+            "aggregate_material": (
+                "canonical_json_ordered_array_of_source_row_canonical_sha256_values"
+            ),
+            "aggregate_hash_algorithm": "sha256",
+            "projection_binding_field": "source_row_canonical_sha256",
+            "mutation_detection": (
+                "recompute_source_row_hash_and_ordered_aggregate; any source mutation "
+                "changes its row hash and aggregate"
+            ),
+        },
+        "candidate_allocations_canonical_aggregate_contract": (
+            _paper_candidate_canonical_aggregate_contract(
+                source_hashes=source_hashes,
+                contract_facts=contract_facts,
+            )
+        ),
+        "candidate_allocations_operator_allowlisted_fields": list(
+            ADAPTIVE_SIZING_OPERATOR_PROJECTION_FIELDS
+        ),
+        "candidate_allocations_omitted_fields": sorted(omitted_fields),
+        "candidate_allocations_omitted_fields_sha256": _paper_canonical_sha256(
+            sorted(omitted_fields)
+        ),
         "candidate_allocations_source": (
-            "paper_loop_allocation_rows_before_sample_truncation"
+            "paper_loop_allocation_rows_hash_bound_operator_projection_only"
         ),
         "candidate_allocations_selected_before_outcome": True,
         "candidate_allocations_future_labels_used_as_features": False,
@@ -14838,8 +15889,14 @@ def _paper_adaptive_sizing_runtime_status(
             if row.get("rare_event_stress_status") == "PARTIAL_RARE_EVENT_STRESS_SUITE"
         ),
         "paper_evidence_lanes": _paper_evidence_lanes_status(published_rows),
-        "sample_allocations": published_rows[:25],
-        "generated_utc": _utc_iso(),
+        "sample_allocations": operator_rows,
+        "sample_allocations_projection_only": True,
+        "sample_allocations_projection_count": len(operator_rows),
+        "sample_allocations_projection_limit": (
+            ADAPTIVE_SIZING_OPERATOR_PROJECTION_LIMIT
+        ),
+        "generated_utc": cycle_generated_utc,
+        "paper_cycle_id": paper_cycle_id,
         "paper_only": True,
         "places_real_order": False,
         "test_orders": False,
@@ -24953,22 +26010,75 @@ def _read_portfolio_state(r) -> dict[str, Any]:
     return payload if isinstance(payload, dict) else {}
 
 
-def _portfolio_equity_context(r) -> dict[str, float]:
+def _portfolio_equity_context(
+    r,
+    *,
+    existing_ledger: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
     portfolio = _read_portfolio_state(r)
-    equity = _coerce_float(_first_present(portfolio.get("equity"), portfolio.get("current_session_equity")))
+    equity = _coerce_float(
+        _first_present(portfolio.get("equity"), portfolio.get("current_session_equity"))
+    )
     cash = _coerce_float(portfolio.get("cash_balance"))
-    wallet = _coerce_float(_first_present(portfolio.get("wallet_balance"), portfolio.get("initial_capital"), equity))
-    if equity is None or equity <= 0:
+    wallet = _coerce_float(
+        _first_present(
+            portfolio.get("wallet_balance"),
+            cash,
+            portfolio.get("initial_capital"),
+            equity,
+        )
+    )
+    # A reported zero/negative balance is account truth, not missing data.
+    # Fallback is permitted only when a field is absent or non-numeric.
+    if equity is None:
         equity = _coerce_float(portfolio.get("initial_capital")) or 0.0
-    if cash is None or cash <= 0:
+    if cash is None:
         cash = equity
-    if wallet is None or wallet <= 0:
+    if wallet is None:
         wallet = equity
+    ledger = existing_ledger if isinstance(existing_ledger, Mapping) else {}
+    open_positions_value = ledger.get("open_positions")
+    if not isinstance(open_positions_value, list):
+        open_positions_value = ledger.get("positions")
+    if not isinstance(open_positions_value, list):
+        positions_by_symbol = ledger.get("positions_by_symbol")
+        open_positions_value = (
+            list(positions_by_symbol.values())
+            if isinstance(positions_by_symbol, Mapping)
+            else []
+        )
+    # Preserve malformed members so canonical accounting can fail closed.
+    open_positions = list(open_positions_value)
+    margin_status = build_paper_margin_status(
+        equity=equity,
+        wallet_balance=wallet,
+        open_positions=open_positions,
+    )
+    available_margin = (
+        float(margin_status["free_margin_usd"])
+        if margin_status["accounting_complete"] is True
+        else 0.0
+    )
     return {
         "equity": float(equity or 0.0),
-        "available_margin": float(cash or 0.0),
+        "available_margin": available_margin,
+        "free_margin_usd": available_margin,
+        "used_margin_usd": float(margin_status["used_margin_usd"]),
         "wallet_balance": float(wallet or 0.0),
         "drawdown_bps": abs(_coerce_float(portfolio.get("current_drawdown_bps")) or 0.0),
+        "paper_account_margin_status": margin_status,
+        "paper_ledger_open_position_count": len(open_positions),
+        "portfolio_state_present": bool(portfolio),
+        "portfolio_state_event_time": portfolio.get("event_time"),
+        "portfolio_state_generated_at": _first_present(
+            portfolio.get("generated_at"),
+            portfolio.get("generated_utc"),
+        ),
+        "portfolio_state_available_at": _first_present(
+            portfolio.get("available_at"),
+            portfolio.get("source_available_at"),
+        ),
+        "portfolio_context_observed_at": _utc_iso(),
     }
 
 
@@ -28690,6 +29800,11 @@ def run_once() -> dict:
         paper_session_state.get("paper_session_id")
         or paper_session_state.get("reset_session_id")
     )
+    paper_cycle_id = _paper_cycle_id(
+        generated_utc=started,
+        paper_session_id=paper_session_id,
+        writer_identity=_paper_runtime_owner_identity(),
+    )
     paper_starting_equity_usd = _coerce_float(
         paper_session_state.get("starting_equity_usd")
         or paper_session_state.get("initial_capital")
@@ -28781,7 +29896,10 @@ def run_once() -> dict:
     )
     dlog("after_trainer_status")
     dlog("before_portfolio")
-    portfolio_context = _portfolio_equity_context(r)
+    portfolio_context = _portfolio_equity_context(
+        r,
+        existing_ledger=existing_ledger,
+    )
     portfolio_context["exit_overshoot_premium_bps"] = _paper_exit_overshoot_premium_bps(
         r, existing_ledger
     )
@@ -31976,6 +33094,61 @@ def run_once() -> dict:
     )
     if post_backfill_churn_blocked:
         blocked.extend(post_backfill_churn_blocked)
+
+    # Every candidate was sized against the same pre-cycle snapshot. Reserve
+    # them cumulatively before lifecycle reconciliation so jointly unaffordable
+    # candidates cannot overbook account margin.
+    _existing_open_positions_for_margin = existing_ledger.get("open_positions")
+    if not isinstance(_existing_open_positions_for_margin, list):
+        _existing_open_positions_for_margin = existing_ledger.get("positions")
+    if not isinstance(_existing_open_positions_for_margin, list):
+        _existing_positions_by_symbol = existing_ledger.get("positions_by_symbol")
+        _existing_open_positions_for_margin = (
+            list(_existing_positions_by_symbol.values())
+            if isinstance(_existing_positions_by_symbol, Mapping)
+            else []
+        )
+    _pre_reservation_current_ids = {
+        _accepted_fill_identity(row) for row in accepted
+    }
+    (
+        accepted,
+        paper_margin_reservation_blocked,
+        paper_margin_reservation_status,
+    ) = reserve_paper_candidate_margin(
+        accepted,
+        equity=portfolio_context["equity"],
+        wallet_balance=portfolio_context["wallet_balance"],
+        existing_open_positions=list(_existing_open_positions_for_margin),
+        min_available_margin_buffer_pct=(
+            dynamic_paper_envelope.min_available_margin_buffer_pct
+        ),
+        preferred_symbols=PAPER_PREFERRED_MAJOR_SYMBOLS,
+    )
+    paper_margin_reservation_status.update(
+        {
+            "generated_utc": started,
+            "paper_cycle_id": paper_cycle_id,
+            "cross_process_atomic": False,
+            "single_active_writer_required": True,
+        }
+    )
+    if paper_margin_reservation_blocked:
+        blocked.extend(paper_margin_reservation_blocked)
+    _reserved_current_by_id = {
+        _accepted_fill_identity(row): row for row in accepted
+    }
+    accepted_for_ledger = [
+        _reserved_current_by_id[row_id]
+        if row_id in _reserved_current_by_id
+        else row
+        for row in accepted_for_ledger
+        if (
+            (row_id := _accepted_fill_identity(row))
+            not in _pre_reservation_current_ids
+            or row_id in _reserved_current_by_id
+        )
+    ]
     mark_prices: dict[str, dict[str, Any]] = {}
     for symbol in sorted({str(row.get("symbol") or "").upper() for row in accepted_for_ledger if row.get("symbol")}):
         px, px_source, px_source_utc = _read_v2_market_price(r, symbol)
@@ -33045,6 +34218,8 @@ def run_once() -> dict:
     }
     paper_adaptive_sizing_runtime_status = _paper_adaptive_sizing_runtime_status(
         allocation_rows,
+        generated_utc=started,
+        paper_cycle_id=paper_cycle_id,
     )
     risk_envelope_dynamic_budget_status = {
         "operator_envelope_type": "PERCENTAGE_BASED_RISK_ENVELOPE",
@@ -33175,6 +34350,51 @@ def run_once() -> dict:
     )
     _sync_lifecycle_open_position_views(lifecycle_result, open_positions)
     lifecycle_result["accepted_open_fills"] = valid_accepted_for_ledger
+    paper_account_margin_status = build_paper_margin_status(
+        equity=portfolio_context["equity"],
+        wallet_balance=portfolio_context["wallet_balance"],
+        open_positions=open_positions,
+        min_available_margin_buffer_pct=(
+            dynamic_paper_envelope.min_available_margin_buffer_pct
+        ),
+        newly_reserved_margin_usd=paper_margin_reservation_status.get(
+            "newly_reserved_margin_usd",
+            0.0,
+        ),
+        reservations_included_in_open_positions=True,
+    )
+    paper_account_margin_status.update(
+        {
+            "generated_utc": started,
+            "paper_cycle_id": paper_cycle_id,
+            "cycle_reserved_candidate_count": paper_margin_reservation_status.get(
+                "reserved_candidate_count",
+                0,
+            ),
+            "cycle_margin_blocked_candidate_count": (
+                paper_margin_reservation_status.get("blocked_candidate_count", 0)
+            ),
+            "pre_lifecycle_reservation_invariant_holds": (
+                paper_margin_reservation_status.get("invariant_holds") is True
+            ),
+            "source": "POST_LIFECYCLE_CANONICAL_OPEN_POSITIONS",
+        }
+    )
+    lifecycle_result["paper_account_margin_status"] = paper_account_margin_status
+    lifecycle_result["paper_margin_reservation_status"] = paper_margin_reservation_status
+    risk_envelope_dynamic_budget_status.update(
+        {
+            "post_lifecycle_used_margin_usd": paper_account_margin_status[
+                "used_margin_usd"
+            ],
+            "post_lifecycle_free_margin_usd": paper_account_margin_status[
+                "free_margin_usd"
+            ],
+            "post_lifecycle_margin_invariant_holds": paper_account_margin_status[
+                "invariant_holds"
+            ],
+        }
+    )
     persistent_materialized_queue_position_ids = (
         _paper_exploration_materialized_queue_ids_from_rows(
             valid_open_positions_for_materialization
@@ -34238,6 +35458,8 @@ def run_once() -> dict:
             "paper_hedge_netting_status": lifecycle_result["paper_hedge_netting_status"],
             "paper_exit_coordinator_status": lifecycle_result["paper_exit_coordinator_status"],
             "paper_stop_takeprofit_trailing_status": lifecycle_result["paper_stop_takeprofit_trailing_status"],
+            "paper_account_margin_status": paper_account_margin_status,
+            "paper_margin_reservation_status": paper_margin_reservation_status,
             "paper_closed_trade_outcome_label_status": paper_closed_trade_outcome_label_status,
             "paper_directional_collapse_guard_status": directional_collapse_guard_status,
             "paper_strategy_mode_collapse_guard_status": strategy_mode_collapse_guard_status,
@@ -34441,6 +35663,18 @@ def run_once() -> dict:
             ex=PAPER_TRAINING_EVIDENCE_TTL_SECONDS,
         ):
             keys_written.append(f"{V2_REDIS_PREFIX}paper:ledger")
+        if _safe_write_paper_cycle_control_bundle(
+            r,
+            adaptive_sizing_runtime_status=paper_adaptive_sizing_runtime_status,
+            account_margin_status=paper_account_margin_status,
+            ex=PAPER_RUNTIME_HEARTBEAT_TTL_SECONDS,
+        ):
+            keys_written.extend(
+                [
+                    PAPER_ADAPTIVE_SIZING_RUNTIME_STATUS_REDIS_KEY,
+                    PAPER_ACCOUNT_MARGIN_STATUS_REDIS_KEY,
+                ]
+            )
         if _safe_write(
             r,
             f"{V2_REDIS_PREFIX}paper:outcome_labels",
@@ -34525,6 +35759,8 @@ def run_once() -> dict:
                 "paper_hedge_netting_status": lifecycle_result["paper_hedge_netting_status"],
                 "paper_exit_coordinator_status": lifecycle_result["paper_exit_coordinator_status"],
                 "paper_stop_takeprofit_trailing_status": lifecycle_result["paper_stop_takeprofit_trailing_status"],
+                "paper_account_margin_status": paper_account_margin_status,
+                "paper_margin_reservation_status": paper_margin_reservation_status,
                 "paper_closed_trade_outcome_label_status": paper_closed_trade_outcome_label_status,
                 "paper_directional_collapse_guard_status": directional_collapse_guard_status,
                 "paper_strategy_mode_collapse_guard_status": strategy_mode_collapse_guard_status,
@@ -34628,13 +35864,6 @@ def run_once() -> dict:
             ex=PAPER_RUNTIME_HEARTBEAT_TTL_SECONDS,
         ):
             keys_written.append(f"{V2_REDIS_PREFIX}paper:trade_management:status")
-        if _safe_write(
-            r,
-            PAPER_ADAPTIVE_SIZING_RUNTIME_STATUS_REDIS_KEY,
-            json.dumps(paper_adaptive_sizing_runtime_status),
-            ex=PAPER_RUNTIME_HEARTBEAT_TTL_SECONDS,
-        ):
-            keys_written.append(PAPER_ADAPTIVE_SIZING_RUNTIME_STATUS_REDIS_KEY)
         if _safe_write(
             r,
             f"{V2_REDIS_PREFIX}paper:active_runtime_owner_status",
@@ -34997,6 +36226,8 @@ def run_once() -> dict:
         "paper_hedge_netting_status": lifecycle_result["paper_hedge_netting_status"],
         "paper_exit_coordinator_status": lifecycle_result["paper_exit_coordinator_status"],
         "paper_stop_takeprofit_trailing_status": lifecycle_result["paper_stop_takeprofit_trailing_status"],
+        "paper_account_margin_status": paper_account_margin_status,
+        "paper_margin_reservation_status": paper_margin_reservation_status,
         "paper_closed_trade_outcome_label_status": paper_closed_trade_outcome_label_status,
         "paper_directional_collapse_guard_status": directional_collapse_guard_status,
         "paper_strategy_mode_collapse_guard_status": strategy_mode_collapse_guard_status,

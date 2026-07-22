@@ -417,6 +417,10 @@ def test_builds_four_exact_receipts_without_downstream_authority(
         "trainer_admission_authorized": False,
     }
     assert contract["optional_provider_dependencies"] == []
+    provenance = contract["notional_source"]["policy_provenance"]
+    assert provenance["source_receipt_supplied"] is False
+    assert provenance["factory_token_revalidated"] is False
+    assert provenance["strict_publisher_eligible"] is False
 
 
 def test_rejects_caller_spread_and_impact_scalar_substitution(

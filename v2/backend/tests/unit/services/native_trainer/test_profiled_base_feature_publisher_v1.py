@@ -40,17 +40,23 @@ from v2.backend.app.services.native_trainer.canonical_ohlcv_multitimeframe_captu
     CanonicalOhlcvMultitimeframeCaptureSetV1Error,
     build_canonical_ohlcv_multitimeframe_capture_set_v1,
 )
+from v2.backend.app.services.native_trainer.causal_adaptive_cold_start_notional_policy_v1 import (
+    CAUSAL_ADAPTIVE_COLD_START_NOTIONAL_POLICY_ID,
+    CAUSAL_ADAPTIVE_COLD_START_NOTIONAL_PORTFOLIO_SOURCE_KEY,
+    CausalAdaptiveColdStartNotionalPolicyV1ValidationError,
+    causal_adaptive_cold_start_notional_policy_source_key_v1,
+)
 from v2.backend.app.services.native_trainer.causal_cost_evidence_v1 import (
     CAUSAL_COST_FEE_ARTIFACT_V1_SCHEMA_VERSION,
     CAUSAL_COST_FEE_RECEIPT_V1_SCHEMA_VERSION,
-    CAUSAL_COST_NOTIONAL_ARTIFACT_V1_SCHEMA_VERSION,
-    CAUSAL_COST_NOTIONAL_RECEIPT_V1_SCHEMA_VERSION,
+    CAUSAL_COST_NOTIONAL_PROVENANCE_VERIFIED_STATUS,
     CausalCostEvidenceV1ValidationError,
     build_causal_cost_evidence_v1,
 )
 from v2.backend.app.services.native_trainer.causal_expected_notional_policy_v1 import (
     CAUSAL_EXPECTED_NOTIONAL_SOURCE_KEY,
     CausalExpectedNotionalPolicyV1ValidationError,
+    build_causal_expected_notional_policy_v1,
 )
 from v2.backend.app.services.native_trainer.durable_feature_snapshot_ledger import (
     DurableFeatureSnapshotLedger,
@@ -104,6 +110,9 @@ from v2.backend.tests.unit.services.native_trainer import (
 )
 from v2.backend.tests.unit.services.native_trainer import (
     test_canonical_ohlcv_multitimeframe_capture_set_v1 as capture_support,
+)
+from v2.backend.tests.unit.services.native_trainer import (
+    test_causal_adaptive_cold_start_notional_policy_v1 as cold_start_support,
 )
 from v2.backend.tests.unit.services.native_trainer import (
     test_causal_cost_evidence_v1 as cost_support,
@@ -326,11 +335,65 @@ def _runtime_cost_source_payloads(
     }
 
 
+def _paper_margin_status(*, generated_at: datetime, paper_cycle_id: str) -> bytes:
+    margin_base = 2_985.59472051
+    used_margin = 0.0
+    free_margin = margin_base - used_margin
+    margin_buffer = 509.04412243
+    after_buffer = free_margin - margin_buffer
+    return _canonical_bytes(
+        {
+            "schema_version": "paper_account_margin_v1",
+            "status": "PASS",
+            "source": "POST_LIFECYCLE_CANONICAL_OPEN_POSITIONS",
+            "accounting_complete": True,
+            "control_inputs_valid": True,
+            "admission_inputs_valid": True,
+            "margin_buffer_input_valid": True,
+            "newly_reserved_margin_input_valid": True,
+            "reservations_included_in_open_positions_input_valid": True,
+            "margin_buffer_invariant_holds": True,
+            "no_negative_free_margin": True,
+            "invariant": True,
+            "invariant_holds": True,
+            "numeric_invariant_holds": True,
+            "margin_base_available": True,
+            "used_margin_aggregation_valid": True,
+            "projected_used_margin_aggregation_valid": True,
+            "open_position_collection_complete": True,
+            "open_position_canonical_identities_unique": True,
+            "newly_reserved_included_in_used_margin": True,
+            "pre_lifecycle_reservation_invariant_holds": True,
+            "cycle_reserved_candidate_count": 0,
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+            "failure_reasons": [],
+            "invalid_open_position_margin_rows": [],
+            "invalid_open_position_margin_count": 0,
+            "duplicate_open_position_identity_group_count": 0,
+            "duplicate_open_position_identity_row_count": 0,
+            "open_position_collection_iteration_invalid_reason": None,
+            "newly_reserved_margin_usd": 0.0,
+            "newly_reserved_margin_unrounded_usd": 0.0,
+            "margin_base_usd": margin_base,
+            "used_margin_usd": used_margin,
+            "free_margin_usd": free_margin,
+            "margin_buffer_usd": margin_buffer,
+            "free_margin_after_buffer_usd": after_buffer,
+            "usable_margin_after_buffer_before_reservations_usd": after_buffer,
+            "generated_utc": _iso(generated_at),
+            "paper_cycle_id": paper_cycle_id,
+        }
+    )
+
+
 def _test_cost_evidence_factory(
     *,
     parent_record: dict[str, Any],
     enrichment_store: ImmutableSourcePayloadStore,
     decision_at: datetime,
+    strict_notional_provenance: bool = True,
 ):  # type: ignore[no-untyped-def]
     envelope = parent_record["frozen_envelope"]
     symbol = envelope["symbol"]
@@ -473,39 +536,28 @@ def _test_cost_evidence_factory(
             "rpi_commission_bps": 1.0,
         }
     )
-    notional_artifact = {
-        "schema_version": CAUSAL_COST_NOTIONAL_ARTIFACT_V1_SCHEMA_VERSION,
-        "symbol": symbol,
-        "feature_snapshot_identity": identity,
-        "value_unit": "USD",
-        "expected_notional_usd": 1_000.0,
-        "policy_id": "publisher-test-causal-notional-v1",
-        "policy_version": "sha256:" + "3" * 64,
-        "policy_source_key": "v2:paper:adaptive_sizing_runtime_status",
-        "effective_at": effective_at,
-        "available_at": effective_at,
-        "expires_at": _iso(decision_at + timedelta(minutes=1)),
-        "causality_scope": "FEATURE_SNAPSHOT_DECISION_EXPECTED_EXECUTION_NOTIONAL",
-        "fallback_used": False,
-        "static_default_used": False,
-    }
-    notional_artifact_bytes = _canonical_bytes(notional_artifact)
-    notional_receipt = _self_hash(
-        {
-            "schema_version": CAUSAL_COST_NOTIONAL_RECEIPT_V1_SCHEMA_VERSION,
-            "receipt_kind": "DIRECT_READ",
-            "artifact_payload_sha256": hashlib.sha256(notional_artifact_bytes).hexdigest(),
-            "artifact_payload_byte_count": len(notional_artifact_bytes),
-            "policy_source_key": notional_artifact["policy_source_key"],
-            "source_schema_version": CAUSAL_COST_NOTIONAL_ARTIFACT_V1_SCHEMA_VERSION,
-            "source_transport": "DURABLE_CAUSAL_POLICY_LEDGER",
-            "symbol": symbol,
-            "feature_snapshot_identity": identity,
-            "effective_at": effective_at,
-            "available_at": effective_at,
-            "expires_at": notional_artifact["expires_at"],
-            "authority_scope": "FEATURE_SNAPSHOT_CAUSAL_EXPECTED_NOTIONAL",
-        }
+    notional_status = notional_support._status(
+        count=2,
+        gross_notional_usd=2_000.0,
+    )
+    notional_status["generated_utc"] = effective_at
+    notional_token = build_causal_expected_notional_policy_v1(
+        atomic_capture=read_atomic_redis_sources(
+            cost_support._Redis(
+                {
+                    CAUSAL_EXPECTED_NOTIONAL_SOURCE_KEY: json.dumps(
+                        notional_status
+                    ).encode("utf-8")
+                },
+                pttl_ms=60_000,
+                server_time=server_at,
+            ),
+            (CAUSAL_EXPECTED_NOTIONAL_SOURCE_KEY,),
+        ),
+        source_payload_store=enrichment_store,
+        symbol=symbol,
+        feature_snapshot_identity=identity,
+        feature_snapshot_decision_time=decision_at,
     )
     return build_causal_cost_evidence_v1(
         atomic_capture=market_capture,
@@ -513,9 +565,21 @@ def _test_cost_evidence_factory(
         fee_schedule_artifact_bytes=fee_artifact_bytes,
         fee_schedule_raw_response_bytes=raw_fee,
         fee_schedule_receipt=fee_receipt,
-        expected_notional_usd=1_000.0,
-        expected_notional_policy_artifact_bytes=notional_artifact_bytes,
-        expected_notional_policy_receipt=notional_receipt,
+        expected_notional_usd=notional_token.expected_notional_usd,
+        expected_notional_policy_artifact_bytes=(
+            notional_token.notional_artifact_bytes
+        ),
+        expected_notional_policy_receipt=notional_token.notional_receipt,
+        **(
+            {
+                "expected_notional_policy_source_receipt_bytes": (
+                    notional_token.source_read_receipt_bytes
+                ),
+                "expected_notional_policy_factory_token": notional_token,
+            }
+            if strict_notional_provenance
+            else {}
+        ),
         symbol=symbol,
         feature_snapshot_identity=identity,
         decision_time=_iso(decision_at),
@@ -761,6 +825,9 @@ def test_runtime_default_cost_chain_uses_ordered_atomic_sources_and_real_factori
             "v2:market:mark_price:BTCUSDT",
         ),
     ]
+    assert (
+        CAUSAL_ADAPTIVE_COLD_START_NOTIONAL_PORTFOLIO_SOURCE_KEY,
+    ) not in redis_client.atomic_batches
     assert len(refresh_tokens) == 1
     refresh = refresh_tokens[0]
     assert refresh.refresh_interval_seconds == 1
@@ -775,6 +842,15 @@ def test_runtime_default_cost_chain_uses_ordered_atomic_sources_and_real_factori
         + len(refresh.receipt_bytes)
         + len(commission_tokens[0].sanitized_request_identity_bytes)
     )
+    cost_store = ImmutableSourcePayloadStore(Path(publication["cost_store_root"]))
+    cost_contract = json.loads(
+        cost_store.get(publication["cost_capture_artifact_sha256"])
+    )
+    positive_provenance = cost_contract["notional_source"]["policy_provenance"]
+    assert positive_provenance["verification_status"] == (
+        CAUSAL_COST_NOTIONAL_PROVENANCE_VERIFIED_STATUS
+    )
+    assert positive_provenance["bound_source_object_count"] == 1
     ledger = DurableFeatureSnapshotLedger((tmp_path / "feature-ledger.sqlite3").absolute())
     assert ledger.verify_integrity_streaming().verified_records == 2
 
@@ -894,6 +970,102 @@ def test_broker_reader_builds_strict_pair_without_exchange_credentials(
     assert cost_store.get(evidence.broker_consumer_receipt_sha256) == (
         evidence.broker_consumer_receipt_bytes
     )
+    ledger = DurableFeatureSnapshotLedger(
+        (tmp_path / "feature-ledger.sqlite3").absolute()
+    )
+    assert ledger.verify_integrity_streaming().verified_records == 2
+
+
+def test_zero_candidate_cold_start_builds_strict_pair_from_adaptive_paper_margin(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payloads = _payloads()
+    server_at = FIXED_CLOCK - timedelta(milliseconds=500)
+    payloads[DYNAMIC_SYMBOL_SELECTION_KEY] = json.dumps(
+        {
+            "generated_utc": server_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "symbols": ["BTCUSDT"],
+        },
+        sort_keys=True,
+    ).encode()
+    notional_status = cold_start_support._zero_candidate_payload()
+    notional_status["generated_utc"] = _iso(
+        server_at - timedelta(milliseconds=100)
+    )
+    payloads[CAUSAL_EXPECTED_NOTIONAL_SOURCE_KEY] = json.dumps(
+        notional_status
+    ).encode("utf-8")
+    payloads[CAUSAL_ADAPTIVE_COLD_START_NOTIONAL_PORTFOLIO_SOURCE_KEY] = (
+        _paper_margin_status(
+            generated_at=server_at - timedelta(milliseconds=100),
+            paper_cycle_id=notional_status["paper_cycle_id"],
+        )
+    )
+    payloads.update(
+        _runtime_cost_source_payloads(symbol="BTCUSDT", decision_at=FIXED_CLOCK)
+    )
+    redis_client = _Redis(payloads, pttl_ms=1_501, server_time=server_at)
+    evidence = _credentialless_fee_evidence(tmp_path, monkeypatch)
+
+    def reader(**_kwargs: Any) -> dict[str, Any]:
+        return {"status": "READY", "evidence": evidence}
+
+    publisher = _publisher(
+        tmp_path,
+        redis_client,
+        cost_evidence_factory=None,
+        commission_cost_mode=(
+            BROKER_AUTHENTICATED_COST_EVIDENCE_WITH_MASKED_FALLBACK_MODE
+        ),
+        commission_evidence_reader=reader,
+    )
+    publisher.clock = lambda: FIXED_CLOCK - timedelta(microseconds=100)
+
+    def forbidden_direct_capture(**_kwargs: Any) -> Any:
+        raise AssertionError("cold-start broker mode must remain credentialless")
+
+    publisher.commission_capture_function = forbidden_direct_capture
+
+    status = publisher.run_cycle()
+
+    assert status["published_symbols"] == ["BTCUSDT"], status["failures"]
+    assert status["masked_cost_observation_symbol_count"] == 0
+    assert redis_client.atomic_batches.count(
+        (CAUSAL_EXPECTED_NOTIONAL_SOURCE_KEY,)
+    ) == 1
+    assert redis_client.atomic_batches.count(
+        (
+            CAUSAL_EXPECTED_NOTIONAL_SOURCE_KEY,
+            CAUSAL_ADAPTIVE_COLD_START_NOTIONAL_PORTFOLIO_SOURCE_KEY,
+        )
+    ) == 1
+    publication = status["publications"][0]
+    assert publication["expected_notional_usd"] == 2_476.55059808
+    assert publication["expected_notional_policy_id"] == (
+        CAUSAL_ADAPTIVE_COLD_START_NOTIONAL_POLICY_ID
+    )
+    assert publication["expected_notional_policy_source_key"] == (
+        causal_adaptive_cold_start_notional_policy_source_key_v1("BTCUSDT")
+    )
+    assert publication["commission_evidence_authenticated"] is True
+    cost_store = ImmutableSourcePayloadStore(Path(publication["cost_store_root"]))
+    cost_contract = json.loads(
+        cost_store.get(publication["cost_capture_artifact_sha256"])
+    )
+    notional_source = cost_contract["notional_source"]
+    assert notional_source["expected_notional_usd"] == 2_476.55059808
+    assert notional_source["policy_id"] == (
+        CAUSAL_ADAPTIVE_COLD_START_NOTIONAL_POLICY_ID
+    )
+    assert notional_source["fallback_used"] is False
+    assert notional_source["static_default_used"] is False
+    cold_provenance = notional_source["policy_provenance"]
+    assert cold_provenance["verification_status"] == (
+        CAUSAL_COST_NOTIONAL_PROVENANCE_VERIFIED_STATUS
+    )
+    assert cold_provenance["bound_source_object_count"] == 5
+    assert cold_provenance["strict_publisher_eligible"] is True
     ledger = DurableFeatureSnapshotLedger(
         (tmp_path / "feature-ledger.sqlite3").absolute()
     )
@@ -1211,6 +1383,30 @@ def test_post_decision_cost_capture_retries_whole_prospective_record(
     assert ledger.verify_integrity_streaming().verified_records == 2
 
 
+def test_injected_cost_factory_cannot_bypass_strict_notional_provenance(
+    tmp_path: Path,
+) -> None:
+    publisher = _publisher(tmp_path, _Redis(_payloads()))
+
+    def unverified_factory(**kwargs: Any):  # type: ignore[no-untyped-def]
+        return _test_cost_evidence_factory(
+            **kwargs,
+            strict_notional_provenance=False,
+        )
+
+    publisher.cost_evidence_factory = unverified_factory
+
+    status = publisher.run_cycle()
+
+    assert status["published_symbols"] == []
+    assert status["failed_symbols"] == ["BTCUSDT"]
+    assert "PROFILED_BASE_PUBLISHER_NOTIONAL_POLICY_PROVENANCE_UNVERIFIED" in (
+        status["failures"][0]["reasons"]
+    )
+    assert status["failures"][0]["coverage_advanced"] is False
+    assert not (tmp_path / "feature-ledger.sqlite3").exists()
+
+
 @pytest.mark.parametrize(
     ("failure", "expected_calls", "temporal_retryable"),
     [
@@ -1250,6 +1446,20 @@ def test_post_decision_cost_capture_retries_whole_prospective_record(
         (
             CausalCostEvidenceV1ValidationError(
                 "CAUSAL_COST_ORDERBOOK_DEPTH_SOURCE_EXPIRED_AT_DECISION"
+            ),
+            2,
+            True,
+        ),
+        (
+            CausalAdaptiveColdStartNotionalPolicyV1ValidationError(
+                "COLD_START_NOTIONAL_MARKET_CAPTURE_AFTER_DECISION"
+            ),
+            2,
+            True,
+        ),
+        (
+            CausalAdaptiveColdStartNotionalPolicyV1ValidationError(
+                "COLD_START_NOTIONAL_MARKET_EXPIRED_AT_DECISION"
             ),
             2,
             True,
