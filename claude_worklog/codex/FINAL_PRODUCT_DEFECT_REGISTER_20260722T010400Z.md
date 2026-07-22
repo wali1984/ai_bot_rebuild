@@ -9,6 +9,7 @@
 
 - `VISUAL-SIGNAL-EXPLAINABILITY`: four screenshots were intentionally blocked because the proof payload made the renderer hang; this is an evidence gap, not a pass.
 - `AUTH-TOKEN-EXPIRY-EVIDENCE`: historical all-route run contains 401 console errors after its short-lived admin token expired; no live claim is made from those rows.
+- `AUTH-TOKEN-EXPIRY-EVIDENCE` is superseded for page-family verification: fresh-token reruns completed with zero console errors and zero failed requests for all authenticated families.
 - `LIVE-EXECUTION`: exchange mutation and live order submission remain fail-closed and were not enabled.
 
 Publisher-held paths were not modified.
