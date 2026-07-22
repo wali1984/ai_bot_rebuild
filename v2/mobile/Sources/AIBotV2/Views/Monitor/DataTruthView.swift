@@ -285,7 +285,7 @@ struct DataTruthView: View {
                 DataRow(label: "Tier", value: dtText(micro.reduced_size_bootstrap_tier), mono: true)
                 DataRow(label: "Candidates", value: NerVyxFormat.count(micro.reduced_size_bootstrap_candidates), mono: true)
                 DataRow(
-                    label: "Paper only",
+                    label: "Execution restricted",
                     value: dtBool(micro.reduced_size_bootstrap_paper_only),
                     valueColor: micro.reduced_size_bootstrap_paper_only == true ? NerVyx.validation : NerVyx.warning,
                     mono: true

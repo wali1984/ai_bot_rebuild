@@ -1,0 +1,8 @@
+{
+  "status": "PARTIAL_WIRED_MAP",
+  "source": "../../v2/artifacts/final-product-regression/final-product-regression-all.json",
+  "web_observed": {"visible_fields": 12298, "source_matched": 5532, "dynamic_candidates": 4060, "unmatched_dynamic_candidates": 2417},
+  "ios_contract": {"core_models_and_endpoints": "covered by AIBotV2CoreTests", "tests_passed": 36},
+  "lineage_rule": "event_time, available_at, feature_cutoff, decision_time and execution_time remain distinct; live order mutation is disabled",
+  "unmapped": "Composite provider/ingestor cards and iOS native SDK parity require follow-up field-level review"
+}

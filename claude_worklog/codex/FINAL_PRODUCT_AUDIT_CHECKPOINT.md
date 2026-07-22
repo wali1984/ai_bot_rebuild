@@ -95,3 +95,8 @@ First fix the single malformed comment in `src/components/charts/proChartInterna
 ## Live-gate checkpoint
 
 `blocked_human_only`; 0 live symbols; 0 execution symbols; 0 live/test orders; 0 leverage mutations; 0 margin mutations; 0 routes to live.
+## 2026-07-22 continuation
+
+- Added quantified web/iOS coverage matrix, field map, defect register, visual index, Codemagic report, and completion report.
+- iOS visible-copy defect fixed; SwiftPM build and 36 tests pass.
+- Completion remains NO-GO pending clean authenticated all-route evidence and four signal-explainability captures.
