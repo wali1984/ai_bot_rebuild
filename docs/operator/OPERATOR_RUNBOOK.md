@@ -1,6 +1,6 @@
 # Operator Runbook
 
-Last verified timestamp: 2026-07-22T10:53:12Z for the profiled trainer publisher; other sections retain their dated evidence
+Last verified timestamp: 2026-07-22T12:05:06Z for the profiled trainer publisher/observer; other sections retain their dated evidence
 
 ## Purpose
 Provide the daily operator path for checking runtime health, paper halt state, live gate, service drift, website/iOS truth, and incident response entry points.
@@ -72,12 +72,18 @@ Provide the daily operator path for checking runtime health, paper halt state, l
 
 ## Profiled trainer-publisher check (2026-07-22)
 
-The publisher is online when all three planes agree:
+The publisher is online when all five planes agree:
 
 1. `systemctl` reports `active/running`, a nonzero PID and no new restarts;
 2. the process CWD, executable, `PYTHONPATH` and `AI_BOT_CODE_SHA` resolve to
-   immutable release `9fcea85f27a56b757a3b0af362e35ac9a58a9df3`;
-3. a completed cycle and independent loader agree on the appended strict row.
+   immutable release `e34af1e6a6bb9b54818e18f9279fcc9904de0922`;
+3. the publisher holds the ledger writer lock and open main/WAL/SHM file
+   descriptors throughout both compute and idle intervals;
+4. the actual observer unit, `ai-bot-v2-native-cuda-trainer-persistent.service`,
+   stays active and publishes `probe_succeeded=true`, `scan_complete=true`,
+   `ledger_integrity_verified=true`, and zero exclusions; and
+5. a completed cycle and the independent observer/loader agree on the appended
+   strict row count.
 
 Run:
 
@@ -94,13 +100,35 @@ tr '\0' '\n' < "/proc/$pid/environ" | \
 jq '{cycle_started_at,cycle_completed_at,classification,selected_symbols,
      published_symbols,failures,masked_cost_observation_symbol_count}' \
   /home/wali/ai_bot_local_data/v2_native_trainer/profiled_base_publisher_v1/profiled_base_publisher_status_v1.json
+
+lsof -p "$pid" | rg \
+  'durable_feature_snapshot_ledger|profiled_base_feature_publisher_v1.writer.lock'
+stat -c '%n size=%s inode=%i' \
+  /home/wali/ai_bot_local_data/v2_native_trainer/durable_feature_snapshot_ledger.sqlite3{,-wal,-shm}
+
+systemctl --user show ai-bot-v2-native-cuda-trainer-persistent.service \
+  -p ActiveState -p SubState -p MainPID -p NRestarts
+jq '{generated_at,state,inventory:.authenticated_sample_inventory,
+     training_loop_active,trainer_admission_authorized,checkpoint_authorized,
+     model_authorized,prediction_authorized,paper_trading_authorized,
+     live_execution_authorized,runtime_wired}' \
+  v2/runtime/native_cuda_trainer_waiting_for_authenticated_samples_status.json
 ```
 
-Accepted first pinned cycle: one selected/published NIGHTUSDT pair, parent and
-child sequences 15/16, zero failures, zero masked observations and zero service
-restarts. A later cycle may safely report a stale or unavailable closed window;
-that is not the same as a dead service. Never force candidate supply around
-finality, provenance, availability or CAS verification.
+Current acceptance burn-in sampled the services and sidecars 39 times, observed
+13 distinct successful observer artifacts, and crossed two publisher cycles.
+TAOUSDT sequences 39/40 and TREEUSDT sequences 41/42 were appended; each cycle
+published one strict pair with zero failures and zero masked observations. WAL
+inode `59941802` and SHM inode `59942438` remained stable while the WAL grew to
+1,030,032 bytes. The final scan reported 42 verified records, 27 append
+receipts, 15 strict candidates and zero exclusions. Publisher PID `3727644`
+and observer PID `3670540` were both active with zero restarts at the recorded
+observation.
+
+Do not query a guessed `profiled-training-waiting-observer` unit; no such unit
+is installed. A later publisher cycle may safely report a stale or unavailable
+closed window; that is not the same as a dead service. Never force candidate
+supply around finality, provenance, availability or CAS verification.
 
 The publisher being online does not mean the optimizer is online. The strict
 loader currently reports `runtime_wired=false`; prediction, paper and live

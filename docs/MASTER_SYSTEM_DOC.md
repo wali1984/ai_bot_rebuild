@@ -10,12 +10,29 @@
 
 ## Scoped trainer-publisher addendum (2026-07-22)
 
-The profiled base-feature publisher is now active from immutable release
-`9fcea85f27a56b757a3b0af362e35ac9a58a9df3`. Its first newly pinned cycle
-published one authenticated NIGHTUSDT parent/child pair with zero symbol
-failures. The independent strict loader reopened the two available strict
-children (LDOUSDT sequence 14 and NIGHTUSDT sequence 16): two admitted, zero
-excluded, with exact 39 physical, 446 logical and 1,784 model-vector values.
+The profiled base-feature publisher is active from immutable release
+`e34af1e6a6bb9b54818e18f9279fcc9904de0922`, pinned by commit
+`cb927adaabecac0dab6e68827f8f4b6b8d37a2aa`.
+The preceding `9fcea85f...` release produced valid rows, but SQLite could remove
+and recreate the ledger WAL/SHM files after its last per-cycle connection
+closed. The read-only trainer observer correctly failed closed during that
+coordination-file gap, so its status alternated between valid and
+`DatabaseError` even though the ledger remained intact.
+
+The current publisher holds the exact singleton writer lease plus one
+transaction-free, `query_only` WAL coordination connection for its complete
+process lifetime. A 39-sample live burn-in covered 13 distinct observer scans
+and two complete publisher append cycles. TAOUSDT sequences 39/40 and TREEUSDT
+sequences 41/42 were appended as parent/strict-child pairs; both cycles had one
+published pair and zero failures. The WAL and SHM inodes remained unchanged
+while the WAL grew from 0 to 515,032 to 1,030,032 bytes. Both services remained
+active with zero restarts. The final observer scan verified 42 records, 27
+append receipts and 15 exact strict candidates with zero exclusions and a
+complete integrity scan.
+
+The earlier independent strict-loader proof also reopened LDOUSDT sequence 14
+and NIGHTUSDT sequence 16: two admitted, zero excluded, with exact 39 physical,
+446 logical and 1,784 model-vector values.
 
 This supersedes older claims that the profiled publisher itself is staged,
 credential-blocked or only producing masked rows. It does not supersede the

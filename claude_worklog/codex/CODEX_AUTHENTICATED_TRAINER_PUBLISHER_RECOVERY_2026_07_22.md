@@ -18,9 +18,10 @@ consumer.
 | Item | Exact identity |
 | --- | --- |
 | Loader correction commit | `9fcea85f27a56b757a3b0af362e35ac9a58a9df3` |
-| Immutable pin commit | `c6b6f8a73b` |
+| Resident WAL/SHM liveness commit | `e34af1e6a6bb9b54818e18f9279fcc9904de0922` |
+| Current immutable pin commit | `cb927adaabecac0dab6e68827f8f4b6b8d37a2aa` |
 | Branch | `codex/trainer-commission-integration-20260722` |
-| Code release | `/home/wali/ai_bot_local_data/deployments/ai_bot_rebuild/9fcea85f27a56b757a3b0af362e35ac9a58a9df3` |
+| Code release | `/home/wali/ai_bot_local_data/deployments/ai_bot_rebuild/e34af1e6a6bb9b54818e18f9279fcc9904de0922` |
 | Dependency release | `/home/wali/ai_bot_local_data/deployments/python_envs/6360ea33fcfb9f9a81724989bbd32ace2b02bf7eaa7a8771d64d282f423173f0` |
 | Service | `ai-bot-v2-profiled-base-feature-publisher.service` |
 | Installed drop-in | `/home/wali/.config/systemd/user/ai-bot-v2-profiled-base-feature-publisher.service.d/90-immutable-release.conf` |
@@ -30,6 +31,43 @@ Git executable bits, has no writable regular file/directory, and is mounted
 read-only in the service. The observed process used that release for its CWD,
 `PYTHONPATH`, executable, bytecode-cache namespace, and `AI_BOT_CODE_SHA`.
 `LIVE_GATE=blocked_human_only` remained effective.
+
+## Resident WAL/SHM liveness correction
+
+The original publisher opened and closed its SQLite connections within each
+publication cycle. SQLite could checkpoint, delete, and later recreate the
+`-wal`/`-shm` coordination files when the last connection closed. The hardened
+read-only observer is forbidden from creating those writer-owned files. It
+therefore alternated between a valid readiness artifact and fail-closed
+`DatabaseError` artifacts while the old publisher continued to append valid
+rows. This was a real availability defect, not ledger corruption and not a
+reason to relax the observer.
+
+The correction has three boundaries:
+
+1. the CLI acquires one exact-path `FeatureSnapshotWriterLease` for the complete
+   resident process;
+2. one exact-path `DurableFeatureSnapshotLedger` instance is injected into the
+   publisher instead of being recreated per cycle; and
+3. `resident_wal_sidecar_guard()` keeps one private connection open after
+   initialization, immediately sets `PRAGMA query_only=ON`, requires WAL mode,
+   requires no active transaction, verifies both sidecars before and after the
+   loop, never exposes the connection, and closes before releasing the writer
+   lease.
+
+This is a storage-coordination invariant, not a market threshold. It does not
+change sample selection, model inputs, reward/strategy logic, leverage, margin,
+paper execution, live execution, or downstream authority. Failures still exit
+the publisher closed with status 78.
+
+Liveness-slice files:
+
+- `v2/backend/app/cli/v2_profiled_base_feature_publisher.py`
+- `v2/backend/app/services/native_trainer/durable_feature_snapshot_ledger.py`
+- `v2/backend/app/services/native_trainer/profiled_base_feature_publisher_v1.py`
+- `v2/backend/tests/unit/services/native_trainer/test_durable_feature_snapshot_ledger.py`
+- `v2/backend/tests/unit/services/native_trainer/test_profiled_base_feature_publisher_v1.py`
+- `v2/backend/tests/unit/services/native_trainer/test_profiled_training_waiting_runtime_v1.py`
 
 ## End-to-end component path
 
@@ -58,7 +96,7 @@ independent loader: physical 39 -> logical 446 -> model vector 1,784
            └─ trainer candidate only; prediction/paper/live/runtime false
 ```
 
-## Exact code boundary
+## Original loader correction code boundary
 
 Changed files:
 
@@ -206,8 +244,47 @@ The immutable-release loader then reopened the complete ledger observation:
 - trainer-admission flags true: 2;
 - prediction, paper, live and runtime-wired flags true: 0.
 
+## Resident-release live acceptance
+
+The resident release started at `2026-07-22T11:54:33Z`. A 39-sample,
+15-second-cadence burn-in observed 13 distinct observer artifacts across two
+complete publisher cycles and their intervening idle boundary:
+
+| Evidence | Count/value |
+| --- | --- |
+| Publisher PID / restarts | `3727644` / 0 |
+| Observer PID / restarts | `3670540` / 0 |
+| Sampled service/sidecar observations | 39 |
+| Distinct observer artifacts | 13, all successful |
+| Publisher cycles accepted | 2 |
+| First new pair | TAOUSDT sequences 39/40 |
+| Second new pair | TREEUSDT sequences 41/42 |
+| Per-cycle selected / published / failed | 1 / 1 / 0 |
+| Final verified ledger records | 42 |
+| Final verified append receipts | 27 |
+| Final strict child candidates | 15 |
+| Final exclusions | 0 |
+| Final integrity / scan complete | true / true |
+| WAL inode | `59941802`, unchanged |
+| SHM inode | `59942438`, unchanged |
+| Observed WAL sizes | 0, 515,032, 1,030,032 bytes |
+
+Cycle one ran from `2026-07-22T11:54:34.860494Z` through
+`2026-07-22T11:58:44.300142Z`; cycle two ran from
+`2026-07-22T11:59:34.861301Z` through
+`2026-07-22T12:03:47.100840Z`. The observer artifact generated at
+`2026-07-22T12:05:06.810763Z` remained
+`PROFILED_CHILD_CANDIDATES_AVAILABLE_OPERATOR_PROMOTION_REQUIRED`, with
+`probe_error=null`. Every resident-runtime training/checkpoint/model/prediction/
+paper/live/execution/runtime authority flag remained false.
+
 ## Regression evidence
 
+- Complete affected ledger/publisher/observer/loader family: **201 passed** in
+  607.48 seconds.
+- Focused resident-guard and observer integration tests from the immutable
+  release: **7 passed** in 14.97 seconds.
+- Complete publisher credential/unit/pin suite: **33 passed** in 0.33 seconds.
 - Full strict-loader suite from the immutable release: **32 passed** in
   115.94 seconds.
 - Full profiled-publisher suite from the immutable release: **62 passed** in
@@ -242,8 +319,8 @@ jq '{cycle_started_at,cycle_completed_at,classification,selected_symbols,
      published_symbols,failures,masked_cost_observation_symbol_count}' \
   /home/wali/ai_bot_local_data/v2_native_trainer/profiled_base_publisher_v1/profiled_base_publisher_status_v1.json
 
-git -C /home/wali/ai_bot_local_data/deployments/ai_bot_rebuild/9fcea85f27a56b757a3b0af362e35ac9a58a9df3 \
-  diff --quiet --exit-code 9fcea85f27a56b757a3b0af362e35ac9a58a9df3 --
+git -C /home/wali/ai_bot_local_data/deployments/ai_bot_rebuild/e34af1e6a6bb9b54818e18f9279fcc9904de0922 \
+  diff --quiet --exit-code e34af1e6a6bb9b54818e18f9279fcc9904de0922 --
 ```
 
 A cycle with `feature_window_tail_is_stale` or unavailable closed-window
@@ -253,11 +330,17 @@ cycle classification. Never force a child through those gates.
 
 ## Remaining blockers and next safe slice
 
-The publisher is fully online; the persistent optimizer is not. The exact next
-keystone is a bounded authenticated observation manifest/adapter that lets the
-persistent trainer consume these strict rows without doing an O(total-ledger)
-integrity scan for every page and without trusting a mutable cursor. Until that
-slice is implemented and tested, `runtime_wired=false` is correct.
+The publisher and its waiting observer are fully online; the persistent
+optimizer is not. The exact next keystone is a bounded authenticated
+observation manifest/adapter that lets the persistent trainer consume these
+strict rows without doing an O(total-ledger) integrity scan for every page and
+without trusting a mutable cursor. Local manifest, stage-head/page-completion,
+sealed-corpus, and admission contracts exist, but there is no production
+caller and no provisioned independent Ed25519 witness implementation,
+credential, or signed artifact. Until those boundaries are implemented,
+independently witnessed, and tested, `runtime_wired=false` is correct. There is
+no honest fixed optimizer-online ETA until the operator selects and provisions
+that independent witness.
 
 Two strict samples prove end-to-end correctness, not statistical sufficiency,
 model quality, an A+ grade, or any return target. Candidate supply must grow
