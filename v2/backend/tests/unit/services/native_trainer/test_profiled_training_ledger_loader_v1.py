@@ -7,6 +7,7 @@ import shutil
 import struct
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -1146,16 +1147,114 @@ def test_current_policy_source_binding_rejects_rest_in_selected_slice(
         forbidden_write_capable_read,
     )
 
-    with pytest.raises(
-        loader_v1.ProfiledTrainingLedgerLoaderV1Error,
-        match="PROFILED_TRAINING_PARENT_REQUIRED_WINDOW_TRANSPORT_UNPROVEN",
-    ):
-        loader_v1._validate_source_provenance_binding(
-            binding,
-            transform_available_at=capture_support.GENERATED + timedelta(milliseconds=100),
-            decision_time=capture_support.DECISION,
-        )
+    with loader_v1._SourceProvenanceSnapshotSession() as snapshot_session:
+        snapshot = snapshot_session.snapshot_for(source_ledger.root)
+        assert snapshot.verified_entry_count == 2
+        assert snapshot.verified_head_entry_sha256 == entries[-1].entry_sha256
+        assert not hasattr(snapshot.entries[0], "entry_json")
+        assert not hasattr(snapshot.entries[0], "record")
+        for _ in range(2):
+            with pytest.raises(
+                loader_v1.ProfiledTrainingLedgerLoaderV1Error,
+                match="PROFILED_TRAINING_PARENT_REQUIRED_WINDOW_TRANSPORT_UNPROVEN",
+            ):
+                loader_v1._validate_source_provenance_binding(
+                    binding,
+                    transform_available_at=(
+                        capture_support.GENERATED + timedelta(milliseconds=100)
+                    ),
+                    decision_time=capture_support.DECISION,
+                    source_snapshot_session=snapshot_session,
+                )
     assert read_only_calls == 1
+
+    with loader_v1._SourceProvenanceSnapshotSession() as next_invocation:
+        with pytest.raises(
+            loader_v1.ProfiledTrainingLedgerLoaderV1Error,
+            match="PROFILED_TRAINING_PARENT_REQUIRED_WINDOW_TRANSPORT_UNPROVEN",
+        ):
+            loader_v1._validate_source_provenance_binding(
+                binding,
+                transform_available_at=(
+                    capture_support.GENERATED + timedelta(milliseconds=100)
+                ),
+                decision_time=capture_support.DECISION,
+                source_snapshot_session=next_invocation,
+            )
+    assert read_only_calls == 2
+
+
+def test_source_snapshot_session_is_one_root_bounded_and_revisit_is_fixed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root_a = (tmp_path / "root-a").absolute()
+    root_b = (tmp_path / "root-b").absolute()
+    root_a.mkdir()
+    root_b.mkdir()
+    entry = SimpleNamespace(
+        entry_sha256="1" * 64,
+        entry_json="{}",
+        replay_identity_sha256="2" * 64,
+        cycle_identity_sha256="3" * 64,
+        trainer_run_id="run",
+        trainer_cycle_id="cycle",
+        record={
+            "ledger_recorded_at": _utc(BASE),
+            "source_capture": {
+                "source_key": "source",
+                "source_key_version": "v1",
+                "atomic_batch_id": "batch",
+                "atomic_batch_material_sha256": "4" * 64,
+                "consumer_observed_at": _utc(BASE),
+            },
+            "suffix_manifest": {
+                "exact_manifest_sha256": "5" * 64,
+                "manifest_cas_address": {"relative_path": "objects/abc"},
+                "suffix_digest_sha256": "6" * 64,
+            },
+            "ordered_rows": [
+                {
+                    "source_read_receipt_sha256": "7" * 64,
+                    "source": "binance_wss",
+                    "is_backfilled": False,
+                }
+            ],
+        },
+    )
+    root_a_reads = 0
+    calls: list[str] = []
+
+    def synthetic_read(ledger: TrainerSourceProvenanceLedgerV4) -> tuple[Any, ...]:
+        nonlocal root_a_reads
+        root_text = str(ledger.root)
+        calls.append(root_text)
+        if root_text == str(root_a):
+            root_a_reads += 1
+            return (entry,) if root_a_reads == 1 else (entry, entry)
+        return (entry,)
+
+    monkeypatch.setattr(
+        TrainerSourceProvenanceLedgerV4,
+        "read_entries_read_only",
+        synthetic_read,
+    )
+
+    with loader_v1._SourceProvenanceSnapshotSession() as session:
+        first = session.snapshot_for(root_a)
+        assert session.snapshot_for(root_a) is first
+        assert not hasattr(first.entries[0], "entry_json")
+        assert first.entries[0].suffix_manifest_cas_address_json == (
+            '{"relative_path":"objects/abc"}'
+        )
+        session.snapshot_for(root_b)
+        with pytest.raises(
+            loader_v1.ProfiledTrainingLedgerLoaderV1Error,
+            match="PROFILED_TRAINING_SOURCE_SNAPSHOT_MOVED_DURING_LOAD",
+        ):
+            session.snapshot_for(root_a)
+
+    assert calls == [str(root_a), str(root_b), str(root_a)]
 
 
 def test_accepts_producer_clock_precision_after_authenticated_normalization(

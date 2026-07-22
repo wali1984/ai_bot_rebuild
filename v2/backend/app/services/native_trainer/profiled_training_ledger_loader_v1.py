@@ -103,6 +103,7 @@ from v2.backend.app.services.native_trainer.profiled_model_feature_snapshot_reco
 from v2.backend.app.services.native_trainer.source_provenance_ledger_v4 import (
     TRAINER_SOURCE_PROVENANCE_LEDGER_V4_NAMESPACE,
     TRAINER_SOURCE_PROVENANCE_LEDGER_V4_SCHEMA_VERSION,
+    TrainerSourceProvenanceLedgerEntryV4,
     TrainerSourceProvenanceLedgerV4,
     TrainerSourceProvenanceLedgerV4Error,
 )
@@ -580,6 +581,176 @@ def _fail(*reasons: str) -> NoReturn:
     raise ProfiledTrainingLedgerLoaderV1Error(*reasons) from None
 
 
+@dataclass(frozen=True, slots=True)
+class _SourceProvenanceValidationRow:
+    source_read_receipt_sha256: str
+    source: str
+    is_backfilled: bool
+
+
+@dataclass(frozen=True, slots=True)
+class _SourceProvenanceValidationEntry:
+    entry_sha256: str
+    entry_json_sha256: str
+    replay_identity_sha256: str
+    cycle_identity_sha256: str
+    trainer_run_id: str
+    trainer_cycle_id: str
+    ledger_recorded_at: str
+    source_key: str
+    source_key_version: str
+    atomic_batch_id: str
+    atomic_batch_material_sha256: str
+    atomic_consumer_observed_at: str
+    suffix_manifest_sha256: str
+    suffix_manifest_cas_address_json: str
+    suffix_digest_sha256: str
+    ordered_rows: tuple[_SourceProvenanceValidationRow, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class _SourceProvenanceValidationSnapshot:
+    root_text: str
+    root_sha256: str
+    verified_entry_count: int
+    verified_head_entry_sha256: str | None
+    entries: tuple[_SourceProvenanceValidationEntry, ...]
+
+
+def _compact_source_provenance_snapshot(
+    *,
+    root_text: str,
+    entries: tuple[TrainerSourceProvenanceLedgerEntryV4, ...],
+) -> _SourceProvenanceValidationSnapshot:
+    """Drop full JSON/CAS material after one complete authenticated read."""
+
+    compact_entries: list[_SourceProvenanceValidationEntry] = []
+    for entry in entries:
+        record = entry.record
+        source = record.get("source_capture") if type(record) is dict else None
+        manifest = record.get("suffix_manifest") if type(record) is dict else None
+        rows = record.get("ordered_rows") if type(record) is dict else None
+        if (
+            type(source) is not dict
+            or type(manifest) is not dict
+            or type(rows) is not list
+            or any(type(row) is not dict for row in rows)
+        ):
+            _fail("PROFILED_TRAINING_SOURCE_SNAPSHOT_PROJECTION_INVALID")
+        typed_source = cast(dict[str, Any], source)
+        typed_manifest = cast(dict[str, Any], manifest)
+        typed_rows = cast(list[dict[str, Any]], rows)
+        compact_entries.append(
+            _SourceProvenanceValidationEntry(
+                entry_sha256=entry.entry_sha256,
+                entry_json_sha256=hashlib.sha256(
+                    entry.entry_json.encode("ascii")
+                ).hexdigest(),
+                replay_identity_sha256=entry.replay_identity_sha256,
+                cycle_identity_sha256=entry.cycle_identity_sha256,
+                trainer_run_id=entry.trainer_run_id,
+                trainer_cycle_id=entry.trainer_cycle_id,
+                ledger_recorded_at=cast(str, record.get("ledger_recorded_at")),
+                source_key=cast(str, typed_source.get("source_key")),
+                source_key_version=cast(str, typed_source.get("source_key_version")),
+                atomic_batch_id=cast(str, typed_source.get("atomic_batch_id")),
+                atomic_batch_material_sha256=cast(
+                    str,
+                    typed_source.get("atomic_batch_material_sha256"),
+                ),
+                atomic_consumer_observed_at=cast(
+                    str,
+                    typed_source.get("consumer_observed_at"),
+                ),
+                suffix_manifest_sha256=cast(
+                    str,
+                    typed_manifest.get("exact_manifest_sha256"),
+                ),
+                suffix_manifest_cas_address_json=_canonical_json(
+                    typed_manifest.get("manifest_cas_address"),
+                ),
+                suffix_digest_sha256=cast(
+                    str,
+                    typed_manifest.get("suffix_digest_sha256"),
+                ),
+                ordered_rows=tuple(
+                    _SourceProvenanceValidationRow(
+                        source_read_receipt_sha256=cast(
+                            str,
+                            row.get("source_read_receipt_sha256"),
+                        ),
+                        source=cast(str, row.get("source")),
+                        is_backfilled=cast(bool, row.get("is_backfilled")),
+                    )
+                    for row in typed_rows
+                ),
+            )
+        )
+    compact = tuple(compact_entries)
+    return _SourceProvenanceValidationSnapshot(
+        root_text=root_text,
+        root_sha256=hashlib.sha256(root_text.encode("utf-8")).hexdigest(),
+        verified_entry_count=len(compact),
+        verified_head_entry_sha256=(compact[-1].entry_sha256 if compact else None),
+        entries=compact,
+    )
+
+
+class _SourceProvenanceSnapshotSession:
+    """Invocation-local, one-root compact cache with stable revisit identities."""
+
+    __slots__ = (
+        "_current_root",
+        "_current_snapshot",
+        "_entered",
+        "_identities",
+    )
+
+    def __init__(self) -> None:
+        self._current_root: str | None = None
+        self._current_snapshot: _SourceProvenanceValidationSnapshot | None = None
+        self._identities: dict[str, tuple[str, int, str | None]] = {}
+        self._entered = False
+
+    def __enter__(self) -> _SourceProvenanceSnapshotSession:
+        if self._entered:
+            _fail("PROFILED_TRAINING_SOURCE_SNAPSHOT_SESSION_REENTRY_FORBIDDEN")
+        self._entered = True
+        return self
+
+    def __exit__(self, *_exc_info: object) -> None:
+        self._entered = False
+        self._current_root = None
+        self._current_snapshot = None
+        self._identities.clear()
+
+    def snapshot_for(
+        self,
+        root_path: Path,
+    ) -> _SourceProvenanceValidationSnapshot:
+        if not self._entered:
+            _fail("PROFILED_TRAINING_SOURCE_SNAPSHOT_SESSION_NOT_ENTERED")
+        root_text = str(root_path)
+        if self._current_root == root_text and self._current_snapshot is not None:
+            return self._current_snapshot
+        entries = TrainerSourceProvenanceLedgerV4(root_path).read_entries_read_only()
+        snapshot = _compact_source_provenance_snapshot(
+            root_text=root_text,
+            entries=entries,
+        )
+        identity = (
+            snapshot.root_sha256,
+            snapshot.verified_entry_count,
+            snapshot.verified_head_entry_sha256,
+        )
+        prior_identity = self._identities.setdefault(root_text, identity)
+        if prior_identity != identity:
+            _fail("PROFILED_TRAINING_SOURCE_SNAPSHOT_MOVED_DURING_LOAD")
+        self._current_root = root_text
+        self._current_snapshot = snapshot
+        return snapshot
+
+
 def _valid_sha256(value: object) -> bool:
     return type(value) is str and _SHA256_RE.fullmatch(value) is not None
 
@@ -872,8 +1043,12 @@ def _validate_source_provenance_binding(
     transform_available_at: datetime,
     decision_time: datetime,
     require_current_window_wss: bool = True,
+    source_snapshot_session: _SourceProvenanceSnapshotSession | None = None,
 ) -> str:
-    if type(require_current_window_wss) is not bool:
+    if type(require_current_window_wss) is not bool or (
+        source_snapshot_session is not None
+        and type(source_snapshot_session) is not _SourceProvenanceSnapshotSession
+    ):
         _fail("PROFILED_TRAINING_PARENT_SOURCE_POLICY_ARGUMENT_INVALID")
     binding = _exact_dict(
         binding_value,
@@ -904,13 +1079,35 @@ def _validate_source_provenance_binding(
     if not root_path.is_dir():
         _fail("PROFILED_TRAINING_PARENT_SOURCE_LEDGER_ROOT_MISSING")
     try:
-        fresh_entries = TrainerSourceProvenanceLedgerV4(
-            root_path
-        ).read_entries_read_only()
+        fresh_snapshot = (
+            _compact_source_provenance_snapshot(
+                root_text=cast(str, root),
+                entries=TrainerSourceProvenanceLedgerV4(
+                    root_path
+                ).read_entries_read_only(),
+            )
+            if source_snapshot_session is None
+            else source_snapshot_session.snapshot_for(root_path)
+        )
     except TrainerSourceProvenanceLedgerV4Error as exc:
         raise ProfiledTrainingLedgerLoaderV1Error(
             "PROFILED_TRAINING_PARENT_SOURCE_LEDGER_FRESH_READ_FAILED"
         ) from exc
+    if (
+        fresh_snapshot.root_text != root
+        or fresh_snapshot.root_sha256 != binding.get("source_ledger_root_sha256")
+        or fresh_snapshot.verified_entry_count != len(fresh_snapshot.entries)
+        or (
+            fresh_snapshot.verified_head_entry_sha256
+            != (
+                fresh_snapshot.entries[-1].entry_sha256
+                if fresh_snapshot.entries
+                else None
+            )
+        )
+    ):
+        _fail("PROFILED_TRAINING_PARENT_SOURCE_SNAPSHOT_IDENTITY_INVALID")
+    fresh_entries = fresh_snapshot.entries
     raw_timeframes = binding.get("timeframe_bindings")
     if type(raw_timeframes) is not list or len(raw_timeframes) != 2:
         _fail("PROFILED_TRAINING_PARENT_SOURCE_PROVENANCE_TIMEFRAMES_INVALID")
@@ -974,37 +1171,33 @@ def _validate_source_provenance_binding(
         if sequence > len(fresh_entries):
             _fail("PROFILED_TRAINING_PARENT_SOURCE_LEDGER_ENTRY_MISSING")
         fresh_entry = fresh_entries[sequence - 1]
-        fresh_record = fresh_entry.record
-        fresh_source = fresh_record.get("source_capture")
-        fresh_manifest = fresh_record.get("suffix_manifest")
-        fresh_rows = fresh_record.get("ordered_rows")
+        fresh_rows = fresh_entry.ordered_rows
         start = item.get("capture_selected_start_ordinal")
         if (
-            type(fresh_source) is not dict
-            or type(fresh_manifest) is not dict
-            or type(fresh_rows) is not list
-            or type(start) is not int
+            type(start) is not int
             or start < 0
             or start + row_count > len(fresh_rows)
             or fresh_entry.entry_sha256 != item["source_ledger_entry_sha256"]
-            or hashlib.sha256(fresh_entry.entry_json.encode("ascii")).hexdigest()
+            or fresh_entry.entry_json_sha256
             != item["source_ledger_entry_json_sha256"]
             or fresh_entry.replay_identity_sha256 != item["source_replay_identity_sha256"]
             or fresh_entry.cycle_identity_sha256 != item["source_cycle_identity_sha256"]
             or fresh_entry.trainer_run_id != item["trainer_run_id"]
             or fresh_entry.trainer_cycle_id != item["trainer_cycle_id"]
-            or fresh_record.get("ledger_recorded_at") != item["source_ledger_recorded_at"]
-            or fresh_source.get("source_key") != item["source_key"]
-            or fresh_source.get("source_key_version") != item["source_key_version"]
-            or fresh_source.get("atomic_batch_id") != item["atomic_batch_id"]
-            or fresh_source.get("atomic_batch_material_sha256")
+            or fresh_entry.ledger_recorded_at != item["source_ledger_recorded_at"]
+            or fresh_entry.source_key != item["source_key"]
+            or fresh_entry.source_key_version != item["source_key_version"]
+            or fresh_entry.atomic_batch_id != item["atomic_batch_id"]
+            or fresh_entry.atomic_batch_material_sha256
             != item["atomic_batch_material_sha256"]
-            or fresh_source.get("consumer_observed_at") != item["atomic_consumer_observed_at"]
-            or fresh_manifest.get("exact_manifest_sha256") != item["suffix_manifest_sha256"]
-            or fresh_manifest.get("manifest_cas_address") != item["suffix_manifest_cas_address"]
-            or fresh_manifest.get("suffix_digest_sha256") != item["suffix_digest_sha256"]
+            or fresh_entry.atomic_consumer_observed_at
+            != item["atomic_consumer_observed_at"]
+            or fresh_entry.suffix_manifest_sha256 != item["suffix_manifest_sha256"]
+            or fresh_entry.suffix_manifest_cas_address_json
+            != _canonical_json(item["suffix_manifest_cas_address"])
+            or fresh_entry.suffix_digest_sha256 != item["suffix_digest_sha256"]
             or [
-                row.get("source_read_receipt_sha256")
+                row.source_read_receipt_sha256
                 for row in fresh_rows[start : start + row_count]
             ]
             != item["capture_ordered_source_receipt_sha256s"]
@@ -1012,9 +1205,7 @@ def _validate_source_provenance_binding(
             _fail("PROFILED_TRAINING_PARENT_SOURCE_LEDGER_ENTRY_BINDING_INVALID")
         selected_fresh_rows = fresh_rows[start : start + row_count]
         if require_current_window_wss and any(
-            type(row) is not dict
-            or row.get("source") != "binance_wss"
-            or row.get("is_backfilled") is not False
+            row.source != "binance_wss" or row.is_backfilled is not False
             for row in selected_fresh_rows
         ):
             _fail("PROFILED_TRAINING_PARENT_REQUIRED_WINDOW_TRANSPORT_UNPROVEN")
@@ -1031,6 +1222,7 @@ def _validate_parent_model_record(
         AUTHENTICATED_OHLCV_PROFILE_TRANSFORM_V1_CONFIGURATION_SHA256
     ),
     require_current_window_wss: bool = True,
+    source_snapshot_session: _SourceProvenanceSnapshotSession | None = None,
 ) -> dict[str, Any]:
     if (
         type(expected_transform_configuration_sha256) is not str
@@ -1040,6 +1232,10 @@ def _validate_parent_model_record(
             _LEGACY_PROFILED_TRANSFORM_CONFIGURATION_SHA256,
         }
         or type(require_current_window_wss) is not bool
+        or (
+            source_snapshot_session is not None
+            and type(source_snapshot_session) is not _SourceProvenanceSnapshotSession
+        )
         or require_current_window_wss
         is not (
             expected_transform_configuration_sha256
@@ -1100,6 +1296,7 @@ def _validate_parent_model_record(
         transform_available_at=transform_available,
         decision_time=decision,
         require_current_window_wss=require_current_window_wss,
+        source_snapshot_session=source_snapshot_session,
     )
     values = _float32_vector(
         typed_envelope.get("feature_values"),
@@ -2776,7 +2973,10 @@ def _admit_item(
     item: FixedCutoffFeatureSnapshot,
     high_water: Mapping[str, Any],
     trusted_immutable_cost_store_root: Path,
+    source_snapshot_session: _SourceProvenanceSnapshotSession,
 ) -> ProfiledTrainingLedgerSampleV1 | ProfiledTrainingLedgerExclusionV1 | None:
+    if type(source_snapshot_session) is not _SourceProvenanceSnapshotSession:
+        _fail("PROFILED_TRAINING_SOURCE_SNAPSHOT_SESSION_INVALID")
     record = item.record
     if type(record) is not dict or type(record.get("frozen_envelope")) is not dict:
         _fail("PROFILED_TRAINING_LEDGER_ITEM_INVALID")
@@ -2889,6 +3089,7 @@ def _admit_item(
             transform_configuration_sha256,
         ),
         require_current_window_wss=not legacy_transform,
+        source_snapshot_session=source_snapshot_session,
     )
     if parent_claim != parent_material["binding"]:
         _fail("PROFILED_TRAINING_PARENT_BINDING_MISMATCH")
@@ -3173,66 +3374,70 @@ def load_profiled_training_ledger_fixed_observation_v1(
         exclusion_count = 0
         maximum_resident_page_row_count = 0
         after_sequence = 0
-        page_iterator = ledger.iter_fixed_cutoff_pages(
-            decision_time_cutoff=strict_prior_text,
-            training_observed_at=strict_prior_text,
-            maximum_sequence=prefix_records,
-            page_size=effective_page_size,
-        )
-        try:
-            for page in page_iterator:
-                if (
-                    page[0].sequence <= after_sequence
-                    or page[-1].sequence <= after_sequence
-                    or page[-1].sequence > prefix_records
-                    or any(
-                        left.sequence >= right.sequence
-                        for left, right in zip(page, page[1:], strict=False)
-                    )
-                ):
-                    _fail("PROFILED_TRAINING_FIXED_OBSERVATION_PAGE_ORDER_INVALID")
-                samples: list[ProfiledTrainingLedgerSampleV1] = []
-                exclusions: list[ProfiledTrainingLedgerExclusionV1] = []
-                for item in page:
-                    admitted = _admit_item(
-                        ledger=ledger,
-                        item=item,
-                        high_water=before_high_water,
-                        trusted_immutable_cost_store_root=(
-                            trusted_immutable_cost_store_root
-                        ),
-                    )
-                    if type(admitted) is ProfiledTrainingLedgerExclusionV1:
-                        exclusions.append(cast(ProfiledTrainingLedgerExclusionV1, admitted))
-                    elif admitted is None:
-                        exclusions.append(
-                            ProfiledTrainingLedgerExclusionV1(
-                                sequence=item.sequence,
-                                durable_snapshot_id=cast(
-                                    str,
-                                    item.record.get("durable_snapshot_id", ""),
-                                ),
-                                reason=(
-                                    "NOT_AUTHENTICATED_PROFILED_TRAINING_ENRICHMENT"
-                                ),
-                            )
+        with _SourceProvenanceSnapshotSession() as source_snapshot_session:
+            page_iterator = ledger.iter_fixed_cutoff_pages(
+                decision_time_cutoff=strict_prior_text,
+                training_observed_at=strict_prior_text,
+                maximum_sequence=prefix_records,
+                page_size=effective_page_size,
+            )
+            try:
+                for page in page_iterator:
+                    if (
+                        page[0].sequence <= after_sequence
+                        or page[-1].sequence <= after_sequence
+                        or page[-1].sequence > prefix_records
+                        or any(
+                            left.sequence >= right.sequence
+                            for left, right in zip(page, page[1:], strict=False)
                         )
-                    else:
-                        samples.append(cast(ProfiledTrainingLedgerSampleV1, admitted))
-                page_consumer(tuple(samples), tuple(exclusions))
-                if scanned_start_sequence is None:
-                    scanned_start_sequence = page[0].sequence
-                scanned_end_sequence = page[-1].sequence
-                scanned_record_count += len(page)
-                admitted_sample_count += len(samples)
-                exclusion_count += len(exclusions)
-                maximum_resident_page_row_count = max(
-                    maximum_resident_page_row_count,
-                    len(page),
-                )
-                after_sequence = page[-1].sequence
-        finally:
-            page_iterator.close()
+                    ):
+                        _fail("PROFILED_TRAINING_FIXED_OBSERVATION_PAGE_ORDER_INVALID")
+                    samples: list[ProfiledTrainingLedgerSampleV1] = []
+                    exclusions: list[ProfiledTrainingLedgerExclusionV1] = []
+                    for item in page:
+                        admitted = _admit_item(
+                            ledger=ledger,
+                            item=item,
+                            high_water=before_high_water,
+                            trusted_immutable_cost_store_root=(
+                                trusted_immutable_cost_store_root
+                            ),
+                            source_snapshot_session=source_snapshot_session,
+                        )
+                        if type(admitted) is ProfiledTrainingLedgerExclusionV1:
+                            exclusions.append(
+                                cast(ProfiledTrainingLedgerExclusionV1, admitted)
+                            )
+                        elif admitted is None:
+                            exclusions.append(
+                                ProfiledTrainingLedgerExclusionV1(
+                                    sequence=item.sequence,
+                                    durable_snapshot_id=cast(
+                                        str,
+                                        item.record.get("durable_snapshot_id", ""),
+                                    ),
+                                    reason=(
+                                        "NOT_AUTHENTICATED_PROFILED_TRAINING_ENRICHMENT"
+                                    ),
+                                )
+                            )
+                        else:
+                            samples.append(cast(ProfiledTrainingLedgerSampleV1, admitted))
+                    page_consumer(tuple(samples), tuple(exclusions))
+                    if scanned_start_sequence is None:
+                        scanned_start_sequence = page[0].sequence
+                    scanned_end_sequence = page[-1].sequence
+                    scanned_record_count += len(page)
+                    admitted_sample_count += len(samples)
+                    exclusion_count += len(exclusions)
+                    maximum_resident_page_row_count = max(
+                        maximum_resident_page_row_count,
+                        len(page),
+                    )
+                    after_sequence = page[-1].sequence
+            finally:
+                page_iterator.close()
         after_report = ledger.verify_integrity_streaming()
         after_high_water = feature_ledger_fixed_observation_high_water(
             ledger=ledger,
@@ -3380,28 +3585,30 @@ def load_profiled_training_ledger_v1(
         scanned_items = items[:scan_limit]
         samples: list[ProfiledTrainingLedgerSampleV1] = []
         exclusions: list[ProfiledTrainingLedgerExclusionV1] = []
-        for item in scanned_items:
-            admitted = _admit_item(
-                ledger=ledger,
-                item=item,
-                high_water=before_high_water,
-                trusted_immutable_cost_store_root=trusted_immutable_cost_store_root,
-            )
-            if type(admitted) is ProfiledTrainingLedgerExclusionV1:
-                exclusions.append(cast(ProfiledTrainingLedgerExclusionV1, admitted))
-            elif admitted is None:
-                exclusions.append(
-                    ProfiledTrainingLedgerExclusionV1(
-                        sequence=item.sequence,
-                        durable_snapshot_id=cast(
-                            str,
-                            item.record.get("durable_snapshot_id", ""),
-                        ),
-                        reason="NOT_AUTHENTICATED_PROFILED_TRAINING_ENRICHMENT",
-                    )
+        with _SourceProvenanceSnapshotSession() as source_snapshot_session:
+            for item in scanned_items:
+                admitted = _admit_item(
+                    ledger=ledger,
+                    item=item,
+                    high_water=before_high_water,
+                    trusted_immutable_cost_store_root=trusted_immutable_cost_store_root,
+                    source_snapshot_session=source_snapshot_session,
                 )
-            else:
-                samples.append(cast(ProfiledTrainingLedgerSampleV1, admitted))
+                if type(admitted) is ProfiledTrainingLedgerExclusionV1:
+                    exclusions.append(cast(ProfiledTrainingLedgerExclusionV1, admitted))
+                elif admitted is None:
+                    exclusions.append(
+                        ProfiledTrainingLedgerExclusionV1(
+                            sequence=item.sequence,
+                            durable_snapshot_id=cast(
+                                str,
+                                item.record.get("durable_snapshot_id", ""),
+                            ),
+                            reason="NOT_AUTHENTICATED_PROFILED_TRAINING_ENRICHMENT",
+                        )
+                    )
+                else:
+                    samples.append(cast(ProfiledTrainingLedgerSampleV1, admitted))
         after_report = ledger.verify_integrity_streaming()
         after_high_water_scan_limit = max(
             after_report.verified_records,
@@ -3600,12 +3807,14 @@ def reopen_profiled_training_ledger_sample_v1(
     )
     if postcommit > strict_prior or decision > strict_prior:
         _fail("PROFILED_TRAINING_DIRECT_REOPEN_AFTER_FIXED_OBSERVATION")
-    admitted = _admit_item(
-        ledger=ledger,
-        item=item,
-        high_water=high_water,
-        trusted_immutable_cost_store_root=trusted_immutable_cost_store_root,
-    )
+    with _SourceProvenanceSnapshotSession() as source_snapshot_session:
+        admitted = _admit_item(
+            ledger=ledger,
+            item=item,
+            high_water=high_water,
+            trusted_immutable_cost_store_root=trusted_immutable_cost_store_root,
+            source_snapshot_session=source_snapshot_session,
+        )
     if type(admitted) is ProfiledTrainingLedgerExclusionV1:
         _fail(
             "PROFILED_TRAINING_DIRECT_REOPEN_EXCLUDED",
