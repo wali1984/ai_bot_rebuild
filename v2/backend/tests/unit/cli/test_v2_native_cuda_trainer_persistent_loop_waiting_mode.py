@@ -25,7 +25,7 @@ CANONICAL_COST_ROOT = (
     "/home/wali/ai_bot_local_data/v2_native_trainer/profiled_base_publisher_v1/"
     "profiled-training-enrichment-cas"
 )
-PUBLISHER_RELEASE_SHA = "7ff0e617d76bf83d6b69e6b6ec6814a3ec1b249c"
+PUBLISHER_RELEASE_SHA = "e3458a6383558f31c79e0829774c5d33f89b3c4b"
 PINNED_PYTHON = (
     "/home/wali/ai_bot_local_data/deployments/python_envs/"
     "6360ea33fcfb9f9a81724989bbd32ace2b02bf7eaa7a8771d64d282f423173f0/"
@@ -435,8 +435,9 @@ def test_repository_systemd_drop_in_pins_immutable_publisher_release() -> None:
         f"ExecStart={PINNED_PYTHON} -I -B /home/wali/ai_bot_local_data/deployments/"
         f"ai_bot_rebuild/{PUBLISHER_RELEASE_SHA}/v2/backend/app/cli/"
         "v2_native_cuda_trainer_persistent_loop.py "
-        "--mode authenticated-profiled-publisher"
+        "--mode locally-authenticated-profiled-research-publisher"
     ) in drop_in
+    assert "--mode authenticated-profiled-publisher" not in drop_in
     assert "--mode waiting-for-authenticated-samples" not in drop_in
 
 
