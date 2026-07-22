@@ -25,7 +25,7 @@ CANONICAL_COST_ROOT = (
     "/home/wali/ai_bot_local_data/v2_native_trainer/profiled_base_publisher_v1/"
     "profiled-training-enrichment-cas"
 )
-PUBLISHER_RELEASE_SHA = "a0c0aca90c24d01d2013335e8b5983a8c39f1ce3"
+PUBLISHER_RELEASE_SHA = "7ff0e617d76bf83d6b69e6b6ec6814a3ec1b249c"
 PINNED_PYTHON = (
     "/home/wali/ai_bot_local_data/deployments/python_envs/"
     "6360ea33fcfb9f9a81724989bbd32ace2b02bf7eaa7a8771d64d282f423173f0/"
