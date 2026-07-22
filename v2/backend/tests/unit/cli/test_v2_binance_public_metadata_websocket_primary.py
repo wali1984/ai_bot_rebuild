@@ -141,6 +141,109 @@ def test_public_metadata_blocks_rest_when_cache_missing_and_fallback_disabled(
     assert report["errors"] == 3
 
 
+def test_metadata_writer_cannot_replace_canonical_wss_mark_price() -> None:
+    canonical_key = "v2:market:mark_price:BTCUSDT"
+    canonical_payload = {
+        "schema_version": "binance_usdm_mark_price_wss_v1",
+        "symbol": "BTCUSDT",
+        "mark_price": 62840.2,
+        "markPrice": 62840.2,
+        "source": "binance_usdm_wss_mark_price_all_symbols",
+        "transport": "websocket_primary",
+    }
+    canonical_before = json.dumps(
+        canonical_payload,
+        allow_nan=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    redis_client = FakeRedis({})
+    redis_client.store[canonical_key] = canonical_before
+    normalized = {
+        "symbol": "BTCUSDT",
+        "mark_price": 62840.2,
+        "index_price": 62864.8,
+        "event_time": _now_iso(),
+        "available_at": _now_iso(),
+        "source": "binance_usdm_wss_mark_price_all_symbols",
+        "transport": "websocket_cache_primary",
+    }
+
+    written = metadata.write_redis(
+        redis_client,
+        "BTCUSDT",
+        premium=normalized,
+        oi={},
+        book={},
+        ttl_s=30,
+    )
+
+    metadata_key = "v2:market:premium_index:BTCUSDT"
+    assert canonical_key not in written
+    assert redis_client.store[canonical_key] == canonical_before
+    assert written[metadata_key] == 1
+    assert json.loads(redis_client.store[metadata_key]) == normalized
+
+
+def test_metadata_premium_index_cache_is_reusable_without_rest(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observed_at = _now_iso()
+    redis_client = FakeRedis(
+        {
+            "v2:market:premium_index:BTCUSDT": {
+                "symbol": "BTCUSDT",
+                "mark_price": 62840.2,
+                "index_price": 62864.8,
+                "last_funding_rate": 0.00006873,
+                "event_time": observed_at,
+                "generated_at": observed_at,
+                "available_at": observed_at,
+                "expected_update_interval_seconds": 30.0,
+                "source": "binance_public_rest_premium_index_fallback",
+                "transport": "rest_fallback",
+            }
+        }
+    )
+    monkeypatch.setattr(metadata, "_http_get_json", _fail_rest)
+
+    premium = metadata.fetch_premium_index("BTCUSDT", redis_client=redis_client)
+
+    assert premium["source_key"] == "v2:market:premium_index:BTCUSDT"
+    assert premium["mark_price"] == 62840.2
+    assert premium["index_price"] == 62864.8
+    assert premium["transport"] == "rest_fallback_cache"
+
+
+def test_metadata_rest_fallback_never_creates_canonical_mark_key() -> None:
+    redis_client = FakeRedis({})
+    fallback = {
+        "symbol": "BTCUSDT",
+        "mark_price": 62840.2,
+        "index_price": 62864.8,
+        "event_time": _now_ms(),
+        "available_at": _now_iso(),
+        "source": "binance_public_rest_premium_index_fallback",
+        "transport": "rest_fallback",
+    }
+
+    written = metadata.write_redis(
+        redis_client,
+        "BTCUSDT",
+        premium=fallback,
+        oi={},
+        book={},
+        ttl_s=30,
+    )
+
+    canonical_key = "v2:market:mark_price:BTCUSDT"
+    metadata_key = "v2:market:premium_index:BTCUSDT"
+    assert canonical_key not in written
+    assert canonical_key not in redis_client.store
+    assert written[metadata_key] == 1
+    assert json.loads(redis_client.store[metadata_key]) == fallback
+
+
 def test_native_ingestor_bundle_uses_websocket_cache_before_rest(monkeypatch: pytest.MonkeyPatch) -> None:
     producer_available_at = _now_iso()
     redis_client = FakeRedis(
