@@ -8468,6 +8468,25 @@ def test_default_writer_lock_contends_across_different_working_directories(
         holder.communicate(timeout=30)
 
 
+def test_writer_lock_path_accepts_operator_configured_absolute_runtime_path(
+    tmp_path: Path,
+) -> None:
+    configured = (tmp_path / "runtime/paper-writer.lock").absolute()
+
+    resolved = paper_loop._configured_paper_loop_lock_path(  # noqa: SLF001
+        {paper_loop.PAPER_LOOP_LOCK_PATH_ENV: str(configured)}
+    )
+
+    assert resolved == configured
+
+
+def test_writer_lock_path_rejects_relative_operator_configuration() -> None:
+    with pytest.raises(RuntimeError, match="PAPER_LOOP_LOCK_PATH_MUST_BE_ABSOLUTE"):
+        paper_loop._configured_paper_loop_lock_path(  # noqa: SLF001
+            {paper_loop.PAPER_LOOP_LOCK_PATH_ENV: "relative/paper-writer.lock"}
+        )
+
+
 def test_main_loop_routes_each_public_status_through_compact_writer(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
