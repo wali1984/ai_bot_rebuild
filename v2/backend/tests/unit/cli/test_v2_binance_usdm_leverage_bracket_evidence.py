@@ -72,6 +72,45 @@ def test_run_loop_can_execute_multiple_cycles_with_fakes() -> None:
     assert len(adapter.calls) == 2
 
 
+def test_run_loop_hands_only_authenticated_published_symbols_to_one_commission_turn() -> None:
+    adapter = FakeAdapter([_row()])
+    redis = FakeRedis()
+    commission_calls: list[tuple[str, ...]] = []
+    commission_results: list[dict[str, Any]] = []
+
+    def commission_runner(symbols: tuple[str, ...]) -> dict[str, Any]:
+        commission_calls.append(symbols)
+        return {
+            "status": "READY",
+            "selected_symbol": symbols[0],
+            "request_count": 1,
+            "pacing_ms": 10_000,
+        }
+
+    latest = cli.run_loop(
+        adapter=adapter,
+        redis_client=redis,
+        security_context=SECURITY,
+        symbols=["BTCUSDT"],
+        interval_seconds=300,
+        max_cycles=1,
+        commission_runner=commission_runner,
+        on_commission_result=commission_results.append,
+    )
+
+    assert latest["status"] == "READY"
+    assert commission_calls == [("BTCUSDT",)]
+    assert commission_results == [
+        {
+            "status": "READY",
+            "selected_symbol": "BTCUSDT",
+            "request_count": 1,
+            "pacing_ms": 10_000,
+        }
+    ]
+    assert len(adapter.calls) == 1
+
+
 def test_no_execute_remains_fail_closed() -> None:
     adapter = FakeAdapter([_row()], status="SIGNED_READ_READY_NOT_EXECUTED")
     redis = FakeRedis()

@@ -1,8 +1,10 @@
-"""Fetch and cache read-only Binance USD-M leverage-bracket evidence.
+"""Fetch authenticated read-only Binance USD-M account evidence.
 
-This command only calls signed USER_DATA ``GET /fapi/v1/leverageBracket`` via
-the existing adapter.  It never submits/cancels/modifies an order and never
-changes leverage or margin mode.
+The base command calls signed USER_DATA ``GET /fapi/v1/leverageBracket`` via
+the existing adapter.  When an explicit commission CAS root is supplied, its
+loop interleaves one adaptively paced ``GET /fapi/v1/commissionRate`` at a
+time.  It never submits/cancels/modifies an order and never changes leverage
+or margin mode.
 """
 
 from __future__ import annotations
@@ -11,11 +13,17 @@ import argparse
 import json
 import os
 import threading
+import time
 from collections.abc import Callable, Iterable
+from pathlib import Path
 from typing import Any
 
 from v2.backend.app.services import (
     binance_usdm_leverage_bracket_runtime_credentials as runtime_credentials,
+)
+from v2.backend.app.services.binance_usdm_commission_evidence_broker import (
+    capture_and_publish_next_commission_evidence,
+    default_commission_broker_store,
 )
 from v2.backend.app.services.binance_usdm_leverage_bracket_evidence import (
     DEFAULT_CACHE_TTL_SECONDS,
@@ -155,6 +163,9 @@ def run_loop(
     stop_event: threading.Event | None = None,
     max_cycles: int | None = None,
     on_result: Callable[[dict[str, Any]], None] | None = None,
+    commission_runner: Callable[[tuple[str, ...]], dict[str, Any]] | None = None,
+    on_commission_result: Callable[[dict[str, Any]], None] | None = None,
+    monotonic_fn: Callable[[], float] = time.monotonic,
 ) -> dict[str, Any]:
     if interval_seconds <= 0:
         raise ValueError("INTERVAL_SECONDS_MUST_BE_POSITIVE")
@@ -174,9 +185,41 @@ def run_loop(
         cycles += 1
         if on_result is not None:
             on_result(latest)
+        latest_commission: dict[str, Any] | None = None
+        if commission_runner is not None:
+            published = tuple(str(item) for item in latest.get("symbols_published", ()))
+            if published:
+                latest_commission = commission_runner(published)
+                if on_commission_result is not None:
+                    on_commission_result(latest_commission)
         if max_cycles is not None and cycles >= max_cycles:
             break
-        stopper.wait(interval_seconds)
+        if commission_runner is None:
+            stopper.wait(interval_seconds)
+            continue
+        bracket_due = monotonic_fn() + interval_seconds
+        while not stopper.is_set():
+            if latest_commission is None:
+                wait_seconds = max(0.0, bracket_due - monotonic_fn())
+            elif latest_commission.get("status") == "READY":
+                wait_seconds = float(latest_commission.get("pacing_ms", 0)) / 1_000.0
+            elif latest_commission.get("status") == "DEFERRED":
+                wait_seconds = float(latest_commission.get("claim_ttl_ms", 0)) / 1_000.0
+            else:
+                raise RuntimeError("COMMISSION_BROKER_LOOP_RESULT_INVALID")
+            remaining = bracket_due - monotonic_fn()
+            if remaining <= 0:
+                break
+            if not 0 < wait_seconds <= remaining:
+                wait_seconds = remaining
+            if stopper.wait(wait_seconds):
+                break
+            if monotonic_fn() >= bracket_due:
+                break
+            published = tuple(str(item) for item in latest.get("symbols_published", ()))
+            latest_commission = commission_runner(published)
+            if on_commission_result is not None:
+                on_commission_result(latest_commission)
     return latest
 
 
@@ -195,6 +238,21 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--freshness-seconds", type=int, default=DEFAULT_FRESHNESS_SECONDS)
     parser.add_argument("--cache-ttl-seconds", type=int, default=DEFAULT_CACHE_TTL_SECONDS)
     parser.add_argument("--interval-seconds", type=float, default=DEFAULT_INTERVAL_SECONDS)
+    parser.add_argument(
+        "--commission-broker-data-root",
+        type=Path,
+        default=None,
+        help=(
+            "absolute durable CAS root; when supplied, interleave one adaptive "
+            "commission GET at a time between bracket refreshes"
+        ),
+    )
+    parser.add_argument(
+        "--commission-priority-symbol",
+        action="append",
+        default=[],
+        help="optional currently demanded symbol; never expands the bracket-authenticated universe",
+    )
     parser.add_argument(
         "--no-execute",
         action="store_true",
@@ -233,6 +291,37 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 2
     redis_client = _redis_client(args.redis_url)
+    commission_runner: Callable[[tuple[str, ...]], dict[str, Any]] | None = None
+    if args.commission_broker_data_root is not None:
+        data_root = args.commission_broker_data_root
+        if not data_root.is_absolute():
+            parser.error("--commission-broker-data-root must be absolute")
+        commission_store = default_commission_broker_store(data_root)
+
+        def commission_runner(published_symbols: tuple[str, ...]) -> dict[str, Any]:
+            return capture_and_publish_next_commission_evidence(
+                adapter=adapter,
+                redis_client=redis_client,
+                store=commission_store,
+                security_context=security_context,
+                symbols=published_symbols,
+                priority_symbols=args.commission_priority_symbol,
+                environ=os.environ,
+            )
+
+    def emit_commission(payload: dict[str, Any]) -> None:
+        safe = {
+            key: value
+            for key, value in payload.items()
+            if key
+            not in {
+                "evidence",
+                "raw_response_bytes",
+                "fee_artifact_bytes",
+                "fee_schedule_receipt",
+            }
+        }
+        print(json.dumps(safe, indent=2 if args.json else None, sort_keys=True))
 
     if args.loop:
         try:
@@ -246,6 +335,8 @@ def main(argv: list[str] | None = None) -> int:
                 cache_ttl_seconds=args.cache_ttl_seconds,
                 interval_seconds=args.interval_seconds,
                 on_result=emit,
+                commission_runner=commission_runner,
+                on_commission_result=emit_commission,
             )
         except KeyboardInterrupt:
             return 130
@@ -260,6 +351,10 @@ def main(argv: list[str] | None = None) -> int:
             cache_ttl_seconds=args.cache_ttl_seconds,
         )
         emit(payload)
+        if commission_runner is not None and payload.get("symbols_published"):
+            emit_commission(
+                commission_runner(tuple(str(item) for item in payload["symbols_published"]))
+            )
     return 0 if payload.get("status") == "READY" else 2
 
 
