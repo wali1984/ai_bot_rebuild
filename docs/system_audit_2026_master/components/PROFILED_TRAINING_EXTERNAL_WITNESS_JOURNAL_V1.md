@@ -1,7 +1,8 @@
 # Profiled Training External Witness Journal V1
 
 Status: implemented, independently rereviewed, tested, committed, and pushed as
-an isolated durability library. It is not yet wired to a runtime service.
+an isolated durability library. Its ordered runtime caller library is also
+implemented; neither is installed as a runtime service.
 
 Runtime authority: none.
 
@@ -21,6 +22,7 @@ Primary adversarial tests:
 Related signed transport:
 
 - [PROFILED_TRAINING_EXTERNAL_WITNESS_CLIENT_V1.md](PROFILED_TRAINING_EXTERNAL_WITNESS_CLIENT_V1.md)
+- [PROFILED_TRAINING_EXTERNAL_WITNESS_RUNTIME_V1.md](PROFILED_TRAINING_EXTERNAL_WITNESS_RUNTIME_V1.md)
 
 ## 1. Purpose and exact boundary
 
@@ -366,8 +368,8 @@ signed-head tamper rejection.
 This checkpoint resolves local prepared/request/receipt/head durability. It does
 not make the trainer publisher operational. Remaining critical work is:
 
-1. runtime caller that owns prepare, persist, dispatch, ambiguous retry, anchor,
-   and restart sequencing;
+1. production CLI/unit around the implemented runtime caller, plus manifest and
+   full-consumption orchestration;
 2. operator-selected independent witness host, credentials, Ed25519 public key,
    and separately pinned SHA-256 fingerprint;
 3. independently deployed linearizable compare-and-append server with exact

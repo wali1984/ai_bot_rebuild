@@ -1,8 +1,8 @@
 # Profiled Training External Witness Client V1
 
 Status: implemented, tested, committed, and pushed as an isolated client
-library. Its durable local journal is implemented separately; neither component
-is wired to a runtime service.
+library. Its durable local journal and ordered caller are implemented
+separately; none is installed as a runtime service.
 
 Runtime authority: none.
 
@@ -19,6 +19,8 @@ Primary adversarial tests:
 Implementation checkpoint: `c602491e9b8d7a1949b0f85396721e2c59bdaed2`.
 
 Durable journal checkpoint: `ab1b6d810cbdd7ea3125c182e1f8b0c1f1778069`.
+
+Ordered runtime checkpoint: `5c74039a279af7d498b5fb9291230b60b7bbb65f`.
 
 ## 1. Purpose and trust boundary
 
@@ -256,7 +258,10 @@ The required journal is now implemented by
 [PROFILED_TRAINING_EXTERNAL_WITNESS_JOURNAL_V1.md](PROFILED_TRAINING_EXTERNAL_WITNESS_JOURNAL_V1.md).
 It persists the exact prepared request before dispatch, restores pending
 requests after restart, and anchors reverified signed receipt/head envelopes.
-The production runtime caller is still not implemented or commissioned.
+The ordered runtime caller is implemented and documented in
+[PROFILED_TRAINING_EXTERNAL_WITNESS_RUNTIME_V1.md](PROFILED_TRAINING_EXTERNAL_WITNESS_RUNTIME_V1.md).
+The production manifest/full-consumption coordinator, CLI, unit, and external
+witness are still not implemented or commissioned.
 
 ## 8. Completion authorization remains separate
 
@@ -314,7 +319,8 @@ The trainer optimizer publisher remains fail-closed until all of these exist:
 2. externally provisioned endpoint, bearer/client authentication, signing key,
    and pinned public-key fingerprint;
 3. server-side linearizable compare-and-append with exact idempotency replay;
-4. production runtime caller around the implemented durable journal;
+4. production manifest/full-consumption coordinator, CLI, and unit around the
+   implemented runtime caller and durable journal;
 5. purpose-specific completion-authorization endpoint and caller;
 6. dedicated supervised optimizer adapter with PPO/behavior terms disabled;
 7. actual optimizer execution receipts and atomic checkpoint writer/verifier;
