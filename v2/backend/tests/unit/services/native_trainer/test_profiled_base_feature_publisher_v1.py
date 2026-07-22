@@ -1943,6 +1943,7 @@ def test_resource_rotation_and_source_sharding_are_evidence_derived() -> None:
     decision = adaptive_resource_decision_v1(
         eligible_count=200,
         observations={
+            "cycle_count": 4,
             "materialized_publication_count": 4,
             "materialized_publication_elapsed_seconds": 40.0,
             "materialized_publication_bytes": 20_000_000,
@@ -1979,6 +1980,7 @@ def test_large_universe_is_bounded_by_sustainable_cadence_disk_budget() -> None:
     decision = adaptive_resource_decision_v1(
         eligible_count=160,
         observations={
+            "cycle_count": 10,
             "materialized_publication_count": 10,
             "materialized_publication_elapsed_seconds": 10.0,
             "materialized_publication_bytes": 49_000_000,
@@ -1994,14 +1996,54 @@ def test_large_universe_is_bounded_by_sustainable_cadence_disk_budget() -> None:
     assert decision.selected_count == 3
     assert (
         decision.selected_count * decision.estimated_evidence_bytes_per_symbol
-        <= decision.sustainable_cycle_write_budget_bytes
+        <= decision.available_write_credit_bytes
     )
+
+
+def test_indivisible_evidence_unit_accrues_bounded_cross_cycle_credit() -> None:
+    base_observations = {
+        "materialized_publication_count": 1,
+        "materialized_publication_elapsed_seconds": 1.0,
+        "materialized_publication_bytes": 10_000_000,
+    }
+    resource_inputs = {
+        "eligible_count": 75,
+        "cycle_period_seconds": 300.0,
+        "resource_sustainability_horizon_seconds": (
+            MINIMUM_RESOURCE_SUSTAINABILITY_HORIZON_SECONDS
+        ),
+        "disk_total_bytes": 500_000_000_000,
+        "disk_used_bytes": 296_320_000_000,
+        "disk_free_bytes": 203_680_000_000,
+    }
+
+    before_credit = adaptive_resource_decision_v1(
+        observations={**base_observations, "cycle_count": 2},
+        **resource_inputs,
+    )
+    funded = adaptive_resource_decision_v1(
+        observations={**base_observations, "cycle_count": 4},
+        **resource_inputs,
+    )
+
+    assert before_credit.sustainable_cycle_write_budget_bytes == 4_000_000
+    assert before_credit.estimated_evidence_bytes_per_symbol == 10_000_000
+    assert before_credit.available_write_credit_bytes == 2_000_000
+    assert before_credit.selected_count == 0
+    assert "BOUNDED_WRITE_CREDIT_ACCRUAL_PENDING" in before_credit.reasons
+    assert "RESOURCE_HEADROOM_NO_SAFE_PUBLICATION_UNIT" not in before_credit.reasons
+    assert funded.cumulative_sustainable_write_budget_bytes == 20_000_000
+    assert funded.write_credit_capacity_bytes == 10_000_000
+    assert funded.available_write_credit_bytes == 10_000_000
+    assert funded.selected_count == 1
+    assert "BOUNDED_CROSS_CYCLE_WRITE_CREDIT_ACCRUAL" in funded.reasons
 
 
 def test_shared_filesystem_reserve_holds_when_free_space_is_at_reserve() -> None:
     decision = adaptive_resource_decision_v1(
         eligible_count=160,
         observations={
+            "cycle_count": 10,
             "materialized_publication_count": 10,
             "materialized_publication_elapsed_seconds": 10.0,
             "materialized_publication_bytes": 49_000_000,
@@ -2026,6 +2068,7 @@ def test_two_observed_units_can_bind_shared_filesystem_reserve() -> None:
     decision = adaptive_resource_decision_v1(
         eligible_count=1,
         observations={
+            "cycle_count": 1,
             "materialized_publication_count": 1,
             "materialized_publication_elapsed_seconds": 1.0,
             "materialized_publication_bytes": 150_000_000_000,
@@ -2117,6 +2160,10 @@ def test_intra_cycle_backpressure_stops_after_observed_write_cost_jump(
         status["cycle_evidence_accounted_bytes"]
         > status["resource_decision"]["sustainable_cycle_write_budget_bytes"]
     )
+    assert (
+        status["cycle_evidence_accounted_bytes"]
+        > status["resource_decision"]["available_write_credit_bytes"]
+    )
     persisted_state = json.loads((tmp_path / "state.json").read_text(encoding="ascii"))
     assert persisted_state["observations"]["materialized_publication_bytes"] == (
         BOOTSTRAP_EVIDENCE_BYTES_PER_SYMBOL + 250_000_000
@@ -2172,6 +2219,7 @@ def test_short_resource_horizon_cannot_defeat_ninety_day_sustainability(
         adaptive_resource_decision_v1(
             eligible_count=160,
             observations={
+                "cycle_count": 0,
                 "materialized_publication_count": 0,
                 "materialized_publication_elapsed_seconds": 0.0,
                 "materialized_publication_bytes": 0,
@@ -2223,6 +2271,10 @@ def test_cli_cycle_summary_stays_bounded_when_full_status_has_large_inventories(
             "estimated_evidence_bytes_per_symbol": 5_000_000,
             "estimated_seconds_per_symbol": 2.0,
             "sustainable_cycle_write_budget_bytes": 25_000_000,
+            "observed_cycle_count": 10,
+            "consumed_materialized_evidence_bytes": 100_000_000,
+            "write_credit_capacity_bytes": 25_000_000,
+            "available_write_credit_bytes": 25_000_000,
             "disk_reserve_policy": DISK_RESERVE_POLICY_V1,
             "disk_reserve_bytes": 200_000_000_000,
             "safe_disk_headroom_bytes": 484_000_000_000,
@@ -2249,6 +2301,11 @@ def test_cli_cycle_summary_stays_bounded_when_full_status_has_large_inventories(
     assert summary["masked_cost_observation_symbol_count"] == 1
     assert summary["commission_cost_mode"] == MASKED_COST_OBSERVATION_MODE
     assert summary["commission_credentials_available"] is False
+    assert summary["resource_decision"]["observed_cycle_count"] == 10
+    assert (
+        summary["resource_decision"]["available_write_credit_bytes"]
+        == 25_000_000
+    )
     assert summary["credential_ref_read_only_assertion"] is True
     assert (
         summary["credential_ref_read_only_assertion_semantics"]

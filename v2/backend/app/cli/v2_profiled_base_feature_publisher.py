@@ -178,6 +178,10 @@ def bounded_cycle_summary(status: dict[str, Any], *, status_path: Path) -> dict[
             "sustainable_cycle_write_budget_bytes": resource.get(
                 "sustainable_cycle_write_budget_bytes"
             ),
+            "observed_cycle_count": resource.get("observed_cycle_count"),
+            "available_write_credit_bytes": resource.get(
+                "available_write_credit_bytes"
+            ),
             "disk_reserve_policy": resource.get("disk_reserve_policy"),
             "disk_reserve_bytes": resource.get("disk_reserve_bytes"),
             "safe_disk_headroom_bytes": resource.get("safe_disk_headroom_bytes"),

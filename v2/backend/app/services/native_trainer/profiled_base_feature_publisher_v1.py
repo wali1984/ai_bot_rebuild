@@ -1224,6 +1224,11 @@ class PublisherResourceDecisionV1:
     safe_disk_headroom_bytes: int
     resource_sustainability_horizon_seconds: float
     sustainable_cycle_write_budget_bytes: int
+    observed_cycle_count: int
+    consumed_materialized_evidence_bytes: int
+    cumulative_sustainable_write_budget_bytes: int
+    write_credit_capacity_bytes: int
+    available_write_credit_bytes: int
     absolute_disk_capacity_symbols: int
     disk_capacity_symbols: int
     publication_latency_capacity_symbols: int
@@ -1253,6 +1258,15 @@ class PublisherResourceDecisionV1:
                 self.resource_sustainability_horizon_seconds
             ),
             "sustainable_cycle_write_budget_bytes": (self.sustainable_cycle_write_budget_bytes),
+            "observed_cycle_count": self.observed_cycle_count,
+            "consumed_materialized_evidence_bytes": (
+                self.consumed_materialized_evidence_bytes
+            ),
+            "cumulative_sustainable_write_budget_bytes": (
+                self.cumulative_sustainable_write_budget_bytes
+            ),
+            "write_credit_capacity_bytes": self.write_credit_capacity_bytes,
+            "available_write_credit_bytes": self.available_write_credit_bytes,
             "absolute_disk_capacity_symbols": self.absolute_disk_capacity_symbols,
             "disk_capacity_symbols": self.disk_capacity_symbols,
             "publication_latency_capacity_symbols": (self.publication_latency_capacity_symbols),
@@ -1295,8 +1309,11 @@ def adaptive_resource_decision_v1(
     publication_count = observations.get("materialized_publication_count")
     publication_elapsed = observations.get("materialized_publication_elapsed_seconds")
     publication_bytes = observations.get("materialized_publication_bytes")
+    observed_cycle_count = observations.get("cycle_count")
     if (
-        type(publication_count) is not int
+        type(observed_cycle_count) is not int
+        or observed_cycle_count < 0
+        or type(publication_count) is not int
         or publication_count < 0
         or type(publication_elapsed) not in {int, float}
         or not math.isfinite(publication_elapsed)
@@ -1336,9 +1353,22 @@ def adaptive_resource_decision_v1(
         * min(cycle_period_seconds, resource_sustainability_horizon_seconds)
         / resource_sustainability_horizon_seconds
     )
+    # A sustainable byte rate can be smaller than one indivisible evidence
+    # unit.  Treat that rate as credit accrued across completed cycles instead
+    # of requiring every individual cycle to fund a whole unit.  The bucket is
+    # capped at the larger of one observed unit or one cycle's byte budget, so
+    # an idle publisher cannot accumulate an unbounded catch-up burst.
+    cumulative_sustainable_budget = sustainable_cycle_budget * (
+        observed_cycle_count + 1
+    )
+    write_credit_capacity = max(sustainable_cycle_budget, estimated_bytes)
+    available_write_credit = min(
+        write_credit_capacity,
+        max(0, cumulative_sustainable_budget - publication_bytes),
+    )
     disk_capacity = min(
         absolute_disk_capacity,
-        sustainable_cycle_budget // estimated_bytes,
+        available_write_credit // estimated_bytes,
     )
     latency_capacity = max(1, math.floor(cycle_period_seconds / estimated_seconds))
     selected = min(eligible_count, disk_capacity, latency_capacity)
@@ -1346,6 +1376,7 @@ def adaptive_resource_decision_v1(
         "LEAST_RECENTLY_COVERED_ROTATION",
         "IMMUTABLE_SHARED_FILESYSTEM_RESERVE_APPLIED",
         "SUSTAINABLE_DISK_HORIZON_DERIVED_WRITE_BUDGET",
+        "BOUNDED_CROSS_CYCLE_WRITE_CREDIT_ACCRUAL",
         "MATERIALIZED_PUBLICATION_LATENCY_DERIVED_WORKLOAD",
     ]
     reasons.append(
@@ -1358,7 +1389,12 @@ def adaptive_resource_decision_v1(
     if selected == latency_capacity and selected < eligible_count:
         reasons.append("CYCLE_LATENCY_BINDING")
     if selected == 0:
-        reasons.append("RESOURCE_HEADROOM_NO_SAFE_PUBLICATION_UNIT")
+        reasons.append(
+            "BOUNDED_WRITE_CREDIT_ACCRUAL_PENDING"
+            if absolute_disk_capacity > 0
+            and available_write_credit < estimated_bytes
+            else "RESOURCE_HEADROOM_NO_SAFE_PUBLICATION_UNIT"
+        )
     return PublisherResourceDecisionV1(
         discovered_eligible_count=eligible_count,
         selected_count=selected,
@@ -1375,6 +1411,11 @@ def adaptive_resource_decision_v1(
         safe_disk_headroom_bytes=safe_headroom,
         resource_sustainability_horizon_seconds=float(resource_sustainability_horizon_seconds),
         sustainable_cycle_write_budget_bytes=sustainable_cycle_budget,
+        observed_cycle_count=observed_cycle_count,
+        consumed_materialized_evidence_bytes=publication_bytes,
+        cumulative_sustainable_write_budget_bytes=cumulative_sustainable_budget,
+        write_credit_capacity_bytes=write_credit_capacity,
+        available_write_credit_bytes=available_write_credit,
         absolute_disk_capacity_symbols=absolute_disk_capacity,
         disk_capacity_symbols=disk_capacity,
         publication_latency_capacity_symbols=latency_capacity,
@@ -3414,7 +3455,7 @@ class ProfiledBaseFeaturePublisherV1:
             )
             if (
                 current_cycle_bytes + effective_next_publication_bytes
-                > decision.sustainable_cycle_write_budget_bytes
+                > decision.available_write_credit_bytes
             ):
                 resource_deferred.extend(planned_selection[selection_index:])
                 break
