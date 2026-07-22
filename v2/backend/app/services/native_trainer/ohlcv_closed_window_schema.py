@@ -68,7 +68,7 @@ _OHLCV_KEYS = frozenset(
         "taker_buy_quote_vol",
     }
 )
-_ROW_KEYS = frozenset(
+_LEGACY_ROW_KEYS = frozenset(
     {
         "symbol",
         "exchange",
@@ -102,6 +102,7 @@ _ROW_KEYS = frozenset(
         "taker_buy_quote_vol",
     }
 )
+_ROW_KEYS = _LEGACY_ROW_KEYS | frozenset({"venue", "product_type"})
 
 ExactNumber = int | float
 
@@ -407,7 +408,8 @@ def _validate_row(
     if type(raw_row) is not dict:
         _invalid("ohlcv_closed_row_requires_exact_dict")
     row = cast(dict[str, object], raw_row)
-    if frozenset(row) != _ROW_KEYS:
+    row_keys = frozenset(row)
+    if row_keys not in {_LEGACY_ROW_KEYS, _ROW_KEYS}:
         _invalid("ohlcv_closed_row_field_set_invalid")
 
     symbol = _exact_string(row, "symbol")
@@ -415,6 +417,17 @@ def _validate_row(
     timeframe = _exact_string(row, "timeframe")
     if symbol != expected_symbol or exchange != "binance" or timeframe != expected_timeframe:
         _invalid("ohlcv_closed_source_binding_invalid")
+    # ``venue`` and ``product_type`` were added to the canonical producer in
+    # July 2026.  Existing immutable Redis windows can contain the preceding
+    # exact ABI until their bounded history rolls forward, so accept that one
+    # complete legacy field set during migration.  Any present product binding
+    # must be complete and exactly Binance USD-M; partial or alternate product
+    # claims fail closed.
+    if row_keys == _ROW_KEYS and (
+        _exact_string(row, "venue") != "binance_usdm"
+        or _exact_string(row, "product_type") != "USD-M"
+    ):
+        _invalid("ohlcv_closed_product_binding_invalid")
 
     candle_open_time = _nonnegative_int(row, "candle_open_time")
     candle_close_time = _nonnegative_int(row, "candle_close_time")

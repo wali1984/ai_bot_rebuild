@@ -214,6 +214,44 @@ def test_canonical_rest_producer_is_accepted_without_identity_inference() -> Non
     assert payload["product_type"] == "USD-M"
 
 
+def test_deployed_closed_window_legacy_identity_is_bounded_to_canonical_key() -> None:
+    legacy = _candle_row(0)
+    legacy.pop("venue")
+    legacy.pop("product_type")
+    closed_key = f"v2:market:ohlcv_closed:binance:{SYMBOL}:{TIMEFRAME}"
+
+    row = adapt_binance_finalized_candles(
+        _evidence(closed_key, [legacy]),
+        symbol=SYMBOL,
+        timeframe=TIMEFRAME,
+    )[0]
+    assert row.venue == "binance_usdm"
+
+    with pytest.raises(
+        SourceAdapterError,
+        match="CANDLE_ROW_VENUE_OR_TIMEFRAME_MISMATCH",
+    ):
+        adapt_binance_finalized_candles(
+            _evidence(
+                f"v2:market:ohlcv:binance:{SYMBOL}:{TIMEFRAME}",
+                [legacy],
+            ),
+            symbol=SYMBOL,
+            timeframe=TIMEFRAME,
+        )
+
+    partial = dict(legacy, venue="binance_usdm")
+    with pytest.raises(
+        SourceAdapterError,
+        match="CANDLE_ROW_VENUE_OR_TIMEFRAME_MISMATCH",
+    ):
+        adapt_binance_finalized_candles(
+            _evidence(closed_key, [partial]),
+            symbol=SYMBOL,
+            timeframe=TIMEFRAME,
+        )
+
+
 def test_candle_adapter_accepts_only_complete_canonical_resampler_identity() -> None:
     resampled = _candle_row(
         0,
@@ -309,6 +347,45 @@ def test_mark_wss_producer_is_accepted_without_identity_inference() -> None:
     assert row.price == 101.25
     assert row.venue == "binance_usdm"
     assert payload["product_type"] == "USD-M"
+
+
+def test_deployed_mark_wss_legacy_identity_is_bounded_to_exact_key() -> None:
+    payload = {
+        "schema_version": "binance_usdm_mark_price_wss_v1",
+        "symbol": SYMBOL,
+        "markPrice": "101.25",
+        "event_time": BASE_MS + 1,
+        "available_at": BASE_MS + 10,
+        "source": "binance_usdm_wss_mark_price_all_symbols",
+        "transport": "websocket_primary",
+    }
+    exact_key = f"v2:market:mark_price:{SYMBOL}"
+    assert (
+        adapt_binance_mark_price(
+            _evidence(exact_key, payload),
+            symbol=SYMBOL,
+        ).venue
+        == "binance_usdm"
+    )
+
+    with pytest.raises(
+        SourceAdapterError,
+        match="MARK_PRICE_VENUE_OR_PRODUCT_TYPE_MISMATCH",
+    ):
+        adapt_binance_mark_price(
+            _evidence(f"v2:market:funding:{SYMBOL}", payload),
+            symbol=SYMBOL,
+        )
+
+    partial = dict(payload, venue="binance_usdm")
+    with pytest.raises(
+        SourceAdapterError,
+        match="MARK_PRICE_VENUE_OR_PRODUCT_TYPE_MISMATCH",
+    ):
+        adapt_binance_mark_price(
+            _evidence(exact_key, partial),
+            symbol=SYMBOL,
+        )
 
 
 def test_native_rest_fallback_is_accepted_with_exact_endpoint(

@@ -234,11 +234,20 @@ def adapt_binance_finalized_candles(
         if not isinstance(row, Mapping):
             raise SourceAdapterError("CANDLE_ROW_NOT_OBJECT")
         _canonical_symbol(row.get("symbol"), expected=canonical_symbol)
+        closed_window_key = (
+            evidence.key
+            == f"v2:market:ohlcv_closed:binance:{canonical_symbol}:{timeframe}"
+        )
+        product_identity = (row.get("venue"), row.get("product_type"))
+        product_identity_valid = product_identity == (BINANCE_USDM_VENUE, "USD-M")
+        product_identity_legacy_absent = product_identity == (None, None)
         if (
             row.get("exchange") != "binance"
-            or row.get("venue") != BINANCE_USDM_VENUE
-            or row.get("product_type") != "USD-M"
             or row.get("timeframe") != timeframe
+            or not (
+                product_identity_valid
+                or (closed_window_key and product_identity_legacy_absent)
+            )
         ):
             raise SourceAdapterError("CANDLE_ROW_VENUE_OR_TIMEFRAME_MISMATCH")
         if row.get("is_closed") is not True:
@@ -344,11 +353,18 @@ def adapt_binance_mark_price(
     _require_no_positive_authority_claim(payload)
     if payload.get("symbol") != canonical_symbol:
         raise SourceAdapterError("MARK_PRICE_SYMBOL_MISMATCH")
-    if payload.get("venue") != BINANCE_USDM_VENUE or payload.get("product_type") != "USD-M":
+    product_identity = (payload.get("venue"), payload.get("product_type"))
+    product_identity_valid = product_identity == (BINANCE_USDM_VENUE, "USD-M")
+    product_identity_legacy_absent = product_identity == (None, None)
+    exact_wss_key = evidence.key == f"v2:market:mark_price:{canonical_symbol}"
+    if not (
+        product_identity_valid
+        or (exact_wss_key and product_identity_legacy_absent)
+    ):
         raise SourceAdapterError("MARK_PRICE_VENUE_OR_PRODUCT_TYPE_MISMATCH")
     source = str(payload.get("source") or "").strip().lower()
     transport = str(payload.get("transport") or "").strip().lower()
-    if evidence.key == f"v2:market:mark_price:{canonical_symbol}":
+    if exact_wss_key:
         if (
             payload.get("schema_version") != "binance_usdm_mark_price_wss_v1"
             or source != "binance_usdm_wss_mark_price_all_symbols"

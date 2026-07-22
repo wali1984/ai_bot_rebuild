@@ -136,7 +136,9 @@ def test_actual_canonical_mixed_rest_wss_window_binds_all_evidence() -> None:
         required_contiguous_lookback=3,
     )
 
-    assert len(rows[0]) == 30
+    assert len(rows[0]) == 32
+    assert rows[0]["venue"] == "binance_usdm"
+    assert rows[0]["product_type"] == "USD-M"
     assert len(rows[0]["ohlcv"]) == 9
     assert result.source_key == "v2:market:ohlcv_closed:binance:BTCUSDT:1m"
     assert result.exact_payload_sha256 == hashlib.sha256(raw).hexdigest()
@@ -163,6 +165,33 @@ def test_actual_canonical_mixed_rest_wss_window_binds_all_evidence() -> None:
     assert result.consumer_eligible is False
     assert result.trainer_admission_granted is False
     assert result.live_execution_authorized is False
+
+
+def test_transitional_legacy_rows_are_exactly_bounded_and_product_claims_fail_closed() -> None:
+    legacy = _canonical_wss(0)
+    legacy.pop("venue")
+    legacy.pop("product_type")
+    validate_ohlcv_closed_window(
+        _payload([legacy]),
+        symbol=SYMBOL,
+        timeframe="1m",
+    )
+
+    partial = _canonical_wss(0)
+    partial.pop("product_type")
+    _assert_invalid(_payload([partial]))
+
+    wrong_product = _canonical_wss(0)
+    wrong_product["product_type"] = "SPOT"
+    with pytest.raises(
+        OHLCVClosedWindowValidationError,
+        match="ohlcv_closed_product_binding_invalid",
+    ):
+        validate_ohlcv_closed_window(
+            _payload([wrong_product]),
+            symbol=SYMBOL,
+            timeframe="1m",
+        )
 
 
 @pytest.mark.parametrize("timeframe", SUPPORTED_TRAINER_TIMEFRAMES)
