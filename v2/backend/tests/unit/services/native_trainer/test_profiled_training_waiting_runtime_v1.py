@@ -82,6 +82,9 @@ def test_candidate_contract_constants_match_offline_hardened_loader() -> None:
     assert waiting_runtime._PROFILED_TRANSFORM_CONFIGURATION_SHA256 == (
         AUTHENTICATED_OHLCV_PROFILE_TRANSFORM_V1_CONFIGURATION_SHA256
     )
+    assert waiting_runtime._CANONICAL_PROVENANCE_CLASSIFICATION == (
+        ledger_module.PROVENANCE_CANONICAL_V3
+    )
     assert waiting_runtime._PHYSICAL_PROFILED_FEATURE_COUNT == (
         hardened_loader.PROFILED_TRAINING_PHYSICAL_FEATURE_COUNT
     )
@@ -90,6 +93,9 @@ def test_candidate_contract_constants_match_offline_hardened_loader() -> None:
     )
     assert waiting_runtime._EXPECTED_SAMPLE_AUTHORIZATION == (
         hardened_loader._EXPECTED_AUTHORIZATION
+    )
+    assert waiting_runtime._EXPECTED_PARENT_AUTHORIZATION == (
+        hardened_loader._PARENT_FALSE_AUTHORIZATION
     )
     assert waiting_runtime._PARENT_PROFILED_FEATURE_COUNT == PHYSICAL_MODEL_FEATURE_COUNT
     assert (
@@ -131,7 +137,7 @@ def test_candidate_contract_requires_exact_parent_child_bit_identity() -> None:
             ),
             "authorization": dict(waiting_runtime._EXPECTED_PARENT_AUTHORIZATION),
         },
-        "provenance_classification": "CANONICAL_V3",
+        "provenance_classification": waiting_runtime._CANONICAL_PROVENANCE_CLASSIFICATION,
         "legacy_v1_snapshot_id": None,
         "strict_training_eligible": False,
         "missing_mask": [0] * 35,
@@ -191,7 +197,7 @@ def test_candidate_contract_requires_exact_parent_child_bit_identity() -> None:
                 "parent_model_record_binding": {"durable_snapshot_id": "profiled-parent-id"},
             }
         },
-        "provenance_classification": "CANONICAL_V3",
+        "provenance_classification": waiting_runtime._CANONICAL_PROVENANCE_CLASSIFICATION,
         "legacy_v1_snapshot_id": None,
         "strict_training_eligible": True,
         "strict_training_ineligibility_reasons": [],
@@ -217,6 +223,18 @@ def test_candidate_contract_requires_exact_parent_child_bit_identity() -> None:
     assert (
         waiting_runtime._profiled_child_candidate_rejection(legacy_item, ledger=ledger)
         == "PROFILED_CHILD_UNSUPPORTED_TRANSFORM_CONFIGURATION"
+    )
+
+    stale_provenance_item = copy.deepcopy(item)
+    stale_provenance_item.record["frozen_envelope"]["provenance_classification"] = (
+        "CANONICAL_V3"
+    )
+    assert (
+        waiting_runtime._profiled_child_candidate_rejection(
+            stale_provenance_item,
+            ledger=ledger,
+        )
+        == "PROFILED_CHILD_CANDIDATE_CONTRACT_INVALID"
     )
 
     tampered_item = copy.deepcopy(item)
