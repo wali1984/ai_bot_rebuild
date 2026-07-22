@@ -194,6 +194,21 @@ def _select(
     )
 
 
+def _read_surface_brackets(
+    redis: FakeRedis,
+    *,
+    security_context: mod.EvidenceSecurityContext | None = SECURITY,
+    symbol: str = "BTCUSDT",
+    now_fn: Any = None,
+) -> dict[str, Any]:
+    return mod.read_authenticated_bracket_surface_evidence(
+        redis,
+        security_context=security_context,
+        symbol=symbol,
+        now_fn=now_fn or (lambda: CONSUMER_NOW),
+    )
+
+
 def test_security_context_requires_safe_exact_account_environment_and_auth() -> None:
     assert mod.SCHEMA_VERSION == "v2_binance_usdm_leverage_bracket_evidence_v3"
     assert mod.STATUS_SCHEMA_VERSION == "v2_binance_usdm_leverage_bracket_evidence_status_v3"
@@ -695,6 +710,150 @@ def test_consumer_selects_floor_inclusive_cap_exclusive_and_exact_formula() -> N
     assert second["notional_coef"] == 1.5
     assert second["consumer_observed_at"] == "2026-07-17T12:05:00.000000Z"
     assert second["current_checked_at"] == "2026-07-17T12:05:00.000000Z"
+
+
+def test_surface_consumer_returns_authenticated_full_ladder_without_selecting_leverage() -> None:
+    redis = FakeRedis()
+    cached = _cache(redis)
+
+    result = _read_surface_brackets(redis)
+
+    assert result["status"] == "READY"
+    assert result["evidence_authenticated"] is True
+    assert result["brackets"] == cached["brackets"]
+    assert len(result["observations"]) == 2
+    assert result["observations"][0].venue == "binance_usdm"
+    assert result["observations"][0].symbol == "BTCUSDT"
+    assert result["observations"][0].initial_leverage == 75
+    assert result["observations"][1].maintenance_margin_rate == 0.01
+    assert result["observations"][0].available_at_ms == 1_784_289_900_000
+    assert result["observations"][0].source_sha256 == cached["content_checksum_sha256"]
+    assert result["bracket_count"] == 2
+    assert result["consumer_observed_at"] == "2026-07-17T12:05:00.000000Z"
+    assert result["current_checked_at"] == "2026-07-17T12:05:00.000000Z"
+    assert result["source_available_at"] == "2026-07-17T12:00:00.000000Z"
+    assert result["available_at"] == "2026-07-17T12:05:00.000000Z"
+    assert result["read_only"] is True
+    assert result["paper_only"] is True
+    assert result["places_real_order"] is False
+    assert result["leverage_mutated"] is False
+    assert result["margin_mutated"] is False
+    assert result["available_at_semantics"] == (
+        "POST_REDIS_READ_CHECKSUM_HMAC_AND_CANONICAL_CURVE_VALIDATION_CLOCK"
+    )
+
+
+@pytest.mark.parametrize(
+    ("clock", "expected"),
+    [
+        (
+            SequenceClock(NOW - timedelta(microseconds=1), NOW),
+            "LEVERAGE_BRACKET_EVIDENCE_AVAILABLE_AFTER_CONSUMER_OBSERVED_AT",
+        ),
+        (
+            SequenceClock(CONSUMER_NOW, CONSUMER_NOW - timedelta(microseconds=1)),
+            "CONSUMER_CLOCK_REGRESSION",
+        ),
+        (
+            SequenceClock(
+                NOW + timedelta(minutes=9, seconds=59),
+                NOW + timedelta(minutes=10),
+            ),
+            "LEVERAGE_BRACKET_EVIDENCE_STALE",
+        ),
+    ],
+)
+def test_surface_consumer_rejects_future_source_clock_regression_and_staleness(
+    clock: SequenceClock,
+    expected: str,
+) -> None:
+    redis = FakeRedis()
+    _cache(redis)
+
+    result = _read_surface_brackets(
+        redis,
+        now_fn=clock,
+    )
+
+    assert result["status"] == expected
+    assert result["evidence_authenticated"] is False
+    assert result["brackets"] == []
+    assert result["observations"] == ()
+
+
+def test_surface_consumer_bounds_raw_bytes_and_bracket_count_before_auth_work() -> None:
+    oversized_raw = FakeRedis()
+    key = mod.redis_key("BTCUSDT", security_context=SECURITY)
+    oversized_raw.set(key, "x" * (mod.MAX_SURFACE_EVIDENCE_BYTES + 1), ex=900)
+    assert _read_surface_brackets(oversized_raw)["status"] == (
+        "LEVERAGE_BRACKET_EVIDENCE_RESOURCE_LIMIT"
+    )
+
+    oversized_curve = FakeRedis()
+    payload = _cache(oversized_curve)
+    payload["brackets"] = [{}] * (mod.MAX_SURFACE_BRACKET_COUNT + 1)
+    oversized_curve.set(key, json.dumps(payload), ex=900)
+    assert _read_surface_brackets(oversized_curve)["status"] == (
+        "LEVERAGE_BRACKET_EVIDENCE_RESOURCE_LIMIT"
+    )
+
+
+def test_surface_consumer_rejects_missing_security_and_hmac_tamper() -> None:
+    missing_security = _read_surface_brackets(FakeRedis(), security_context=None)
+    assert missing_security["status"] == "EVIDENCE_SECURITY_CONTEXT_INVALID"
+
+    redis = FakeRedis()
+    payload = _cache(redis)
+    payload["brackets"][0]["maintMarginRatio"] = 0.007
+    payload["content_checksum_sha256"] = mod._content_checksum(payload)
+    redis.set(
+        mod.redis_key("BTCUSDT", security_context=SECURITY),
+        json.dumps(payload),
+        ex=900,
+    )
+
+    result = _read_surface_brackets(redis)
+    assert result["status"] == "LEVERAGE_BRACKET_EVIDENCE_MALFORMED"
+    assert result["validation_error_code"] == "EVIDENCE_HMAC_MISMATCH"
+    assert result["evidence_authenticated"] is False
+    assert result["brackets"] == []
+
+
+def test_surface_consumer_contains_recursive_parse_and_validation_failures(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    redis = FakeRedis()
+    _cache(redis)
+
+    monkeypatch.setattr(mod.json, "loads", lambda _raw: (_ for _ in ()).throw(RecursionError()))
+    parsed = _read_surface_brackets(redis)
+    assert parsed["status"] == "LEVERAGE_BRACKET_EVIDENCE_MALFORMED"
+    assert parsed["observations"] == ()
+
+    monkeypatch.undo()
+    monkeypatch.setattr(
+        mod,
+        "_validate_cached_evidence",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RecursionError()),
+    )
+    validated = _read_surface_brackets(redis)
+    assert validated["status"] == "LEVERAGE_BRACKET_EVIDENCE_MALFORMED"
+    assert validated["validation_error_code"] == "EVIDENCE_NESTING_LIMIT_EXCEEDED"
+    assert validated["observations"] == ()
+
+
+def test_surface_observation_rounds_availability_up_to_causal_millisecond() -> None:
+    redis = FakeRedis()
+    _cache(redis)
+    clock = SequenceClock(
+        CONSUMER_NOW + timedelta(microseconds=1),
+        CONSUMER_NOW + timedelta(microseconds=1),
+    )
+
+    result = _read_surface_brackets(redis, now_fn=clock)
+
+    assert result["status"] == "READY"
+    assert result["observations"][0].available_at_ms == 1_784_289_900_001
 
 
 @pytest.mark.parametrize(

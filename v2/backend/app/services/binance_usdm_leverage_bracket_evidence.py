@@ -29,6 +29,7 @@ from urllib.parse import urlsplit
 from v2.backend.app.services.binance_unified_websocket_transport import (
     resolve_binance_credential_binding,
 )
+from v2.backend.app.services.liquidation_surface.contracts import LeverageBracket
 
 SCHEMA_VERSION = "v2_binance_usdm_leverage_bracket_evidence_v3"
 STATUS_SCHEMA_VERSION = "v2_binance_usdm_leverage_bracket_evidence_status_v3"
@@ -63,6 +64,9 @@ REDIS_STATUS_KEY_PREFIX = "v2:binance_usdm:leverage_bracket_status:"
 
 DEFAULT_FRESHNESS_SECONDS = 600
 DEFAULT_CACHE_TTL_SECONDS = 900
+# Computational trust-boundary limits, not market thresholds.
+MAX_SURFACE_EVIDENCE_BYTES = 1_048_576
+MAX_SURFACE_BRACKET_COUNT = 1_024
 
 _SYMBOL_RE = re.compile(r"^[A-Z0-9]{2,30}$")
 _SAFE_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
@@ -118,6 +122,20 @@ def _iso(value: datetime) -> str:
     if value.tzinfo is None or value.utcoffset() is None:
         raise LeverageBracketEvidenceError("TIMESTAMP_MUST_BE_TIMEZONE_AWARE")
     return value.astimezone(UTC).isoformat(timespec="microseconds").replace("+00:00", "Z")
+
+
+def _epoch_microseconds(value: datetime) -> int:
+    normalized = value.astimezone(UTC)
+    delta = normalized - datetime(1970, 1, 1, tzinfo=UTC)
+    return delta.days * 86_400_000_000 + delta.seconds * 1_000_000 + delta.microseconds
+
+
+def _ceil_epoch_ms(value: datetime) -> int:
+    return (_epoch_microseconds(value) + 999) // 1_000
+
+
+def _floor_epoch_ms(value: datetime) -> int:
+    return _epoch_microseconds(value) // 1_000
 
 
 def _parse_utc(value: Any) -> datetime | None:
@@ -1410,7 +1428,7 @@ def select_paper_bracket_evidence(
         if isinstance(raw, bytes):
             raw = raw.decode("utf-8")
         payload = json.loads(raw) if isinstance(raw, str) else raw
-    except (UnicodeDecodeError, TypeError, ValueError):
+    except (RecursionError, UnicodeDecodeError, TypeError, ValueError):
         payload = None
     if not isinstance(payload, Mapping):
         return _consumer_result(
@@ -1555,6 +1573,175 @@ def select_paper_bracket_evidence(
     }
 
 
+def read_authenticated_bracket_surface_evidence(
+    redis_client: Any,
+    *,
+    security_context: EvidenceSecurityContext | None,
+    symbol: Any,
+    now_fn: Callable[[], datetime] = _utc_now,
+) -> dict[str, Any]:
+    """Read the full current bracket ladder for a paper-only surface model.
+
+    This is a signed-evidence consumer, not an exchange request.  It validates
+    the cached content checksum and HMAC, the exact credential/environment
+    binding, symbol identity, bounded raw size/curve count, and a second clock
+    after validation.  Its ``available_at`` is that post-validation clock, not
+    the producer's pre-Redis timestamp.  The later surface model must enforce
+    ``available_at <= surface_as_of``.  This function never selects leverage,
+    changes margin, or touches an order path.
+    """
+
+    base: dict[str, Any] = {
+        "status": "BLOCKED",
+        "evidence_authenticated": False,
+        "symbol": None,
+        "consumer_observed_at": None,
+        "current_checked_at": None,
+        "evidence_key": None,
+        "fetched_at": None,
+        "ingested_at": None,
+        "source_available_at": None,
+        "available_at": None,
+        "expires_at": None,
+        "content_checksum_sha256": None,
+        "brackets": [],
+        "observations": (),
+        "read_only": True,
+        "paper_only": True,
+        "places_real_order": False,
+        "order_submitted": False,
+        "leverage_mutated": False,
+        "margin_mutated": False,
+    }
+    try:
+        context = _require_security_context(security_context)
+    except LeverageBracketEvidenceError:
+        return {**base, "status": "EVIDENCE_SECURITY_CONTEXT_INVALID"}
+    base.update(context.safe_metadata())
+    try:
+        canonical_symbol = normalize_symbol(symbol)
+        key = redis_key(canonical_symbol, security_context=context)
+    except LeverageBracketEvidenceError:
+        return {**base, "status": "SYMBOL_INVALID"}
+    base.update({"symbol": canonical_symbol, "evidence_key": key})
+    if redis_client is None:
+        return {**base, "status": "LEVERAGE_BRACKET_EVIDENCE_MISSING"}
+    try:
+        raw = redis_client.get(key)
+    except Exception:
+        raw = None
+    try:
+        observed = _aware_now(now_fn, field_name="CONSUMER_OBSERVED_AT")
+    except LeverageBracketEvidenceError:
+        return {**base, "status": "CONSUMER_OBSERVED_AT_INVALID_OR_NAIVE"}
+    base["consumer_observed_at"] = _iso(observed)
+    if raw in (None, "", b""):
+        return {**base, "status": "LEVERAGE_BRACKET_EVIDENCE_MISSING"}
+    try:
+        if isinstance(raw, bytes):
+            raw_bytes = raw
+        elif isinstance(raw, str):
+            raw_bytes = raw.encode("utf-8", errors="strict")
+        else:
+            raise TypeError("cached evidence must be exact text or bytes")
+        if len(raw_bytes) > MAX_SURFACE_EVIDENCE_BYTES:
+            return {**base, "status": "LEVERAGE_BRACKET_EVIDENCE_RESOURCE_LIMIT"}
+        payload = json.loads(raw_bytes.decode("utf-8", errors="strict"))
+    except (RecursionError, UnicodeDecodeError, TypeError, ValueError):
+        payload = None
+    if not isinstance(payload, Mapping):
+        return {**base, "status": "LEVERAGE_BRACKET_EVIDENCE_MALFORMED"}
+    bracket_rows = payload.get("brackets")
+    if isinstance(bracket_rows, list) and len(bracket_rows) > MAX_SURFACE_BRACKET_COUNT:
+        return {**base, "status": "LEVERAGE_BRACKET_EVIDENCE_RESOURCE_LIMIT"}
+    try:
+        _validate_cached_evidence(
+            payload,
+            symbol=canonical_symbol,
+            security_context=context,
+        )
+    except LeverageBracketEvidenceError as exc:
+        return {
+            **base,
+            "status": "LEVERAGE_BRACKET_EVIDENCE_MALFORMED",
+            "validation_error_code": str(exc),
+        }
+    except RecursionError:
+        return {
+            **base,
+            "status": "LEVERAGE_BRACKET_EVIDENCE_MALFORMED",
+            "validation_error_code": "EVIDENCE_NESTING_LIMIT_EXCEEDED",
+        }
+    try:
+        checked = _aware_now(now_fn, field_name="CURRENT_CHECKED_AT")
+    except LeverageBracketEvidenceError:
+        return {**base, "status": "CURRENT_CHECKED_AT_INVALID_OR_NAIVE"}
+    base["current_checked_at"] = _iso(checked)
+    source_available = _parse_utc(payload.get("available_at"))
+    expires = _parse_utc(payload.get("expires_at"))
+    assert source_available is not None and expires is not None
+    if checked < observed:
+        status = "CONSUMER_CLOCK_REGRESSION"
+    elif source_available > observed:
+        status = "LEVERAGE_BRACKET_EVIDENCE_AVAILABLE_AFTER_CONSUMER_OBSERVED_AT"
+    elif observed >= expires or checked >= expires:
+        status = "LEVERAGE_BRACKET_EVIDENCE_STALE"
+    else:
+        status = "READY"
+    result = {
+        **base,
+        "status": status,
+        "source": payload.get("source"),
+        "source_endpoint": payload.get("source_endpoint"),
+        "fetched_at": payload.get("fetched_at"),
+        "ingested_at": payload.get("ingested_at"),
+        "source_available_at": payload.get("available_at"),
+        "available_at": _iso(checked),
+        "expires_at": payload.get("expires_at"),
+        "content_checksum_sha256": payload.get("content_checksum_sha256"),
+    }
+    if status == "READY":
+        fetched = _parse_utc(payload.get("fetched_at"))
+        ingested = _parse_utc(payload.get("ingested_at"))
+        assert fetched is not None and ingested is not None
+        checksum = str(payload["content_checksum_sha256"])
+        observations = tuple(
+            LeverageBracket(
+                venue="binance_usdm",
+                symbol=canonical_symbol,
+                bracket_id=int(row["bracket"]),
+                notional_floor=float(row["notionalFloor"]),
+                notional_cap=float(row["notionalCap"]),
+                initial_leverage=int(row["initialLeverage"]),
+                maintenance_margin_rate=float(row["maintMarginRatio"]),
+                cumulative_maintenance_amount=float(row["cum"]),
+                fetched_at_ms=_ceil_epoch_ms(fetched),
+                ingested_at_ms=_ceil_epoch_ms(ingested),
+                # Authentication is complete only at this second clock.
+                available_at_ms=_ceil_epoch_ms(checked),
+                # Expiry is exclusive; flooring cannot extend validity.
+                expires_at_ms=_floor_epoch_ms(expires),
+                source_key=key,
+                source_sha256=checksum,
+            )
+            for row in payload.get("brackets", [])
+        )
+        result.update(
+            {
+                "evidence_authenticated": True,
+                "brackets": [dict(row) for row in payload.get("brackets", [])],
+                "observations": observations,
+                "bracket_count": len(payload.get("brackets", [])),
+                "notional_coef": payload.get("notionalCoef"),
+                "account_scope": payload.get("account_scope"),
+                "available_at_semantics": (
+                    "POST_REDIS_READ_CHECKSUM_HMAC_AND_CANONICAL_CURVE_VALIDATION_CLOCK"
+                ),
+            }
+        )
+    return result
+
+
 __all__ = [
     "AUTH_ALGORITHM",
     "DEFAULT_CACHE_TTL_SECONDS",
@@ -1565,6 +1752,8 @@ __all__ = [
     "HMAC_KEY_ENV",
     "HMAC_KEY_ID_ENV",
     "MAINNET_BASE_URL",
+    "MAX_SURFACE_BRACKET_COUNT",
+    "MAX_SURFACE_EVIDENCE_BYTES",
     "PRODUCER",
     "REDIS_KEY_PREFIX",
     "REDIS_STATUS_KEY_PREFIX",
@@ -1583,6 +1772,7 @@ __all__ = [
     "exchange_environment_from_base_url",
     "fetch_and_cache_leverage_brackets",
     "normalize_symbol",
+    "read_authenticated_bracket_surface_evidence",
     "redis_key",
     "redis_status_key",
     "select_paper_bracket_evidence",

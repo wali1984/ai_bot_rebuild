@@ -61,8 +61,13 @@ def _timeframe_duration_ms(timeframe: str) -> int:
     matched = _TIMEFRAME_RE.fullmatch(timeframe)
     if matched is None:
         raise SurfaceContractError("REQUEST_TIMEFRAME_UNSUPPORTED")
-    count = int(matched.group(1))
-    return count * _TIMEFRAME_UNIT_MS[matched.group(2)]
+    count_text = matched.group(1)
+    if len(count_text) > 19:
+        raise SurfaceContractError("REQUEST_TIMEFRAME_DURATION_OUTSIDE_SIGNED_64_BIT_MS")
+    duration_ms = int(count_text) * _TIMEFRAME_UNIT_MS[matched.group(2)]
+    if duration_ms > (1 << 63) - 1:
+        raise SurfaceContractError("REQUEST_TIMEFRAME_DURATION_OUTSIDE_SIGNED_64_BIT_MS")
+    return duration_ms
 
 
 def _timeframe_alignment_offset_ms(timeframe: str) -> int:
@@ -234,15 +239,16 @@ def _validate_oi(
     *,
     venue: str,
     symbol: str,
-    timeframe: str,
     as_of_time_ms: int,
 ) -> None:
     if observation.venue != venue:
         raise SurfaceContractError("OPEN_INTEREST_VENUE_MISMATCH")
     if observation.symbol != symbol:
         raise SurfaceContractError("OPEN_INTEREST_SYMBOL_MISMATCH")
-    if observation.timeframe != timeframe:
-        raise SurfaceContractError("OPEN_INTEREST_TIMEFRAME_MISMATCH")
+    canonical_timeframe = str(observation.timeframe or "").strip().lower()
+    if canonical_timeframe != observation.timeframe or not canonical_timeframe:
+        raise SurfaceContractError("OPEN_INTEREST_TIMEFRAME_NOT_CANONICAL")
+    _timeframe_duration_ms(canonical_timeframe)
     if not (
         isinstance(observation.feature_cutoff_ms, int)
         and not isinstance(observation.feature_cutoff_ms, bool)
@@ -441,22 +447,23 @@ def _validate_period_sequences(
     *,
     candles: list[CandleObservation],
     open_interest: list[OpenInterestObservation],
-    timeframe_duration_ms: int,
-    timeframe_alignment_offset_ms: int,
+    candle_timeframe_duration_ms: int,
+    oi_timeframe_duration_ms: int,
+    oi_timeframe_alignment_offset_ms: int,
 ) -> None:
     for left, right in zip(candles, candles[1:], strict=False):
         if (
-            right.open_time_ms - left.open_time_ms != timeframe_duration_ms
-            or right.close_time_ms - left.close_time_ms != timeframe_duration_ms
+            right.open_time_ms - left.open_time_ms != candle_timeframe_duration_ms
+            or right.close_time_ms - left.close_time_ms != candle_timeframe_duration_ms
         ):
             raise SurfaceContractError("CANDLE_SEQUENCE_GAP_OR_OVERLAP")
     for left, right in zip(open_interest, open_interest[1:], strict=False):
-        if right.feature_cutoff_ms - left.feature_cutoff_ms != timeframe_duration_ms:
+        if right.feature_cutoff_ms - left.feature_cutoff_ms != oi_timeframe_duration_ms:
             raise SurfaceContractError("OPEN_INTEREST_SEQUENCE_GAP_OR_OVERLAP")
     for observation in open_interest:
         if (
-            observation.feature_cutoff_ms + 1 - timeframe_alignment_offset_ms
-        ) % timeframe_duration_ms != 0:
+            observation.feature_cutoff_ms - oi_timeframe_alignment_offset_ms
+        ) % oi_timeframe_duration_ms != 0:
             raise SurfaceContractError("OPEN_INTEREST_TIMEFRAME_BOUNDARY_MISMATCH")
 
 
@@ -571,9 +578,11 @@ def _build_cohorts(
                     {
                         "entry_price": _candle_entry_price(candle),
                         "entry_time_ms": candle.close_time_ms,
-                        # One futures contract creates matched long and short
-                        # open interest. Taker flow describes the aggressor; it
-                        # cannot turn aggregate OI into directional inventory.
+                        # Aggregate open interest is matched long and short
+                        # exposure regardless of whether the source unit is
+                        # base asset, quote notional, or contracts. Taker flow
+                        # describes the aggressor; it cannot turn aggregate OI
+                        # into directional inventory.
                         "long_weight": delta,
                         "short_weight": delta,
                         "aggressor_buy_share": aggressor_buy_share,
@@ -954,17 +963,31 @@ def build_liquidation_surface(request: SurfaceRequest) -> dict[str, Any]:
             observation,
             venue=venue,
             symbol=symbol,
-            timeframe=timeframe,
             as_of_time_ms=as_of_time_ms,
         )
     open_interest = _dedupe_sorted_oi(request.open_interest)
+    oi_source_timeframes = {row.timeframe for row in open_interest}
+    if len(oi_source_timeframes) > 1:
+        raise SurfaceContractError("OPEN_INTEREST_TIMEFRAME_CHANGED_WITHIN_WINDOW")
+    oi_source_timeframe = next(iter(oi_source_timeframes)) if oi_source_timeframes else None
+    oi_timeframe_duration_ms = (
+        _timeframe_duration_ms(oi_source_timeframe)
+        if oi_source_timeframe is not None
+        else timeframe_duration_ms
+    )
+    oi_timeframe_alignment_offset_ms = (
+        _timeframe_alignment_offset_ms(oi_source_timeframe)
+        if oi_source_timeframe is not None
+        else timeframe_alignment_offset_ms
+    )
     if len({row.unit for row in open_interest}) > 1:
         raise SurfaceContractError("OPEN_INTEREST_UNIT_CHANGED_WITHIN_WINDOW")
     _validate_period_sequences(
         candles=candles,
         open_interest=open_interest,
-        timeframe_duration_ms=timeframe_duration_ms,
-        timeframe_alignment_offset_ms=timeframe_alignment_offset_ms,
+        candle_timeframe_duration_ms=timeframe_duration_ms,
+        oi_timeframe_duration_ms=oi_timeframe_duration_ms,
+        oi_timeframe_alignment_offset_ms=oi_timeframe_alignment_offset_ms,
     )
     for bracket in request.leverage_brackets:
         _validate_bracket(
@@ -1136,6 +1159,9 @@ def build_liquidation_surface(request: SurfaceRequest) -> dict[str, Any]:
     oi_evidence_present = positive_oi_evidence_present and oi_unit_trainer_usable
     bracket_evidence_present = bool(brackets)
     required_sources_fresh = bool(freshness_evidence["all_required_sources_fresh"])
+    oi_temporal_resolution_coverage = (
+        min(1.0, timeframe_duration_ms / oi_timeframe_duration_ms) if open_interest else 0.0
+    )
     strict_input_contract = bool(leverages and long_levels and short_levels)
     trainer_semantic_eligible = bool(
         strict_input_contract
@@ -1164,6 +1190,7 @@ def build_liquidation_surface(request: SurfaceRequest) -> dict[str, Any]:
         "open_interest_new_cohort_coverage": cohort_diagnostics[
             "open_interest_new_cohort_coverage"
         ],
+        "open_interest_temporal_resolution_coverage": (oi_temporal_resolution_coverage),
         "aggressor_flow_metadata_coverage": cohort_diagnostics["aggressor_flow_metadata_coverage"],
         "exchange_bracket_coverage": 1.0 if bracket_evidence_present else 0.0,
         "adaptive_source_freshness_coverage": sum(
@@ -1177,6 +1204,7 @@ def build_liquidation_surface(request: SurfaceRequest) -> dict[str, Any]:
         quality_components["finalized_candle_contract_coverage"],
         quality_components["venue_mark_price_coverage"],
         quality_components["open_interest_new_cohort_coverage"],
+        quality_components["open_interest_temporal_resolution_coverage"],
         quality_components["exchange_bracket_coverage"],
         quality_components["adaptive_source_freshness_coverage"],
     )
@@ -1221,6 +1249,10 @@ def build_liquidation_surface(request: SurfaceRequest) -> dict[str, Any]:
         "venue": venue,
         "symbol": symbol,
         "timeframe": timeframe,
+        "open_interest_source_timeframe": oi_source_timeframe,
+        "open_interest_source_to_surface_duration_ratio": (
+            oi_timeframe_duration_ms / timeframe_duration_ms if open_interest else None
+        ),
         "market_scope": "modeled_aggregate_open_position_cohorts",
         "not_position_exact": True,
         "forced_liquidation_events_used_as_level_source": False,

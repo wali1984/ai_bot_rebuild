@@ -73,7 +73,7 @@ def _open_interest(
 ) -> tuple[OpenInterestObservation, ...]:
     rows: list[OpenInterestObservation] = []
     for index, value in enumerate(values):
-        feature_cutoff = _candle(index).close_time_ms
+        feature_cutoff = _candle(index).close_time_ms + 1
         event_time = feature_cutoff + 100
         rows.append(
             OpenInterestObservation(
@@ -390,7 +390,11 @@ def test_candle_contract_fails_closed(field: str, value: object, error: str) -> 
     (
         ("venue", "other", "OPEN_INTEREST_VENUE_MISMATCH"),
         ("symbol", "ETHUSDT", "OPEN_INTEREST_SYMBOL_MISMATCH"),
-        ("timeframe", "1h", "OPEN_INTEREST_TIMEFRAME_MISMATCH"),
+        (
+            "timeframe",
+            "1h",
+            "OPEN_INTEREST_TIMEFRAME_CHANGED_WITHIN_WINDOW",
+        ),
         (
             "ingested_at_ms",
             _open_interest()[0].event_time_ms - 1,
@@ -790,10 +794,10 @@ def test_one_minute_timeframe_uses_its_own_cadence() -> None:
             replace(
                 _open_interest()[index],
                 timeframe="1m",
-                feature_cutoff_ms=close_time,
-                event_time_ms=close_time + 100,
-                ingested_at_ms=close_time + 110,
-                available_at_ms=close_time + 120,
+                feature_cutoff_ms=close_time + 1,
+                event_time_ms=close_time + 101,
+                ingested_at_ms=close_time + 111,
+                available_at_ms=close_time + 121,
                 value=value,
             )
         )
@@ -834,6 +838,38 @@ def test_one_minute_timeframe_uses_its_own_cadence() -> None:
     assert payload["trainer_semantic_eligible"] is True
     assert payload["adaptive_freshness_evidence"]["candle"]["budget_ms"] == 60_020
     assert payload["adaptive_freshness_evidence"]["open_interest"]["budget_ms"] == 60_120
+
+
+def test_one_minute_surface_adapts_to_causal_five_minute_oi() -> None:
+    duration = 60_000
+    candles = tuple(
+        replace(
+            _candle(index),
+            timeframe="1m",
+            open_time_ms=BASE_MS + index * duration,
+            close_time_ms=BASE_MS + (index + 1) * duration - 1,
+            event_time_ms=BASE_MS + (index + 1) * duration - 1,
+            ingested_at_ms=BASE_MS + (index + 1) * duration + 9,
+            available_at_ms=BASE_MS + (index + 1) * duration + 19,
+        )
+        for index in range(16)
+    )
+    payload = build_liquidation_surface(_request(timeframe="1m", candles=candles))
+
+    assert payload["trainer_semantic_eligible"] is True
+    assert payload["open_interest_source_timeframe"] == "5m"
+    assert payload["open_interest_source_to_surface_duration_ratio"] == 5.0
+    assert payload["quality_components"][
+        "open_interest_temporal_resolution_coverage"
+    ] == pytest.approx(0.2)
+
+
+def test_timeframe_duration_outside_signed_64_bit_ms_fails_closed() -> None:
+    with pytest.raises(
+        SurfaceContractError,
+        match="REQUEST_TIMEFRAME_DURATION_OUTSIDE_SIGNED_64_BIT_MS",
+    ):
+        build_liquidation_surface(_request(timeframe=f"{'9' * 20}m"))
 
 
 def test_unknown_open_interest_unit_is_diagnostic_only() -> None:
