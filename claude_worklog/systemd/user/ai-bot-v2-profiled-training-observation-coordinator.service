@@ -1,0 +1,85 @@
+[Unit]
+Description=AI Bot V2 profiled-training observation coordinator (fail-closed evidence only; no optimizer/trading authority)
+Documentation=file:///home/wali/Desktop/AI%%20BOT%%20REBUILD/claude_worklog/systemd/user/ai-bot-v2-profiled-training-observation-coordinator.credentials.md
+After=network-online.target ai-bot-v2-profiled-base-feature-publisher.service
+Wants=network-online.target
+ConditionFileIsExecutable=/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3
+StartLimitIntervalSec=900
+StartLimitBurst=3
+
+[Service]
+Type=simple
+WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
+Environment="PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD"
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=LIVE_GATE=blocked_human_only
+Environment="PROFILED_BASE_PUBLISHER_STATUS_PATH=/home/wali/ai_bot_local_data/v2_native_trainer/profiled_base_publisher_v1/profiled_base_publisher_status_v1.json"
+Environment="PROFILED_BASE_FEATURE_LEDGER_PATH=/home/wali/ai_bot_local_data/v2_native_trainer/durable_feature_snapshot_ledger.sqlite3"
+Environment="PROFILED_OBSERVATION_COORDINATOR_LABEL_ARCHIVE_PATH=/home/wali/ai_bot_local_data/v2_native_trainer/canonical_finalized_5m_label_archive.sqlite3"
+Environment="PROFILED_OBSERVATION_COORDINATOR_TRUSTED_COST_STORE_ROOT=/home/wali/ai_bot_local_data/v2_native_trainer/profiled_base_publisher_v1/profiled-training-enrichment-cas"
+Environment="PROFILED_OBSERVATION_COORDINATOR_RUNTIME_ROOT=/home/wali/ai_bot_local_data/v2_native_trainer/profiled_training_observation_coordinator_v1"
+Environment=PROFILED_OBSERVATION_COORDINATOR_NAMESPACE=ai-bot-v2-profiled-observation-v1
+Environment=PROFILED_OBSERVATION_COORDINATOR_CONSUMER_LANE=persistent-native-cuda-trainer-v1
+Environment=PROFILED_OBSERVATION_COORDINATOR_STATE_AUTH_KEY_ID=profiled-observation-state-v1
+Environment=PROFILED_OBSERVATION_COORDINATOR_MANIFEST_AUTH_KEY_ID=profiled-observation-manifest-v1
+Environment=PROFILED_OBSERVATION_COORDINATOR_HEAD_AUTH_KEY_ID=profiled-observation-head-v1
+Environment=PROFILED_OBSERVATION_COORDINATOR_EPOCH_AUTH_KEY_ID=profiled-observation-epoch-v1
+Environment=PROFILED_OBSERVATION_COORDINATOR_PAGE_SIZE=256
+Environment=PROFILED_OBSERVATION_COORDINATOR_CYCLE_SECONDS=30
+LoadCredential=profiled_observation_state_hmac_key:%h/.config/ai-bot-v2/credentials/profiled-training-observation-coordinator/state-hmac.cred
+LoadCredential=profiled_observation_manifest_hmac_key:%h/.config/ai-bot-v2/credentials/profiled-training-observation-coordinator/manifest-hmac.cred
+LoadCredential=profiled_observation_head_hmac_key:%h/.config/ai-bot-v2/credentials/profiled-training-observation-coordinator/head-hmac.cred
+LoadCredential=profiled_observation_epoch_hmac_key:%h/.config/ai-bot-v2/credentials/profiled-training-observation-coordinator/epoch-hmac.cred
+UMask=0077
+ExecStartPre=/usr/bin/env bash -lc 'exec ./claude_worklog/tools/v2_automation_safety_preflight.sh ai-bot-v2-profiled-training-observation-coordinator'
+ExecStartPre=/usr/bin/install -d -m 0700 /home/wali/ai_bot_local_data/v2_native_trainer/profiled_training_observation_coordinator_v1
+ExecStart="/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3" -B -m v2.backend.app.cli.v2_profiled_training_observation_coordinator
+Restart=on-failure
+RestartPreventExitStatus=2 78
+RestartSec=30
+TimeoutStartSec=120
+TimeoutStopSec=45
+KillSignal=SIGTERM
+KillMode=mixed
+CPUQuota=100%
+MemoryHigh=2G
+MemoryMax=4G
+TasksMax=64
+LimitNOFILE=4096
+Nice=10
+IOSchedulingClass=idle
+NoNewPrivileges=true
+PrivateDevices=true
+PrivateTmp=true
+ProtectClock=true
+ProtectControlGroups=true
+ProtectHome=read-only
+ProtectHostname=true
+ProtectKernelLogs=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectSystem=strict
+ReadOnlyPaths=/home/wali/ai_bot_local_data/v2_native_trainer/profiled_base_publisher_v1
+ReadOnlyPaths=/home/wali/ai_bot_local_data/v2_native_trainer/durable_feature_snapshot_ledger.sqlite3
+ReadOnlyPaths=-/home/wali/ai_bot_local_data/v2_native_trainer/durable_feature_snapshot_ledger.sqlite3-wal
+ReadOnlyPaths=-/home/wali/ai_bot_local_data/v2_native_trainer/durable_feature_snapshot_ledger.sqlite3-shm
+ReadOnlyPaths=/home/wali/ai_bot_local_data/v2_native_trainer/canonical_finalized_5m_label_archive.sqlite3
+ReadOnlyPaths=-/home/wali/ai_bot_local_data/v2_native_trainer/canonical_finalized_5m_label_archive.sqlite3-wal
+ReadOnlyPaths=-/home/wali/ai_bot_local_data/v2_native_trainer/canonical_finalized_5m_label_archive.sqlite3-shm
+ReadWritePaths=/home/wali/ai_bot_local_data/v2_native_trainer/profiled_training_observation_coordinator_v1
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+SystemCallArchitectures=native
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ai-bot-v2-profiled-training-observation-coordinator
+LogRateLimitIntervalSec=60
+LogRateLimitBurst=30
+
+[Install]
+WantedBy=default.target

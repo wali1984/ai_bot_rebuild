@@ -319,3 +319,107 @@ def test_no_exchange_or_generic_secret_environment_names_are_consumed() -> None:
     assert "margin_mutated" not in source
     assert "order_submitted" not in source
     assert os.environ.get("LIVE_GATE", "blocked_human_only") is not None
+
+
+def test_tracked_unit_is_hardened_bounded_and_has_no_downstream_transition() -> None:
+    repo_root = Path(__file__).resolve().parents[5]
+    unit = (
+        repo_root
+        / "claude_worklog/systemd/user/"
+        "ai-bot-v2-profiled-training-observation-coordinator.service"
+    ).read_text(encoding="utf-8")
+
+    assert unit.count("LoadCredential=") == 4
+    for name in (
+        credential_module.STATE_HMAC_SYSTEMD_CREDENTIAL,
+        credential_module.MANIFEST_HMAC_SYSTEMD_CREDENTIAL,
+        credential_module.HEAD_HMAC_SYSTEMD_CREDENTIAL,
+        credential_module.EPOCH_HMAC_SYSTEMD_CREDENTIAL,
+    ):
+        assert f"LoadCredential={name}:" in unit
+    for forbidden in (
+        credential_module.WITNESS_BEARER_SYSTEMD_CREDENTIAL,
+        credential_module.WITNESS_PUBLIC_KEY_SYSTEMD_CREDENTIAL,
+        "EnvironmentFile=",
+        "ImportCredential=",
+        "BINANCE_API_KEY",
+        "BINANCE_API_SECRET",
+        "ExecStartPost=",
+        "OnSuccess=",
+        "PartOf=ai-bot-v2-native-cuda-trainer",
+        "Wants=ai-bot-v2-native-cuda-trainer",
+        "Requires=ai-bot-v2-native-cuda-trainer",
+        "trade-management-paper-loop",
+    ):
+        assert forbidden not in unit
+    assert unit.count("ExecStart=") == 1
+    assert "Type=simple" in unit
+    assert "Restart=on-failure" in unit
+    assert "RestartPreventExitStatus=2 78" in unit
+    assert "LIVE_GATE=blocked_human_only" in unit
+    assert "ProtectSystem=strict" in unit
+    assert "ProtectHome=read-only" in unit
+    assert "NoNewPrivileges=true" in unit
+    assert "CapabilityBoundingSet=\n" in unit
+    assert "MemoryMax=4G" in unit
+    assert "CPUQuota=100%" in unit
+    assert (
+        "ReadWritePaths=/home/wali/ai_bot_local_data/v2_native_trainer/"
+        "profiled_training_observation_coordinator_v1" in unit
+    )
+    assert (
+        "-m v2.backend.app.cli.v2_profiled_training_observation_coordinator"
+        in unit
+    )
+
+
+def test_external_witness_dropin_is_complete_template_not_active_base_config() -> None:
+    repo_root = Path(__file__).resolve().parents[5]
+    dropin = (
+        repo_root
+        / "claude_worklog/systemd/user/"
+        "ai-bot-v2-profiled-training-observation-coordinator.service.d/"
+        "80-external-witness.conf.example"
+    ).read_text(encoding="utf-8")
+
+    assert dropin.count("LoadCredential=") == 2
+    assert credential_module.WITNESS_BEARER_SYSTEMD_CREDENTIAL in dropin
+    assert credential_module.WITNESS_PUBLIC_KEY_SYSTEMD_CREDENTIAL in dropin
+    for name in (
+        credential_module.WITNESS_BASE_URL_ENV,
+        credential_module.WITNESS_ID_ENV,
+        credential_module.WITNESS_PUBLIC_KEY_SHA256_ENV,
+        credential_module.WITNESS_TIMEOUT_SECONDS_ENV,
+    ):
+        assert f"Environment={name}=" in dropin
+    assert "PRIVATE_KEY" not in dropin
+    assert "http://" not in dropin
+    assert "same-host signer does not satisfy" in dropin
+
+
+def test_credential_contract_matches_unit_and_preserves_authority_boundary() -> None:
+    repo_root = Path(__file__).resolve().parents[5]
+    contract = (
+        repo_root
+        / "claude_worklog/systemd/user/"
+        "ai-bot-v2-profiled-training-observation-coordinator.credentials.md"
+    ).read_text(encoding="utf-8")
+    unit = (
+        repo_root
+        / "claude_worklog/systemd/user/"
+        "ai-bot-v2-profiled-training-observation-coordinator.service"
+    ).read_text(encoding="utf-8")
+
+    for name in (
+        credential_module.STATE_HMAC_SYSTEMD_CREDENTIAL,
+        credential_module.MANIFEST_HMAC_SYSTEMD_CREDENTIAL,
+        credential_module.HEAD_HMAC_SYSTEMD_CREDENTIAL,
+        credential_module.EPOCH_HMAC_SYSTEMD_CREDENTIAL,
+    ):
+        assert name in contract
+        assert name in unit
+    assert "raw 32-byte" in contract
+    assert "same-host" in contract
+    assert "local-integrity-only" in contract
+    assert "optimizer step" in contract
+    assert "all false" in contract

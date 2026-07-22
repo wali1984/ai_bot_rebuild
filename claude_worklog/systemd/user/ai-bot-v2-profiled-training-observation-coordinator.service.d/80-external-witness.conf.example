@@ -1,0 +1,10 @@
+# Install this drop-in only after an independently operated witness has supplied
+# its real HTTPS endpoint, identity, raw Ed25519 public key, SHA-256 pin, and
+# bearer credential. A same-host signer does not satisfy the trust boundary.
+[Service]
+Environment=PROFILED_OBSERVATION_WITNESS_BASE_URL=https://REPLACE_WITH_INDEPENDENT_WITNESS
+Environment=PROFILED_OBSERVATION_WITNESS_ID=REPLACE_WITH_WITNESS_ID
+Environment=PROFILED_OBSERVATION_WITNESS_PUBLIC_KEY_SHA256=REPLACE_WITH_64_LOWERCASE_HEX
+Environment=PROFILED_OBSERVATION_WITNESS_TIMEOUT_SECONDS=15
+LoadCredential=profiled_observation_witness_bearer_token:%h/.config/ai-bot-v2/credentials/profiled-training-observation-coordinator/witness-bearer.cred
+LoadCredential=profiled_observation_witness_ed25519_public_key:%h/.config/ai-bot-v2/credentials/profiled-training-observation-coordinator/witness-ed25519-public-key.raw
