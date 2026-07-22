@@ -253,9 +253,9 @@ def test_producer_immutable_dropin_uses_one_clean_release_identity() -> None:
         re.findall(r"deployments/ai_bot_rebuild/([0-9a-f]{40})", dropin)
     )
 
-    assert release_shas == {"bc946bdabe832581788014cdfb777698f2ee5db5"}
-    assert "AI_BOT_CODE_SHA=bc946bdabe832581788014cdfb777698f2ee5db5" in dropin
+    assert release_shas == {"4b45fd43522929c8e78805b62e1fa0d27f69a80a"}
+    assert "AI_BOT_CODE_SHA=4b45fd43522929c8e78805b62e1fa0d27f69a80a" in dropin
     assert "git -C /home/wali/ai_bot_local_data/deployments/ai_bot_rebuild/" in dropin
-    assert "diff --quiet --exit-code bc946bdabe832581788014cdfb777698f2ee5db5 --" in dropin
+    assert "diff --quiet --exit-code 4b45fd43522929c8e78805b62e1fa0d27f69a80a --" in dropin
     assert "v2_binance_usdm_commission_evidence_broker --execute-read-only" in dropin
     assert "WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD" not in dropin
