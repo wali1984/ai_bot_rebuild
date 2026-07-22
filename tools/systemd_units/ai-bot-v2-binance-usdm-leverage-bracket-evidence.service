@@ -2,6 +2,10 @@
 Description=AI BOT V2 Binance USD-M leverage-bracket evidence (signed read-only GET; paper evidence only)
 After=network-online.target
 Wants=network-online.target
+ConditionFileIsExecutable=/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3
+ConditionPathExists=%h/.config/ai-bot-v2/credentials/binance-bracket-evidence/api-key.cred
+ConditionPathExists=%h/.config/ai-bot-v2/credentials/binance-bracket-evidence/api-secret.cred
+ConditionPathExists=%h/.config/ai-bot-v2/credentials/binance-bracket-evidence/evidence-hmac.cred
 StartLimitIntervalSec=600
 StartLimitBurst=5
 
@@ -11,33 +15,51 @@ WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
 Environment="PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD"
 Environment="PYTHONDONTWRITEBYTECODE=1"
 Environment="LIVE_GATE=blocked_human_only"
-Environment="ALPHAFORGE_INITIAL_TRADER_ID=trader-wajidali1984"
-Environment="ALPHAFORGE_INITIAL_TRADER_BINANCE_CREDENTIAL_REF=ALPHAFORGE_BINANCE_WAJIDALI1984_READONLY"
+Environment="ALPHAFORGE_INITIAL_TRADER_ID=trader-asjad"
+Environment="ALPHAFORGE_INITIAL_TRADER_BINANCE_CREDENTIAL_REF=ASJAD_BINANCE_READONLY"
 Environment="BINANCE_USDM_REST_BASE_URL=https://fapi.binance.com"
 Environment="BINANCE_BRACKET_EVIDENCE_HMAC_KEY_ID=binance-bracket-evidence-v1"
 Environment="BINANCE_REST_FALLBACK_ALLOWED=true"
-LoadCredentialEncrypted=trader-wajidali1984--ALPHAFORGE_BINANCE_WAJIDALI1984_READONLY--api_key:%h/.config/ai-bot-v2/credentials/binance-usdm-leverage-bracket/api-key.cred
-LoadCredentialEncrypted=trader-wajidali1984--ALPHAFORGE_BINANCE_WAJIDALI1984_READONLY--api_secret:%h/.config/ai-bot-v2/credentials/binance-usdm-leverage-bracket/api-secret.cred
-LoadCredentialEncrypted=binance_bracket_evidence_hmac_key:%h/.config/ai-bot-v2/credentials/binance-usdm-leverage-bracket/evidence-hmac-key.cred
-ExecStart="/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3" -m v2.backend.app.cli.v2_binance_usdm_leverage_bracket_evidence --loop --interval-seconds 300 --freshness-seconds 600 --cache-ttl-seconds 900 --json
+Environment="REDIS_URL=redis://127.0.0.1:6379/0"
+LoadCredential=trader-asjad--ASJAD_BINANCE_READONLY--api_key:%h/.config/ai-bot-v2/credentials/binance-bracket-evidence/api-key.cred
+LoadCredential=trader-asjad--ASJAD_BINANCE_READONLY--api_secret:%h/.config/ai-bot-v2/credentials/binance-bracket-evidence/api-secret.cred
+LoadCredential=binance_bracket_evidence_hmac_key:%h/.config/ai-bot-v2/credentials/binance-bracket-evidence/evidence-hmac.cred
+ExecStart="/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3" -B -m v2.backend.app.cli.v2_binance_usdm_leverage_bracket_evidence --loop --interval-seconds 300 --freshness-seconds 600 --cache-ttl-seconds 900 --json
 Restart=on-failure
 RestartSec=30
+RestartPreventExitStatus=2 78
+TimeoutStartSec=90
 TimeoutStopSec=20
 UMask=0077
+CPUQuota=100%
+MemoryHigh=512M
+MemoryMax=1G
+TasksMax=64
+LimitNOFILE=2048
 NoNewPrivileges=true
 PrivateDevices=true
 PrivateTmp=true
+ProtectClock=true
 ProtectControlGroups=true
 ProtectHome=read-only
+ProtectHostname=true
+ProtectKernelLogs=true
 ProtectKernelModules=true
 ProtectKernelTunables=true
 ProtectSystem=strict
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=true
 RestrictRealtime=true
 RestrictSUIDSGID=true
 LockPersonality=true
 CapabilityBoundingSet=
 AmbientCapabilities=
+SystemCallArchitectures=native
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ai-bot-v2-binance-usdm-leverage-bracket-evidence
+LogRateLimitIntervalSec=60
+LogRateLimitBurst=30
 
 [Install]
 WantedBy=default.target
