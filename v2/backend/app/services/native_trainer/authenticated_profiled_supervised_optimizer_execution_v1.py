@@ -2189,11 +2189,42 @@ def validate_authenticated_profiled_supervised_optimizer_execution_owner_v1(
         _fail("PROFILED_SUPERVISED_EXECUTION_CANDIDATE_MODEL_OWNER_MISMATCH")
 
 
+def revalidate_authenticated_profiled_supervised_optimizer_publication_boundary_v1(
+    *,
+    execution: AuthenticatedProfiledSupervisedOptimizerExecutionV1,
+    base_model: V2HybridPolicyModel,
+    candidate_model: V2HybridPolicyModel,
+) -> None:
+    """Revalidate exact owners, source closure, and release before persistence."""
+
+    if (
+        type(execution) is not AuthenticatedProfiledSupervisedOptimizerExecutionV1
+        or type(base_model) is not V2HybridPolicyModel
+        or type(candidate_model) is not V2HybridPolicyModel
+    ):
+        _fail("PROFILED_SUPERVISED_EXECUTION_PUBLICATION_OWNER_TYPES_INVALID")
+    execution.__post_init__()
+    if execution._base_model_owner is not base_model:
+        _fail("PROFILED_SUPERVISED_EXECUTION_BASE_MODEL_OWNER_MISMATCH")
+    if execution._candidate_model_owner is not candidate_model:
+        _fail("PROFILED_SUPERVISED_EXECUTION_CANDIDATE_MODEL_OWNER_MISMATCH")
+    current_implementation_artifact_sha256 = hashlib.sha256(
+        _source_artifact()
+    ).hexdigest()
+    if (
+        current_implementation_artifact_sha256
+        != execution.optimizer_implementation_artifact_sha256
+        or _code_release_sha() != execution.code_release_sha
+    ):
+        _fail("PROFILED_SUPERVISED_EXECUTION_PUBLICATION_RELEASE_DRIFT")
+
+
 __all__ = (
     "AUTHENTICATED_PROFILED_SUPERVISED_OPTIMIZER_EXECUTION_V1_SCHEMA_VERSION",
     "AUTHENTICATED_PROFILED_SUPERVISED_OPTIMIZER_EXECUTION_V1_STATUS",
     "AuthenticatedProfiledSupervisedOptimizerExecutionV1",
     "AuthenticatedProfiledSupervisedOptimizerExecutionV1Error",
     "execute_authenticated_profiled_supervised_optimizer_v1",
+    "revalidate_authenticated_profiled_supervised_optimizer_publication_boundary_v1",
     "validate_authenticated_profiled_supervised_optimizer_execution_owner_v1",
 )
