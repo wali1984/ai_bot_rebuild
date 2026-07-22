@@ -51,6 +51,20 @@ and pretend those later bytes produced the earlier surface.
   status retention could not provide continuous pointer/status coverage, so
   storage-only retention is now 600 seconds for archives/status and 540 seconds
   for receipts/pointers, with an explicit measured margin and coverage gate.
+
+## Final deployed retention-gated cycle
+
+Release `450c46147d` completed one full live cycle with:
+
+- status/reason: `COMPLETE` /
+  `ALL_LANES_PUBLISHED_WITH_CONTINUOUS_POINTER_COVERAGE`;
+- candidates built / lanes published / bundles verified: `795 / 795 / 795`;
+- trainer candidates / masked observations: `415 / 380`;
+- authenticated bracket symbols / adaptive CoinAnk OI symbols: `159 / 159`;
+- build errors / publication errors: `0 / 0`;
+- cycle duration: `167,929 ms`;
+- measured receipt/pointer retention margin: `372,071 ms`;
+- service restarts: `0`.
 - publication/trainer authority grants added: 0;
 - live exchange mutation paths changed: 0.
 
