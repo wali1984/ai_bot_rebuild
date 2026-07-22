@@ -67,6 +67,14 @@ optimizer is therefore still not online through this path. See the
 for the 21-object CAS contract, exact clocks/keys/fields, tests, runtime counts
 and change-impact map.
 
+The source-only strict cycle-status reader at checkpoint `c61ee6ba3b` now
+verifies the publisher's exact 57-field local status contract, all ten symbol
+inventories and their writer set algebra, canonical clocks, file-race safety,
+and authority semantics. It was validated against the current status but is
+not part of installed release `e34af1e6...`; a self-hash remains local
+integrity, not independent authentication or trainer admission. See
+[Profiled base-publisher cycle status reader V1](system_audit_2026_master/components/PROFILED_BASE_PUBLISHER_CYCLE_STATUS_V1.md).
+
 This is the repository-level entrypoint. The complete current audit is [AI_BOT_V2_FULL_REBUILD_MASTER_AUDIT_REPORT.md](system_audit_2026_master/AI_BOT_V2_FULL_REBUILD_MASTER_AUDIT_REPORT.md); the document map is [REVERSE_ENGINEERING_INDEX.md](system_audit_2026_master/REVERSE_ENGINEERING_INDEX.md).
 
 Older June/July documents remain historical snapshots. They are not current when they claim one trainer, read-only V2 APIs, operational SQL persistence, risk as final paper authority, no order transport, or the earlier service/module/test counts.
@@ -199,6 +207,7 @@ No active authorized real submitter was observed; release mode was effectively n
 - [Profiled trainer external witness journal V1](system_audit_2026_master/components/PROFILED_TRAINING_EXTERNAL_WITNESS_JOURNAL_V1.md)
 - [Profiled trainer external witness runtime V1](system_audit_2026_master/components/PROFILED_TRAINING_EXTERNAL_WITNESS_RUNTIME_V1.md)
 - [Profiled trainer observation coordinator state V1](system_audit_2026_master/components/PROFILED_TRAINING_OBSERVATION_COORDINATOR_STATE_V1.md)
+- [Profiled base-publisher cycle status reader V1](system_audit_2026_master/components/PROFILED_BASE_PUBLISHER_CYCLE_STATUS_V1.md)
 - [Decision/risk/paper/live execution](system_audit_2026_master/components/DECISION_RISK_PAPER_AND_LIVE_EXECUTION.md)
 - [API/auth/storage/web/mobile](system_audit_2026_master/components/API_AUTH_STORAGE_WEB_AND_MOBILE.md)
 - [Config/contracts/change impact](system_audit_2026_master/components/CONFIG_KEYS_CONTRACTS_AND_CHANGE_IMPACT.md)
