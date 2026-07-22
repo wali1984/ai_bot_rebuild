@@ -6,9 +6,10 @@ import fcntl
 import math
 import os
 import stat
+import threading
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Final
 
@@ -28,6 +29,12 @@ CHECKPOINT_LIFECYCLE_LEASE_OWNER_ROLES: Final = frozenset(
     }
 )
 _CHECKPOINT_LIFECYCLE_LOCK_NAME: Final = ".checkpoint_lifecycle.lock"
+_CHECKPOINT_LIFECYCLE_RECEIPT_TOKEN = object()
+_ACTIVE_CHECKPOINT_LIFECYCLE_LEASES_LOCK = threading.Lock()
+_ACTIVE_CHECKPOINT_LIFECYCLE_LEASES: dict[
+    int,
+    CheckpointLifecycleLeaseReceipt,
+] = {}
 
 OPTIMIZER_ANOMALY_COUNTER_FIELDS = (
     "non_finite_feature_count",
@@ -132,10 +139,47 @@ class CheckpointLifecycleLeaseReceipt:
     checkpoint_write_authorized: bool
     serving_authorized: bool
     trading_authorized: bool
+    _owner_thread_id: int = field(repr=False, compare=False)
+    _construction_token: object = field(repr=False, compare=False)
 
 
 class CheckpointLifecycleLeaseBusy(RuntimeError):
     """Another process owns the complete checkpoint lifecycle."""
+
+
+def require_active_checkpoint_lifecycle_lease(
+    receipt: CheckpointLifecycleLeaseReceipt,
+    *,
+    model_dir: Path,
+    owner_role: str,
+) -> None:
+    """Require an unexpired lease capability for this process, thread, and root."""
+
+    if type(receipt) is not CheckpointLifecycleLeaseReceipt:
+        raise TypeError("checkpoint_lifecycle_lease_receipt_exact_type_required")
+    if not isinstance(model_dir, Path):
+        raise TypeError("checkpoint_lifecycle_model_dir_path_required")
+    if owner_role not in CHECKPOINT_LIFECYCLE_LEASE_OWNER_ROLES:
+        raise ValueError("checkpoint_lifecycle_owner_role_invalid")
+    manager = V2HybridCheckpointManager(model_dir)
+    manager._validate_model_dir()  # noqa: SLF001
+    expected_causal_root = str(manager._causal_root.resolve())  # noqa: SLF001
+    with _ACTIVE_CHECKPOINT_LIFECYCLE_LEASES_LOCK:
+        active = _ACTIVE_CHECKPOINT_LIFECYCLE_LEASES.get(id(receipt))
+    if (
+        active is not receipt
+        or receipt._construction_token is not _CHECKPOINT_LIFECYCLE_RECEIPT_TOKEN
+        or receipt.schema_version != CHECKPOINT_LIFECYCLE_LEASE_SCHEMA_VERSION
+        or receipt.causal_root != expected_causal_root
+        or receipt.owner_role != owner_role
+        or receipt.owner_pid != os.getpid()
+        or receipt._owner_thread_id != threading.get_ident()
+        or receipt.lifecycle_lease_acquired is not True
+        or receipt.checkpoint_write_authorized is not False
+        or receipt.serving_authorized is not False
+        or receipt.trading_authorized is not False
+    ):
+        raise RuntimeError("checkpoint_lifecycle_lease_not_active_for_caller")
 
 
 @contextmanager
@@ -181,7 +225,7 @@ def checkpoint_lifecycle_lease(
                 "checkpoint_lifecycle_lease_busy"
             ) from exc
         acquired = True
-        yield CheckpointLifecycleLeaseReceipt(
+        receipt = CheckpointLifecycleLeaseReceipt(
             schema_version=CHECKPOINT_LIFECYCLE_LEASE_SCHEMA_VERSION,
             causal_root=str(causal_root),
             lock_path=str(lock_path),
@@ -191,7 +235,16 @@ def checkpoint_lifecycle_lease(
             checkpoint_write_authorized=False,
             serving_authorized=False,
             trading_authorized=False,
+            _owner_thread_id=threading.get_ident(),
+            _construction_token=_CHECKPOINT_LIFECYCLE_RECEIPT_TOKEN,
         )
+        with _ACTIVE_CHECKPOINT_LIFECYCLE_LEASES_LOCK:
+            _ACTIVE_CHECKPOINT_LIFECYCLE_LEASES[id(receipt)] = receipt
+        try:
+            yield receipt
+        finally:
+            with _ACTIVE_CHECKPOINT_LIFECYCLE_LEASES_LOCK:
+                _ACTIVE_CHECKPOINT_LIFECYCLE_LEASES.pop(id(receipt), None)
     finally:
         if acquired:
             fcntl.flock(descriptor, fcntl.LOCK_UN)

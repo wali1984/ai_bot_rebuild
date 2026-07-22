@@ -28,6 +28,10 @@ from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.checkpoint impor
 )
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.checkpoint_lifecycle import (  # noqa: E501
     NON_SERVING_CANDIDATE_LINEAGE,
+    checkpoint_lifecycle_lease,
+)
+from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.model import (
+    V2HybridPolicyModel,
 )
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.on_policy_behavior import (  # noqa: E501
     model_parameter_fingerprint,
@@ -40,6 +44,23 @@ from v2.backend.tests.unit.services.native_trainer import (
 )
 
 adapter_evidence = admission_support.adapter_evidence
+
+
+def _publish(
+    *,
+    bound_execution: Any,
+    candidate_checkpoint_manager: V2HybridCheckpointManager,
+) -> Any:
+    base_manager = bound_execution._base_checkpoint_manager_owner
+    with checkpoint_lifecycle_lease(
+        base_manager.model_dir,
+        owner_role="AUTHENTICATED_PROFILED_TRAINER",
+    ) as lifecycle_lease:
+        return publication_module.publish_authenticated_profiled_supervised_checkpoint_v1(
+            bound_execution=bound_execution,
+            candidate_checkpoint_manager=candidate_checkpoint_manager,
+            lifecycle_lease=lifecycle_lease,
+        )
 
 
 @pytest.fixture(scope="module")
@@ -104,7 +125,7 @@ def publication_bundle(
         candidate_fingerprint = model_parameter_fingerprint(
             bound_execution.candidate_model
         )
-        first = publication_module.publish_authenticated_profiled_supervised_checkpoint_v1(  # noqa: E501
+        first = _publish(
             bound_execution=bound_execution,
             candidate_checkpoint_manager=candidate_manager,
         )
@@ -117,7 +138,7 @@ def publication_bundle(
         first_weight_stat = weight_path.stat()
         first_manifest_bytes = manifest_path.read_bytes()
         first_weight_bytes = weight_path.read_bytes()
-        second = publication_module.publish_authenticated_profiled_supervised_checkpoint_v1(  # noqa: E501
+        second = _publish(
             bound_execution=bound_execution,
             candidate_checkpoint_manager=candidate_manager,
         )
@@ -206,6 +227,27 @@ def test_authenticated_candidate_is_durable_verified_and_non_serving(
         assert contract[field_name] is False
 
 
+def test_publication_requires_a_live_lifecycle_lease(
+    publication_bundle: dict[str, Any],
+) -> None:
+    base_manager = publication_bundle["base_manager"]
+    with checkpoint_lifecycle_lease(
+        base_manager.model_dir,
+        owner_role="AUTHENTICATED_PROFILED_TRAINER",
+    ) as expired_lease:
+        pass
+
+    with pytest.raises(
+        publication_module.AuthenticatedProfiledSupervisedCheckpointPublicationV1Error,
+        match="PROFILED_SUPERVISED_PUBLICATION_LIFECYCLE_LEASE_INVALID",
+    ):
+        publication_module.publish_authenticated_profiled_supervised_checkpoint_v1(
+            bound_execution=publication_bundle["bound_execution"],
+            candidate_checkpoint_manager=publication_bundle["candidate_manager"],
+            lifecycle_lease=expired_lease,
+        )
+
+
 def test_verified_existing_publication_is_recovered_without_optimizer_rerun(
     publication_bundle: dict[str, Any],
 ) -> None:
@@ -222,6 +264,7 @@ def test_verified_existing_publication_is_recovered_without_optimizer_rerun(
             contract["external_authorization_envelope_sha256"]
         ),
         witness_id=contract["witness_id"],
+        witness_namespace=contract["witness_namespace"],
         witness_public_key_sha256=contract["witness_public_key_sha256"],
         witness_sequence=contract["witness_sequence"],
     )
@@ -232,6 +275,8 @@ def test_verified_existing_publication_is_recovered_without_optimizer_rerun(
     )
     assert recovered.already_published is True
     assert recovered.checkpoint_artifact_verified is True
+    assert recovered.witness_namespace == contract["witness_namespace"]
+    assert recovered.base_checkpoint_id == first.base_checkpoint_id
     assert recovered.candidate_checkpoint_id == first.candidate_checkpoint_id
     assert recovered.candidate_checkpoint_generation == (
         first.candidate_checkpoint_generation
@@ -250,9 +295,51 @@ def test_existing_publication_lookup_returns_none_for_disjoint_completion(
         completion_event_sha256="2" * 64,
         external_authorization_envelope_sha256="3" * 64,
         witness_id="independent-witness",
+        witness_namespace="independent-namespace",
         witness_public_key_sha256="4" * 64,
         witness_sequence=99,
     ) is None
+
+
+def test_existing_publication_rejects_non_successor_witness_sequence(
+    publication_bundle: dict[str, Any],
+) -> None:
+    contract = publication_bundle["first"].checkpoint_manifest.checkpoint_evidence[
+        "authenticated_profiled_supervised_publication"
+    ]
+    inputs = {
+        "candidate_checkpoint_manager": publication_bundle["candidate_manager"],
+        "manifest_id": "1" * 64,
+        "completion_event_sha256": "2" * 64,
+        "external_authorization_envelope_sha256": "3" * 64,
+        "witness_id": contract["witness_id"],
+        "witness_namespace": contract["witness_namespace"],
+        "witness_public_key_sha256": contract["witness_public_key_sha256"],
+    }
+
+    with pytest.raises(
+        publication_module.AuthenticatedProfiledSupervisedCheckpointPublicationV1Error,
+        match="PROFILED_SUPERVISED_PUBLICATION_WITNESS_SEQUENCE_NOT_SUCCESSOR",
+    ):
+        publication_module.find_authenticated_profiled_supervised_publication_for_completion_v1(  # noqa: E501
+            **inputs,
+            witness_sequence=contract["witness_sequence"],
+        )
+    with pytest.raises(
+        publication_module.AuthenticatedProfiledSupervisedCheckpointPublicationV1Error,
+        match="PROFILED_SUPERVISED_PUBLICATION_WITNESS_SEQUENCE_NOT_SUCCESSOR",
+    ):
+        publication_module.find_authenticated_profiled_supervised_publication_for_completion_v1(  # noqa: E501
+            **{**inputs, "witness_public_key_sha256": "f" * 64},
+            witness_sequence=contract["witness_sequence"],
+        )
+    assert (
+        publication_module.find_authenticated_profiled_supervised_publication_for_completion_v1(  # noqa: E501
+            **inputs,
+            witness_sequence=contract["witness_sequence"] + 1,
+        )
+        is None
+    )
 
 
 def test_existing_publication_identity_overlap_conflict_fails_closed(
@@ -273,6 +360,7 @@ def test_existing_publication_identity_overlap_conflict_fails_closed(
                 contract["external_authorization_envelope_sha256"]
             ),
             witness_id=contract["witness_id"],
+            witness_namespace=contract["witness_namespace"],
             witness_public_key_sha256=contract["witness_public_key_sha256"],
             witness_sequence=contract["witness_sequence"],
         )
@@ -325,13 +413,13 @@ def test_lost_post_commit_acknowledgement_recovers_by_identical_retry(
         publication_module.AuthenticatedProfiledSupervisedCheckpointPublicationV1Error,
         match="PROFILED_SUPERVISED_PUBLICATION_CHECKPOINT_WRITE_FAILED",
     ):
-        publication_module.publish_authenticated_profiled_supervised_checkpoint_v1(
+        _publish(
             bound_execution=publication_bundle["bound_execution"],
             candidate_checkpoint_manager=manager,
         )
     monkeypatch.setattr(manager, "write_checkpoint", original_write)
 
-    recovered = publication_module.publish_authenticated_profiled_supervised_checkpoint_v1(  # noqa: E501
+    recovered = _publish(
         bound_execution=publication_bundle["bound_execution"],
         candidate_checkpoint_manager=manager,
     )
@@ -362,7 +450,7 @@ def test_different_stage_clocks_converge_to_same_durable_publication(
         base_checkpoint_manager=publication_bundle["base_manager"],
         **inputs,
     )
-    converged = publication_module.publish_authenticated_profiled_supervised_checkpoint_v1(  # noqa: E501
+    converged = _publish(
         bound_execution=rebound,
         candidate_checkpoint_manager=publication_bundle["candidate_manager"],
     )
@@ -483,7 +571,7 @@ def test_base_weight_tamper_fails_before_any_new_checkpoint_write(
             publication_module.AuthenticatedProfiledSupervisedCheckpointPublicationV1Error,
             match="PROFILED_SUPERVISED_PUBLICATION_PREWRITE_REVALIDATION_FAILED",
         ):
-            publication_module.publish_authenticated_profiled_supervised_checkpoint_v1(
+            _publish(
                 bound_execution=publication_bundle["bound_execution"],
                 candidate_checkpoint_manager=publication_bundle["candidate_manager"],
             )
@@ -548,6 +636,79 @@ def test_profiled_lineage_does_not_shadow_normal_candidate_selection(
     assert selected_normal.checkpoint_id != selected_profiled.checkpoint_id
 
 
+def test_exported_publication_rejects_non_successor_across_model_and_key_rotation(
+    publication_bundle: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manager = publication_bundle["candidate_manager"]
+    base_manifest = publication_bundle["base_manifest"]
+    first_contract = publication_bundle[
+        "first"
+    ].checkpoint_manifest.checkpoint_evidence[
+        "authenticated_profiled_supervised_publication"
+    ]
+    cross_model_contract = deepcopy(first_contract)
+    cross_model_contract.update(
+        {
+            "publication_idempotency_key": "a" * 64,
+            "execution_idempotency_key": "b" * 64,
+            "manifest_id": "c" * 64,
+            "completion_event_sha256": "d" * 64,
+            "external_authorization_envelope_sha256": "e" * 64,
+            "witness_public_key_sha256": "f" * 64,
+            "witness_sequence": first_contract["witness_sequence"] + 1,
+        }
+    )
+    cross_model = V2HybridPolicyModel(
+        input_dim=publication_bundle["base_model"].input_dim + 1,
+        seed=313,
+    )
+    manager.write_checkpoint(
+        model=cross_model,
+        input_dim=cross_model.input_dim,
+        device=cross_model.device,
+        cuda_active=cross_model.cuda_active,
+        lineage_kind=AUTHENTICATED_PROFILED_SUPERVISED_CANDIDATE_LINEAGE,
+        parent_checkpoint_id=base_manifest.checkpoint_id,
+        parent_policy_fingerprint=base_manifest.model_parameter_fingerprint,
+        training_partition_digest=publication_bundle["first"].training_partition_digest,
+        checkpoint_evidence={
+            "checkpoint_role": AUTHENTICATED_PROFILED_SUPERVISED_CANDIDATE_LINEAGE,
+            "authenticated_profiled_supervised_publication": cross_model_contract,
+        },
+    )
+    original_contract = publication_module._publication_contract
+
+    def rolled_back_contract(**kwargs: Any) -> dict[str, Any]:
+        contract = deepcopy(original_contract(**kwargs))
+        contract.update(
+            {
+                "publication_idempotency_key": "1" * 64,
+                "execution_idempotency_key": "2" * 64,
+                "manifest_id": "3" * 64,
+                "completion_event_sha256": "4" * 64,
+                "external_authorization_envelope_sha256": "5" * 64,
+                "witness_public_key_sha256": "6" * 64,
+                "witness_sequence": first_contract["witness_sequence"] + 1,
+            }
+        )
+        return contract
+
+    monkeypatch.setattr(
+        publication_module,
+        "_publication_contract",
+        rolled_back_contract,
+    )
+    with pytest.raises(
+        publication_module.AuthenticatedProfiledSupervisedCheckpointPublicationV1Error,
+        match="PROFILED_SUPERVISED_PUBLICATION_WITNESS_SEQUENCE_NOT_SUCCESSOR",
+    ):
+        _publish(
+            bound_execution=publication_bundle["bound_execution"],
+            candidate_checkpoint_manager=publication_bundle["candidate_manager"],
+        )
+
+
 def test_reused_execution_identity_conflict_fails_before_another_write(
     publication_bundle: dict[str, Any],
 ) -> None:
@@ -583,7 +744,7 @@ def test_reused_execution_identity_conflict_fails_before_another_write(
         publication_module.AuthenticatedProfiledSupervisedCheckpointPublicationV1Error,
         match="PROFILED_SUPERVISED_PUBLICATION_EXECUTION_IDENTITY_CONFLICT",
     ):
-        publication_module.publish_authenticated_profiled_supervised_checkpoint_v1(
+        _publish(
             bound_execution=publication_bundle["bound_execution"],
             candidate_checkpoint_manager=manager,
         )

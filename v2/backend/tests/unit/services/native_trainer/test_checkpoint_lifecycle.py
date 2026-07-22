@@ -4,6 +4,7 @@ import hashlib
 import multiprocessing
 import os
 from collections.abc import Iterator
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, BinaryIO
@@ -27,6 +28,7 @@ from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.checkpoint_lifec
     CheckpointLifecycleLeaseBusy,
     checkpoint_evidence,
     checkpoint_lifecycle_lease,
+    require_active_checkpoint_lifecycle_lease,
     serving_promotion_decision,
     verified_candidate_checkpoint_evidence,
 )
@@ -722,6 +724,41 @@ def test_checkpoint_lifecycle_lease_serializes_independent_processes(
         owner_role="NORMAL_HYBRID_TRAINER",
         blocking=False,
     ) as receipt:
+        require_active_checkpoint_lifecycle_lease(
+            receipt,
+            model_dir=model_dir,
+            owner_role="NORMAL_HYBRID_TRAINER",
+        )
+        with pytest.raises(
+            RuntimeError,
+            match="checkpoint_lifecycle_lease_not_active_for_caller",
+        ):
+            require_active_checkpoint_lifecycle_lease(
+                receipt,
+                model_dir=model_dir / "wrong-root",
+                owner_role="NORMAL_HYBRID_TRAINER",
+            )
+        with pytest.raises(
+            RuntimeError,
+            match="checkpoint_lifecycle_lease_not_active_for_caller",
+        ):
+            require_active_checkpoint_lifecycle_lease(
+                receipt,
+                model_dir=model_dir,
+                owner_role="AUTHENTICATED_PROFILED_TRAINER",
+            )
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            cross_thread = executor.submit(
+                require_active_checkpoint_lifecycle_lease,
+                receipt,
+                model_dir=model_dir,
+                owner_role="NORMAL_HYBRID_TRAINER",
+            )
+            with pytest.raises(
+                RuntimeError,
+                match="checkpoint_lifecycle_lease_not_active_for_caller",
+            ):
+                cross_thread.result()
         held_queue = process_context.Queue()
         held_probe = process_context.Process(
             target=_probe_lifecycle_lease,
@@ -741,6 +778,16 @@ def test_checkpoint_lifecycle_lease_serializes_independent_processes(
         assert Path(receipt.lock_path).stat().st_mode & 0o777 == 0o600
         held_queue.close()
         held_queue.join_thread()
+
+    with pytest.raises(
+        RuntimeError,
+        match="checkpoint_lifecycle_lease_not_active_for_caller",
+    ):
+        require_active_checkpoint_lifecycle_lease(
+            receipt,
+            model_dir=model_dir,
+            owner_role="NORMAL_HYBRID_TRAINER",
+        )
 
     released_queue = process_context.Queue()
     released_probe = process_context.Process(

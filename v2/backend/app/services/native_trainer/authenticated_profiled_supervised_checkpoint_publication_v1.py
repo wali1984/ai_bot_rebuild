@@ -39,6 +39,8 @@ from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.checkpoint impor
 )
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.checkpoint_lifecycle import (
     VERIFIED_SERVING_LINEAGE,
+    CheckpointLifecycleLeaseReceipt,
+    require_active_checkpoint_lifecycle_lease,
 )
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.model import (
     V2HybridPolicyModel,
@@ -659,15 +661,12 @@ def _publication_contract(
 def _preflight_publication_conflicts(
     *,
     candidate_checkpoint_manager: V2HybridCheckpointManager,
-    execution: AuthenticatedProfiledSupervisedOptimizerExecutionV1,
     publication_contract: dict[str, Any],
 ) -> None:
     """Reject a reused execution/key conflict before any durable mutation."""
 
     try:
         manifests = candidate_checkpoint_manager.manifests(
-            input_dim=execution.model_input_dim,
-            model_id=execution.model_id,
             allowed_lineage_kinds=frozenset(
                 {AUTHENTICATED_PROFILED_SUPERVISED_CANDIDATE_LINEAGE}
             ),
@@ -681,13 +680,27 @@ def _preflight_publication_conflicts(
         _fail("PROFILED_SUPERVISED_PUBLICATION_PREFLIGHT_SCAN_INVALID")
     publication_idempotency_key = publication_contract["publication_idempotency_key"]
     execution_idempotency_key = publication_contract["execution_idempotency_key"]
+    witness_id = publication_contract["witness_id"]
+    witness_namespace = publication_contract["witness_namespace"]
+    witness_sequence = publication_contract["witness_sequence"]
     matching_publication: list[CheckpointManifest] = []
+    same_witness_history: list[tuple[int, int]] = []
     for manifest in manifests:
         observed = manifest.checkpoint_evidence.get(
             "authenticated_profiled_supervised_publication"
         )
         if type(observed) is not dict:
             _fail("PROFILED_SUPERVISED_PUBLICATION_EXISTING_EVIDENCE_INVALID")
+        if (
+            observed.get("witness_id") == witness_id
+            and observed.get("witness_namespace") == witness_namespace
+        ):
+            observed_sequence = observed.get("witness_sequence")
+            if type(observed_sequence) is not int or observed_sequence <= 0:
+                _fail("PROFILED_SUPERVISED_PUBLICATION_WITNESS_HISTORY_INVALID")
+            same_witness_history.append(
+                (manifest.checkpoint_generation, observed_sequence)
+            )
         same_publication = (
             observed.get("publication_idempotency_key")
             == publication_idempotency_key
@@ -718,6 +731,21 @@ def _preflight_publication_conflicts(
             _fail("PROFILED_SUPERVISED_PUBLICATION_EXISTING_ARTIFACT_INVALID")
     if len(matching_publication) > 1:
         _fail("PROFILED_SUPERVISED_PUBLICATION_IDEMPOTENCY_AMBIGUOUS")
+    ordered_witness_history = tuple(sorted(same_witness_history))
+    if any(
+        current_sequence <= previous_sequence
+        for (_, previous_sequence), (_, current_sequence) in zip(
+            ordered_witness_history,
+            ordered_witness_history[1:],
+            strict=False,
+        )
+    ):
+        _fail("PROFILED_SUPERVISED_PUBLICATION_WITNESS_HISTORY_NON_MONOTONIC")
+    if not matching_publication and any(
+        published_sequence >= witness_sequence
+        for _, published_sequence in ordered_witness_history
+    ):
+        _fail("PROFILED_SUPERVISED_PUBLICATION_WITNESS_SEQUENCE_NOT_SUCCESSOR")
 
 
 def _recovery_contract_valid(
@@ -822,9 +850,11 @@ class AuthenticatedProfiledExistingPublicationV1:
     completion_event_sha256: str
     external_authorization_envelope_sha256: str
     witness_id: str
+    witness_namespace: str
     witness_public_key_sha256: str
     witness_sequence: int
     publication_idempotency_key: str
+    base_checkpoint_id: str
     candidate_checkpoint_id: str
     candidate_checkpoint_weight_sha256: str
     candidate_checkpoint_evidence_digest: str
@@ -874,6 +904,13 @@ class AuthenticatedProfiledExistingPublicationV1:
                     self.candidate_model_parameter_fingerprint,
                 )
             )
+            or any(
+                type(value) is not str or not value or Path(value).name != value
+                for value in (
+                    self.base_checkpoint_id,
+                    self.candidate_checkpoint_id,
+                )
+            )
             or type(contract) is not dict
             or contract.get("manifest_id") != self.manifest_id
             or contract.get("completion_event_sha256")
@@ -881,11 +918,14 @@ class AuthenticatedProfiledExistingPublicationV1:
             or contract.get("external_authorization_envelope_sha256")
             != self.external_authorization_envelope_sha256
             or contract.get("witness_id") != self.witness_id
+            or contract.get("witness_namespace") != self.witness_namespace
             or contract.get("witness_public_key_sha256")
             != self.witness_public_key_sha256
             or contract.get("witness_sequence") != self.witness_sequence
             or contract.get("publication_idempotency_key")
             != self.publication_idempotency_key
+            or contract.get("base_checkpoint_id") != self.base_checkpoint_id
+            or manifest.parent_checkpoint_id != self.base_checkpoint_id
             or manifest.checkpoint_id != self.candidate_checkpoint_id
             or manifest.weight_file_sha256
             != self.candidate_checkpoint_weight_sha256
@@ -911,6 +951,7 @@ def find_authenticated_profiled_supervised_publication_for_completion_v1(
     completion_event_sha256: str,
     external_authorization_envelope_sha256: str,
     witness_id: str,
+    witness_namespace: str,
     witness_public_key_sha256: str,
     witness_sequence: int,
 ) -> AuthenticatedProfiledExistingPublicationV1 | None:
@@ -930,6 +971,9 @@ def find_authenticated_profiled_supervised_publication_for_completion_v1(
         or type(witness_id) is not str
         or not witness_id
         or not witness_id.isascii()
+        or type(witness_namespace) is not str
+        or not witness_namespace
+        or not witness_namespace.isascii()
         or type(witness_sequence) is not int
         or witness_sequence <= 0
     ):
@@ -946,6 +990,7 @@ def find_authenticated_profiled_supervised_publication_for_completion_v1(
             "PROFILED_SUPERVISED_EXISTING_PUBLICATION_SCAN_FAILED"
         ) from exc
     exact: list[tuple[CheckpointManifest, dict[str, Any]]] = []
+    same_witness_history: list[tuple[int, int]] = []
     for manifest in manifests:
         contract = manifest.checkpoint_evidence.get(
             "authenticated_profiled_supervised_publication"
@@ -953,6 +998,16 @@ def find_authenticated_profiled_supervised_publication_for_completion_v1(
         if not _recovery_contract_valid(manifest=manifest, contract=contract):
             _fail("PROFILED_SUPERVISED_EXISTING_PUBLICATION_EVIDENCE_INVALID")
         typed_contract = cast(dict[str, Any], contract)
+        if (
+            typed_contract.get("witness_id") == witness_id
+            and typed_contract.get("witness_namespace") == witness_namespace
+        ):
+            same_witness_history.append(
+                (
+                    manifest.checkpoint_generation,
+                    cast(int, typed_contract["witness_sequence"]),
+                )
+            )
         identity_overlap = bool(
             typed_contract.get("completion_event_sha256")
             == completion_event_sha256
@@ -967,6 +1022,7 @@ def find_authenticated_profiled_supervised_publication_for_completion_v1(
             and typed_contract.get("external_authorization_envelope_sha256")
             == external_authorization_envelope_sha256
             and typed_contract.get("witness_id") == witness_id
+            and typed_contract.get("witness_namespace") == witness_namespace
             and typed_contract.get("witness_public_key_sha256")
             == witness_public_key_sha256
             and typed_contract.get("witness_sequence") == witness_sequence
@@ -980,9 +1036,24 @@ def find_authenticated_profiled_supervised_publication_for_completion_v1(
             if verification.get("checkpoint_artifact_verified") is not True:
                 _fail("PROFILED_SUPERVISED_EXISTING_PUBLICATION_ARTIFACT_INVALID")
             exact.append((manifest, typed_contract))
+    ordered_witness_history = tuple(sorted(same_witness_history))
+    if any(
+        current_sequence <= previous_sequence
+        for (_, previous_sequence), (_, current_sequence) in zip(
+            ordered_witness_history,
+            ordered_witness_history[1:],
+            strict=False,
+        )
+    ):
+        _fail("PROFILED_SUPERVISED_PUBLICATION_WITNESS_HISTORY_NON_MONOTONIC")
     if len(exact) > 1:
         _fail("PROFILED_SUPERVISED_EXISTING_PUBLICATION_AMBIGUOUS")
     if not exact:
+        if any(
+            published_sequence >= witness_sequence
+            for _, published_sequence in ordered_witness_history
+        ):
+            _fail("PROFILED_SUPERVISED_PUBLICATION_WITNESS_SEQUENCE_NOT_SUCCESSOR")
         return None
     manifest, contract = exact[0]
     return AuthenticatedProfiledExistingPublicationV1(
@@ -996,9 +1067,11 @@ def find_authenticated_profiled_supervised_publication_for_completion_v1(
             external_authorization_envelope_sha256
         ),
         witness_id=witness_id,
+        witness_namespace=witness_namespace,
         witness_public_key_sha256=witness_public_key_sha256,
         witness_sequence=witness_sequence,
         publication_idempotency_key=contract["publication_idempotency_key"],
+        base_checkpoint_id=contract["base_checkpoint_id"],
         candidate_checkpoint_id=manifest.checkpoint_id,
         candidate_checkpoint_weight_sha256=manifest.weight_file_sha256,
         candidate_checkpoint_evidence_digest=manifest.checkpoint_evidence_digest,
@@ -1331,6 +1404,7 @@ def publish_authenticated_profiled_supervised_checkpoint_v1(
     *,
     bound_execution: AuthenticatedProfiledLineageBoundOptimizerExecutionV1,
     candidate_checkpoint_manager: V2HybridCheckpointManager,
+    lifecycle_lease: CheckpointLifecycleLeaseReceipt,
 ) -> AuthenticatedProfiledSupervisedCheckpointPublicationV1:
     """Write and verify one distinct non-serving profiled checkpoint lineage."""
 
@@ -1344,6 +1418,16 @@ def publish_authenticated_profiled_supervised_checkpoint_v1(
     base_manager = bound_execution._base_checkpoint_manager_owner
     base_model = bound_execution._base_model_owner
     candidate_model = bound_execution._candidate_model_owner
+    try:
+        require_active_checkpoint_lifecycle_lease(
+            lifecycle_lease,
+            model_dir=base_manager.model_dir,
+            owner_role="AUTHENTICATED_PROFILED_TRAINER",
+        )
+    except (TypeError, ValueError, RuntimeError) as exc:
+        raise AuthenticatedProfiledSupervisedCheckpointPublicationV1Error(
+            "PROFILED_SUPERVISED_PUBLICATION_LIFECYCLE_LEASE_INVALID"
+        ) from exc
     try:
         base_manifest = revalidate_authenticated_profiled_base_checkpoint_lineage_v1(
             lineage=base_lineage,
@@ -1371,7 +1455,6 @@ def publish_authenticated_profiled_supervised_checkpoint_v1(
     )
     _preflight_publication_conflicts(
         candidate_checkpoint_manager=candidate_checkpoint_manager,
-        execution=execution,
         publication_contract=publication_contract,
     )
     checkpoint_evidence = {
