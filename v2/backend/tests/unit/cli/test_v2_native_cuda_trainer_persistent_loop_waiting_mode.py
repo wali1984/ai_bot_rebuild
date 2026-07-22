@@ -380,6 +380,15 @@ def test_repository_systemd_unit_commissions_bounded_publisher() -> None:
     assert "RestrictAddressFamilies=AF_UNIX" in unit
     assert "RestartPreventExitStatus=2 78" in unit
     assert "Wants=ai-bot-v2-profiled-training-observation-coordinator.service" in unit
+    assert (
+        "ExecStartPre=+/usr/bin/install -d -m 0700 "
+        "/home/wali/ai_bot_local_data/v2_native_trainer/"
+        "authenticated_profiled_resident_v1"
+    ) in unit
+    assert (
+        "ReadWritePaths=-/home/wali/ai_bot_local_data/v2_native_trainer/"
+        "authenticated_profiled_resident_v1"
+    ) in unit
     assert unit.count("LoadCredential=") == 4
     assert "profiled_observation_witness_ed25519_public_key" not in unit
     assert "bearer" not in unit.lower()
