@@ -1,13 +1,18 @@
 # Profiled Training Observation Coordinator V1
 
-Status: crash-resuming local coordinator caller complete, independently
-reviewed, protocol-family regressed, committed, and pushed. It is source-only
-and not installed in immutable runtime release `e34af1e6...`. Protected
-configuration, CLI/systemd packaging, an independently provisioned witness,
-external completion acknowledgment, optimizer admission, example reopening,
-and checkpoint/model publication remain separate work.
+Status: the crash-resuming local coordinator is packaged, installed, enabled,
+and running from immutable release `b0116f706f...`. Its first production
+observation reached `HEAD_STAGED` and canonical
+`WAITING_EXTERNAL_WITNESS_CONFIGURATION` with 18/18 manifest examples
+admitted and zero label gaps. No independent witness is provisioned, so
+external completion acknowledgment, optimizer admission, example reopening by
+an optimizer, and checkpoint/model publication remain unavailable and all
+downstream authority flags remain false.
 
-Implementation checkpoint: `20a92dc75b`.
+Implementation checkpoints: caller `20a92dc75b`; protected credentials
+`29504e5bcd`; resident CLI `6e34cce0c2`; service package `0936557c84`;
+resident/read-only remediation `3d2ac428b0`; bounded provenance verification
+`b0116f706f`; immutable pin `16f99785cb`.
 
 Primary implementation:
 
@@ -216,18 +221,55 @@ Final scoped evidence:
 
 ## 10. Deployment and change impact
 
-This source checkpoint changes no installed service and has no live exchange,
+The original caller checkpoint changed no installed service and had no live exchange,
 strategy, PPO/MASA, risk, sizing, leverage, margin, paper execution, or model
 write effect.
 
-Before production use, the next layer must provide protected role credentials,
-stable paths, an independently hosted witness endpoint/token/identity/Ed25519
-key, a CLI, a user-systemd unit, resource controls, canonical status output,
-and immutable release pinning. After that, a distinct external completion
-acknowledgment and optimizer-admission verifier must be implemented. Inventory
-receipt completion must never be relabeled as optimizer training completion.
+The installed observation-only runtime now has protected local role
+credentials, stable paths, a resident CLI, a hardened user-systemd unit,
+resource controls, canonical self-hashed status, and an immutable release pin.
+It deliberately has no active external-witness drop-in. The remaining next
+layer must supply an independently hosted witness endpoint, bearer token,
+witness ID, pinned Ed25519 public key and key digest; then a distinct external
+completion acknowledgment and optimizer-admission verifier must be
+implemented. Inventory receipt completion must never be relabeled as optimizer
+training completion.
+
+Observed commissioning evidence at `2026-07-22T16:28:03Z`:
+
+- service active/running at PID `4047055`, `NRestarts=0`;
+- immutable code SHA `b0116f706f12f115acc03197eef6765e1a2f36ea`;
+- phase `HEAD_STAGED`, transition sequence 3;
+- manifest `669f74c344752fda7a4a7e86824ab3291d7947a28fc344930554cfa3eb99bfe8`;
+- total/admitted/label-unavailable counts `18/18/0`;
+- status self-hash and complete manifest HMAC/entry stream independently
+  reverified;
+- witness configured/attempts `false/0`;
+- peak memory `1,432,330,240` bytes, below `MemoryHigh=2G` and
+  `MemoryMax=4G`; and
+- all optimizer/checkpoint/model/prediction/paper/live/order/execution/runtime
+  authorities false.
+
+The source reader uses the existing ledger lock as `O_RDONLY + LOCK_SH`; it
+does not create or write a lock. A loader invocation retains at most one
+compact root projection and scalar count/head identities for evicted roots.
+Same-root parents reuse the projection; revisiting an evicted root rereads the
+complete ledger and fails closed if count/head moved. No full entry JSON,
+record graph, raw ledger bytes, or shared lock survives projection.
+
+Recoverable source/storage/protocol failures write canonical `FAIL_CLOSED`
+status and retry inside the resident process with operational backoff. Invalid
+arguments, credentials, or completed witness URL configuration exit 78 and do
+not consume systemd restart budget. This behavior changes availability only;
+it does not relax sample, finality, PIT, witness, admission, or trading gates.
 
 Changing the status trigger, state phase map, staging root, role credentials,
 page size, page-clock rule, witness recovery order, or result fields affects
 this caller and requires the corresponding status/state/manifest/head/witness
 protocol regression before deployment.
+
+One nonblocking hardening item remains: a SIGKILL during the monolithic
+manifest build can leave a uniquely named private temporary SQLite file.
+Normal exceptions and graceful completion remove it, and none was present at
+commissioning. A separately tested lock-held stale-temp cleanup/cancellation
+slice is still required before claiming crash-artifact cleanup complete.

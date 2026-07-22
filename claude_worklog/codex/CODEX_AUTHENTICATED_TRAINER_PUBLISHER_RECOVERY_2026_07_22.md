@@ -418,3 +418,69 @@ Two strict samples prove end-to-end correctness, not statistical sufficiency,
 model quality, an A+ grade, or any return target. Candidate supply must grow
 only from fresh closed windows and authenticated evidence. This checkpoint
 does not guarantee 1000x returns and does not authorize live trading.
+
+## Observation-coordinator commissioning supersession — 16:28Z
+
+This section supersedes the earlier statement that no production caller was
+installed. The local observation coordinator is now commissioned; the
+independent-witness and optimizer-authority statements remain unchanged.
+
+| Evidence | Exact count/value |
+| --- | --- |
+| Runtime remediation commit | `3d2ac428b0` |
+| Bounded provenance commit | `b0116f706f` |
+| Immutable pin commit | `16f99785cb` |
+| Release-path regression | 135/135 passed in 262.63 seconds |
+| Independently reviewed files/public paths/admission callsites | 2 / 3 / 3 |
+| Remaining cache-checkpoint defects | 0 |
+| Coordinator PID/restarts | `4047055` / 0 |
+| First-cycle manifest bytes | 262,144 |
+| Total/admitted/label-unavailable examples | 18 / 18 / 0 |
+| Status self-hash verification | passed |
+| Complete manifest HMAC/entry-stream reopen | passed |
+| Stability observation | 35 seconds, same PID and status hash |
+| Witness configured/network attempts | false / 0 |
+| Peak memory | 1,432,330,240 bytes |
+
+The first activation of the earlier release exposed two runtime-only defects.
+The strict observer inherited the writer API's `O_RDWR|O_CREAT` lock open,
+which the correctly read-only systemd sandbox rejected. It also treated
+retryable data/runtime errors as process exits, consuming the systemd start
+limit. The correction adds an existing-lock `O_RDONLY + LOCK_SH` read, keeps
+runtime failures inside the resident loop with bounded operational backoff,
+and treats malformed arguments/credentials/completed witness URL bundles as
+non-restarting configuration failures.
+
+The live provenance ledger was 312,718,489 bytes with 289 entries and 16,982
+owned CAS files. Reopening it once per parent could reread roughly 5.63 GB for
+the current 18-example inventory. The final loader design holds at most one
+compact root projection. It retains scalar entry JSON digests and only the
+source/manifest/row fields required for binding, releases the shared lock
+before consuming pages, and stores only root/count/head identities for evicted
+roots. Consecutive parents on one root reuse the projection. A revisited root
+is fully reverified and fails closed if its fixed identity moved. No cache is
+shared across loader invocations.
+
+The installed outcome is deliberately local-integrity-only:
+
+```text
+profiled base publisher (active, 0 restarts)
+  -> authenticated fixed observation manifest (18/18, zero label gaps)
+  -> local successor head
+  -> HEAD_STAGED
+  -> WAITING_EXTERNAL_WITNESS_CONFIGURATION
+```
+
+The independently operated witness URL/token/ID/public key/pin does not exist
+in the installed configuration. Consequently there was no network append,
+the head is not externally anchored, full consumption is not locally or
+externally acknowledged, and optimizer/checkpoint/model/prediction/paper/live/
+order/execution/runtime authorities remain false. This is an online safe wait,
+not a fully authoritative optimizer publisher.
+
+One follow-up hardening item remains outside the activation blocker: SIGKILL
+during the monolithic manifest build can leave a private uniquely named
+temporary SQLite file. The successful cycle atomically finalized its temp and
+left none behind. Add lock-held stale-temp cleanup or cooperative cancellation
+in a separate tested slice; do not hold the publisher offline for that
+noncurrent artifact condition.

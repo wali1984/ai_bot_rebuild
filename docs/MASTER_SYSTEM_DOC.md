@@ -174,6 +174,40 @@ The trainer is a hybrid PPO-shaped/supervised implementation. It requires on-pol
 
 Training evidence has current blockers: external temporal lineage gaps, masked/missing-trust exceptions, a signed-direction replay label defect, transaction-cost disagreement, holdout not enforced by the main loader, architecture rather than weight identity, and archive/replay publication failure that can still leak downstream lineage. The active GRU windower also falls back to incoming list index because `TrainingExample` lacks a top-level `decision_time`; after source/PPO reordering, a target can receive a frame whose real nested decision time is later, which is future leakage.
 
+### 2026-07-22 authenticated profiled-observation delta
+
+The strict profiled publisher path is no longer process-down. Three relevant
+user services were observed active with zero restarts: the profiled base
+feature publisher, native trainer waiting observer, and profiled training
+observation coordinator. The coordinator runs from detached read-only release
+`b0116f706f12f115acc03197eef6765e1a2f36ea`, pinned by commit
+`16f99785cb`. Its first real fixed observation built and reauthenticated
+manifest `669f74c...b99bfe8` with 18 total examples, 18 admitted examples and
+zero unavailable labels. The canonical status self-hash was independently
+recomputed; the complete manifest HMAC and entry stream were independently
+reopened; a 35-second stability check retained the same PID/status hash and
+`NRestarts=0`.
+
+This restores the local publisher/coordinator availability boundary, not the
+optimizer. The durable phase is `HEAD_STAGED` and classification is
+`WAITING_EXTERNAL_WITNESS_CONFIGURATION`. No external witness drop-in is
+installed, no witness network request occurred, and every optimizer,
+checkpoint, model, prediction, paper, live, order, execution and runtime-wired
+flag remains false. An independently operated HTTPS witness with protected
+bearer token, witness identity, pinned raw Ed25519 public key and separate key
+digest is the next authority boundary; generating it on the same host would
+not prove independent monotonic history.
+
+The runtime blocker corrections were deliberately non-semantic. The
+read-only observer now takes the existing provenance lock with `O_RDONLY` and
+`LOCK_SH`. One loader invocation keeps at most one compact source-root
+projection, drops full JSON/record/raw-ledger material after verification, and
+remembers only count/head identities for evicted roots. Recoverable source
+failures remain fail-closed but no longer kill the resident process; malformed
+arguments/credentials/witness URL configuration terminate with non-restarting
+configuration status. No strategy, reward, PPO/MASA, risk, allocation,
+leverage, margin, paper position or exchange/order behavior changed.
+
 ## Current decision/execution truth
 
 The orchestrator creates a provisional risk ID and paper flag before gateway evaluation. The gateway may write a real `DENY`; paper dereference records it, but ordinary A-grade admission tests ID existence plus local pre-trade rather than requiring action `ALLOW`.

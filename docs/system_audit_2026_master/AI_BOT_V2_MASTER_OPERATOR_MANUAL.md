@@ -741,3 +741,71 @@ Record:
 - approvals and next safe action.
 
 The canonical issue list is `CURRENT_FINDINGS_AND_RISK_REGISTER.md`; exact source/contract impact is in `atlas/`; reconstruction requirements are in `REBUILD_BLUEPRINT.md`.
+
+## 14. Profiled trainer observation coordinator
+
+The commissioned observation-only unit is
+`ai-bot-v2-profiled-training-observation-coordinator.service`. A healthy unit
+without an independent witness is expected to stay `active/running` at phase
+`HEAD_STAGED` with classification
+`WAITING_EXTERNAL_WITNESS_CONFIGURATION`. That is a safe waiting state, not a
+trainer crash and not optimizer completion.
+
+Check process, immutable code identity and restart count:
+
+```bash
+systemctl --user show \
+  ai-bot-v2-profiled-training-observation-coordinator.service \
+  -p ActiveState -p SubState -p MainPID -p NRestarts \
+  -p MemoryCurrent -p MemoryPeak -p Environment
+```
+
+The effective environment must contain
+`AI_BOT_CODE_SHA=b0116f706f12f115acc03197eef6765e1a2f36ea`, a matching
+release `PYTHONPATH`, and `LIVE_GATE=blocked_human_only`. Do not print or copy
+the systemd credential mount. Inspect only nonsecret status fields:
+
+```bash
+jq '{classification,code_sha,phase,transition_sequence,manifest_id,
+     total_profiled_samples,admitted_example_count,label_unavailable_count,
+     complete_state_chain_verified,witness_runtime_configured,
+     witness_network_append_attempts,optimizer_admission_authorized,
+     checkpoint_write_authorized,model_write_authorized,
+     prediction_authorized,paper_trading_authorized,
+     live_execution_authorized,order_submission_authorized,
+     execution_authorized,runtime_wired,status_sha256}' \
+  /home/wali/ai_bot_local_data/v2_native_trainer/\
+profiled_training_observation_coordinator_v1/coordinator_status_v1.json
+```
+
+For the current witness-absent deployment, the required shape is:
+
+- `classification=WAITING_EXTERNAL_WITNESS_CONFIGURATION`;
+- `phase=HEAD_STAGED`;
+- `complete_state_chain_verified=true`;
+- `witness_runtime_configured=false` and network attempts 0; and
+- every downstream authority flag false.
+
+`FAIL_CLOSED` with the same PID and zero restarts means a retryable source,
+storage or protocol cycle failed and the resident process is backing off. A
+changed PID or increasing restart count is a process/configuration incident.
+Exit 78 indicates invalid arguments/credentials/completed witness
+configuration and is intentionally non-restarting. Never force candidate
+supply, bypass provenance, relabel local completion as optimizer admission, or
+enable held downstream trainer services to make the status green.
+
+The external witness template is tracked as
+`80-external-witness.conf.example` and is intentionally not installed. It may
+be activated only after an independently operated service supplies all six
+bindings: HTTPS base URL, witness ID, separately supplied key digest, timeout,
+protected bearer token and raw 32-byte Ed25519 public key. Do not generate the
+witness signer/token/key on this host. After installation, revalidate signed
+compare-and-append, readback, journal recovery, zero equivocation, and all
+false trading authorities before releasing any later layer.
+
+Current commissioning evidence is 18 total/admitted examples, zero label
+gaps, zero witness attempts, zero restarts, and peak memory 1,432,330,240
+bytes. The unit limits are `MemoryHigh=2G`, `MemoryMax=4G`, `CPUQuota=100%`,
+`Nice=10`, and idle I/O scheduling. A growing restart count, memory reaching
+the hard limit, missing canonical status, a writable immutable release, or any
+true downstream authority field is an incident and must fail closed.
