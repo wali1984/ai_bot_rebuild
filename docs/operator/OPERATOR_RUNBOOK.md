@@ -1,6 +1,6 @@
 # Operator Runbook
 
-Last verified timestamp: 2026-07-07T08:04:31Z
+Last verified timestamp: 2026-07-22T10:53:12Z for the profiled trainer publisher; other sections retain their dated evidence
 
 ## Purpose
 Provide the daily operator path for checking runtime health, paper halt state, live gate, service drift, website/iOS truth, and incident response entry points.
@@ -69,3 +69,41 @@ Provide the daily operator path for checking runtime health, paper halt state, l
 - Live state: `blocked_human_only`; dry-run packets must not submit or mutate exchange state.
 - Runtime drift: Phase K monitor reports `services_stale=0` after V2 restarts and the legacy comparator stop.
 - Santiment: `v2:altdata:santiment:symbol:*` has runtime symbol-selection evidence and the paid-ingestor-unused alert is passing.
+
+## Profiled trainer-publisher check (2026-07-22)
+
+The publisher is online when all three planes agree:
+
+1. `systemctl` reports `active/running`, a nonzero PID and no new restarts;
+2. the process CWD, executable, `PYTHONPATH` and `AI_BOT_CODE_SHA` resolve to
+   immutable release `9fcea85f27a56b757a3b0af362e35ac9a58a9df3`;
+3. a completed cycle and independent loader agree on the appended strict row.
+
+Run:
+
+```bash
+systemctl --user show ai-bot-v2-profiled-base-feature-publisher.service \
+  -p ActiveState -p SubState -p MainPID -p NRestarts -p ExecMainStartTimestamp
+
+pid=$(systemctl --user show ai-bot-v2-profiled-base-feature-publisher.service \
+  -p MainPID --value)
+readlink -f "/proc/$pid/cwd"
+tr '\0' '\n' < "/proc/$pid/environ" | \
+  rg '^(AI_BOT_CODE_SHA|PYTHONPATH|PYTHONPYCACHEPREFIX|LIVE_GATE)='
+
+jq '{cycle_started_at,cycle_completed_at,classification,selected_symbols,
+     published_symbols,failures,masked_cost_observation_symbol_count}' \
+  /home/wali/ai_bot_local_data/v2_native_trainer/profiled_base_publisher_v1/profiled_base_publisher_status_v1.json
+```
+
+Accepted first pinned cycle: one selected/published NIGHTUSDT pair, parent and
+child sequences 15/16, zero failures, zero masked observations and zero service
+restarts. A later cycle may safely report a stale or unavailable closed window;
+that is not the same as a dead service. Never force candidate supply around
+finality, provenance, availability or CAS verification.
+
+The publisher being online does not mean the optimizer is online. The strict
+loader currently reports `runtime_wired=false`; prediction, paper and live
+authority are false. See
+`claude_worklog/codex/CODEX_AUTHENTICATED_TRAINER_PUBLISHER_RECOVERY_2026_07_22.md`
+for the exact loader command, acceptance counts and remaining adapter gate.

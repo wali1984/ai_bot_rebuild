@@ -47,6 +47,67 @@ docs/system_audit_2026_master/atlas/
 It records source/analyzer provenance and the size/SHA-256 of every staged atlas
 artifact; validate the machine catalogs against it before consuming them.
 
+### 1.1 Authenticated profiled trainer-publisher slice (2026-07-22)
+
+This dated section supersedes the older staged/masked status only for the
+profiled base-feature publisher. Release
+`9fcea85f27a56b757a3b0af362e35ac9a58a9df3` is active and has produced strict
+39-field children. It does not supersede the system-wide live NO-GO or imply
+that the persistent optimizer consumes them.
+
+Low-level path:
+
+```text
+v2:paper:adaptive_sizing_runtime_status
++ v2:paper:account_margin_status
++ per-symbol orderbook depth/features/mark price
+  -> causal adaptive cold-start expected-notional receipt
+
+authenticated Binance commission broker envelope + signed consumer receipt
+  -> causal_cost_evidence_v1 fee_transport_provenance
+
+closed 5m/1h capture + cost artifact
+  -> atomic durable parent-35 / strict-child-39 append
+  -> profiled_training_ledger_loader_v1
+  -> logical 446 / model vector 1,784
+```
+
+The critical consumer function is
+`profiled_training_ledger_loader_v1._reopen_cost_cas`. It reconstructs an exact
+inventory from ledger receipts, the cost artifact, three market payloads and
+their direct receipts, fee artifact/input receipt/raw response, notional
+artifact/input receipt, adaptive-notional source receipt and its five bound
+objects, plus the authenticated broker envelope and consumer receipt. The
+observed combined inventory is 21 unique CAS objects.
+
+Fee transport is optional for legacy/direct-capture cost artifacts. When
+present, it is not merely counted. The loader enforces the exact 23-field
+provenance, 61-field envelope and 32-field receipt contracts; canonical bytes
+and content checksums; address/digest/byte-count bindings; fee-source mirrors;
+false authority; and source/broker/consumer/decision/expiry ordering. HMAC
+recomputation remains in the broker reader that owns the key. The loader binds
+the already-verified HMAC digests without gaining credential access.
+
+The first newly pinned pair used adaptive expected notional
+`$2,498.45775782`, derived from paper free margin after buffer and visible
+NIGHTUSDT depth. It did not use a fixed runtime notional or a leverage
+assumption. The atomic paper sizing/margin payloads shared one
+`paper_cycle:<64hex>` identity and remained paper-only with no leverage,
+margin-mode or order mutation.
+
+Independent acceptance at `2026-07-22T10:53Z` reopened two strict samples,
+sequences 14 and 16, with zero exclusions. Both grant only trainer-candidate
+admission. `prediction_authorized`, `paper_trading_authorized`,
+`live_execution_authorized` and `runtime_wired` are false.
+
+Change-impact rule: any persisted CAS address or transport schema change must
+update the producer artifact, exact loader inventory walk, canonical/hash/PIT
+checks and both publisher-to-loader regressions in the same versioned slice.
+Do not relax `inventory == expected_inventory` to accommodate new objects.
+
+Full evidence and operator/rollback details are in
+`claude_worklog/codex/CODEX_AUTHENTICATED_TRAINER_PUBLISHER_RECOVERY_2026_07_22.md`.
+
 ## 2. Repository architecture
 
 ```text

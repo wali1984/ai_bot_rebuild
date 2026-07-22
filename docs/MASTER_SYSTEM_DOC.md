@@ -1,12 +1,30 @@
 # AI Bot V2 master system document
 
-**Current documentation cut:** 2026-07-16
+**Current documentation cut:** 2026-07-16, with scoped 2026-07-22 trainer-publisher addendum
 
 **Mode observed:** paper/shadow; live transport disarmed but present in source
 
 **Decision:** NO-GO for live trading and NO-GO for using current paper results as clean promotion evidence.
 
 > A dated **[Post-cut reconciliation (2026-07-16, evening)](#post-cut-reconciliation-2026-07-16-evening)** section below records verified current deltas and the operational hardening applied after this cut. The NO-GO decision is unchanged.
+
+## Scoped trainer-publisher addendum (2026-07-22)
+
+The profiled base-feature publisher is now active from immutable release
+`9fcea85f27a56b757a3b0af362e35ac9a58a9df3`. Its first newly pinned cycle
+published one authenticated NIGHTUSDT parent/child pair with zero symbol
+failures. The independent strict loader reopened the two available strict
+children (LDOUSDT sequence 14 and NIGHTUSDT sequence 16): two admitted, zero
+excluded, with exact 39 physical, 446 logical and 1,784 model-vector values.
+
+This supersedes older claims that the profiled publisher itself is staged,
+credential-blocked or only producing masked rows. It does not supersede the
+live NO-GO. The strict samples have trainer-candidate authority only;
+prediction, paper, live and `runtime_wired` remain false. The persistent
+optimizer is therefore still not online through this path. See the
+[authenticated recovery checkpoint](../claude_worklog/codex/CODEX_AUTHENTICATED_TRAINER_PUBLISHER_RECOVERY_2026_07_22.md)
+for the 21-object CAS contract, exact clocks/keys/fields, tests, runtime counts
+and change-impact map.
 
 This is the repository-level entrypoint. The complete current audit is [AI_BOT_V2_FULL_REBUILD_MASTER_AUDIT_REPORT.md](system_audit_2026_master/AI_BOT_V2_FULL_REBUILD_MASTER_AUDIT_REPORT.md); the document map is [REVERSE_ENGINEERING_INDEX.md](system_audit_2026_master/REVERSE_ENGINEERING_INDEX.md).
 
