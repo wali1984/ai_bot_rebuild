@@ -9,6 +9,7 @@ from v2.backend.app.services.binance_usdm_leverage_bracket_evidence import (
     build_evidence_security_context,
 )
 from v2.backend.app.services.liquidation_surface import producer
+from v2.backend.app.services.liquidation_surface.contracts import LeverageBracket
 from v2.backend.app.services.liquidation_surface.producer import (
     AdaptiveOISelection,
     ExactRedisSnapshot,
@@ -17,6 +18,8 @@ from v2.backend.app.services.liquidation_surface.producer import (
     build_lane_candidate,
     publication_scope_metadata,
     read_exact_redis_snapshot,
+    redis_now_ms,
+    redis_utc_now,
     require_publication_scope_binding,
     run_producer_cycle,
     select_adaptive_coinank_open_interest,
@@ -165,6 +168,13 @@ def test_exact_snapshot_reads_binary_bytes_before_redis_clock() -> None:
         snapshot.values["a"] = b"changed"  # type: ignore[index]
 
 
+def test_redis_clock_uses_conservative_millisecond_ceiling() -> None:
+    redis_client = SimpleNamespace(time=lambda: (1_800_000_001, 250_001))
+
+    assert redis_now_ms(redis_client) == 1_800_000_001_251
+    assert redis_utc_now(redis_client).timestamp() == pytest.approx(1_800_000_001.250001)
+
+
 def test_exact_snapshot_rejects_decoded_or_duplicate_inputs() -> None:
     with pytest.raises(
         LiquidationSurfaceProducerError,
@@ -276,6 +286,49 @@ def test_lane_without_finalized_candles_is_quarantined() -> None:
             as_of_time_ms=BASE_MS,
             generated_at_ms=BASE_MS,
         )
+
+
+def test_authenticated_bracket_crossing_lane_clock_is_omitted_not_fatal() -> None:
+    as_of = BASE_MS + 200_000
+    expired = LeverageBracket(
+        venue="binance_usdm",
+        symbol=SYMBOL,
+        bracket_id=1,
+        notional_floor=0.0,
+        notional_cap=1_000_000.0,
+        initial_leverage=20,
+        maintenance_margin_rate=0.004,
+        fetched_at_ms=as_of - 1_000,
+        ingested_at_ms=as_of - 900,
+        available_at_ms=as_of - 800,
+        expires_at_ms=as_of,
+        source_key="v2:binance_usdm:leverage_bracket:test:BTCUSDT",
+        source_sha256="d" * 64,
+    )
+
+    payload, diagnostics = build_lane_candidate(
+        symbol=SYMBOL,
+        timeframe="1m",
+        candle_raw=_json_bytes([_candle(0), _candle(1)]),
+        source_observed_at_ms=as_of,
+        mark_history=MarkPriceHistory(),
+        oi_selection=AdaptiveOISelection((), None, 0, 6, MappingProxyType({})),
+        bracket_result={
+            "status": "READY",
+            "evidence_authenticated": True,
+            "observations": (expired,),
+        },
+        as_of_time_ms=as_of,
+        generated_at_ms=as_of + 1,
+    )
+
+    assert payload["trainer_semantic_eligible"] is False
+    assert payload["long_levels"] == []
+    assert payload["short_levels"] == []
+    assert diagnostics["bracket_count"] == 0
+    assert diagnostics["bracket_lane_admission_status"] == (
+        "OMITTED_MISSING_INVALID_OR_OUTSIDE_LANE_CLOCK"
+    )
 
 
 def test_publication_scope_is_derived_from_exact_bracket_binding() -> None:

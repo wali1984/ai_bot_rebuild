@@ -281,9 +281,26 @@ elseif receipt_type == "string" then
 else
   return {"ERROR", "SURFACE_RECEIPT_TYPE_INVALID"}
 end
-redis.call("SET", observation_pointer_key, pointer_payload, "EX", receipt_ttl)
+-- Bind pointer expiry to the receipt's exact absolute millisecond deadline.
+-- Setting both keys with equal relative TTLs in separate commands can let the
+-- later pointer outlive the receipt by a millisecond under load.
+local expiry_clock = redis.call("TIME")
+local receipt_pttl = redis.call("PTTL", receipt_key)
+if receipt_pttl <= 0 then
+  return {"ERROR", "SURFACE_RECEIPT_TTL_REFRESH_FAILED"}
+end
+local receipt_deadline_ms = tonumber(expiry_clock[1]) * 1000
+  + math.floor(tonumber(expiry_clock[2]) / 1000)
+  + receipt_pttl
+redis.call("SET", observation_pointer_key, pointer_payload)
+if redis.call("PEXPIREAT", observation_pointer_key, receipt_deadline_ms) ~= 1 then
+  return {"ERROR", "SURFACE_OBSERVATION_POINTER_TTL_BINDING_FAILED"}
+end
 if trainer_eligible == "1" then
-  redis.call("SET", trainer_pointer_key, pointer_payload, "EX", receipt_ttl)
+  redis.call("SET", trainer_pointer_key, pointer_payload)
+  if redis.call("PEXPIREAT", trainer_pointer_key, receipt_deadline_ms) ~= 1 then
+    return {"ERROR", "SURFACE_TRAINER_POINTER_TTL_BINDING_FAILED"}
+  end
 end
 local observed = redis.call("TIME")
 return {status, observed[1], observed[2]}

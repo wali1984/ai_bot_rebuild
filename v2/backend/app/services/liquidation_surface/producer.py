@@ -14,6 +14,7 @@ import re
 from collections import Counter
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from types import MappingProxyType
 from typing import Any, cast
 
@@ -148,7 +149,7 @@ def _timeframes(values: Sequence[str]) -> tuple[str, ...]:
     return result
 
 
-def _redis_time_ms(value: object) -> int:
+def _redis_time_parts(value: object) -> tuple[int, int]:
     if not isinstance(value, tuple | list) or len(value) != 2:
         raise LiquidationSurfaceProducerError("REDIS_TIME_REPLY_INVALID")
     seconds, microseconds = value
@@ -159,7 +160,15 @@ def _redis_time_ms(value: object) -> int:
         or not 0 <= microseconds < 1_000_000
     ):
         raise LiquidationSurfaceProducerError("REDIS_TIME_REPLY_INVALID")
-    return seconds * 1_000 + microseconds // 1_000
+    return seconds, microseconds
+
+
+def _redis_time_ms(value: object) -> int:
+    seconds, microseconds = _redis_time_parts(value)
+    # Availability and decision clocks use a conservative millisecond ceiling.
+    # This prevents a microsecond event from being represented as available in
+    # the preceding millisecond and preserves ordering across Redis TIME calls.
+    return seconds * 1_000 + (microseconds + 999) // 1_000
 
 
 def redis_now_ms(redis_client: Any) -> int:
@@ -169,6 +178,18 @@ def redis_now_ms(redis_client: Any) -> int:
         raise
     except Exception as exc:
         raise LiquidationSurfaceProducerError("REDIS_TIME_UNAVAILABLE") from exc
+
+
+def redis_utc_now(redis_client: Any) -> datetime:
+    """Return the exact Redis server clock as an aware UTC datetime."""
+
+    try:
+        seconds, microseconds = _redis_time_parts(redis_client.time())
+    except LiquidationSurfaceProducerError:
+        raise
+    except Exception as exc:
+        raise LiquidationSurfaceProducerError("REDIS_TIME_UNAVAILABLE") from exc
+    return datetime.fromtimestamp(seconds, tz=UTC).replace(microsecond=microseconds)
 
 
 def read_exact_redis_snapshot(
@@ -308,7 +329,12 @@ def _adapt_marks(
     return tuple(rows[-2:]), tuple(errors)
 
 
-def _bracket_observations(result: Mapping[str, Any]) -> tuple[LeverageBracket, ...]:
+def _bracket_observations(
+    result: Mapping[str, Any],
+    *,
+    as_of_time_ms: int,
+    generated_at_ms: int,
+) -> tuple[LeverageBracket, ...]:
     observations = result.get("observations")
     if (
         result.get("status") != "READY"
@@ -318,7 +344,30 @@ def _bracket_observations(result: Mapping[str, Any]) -> tuple[LeverageBracket, .
         or any(not isinstance(row, LeverageBracket) for row in observations)
     ):
         return ()
-    return cast(tuple[LeverageBracket, ...], observations)
+    typed = cast(tuple[LeverageBracket, ...], observations)
+    if any(
+        type(clock) is not int
+        or not (
+            bracket.fetched_at_ms
+            <= bracket.ingested_at_ms
+            <= bracket.available_at_ms
+            <= as_of_time_ms
+            <= generated_at_ms
+            < bracket.expires_at_ms
+        )
+        for bracket in typed
+        for clock in (
+            bracket.fetched_at_ms,
+            bracket.ingested_at_ms,
+            bracket.available_at_ms,
+            bracket.expires_at_ms,
+        )
+    ):
+        # Authenticated evidence can cross its exclusive adaptive validity
+        # boundary during a long universe cycle.  It is then omitted rather
+        # than allowed to fail or contaminate the affected lane.
+        return ()
+    return typed
 
 
 def build_lane_candidate(
@@ -355,7 +404,11 @@ def build_lane_candidate(
             f"FINALIZED_CANDLE_SOURCE_INVALID:{str(exc)[:MAX_REASON_TEXT]}"
         ) from exc
     marks, mark_errors = _adapt_marks(symbol=canonical, history=mark_history)
-    brackets = _bracket_observations(bracket_result)
+    brackets = _bracket_observations(
+        bracket_result,
+        as_of_time_ms=as_of_time_ms,
+        generated_at_ms=generated_at_ms,
+    )
     request = SurfaceRequest(
         venue="binance_usdm",
         symbol=canonical,
@@ -376,6 +429,9 @@ def build_lane_candidate(
         "open_interest_source_timeframe": oi_selection.source_timeframe,
         "bracket_count": len(brackets),
         "bracket_status": str(bracket_result.get("status") or "MISSING"),
+        "bracket_lane_admission_status": (
+            "ADMITTED" if brackets else "OMITTED_MISSING_INVALID_OR_OUTSIDE_LANE_CLOCK"
+        ),
     }
     return payload, MappingProxyType(diagnostics)
 
@@ -501,6 +557,7 @@ def run_producer_cycle(
             redis_client,
             security_context=bracket_security_context,
             symbol=symbol,
+            now_fn=lambda: redis_utc_now(redis_client),
         )
         if bracket_result.get("status") == "READY" and bracket_result.get(
             "evidence_authenticated"
@@ -668,6 +725,7 @@ __all__ = [
     "publication_scope_metadata",
     "read_exact_redis_snapshot",
     "redis_now_ms",
+    "redis_utc_now",
     "require_publication_scope_binding",
     "run_producer_cycle",
     "select_adaptive_coinank_open_interest",

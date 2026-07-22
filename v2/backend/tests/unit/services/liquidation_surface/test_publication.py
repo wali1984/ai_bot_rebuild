@@ -477,6 +477,34 @@ def test_real_redis_lua_publish_idempotent_replay_and_reopen(
     )
 
 
+def test_real_redis_replay_never_lets_pointer_outlive_receipt(
+    real_redis_client: redis.Redis,
+) -> None:
+    seconds, microseconds = real_redis_client.time()
+    generated_at_ms = seconds * 1_000 + (microseconds + 999) // 1_000
+    context = _security_context()
+    surface = _surface_for_redis_clock(generated_at_ms)
+    published = publish_liquidation_surface(
+        real_redis_client,
+        surface,
+        security_context=context,
+    )
+
+    for _iteration in range(128):
+        publish_liquidation_surface(
+            real_redis_client,
+            surface,
+            security_context=context,
+        )
+        receipt_deadline = int(
+            real_redis_client.execute_command("PEXPIRETIME", published.surface_receipt_key)
+        )
+        pointer_deadline = int(
+            real_redis_client.execute_command("PEXPIRETIME", published.latest_pointer_key)
+        )
+        assert pointer_deadline <= receipt_deadline
+
+
 def test_real_redis_reopen_rejects_pointer_ttl_outliving_receipt(
     real_redis_client: redis.Redis,
 ) -> None:
