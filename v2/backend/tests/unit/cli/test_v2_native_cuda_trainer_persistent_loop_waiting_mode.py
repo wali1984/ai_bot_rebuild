@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import sys
 import types
 from pathlib import Path
@@ -14,6 +15,7 @@ CANONICAL_COST_ROOT = (
     "/home/wali/ai_bot_local_data/v2_native_trainer/profiled_base_publisher_v1/"
     "profiled-training-enrichment-cas"
 )
+OBSERVER_RELEASE_SHA = "76a8ae2fe1f71fd9e1dc2f68775cdeebec8fc236"
 
 
 def _valid_args(tmp_path: Path) -> list[str]:
@@ -115,3 +117,27 @@ def test_repository_systemd_unit_pins_only_waiting_mode_and_canonical_paths() ->
     assert "V2_NATIVE_TRAINER_ADAPTIVE_GPU_CONTROLLER" not in unit
     assert "--no-training" not in unit
     assert "persistent_cuda_trainer_runtime" not in cli_source
+
+
+def test_repository_systemd_drop_in_pins_immutable_observer_release() -> None:
+    root = Path(__file__).resolve().parents[5]
+    drop_in = (
+        root
+        / "claude_worklog/systemd/user/"
+        "ai-bot-v2-native-cuda-trainer-persistent.service.d/"
+        "90-immutable-release.conf"
+    ).read_text(encoding="utf-8")
+
+    assert set(re.findall(r"[0-9a-f]{40}", drop_in)) == {OBSERVER_RELEASE_SHA}
+    assert f'Environment="AI_BOT_CODE_SHA={OBSERVER_RELEASE_SHA}"' in drop_in
+    assert (
+        f"ExecStartPre=/usr/bin/git -C /home/wali/ai_bot_local_data/deployments/"
+        f"ai_bot_rebuild/{OBSERVER_RELEASE_SHA} diff --quiet --exit-code "
+        f"{OBSERVER_RELEASE_SHA} --"
+    ) in drop_in
+    assert (
+        f"ExecStart=/usr/bin/python3 -I -B /home/wali/ai_bot_local_data/deployments/"
+        f"ai_bot_rebuild/{OBSERVER_RELEASE_SHA}/v2/backend/app/cli/"
+        "v2_native_cuda_trainer_persistent_loop.py "
+        "--mode waiting-for-authenticated-samples"
+    ) in drop_in
