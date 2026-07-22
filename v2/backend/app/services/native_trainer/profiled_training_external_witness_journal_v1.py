@@ -1500,16 +1500,55 @@ class ProfiledTrainingExternalWitnessJournalV1:
         namespace: str,
         expected_sequence: int,
         client: PinnedProfiledTrainingExternalWitnessClientV1,
+        pending_operation: sqlite3.Row | None = None,
     ) -> None:
-        if expected_sequence == 0:
+        try:
+            client_head = client.trusted_head_envelope_bytes(namespace=namespace)
+        except ProfiledTrainingExternalWitnessClientV1Error as exc:
+            if (
+                exc.reasons == ("PROFILED_WITNESS_TRUSTED_HEAD_UNAVAILABLE",)
+                and expected_sequence == 0
+            ):
+                return
+            raise ProfiledTrainingExternalWitnessJournalV1Error(
+                "PROFILED_WITNESS_JOURNAL_CLIENT_PRIOR_HEAD_INVALID"
+            ) from exc
+
+        # After the witness accepted a request but before the local anchor
+        # committed, the same live client legitimately holds the exact pending
+        # event as its head.  Accept only that fully reverified state or the
+        # previously persisted head; any third state is a fork/rollback.
+        if pending_operation is not None:
+            if (
+                pending_operation["namespace"] != namespace
+                or pending_operation["expected_sequence"] != expected_sequence
+            ):
+                _fail("PROFILED_WITNESS_JOURNAL_PENDING_OPERATION_BINDING_INVALID")
             try:
-                client.trusted_head_envelope_bytes(namespace=namespace)
-            except ProfiledTrainingExternalWitnessClientV1Error as exc:
-                if exc.reasons == ("PROFILED_WITNESS_TRUSTED_HEAD_UNAVAILABLE",):
-                    return
+                pending_event = self._cas.get(
+                    pending_operation["event_cas_sha256"],
+                    expected_byte_count=pending_operation["event_byte_count"],
+                )
+                client.verify_signed_head_envelope(
+                    signed_head_envelope_bytes=client_head,
+                    expected_namespace=namespace,
+                    expected_sequence=expected_sequence + 1,
+                    expected_previous_event_sha256=pending_operation["expected_event_sha256"],
+                    expected_event_sha256=pending_operation["event_cas_sha256"],
+                    expected_event_bytes=pending_event,
+                )
+            except SourcePayloadStoreError as exc:
                 raise ProfiledTrainingExternalWitnessJournalV1Error(
-                    "PROFILED_WITNESS_JOURNAL_CLIENT_PRIOR_HEAD_INVALID"
+                    "PROFILED_WITNESS_JOURNAL_PENDING_EVENT_CAS_INVALID"
                 ) from exc
+            except ProfiledTrainingExternalWitnessClientV1Error:
+                # The client may still be at the prior durable head.  That
+                # exact state is verified below for non-genesis operations.
+                pass
+            else:
+                return
+
+        if expected_sequence == 0:
             _fail("PROFILED_WITNESS_JOURNAL_CLIENT_GENESIS_ROLLBACK")
 
         prior = connection.execute(
@@ -1536,7 +1575,6 @@ class ProfiledTrainingExternalWitnessJournalV1:
                 prior["event_cas_sha256"],
                 expected_byte_count=prior["event_byte_count"],
             )
-            client_head = client.trusted_head_envelope_bytes(namespace=namespace)
             if not hmac.compare_digest(persisted_head, client_head):
                 _fail("PROFILED_WITNESS_JOURNAL_CLIENT_PRIOR_HEAD_MISMATCH")
             client.verify_signed_head_envelope(
@@ -1921,6 +1959,7 @@ class ProfiledTrainingExternalWitnessJournalV1:
                 namespace=str(row["namespace"]),
                 expected_sequence=int(row["expected_sequence"]),
                 client=client,
+                pending_operation=row,
             )
         receipt: ProfiledTrainingObservationExternalWitnessAppendReceiptV1 | None = None
         head_bytes: bytes | None = None

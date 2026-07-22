@@ -313,6 +313,73 @@ def test_ambiguous_remote_success_replays_exact_request_once(tmp_path: Path) -> 
     assert journal.verify_integrity().pending_count == 0
 
 
+def test_pending_genesis_load_accepts_exact_remote_advanced_client_head(
+    tmp_path: Path,
+) -> None:
+    _private_key, transport, client = _client_bundle()
+    journal = _journal(tmp_path)
+    prepared = _prepared(client, label="advanced-genesis-head")
+    pending = journal.persist_prepared_append(
+        client=client,
+        prepared=prepared,
+        head_candidate=_candidate(tmp_path, prepared=prepared),
+    )
+    receipt = client.dispatch_prepared_append(pending.prepared)
+
+    recovered = journal.load_pending_appends(client=client)
+    assert len(recovered) == 1
+    assert recovered[0].operation_id == pending.operation_id
+    assert len(transport.events) == 1
+    anchored = journal.commit_head_anchored(
+        client=client,
+        operation_id=pending.operation_id,
+        append_receipt=receipt,
+    )
+    assert anchored.state == PROFILED_WITNESS_JOURNAL_HEAD_ANCHORED
+
+
+def test_pending_successor_load_accepts_exact_remote_advanced_client_head(
+    tmp_path: Path,
+) -> None:
+    _private_key, transport, client = _client_bundle()
+    journal = _journal(tmp_path)
+    first_prepared = _prepared(client, label="advanced-successor-prior")
+    first = journal.persist_prepared_append(
+        client=client,
+        prepared=first_prepared,
+        head_candidate=_candidate(tmp_path, prepared=first_prepared),
+    )
+    first_receipt = client.dispatch_prepared_append(first.prepared)
+    journal.commit_head_anchored(
+        client=client,
+        operation_id=first.operation_id,
+        append_receipt=first_receipt,
+    )
+    second_prepared = _prepared(
+        client,
+        label="advanced-successor-pending",
+        sequence=1,
+        previous_sha256=first_prepared.event_sha256,
+    )
+    second = journal.persist_prepared_append(
+        client=client,
+        prepared=second_prepared,
+        head_candidate=_candidate(tmp_path, prepared=second_prepared),
+    )
+    second_receipt = client.dispatch_prepared_append(second.prepared)
+
+    recovered = journal.load_pending_appends(client=client)
+    assert len(recovered) == 1
+    assert recovered[0].operation_id == second.operation_id
+    assert len(transport.events) == 2
+    anchored = journal.commit_head_anchored(
+        client=client,
+        operation_id=second.operation_id,
+        append_receipt=second_receipt,
+    )
+    assert anchored.state == PROFILED_WITNESS_JOURNAL_HEAD_ANCHORED
+
+
 def test_prepared_commit_survives_postcommit_reopen_failure(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
