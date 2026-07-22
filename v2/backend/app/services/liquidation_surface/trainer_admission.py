@@ -659,6 +659,25 @@ def _adapt_snapshot(
     proof = snapshot.bracket_proof
     bracket_ready = proof.status == "READY" and proof.evidence_authenticated is True
     bracket_reason = None if bracket_ready else f"BRACKET_READER_{proof.status}"
+    brackets = proof.observations if bracket_ready else ()
+    if bracket_ready and any(
+        not (
+            row.fetched_at_ms
+            <= row.ingested_at_ms
+            <= row.available_at_ms
+            <= snapshot.as_of_time_ms
+            <= snapshot.generated_at_ms
+            < row.expires_at_ms
+        )
+        for row in brackets
+    ):
+        # An authenticated account-scoped record may become available only
+        # after the caller's proposed cutoff, or expire during a universe
+        # cycle.  Preserve its binding as degraded evidence but never pass its
+        # observations into the model for this lane.
+        brackets = ()
+        bracket_ready = False
+        bracket_reason = "BRACKET_EVIDENCE_OUTSIDE_LANE_CLOCK"
     bracket_bindings = (
         ((proof.evidence_key, proof.content_checksum_sha256),)
         if proof.evidence_key is not None and proof.content_checksum_sha256 is not None
@@ -667,7 +686,7 @@ def _adapt_snapshot(
     states.append(
         _FamilyState(
             family="leverage_brackets",
-            observations=cast(tuple[object, ...], proof.observations),
+            observations=cast(tuple[object, ...], brackets),
             authenticated=bracket_ready,
             evidence_supplied=proof.status != "LEVERAGE_BRACKET_EVIDENCE_MISSING",
             degradation_reason=bracket_reason,
@@ -694,7 +713,7 @@ def _adapt_snapshot(
             candles=tuple(replace(row) for row in candles),
             mark_prices=tuple(replace(row) for row in marks),
             open_interest=tuple(replace(row) for row in oi_rows),
-            leverage_brackets=tuple(replace(row) for row in proof.observations),
+            leverage_brackets=tuple(replace(row) for row in brackets),
             tick_size=snapshot.tick_size,
             max_cohorts=snapshot.max_cohorts,
             max_leverage_scenarios=snapshot.max_leverage_scenarios,
@@ -1123,14 +1142,15 @@ def prepare_liquidation_surface_candidate(
     *,
     symbol: str,
     timeframe: str,
-    as_of_time_ms: int,
-    generated_at_ms: int,
+    as_of_time_ms: int | None,
+    generated_at_ms: int | None,
     candle_evidence: RawRedisEvidence | None,
     mark_price_evidence: Sequence[RawRedisEvidence],
     open_interest_evidence: RawRedisEvidence | None,
     bracket_redis_client: Any,
     bracket_security_context: EvidenceSecurityContext,
     bracket_now_fn: Callable[[], datetime] | None = None,
+    post_bracket_clock_ms_fn: Callable[[], int] | None = None,
     tick_size: float | None = None,
     max_cohorts: int = 256,
     max_leverage_scenarios: int = 64,
@@ -1149,10 +1169,10 @@ def prepare_liquidation_surface_candidate(
         _validation_error("TRAINER_PREPARATION_SYMBOL_INVALID")
     if type(timeframe) is not str or _TIMEFRAME_RE.fullmatch(timeframe) is None:
         _validation_error("TRAINER_PREPARATION_TIMEFRAME_INVALID")
-    as_of = _positive_ms(as_of_time_ms, name="TRAINER_PREPARATION_AS_OF_TIME")
-    generated = _positive_ms(generated_at_ms, name="TRAINER_PREPARATION_GENERATED_AT")
-    if as_of > generated:
-        _validation_error("TRAINER_PREPARATION_AS_OF_AFTER_GENERATED_AT")
+    if post_bracket_clock_ms_fn is not None and (
+        as_of_time_ms is not None or generated_at_ms is not None
+    ):
+        _validation_error("POST_BRACKET_CLOCK_AND_CALLER_TIMESTAMPS_MUTUALLY_EXCLUSIVE")
     candle = _copy_raw(candle_evidence, name="CANDLE", optional=True)
     oi = _copy_raw(open_interest_evidence, name="OPEN_INTEREST", optional=True)
     if isinstance(mark_price_evidence, str | bytes | bytearray) or not isinstance(
@@ -1177,6 +1197,27 @@ def prepare_liquidation_surface_candidate(
         bracket_result,
         security_context=bracket_security_context,
     )
+    if post_bracket_clock_ms_fn is None:
+        as_of = _positive_ms(as_of_time_ms, name="TRAINER_PREPARATION_AS_OF_TIME")
+        generated = _positive_ms(
+            generated_at_ms,
+            name="TRAINER_PREPARATION_GENERATED_AT",
+        )
+    else:
+        try:
+            as_of_value = post_bracket_clock_ms_fn()
+            generated_value = post_bracket_clock_ms_fn()
+        except Exception as exc:
+            raise TrainerAdmissionValidationError(
+                "TRAINER_PREPARATION_POST_BRACKET_CLOCK_UNAVAILABLE"
+            ) from exc
+        as_of = _positive_ms(as_of_value, name="TRAINER_PREPARATION_AS_OF_TIME")
+        generated = _positive_ms(
+            generated_value,
+            name="TRAINER_PREPARATION_GENERATED_AT",
+        )
+    if as_of > generated:
+        _validation_error("TRAINER_PREPARATION_AS_OF_AFTER_GENERATED_AT")
     snapshot = _PreparationSnapshot(
         symbol=symbol,
         timeframe=timeframe,

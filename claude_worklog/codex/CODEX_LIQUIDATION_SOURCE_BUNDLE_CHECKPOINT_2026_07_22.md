@@ -31,13 +31,19 @@ and pretend those later bytes produced the earlier surface.
 - source families preserved: 4 required + 1 optional mask slot;
 - universe/runtime producer paths changed: 1;
 - receipt fields added: 5;
-- relevant tests passed: 322;
+- relevant tests passed: 324;
 - Ruff violations: 0;
 - live source lanes sized: 795/795 (0 missing finalized-candle payloads);
 - live raw source bundle: 104,936-byte maximum before compression;
 - live finalized-candle compression: 76.59 MB -> 17.86 MB after Base64
   transport across all 795 lanes (one measured universe snapshot);
 - current model archive maximum inspected: 45,016 bytes;
+- post-bracket Redis clock ordering regression found by the first live cycle:
+  678/795 lanes initially failed closed because bracket `available_at` followed
+  the proposed lane cutoff;
+- corrective dry-run: BTCUSDT/1m rebuilt with 100 candles, 1 exact mark sample,
+  2 OI observations, 12 authenticated brackets, no model rejection, and a
+  74,847-byte complete archive;
 - publication/trainer authority grants added: 0;
 - live exchange mutation paths changed: 0.
 

@@ -345,6 +345,52 @@ def test_preparation_api_has_no_caller_request_authentication_or_scope_assertion
     assert "publication_scope_sha256" not in parameters
 
 
+def test_bracket_available_after_lane_cutoff_is_masked_without_killing_candidate() -> None:
+    prepared = prepare_liquidation_surface_candidate(
+        symbol=SYMBOL,
+        timeframe=TIMEFRAME,
+        as_of_time_ms=AS_OF_MS,
+        generated_at_ms=GENERATED_AT_MS,
+        candle_evidence=_candle_evidence(),
+        mark_price_evidence=_mark_evidence(),
+        open_interest_evidence=_oi_evidence(),
+        bracket_redis_client=_bracket_redis(),
+        bracket_security_context=BRACKET_SECURITY,
+        bracket_now_fn=lambda: _dt(AS_OF_MS + 50),
+    )
+    index = SOURCE_FAMILY_ORDER.index("leverage_brackets")
+
+    assert prepared.candidate_payload is not None
+    assert prepared.request.leverage_brackets == ()
+    assert prepared.available_mask[index] is False
+    assert prepared.degraded_mask[index] is True
+    assert prepared.source_manifest[index].degradation_reason == (
+        "BRACKET_EVIDENCE_OUTSIDE_LANE_CLOCK"
+    )
+
+
+def test_post_bracket_clock_factory_orders_runtime_cutoff_after_availability() -> None:
+    clocks = iter((AS_OF_MS + 60, AS_OF_MS + 70))
+    prepared = prepare_liquidation_surface_candidate(
+        symbol=SYMBOL,
+        timeframe=TIMEFRAME,
+        as_of_time_ms=None,
+        generated_at_ms=None,
+        candle_evidence=_candle_evidence(),
+        mark_price_evidence=_mark_evidence(),
+        open_interest_evidence=_oi_evidence(),
+        bracket_redis_client=_bracket_redis(),
+        bracket_security_context=BRACKET_SECURITY,
+        bracket_now_fn=lambda: _dt(AS_OF_MS + 50),
+        post_bracket_clock_ms_fn=lambda: next(clocks),
+    )
+
+    assert prepared.request.as_of_time_ms == AS_OF_MS + 60
+    assert prepared.request.generated_at_ms == AS_OF_MS + 70
+    assert prepared.request.leverage_brackets
+    assert prepared.feature_ready is True
+
+
 def test_happy_admission_is_exact_identity_scoped_and_never_trade_authority() -> None:
     prepared = _prepared()
     _client, publication = _publish(prepared)

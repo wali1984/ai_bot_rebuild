@@ -461,8 +461,6 @@ def prepare_lane_publication_candidate(
     source_observed_at_ms: int,
     mark_history: MarkPriceHistory,
     oi_selection: AdaptiveOISelection,
-    as_of_time_ms: int,
-    generated_at_ms: int,
 ) -> tuple[dict[str, Any], Mapping[str, object], PreparedLiquidationSurfaceCandidate]:
     """Prepare one lane and embed the exact bytes needed by trainer admission."""
 
@@ -481,14 +479,15 @@ def prepare_lane_publication_candidate(
     prepared = prepare_liquidation_surface_candidate(
         symbol=canonical,
         timeframe=timeframe,
-        as_of_time_ms=as_of_time_ms,
-        generated_at_ms=generated_at_ms,
+        as_of_time_ms=None,
+        generated_at_ms=None,
         candle_evidence=candle_evidence,
         mark_price_evidence=mark_history.latest(canonical),
         open_interest_evidence=oi_selection.evidence,
         bracket_redis_client=redis_client,
         bracket_security_context=bracket_security_context,
         bracket_now_fn=lambda: redis_utc_now(redis_client),
+        post_bracket_clock_ms_fn=lambda: redis_now_ms(redis_client),
     )
     payload = publication_mapping_with_prepared_source_bundle(prepared)
     leaves = {leaf.family: leaf for leaf in prepared.source_manifest}
@@ -642,8 +641,6 @@ def run_producer_cycle(
                 value=current_mark.values.get(f"v2:market:mark_price:{symbol}"),
                 observed_at_ms=current_mark.consumer_observed_at_ms,
             )
-            as_of_time_ms = redis_now_ms(redis_client)
-            generated_at_ms = redis_now_ms(redis_client)
             candle_key = f"v2:market:ohlcv_closed:binance:{symbol}:{timeframe}"
             try:
                 candidate, diagnostics, _prepared = prepare_lane_publication_candidate(
@@ -655,8 +652,6 @@ def run_producer_cycle(
                     source_observed_at_ms=source_snapshot.consumer_observed_at_ms,
                     mark_history=mark_history,
                     oi_selection=oi_selection,
-                    as_of_time_ms=as_of_time_ms,
-                    generated_at_ms=generated_at_ms,
                 )
                 if diagnostics["bracket_lane_admission_status"] == "ADMITTED":
                     symbol_has_authenticated_brackets = True
