@@ -202,6 +202,7 @@ COST_TEMPORAL_RETRY_REASONS: Final = frozenset(
         "COLD_START_NOTIONAL_CANDIDATE_MARGIN_CYCLE_ID_MISMATCH",
         "COLD_START_NOTIONAL_MARKET_CAPTURE_AFTER_DECISION",
         "COLD_START_NOTIONAL_MARKET_EXPIRED_AT_DECISION",
+        "COMMISSION_BROKER_DECISION_TEMPORAL_ADMISSION_FAILED",
         "PROFILED_BASE_PUBLISHER_COMMISSION_POLICY_AFTER_DECISION",
         "PROFILED_BASE_PUBLISHER_COST_RECAPTURE_WINDOW_MISSED",
         "PROFILED_BASE_PUBLISHER_NOTIONAL_PTTL_SUBSECOND_UNUSABLE",
@@ -2302,6 +2303,12 @@ class ProfiledBaseFeaturePublisherV1:
         ):
             return None, "COMMISSION_BROKER_READER_STATUS_INVALID"
         evidence = result.get("evidence")
+        if status == "COMMISSION_BROKER_DECISION_TEMPORAL_ADMISSION_FAILED":
+            _fail(
+                ProfiledBaseFeaturePublisherV1Error,
+                COST_EVIDENCE_UNAVAILABLE_PARENT_NOT_APPENDED,
+                status,
+            )
         if status != "READY":
             return None, status
         if (

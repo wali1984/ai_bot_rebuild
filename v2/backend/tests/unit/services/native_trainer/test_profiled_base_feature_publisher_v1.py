@@ -976,6 +976,58 @@ def test_broker_reader_builds_strict_pair_without_exchange_credentials(
     assert ledger.verify_integrity_streaming().verified_records == 2
 
 
+def test_broker_temporal_miss_retries_whole_window_instead_of_masking(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payloads = _payloads()
+    server_at = FIXED_CLOCK - timedelta(milliseconds=500)
+    notional_status = notional_support._status()
+    notional_status["generated_utc"] = _iso(
+        server_at - timedelta(milliseconds=100)
+    )
+    payloads[CAUSAL_EXPECTED_NOTIONAL_SOURCE_KEY] = json.dumps(
+        notional_status
+    ).encode("utf-8")
+    payloads.update(
+        _runtime_cost_source_payloads(symbol="BTCUSDT", decision_at=FIXED_CLOCK)
+    )
+    redis_client = _Redis(payloads, pttl_ms=1_501, server_time=server_at)
+    evidence = _credentialless_fee_evidence(tmp_path, monkeypatch)
+    reads = 0
+
+    def reader(**_kwargs: Any) -> dict[str, Any]:
+        nonlocal reads
+        reads += 1
+        if reads == 1:
+            return {
+                "status": "COMMISSION_BROKER_DECISION_TEMPORAL_ADMISSION_FAILED",
+                "evidence": None,
+            }
+        return {"status": "READY", "evidence": evidence}
+
+    publisher = _publisher(
+        tmp_path,
+        redis_client,
+        cost_evidence_factory=None,
+        commission_cost_mode=(
+            BROKER_AUTHENTICATED_COST_EVIDENCE_WITH_MASKED_FALLBACK_MODE
+        ),
+        commission_evidence_reader=reader,
+    )
+
+    status = publisher.run_cycle()
+
+    assert reads == 2
+    assert status["published_symbols"] == ["BTCUSDT"], status["failures"]
+    assert status["masked_cost_observation_symbol_count"] == 0
+    assert status["publications"][0]["publication_attempts"] == 2
+    ledger = DurableFeatureSnapshotLedger(
+        (tmp_path / "feature-ledger.sqlite3").absolute()
+    )
+    assert ledger.verify_integrity_streaming().verified_records == 2
+
+
 def test_zero_candidate_cold_start_builds_strict_pair_from_adaptive_paper_margin(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
