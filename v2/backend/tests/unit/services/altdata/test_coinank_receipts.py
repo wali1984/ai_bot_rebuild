@@ -196,6 +196,42 @@ def test_real_flat_snapshot_builder_passes_strict_plan3_oi_adapter() -> None:
     assert payload["response_observed_at_ms"] <= payload["ts_ms"]
 
 
+def test_bar_closing_during_request_is_excluded_by_request_start_cutoff() -> None:
+    closing_during_request = BASE_MS + 2 * DURATION_MS
+    request_started_at_ms = closing_during_request - 10
+    response_observed_at_ms = closing_during_request + 10
+    persisted_at_ms = response_observed_at_ms + 10
+    payload = build_coinank_flat_snapshot(
+        persisted_at_ms=persisted_at_ms,
+        request_receipt={
+            "request_started_at_ms": request_started_at_ms,
+            "response_observed_at_ms": response_observed_at_ms,
+        },
+        symbol=SYMBOL,
+        exchange="Binance",
+        family="open_interest",
+        endpoint="openInterest_kline",
+        endpoint_variant=None,
+        request_parameters=_oi_params(),
+        interval=TIMEFRAME,
+        data=_oi_response(),
+    )
+    evidence = RawRedisEvidence.from_value(
+        key=f"latest:coinank:open_interest:{SYMBOL}:{TIMEFRAME}",
+        value=json.dumps(payload, separators=(",", ":")),
+        consumer_observed_at_ms=persisted_at_ms + 10,
+    )
+
+    rows = adapt_coinank_plan3_open_interest(
+        evidence,
+        symbol=SYMBOL,
+        source_timeframe=TIMEFRAME,
+    )
+
+    assert [row.feature_cutoff_ms for row in rows] == [BASE_MS + DURATION_MS]
+    assert [row.value for row in rows] == [100.0]
+
+
 def _function(tree: ast.Module, name: str) -> ast.FunctionDef:
     return next(
         node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == name
