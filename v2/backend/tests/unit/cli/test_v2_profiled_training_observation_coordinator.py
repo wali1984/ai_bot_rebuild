@@ -49,7 +49,7 @@ def _credentials(
 def _waiting_result() -> coordinator_module.ProfiledTrainingObservationCoordinatorResultV1:
     return coordinator_module.ProfiledTrainingObservationCoordinatorResultV1(
         schema_version=(
-            coordinator_module.PROFILED_TRAINING_OBSERVATION_COORDINATOR_V1_SCHEMA_VERSION
+            coordinator_module.PROFILED_TRAINING_OBSERVATION_COORDINATOR_RESULT_V2_SCHEMA_VERSION
         ),
         classification=coordinator_module.PROFILED_COORDINATOR_WAITING_EXTERNAL_WITNESS,
         cycle_id="a" * 64,
@@ -63,6 +63,17 @@ def _waiting_result() -> coordinator_module.ProfiledTrainingObservationCoordinat
         witness_runtime_configured=False,
         witness_operations_recovered=0,
         witness_network_append_attempts=0,
+        completion_authorization_runtime_configured=False,
+        completion_authorization_operations_recovered=0,
+        completion_authorization_network_attempts=0,
+        completion_authorization_operation_id=None,
+        completion_authorization_request_sha256=None,
+        completion_authorization_witness_id=None,
+        completion_authorization_witness_public_key_sha256=None,
+        completion_authorization_namespace=None,
+        completion_authorization_sequence=None,
+        completion_authorization_envelope_sha256=None,
+        signed_completion_authorization_durably_anchored=False,
         page_receipts_staged_this_invocation=0,
         manifest_id="c" * 64,
         total_profiled_samples=1,
@@ -75,6 +86,7 @@ def _waiting_result() -> coordinator_module.ProfiledTrainingObservationCoordinat
         external_monotonic_manifest_head_verified=False,
         full_consumption_external_ack_verified=False,
         optimizer_admission_authorized=False,
+        optimizer_execution_authorized=False,
         checkpoint_write_authorized=False,
         model_write_authorized=False,
         prediction_authorized=False,

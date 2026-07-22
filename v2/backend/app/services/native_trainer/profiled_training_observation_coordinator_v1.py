@@ -2,10 +2,11 @@
 
 The caller orders local status verification, immutable manifest construction,
 local head staging, independent witness anchoring, and complete inventory-page
-receipts.  It deliberately stops at a locally verified completion candidate.
-No external completion acknowledgement, optimizer admission, checkpoint/model
-write, prediction, paper/live trading, order, execution, or runtime authority
-is granted here.
+receipts.  Positive admitted inventory cannot advance to a newer publisher
+cycle until an exact signed completion acknowledgement is durably anchored.
+That proof authorizes corpus admission only; optimizer execution,
+checkpoint/model writes, prediction, paper/live trading, orders, execution,
+and trainer-runtime wiring remain outside this caller.
 """
 
 from __future__ import annotations
@@ -18,6 +19,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Final, NoReturn, TypeVar, cast
 
+from v2.backend.app.services.native_trainer import (
+    profiled_optimizer_external_completion_authorization_runtime_v1 as completion_runtime_module,
+)
 from v2.backend.app.services.native_trainer.durable_canonical_5m_label_archive import (
     DurableCanonical5mLabelArchive,
 )
@@ -32,6 +36,7 @@ from v2.backend.app.services.native_trainer.profiled_base_publisher_cycle_status
     read_verified_profiled_base_publisher_cycle_status_v1,
 )
 from v2.backend.app.services.native_trainer.profiled_training_external_witness_runtime_v1 import (
+    ProfiledTrainingExternalWitnessRuntimeResultV1,
     ProfiledTrainingExternalWitnessRuntimeV1,
 )
 from v2.backend.app.services.native_trainer.profiled_training_observation_manifest_head_v1 import (
@@ -68,13 +73,27 @@ from .profiled_training_observation_coordinator_state_v1 import (
     ProfiledTrainingObservationCoordinatorStateStoreV1,
 )
 
+ProfiledOptimizerCompletionAuthorizationRuntimeResultV1 = (
+    completion_runtime_module.ProfiledOptimizerCompletionAuthorizationRuntimeResultV1
+)
+ProfiledOptimizerCompletionAuthorizationRuntimeV1 = (
+    completion_runtime_module.ProfiledOptimizerCompletionAuthorizationRuntimeV1
+)
+
 PROFILED_TRAINING_OBSERVATION_COORDINATOR_V1_SCHEMA_VERSION: Final = (
     "profiled_training_observation_coordinator_v1"
+)
+PROFILED_TRAINING_OBSERVATION_COORDINATOR_RESULT_V2_SCHEMA_VERSION: Final = (
+    "profiled_training_observation_coordinator_v2"
 )
 PROFILED_COORDINATOR_WAITING_EXTERNAL_WITNESS: Final = (
     "WAITING_EXTERNAL_WITNESS_CONFIGURATION"
 )
 PROFILED_COORDINATOR_LOCAL_COMPLETION: Final = "LOCAL_COMPLETION_STAGED"
+PROFILED_COORDINATOR_WAITING_COMPLETION_AUTHORIZATION: Final = (
+    "WAITING_COMPLETION_AUTHORIZATION_CONFIGURATION"
+)
+PROFILED_COORDINATOR_COMPLETION_AUTHORIZED: Final = "COMPLETION_AUTHORIZATION_ANCHORED"
 PROFILED_COORDINATOR_NO_NEW_CYCLE: Final = "NO_NEW_PUBLISHER_CYCLE"
 
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$", re.ASCII)
@@ -84,6 +103,8 @@ _T = TypeVar("_T")
 _RESULT_CLASSIFICATIONS: Final = {
     PROFILED_COORDINATOR_WAITING_EXTERNAL_WITNESS,
     PROFILED_COORDINATOR_LOCAL_COMPLETION,
+    PROFILED_COORDINATOR_WAITING_COMPLETION_AUTHORIZATION,
+    PROFILED_COORDINATOR_COMPLETION_AUTHORIZED,
     PROFILED_COORDINATOR_NO_NEW_CYCLE,
 }
 
@@ -190,6 +211,17 @@ class ProfiledTrainingObservationCoordinatorResultV1:
     witness_runtime_configured: bool
     witness_operations_recovered: int
     witness_network_append_attempts: int
+    completion_authorization_runtime_configured: bool
+    completion_authorization_operations_recovered: int
+    completion_authorization_network_attempts: int
+    completion_authorization_operation_id: str | None
+    completion_authorization_request_sha256: str | None
+    completion_authorization_witness_id: str | None
+    completion_authorization_witness_public_key_sha256: str | None
+    completion_authorization_namespace: str | None
+    completion_authorization_sequence: int | None
+    completion_authorization_envelope_sha256: str | None
+    signed_completion_authorization_durably_anchored: bool
     page_receipts_staged_this_invocation: int
     manifest_id: str
     total_profiled_samples: int
@@ -202,6 +234,7 @@ class ProfiledTrainingObservationCoordinatorResultV1:
     external_monotonic_manifest_head_verified: bool
     full_consumption_external_ack_verified: bool
     optimizer_admission_authorized: bool
+    optimizer_execution_authorized: bool
     checkpoint_write_authorized: bool
     model_write_authorized: bool
     prediction_authorized: bool
@@ -213,10 +246,13 @@ class ProfiledTrainingObservationCoordinatorResultV1:
     _construction_token: object = field(repr=False, compare=False)
 
     def __post_init__(self) -> None:
-        false_authority = (
+        admission_authority = (
             self.external_monotonic_manifest_head_verified,
             self.full_consumption_external_ack_verified,
             self.optimizer_admission_authorized,
+        )
+        downstream_authority = (
+            self.optimizer_execution_authorized,
             self.checkpoint_write_authorized,
             self.model_write_authorized,
             self.prediction_authorized,
@@ -226,10 +262,20 @@ class ProfiledTrainingObservationCoordinatorResultV1:
             self.execution_authorized,
             self.runtime_wired,
         )
+        authorization_identity = (
+            self.completion_authorization_operation_id,
+            self.completion_authorization_request_sha256,
+            self.completion_authorization_witness_public_key_sha256,
+            self.completion_authorization_envelope_sha256,
+        )
+        authorization_identifiers = (
+            self.completion_authorization_witness_id,
+            self.completion_authorization_namespace,
+        )
         if (
             self._construction_token is not _RESULT_TOKEN
             or self.schema_version
-            != PROFILED_TRAINING_OBSERVATION_COORDINATOR_V1_SCHEMA_VERSION
+            != PROFILED_TRAINING_OBSERVATION_COORDINATOR_RESULT_V2_SCHEMA_VERSION
             or self.classification not in _RESULT_CLASSIFICATIONS
             or not _valid_sha256(self.cycle_id)
             or not _valid_sha256(self.publisher_status_sha256)
@@ -243,6 +289,8 @@ class ProfiledTrainingObservationCoordinatorResultV1:
                     self.state_transitions_committed,
                     self.witness_operations_recovered,
                     self.witness_network_append_attempts,
+                    self.completion_authorization_operations_recovered,
+                    self.completion_authorization_network_attempts,
                     self.page_receipts_staged_this_invocation,
                     self.total_profiled_samples,
                     self.admitted_example_count,
@@ -254,12 +302,28 @@ class ProfiledTrainingObservationCoordinatorResultV1:
             or self.state_transitions_committed > self.transition_sequence
             or self.witness_network_append_attempts < self.witness_operations_recovered
             or self.witness_network_append_attempts - self.witness_operations_recovered > 1
+            or self.completion_authorization_network_attempts
+            < self.completion_authorization_operations_recovered
+            or self.completion_authorization_network_attempts
+            - self.completion_authorization_operations_recovered
+            > 1
             or (
                 not self.witness_runtime_configured
                 and (
                     self.witness_operations_recovered != 0
                     or self.witness_network_append_attempts != 0
                 )
+            )
+            or (
+                not self.completion_authorization_runtime_configured
+                and (
+                    self.completion_authorization_operations_recovered != 0
+                    or self.completion_authorization_network_attempts != 0
+                )
+            )
+            or (
+                self.completion_authorization_runtime_configured
+                and not self.witness_runtime_configured
             )
             or (
                 self.new_cycle_started_this_invocation
@@ -277,14 +341,42 @@ class ProfiledTrainingObservationCoordinatorResultV1:
                     self.publisher_status_read_this_invocation,
                     self.new_cycle_started_this_invocation,
                     self.witness_runtime_configured,
+                    self.completion_authorization_runtime_configured,
+                    self.signed_completion_authorization_durably_anchored,
                     self.signed_head_durably_anchored,
                     self.full_consumption_locally_verified,
                     self.complete_state_chain_verified,
-                    *false_authority,
+                    *admission_authority,
+                    *downstream_authority,
                 )
             )
             or self.complete_state_chain_verified is not True
-            or any(false_authority)
+            or any(downstream_authority)
+            or (
+                self.signed_completion_authorization_durably_anchored
+                and (
+                    not self.completion_authorization_runtime_configured
+                    or self.admitted_example_count <= 0
+                    or not all(value is True for value in admission_authority)
+                    or any(not _valid_sha256(value) for value in authorization_identity)
+                    or any(
+                        type(value) is not str
+                        or _IDENTIFIER_RE.fullmatch(value) is None
+                        for value in authorization_identifiers
+                    )
+                    or type(self.completion_authorization_sequence) is not int
+                    or self.completion_authorization_sequence <= 0
+                )
+            )
+            or (
+                not self.signed_completion_authorization_durably_anchored
+                and (
+                    any(value is not False for value in admission_authority)
+                    or any(value is not None for value in authorization_identity)
+                    or any(value is not None for value in authorization_identifiers)
+                    or self.completion_authorization_sequence is not None
+                )
+            )
         ):
             _fail("PROFILED_COORDINATOR_RESULT_INVALID")
         if self.classification == PROFILED_COORDINATOR_WAITING_EXTERNAL_WITNESS:
@@ -295,6 +387,9 @@ class ProfiledTrainingObservationCoordinatorResultV1:
                 or self.full_consumption_locally_verified
                 or self.witness_operations_recovered != 0
                 or self.witness_network_append_attempts != 0
+                or self.completion_authorization_runtime_configured
+                or self.completion_authorization_operations_recovered != 0
+                or self.completion_authorization_network_attempts != 0
                 or self.page_receipts_staged_this_invocation != 0
             ):
                 _fail("PROFILED_COORDINATOR_WAITING_RESULT_INVALID")
@@ -307,9 +402,26 @@ class ProfiledTrainingObservationCoordinatorResultV1:
                 _fail("PROFILED_COORDINATOR_COMPLETION_RESULT_INVALID")
             if (
                 self.classification == PROFILED_COORDINATOR_LOCAL_COMPLETION
-                and self.state_transitions_committed <= 0
+                and (
+                    self.state_transitions_committed <= 0
+                    or self.admitted_example_count != 0
+                    or self.signed_completion_authorization_durably_anchored
+                )
             ):
                 _fail("PROFILED_COORDINATOR_COMPLETION_RESULT_INVALID")
+            if self.classification == (
+                PROFILED_COORDINATOR_WAITING_COMPLETION_AUTHORIZATION
+            ) and (
+                self.admitted_example_count <= 0
+                or self.completion_authorization_runtime_configured
+                or self.signed_completion_authorization_durably_anchored
+            ):
+                _fail("PROFILED_COORDINATOR_COMPLETION_WAITING_RESULT_INVALID")
+            if self.classification == PROFILED_COORDINATOR_COMPLETION_AUTHORIZED and (
+                self.admitted_example_count <= 0
+                or self.signed_completion_authorization_durably_anchored is not True
+            ):
+                _fail("PROFILED_COORDINATOR_COMPLETION_AUTHORIZED_RESULT_INVALID")
             if self.classification == PROFILED_COORDINATOR_NO_NEW_CYCLE and (
                 not self.publisher_status_read_this_invocation
                 or self.new_cycle_started_this_invocation
@@ -317,6 +429,12 @@ class ProfiledTrainingObservationCoordinatorResultV1:
                 or self.page_receipts_staged_this_invocation != 0
                 or self.witness_network_append_attempts
                 != self.witness_operations_recovered
+                or self.completion_authorization_network_attempts
+                != self.completion_authorization_operations_recovered
+                or (
+                    self.admitted_example_count > 0
+                    and self.signed_completion_authorization_durably_anchored is not True
+                )
             ):
                 _fail("PROFILED_COORDINATOR_NOOP_RESULT_INVALID")
 
@@ -325,6 +443,7 @@ class ProfiledTrainingObservationCoordinatorV1:
     """Run or resume one exact publisher cycle under a durable cursor."""
 
     __slots__ = (
+        "_completion_authorization_runtime",
         "_consumer_lane",
         "_epoch_auth_key_id",
         "_epoch_hmac_key",
@@ -365,6 +484,9 @@ class ProfiledTrainingObservationCoordinatorV1:
         epoch_hmac_key: bytes | bytearray | memoryview,
         page_size: int,
         witness_runtime: ProfiledTrainingExternalWitnessRuntimeV1 | None = None,
+        completion_authorization_runtime: (
+            ProfiledOptimizerCompletionAuthorizationRuntimeV1 | None
+        ) = None,
         wall_clock: Callable[[], datetime] = _current_utc,
     ) -> None:
         if type(state_store) is not ProfiledTrainingObservationCoordinatorStateStoreV1:
@@ -379,6 +501,21 @@ class ProfiledTrainingObservationCoordinatorV1:
             ProfiledTrainingExternalWitnessRuntimeV1
         ):
             _fail("PROFILED_COORDINATOR_WITNESS_RUNTIME_EXACT_TYPE_REQUIRED")
+        if completion_authorization_runtime is not None and type(
+            completion_authorization_runtime
+        ) is not ProfiledOptimizerCompletionAuthorizationRuntimeV1:
+            _fail(
+                "PROFILED_COORDINATOR_COMPLETION_AUTHORIZATION_RUNTIME_EXACT_TYPE_REQUIRED"
+            )
+        if completion_authorization_runtime is not None and witness_runtime is None:
+            _fail("PROFILED_COORDINATOR_COMPLETION_RUNTIME_REQUIRES_HEAD_RUNTIME")
+        if completion_authorization_runtime is not None and witness_runtime is not None and (
+            completion_authorization_runtime.client.witness_id
+            != witness_runtime.client.witness_id
+            or completion_authorization_runtime.client.witness_public_key_sha256
+            != witness_runtime.client.witness_public_key_sha256
+        ):
+            _fail("PROFILED_COORDINATOR_COMPLETION_RUNTIME_WITNESS_MISMATCH")
         if type(page_size) is not int or not 0 < page_size <= MAX_PROFILED_OBSERVATION_PAGE_ROWS:
             _fail("PROFILED_COORDINATOR_PAGE_SIZE_INVALID")
         if not callable(wall_clock):
@@ -433,6 +570,7 @@ class ProfiledTrainingObservationCoordinatorV1:
         )
         self._page_size = page_size
         self._witness_runtime = witness_runtime
+        self._completion_authorization_runtime = completion_authorization_runtime
         self._wall_clock = wall_clock
         state_store.require_runtime_binding(
             namespace=self._namespace,
@@ -608,6 +746,77 @@ class ProfiledTrainingObservationCoordinatorV1:
         )
         return prior_head, prior_completion
 
+    def _authorize_local_completion(
+        self,
+        cursor: ProfiledTrainingObservationCoordinatorCursorV1,
+    ) -> tuple[
+        ProfiledTrainingExternalWitnessRuntimeResultV1,
+        ProfiledOptimizerCompletionAuthorizationRuntimeResultV1,
+    ]:
+        if (
+            cursor.phase != PROFILED_OBSERVATION_COORDINATOR_LOCAL_COMPLETION_STAGED
+            or cast(int, cursor.admitted_example_count) <= 0
+            or self._witness_runtime is None
+            or self._completion_authorization_runtime is None
+        ):
+            _fail("PROFILED_COORDINATOR_COMPLETION_AUTHORIZATION_PRECONDITION_INVALID")
+        head = self._read_head(cursor)
+        head_anchor = self._witness_runtime.anchor_head_candidate(head_candidate=head)
+        if (
+            head_anchor.operation_id != cursor.witness_operation_id
+            or head_anchor.witness_id != cursor.witness_id
+            or head_anchor.witness_public_key_sha256
+            != cursor.witness_public_key_sha256
+            or head_anchor.namespace != cursor.namespace
+            or head_anchor.anchored_sequence != cursor.witness_anchored_sequence
+            or head_anchor.anchored_sequence != cursor.head_revision
+            or head_anchor.event_sha256 != cursor.witness_event_sha256
+            or head_anchor.event_sha256 != cursor.head_event_sha256
+            or head_anchor.signed_head_durably_anchored is not True
+            or head_anchor.journal_pending_count != 0
+        ):
+            _fail("PROFILED_COORDINATOR_COMPLETION_HEAD_REAUTHENTICATION_FAILED")
+        authenticated = self._authenticate_manifest(cursor)
+        completion = self._read_completion(cursor)
+        final_page = self._read_page(cursor)
+        authorization = self._completion_authorization_runtime.authorize_completion(
+            authenticated_manifest=authenticated,
+            completion=completion,
+            final_page=final_page,
+            completion_staging_store=self._staging_store,
+            manifest_head_anchor=head_anchor,
+        )
+        if (
+            authorization.witness_id != cursor.witness_id
+            or authorization.witness_public_key_sha256
+            != cursor.witness_public_key_sha256
+            or authorization.authorization_namespace != cursor.namespace
+            or authorization.manifest_id != cursor.manifest_id
+            or authorization.completion_event_sha256
+            != cursor.completion_event_sha256
+            or authorization.signed_authorization_durably_anchored is not True
+            or authorization.journal_pending_count != 0
+            or authorization.external_monotonic_manifest_head_verified is not True
+            or authorization.full_consumption_external_ack_verified is not True
+            or authorization.profiled_optimizer_admission_authorized is not True
+            or any(
+                getattr(authorization, name) is not False
+                for name in (
+                    "optimizer_execution_authorized",
+                    "checkpoint_write_authorized",
+                    "model_write_authorized",
+                    "prediction_authorized",
+                    "paper_trading_authorized",
+                    "live_execution_authorized",
+                    "order_submission_authorized",
+                    "execution_authorized",
+                    "runtime_wired",
+                )
+            )
+        ):
+            _fail("PROFILED_COORDINATOR_COMPLETION_AUTHORIZATION_BINDING_INVALID")
+        return head_anchor, authorization
+
     def _result(
         self,
         *,
@@ -618,9 +827,22 @@ class ProfiledTrainingObservationCoordinatorV1:
         new_cycle_started: bool,
         recovered_count: int,
         witness_network_attempts: int,
+        completion_recovered_count: int,
+        completion_network_attempts: int,
+        completion_authorization: (
+            ProfiledOptimizerCompletionAuthorizationRuntimeResultV1 | None
+        ),
         pages_staged: int,
         writer_lease: FeatureSnapshotWriterLease,
     ) -> ProfiledTrainingObservationCoordinatorResultV1:
+        if completion_authorization is not None:
+            if type(completion_authorization) is not (
+                ProfiledOptimizerCompletionAuthorizationRuntimeResultV1
+            ):
+                _fail(
+                    "PROFILED_COORDINATOR_COMPLETION_AUTHORIZATION_RESULT_EXACT_TYPE_REQUIRED"
+                )
+            completion_authorization.__post_init__()
         integrity = self._state_store.verify_integrity(writer_lease=writer_lease)
         if integrity is None or integrity.current_state_event_sha256 != cursor.state_event_sha256:
             _fail("PROFILED_COORDINATOR_FINAL_STATE_INTEGRITY_INVALID")
@@ -634,7 +856,9 @@ class ProfiledTrainingObservationCoordinatorV1:
         else:
             local_completion = False
         return ProfiledTrainingObservationCoordinatorResultV1(
-            schema_version=PROFILED_TRAINING_OBSERVATION_COORDINATOR_V1_SCHEMA_VERSION,
+            schema_version=(
+                PROFILED_TRAINING_OBSERVATION_COORDINATOR_RESULT_V2_SCHEMA_VERSION
+            ),
             classification=classification,
             cycle_id=cursor.cycle_id,
             publisher_status_sha256=cursor.publisher_status_sha256,
@@ -649,6 +873,55 @@ class ProfiledTrainingObservationCoordinatorV1:
             witness_runtime_configured=self._witness_runtime is not None,
             witness_operations_recovered=recovered_count,
             witness_network_append_attempts=witness_network_attempts,
+            completion_authorization_runtime_configured=(
+                self._completion_authorization_runtime is not None
+            ),
+            completion_authorization_operations_recovered=(
+                completion_recovered_count
+            ),
+            completion_authorization_network_attempts=(
+                completion_network_attempts
+            ),
+            completion_authorization_operation_id=(
+                None
+                if completion_authorization is None
+                else completion_authorization.operation_id
+            ),
+            completion_authorization_sequence=(
+                None
+                if completion_authorization is None
+                else completion_authorization.authorization_sequence
+            ),
+            completion_authorization_request_sha256=(
+                None
+                if completion_authorization is None
+                else completion_authorization.request_sha256
+            ),
+            completion_authorization_witness_id=(
+                None
+                if completion_authorization is None
+                else completion_authorization.witness_id
+            ),
+            completion_authorization_witness_public_key_sha256=(
+                None
+                if completion_authorization is None
+                else completion_authorization.witness_public_key_sha256
+            ),
+            completion_authorization_namespace=(
+                None
+                if completion_authorization is None
+                else completion_authorization.authorization_namespace
+            ),
+            completion_authorization_envelope_sha256=(
+                None
+                if completion_authorization is None
+                else completion_authorization.authorization_envelope_sha256
+            ),
+            signed_completion_authorization_durably_anchored=(
+                completion_authorization is not None
+                and completion_authorization.signed_authorization_durably_anchored
+                is True
+            ),
             page_receipts_staged_this_invocation=pages_staged,
             manifest_id=cast(
                 str,
@@ -682,9 +955,22 @@ class ProfiledTrainingObservationCoordinatorV1:
             signed_head_durably_anchored=cursor.signed_head_durably_anchored,
             full_consumption_locally_verified=local_completion,
             complete_state_chain_verified=integrity.complete_chain_verified,
-            external_monotonic_manifest_head_verified=False,
-            full_consumption_external_ack_verified=False,
-            optimizer_admission_authorized=False,
+            external_monotonic_manifest_head_verified=(
+                completion_authorization is not None
+                and completion_authorization.external_monotonic_manifest_head_verified
+                is True
+            ),
+            full_consumption_external_ack_verified=(
+                completion_authorization is not None
+                and completion_authorization.full_consumption_external_ack_verified
+                is True
+            ),
+            optimizer_admission_authorized=(
+                completion_authorization is not None
+                and completion_authorization.profiled_optimizer_admission_authorized
+                is True
+            ),
+            optimizer_execution_authorized=False,
             checkpoint_write_authorized=False,
             model_write_authorized=False,
             prediction_authorized=False,
@@ -697,18 +983,93 @@ class ProfiledTrainingObservationCoordinatorV1:
         )
 
     def run_once(self) -> ProfiledTrainingObservationCoordinatorResultV1:
-        """Run one cycle to the strongest locally supported safe phase."""
+        """Run one cycle to the strongest configured, durably verified phase."""
 
         recovered_count = 0
         if self._witness_runtime is not None:
             recovered_count = len(self._witness_runtime.recover_pending_appends())
         witness_network_attempts = recovered_count
+        completion_recovered_count = 0
+        completion_recovered_operation_ids: tuple[str, ...] = ()
+        if self._completion_authorization_runtime is not None:
+            completion_recovered = (
+                self._completion_authorization_runtime.recover_pending_authorizations()
+            )
+            completion_recovered_operation_ids = tuple(
+                record.operation_id for record in completion_recovered
+            )
+            completion_recovered_count = len(completion_recovered)
+        completion_network_attempts = completion_recovered_count
+        completion_authorization: (
+            ProfiledOptimizerCompletionAuthorizationRuntimeResultV1 | None
+        ) = None
         pages_staged = 0
         status_read = False
         new_cycle_started = False
         with self._state_store.writer_lease() as held:
             cursor = self._state_store.load(writer_lease=held)
             initial_transition_sequence = cursor.transition_sequence if cursor is not None else 0
+            if (
+                cursor is not None
+                and cursor.phase
+                == PROFILED_OBSERVATION_COORDINATOR_LOCAL_COMPLETION_STAGED
+                and cast(int, cursor.admitted_example_count) > 0
+            ):
+                if self._completion_authorization_runtime is None:
+                    return self._result(
+                        cursor=cursor,
+                        classification=(
+                            PROFILED_COORDINATOR_WAITING_COMPLETION_AUTHORIZATION
+                        ),
+                        initial_transition_sequence=initial_transition_sequence,
+                        status_read=False,
+                        new_cycle_started=False,
+                        recovered_count=recovered_count,
+                        witness_network_attempts=witness_network_attempts,
+                        completion_recovered_count=0,
+                        completion_network_attempts=0,
+                        completion_authorization=None,
+                        pages_staged=0,
+                        writer_lease=held,
+                    )
+                head_reauthentication, completion_authorization = (
+                    self._authorize_local_completion(cursor)
+                )
+                recovered_count += len(
+                    head_reauthentication.recovered_operation_ids
+                )
+                witness_network_attempts += (
+                    head_reauthentication.network_append_attempt_count
+                )
+                completion_recovered_count += len(
+                    completion_authorization.recovered_operation_ids
+                )
+                completion_network_attempts += (
+                    completion_authorization.network_authorization_attempt_count
+                )
+                if (
+                    not completion_authorization.request_was_already_anchored
+                    or completion_authorization.operation_id
+                    in completion_recovered_operation_ids
+                ):
+                    return self._result(
+                        cursor=cursor,
+                        classification=PROFILED_COORDINATOR_COMPLETION_AUTHORIZED,
+                        initial_transition_sequence=initial_transition_sequence,
+                        status_read=False,
+                        new_cycle_started=False,
+                        recovered_count=recovered_count,
+                        witness_network_attempts=witness_network_attempts,
+                        completion_recovered_count=(
+                            completion_recovered_count
+                        ),
+                        completion_network_attempts=(
+                            completion_network_attempts
+                        ),
+                        completion_authorization=completion_authorization,
+                        pages_staged=0,
+                        writer_lease=held,
+                    )
             if cursor is None or cursor.phase == (
                 PROFILED_OBSERVATION_COORDINATOR_LOCAL_COMPLETION_STAGED
             ):
@@ -729,6 +1090,9 @@ class ProfiledTrainingObservationCoordinatorV1:
                         new_cycle_started=False,
                         recovered_count=recovered_count,
                         witness_network_attempts=witness_network_attempts,
+                        completion_recovered_count=completion_recovered_count,
+                        completion_network_attempts=completion_network_attempts,
+                        completion_authorization=completion_authorization,
                         pages_staged=0,
                         writer_lease=held,
                     )
@@ -739,6 +1103,7 @@ class ProfiledTrainingObservationCoordinatorV1:
                     writer_lease=held,
                 )
                 new_cycle_started = True
+                completion_authorization = None
 
             if cursor.phase == PROFILED_OBSERVATION_COORDINATOR_PREPARED:
                 build = build_profiled_training_observation_manifest_v1(
@@ -796,6 +1161,13 @@ class ProfiledTrainingObservationCoordinatorV1:
                         new_cycle_started=new_cycle_started,
                         recovered_count=0,
                         witness_network_attempts=0,
+                        completion_recovered_count=(
+                            completion_recovered_count
+                        ),
+                        completion_network_attempts=(
+                            completion_network_attempts
+                        ),
+                        completion_authorization=None,
                         pages_staged=0,
                         writer_lease=held,
                     )
@@ -894,23 +1266,52 @@ class ProfiledTrainingObservationCoordinatorV1:
 
             if cursor.phase != PROFILED_OBSERVATION_COORDINATOR_LOCAL_COMPLETION_STAGED:
                 _fail(f"PROFILED_COORDINATOR_UNHANDLED_PHASE:{cursor.phase}")
+            classification = PROFILED_COORDINATOR_LOCAL_COMPLETION
+            if cast(int, cursor.admitted_example_count) > 0:
+                if self._completion_authorization_runtime is None:
+                    classification = (
+                        PROFILED_COORDINATOR_WAITING_COMPLETION_AUTHORIZATION
+                    )
+                else:
+                    head_reauthentication, completion_authorization = (
+                        self._authorize_local_completion(cursor)
+                    )
+                    recovered_count += len(
+                        head_reauthentication.recovered_operation_ids
+                    )
+                    witness_network_attempts += (
+                        head_reauthentication.network_append_attempt_count
+                    )
+                    completion_recovered_count += len(
+                        completion_authorization.recovered_operation_ids
+                    )
+                    completion_network_attempts += (
+                        completion_authorization.network_authorization_attempt_count
+                    )
+                    classification = PROFILED_COORDINATOR_COMPLETION_AUTHORIZED
             return self._result(
                 cursor=cursor,
-                classification=PROFILED_COORDINATOR_LOCAL_COMPLETION,
+                classification=classification,
                 initial_transition_sequence=initial_transition_sequence,
                 status_read=status_read,
                 new_cycle_started=new_cycle_started,
                 recovered_count=recovered_count,
                 witness_network_attempts=witness_network_attempts,
+                completion_recovered_count=completion_recovered_count,
+                completion_network_attempts=completion_network_attempts,
+                completion_authorization=completion_authorization,
                 pages_staged=pages_staged,
                 writer_lease=held,
             )
 
 
 __all__ = (
+    "PROFILED_COORDINATOR_COMPLETION_AUTHORIZED",
     "PROFILED_COORDINATOR_LOCAL_COMPLETION",
     "PROFILED_COORDINATOR_NO_NEW_CYCLE",
+    "PROFILED_COORDINATOR_WAITING_COMPLETION_AUTHORIZATION",
     "PROFILED_COORDINATOR_WAITING_EXTERNAL_WITNESS",
+    "PROFILED_TRAINING_OBSERVATION_COORDINATOR_RESULT_V2_SCHEMA_VERSION",
     "PROFILED_TRAINING_OBSERVATION_COORDINATOR_V1_SCHEMA_VERSION",
     "ProfiledTrainingObservationCoordinatorResultV1",
     "ProfiledTrainingObservationCoordinatorV1",
