@@ -636,6 +636,80 @@ class ProfiledTrainingObservationCoordinatorStateStoreV1:
     def lease_target_path(self) -> Path:
         return self._lease_target_path
 
+    def require_runtime_binding(
+        self,
+        *,
+        namespace: str,
+        consumer_lane: str,
+        manifest_auth_key_id: str,
+        manifest_hmac_key: bytes | bytearray | memoryview,
+        head_auth_key_id: str,
+        head_hmac_key: bytes | bytearray | memoryview,
+        epoch_auth_key_id: str,
+        epoch_hmac_key: bytes | bytearray | memoryview,
+    ) -> None:
+        """Fail unless a caller holds the exact non-state protocol roles.
+
+        Artifact types expose their role IDs but intentionally do not expose
+        raw keys.  A runtime caller must therefore prove its raw manifest,
+        head, and epoch roles match the commitments pinned by this state store
+        before it creates or resumes any cursor.
+        """
+
+        namespace_text = _identifier(
+            namespace,
+            reason="PROFILED_COORDINATOR_NAMESPACE_INVALID",
+        )
+        lane_text = _identifier(
+            consumer_lane,
+            reason="PROFILED_COORDINATOR_CONSUMER_LANE_INVALID",
+        )
+        role_ids = (
+            _identifier(
+                manifest_auth_key_id,
+                reason="PROFILED_COORDINATOR_MANIFEST_AUTH_KEY_ID_INVALID",
+            ),
+            _identifier(
+                head_auth_key_id,
+                reason="PROFILED_COORDINATOR_HEAD_AUTH_KEY_ID_INVALID",
+            ),
+            _identifier(
+                epoch_auth_key_id,
+                reason="PROFILED_COORDINATOR_EPOCH_AUTH_KEY_ID_INVALID",
+            ),
+        )
+        role_keys = (
+            _key(manifest_hmac_key),
+            _key(head_hmac_key),
+            _key(epoch_hmac_key),
+        )
+        observed_commitments = tuple(
+            _key_commitment(role=role, key_id=key_id, key=key)
+            for role, key_id, key in zip(
+                ("manifest", "head", "epoch"),
+                role_ids,
+                role_keys,
+                strict=True,
+            )
+        )
+        if (
+            namespace_text != self._namespace
+            or lane_text != self._consumer_lane
+            or role_ids
+            != (
+                self._manifest_auth_key_id,
+                self._head_auth_key_id,
+                self._epoch_auth_key_id,
+            )
+            or observed_commitments
+            != (
+                self._manifest_auth_key_commitment_sha256,
+                self._head_auth_key_commitment_sha256,
+                self._epoch_auth_key_commitment_sha256,
+            )
+        ):
+            _fail("PROFILED_COORDINATOR_RUNTIME_BINDING_MISMATCH")
+
     @contextmanager
     def writer_lease(
         self,
