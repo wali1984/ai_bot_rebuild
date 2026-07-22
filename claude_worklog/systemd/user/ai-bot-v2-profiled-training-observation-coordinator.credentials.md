@@ -55,12 +55,13 @@ is a configuration error; it never silently becomes witness-absent mode. The
 loader hashes the raw key and requires the exact separately supplied pin
 before it constructs a client.
 
-The client uses system trust roots, HTTPS only, no redirects, no environment
-proxy, identity encoding, bounded canonical JSON, bearer authentication, and
-Ed25519 verification of both event and append receipt. It carries no signing
-private key. A same-host signer, token, or key generated on this host would
-defeat the independent monotonic-history requirement and must not be used as
-go-live evidence.
+The client uses the CA bundle supplied by the pinned Python environment's
+`certifi` package, HTTPS only, no redirects, no environment proxy, identity
+encoding, bounded canonical JSON, bearer authentication, and Ed25519
+verification of both event and append receipt. It carries no signing private
+key. A same-host signer, token, or key generated on this host would defeat the
+independent monotonic-history requirement and must not be used as go-live
+evidence.
 
 ## Filesystem and process boundary
 

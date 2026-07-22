@@ -18,6 +18,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Final, NoReturn
+from urllib.parse import urlsplit
 
 SYSTEMD_CREDENTIALS_DIRECTORY_ENV: Final = "CREDENTIALS_DIRECTORY"
 SYSTEMD_UNIT_NAME: Final = (
@@ -52,6 +53,7 @@ _CREDENTIAL_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$", re.ASCII
 _IDENTIFIER_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:@/-]{0,127}$", re.ASCII)
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$", re.ASCII)
 _BEARER_TOKEN_RE = re.compile(r"^[\x21-\x7e]{16,4096}$", re.ASCII)
+_SAFE_BASE_PATH_RE = re.compile(r"^(?:/[A-Za-z0-9._~-]+)*$", re.ASCII)
 _DIRECTORY_MODE = stat.S_IRUSR | stat.S_IXUSR
 _FILE_MODE = stat.S_IRUSR
 _LOCAL_CREDENTIAL_NAMES: Final = (
@@ -237,6 +239,28 @@ def _witness_public_configuration(
     public_key_sha256 = values[WITNESS_PUBLIC_KEY_SHA256_ENV]
     timeout_text = values[WITNESS_TIMEOUT_SECONDS_ENV]
     if base_url != base_url.strip() or not base_url:
+        _fail("PROFILED_COORDINATOR_EXTERNAL_WITNESS_BASE_URL_INVALID")
+    try:
+        parsed = urlsplit(base_url)
+        parsed_port = parsed.port
+    except ValueError:
+        _fail("PROFILED_COORDINATOR_EXTERNAL_WITNESS_BASE_URL_INVALID")
+    if (
+        parsed.scheme != "https"
+        or not parsed.hostname
+        or not parsed.hostname.isascii()
+        or not parsed.netloc.isascii()
+        or "\\" in parsed.netloc
+        or "%" in parsed.netloc
+        or parsed.netloc.endswith(":")
+        or parsed_port == 0
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.query
+        or parsed.fragment
+        or _SAFE_BASE_PATH_RE.fullmatch(parsed.path.rstrip("/")) is None
+        or ".." in parsed.path.split("/")
+    ):
         _fail("PROFILED_COORDINATOR_EXTERNAL_WITNESS_BASE_URL_INVALID")
     if _IDENTIFIER_RE.fullmatch(witness_id) is None:
         _fail("PROFILED_COORDINATOR_EXTERNAL_WITNESS_ID_INVALID")

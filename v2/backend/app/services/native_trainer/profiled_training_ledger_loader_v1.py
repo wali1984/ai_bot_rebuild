@@ -904,7 +904,9 @@ def _validate_source_provenance_binding(
     if not root_path.is_dir():
         _fail("PROFILED_TRAINING_PARENT_SOURCE_LEDGER_ROOT_MISSING")
     try:
-        fresh_entries = TrainerSourceProvenanceLedgerV4(root_path).read_entries()
+        fresh_entries = TrainerSourceProvenanceLedgerV4(
+            root_path
+        ).read_entries_read_only()
     except TrainerSourceProvenanceLedgerV4Error as exc:
         raise ProfiledTrainingLedgerLoaderV1Error(
             "PROFILED_TRAINING_PARENT_SOURCE_LEDGER_FRESH_READ_FAILED"

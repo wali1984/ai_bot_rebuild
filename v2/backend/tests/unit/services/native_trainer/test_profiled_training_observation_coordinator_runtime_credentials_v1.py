@@ -137,6 +137,35 @@ def test_complete_external_witness_bundle_is_pinned_and_hidden(tmp_path: Path) -
     assert repr(_PUBLIC_KEY) not in rendered
 
 
+@pytest.mark.parametrize(
+    "base_url",
+    [
+        "http://witness.example.test/v1",
+        "https://user@witness.example.test/v1",
+        "https://witness.example.test/v1?mode=unsafe",
+        "https://witness.example.test/v1/../v2",
+        "https://witness.example.test:0/v1",
+    ],
+)
+def test_malformed_external_witness_url_is_configuration_failure(
+    tmp_path: Path,
+    base_url: str,
+) -> None:
+    _write_local_roles(tmp_path)
+    _write_witness(tmp_path)
+
+    with pytest.raises(
+        credentials.ProfiledObservationCoordinatorCredentialError,
+        match="PROFILED_COORDINATOR_EXTERNAL_WITNESS_BASE_URL_INVALID",
+    ):
+        credentials.load_profiled_observation_coordinator_runtime_credentials_v1(
+            environ=_witness_environment(
+                tmp_path,
+                **{credentials.WITNESS_BASE_URL_ENV: base_url},
+            )
+        )
+
+
 def test_production_directory_is_bound_to_exact_user_unit() -> None:
     assert _PRODUCTION_EXPECTED_DIRECTORY() == Path(
         f"/run/user/{os.geteuid()}/credentials/"

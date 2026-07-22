@@ -274,10 +274,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--page-size",
         type=_page_size,
-        default=_page_size(
-            os.environ.get(
-                "PROFILED_OBSERVATION_COORDINATOR_PAGE_SIZE", str(DEFAULT_PAGE_SIZE)
-            )
+        default=os.environ.get(
+            "PROFILED_OBSERVATION_COORDINATOR_PAGE_SIZE", str(DEFAULT_PAGE_SIZE)
         ),
         help=(
             "bounded inventory receipt page size; this is a memory/I/O resource bound, "
@@ -287,11 +285,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--cycle-seconds",
         type=_positive_float,
-        default=_positive_float(
-            os.environ.get(
-                "PROFILED_OBSERVATION_COORDINATOR_CYCLE_SECONDS",
-                str(DEFAULT_CYCLE_SECONDS),
-            )
+        default=os.environ.get(
+            "PROFILED_OBSERVATION_COORDINATOR_CYCLE_SECONDS",
+            str(DEFAULT_CYCLE_SECONDS),
         ),
         help="resident observation cadence; operational only and never market-semantic",
     )
@@ -665,9 +661,29 @@ def _run_loop(
     runtime: _CoordinatorRuntime,
     status_path: Path,
 ) -> int:
+    consecutive_runtime_failures = 0
     while not _STOP:
         started = time.monotonic()
-        result = runtime.coordinator.run_once()
+        try:
+            result = runtime.coordinator.run_once()
+        except _RUNTIME_ERRORS as exc:
+            consecutive_runtime_failures += 1
+            payload = _error_payload(
+                reason=_reason(exc),
+                status_path=status_path,
+            )
+            _atomic_write_status(status_path, payload)
+            _print_payload(payload, error=True)
+            if args.once:
+                return 1
+            _wait(
+                _adaptive_retry_seconds(
+                    cycle_seconds=float(args.cycle_seconds),
+                    consecutive_failures=consecutive_runtime_failures,
+                )
+            )
+            continue
+        consecutive_runtime_failures = 0
         payload = _status_payload(result, status_path=status_path)
         _atomic_write_status(status_path, payload)
         _print_payload(_summary(payload))
@@ -681,6 +697,27 @@ def _run_loop(
             return 0
         _wait(max(0.0, float(args.cycle_seconds) - (time.monotonic() - started)))
     return 0
+
+
+def _adaptive_retry_seconds(
+    *,
+    cycle_seconds: float,
+    consecutive_failures: int,
+) -> float:
+    """Return bounded operational backoff with no market semantics."""
+
+    if (
+        type(cycle_seconds) not in {int, float}
+        or not math.isfinite(float(cycle_seconds))
+        or float(cycle_seconds) <= 0
+        or type(consecutive_failures) is not int
+        or consecutive_failures <= 0
+    ):
+        _fail("PROFILED_COORDINATOR_CLI_RETRY_ARGUMENT_INVALID")
+    # Exponent work is bounded before evaluation.  The ceiling limits error
+    # pressure only; it never admits or rejects a market/sample/model action.
+    exponent = min(consecutive_failures - 1, 5)
+    return min(float(cycle_seconds) * float(2**exponent), 15 * 60.0)
 
 
 _CONFIG_ERRORS = (
@@ -716,7 +753,35 @@ def _reason(exc: BaseException) -> str:
 def main(argv: list[str] | None = None) -> int:
     global _STOP
     _STOP = False
-    args = build_parser().parse_args(argv)
+    try:
+        args = build_parser().parse_args(argv)
+    except SystemExit as exc:
+        if exc.code in {None, 0}:
+            return 0
+        runtime_root = _environment_path(
+            "PROFILED_OBSERVATION_COORDINATOR_RUNTIME_ROOT",
+            DEFAULT_RUNTIME_ROOT,
+        )
+        status_path = runtime_root / "coordinator_status_v1.json"
+        payload = _error_payload(
+            reason="PROFILED_COORDINATOR_CLI_ARGUMENTS_INVALID",
+            status_path=status_path,
+        )
+        if runtime_root.is_absolute():
+            try:
+                exact_root = _absolute_lexical(
+                    runtime_root,
+                    reason="PROFILED_COORDINATOR_CLI_RUNTIME_ROOT_INVALID",
+                )
+                _ensure_private_runtime_root(exact_root)
+                _atomic_write_status(
+                    exact_root / "coordinator_status_v1.json",
+                    payload,
+                )
+            except ProfiledObservationCoordinatorCliError:
+                pass
+        _print_payload(payload, error=True)
+        return CONFIG_EXIT_STATUS
     signal.signal(signal.SIGINT, _request_stop)
     signal.signal(signal.SIGTERM, _request_stop)
     status_path = args.runtime_root / "coordinator_status_v1.json"

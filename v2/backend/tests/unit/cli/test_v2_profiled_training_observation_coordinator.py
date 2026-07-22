@@ -265,6 +265,102 @@ def test_run_once_writes_full_status_and_bounded_summary(
     assert full["optimizer_admission_authorized"] is False
 
 
+def test_resident_loop_retries_runtime_failure_without_process_exit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = tmp_path / "runtime"
+    root.mkdir(mode=0o700)
+    path = root / "status.json"
+    calls = 0
+    waits: list[float] = []
+
+    class RecoveringCoordinator:
+        def run_once(self) -> Any:
+            nonlocal calls
+            calls += 1
+            if calls < 3:
+                raise coordinator_module.ProfiledTrainingObservationCoordinatorV1Error(
+                    "PROFILED_COORDINATOR_TEST_TRANSIENT_SOURCE_FAILURE"
+                )
+            return _waiting_result()
+
+    def record_wait(seconds: float) -> None:
+        waits.append(seconds)
+
+    def finish_park() -> None:
+        monkeypatch.setattr(cli, "_STOP", True)
+
+    monkeypatch.setattr(cli, "_wait", record_wait)
+    monkeypatch.setattr(cli, "_park_without_witness", finish_park)
+    runtime = cli._CoordinatorRuntime(  # type: ignore[arg-type]  # noqa: SLF001
+        RecoveringCoordinator(),
+        None,
+    )
+
+    assert cli._run_loop(  # noqa: SLF001
+        args=SimpleNamespace(once=False, cycle_seconds=2.0),
+        runtime=runtime,
+        status_path=path,
+    ) == 0
+    captured = capsys.readouterr()
+    errors = [json.loads(line) for line in captured.err.splitlines()]
+    success = json.loads(captured.out)
+    assert calls == 3
+    assert waits == [2.0, 4.0]
+    assert [item["classification"] for item in errors] == [
+        "FAIL_CLOSED",
+        "FAIL_CLOSED",
+    ]
+    assert success["classification"] == (
+        coordinator_module.PROFILED_COORDINATOR_WAITING_EXTERNAL_WITNESS
+    )
+    assert json.loads(path.read_text(encoding="ascii"))["runtime_wired"] is False
+
+
+def test_once_runtime_failure_returns_nonzero_with_canonical_status(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "runtime"
+    root.mkdir(mode=0o700)
+    path = root / "status.json"
+
+    class FailingCoordinator:
+        def run_once(self) -> Any:
+            raise coordinator_module.ProfiledTrainingObservationCoordinatorV1Error(
+                "PROFILED_COORDINATOR_TEST_RUNTIME_FAILURE"
+            )
+
+    runtime = cli._CoordinatorRuntime(  # type: ignore[arg-type]  # noqa: SLF001
+        FailingCoordinator(),
+        None,
+    )
+    assert cli._run_loop(  # noqa: SLF001
+        args=SimpleNamespace(once=True, cycle_seconds=1.0),
+        runtime=runtime,
+        status_path=path,
+    ) == 1
+    payload = json.loads(path.read_text(encoding="ascii"))
+    assert payload["classification"] == "FAIL_CLOSED"
+    assert payload["reason"] == "PROFILED_COORDINATOR_TEST_RUNTIME_FAILURE"
+    assert payload["optimizer_admission_authorized"] is False
+
+
+@pytest.mark.parametrize(
+    ("failures", "expected"),
+    [(1, 30.0), (2, 60.0), (4, 240.0), (20, 900.0)],
+)
+def test_retry_backoff_is_bounded_operational_only(
+    failures: int,
+    expected: float,
+) -> None:
+    assert cli._adaptive_retry_seconds(  # noqa: SLF001
+        cycle_seconds=30.0,
+        consecutive_failures=failures,
+    ) == expected
+
+
 def test_main_configuration_failure_is_observable_without_secret_text(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -303,6 +399,30 @@ def test_relative_runtime_root_fails_as_configuration_not_traceback(
     payload = json.loads(capsys.readouterr().err)
     assert payload["reason"] == "PROFILED_COORDINATOR_CLI_RUNTIME_ROOT_INVALID"
     assert payload["runtime_wired"] is False
+
+
+def test_invalid_environment_page_size_is_canonical_nonrestart_configuration_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    runtime_root = (tmp_path / "runtime").absolute()
+    monkeypatch.setenv(
+        "PROFILED_OBSERVATION_COORDINATOR_RUNTIME_ROOT",
+        str(runtime_root),
+    )
+    monkeypatch.setenv("PROFILED_OBSERVATION_COORDINATOR_PAGE_SIZE", "invalid")
+
+    assert cli.main(["--once"]) == cli.CONFIG_EXIT_STATUS
+    captured = capsys.readouterr()
+    assert "Traceback" not in captured.err
+    payload = json.loads(captured.err.splitlines()[-1])
+    assert payload["classification"] == "FAIL_CLOSED"
+    assert payload["reason"] == "PROFILED_COORDINATOR_CLI_ARGUMENTS_INVALID"
+    assert payload["runtime_wired"] is False
+    assert json.loads(
+        (runtime_root / "coordinator_status_v1.json").read_text(encoding="ascii")
+    ) == payload
 
 
 def test_no_exchange_or_generic_secret_environment_names_are_consumed() -> None:

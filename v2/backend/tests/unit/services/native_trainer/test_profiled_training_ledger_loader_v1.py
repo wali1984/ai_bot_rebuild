@@ -1012,6 +1012,7 @@ def test_current_child_cannot_downgrade_itself_to_legacy_exclusion(
 
 def test_current_policy_source_binding_rejects_rest_in_selected_slice(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from v2.backend.tests.unit.services.native_trainer import (
         test_canonical_ohlcv_multitimeframe_capture_set_v1 as capture_support,
@@ -1119,6 +1120,32 @@ def test_current_policy_source_binding_rejects_rest_in_selected_slice(
     }
     binding["source_provenance_binding_sha256"] = stable_sha256(binding)
 
+    read_only_calls = 0
+    original_read_only = TrainerSourceProvenanceLedgerV4.read_entries_read_only
+
+    def tracked_read_only(
+        ledger: TrainerSourceProvenanceLedgerV4,
+    ) -> tuple[Any, ...]:
+        nonlocal read_only_calls
+        read_only_calls += 1
+        return original_read_only(ledger)
+
+    def forbidden_write_capable_read(
+        _ledger: TrainerSourceProvenanceLedgerV4,
+    ) -> tuple[Any, ...]:
+        raise AssertionError("strict loader must use the read-only source-ledger API")
+
+    monkeypatch.setattr(
+        TrainerSourceProvenanceLedgerV4,
+        "read_entries_read_only",
+        tracked_read_only,
+    )
+    monkeypatch.setattr(
+        TrainerSourceProvenanceLedgerV4,
+        "read_entries",
+        forbidden_write_capable_read,
+    )
+
     with pytest.raises(
         loader_v1.ProfiledTrainingLedgerLoaderV1Error,
         match="PROFILED_TRAINING_PARENT_REQUIRED_WINDOW_TRANSPORT_UNPROVEN",
@@ -1128,6 +1155,7 @@ def test_current_policy_source_binding_rejects_rest_in_selected_slice(
             transform_available_at=capture_support.GENERATED + timedelta(milliseconds=100),
             decision_time=capture_support.DECISION,
         )
+    assert read_only_calls == 1
 
 
 def test_accepts_producer_clock_precision_after_authenticated_normalization(
