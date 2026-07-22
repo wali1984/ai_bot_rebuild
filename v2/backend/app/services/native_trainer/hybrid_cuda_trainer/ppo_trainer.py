@@ -8,7 +8,7 @@ import os
 import subprocess
 import threading
 import time
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from contextlib import nullcontext
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -1181,6 +1181,111 @@ class V2HybridPPOTrainer:
             selected_rows=len(selected_rows_for_split),
             rejection_metrics=rejection_metrics,
             learning_mode=learning_mode,
+        )
+
+    def train_authenticated_profiled_outcome_supervised(
+        self,
+        examples: tuple[TrainingExample, ...],
+        *,
+        authorize_example: Callable[[TrainingExample], str],
+        authorization_sha256: str,
+        steps: int,
+        validation_fraction: float,
+    ) -> PPOTrainingResult:
+        """Train a complete externally authenticated profiled corpus.
+
+        Profiled rows have crossed an immutable manifest, full-consumption,
+        external-witness, and point-in-time admission boundary. Inventing
+        ordinary MTF/replay identifiers for them would be false provenance.
+        The owning boundary must instead provide a process-local authorizer
+        that revalidates every exact example before partitioning and again
+        immediately before optimization.
+
+        This method grants no checkpoint, serving, prediction, or trading
+        authority. It makes the alternate trainer boundary explicit so a
+        caller never needs to invoke private optimizer methods.
+        """
+
+        if (
+            type(examples) is not tuple
+            or not examples
+            or not callable(authorize_example)
+            or type(authorization_sha256) is not str
+            or len(authorization_sha256) != 64
+            or any(
+                value not in "0123456789abcdef"
+                for value in authorization_sha256
+            )
+            or type(steps) is not int
+            or steps != 1
+            or type(validation_fraction) is not float
+            or not math.isfinite(validation_fraction)
+            or not 0.0 <= validation_fraction < 1.0
+            or not self.model.torch_available
+        ):
+            raise ValueError("authenticated_profiled_optimizer_contract_invalid")
+
+        authorized_identities: list[str] = []
+        for example in examples:
+            if type(example) is not TrainingExample:
+                raise ValueError("authenticated_profiled_example_type_invalid")
+            identity = authorize_example(example)
+            if (
+                type(identity) is not str
+                or len(identity) != 64
+                or any(value not in "0123456789abcdef" for value in identity)
+                or self._has_on_policy_ppo_fields(example)
+                or not self._has_outcome_supervised_targets(example)
+            ):
+                raise ValueError(
+                    "authenticated_profiled_example_authorization_invalid"
+                )
+            authorized_identities.append(identity)
+        if len(set(authorized_identities)) != len(authorized_identities):
+            raise ValueError("authenticated_profiled_example_identity_duplicate")
+
+        training_rows, validation_rows, split_metrics = (
+            self._chronological_purged_split(
+                examples,
+                validation_fraction=validation_fraction,
+            )
+        )
+        if (
+            not training_rows
+            or len(training_rows) + len(validation_rows) != len(examples)
+            or {id(row) for row in training_rows}.intersection(
+                {id(row) for row in validation_rows}
+            )
+        ):
+            raise ValueError("authenticated_profiled_partition_invalid")
+        for example in (*training_rows, *validation_rows):
+            if authorize_example(example) not in authorized_identities:
+                raise ValueError(
+                    "authenticated_profiled_example_reauthorization_failed"
+                )
+
+        return self._train_torch(
+            training_rows,
+            validation_rows=validation_rows,
+            steps=1,
+            batch_size=len(training_rows),
+            target_batch_size=len(examples),
+            available_rows=len(examples),
+            selected_rows=len(examples),
+            rejection_metrics={
+                **split_metrics,
+                "available_examples": len(examples),
+                "selected_examples": len(examples),
+                "authenticated_profiled_corpus": True,
+                "authenticated_profiled_execution_authorization_sha256": (
+                    authorization_sha256
+                ),
+                "authenticated_profiled_row_identities": authorized_identities,
+                "complete_authenticated_corpus_considered": True,
+                "behavior_receipt_bound": False,
+                "ppo_behavior_policy_terms_enabled": False,
+            },
+            learning_mode="outcome_supervised",
         )
 
     def _filter_trusted_training_rows(
