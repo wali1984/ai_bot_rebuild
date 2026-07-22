@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -197,3 +198,23 @@ def test_tracked_producer_unit_is_isolated_hardened_and_commission_only() -> Non
         "/transfer",
     ):
         assert forbidden not in unit
+
+
+def test_producer_immutable_dropin_uses_one_clean_release_identity() -> None:
+    repo_root = Path(__file__).resolve().parents[5]
+    dropin = (
+        repo_root
+        / "tools/systemd_units/"
+        "ai-bot-v2-binance-usdm-commission-evidence-broker.service.d/"
+        "90-immutable-release.conf"
+    ).read_text(encoding="utf-8")
+    release_shas = set(
+        re.findall(r"deployments/ai_bot_rebuild/([0-9a-f]{40})", dropin)
+    )
+
+    assert release_shas == {"e9a5563375187f285756a1f642b2fa68f991adf1"}
+    assert "AI_BOT_CODE_SHA=e9a5563375187f285756a1f642b2fa68f991adf1" in dropin
+    assert "git -C /home/wali/ai_bot_local_data/deployments/ai_bot_rebuild/" in dropin
+    assert "diff --quiet --exit-code e9a5563375187f285756a1f642b2fa68f991adf1 --" in dropin
+    assert "v2_binance_usdm_commission_evidence_broker --execute-read-only" in dropin
+    assert "WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD" not in dropin

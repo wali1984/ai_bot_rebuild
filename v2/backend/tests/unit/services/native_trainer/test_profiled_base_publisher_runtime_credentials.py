@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import stat
 from contextlib import contextmanager
 from pathlib import Path
@@ -707,3 +708,25 @@ def test_documented_credential_contract_matches_unit_names() -> None:
     assert "ImportCredential=" in contract
     assert "publisher unit contains zero" in contract
     assert "API-key, API-secret, commission-fingerprint-key" in contract
+
+
+def test_publisher_immutable_dropin_uses_one_release_and_read_only_broker_root() -> None:
+    repo_root = Path(__file__).resolve().parents[6]
+    dropin = (
+        repo_root
+        / "claude_worklog/systemd/user/"
+        "ai-bot-v2-profiled-base-feature-publisher.service.d/"
+        "90-immutable-release.conf"
+    ).read_text(encoding="utf-8")
+    release_shas = set(
+        re.findall(r"deployments/ai_bot_rebuild/([0-9a-f]{40})", dropin)
+    )
+
+    assert release_shas == {"e9a5563375187f285756a1f642b2fa68f991adf1"}
+    assert "AI_BOT_CODE_SHA=e9a5563375187f285756a1f642b2fa68f991adf1" in dropin
+    assert "diff --quiet --exit-code e9a5563375187f285756a1f642b2fa68f991adf1 --" in dropin
+    assert (
+        "ReadOnlyPaths=/home/wali/ai_bot_local_data/v2_authenticated_evidence/"
+        "binance_usdm_commission_broker_v1" in dropin
+    )
+    assert "WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD" not in dropin
