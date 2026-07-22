@@ -1,15 +1,25 @@
 import React from 'react';
 
-type Result = 'success' | 'failure' | 'pending';
+type Result = 'success' | 'failure' | 'pending' | 'unknown';
 
 interface AuditResultPanelProps {
-  actor: string;
-  action: string;
+  actor: unknown;
+  action: unknown;
   result: Result;
-  timestamp: string;
-  reason?: string;
-  evidence?: string;
+  timestamp: unknown;
+  reason?: unknown;
+  evidence?: unknown;
 }
+
+const displayValue = (value: unknown): string => {
+  if (typeof value === 'string') return value;
+  if (value == null) return '';
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+};
 
 const resultConfig: Record<Result, { color: string; bg: string; label: string; icon: string }> = {
   success: {
@@ -30,6 +40,12 @@ const resultConfig: Record<Result, { color: string; bg: string; label: string; i
     label: 'PENDING',
     icon: '…',
   },
+  unknown: {
+    color: 'var(--warn)',
+    bg: 'color-mix(in oklch, var(--warn) 10%, transparent)',
+    label: 'UNKNOWN',
+    icon: '?',
+  },
 };
 
 export const AuditResultPanel: React.FC<AuditResultPanelProps> = ({
@@ -40,7 +56,15 @@ export const AuditResultPanel: React.FC<AuditResultPanelProps> = ({
   reason,
   evidence,
 }) => {
-  const cfg = resultConfig[result];
+  // Backend audit records are append-only and may gain new result enums.
+  // Preserve the evidence without crashing the whole audit page or implying
+  // that an unrecognised result is pending/successful.
+  const cfg = resultConfig[result] ?? resultConfig.unknown;
+  const displayReason = displayValue(reason);
+  const displayEvidence = displayValue(evidence);
+  const displayActor = displayValue(actor);
+  const displayAction = displayValue(action);
+  const displayTimestamp = displayValue(timestamp);
 
   return (
     <div
@@ -99,7 +123,7 @@ export const AuditResultPanel: React.FC<AuditResultPanelProps> = ({
             whiteSpace: 'nowrap',
           }}
         >
-          {timestamp}
+          {displayTimestamp}
         </span>
       </div>
 
@@ -110,7 +134,7 @@ export const AuditResultPanel: React.FC<AuditResultPanelProps> = ({
             Actor
           </span>
           <span style={{ fontSize: '13px', color: 'var(--text-primary)', fontWeight: 600, fontFamily: 'var(--font-mono)' }}>
-            {actor}
+            {displayActor}
           </span>
         </div>
         <div style={{ display: 'flex', gap: '6px', alignItems: 'baseline' }}>
@@ -118,13 +142,13 @@ export const AuditResultPanel: React.FC<AuditResultPanelProps> = ({
             Action
           </span>
           <span style={{ fontSize: '13px', color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>
-            {action}
+            {displayAction}
           </span>
         </div>
       </div>
 
       {/* Reason */}
-      {reason && (
+      {displayReason && (
         <div
           style={{
             padding: '8px 12px',
@@ -137,12 +161,12 @@ export const AuditResultPanel: React.FC<AuditResultPanelProps> = ({
           }}
         >
           <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Reason: </span>
-          {reason}
+          {displayReason}
         </div>
       )}
 
       {/* Evidence */}
-      {evidence && (
+      {displayEvidence && (
         <div
           style={{
             padding: '8px 12px',
@@ -160,7 +184,7 @@ export const AuditResultPanel: React.FC<AuditResultPanelProps> = ({
           <span style={{ display: 'block', fontWeight: 700, marginBottom: '4px', color: 'var(--text-secondary)', fontFamily: 'var(--font-sans)', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
             Evidence
           </span>
-          {evidence}
+          {displayEvidence}
         </div>
       )}
     </div>

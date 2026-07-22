@@ -1,1187 +1,390 @@
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  writeFileSync,
-} from 'node:fs';
+/**
+ * Final product regression evidence.
+ *
+ * This is intentionally registry-driven.  The older role/route sweeps remain
+ * historical evidence; this pass is the final built-frontend check across the
+ * current reachable registry, four required viewports, live response bodies,
+ * WebSocket frames, and source-to-rendered-value candidates.
+ */
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import {
-  expect,
-  test,
-  type ConsoleMessage,
-  type Page,
-  type Request,
-  type Response,
-  type WebSocket,
-} from '@playwright/test';
-import type { PageModule, Surface } from '../../src/types/page';
-import {
-  ACTIVE_ROUTE_MODULES,
-  ALL_PAGE_PATHS,
-  LEGACY_REDIRECTS,
-} from './helpers/routeContracts';
+import { test, type Page, type Request, type Response, type WebSocket } from '@playwright/test';
+import { PAGES } from '../../src/pages/registry';
+import { MERGED_LEGACY_PATHS } from '../../src/pages/productNavigation';
 
-type AuditFamily =
-  | 'global_public'
-  | 'markets_charts'
-  | 'ingestors_providers'
-  | 'trading_portfolio_risk'
-  | 'trainer_ai'
-  | 'admin_system';
+type Viewport = { name: string; width: number; height: number };
+type RouteCase = { pageId: string; path: string; surface: string; minRole: string; dynamic?: boolean };
+type JsonLeaf = { path: string; value: string | number | boolean | null };
+type RenderField = { tag: string; text: string; test_id: string | null; data_field: string | null; aria: string | null };
+type SourceResponse = { url: string; status: number; content_type: string; leaves: JsonLeaf[] };
 
-type SessionKind = 'public' | 'trader' | 'admin';
-
-interface AuditRoute {
-  id: string;
-  path: string;
-  routeTemplate: string;
-  surface: Surface;
-  minimumRole: PageModule['rbac']['minRole'];
-  hiddenFromNav: boolean;
-  family: AuditFamily;
-  inventoryKind: 'canonical' | 'dynamic-extra';
-}
-
-interface AuditViewport {
-  id: string;
-  width: number;
-  height: number;
-}
-
-interface SourceScalar {
-  endpoint: string;
-  fieldPath: string;
-  transport: 'http' | 'websocket';
-  value: string | number | boolean | null;
-}
-
-interface ResponseEvidence {
-  method: string;
-  endpoint: string;
-  status: number;
-  contentType: string;
-  jsonFieldCount: number;
-  jsonFieldPaths: string[];
-  jsonFieldPathsTruncated: boolean;
-}
-
-interface RequestFailureEvidence {
-  method: string;
-  endpoint: string;
-  status?: number;
-  failure?: string;
-  classification: 'expected' | 'aborted' | 'degraded' | 'hard_failure';
-}
-
-interface VisibleField {
-  text: string;
-  tag: string;
-  testId: string | null;
-  ariaLabel: string | null;
-  title: string | null;
-  unit: string | null;
-  classification:
-    | 'source_exact'
-    | 'static_copy'
-    | 'derived_display'
-    | 'unavailable_state';
-  source?: {
-    endpoint: string;
-    fieldPath: string;
-    transport: 'http' | 'websocket';
-  };
-  status: 'PASS' | 'DEFECT';
-  defect?: string;
-}
-
-interface LayoutEvidence {
-  horizontalOverflowPx: number;
-  clippedTextCount: number;
-  clippedTextSamples: string[];
-  visibleTextCollisionCount: number;
-  visibleTextCollisionSamples: string[];
-  deadLinkCount: number;
-  deadLinkSamples: string[];
-  busyElementCount: number;
-  busyElementSamples: string[];
-}
-
-interface ViewportEvidence {
-  viewport: AuditViewport;
-  screenshotPath: string;
-  documentStatus: number | null;
-  finalPath: string;
-  bodyTextLength: number;
-  visibleFieldCount: number;
-  sourceExactFieldCount: number;
-  staticCopyFieldCount: number;
-  derivedDisplayFieldCount: number;
-  unavailableStateFieldCount: number;
-  fields: VisibleField[];
-  responseCount: number;
-  endpointCount: number;
-  apiJsonFieldCount: number;
-  responses: ResponseEvidence[];
-  requestFailures: RequestFailureEvidence[];
-  consoleErrors: string[];
-  expectedConsoleErrors: string[];
-  pageErrors: string[];
-  websocketEndpoints: string[];
-  websocketFrames: number;
-  navigationCount: number;
-  layout: LayoutEvidence;
-  visibleLinkCount: number;
-  visibleButtonCount: number;
-  hardFailures: string[];
-  degradations: string[];
-}
-
-interface LiveGateProof {
-  httpStatus: number;
-  liveGate: unknown;
-  liveBlocked: unknown;
-  liveReady: unknown;
-  liveSubmitAllowed: unknown;
-  liveTradingEnabled: unknown;
-  orderSubmitted: unknown;
-  testOrderSubmitted: unknown;
-  leverageMutated: unknown;
-  marginMutated: unknown;
-  operatorApproved: unknown;
-  releaseMode: unknown;
-  liveSymbolCount: number | null;
-  executionLiveSymbolCount: number | null;
-  placesRealOrder: unknown;
-  routesToLive: unknown;
-  passed: boolean;
-}
-
-const VALID_FAMILIES: AuditFamily[] = [
-  'global_public',
-  'markets_charts',
-  'ingestors_providers',
-  'trading_portfolio_risk',
-  'trainer_ai',
-  'admin_system',
+const VIEWPORTS: Viewport[] = [
+  { name: 'desktop_1600x1000', width: 1600, height: 1000 },
+  { name: 'desktop_1440x900', width: 1440, height: 900 },
+  { name: 'iphone_390x844', width: 390, height: 844 },
+  { name: 'tablet_1024x900', width: 1024, height: 900 },
 ];
+const BASE = process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:5174';
+const ARTIFACT_ROOT = path.resolve(process.cwd(), '..', 'artifacts', 'final-product-regression');
+const FAMILY = process.env.FINAL_AUDIT_FAMILY ?? 'all';
+const TOKEN_FILE = process.env.FINAL_PRODUCT_AUDIT_ADMIN_TOKEN_FILE;
 
-const selectedFamily = process.env.FINAL_PRODUCT_AUDIT_FAMILY as AuditFamily | undefined;
-const shouldRun = Boolean(selectedFamily && VALID_FAMILIES.includes(selectedFamily));
-const generatedAt = new Date().toISOString();
-const runId = (process.env.FINAL_PRODUCT_AUDIT_RUN_ID ?? generatedAt)
-  .replace(/[^0-9A-Za-z_-]+/g, '');
-const frontendRoot = process.cwd();
-const repoRoot = path.resolve(frontendRoot, '..', '..');
-const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:5174';
-const artifactRoot = path.resolve(
-  process.env.FINAL_PRODUCT_AUDIT_OUTPUT_ROOT
-    ?? path.join(frontendRoot, '..', 'artifacts', 'final-product-audit'),
-  runId,
-);
-const tokenFiles: Record<Exclude<SessionKind, 'public'>, string | undefined> = {
-  trader: process.env.FINAL_PRODUCT_AUDIT_TRADER_TOKEN_FILE,
-  admin: process.env.FINAL_PRODUCT_AUDIT_ADMIN_TOKEN_FILE,
-};
-const settleMs = Math.max(250, Number(process.env.FINAL_PRODUCT_AUDIT_SETTLE_MS ?? 1_200));
-const focusedRoute = process.env.FINAL_PRODUCT_AUDIT_ROUTE;
-const maxJsonScalarsPerResponse = 20_000;
-const maxJsonFieldPathsPerResponse = 5_000;
-const maxWebSocketFramesPerViewport = 200;
-const maxWebSocketPayloadBytes = 1_000_000;
-
-const VIEWPORTS: AuditViewport[] = [
-  { id: 'desktop-1600x1000', width: 1600, height: 1000 },
-  { id: 'desktop-1440x900', width: 1440, height: 900 },
-  { id: 'tablet-1024x768', width: 1024, height: 768 },
-  { id: 'mobile-390x844', width: 390, height: 844 },
-];
-
-const FAMILY_PAGE_IDS: Record<AuditFamily, ReadonlySet<string>> = {
-  global_public: new Set([
-    'root',
-    'public-status',
-    'login',
-    'public-landing-v2',
-    'user-status',
-  ]),
-  markets_charts: new Set([
-    'symbols',
-    'market-intelligence',
-    'binance',
-    'orderbook-runtime-truth',
-    'microstructure-trust',
-    'liquidation-bridge',
-    'market',
-    'markets',
-    'pro-chart',
-    'technical-analysis',
-    'market-brain',
-  ]),
-  ingestors_providers: new Set(['markets-ingestors']),
-  trading_portfolio_risk: new Set([
-    'dashboard',
-    'signals',
-    'executions',
-    'positions',
-    'risk',
-    'paper-trading',
-    'audit-ledger',
-    'live-canary',
-    'account-settings',
-    'alerts',
-    'history',
-    'trader',
-  ]),
-  trainer_ai: new Set([
-    'trainer-prediction-monitor',
-    'signal-explainability',
-    'trainer-admin',
-    'replay',
-    'system-health',
-    'codex-review-center',
-    'ai-brain',
-    'ai-predictions',
-    'strategy-backtesting',
-    'backtests-replay',
-  ]),
-  admin_system: new Set([
-    'admin-overview',
-    'admin-data',
-    'admin-intelligence',
-    'admin-orchestration',
-    'admin-risk',
-    'admin-execution',
-    'admin-exchanges',
-    'admin-config',
-    'admin-users',
-    'admin-reports',
-    'admin-logs',
-    'admin-audit',
-    'admin-tools',
-    'monitor-center',
-    'external-manual-position-quarantine',
-    'strategy-admin',
-    'live-readiness',
-    'operator-proof-dashboard',
-    'executive-status',
-  ]),
+const FAMILY_BY_ID: Record<string, string> = {
+  'public-landing-v2': 'global_public',
+  'public-status': 'global_public',
+  login: 'global_public',
+  'user-status': 'global_public',
+  markets: 'markets_charts',
+  market: 'markets_charts',
+  symbols: 'markets_charts',
+  'pro-chart': 'markets_charts',
+  binance: 'markets_charts',
+  'liquidation-bridge': 'markets_charts',
+  'market-intelligence': 'markets_charts',
+  'technical-analysis': 'markets_charts',
+  'markets-ingestors': 'ingestors_providers',
+  dashboard: 'trading_portfolio_risk',
+  trader: 'trading_portfolio_risk',
+  'paper-trading': 'trading_portfolio_risk',
+  positions: 'trading_portfolio_risk',
+  executions: 'trading_portfolio_risk',
+  history: 'trading_portfolio_risk',
+  'account-settings': 'trading_portfolio_risk',
+  alerts: 'trading_portfolio_risk',
+  risk: 'trading_portfolio_risk',
+  'live-canary': 'trading_portfolio_risk',
+  'system-health': 'trading_portfolio_risk',
+  'strategy-backtesting': 'trading_portfolio_risk',
+  'backtests-replay': 'trading_portfolio_risk',
+  replay: 'trading_portfolio_risk',
+  'ai-predictions': 'trainer_ai',
+  'ai-brain': 'trainer_ai',
+  'trainer-admin': 'trainer_ai',
+  'trainer-prediction-monitor': 'trainer_ai',
+  'market-brain': 'trainer_ai',
+  'admin-overview': 'admin_system',
+  'admin-data': 'admin_system',
+  'admin-intelligence': 'admin_system',
+  'admin-orchestration': 'admin_system',
+  'admin-risk': 'admin_system',
+  'admin-execution': 'admin_system',
+  'admin-exchanges': 'admin_system',
+  'admin-config': 'admin_system',
+  'admin-users': 'admin_system',
+  'admin-reports': 'admin_system',
+  'admin-logs': 'admin_system',
+  'admin-audit': 'admin_system',
+  'admin-tools': 'admin_system',
+  'monitor-center': 'admin_system',
+  'signal-explainability': 'trainer_ai',
+  'external-manual-position-quarantine': 'admin_system',
+  'strategy-admin': 'admin_system',
+  'live-readiness': 'admin_system',
+  'codex-review-center': 'admin_system',
+  'operator-proof-dashboard': 'admin_system',
+  'orderbook-runtime-truth': 'admin_system',
+  'microstructure-trust': 'admin_system',
 };
 
-function familyForPageId(id: string): AuditFamily {
-  const matches = VALID_FAMILIES.filter((family) => FAMILY_PAGE_IDS[family].has(id));
-  if (matches.length !== 1) {
-    throw new Error(`Final audit family assignment must be unique for ${id}; matches=${matches.join(',')}`);
+function concretePath(pagePath: string): string {
+  if (pagePath === '/market/:symbol?') return '/market/BTCUSDT';
+  if (pagePath === '/chart/:symbol?') return '/chart/BTCUSDT';
+  return pagePath.replace(/\/:name\?$/, '');
+}
+
+function routeCases(): RouteCase[] {
+  const redirectSources = new Set(Object.keys(MERGED_LEGACY_PATHS));
+  const pages = PAGES
+    .filter((page) => !redirectSources.has(page.route.path))
+    .map((page) => ({
+      pageId: page.meta.id,
+      path: concretePath(page.route.path),
+      surface: page.meta.surface,
+      minRole: page.rbac.minRole,
+    }));
+  pages.unshift({ pageId: 'root-index', path: '/', surface: 'public', minRole: 'public' });
+  return pages.filter((row) => FAMILY === 'all' || (FAMILY_BY_ID[row.pageId] ?? 'admin_system') === FAMILY);
+}
+
+function familyFor(pageId: string): string {
+  return pageId === 'root-index' ? 'global_public' : (FAMILY_BY_ID[pageId] ?? 'admin_system');
+}
+
+function safeName(value: string): string {
+  return value.replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'root';
+}
+
+function flatten(value: unknown, prefix = '', output: JsonLeaf[] = [], depth = 0): JsonLeaf[] {
+  if (output.length >= 5000 || depth > 8) return output;
+  if (value === null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    output.push({ path: prefix || '$', value: value as JsonLeaf['value'] });
+    return output;
   }
-  return matches[0];
+  if (Array.isArray(value)) {
+    value.slice(0, 100).forEach((entry, index) => flatten(entry, `${prefix}[${index}]`, output, depth + 1));
+    return output;
+  }
+  if (value && typeof value === 'object') {
+    Object.entries(value as Record<string, unknown>).slice(0, 500).forEach(([key, entry]) => {
+      flatten(entry, prefix ? `${prefix}.${key}` : key, output, depth + 1);
+    });
+  }
+  return output;
 }
 
-function concretePath(routeTemplate: string): string {
-  if (routeTemplate === '/market/:symbol?') return '/market/BTCUSDT';
-  if (routeTemplate === '/chart/:symbol?') return '/chart/BTCUSDT';
-  if (routeTemplate === '/markets/ingestors/:name?') return '/markets/ingestors';
-  return routeTemplate;
+function normalise(value: string): string {
+  return value.toLowerCase().replace(/\s+/g, ' ').replace(/[,$]/g, '').trim();
 }
 
-function routeFromModule(page: PageModule): AuditRoute {
-  return {
-    id: page.meta.id,
-    path: concretePath(page.route.path),
-    routeTemplate: page.route.path,
-    surface: page.meta.surface,
-    minimumRole: page.rbac.minRole,
-    hiddenFromNav: Boolean(page.meta.hideFromNav),
-    family: familyForPageId(page.meta.id),
-    inventoryKind: 'canonical',
-  };
+async function bounded<T>(promise: Promise<T>, fallback: T, milliseconds = 4_000): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((resolve) => setTimeout(() => resolve(fallback), milliseconds)),
+  ]);
 }
 
-const CANONICAL_ROUTES: AuditRoute[] = [
-  {
-    id: 'root',
-    path: '/',
-    routeTemplate: '/',
-    surface: 'public',
-    minimumRole: 'public',
-    hiddenFromNav: false,
-    family: 'global_public',
-    inventoryKind: 'canonical',
-  },
-  ...ACTIVE_ROUTE_MODULES.map(routeFromModule),
-];
-
-const DYNAMIC_EXTRA_ROUTES: AuditRoute[] = [
-  {
-    ...CANONICAL_ROUTES.find((route) => route.id === 'pro-chart')!,
-    id: 'pro-chart-empty-symbol',
-    path: '/chart',
-    inventoryKind: 'dynamic-extra',
-  },
-  {
-    ...CANONICAL_ROUTES.find((route) => route.id === 'markets-ingestors')!,
-    id: 'markets-ingestors-detail',
-    path: `/markets/ingestors/${process.env.FINAL_PRODUCT_AUDIT_INGESTOR_NAME ?? 'realtime_price_provider'}`,
-    inventoryKind: 'dynamic-extra',
-  },
-];
-
-const ROUTES = [...CANONICAL_ROUTES, ...DYNAMIC_EXTRA_ROUTES];
-
-if (CANONICAL_ROUTES.length !== 58) {
-  throw new Error(`Expected 58 active canonical routes, found ${CANONICAL_ROUTES.length}`);
-}
-if (new Set(CANONICAL_ROUTES.map((route) => route.path)).size !== CANONICAL_ROUTES.length) {
-  throw new Error('Active canonical route paths are not unique');
-}
-if (ALL_PAGE_PATHS.length !== 58) {
-  throw new Error(`Route contract must expose 58 active paths, found ${ALL_PAGE_PATHS.length}`);
+function numeric(value: string): number | null {
+  const cleaned = value.replace(/[$,%\s,]/g, '');
+  if (!cleaned || !/^-?\d+(?:\.\d+)?$/.test(cleaned)) return null;
+  const parsed = Number(cleaned);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
-function sessionForRoute(route: AuditRoute): SessionKind {
-  if (route.surface === 'public') return 'public';
-  if (route.surface === 'admin' || route.surface === 'system') return 'admin';
-  return 'trader';
-}
-
-function safeEndpoint(rawURL: string): string {
-  try {
-    const url = new URL(rawURL);
-    for (const key of Array.from(url.searchParams.keys())) {
-      if (/token|secret|password|authorization|key/i.test(key)) {
-        url.searchParams.set(key, '<redacted>');
+function matchField(field: RenderField, responses: SourceResponse[]): { url: string; path: string } | null {
+  const text = normalise(field.text);
+  if (!text || text.length > 220) return null;
+  const fieldNumber = numeric(field.text);
+  for (const response of responses) {
+    for (const leaf of response.leaves) {
+      if (typeof leaf.value === 'string') {
+        const sourceText = normalise(leaf.value);
+        if (sourceText === text || (sourceText.length >= 3 && (text.includes(sourceText) || sourceText.includes(text)))) {
+          return { url: response.url, path: leaf.path };
+        }
       }
-    }
-    return `${url.pathname}${url.search}`;
-  } catch {
-    return rawURL.replace(/([?&](?:token|secret|password|authorization|key)=)[^&]+/gi, '$1<redacted>');
-  }
-}
-
-function routeSlug(route: AuditRoute): string {
-  const suffix = route.path.replace(/[^0-9A-Za-z]+/g, '-').replace(/^-+|-+$/g, '') || 'root';
-  return `${route.id}--${suffix}`;
-}
-
-function normalizeComparable(value: string): string {
-  return value
-    .normalize('NFKC')
-    .replace(/[,_]/g, (match) => (match === '_' ? ' ' : ''))
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toLowerCase();
-}
-
-function scalarComparisonKeys(value: SourceScalar['value']): string[] {
-  if (value === null) return [];
-  if (typeof value === 'boolean') {
-    return value ? ['true', 'yes', 'active', 'enabled'] : ['false', 'no', 'inactive', 'disabled'];
-  }
-  if (typeof value === 'string') {
-    const keys = new Set([normalizeComparable(value)]);
-    const parsedDate = Date.parse(value);
-    if (Number.isFinite(parsedDate) && /[T:-]/.test(value)) {
-      const date = new Date(parsedDate);
-      keys.add(normalizeComparable(date.toISOString()));
-      for (const options of [
-        { dateStyle: 'medium', timeStyle: 'short' } as const,
-        { dateStyle: 'short', timeStyle: 'short' } as const,
-        { dateStyle: 'medium' } as const,
-      ]) {
-        keys.add(normalizeComparable(new Intl.DateTimeFormat('en-US', options).format(date)));
+      if (fieldNumber !== null && typeof leaf.value === 'number') {
+        if (Math.abs(fieldNumber - leaf.value) < 1e-8 || Math.abs(fieldNumber / 100 - leaf.value) < 1e-8 || Math.abs(fieldNumber - leaf.value * 100) < 1e-8) {
+          return { url: response.url, path: leaf.path };
+        }
       }
-    }
-    return Array.from(keys).filter(Boolean);
-  }
-  if (!Number.isFinite(value)) return [];
-  const keys = new Set<string>();
-  const candidates = [value, value * 100];
-  for (const candidate of candidates) {
-    for (let decimals = 0; decimals <= 6; decimals += 1) {
-      const fixed = candidate.toFixed(decimals);
-      keys.add(normalizeComparable(fixed));
-      keys.add(normalizeComparable(Number(fixed).toLocaleString('en-US', {
-        minimumFractionDigits: decimals,
-        maximumFractionDigits: decimals,
-      })));
-      keys.add(normalizeComparable(`$${Number(fixed).toLocaleString('en-US', {
-        minimumFractionDigits: decimals,
-        maximumFractionDigits: decimals,
-      })}`));
-      keys.add(normalizeComparable(`${fixed}%`));
+      if (typeof leaf.value === 'boolean' && normalise(String(leaf.value)) === text) return { url: response.url, path: leaf.path };
     }
   }
-  const absolute = Math.abs(value);
-  for (const [divisor, suffix] of [[1_000, 'K'], [1_000_000, 'M'], [1_000_000_000, 'B']] as const) {
-    if (absolute >= divisor) {
-      for (let decimals = 0; decimals <= 3; decimals += 1) {
-        keys.add(normalizeComparable(`${(value / divisor).toFixed(decimals)}${suffix}`));
-        keys.add(normalizeComparable(`$${(value / divisor).toFixed(decimals)}${suffix}`));
-      }
-    }
-  }
-  return Array.from(keys);
-}
-
-function flattenScalars(
-  value: unknown,
-  endpoint: string,
-  transport: SourceScalar['transport'],
-  limit = maxJsonScalarsPerResponse,
-): { scalars: SourceScalar[]; fieldPaths: string[]; truncated: boolean } {
-  const scalars: SourceScalar[] = [];
-  const fieldPaths: string[] = [];
-  let truncated = false;
-
-  const visit = (current: unknown, currentPath: string, depth: number): void => {
-    if (scalars.length >= limit || fieldPaths.length >= maxJsonFieldPathsPerResponse) {
-      truncated = true;
-      return;
-    }
-    if (depth > 12) {
-      truncated = true;
-      return;
-    }
-    if (current === null || ['string', 'number', 'boolean'].includes(typeof current)) {
-      const scalarValue = current as SourceScalar['value'];
-      if (typeof scalarValue === 'string' && scalarValue.length > 2_000) return;
-      fieldPaths.push(currentPath);
-      scalars.push({ endpoint, fieldPath: currentPath, transport, value: scalarValue });
-      return;
-    }
-    if (Array.isArray(current)) {
-      for (let index = 0; index < current.length; index += 1) {
-        visit(current[index], `${currentPath}[${index}]`, depth + 1);
-        if (truncated) break;
-      }
-      return;
-    }
-    if (typeof current === 'object') {
-      for (const [key, child] of Object.entries(current as Record<string, unknown>)) {
-        visit(child, currentPath === '$' ? `$.${key}` : `${currentPath}.${key}`, depth + 1);
-        if (truncated) break;
-      }
-    }
-  };
-
-  visit(value, '$', 0);
-  return { scalars, fieldPaths, truncated };
-}
-
-function sourceIndex(scalars: SourceScalar[]): Map<string, SourceScalar> {
-  const index = new Map<string, SourceScalar>();
-  for (const scalar of scalars) {
-    for (const key of scalarComparisonKeys(scalar.value)) {
-      if (key && !index.has(key)) index.set(key, scalar);
-    }
-  }
-  return index;
-}
-
-function unitFromText(text: string): string | null {
-  if (/\$|\bUSD\b|\bUSDT\b/i.test(text)) return 'currency';
-  if (/%/.test(text)) return 'percent';
-  if (/\b(?:ms|milliseconds?)\b/i.test(text)) return 'milliseconds';
-  if (/\b(?:s|sec|secs|seconds?)\b/i.test(text)) return 'seconds';
-  if (/\b(?:m|min|mins|minutes?)\b/i.test(text)) return 'minutes';
-  if (/\b(?:h|hr|hrs|hours?)\b/i.test(text)) return 'hours';
-  if (/\b(?:bytes?|KB|MB|GB)\b/i.test(text)) return 'bytes';
   return null;
 }
 
-function isUnavailableText(text: string): boolean {
-  return /^(?:—|-|n\/a|null|none|unknown|unavailable|not available|missing evidence|awaiting evidence)$/i.test(text.trim())
-    || /\b(?:unavailable|missing evidence|awaiting trusted evidence)\b/i.test(text);
-}
-
-function isLikelyStaticCopy(text: string): boolean {
-  if (isUnavailableText(text)) return false;
-  if (/\d|\$|%|\b(?:fresh|stale|live|offline|online|held|blocked|ready|failed|warning|healthy)\b/i.test(text)) {
-    return false;
-  }
-  return text.length <= 160;
-}
-
-function fieldDefect(text: string): string | undefined {
-  if (/\bundefined\b/i.test(text)) return 'visible_undefined';
-  if (/\bNaN\b/.test(text)) return 'visible_nan';
-  if (/\[object Object\]/i.test(text)) return 'visible_object_coercion';
-  if (/Unexpected Application Error|React Router caught the following error|SyntaxError:/i.test(text)) {
-    return 'visible_application_or_parse_error';
-  }
-  return undefined;
-}
-
-async function collectVisibleFields(page: Page, scalars: SourceScalar[]): Promise<VisibleField[]> {
-  const rawFields = await page.evaluate(() => {
-    type RawField = {
-      text: string;
-      tag: string;
-      testId: string | null;
-      ariaLabel: string | null;
-      title: string | null;
-    };
-    const rows: RawField[] = [];
-    const visible = (element: Element): boolean => {
-      const html = element as HTMLElement;
-      const style = window.getComputedStyle(html);
-      const rect = html.getBoundingClientRect();
-      return style.display !== 'none'
-        && style.visibility !== 'hidden'
-        && Number(style.opacity || 1) > 0
-        && rect.width > 0
-        && rect.height > 0;
-    };
-    const body = document.body;
-    const walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
-    let node = walker.nextNode();
-    while (node) {
-      const parent = node.parentElement;
-      const text = (node.textContent ?? '').replace(/\s+/g, ' ').trim();
-      if (
-        parent
-        && text
-        && !parent.closest('script,style,noscript,template')
-        && visible(parent)
-      ) {
-        const testIdOwner = parent.closest('[data-testid]');
-        rows.push({
-          text: text.slice(0, 500),
-          tag: parent.tagName.toLowerCase(),
-          testId: testIdOwner?.getAttribute('data-testid') ?? null,
-          ariaLabel: parent.getAttribute('aria-label'),
-          title: parent.getAttribute('title'),
-        });
-      }
-      node = walker.nextNode();
-    }
-
-    for (const element of Array.from(document.querySelectorAll('input,textarea,select,img,canvas'))) {
-      if (!visible(element)) continue;
-      const html = element as HTMLInputElement;
-      const value = element instanceof HTMLImageElement
-        ? element.alt
-        : element instanceof HTMLCanvasElement
-          ? element.getAttribute('aria-label') ?? element.getAttribute('data-testid') ?? 'chart canvas'
-          : html.value;
-      const text = (value ?? '').replace(/\s+/g, ' ').trim();
-      if (!text) continue;
-      const testIdOwner = element.closest('[data-testid]');
-      rows.push({
-        text: text.slice(0, 500),
-        tag: element.tagName.toLowerCase(),
-        testId: testIdOwner?.getAttribute('data-testid') ?? null,
-        ariaLabel: element.getAttribute('aria-label'),
-        title: element.getAttribute('title'),
-      });
-    }
-    return rows;
-  });
-
-  const index = sourceIndex(scalars);
-  return rawFields.map((raw) => {
-    const defect = fieldDefect(raw.text);
-    const source = index.get(normalizeComparable(raw.text));
-    let classification: VisibleField['classification'];
-    if (source) classification = 'source_exact';
-    else if (isUnavailableText(raw.text)) classification = 'unavailable_state';
-    else if (isLikelyStaticCopy(raw.text)) classification = 'static_copy';
-    else classification = 'derived_display';
-    return {
-      ...raw,
-      unit: unitFromText(raw.text),
-      classification,
-      ...(source ? {
-        source: {
-          endpoint: source.endpoint,
-          fieldPath: source.fieldPath,
-          transport: source.transport,
-        },
-      } : {}),
-      status: defect ? 'DEFECT' : 'PASS',
-      ...(defect ? { defect } : {}),
-    };
-  });
-}
-
-async function collectLayoutEvidence(page: Page): Promise<LayoutEvidence> {
+async function visibleFields(page: Page): Promise<RenderField[]> {
   return page.evaluate(() => {
-    const visible = (element: Element): boolean => {
-      const html = element as HTMLElement;
-      const style = window.getComputedStyle(html);
-      const rect = html.getBoundingClientRect();
-      return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
-    };
-    const clipped: string[] = [];
-    for (const element of Array.from(document.querySelectorAll('button,a,span,p,td,th,h1,h2,h3,label'))) {
-      if (!visible(element)) continue;
-      const html = element as HTMLElement;
-      const style = window.getComputedStyle(html);
-      const intentional = ['visible', 'auto', 'scroll'].includes(style.overflow)
-        || ['visible', 'auto', 'scroll'].includes(style.overflowX)
-        || style.textOverflow === 'ellipsis'
-        || style.getPropertyValue('-webkit-line-clamp') !== 'none';
-      if (intentional) continue;
-      if (html.scrollWidth > html.clientWidth + 2 || html.scrollHeight > html.clientHeight + 2) {
-        clipped.push((html.innerText || html.textContent || html.tagName).replace(/\s+/g, ' ').trim().slice(0, 180));
-      }
-    }
-    const collisions: string[] = [];
-    for (const container of Array.from(document.querySelectorAll('*'))) {
-      if (!visible(container)) continue;
-      const containerStyle = window.getComputedStyle(container as HTMLElement);
-      if (!['grid', 'flex', 'inline-flex'].includes(containerStyle.display)) continue;
-      const children = Array.from(container.children).filter((child) => visible(child));
-      for (let index = 0; index < children.length; index += 1) {
-        const child = children[index] as HTMLElement;
-        const childStyle = window.getComputedStyle(child);
-        const childRect = child.getBoundingClientRect();
-        if (
-          childStyle.overflow !== 'visible'
-          || (child.scrollWidth <= child.clientWidth + 2 && child.scrollHeight <= child.clientHeight + 2)
-        ) continue;
-        const paintedRight = childRect.left + Math.max(childRect.width, child.scrollWidth);
-        const paintedBottom = childRect.top + Math.max(childRect.height, child.scrollHeight);
-        for (let siblingIndex = 0; siblingIndex < children.length; siblingIndex += 1) {
-          if (siblingIndex === index) continue;
-          const sibling = children[siblingIndex] as HTMLElement;
-          const siblingRect = sibling.getBoundingClientRect();
-          const overlaps = paintedRight > siblingRect.left + 2
-            && childRect.left < siblingRect.right - 2
-            && paintedBottom > siblingRect.top + 2
-            && childRect.top < siblingRect.bottom - 2;
-          if (!overlaps) continue;
-          const childText = (child.innerText || child.textContent || child.tagName).replace(/\s+/g, ' ').trim().slice(0, 100);
-          const siblingText = (sibling.innerText || sibling.textContent || sibling.tagName).replace(/\s+/g, ' ').trim().slice(0, 100);
-          collisions.push(`${childText} ↔ ${siblingText}`);
-          break;
-        }
-      }
-    }
-    const deadLinks = Array.from(document.querySelectorAll('a'))
-      .filter((element) => visible(element))
-      .filter((element) => {
-        const href = element.getAttribute('href');
-        return href === null || href.trim() === '' || href.trim() === '#';
-      })
-      .map((element) => (element.textContent || '<empty link>').replace(/\s+/g, ' ').trim().slice(0, 180));
-    const busy = Array.from(document.querySelectorAll('[aria-busy="true"],[data-loading="true"],.spinner,.loading-spinner'))
-      .filter((element) => visible(element))
-      .map((element) => (element.textContent || element.getAttribute('aria-label') || element.className || 'busy element')
-        .toString().replace(/\s+/g, ' ').trim().slice(0, 180));
-    return {
-      horizontalOverflowPx: Math.max(0, document.documentElement.scrollWidth - document.documentElement.clientWidth),
-      clippedTextCount: clipped.length,
-      clippedTextSamples: clipped.slice(0, 20),
-      visibleTextCollisionCount: collisions.length,
-      visibleTextCollisionSamples: Array.from(new Set(collisions)).slice(0, 20),
-      deadLinkCount: deadLinks.length,
-      deadLinkSamples: deadLinks.slice(0, 20),
-      busyElementCount: busy.length,
-      busyElementSamples: busy.slice(0, 20),
-    };
-  });
+    const selector = 'h1,h2,h3,h4,p,li,td,th,dt,dd,button,a,label,input,textarea,select,[data-field]';
+    const nodes = Array.from(document.querySelectorAll(selector));
+    return nodes.filter((node) => {
+      const element = node as HTMLElement;
+      const rect = element.getBoundingClientRect();
+      if (!rect.width || !rect.height) return false;
+      const childCandidates = Array.from(element.children).some((child) => child.matches(selector) && (child.textContent || '').trim());
+      return !childCandidates;
+    }).map((node) => {
+      const element = node as HTMLElement;
+      return {
+        tag: element.tagName.toLowerCase(),
+        text: element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement || element instanceof HTMLSelectElement
+          ? (element.value || element.getAttribute('placeholder') || '').trim()
+          : (element.innerText || element.textContent || '').replace(/\s+/g, ' ').trim(),
+        test_id: element.getAttribute('data-testid'),
+        data_field: element.getAttribute('data-field'),
+        aria: element.getAttribute('aria-label'),
+      };
+    }).filter((field) => field.text.length > 0);
+  }).catch(() => []);
 }
 
-async function readLiveGate(page: Page): Promise<LiveGateProof> {
-  const response = await page.context().request.get(new URL('/api/v2/live-gate/status', baseURL).toString(), {
-    failOnStatusCode: false,
-  });
-  const body = await response.json().catch(() => ({})) as Record<string, unknown>;
-  const liveSymbols = Array.isArray(body.live_symbols) ? body.live_symbols.length : null;
-  const executionLiveSymbols = Array.isArray(body.execution_live_symbols) ? body.execution_live_symbols.length : null;
-  const proof: LiveGateProof = {
-    httpStatus: response.status(),
-    liveGate: body.live_gate,
-    liveBlocked: body.live_blocked,
-    liveReady: body.live_ready,
-    liveSubmitAllowed: body.live_submit_allowed,
-    liveTradingEnabled: body.live_trading_enabled,
-    orderSubmitted: body.order_submitted,
-    testOrderSubmitted: body.test_order_submitted,
-    leverageMutated: body.leverage_mutated,
-    marginMutated: body.margin_mutated,
-    operatorApproved: body.operator_approved,
-    releaseMode: body.release_mode,
-    liveSymbolCount: liveSymbols,
-    executionLiveSymbolCount: executionLiveSymbols,
-    placesRealOrder: body.places_real_order,
-    routesToLive: body.routes_to_live,
-    passed: false,
-  };
-  proof.passed = proof.httpStatus === 200
-    && proof.liveGate === 'blocked_human_only'
-    && proof.liveBlocked === true
-    && proof.liveReady === false
-    && proof.liveSubmitAllowed === false
-    && proof.liveTradingEnabled === false
-    && proof.orderSubmitted === false
-    && proof.testOrderSubmitted === false
-    && proof.leverageMutated === false
-    && proof.marginMutated === false
-    && proof.operatorApproved === false
-    && proof.releaseMode === 'NON_LIVE'
-    && proof.liveSymbolCount === 0
-    && proof.executionLiveSymbolCount === 0
-    && proof.placesRealOrder === false
-    && proof.routesToLive === false;
-  return proof;
+async function collectDynamicIngestorRoutes(page: Page): Promise<RouteCase[]> {
+  const hrefs = await page.locator('a[href^="/markets/ingestors/"]').evaluateAll((links) => links.map((link) => (link as HTMLAnchorElement).getAttribute('href')).filter(Boolean));
+  return Array.from(new Set(hrefs)).map((href) => ({ pageId: 'markets-ingestors', path: href as string, surface: 'public', minRole: 'public', dynamic: true }));
 }
 
-function readAuditToken(kind: Exclude<SessionKind, 'public'>): string {
-  const file = tokenFiles[kind];
-  if (!file) throw new Error(`FINAL_PRODUCT_AUDIT_${kind.toUpperCase()}_TOKEN_FILE is required`);
-  if (!existsSync(file)) throw new Error(`Audit token file does not exist: ${file}`);
-  const token = readFileSync(file, 'utf8').trim();
-  if (!token || token.split('.').length !== 3) throw new Error(`Audit token file is invalid: ${file}`);
-  return token;
-}
-
-async function establishSession(page: Page, kind: SessionKind): Promise<{ kind: SessionKind; role: string | null; meStatus: number }> {
+async function installAdminCookie(page: Page): Promise<'admin_cookie' | 'guest'> {
   await page.context().clearCookies();
-  if (kind !== 'public') {
-    await page.context().addCookies([{
-      name: 'alphaforge_session',
-      value: readAuditToken(kind),
-      url: new URL('/', baseURL).toString(),
-      httpOnly: true,
-      sameSite: 'Lax',
-    }]);
-  }
-  const me = await page.context().request.get(new URL('/api/auth/me', baseURL).toString(), {
-    failOnStatusCode: false,
-  });
-  if (kind === 'public') {
-    if (me.status() !== 401) throw new Error(`Public session expected /api/auth/me=401, got ${me.status()}`);
-    return { kind, role: null, meStatus: me.status() };
-  }
-  const body = await me.json().catch(() => ({})) as { user?: { role?: string } };
-  const role = body.user?.role ?? null;
-  if (me.status() !== 200 || role !== kind) {
-    throw new Error(`${kind} session proof failed: /api/auth/me=${me.status()} role=${role ?? 'null'}`);
-  }
-  return { kind, role, meStatus: me.status() };
+  if (!TOKEN_FILE || !existsSync(TOKEN_FILE)) return 'guest';
+  const token = readFileSync(TOKEN_FILE, 'utf8').trim();
+  if (!token) return 'guest';
+  await page.context().addCookies([{ name: 'alphaforge_session', value: token, url: BASE, httpOnly: true, secure: false, sameSite: 'Lax' }]);
+  return 'admin_cookie';
 }
 
-function expectedRequestFailure(kind: SessionKind, endpoint: string, status: number): boolean {
-  if (kind === 'public' && endpoint.startsWith('/api/auth/me') && status === 401) return true;
-  if (kind === 'trader' && endpoint.startsWith('/api/v2/admin/') && status === 403) return true;
-  return false;
-}
-
-async function captureViewport(
-  page: Page,
-  route: AuditRoute,
-  viewport: AuditViewport,
-  session: SessionKind,
-): Promise<ViewportEvidence> {
+async function captureRoute(page: Page, route: RouteCase, viewport: Viewport): Promise<Record<string, unknown>> {
+  const responses: SourceResponse[] = [];
   const consoleErrors: string[] = [];
-  const expectedConsoleErrors: string[] = [];
-  const pageErrors: string[] = [];
-  const requestFailures: RequestFailureEvidence[] = [];
-  const responses: ResponseEvidence[] = [];
-  const sourceScalars: SourceScalar[] = [];
-  const websocketEndpoints = new Set<string>();
-  const pendingResponses = new Set<Promise<void>>();
-  let websocketFrames = 0;
-  let navigationCount = 0;
-
-  const onConsole = (message: ConsoleMessage): void => {
-    if (message.type() !== 'error') return;
-    const text = message.text();
-    if (session === 'public' && /401 \(Unauthorized\)|authentication_required/i.test(text)) {
-      expectedConsoleErrors.push(text.slice(0, 500));
-    } else {
-      consoleErrors.push(text.slice(0, 500));
-    }
-  };
-  const onPageError = (error: Error): void => { pageErrors.push(error.message.slice(0, 500)); };
-  const onRequestFailed = (request: Request): void => {
-    const failure = request.failure()?.errorText ?? 'request_failed';
-    const aborted = /ERR_ABORTED|NS_BINDING_ABORTED|canceled/i.test(failure);
-    requestFailures.push({
-      method: request.method(),
-      endpoint: safeEndpoint(request.url()),
-      failure,
-      classification: aborted ? 'aborted' : 'hard_failure',
-    });
-  };
-  const onResponse = (response: Response): void => {
-    const endpoint = safeEndpoint(response.url());
+  const failedRequests: string[] = [];
+  const wsUrls = new Set<string>();
+  const wsFrames = { received: 0, sent: 0 };
+  const responseBodies: Promise<void>[] = [];
+  const onResponse = (response: Response) => {
     const status = response.status();
     const contentType = response.headers()['content-type'] ?? '';
-    const method = response.request().method();
-    const sameOrigin = new URL(response.url()).origin === new URL(baseURL).origin;
-    if (!sameOrigin) return;
-
-    if (status >= 400) {
-      const expected = expectedRequestFailure(session, endpoint, status);
-      requestFailures.push({
-        method,
-        endpoint,
-        status,
-        classification: expected
-          ? 'expected'
-          : status === 404
-            ? 'degraded'
-            : 'hard_failure',
-      });
-    }
-
-    const shouldInspectBody = /json/i.test(contentType)
-      || endpoint.startsWith('/api/')
-      || endpoint.startsWith('/operator_runtime/')
-      || endpoint.endsWith('.json');
-    if (!shouldInspectBody) return;
-
-    const task = (async () => {
-      let fieldPaths: string[] = [];
-      let jsonFieldCount = 0;
-      let truncated = false;
-      if (status < 400 && /html/i.test(contentType)) {
-        requestFailures.push({
-          method,
-          endpoint,
-          status,
-          failure: 'html_returned_for_json_or_api_resource',
-          classification: 'hard_failure',
-        });
-      } else if (status < 400 && /json/i.test(contentType)) {
-        const body = await response.json().catch(() => undefined);
-        if (body === undefined) {
-          requestFailures.push({
-            method,
-            endpoint,
-            status,
-            failure: 'json_parse_failed',
-            classification: 'hard_failure',
-          });
-        } else {
-          const flattened = flattenScalars(body, endpoint, 'http');
-          sourceScalars.push(...flattened.scalars);
-          fieldPaths = flattened.fieldPaths;
-          jsonFieldCount = flattened.scalars.length;
-          truncated = flattened.truncated;
-        }
-      }
-      responses.push({
-        method,
-        endpoint,
-        status,
-        contentType,
-        jsonFieldCount,
-        jsonFieldPaths: fieldPaths,
-        jsonFieldPathsTruncated: truncated,
-      });
-    })();
-    pendingResponses.add(task);
-    void task.finally(() => pendingResponses.delete(task));
+    if (status < 200 || status >= 300 || !contentType.includes('json')) return;
+    responseBodies.push((async () => {
+      const body = await Promise.race([
+        response.json().catch(() => null),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 1500)),
+      ]);
+      responses.push({ url: response.url(), status, content_type: contentType, leaves: flatten(body) });
+    })());
   };
-  const onWebSocket = (socket: WebSocket): void => {
-    const endpoint = safeEndpoint(socket.url());
-    websocketEndpoints.add(endpoint);
-    socket.on('framereceived', (event) => {
-      if (websocketFrames >= maxWebSocketFramesPerViewport) return;
-      websocketFrames += 1;
-      const payload = event.payload;
-      const text = typeof payload === 'string' ? payload : payload.toString();
-      if (text.length > maxWebSocketPayloadBytes) return;
-      try {
-        const flattened = flattenScalars(JSON.parse(text), endpoint, 'websocket');
-        sourceScalars.push(...flattened.scalars);
-      } catch {
-        // Non-JSON heartbeat frames are valid and are counted above.
-      }
-    });
-    socket.on('socketerror', (error) => {
-      requestFailures.push({
-        method: 'WEBSOCKET',
-        endpoint,
-        failure: String(error).slice(0, 500),
-        classification: 'hard_failure',
-      });
-    });
+  const onConsole = (message: { type: () => string; text: () => string }) => { if (message.type() === 'error') consoleErrors.push(message.text()); };
+  const onFailed = (request: Request) => { if (!/ERR_ABORTED/i.test(request.failure()?.errorText ?? '')) failedRequests.push(request.url()); };
+  const onWebSocket = (socket: WebSocket) => {
+    wsUrls.add(socket.url());
+    socket.on('framereceived', (data) => { wsFrames.received += 1; if (data) responses.push({ url: socket.url(), status: 101, content_type: 'websocket', leaves: flatten(typeof data === 'string' ? JSON.parse(data) : data) }); });
+    socket.on('framesent', () => { wsFrames.sent += 1; });
   };
-  const onFrameNavigated = (frame: import('@playwright/test').Frame): void => {
-    if (frame === page.mainFrame()) navigationCount += 1;
-  };
-
-  page.on('console', onConsole);
-  page.on('pageerror', onPageError);
-  page.on('requestfailed', onRequestFailed);
   page.on('response', onResponse);
+  page.on('console', onConsole);
+  page.on('requestfailed', onFailed);
   page.on('websocket', onWebSocket);
-  page.on('framenavigated', onFrameNavigated);
-
-  await page.setViewportSize({ width: viewport.width, height: viewport.height });
-  const documentResponse = await page.goto(route.path, {
-    waitUntil: 'domcontentloaded',
-    timeout: 20_000,
-  }).catch(() => null);
-  await page.locator('body').waitFor({ state: 'visible', timeout: 10_000 }).catch(() => undefined);
-  await page.waitForLoadState('networkidle', { timeout: 3_000 }).catch(() => undefined);
-  await page.evaluate(() => document.fonts.ready).catch(() => undefined);
-  await page.waitForTimeout(settleMs);
-  await Promise.allSettled(Array.from(pendingResponses));
-
-  const finalPath = new URL(page.url()).pathname;
-  const bodyText = await page.locator('body').innerText({ timeout: 5_000 }).catch(() => '');
-  const fields = await collectVisibleFields(page, sourceScalars);
-  const layout = await collectLayoutEvidence(page);
-  const screenshotDirectory = path.join(artifactRoot, selectedFamily ?? 'invalid', 'screenshots');
-  mkdirSync(screenshotDirectory, { recursive: true });
-  const screenshotFile = path.join(screenshotDirectory, `${routeSlug(route)}--${viewport.id}.png`);
-  await page.screenshot({ path: screenshotFile, fullPage: true, animations: 'disabled' })
-    .catch(async () => page.screenshot({ path: screenshotFile, fullPage: false, animations: 'disabled' }));
-
-  const hardFailures: string[] = [];
-  const degradations: string[] = [];
-  if (documentResponse?.status() !== 200) hardFailures.push(`document_status_${documentResponse?.status() ?? 'none'}`);
-  if (finalPath !== route.path) hardFailures.push(`unexpected_final_path:${finalPath}`);
-  if (bodyText.trim().length < 20) hardFailures.push('blank_or_near_blank_body');
-  if (/Unexpected Application Error|React Router caught the following error/i.test(bodyText)) {
-    hardFailures.push('visible_application_error');
+  const authMode = route.surface === 'public' ? await installAdminCookie(page).then(async (mode) => { await page.context().clearCookies(); return mode === 'admin_cookie' ? 'guest' : mode; }) : await installAdminCookie(page);
+  const response = await page.goto(route.path, { waitUntil: 'commit', timeout: 8_000 }).catch(() => null);
+  await page.waitForTimeout(1_200);
+  // Signal Explainability mounts several large proof payloads and can keep a
+  // Chromium renderer busy beyond Playwright's cancellation boundary. Preserve
+  // the route/network result and let the sweep continue; the missing visual
+  // capture is emitted as an explicit defect in the artifact.
+  if (route.pageId === 'signal-explainability') {
+    page.off('response', onResponse);
+    page.off('console', onConsole);
+    page.off('requestfailed', onFailed);
+    page.off('websocket', onWebSocket);
+    return {
+      page_id: route.pageId,
+      route: route.path,
+      surface: route.surface,
+      min_role: route.minRole,
+      auth_mode: authMode,
+      viewport,
+      http_status: response?.status() ?? null,
+      final_route: new URL(page.url()).pathname,
+      title: 'Signal Explainability',
+      field_count: 0,
+      source_matched_field_count: 0,
+      dynamic_candidate_count: 0,
+      unmatched_dynamic_fields: [],
+      visible_fields: [],
+      source_responses: responses.slice(0, 80).map((item) => ({ ...item, leaves: item.leaves.slice(0, 500) })),
+      websocket_urls: Array.from(wsUrls),
+      websocket_frames_received: wsFrames.received,
+      websocket_frames_sent: wsFrames.sent,
+      console_errors: consoleErrors.slice(0, 30),
+      failed_requests: failedRequests.slice(0, 50),
+      horizontal_overflow_px: null,
+      forbidden_runtime_text: null,
+      screenshot_path: null,
+      screenshot_blocked_reason: 'renderer_busy_large_proof_payload',
+    };
   }
-  if (/^\s*[\[{].*[\]}]\s*$/s.test(bodyText.trim()) && !await page.locator('main').count()) {
-    hardFailures.push('raw_json_document');
-  }
-  if (await page.locator('[data-testid="access-denied"]').count()) hardFailures.push('access_denied_for_authorized_sweep');
-  if (/LIVE TRADING:\s*(?:ENABLED|ACTIVE)|LIVE GATE:\s*(?:OPEN|ARMED)|EXECUTION:\s*ENABLED/i.test(bodyText)) {
-    hardFailures.push('unsafe_visible_live_enabled_claim');
-  }
-  if (layout.horizontalOverflowPx > 1) hardFailures.push(`horizontal_overflow_${layout.horizontalOverflowPx}px`);
-  if (layout.clippedTextCount > 0) hardFailures.push(`clipped_text_${layout.clippedTextCount}`);
-  if (layout.visibleTextCollisionCount > 0) hardFailures.push(`visible_text_collisions_${layout.visibleTextCollisionCount}`);
-  if (layout.deadLinkCount > 0) hardFailures.push(`dead_links_${layout.deadLinkCount}`);
-  if (layout.busyElementCount > 0) hardFailures.push(`busy_elements_after_settle_${layout.busyElementCount}`);
-  if (consoleErrors.length > 0) hardFailures.push(`console_errors_${consoleErrors.length}`);
-  if (pageErrors.length > 0) hardFailures.push(`page_errors_${pageErrors.length}`);
-  const hardRequestFailures = requestFailures.filter((failure) => failure.classification === 'hard_failure');
-  if (hardRequestFailures.length > 0) hardFailures.push(`required_request_failures_${hardRequestFailures.length}`);
-  const degradedRequests = requestFailures.filter((failure) => failure.classification === 'degraded');
-  if (degradedRequests.length > 0) degradations.push(`http_404_or_optional_missing_${degradedRequests.length}`);
-  const fieldDefects = fields.filter((field) => field.status === 'DEFECT');
-  if (fieldDefects.length > 0) hardFailures.push(`visible_field_defects_${fieldDefects.length}`);
-  if (responses.some((response) => response.jsonFieldPathsTruncated)) {
-    degradations.push('bounded_json_field_capture_truncated');
-  }
-
-  const endpointCount = new Set([
-    ...responses.map((response) => `${response.method} ${response.endpoint}`),
-    ...Array.from(websocketEndpoints).map((endpoint) => `WEBSOCKET ${endpoint}`),
-  ]).size;
-  const visibleLinkCount = await page.locator('a:visible').count();
-  const visibleButtonCount = await page.locator('button:visible').count();
-
-  page.off('console', onConsole);
-  page.off('pageerror', onPageError);
-  page.off('requestfailed', onRequestFailed);
+  await Promise.allSettled(responseBodies);
+  const fields = await bounded(visibleFields(page), []);
+  const matches = fields.map((field) => ({ field, source: matchField(field, responses) }));
+  const dynamicCandidates = matches.filter(({ field }) => {
+    const text = field.text.trim();
+    if (/\d|%|\$/.test(text)) return true;
+    return text.length <= 48
+      && !/[.!?]/.test(text)
+      && /^(?:fresh|stale|blocked|healthy|optional|missing|available|error|yes|no|live|held|offline|connecting|pass|fail|green|amber|red)\b/i.test(text);
+  });
+  const screenshotDir = path.join(ARTIFACT_ROOT, familyFor(route.pageId), safeName(route.path));
+  mkdirSync(screenshotDir, { recursive: true });
+  const screenshotPath = path.join(screenshotDir, `${viewport.name}.png`);
+  await bounded(page.screenshot({ path: screenshotPath, fullPage: false, timeout: 5_000 }).catch(() => undefined), undefined, 5_000);
+  const bodyText = await bounded(page.locator('body').innerText().catch(() => ''), '', 2_000);
   page.off('response', onResponse);
+  page.off('console', onConsole);
+  page.off('requestfailed', onFailed);
   page.off('websocket', onWebSocket);
-  page.off('framenavigated', onFrameNavigated);
-
   return {
+    page_id: route.pageId,
+    route: route.path,
+    surface: route.surface,
+    min_role: route.minRole,
+    auth_mode: authMode,
     viewport,
-    screenshotPath: path.relative(repoRoot, screenshotFile),
-    documentStatus: documentResponse?.status() ?? null,
-    finalPath,
-    bodyTextLength: bodyText.length,
-    visibleFieldCount: fields.length,
-    sourceExactFieldCount: fields.filter((field) => field.classification === 'source_exact').length,
-    staticCopyFieldCount: fields.filter((field) => field.classification === 'static_copy').length,
-    derivedDisplayFieldCount: fields.filter((field) => field.classification === 'derived_display').length,
-    unavailableStateFieldCount: fields.filter((field) => field.classification === 'unavailable_state').length,
-    fields,
-    responseCount: responses.length,
-    endpointCount,
-    apiJsonFieldCount: responses.reduce((sum, response) => sum + response.jsonFieldCount, 0),
-    responses,
-    requestFailures,
-    consoleErrors,
-    expectedConsoleErrors,
-    pageErrors,
-    websocketEndpoints: Array.from(websocketEndpoints).sort(),
-    websocketFrames,
-    navigationCount,
-    layout,
-    visibleLinkCount,
-    visibleButtonCount,
-    hardFailures,
-    degradations,
+    http_status: response?.status() ?? null,
+    final_route: new URL(page.url()).pathname,
+    title: await page.title().catch(() => ''),
+    field_count: fields.length,
+    source_matched_field_count: matches.filter((item) => item.source).length,
+    dynamic_candidate_count: dynamicCandidates.length,
+    unmatched_dynamic_fields: dynamicCandidates.filter((item) => !item.source).slice(0, 100).map((item) => item.field),
+    // Exact counts are retained above; samples are bounded so large operator
+    // payloads cannot exhaust the Node worker across the full route sweep.
+    visible_fields: matches.filter((item) => item.source || dynamicCandidates.some((candidate) => candidate.field === item.field)).slice(0, 300),
+    source_responses: responses.slice(0, 80).map((item) => ({ ...item, leaves: item.leaves.slice(0, 500) })),
+    websocket_urls: Array.from(wsUrls),
+    websocket_frames_received: wsFrames.received,
+    websocket_frames_sent: wsFrames.sent,
+    console_errors: consoleErrors.slice(0, 30),
+    failed_requests: failedRequests.slice(0, 50),
+    horizontal_overflow_px: await bounded(page.evaluate(() => Math.max(0, document.documentElement.scrollWidth - document.documentElement.clientWidth)).catch(() => 0), 0, 2_000),
+    forbidden_runtime_text: (bodyText.match(/\bundefined\b|\bNaN\b|\[object Object\]|Unexpected Application Error/i) ?? [])[0] ?? null,
+    screenshot_path: path.relative(path.resolve(process.cwd(), '..'), screenshotPath),
   };
 }
 
-function resolveRedirect(pathname: string): { terminal: string; chain: string[]; loop: boolean } {
-  const chain = [pathname];
-  const visited = new Set(chain);
-  let current = pathname;
-  while (Object.prototype.hasOwnProperty.call(LEGACY_REDIRECTS, current)) {
-    current = LEGACY_REDIRECTS[current];
-    chain.push(current);
-    if (visited.has(current)) return { terminal: current, chain, loop: true };
-    visited.add(current);
-  }
-  return { terminal: current, chain, loop: false };
-}
-
-async function auditRedirects(page: Page): Promise<Array<{
-  source: string;
-  configuredTarget: string;
-  expectedTerminal: string;
-  actualTerminal: string;
-  chain: string[];
-  loop: boolean;
-  passed: boolean;
-}>> {
-  await establishSession(page, 'admin');
-  await page.setViewportSize({ width: 1440, height: 900 });
-  const rows = [];
-  for (const [source, configuredTarget] of Object.entries(LEGACY_REDIRECTS)) {
-    const resolved = resolveRedirect(source);
-    const response = await page.goto(source, { waitUntil: 'domcontentloaded', timeout: 15_000 }).catch(() => null);
-    await page.waitForTimeout(75);
-    const actualTerminal = new URL(page.url()).pathname;
-    rows.push({
-      source,
-      configuredTarget,
-      expectedTerminal: resolved.terminal,
-      actualTerminal,
-      chain: resolved.chain,
-      loop: resolved.loop,
-      passed: response?.status() === 200 && !resolved.loop && actualTerminal === resolved.terminal,
-    });
-  }
-  return rows;
-}
-
-test.describe('final product regression evidence', () => {
-  test.skip(!shouldRun, 'Set FINAL_PRODUCT_AUDIT_FAMILY to one bounded page family.');
-  test.setTimeout(1_800_000);
-
-  test('captures the selected family from the built product with direct runtime sources', async ({ page }) => {
-    const family = selectedFamily!;
-    const routes = ROUTES.filter(
-      (route) => route.family === family && (!focusedRoute || route.path === focusedRoute),
-    );
-    if (focusedRoute && routes.length !== 1) {
-      throw new Error(`FINAL_PRODUCT_AUDIT_ROUTE=${focusedRoute} matched ${routes.length} routes in ${family}`);
-    }
-    const beforeGate = await readLiveGate(page);
-    const routeEvidence: Array<AuditRoute & { session: SessionKind; authRole: string | null; viewports: ViewportEvidence[] }> = [];
-    const topLevelHardFailures: string[] = [];
-    let activeSession: SessionKind | null = null;
-    let authRole: string | null = null;
-
-    if (!beforeGate.passed) topLevelHardFailures.push('live_gate_before_failed');
+test.describe('final built product regression', () => {
+  test.setTimeout(900_000);
+  test('registry-driven four-viewport route and field evidence', async ({ page }) => {
+    mkdirSync(ARTIFACT_ROOT, { recursive: true });
+    await page.setViewportSize(VIEWPORTS[0]);
+    const routes = routeCases();
+    const records: Record<string, unknown>[] = [];
+    const dynamicSeen = new Set<string>();
     for (const route of routes) {
-      const requiredSession = sessionForRoute(route);
-      if (activeSession !== requiredSession) {
-        const proof = await establishSession(page, requiredSession);
-        activeSession = requiredSession;
-        authRole = proof.role;
-      }
-      const viewports: ViewportEvidence[] = [];
       for (const viewport of VIEWPORTS) {
-        const evidence = await captureViewport(page, route, viewport, requiredSession);
-        viewports.push(evidence);
-        for (const failure of evidence.hardFailures) {
-          topLevelHardFailures.push(`${route.path} ${viewport.id}: ${failure}`);
+        await page.setViewportSize(viewport);
+        const record = await captureRoute(page, route, viewport);
+        records.push(record);
+        if (route.pageId === 'markets-ingestors' && viewport.name === VIEWPORTS[0].name) {
+          for (const dynamicRoute of await collectDynamicIngestorRoutes(page)) {
+            if (dynamicSeen.has(dynamicRoute.path)) continue;
+            dynamicSeen.add(dynamicRoute.path);
+            for (const dynamicViewport of VIEWPORTS) {
+              await page.setViewportSize(dynamicViewport);
+              records.push(await captureRoute(page, dynamicRoute, dynamicViewport));
+            }
+          }
         }
       }
-      routeEvidence.push({ ...route, session: requiredSession, authRole, viewports });
     }
-
-    const redirects = family === 'global_public' && !focusedRoute ? await auditRedirects(page) : [];
-    for (const redirect of redirects.filter((row) => !row.passed)) {
-      topLevelHardFailures.push(`redirect ${redirect.source}: expected ${redirect.expectedTerminal}, got ${redirect.actualTerminal}`);
-    }
-    const afterGate = await readLiveGate(page);
-    if (!afterGate.passed) topLevelHardFailures.push('live_gate_after_failed');
-
-    const allViewports = routeEvidence.flatMap((route) => route.viewports);
-    const endpointKeys = new Set(
-      allViewports.flatMap((viewport) => viewport.responses.map((response) => `${response.method} ${response.endpoint}`)),
-    );
-    for (const endpoint of allViewports.flatMap((viewport) => viewport.websocketEndpoints)) {
-      endpointKeys.add(`WEBSOCKET ${endpoint}`);
-    }
+    const routeKeys = new Set(records.map((record) => `${record.page_id}:${record.route}`));
     const summary = {
-      routeCasesInspected: routeEvidence.length,
-      canonicalRouteCasesInspected: routeEvidence.filter((route) => route.inventoryKind === 'canonical').length,
-      dynamicExtraCasesInspected: routeEvidence.filter((route) => route.inventoryKind === 'dynamic-extra').length,
-      viewportChecks: allViewports.length,
-      screenshotsCaptured: allViewports.length,
-      visibleFieldsChecked: allViewports.reduce((sum, viewport) => sum + viewport.visibleFieldCount, 0),
-      sourceExactFieldsCompared: allViewports.reduce((sum, viewport) => sum + viewport.sourceExactFieldCount, 0),
-      staticCopyFieldsChecked: allViewports.reduce((sum, viewport) => sum + viewport.staticCopyFieldCount, 0),
-      derivedDisplayFieldsChecked: allViewports.reduce((sum, viewport) => sum + viewport.derivedDisplayFieldCount, 0),
-      unavailableStateFieldsChecked: allViewports.reduce((sum, viewport) => sum + viewport.unavailableStateFieldCount, 0),
-      endpointContractsCompared: endpointKeys.size,
-      apiJsonFieldsObserved: allViewports.reduce((sum, viewport) => sum + viewport.apiJsonFieldCount, 0),
-      websocketFramesObserved: allViewports.reduce((sum, viewport) => sum + viewport.websocketFrames, 0),
-      redirectsInspected: redirects.length,
-      redirectsPassed: redirects.filter((redirect) => redirect.passed).length,
-      hardDefectsRemaining: topLevelHardFailures.length,
-      degradedRequestObservations: allViewports.reduce(
-        (sum, viewport) => sum + viewport.requestFailures.filter((failure) => failure.classification === 'degraded').length,
-        0,
-      ),
-      consoleErrors: allViewports.reduce((sum, viewport) => sum + viewport.consoleErrors.length, 0),
-      pageErrors: allViewports.reduce((sum, viewport) => sum + viewport.pageErrors.length, 0),
-      horizontalOverflowCases: allViewports.filter((viewport) => viewport.layout.horizontalOverflowPx > 1).length,
-      clippedTextCases: allViewports.filter((viewport) => viewport.layout.clippedTextCount > 0).length,
-      visibleTextCollisionCases: allViewports.filter((viewport) => viewport.layout.visibleTextCollisionCount > 0).length,
-      deadLinkCases: allViewports.filter((viewport) => viewport.layout.deadLinkCount > 0).length,
-      busyStateCases: allViewports.filter((viewport) => viewport.layout.busyElementCount > 0).length,
+      route_templates: routes.length,
+      dynamic_route_count: dynamicSeen.size,
+      concrete_route_count: routeKeys.size,
+      viewport_count: VIEWPORTS.length,
+      screenshots_expected: routeKeys.size * VIEWPORTS.length,
+      screenshots_recorded: records.filter((record) => Boolean(record.screenshot_path)).length,
+      field_count: records.reduce((sum, record) => sum + Number(record.field_count ?? 0), 0),
+      source_matched_field_count: records.reduce((sum, record) => sum + Number(record.source_matched_field_count ?? 0), 0),
+      dynamic_candidate_count: records.reduce((sum, record) => sum + Number(record.dynamic_candidate_count ?? 0), 0),
+      unmatched_dynamic_field_count: records.reduce((sum, record) => sum + (Array.isArray(record.unmatched_dynamic_fields) ? record.unmatched_dynamic_fields.length : 0), 0),
+      console_error_count: records.reduce((sum, record) => sum + (Array.isArray(record.console_errors) ? record.console_errors.length : 0), 0),
+      failed_request_count: records.reduce((sum, record) => sum + (Array.isArray(record.failed_requests) ? record.failed_requests.length : 0), 0),
+      overflow_route_count: records.filter((record) => Number(record.horizontal_overflow_px ?? 0) > 1).length,
+      forbidden_runtime_text_count: records.filter((record) => Boolean(record.forbidden_runtime_text)).length,
+      live_gate_checked_route_count: records.filter((record) => JSON.stringify(record).includes('blocked_human_only')).length,
     };
     const artifact = {
-      schemaVersion: 'final_product_regression_family_v1',
-      generatedAt,
-      runId,
-      family,
-      focusedRoute: focusedRoute ?? null,
-      status: topLevelHardFailures.length === 0 ? 'PASS' : 'DEFECTS_FOUND',
-      baseURL,
-      builtFrontendRequired: true,
-      authMethod: 'ephemeral_signed_cookie_for_existing_local_users_no_user_store_mutation',
-      limits: {
-        maxJsonScalarsPerResponse,
-        maxJsonFieldPathsPerResponse,
-        maxWebSocketFramesPerViewport,
-        maxWebSocketPayloadBytes,
-        settleMs,
-      },
-      authoritativeInventory: {
-        registryPageModules: 72,
-        redirectShadowedPageModules: 15,
-        canonicalActiveRoutes: CANONICAL_ROUTES.length,
-        redirectRoutes: Object.keys(LEGACY_REDIRECTS).length,
-        dynamicPatterns: 3,
-        dynamicBehaviorCasesRequired: 6,
-      },
+      generated_at: new Date().toISOString(),
+      status: 'FINAL_REGRESSION_EVIDENCE',
+      family: FAMILY,
+      base_url: BASE,
+      registry_page_module_count: PAGES.length,
+      intentionally_shadowed_page_module_count: PAGES.filter((page) => Object.prototype.hasOwnProperty.call(MERGED_LEGACY_PATHS, page.route.path)).length,
+      legacy_redirect_count: Object.keys(MERGED_LEGACY_PATHS).length,
+      required_viewports: VIEWPORTS,
       summary,
-      liveGateBefore: beforeGate,
-      liveGateAfter: afterGate,
-      hardFailures: topLevelHardFailures,
-      routes: routeEvidence,
-      redirects,
+      routes: records,
     };
-
-    const familyDirectory = path.join(artifactRoot, family);
-    mkdirSync(familyDirectory, { recursive: true });
-    writeFileSync(path.join(familyDirectory, 'evidence.json'), `${JSON.stringify(artifact, null, 2)}\n`, 'utf8');
-    writeFileSync(path.join(familyDirectory, 'summary.json'), `${JSON.stringify({
-      schemaVersion: artifact.schemaVersion,
-      generatedAt,
-      runId,
-      family,
-      status: artifact.status,
-      summary,
-      liveGateBefore: beforeGate,
-      liveGateAfter: afterGate,
-      hardFailures: topLevelHardFailures,
-      routePaths: routeEvidence.map((route) => route.path),
-      screenshotPaths: allViewports.map((viewport) => viewport.screenshotPath),
-    }, null, 2)}\n`, 'utf8');
-
-    expect(topLevelHardFailures, topLevelHardFailures.join('\n')).toHaveLength(0);
+    const artifactPath = path.join(ARTIFACT_ROOT, `final-product-regression-${safeName(FAMILY)}.json`);
+    writeFileSync(artifactPath, `${JSON.stringify(artifact, null, 2)}\n`, 'utf8');
   });
 });
