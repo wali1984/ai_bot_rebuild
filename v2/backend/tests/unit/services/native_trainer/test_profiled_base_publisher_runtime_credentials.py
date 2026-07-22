@@ -722,9 +722,9 @@ def test_publisher_immutable_dropin_uses_one_release_and_read_only_broker_root()
         re.findall(r"deployments/ai_bot_rebuild/([0-9a-f]{40})", dropin)
     )
 
-    assert release_shas == {"674eafe8a8afa56ab5d838fb7c951d6184c618fe"}
-    assert "AI_BOT_CODE_SHA=674eafe8a8afa56ab5d838fb7c951d6184c618fe" in dropin
-    assert "diff --quiet --exit-code 674eafe8a8afa56ab5d838fb7c951d6184c618fe --" in dropin
+    assert release_shas == {"bc946bdabe832581788014cdfb777698f2ee5db5"}
+    assert "AI_BOT_CODE_SHA=bc946bdabe832581788014cdfb777698f2ee5db5" in dropin
+    assert "diff --quiet --exit-code bc946bdabe832581788014cdfb777698f2ee5db5 --" in dropin
     assert (
         "ReadOnlyPaths=/home/wali/ai_bot_local_data/v2_authenticated_evidence/"
         "binance_usdm_commission_broker_v1" in dropin
