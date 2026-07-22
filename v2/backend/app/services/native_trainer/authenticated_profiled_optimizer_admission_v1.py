@@ -416,6 +416,93 @@ def _completion_binding(
     }
 
 
+def profiled_optimizer_external_completion_claim_template_v1(
+    *,
+    authenticated_manifest: AuthenticatedProfiledTrainingObservationManifestV1,
+    completion: LocalProfiledTrainingObservationCompletionCandidateV1,
+    final_page: LocalProfiledTrainingObservationPageReceiptV1,
+    witness_id: str,
+    namespace: str,
+    witness_public_key_sha256: str,
+    authorization_sequence: int,
+    previous_authorization_event_sha256: str,
+    authorization_challenge: bytes | bytearray | memoryview,
+) -> bytes:
+    """Return the canonical completion claim with only ``accepted_at`` absent.
+
+    A durable purpose-specific request persists these exact bytes before any
+    future dispatch.  The independent witness may add only its canonical
+    acceptance clock and signature.  This encoder accepts no private key and
+    creates no authorization envelope or optimizer authority.
+    """
+
+    return _canonical_json_bytes(
+        _authorization_claim_template_material(
+            authenticated_manifest=authenticated_manifest,
+            completion=completion,
+            final_page=final_page,
+            witness_id=witness_id,
+            namespace=namespace,
+            witness_public_key_sha256=witness_public_key_sha256,
+            authorization_sequence=authorization_sequence,
+            previous_authorization_event_sha256=(previous_authorization_event_sha256),
+            authorization_challenge=_challenge(authorization_challenge),
+        ),
+        reason="PROFILED_OPTIMIZER_EXTERNAL_COMPLETION_CLAIM_TEMPLATE_INVALID",
+    )
+
+
+def _authorization_claim_template_material(
+    *,
+    authenticated_manifest: AuthenticatedProfiledTrainingObservationManifestV1,
+    completion: LocalProfiledTrainingObservationCompletionCandidateV1,
+    final_page: LocalProfiledTrainingObservationPageReceiptV1,
+    witness_id: str,
+    namespace: str,
+    witness_public_key_sha256: str,
+    authorization_sequence: int,
+    previous_authorization_event_sha256: str,
+    authorization_challenge: bytes,
+) -> dict[str, Any]:
+    witness = _identifier(witness_id, reason="PROFILED_OPTIMIZER_WITNESS_ID_INVALID")
+    witness_namespace = _identifier(
+        namespace,
+        reason="PROFILED_OPTIMIZER_WITNESS_NAMESPACE_INVALID",
+    )
+    if not _valid_sha256(witness_public_key_sha256):
+        _fail("PROFILED_OPTIMIZER_WITNESS_PUBLIC_KEY_FINGERPRINT_INVALID")
+    if (
+        type(authorization_sequence) is not int
+        or authorization_sequence <= 0
+        or authorization_sequence > 2**63 - 1
+    ):
+        _fail("PROFILED_OPTIMIZER_WITNESS_SEQUENCE_INVALID")
+    if not _valid_sha256(previous_authorization_event_sha256):
+        _fail("PROFILED_OPTIMIZER_WITNESS_PREVIOUS_EVENT_INVALID")
+    challenge = _challenge(authorization_challenge)
+    return {
+        "schema_version": (PROFILED_OPTIMIZER_EXTERNAL_COMPLETION_AUTHORIZATION_V1_SCHEMA_VERSION),
+        "signature_algorithm": (PROFILED_OPTIMIZER_EXTERNAL_COMPLETION_AUTHORIZATION_ALGORITHM),
+        "signature_domain": PROFILED_OPTIMIZER_EXTERNAL_COMPLETION_AUTHORIZATION_DOMAIN,
+        "witness_id": witness,
+        "namespace": witness_namespace,
+        "declared_witness_public_key_sha256": witness_public_key_sha256,
+        "authorization_sequence": authorization_sequence,
+        "previous_authorization_event_sha256": previous_authorization_event_sha256,
+        "authorization_challenge_sha256": hashlib.sha256(challenge).hexdigest(),
+        "authorization_challenge_byte_count": len(challenge),
+        "authorization_scope": PROFILED_OPTIMIZER_ADMISSION_SCOPE,
+        "manifest_binding": _manifest_binding(authenticated_manifest),
+        "full_consumption_binding": _completion_binding(completion, final_page),
+        "external_monotonic_manifest_head_verified": True,
+        "full_consumption_external_ack_verified": True,
+        "profiled_optimizer_admission_authorized": True,
+        "outcome_supervised_objective_only": True,
+        "behavior_policy_terms_authorized": False,
+        **_DOWNSTREAM_FALSE,
+    }
+
+
 def _authorization_unsigned_material(
     *,
     authenticated_manifest: AuthenticatedProfiledTrainingObservationManifestV1,
@@ -429,18 +516,17 @@ def _authorization_unsigned_material(
     authorization_challenge: bytes,
     accepted_at: str,
 ) -> dict[str, Any]:
-    witness = _identifier(witness_id, reason="PROFILED_OPTIMIZER_WITNESS_ID_INVALID")
-    witness_namespace = _identifier(
-        namespace,
-        reason="PROFILED_OPTIMIZER_WITNESS_NAMESPACE_INVALID",
+    template = _authorization_claim_template_material(
+        authenticated_manifest=authenticated_manifest,
+        completion=completion,
+        final_page=final_page,
+        witness_id=witness_id,
+        namespace=namespace,
+        witness_public_key_sha256=witness_public_key_sha256,
+        authorization_sequence=authorization_sequence,
+        previous_authorization_event_sha256=previous_authorization_event_sha256,
+        authorization_challenge=authorization_challenge,
     )
-    if not _valid_sha256(witness_public_key_sha256):
-        _fail("PROFILED_OPTIMIZER_WITNESS_PUBLIC_KEY_FINGERPRINT_INVALID")
-    if type(authorization_sequence) is not int or authorization_sequence <= 0:
-        _fail("PROFILED_OPTIMIZER_WITNESS_SEQUENCE_INVALID")
-    if not _valid_sha256(previous_authorization_event_sha256):
-        _fail("PROFILED_OPTIMIZER_WITNESS_PREVIOUS_EVENT_INVALID")
-    challenge = _challenge(authorization_challenge)
     accepted = _clock(
         accepted_at,
         reason="PROFILED_OPTIMIZER_WITNESS_ACCEPTED_AT_INVALID",
@@ -455,28 +541,7 @@ def _authorization_unsigned_material(
     )
     if accepted <= max(observation, final_page_verified):
         _fail("PROFILED_OPTIMIZER_WITNESS_ACCEPTED_BEFORE_FULL_CONSUMPTION")
-    return {
-        "schema_version": (PROFILED_OPTIMIZER_EXTERNAL_COMPLETION_AUTHORIZATION_V1_SCHEMA_VERSION),
-        "signature_algorithm": (PROFILED_OPTIMIZER_EXTERNAL_COMPLETION_AUTHORIZATION_ALGORITHM),
-        "signature_domain": PROFILED_OPTIMIZER_EXTERNAL_COMPLETION_AUTHORIZATION_DOMAIN,
-        "witness_id": witness,
-        "namespace": witness_namespace,
-        "declared_witness_public_key_sha256": witness_public_key_sha256,
-        "authorization_sequence": authorization_sequence,
-        "previous_authorization_event_sha256": previous_authorization_event_sha256,
-        "authorization_challenge_sha256": hashlib.sha256(challenge).hexdigest(),
-        "authorization_challenge_byte_count": len(challenge),
-        "accepted_at": accepted_at,
-        "authorization_scope": PROFILED_OPTIMIZER_ADMISSION_SCOPE,
-        "manifest_binding": _manifest_binding(authenticated_manifest),
-        "full_consumption_binding": _completion_binding(completion, final_page),
-        "external_monotonic_manifest_head_verified": True,
-        "full_consumption_external_ack_verified": True,
-        "profiled_optimizer_admission_authorized": True,
-        "outcome_supervised_objective_only": True,
-        "behavior_policy_terms_authorized": False,
-        **_DOWNSTREAM_FALSE,
-    }
+    return {**template, "accepted_at": accepted_at}
 
 
 def profiled_optimizer_external_completion_signing_payload_v1(
@@ -642,7 +707,16 @@ def _verify_external_authorization(
         authorization_challenge=authorization_challenge,
         accepted_at=cast(str, parsed.get("accepted_at")),
     )
-    if unsigned != expected:
+    if not hmac.compare_digest(
+        _canonical_json_bytes(
+            unsigned,
+            reason="PROFILED_OPTIMIZER_EXTERNAL_AUTHORIZATION_JSON_INVALID",
+        ),
+        _canonical_json_bytes(
+            expected,
+            reason="PROFILED_OPTIMIZER_EXTERNAL_AUTHORIZATION_JSON_INVALID",
+        ),
+    ):
         _fail("PROFILED_OPTIMIZER_EXTERNAL_AUTHORIZATION_BINDING_MISMATCH")
     public_key_bytes, public_key_sha256 = _public_key(
         witness_public_key_bytes,
@@ -1696,5 +1770,6 @@ __all__ = (
     "AuthenticatedProfiledOutcomeSupervisedTargetV1",
     "VerifiedProfiledOptimizerExternalCompletionAuthorizationV1",
     "admit_authenticated_profiled_optimizer_candidate_v1",
+    "profiled_optimizer_external_completion_claim_template_v1",
     "profiled_optimizer_external_completion_signing_payload_v1",
 )

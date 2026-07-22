@@ -53,7 +53,6 @@ WITNESS_NAMESPACE = "unit/profiled-optimizer-completion"
 WITNESS_SEQUENCE = 17
 PREVIOUS_WITNESS_EVENT_SHA256 = hashlib.sha256(b"external-witness-event-16").hexdigest()
 AUTHORIZATION_CHALLENGE = hashlib.sha256(b"adapter-one-time-challenge-v1").digest()
-ACCEPTED_AT = "2026-07-27T00:00:00.000000Z"
 _WITNESS_PRIVATE_BYTES = hashlib.sha256(b"external-witness-private-test-key-v1").digest()
 
 
@@ -88,15 +87,27 @@ def adapter_evidence(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Any]
         source_root,
         base,
     )
+    fixture_base = datetime.fromisoformat(observation.replace("Z", "+00:00")).astimezone(
+        UTC
+    )
+    factory_wall_clock = fixture_base + timedelta(minutes=1)
+    final_page_verified_at = (
+        (fixture_base + timedelta(minutes=2))
+        .isoformat(timespec="microseconds")
+        .replace("+00:00", "Z")
+    )
+    accepted_at = (
+        (fixture_base + timedelta(minutes=3))
+        .isoformat(timespec="microseconds")
+        .replace("+00:00", "Z")
+    )
     monkeypatch = pytest.MonkeyPatch()
     monkeypatch.setattr(
         manifest_module,
         "_factory_wall_clock_now",
-        lambda: max(
-            datetime.now(tz=UTC) + timedelta(days=1),
-            datetime(2026, 7, 25, tzinfo=UTC),
-        ),
+        lambda: factory_wall_clock,
     )
+    monkeypatch.setattr(head_support, "VERIFIED_AT", final_page_verified_at)
     try:
         built = build_profiled_training_observation_manifest_v1(
             ledger=ledger,
@@ -146,7 +157,7 @@ def adapter_evidence(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Any]
             authorization_sequence=WITNESS_SEQUENCE,
             previous_authorization_event_sha256=PREVIOUS_WITNESS_EVENT_SHA256,
             authorization_challenge=AUTHORIZATION_CHALLENGE,
-            accepted_at=ACCEPTED_AT,
+            accepted_at=accepted_at,
         )
         unsigned = json.loads(
             signing_payload[len(PROFILED_OPTIMIZER_EXTERNAL_COMPLETION_AUTHORIZATION_SEPARATOR) :]
@@ -170,6 +181,7 @@ def adapter_evidence(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Any]
             "public_key_sha256": public_key_sha256,
             "signing_payload": signing_payload,
             "envelope": envelope,
+            "accepted_at": accepted_at,
         }
     finally:
         monkeypatch.undo()
@@ -247,7 +259,7 @@ def test_valid_externally_witnessed_fixture_yields_typed_supervised_input_only(
     assert admitted.witness_namespace == WITNESS_NAMESPACE
     assert admitted.witness_public_key_sha256 == adapter_evidence["public_key_sha256"]
     assert admitted.witness_previous_event_sha256 == PREVIOUS_WITNESS_EVENT_SHA256
-    assert admitted.witness_accepted_at == ACCEPTED_AT
+    assert admitted.witness_accepted_at == adapter_evidence["accepted_at"]
     assert admitted.sample_identity_sha256 == adapter_evidence["candidate"].sample_identity_sha256
     assert admitted.label_binding_sha256 == adapter_evidence["candidate"].label_binding_sha256
     assert admitted.tensor_binding_sha256 == adapter_evidence["candidate"].tensor_binding_sha256
@@ -346,6 +358,34 @@ def test_signed_authorization_cannot_be_replayed_under_a_different_challenge(
             adapter_evidence,
             challenge=hashlib.sha256(b"different-one-time-challenge").digest(),
         )
+
+
+def test_signed_boolean_cannot_alias_an_integer_manifest_binding(
+    adapter_evidence: dict[str, Any],
+) -> None:
+    signing_payload = adapter_evidence["signing_payload"]
+    unsigned = json.loads(
+        signing_payload[
+            len(PROFILED_OPTIMIZER_EXTERNAL_COMPLETION_AUTHORIZATION_SEPARATOR) :
+        ]
+    )
+    assert unsigned["manifest_binding"]["total_profiled_samples"] == 1
+    unsigned["manifest_binding"]["total_profiled_samples"] = True
+    payload = PROFILED_OPTIMIZER_EXTERNAL_COMPLETION_AUTHORIZATION_SEPARATOR + _canonical(
+        unsigned
+    )
+    forged = _canonical(
+        {
+            **unsigned,
+            "signature_hex": _private_key().sign(payload).hex(),
+        }
+    )
+
+    with pytest.raises(
+        AuthenticatedProfiledOptimizerAdmissionV1Error,
+        match="PROFILED_OPTIMIZER_EXTERNAL_AUTHORIZATION_BINDING_MISMATCH",
+    ):
+        _admit(adapter_evidence, envelope=forged)
 
 
 def test_signed_envelope_with_altered_manifest_binding_is_rejected(
