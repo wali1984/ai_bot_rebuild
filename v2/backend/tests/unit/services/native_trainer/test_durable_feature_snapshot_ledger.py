@@ -286,6 +286,103 @@ def test_exact_path_writer_lease_is_nonblocking_and_one_shot(tmp_path: Path) -> 
         assert reacquired.held is True
 
 
+def test_resident_wal_sidecar_guard_requires_writer_and_stays_transaction_free(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = (tmp_path / "resident.sqlite3").resolve()
+    unbound = DurableFeatureSnapshotLedger(path)
+    with pytest.raises(
+        FeatureSnapshotWriterLeaseError,
+        match="resident_wal_sidecar_guard_writer_lease_required",
+    ):
+        with unbound.resident_wal_sidecar_guard():
+            pytest.fail("an observer cannot materialize writer-owned sidecars")
+
+    with FeatureSnapshotWriterLease.acquire(path) as writer_lease:
+        ledger = DurableFeatureSnapshotLedger(path, writer_lease=writer_lease)
+        ledger.initialize()
+        opened: list[sqlite3.Connection] = []
+        original_connect_write = DurableFeatureSnapshotLedger._connect_write
+
+        def tracked_connect_write(
+            self: DurableFeatureSnapshotLedger,
+            *,
+            writer_lease: FeatureSnapshotWriterLease,
+            initialize: bool = False,
+        ) -> sqlite3.Connection:
+            connection = original_connect_write(
+                self,
+                writer_lease=writer_lease,
+                initialize=initialize,
+            )
+            opened.append(connection)
+            return connection
+
+        monkeypatch.setattr(
+            DurableFeatureSnapshotLedger,
+            "_connect_write",
+            tracked_connect_write,
+        )
+        descriptors_before = len(os.listdir("/proc/self/fd"))
+        with ledger.resident_wal_sidecar_guard():
+            wal = Path(f"{path}-wal")
+            shm = Path(f"{path}-shm")
+            assert wal.is_file()
+            assert shm.is_file()
+            live_connections: list[sqlite3.Connection] = []
+            for connection in opened:
+                try:
+                    connection.execute("SELECT 1").fetchone()
+                except sqlite3.ProgrammingError:
+                    continue
+                live_connections.append(connection)
+            assert len(live_connections) == 1
+            coordination = live_connections[0]
+            assert int(coordination.execute("PRAGMA query_only").fetchone()[0]) == 1
+            assert (
+                str(coordination.execute("PRAGMA journal_mode").fetchone()[0]).lower()
+                == "wal"
+            )
+            assert coordination.in_transaction is False
+            ledger.append_snapshot(_record(original_tensor_id="tensor:resident"))
+            assert wal.is_file()
+            assert shm.is_file()
+            assert ledger.verify_integrity_streaming().verified_records == 1
+            checkpoint = sqlite3.connect(path)
+            try:
+                busy, log_frames, checkpointed_frames = checkpoint.execute(
+                    "PRAGMA wal_checkpoint(PASSIVE)"
+                ).fetchone()
+            finally:
+                checkpoint.close()
+            assert busy == 0
+            assert log_frames == checkpointed_frames
+            assert coordination.in_transaction is False
+            with pytest.raises(FeatureSnapshotWriterLeaseError, match="already_held"):
+                FeatureSnapshotWriterLease.acquire(path)
+        assert len(os.listdir("/proc/self/fd")) == descriptors_before
+        for connection in opened:
+            with pytest.raises(sqlite3.ProgrammingError):
+                connection.execute("SELECT 1").fetchone()
+
+
+def test_resident_wal_sidecar_guard_closes_on_body_failure(tmp_path: Path) -> None:
+    path = (tmp_path / "resident-failure.sqlite3").resolve()
+    descriptors_before = len(os.listdir("/proc/self/fd"))
+
+    with pytest.raises(RuntimeError, match="injected_guard_body_failure"):
+        with FeatureSnapshotWriterLease.acquire(path) as writer_lease:
+            ledger = DurableFeatureSnapshotLedger(path, writer_lease=writer_lease)
+            ledger.initialize()
+            with ledger.resident_wal_sidecar_guard():
+                raise RuntimeError("injected_guard_body_failure")
+
+    assert len(os.listdir("/proc/self/fd")) == descriptors_before
+    with FeatureSnapshotWriterLease.acquire(path) as reacquired:
+        assert reacquired.held is True
+
+
 def test_writer_lease_rejects_forged_construction_and_hardlinks(tmp_path: Path) -> None:
     path = (tmp_path / "ledger.sqlite3").resolve()
     lock_path = ledger_module.feature_snapshot_writer_lease_path(path)

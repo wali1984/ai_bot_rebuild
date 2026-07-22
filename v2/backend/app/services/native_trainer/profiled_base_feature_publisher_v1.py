@@ -1837,6 +1837,7 @@ class ProfiledBaseFeaturePublisherV1:
         redis_client: object,
         data_root: Path,
         feature_ledger_path: Path,
+        feature_ledger: DurableFeatureSnapshotLedger | None = None,
         cycle_period_seconds: float,
         resource_sustainability_horizon_seconds: float = (
             DEFAULT_RESOURCE_SUSTAINABILITY_HORIZON_SECONDS
@@ -1885,6 +1886,15 @@ class ProfiledBaseFeaturePublisherV1:
             feature_ledger_path,
             reason="PROFILED_BASE_PUBLISHER_FEATURE_LEDGER_PATH_INVALID",
         )
+        if feature_ledger is not None and (
+            type(feature_ledger) is not DurableFeatureSnapshotLedger
+            or feature_ledger.path != self.feature_ledger_path
+        ):
+            _fail(
+                ProfiledBaseFeaturePublisherV1ConfigurationError,
+                "PROFILED_BASE_PUBLISHER_FEATURE_LEDGER_BINDING_INVALID",
+            )
+        self._feature_ledger = feature_ledger
         self.state_path = _strict_path(
             state_path or self.data_root / "profiled_base_publisher_state_v1.json",
             reason="PROFILED_BASE_PUBLISHER_STATE_PATH_INVALID",
@@ -3738,8 +3748,10 @@ class ProfiledBaseFeaturePublisherV1:
 
         if planned_selection:
             source_store, capture_set_store, artifact_store, enrichment_store = self._stores()
-            feature_ledger: DurableFeatureSnapshotLedger | None = DurableFeatureSnapshotLedger(
-                self.feature_ledger_path
+            feature_ledger: DurableFeatureSnapshotLedger | None = (
+                self._feature_ledger
+                if self._feature_ledger is not None
+                else DurableFeatureSnapshotLedger(self.feature_ledger_path)
             )
         else:
             source_store = capture_set_store = artifact_store = enrichment_store = None

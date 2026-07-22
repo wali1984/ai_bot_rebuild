@@ -26,6 +26,12 @@ from v2.backend.app.services.binance_usdm_leverage_bracket_runtime_credentials i
 from v2.backend.app.services.native_trainer.binance_usdm_commission_capture_v1 import (
     capture_binance_usdm_commission_rate_v1,
 )
+from v2.backend.app.services.native_trainer.durable_feature_snapshot_ledger import (
+    DurableFeatureSnapshotLedger,
+    FeatureSnapshotLedgerError,
+    FeatureSnapshotWriterLease,
+    FeatureSnapshotWriterLeaseError,
+)
 from v2.backend.app.services.native_trainer.profiled_base_feature_publisher_v1 import (
     AUTHENTICATED_COST_EVIDENCE_REQUIRED_MODE,
     BROKER_AUTHENTICATED_COST_EVIDENCE_WITH_MASKED_FALLBACK_MODE,
@@ -279,6 +285,41 @@ def bounded_cycle_summary(status: dict[str, Any], *, status_path: Path) -> dict[
     return {key: value for key, value in summary.items() if value is not None}
 
 
+def _run_resident_loop(
+    *,
+    args: argparse.Namespace,
+    publisher: ProfiledBaseFeaturePublisherV1,
+) -> int:
+    signal.signal(signal.SIGINT, _request_stop)
+    signal.signal(signal.SIGTERM, _request_stop)
+    while not _STOP:
+        started = time.monotonic()
+        status = publisher.run_cycle()
+        summary = bounded_cycle_summary(
+            status,
+            status_path=publisher.status_path,
+        )
+        print(
+            json.dumps(
+                summary,
+                allow_nan=False,
+                separators=(",", ":"),
+                sort_keys=True,
+            ),
+            flush=True,
+        )
+        if args.once:
+            break
+        remaining = max(0.0, float(args.cycle_seconds) - (time.monotonic() - started))
+        deadline = time.monotonic() + remaining
+        while not _STOP:
+            wait = deadline - time.monotonic()
+            if wait <= 0:
+                break
+            time.sleep(min(wait, 1.0))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
@@ -346,39 +387,27 @@ def main(argv: list[str] | None = None) -> int:
                     "exchange_credentials_loaded_by_publisher": True,
                 }
             )
-        publisher = ProfiledBaseFeaturePublisherV1(
-            **publisher_arguments,
-        )
-        signal.signal(signal.SIGINT, _request_stop)
-        signal.signal(signal.SIGTERM, _request_stop)
-        while not _STOP:
-            started = time.monotonic()
-            status = publisher.run_cycle()
-            summary = bounded_cycle_summary(
-                status,
-                status_path=publisher.status_path,
+        feature_ledger_path = publisher_arguments["feature_ledger_path"]
+        if not isinstance(feature_ledger_path, Path):
+            raise ProfiledBaseFeaturePublisherV1Error(
+                "PROFILED_BASE_PUBLISHER_FEATURE_LEDGER_PATH_INVALID"
             )
-            print(
-                json.dumps(
-                    summary,
-                    allow_nan=False,
-                    separators=(",", ":"),
-                    sort_keys=True,
-                ),
-                flush=True,
+        with FeatureSnapshotWriterLease.acquire(feature_ledger_path) as writer_lease:
+            feature_ledger = DurableFeatureSnapshotLedger(
+                feature_ledger_path,
+                writer_lease=writer_lease,
             )
-            if args.once:
-                break
-            remaining = max(0.0, float(args.cycle_seconds) - (time.monotonic() - started))
-            deadline = time.monotonic() + remaining
-            while not _STOP:
-                wait = deadline - time.monotonic()
-                if wait <= 0:
-                    break
-                time.sleep(min(wait, 1.0))
-        return 0
+            feature_ledger.initialize()
+            publisher_arguments["feature_ledger"] = feature_ledger
+            publisher = ProfiledBaseFeaturePublisherV1(
+                **publisher_arguments,
+            )
+            with feature_ledger.resident_wal_sidecar_guard():
+                return _run_resident_loop(args=args, publisher=publisher)
     except (
         CommissionEvidenceBrokerError,
+        FeatureSnapshotLedgerError,
+        FeatureSnapshotWriterLeaseError,
         LeverageBracketEvidenceError,
         ProfiledBasePublisherCredentialError,
         ProfiledBaseFeaturePublisherV1Error,
@@ -387,7 +416,8 @@ def main(argv: list[str] | None = None) -> int:
             [exc.reason]
             if isinstance(
                 exc,
-                ProfiledBasePublisherCredentialError | CommissionEvidenceBrokerError,
+                ProfiledBasePublisherCredentialError
+                | CommissionEvidenceBrokerError
             )
             else list(exc.reasons)
             if isinstance(exc, ProfiledBaseFeaturePublisherV1Error)
@@ -420,6 +450,8 @@ def main(argv: list[str] | None = None) -> int:
                 exc,
                 ProfiledBasePublisherCredentialError
                 | CommissionEvidenceBrokerError
+                | FeatureSnapshotLedgerError
+                | FeatureSnapshotWriterLeaseError
                 | LeverageBracketEvidenceError,
             )
             else 1

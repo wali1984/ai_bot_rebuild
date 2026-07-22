@@ -18,6 +18,7 @@ from v2.backend.app.services.native_trainer import (
 )
 from v2.backend.app.services.native_trainer.durable_feature_snapshot_ledger import (
     DurableFeatureSnapshotLedger,
+    FeatureSnapshotWriterLease,
 )
 from v2.backend.app.services.native_trainer.profiled_training_waiting_runtime_v1 import (
     PROFILED_CHILD_CANDIDATES_AVAILABLE_STATE,
@@ -586,3 +587,31 @@ def test_hardened_empty_ledger_probe_does_not_materialize_absent_cost_store(
     assert result.full_sample_authentication_performed is False
     assert not config.trusted_cost_store_root.exists()
     assert after == before
+
+
+def test_writer_guard_materializes_sidecars_before_observer_read(tmp_path: Path) -> None:
+    config = _config(tmp_path)
+    config.ledger_path.parent.mkdir(parents=True)
+
+    with FeatureSnapshotWriterLease.acquire(config.ledger_path) as writer_lease:
+        ledger = DurableFeatureSnapshotLedger(
+            config.ledger_path,
+            writer_lease=writer_lease,
+        )
+        ledger.initialize()
+        with ledger.resident_wal_sidecar_guard():
+            before = {path.name for path in config.ledger_path.parent.iterdir()}
+            assert f"{config.ledger_path.name}-wal" in before
+            assert f"{config.ledger_path.name}-shm" in before
+
+            result = inspect_authenticated_profiled_samples_v1(
+                config,
+                training_observed_at=OBSERVED_AT,
+            )
+
+            after = {path.name for path in config.ledger_path.parent.iterdir()}
+            assert result.strict_training_eligible_row_count == 0
+            assert result.profiled_child_candidate_count == 0
+            assert result.ledger_integrity_verified is True
+            assert result.scan_complete is True
+            assert after == before

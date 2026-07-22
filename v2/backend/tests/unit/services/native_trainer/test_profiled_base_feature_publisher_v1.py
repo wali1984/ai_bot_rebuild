@@ -601,11 +601,13 @@ def _publisher(
     commission_fingerprint_hmac_key: bytes | None = None,
     commission_cost_mode: str = AUTHENTICATED_COST_EVIDENCE_REQUIRED_MODE,
     commission_evidence_reader=None,  # type: ignore[no-untyped-def]
+    feature_ledger: DurableFeatureSnapshotLedger | None = None,
 ) -> ProfiledBaseFeaturePublisherV1:
     return ProfiledBaseFeaturePublisherV1(
         redis_client=redis_client,
         data_root=(tmp_path / "publisher").absolute(),
         feature_ledger_path=(tmp_path / "feature-ledger.sqlite3").absolute(),
+        feature_ledger=feature_ledger,
         state_path=(tmp_path / state_name).absolute(),
         status_path=(tmp_path / f"{state_name}.status").absolute(),
         cycle_period_seconds=300.0,
@@ -622,6 +624,29 @@ def _publisher(
         commission_cost_mode=commission_cost_mode,
         commission_evidence_reader=commission_evidence_reader,
     )
+
+
+def test_publisher_accepts_only_exact_path_bound_resident_ledger(tmp_path: Path) -> None:
+    ledger_path = (tmp_path / "feature-ledger.sqlite3").absolute()
+    resident = DurableFeatureSnapshotLedger(ledger_path)
+    publisher = _publisher(
+        tmp_path,
+        _Redis(_payloads()),
+        feature_ledger=resident,
+    )
+    assert publisher._feature_ledger is resident  # noqa: SLF001
+
+    with pytest.raises(
+        ProfiledBaseFeaturePublisherV1ConfigurationError,
+        match="PROFILED_BASE_PUBLISHER_FEATURE_LEDGER_BINDING_INVALID",
+    ):
+        _publisher(
+            tmp_path,
+            _Redis(_payloads()),
+            feature_ledger=DurableFeatureSnapshotLedger(
+                (tmp_path / "wrong-ledger.sqlite3").absolute()
+            ),
+        )
 
 
 def _seed_observed_state(path: Path) -> None:
@@ -1770,7 +1795,14 @@ def test_happy_path_publishes_exact_adjacent_authenticated_training_pair(
     tmp_path: Path,
 ) -> None:
     redis_client = _Redis(_payloads())
-    publisher = _publisher(tmp_path, redis_client)
+    resident_ledger = DurableFeatureSnapshotLedger(
+        (tmp_path / "feature-ledger.sqlite3").absolute()
+    )
+    publisher = _publisher(
+        tmp_path,
+        redis_client,
+        feature_ledger=resident_ledger,
+    )
 
     status = publisher.run_cycle()
 
@@ -1803,7 +1835,8 @@ def test_happy_path_publishes_exact_adjacent_authenticated_training_pair(
         "trainer_candidate_in_lineage": True,
     }
 
-    ledger = DurableFeatureSnapshotLedger((tmp_path / "feature-ledger.sqlite3").absolute())
+    assert publisher._feature_ledger is resident_ledger  # noqa: SLF001
+    ledger = resident_ledger
     child = ledger.get_snapshot(publication["durable_snapshot_id"])
     parent = ledger.get_snapshot(publication["parent_durable_snapshot_id"])
     assert child is not None
@@ -2773,6 +2806,138 @@ def test_cli_cycle_summary_stays_bounded_when_full_status_has_large_inventories(
     )
     assert summary["exchange_key_permissions_proven_by_connector"] is False
     assert summary["live_execution_authorized"] is False
+
+
+def test_cli_holds_writer_lease_and_wal_guard_for_complete_resident_loop(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    events: list[str] = []
+    ledger_path = (tmp_path / "resident-ledger.sqlite3").resolve()
+
+    class FakeWriterLease:
+        @classmethod
+        def acquire(cls, path: Path) -> FakeWriterLease:
+            assert path == ledger_path
+            events.append("lease_acquire")
+            return cls()
+
+        def __enter__(self) -> FakeWriterLease:
+            events.append("lease_enter")
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            events.append("lease_exit")
+
+    class FakeWalGuard:
+        def __enter__(self) -> None:
+            events.append("wal_guard_enter")
+
+        def __exit__(self, *_args: object) -> None:
+            events.append("wal_guard_exit")
+
+    class FakeLedger:
+        def __init__(self, path: Path, *, writer_lease: object) -> None:
+            assert path == ledger_path
+            assert isinstance(writer_lease, FakeWriterLease)
+            self.path = path
+            events.append("ledger_construct")
+
+        def initialize(self) -> None:
+            events.append("ledger_initialize")
+
+        def resident_wal_sidecar_guard(self) -> FakeWalGuard:
+            return FakeWalGuard()
+
+    class FakePublisher:
+        def __init__(self, **kwargs: object) -> None:
+            assert isinstance(kwargs["feature_ledger"], FakeLedger)
+            assert kwargs["feature_ledger_path"] == ledger_path
+            self.status_path = tmp_path / "status.json"
+            events.append("publisher_construct")
+
+        def run_cycle(self) -> dict[str, object]:
+            events.append("publisher_cycle")
+            return {"classification": "TEST_COMPLETE"}
+
+    monkeypatch.setattr(cli_module, "_STOP", False)
+    monkeypatch.setattr(cli_module, "_raw_redis_client", lambda _url: object())
+    monkeypatch.setattr(
+        cli_module,
+        "load_profiled_base_publisher_runtime_credentials_if_available",
+        lambda: None,
+    )
+    monkeypatch.setattr(cli_module, "FeatureSnapshotWriterLease", FakeWriterLease)
+    monkeypatch.setattr(cli_module, "DurableFeatureSnapshotLedger", FakeLedger)
+    monkeypatch.setattr(cli_module, "ProfiledBaseFeaturePublisherV1", FakePublisher)
+    monkeypatch.setattr(cli_module.signal, "signal", lambda *_args: None)
+
+    assert (
+        cli_module.main(
+            [
+                "--once",
+                "--data-root",
+                str((tmp_path / "data").resolve()),
+                "--feature-ledger-path",
+                str(ledger_path),
+            ]
+        )
+        == 0
+    )
+    assert events == [
+        "lease_acquire",
+        "lease_enter",
+        "ledger_construct",
+        "ledger_initialize",
+        "publisher_construct",
+        "wal_guard_enter",
+        "publisher_cycle",
+        "wal_guard_exit",
+        "lease_exit",
+    ]
+    assert '"classification":"TEST_COMPLETE"' in capsys.readouterr().out
+
+
+def test_cli_ledger_guard_failure_renders_fail_closed_reason(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    class FailingWriterLease:
+        @classmethod
+        def acquire(cls, _path: Path) -> None:
+            raise cli_module.FeatureSnapshotWriterLeaseError(
+                "resident_writer_lease_injected_failure"
+            )
+
+    monkeypatch.setattr(cli_module, "_STOP", False)
+    monkeypatch.setattr(cli_module, "_raw_redis_client", lambda _url: object())
+    monkeypatch.setattr(
+        cli_module,
+        "load_profiled_base_publisher_runtime_credentials_if_available",
+        lambda: None,
+    )
+    monkeypatch.setattr(cli_module, "FeatureSnapshotWriterLease", FailingWriterLease)
+
+    assert (
+        cli_module.main(
+            [
+                "--once",
+                "--data-root",
+                str((tmp_path / "data").resolve()),
+                "--feature-ledger-path",
+                str((tmp_path / "ledger.sqlite3").resolve()),
+            ]
+        )
+        == 78
+    )
+    error = json.loads(capsys.readouterr().err)
+    assert error["classification"] == "FAIL_CLOSED"
+    assert error["reasons"] == ["resident_writer_lease_injected_failure"]
+    assert error["publisher_runtime_authority_granted"] is False
+    assert error["published_child_trainer_admission_authorized"] is False
+    assert error["live_execution_authorized"] is False
 
 
 def test_cli_protected_commission_hmac_is_never_rendered(
