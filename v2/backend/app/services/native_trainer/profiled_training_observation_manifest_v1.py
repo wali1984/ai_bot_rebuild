@@ -1607,8 +1607,15 @@ def build_profiled_training_observation_manifest_v1(
     auth_key_id: str,
     hmac_key: bytes | bytearray | memoryview,
     scan_limit: int = MAX_PROFILED_TRAINING_SCAN_ROWS,
+    prepared_factory_wall_clock_observed_at: str | None = None,
 ) -> ProfiledTrainingObservationManifestBuildV1:
-    """Build one immutable manifest with bounded-memory source consumption."""
+    """Build one immutable manifest with bounded-memory source consumption.
+
+    ``prepared_factory_wall_clock_observed_at`` is an optional crash-recovery
+    input. A coordinator may durably record one wall-clock value before
+    construction and replay that exact value after a crash. Ordinary callers
+    leave it unset and retain the original direct wall-clock sampling behavior.
+    """
 
     key = _validated_key(hmac_key)
     cost_root = _exact_absolute_path(
@@ -1632,14 +1639,23 @@ def build_profiled_training_observation_manifest_v1(
         reason="PROFILED_OBSERVATION_CLOCK_INVALID",
     )
     observation_text = _canonical_clock(observation)
-    factory_clock_raw = _factory_wall_clock_now()
-    if (
-        type(factory_clock_raw) is not datetime
-        or factory_clock_raw.tzinfo is None
-        or factory_clock_raw.utcoffset() is None
-    ):
-        _fail("PROFILED_OBSERVATION_FACTORY_WALL_CLOCK_INVALID")
-    factory_clock_text = _canonical_clock(factory_clock_raw)
+    if prepared_factory_wall_clock_observed_at is None:
+        factory_clock_raw = _factory_wall_clock_now()
+        if (
+            type(factory_clock_raw) is not datetime
+            or factory_clock_raw.tzinfo is None
+            or factory_clock_raw.utcoffset() is None
+        ):
+            _fail("PROFILED_OBSERVATION_FACTORY_WALL_CLOCK_INVALID")
+        factory_clock_text = _canonical_clock(factory_clock_raw)
+    else:
+        if type(prepared_factory_wall_clock_observed_at) is not str:
+            _fail("PROFILED_OBSERVATION_PREPARED_FACTORY_WALL_CLOCK_INVALID")
+        prepared_factory_clock = _clock(
+            prepared_factory_wall_clock_observed_at,
+            reason="PROFILED_OBSERVATION_PREPARED_FACTORY_WALL_CLOCK_INVALID",
+        )
+        factory_clock_text = _canonical_clock(prepared_factory_clock)
     factory_clock = _clock(
         factory_clock_text,
         reason="PROFILED_OBSERVATION_FACTORY_WALL_CLOCK_INVALID",
@@ -1749,9 +1765,7 @@ def build_profiled_training_observation_manifest_v1(
                         PROFILED_TRAINING_PROJECTION_V1_CONFIGURATION_SHA256
                     ),
                     "training_example_adapter_contract": adapter_contract,
-                    "training_example_adapter_contract_sha256": stable_sha256(
-                        adapter_contract
-                    ),
+                    "training_example_adapter_contract_sha256": stable_sha256(adapter_contract),
                 }
                 observation_context_sha256 = stable_sha256(context)
 

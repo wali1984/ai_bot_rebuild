@@ -206,6 +206,102 @@ def test_builds_authenticated_manifest_and_reopens_exact_446_1784_example(
     assert page.external_monotonic_manifest_head_verified is False
 
 
+def test_prepared_factory_clock_makes_crash_replay_deterministic(
+    tmp_path: Path,
+    authenticated_base_evidence: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ledger, archive, observation, cost_root = _setup_sources(
+        tmp_path,
+        authenticated_base_evidence,
+    )
+    prepared_factory_clock = (
+        datetime.fromisoformat(observation.replace("Z", "+00:00"))
+        .astimezone(UTC)
+        .isoformat(timespec="microseconds")
+        .replace("+00:00", "Z")
+    )
+    calls = 0
+
+    def forbidden_wall_clock() -> datetime:
+        nonlocal calls
+        calls += 1
+        raise AssertionError("prepared replay must not resample the wall clock")
+
+    monkeypatch.setattr(manifest_module, "_factory_wall_clock_now", forbidden_wall_clock)
+    arguments = {
+        "ledger": ledger,
+        "trusted_immutable_cost_store_root": cost_root,
+        "label_archive": archive,
+        "manifest_root": (tmp_path / "prepared-manifests").absolute(),
+        "training_observed_at": observation,
+        "auth_key_id": AUTH_KEY_ID,
+        "hmac_key": AUTH_KEY,
+        "prepared_factory_wall_clock_observed_at": prepared_factory_clock,
+    }
+    first = build_profiled_training_observation_manifest_v1(**arguments)
+    second = build_profiled_training_observation_manifest_v1(**arguments)
+
+    assert calls == 0
+    assert first.factory_wall_clock_observed_at == prepared_factory_clock
+    assert second.manifest_path == first.manifest_path
+    assert second.manifest_id == first.manifest_id
+
+
+def test_prepared_factory_clock_rejects_noncanonical_value(
+    tmp_path: Path,
+    authenticated_base_evidence: Any,
+) -> None:
+    ledger, archive, observation, cost_root = _setup_sources(
+        tmp_path,
+        authenticated_base_evidence,
+    )
+    prepared = datetime.fromisoformat(observation.replace("Z", "+00:00")).astimezone(UTC)
+    noncanonical = prepared.isoformat(timespec="seconds").replace("+00:00", "Z")
+
+    with pytest.raises(
+        ProfiledTrainingObservationManifestV1Error,
+        match="PROFILED_OBSERVATION_PREPARED_FACTORY_WALL_CLOCK_INVALID",
+    ):
+        build_profiled_training_observation_manifest_v1(
+            ledger=ledger,
+            trusted_immutable_cost_store_root=cost_root,
+            label_archive=archive,
+            manifest_root=(tmp_path / "invalid-prepared-manifests").absolute(),
+            training_observed_at=observation,
+            auth_key_id=AUTH_KEY_ID,
+            hmac_key=AUTH_KEY,
+            prepared_factory_wall_clock_observed_at=noncanonical,
+        )
+
+
+def test_prepared_factory_clock_rejects_value_before_observation(
+    tmp_path: Path,
+    authenticated_base_evidence: Any,
+) -> None:
+    ledger, archive, observation, cost_root = _setup_sources(
+        tmp_path,
+        authenticated_base_evidence,
+    )
+    before = datetime.fromisoformat(observation.replace("Z", "+00:00")) - timedelta(microseconds=1)
+    before_text = before.astimezone(UTC).isoformat(timespec="microseconds").replace("+00:00", "Z")
+
+    with pytest.raises(
+        ProfiledTrainingObservationManifestV1Error,
+        match="PROFILED_OBSERVATION_RETROSPECTIVE_CUTOFF_AFTER_FACTORY_WALL_CLOCK",
+    ):
+        build_profiled_training_observation_manifest_v1(
+            ledger=ledger,
+            trusted_immutable_cost_store_root=cost_root,
+            label_archive=archive,
+            manifest_root=(tmp_path / "invalid-prepared-manifests").absolute(),
+            training_observed_at=observation,
+            auth_key_id=AUTH_KEY_ID,
+            hmac_key=AUTH_KEY,
+            prepared_factory_wall_clock_observed_at=before_text,
+        )
+
+
 def test_label_path_missing_at_observation_is_typed_exclusion_not_bad_label(
     tmp_path: Path,
     authenticated_base_evidence: Any,
@@ -575,9 +671,7 @@ def test_manifest_distinguishes_generated_decision_postcommit_and_observation_cl
     assert adapter_contract["schema_version"] == (
         PROFILED_OBSERVATION_TRAINING_EXAMPLE_ADAPTER_CONTRACT_VERSION
     )
-    assert adapter_contract["trust_row_available_at_source_field"] == (
-        "postcommit_readback_at"
-    )
+    assert adapter_contract["trust_row_available_at_source_field"] == ("postcommit_readback_at")
     assert adapter_contract["record_generated_at_must_not_exceed_decision_time"] is True
     assert adapter_contract["postcommit_readback_at_must_exceed_decision_time"] is True
     assert adapter_contract["postcommit_readback_at_must_exceed_record_generated_at"] is True
@@ -587,8 +681,9 @@ def test_manifest_distinguishes_generated_decision_postcommit_and_observation_cl
     assert trust["training_example_adapter_contract_version"] == (
         PROFILED_OBSERVATION_TRAINING_EXAMPLE_ADAPTER_CONTRACT_VERSION
     )
-    assert trust["training_example_adapter_contract_sha256"] == (
-        context["training_example_adapter_contract_sha256"]
+    assert (
+        trust["training_example_adapter_contract_sha256"]
+        == (context["training_example_adapter_contract_sha256"])
     )
     assert trust["available_at"] == trust["postcommit_readback_at"]
     assert trust["available_at"] == trust["trainer_sample_available_at"]
@@ -613,9 +708,7 @@ def test_manifest_distinguishes_generated_decision_postcommit_and_observation_cl
     revised_context = {
         **context,
         "training_example_adapter_contract": revised_contract,
-        "training_example_adapter_contract_sha256": manifest_module.stable_sha256(
-            revised_contract
-        ),
+        "training_example_adapter_contract_sha256": manifest_module.stable_sha256(revised_contract),
     }
     revised_metadata_without_id = {
         **{name: value for name, value in metadata.items() if name != "manifest_id"},
