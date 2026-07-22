@@ -8,6 +8,7 @@ import time
 from collections.abc import Iterator
 from dataclasses import replace
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any
 
 import pytest
@@ -923,3 +924,26 @@ def test_verified_result_cannot_be_constructed_by_callers() -> None:
             receipt={},
             _construction_token=object(),
         )
+
+
+def test_verified_result_rejects_dataclass_replacement_of_reopen_evidence() -> None:
+    client = FakeRedis()
+    verified = publish_liquidation_surface(
+        client,
+        _surface(),
+        security_context=_security_context(),
+    )
+    mutations = (
+        {"surface_id": f"v2_lsurf_{'e' * 64}"},
+        {"latest_pointer_key": f"{verified.latest_pointer_key}:forged"},
+        {"redis_reopened_at_ms": verified.redis_reopened_at_ms - 1},
+        {"trainer_authority_reason": "FORGED"},
+        {"receipt": MappingProxyType({**dict(verified.receipt), "forged": True})},
+    )
+
+    for mutation in mutations:
+        with pytest.raises(
+            SurfacePublicationValidationError,
+            match="VERIFIED_SURFACE_AUTHORITY_OR_CLOCK_INVALID",
+        ):
+            replace(verified, **mutation)

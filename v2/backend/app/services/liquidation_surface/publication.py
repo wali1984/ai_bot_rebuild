@@ -68,6 +68,7 @@ _POINTER_RE = re.compile(
 _MAX_SIGNED_64_BIT = (1 << 63) - 1
 _CONSTRUCTION_TOKEN = object()
 _SECURITY_CONTEXT_TOKEN = object()
+_VERIFIED_GUARD_TOKEN = object()
 MIN_HMAC_KEY_BYTES = 32
 
 _RECEIPT_FIELDS = frozenset(
@@ -441,6 +442,22 @@ class SurfacePublicationSecurityContext:
 
 
 @dataclass(frozen=True, slots=True)
+class _VerifiedSurfaceGuard:
+    expected_sha256: str
+    _construction_token: object = field(repr=False, compare=False)
+
+    def verify(self, value: VerifiedLiquidationSurface) -> bool:
+        return bool(
+            self._construction_token is _VERIFIED_GUARD_TOKEN
+            and _valid_sha256(self.expected_sha256)
+            and hmac.compare_digest(
+                self.expected_sha256,
+                _verified_surface_sha256(_verified_surface_material(value)),
+            )
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class VerifiedLiquidationSurface:
     """Factory-only, non-authoritative exact archive/receipt/pointer reopen."""
 
@@ -459,7 +476,12 @@ class VerifiedLiquidationSurface:
     trainer_authority_reason: str
     payload: Mapping[str, Any] = field(repr=False)
     receipt: Mapping[str, Any] = field(repr=False)
-    _construction_token: object = field(repr=False, compare=False)
+    _integrity_guard: _VerifiedSurfaceGuard | None = field(
+        default=None,
+        repr=False,
+        compare=False,
+    )
+    _construction_token: object | None = field(default=None, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         if self._construction_token is not _CONSTRUCTION_TOKEN:
@@ -472,6 +494,8 @@ class VerifiedLiquidationSurface:
             or self.consumer_reopened_at_ms < self.archive_postcommit_at_ms
             or self.pointer_class not in {"trainer_eligible", "observation"}
             or self.trainer_authority is not False
+            or not isinstance(self._integrity_guard, _VerifiedSurfaceGuard)
+            or not self._integrity_guard.verify(self)
         ):
             _validation_error("VERIFIED_SURFACE_AUTHORITY_OR_CLOCK_INVALID")
 
@@ -506,6 +530,53 @@ def _sha256_bytes(value: bytes) -> str:
 
 def _stable_sha256(value: object) -> str:
     return _sha256_bytes(_canonical_json_bytes(value, maximum=MAX_SURFACE_BYTES))
+
+
+def _plain_frozen_json(value: object) -> object:
+    if isinstance(value, Mapping):
+        return {
+            cast(str, key): _plain_frozen_json(nested)
+            for key, nested in value.items()
+        }
+    if isinstance(value, tuple | list):
+        return [_plain_frozen_json(nested) for nested in value]
+    return value
+
+
+def _verified_surface_material(value: VerifiedLiquidationSurface) -> dict[str, Any]:
+    return {
+        "surface_id": value.surface_id,
+        "surface_archive_key": value.surface_archive_key,
+        "surface_receipt_key": value.surface_receipt_key,
+        "latest_pointer_key": value.latest_pointer_key,
+        "publication_scope_sha256": value.publication_scope_sha256,
+        "pointer_class": value.pointer_class,
+        "archive_payload_sha256": value.archive_payload_sha256,
+        "receipt_sha256": value.receipt_sha256,
+        "archive_postcommit_at_ms": value.archive_postcommit_at_ms,
+        "redis_reopened_at_ms": value.redis_reopened_at_ms,
+        "consumer_reopened_at_ms": value.consumer_reopened_at_ms,
+        "trainer_authority": value.trainer_authority,
+        "trainer_authority_reason": value.trainer_authority_reason,
+        "payload": _plain_frozen_json(value.payload),
+        "receipt": _plain_frozen_json(value.receipt),
+    }
+
+
+def _verified_surface_sha256(value: object) -> str:
+    return _sha256_bytes(
+        _canonical_json_bytes(
+            value,
+            maximum=MAX_SURFACE_BYTES + MAX_RECEIPT_BYTES + 16_384,
+        )
+    )
+
+
+def _verified_surface_guard(material: Mapping[str, Any]) -> _VerifiedSurfaceGuard:
+    return _VerifiedSurfaceGuard(
+        expected_sha256=_verified_surface_sha256(_plain_frozen_json(material)),
+        _construction_token=_VERIFIED_GUARD_TOKEN,
+    )
 
 
 def _model_stable_sha256(value: object) -> str:
@@ -1344,22 +1415,26 @@ def _reopen_expected(
         "publication_redis_reopened_at": reopened_at,
         "publication_consumer_reopened_at": available_at,
     }
+    values: dict[str, Any] = {
+        "surface_id": surface_id,
+        "surface_archive_key": archive_key,
+        "surface_receipt_key": receipt_key,
+        "latest_pointer_key": pointer_key,
+        "publication_scope_sha256": scope,
+        "pointer_class": pointer_class,
+        "archive_payload_sha256": _sha256_bytes(raw),
+        "receipt_sha256": cast(str, receipt["receipt_sha256"]),
+        "archive_postcommit_at_ms": archive_postcommit,
+        "redis_reopened_at_ms": reopened_at,
+        "consumer_reopened_at_ms": available_at,
+        "trainer_authority": trainer_authority,
+        "trainer_authority_reason": authority_reason,
+        "payload": cast(Mapping[str, Any], _freeze_json(resolved)),
+        "receipt": cast(Mapping[str, Any], _freeze_json(receipt)),
+    }
     return VerifiedLiquidationSurface(
-        surface_id=surface_id,
-        surface_archive_key=archive_key,
-        surface_receipt_key=receipt_key,
-        latest_pointer_key=pointer_key,
-        publication_scope_sha256=scope,
-        pointer_class=pointer_class,
-        archive_payload_sha256=_sha256_bytes(raw),
-        receipt_sha256=cast(str, receipt["receipt_sha256"]),
-        archive_postcommit_at_ms=archive_postcommit,
-        redis_reopened_at_ms=reopened_at,
-        consumer_reopened_at_ms=available_at,
-        trainer_authority=trainer_authority,
-        trainer_authority_reason=authority_reason,
-        payload=cast(Mapping[str, Any], _freeze_json(resolved)),
-        receipt=cast(Mapping[str, Any], _freeze_json(receipt)),
+        **values,
+        _integrity_guard=_verified_surface_guard(values),
         _construction_token=_CONSTRUCTION_TOKEN,
     )
 
