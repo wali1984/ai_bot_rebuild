@@ -24,6 +24,7 @@ _ROLE_VALUES = {
     ),
 }
 _PUBLIC_KEY = bytes(range(32))
+_LOCAL_RESEARCH_KEY = "local-research-role-key-material-000000005"
 _AMBIENT_SECRET_VALUES = (
     "ambient-exchange-secret-must-not-be-read",
     "ambient-moralis-secret-must-not-be-read",
@@ -63,6 +64,15 @@ def _write_witness_public_key(directory: Path, value: bytes = _PUBLIC_KEY) -> No
     _write_bytes(
         directory,
         credentials.WITNESS_PUBLIC_KEY_SYSTEMD_CREDENTIAL,
+        value,
+    )
+    directory.chmod(0o500)
+
+
+def _write_local_research_key(directory: Path, value: str = _LOCAL_RESEARCH_KEY) -> None:
+    _write_text(
+        directory,
+        credentials.LOCAL_RESEARCH_HMAC_SYSTEMD_CREDENTIAL,
         value,
     )
     directory.chmod(0o500)
@@ -174,12 +184,45 @@ def test_local_roles_load_without_verifier_and_hide_all_secret_values(
     )
 
     assert loaded.witness_verifier is None
+    assert loaded.local_research_hmac_key is None
     assert loaded.local_roles.state_hmac_key == _ROLE_VALUES[
         credentials.STATE_HMAC_SYSTEMD_CREDENTIAL
     ].encode()
     rendered = repr(loaded) + repr(loaded.local_roles)
     assert all(value not in rendered for value in _ROLE_VALUES.values())
     assert all(value not in rendered for value in _AMBIENT_SECRET_VALUES)
+
+
+def test_optional_local_research_role_is_distinct_and_hidden(tmp_path: Path) -> None:
+    _write_local_roles(tmp_path)
+    _write_local_research_key(tmp_path)
+
+    loaded = credentials.load_authenticated_profiled_resident_runtime_credentials_v1(
+        environ=_environment(tmp_path)
+    )
+
+    assert loaded.local_research_hmac_key == _LOCAL_RESEARCH_KEY.encode()
+    rendered = repr(loaded) + repr(loaded.local_roles)
+    assert _LOCAL_RESEARCH_KEY not in rendered
+
+
+def test_local_research_role_cannot_reuse_manifest_role(tmp_path: Path) -> None:
+    _write_local_roles(tmp_path)
+    _write_local_research_key(
+        tmp_path,
+        _ROLE_VALUES[credentials.MANIFEST_HMAC_SYSTEMD_CREDENTIAL],
+    )
+
+    with pytest.raises(
+        credentials.AuthenticatedProfiledResidentCredentialV1Error
+    ) as caught:
+        credentials.load_authenticated_profiled_resident_runtime_credentials_v1(
+            environ=_environment(tmp_path)
+        )
+    _assert_safe_failure(
+        caught,
+        reason="PROFILED_RESIDENT_LOCAL_RESEARCH_ROLE_KEY_REUSE_FORBIDDEN",
+    )
 
 
 def test_complete_verifier_bundle_is_pinned_and_hidden(tmp_path: Path) -> None:

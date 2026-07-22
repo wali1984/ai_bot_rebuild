@@ -1,9 +1,10 @@
 """Least-privilege credentials for the authenticated profiled resident.
 
 The trainer receives four local HMAC verification roles and, optionally, one
-raw Ed25519 *public* key pinned by public witness identity settings.  It never
-loads witness bearer tokens, endpoint credentials, signing keys, exchange
-keys, wallet material, or data-provider secrets.
+dedicated local-research HMAC authorizer.  It may also receive one raw Ed25519
+*public* key pinned by public witness identity settings.  It never loads
+witness bearer tokens, endpoint credentials, signing keys, exchange keys,
+wallet material, or data-provider secrets.
 """
 
 from __future__ import annotations
@@ -25,6 +26,9 @@ STATE_HMAC_SYSTEMD_CREDENTIAL: Final = "profiled_observation_state_hmac_key"
 MANIFEST_HMAC_SYSTEMD_CREDENTIAL: Final = "profiled_observation_manifest_hmac_key"
 HEAD_HMAC_SYSTEMD_CREDENTIAL: Final = "profiled_observation_head_hmac_key"
 EPOCH_HMAC_SYSTEMD_CREDENTIAL: Final = "profiled_observation_epoch_hmac_key"
+LOCAL_RESEARCH_HMAC_SYSTEMD_CREDENTIAL: Final = (
+    "profiled_local_research_authorization_hmac_key"
+)
 WITNESS_PUBLIC_KEY_SYSTEMD_CREDENTIAL: Final = (
     "profiled_observation_witness_ed25519_public_key"
 )
@@ -82,6 +86,7 @@ class AuthenticatedProfiledResidentRuntimeCredentialsV1:
     witness_verifier: (
         AuthenticatedProfiledResidentWitnessVerifierCredentialsV1 | None
     ) = field(default=None, repr=False)
+    local_research_hmac_key: bytes | None = field(default=None, repr=False)
 
 
 def _fail(reason: str) -> NoReturn:
@@ -249,6 +254,20 @@ def load_authenticated_profiled_resident_runtime_credentials_v1(
         ):
             _fail("PROFILED_RESIDENT_LOCAL_ROLE_KEY_REUSE_FORBIDDEN")
 
+        local_research_hmac_key = (
+            _read_hmac_key(descriptor, LOCAL_RESEARCH_HMAC_SYSTEMD_CREDENTIAL)
+            if _credential_exists(
+                descriptor,
+                LOCAL_RESEARCH_HMAC_SYSTEMD_CREDENTIAL,
+            )
+            else None
+        )
+        if local_research_hmac_key is not None and any(
+            hmac.compare_digest(local_research_hmac_key, local_key)
+            for local_key in local_keys
+        ):
+            _fail("PROFILED_RESIDENT_LOCAL_RESEARCH_ROLE_KEY_REUSE_FORBIDDEN")
+
         witness_id = values.get(WITNESS_ID_ENV, "")
         public_key_sha256 = values.get(WITNESS_PUBLIC_KEY_SHA256_ENV, "")
         if type(witness_id) is not str or type(public_key_sha256) is not str:
@@ -289,6 +308,7 @@ def load_authenticated_profiled_resident_runtime_credentials_v1(
                 epoch_hmac_key=local_keys[3],
             ),
             witness_verifier=verifier,
+            local_research_hmac_key=local_research_hmac_key,
         )
     finally:
         os.close(descriptor)
@@ -297,6 +317,7 @@ def load_authenticated_profiled_resident_runtime_credentials_v1(
 __all__ = (
     "EPOCH_HMAC_SYSTEMD_CREDENTIAL",
     "HEAD_HMAC_SYSTEMD_CREDENTIAL",
+    "LOCAL_RESEARCH_HMAC_SYSTEMD_CREDENTIAL",
     "MANIFEST_HMAC_SYSTEMD_CREDENTIAL",
     "STATE_HMAC_SYSTEMD_CREDENTIAL",
     "SYSTEMD_CREDENTIALS_DIRECTORY_ENV",

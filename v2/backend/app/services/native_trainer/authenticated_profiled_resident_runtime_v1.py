@@ -548,14 +548,18 @@ def _existing_publication(
     )
 
 
-def _capture_base_lineage(
+def capture_active_or_genesis_profiled_base_lineage_v1(
     *,
-    config: AuthenticatedProfiledResidentRuntimeConfigV1,
+    repo_root: Path,
     base_model: V2HybridPolicyModel,
     base_manager: V2HybridCheckpointManager,
 ) -> AuthenticatedProfiledBaseCheckpointLineageV1:
+    """Resolve only the activated serving base, or create a safe genesis."""
+
+    if not isinstance(repo_root, Path) or not repo_root.is_absolute():
+        _fail("PROFILED_RESIDENT_REPO_ROOT_INVALID")
     try:
-        activation_path = manifest_paths(config.repo_root)[-1]
+        activation_path = manifest_paths(repo_root)[-1]
         os.lstat(activation_path)
     except FileNotFoundError:
         activation_manifest = None
@@ -566,7 +570,7 @@ def _capture_base_lineage(
     else:
         try:
             activation_manifest = read_published_checkpoint_partition_manifest(
-                repo_root=config.repo_root
+                repo_root=repo_root
             )
         except Exception as exc:
             raise AuthenticatedProfiledResidentRuntimeV1Error(
@@ -752,8 +756,8 @@ def run_authenticated_profiled_resident_cycle_v1(
             input_dim=LOGICAL_MODEL_INPUT_COUNT,
             checkpoint_feature_abi_binding=deployed_checkpoint_feature_abi_binding_v4(),
         )
-        base_lineage = _capture_base_lineage(
-            config=config,
+        base_lineage = capture_active_or_genesis_profiled_base_lineage_v1(
+            repo_root=config.repo_root,
             base_model=base_model,
             base_manager=base_manager,
         )
@@ -811,5 +815,6 @@ __all__ = (
     "AuthenticatedProfiledResidentRuntimeConfigV1",
     "AuthenticatedProfiledResidentRuntimeResultV1",
     "AuthenticatedProfiledResidentRuntimeV1Error",
+    "capture_active_or_genesis_profiled_base_lineage_v1",
     "run_authenticated_profiled_resident_cycle_v1",
 )

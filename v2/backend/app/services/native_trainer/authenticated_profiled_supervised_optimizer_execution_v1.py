@@ -18,6 +18,10 @@ from pathlib import Path
 from typing import Any, Final, NoReturn, cast
 
 from v2.backend.app.services.market_state_integrity.trust import TRUST_SCHEMA_VERSION
+from v2.backend.app.services.native_trainer.authenticated_profiled_optimizer_admission_v1 import (
+    LocallyValidatedProfiledResearchExampleV1,
+    validate_profiled_observation_example_for_local_research_v1,
+)
 from v2.backend.app.services.native_trainer.authenticated_profiled_optimizer_corpus_v1 import (
     AuthenticatedProfiledOptimizerCorpusRowV1,
     AuthenticatedProfiledOptimizerCorpusV1,
@@ -31,6 +35,7 @@ from v2.backend.app.services.native_trainer.checkpoint_feature_abi_binding_v4 im
     verify_deployed_checkpoint_feature_abi_binding_v4,
 )
 from v2.backend.app.services.native_trainer.durable_feature_snapshot_ledger import (
+    DurableFeatureSnapshotLedger,
     stable_sha256,
 )
 from v2.backend.app.services.native_trainer.feature_source_registry_v4 import (
@@ -47,6 +52,7 @@ from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.on_policy_behavi
     model_parameter_fingerprint,
 )
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.ppo_trainer import (
+    PROFILED_ADMISSION_SCOPE_LOCAL_RESEARCH,
     PPOTrainingResult,
     V2HybridPPOTrainer,
 )
@@ -69,6 +75,10 @@ from v2.backend.app.services.native_trainer.profiled_supervised_checkpoint_inven
     build_authenticated_profiled_supervised_checkpoint_inventory_v1,
     capture_profiled_supervised_optimization_state_snapshot_v1,
 )
+from v2.backend.app.services.native_trainer.profiled_training_observation_manifest_v1 import (
+    AuthenticatedProfiledTrainingObservationManifestV1,
+    ProfiledTrainingObservationExampleV1,
+)
 
 AUTHENTICATED_PROFILED_SUPERVISED_OPTIMIZER_EXECUTION_V1_SCHEMA_VERSION: Final = (
     "authenticated_profiled_supervised_optimizer_execution_v1"
@@ -77,6 +87,15 @@ AUTHENTICATED_PROFILED_SUPERVISED_OPTIMIZER_EXECUTION_V1_STATUS: Final = (
     "AUTHENTICATED_OUTCOME_SUPERVISED_STEP_COMPLETED_IN_MEMORY_NO_WRITE_OR_RUNTIME_AUTHORITY"
 )
 PROFILED_SUPERVISED_OPTIMIZER_OBJECTIVE_LANE: Final = "OUTCOME_SUPERVISED_ONLY"
+LOCALLY_AUTHENTICATED_PROFILED_RESEARCH_OPTIMIZER_EXECUTION_V1_SCHEMA_VERSION: Final = (
+    "locally_authenticated_profiled_research_optimizer_execution_v1"
+)
+LOCALLY_AUTHENTICATED_PROFILED_RESEARCH_OPTIMIZER_EXECUTION_V1_STATUS: Final = (
+    "LOCAL_HMAC_AUTHENTICATED_NON_PROMOTABLE_RESEARCH_STEP_COMPLETED_IN_MEMORY"
+)
+LOCAL_PROFILED_RESEARCH_AUTHORIZATION_DOMAIN: Final = (
+    "v2/native-trainer/local-profiled-research-optimizer-authorization/v1"
+)
 
 _SUCCESS_STATUSES: Final = frozenset(
     {
@@ -138,6 +157,7 @@ _AUTHORITY_FALSE: Final = {
     "runtime_wired": False,
 }
 _RESULT_TOKEN = object()
+_LOCAL_RESEARCH_RESULT_TOKEN = object()
 _FACTORY_SEAL_KEY = secrets.token_bytes(32)
 _FACTORY_SEAL_DOMAIN: Final = (
     b"authenticated_profiled_supervised_optimizer_execution_factory_seal_v1\0"
@@ -692,6 +712,138 @@ def _training_example(
         or example.behavior_action is not None
     ):
         _fail("PROFILED_SUPERVISED_EXECUTION_TRAINING_EXAMPLE_INVALID")
+    return example
+
+
+def _local_research_training_example(
+    *,
+    candidate: ProfiledTrainingObservationExampleV1,
+    validation: LocallyValidatedProfiledResearchExampleV1,
+    execution_authorization_sha256: str,
+) -> TrainingExample:
+    """Adapt a validated manifest row to the public outcome-supervised API."""
+
+    source = candidate.training_example
+    tensor = source.tensor
+    if (
+        validation.ordinal != candidate.ordinal
+        or validation.sample_identity_sha256 != candidate.sample_identity_sha256
+        or validation.label_binding_sha256 != candidate.label_binding_sha256
+        or validation.tensor_binding_sha256 != candidate.tensor_binding_sha256
+        or len(tensor.model_vector) != LOGICAL_MODEL_INPUT_COUNT
+        or len(tensor.values) != LOGICAL_MODEL_FEATURE_COUNT
+        or any(tensor.stale_mask)
+        or source.behavior_action_index is not None
+        or source.behavior_action is not None
+    ):
+        _fail("PROFILED_LOCAL_RESEARCH_TRAINING_EXAMPLE_SOURCE_INVALID")
+    optional_missing_names: list[str] = []
+    for index, missing_value in enumerate(tensor.missing_mask):
+        if not missing_value:
+            continue
+        slot = FEATURE_SOURCE_REGISTRY_V4.slots[index]
+        if (
+            slot.requirement_class != REQUIREMENT_OPTIONAL_EVENT_DEPENDENT
+            or tensor.source_availability_vector[index] != 0
+            or tensor.values[index] != 0.0
+        ):
+            _fail("PROFILED_LOCAL_RESEARCH_DIRTY_REQUIRED_SAMPLE_FORBIDDEN")
+        optional_missing_names.append(slot.feature_name)
+    action_index = source.label_action_index
+    raw_move = source.label_expected_move_after_cost_bps
+    if (
+        type(action_index) is not int
+        or action_index not in {0, 1, 2}
+        or type(raw_move) is not float
+        or not math.isfinite(raw_move)
+    ):
+        _fail("PROFILED_LOCAL_RESEARCH_OUTCOME_TARGET_INVALID")
+    selected_action = {0: "hold", 1: "long", 2: "short"}[action_index]
+    selected_action_net_bps = (
+        raw_move if action_index == 1 else -raw_move if action_index == 2 else 0.0
+    )
+    if not math.isfinite(selected_action_net_bps) or selected_action_net_bps < 0.0:
+        _fail("PROFILED_LOCAL_RESEARCH_SELECTED_ACTION_NET_INVALID")
+    directional_outcome = (
+        "UP" if raw_move > 0.0 else "DOWN" if raw_move < 0.0 else "FLAT"
+    )
+    row_inventory_sha256 = stable_sha256(
+        {
+            "domain": "v2/native-trainer/local-profiled-research-row/v1",
+            "validation": _local_research_validation_material(validation),
+            "execution_authorization_sha256": execution_authorization_sha256,
+        }
+    )
+    trust_row: dict[str, Any] = {
+        "row_source": "locally_authenticated_profiled_research_corpus_v1",
+        "row_classification": (
+            "MISSING_MASKED" if optional_missing_names else "TRAINABLE"
+        ),
+        "learning_mode": "outcome_supervised",
+        "update_lane": "LOCAL_PROFILED_RESEARCH_OUTCOME_SUPERVISED_NON_PROMOTABLE",
+        "trust_schema_version": TRUST_SCHEMA_VERSION,
+        "accepted_for_training": True,
+        "producer_trainer_consumable_literal_true": True,
+        "reject_reasons": [],
+        "quarantined": False,
+        "decision_time": validation.decision_time,
+        "feature_cutoff": validation.model_feature_cutoff,
+        "available_at": validation.decision_feature_available_at,
+        "source_available_time": validation.source_feature_available_at,
+        "feature_generated_at": validation.feature_generated_at,
+        "record_generated_at": validation.training_record_generated_at,
+        "trainer_sample_available_at": validation.trainer_sample_available_at,
+        "label_available_at": validation.label_available_at,
+        "outcome_available_at": validation.label_available_at,
+        "candle_closed_confirmed": True,
+        "future_labels_not_in_feature_tensor": True,
+        "profiled_sample_identity_sha256": validation.sample_identity_sha256,
+        "profiled_label_binding_sha256": validation.label_binding_sha256,
+        "profiled_tensor_binding_sha256": validation.tensor_binding_sha256,
+        "profiled_row_inventory_sha256": row_inventory_sha256,
+        "profiled_optimizer_execution_authorization_sha256": (
+            execution_authorization_sha256
+        ),
+        "optimizer_admission_authorized": False,
+        "optimizer_execution_authorized": True,
+        "local_research_non_promotable": True,
+        "external_witness_verified": False,
+        "optional_event_dependent_missing_mask_verified": bool(
+            optional_missing_names
+        ),
+        "missing_feature_names": optional_missing_names,
+        "behavior_receipt_bound": False,
+        "ppo_behavior_policy_terms_enabled": False,
+        "outcome_targets": {
+            "realized_net_pnl_bps": selected_action_net_bps,
+            "directional_outcome": directional_outcome,
+            "selected_action": selected_action,
+            "action_was_profitable": bool(selected_action_net_bps > 0.0),
+        },
+        "realized_after_cost_reward": selected_action_net_bps / 100.0,
+        "uses_expected_move_as_realized_reward": False,
+    }
+    example = TrainingExample(
+        symbol=source.symbol,
+        timeframe=source.timeframe,
+        tensor=tensor,
+        label_action_index=action_index,
+        label_expected_move_after_cost_bps=raw_move,
+        payload_keys=(
+            f"profiled_sample:{validation.sample_identity_sha256}",
+            f"profiled_label:{validation.label_binding_sha256}",
+        ),
+        row_classification=(
+            "MISSING_MASKED" if optional_missing_names else "TRAINABLE"
+        ),
+        trust_row=trust_row,
+        decision_time=validation.decision_time,
+        label_available_at=validation.label_available_at,
+        behavior_action_index=None,
+        behavior_action=None,
+    )
+    if example.label_timing_valid is not True:
+        _fail("PROFILED_LOCAL_RESEARCH_TRAINING_EXAMPLE_INVALID")
     return example
 
 
@@ -2172,6 +2324,696 @@ def execute_authenticated_profiled_supervised_optimizer_v1(
         ) from exc
 
 
+def _local_research_validation_material(
+    validation: LocallyValidatedProfiledResearchExampleV1,
+) -> dict[str, object]:
+    return {
+        "ordinal": validation.ordinal,
+        "sample_identity_sha256": validation.sample_identity_sha256,
+        "label_binding_sha256": validation.label_binding_sha256,
+        "tensor_binding_sha256": validation.tensor_binding_sha256,
+        "example_fingerprint_sha256": validation.example_fingerprint_sha256,
+        "logical_model_vector_sha256": validation.logical_model_vector_sha256,
+        "logical_projection_sha256": validation.logical_projection_sha256,
+        "model_feature_cutoff": validation.model_feature_cutoff,
+        "record_wide_evidence_cutoff": validation.record_wide_evidence_cutoff,
+        "source_feature_available_at": validation.source_feature_available_at,
+        "decision_feature_available_at": validation.decision_feature_available_at,
+        "feature_generated_at": validation.feature_generated_at,
+        "training_record_generated_at": validation.training_record_generated_at,
+        "decision_time": validation.decision_time,
+        "trainer_sample_available_at": validation.trainer_sample_available_at,
+        "label_available_at": validation.label_available_at,
+        "observation_time": validation.observation_time,
+        "horizon_seconds": validation.horizon_seconds,
+    }
+
+
+def _local_research_result_material(values: Mapping[str, object]) -> dict[str, object]:
+    names = (
+        "schema_version",
+        "status",
+        "manifest_id",
+        "manifest_metadata_sha256",
+        "manifest_entry_chain_head_sha256",
+        "manifest_ordered_entry_identities_sha256",
+        "manifest_observation_time",
+        "admitted_example_count",
+        "ordered_example_fingerprints_sha256",
+        "corpus_contract_sha256",
+        "authorization_key_id",
+        "authorization_tag",
+        "authorization_receipt_sha256",
+        "optimizer_implementation_artifact_sha256",
+        "code_release_sha",
+        "deterministic_seed_material_sha256",
+        "base_model_parameter_fingerprint",
+        "candidate_model_parameter_fingerprint",
+        "training_result_artifact_sha256",
+        "training_rows",
+        "validation_rows",
+        "loss_before",
+        "loss_after",
+        "weight_delta_norm",
+        "optimizer_execution_completed",
+        "complete_corpus_revalidated_after_optimization",
+        "base_model_unchanged",
+        "isolated_candidate_model_created",
+        "process_rng_state_restored",
+        "deterministic_algorithms_enforced",
+        "local_research_non_promotable",
+        "external_witness_verified",
+        *_AUTHORITY_FALSE,
+    )
+    return {name: values[name] for name in names}
+
+
+@dataclass(frozen=True, slots=True)
+class LocallyAuthenticatedProfiledResearchOptimizerExecutionV1:
+    schema_version: str
+    status: str
+    manifest_id: str
+    manifest_metadata_sha256: str
+    manifest_entry_chain_head_sha256: str
+    manifest_ordered_entry_identities_sha256: str
+    manifest_observation_time: str
+    admitted_example_count: int
+    ordered_example_fingerprints_sha256: str
+    corpus_contract_sha256: str
+    authorization_key_id: str
+    authorization_tag: str
+    authorization_receipt_sha256: str
+    optimizer_implementation_artifact_sha256: str
+    code_release_sha: str
+    deterministic_seed_material_sha256: str
+    base_model_parameter_fingerprint: str
+    candidate_model_parameter_fingerprint: str
+    training_result_artifact_sha256: str
+    training_rows: int
+    validation_rows: int
+    loss_before: float
+    loss_after: float
+    weight_delta_norm: float
+    optimizer_execution_completed: bool
+    complete_corpus_revalidated_after_optimization: bool
+    base_model_unchanged: bool
+    isolated_candidate_model_created: bool
+    process_rng_state_restored: bool
+    deterministic_algorithms_enforced: bool
+    local_research_non_promotable: bool
+    external_witness_verified: bool
+    checkpoint_write_authorized: bool
+    model_write_authorized: bool
+    prediction_authorized: bool
+    serving_authorized: bool
+    ppo_training_authorized: bool
+    paper_trading_authorized: bool
+    live_execution_authorized: bool
+    exchange_access_authorized: bool
+    deployment_authorized: bool
+    order_submission_authorized: bool
+    execution_authorized: bool
+    runtime_wired: bool
+    _base_model_owner: V2HybridPolicyModel = field(repr=False, compare=False)
+    _candidate_model_owner: V2HybridPolicyModel = field(repr=False, compare=False)
+    _candidate_trainer_owner: V2HybridPPOTrainer = field(repr=False, compare=False)
+    _factory_seal: _FactorySeal = field(repr=False, compare=False)
+    _construction_token: object = field(repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        material = _local_research_result_material(
+            {name: getattr(self, name) for name in _local_research_result_material_names()}
+        )
+        hashes = (
+            self.manifest_id,
+            self.manifest_metadata_sha256,
+            self.manifest_entry_chain_head_sha256,
+            self.manifest_ordered_entry_identities_sha256,
+            self.ordered_example_fingerprints_sha256,
+            self.corpus_contract_sha256,
+            self.authorization_tag,
+            self.authorization_receipt_sha256,
+            self.optimizer_implementation_artifact_sha256,
+            self.deterministic_seed_material_sha256,
+            self.base_model_parameter_fingerprint,
+            self.candidate_model_parameter_fingerprint,
+            self.training_result_artifact_sha256,
+        )
+        authority_values = tuple(getattr(self, name) for name in _AUTHORITY_FALSE)
+        if (
+            self._construction_token is not _LOCAL_RESEARCH_RESULT_TOKEN
+            or self.schema_version
+            != LOCALLY_AUTHENTICATED_PROFILED_RESEARCH_OPTIMIZER_EXECUTION_V1_SCHEMA_VERSION
+            or self.status
+            != LOCALLY_AUTHENTICATED_PROFILED_RESEARCH_OPTIMIZER_EXECUTION_V1_STATUS
+            or not all(_valid_sha256(value) for value in hashes)
+            or type(self.code_release_sha) is not str
+            or len(self.code_release_sha) != 40
+            or any(value not in "0123456789abcdef" for value in self.code_release_sha)
+            or type(self.authorization_key_id) is not str
+            or not self.authorization_key_id
+            or self.authorization_key_id != self.authorization_key_id.strip()
+            or type(self.admitted_example_count) is not int
+            or self.admitted_example_count <= 0
+            or type(self.training_rows) is not int
+            or self.training_rows <= 0
+            or type(self.validation_rows) is not int
+            or self.validation_rows < 0
+            or self.training_rows + self.validation_rows != self.admitted_example_count
+            or any(
+                type(value) is not float or not math.isfinite(value)
+                for value in (self.loss_before, self.loss_after, self.weight_delta_norm)
+            )
+            or self.weight_delta_norm <= 0.0
+            or self.base_model_parameter_fingerprint
+            == self.candidate_model_parameter_fingerprint
+            or any(
+                value is not True
+                for value in (
+                    self.optimizer_execution_completed,
+                    self.complete_corpus_revalidated_after_optimization,
+                    self.base_model_unchanged,
+                    self.isolated_candidate_model_created,
+                    self.process_rng_state_restored,
+                    self.deterministic_algorithms_enforced,
+                    self.local_research_non_promotable,
+                )
+            )
+            or self.external_witness_verified is not False
+            or any(value is not False for value in authority_values)
+            or type(self._base_model_owner) is not V2HybridPolicyModel
+            or type(self._candidate_model_owner) is not V2HybridPolicyModel
+            or type(self._candidate_trainer_owner) is not V2HybridPPOTrainer
+            or self._candidate_trainer_owner.model is not self._candidate_model_owner
+            or not hmac.compare_digest(
+                self._factory_seal.mac,
+                _seal_bytes(
+                    material,
+                    owner_ids=(
+                        id(self._base_model_owner),
+                        id(self._candidate_model_owner),
+                        id(self._candidate_trainer_owner),
+                    ),
+                ),
+            )
+        ):
+            _fail("PROFILED_LOCAL_RESEARCH_EXECUTION_RESULT_INVALID")
+        _clock(
+            self.manifest_observation_time,
+            reason="PROFILED_LOCAL_RESEARCH_OBSERVATION_TIME_INVALID",
+        )
+
+    @property
+    def candidate_model(self) -> V2HybridPolicyModel:
+        """Return the exact isolated in-process candidate owner."""
+
+        self.__post_init__()
+        return self._candidate_model_owner
+
+
+def _local_research_result_material_names() -> tuple[str, ...]:
+    return (
+        "schema_version",
+        "status",
+        "manifest_id",
+        "manifest_metadata_sha256",
+        "manifest_entry_chain_head_sha256",
+        "manifest_ordered_entry_identities_sha256",
+        "manifest_observation_time",
+        "admitted_example_count",
+        "ordered_example_fingerprints_sha256",
+        "corpus_contract_sha256",
+        "authorization_key_id",
+        "authorization_tag",
+        "authorization_receipt_sha256",
+        "optimizer_implementation_artifact_sha256",
+        "code_release_sha",
+        "deterministic_seed_material_sha256",
+        "base_model_parameter_fingerprint",
+        "candidate_model_parameter_fingerprint",
+        "training_result_artifact_sha256",
+        "training_rows",
+        "validation_rows",
+        "loss_before",
+        "loss_after",
+        "weight_delta_norm",
+        "optimizer_execution_completed",
+        "complete_corpus_revalidated_after_optimization",
+        "base_model_unchanged",
+        "isolated_candidate_model_created",
+        "process_rng_state_restored",
+        "deterministic_algorithms_enforced",
+        "local_research_non_promotable",
+        "external_witness_verified",
+        *_AUTHORITY_FALSE,
+    )
+
+
+def execute_locally_authenticated_profiled_research_optimizer_v1(
+    *,
+    authenticated_manifest: AuthenticatedProfiledTrainingObservationManifestV1,
+    candidates: tuple[ProfiledTrainingObservationExampleV1, ...],
+    ledger: DurableFeatureSnapshotLedger,
+    base_model: V2HybridPolicyModel,
+    trainer: V2HybridPPOTrainer,
+    authorization_key_id: str,
+    authorization_hmac_key: bytes | bytearray | memoryview,
+    validation_fraction: float,
+    optimizer_input_byte_budget: int,
+    state_resource_budget_bytes: int,
+    checkpoint_serialization_byte_budget: int,
+) -> LocallyAuthenticatedProfiledResearchOptimizerExecutionV1:
+    """Run one isolated local-only optimizer step over an authenticated manifest.
+
+    The external witness boundary is intentionally absent and is recorded as
+    false.  The returned candidate is process-owned and still has no durable
+    checkpoint, promotion, serving, prediction, paper, live, exchange, or
+    order authority.
+    """
+
+    if type(authenticated_manifest) is not AuthenticatedProfiledTrainingObservationManifestV1:
+        _fail("PROFILED_LOCAL_RESEARCH_MANIFEST_EXACT_TYPE_REQUIRED")
+    authenticated_manifest.__post_init__()
+    if (
+        type(candidates) is not tuple
+        or not candidates
+        or len(candidates) != authenticated_manifest.admitted_example_count
+        or any(type(item) is not ProfiledTrainingObservationExampleV1 for item in candidates)
+        or authenticated_manifest.external_monotonic_manifest_head_verified is not False
+        or authenticated_manifest.full_consumption_external_ack_verified is not False
+        or authenticated_manifest.optimizer_admission_authorized is not False
+        or authenticated_manifest.checkpoint_write_authorized is not False
+    ):
+        _fail("PROFILED_LOCAL_RESEARCH_MANIFEST_CORPUS_INVALID")
+    if type(ledger) is not DurableFeatureSnapshotLedger:
+        _fail("PROFILED_LOCAL_RESEARCH_LEDGER_EXACT_TYPE_REQUIRED")
+    if (
+        type(base_model) is not V2HybridPolicyModel
+        or type(trainer) is not V2HybridPPOTrainer
+        or trainer.model is not base_model
+    ):
+        _fail("PROFILED_LOCAL_RESEARCH_TRAINER_OWNER_INVALID")
+    if (
+        type(authorization_key_id) is not str
+        or not authorization_key_id
+        or authorization_key_id != authorization_key_id.strip()
+        or any(value in authorization_key_id for value in "\r\n\x00")
+    ):
+        _fail("PROFILED_LOCAL_RESEARCH_AUTHORIZATION_KEY_ID_INVALID")
+    try:
+        authorization_key = bytes(authorization_hmac_key)
+    except (TypeError, ValueError):
+        _fail("PROFILED_LOCAL_RESEARCH_AUTHORIZATION_KEY_INVALID")
+    if len(authorization_key) < 32:
+        _fail("PROFILED_LOCAL_RESEARCH_AUTHORIZATION_KEY_INVALID")
+    if (
+        type(validation_fraction) is not float
+        or not math.isfinite(validation_fraction)
+        or not 0.0 <= validation_fraction < 1.0
+    ):
+        _fail("PROFILED_LOCAL_RESEARCH_VALIDATION_FRACTION_INVALID")
+    for value, reason in (
+        (optimizer_input_byte_budget, "PROFILED_LOCAL_RESEARCH_INPUT_BUDGET_INVALID"),
+        (state_resource_budget_bytes, "PROFILED_LOCAL_RESEARCH_STATE_BUDGET_INVALID"),
+        (
+            checkpoint_serialization_byte_budget,
+            "PROFILED_LOCAL_RESEARCH_CHECKPOINT_BUDGET_INVALID",
+        ),
+    ):
+        if (
+            type(value) is not int
+            or value <= 0
+            or value > MAX_PROFILED_CHECKPOINT_SERIALIZATION_BYTES
+        ):
+            _fail(reason)
+    if (
+        base_model.input_dim != LOGICAL_MODEL_INPUT_COUNT
+        or base_model.input_dim != CHECKPOINT_FEATURE_ABI_BINDING_V4_MODEL_INPUT_DIM
+        or not base_model.torch_available
+        or not base_model.model_tensors_device_verified()
+    ):
+        _fail("PROFILED_LOCAL_RESEARCH_MODEL_CONTRACT_INVALID")
+    declaration = base_model.checkpoint_feature_abi_declaration
+    if declaration is None:
+        _fail("PROFILED_LOCAL_RESEARCH_FEATURE_ABI_BINDING_REQUIRED")
+    try:
+        abi_verification = verify_deployed_checkpoint_feature_abi_binding_v4(
+            declaration,
+            checkpoint_input_dim=base_model.input_dim,
+        )
+    except Exception as exc:
+        raise AuthenticatedProfiledSupervisedOptimizerExecutionV1Error(
+            "PROFILED_LOCAL_RESEARCH_FEATURE_ABI_BINDING_INVALID"
+        ) from exc
+    if abi_verification.get("binding_sha256") != CHECKPOINT_FEATURE_ABI_BINDING_V4_SHA256:
+        _fail("PROFILED_LOCAL_RESEARCH_FEATURE_ABI_BINDING_INVALID")
+
+    validations_before = tuple(
+        validate_profiled_observation_example_for_local_research_v1(
+            ledger=ledger,
+            candidate=candidate,
+            observation_time=authenticated_manifest.observation_time,
+        )
+        for candidate in candidates
+    )
+    if tuple(item.ordinal for item in validations_before) != tuple(
+        sorted(item.ordinal for item in validations_before)
+    ) or len({item.ordinal for item in validations_before}) != len(validations_before):
+        _fail("PROFILED_LOCAL_RESEARCH_CORPUS_ORDER_INVALID")
+    validation_material = tuple(
+        _local_research_validation_material(item) for item in validations_before
+    )
+    corpus_contract = {
+        "schema_version": "local_profiled_research_corpus_contract_v1",
+        "manifest_id": authenticated_manifest.manifest_id,
+        "manifest_metadata_sha256": authenticated_manifest.metadata_sha256,
+        "manifest_observation_context_sha256": (
+            authenticated_manifest.observation_context_sha256
+        ),
+        "manifest_entry_chain_head_sha256": (
+            authenticated_manifest.entry_chain_head_sha256
+        ),
+        "manifest_ordered_entry_identities_sha256": (
+            authenticated_manifest.ordered_entry_identities_sha256
+        ),
+        "manifest_observation_time": authenticated_manifest.observation_time,
+        "manifest_total_profiled_samples": authenticated_manifest.total_profiled_samples,
+        "manifest_admitted_example_count": authenticated_manifest.admitted_example_count,
+        "manifest_label_unavailable_count": authenticated_manifest.label_unavailable_count,
+        "validated_examples": list(validation_material),
+        "external_witness_verified": False,
+        "local_research_non_promotable": True,
+    }
+    corpus_contract_sha256 = stable_sha256(corpus_contract)
+    ordered_example_fingerprints_sha256 = stable_sha256(
+        [item.example_fingerprint_sha256 for item in validations_before]
+    )
+    authorization_material = {
+        "domain": LOCAL_PROFILED_RESEARCH_AUTHORIZATION_DOMAIN,
+        "schema_version": "local_profiled_research_optimizer_authorization_v1",
+        "authorization_key_id": authorization_key_id,
+        "corpus_contract_sha256": corpus_contract_sha256,
+        "ordered_example_fingerprints_sha256": ordered_example_fingerprints_sha256,
+        "manifest_id": authenticated_manifest.manifest_id,
+        "manifest_observation_time": authenticated_manifest.observation_time,
+        "admitted_example_count": len(candidates),
+        "local_research_non_promotable": True,
+        "external_witness_verified": False,
+    }
+    authorization_tag = hmac.new(
+        authorization_key,
+        LOCAL_PROFILED_RESEARCH_AUTHORIZATION_DOMAIN.encode("ascii")
+        + b"\0"
+        + _canonical_json_bytes(
+            authorization_material,
+            reason="PROFILED_LOCAL_RESEARCH_AUTHORIZATION_ENCODING_INVALID",
+        ),
+        hashlib.sha256,
+    ).hexdigest()
+    authorization_receipt_sha256 = stable_sha256(
+        {**authorization_material, "authorization_tag": authorization_tag}
+    )
+
+    input_accounted_bytes = len(candidates) * (LOGICAL_MODEL_INPUT_COUNT * 4 + 4096)
+    if input_accounted_bytes > optimizer_input_byte_budget:
+        _fail("PROFILED_LOCAL_RESEARCH_INPUT_BUDGET_EXCEEDED")
+    state_accounted_bytes, state_payload_bytes = _model_state_accounted_bytes(base_model)
+    if (
+        state_accounted_bytes > state_resource_budget_bytes
+        or state_payload_bytes > state_resource_budget_bytes
+    ):
+        _fail("PROFILED_LOCAL_RESEARCH_STATE_BUDGET_EXCEEDED")
+    implementation_artifact = _source_artifact()
+    implementation_artifact_sha256 = hashlib.sha256(implementation_artifact).hexdigest()
+    conservative_checkpoint_preflight = (
+        PROFILED_CHECKPOINT_FIXED_ACCOUNTING_BYTES
+        + len(candidates) * PROFILED_OPTIMIZER_ROW_ACCOUNTING_BYTES
+        + state_accounted_bytes
+        + len(implementation_artifact)
+        + MAX_PROFILED_CONFIGURATION_ARTIFACT_BYTES
+        + MAX_PROFILED_ENVIRONMENT_ARTIFACT_BYTES
+    )
+    if conservative_checkpoint_preflight > checkpoint_serialization_byte_budget:
+        _fail("PROFILED_LOCAL_RESEARCH_CHECKPOINT_BUDGET_EXCEEDED")
+    code_release_sha = _code_release_sha()
+    base_parameter_fingerprint = model_parameter_fingerprint(base_model)
+    base_nonparameter_state_artifact = _nonparameter_model_state_artifact(base_model)
+    deterministic_seed, deterministic_seed_material_sha256 = _deterministic_seed(
+        corpus_contract_sha256=corpus_contract_sha256,
+        execution_authorization_sha256=authorization_receipt_sha256,
+        base_model_parameter_fingerprint=base_parameter_fingerprint,
+        implementation_artifact_sha256=implementation_artifact_sha256,
+        code_release_sha=code_release_sha,
+    )
+    training_observed_at = _clock(
+        trainer.training_observed_at_iso,
+        reason="PROFILED_LOCAL_RESEARCH_TRAINING_OBSERVED_AT_INVALID",
+    )
+    latest_label_available_at = max(
+        _clock(
+            item.label_available_at,
+            reason="PROFILED_LOCAL_RESEARCH_LABEL_AVAILABLE_AT_INVALID",
+        )
+        for item in validations_before
+    )
+    if training_observed_at <= _clock(
+        authenticated_manifest.observation_time,
+        reason="PROFILED_LOCAL_RESEARCH_OBSERVATION_TIME_INVALID",
+    ) or training_observed_at <= latest_label_available_at:
+        _fail("PROFILED_LOCAL_RESEARCH_TRAINING_OBSERVED_AT_INVALID")
+
+    examples = tuple(
+        _local_research_training_example(
+            candidate=candidate,
+            validation=validation,
+            execution_authorization_sha256=authorization_receipt_sha256,
+        )
+        for candidate, validation in zip(candidates, validations_before, strict=True)
+    )
+    validation_by_example_id = {
+        id(example): validation
+        for example, validation in zip(examples, validations_before, strict=True)
+    }
+
+    def authorize_example(example: TrainingExample) -> str:
+        validation = validation_by_example_id.get(id(example))
+        if (
+            validation is None
+            or example.trust_row.get("profiled_sample_identity_sha256")
+            != validation.sample_identity_sha256
+            or example.trust_row.get("profiled_label_binding_sha256")
+            != validation.label_binding_sha256
+            or example.trust_row.get("profiled_tensor_binding_sha256")
+            != validation.tensor_binding_sha256
+            or example.trust_row.get(
+                "profiled_optimizer_execution_authorization_sha256"
+            )
+            != authorization_receipt_sha256
+            or example.trust_row.get("local_research_non_promotable") is not True
+            or example.trust_row.get("external_witness_verified") is not False
+        ):
+            _fail("PROFILED_LOCAL_RESEARCH_EXAMPLE_OWNER_MISMATCH")
+        return validation.example_fingerprint_sha256
+
+    candidate_model: V2HybridPolicyModel | None = None
+    candidate_trainer: V2HybridPPOTrainer | None = None
+    rollback_state: dict[str, Any] | None = None
+    try:
+        deterministic_guard = _DeterministicTorchExecution(
+            model=base_model,
+            seed=deterministic_seed,
+        )
+        with deterministic_guard:
+            candidate_model, candidate_trainer = _isolated_candidate_runtime(
+                base_model=base_model,
+                base_trainer=trainer,
+            )
+            deterministic_guard.prepare_optimizer()
+            rollback_state = candidate_model._mutable_state_snapshot()  # noqa: SLF001
+            result = candidate_trainer.train_profiled_outcome_supervised(
+                examples,
+                authorize_example=authorize_example,
+                authorization_sha256=authorization_receipt_sha256,
+                admission_scope=PROFILED_ADMISSION_SCOPE_LOCAL_RESEARCH,
+                steps=1,
+                validation_fraction=validation_fraction,
+            )
+        training_rows = result.optimizer_training_examples
+        validation_rows = result.validation_examples
+        _validate_training_result(
+            result=result,
+            training_rows=training_rows,
+            validation_rows=validation_rows,
+            base_parameter_fingerprint=base_parameter_fingerprint,
+            authorization_sha256=authorization_receipt_sha256,
+            authorized_row_identities=tuple(
+                item.example_fingerprint_sha256 for item in validations_before
+            ),
+            split_metrics=result.metrics,
+        )
+        if (
+            result.metrics.get("profiled_admission_scope")
+            != PROFILED_ADMISSION_SCOPE_LOCAL_RESEARCH
+            or result.metrics.get("local_research_non_promotable") is not True
+            or result.metrics.get("external_witness_authenticated") is not False
+        ):
+            _fail("PROFILED_LOCAL_RESEARCH_TRAINING_SCOPE_INVALID")
+        validations_after = tuple(
+            validate_profiled_observation_example_for_local_research_v1(
+                ledger=ledger,
+                candidate=candidate,
+                observation_time=authenticated_manifest.observation_time,
+            )
+            for candidate in candidates
+        )
+        if validations_after != validations_before:
+            _fail("PROFILED_LOCAL_RESEARCH_CORPUS_REVALIDATION_FAILED")
+        candidate_parameter_fingerprint = model_parameter_fingerprint(candidate_model)
+        if (
+            candidate_parameter_fingerprint == base_parameter_fingerprint
+            or model_parameter_fingerprint(base_model) != base_parameter_fingerprint
+            or _nonparameter_model_state_artifact(base_model)
+            != base_nonparameter_state_artifact
+            or deterministic_guard.restored is not True
+        ):
+            _fail("PROFILED_LOCAL_RESEARCH_MODEL_STATE_INVALID")
+        training_result_artifact_sha256 = hashlib.sha256(
+            _training_result_artifact(result)
+        ).hexdigest()
+        values: dict[str, Any] = {
+            "schema_version": (
+                LOCALLY_AUTHENTICATED_PROFILED_RESEARCH_OPTIMIZER_EXECUTION_V1_SCHEMA_VERSION
+            ),
+            "status": LOCALLY_AUTHENTICATED_PROFILED_RESEARCH_OPTIMIZER_EXECUTION_V1_STATUS,
+            "manifest_id": authenticated_manifest.manifest_id,
+            "manifest_metadata_sha256": authenticated_manifest.metadata_sha256,
+            "manifest_entry_chain_head_sha256": (
+                authenticated_manifest.entry_chain_head_sha256
+            ),
+            "manifest_ordered_entry_identities_sha256": (
+                authenticated_manifest.ordered_entry_identities_sha256
+            ),
+            "manifest_observation_time": authenticated_manifest.observation_time,
+            "admitted_example_count": len(candidates),
+            "ordered_example_fingerprints_sha256": (
+                ordered_example_fingerprints_sha256
+            ),
+            "corpus_contract_sha256": corpus_contract_sha256,
+            "authorization_key_id": authorization_key_id,
+            "authorization_tag": authorization_tag,
+            "authorization_receipt_sha256": authorization_receipt_sha256,
+            "optimizer_implementation_artifact_sha256": (
+                implementation_artifact_sha256
+            ),
+            "code_release_sha": code_release_sha,
+            "deterministic_seed_material_sha256": (
+                deterministic_seed_material_sha256
+            ),
+            "base_model_parameter_fingerprint": base_parameter_fingerprint,
+            "candidate_model_parameter_fingerprint": (
+                candidate_parameter_fingerprint
+            ),
+            "training_result_artifact_sha256": training_result_artifact_sha256,
+            "training_rows": len(training_rows),
+            "validation_rows": len(validation_rows),
+            "loss_before": float(cast(float, result.loss_before)),
+            "loss_after": float(cast(float, result.loss_after)),
+            "weight_delta_norm": float(result.metrics["weight_delta_norm"]),
+            "optimizer_execution_completed": True,
+            "complete_corpus_revalidated_after_optimization": True,
+            "base_model_unchanged": True,
+            "isolated_candidate_model_created": True,
+            "process_rng_state_restored": True,
+            "deterministic_algorithms_enforced": True,
+            "local_research_non_promotable": True,
+            "external_witness_verified": False,
+            **_AUTHORITY_FALSE,
+            "_base_model_owner": base_model,
+            "_candidate_model_owner": candidate_model,
+            "_candidate_trainer_owner": candidate_trainer,
+            "_factory_seal": _FactorySeal(mac=b"placeholder"),
+            "_construction_token": _LOCAL_RESEARCH_RESULT_TOKEN,
+        }
+        material = _local_research_result_material(values)
+        values["_factory_seal"] = _FactorySeal(
+            mac=_seal_bytes(
+                material,
+                owner_ids=(id(base_model), id(candidate_model), id(candidate_trainer)),
+            )
+        )
+        return LocallyAuthenticatedProfiledResearchOptimizerExecutionV1(**values)
+    except AuthenticatedProfiledSupervisedOptimizerExecutionV1Error:
+        _restore_failed_candidate_and_verify_base(
+            base_model=base_model,
+            base_parameter_fingerprint=base_parameter_fingerprint,
+            base_nonparameter_state_artifact=base_nonparameter_state_artifact,
+            candidate_model=candidate_model,
+            rollback_state=rollback_state,
+        )
+        raise
+    except Exception as exc:
+        _restore_failed_candidate_and_verify_base(
+            base_model=base_model,
+            base_parameter_fingerprint=base_parameter_fingerprint,
+            base_nonparameter_state_artifact=base_nonparameter_state_artifact,
+            candidate_model=candidate_model,
+            rollback_state=rollback_state,
+        )
+        raise AuthenticatedProfiledSupervisedOptimizerExecutionV1Error(
+            f"PROFILED_LOCAL_RESEARCH_EXECUTION_FAILED:{type(exc).__name__}"
+        ) from exc
+
+
+def validate_locally_authenticated_profiled_research_execution_owner_v1(
+    *,
+    execution: LocallyAuthenticatedProfiledResearchOptimizerExecutionV1,
+    candidate_model: V2HybridPolicyModel,
+) -> None:
+    if (
+        type(execution) is not LocallyAuthenticatedProfiledResearchOptimizerExecutionV1
+        or type(candidate_model) is not V2HybridPolicyModel
+    ):
+        _fail("PROFILED_LOCAL_RESEARCH_EXECUTION_OWNER_TYPES_INVALID")
+    execution.__post_init__()
+    if execution._candidate_model_owner is not candidate_model:
+        _fail("PROFILED_LOCAL_RESEARCH_EXECUTION_OWNER_MISMATCH")
+
+
+def revalidate_locally_authenticated_profiled_research_publication_boundary_v1(
+    *,
+    execution: LocallyAuthenticatedProfiledResearchOptimizerExecutionV1,
+    base_model: V2HybridPolicyModel,
+    candidate_model: V2HybridPolicyModel,
+) -> None:
+    """Recheck exact owners, policy bytes, source closure, and release pre-write."""
+
+    if (
+        type(execution) is not LocallyAuthenticatedProfiledResearchOptimizerExecutionV1
+        or type(base_model) is not V2HybridPolicyModel
+        or type(candidate_model) is not V2HybridPolicyModel
+    ):
+        _fail("PROFILED_LOCAL_RESEARCH_PUBLICATION_OWNER_TYPES_INVALID")
+    execution.__post_init__()
+    if (
+        execution._base_model_owner is not base_model
+        or execution._candidate_model_owner is not candidate_model
+    ):
+        _fail("PROFILED_LOCAL_RESEARCH_PUBLICATION_OWNER_MISMATCH")
+    if (
+        model_parameter_fingerprint(base_model)
+        != execution.base_model_parameter_fingerprint
+        or model_parameter_fingerprint(candidate_model)
+        != execution.candidate_model_parameter_fingerprint
+    ):
+        _fail("PROFILED_LOCAL_RESEARCH_PUBLICATION_MODEL_DRIFT")
+    if (
+        hashlib.sha256(_source_artifact()).hexdigest()
+        != execution.optimizer_implementation_artifact_sha256
+        or _code_release_sha() != execution.code_release_sha
+    ):
+        _fail("PROFILED_LOCAL_RESEARCH_PUBLICATION_RELEASE_DRIFT")
+
+
 def validate_authenticated_profiled_supervised_optimizer_execution_owner_v1(
     *,
     execution: AuthenticatedProfiledSupervisedOptimizerExecutionV1,
@@ -2222,9 +3064,16 @@ def revalidate_authenticated_profiled_supervised_optimizer_publication_boundary_
 __all__ = (
     "AUTHENTICATED_PROFILED_SUPERVISED_OPTIMIZER_EXECUTION_V1_SCHEMA_VERSION",
     "AUTHENTICATED_PROFILED_SUPERVISED_OPTIMIZER_EXECUTION_V1_STATUS",
+    "LOCALLY_AUTHENTICATED_PROFILED_RESEARCH_OPTIMIZER_EXECUTION_V1_SCHEMA_VERSION",
+    "LOCALLY_AUTHENTICATED_PROFILED_RESEARCH_OPTIMIZER_EXECUTION_V1_STATUS",
+    "LOCAL_PROFILED_RESEARCH_AUTHORIZATION_DOMAIN",
     "AuthenticatedProfiledSupervisedOptimizerExecutionV1",
     "AuthenticatedProfiledSupervisedOptimizerExecutionV1Error",
+    "LocallyAuthenticatedProfiledResearchOptimizerExecutionV1",
     "execute_authenticated_profiled_supervised_optimizer_v1",
+    "execute_locally_authenticated_profiled_research_optimizer_v1",
     "revalidate_authenticated_profiled_supervised_optimizer_publication_boundary_v1",
+    "revalidate_locally_authenticated_profiled_research_publication_boundary_v1",
     "validate_authenticated_profiled_supervised_optimizer_execution_owner_v1",
+    "validate_locally_authenticated_profiled_research_execution_owner_v1",
 )

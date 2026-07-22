@@ -216,6 +216,83 @@ def test_executes_exactly_one_authenticated_outcome_supervised_step(
     )
 
 
+def test_local_research_scope_trains_once_but_grants_no_downstream_authority(
+    adapter_evidence: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _configure_cpu(monkeypatch)
+    observation = _parse_clock(adapter_evidence["built"].observation_time)
+    model = V2HybridPolicyModel(
+        input_dim=LOGICAL_MODEL_INPUT_COUNT,
+        checkpoint_feature_abi_binding=deployed_checkpoint_feature_abi_binding_v4(),
+    )
+    trainer = V2HybridPPOTrainer(
+        model=model,
+        learning_rate=1e-4,
+        weight_decay=0.0,
+        entropy_coefficient=0.0,
+        supervised_entropy_bonus=0.0,
+        training_observed_at=observation + timedelta(seconds=1),
+    )
+    base_fingerprint = model_parameter_fingerprint(model)
+
+    result = (
+        execution_module.execute_locally_authenticated_profiled_research_optimizer_v1(
+            authenticated_manifest=adapter_evidence["authenticated"],
+            candidates=(adapter_evidence["candidate"],),
+            ledger=adapter_evidence["ledger"],
+            base_model=model,
+            trainer=trainer,
+            authorization_key_id="local-profiled-research-test-v1",
+            authorization_hmac_key=b"local-research-test-key-material-000000001",
+            validation_fraction=0.2,
+            optimizer_input_byte_budget=_INPUT_BUDGET,
+            state_resource_budget_bytes=_STATE_BUDGET,
+            checkpoint_serialization_byte_budget=_CHECKPOINT_BUDGET,
+        )
+    )
+
+    candidate_model = result.candidate_model
+    assert result.optimizer_execution_completed is True
+    assert result.local_research_non_promotable is True
+    assert result.external_witness_verified is False
+    assert result.admitted_example_count == 1
+    assert result.training_rows == 1
+    assert result.validation_rows == 0
+    assert result.base_model_parameter_fingerprint == base_fingerprint
+    assert model_parameter_fingerprint(model) == base_fingerprint
+    assert result.candidate_model_parameter_fingerprint == model_parameter_fingerprint(
+        candidate_model
+    )
+    assert result.candidate_model_parameter_fingerprint != base_fingerprint
+    assert all(
+        getattr(result, name) is False
+        for name in execution_module._AUTHORITY_FALSE  # noqa: SLF001
+    )
+    execution_module.validate_locally_authenticated_profiled_research_execution_owner_v1(
+        execution=result,
+        candidate_model=candidate_model,
+    )
+    execution_module.revalidate_locally_authenticated_profiled_research_publication_boundary_v1(
+        execution=result,
+        base_model=model,
+        candidate_model=candidate_model,
+    )
+    assert candidate_model.torch is not None
+    assert candidate_model.net is not None
+    with candidate_model.torch.no_grad():
+        next(candidate_model.net.parameters()).add_(1.0)
+    with pytest.raises(
+        execution_module.AuthenticatedProfiledSupervisedOptimizerExecutionV1Error,
+        match="PROFILED_LOCAL_RESEARCH_PUBLICATION_MODEL_DRIFT",
+    ):
+        execution_module.revalidate_locally_authenticated_profiled_research_publication_boundary_v1(
+            execution=result,
+            base_model=model,
+            candidate_model=candidate_model,
+        )
+
+
 def test_candidate_contains_exact_model_state_but_no_optimizer_or_downstream_authority(
     completed_execution: dict[str, Any],
 ) -> None:

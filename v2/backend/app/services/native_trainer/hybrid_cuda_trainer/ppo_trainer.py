@@ -92,6 +92,18 @@ PPO_SAMPLING_COHORT_PROOF_BINDING_MISMATCH_REASON = (
 PPO_SAMPLING_COHORT_PROOF_AFTER_TRAINING_OBSERVED_REASON = (
     "AUTHENTICATED_SAMPLED_COHORT_PROOF_AFTER_TRAINING_OBSERVED_AT"
 )
+PROFILED_ADMISSION_SCOPE_EXTERNAL_WITNESS: str = (
+    "EXTERNAL_WITNESS_AUTHENTICATED"
+)
+PROFILED_ADMISSION_SCOPE_LOCAL_RESEARCH: str = (
+    "LOCAL_HMAC_AUTHENTICATED_NON_PROMOTABLE_RESEARCH"
+)
+_PROFILED_ADMISSION_SCOPES = frozenset(
+    {
+        PROFILED_ADMISSION_SCOPE_EXTERNAL_WITNESS,
+        PROFILED_ADMISSION_SCOPE_LOCAL_RESEARCH,
+    }
+)
 
 
 def _finite_float_or_none(value: Any) -> float | None:
@@ -1183,23 +1195,24 @@ class V2HybridPPOTrainer:
             learning_mode=learning_mode,
         )
 
-    def train_authenticated_profiled_outcome_supervised(
+    def train_profiled_outcome_supervised(
         self,
         examples: tuple[TrainingExample, ...],
         *,
         authorize_example: Callable[[TrainingExample], str],
         authorization_sha256: str,
+        admission_scope: str,
         steps: int,
         validation_fraction: float,
     ) -> PPOTrainingResult:
-        """Train a complete externally authenticated profiled corpus.
+        """Train one complete, explicitly scoped profiled corpus.
 
-        Profiled rows have crossed an immutable manifest, full-consumption,
-        external-witness, and point-in-time admission boundary. Inventing
-        ordinary MTF/replay identifiers for them would be false provenance.
-        The owning boundary must instead provide a process-local authorizer
+        The external scope is reserved for the independent-witness path.  The
+        local-research scope is cryptographically authenticated but explicitly
+        non-promotable.  Both callers must provide a process-local authorizer
         that revalidates every exact example before partitioning and again
-        immediately before optimization.
+        immediately before optimization.  Inventing ordinary MTF/replay
+        identifiers for these rows would be false provenance.
 
         This method grants no checkpoint, serving, prediction, or trading
         authority. It makes the alternate trainer boundary explicit so a
@@ -1216,6 +1229,7 @@ class V2HybridPPOTrainer:
                 value not in "0123456789abcdef"
                 for value in authorization_sha256
             )
+            or admission_scope not in _PROFILED_ADMISSION_SCOPES
             or type(steps) is not int
             or steps != 1
             or type(validation_fraction) is not float
@@ -1282,10 +1296,37 @@ class V2HybridPPOTrainer:
                 ),
                 "authenticated_profiled_row_identities": authorized_identities,
                 "complete_authenticated_corpus_considered": True,
+                "profiled_admission_scope": admission_scope,
+                "external_witness_authenticated": (
+                    admission_scope == PROFILED_ADMISSION_SCOPE_EXTERNAL_WITNESS
+                ),
+                "local_research_non_promotable": (
+                    admission_scope == PROFILED_ADMISSION_SCOPE_LOCAL_RESEARCH
+                ),
                 "behavior_receipt_bound": False,
                 "ppo_behavior_policy_terms_enabled": False,
             },
             learning_mode="outcome_supervised",
+        )
+
+    def train_authenticated_profiled_outcome_supervised(
+        self,
+        examples: tuple[TrainingExample, ...],
+        *,
+        authorize_example: Callable[[TrainingExample], str],
+        authorization_sha256: str,
+        steps: int,
+        validation_fraction: float,
+    ) -> PPOTrainingResult:
+        """Preserve the externally witnessed profiled optimizer boundary."""
+
+        return self.train_profiled_outcome_supervised(
+            examples,
+            authorize_example=authorize_example,
+            authorization_sha256=authorization_sha256,
+            admission_scope=PROFILED_ADMISSION_SCOPE_EXTERNAL_WITNESS,
+            steps=steps,
+            validation_fraction=validation_fraction,
         )
 
     def _filter_trusted_training_rows(

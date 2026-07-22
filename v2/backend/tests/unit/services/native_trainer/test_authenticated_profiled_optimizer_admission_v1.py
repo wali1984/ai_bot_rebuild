@@ -570,6 +570,45 @@ def test_valid_externally_witnessed_fixture_yields_typed_supervised_input_only(
     )
 
 
+def test_local_research_validator_proves_pit_lineage_without_granting_authority(
+    adapter_evidence: dict[str, Any],
+) -> None:
+    validated = (
+        admission_module.validate_profiled_observation_example_for_local_research_v1(
+            ledger=adapter_evidence["ledger"],
+            candidate=adapter_evidence["candidate"],
+            observation_time=adapter_evidence["built"].observation_time,
+        )
+    )
+
+    assert validated.ordinal == adapter_evidence["candidate"].ordinal
+    assert validated.sample_identity_sha256 == (
+        adapter_evidence["candidate"].sample_identity_sha256
+    )
+    assert validated.model_feature_cutoff <= validated.source_feature_available_at
+    assert validated.source_feature_available_at <= (
+        validated.decision_feature_available_at
+    )
+    assert validated.decision_feature_available_at <= validated.feature_generated_at
+    assert validated.feature_generated_at <= validated.training_record_generated_at
+    assert validated.training_record_generated_at <= validated.decision_time
+    assert validated.decision_time < validated.trainer_sample_available_at
+    assert validated.decision_time < validated.label_available_at
+    assert all(
+        getattr(validated, name) is False
+        for name in (
+            "optimizer_execution_authorized",
+            "checkpoint_write_authorized",
+            "prediction_authorized",
+            "serving_authorized",
+            "paper_trading_authorized",
+            "live_execution_authorized",
+            "order_submission_authorized",
+            "runtime_wired",
+        )
+    )
+
+
 def test_local_completion_without_external_signature_cannot_self_authorize(
     adapter_evidence: dict[str, Any],
 ) -> None:

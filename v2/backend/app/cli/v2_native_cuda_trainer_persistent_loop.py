@@ -24,6 +24,9 @@ class NativeTrainerResidentMode(str, Enum):
 
     WAITING_FOR_AUTHENTICATED_SAMPLES = "waiting-for-authenticated-samples"
     AUTHENTICATED_PROFILED_PUBLISHER = "authenticated-profiled-publisher"
+    LOCALLY_AUTHENTICATED_PROFILED_RESEARCH_PUBLISHER = (
+        "locally-authenticated-profiled-research-publisher"
+    )
 
 
 CONFIG_EXIT_STATUS = 78
@@ -55,6 +58,31 @@ _PUBLISHER_REQUIRED_ARGUMENTS = (
 _PUBLISHER_ONLY_ARGUMENTS = tuple(
     name for name in _PUBLISHER_REQUIRED_ARGUMENTS if name not in _COMMON_REQUIRED_ARGUMENTS
 )
+_LOCAL_RESEARCH_REQUIRED_ARGUMENTS = (
+    *_COMMON_REQUIRED_ARGUMENTS,
+    "publisher_status_path",
+    "label_archive_path",
+    "local_research_runtime_root",
+    "model_dir",
+    "status_path",
+    "manifest_auth_key_id",
+    "local_research_auth_key_id",
+    "page_limit",
+    "scan_limit",
+    "validation_fraction",
+    "optimizer_input_byte_budget",
+    "state_resource_budget_bytes",
+    "checkpoint_serialization_byte_budget",
+)
+_LOCAL_RESEARCH_ONLY_ARGUMENTS = tuple(
+    name
+    for name in _LOCAL_RESEARCH_REQUIRED_ARGUMENTS
+    if name not in _COMMON_REQUIRED_ARGUMENTS
+    and name not in _PUBLISHER_REQUIRED_ARGUMENTS
+)
+_WAITING_REJECT_ARGUMENTS = tuple(
+    dict.fromkeys((*_PUBLISHER_ONLY_ARGUMENTS, *_LOCAL_RESEARCH_ONLY_ARGUMENTS))
+)
 
 
 def _argument_parser() -> argparse.ArgumentParser:
@@ -84,6 +112,11 @@ def _argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("--optimizer-input-byte-budget", type=int)
     parser.add_argument("--state-resource-budget-bytes", type=int)
     parser.add_argument("--checkpoint-serialization-byte-budget", type=int)
+    parser.add_argument("--publisher-status-path", type=Path)
+    parser.add_argument("--label-archive-path", type=Path)
+    parser.add_argument("--local-research-runtime-root", type=Path)
+    parser.add_argument("--local-research-auth-key-id")
+    parser.add_argument("--scan-limit", type=int)
     parser.add_argument("--once", action="store_true")
     return parser
 
@@ -115,7 +148,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.mode is NativeTrainerResidentMode.WAITING_FOR_AUTHENTICATED_SAMPLES:
         _require_arguments(parser, args, _WAITING_REQUIRED_ARGUMENTS)
-        _reject_arguments(parser, args, _PUBLISHER_ONLY_ARGUMENTS)
+        _reject_arguments(parser, args, _WAITING_REJECT_ARGUMENTS)
         if args.once:
             parser.error("waiting-for-authenticated-samples does not accept --once")
 
@@ -137,7 +170,11 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.mode is NativeTrainerResidentMode.AUTHENTICATED_PROFILED_PUBLISHER:
         _require_arguments(parser, args, _PUBLISHER_REQUIRED_ARGUMENTS)
-        _reject_arguments(parser, args, ("max_rows",))
+        _reject_arguments(
+            parser,
+            args,
+            ("max_rows", *_LOCAL_RESEARCH_ONLY_ARGUMENTS),
+        )
 
         from v2.backend.app.services.native_trainer.authenticated_profiled_resident_runtime_credentials_v1 import (  # noqa: E501
             AuthenticatedProfiledResidentCredentialV1Error,
@@ -184,6 +221,75 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"PROFILED_RESIDENT_CONFIGURATION_ERROR:{reason}", file=sys.stderr)
             return CONFIG_EXIT_STATUS
         return run_authenticated_profiled_resident_service_v1(
+            config,
+            credentials,
+            once=args.once,
+        )
+
+    if (
+        args.mode
+        is NativeTrainerResidentMode.LOCALLY_AUTHENTICATED_PROFILED_RESEARCH_PUBLISHER
+    ):
+        _require_arguments(parser, args, _LOCAL_RESEARCH_REQUIRED_ARGUMENTS)
+        _reject_arguments(
+            parser,
+            args,
+            (
+                "max_rows",
+                "coordinator_runtime_root",
+                "namespace",
+                "consumer_lane",
+                "state_auth_key_id",
+                "head_auth_key_id",
+                "epoch_auth_key_id",
+            ),
+        )
+
+        from v2.backend.app.services.native_trainer.authenticated_profiled_resident_runtime_credentials_v1 import (  # noqa: E501
+            AuthenticatedProfiledResidentCredentialV1Error,
+            load_authenticated_profiled_resident_runtime_credentials_v1,
+        )
+        from v2.backend.app.services.native_trainer.locally_authenticated_profiled_research_service_v1 import (  # noqa: E501
+            LocallyAuthenticatedProfiledResearchServiceConfigV1,
+            LocallyAuthenticatedProfiledResearchServiceV1Error,
+            run_locally_authenticated_profiled_research_service_v1,
+        )
+
+        try:
+            credentials = load_authenticated_profiled_resident_runtime_credentials_v1()
+            if getattr(credentials, "local_research_hmac_key", None) is None:
+                raise LocallyAuthenticatedProfiledResearchServiceV1Error(
+                    "LOCAL_PROFILED_RESEARCH_AUTHORIZATION_CREDENTIAL_REQUIRED"
+                )
+            config = LocallyAuthenticatedProfiledResearchServiceConfigV1(
+                repo_root=args.repo_root,
+                publisher_status_path=args.publisher_status_path,
+                feature_ledger_path=args.ledger_path,
+                label_archive_path=args.label_archive_path,
+                trusted_immutable_cost_store_root=args.trusted_cost_store_root,
+                runtime_root=args.local_research_runtime_root,
+                model_dir=args.model_dir,
+                status_path=args.status_path,
+                manifest_auth_key_id=args.manifest_auth_key_id,
+                local_research_auth_key_id=args.local_research_auth_key_id,
+                page_limit=args.page_limit,
+                scan_limit=args.scan_limit,
+                validation_fraction=args.validation_fraction,
+                optimizer_input_byte_budget=args.optimizer_input_byte_budget,
+                state_resource_budget_bytes=args.state_resource_budget_bytes,
+                checkpoint_serialization_byte_budget=(
+                    args.checkpoint_serialization_byte_budget
+                ),
+                interval_seconds=args.interval_seconds,
+            )
+        except (
+            AuthenticatedProfiledResidentCredentialV1Error,
+            LocallyAuthenticatedProfiledResearchServiceV1Error,
+        ) as exc:
+            reason = exc.reason if hasattr(exc, "reason") else ";".join(exc.reasons)
+            print(f"LOCAL_PROFILED_RESEARCH_CONFIGURATION_ERROR:{reason}", file=sys.stderr)
+            return CONFIG_EXIT_STATUS
+        return run_locally_authenticated_profiled_research_service_v1(
             config,
             credentials,
             once=args.once,

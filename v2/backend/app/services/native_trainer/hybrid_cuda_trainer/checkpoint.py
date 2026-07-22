@@ -39,7 +39,11 @@ _CHECKPOINT_FEATURE_ABI_EVIDENCE_FIELD = "checkpoint_feature_abi_binding_v4"
 # strategy, trainer-admission, or risk threshold.
 MAX_PRIVATE_CHECKPOINT_COPY_BYTES = 512 * 1024 * 1024
 _CHECKPOINT_STORE_SUBDIRECTORIES = frozenset(
-    {"non_serving_training_candidates", "rejected_optimizer_attempts"}
+    {
+        "local_profiled_research_candidates",
+        "non_serving_training_candidates",
+        "rejected_optimizer_attempts",
+    }
 )
 _CAUSAL_EVIDENCE_FIELDS = frozenset(
     {

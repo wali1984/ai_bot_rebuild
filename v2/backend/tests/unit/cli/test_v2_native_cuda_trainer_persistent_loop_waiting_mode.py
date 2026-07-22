@@ -347,13 +347,14 @@ def test_publisher_credential_error_returns_non_restarting_config_status_safely(
     assert LEGACY_RUNTIME_MODULE not in sys.modules
 
 
-def test_repository_systemd_unit_commissions_bounded_publisher() -> None:
+def test_repository_systemd_unit_commissions_local_non_promotable_publisher() -> None:
     root = Path(__file__).resolve().parents[5]
     unit = (
         root / "claude_worklog/systemd/user/ai-bot-v2-native-cuda-trainer-persistent.service"
     ).read_text(encoding="utf-8")
 
-    assert "--mode authenticated-profiled-publisher" in unit
+    assert "--mode locally-authenticated-profiled-research-publisher" in unit
+    assert "--mode authenticated-profiled-publisher" not in unit
     assert "--mode waiting-for-authenticated-samples" not in unit
     assert (
         '--ledger-path "/home/wali/ai_bot_local_data/v2_native_trainer/'
@@ -361,14 +362,23 @@ def test_repository_systemd_unit_commissions_bounded_publisher() -> None:
     ) in unit
     assert f'--trusted-cost-store-root "{CANONICAL_COST_ROOT}"' in unit
     assert (
-        '--coordinator-runtime-root "/home/wali/ai_bot_local_data/v2_native_trainer/'
-        'profiled_training_observation_coordinator_v1"'
+        '--publisher-status-path "/home/wali/ai_bot_local_data/v2_native_trainer/'
+        'profiled_base_publisher_v1/profiled_base_publisher_status_v1.json"'
+    ) in unit
+    assert (
+        '--label-archive-path "/home/wali/ai_bot_local_data/v2_native_trainer/'
+        'canonical_finalized_5m_label_archive.sqlite3"'
+    ) in unit
+    assert (
+        '--local-research-runtime-root "/home/wali/ai_bot_local_data/'
+        'v2_native_trainer/local_profiled_research_v1"'
     ) in unit
     assert (
         '--model-dir "/home/wali/Desktop/AI BOT REBUILD/.local_models/'
         'v2_native_rl_masa_ppo"'
     ) in unit
     assert "--page-limit 256" in unit
+    assert "--scan-limit 250000" in unit
     assert "--validation-fraction 0.2" in unit
     assert "--optimizer-input-byte-budget 8388608" in unit
     assert "--state-resource-budget-bytes 67108864" in unit
@@ -379,17 +389,23 @@ def test_repository_systemd_unit_commissions_bounded_publisher() -> None:
     assert "PrivateDevices=false" in unit
     assert "RestrictAddressFamilies=AF_UNIX" in unit
     assert "RestartPreventExitStatus=2 78" in unit
-    assert "Wants=ai-bot-v2-profiled-training-observation-coordinator.service" in unit
+    assert "Environment=CUBLAS_WORKSPACE_CONFIG=:4096:8" in unit
+    assert "Wants=ai-bot-v2-profiled-base-feature-publisher.service" in unit
     assert (
         "ExecStartPre=+/usr/bin/install -d -m 0700 "
         "/home/wali/ai_bot_local_data/v2_native_trainer/"
-        "authenticated_profiled_resident_v1"
+        "local_profiled_research_v1"
     ) in unit
     assert (
         "ReadWritePaths=-/home/wali/ai_bot_local_data/v2_native_trainer/"
-        "authenticated_profiled_resident_v1"
+        "local_profiled_research_v1"
     ) in unit
-    assert unit.count("LoadCredential=") == 4
+    assert (
+        "ReadOnlyPaths=/home/wali/ai_bot_local_data/v2_native_trainer\n"
+    ) in unit
+    assert "ReadOnlyPaths=/home/wali/ai_bot_local_data/v2_native_trainer/" not in unit
+    assert unit.count("LoadCredential=") == 5
+    assert "profiled_local_research_authorization_hmac_key" in unit
     assert "profiled_observation_witness_ed25519_public_key" not in unit
     assert "bearer" not in unit.lower()
     assert "moralis" not in unit.lower()

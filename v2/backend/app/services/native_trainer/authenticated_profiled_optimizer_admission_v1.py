@@ -1114,6 +1114,154 @@ def _validate_candidate_semantics(
 
 
 @dataclass(frozen=True, slots=True)
+class LocallyValidatedProfiledResearchExampleV1:
+    """PIT and direct-lineage proof for one local-only research example.
+
+    This value deliberately grants no optimizer, checkpoint, serving,
+    prediction, paper, live, exchange, deployment, or order authority.  It is
+    only the semantic input to a separately authenticated research authorizer.
+    """
+
+    ordinal: int
+    sample_identity_sha256: str
+    label_binding_sha256: str
+    tensor_binding_sha256: str
+    example_fingerprint_sha256: str
+    logical_model_vector_sha256: str
+    logical_projection_sha256: str
+    model_feature_cutoff: str
+    record_wide_evidence_cutoff: str
+    source_feature_available_at: str
+    decision_feature_available_at: str
+    feature_generated_at: str
+    training_record_generated_at: str
+    decision_time: str
+    trainer_sample_available_at: str
+    label_available_at: str
+    observation_time: str
+    horizon_seconds: int
+    optimizer_execution_authorized: bool = False
+    checkpoint_write_authorized: bool = False
+    prediction_authorized: bool = False
+    serving_authorized: bool = False
+    paper_trading_authorized: bool = False
+    live_execution_authorized: bool = False
+    order_submission_authorized: bool = False
+    runtime_wired: bool = False
+
+    def __post_init__(self) -> None:
+        hashes = (
+            self.sample_identity_sha256,
+            self.label_binding_sha256,
+            self.tensor_binding_sha256,
+            self.example_fingerprint_sha256,
+            self.logical_model_vector_sha256,
+            self.logical_projection_sha256,
+        )
+        if (
+            type(self.ordinal) is not int
+            or self.ordinal <= 0
+            or not all(_valid_sha256(value) for value in hashes)
+            or type(self.horizon_seconds) is not int
+            or self.horizon_seconds <= 0
+            or any(
+                value is not False
+                for value in (
+                    self.optimizer_execution_authorized,
+                    self.checkpoint_write_authorized,
+                    self.prediction_authorized,
+                    self.serving_authorized,
+                    self.paper_trading_authorized,
+                    self.live_execution_authorized,
+                    self.order_submission_authorized,
+                    self.runtime_wired,
+                )
+            )
+        ):
+            _fail("PROFILED_LOCAL_RESEARCH_VALIDATION_RESULT_INVALID")
+
+
+def validate_profiled_observation_example_for_local_research_v1(
+    *,
+    ledger: DurableFeatureSnapshotLedger,
+    candidate: ProfiledTrainingObservationExampleV1,
+    observation_time: str,
+) -> LocallyValidatedProfiledResearchExampleV1:
+    """Reopen exact lineage and prove PIT safety without witness authority."""
+
+    if type(ledger) is not DurableFeatureSnapshotLedger:
+        _fail("PROFILED_OPTIMIZER_LEDGER_EXACT_TYPE_REQUIRED")
+    candidate_clocks = _validate_candidate_semantics(
+        candidate,
+        observation_time=observation_time,
+    )
+    fingerprint = _example_fingerprint(candidate)
+    feature_clocks = _direct_decision_feature_clocks(
+        ledger=ledger,
+        candidate=candidate,
+    )
+    (
+        record_wide_evidence_cutoff,
+        training_record_generated_at,
+        decision_time,
+        trainer_sample_available_at,
+        label_available_at,
+        observed_at,
+        horizon_seconds,
+    ) = candidate_clocks
+    (
+        model_feature_cutoff,
+        source_feature_available_at,
+        decision_feature_available_at,
+        feature_generated_at,
+        logical_model_vector_sha256,
+        logical_projection_sha256,
+    ) = feature_clocks
+    if not (
+        _clock(
+            feature_generated_at,
+            reason="PROFILED_OPTIMIZER_FEATURE_GENERATED_AT_INVALID",
+        )
+        <= _clock(
+            training_record_generated_at,
+            reason="PROFILED_OPTIMIZER_TRAINING_RECORD_GENERATED_AT_INVALID",
+        )
+        <= _clock(decision_time, reason="PROFILED_OPTIMIZER_DECISION_TIME_INVALID")
+        and _clock(
+            model_feature_cutoff,
+            reason="PROFILED_OPTIMIZER_MODEL_FEATURE_CUTOFF_INVALID",
+        )
+        <= _clock(
+            record_wide_evidence_cutoff,
+            reason="PROFILED_OPTIMIZER_RECORD_WIDE_CUTOFF_INVALID",
+        )
+        and logical_model_vector_sha256
+        == _logical_model_vector_sha256(candidate.training_example.tensor.model_vector)
+    ):
+        _fail("PROFILED_OPTIMIZER_MODEL_AND_TRAINING_CLOCK_ORDER_INVALID")
+    return LocallyValidatedProfiledResearchExampleV1(
+        ordinal=candidate.ordinal,
+        sample_identity_sha256=candidate.sample_identity_sha256,
+        label_binding_sha256=candidate.label_binding_sha256,
+        tensor_binding_sha256=candidate.tensor_binding_sha256,
+        example_fingerprint_sha256=fingerprint,
+        logical_model_vector_sha256=logical_model_vector_sha256,
+        logical_projection_sha256=logical_projection_sha256,
+        model_feature_cutoff=model_feature_cutoff,
+        record_wide_evidence_cutoff=record_wide_evidence_cutoff,
+        source_feature_available_at=source_feature_available_at,
+        decision_feature_available_at=decision_feature_available_at,
+        feature_generated_at=feature_generated_at,
+        training_record_generated_at=training_record_generated_at,
+        decision_time=decision_time,
+        trainer_sample_available_at=trainer_sample_available_at,
+        label_available_at=label_available_at,
+        observation_time=observed_at,
+        horizon_seconds=horizon_seconds,
+    )
+
+
+@dataclass(frozen=True, slots=True)
 class AuthenticatedProfiledOutcomeSupervisedTargetV1:
     schema_version: str
     label_binding_sha256: str
@@ -2039,9 +2187,11 @@ __all__ = (
     "AuthenticatedProfiledOptimizerAdmissionV1",
     "AuthenticatedProfiledOptimizerAdmissionV1Error",
     "AuthenticatedProfiledOutcomeSupervisedTargetV1",
+    "LocallyValidatedProfiledResearchExampleV1",
     "VerifiedProfiledOptimizerExternalCompletionAuthorizationV1",
     "admit_authenticated_profiled_optimizer_candidate_v1",
     "admit_authenticated_profiled_optimizer_manifest_batch_v1",
     "profiled_optimizer_external_completion_claim_template_v1",
+    "validate_profiled_observation_example_for_local_research_v1",
     "profiled_optimizer_external_completion_signing_payload_v1",
 )
