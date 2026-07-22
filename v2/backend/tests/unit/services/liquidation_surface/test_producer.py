@@ -368,6 +368,9 @@ class _CycleRedis:
         self.clock += 1
         return self.clock // 1_000, (self.clock % 1_000) * 1_000
 
+    def get(self, _key: str) -> None:
+        return None
+
     def set(self, key: str, value: bytes, *, ex: int) -> bool:
         self.status_writes.append((key, value, ex))
         return True
@@ -394,19 +397,19 @@ def test_cycle_counts_publication_without_ever_granting_authority(
         return ExactRedisSnapshot(MappingProxyType(values), BASE_MS + 200_000)
 
     monkeypatch.setattr(producer, "read_exact_redis_snapshot", snapshot)
-    monkeypatch.setattr(
-        producer,
-        "read_authenticated_bracket_surface_evidence",
-        lambda *_args, **_kwargs: {"status": "MISSING", "observations": ()},
-    )
-    monkeypatch.setattr(
-        producer,
-        "publish_liquidation_surface",
-        lambda *_args, **_kwargs: SimpleNamespace(
+    def publish(_client: Any, candidate: dict[str, Any], **_kwargs: Any) -> Any:
+        return SimpleNamespace(
             trainer_authority=False,
             pointer_class="observation",
-        ),
-    )
+            receipt={
+                "trainer_source_bundle_sha256": candidate["trainer_source_bundle"][
+                    "bundle_sha256"
+                ],
+                "trainer_storage_candidate_eligible": False,
+            },
+        )
+
+    monkeypatch.setattr(producer, "publish_liquidation_surface", publish)
 
     result = run_producer_cycle(
         redis_client,
@@ -423,6 +426,7 @@ def test_cycle_counts_publication_without_ever_granting_authority(
     assert result["trainer_semantic_candidate_count"] == 0
     assert result["trainer_authority_count"] == 0
     assert result["observation_pointer_count"] == 1
+    assert result["verified_prepared_source_bundle_count"] == 1
     assert result["prediction_authority"] is False
     assert result["paper_trading_authority"] is False
     assert result["live_trading_authority"] is False
@@ -448,11 +452,6 @@ def test_cycle_rejects_any_publication_that_claims_trainer_authority(
             ),
             BASE_MS + 200_000,
         ),
-    )
-    monkeypatch.setattr(
-        producer,
-        "read_authenticated_bracket_surface_evidence",
-        lambda *_args, **_kwargs: {"status": "MISSING", "observations": ()},
     )
     monkeypatch.setattr(
         producer,

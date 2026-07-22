@@ -13,11 +13,14 @@ identity and timestamp only.
 
 from __future__ import annotations
 
+import base64
+import binascii
 import hashlib
 import hmac
 import json
 import re
 import time
+import zlib
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, datetime
@@ -49,6 +52,9 @@ from .source_adapters import (
 
 ADMISSION_SCHEMA_VERSION = "v2_liquidation_surface_trainer_admission_v1"
 SOURCE_MANIFEST_SCHEMA_VERSION = "v2_liquidation_surface_source_manifest_v1"
+PREPARED_SOURCE_BUNDLE_SCHEMA_VERSION = (
+    "v2_liquidation_surface_prepared_source_bundle_v1"
+)
 SOURCE_FAMILY_ORDER = (
     "finalized_candles",
     "mark_price",
@@ -218,6 +224,90 @@ def _raw_material(value: RawRedisEvidence | None) -> object:
         "raw_sha256": value.raw_sha256,
         "consumer_observed_at_ms": value.consumer_observed_at_ms,
     }
+
+
+def _raw_source_bundle_material(value: RawRedisEvidence | None) -> object:
+    """Serialize the exact Redis bytes, not merely their descriptive hash."""
+
+    if value is None:
+        return None
+    compressed = zlib.compress(value.raw, level=9)
+    return {
+        "key": value.key,
+        "encoding": "zlib_base64_v1",
+        "compressed_base64": base64.b64encode(compressed).decode("ascii"),
+        "compressed_byte_count": len(compressed),
+        "raw_byte_count": len(value.raw),
+        "raw_sha256": value.raw_sha256,
+        "consumer_observed_at_ms": value.consumer_observed_at_ms,
+    }
+
+
+def _raw_from_source_bundle(
+    value: object,
+    *,
+    name: str,
+    optional: bool,
+) -> RawRedisEvidence | None:
+    if value is None:
+        if optional:
+            return None
+        _validation_error(f"{name}_SOURCE_BUNDLE_EVIDENCE_MISSING")
+    if type(value) is not dict or set(cast(dict[object, object], value)) != {
+        "key",
+        "encoding",
+        "compressed_base64",
+        "compressed_byte_count",
+        "raw_byte_count",
+        "raw_sha256",
+        "consumer_observed_at_ms",
+    }:
+        _validation_error(f"{name}_SOURCE_BUNDLE_EVIDENCE_FIELDS_INVALID")
+    row = cast(dict[str, Any], value)
+    encoded = row.get("compressed_base64")
+    if row.get("encoding") != "zlib_base64_v1" or type(encoded) is not str:
+        _validation_error(f"{name}_SOURCE_BUNDLE_EVIDENCE_ENCODING_INVALID")
+    try:
+        compressed = base64.b64decode(cast(str, encoded), validate=True)
+    except (ValueError, binascii.Error):
+        _validation_error(f"{name}_SOURCE_BUNDLE_EVIDENCE_ENCODING_INVALID")
+    if (
+        not compressed
+        or len(compressed) > MAX_CANONICAL_BYTES
+        or row.get("compressed_byte_count") != len(compressed)
+    ):
+        _validation_error(f"{name}_SOURCE_BUNDLE_EVIDENCE_ENCODING_INVALID")
+    try:
+        decoder = zlib.decompressobj()
+        raw = decoder.decompress(compressed, MAX_CANONICAL_BYTES + 1)
+    except zlib.error:
+        _validation_error(f"{name}_SOURCE_BUNDLE_EVIDENCE_ENCODING_INVALID")
+    if (
+        not decoder.eof
+        or decoder.unused_data
+        or decoder.unconsumed_tail
+        or len(raw) > MAX_CANONICAL_BYTES
+    ):
+        _validation_error(f"{name}_SOURCE_BUNDLE_EVIDENCE_ENCODING_INVALID")
+    if (
+        not raw
+        or row.get("raw_byte_count") != len(raw)
+        or row.get("raw_sha256") != _sha256(raw)
+    ):
+        _validation_error(f"{name}_SOURCE_BUNDLE_EVIDENCE_HASH_INVALID")
+    try:
+        evidence = RawRedisEvidence.from_value(
+            key=row.get("key"),
+            value=raw,
+            consumer_observed_at_ms=row.get("consumer_observed_at_ms"),
+        )
+    except SourceAdapterError as exc:
+        raise TrainerAdmissionValidationError(
+            f"{name}_SOURCE_BUNDLE_EVIDENCE_INVALID:{exc}"
+        ) from exc
+    if evidence.raw_sha256 != row.get("raw_sha256"):
+        _integrity_error(f"{name}_SOURCE_BUNDLE_EVIDENCE_REOPEN_MISMATCH")
+    return evidence
 
 
 def _observation_material(rows: Sequence[object]) -> list[dict[str, Any]]:
@@ -1391,6 +1481,275 @@ def _require_prepared(
     return canonical
 
 
+def _prepared_source_snapshot_material(
+    prepared: PreparedLiquidationSurfaceCandidate,
+) -> dict[str, Any]:
+    snapshot = prepared._snapshot
+    return {
+        "symbol": snapshot.symbol,
+        "timeframe": snapshot.timeframe,
+        "as_of_time_ms": snapshot.as_of_time_ms,
+        "generated_at_ms": snapshot.generated_at_ms,
+        "candle_evidence": _raw_source_bundle_material(snapshot.candle_evidence),
+        "mark_price_evidence": [
+            _raw_source_bundle_material(row) for row in snapshot.mark_price_evidence
+        ],
+        "open_interest_evidence": _raw_source_bundle_material(
+            snapshot.open_interest_evidence
+        ),
+        "bracket_proof": _bracket_proof_material(
+            snapshot.bracket_proof,
+            include_hash=True,
+        ),
+        "tick_size": snapshot.tick_size,
+        "max_cohorts": snapshot.max_cohorts,
+        "max_leverage_scenarios": snapshot.max_leverage_scenarios,
+        "max_levels_per_side": snapshot.max_levels_per_side,
+        "max_source_rows_per_family": snapshot.max_source_rows_per_family,
+        "max_expanded_candidates": snapshot.max_expanded_candidates,
+    }
+
+
+def prepared_source_bundle_mapping(
+    prepared: PreparedLiquidationSurfaceCandidate,
+) -> dict[str, Any]:
+    """Export exact source bytes for storage inside one signed publication.
+
+    This mapping has no standalone authenticity.  Consumers must obtain it
+    from a :class:`VerifiedLiquidationSurface`; the publication receipt HMAC
+    authenticates the containing archive before this module will reopen it.
+    """
+
+    canonical = _require_prepared(prepared)
+    core: dict[str, Any] = {
+        "schema_version": PREPARED_SOURCE_BUNDLE_SCHEMA_VERSION,
+        "publication_scope_sha256": canonical.publication_scope_sha256,
+        "source_manifest_sha256": canonical.manifest_sha256,
+        "source_input_sha256": canonical.source_input_sha256,
+        "candidate_surface_payload_sha256": (
+            canonical.candidate_surface_payload_sha256
+        ),
+        "candidate_archive_payload_sha256": (
+            canonical.candidate_archive_payload_sha256
+        ),
+        "prepared_material_sha256": _stable_sha256(_prepared_material(canonical)),
+        "feature_ready": canonical.feature_ready,
+        "model_rejection_reason": canonical.model_rejection_reason,
+        "required_mask": list(canonical.required_mask),
+        "available_mask": list(canonical.available_mask),
+        "missing_mask": list(canonical.missing_mask),
+        "authenticated_mask": list(canonical.authenticated_mask),
+        "degraded_mask": list(canonical.degraded_mask),
+        "snapshot": _prepared_source_snapshot_material(canonical),
+        "trainer_authority": False,
+        "prediction_authority": False,
+        "paper_trading_authority": False,
+        "live_execution_authority": False,
+    }
+    core["bundle_sha256"] = _stable_sha256(core)
+    _canonical_json_bytes(core)
+    return core
+
+
+def publication_mapping_with_prepared_source_bundle(
+    prepared: PreparedLiquidationSurfaceCandidate,
+) -> dict[str, Any]:
+    """Return the model candidate plus its exact non-authoritative source bundle."""
+
+    canonical = _require_prepared(prepared)
+    payload = canonical.to_publication_mapping()
+    payload["trainer_source_bundle"] = prepared_source_bundle_mapping(canonical)
+    return payload
+
+
+def _bracket_proof_from_source_bundle(value: object) -> _AuthenticatedBracketReaderProof:
+    expected_fields = {
+        "status",
+        "evidence_authenticated",
+        "observations",
+        "safe_metadata",
+        "publication_scope_sha256",
+        "evidence_key",
+        "content_checksum_sha256",
+        "reader_result_sha256",
+        "proof_sha256",
+    }
+    if type(value) is not dict or set(cast(dict[object, object], value)) != expected_fields:
+        _validation_error("SOURCE_BUNDLE_BRACKET_PROOF_FIELDS_INVALID")
+    material = cast(dict[str, Any], value)
+    raw_observations = material.get("observations")
+    if type(raw_observations) is not list:
+        _validation_error("SOURCE_BUNDLE_BRACKET_OBSERVATIONS_INVALID")
+    observation_fields = set(LeverageBracket.__dataclass_fields__)
+    observations: list[LeverageBracket] = []
+    for raw in cast(list[object], raw_observations):
+        if type(raw) is not dict or set(cast(dict[object, object], raw)) != observation_fields:
+            _validation_error("SOURCE_BUNDLE_BRACKET_OBSERVATION_FIELDS_INVALID")
+        try:
+            observations.append(LeverageBracket(**cast(dict[str, Any], raw)))
+        except TypeError as exc:
+            raise TrainerAdmissionValidationError(
+                "SOURCE_BUNDLE_BRACKET_OBSERVATION_INVALID"
+            ) from exc
+    safe_metadata = material.get("safe_metadata")
+    if type(safe_metadata) is not dict:
+        _validation_error("SOURCE_BUNDLE_BRACKET_SCOPE_METADATA_INVALID")
+    scope_metadata = cast(dict[str, Any], safe_metadata)
+    scope = derive_publication_scope_sha256(scope_metadata)
+    if scope != material.get("publication_scope_sha256"):
+        _integrity_error("SOURCE_BUNDLE_BRACKET_SCOPE_HASH_MISMATCH")
+    status = material.get("status")
+    authenticated = material.get("evidence_authenticated")
+    if type(status) is not str or type(authenticated) is not bool:
+        _validation_error("SOURCE_BUNDLE_BRACKET_STATUS_INVALID")
+    if (
+        (status == "READY" and (authenticated is not True or not observations))
+        or (status != "READY" and (authenticated is not False or observations))
+        or not _valid_sha256(material.get("reader_result_sha256"))
+        or not _valid_sha256(material.get("proof_sha256"))
+    ):
+        _validation_error("SOURCE_BUNDLE_BRACKET_PROOF_INVALID")
+    evidence_key = material.get("evidence_key")
+    checksum = material.get("content_checksum_sha256")
+    if evidence_key is not None and type(evidence_key) is not str:
+        _validation_error("SOURCE_BUNDLE_BRACKET_EVIDENCE_KEY_INVALID")
+    if checksum is not None and not _valid_sha256(checksum):
+        _validation_error("SOURCE_BUNDLE_BRACKET_CHECKSUM_INVALID")
+    return _AuthenticatedBracketReaderProof(
+        status=cast(str, status),
+        evidence_authenticated=cast(bool, authenticated),
+        observations=tuple(observations),
+        safe_metadata=cast(Mapping[str, Any], _freeze_json(scope_metadata)),
+        publication_scope_sha256=scope,
+        evidence_key=cast(str | None, evidence_key),
+        content_checksum_sha256=cast(str | None, checksum),
+        reader_result_sha256=cast(str, material["reader_result_sha256"]),
+        proof_sha256=cast(str, material["proof_sha256"]),
+        _construction_token=_PROOF_TOKEN,
+    )
+
+
+def _prepared_from_source_bundle_mapping(value: object) -> PreparedLiquidationSurfaceCandidate:
+    expected_fields = {
+        "schema_version",
+        "publication_scope_sha256",
+        "source_manifest_sha256",
+        "source_input_sha256",
+        "candidate_surface_payload_sha256",
+        "candidate_archive_payload_sha256",
+        "prepared_material_sha256",
+        "feature_ready",
+        "model_rejection_reason",
+        "required_mask",
+        "available_mask",
+        "missing_mask",
+        "authenticated_mask",
+        "degraded_mask",
+        "snapshot",
+        "trainer_authority",
+        "prediction_authority",
+        "paper_trading_authority",
+        "live_execution_authority",
+        "bundle_sha256",
+    }
+    if type(value) is not dict or set(cast(dict[object, object], value)) != expected_fields:
+        _validation_error("PREPARED_SOURCE_BUNDLE_FIELDS_INVALID")
+    bundle = cast(dict[str, Any], value)
+    supplied_sha = bundle.get("bundle_sha256")
+    unsigned = dict(bundle)
+    unsigned.pop("bundle_sha256", None)
+    if (
+        bundle.get("schema_version") != PREPARED_SOURCE_BUNDLE_SCHEMA_VERSION
+        or not _valid_sha256(supplied_sha)
+        or supplied_sha != _stable_sha256(unsigned)
+        or bundle.get("trainer_authority") is not False
+        or bundle.get("prediction_authority") is not False
+        or bundle.get("paper_trading_authority") is not False
+        or bundle.get("live_execution_authority") is not False
+    ):
+        _integrity_error("PREPARED_SOURCE_BUNDLE_HASH_OR_AUTHORITY_INVALID")
+    snapshot_value = bundle.get("snapshot")
+    snapshot_fields = {
+        "symbol",
+        "timeframe",
+        "as_of_time_ms",
+        "generated_at_ms",
+        "candle_evidence",
+        "mark_price_evidence",
+        "open_interest_evidence",
+        "bracket_proof",
+        "tick_size",
+        "max_cohorts",
+        "max_leverage_scenarios",
+        "max_levels_per_side",
+        "max_source_rows_per_family",
+        "max_expanded_candidates",
+    }
+    if (
+        type(snapshot_value) is not dict
+        or set(cast(dict[object, object], snapshot_value)) != snapshot_fields
+    ):
+        _validation_error("PREPARED_SOURCE_BUNDLE_SNAPSHOT_FIELDS_INVALID")
+    source = cast(dict[str, Any], snapshot_value)
+    mark_values = source.get("mark_price_evidence")
+    if type(mark_values) is not list:
+        _validation_error("MARK_PRICE_SOURCE_BUNDLE_EVIDENCE_SEQUENCE_INVALID")
+    marks = tuple(
+        cast(
+            RawRedisEvidence,
+            _raw_from_source_bundle(
+                row,
+                name="MARK_PRICE",
+                optional=False,
+            ),
+        )
+        for row in cast(list[object], mark_values)
+    )
+    snapshot = _PreparationSnapshot(
+        symbol=source.get("symbol"),
+        timeframe=source.get("timeframe"),
+        as_of_time_ms=source.get("as_of_time_ms"),
+        generated_at_ms=source.get("generated_at_ms"),
+        candle_evidence=_raw_from_source_bundle(
+            source.get("candle_evidence"),
+            name="CANDLE",
+            optional=True,
+        ),
+        mark_price_evidence=marks,
+        open_interest_evidence=_raw_from_source_bundle(
+            source.get("open_interest_evidence"),
+            name="OPEN_INTEREST",
+            optional=True,
+        ),
+        bracket_proof=_bracket_proof_from_source_bundle(source.get("bracket_proof")),
+        tick_size=source.get("tick_size"),
+        max_cohorts=source.get("max_cohorts"),
+        max_leverage_scenarios=source.get("max_leverage_scenarios"),
+        max_levels_per_side=source.get("max_levels_per_side"),
+        max_source_rows_per_family=source.get("max_source_rows_per_family"),
+        max_expanded_candidates=source.get("max_expanded_candidates"),
+    )
+    rebuilt = _build_prepared(snapshot)
+    expected = {
+        "publication_scope_sha256": rebuilt.publication_scope_sha256,
+        "source_manifest_sha256": rebuilt.manifest_sha256,
+        "source_input_sha256": rebuilt.source_input_sha256,
+        "candidate_surface_payload_sha256": rebuilt.candidate_surface_payload_sha256,
+        "candidate_archive_payload_sha256": rebuilt.candidate_archive_payload_sha256,
+        "prepared_material_sha256": _stable_sha256(_prepared_material(rebuilt)),
+        "feature_ready": rebuilt.feature_ready,
+        "model_rejection_reason": rebuilt.model_rejection_reason,
+        "required_mask": list(rebuilt.required_mask),
+        "available_mask": list(rebuilt.available_mask),
+        "missing_mask": list(rebuilt.missing_mask),
+        "authenticated_mask": list(rebuilt.authenticated_mask),
+        "degraded_mask": list(rebuilt.degraded_mask),
+    }
+    if any(bundle.get(name) != expected_value for name, expected_value in expected.items()):
+        _integrity_error("PREPARED_SOURCE_BUNDLE_REDERIVATION_MISMATCH")
+    return rebuilt
+
+
 def _require_decision(value: object) -> TrainerDecisionContext:
     if (
         type(value) is not TrainerDecisionContext
@@ -1472,6 +1831,39 @@ def _require_publication(value: object) -> VerifiedLiquidationSurface:
     return publication
 
 
+def reopen_prepared_source_bundle_from_publication(
+    publication: VerifiedLiquidationSurface,
+) -> PreparedLiquidationSurfaceCandidate:
+    """Rebuild exact prepared evidence only from an HMAC-verified archive."""
+
+    verified = _require_publication(publication)
+    raw_bundle = verified.payload.get("trainer_source_bundle")
+    bundle_value = _plain_json(raw_bundle)
+    if type(bundle_value) is not dict:
+        _validation_error("VERIFIED_PUBLICATION_PREPARED_SOURCE_BUNDLE_MISSING")
+    bundle = cast(dict[str, Any], bundle_value)
+    bundle_sha = bundle.get("bundle_sha256")
+    if (
+        not _valid_sha256(bundle_sha)
+        or verified.receipt.get("trainer_source_bundle_sha256") != bundle_sha
+    ):
+        _integrity_error("PUBLICATION_PREPARED_SOURCE_BUNDLE_RECEIPT_MISMATCH")
+    rebuilt = _prepared_from_source_bundle_mapping(bundle)
+    if (
+        rebuilt.publication_scope_sha256 != verified.publication_scope_sha256
+        or rebuilt.request.symbol != verified.payload.get("symbol")
+        or rebuilt.request.timeframe != verified.payload.get("timeframe")
+        or rebuilt.request.as_of_time_ms != verified.payload.get("surface_as_of")
+        or rebuilt.request.generated_at_ms != verified.payload.get("generated_at")
+        or rebuilt.candidate_surface_payload_sha256
+        != verified.payload.get("surface_payload_sha256")
+        or rebuilt.candidate_archive_payload_sha256
+        != verified.receipt.get("model_candidate_archive_payload_sha256")
+    ):
+        _integrity_error("PUBLICATION_PREPARED_SOURCE_BUNDLE_IDENTITY_MISMATCH")
+    return rebuilt
+
+
 def _bind_publication(
     publication: VerifiedLiquidationSurface,
     prepared: PreparedLiquidationSurfaceCandidate,
@@ -1485,9 +1877,10 @@ def _bind_publication(
     archive_hash = _sha256(raw)
     if (
         archive_hash != prepared.candidate_archive_payload_sha256
-        or archive_hash != publication.archive_payload_sha256
-        or publication.receipt.get("archive_payload_sha256") != archive_hash
-        or publication.receipt.get("archive_payload_byte_count") != len(raw)
+        or publication.receipt.get("model_candidate_archive_payload_sha256")
+        != archive_hash
+        or publication.receipt.get("model_candidate_archive_payload_byte_count")
+        != len(raw)
         or rederived.get("surface_payload_sha256")
         != prepared.candidate_surface_payload_sha256
         or publication.payload.get("surface_payload_sha256")
@@ -1684,7 +2077,10 @@ def evaluate_liquidation_surface_trainer_admission(
         "timeframe": decision.timeframe,
         "feature_abi_sha256": decision.feature_abi_sha256,
         "surface_id": verified.surface_id,
-        "surface_archive_payload_sha256": verified.archive_payload_sha256,
+        "surface_archive_payload_sha256": cast(
+            str,
+            verified.receipt["model_candidate_archive_payload_sha256"],
+        ),
         "surface_publication_receipt_sha256": verified.receipt_sha256,
         "source_manifest_sha256": source_bundle.manifest_sha256,
         "publication_scope_sha256": source_bundle.publication_scope_sha256,
@@ -1719,6 +2115,7 @@ def evaluate_liquidation_surface_trainer_admission(
 __all__ = [
     "ADMISSION_SCHEMA_VERSION",
     "MIN_ADMISSION_HMAC_KEY_BYTES",
+    "PREPARED_SOURCE_BUNDLE_SCHEMA_VERSION",
     "SOURCE_FAMILY_ORDER",
     "SOURCE_MANIFEST_SCHEMA_VERSION",
     "SOURCE_REQUIRED_MASK",
@@ -1734,4 +2131,7 @@ __all__ = [
     "build_trainer_decision_context",
     "evaluate_liquidation_surface_trainer_admission",
     "prepare_liquidation_surface_candidate",
+    "prepared_source_bundle_mapping",
+    "publication_mapping_with_prepared_source_bundle",
+    "reopen_prepared_source_bundle_from_publication",
 ]

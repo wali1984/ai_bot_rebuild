@@ -33,7 +33,10 @@ from . import model as surface_model
 from .model import MODEL_VERSION, SCHEMA_VERSION, SEMANTIC_KIND
 
 PUBLICATION_RECEIPT_SCHEMA_VERSION = (
-    "v2_prospective_liquidation_surface_postcommit_receipt_v1"
+    "v2_prospective_liquidation_surface_postcommit_receipt_v2"
+)
+PREPARED_SOURCE_BUNDLE_SCHEMA_VERSION = (
+    "v2_liquidation_surface_prepared_source_bundle_v1"
 )
 PUBLICATION_EVIDENCE_CLASSIFICATION = (
     "CONTENT_ADDRESSED_ARCHIVE_RECEIPT_AND_EXACT_CONSUMER_REOPEN_VERIFIED"
@@ -84,7 +87,12 @@ _RECEIPT_FIELDS = frozenset(
         "publication_auth_key_id",
         "archive_payload_sha256",
         "archive_payload_byte_count",
+        "model_candidate_archive_payload_sha256",
+        "model_candidate_archive_payload_byte_count",
         "model_surface_payload_sha256",
+        "trainer_source_bundle_schema_version",
+        "trainer_source_bundle_sha256",
+        "trainer_storage_candidate_eligible",
         "source_input_sha256",
         "source_input_counts_sha256",
         "model_version",
@@ -808,6 +816,40 @@ def _identity(payload: Mapping[str, Any]) -> tuple[str, str, str]:
     return cast(str, venue), cast(str, symbol), cast(str, timeframe)
 
 
+def _model_candidate_and_source_bundle_metadata(
+    payload: Mapping[str, Any],
+) -> tuple[bytes, str | None, bool]:
+    """Separate the model candidate from its non-model exact-source archive."""
+
+    candidate = dict(payload)
+    raw_bundle = candidate.pop("trainer_source_bundle", None)
+    candidate_raw = _canonical_json_bytes(candidate, maximum=MAX_SURFACE_BYTES)
+    if raw_bundle is None:
+        return candidate_raw, None, False
+    if type(raw_bundle) is not dict:
+        _validation_error("SURFACE_PREPARED_SOURCE_BUNDLE_OBJECT_REQUIRED")
+    bundle = cast(dict[str, Any], raw_bundle)
+    bundle_sha = bundle.get("bundle_sha256")
+    unsigned = dict(bundle)
+    unsigned.pop("bundle_sha256", None)
+    if (
+        bundle.get("schema_version") != PREPARED_SOURCE_BUNDLE_SCHEMA_VERSION
+        or not _valid_sha256(bundle_sha)
+        or bundle_sha != _stable_sha256(unsigned)
+        or bundle.get("candidate_archive_payload_sha256")
+        != _sha256_bytes(candidate_raw)
+        or bundle.get("candidate_surface_payload_sha256")
+        != payload.get("surface_payload_sha256")
+        or bundle.get("source_input_sha256") != payload.get("source_input_sha256")
+        or bundle.get("trainer_authority") is not False
+        or bundle.get("prediction_authority") is not False
+        or bundle.get("paper_trading_authority") is not False
+        or bundle.get("live_execution_authority") is not False
+    ):
+        _validation_error("SURFACE_PREPARED_SOURCE_BUNDLE_BINDING_INVALID")
+    return candidate_raw, cast(str, bundle_sha), True
+
+
 def _validate_surface_payload(payload: Mapping[str, Any]) -> None:
     if (
         payload.get("schema_version") != SCHEMA_VERSION
@@ -853,8 +895,10 @@ def _validate_surface_payload(payload: Mapping[str, Any]) -> None:
         _validation_error("SURFACE_PUBLICATION_MODEL_PAYLOAD_SHA256_INVALID")
     unsigned = dict(payload)
     unsigned.pop("surface_payload_sha256", None)
+    unsigned.pop("trainer_source_bundle", None)
     if model_hash != _model_stable_sha256(unsigned):
         _validation_error("SURFACE_PUBLICATION_MODEL_PAYLOAD_SHA256_MISMATCH")
+    _model_candidate_and_source_bundle_metadata(payload)
     clocks = {
         name: _positive_int(payload.get(name), name=f"SURFACE_PUBLICATION_{name.upper()}")
         for name in (
@@ -1000,8 +1044,19 @@ def _build_receipt(
     context = _security_context(security_context)
     publication_scope_sha256 = context.publication_scope_sha256
     eligible = cast(bool, payload["trainer_semantic_eligible"])
+    candidate_raw, source_bundle_sha256, source_bundle_present = (
+        _model_candidate_and_source_bundle_metadata(payload)
+    )
+    source_bundle = payload.get("trainer_source_bundle")
+    if source_bundle_present and cast(Mapping[str, Any], source_bundle).get(
+        "publication_scope_sha256"
+    ) != publication_scope_sha256:
+        _validation_error("SURFACE_PREPARED_SOURCE_BUNDLE_SCOPE_MISMATCH")
+    trainer_storage_candidate_eligible = eligible and source_bundle_present
     reason = (
         "POSTCOMMIT_CONSUMER_REOPEN_REQUIRED"
+        if trainer_storage_candidate_eligible
+        else "TRAINER_EXACT_SOURCE_BUNDLE_REQUIRED"
         if eligible
         else cast(str, payload.get("trainer_authority_reason"))
     )
@@ -1018,7 +1073,14 @@ def _build_receipt(
         "publication_auth_key_id": context.auth_key_id,
         "archive_payload_sha256": _sha256_bytes(raw),
         "archive_payload_byte_count": len(raw),
+        "model_candidate_archive_payload_sha256": _sha256_bytes(candidate_raw),
+        "model_candidate_archive_payload_byte_count": len(candidate_raw),
         "model_surface_payload_sha256": payload["surface_payload_sha256"],
+        "trainer_source_bundle_schema_version": (
+            PREPARED_SOURCE_BUNDLE_SCHEMA_VERSION if source_bundle_present else None
+        ),
+        "trainer_source_bundle_sha256": source_bundle_sha256,
+        "trainer_storage_candidate_eligible": trainer_storage_candidate_eligible,
         "source_input_sha256": payload["source_input_sha256"],
         "source_input_counts_sha256": _stable_sha256(payload["source_input_counts"]),
         "model_version": payload["model_version"],
@@ -1109,6 +1171,17 @@ def _validate_receipt(
     ):
         _integrity_error("SURFACE_RECEIPT_TTL_CONFIG_INVALID")
     publisher_code_sha256, model_code_sha256 = _publication_code_hashes()
+    candidate_raw, source_bundle_sha256, source_bundle_present = (
+        _model_candidate_and_source_bundle_metadata(payload)
+    )
+    source_bundle = payload.get("trainer_source_bundle")
+    if source_bundle_present and cast(Mapping[str, Any], source_bundle).get(
+        "publication_scope_sha256"
+    ) != publication_scope_sha256:
+        _integrity_error("SURFACE_PREPARED_SOURCE_BUNDLE_SCOPE_MISMATCH")
+    trainer_storage_candidate_eligible = bool(
+        payload["trainer_semantic_eligible"] is True and source_bundle_present
+    )
     expected = {
         "schema_version": PUBLICATION_RECEIPT_SCHEMA_VERSION,
         "evidence_classification": PUBLICATION_EVIDENCE_CLASSIFICATION,
@@ -1121,7 +1194,14 @@ def _validate_receipt(
         "publication_auth_key_id": context.auth_key_id,
         "archive_payload_sha256": _sha256_bytes(raw),
         "archive_payload_byte_count": len(raw),
+        "model_candidate_archive_payload_sha256": _sha256_bytes(candidate_raw),
+        "model_candidate_archive_payload_byte_count": len(candidate_raw),
         "model_surface_payload_sha256": payload["surface_payload_sha256"],
+        "trainer_source_bundle_schema_version": (
+            PREPARED_SOURCE_BUNDLE_SCHEMA_VERSION if source_bundle_present else None
+        ),
+        "trainer_source_bundle_sha256": source_bundle_sha256,
+        "trainer_storage_candidate_eligible": trainer_storage_candidate_eligible,
         "source_input_sha256": payload["source_input_sha256"],
         "source_input_counts_sha256": _stable_sha256(payload["source_input_counts"]),
         "model_version": payload["model_version"],
@@ -1160,6 +1240,8 @@ def _validate_receipt(
         _integrity_error("SURFACE_RECEIPT_BINDING_INVALID")
     expected_reason = (
         "POSTCOMMIT_CONSUMER_REOPEN_REQUIRED"
+        if trainer_storage_candidate_eligible
+        else "TRAINER_EXACT_SOURCE_BUNDLE_REQUIRED"
         if payload["trainer_semantic_eligible"] is True
         else payload.get("trainer_authority_reason")
     )
@@ -1358,8 +1440,11 @@ def _reopen_expected(
     archive_postcommit = cast(int, receipt["archive_postcommit_at"])
     if reopened_at < archive_postcommit or reopened_at < cast(int, payload["generated_at"]):
         _integrity_error("SURFACE_PUBLICATION_CONSUMER_CLOCK_INVALID")
-    if pointer_class == "trainer_eligible" and payload["trainer_semantic_eligible"] is not True:
-        _integrity_error("SURFACE_TRAINER_POINTER_NAMES_DEGRADED_PAYLOAD")
+    if pointer_class == "trainer_eligible" and (
+        payload["trainer_semantic_eligible"] is not True
+        or receipt.get("trainer_storage_candidate_eligible") is not True
+    ):
+        _integrity_error("SURFACE_TRAINER_POINTER_NAMES_UNADMITTED_STORAGE_PAYLOAD")
     confirmed = _eval(
         redis_client,
         _POSTVALIDATION_CONFIRM_LUA,
@@ -1379,7 +1464,9 @@ def _reopen_expected(
     if available_at < reopened_at:
         _integrity_error("SURFACE_PUBLICATION_POSTVALIDATION_CLOCK_REGRESSION")
     trainer_candidate = bool(
-        pointer_class == "trainer_eligible" and payload["trainer_semantic_eligible"] is True
+        pointer_class == "trainer_eligible"
+        and payload["trainer_semantic_eligible"] is True
+        and receipt.get("trainer_storage_candidate_eligible") is True
     )
     if trainer_candidate:
         adaptive_valid_until = cast(int, payload["adaptive_source_valid_until"])
@@ -1389,15 +1476,17 @@ def _reopen_expected(
         if available_at >= bracket_valid_until:
             _integrity_error("SURFACE_BRACKET_EVIDENCE_EXPIRED")
     trainer_authority = False
-    authority_reason = (
-        "TRAINER_SOURCE_ADMISSION_AND_DECISION_TIME_REVALIDATION_REQUIRED"
-        if trainer_candidate
-        else (
-            "TRAINER_ELIGIBLE_POINTER_REOPEN_REQUIRED"
-            if payload["trainer_semantic_eligible"] is True
-            else cast(str, payload.get("trainer_authority_reason"))
-        )
-    )
+    if trainer_candidate:
+        authority_reason = "TRAINER_SOURCE_ADMISSION_AND_DECISION_TIME_REVALIDATION_REQUIRED"
+    elif (
+        payload["trainer_semantic_eligible"] is True
+        and receipt.get("trainer_storage_candidate_eligible") is not True
+    ):
+        authority_reason = "TRAINER_EXACT_SOURCE_BUNDLE_REQUIRED"
+    elif payload["trainer_semantic_eligible"] is True:
+        authority_reason = "TRAINER_ELIGIBLE_POINTER_REOPEN_REQUIRED"
+    else:
+        authority_reason = cast(str, payload.get("trainer_authority_reason"))
     resolved = {
         **payload,
         "available_at": available_at,
@@ -1456,6 +1545,12 @@ def publish_liquidation_surface(
     context = _security_context(security_context)
     scope = context.publication_scope_sha256
     payload, raw = _surface_bytes(surface)
+    _candidate_raw, _source_bundle_sha, source_bundle_present = (
+        _model_candidate_and_source_bundle_metadata(payload)
+    )
+    trainer_storage_candidate_eligible = bool(
+        payload["trainer_semantic_eligible"] is True and source_bundle_present
+    )
     _venue, symbol, timeframe = _identity(payload)
     surface_id = _surface_id(raw)
     archive_key, receipt_key, observation_pointer_key, trainer_pointer_key = _keys(
@@ -1531,7 +1626,7 @@ def publish_liquidation_surface(
         )
     if archive_postcommit_at < cast(int, payload["generated_at"]):
         _integrity_error("SURFACE_PUBLICATION_ARCHIVE_CLOCK_BEFORE_GENERATION")
-    if payload["trainer_semantic_eligible"] is True:
+    if trainer_storage_candidate_eligible:
         if archive_postcommit_at > cast(int, payload["adaptive_source_valid_until"]):
             _integrity_error("SURFACE_ADAPTIVE_SOURCE_FRESHNESS_EXPIRED")
         if archive_postcommit_at >= cast(int, payload["bracket_valid_until"]):
@@ -1547,7 +1642,7 @@ def publish_liquidation_surface(
             pointer_sort_prefix,
             expected_observation_pointer,
             expected_trainer_pointer,
-            "1" if payload["trainer_semantic_eligible"] is True else "0",
+            "1" if trainer_storage_candidate_eligible else "0",
             receipt_ttl,
             MAX_SURFACE_BYTES,
             MAX_RECEIPT_BYTES,
@@ -1567,7 +1662,7 @@ def publish_liquidation_surface(
         expected_timeframe=timeframe,
         pointer_class=(
             "trainer_eligible"
-            if payload["trainer_semantic_eligible"] is True
+            if trainer_storage_candidate_eligible
             else "observation"
         ),
         minimum_observed_at_ms=receipt_commit_at,

@@ -132,7 +132,7 @@ def _surface(
     generated_at_ms: int = GENERATED_AT_MS,
     brackets: tuple[LeverageBracket, ...] | None = None,
 ) -> dict[str, Any]:
-    return build_liquidation_surface(
+    payload = build_liquidation_surface(
         SurfaceRequest(
             venue=VENUE,
             symbol=SYMBOL,
@@ -149,6 +149,42 @@ def _surface(
             leverage_brackets=(_bracket(),) if brackets is None else brackets,
         )
     )
+    return _attach_test_source_bundle(payload)
+
+
+def _attach_test_source_bundle(
+    payload: dict[str, Any],
+    *,
+    publication_scope_sha256: str | None = None,
+) -> dict[str, Any]:
+    candidate = dict(payload)
+    candidate.pop("trainer_source_bundle", None)
+    candidate_raw = json.dumps(
+        candidate,
+        allow_nan=False,
+        ensure_ascii=True,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("ascii")
+    core = {
+        "schema_version": "v2_liquidation_surface_prepared_source_bundle_v1",
+        "publication_scope_sha256": (
+            publication_scope_sha256 or _security_context().publication_scope_sha256
+        ),
+        "source_input_sha256": candidate["source_input_sha256"],
+        "candidate_surface_payload_sha256": candidate["surface_payload_sha256"],
+        "candidate_archive_payload_sha256": hashlib.sha256(candidate_raw).hexdigest(),
+        "trainer_authority": False,
+        "prediction_authority": False,
+        "paper_trading_authority": False,
+        "live_execution_authority": False,
+        "test_only_minimal_bundle": True,
+    }
+    core["bundle_sha256"] = hashlib.sha256(
+        json.dumps(core, sort_keys=True, separators=(",", ":")).encode("ascii")
+    ).hexdigest()
+    payload["trainer_source_bundle"] = core
+    return payload
 
 
 def _surface_for_redis_clock(generated_at_ms: int) -> dict[str, Any]:
@@ -195,7 +231,7 @@ def _surface_for_redis_clock(generated_at_ms: int) -> dict[str, Any]:
         available_at_ms=bracket.available_at_ms + current_delta,
         expires_at_ms=bracket.expires_at_ms + current_delta,
     )
-    return build_liquidation_surface(
+    payload = build_liquidation_surface(
         SurfaceRequest(
             venue=VENUE,
             symbol=SYMBOL,
@@ -212,9 +248,11 @@ def _surface_for_redis_clock(generated_at_ms: int) -> dict[str, Any]:
             leverage_brackets=(shifted_bracket,),
         )
     )
+    return _attach_test_source_bundle(payload)
 
 
 def _refresh_model_hash(payload: dict[str, Any]) -> dict[str, Any]:
+    payload.pop("trainer_source_bundle", None)
     material = dict(payload)
     material.pop("surface_payload_sha256", None)
     payload["surface_payload_sha256"] = hashlib.sha256(
@@ -226,7 +264,7 @@ def _refresh_model_hash(payload: dict[str, Any]) -> dict[str, Any]:
             allow_nan=False,
         ).encode("utf-8")
     ).hexdigest()
-    return payload
+    return _attach_test_source_bundle(payload)
 
 
 class FakeRedis:
@@ -562,6 +600,24 @@ def test_eligible_surface_requires_hmac_receipt_and_postvalidation_reopen() -> N
     ]
 
 
+def test_semantic_surface_without_exact_source_bundle_is_observation_only() -> None:
+    client = FakeRedis()
+    surface = _surface()
+    surface.pop("trainer_source_bundle")
+
+    verified = publish_liquidation_surface(
+        client,
+        surface,
+        security_context=_security_context(),
+    )
+
+    assert verified.pointer_class == "observation"
+    assert verified.trainer_authority is False
+    assert verified.trainer_authority_reason == "TRAINER_EXACT_SOURCE_BUNDLE_REQUIRED"
+    assert verified.receipt["trainer_storage_candidate_eligible"] is False
+    assert verified.receipt["trainer_source_bundle_sha256"] is None
+
+
 def test_verified_payload_and_receipt_are_deeply_immutable() -> None:
     verified = publish_liquidation_surface(
         FakeRedis(),
@@ -686,10 +742,19 @@ def test_account_scope_keeps_receipts_and_pointers_isolated() -> None:
         auth_key_id="surface-publication-v1",
     )
     first = publish_liquidation_surface(client, _surface(), security_context=first_context)
-    second = publish_liquidation_surface(client, _surface(), security_context=second_context)
+    second_surface = _surface()
+    second_surface.pop("trainer_source_bundle")
+    second = publish_liquidation_surface(
+        client,
+        _attach_test_source_bundle(
+            second_surface,
+            publication_scope_sha256=second_context.publication_scope_sha256,
+        ),
+        security_context=second_context,
+    )
 
-    assert first.surface_id == second.surface_id
-    assert first.surface_archive_key == second.surface_archive_key
+    assert first.surface_id != second.surface_id
+    assert first.surface_archive_key != second.surface_archive_key
     assert first.surface_receipt_key != second.surface_receipt_key
     assert first.latest_pointer_key != second.latest_pointer_key
 

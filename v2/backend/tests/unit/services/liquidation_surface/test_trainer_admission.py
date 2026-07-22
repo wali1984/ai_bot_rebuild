@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 import hmac
 import inspect
 import json
+import zlib
 from dataclasses import replace
 from datetime import UTC, datetime
 from typing import Any
@@ -25,6 +27,8 @@ from v2.backend.app.services.liquidation_surface.trainer_admission import (
     build_trainer_decision_context,
     evaluate_liquidation_surface_trainer_admission,
     prepare_liquidation_surface_candidate,
+    publication_mapping_with_prepared_source_bundle,
+    reopen_prepared_source_bundle_from_publication,
 )
 from v2.backend.tests.unit.services.liquidation_surface.test_publication import FakeRedis
 
@@ -272,7 +276,7 @@ def _publish(prepared, *, metadata: dict[str, Any] | None = None):
     client = FakeRedis(now_ms=GENERATED_AT_MS + 200)
     publication = publish_liquidation_surface(
         client,
-        prepared.to_publication_mapping(),
+        publication_mapping_with_prepared_source_bundle(prepared),
         security_context=_publication_context(prepared, metadata=metadata),
     )
     return client, publication
@@ -362,6 +366,59 @@ def test_happy_admission_is_exact_identity_scoped_and_never_trade_authority() ->
     assert admitted.prediction_authority is False
     assert admitted.paper_trading_authority is False
     assert admitted.live_execution_authority is False
+
+
+def test_verified_publication_reopens_exact_prepared_source_bytes() -> None:
+    prepared = _prepared()
+    publication_payload = publication_mapping_with_prepared_source_bundle(prepared)
+    candle_bundle = publication_payload["trainer_source_bundle"]["snapshot"][
+        "candle_evidence"
+    ]
+    assert candle_bundle["encoding"] == "zlib_base64_v1"
+    assert candle_bundle["compressed_byte_count"] < candle_bundle["raw_byte_count"]
+    assert "raw_base64" not in candle_bundle
+    _client, publication = _publish(prepared)
+
+    reopened = reopen_prepared_source_bundle_from_publication(publication)
+
+    assert reopened.manifest_sha256 == prepared.manifest_sha256
+    assert reopened.candidate_archive_payload_sha256 == (
+        prepared.candidate_archive_payload_sha256
+    )
+    assert reopened.request == prepared.request
+    assert _admit(publication, reopened).feature_available is True
+
+
+def test_verified_publication_rejects_rehashed_but_wrong_compressed_source_bytes() -> None:
+    prepared = _prepared()
+    payload = publication_mapping_with_prepared_source_bundle(prepared)
+    bundle = payload["trainer_source_bundle"]
+    candle_bundle = bundle["snapshot"]["candle_evidence"]
+    wrong = zlib.compress(b"{}", level=9)
+    candle_bundle["compressed_base64"] = base64.b64encode(wrong).decode("ascii")
+    candle_bundle["compressed_byte_count"] = len(wrong)
+    unsigned = dict(bundle)
+    unsigned.pop("bundle_sha256")
+    bundle["bundle_sha256"] = hashlib.sha256(
+        json.dumps(
+            unsigned,
+            allow_nan=False,
+            ensure_ascii=True,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("ascii")
+    ).hexdigest()
+    publication = publish_liquidation_surface(
+        FakeRedis(now_ms=GENERATED_AT_MS + 200),
+        payload,
+        security_context=_publication_context(prepared),
+    )
+
+    with pytest.raises(
+        TrainerAdmissionValidationError,
+        match="CANDLE_SOURCE_BUNDLE_EVIDENCE_HASH_INVALID",
+    ):
+        reopen_prepared_source_bundle_from_publication(publication)
 
 
 @pytest.mark.parametrize(
@@ -498,13 +555,11 @@ def test_wrong_publication_scope_cannot_override_reader_derived_scope() -> None:
         **dict(prepared.publication_scope_metadata),
         "credential_binding_id": "mainnet:trainer-test:OTHER_BINANCE_READONLY",
     }
-    _client, publication = _publish(prepared, metadata=metadata)
-
     with pytest.raises(
-        TrainerAdmissionIntegrityError,
-        match="ADMISSION_PUBLICATION_BRACKET_SCOPE_MISMATCH",
+        SurfacePublicationValidationError,
+        match="SURFACE_PREPARED_SOURCE_BUNDLE_SCOPE_MISMATCH",
     ):
-        _admit(publication, prepared)
+        _publish(prepared, metadata=metadata)
 
 
 def test_decision_symbol_or_timeframe_mismatch_fails_before_authority() -> None:

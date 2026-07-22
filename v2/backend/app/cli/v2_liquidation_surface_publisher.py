@@ -224,6 +224,7 @@ def public_status(payload: Mapping[str, Any]) -> dict[str, Any]:
         "all_lanes_published",
         "trainer_semantic_candidate_count",
         "trainer_candidate_pointer_count",
+        "verified_prepared_source_bundle_count",
         "observation_pointer_count",
         "trainer_authority_count",
         "two_mark_sample_symbol_count",

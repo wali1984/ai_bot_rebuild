@@ -20,7 +20,6 @@ from typing import Any, cast
 
 from v2.backend.app.services.binance_usdm_leverage_bracket_evidence import (
     EvidenceSecurityContext,
-    read_authenticated_bracket_surface_evidence,
 )
 
 from .contracts import (
@@ -41,6 +40,11 @@ from .source_adapters import (
     adapt_binance_finalized_candles,
     adapt_binance_mark_price,
     adapt_coinank_plan3_open_interest,
+)
+from .trainer_admission import (
+    PreparedLiquidationSurfaceCandidate,
+    prepare_liquidation_surface_candidate,
+    publication_mapping_with_prepared_source_bundle,
 )
 
 PRODUCER_SCHEMA_VERSION = "v2_liquidation_surface_producer_status_v1"
@@ -91,6 +95,7 @@ class AdaptiveOISelection:
     valid_candidate_count: int
     missing_candidate_count: int
     rejection_counts: Mapping[str, int]
+    evidence: RawRedisEvidence | None = None
 
 
 @dataclass(slots=True)
@@ -299,14 +304,24 @@ def select_adaptive_coinank_open_interest(
     if not candidates:
         return AdaptiveOISelection(
             observations=(),
+            evidence=None,
             source_timeframe=None,
             valid_candidate_count=0,
             missing_candidate_count=missing,
             rejection_counts=MappingProxyType(dict(sorted(rejections.items()))),
         )
     _rank, selected_timeframe, selected = max(candidates, key=lambda item: item[0])
+    selected_key = f"latest:coinank:open_interest:{canonical}:{selected_timeframe}"
+    selected_raw = snapshot.values.get(selected_key)
+    if selected_raw is None:
+        raise LiquidationSurfaceProducerError("SELECTED_COINANK_OI_EXACT_BYTES_MISSING")
     return AdaptiveOISelection(
         observations=selected,
+        evidence=RawRedisEvidence.from_value(
+            key=selected_key,
+            value=selected_raw,
+            consumer_observed_at_ms=snapshot.consumer_observed_at_ms,
+        ),
         source_timeframe=selected_timeframe,
         valid_candidate_count=len(candidates),
         missing_candidate_count=missing,
@@ -436,6 +451,67 @@ def build_lane_candidate(
     return payload, MappingProxyType(diagnostics)
 
 
+def prepare_lane_publication_candidate(
+    *,
+    redis_client: Any,
+    bracket_security_context: EvidenceSecurityContext,
+    symbol: str,
+    timeframe: str,
+    candle_raw: bytes | None,
+    source_observed_at_ms: int,
+    mark_history: MarkPriceHistory,
+    oi_selection: AdaptiveOISelection,
+    as_of_time_ms: int,
+    generated_at_ms: int,
+) -> tuple[dict[str, Any], Mapping[str, object], PreparedLiquidationSurfaceCandidate]:
+    """Prepare one lane and embed the exact bytes needed by trainer admission."""
+
+    canonical = _symbol(symbol)
+    _timeframes((timeframe,))
+    candle_key = f"v2:market:ohlcv_closed:binance:{canonical}:{timeframe}"
+    candle_evidence = (
+        RawRedisEvidence.from_value(
+            key=candle_key,
+            value=candle_raw,
+            consumer_observed_at_ms=source_observed_at_ms,
+        )
+        if candle_raw is not None
+        else None
+    )
+    prepared = prepare_liquidation_surface_candidate(
+        symbol=canonical,
+        timeframe=timeframe,
+        as_of_time_ms=as_of_time_ms,
+        generated_at_ms=generated_at_ms,
+        candle_evidence=candle_evidence,
+        mark_price_evidence=mark_history.latest(canonical),
+        open_interest_evidence=oi_selection.evidence,
+        bracket_redis_client=redis_client,
+        bracket_security_context=bracket_security_context,
+        bracket_now_fn=lambda: redis_utc_now(redis_client),
+    )
+    payload = publication_mapping_with_prepared_source_bundle(prepared)
+    leaves = {leaf.family: leaf for leaf in prepared.source_manifest}
+    diagnostics: dict[str, object] = {
+        "finalized_candle_count": leaves["finalized_candles"].row_count,
+        "mark_price_count": leaves["mark_price"].row_count,
+        "mark_rejection_count": int(leaves["mark_price"].degraded),
+        "open_interest_count": leaves["open_interest"].row_count,
+        "open_interest_source_timeframe": oi_selection.source_timeframe,
+        "bracket_count": leaves["leverage_brackets"].row_count,
+        "bracket_status": leaves["leverage_brackets"].status,
+        "bracket_lane_admission_status": (
+            "ADMITTED"
+            if leaves["leverage_brackets"].authenticated
+            else "OMITTED_MISSING_INVALID_OR_OUTSIDE_LANE_CLOCK"
+        ),
+        "prepared_source_bundle_sha256": payload["trainer_source_bundle"][
+            "bundle_sha256"
+        ],
+    }
+    return payload, MappingProxyType(diagnostics), prepared
+
+
 def _source_keys(symbol: str, timeframes: Sequence[str]) -> tuple[str, ...]:
     canonical = _symbol(symbol)
     keys = [
@@ -526,6 +602,7 @@ def run_producer_cycle(
     semantic_candidates = 0
     observation_pointer_count = 0
     trainer_candidate_pointer_count = 0
+    verified_prepared_source_bundle_count = 0
     authenticated_bracket_symbols = 0
     oi_selected_symbols = 0
 
@@ -553,16 +630,7 @@ def run_producer_cycle(
         if oi_selection.source_timeframe is not None:
             oi_selected_symbols += 1
             oi_timeframes[oi_selection.source_timeframe] += 1
-        bracket_result = read_authenticated_bracket_surface_evidence(
-            redis_client,
-            security_context=bracket_security_context,
-            symbol=symbol,
-            now_fn=lambda: redis_utc_now(redis_client),
-        )
-        if bracket_result.get("status") == "READY" and bracket_result.get(
-            "evidence_authenticated"
-        ) is True:
-            authenticated_bracket_symbols += 1
+        symbol_has_authenticated_brackets = False
 
         for timeframe in ordered_timeframes:
             current_mark = read_exact_redis_snapshot(
@@ -578,17 +646,20 @@ def run_producer_cycle(
             generated_at_ms = redis_now_ms(redis_client)
             candle_key = f"v2:market:ohlcv_closed:binance:{symbol}:{timeframe}"
             try:
-                candidate, _diagnostics = build_lane_candidate(
+                candidate, diagnostics, _prepared = prepare_lane_publication_candidate(
+                    redis_client=redis_client,
+                    bracket_security_context=bracket_security_context,
                     symbol=symbol,
                     timeframe=timeframe,
                     candle_raw=source_snapshot.values.get(candle_key),
                     source_observed_at_ms=source_snapshot.consumer_observed_at_ms,
                     mark_history=mark_history,
                     oi_selection=oi_selection,
-                    bracket_result=bracket_result,
                     as_of_time_ms=as_of_time_ms,
                     generated_at_ms=generated_at_ms,
                 )
+                if diagnostics["bracket_lane_admission_status"] == "ADMITTED":
+                    symbol_has_authenticated_brackets = True
                 candidates_built += 1
             except Exception as exc:
                 reason = f"{type(exc).__name__}:{str(exc)[:MAX_REASON_TEXT]}"
@@ -629,12 +700,26 @@ def run_producer_cycle(
                 raise LiquidationSurfaceProducerError(
                     "PUBLICATION_UNEXPECTED_TRAINER_AUTHORITY"
                 )
+            receipt = getattr(verified, "receipt", {})
+            if isinstance(receipt, Mapping) and receipt.get(
+                "trainer_source_bundle_sha256"
+            ) == candidate["trainer_source_bundle"]["bundle_sha256"]:
+                verified_prepared_source_bundle_count += 1
+            if verified.pointer_class == "trainer_eligible" and (
+                not isinstance(receipt, Mapping)
+                or receipt.get("trainer_storage_candidate_eligible") is not True
+            ):
+                raise LiquidationSurfaceProducerError(
+                    "TRAINER_POINTER_WITHOUT_VERIFIED_PREPARED_SOURCE_BUNDLE"
+                )
             published += 1
             timeframe_published[timeframe] += 1
             if verified.pointer_class == "trainer_eligible":
                 trainer_candidate_pointer_count += 1
             else:
                 observation_pointer_count += 1
+        if symbol_has_authenticated_brackets:
+            authenticated_bracket_symbols += 1
 
     cycle_completed_at_ms = redis_now_ms(redis_client)
     if published == lane_count:
@@ -659,6 +744,9 @@ def run_producer_cycle(
         "all_lanes_published": published == lane_count,
         "trainer_semantic_candidate_count": semantic_candidates,
         "trainer_candidate_pointer_count": trainer_candidate_pointer_count,
+        "verified_prepared_source_bundle_count": (
+            verified_prepared_source_bundle_count
+        ),
         "observation_pointer_count": observation_pointer_count,
         "trainer_authority_count": 0,
         "two_mark_sample_symbol_count": mark_history.two_sample_symbol_count(
@@ -721,6 +809,7 @@ __all__ = [
     "PRODUCER_SCHEMA_VERSION",
     "SURFACE_TIMEFRAMES",
     "build_lane_candidate",
+    "prepare_lane_publication_candidate",
     "producer_status_key",
     "publication_scope_metadata",
     "read_exact_redis_snapshot",
