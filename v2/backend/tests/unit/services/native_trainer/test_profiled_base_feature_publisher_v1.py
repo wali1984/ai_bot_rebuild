@@ -26,6 +26,9 @@ from v2.backend.app.services.native_trainer import (
 from v2.backend.app.services.native_trainer import (
     profiled_base_feature_publisher_v1 as publisher_module,
 )
+from v2.backend.app.services.native_trainer import (
+    profiled_training_ledger_loader_v1 as loader_module,
+)
 from v2.backend.app.services.native_trainer.atomic_redis_source_reader import (
     read_atomic_redis_sources,
 )
@@ -975,6 +978,14 @@ def test_broker_reader_builds_strict_pair_without_exchange_credentials(
     )
     assert ledger.verify_integrity_streaming().verified_records == 2
 
+    batch = loader_module.load_profiled_training_ledger_v1(
+        ledger=ledger,
+        trusted_immutable_cost_store_root=Path(publication["cost_store_root"]),
+        training_observed_at=_iso(datetime.now(UTC) + timedelta(seconds=1)),
+    )
+    assert len(batch.samples) == 1
+    assert batch.exclusions == ()
+
 
 def test_broker_temporal_miss_retries_whole_window_instead_of_masking(
     tmp_path: Path,
@@ -1122,6 +1133,14 @@ def test_zero_candidate_cold_start_builds_strict_pair_from_adaptive_paper_margin
         (tmp_path / "feature-ledger.sqlite3").absolute()
     )
     assert ledger.verify_integrity_streaming().verified_records == 2
+
+    batch = loader_module.load_profiled_training_ledger_v1(
+        ledger=ledger,
+        trusted_immutable_cost_store_root=Path(publication["cost_store_root"]),
+        training_observed_at=_iso(datetime.now(UTC) + timedelta(seconds=1)),
+    )
+    assert len(batch.samples) == 1
+    assert batch.exclusions == ()
 
 
 def test_broker_missing_or_stale_evidence_masks_without_bad_training_row(

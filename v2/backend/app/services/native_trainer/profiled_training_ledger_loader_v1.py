@@ -316,6 +316,94 @@ _NOTIONAL_FALSE_AUTHORITY = {
     "live_authority": False,
     "order_authority": False,
 }
+_FEE_TRANSPORT_PROVENANCE_FIELDS = frozenset(
+    {
+        "schema_version",
+        "source_transport",
+        "verification_status",
+        "broker_envelope_sha256",
+        "broker_envelope_cas_address",
+        "broker_envelope_evidence_hmac_sha256",
+        "consumer_receipt_payload_sha256",
+        "consumer_receipt_cas_address",
+        "consumer_receipt_evidence_hmac_sha256",
+        "rotation_receipt_sha256",
+        "source_available_at",
+        "broker_available_at",
+        "consumer_observed_at",
+        "consumer_checked_at",
+        "decision_time",
+        "expires_at",
+        "evidence_auth_algorithm",
+        "evidence_auth_key_id",
+        "exchange_credentials_read",
+        "trainer_authority",
+        "prediction_authority",
+        "paper_authority",
+        "live_authority",
+    }
+)
+_FEE_BROKER_ENVELOPE_FIELDS = frozenset(
+    """
+    schema_version producer source request_method request_path security_type symbol
+    exchange_environment base_url_origin trader_id credential_ref credential_binding_id
+    credential_binding_fingerprint_sha256 credential_ref_read_only_assertion
+    credential_ref_read_only_assertion_semantics exchange_key_permissions_proven_by_connector
+    evidence_auth_algorithm evidence_auth_key_id request_started_at response_observed_at
+    source_available_at broker_generated_at broker_available_at broker_available_at_semantics
+    expires_at raw_response_sha256 raw_response_byte_count raw_response_cas_address
+    raw_response_stored_in_redis sanitized_request_identity_sha256
+    sanitized_request_identity_cas_address fee_artifact_sha256 fee_artifact_cas_address
+    fee_receipt_sha256 fee_receipt_payload_sha256 fee_receipt_cas_address
+    refresh_policy_artifact_cas_address refresh_policy_receipt_sha256
+    refresh_policy_receipt_payload_sha256 refresh_policy_receipt_cas_address
+    rotation_artifact_cas_address rotation_receipt_sha256 rotation_receipt_cas_address
+    taker_commission_bps maker_commission_bps rpi_commission_bps request_weight
+    shared_budget_required shared_budget_scope raw_response_stored_in_redis
+    exchange_credentials_stored read_only trainer_authority prediction_authority
+    paper_authority live_authority places_real_order order_submitted leverage_mutated
+    margin_mutated content_checksum_sha256 evidence_hmac_sha256
+    """.split()
+)
+_FEE_BROKER_CONSUMER_RECEIPT_FIELDS = frozenset(
+    """
+    schema_version receipt_kind broker_schema_version producer source request_method
+    request_path symbol decision_time source_available_at broker_available_at
+    consumer_observed_at consumer_checked_at expires_at broker_envelope_sha256
+    broker_envelope_evidence_hmac_sha256 rotation_receipt_sha256 raw_response_sha256
+    fee_artifact_sha256 fee_receipt_sha256 credential_binding_fingerprint_sha256
+    evidence_auth_algorithm evidence_auth_key_id verification_checks broker_cas_object_count
+    exchange_credentials_read trainer_authority prediction_authority paper_authority
+    live_authority content_checksum_sha256 evidence_hmac_sha256
+    """.split()
+)
+_FEE_BROKER_VERIFICATION_CHECKS = [
+    "CANONICAL_REDIS_ENVELOPE",
+    "ENVELOPE_CONTENT_CHECKSUM",
+    "ENVELOPE_HMAC",
+    "EIGHT_IMMUTABLE_CAS_READBACKS",
+    "CAS_ENVELOPE_HASH_BINDINGS",
+    "FEE_REFRESH_ROTATION_CONTENT_BINDINGS",
+    "BROKER_SOURCE_CONSUMER_DECISION_CLOCK_ORDER",
+    "EVIDENCE_EXPIRY",
+]
+_FEE_TRANSPORT_FALSE_AUTHORITY = {
+    "exchange_credentials_read": False,
+    "trainer_authority": False,
+    "prediction_authority": False,
+    "paper_authority": False,
+    "live_authority": False,
+}
+_FEE_BROKER_CAS_ADDRESS_FIELDS = (
+    "raw_response_cas_address",
+    "sanitized_request_identity_cas_address",
+    "fee_artifact_cas_address",
+    "fee_receipt_cas_address",
+    "refresh_policy_artifact_cas_address",
+    "refresh_policy_receipt_cas_address",
+    "rotation_artifact_cas_address",
+    "rotation_receipt_cas_address",
+)
 _TRAINING_LINEAGE_FIELDS = frozenset(
     {
         "schema_version",
@@ -1357,7 +1445,7 @@ def _reopen_cost_cas(
         int, binding["cost_capture_artifact_byte_count"]
     )
 
-    def bind_embedded_address(value: object) -> None:
+    def validated_embedded_address(value: object) -> dict[str, Any]:
         if type(value) is not dict or set(value) != {
             "schema_version",
             "payload_sha256",
@@ -1375,11 +1463,17 @@ def _reopen_cost_cas(
             or value.get("relative_path") != f"sha256/{cast(str, digest)[:2]}/{digest}"
         ):
             _fail("PROFILED_TRAINING_COST_EMBEDDED_CAS_ADDRESS_INVALID")
+        return cast(dict[str, Any], value)
+
+    def bind_embedded_address(value: object) -> dict[str, Any]:
+        address = validated_embedded_address(value)
+        digest = address["payload_sha256"]
+        byte_count = address["payload_byte_count"]
         prior = expected_inventory.get(cast(str, digest))
         if prior is not None and prior != byte_count:
             _fail("PROFILED_TRAINING_COST_EMBEDDED_CAS_ADDRESS_CONFLICT")
         expected_inventory[cast(str, digest)] = byte_count
-
+        return address
     market_sources = artifact.get("market_sources")
     fee_source = artifact.get("fee_source")
     notional_source = artifact.get("notional_source")
@@ -1583,6 +1677,257 @@ def _reopen_cost_cas(
                 )
             ):
                 _fail("PROFILED_TRAINING_COST_NOTIONAL_SOURCE_RECEIPT_INVALID")
+    fee_transport_value = artifact.get("fee_transport_provenance")
+    if fee_transport_value is not None:
+        fee_transport = _exact_dict(
+            fee_transport_value,
+            _FEE_TRANSPORT_PROVENANCE_FIELDS,
+            reason="PROFILED_TRAINING_COST_FEE_TRANSPORT_FIELDS_INVALID",
+        )
+        expected_fee_transport = {
+            "schema_version": "causal_cost_fee_transport_provenance_v1",
+            "source_transport": ("AUTHENTICATED_BINANCE_USDM_COMMISSION_BROKER_HMAC_V1"),
+            "verification_status": (
+                "BROKER_READER_VERIFIED_HMAC_EIGHT_CAS_OBJECTS_AND_PIT;"
+                "SIGNED_CONSUMER_RECEIPT_STRUCTURALLY_BOUND"
+            ),
+            "evidence_auth_algorithm": "HMAC-SHA256",
+            **_FEE_TRANSPORT_FALSE_AUTHORITY,
+        }
+        if any(
+            fee_transport.get(name) != expected for name, expected in expected_fee_transport.items()
+        ):
+            _fail("PROFILED_TRAINING_COST_FEE_TRANSPORT_IDENTITY_INVALID")
+        auth_key_id = fee_transport.get("evidence_auth_key_id")
+        transport_hash_fields = (
+            "broker_envelope_sha256",
+            "broker_envelope_evidence_hmac_sha256",
+            "consumer_receipt_payload_sha256",
+            "consumer_receipt_evidence_hmac_sha256",
+            "rotation_receipt_sha256",
+        )
+        if (
+            type(auth_key_id) is not str
+            or not auth_key_id
+            or auth_key_id != auth_key_id.strip()
+            or any(not _valid_sha256(fee_transport.get(name)) for name in transport_hash_fields)
+        ):
+            _fail("PROFILED_TRAINING_COST_FEE_TRANSPORT_HASH_OR_KEY_INVALID")
+
+        broker_address = bind_embedded_address(fee_transport.get("broker_envelope_cas_address"))
+        consumer_address = bind_embedded_address(fee_transport.get("consumer_receipt_cas_address"))
+        if fee_transport.get("broker_envelope_sha256") != broker_address.get(
+            "payload_sha256"
+        ) or fee_transport.get("consumer_receipt_payload_sha256") != consumer_address.get(
+            "payload_sha256"
+        ):
+            _fail("PROFILED_TRAINING_COST_FEE_TRANSPORT_CAS_BINDING_INVALID")
+        broker_payload = objects.get(cast(str, broker_address["payload_sha256"]))
+        consumer_payload = objects.get(cast(str, consumer_address["payload_sha256"]))
+        if (
+            broker_payload is None
+            or consumer_payload is None
+            or len(broker_payload) != broker_address["payload_byte_count"]
+            or len(consumer_payload) != consumer_address["payload_byte_count"]
+        ):
+            _fail("PROFILED_TRAINING_COST_FEE_TRANSPORT_CAS_READBACK_INVALID")
+        try:
+            broker_value = json.loads(broker_payload.decode("ascii", errors="strict"))
+            consumer_value = json.loads(consumer_payload.decode("ascii", errors="strict"))
+        except (json.JSONDecodeError, RecursionError, UnicodeError, ValueError) as exc:
+            raise ProfiledTrainingLedgerLoaderV1Error(
+                "PROFILED_TRAINING_COST_FEE_TRANSPORT_JSON_INVALID"
+            ) from exc
+        broker = _exact_dict(
+            broker_value,
+            _FEE_BROKER_ENVELOPE_FIELDS,
+            reason="PROFILED_TRAINING_COST_FEE_BROKER_ENVELOPE_FIELDS_INVALID",
+        )
+        consumer = _exact_dict(
+            consumer_value,
+            _FEE_BROKER_CONSUMER_RECEIPT_FIELDS,
+            reason="PROFILED_TRAINING_COST_FEE_CONSUMER_RECEIPT_FIELDS_INVALID",
+        )
+        if (
+            _canonical_json(broker).encode("ascii", errors="strict") != broker_payload
+            or _canonical_json(consumer).encode("ascii", errors="strict") != consumer_payload
+        ):
+            _fail("PROFILED_TRAINING_COST_FEE_TRANSPORT_JSON_NOT_CANONICAL")
+
+        broker_identity = {
+            "schema_version": "v2_binance_usdm_commission_evidence_broker_v1",
+            "producer": "v2_binance_usdm_commission_evidence_broker",
+            "source": "BINANCE_USDM_USER_DATA_GET_FAPI_V1_COMMISSION_RATE",
+            "request_method": "GET",
+            "request_path": "/fapi/v1/commissionRate",
+            "security_type": "USER_DATA",
+            "symbol": binding.get("symbol"),
+            "credential_ref_read_only_assertion": True,
+            "credential_ref_read_only_assertion_semantics": (
+                "OPERATOR_USAGE_LABEL_NOT_BINANCE_PERMISSION_PROOF"
+            ),
+            "exchange_key_permissions_proven_by_connector": False,
+            "evidence_auth_algorithm": "HMAC-SHA256",
+            "evidence_auth_key_id": auth_key_id,
+            "broker_available_at_semantics": (
+                "PRE_REDIS_CAS_PUBLICATION_CLOCK;" "CONSUMER_POST_VALIDATION_CLOCK_REQUIRED"
+            ),
+            "request_weight": 20,
+            "shared_budget_required": True,
+            "shared_budget_scope": "host_redis",
+            "raw_response_stored_in_redis": False,
+            "exchange_credentials_stored": False,
+            "read_only": True,
+            "trainer_authority": False,
+            "prediction_authority": False,
+            "paper_authority": False,
+            "live_authority": False,
+            "places_real_order": False,
+            "order_submitted": False,
+            "leverage_mutated": False,
+            "margin_mutated": False,
+        }
+        consumer_identity = {
+            "schema_version": "v2_binance_usdm_commission_consumer_read_receipt_v1",
+            "receipt_kind": "AUTHENTICATED_BROKER_CONSUMER_READ",
+            "broker_schema_version": broker_identity["schema_version"],
+            "producer": broker_identity["producer"],
+            "source": broker_identity["source"],
+            "request_method": "GET",
+            "request_path": "/fapi/v1/commissionRate",
+            "symbol": binding.get("symbol"),
+            "decision_time": binding.get("decision_time"),
+            "evidence_auth_algorithm": "HMAC-SHA256",
+            "evidence_auth_key_id": auth_key_id,
+            "verification_checks": _FEE_BROKER_VERIFICATION_CHECKS,
+            "broker_cas_object_count": 8,
+            **_FEE_TRANSPORT_FALSE_AUTHORITY,
+        }
+        if any(broker.get(name) != expected for name, expected in broker_identity.items()) or any(
+            consumer.get(name) != expected for name, expected in consumer_identity.items()
+        ):
+            _fail("PROFILED_TRAINING_COST_FEE_TRANSPORT_OBJECT_IDENTITY_INVALID")
+        for name in (
+            "exchange_environment",
+            "base_url_origin",
+            "trader_id",
+            "credential_ref",
+            "credential_binding_id",
+        ):
+            value = broker.get(name)
+            if type(value) is not str or not value or value != value.strip():
+                _fail("PROFILED_TRAINING_COST_FEE_BROKER_IDENTITY_LABEL_INVALID")
+
+        broker_checksum_material = {
+            name: value
+            for name, value in broker.items()
+            if name not in {"content_checksum_sha256", "evidence_hmac_sha256"}
+        }
+        consumer_checksum_material = {
+            name: value
+            for name, value in consumer.items()
+            if name not in {"content_checksum_sha256", "evidence_hmac_sha256"}
+        }
+        broker_sha256 = hashlib.sha256(broker_payload).hexdigest()
+        consumer_sha256 = hashlib.sha256(consumer_payload).hexdigest()
+        if (
+            broker_sha256 != fee_transport.get("broker_envelope_sha256")
+            or consumer_sha256 != fee_transport.get("consumer_receipt_payload_sha256")
+            or broker.get("content_checksum_sha256") != stable_sha256(broker_checksum_material)
+            or consumer.get("content_checksum_sha256") != stable_sha256(consumer_checksum_material)
+            or not _valid_sha256(broker.get("evidence_hmac_sha256"))
+            or not _valid_sha256(consumer.get("evidence_hmac_sha256"))
+            or broker.get("evidence_hmac_sha256")
+            != fee_transport.get("broker_envelope_evidence_hmac_sha256")
+            or consumer.get("evidence_hmac_sha256")
+            != fee_transport.get("consumer_receipt_evidence_hmac_sha256")
+            or consumer.get("broker_envelope_sha256") != broker_sha256
+            or consumer.get("broker_envelope_evidence_hmac_sha256")
+            != broker.get("evidence_hmac_sha256")
+            or consumer.get("rotation_receipt_sha256") != broker.get("rotation_receipt_sha256")
+            or consumer.get("rotation_receipt_sha256")
+            != fee_transport.get("rotation_receipt_sha256")
+            or consumer.get("credential_binding_fingerprint_sha256")
+            != broker.get("credential_binding_fingerprint_sha256")
+            or not _valid_sha256(broker.get("credential_binding_fingerprint_sha256"))
+        ):
+            _fail("PROFILED_TRAINING_COST_FEE_TRANSPORT_HASH_BINDING_INVALID")
+
+        broker_addresses = {
+            name: validated_embedded_address(broker.get(name))
+            for name in _FEE_BROKER_CAS_ADDRESS_FIELDS
+        }
+        raw_address = cast(dict[str, Any], fee_source["raw_response_cas_address"])
+        fee_artifact_address = cast(dict[str, Any], fee_source["artifact_cas_address"])
+        fee_receipt_address = cast(dict[str, Any], fee_source["input_receipt_cas_address"])
+        if (
+            broker_addresses["raw_response_cas_address"] != raw_address
+            or broker_addresses["fee_artifact_cas_address"] != fee_artifact_address
+            or broker_addresses["fee_receipt_cas_address"] != fee_receipt_address
+            or broker.get("raw_response_sha256") != raw_address.get("payload_sha256")
+            or broker.get("raw_response_byte_count") != raw_address.get("payload_byte_count")
+            or broker.get("fee_artifact_sha256") != fee_artifact_address.get("payload_sha256")
+            or broker.get("fee_receipt_payload_sha256") != fee_receipt_address.get("payload_sha256")
+            or broker.get("fee_receipt_sha256") != fee_source.get("input_receipt_sha256")
+            or broker.get("sanitized_request_identity_sha256")
+            != broker_addresses["sanitized_request_identity_cas_address"].get("payload_sha256")
+            or broker.get("refresh_policy_receipt_payload_sha256")
+            != broker_addresses["refresh_policy_receipt_cas_address"].get("payload_sha256")
+            or consumer.get("raw_response_sha256") != broker.get("raw_response_sha256")
+            or consumer.get("fee_artifact_sha256") != broker.get("fee_artifact_sha256")
+            or consumer.get("fee_receipt_sha256") != broker.get("fee_receipt_sha256")
+        ):
+            _fail("PROFILED_TRAINING_COST_FEE_BROKER_SOURCE_BINDING_INVALID")
+
+        broker_clock_names = (
+            "request_started_at",
+            "response_observed_at",
+            "source_available_at",
+            "broker_generated_at",
+            "broker_available_at",
+            "expires_at",
+        )
+        broker_clocks = [
+            _clock(
+                broker.get(name),
+                reason="PROFILED_TRAINING_COST_FEE_BROKER_CLOCK_INVALID",
+            )
+            for name in broker_clock_names
+        ]
+        transport_clock_names = (
+            "source_available_at",
+            "broker_available_at",
+            "consumer_observed_at",
+            "consumer_checked_at",
+            "decision_time",
+            "expires_at",
+        )
+        transport_clocks = [
+            _clock(
+                fee_transport.get(name),
+                reason="PROFILED_TRAINING_COST_FEE_TRANSPORT_CLOCK_INVALID",
+            )
+            for name in transport_clock_names
+        ]
+        if (
+            broker_clocks != sorted(broker_clocks)
+            or broker_clocks[-2] >= broker_clocks[-1]
+            or not (
+                transport_clocks[0]
+                <= transport_clocks[1]
+                <= transport_clocks[2]
+                <= transport_clocks[3]
+                <= transport_clocks[4]
+                < transport_clocks[5]
+            )
+            or transport_clocks[4] != decision_time
+            or any(fee_transport.get(name) != consumer.get(name) for name in transport_clock_names)
+            or any(
+                fee_transport.get(name) != broker.get(name)
+                for name in ("source_available_at", "broker_available_at", "expires_at")
+            )
+        ):
+            _fail("PROFILED_TRAINING_COST_FEE_TRANSPORT_TEMPORAL_BINDING_INVALID")
     if inventory != expected_inventory:
         _fail("PROFILED_TRAINING_COST_CAS_INVENTORY_NOT_EXACT")
 
