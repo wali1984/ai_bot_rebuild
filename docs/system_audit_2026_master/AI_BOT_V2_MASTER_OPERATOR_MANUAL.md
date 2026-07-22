@@ -21,6 +21,92 @@ This is the safe operating manual for the current system. It reflects the deploy
 9. **Do not assume Git describes deployment.** Effective user-systemd units/drop-ins run from mutable repo state and diverge from versioned files.
 10. **Do not add manual deletion or change/pause/disable/mask retention without approval and a before-state capture.** A separate enabled 15-minute janitor is already non-dry-run and mutates replay/cache/log/temporary holdout artifacts; evidence preservation is racing that automation until authorities and protected datasets are reconciled.
 
+## 1A. Authenticated trainer publisher runbook (commissioned 2026-07-22)
+
+`ai-bot-v2-native-cuda-trainer-persistent.service` is now the authenticated
+profiled non-serving candidate publisher. It is not the legacy online
+train/predict/publish loop and not the passive waiting observer. The installed
+command is pinned to release
+`7ff0e617d76bf83d6b69e6b6ec6814a3ec1b249c` in mode
+`authenticated-profiled-publisher`.
+
+Current verified state at `2026-07-22T22:52:50Z`:
+
+- trainer publisher: `active/running`, PID `302319`, `NRestarts=0`;
+- coordinator: `active/running`, PID `4074206`, `NRestarts=0`;
+- resident classification: `WAITING_EXTERNAL_WITNESS_CONFIGURATION`;
+- coordinator phase: `HEAD_STAGED`, 18 admitted examples, complete state chain;
+- witness verifier/runtime, signed head, external acknowledgement, optimizer,
+  checkpoint publication, prediction, serving, paper/live, execution and order
+  authority: all absent or false.
+
+The waiting classification means the service is commissioned and healthy but
+cannot yet run the optimizer. Do not call it a completed training publication,
+do not synthesize a local witness, and do not weaken the authorization gate.
+An independently operated witness must supply the ID, raw Ed25519 public key
+and SHA-256 pin, while the coordinator separately owns both purpose-scoped
+bearer credentials. The trainer must never receive either bearer.
+
+### Read-only health check
+
+```bash
+systemctl --user show ai-bot-v2-native-cuda-trainer-persistent.service \
+  -p ActiveState -p SubState -p MainPID -p NRestarts \
+  -p ExecMainStartTimestamp -p Result -p ExecStart -p DropInPaths
+
+jq '{classification,status_generated_at,code_sha,local_status_integrity_only,
+     service_process_active,local_role_credentials_loaded,
+     witness_verifier_configured,resident_runtime_import_authorized,error,
+     side_effect_contract,resident_result}' \
+  /home/wali/ai_bot_local_data/v2_native_trainer/\
+authenticated_profiled_resident_v1/status.json
+
+jq -r .status_sha256 \
+  /home/wali/ai_bot_local_data/v2_native_trainer/\
+authenticated_profiled_resident_v1/status.json
+jq -cjS 'del(.status_sha256)' \
+  /home/wali/ai_bot_local_data/v2_native_trainer/\
+authenticated_profiled_resident_v1/status.json | sha256sum
+```
+
+The last two digests must match. This proves local status integrity only; it is
+not independent provenance. In witness-absent mode, `status_generated_at`
+should advance every 30 seconds without a PID change or restart. The
+coordinator deliberately parks after `HEAD_STAGED`, so its unchanged status
+timestamp is expected while `witness_runtime_configured=false`.
+
+### Effective boundary to verify before any restart
+
+The effective unit must have exactly these properties:
+
+- four `LoadCredential` bindings for state, manifest, head and epoch HMAC
+  verification roles;
+- no active `80-external-witness-verifier.conf` until independent provisioning;
+- no bearer, provider, exchange, wallet, prediction or order credential;
+- read-only repository, deployed release, coordinator root, feature ledger
+  plus WAL/SHM, and immutable cost CAS;
+- write access only to
+  `.local_models/v2_native_rl_masa_ppo` and
+  `authenticated_profiled_resident_v1`;
+- `RestrictAddressFamilies=AF_UNIX`, `PrivateDevices=false`, journal output,
+  and `RestartPreventExitStatus=2 78`.
+
+`PrivateDevices=false` is intentional because the authorized optimizer needs
+CUDA after a real witness receipt. The three byte budgets, page limit and
+30-second cadence are resource/I/O controls, not market or strategy
+thresholds.
+
+If startup fails, stop this unit only and inspect `Result`, `ExecStartPre` and
+the private status file. Do not restart the coordinator or any paper/live
+service as a generic repair. Exit `78` is a non-restarting configuration error.
+The initial deployment exposed `226/NAMESPACE` because the private status root
+did not yet exist; commit `6de36d8651814a903225b3611a9557ef6dada93b`
+corrects clean-host provisioning with an out-of-namespace directory pre-step
+and an optional pre-mount path.
+
+Full credentials, paths and authority semantics are in
+`claude_worklog/systemd/user/ai-bot-v2-native-cuda-trainer-persistent.credentials.md`.
+
 ## 2. What is running
 
 The earlier 2026-07-16 operations snapshot found 157 installed `ai-bot*` user-unit files, 81 running services, 36 active timers and 3 failed services. A direct recheck found 156 installed basenames and 35 active timers. Counts change continuously.
@@ -761,7 +847,7 @@ systemctl --user show \
 ```
 
 The effective environment must contain
-`AI_BOT_CODE_SHA=b0116f706f12f115acc03197eef6765e1a2f36ea`, a matching
+`AI_BOT_CODE_SHA=37080a1cd015d5d51c0248f7b7e7fabbb9c24253`, a matching
 release `PYTHONPATH`, and `LIVE_GATE=blocked_human_only`. Do not print or copy
 the systemd credential mount. Inspect only nonsecret status fields:
 
@@ -796,16 +882,18 @@ enable held downstream trainer services to make the status green.
 
 The external witness template is tracked as
 `80-external-witness.conf.example` and is intentionally not installed. It may
-be activated only after an independently operated service supplies all six
+be activated only after an independently operated service supplies all seven
 bindings: HTTPS base URL, witness ID, separately supplied key digest, timeout,
-protected bearer token and raw 32-byte Ed25519 public key. Do not generate the
-witness signer/token/key on this host. After installation, revalidate signed
+protected head-append bearer, distinct protected completion-authorization
+bearer, and raw 32-byte Ed25519 public key. Do not generate the witness
+signer/tokens/key on this host. After installation, revalidate signed
 compare-and-append, readback, journal recovery, zero equivocation, and all
 false trading authorities before releasing any later layer.
 
 Current commissioning evidence is 18 total/admitted examples, zero label
-gaps, zero witness attempts, zero restarts, and peak memory 1,432,330,240
-bytes. The unit limits are `MemoryHigh=2G`, `MemoryMax=4G`, `CPUQuota=100%`,
-`Nice=10`, and idle I/O scheduling. A growing restart count, memory reaching
-the hard limit, missing canonical status, a writable immutable release, or any
-true downstream authority field is an incident and must fail closed.
+gaps, zero witness attempts and zero restarts. At the 2026-07-22 final check,
+coordinator memory was 55,726,080 bytes current and 94,650,368 bytes peak. The
+unit limits are `MemoryHigh=2G`, `MemoryMax=4G`, `CPUQuota=100%`, `Nice=10`,
+and idle I/O scheduling. A growing restart count, memory reaching the hard
+limit, missing canonical status, a writable immutable release, or any true
+downstream authority field is an incident and must fail closed.

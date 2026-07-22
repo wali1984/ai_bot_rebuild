@@ -6,6 +6,186 @@ Repository revision observed during the audit: `2dd584d632790c54c1054f7c4453cb9d
 
 Scope: V2 native hybrid trainer only; documentation analysis, no trainer, strategy, risk, or execution behavior was changed.
 
+## 0A. 2026-07-22 authenticated profiled resident addendum
+
+This addendum supersedes the audit-time deployment description for
+`ai-bot-v2-native-cuda-trainer-persistent.service` only. It does not erase the
+legacy PPO/MASA findings below and does not authorize serving, paper or live
+promotion.
+
+### Deployed truth
+
+The service now runs mode `authenticated-profiled-publisher` from immutable
+release `7ff0e617d76bf83d6b69e6b6ec6814a3ec1b249c` with the pinned Python
+environment
+`6360ea33fcfb9f9a81724989bbd32ace2b02bf7eaa7a8771d64d282f423173f0`.
+The tracked deployment and clean-start repair are committed through
+`6de36d8651814a903225b3611a9557ef6dada93b`.
+
+At final verification the trainer was `active/running`, PID `302319`, with
+zero restarts. Four status generations advanced over 90 seconds without a PID
+change. The coordinator was independently `active/running`, PID `4074206`,
+also with zero restarts. The resident classification was
+`WAITING_EXTERNAL_WITNESS_CONFIGURATION`; this is a live process and a blocked
+optimizer, not a completed publication.
+
+### Authoritative new component map
+
+| Responsibility | File and exact role |
+|---|---|
+| Mode parser and lazy dispatch | `v2/backend/app/cli/v2_native_cuda_trainer_persistent_loop.py`; rejects missing and cross-mode flags before implementation imports |
+| Least-privilege credential loader | `v2/backend/app/services/native_trainer/authenticated_profiled_resident_runtime_credentials_v1.py`; reads four mandatory local verification roles and one optional public verifier key |
+| Resident service/heartbeat | `v2/backend/app/services/native_trainer/authenticated_profiled_resident_service_v1.py`; builds status, redacts errors, gates runtime imports, retries cycles and atomically writes `0600` status |
+| Authenticated cycle | `v2/backend/app/services/native_trainer/authenticated_profiled_resident_runtime_v1.py`; verifies state/completion, independently materializes corpus twice, executes one lineage-bound optimizer and publishes only a non-serving candidate |
+| Descriptor-anchored state reader | `v2/backend/app/services/native_trainer/profiled_training_observation_coordinator_state_v1.py`; double-reads the pointer and verifies the complete immutable state-event chain without taking writer authority |
+| Immutable authorization reader | `v2/backend/app/services/native_trainer/profiled_optimizer_external_completion_authorization_journal_v1.py`; descriptor-copies a stable main/WAL pair to private scratch and opens only that copy with SQLite `mode=ro` and `query_only` |
+| Bounded row admission | `v2/backend/app/services/native_trainer/authenticated_profiled_optimizer_admission_v1.py`; reopens the exact manifest/page/receipt identity and admits only authenticated positive rows |
+| Lineage-bound optimizer | `v2/backend/app/services/native_trainer/authenticated_profiled_supervised_optimizer_execution_v1.py`; validates inventory equality and enforces explicit input/state/checkpoint byte budgets |
+| Non-serving publication | `v2/backend/app/services/native_trainer/authenticated_profiled_supervised_checkpoint_publication_v1.py`; writes a verified candidate under `non_serving_training_candidates` with no reusable write capability |
+| Effective service boundary | `claude_worklog/systemd/user/ai-bot-v2-native-cuda-trainer-persistent.service` plus `90-immutable-release.conf` |
+| Credential/operator contract | `claude_worklog/systemd/user/ai-bot-v2-native-cuda-trainer-persistent.credentials.md` |
+
+### CLI and credential boundary
+
+The parser exposes two explicit modes. The old
+`waiting-for-authenticated-samples` route remains available for rollback and
+diagnostics. The installed route is `authenticated-profiled-publisher` and
+requires all 18 service-config values: repository, ledger, immutable cost CAS,
+cadence, coordinator root, model directory, status path, namespace, consumer
+lane, four distinct public role IDs, page limit, validation fraction and three
+resource byte budgets. Publisher-only flags are rejected in waiting mode;
+`--max-rows` is rejected in publisher mode. No supplied option is silently
+ignored.
+
+The loader is bound to exactly
+`/run/user/<uid>/credentials/ai-bot-v2-native-cuda-trainer-persistent.service`.
+It opens every path without following symlinks and requires the final systemd
+directory to be owner-only `0500`, each file to be a one-link owner-only
+`0400` regular file, and each local HMAC value to contain at least 32 bytes.
+The four mandatory runtime names are:
+
+1. `profiled_observation_state_hmac_key`;
+2. `profiled_observation_manifest_hmac_key`;
+3. `profiled_observation_head_hmac_key`; and
+4. `profiled_observation_epoch_hmac_key`.
+
+Their values must be pairwise distinct. The optional verifier is an
+all-or-nothing tuple of `PROFILED_OBSERVATION_WITNESS_ID`,
+`PROFILED_OBSERVATION_WITNESS_PUBLIC_KEY_SHA256`, and the raw 32-byte
+`profiled_observation_witness_ed25519_public_key`. Its observed hash must equal
+the lowercase pin. No endpoint or bearer is accepted by this loader. Ambient
+Binance, Moralis and CoinAPI variables are ignored.
+
+### Control flow and write authority
+
+With no verifier, the service does not import the resident runtime, CUDA model
+or optimizer and does not open coordinator artifacts. It writes one truthful
+heartbeat, sleeps for the 30-second operational cadence and repeats. The live
+status therefore has `witness_verifier_configured=false`,
+`resident_runtime_import_authorized=false`, and all 18 Boolean resident-result
+fields false.
+
+With a complete verifier, one cycle proceeds as follows:
+
+1. Revalidate all service paths, role IDs, page/split parameters and resource
+   budgets.
+2. Require private `0700` coordinator state, staging and authorization CAS
+   directories; construct readers for `state/current.json`, `state-cas`,
+   `staging-cas`, `completion-authorization/journal.sqlite3`, and
+   `completion-authorization-cas`.
+3. Verify the state pointer by descriptor, then verify every predecessor event
+   to the immutable chain root and re-read the pointer to reject movement.
+4. If there is no local completed manifest, return
+   `WAITING_FOR_AUTHENTICATED_LOCAL_COMPLETION` without writing a checkpoint.
+5. Reopen the local completion and query an immutable private SQLite snapshot.
+   A genuinely absent authorization returns
+   `WAITING_FOR_EXTERNAL_COMPLETION_AUTHORIZATION`; malformed or moving source
+   evidence fails closed.
+6. Require exact manifest, completion event, witness identity/namespace/key
+   pin, signed envelope, monotonic head, full-consumption acknowledgement and
+   positive optimizer-admission bindings.
+7. Materialize the admitted examples twice into distinct objects and require
+   both counts to equal the authenticated completion count. Build both corpora
+   and validate inventory equality before optimizer construction.
+8. Acquire the checkpoint lifecycle lease, re-read state and authorization,
+   and reject any movement between admission and write.
+9. Resolve the exact active serving lineage or create a separately identified
+   genesis base. Require `training_observed_at` to be later than the witness's
+   `accepted_at`.
+10. Execute the bounded supervised optimizer and publish a verified candidate
+    only under
+    `.local_models/v2_native_rl_masa_ppo/non_serving_training_candidates`.
+11. Return a historical completion result with
+    `checkpoint_write_authorized=false`; prediction, serving activation,
+    promotion, paper/live, exchange, deployment, order and execution authority
+    remain false.
+
+The systemd mount namespace makes the repository, immutable release,
+coordinator tree, ledger plus optional WAL/SHM, and cost CAS read-only. The only
+write roots are `.local_models/v2_native_rl_masa_ppo` and the private resident
+status/cache root. `RestrictAddressFamilies=AF_UNIX` denies Internet sockets.
+`PrivateDevices=false` is deliberate so a later *authorized* optimizer can see
+CUDA devices; it does not grant exchange or order access.
+
+### Status contract
+
+`authenticated_profiled_resident_v1/status.json` is canonical JSON, atomically
+replaced, one-link owner-only `0600`, and contains:
+
+- 16 top-level fields, including code SHA, classification, process/cycle state,
+  credential/runtime gates, error object and self-hash;
+- an exact 30-field resident result; and
+- a 10-field side-effect contract naming both write scopes and explicitly
+  denying network, bearer, exchange, serving, trading and order authority.
+
+The self-hash covers every other field and was independently recomputed during
+deployment. `local_status_integrity_only=true` prevents consumers from
+confusing that locally recomputable hash with witness provenance. Arbitrary
+exception messages, unknown exception class names and unapproved `.reasons`
+values are redacted; only an explicit reason-code and error-type allowlist may
+enter status.
+
+### Current evidence and remaining gate
+
+The deployed resident status advanced at
+`22:51:20.194460Z`, `22:51:50.204482Z`, `22:52:20.214390Z`, and
+`22:52:50.225146Z`, with stable PID and zero restarts. The final local digest
+was recomputed from canonical status bytes and matched the stored digest.
+
+The coordinator's current immutable state reports phase `HEAD_STAGED`, 18
+admitted examples, zero unavailable labels, `complete_state_chain_verified=true`,
+and `witness_runtime_configured=false`. Consequently there is no signed head,
+external full-consumption acknowledgement or optimizer admission. The optional
+verifier example is intentionally not installed. This external witness absence
+is the only current gate between the online resident and an authenticated
+optimizer cycle; bypassing it would invalidate the provenance model.
+
+The final combined regression covered the state reader, authorization journal,
+resident runtime, credentials, service, CLI and deployment contract: 96 tests
+passed in 127.35 seconds. The only warning was the environment's existing
+PyTorch `pynvml` deprecation warning. Ruff, Python compilation and diff checks
+also passed. The deployment cases pin the release, all arguments, four-only
+credential set, verifier-only inactive example, sandbox, logging and clean-root
+provisioning. The first live start found one real deployment defect
+(`226/NAMESPACE` for an absent status root); the committed repair runs only the
+directory provisioning pre-step outside the namespace and treats the pre-mount
+path as optional. The next start succeeded and remained stable.
+
+### Change-impact map
+
+| Change | Direct effect | Required regression |
+|---|---|---|
+| Namespace, consumer lane or any HMAC role ID/key | Invalidates state/manifest/head/epoch identity and can make all existing evidence unreadable | Complete chain, manifest, page receipt, local completion and cross-role reuse tests |
+| Witness ID, raw key or SHA pin | Changes which external authorization can unlock runtime import | All-or-nothing credential, pin, signed-envelope and journal-identity tests |
+| State pointer/CAS reader | Can introduce mutation authority, race acceptance or incomplete-chain trust | Descriptor swap, pointer double-read, full-chain and unchanged-source fingerprint tests |
+| Authorization journal reader | Can mutate the coordinator DB or accept a torn main/WAL snapshot | Source inode/size/mtime invariance, connect-time swap and read-only SQLite tests |
+| Page limit | Changes bounded admission traversal/I/O only; it must not classify market quality | Multi-page continuity, exact count and resource-bound tests |
+| Validation fraction | Changes the deterministic candidate-training split, not a market entry/risk threshold | Train/validation inventory and no-holdout-leakage tests |
+| Any byte budget | Changes fail-closed resource capacity, never sample merit, leverage or margin | Exact-boundary, over-budget and no-partial-checkpoint tests |
+| Model directory or lifecycle lease | Changes the sole checkpoint write authority and causal ledger | Path isolation, interprocess lease, recovery and already-published idempotence tests |
+| Status schema/error projection | Affects operators and machine consumers but grants no training authority | Exact field set, hash, permissions, atomic replacement and secret-redaction tests |
+| Systemd read/write mounts or device/network policy | Can widen evidence mutation, secret, network or GPU authority | Effective-unit parse, credential count, mount list, address family, clean start and multi-cycle burn-in |
+
 ## 1. Executive truth
 
 The currently deployed learner is a 38,958,347-parameter PyTorch residual MLP plus a GRU temporal branch. It receives a 16-frame sequence of 1,908-float vectors built from 477 ordered features and three 477-element masks. It exposes seven policy logits and four scalar heads: value, expected move, confidence, and MASA.

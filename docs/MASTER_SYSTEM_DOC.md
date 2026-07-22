@@ -10,6 +10,44 @@
 
 ## Scoped trainer-publisher addendum (2026-07-22)
 
+### Authenticated resident commissioned at 18:51 EDT
+
+The persistent native-trainer unit is now an authenticated profiled
+**non-serving candidate publisher**, not the earlier passive observer. The
+effective process is pinned to immutable release
+`7ff0e617d76bf83d6b69e6b6ec6814a3ec1b249c`; the tracked deployment boundary
+and clean-start namespace repair are committed through
+`6de36d8651814a903225b3611a9557ef6dada93b`. At the final verification it was
+`active/running` with PID `302319`, `NRestarts=0`, and the observation
+coordinator remained `active/running` with PID `4074206`, `NRestarts=0`.
+
+Four resident heartbeats advanced from `2026-07-22T22:51:20.194460Z` through
+`2026-07-22T22:52:50.225146Z` without a PID change or restart. Each 16-field
+top-level status had a verified local self-hash, an exact 30-field resident
+result, a 10-field side-effect contract, and all 18 resident Boolean result
+fields false. The service loaded the four distinct local HMAC verification
+roles, imported no optimizer runtime, and truthfully reported
+`WAITING_EXTERNAL_WITNESS_CONFIGURATION` because the optional independent
+Ed25519 verifier bundle is absent.
+
+The coordinator's anchored local state is `HEAD_STAGED`: 18 admitted examples,
+zero label-unavailable rows, a complete state chain, no witness runtime, no
+signed head, no external full-consumption acknowledgement, and no optimizer,
+checkpoint/model, prediction, paper/live, execution, or order authority. Thus
+the **publisher process is online**, but optimizer execution and candidate
+publication remain correctly blocked on independently supplied witness
+identity, public-key pin/key, and the coordinator's purpose-scoped external
+authorization. A same-host witness or fabricated receipt is not acceptable.
+
+The resident receives no bearer, endpoint, exchange, wallet, Moralis, CoinAPI,
+prediction, trading, or order credential. Its coordinator root, feature ledger
+and WAL/SHM, immutable cost CAS, repository, and deployed code are mounted
+read-only. Its only write roots are the non-serving candidate model directory
+and the private resident status/cache directory. GPU device visibility is
+retained, while Internet address families are denied. The complete credential
+and authority contract is
+[authenticated profiled trainer resident credential contract](../claude_worklog/systemd/user/ai-bot-v2-native-cuda-trainer-persistent.credentials.md).
+
 The profiled base-feature publisher is active from immutable release
 `e34af1e6a6bb9b54818e18f9279fcc9904de0922`, pinned by commit
 `cb927adaabecac0dab6e68827f8f4b6b8d37a2aa`.
@@ -58,27 +96,30 @@ false order/leverage/margin mutation flags. This corrects data ownership and
 PIT lineage only; it does not change strategy, risk, sizing, leverage, paper
 execution, live execution, or optimizer authority.
 
-This supersedes older claims that the profiled publisher itself is staged,
-credential-blocked or only producing masked rows. It does not supersede the
-live NO-GO. The strict samples have trainer-candidate authority only;
-prediction, paper, live and `runtime_wired` remain false. The persistent
-optimizer is therefore still not online through this path. See the
+This supersedes older claims that the profiled base publisher is staged,
+credential-blocked or only producing masked rows, and older claims that the
+persistent resident is still a passive observer. It does not supersede the
+live NO-GO. The strict samples have trainer-candidate input authority only;
+prediction, paper, live and `runtime_wired` remain false. The resident process
+is online, while its optimizer is intentionally not authorized until the
+external completion receipt exists. See the
 [authenticated recovery checkpoint](../claude_worklog/codex/CODEX_AUTHENTICATED_TRAINER_PUBLISHER_RECOVERY_2026_07_22.md)
 for the 21-object CAS contract, exact clocks/keys/fields, tests, runtime counts
 and change-impact map.
 
-The source-only strict cycle-status reader at checkpoint `c61ee6ba3b` now
-verifies the publisher's exact 57-field local status contract, all ten symbol
-inventories and their writer set algebra, canonical clocks, file-race safety,
-and authority semantics. It was validated against the current status but is
-not part of installed release `e34af1e6...`; a self-hash remains local
-integrity, not independent authentication or trainer admission. See
+The strict cycle-status reader originally checkpointed at `c61ee6ba3b` is now
+in the installed resident release lineage. It verifies the base publisher's
+exact 57-field local status contract, all ten symbol inventories and their
+writer set algebra, canonical clocks, file-race safety, and authority
+semantics. A self-hash remains local integrity, not independent authentication
+or trainer admission. See
 [Profiled base-publisher cycle status reader V1](system_audit_2026_master/components/PROFILED_BASE_PUBLISHER_CYCLE_STATUS_V1.md).
 
-The source-only crash-resuming coordinator at checkpoint `20a92dc75b` now
-orders that status through deterministic manifest, witnessed head, epoch,
-contiguous inventory receipts, and local completion. Its 165-test final
-protocol regression passed, but it is not installed and deliberately grants no
+The crash-resuming coordinator is installed from immutable release
+`37080a1cd015d5d51c0248f7b7e7fabbb9c24253`. It orders the base status through
+deterministic manifest, witnessed head, epoch, contiguous inventory receipts,
+and local completion. In witness-absent mode it deliberately parks after one
+`HEAD_STAGED` status rather than emitting a misleading heartbeat. It grants no
 external-completion, optimizer, checkpoint/model, prediction, paper/live,
 order, execution, or runtime authority. See
 [Profiled training observation coordinator V1](system_audit_2026_master/components/PROFILED_TRAINING_OBSERVATION_COORDINATOR_V1.md).
@@ -176,37 +217,35 @@ Training evidence has current blockers: external temporal lineage gaps, masked/m
 
 ### 2026-07-22 authenticated profiled-observation delta
 
-The strict profiled publisher path is no longer process-down. Three relevant
-user services were observed active with zero restarts: the profiled base
-feature publisher, native trainer waiting observer, and profiled training
-observation coordinator. The coordinator runs from detached read-only release
-`b0116f706f12f115acc03197eef6765e1a2f36ea`, pinned by commit
-`16f99785cb`. Its first real fixed observation built and reauthenticated
-manifest `669f74c...b99bfe8` with 18 total examples, 18 admitted examples and
-zero unavailable labels. The canonical status self-hash was independently
-recomputed; the complete manifest HMAC and entry stream were independently
-reopened; a 35-second stability check retained the same PID/status hash and
-`NRestarts=0`.
+The strict profiled path now has three relevant active, zero-restart services:
+the base feature publisher, profiled training observation coordinator and
+authenticated non-serving trainer resident. The coordinator runs from detached
+read-only release `37080a1cd015d5d51c0248f7b7e7fabbb9c24253`; the trainer
+runs from detached read-only release
+`7ff0e617d76bf83d6b69e6b6ec6814a3ec1b249c`. Manifest
+`669f74c...b99bfe8` contains 18 total/admitted examples and zero unavailable
+labels. The coordinator intentionally parks at `HEAD_STAGED` without an
+external witness, while the trainer emits a truthful 30-second heartbeat at
+`WAITING_EXTERNAL_WITNESS_CONFIGURATION`.
 
-This restores the local publisher/coordinator availability boundary, not the
-optimizer. The durable phase is `HEAD_STAGED` and classification is
-`WAITING_EXTERNAL_WITNESS_CONFIGURATION`. No external witness drop-in is
-installed, no witness network request occurred, and every optimizer,
-checkpoint, model, prediction, paper, live, order, execution and runtime-wired
-flag remains false. An independently operated HTTPS witness with protected
-bearer token, witness identity, pinned raw Ed25519 public key and separate key
-digest is the next authority boundary; generating it on the same host would
-not prove independent monotonic history.
+This restores process availability, not optimizer authorization. No external
+witness drop-in is installed, no witness network request occurred, and every
+optimizer, checkpoint/model, prediction, paper/live, order, execution and
+runtime-wired flag remains false. The coordinator requires an independently
+operated HTTPS witness with two purpose-scoped bearer credentials, identity,
+pinned raw Ed25519 public key and separate digest. The trainer receives only
+the identity, public key and pin after provisioning, never either bearer.
+Generating any of them on this host would not prove independent monotonic
+history.
 
-The runtime blocker corrections were deliberately non-semantic. The
-read-only observer now takes the existing provenance lock with `O_RDONLY` and
-`LOCK_SH`. One loader invocation keeps at most one compact source-root
-projection, drops full JSON/record/raw-ledger material after verification, and
-remembers only count/head identities for evicted roots. Recoverable source
-failures remain fail-closed but no longer kill the resident process; malformed
-arguments/credentials/witness URL configuration terminate with non-restarting
-configuration status. No strategy, reward, PPO/MASA, risk, allocation,
-leverage, margin, paper position or exchange/order behavior changed.
+The runtime corrections are non-semantic. State is read through a
+descriptor-anchored, pointer-double-read complete-chain verifier. The
+authorization journal is copied as a stable verified main/WAL pair to private
+scratch and queried read-only; coordinator source fingerprints must remain
+unchanged. Recoverable cycle failures remain observable and fail closed;
+malformed arguments or credentials terminate with non-restarting status 78.
+No strategy, reward, PPO/MASA objective, risk, allocation, leverage, margin,
+paper position or exchange/order behavior changed.
 
 ## Current decision/execution truth
 
