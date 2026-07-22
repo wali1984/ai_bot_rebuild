@@ -1,81 +1,73 @@
-# Profiled base-feature publisher credential contract
+# Profiled base-feature publisher broker credential contract
 
-This is a deployment contract, not an activation instruction. Installing,
-enabling, or starting the unit remains an explicit operator action.
+This is the deployment and trust-boundary contract for the publisher. The
+publisher is an authenticated consumer of locally brokered commission
+evidence. It does not load Binance API credentials and cannot execute the
+signed exchange request itself.
 
-The service imports one optional, all-or-nothing bundle of exactly three
-systemd credentials. It does not load a repository `.env`, a service
-`EnvironmentFile`, generic `BINANCE_*` variables, or secrets from command-line
-arguments. If no imported credential matches, the process remains online in
-`MASKED_COST_OBSERVATION` mode. If any credential is imported, all three must
-pass the strict binding below; partial or malformed bundles fail closed.
+## Exact protected input
 
-| Protected credential name | systemd credential-store identity | Purpose |
+The unit mounts exactly one systemd credential:
+
+| Runtime credential name | Protected source | Purpose |
 | --- | --- | --- |
-| `ALPHAFORGE_BINANCE_WAJIDALI1984_READONLY_API_KEY` | exact same name imported by `ImportCredential=` | Account-specific key for the signed read-only Binance USD-M commission-rate GET |
-| `ALPHAFORGE_BINANCE_WAJIDALI1984_READONLY_API_SECRET` | exact same name imported by `ImportCredential=` | Account-specific signing secret for that GET |
-| `PROFILED_BASE_COMMISSION_FINGERPRINT_HMAC_SECRET` | exact same name imported by `ImportCredential=` | Independent credential-binding fingerprint key; at least 32 UTF-8 bytes and unequal to either exchange credential |
+| `binance_bracket_evidence_hmac_key` | `%h/.config/ai-bot-v2/credentials/binance-bracket-evidence/evidence-hmac.cred` | Verify the broker envelope and seal the consumer-read receipt |
 
-The public binding is immutable for this unit:
+The HMAC value must be at least 32 UTF-8 bytes and must match the independent
+key used by the commission-evidence producer. The publisher unit contains zero
+API-key, API-secret, commission-fingerprint-key, `ImportCredential=`, `.env`,
+or `EnvironmentFile=` inputs. The public binding remains:
 
 - trader ID: `trader-wajidali1984`
 - credential reference: `ALPHAFORGE_BINANCE_WAJIDALI1984_READONLY`
-- endpoint: signed `GET /fapi/v1/commissionRate` on the official Binance USD-M origin
-- REST role: fallback-only behind `BINANCE_REST_FALLBACK_ALLOWED=true`
-- rate-limit authority: the host-shared Redis budget; unavailable shared budget fails closed
+- exchange origin identity: `https://fapi.binance.com`
+- evidence key ID: `binance-bracket-evidence-v1`
 
-`READONLY` in the credential reference and `read_only_ref=True` are local
-operator provisioning assertions. They are not connector evidence of the
-Binance-side permissions on the key. Before this unit is started, the operator
-must provision a distinct exchange key and independently verify its Binance
-permissions. The safety property established by this code is narrower: the
-only exchange-authenticated operation reachable from this service is the
-structurally fixed commission-rate GET; no order, leverage, margin, transfer,
-cancel, or modification endpoint is reachable.
+`READONLY` in the public reference is an operator label, not proof of the
+Binance-side permission set. The stronger process boundary is that the
+publisher has neither exchange credential and its code path only reads Redis
+and the broker CAS.
 
-Create encrypted credential-store entries locally with `systemd-creds
-encrypt`. Feed each value through standard input or another protected local
-source; never put plaintext values in this repository, shell arguments, the
-unit, or journal. Pass `--name=` with the exact protected credential name from
-the table and install it under a systemd encrypted credential store searched
-by `ImportCredential=` (for example `/etc/credstore.encrypted/` on this host).
-Do not let a shorter output filename become the embedded identity.
-At runtime, the loader accepts only systemd's exact fixed mount
-`/run/user/<euid>/credentials/ai-bot-v2-profiled-base-feature-publisher.service`.
-That directory, when created by systemd for at least one imported credential,
-must be owned by the effective user with mode `0500` and link count 2; each
-decrypted credential must be owned by the effective user with mode `0400` and
-link count 1. Exact absence of the final per-unit directory means no credential
-was imported and selects masked mode. An existing empty or partial directory,
-or invalid, multiline, oversized, reused, wrongly bound, writable, shared, or
-hard-linked runtime credential causes exit status 78, which
-`RestartPreventExitStatus` excludes from restart attempts.
+## Broker evidence boundary
 
-Masked mode still captures and durably appends the authenticated 35-field
-OHLCV parent after its prospective decision time. The required four-field cost
-bundle is reported with missing mask `[1,1,1,1]`, stale mask `[0,0,0,0]`, and
-source-availability mask `[0,0,0,0]`. It emits no cost values or receipts, is
-never trainer-admission eligible, and is never retrospectively enriched. Once
-a complete safe bundle is imported and the service is restarted, only a new
-finalized decision window may produce the exact trainer-admissible 35+4 pair.
-Before appending a masked parent, the publisher durably writes a canonical,
-self-hashed recovery intent bound to the parent ID, record hash, finalized
-window fingerprint, capture policy, transform configuration, and cost-mask
-binding. A restart or state-file loss authenticates the exact committed ledger
-parent against that receipt instead of rebuilding its timestamped identity.
-An intent whose parent never committed grants no recovery or trainer authority.
+The producer is the only service in this path that can execute signed
+`GET /fapi/v1/commissionRate`. It persists the exact response plus refresh and
+rotation artifacts in immutable CAS and publishes only a canonical HMAC-sealed
+envelope in Redis. Its request weight is reserved through the host-shared Redis budget.
+The route is read-only; no order, cancellation, leverage, margin-mode,
+transfer, or withdrawal endpoint is present in the producer CLI.
 
-The service writes only these absolute filesystem evidence paths:
+The publisher receives read-only filesystem access to:
 
-- `/home/wali/ai_bot_local_data/v2_native_trainer/profiled_base_publisher_v1`
-- `/home/wali/ai_bot_local_data/v2_native_trainer/durable_feature_snapshot_ledger.sqlite3`
-- `/home/wali/ai_bot_local_data/v2_native_trainer/profiled_base_publisher_v1/profiled_base_publisher_state_v1.json`
-- `/home/wali/ai_bot_local_data/v2_native_trainer/profiled_base_publisher_v1/profiled_base_publisher_status_v1.json`
+`/home/wali/ai_bot_local_data/v2_authenticated_evidence/binance_usdm_commission_broker_v1`
 
-The publisher may append an authenticated child record that a separate loader
-can evaluate for admission. It grants no trainer-process transition,
-checkpoint, optimizer, prediction, paper-trading, risk, allocator,
-or live-execution authority, and the unit has no `ExecStartPost`, `OnSuccess`,
-or dependency that starts any of those consumers. systemd permits only one
-main process for this non-template unit, while the publisher's durable writer
-lock independently rejects a second ledger writer.
+For each prospective decision it verifies the envelope HMAC, all eight CAS
+objects, content hashes, symbol, rotation receipt, refresh receipt, and the
+ordering of `source_available_at`, `broker_available_at`,
+`consumer_observed_at`, `consumer_checked_at`, `decision_time`, and
+`expires_at`. The exact envelope and HMAC-sealed consumer-read receipt are then
+copied into the publisher's enrichment CAS and bound to the fee derivation.
+This adds lineage only; the physical ABI remains 35+4.
+
+## Fail-closed behavior
+
+Missing, stale, malformed, future, expired, or unauthenticated broker evidence
+produces a durable 35-field parent with cost masks `[1,1,1,1]`, no four cost
+values, and no trainer admission. Such a parent is never retro-enriched. A
+later authenticated broker observation can affect only a new finalized,
+prospective decision window.
+
+The producer must be warmed before the publisher is switched to broker mode.
+Required activation evidence is:
+
+- broker current count equals the canonical trainer-universe count;
+- missing, invalid, and expired counts are all zero;
+- `continuous_coverage_feasible=true`;
+- producer `NRestarts=0`;
+- authenticated reader samples return `READY`.
+
+The publisher writes only under
+`/home/wali/ai_bot_local_data/v2_native_trainer` and reads the separate broker
+root. It does not start a trainer, optimizer, predictor, allocator, paper loop,
+risk controller, or live process. Its unit has no automatic downstream
+transition authority.

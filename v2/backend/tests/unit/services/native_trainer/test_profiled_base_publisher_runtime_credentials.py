@@ -626,21 +626,39 @@ def test_tracked_unit_is_protected_bounded_and_has_no_auto_transition() -> None:
     assert "BINANCE_API_KEY=" not in unit
     assert "BINANCE_API_SECRET=" not in unit
     assert "PROFILED_BASE_COMMISSION_FINGERPRINT_HMAC_SECRET=" not in unit
-    assert "BINANCE_REST_FALLBACK_ALLOWED=true" in unit
+    assert "BINANCE_REST_FALLBACK_ALLOWED=true" not in unit
     assert f"ALPHAFORGE_INITIAL_TRADER_ID={credentials.EXPECTED_TRADER_ID}" in unit
     assert (
         f"ALPHAFORGE_INITIAL_TRADER_BINANCE_CREDENTIAL_REF="
         f"{credentials.EXPECTED_CREDENTIAL_REF}" in unit
     )
-    for name in (
+    for forbidden_name in (
         credentials.API_KEY_SYSTEMD_CREDENTIAL,
         credentials.API_SECRET_SYSTEMD_CREDENTIAL,
         credentials.FINGERPRINT_HMAC_SYSTEMD_CREDENTIAL,
     ):
-        assert f"ImportCredential={name}\n" in unit
-    assert unit.count("ImportCredential=") == 3
-    assert "LoadCredentialEncrypted=" not in unit
-    assert "ConditionPathExists=" not in unit
+        assert forbidden_name not in unit
+    assert "ImportCredential=" not in unit
+    assert unit.count("LoadCredential=") == 1
+    assert (
+        "LoadCredential=binance_bracket_evidence_hmac_key:"
+        "%h/.config/ai-bot-v2/credentials/binance-bracket-evidence/evidence-hmac.cred"
+        in unit
+    )
+    assert (
+        "PROFILED_BASE_COMMISSION_BROKER_DATA_ROOT=/home/wali/ai_bot_local_data/"
+        "v2_authenticated_evidence/binance_usdm_commission_broker_v1" in unit
+    )
+    assert (
+        "ReadOnlyPaths=/home/wali/ai_bot_local_data/v2_authenticated_evidence/"
+        "binance_usdm_commission_broker_v1" in unit
+    )
+    assert "BINANCE_USDM_REST_BASE_URL=https://fapi.binance.com" in unit
+    assert "BINANCE_BRACKET_EVIDENCE_HMAC_KEY_ID=binance-bracket-evidence-v1" in unit
+    assert (
+        "Wants=network-online.target "
+        "ai-bot-v2-binance-usdm-commission-evidence-broker.service" in unit
+    )
     assert unit.count("ExecStart=") == 1
     assert "Type=simple" in unit
     assert "Restart=on-failure" in unit
@@ -673,16 +691,19 @@ def test_documented_credential_contract_matches_unit_names() -> None:
         / "claude_worklog/systemd/user/ai-bot-v2-profiled-base-feature-publisher.credentials.md"
     ).read_text(encoding="utf-8")
 
-    for name in (
+    for forbidden_name in (
         credentials.API_KEY_SYSTEMD_CREDENTIAL,
         credentials.API_SECRET_SYSTEMD_CREDENTIAL,
         credentials.FINGERPRINT_HMAC_SYSTEMD_CREDENTIAL,
     ):
-        assert name in contract
+        assert forbidden_name not in contract
+    assert "binance_bracket_evidence_hmac_key" in contract
     assert "at least 32 UTF-8 bytes" in contract
     assert "GET /fapi/v1/commissionRate" in contract
     assert "host-shared Redis budget" in contract
-    assert "no trainer-process transition" in contract
-    assert "MASKED_COST_OBSERVATION" in contract
+    assert "no automatic downstream" in contract
+    assert "no trainer admission" in contract
     assert "[1,1,1,1]" in contract
     assert "ImportCredential=" in contract
+    assert "publisher unit contains zero" in contract
+    assert "API-key, API-secret, commission-fingerprint-key" in contract

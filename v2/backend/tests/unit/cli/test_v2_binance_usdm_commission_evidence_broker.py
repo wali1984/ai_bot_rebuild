@@ -161,3 +161,39 @@ def test_capture_failure_keeps_exact_safe_reason_and_suppresses_unknown_detail()
     rendered = cli._safe_failure_reason(unknown, scope="TURN_EXCEPTION")  # noqa: SLF001
     assert rendered == "COMMISSION_BROKER_TURN_EXCEPTION_RUNTIMEERROR"
     assert "SHOULD_NOT_ESCAPE" not in rendered
+
+
+def test_tracked_producer_unit_is_isolated_hardened_and_commission_only() -> None:
+    repo_root = Path(__file__).resolve().parents[5]
+    unit = (
+        repo_root
+        / "tools/systemd_units/ai-bot-v2-binance-usdm-commission-evidence-broker.service"
+    ).read_text(encoding="utf-8")
+    broker_root = (
+        "/home/wali/ai_bot_local_data/v2_authenticated_evidence/"
+        "binance_usdm_commission_broker_v1"
+    )
+
+    assert unit.count("LoadCredential=") == 3
+    assert "--execute-read-only" in unit
+    assert "v2_binance_usdm_commission_evidence_broker" in unit
+    assert "v2_binance_usdm_leverage_bracket_evidence" not in unit
+    assert f"ReadWritePaths={broker_root}" in unit
+    assert f"BINANCE_COMMISSION_BROKER_DATA_ROOT={broker_root}" in unit
+    assert "BINANCE_REST_FALLBACK_BUDGET_PER_MINUTE=120" in unit
+    assert "ProtectSystem=strict" in unit
+    assert "ProtectHome=read-only" in unit
+    assert "NoNewPrivileges=true" in unit
+    assert "RestartPreventExitStatus=2 78" in unit
+    assert "LIVE_GATE=blocked_human_only" in unit
+    for forbidden in (
+        "EnvironmentFile=",
+        "BINANCE_API_KEY=",
+        "BINANCE_API_SECRET=",
+        "/order",
+        "/leverage",
+        "/marginType",
+        "/cancel",
+        "/transfer",
+    ):
+        assert forbidden not in unit
