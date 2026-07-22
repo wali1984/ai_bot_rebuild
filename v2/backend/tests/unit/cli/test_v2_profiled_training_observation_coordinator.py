@@ -151,10 +151,13 @@ def test_status_is_canonical_self_hashed_and_preserves_all_false_authority(
         cli._canonical_bytes(unsigned)  # noqa: SLF001
     ).hexdigest()
     assert payload["local_status_integrity_only"] is True
+    assert payload["completion_authorization_runtime_configured"] is False
+    assert payload["signed_completion_authorization_durably_anchored"] is False
     for name in (
         "external_monotonic_manifest_head_verified",
         "full_consumption_external_ack_verified",
         "optimizer_admission_authorized",
+        "optimizer_execution_authorized",
         "checkpoint_write_authorized",
         "model_write_authorized",
         "prediction_authorized",
@@ -210,9 +213,12 @@ def test_build_runtime_without_witness_creates_no_witness_state(tmp_path: Path) 
             coordinator_module.ProfiledTrainingObservationCoordinatorV1
         )
         assert runtime.witness_client is None
+        assert runtime.completion_authorization_client is None
         assert status_path == args.runtime_root / "coordinator_status_v1.json"
         assert not (args.runtime_root / "witness").exists()
         assert not (args.runtime_root / "witness-cas").exists()
+        assert not (args.runtime_root / "completion-authorization").exists()
+        assert not (args.runtime_root / "completion-authorization-cas").exists()
     finally:
         runtime.close()
 
@@ -228,6 +234,9 @@ def test_build_runtime_with_witness_restores_journal_without_network(
             expected_public_key_sha256=hashlib.sha256(public_key).hexdigest(),
             timeout_seconds=1.0,
             bearer_token="independent-witness-test-bearer",  # noqa: S106
+            completion_authorization_bearer_token=(  # noqa: S106
+                "independent-completion-authorization-test-bearer"
+            ),
             public_key_bytes=public_key,
         )
     )
@@ -236,12 +245,38 @@ def test_build_runtime_with_witness_restores_journal_without_network(
         args=_args(tmp_path),
         credentials=_credentials(external=external),
     )
+    head_transport = None
+    completion_transport = None
     try:
         assert runtime.witness_client is not None
+        assert runtime.completion_authorization_client is not None
+        head_transport = runtime.witness_client._transport  # noqa: SLF001
+        completion_transport = (
+            runtime.completion_authorization_client._transport  # noqa: SLF001
+        )
+        assert head_transport._authorization_header == (  # noqa: SLF001, S105
+            "Bearer independent-witness-test-bearer"
+        )
+        assert completion_transport._authorization_header == (  # noqa: SLF001, S105
+            "Bearer independent-completion-authorization-test-bearer"
+        )
         assert (tmp_path / "runtime/witness/journal.sqlite3").is_file()
         assert (tmp_path / "runtime/witness-cas").is_dir()
+        completion_runtime = (
+            runtime.coordinator._completion_authorization_runtime  # noqa: SLF001
+        )
+        assert completion_runtime is not None
+        assert completion_runtime.client is runtime.completion_authorization_client
+        assert completion_runtime.journal.path == (
+            tmp_path / "runtime/completion-authorization/journal.sqlite3"
+        )
+        assert (tmp_path / "runtime/completion-authorization-cas").is_dir()
     finally:
         runtime.close()
+    assert head_transport is not None and head_transport._client.is_closed  # noqa: SLF001
+    assert (  # noqa: SLF001
+        completion_transport is not None and completion_transport._client.is_closed
+    )
 
 
 def test_run_once_writes_full_status_and_bounded_summary(
@@ -259,7 +294,7 @@ def test_run_once_writes_full_status_and_bounded_summary(
             calls += 1
             return _waiting_result()
 
-    runtime = cli._CoordinatorRuntime(FakeCoordinator(), None)  # type: ignore[arg-type]  # noqa: SLF001
+    runtime = cli._CoordinatorRuntime(FakeCoordinator(), None, None)  # type: ignore[arg-type]  # noqa: SLF001
     assert cli._run_loop(  # noqa: SLF001
         args=SimpleNamespace(once=True, cycle_seconds=1.0),
         runtime=runtime,
@@ -275,6 +310,8 @@ def test_run_once_writes_full_status_and_bounded_summary(
     )
     assert full["schema_version"] == cli.CLI_STATUS_SCHEMA_VERSION
     assert full["optimizer_admission_authorized"] is False
+    assert summary["completion_authorization_runtime_configured"] is False
+    assert summary["optimizer_execution_authorized"] is False
 
 
 def test_resident_loop_retries_runtime_failure_without_process_exit(
@@ -308,6 +345,7 @@ def test_resident_loop_retries_runtime_failure_without_process_exit(
     monkeypatch.setattr(cli, "_park_without_witness", finish_park)
     runtime = cli._CoordinatorRuntime(  # type: ignore[arg-type]  # noqa: SLF001
         RecoveringCoordinator(),
+        None,
         None,
     )
 
@@ -347,6 +385,7 @@ def test_once_runtime_failure_returns_nonzero_with_canonical_status(
     runtime = cli._CoordinatorRuntime(  # type: ignore[arg-type]  # noqa: SLF001
         FailingCoordinator(),
         None,
+        None,
     )
     assert cli._run_loop(  # noqa: SLF001
         args=SimpleNamespace(once=True, cycle_seconds=1.0),
@@ -357,6 +396,9 @@ def test_once_runtime_failure_returns_nonzero_with_canonical_status(
     assert payload["classification"] == "FAIL_CLOSED"
     assert payload["reason"] == "PROFILED_COORDINATOR_TEST_RUNTIME_FAILURE"
     assert payload["optimizer_admission_authorized"] is False
+    assert payload["optimizer_execution_authorized"] is False
+    assert payload["completion_authorization_runtime_configured"] is False
+    assert payload["completion_authorization_operation_id"] is None
 
 
 @pytest.mark.parametrize(
@@ -398,6 +440,7 @@ def test_main_configuration_failure_is_observable_without_secret_text(
     payload = json.loads(captured.err)
     assert payload["classification"] == "FAIL_CLOSED"
     assert payload["optimizer_admission_authorized"] is False
+    assert payload["optimizer_execution_authorized"] is False
     persisted = json.loads(
         (runtime_root / "coordinator_status_v1.json").read_text(encoding="ascii")
     )
@@ -471,6 +514,7 @@ def test_tracked_unit_is_hardened_bounded_and_has_no_downstream_transition() -> 
         assert f"LoadCredential={name}:" in unit
     for forbidden in (
         credential_module.WITNESS_BEARER_SYSTEMD_CREDENTIAL,
+        credential_module.COMPLETION_AUTHORIZATION_BEARER_SYSTEMD_CREDENTIAL,
         credential_module.WITNESS_PUBLIC_KEY_SYSTEMD_CREDENTIAL,
         "EnvironmentFile=",
         "ImportCredential=",
@@ -514,8 +558,9 @@ def test_external_witness_dropin_is_complete_template_not_active_base_config() -
         "80-external-witness.conf.example"
     ).read_text(encoding="utf-8")
 
-    assert dropin.count("LoadCredential=") == 2
+    assert dropin.count("LoadCredential=") == 3
     assert credential_module.WITNESS_BEARER_SYSTEMD_CREDENTIAL in dropin
+    assert credential_module.COMPLETION_AUTHORIZATION_BEARER_SYSTEMD_CREDENTIAL in dropin
     assert credential_module.WITNESS_PUBLIC_KEY_SYSTEMD_CREDENTIAL in dropin
     for name in (
         credential_module.WITNESS_BASE_URL_ENV,
@@ -550,7 +595,14 @@ def test_credential_contract_matches_unit_and_preserves_authority_boundary() -> 
     ):
         assert name in contract
         assert name in unit
+    for name in (
+        credential_module.WITNESS_BEARER_SYSTEMD_CREDENTIAL,
+        credential_module.COMPLETION_AUTHORIZATION_BEARER_SYSTEMD_CREDENTIAL,
+        credential_module.WITNESS_PUBLIC_KEY_SYSTEMD_CREDENTIAL,
+    ):
+        assert name in contract
     assert "raw 32-byte" in contract
+    assert "purpose-scoped" in contract
     assert "same-host" in contract
     assert "local-integrity-only" in contract
     assert "optimizer step" in contract

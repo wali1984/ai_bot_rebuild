@@ -39,26 +39,38 @@ new role key fails closed by design.
 
 The tracked `80-external-witness.conf.example` is intentionally not active.
 Install a completed copy only after another independently operated system
-supplies all six bindings:
+supplies all seven bindings:
 
 - HTTPS base URL;
 - witness ID;
 - expected lowercase SHA-256 of the witness public key;
 - timeout between 0.1 and 60 seconds;
-- protected bearer token (16–4096 printable ASCII bytes); and
-- protected **raw 32-byte** Ed25519 public key.
+- protected head-append bearer token (16–4096 printable ASCII bytes), mounted
+  as `profiled_observation_witness_bearer_token`;
+- protected completion-authorization bearer token (16–4096 printable ASCII
+  bytes), mounted as
+  `profiled_observation_completion_authorization_bearer_token`; and
+- protected **raw 32-byte** Ed25519 public key, mounted as
+  `profiled_observation_witness_ed25519_public_key`.
 
-The two secret files are `witness-bearer.cred` and
-`witness-ed25519-public-key.raw`. The four public values are unit environment
-bindings, not secrets. Any partial mixture of public values or protected files
-is a configuration error; it never silently becomes witness-absent mode. The
-loader hashes the raw key and requires the exact separately supplied pin
-before it constructs a client.
+The three secret files are `witness-bearer.cred`,
+`completion-authorization-bearer.cred`, and
+`witness-ed25519-public-key.raw`. The two bearer credentials are
+purpose-scoped: the first can call only the monotonic head-append route and the
+second can call only the compare-and-authorize completion route. Their values
+must be distinct; role reuse fails closed. The four public values are unit
+environment bindings, not secrets. Any partial mixture of public values or
+protected files is a configuration error; it never silently becomes
+witness-absent mode. The loader hashes the raw key and requires the exact
+separately supplied pin before it constructs either client. Both clients must
+use the same witness ID and public-key fingerprint.
 
-The client uses the CA bundle supplied by the pinned Python environment's
+Both clients use the CA bundle supplied by the pinned Python environment's
 `certifi` package, HTTPS only, no redirects, no environment proxy, identity
-encoding, bounded canonical JSON, bearer authentication, and Ed25519
-verification of both event and append receipt. It carries no signing private
+encoding, bounded canonical JSON, purpose-scoped bearer authentication, and
+Ed25519 verification. The head client verifies event and append receipts. The
+completion client verifies the exact manifest/head/final-page/completion
+binding and signed authorization envelope. Neither carries a signing private
 key. A same-host signer, token, or key generated on this host would defeat the
 independent monotonic-history requirement and must not be used as go-live
 evidence.
@@ -76,7 +88,8 @@ The service reads only:
 It writes only under
 `/home/wali/ai_bot_local_data/v2_native_trainer/profiled_training_observation_coordinator_v1`.
 That root contains manifests, staging/state/witness CAS, the authenticated
-state pointer, optional witness journal, and
+state pointer, optional head-witness journal, completion-authorization CAS and
+journal, and
 `coordinator_status_v1.json`. The status is canonical, atomically replaced,
 owner-only `0600`, self-hashed, and explicitly marked local-integrity-only.
 
@@ -90,11 +103,14 @@ classifies a market, sample, label, regime, risk, leverage, margin, or model.
 | State | Meaning | Downstream authority |
 | --- | --- | --- |
 | active + `WAITING_EXTERNAL_WITNESS_CONFIGURATION` | local manifest/head staged; independent bundle absent | all false |
-| active + signed-head/local-completion fields | witness append and local inventory receipts completed | still all false |
+| active + `WAITING_COMPLETION_AUTHORIZATION_CONFIGURATION` | signed head and positive admitted local completion exist, but the completion runtime is absent | all false |
+| active + `COMPLETION_AUTHORIZATION_ANCHORED` | exact positive corpus admission was signed by the pinned witness and durably journaled | admission evidence true; optimizer execution and every downstream authority false |
 | `FAIL_CLOSED` status or nonzero unit exit | credential, PIT, lineage, storage, witness, or protocol failure | all false |
 
-Local completion is only an authenticated inventory traversal. It is not a
-`TrainingExample` tensor read, optimizer step, checkpoint write, model
-publication, prediction, or runtime-wired proof. A separate independently
-acknowledged completion/admission layer is required before those claims may
-change.
+Local completion by itself is only an authenticated inventory traversal. The
+separate completion route can authorize admission of that exact positive
+corpus after the pinned signed head is replay-verified and the request is
+durably prepared. It still is not an optimizer step, a `TrainingExample`
+tensor read, checkpoint write, model publication, prediction, or runtime-wired proof;
+those authorities remain false until their separately reviewed workers earn
+and publish their own evidence.

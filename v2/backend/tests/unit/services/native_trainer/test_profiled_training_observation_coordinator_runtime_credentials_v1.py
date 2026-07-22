@@ -20,6 +20,7 @@ _ROLE_VALUES = {
     credentials.EPOCH_HMAC_SYSTEMD_CREDENTIAL: "epoch-local-role-key-material-0000000004",
 }
 _BEARER = "independent-witness-bearer-token-for-tests"
+_COMPLETION_BEARER = "independent-completion-authorization-bearer-for-tests"
 _PUBLIC_KEY = bytes(range(32))
 _PRODUCTION_EXPECTED_DIRECTORY = credentials._expected_credentials_directory  # noqa: SLF001
 
@@ -49,6 +50,11 @@ def _write_local_roles(directory: Path) -> None:
 
 def _write_witness(directory: Path) -> None:
     _write_text(directory, credentials.WITNESS_BEARER_SYSTEMD_CREDENTIAL, _BEARER)
+    _write_text(
+        directory,
+        credentials.COMPLETION_AUTHORIZATION_BEARER_SYSTEMD_CREDENTIAL,
+        _COMPLETION_BEARER,
+    )
     _write_bytes(
         directory,
         credentials.WITNESS_PUBLIC_KEY_SYSTEMD_CREDENTIAL,
@@ -131,9 +137,11 @@ def test_complete_external_witness_bundle_is_pinned_and_hidden(tmp_path: Path) -
     assert witness.witness_id == "independent-witness-v1"
     assert witness.timeout_seconds == 15.0
     assert witness.bearer_token == _BEARER
+    assert witness.completion_authorization_bearer_token == _COMPLETION_BEARER
     assert witness.public_key_bytes == _PUBLIC_KEY
     rendered = repr(loaded) + repr(witness)
     assert _BEARER not in rendered
+    assert _COMPLETION_BEARER not in rendered
     assert repr(_PUBLIC_KEY) not in rendered
 
 
@@ -278,9 +286,38 @@ def test_external_public_key_pin_mismatch_fails_closed(tmp_path: Path) -> None:
         )
 
 
+def test_external_witness_bearer_roles_must_be_distinct(tmp_path: Path) -> None:
+    _write_local_roles(tmp_path)
+    _write_text(tmp_path, credentials.WITNESS_BEARER_SYSTEMD_CREDENTIAL, _BEARER)
+    _write_text(
+        tmp_path,
+        credentials.COMPLETION_AUTHORIZATION_BEARER_SYSTEMD_CREDENTIAL,
+        _BEARER,
+    )
+    _write_bytes(
+        tmp_path,
+        credentials.WITNESS_PUBLIC_KEY_SYSTEMD_CREDENTIAL,
+        _PUBLIC_KEY,
+    )
+    tmp_path.chmod(0o500)
+
+    with pytest.raises(
+        credentials.ProfiledObservationCoordinatorCredentialError,
+        match="PROFILED_COORDINATOR_WITNESS_BEARER_ROLE_REUSE_FORBIDDEN",
+    ):
+        credentials.load_profiled_observation_coordinator_runtime_credentials_v1(
+            environ=_witness_environment(tmp_path)
+        )
+
+
 def test_external_public_key_requires_exact_raw_ed25519_length(tmp_path: Path) -> None:
     _write_local_roles(tmp_path)
     _write_text(tmp_path, credentials.WITNESS_BEARER_SYSTEMD_CREDENTIAL, _BEARER)
+    _write_text(
+        tmp_path,
+        credentials.COMPLETION_AUTHORIZATION_BEARER_SYSTEMD_CREDENTIAL,
+        _COMPLETION_BEARER,
+    )
     invalid_key = _PUBLIC_KEY + b"\n"
     _write_bytes(
         tmp_path,

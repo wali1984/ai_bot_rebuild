@@ -2,7 +2,8 @@
 
 Four independent local HMAC roles are mandatory.  The independent witness
 bundle is optional only as a *complete* bundle: public endpoint/identity/key
-pin plus protected bearer token and raw Ed25519 public key.  Secret material is
+pin plus distinct protected head/completion bearer tokens and a raw Ed25519
+public key.  Secret material is
 accepted only from the exact systemd credential mount for the fixed user unit;
 environment variables and repository secret files are never secret sources.
 """
@@ -30,6 +31,9 @@ MANIFEST_HMAC_SYSTEMD_CREDENTIAL: Final = "profiled_observation_manifest_hmac_ke
 HEAD_HMAC_SYSTEMD_CREDENTIAL: Final = "profiled_observation_head_hmac_key"
 EPOCH_HMAC_SYSTEMD_CREDENTIAL: Final = "profiled_observation_epoch_hmac_key"
 WITNESS_BEARER_SYSTEMD_CREDENTIAL: Final = "profiled_observation_witness_bearer_token"
+COMPLETION_AUTHORIZATION_BEARER_SYSTEMD_CREDENTIAL: Final = (
+    "profiled_observation_completion_authorization_bearer_token"
+)
 WITNESS_PUBLIC_KEY_SYSTEMD_CREDENTIAL: Final = (
     "profiled_observation_witness_ed25519_public_key"
 )
@@ -64,6 +68,7 @@ _LOCAL_CREDENTIAL_NAMES: Final = (
 )
 _WITNESS_CREDENTIAL_NAMES: Final = (
     WITNESS_BEARER_SYSTEMD_CREDENTIAL,
+    COMPLETION_AUTHORIZATION_BEARER_SYSTEMD_CREDENTIAL,
     WITNESS_PUBLIC_KEY_SYSTEMD_CREDENTIAL,
 )
 _WITNESS_PUBLIC_ENV_NAMES: Final = (
@@ -97,6 +102,7 @@ class ProfiledObservationCoordinatorExternalWitnessCredentialsV1:
     expected_public_key_sha256: str
     timeout_seconds: float
     bearer_token: str = field(repr=False)
+    completion_authorization_bearer_token: str = field(repr=False)
     public_key_bytes: bytes = field(repr=False)
 
 
@@ -226,7 +232,7 @@ def _read_hmac_key(directory_descriptor: int, name: str) -> bytes:
 def _witness_public_configuration(
     values: Mapping[str, str],
     *,
-    secret_presence: tuple[bool, bool],
+    secret_presence: tuple[bool, ...],
 ) -> tuple[str, str, str, float] | None:
     public_presence = tuple(bool(values.get(name, "")) for name in _WITNESS_PUBLIC_ENV_NAMES)
     any_bundle_value = any(public_presence) or any(secret_presence)
@@ -316,6 +322,22 @@ def load_profiled_observation_coordinator_runtime_credentials_v1(
             )
             if _BEARER_TOKEN_RE.fullmatch(bearer_token) is None:
                 _fail("PROFILED_COORDINATOR_EXTERNAL_WITNESS_BEARER_INVALID")
+            completion_authorization_bearer_token = _read_single_line_credential(
+                descriptor,
+                COMPLETION_AUTHORIZATION_BEARER_SYSTEMD_CREDENTIAL,
+            )
+            if (
+                _BEARER_TOKEN_RE.fullmatch(completion_authorization_bearer_token)
+                is None
+            ):
+                _fail(
+                    "PROFILED_COORDINATOR_COMPLETION_AUTHORIZATION_BEARER_INVALID"
+                )
+            if hmac.compare_digest(
+                bearer_token,
+                completion_authorization_bearer_token,
+            ):
+                _fail("PROFILED_COORDINATOR_WITNESS_BEARER_ROLE_REUSE_FORBIDDEN")
             public_key_bytes = _read_credential_bytes(
                 descriptor, WITNESS_PUBLIC_KEY_SYSTEMD_CREDENTIAL
             )
@@ -332,6 +354,9 @@ def load_profiled_observation_coordinator_runtime_credentials_v1(
                 expected_public_key_sha256=public_key_sha256,
                 timeout_seconds=timeout_seconds,
                 bearer_token=bearer_token,
+                completion_authorization_bearer_token=(
+                    completion_authorization_bearer_token
+                ),
                 public_key_bytes=public_key_bytes,
             )
     finally:
@@ -348,6 +373,7 @@ def load_profiled_observation_coordinator_runtime_credentials_v1(
 
 
 __all__ = [
+    "COMPLETION_AUTHORIZATION_BEARER_SYSTEMD_CREDENTIAL",
     "EPOCH_HMAC_SYSTEMD_CREDENTIAL",
     "HEAD_HMAC_SYSTEMD_CREDENTIAL",
     "MANIFEST_HMAC_SYSTEMD_CREDENTIAL",

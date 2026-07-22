@@ -25,6 +25,18 @@ from pathlib import Path
 from typing import Any, Final, NoReturn
 
 from v2.backend.app.services.native_trainer import (
+    profiled_optimizer_external_completion_authorization_client_v1 as completion_client_module,
+)
+from v2.backend.app.services.native_trainer import (
+    profiled_optimizer_external_completion_authorization_journal_v1 as completion_journal_module,
+)
+from v2.backend.app.services.native_trainer import (
+    profiled_optimizer_external_completion_authorization_runtime_v1 as completion_runtime_module,
+)
+from v2.backend.app.services.native_trainer import (
+    profiled_optimizer_external_completion_request_v1 as completion_request_module,
+)
+from v2.backend.app.services.native_trainer import (
     profiled_training_observation_coordinator_runtime_credentials_v1 as credential_module,
 )
 from v2.backend.app.services.native_trainer import (
@@ -71,13 +83,13 @@ from v2.backend.app.services.native_trainer.profiled_training_observation_manife
 )
 
 CLI_STATUS_SCHEMA_VERSION: Final = (
-    "profiled_training_observation_coordinator_cli_status_v1"
+    "profiled_training_observation_coordinator_cli_status_v2"
 )
 CLI_SUMMARY_SCHEMA_VERSION: Final = (
-    "profiled_training_observation_coordinator_cli_summary_v1"
+    "profiled_training_observation_coordinator_cli_summary_v2"
 )
 CLI_ERROR_SCHEMA_VERSION: Final = (
-    "profiled_training_observation_coordinator_cli_error_v1"
+    "profiled_training_observation_coordinator_cli_error_v2"
 )
 DEFAULT_RUNTIME_ROOT: Final = Path(
     "/home/wali/ai_bot_local_data/v2_native_trainer/"
@@ -128,6 +140,30 @@ ProfiledTrainingObservationCoordinatorStateStoreV1 = (
 ProfiledTrainingObservationCoordinatorStateV1Error = (
     state_module.ProfiledTrainingObservationCoordinatorStateV1Error
 )
+PinnedProfiledOptimizerCompletionAuthorizationClientV1 = (
+    completion_client_module.PinnedProfiledOptimizerCompletionAuthorizationClientV1
+)
+ProfiledOptimizerCompletionAuthorizationClientV1Error = (
+    completion_client_module.ProfiledOptimizerCompletionAuthorizationClientV1Error
+)
+ProfiledOptimizerCompletionAuthorizationHttpsTransportV1 = (
+    completion_client_module.ProfiledOptimizerCompletionAuthorizationHttpsTransportV1
+)
+ProfiledOptimizerCompletionAuthorizationJournalV1 = (
+    completion_journal_module.ProfiledOptimizerCompletionAuthorizationJournalV1
+)
+ProfiledOptimizerCompletionAuthorizationJournalV1Error = (
+    completion_journal_module.ProfiledOptimizerCompletionAuthorizationJournalV1Error
+)
+ProfiledOptimizerCompletionAuthorizationRuntimeV1 = (
+    completion_runtime_module.ProfiledOptimizerCompletionAuthorizationRuntimeV1
+)
+ProfiledOptimizerCompletionAuthorizationRuntimeV1Error = (
+    completion_runtime_module.ProfiledOptimizerCompletionAuthorizationRuntimeV1Error
+)
+ProfiledOptimizerExternalCompletionRequestV1Error = (
+    completion_request_module.ProfiledOptimizerExternalCompletionRequestV1Error
+)
 
 
 class ProfiledObservationCoordinatorCliError(RuntimeError):
@@ -142,10 +178,15 @@ class ProfiledObservationCoordinatorCliError(RuntimeError):
 class _CoordinatorRuntime:
     coordinator: ProfiledTrainingObservationCoordinatorV1
     witness_client: PinnedProfiledTrainingExternalWitnessClientV1 | None
+    completion_authorization_client: PinnedProfiledOptimizerCompletionAuthorizationClientV1 | None
 
     def close(self) -> None:
-        if self.witness_client is not None:
-            self.witness_client.close()
+        try:
+            if self.completion_authorization_client is not None:
+                self.completion_authorization_client.close()
+        finally:
+            if self.witness_client is not None:
+                self.witness_client.close()
 
 
 def _fail(reason: str) -> NoReturn:
@@ -317,6 +358,10 @@ def _runtime_paths(runtime_root: Path) -> dict[str, Path]:
         "state_pointer_path": root / "state" / "current.json",
         "witness_cas_root": root / "witness-cas",
         "witness_journal_path": root / "witness" / "journal.sqlite3",
+        "completion_authorization_cas_root": root / "completion-authorization-cas",
+        "completion_authorization_journal_path": (
+            root / "completion-authorization" / "journal.sqlite3"
+        ),
         "status_path": root / "coordinator_status_v1.json",
     }
 
@@ -379,6 +424,15 @@ def _build_runtime(
     witness_client: PinnedProfiledTrainingExternalWitnessClientV1 | None = None
     witness_runtime: ProfiledTrainingExternalWitnessRuntimeV1 | None = None
     unowned_transport: ProfiledTrainingExternalWitnessHttpsTransportV1 | None = None
+    completion_authorization_client: (
+        PinnedProfiledOptimizerCompletionAuthorizationClientV1 | None
+    ) = None
+    completion_authorization_runtime: ProfiledOptimizerCompletionAuthorizationRuntimeV1 | None = (
+        None
+    )
+    unowned_completion_authorization_transport: (
+        ProfiledOptimizerCompletionAuthorizationHttpsTransportV1 | None
+    ) = None
     try:
         external = credentials.external_witness
         if external is not None:
@@ -411,6 +465,34 @@ def _build_runtime(
                 journal=journal,
                 client=witness_client,
             )
+            unowned_completion_authorization_transport = (
+                ProfiledOptimizerCompletionAuthorizationHttpsTransportV1(
+                    base_url=external.base_url,
+                    bearer_token=(external.completion_authorization_bearer_token),
+                    timeout_seconds=external.timeout_seconds,
+                )
+            )
+            completion_authorization_client = (
+                PinnedProfiledOptimizerCompletionAuthorizationClientV1(
+                    transport=unowned_completion_authorization_transport,
+                    witness_id=external.witness_id,
+                    witness_public_key_bytes=external.public_key_bytes,
+                    expected_witness_public_key_sha256=(external.expected_public_key_sha256),
+                    close_transport_on_close=True,
+                )
+            )
+            # Ownership transferred only after the pinned client is complete.
+            unowned_completion_authorization_transport = None
+            completion_authorization_journal = ProfiledOptimizerCompletionAuthorizationJournalV1(
+                paths["completion_authorization_journal_path"],
+                immutable_store=ImmutableSourcePayloadStore(
+                    paths["completion_authorization_cas_root"]
+                ),
+            )
+            completion_authorization_runtime = ProfiledOptimizerCompletionAuthorizationRuntimeV1(
+                journal=completion_authorization_journal,
+                client=completion_authorization_client,
+            )
         coordinator = ProfiledTrainingObservationCoordinatorV1(
             state_store=state_store,
             status_path=publisher_status_path,
@@ -429,14 +511,28 @@ def _build_runtime(
             epoch_hmac_key=local.epoch_hmac_key,
             page_size=args.page_size,
             witness_runtime=witness_runtime,
+            completion_authorization_runtime=completion_authorization_runtime,
         )
     except Exception:
-        if witness_client is not None:
-            witness_client.close()
-        elif unowned_transport is not None:
-            unowned_transport.close()
+        try:
+            if completion_authorization_client is not None:
+                completion_authorization_client.close()
+            elif unowned_completion_authorization_transport is not None:
+                unowned_completion_authorization_transport.close()
+        finally:
+            if witness_client is not None:
+                witness_client.close()
+            elif unowned_transport is not None:
+                unowned_transport.close()
         raise
-    return _CoordinatorRuntime(coordinator, witness_client), paths["status_path"]
+    return (
+        _CoordinatorRuntime(
+            coordinator,
+            witness_client,
+            completion_authorization_client,
+        ),
+        paths["status_path"],
+    )
 
 
 def _canonical_bytes(value: object) -> bytes:
@@ -510,9 +606,21 @@ def _error_payload(*, reason: str, status_path: Path) -> dict[str, Any]:
         "code_sha": _code_sha(),
         "status_path": str(status_path),
         "local_status_integrity_only": True,
+        "completion_authorization_runtime_configured": False,
+        "completion_authorization_operations_recovered": 0,
+        "completion_authorization_network_attempts": 0,
+        "completion_authorization_operation_id": None,
+        "completion_authorization_request_sha256": None,
+        "completion_authorization_witness_id": None,
+        "completion_authorization_witness_public_key_sha256": None,
+        "completion_authorization_namespace": None,
+        "completion_authorization_sequence": None,
+        "completion_authorization_envelope_sha256": None,
+        "signed_completion_authorization_durably_anchored": False,
         "external_monotonic_manifest_head_verified": False,
         "full_consumption_external_ack_verified": False,
         "optimizer_admission_authorized": False,
+        "optimizer_execution_authorized": False,
         "checkpoint_write_authorized": False,
         "model_write_authorized": False,
         "prediction_authorized": False,
@@ -604,6 +712,17 @@ def _summary(payload: dict[str, Any]) -> dict[str, Any]:
         "witness_runtime_configured",
         "witness_operations_recovered",
         "witness_network_append_attempts",
+        "completion_authorization_runtime_configured",
+        "completion_authorization_operations_recovered",
+        "completion_authorization_network_attempts",
+        "completion_authorization_operation_id",
+        "completion_authorization_request_sha256",
+        "completion_authorization_witness_id",
+        "completion_authorization_witness_public_key_sha256",
+        "completion_authorization_namespace",
+        "completion_authorization_sequence",
+        "completion_authorization_envelope_sha256",
+        "signed_completion_authorization_durably_anchored",
         "page_receipts_staged_this_invocation",
         "manifest_id",
         "total_profiled_samples",
@@ -616,6 +735,7 @@ def _summary(payload: dict[str, Any]) -> dict[str, Any]:
         "external_monotonic_manifest_head_verified",
         "full_consumption_external_ack_verified",
         "optimizer_admission_authorized",
+        "optimizer_execution_authorized",
         "checkpoint_write_authorized",
         "model_write_authorized",
         "prediction_authorized",
@@ -728,6 +848,10 @@ _RUNTIME_ERRORS = (
     Canonical5mArchiveError,
     FeatureSnapshotLedgerError,
     ProfiledBasePublisherCycleStatusV1Error,
+    ProfiledOptimizerCompletionAuthorizationClientV1Error,
+    ProfiledOptimizerCompletionAuthorizationJournalV1Error,
+    ProfiledOptimizerCompletionAuthorizationRuntimeV1Error,
+    ProfiledOptimizerExternalCompletionRequestV1Error,
     ProfiledTrainingExternalWitnessClientV1Error,
     ProfiledTrainingExternalWitnessJournalV1Error,
     ProfiledTrainingExternalWitnessRuntimeV1Error,
