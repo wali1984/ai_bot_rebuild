@@ -14,6 +14,7 @@ from typing import Any, Final, NoReturn, cast
 from v2.backend.app.services.native_trainer.authenticated_profiled_base_checkpoint_lineage_v1 import (  # noqa: E501
     AUTHENTICATED_PROFILED_SUPERVISED_CANDIDATE_LINEAGE,
     AUTHENTICATED_PROFILED_SUPERVISED_CHECKPOINT_PUBLICATION_V1_SCHEMA_VERSION,
+    AUTHENTICATED_PROFILED_SUPERVISED_GENESIS_BASE_LINEAGE,
     AUTHENTICATED_PROFILED_SUPERVISED_LEDGER_DISPOSITION,
     AuthenticatedProfiledBaseCheckpointLineageV1,
     AuthenticatedProfiledBaseCheckpointLineageV1Error,
@@ -482,7 +483,10 @@ def _manager_roots(
     checkpoint_root = candidate_directory.parent
     base_manager = bound_execution._base_checkpoint_manager_owner
     base_directory = base_manager.model_dir.resolve()
-    if bound_execution.base_lineage.lineage_kind != VERIFIED_SERVING_LINEAGE:
+    if bound_execution.base_lineage.lineage_kind not in {
+        VERIFIED_SERVING_LINEAGE,
+        AUTHENTICATED_PROFILED_SUPERVISED_GENESIS_BASE_LINEAGE,
+    }:
         _fail("PROFILED_SUPERVISED_PUBLICATION_BASE_LINEAGE_INVALID")
     if base_directory != checkpoint_root:
         _fail("PROFILED_SUPERVISED_PUBLICATION_SERVING_BASE_STORE_INVALID")

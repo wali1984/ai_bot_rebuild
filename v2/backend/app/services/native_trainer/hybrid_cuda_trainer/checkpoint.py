@@ -1748,6 +1748,7 @@ class V2HybridCheckpointManager:
         consumed_ppo_update_keys: tuple[str, ...] = (),
         training_partition_digest: str | None = None,
         checkpoint_evidence: dict[str, Any] | None = None,
+        expected_checkpoint_generation: int | None = None,
     ) -> CheckpointManifest:
         """Write atomically while rolling model state back on every failure."""
 
@@ -1769,6 +1770,7 @@ class V2HybridCheckpointManager:
                 consumed_ppo_update_keys=consumed_ppo_update_keys,
                 training_partition_digest=training_partition_digest,
                 checkpoint_evidence=checkpoint_evidence,
+                expected_checkpoint_generation=expected_checkpoint_generation,
             )
         except Exception:
             model._restore_mutable_state_snapshot(model_state_before)
@@ -1788,6 +1790,7 @@ class V2HybridCheckpointManager:
         consumed_ppo_update_keys: tuple[str, ...] = (),
         training_partition_digest: str | None = None,
         checkpoint_evidence: dict[str, Any] | None = None,
+        expected_checkpoint_generation: int | None = None,
     ) -> CheckpointManifest:
         self._validate_model_dir()
         try:
@@ -1816,6 +1819,11 @@ class V2HybridCheckpointManager:
             ).encode("utf-8")
         ).hexdigest()
         ordered_consumed_keys = tuple(dict.fromkeys(consumed_ppo_update_keys))
+        if expected_checkpoint_generation is not None and (
+            type(expected_checkpoint_generation) is not int
+            or expected_checkpoint_generation <= 0
+        ):
+            raise ValueError("checkpoint_expected_generation_invalid")
         base_evidence = _bind_checkpoint_feature_abi_evidence(
             input_dim=input_dim,
             evidence={
@@ -1843,6 +1851,27 @@ class V2HybridCheckpointManager:
                 training_partition_digest=training_partition_digest,
                 checkpoint_evidence=base_evidence,
             )
+            if expected_checkpoint_generation is not None:
+                causal_records = self._read_causal_ledger(
+                    repair_torn_tail=True,
+                )
+                semantic_record = next(
+                    (
+                        record
+                        for record in causal_records
+                        if record.checkpoint_semantic_digest == semantic_digest
+                    ),
+                    None,
+                )
+                observed_generation = (
+                    semantic_record.checkpoint_generation
+                    if semantic_record is not None
+                    else len(causal_records) + 1
+                )
+                if observed_generation != expected_checkpoint_generation:
+                    raise RuntimeError(
+                        "checkpoint_expected_generation_conflict"
+                    )
             causal_record = self._allocate_causal_generation(
                 checkpoint_semantic_digest=semantic_digest,
                 parent_checkpoint_id=parent_checkpoint_id,

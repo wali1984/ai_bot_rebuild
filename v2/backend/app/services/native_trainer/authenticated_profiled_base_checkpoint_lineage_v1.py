@@ -34,10 +34,38 @@ AUTHENTICATED_PROFILED_SUPERVISED_CHECKPOINT_PUBLICATION_V1_SCHEMA_VERSION: Fina
 AUTHENTICATED_PROFILED_SUPERVISED_CANDIDATE_LINEAGE: Final = (
     "AUTHENTICATED_PROFILED_SUPERVISED_NON_SERVING_CANDIDATE"
 )
+AUTHENTICATED_PROFILED_SUPERVISED_GENESIS_BASE_LINEAGE: Final = (
+    "AUTHENTICATED_PROFILED_SUPERVISED_NON_SERVING_GENESIS_BASE"
+)
+AUTHENTICATED_PROFILED_SUPERVISED_GENESIS_BASE_V1_SCHEMA_VERSION: Final = (
+    "authenticated_profiled_supervised_genesis_base_v1"
+)
 AUTHENTICATED_PROFILED_SUPERVISED_LEDGER_DISPOSITION: Final = (
     "AUTHENTICATED_PROFILED_SUPERVISED_CANDIDATE_PERSISTED"
 )
-_ALLOWED_BASE_LINEAGES: Final = frozenset({VERIFIED_SERVING_LINEAGE})
+AUTHENTICATED_PROFILED_SUPERVISED_GENESIS_LEDGER_DISPOSITION: Final = (
+    "AUTHENTICATED_PROFILED_SUPERVISED_GENESIS_BASE_PERSISTED"
+)
+_ALLOWED_BASE_LINEAGES: Final = frozenset(
+    {
+        VERIFIED_SERVING_LINEAGE,
+        AUTHENTICATED_PROFILED_SUPERVISED_GENESIS_BASE_LINEAGE,
+    }
+)
+_GENESIS_DOWNSTREAM_AUTHORITY_FALSE: Final = {
+    "prediction_authorized": False,
+    "serving_authorized": False,
+    "serving_activation_authorized": False,
+    "serving_promotion_authorized": False,
+    "ppo_training_authorized": False,
+    "paper_trading_authorized": False,
+    "live_execution_authorized": False,
+    "exchange_access_authorized": False,
+    "deployment_authorized": False,
+    "order_submission_authorized": False,
+    "execution_authorized": False,
+    "runtime_wired": False,
+}
 _RESULT_TOKEN = object()
 _SEAL_KEY = secrets.token_bytes(32)
 _SEAL_DOMAIN: Final = b"authenticated_profiled_base_checkpoint_lineage_v1\0"
@@ -139,6 +167,56 @@ def _seal(material: dict[str, Any], *, owner_ids: tuple[int, ...]) -> bytes:
     ).digest()
 
 
+def _genesis_contract(model: V2HybridPolicyModel) -> dict[str, Any]:
+    feature_abi = model.checkpoint_feature_abi_declaration
+    if type(feature_abi) is not dict:
+        _fail("PROFILED_GENESIS_BASE_FEATURE_ABI_REQUIRED")
+    return {
+        "schema_version": (
+            AUTHENTICATED_PROFILED_SUPERVISED_GENESIS_BASE_V1_SCHEMA_VERSION
+        ),
+        "lineage_kind": AUTHENTICATED_PROFILED_SUPERVISED_GENESIS_BASE_LINEAGE,
+        "ledger_disposition": (
+            AUTHENTICATED_PROFILED_SUPERVISED_GENESIS_LEDGER_DISPOSITION
+        ),
+        "model_id": model.model_id,
+        "model_input_dim": model.input_dim,
+        "model_seed": model.seed,
+        "model_parameter_fingerprint": model_parameter_fingerprint(model),
+        "checkpoint_feature_abi_binding_sha256": stable_sha256(feature_abi),
+        "deterministic_untrained_initialization": True,
+        "market_data_consumed": False,
+        "training_sample_consumed": False,
+        "optimizer_step_completed": False,
+        "non_serving_base_only": True,
+        "checkpoint_write_authorized": True,
+        **_GENESIS_DOWNSTREAM_AUTHORITY_FALSE,
+    }
+
+
+def _genesis_manifest_valid(
+    *, manifest: CheckpointManifest, model: V2HybridPolicyModel
+) -> bool:
+    return bool(
+        manifest.lineage_kind
+        == AUTHENTICATED_PROFILED_SUPERVISED_GENESIS_BASE_LINEAGE
+        and manifest.parent_checkpoint_id is None
+        and manifest.parent_checkpoint_generation is None
+        and manifest.parent_policy_fingerprint is None
+        and manifest.checkpoint_generation == 1
+        and not manifest.consumed_ppo_update_keys
+        and manifest.training_partition_digest is None
+        and manifest.model_parameter_fingerprint
+        == model_parameter_fingerprint(model)
+        and manifest.checkpoint_evidence.get("checkpoint_role")
+        == AUTHENTICATED_PROFILED_SUPERVISED_GENESIS_BASE_LINEAGE
+        and manifest.checkpoint_evidence.get(
+            "authenticated_profiled_supervised_genesis_base"
+        )
+        == _genesis_contract(model)
+    )
+
+
 def _exact_manifest(
     *,
     manager: V2HybridCheckpointManager,
@@ -177,6 +255,12 @@ def _exact_manifest(
     manifest = matches[0]
     if manifest.lineage_kind not in _ALLOWED_BASE_LINEAGES:
         _fail("PROFILED_BASE_LINEAGE_KIND_OR_EVIDENCE_INVALID")
+    if (
+        manifest.lineage_kind
+        == AUTHENTICATED_PROFILED_SUPERVISED_GENESIS_BASE_LINEAGE
+        and not _genesis_manifest_valid(manifest=manifest, model=model)
+    ):
+        _fail("PROFILED_BASE_LINEAGE_GENESIS_EVIDENCE_INVALID")
     return manifest
 
 
@@ -379,6 +463,121 @@ def _binding_material_names() -> tuple[str, ...]:
     )
 
 
+def ensure_authenticated_profiled_genesis_base_checkpoint_v1(
+    *,
+    base_model: V2HybridPolicyModel,
+    base_checkpoint_manager: V2HybridCheckpointManager,
+) -> AuthenticatedProfiledBaseCheckpointLineageV1:
+    """Create or reopen the sole generation-one non-serving training base.
+
+    This bootstrap is permitted only in an otherwise empty causal checkpoint
+    store.  The checkpoint manager enforces the generation-one precondition
+    under its inter-process write lock, so concurrent startup cannot insert a
+    genesis record after any other lineage has advanced the ledger.
+    """
+
+    if (
+        type(base_model) is not V2HybridPolicyModel
+        or type(base_checkpoint_manager) is not V2HybridCheckpointManager
+    ):
+        _fail("PROFILED_GENESIS_BASE_OWNER_TYPES_INVALID")
+    if (
+        base_checkpoint_manager.model_dir
+        != base_checkpoint_manager._causal_root  # noqa: SLF001
+        or base_checkpoint_manager._causal_store  # noqa: SLF001
+        != "serving_root"
+    ):
+        _fail("PROFILED_GENESIS_BASE_CAUSAL_ROOT_MANAGER_REQUIRED")
+    if type(base_model.checkpoint_feature_abi_declaration) is not dict:
+        _fail("PROFILED_GENESIS_BASE_FEATURE_ABI_REQUIRED")
+
+    try:
+        root_manifests = base_checkpoint_manager.manifests(
+            require_weight_blob=False,
+        )
+    except Exception as exc:
+        raise AuthenticatedProfiledBaseCheckpointLineageV1Error(
+            "PROFILED_GENESIS_BASE_MANIFEST_SCAN_FAILED"
+        ) from exc
+
+    if any(
+        manifest.lineage_kind == VERIFIED_SERVING_LINEAGE
+        for manifest in root_manifests
+    ):
+        _fail("PROFILED_GENESIS_BASE_VERIFIED_SERVING_BASE_ALREADY_EXISTS")
+    genesis_manifests = tuple(
+        manifest
+        for manifest in root_manifests
+        if manifest.lineage_kind
+        == AUTHENTICATED_PROFILED_SUPERVISED_GENESIS_BASE_LINEAGE
+    )
+    if len(genesis_manifests) > 1:
+        _fail("PROFILED_GENESIS_BASE_NOT_EXACTLY_RESOLVED")
+    if genesis_manifests:
+        manifest = genesis_manifests[0]
+        if len(root_manifests) != 1 or not _genesis_manifest_valid(
+            manifest=manifest,
+            model=base_model,
+        ):
+            _fail("PROFILED_GENESIS_BASE_EXISTING_IDENTITY_INVALID")
+        return capture_authenticated_profiled_base_checkpoint_lineage_v1(
+            base_model=base_model,
+            base_checkpoint_manager=base_checkpoint_manager,
+            expected_checkpoint_id=manifest.checkpoint_id,
+        )
+    if root_manifests:
+        _fail("PROFILED_GENESIS_BASE_CAUSAL_ROOT_NOT_EMPTY")
+
+    try:
+        causal_records = base_checkpoint_manager._read_causal_ledger()  # noqa: SLF001
+    except Exception as exc:
+        raise AuthenticatedProfiledBaseCheckpointLineageV1Error(
+            "PROFILED_GENESIS_BASE_CAUSAL_LEDGER_INVALID"
+        ) from exc
+    if causal_records:
+        _fail("PROFILED_GENESIS_BASE_CAUSAL_LEDGER_NOT_EMPTY")
+
+    genesis_contract = _genesis_contract(base_model)
+    try:
+        manifest = base_checkpoint_manager.write_checkpoint(
+            model=base_model,
+            input_dim=base_model.input_dim,
+            device=base_model.device,
+            cuda_active=base_model.cuda_active,
+            lineage_kind=(
+                AUTHENTICATED_PROFILED_SUPERVISED_GENESIS_BASE_LINEAGE
+            ),
+            parent_checkpoint_id=None,
+            parent_policy_fingerprint=None,
+            consumed_ppo_update_keys=(),
+            training_partition_digest=None,
+            checkpoint_evidence={
+                "checkpoint_role": (
+                    AUTHENTICATED_PROFILED_SUPERVISED_GENESIS_BASE_LINEAGE
+                ),
+                "authenticated_profiled_supervised_genesis_base": (
+                    genesis_contract
+                ),
+            },
+            expected_checkpoint_generation=1,
+        )
+        verification = base_checkpoint_manager.verify_manifest_artifact(manifest)
+    except Exception as exc:
+        raise AuthenticatedProfiledBaseCheckpointLineageV1Error(
+            "PROFILED_GENESIS_BASE_DURABLE_WRITE_FAILED"
+        ) from exc
+    if (
+        not _genesis_manifest_valid(manifest=manifest, model=base_model)
+        or not _verification_valid(manifest=manifest, verification=verification)
+    ):
+        _fail("PROFILED_GENESIS_BASE_DURABLE_IDENTITY_INVALID")
+    return capture_authenticated_profiled_base_checkpoint_lineage_v1(
+        base_model=base_model,
+        base_checkpoint_manager=base_checkpoint_manager,
+        expected_checkpoint_id=manifest.checkpoint_id,
+    )
+
+
 def capture_authenticated_profiled_base_checkpoint_lineage_v1(
     *,
     base_model: V2HybridPolicyModel,
@@ -517,9 +716,13 @@ __all__ = (
     "AUTHENTICATED_PROFILED_BASE_CHECKPOINT_LINEAGE_V1_SCHEMA_VERSION",
     "AUTHENTICATED_PROFILED_SUPERVISED_CANDIDATE_LINEAGE",
     "AUTHENTICATED_PROFILED_SUPERVISED_CHECKPOINT_PUBLICATION_V1_SCHEMA_VERSION",
+    "AUTHENTICATED_PROFILED_SUPERVISED_GENESIS_BASE_LINEAGE",
+    "AUTHENTICATED_PROFILED_SUPERVISED_GENESIS_BASE_V1_SCHEMA_VERSION",
+    "AUTHENTICATED_PROFILED_SUPERVISED_GENESIS_LEDGER_DISPOSITION",
     "AUTHENTICATED_PROFILED_SUPERVISED_LEDGER_DISPOSITION",
     "AuthenticatedProfiledBaseCheckpointLineageV1",
     "AuthenticatedProfiledBaseCheckpointLineageV1Error",
     "capture_authenticated_profiled_base_checkpoint_lineage_v1",
+    "ensure_authenticated_profiled_genesis_base_checkpoint_v1",
     "revalidate_authenticated_profiled_base_checkpoint_lineage_v1",
 )

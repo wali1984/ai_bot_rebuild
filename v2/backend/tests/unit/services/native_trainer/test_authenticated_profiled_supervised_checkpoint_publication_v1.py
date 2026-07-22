@@ -13,8 +13,10 @@ from v2.backend.app.services.native_trainer import (
 )
 from v2.backend.app.services.native_trainer.authenticated_profiled_base_checkpoint_lineage_v1 import (  # noqa: E501
     AUTHENTICATED_PROFILED_SUPERVISED_CANDIDATE_LINEAGE,
+    AUTHENTICATED_PROFILED_SUPERVISED_GENESIS_BASE_LINEAGE,
     AuthenticatedProfiledBaseCheckpointLineageV1Error,
     capture_authenticated_profiled_base_checkpoint_lineage_v1,
+    ensure_authenticated_profiled_genesis_base_checkpoint_v1,
     revalidate_authenticated_profiled_base_checkpoint_lineage_v1,
 )
 from v2.backend.app.services.native_trainer.authenticated_profiled_optimizer_corpus_v1 import (  # noqa: E501
@@ -26,7 +28,6 @@ from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.checkpoint impor
 )
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.checkpoint_lifecycle import (  # noqa: E501
     NON_SERVING_CANDIDATE_LINEAGE,
-    VERIFIED_SERVING_LINEAGE,
 )
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.on_policy_behavior import (  # noqa: E501
     model_parameter_fingerprint,
@@ -77,18 +78,17 @@ def publication_bundle(
         base_model, trainer = execution_support._runtime(
             before_corpus=corpus_bundle["before"]
         )
-        base_manifest = base_manager.write_checkpoint(
-            model=base_model,
-            input_dim=base_model.input_dim,
-            device=base_model.device,
-            cuda_active=base_model.cuda_active,
-            lineage_kind=VERIFIED_SERVING_LINEAGE,
-            checkpoint_evidence={"checkpoint_role": VERIFIED_SERVING_LINEAGE},
-        )
-        base_lineage = capture_authenticated_profiled_base_checkpoint_lineage_v1(
+        base_lineage = ensure_authenticated_profiled_genesis_base_checkpoint_v1(
             base_model=base_model,
             base_checkpoint_manager=base_manager,
-            expected_checkpoint_id=base_manifest.checkpoint_id,
+        )
+        (base_manifest,) = base_manager.manifests(
+            input_dim=base_model.input_dim,
+            model_id=base_model.model_id,
+            allowed_lineage_kinds=frozenset(
+                {AUTHENTICATED_PROFILED_SUPERVISED_GENESIS_BASE_LINEAGE}
+            ),
+            require_weight_blob=True,
         )
         execution_inputs = execution_support._execution_inputs(
             corpus_bundle,
