@@ -34,6 +34,30 @@ The earlier independent strict-loader proof also reopened LDOUSDT sequence 14
 and NIGHTUSDT sequence 16: two admitted, zero excluded, with exact 39 physical,
 446 logical and 1,784 model-vector values.
 
+The trainer's canonical mark-price Redis key is now also single-writer. Before
+commit `2f05742c48d09b6018381a99535703321c4be06e`, both the Binance USD-M
+WebSocket seeder and the public-metadata ingestor wrote
+`v2:market:mark_price:{symbol}`. The metadata writer could temporarily replace
+the canonical, causal WebSocket document with a differently shaped cache
+document. The WebSocket seeder now exclusively owns that key; the metadata
+ingestor writes `v2:market:premium_index:{symbol}`. Both services are pinned by
+commit `ad4ce92a15172b76bf9bb5f9ffc807bdb13fe48c` to the read-only
+`2f05742c...` release. A 70.047-second post-cutover probe sampled TRUMPUSDT
+1,373 times: 1,373 canonical/causal WebSocket mark documents, zero missing or
+invalid mark documents, and zero JSON errors. The separate premium-index key
+was present in 1,363 samples and advanced through two source event times. The
+publisher cycle completing at `2026-07-22T12:24:01.572529Z` selected one,
+published one and failed zero. The following cycle isolated ONEUSDT for
+unavailable canonical OHLCV REST provenance; it did not report a mark-price
+schema/JSON failure and appended no orphan row.
+
+The canonical mark document carries `event_time <= received_at`, with
+`received_at == available_at == generated_at`, a one-second expected source
+cadence, canonical finite JSON, source/schema/transport identity, and explicit
+false order/leverage/margin mutation flags. This corrects data ownership and
+PIT lineage only; it does not change strategy, risk, sizing, leverage, paper
+execution, live execution, or optimizer authority.
+
 This supersedes older claims that the profiled publisher itself is staged,
 credential-blocked or only producing masked rows. It does not supersede the
 live NO-GO. The strict samples have trainer-candidate authority only;

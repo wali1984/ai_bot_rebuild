@@ -1,6 +1,6 @@
 # Operator Runbook
 
-Last verified timestamp: 2026-07-22T12:05:06Z for the profiled trainer publisher/observer; other sections retain their dated evidence
+Last verified timestamp: 2026-07-22T12:23Z for the profiled trainer publisher/observer and trainer mark-price transport; other sections retain their dated evidence
 
 ## Purpose
 Provide the daily operator path for checking runtime health, paper halt state, live gate, service drift, website/iOS truth, and incident response entry points.
@@ -135,3 +135,61 @@ loader currently reports `runtime_wired=false`; prediction, paper and live
 authority are false. See
 `claude_worklog/codex/CODEX_AUTHENTICATED_TRAINER_PUBLISHER_RECOVERY_2026_07_22.md`
 for the exact loader command, acceptance counts and remaining adapter gate.
+
+### Trainer mark-price ownership check
+
+The trainer-facing key `v2:market:mark_price:{symbol}` has exactly one intended
+writer: `ai-bot-v2-binance-mark-price-wss-seeder.service`. The public metadata
+service may read that key, but its output belongs at
+`v2:market:premium_index:{symbol}`. Never restore the old metadata write to the
+canonical key and never implement a read-then-skip compromise; two writers can
+still race between the read and write.
+
+Both services must resolve to immutable source release
+`2f05742c48d09b6018381a99535703321c4be06e`:
+
+```bash
+systemctl --user show \
+  ai-bot-v2-binance-mark-price-wss-seeder.service \
+  ai-bot-v2-binance-public-metadata-ingestor.service \
+  -p Id -p ActiveState -p SubState -p MainPID -p NRestarts \
+  -p WorkingDirectory -p Environment
+
+redis-cli GET v2:market:mark_price:TRUMPUSDT | jq \
+  '{schema_version,symbol,event_time,received_at,available_at,generated_at,
+    expected_update_interval_seconds,source,transport,places_real_order,
+    leverage_mutation,margin_mode_mutation}'
+
+redis-cli GET v2:market:premium_index:TRUMPUSDT | jq \
+  '{symbol,event_time,available_at,source,transport,source_key}'
+```
+
+Required canonical mark invariants:
+
+- schema `binance_usdm_mark_price_wss_v1`;
+- source `binance_usdm_wss_mark_price_all_symbols` and transport
+  `websocket_primary`;
+- finite, canonical JSON with both snake-case and exchange-style mark/index
+  aliases;
+- `event_time <= received_at == available_at == generated_at`;
+- `expected_update_interval_seconds=1.0`; and
+- every order, leverage, margin-mode, transfer and credential-exposure flag is
+  false.
+
+The post-deployment acceptance probe ran for 70.047 seconds at 50 ms cadence.
+It observed 1,373/1,373 valid canonical TRUMPUSDT mark documents, zero missing,
+invalid or unparsable marks, and no wrong-owner payload. The independent
+premium-index key was present for 1,363 samples after initial materialization
+and carried two distinct event times. At cutover, metadata PID `3764071` and
+WebSocket PID `3764065` were active with zero restarts. The WebSocket unit
+intentionally exits after 600 messages so systemd can re-resolve the adaptive
+symbol universe; later bounded restart-count growth is expected. Judge it by
+successful exit/reconnect, current payload freshness and schema, not by a
+permanent `NRestarts=0` requirement.
+
+The publisher cycle ending at `2026-07-22T12:24:01.572529Z` published its one
+selected strict pair with zero failures. The next cycle correctly isolated
+ONEUSDT because canonical OHLCV REST provenance was unavailable. That later
+retryable hold is not a mark transport regression: the failure reasons must
+not contain `CAUSAL_COST_MARK_PRICE_SOURCE_JSON_INVALID`, and no orphan ledger
+row may be appended.

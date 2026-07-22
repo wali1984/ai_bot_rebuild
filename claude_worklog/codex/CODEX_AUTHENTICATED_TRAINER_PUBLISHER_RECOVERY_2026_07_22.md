@@ -32,6 +32,76 @@ read-only in the service. The observed process used that release for its CWD,
 `PYTHONPATH`, executable, bytecode-cache namespace, and `AI_BOT_CODE_SHA`.
 `LIVE_GATE=blocked_human_only` remained effective.
 
+## Canonical mark-price transport correction
+
+The publisher's isolated TRUMPUSDT failure exposed a separate upstream data
+ownership defect. Two active processes wrote the same trainer-facing Redis
+key:
+
+1. `v2_binance_mark_price_wss_seeder` wrote the strict canonical WebSocket
+   payload; and
+2. `v2_binance_public_metadata_ingestor` rewrote its normalized cache/REST
+   view onto that same key.
+
+A pre-fix 35.041-second, 50 ms-cadence probe captured 695 reads: 679 strict
+WebSocket documents and 16 metadata documents. One directly observed
+TRUMPUSDT wrong-owner interval lasted about 0.91 seconds. During that window
+the trainer correctly rejected the value as
+`CAUSAL_COST_MARK_PRICE_SOURCE_JSON_INVALID`; no parent or orphan child was
+appended.
+
+Source commit `2f05742c48d09b6018381a99535703321c4be06e` assigns unconditional
+single ownership:
+
+- `v2:market:mark_price:{symbol}` — WebSocket seeder only;
+- `v2:market:premium_index:{symbol}` — public metadata cache/REST view.
+
+The metadata ingestor may still use the canonical WebSocket key as its first
+read candidate. Its own output and later cache reads use the separate
+premium-index key. This is unconditional namespace ownership, not a
+read-then-skip check that would leave a time-of-check/time-of-use race.
+
+The same source commit completes the WSS payload's causal clock contract:
+`event_time <= received_at == available_at == generated_at`, with millisecond
+precision and `expected_update_interval_seconds=1.0`. Serialization uses
+`allow_nan=false`; any unexpected non-finite value fails before Redis `SET`.
+The payload retains schema/source/transport identity, both mark/index aliases,
+and explicit false mutation/authority flags.
+
+Pin commit `ad4ce92a15172b76bf9bb5f9ffc807bdb13fe48c` deploys both public-data
+services from the read-only release at
+`/home/wali/ai_bot_local_data/deployments/ai_bot_rebuild/2f05742c48d09b6018381a99535703321c4be06e`.
+At cutover:
+
+| Evidence | Count/value |
+| --- | --- |
+| Metadata PID / restarts | `3764071` / 0 |
+| WSS PID / restarts | `3764065` / 0 |
+| Installed/tracked drop-in digest matches | 2 / 2 |
+| Source/causal targeted tests | 35 / 35 passed |
+| Immutable-release targeted tests | 35 / 35 passed |
+| Pin/unit targeted tests | 23 / 23 passed |
+| Affected unit verification errors | 0 |
+| Live probe duration/cadence | 70.047 seconds / 50 ms |
+| Canonical mark samples | 1,373 / 1,373 valid |
+| Missing/invalid/JSON-error mark samples | 0 / 0 / 0 |
+| Premium-index present samples | 1,363 |
+| Distinct premium source event times | 2 |
+| Publisher cycle completed at 12:24:01Z | 1 selected / 1 published / 0 failed |
+
+The first ten premium reads occurred before the new key materialized; the
+remaining 1,363 were present. Every mark read had schema
+`binance_usdm_mark_price_wss_v1`, source
+`binance_usdm_wss_mark_price_all_symbols`, transport `websocket_primary`,
+canonical bytes and valid clocks. No trading/order, strategy, risk, sizing,
+leverage, margin or optimizer behavior changed.
+
+The next publisher cycle selected ONEUSDT and failed closed in 8.643 seconds
+with `canonical_ohlcv_multitimeframe_required_window_rest_provenance_unavailable`.
+It appended no orphan feature-ledger record. That retryable upstream-provenance
+hold is deliberately distinct from the repaired
+`CAUSAL_COST_MARK_PRICE_SOURCE_JSON_INVALID` defect.
+
 ## Resident WAL/SHM liveness correction
 
 The original publisher opened and closed its SQLite connections within each
@@ -308,6 +378,8 @@ paper/live/execution/runtime authority flag remained false.
 | Change `available_at`/decision clocks | PIT admission and expiry | boundary retry plus negative future-leak tests |
 | Change the 39/446/1,784 projection | Model ABI, checkpoint compatibility and every trainer consumer | versioned projection and full trainer/checkpoint migration |
 | Change immutable release SHA | systemd CWD, executable, `PYTHONPATH`, pycache and diff preflight | detached release, pin test, unit verify, restart, process proof, live cycle |
+| Change mark-price writer/key/schema | Metadata cache, causal cost builder, strict child admission and publisher candidate supply | single-writer tests, causal build, immutable pin, >=65-second live race probe, fresh publisher cycle |
+| Change WSS clock or cadence field | PIT ordering, freshness gates and cost CAS hashes | future-clock/non-finite negatives plus full causal build and live clock sampling |
 
 ## Operator checks
 
