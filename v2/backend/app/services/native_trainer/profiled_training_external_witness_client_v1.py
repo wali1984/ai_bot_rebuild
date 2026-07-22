@@ -24,7 +24,7 @@ import json
 import re
 import threading
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any, Final, NoReturn, Protocol, cast, runtime_checkable
 from urllib.parse import quote, urlsplit, urlunsplit
@@ -51,6 +51,9 @@ PROFILED_WITNESS_WIRE_APPEND_RECEIPT_V1_SCHEMA_VERSION: Final = (
 )
 PROFILED_WITNESS_COMPARE_APPEND_REQUEST_V1_SCHEMA_VERSION: Final = (
     "profiled_training_observation_external_witness_compare_append_request_v1"
+)
+PROFILED_WITNESS_PREPARED_APPEND_V1_SCHEMA_VERSION: Final = (
+    "profiled_training_observation_external_witness_prepared_append_v1"
 )
 PROFILED_WITNESS_WIRE_SIGNATURE_ALGORITHM: Final = "Ed25519"
 PROFILED_WITNESS_WIRE_EVENT_SIGNATURE_DOMAIN: Final = (
@@ -113,6 +116,31 @@ _RECEIPT_FIELDS = {
     "receipt_payload_base64",
     "signature_hex",
 }
+_COMPARE_APPEND_REQUEST_FIELDS = {
+    "schema_version",
+    "request_domain",
+    "witness_id",
+    "witness_public_key_sha256",
+    "namespace",
+    "expected_sequence",
+    "expected_event_sha256",
+    "event_sha256",
+    "event_byte_count",
+    "event_base64",
+    "idempotency_key",
+    "external_monotonic_manifest_head_verified",
+    "full_consumption_external_ack_verified",
+    "optimizer_admission_authorized",
+    "checkpoint_write_authorized",
+    "model_write_authorized",
+    "prediction_authorized",
+    "paper_trading_authorized",
+    "live_execution_authorized",
+    "order_submission_authorized",
+    "execution_authorized",
+    "runtime_wired",
+}
+_PREPARED_APPEND_TOKEN = object()
 
 
 class ProfiledTrainingExternalWitnessClientV1Error(RuntimeError):
@@ -397,6 +425,140 @@ class _VerifiedProfiledWitnessEventV1:
     signed_at: str
     signed_envelope_sha256: str
     signed_envelope_bytes: bytes
+
+
+@dataclass(frozen=True, slots=True)
+class ProfiledTrainingExternalWitnessPreparedAppendV1:
+    """Exact replay material that a durable caller must persist pre-dispatch."""
+
+    schema_version: str
+    witness_id: str
+    witness_public_key_sha256: str
+    namespace: str
+    expected_sequence: int
+    expected_event_sha256: str
+    event_sha256: str
+    event_byte_count: int
+    event_bytes: bytes = field(repr=False)
+    idempotency_key: str
+    request_sha256: str
+    request_byte_count: int
+    request_bytes: bytes = field(repr=False)
+    external_monotonic_manifest_head_verified: bool
+    full_consumption_external_ack_verified: bool
+    optimizer_admission_authorized: bool
+    checkpoint_write_authorized: bool
+    model_write_authorized: bool
+    prediction_authorized: bool
+    paper_trading_authorized: bool
+    live_execution_authorized: bool
+    order_submission_authorized: bool
+    execution_authorized: bool
+    runtime_wired: bool
+    _construction_token: object = field(repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        if (
+            self._construction_token is not _PREPARED_APPEND_TOKEN
+            or self.schema_version != PROFILED_WITNESS_PREPARED_APPEND_V1_SCHEMA_VERSION
+            or _IDENTIFIER_RE.fullmatch(self.witness_id) is None
+            or not _valid_sha256(self.witness_public_key_sha256)
+            or _IDENTIFIER_RE.fullmatch(self.namespace) is None
+            or type(self.expected_sequence) is not int
+            or self.expected_sequence < 0
+            or self.expected_sequence > 2**63 - 2
+            or not _valid_sha256(self.expected_event_sha256)
+            or not _valid_sha256(self.event_sha256)
+            or type(self.event_byte_count) is not int
+            or self.event_byte_count <= 0
+            or self.event_byte_count > MAX_PROFILED_OBSERVATION_HEAD_EVENT_BYTES
+            or type(self.event_bytes) is not bytes
+            or len(self.event_bytes) != self.event_byte_count
+            or hashlib.sha256(self.event_bytes).hexdigest() != self.event_sha256
+            or not _valid_sha256(self.idempotency_key)
+            or not _valid_sha256(self.request_sha256)
+            or type(self.request_byte_count) is not int
+            or self.request_byte_count <= 0
+            or self.request_byte_count > MAX_PROFILED_WITNESS_WIRE_BYTES
+            or type(self.request_bytes) is not bytes
+            or len(self.request_bytes) != self.request_byte_count
+            or hashlib.sha256(self.request_bytes).hexdigest() != self.request_sha256
+            or any(
+                type(value) is not bool or value
+                for value in (
+                    self.external_monotonic_manifest_head_verified,
+                    self.full_consumption_external_ack_verified,
+                    self.optimizer_admission_authorized,
+                    self.checkpoint_write_authorized,
+                    self.model_write_authorized,
+                    self.prediction_authorized,
+                    self.paper_trading_authorized,
+                    self.live_execution_authorized,
+                    self.order_submission_authorized,
+                    self.execution_authorized,
+                    self.runtime_wired,
+                )
+            )
+        ):
+            _fail("PROFILED_WITNESS_PREPARED_APPEND_CONTRACT_INVALID")
+        request = _parse_exact_json(
+            self.request_bytes,
+            reason="PROFILED_WITNESS_PREPARED_APPEND_REQUEST_INVALID",
+        )
+        if set(request) != _COMPARE_APPEND_REQUEST_FIELDS:
+            _fail("PROFILED_WITNESS_PREPARED_APPEND_REQUEST_INVALID")
+        request_event_bytes = _decode_base64(
+            request.get("event_base64"),
+            expected_byte_count=request.get("event_byte_count"),
+            maximum_bytes=MAX_PROFILED_OBSERVATION_HEAD_EVENT_BYTES,
+            reason="PROFILED_WITNESS_PREPARED_APPEND_REQUEST_INVALID",
+        )
+        base_request = {
+            key: value for key, value in request.items() if key != "idempotency_key"
+        }
+        derived_idempotency_key = hashlib.sha256(
+            PROFILED_WITNESS_COMPARE_APPEND_REQUEST_DOMAIN.encode("ascii")
+            + b"\0"
+            + _canonical_json_bytes(
+                base_request,
+                reason="PROFILED_WITNESS_PREPARED_APPEND_REQUEST_INVALID",
+            )
+        ).hexdigest()
+        if (
+            request.get("schema_version")
+            != PROFILED_WITNESS_COMPARE_APPEND_REQUEST_V1_SCHEMA_VERSION
+            or request.get("request_domain")
+            != PROFILED_WITNESS_COMPARE_APPEND_REQUEST_DOMAIN
+            or request.get("witness_id") != self.witness_id
+            or request.get("witness_public_key_sha256")
+            != self.witness_public_key_sha256
+            or request.get("namespace") != self.namespace
+            or type(request.get("expected_sequence")) is not int
+            or request.get("expected_sequence") != self.expected_sequence
+            or request.get("expected_event_sha256") != self.expected_event_sha256
+            or request.get("event_sha256") != self.event_sha256
+            or request.get("event_byte_count") != self.event_byte_count
+            or not hmac.compare_digest(request_event_bytes, self.event_bytes)
+            or request.get("idempotency_key") != self.idempotency_key
+            or derived_idempotency_key != self.idempotency_key
+            or any(
+                request.get(name) is not False
+                for name in (
+                    "external_monotonic_manifest_head_verified",
+                    "full_consumption_external_ack_verified",
+                    "optimizer_admission_authorized",
+                    "checkpoint_write_authorized",
+                    "model_write_authorized",
+                    "prediction_authorized",
+                    "paper_trading_authorized",
+                    "live_execution_authorized",
+                    "order_submission_authorized",
+                    "execution_authorized",
+                    "runtime_wired",
+                )
+            )
+        ):
+            _fail("PROFILED_WITNESS_PREPARED_APPEND_REQUEST_INVALID")
 
 
 @runtime_checkable
@@ -989,15 +1151,15 @@ class PinnedProfiledTrainingExternalWitnessClientV1(
             expected_idempotency_key=expected_idempotency_key,
         )
 
-    def compare_and_append(
+    def prepare_compare_and_append(
         self,
         *,
         namespace: str,
         expected_sequence: int,
         expected_event_sha256: str,
         event_bytes: bytes,
-    ) -> ProfiledTrainingObservationExternalWitnessAppendReceiptV1:
-        """CAS one event; callers must retry ambiguous delivery with identical inputs."""
+    ) -> ProfiledTrainingExternalWitnessPreparedAppendV1:
+        """Freeze exact deterministic request material before any dispatch."""
 
         namespace_text = _identifier(
             namespace,
@@ -1008,6 +1170,8 @@ class PinnedProfiledTrainingExternalWitnessClientV1(
             reason="PROFILED_WITNESS_EXPECTED_SEQUENCE_INVALID",
             allow_zero=True,
         )
+        if prior_sequence > 2**63 - 2:
+            _fail("PROFILED_WITNESS_EXPECTED_SEQUENCE_INVALID")
         if not _valid_sha256(expected_event_sha256):
             _fail("PROFILED_WITNESS_EXPECTED_EVENT_SHA256_INVALID")
         if (
@@ -1030,18 +1194,23 @@ class PinnedProfiledTrainingExternalWitnessClientV1(
             "schema_version": PROFILED_WITNESS_COMPARE_APPEND_REQUEST_V1_SCHEMA_VERSION,
             "request_domain": PROFILED_WITNESS_COMPARE_APPEND_REQUEST_DOMAIN,
             "witness_id": self._witness_id,
+            "witness_public_key_sha256": self._public_key_sha256,
             "namespace": namespace_text,
             "expected_sequence": prior_sequence,
             "expected_event_sha256": expected_event_sha256,
             "event_sha256": event_sha256,
             "event_byte_count": len(event_payload),
             "event_base64": base64.b64encode(event_payload).decode("ascii"),
+            "external_monotonic_manifest_head_verified": False,
+            "full_consumption_external_ack_verified": False,
             "optimizer_admission_authorized": False,
             "checkpoint_write_authorized": False,
+            "model_write_authorized": False,
             "prediction_authorized": False,
             "paper_trading_authorized": False,
             "live_execution_authorized": False,
             "order_submission_authorized": False,
+            "execution_authorized": False,
             "runtime_wired": False,
         }
         idempotency_key = hashlib.sha256(
@@ -1058,32 +1227,80 @@ class PinnedProfiledTrainingExternalWitnessClientV1(
             reason="PROFILED_WITNESS_APPEND_REQUEST_JSON_INVALID",
         )
         request_sha256 = hashlib.sha256(request_bytes).hexdigest()
+        return ProfiledTrainingExternalWitnessPreparedAppendV1(
+            schema_version=PROFILED_WITNESS_PREPARED_APPEND_V1_SCHEMA_VERSION,
+            witness_id=self._witness_id,
+            witness_public_key_sha256=self._public_key_sha256,
+            namespace=namespace_text,
+            expected_sequence=prior_sequence,
+            expected_event_sha256=expected_event_sha256,
+            event_sha256=event_sha256,
+            event_byte_count=len(event_payload),
+            event_bytes=event_payload,
+            idempotency_key=idempotency_key,
+            request_sha256=request_sha256,
+            request_byte_count=len(request_bytes),
+            request_bytes=request_bytes,
+            external_monotonic_manifest_head_verified=False,
+            full_consumption_external_ack_verified=False,
+            optimizer_admission_authorized=False,
+            checkpoint_write_authorized=False,
+            model_write_authorized=False,
+            prediction_authorized=False,
+            paper_trading_authorized=False,
+            live_execution_authorized=False,
+            order_submission_authorized=False,
+            execution_authorized=False,
+            runtime_wired=False,
+            _construction_token=_PREPARED_APPEND_TOKEN,
+        )
+
+    def dispatch_prepared_append(
+        self,
+        prepared: ProfiledTrainingExternalWitnessPreparedAppendV1,
+    ) -> ProfiledTrainingObservationExternalWitnessAppendReceiptV1:
+        """Dispatch only exact rederived material; retry the same object on ambiguity."""
+
+        if type(prepared) is not ProfiledTrainingExternalWitnessPreparedAppendV1:
+            _fail("PROFILED_WITNESS_PREPARED_APPEND_TYPE_INVALID")
+        prepared.__post_init__()
+        expected = self.prepare_compare_and_append(
+            namespace=prepared.namespace,
+            expected_sequence=prepared.expected_sequence,
+            expected_event_sha256=prepared.expected_event_sha256,
+            event_bytes=prepared.event_bytes,
+        )
+        if prepared != expected or not hmac.compare_digest(
+            prepared.request_bytes,
+            expected.request_bytes,
+        ):
+            _fail("PROFILED_WITNESS_PREPARED_APPEND_REAUTHENTICATION_FAILED")
         response = self._transport.request(
             method="POST",
-            path=self._path(namespace_text, "events:compare-and-append"),
-            body=request_bytes,
-            idempotency_key=idempotency_key,
+            path=self._path(prepared.namespace, "events:compare-and-append"),
+            body=prepared.request_bytes,
+            idempotency_key=prepared.idempotency_key,
         )
         receipt = self._receipt(
             response,
-            expected_namespace=namespace_text,
-            expected_sequence=prior_sequence + 1,
-            expected_previous_event_sha256=expected_event_sha256,
-            expected_event_sha256=event_sha256,
-            expected_request_sha256=request_sha256,
-            expected_idempotency_key=idempotency_key,
+            expected_namespace=prepared.namespace,
+            expected_sequence=prepared.expected_sequence + 1,
+            expected_previous_event_sha256=prepared.expected_event_sha256,
+            expected_event_sha256=prepared.event_sha256,
+            expected_request_sha256=prepared.request_sha256,
+            expected_idempotency_key=prepared.idempotency_key,
         )
         readback = self.read_event(
-            namespace=namespace_text,
+            namespace=prepared.namespace,
             sequence=receipt.sequence,
         )
         if (
-            readback.previous_event_sha256 != expected_event_sha256
-            or readback.event_sha256 != event_sha256
-            or not hmac.compare_digest(readback.event_bytes, event_payload)
+            readback.previous_event_sha256 != prepared.expected_event_sha256
+            or readback.event_sha256 != prepared.event_sha256
+            or not hmac.compare_digest(readback.event_bytes, prepared.event_bytes)
         ):
             _fail("PROFILED_WITNESS_APPEND_EVENT_READBACK_MISMATCH")
-        latest_after = self.read_latest(namespace=namespace_text)
+        latest_after = self.read_latest(namespace=prepared.namespace)
         if (
             latest_after is None
             or latest_after.sequence != receipt.sequence
@@ -1092,6 +1309,25 @@ class PinnedProfiledTrainingExternalWitnessClientV1(
             _fail("PROFILED_WITNESS_APPEND_LATEST_READBACK_MISMATCH")
         return receipt
 
+    def compare_and_append(
+        self,
+        *,
+        namespace: str,
+        expected_sequence: int,
+        expected_event_sha256: str,
+        event_bytes: bytes,
+    ) -> ProfiledTrainingObservationExternalWitnessAppendReceiptV1:
+        """CAS one event; callers must retry ambiguous delivery with identical inputs."""
+
+        return self.dispatch_prepared_append(
+            self.prepare_compare_and_append(
+                namespace=namespace,
+                expected_sequence=expected_sequence,
+                expected_event_sha256=expected_event_sha256,
+                event_bytes=event_bytes,
+            )
+        )
+
 
 __all__ = (
     "MAX_PROFILED_WITNESS_BOOTSTRAP_EVENTS",
@@ -1099,11 +1335,13 @@ __all__ = (
     "MAX_PROFILED_WITNESS_WIRE_BYTES",
     "PROFILED_WITNESS_COMPARE_APPEND_REQUEST_DOMAIN",
     "PROFILED_WITNESS_COMPARE_APPEND_REQUEST_V1_SCHEMA_VERSION",
+    "PROFILED_WITNESS_PREPARED_APPEND_V1_SCHEMA_VERSION",
     "PROFILED_WITNESS_WIRE_APPEND_RECEIPT_V1_SCHEMA_VERSION",
     "PROFILED_WITNESS_WIRE_EVENT_SIGNATURE_DOMAIN",
     "PROFILED_WITNESS_WIRE_EVENT_V1_SCHEMA_VERSION",
     "PROFILED_WITNESS_WIRE_RECEIPT_SIGNATURE_DOMAIN",
     "PinnedProfiledTrainingExternalWitnessClientV1",
+    "ProfiledTrainingExternalWitnessPreparedAppendV1",
     "ProfiledTrainingExternalWitnessClientV1Error",
     "ProfiledTrainingExternalWitnessHttpsTransportV1",
     "ProfiledTrainingExternalWitnessWireResponseV1",

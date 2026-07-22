@@ -16,6 +16,7 @@ from v2.backend.app.services.native_trainer.profiled_training_external_witness_c
     MAX_PROFILED_WITNESS_WIRE_BYTES,
     PROFILED_WITNESS_COMPARE_APPEND_REQUEST_DOMAIN,
     PROFILED_WITNESS_COMPARE_APPEND_REQUEST_V1_SCHEMA_VERSION,
+    PROFILED_WITNESS_PREPARED_APPEND_V1_SCHEMA_VERSION,
     PROFILED_WITNESS_WIRE_APPEND_RECEIPT_V1_SCHEMA_VERSION,
     PROFILED_WITNESS_WIRE_EVENT_SIGNATURE_DOMAIN,
     PROFILED_WITNESS_WIRE_EVENT_V1_SCHEMA_VERSION,
@@ -23,6 +24,7 @@ from v2.backend.app.services.native_trainer.profiled_training_external_witness_c
     PinnedProfiledTrainingExternalWitnessClientV1,
     ProfiledTrainingExternalWitnessClientV1Error,
     ProfiledTrainingExternalWitnessHttpsTransportV1,
+    ProfiledTrainingExternalWitnessPreparedAppendV1,
     ProfiledTrainingExternalWitnessWireResponseV1,
 )
 from v2.backend.app.services.native_trainer.profiled_training_observation_manifest_head_v1 import (
@@ -352,13 +354,195 @@ def test_compare_append_reads_back_signed_linear_history() -> None:
     request = json.loads(post_bodies[0])
     assert request["schema_version"] == PROFILED_WITNESS_COMPARE_APPEND_REQUEST_V1_SCHEMA_VERSION
     assert request["request_domain"] == PROFILED_WITNESS_COMPARE_APPEND_REQUEST_DOMAIN
+    assert request["witness_public_key_sha256"] == client.witness_public_key_sha256
+    assert request["external_monotonic_manifest_head_verified"] is False
+    assert request["full_consumption_external_ack_verified"] is False
     assert request["optimizer_admission_authorized"] is False
     assert request["checkpoint_write_authorized"] is False
+    assert request["model_write_authorized"] is False
     assert request["prediction_authorized"] is False
     assert request["paper_trading_authorized"] is False
     assert request["live_execution_authorized"] is False
     assert request["order_submission_authorized"] is False
+    assert request["execution_authorized"] is False
     assert request["runtime_wired"] is False
+
+
+def test_prepare_freezes_exact_request_without_network_and_dispatches_it() -> None:
+    private_key = Ed25519PrivateKey.generate()
+    transport = _SignedWitnessTransport(private_key)
+    client = _client(private_key, transport)
+
+    prepared = client.prepare_compare_and_append(
+        namespace=NAMESPACE,
+        expected_sequence=0,
+        expected_event_sha256=PROFILED_OBSERVATION_HEAD_GENESIS_EVENT_SHA256,
+        event_bytes=b"durable-before-dispatch",
+    )
+    repeated = client.prepare_compare_and_append(
+        namespace=NAMESPACE,
+        expected_sequence=0,
+        expected_event_sha256=PROFILED_OBSERVATION_HEAD_GENESIS_EVENT_SHA256,
+        event_bytes=b"durable-before-dispatch",
+    )
+
+    assert type(prepared) is ProfiledTrainingExternalWitnessPreparedAppendV1
+    assert prepared == repeated
+    assert prepared.schema_version == PROFILED_WITNESS_PREPARED_APPEND_V1_SCHEMA_VERSION
+    assert prepared.witness_public_key_sha256 == client.witness_public_key_sha256
+    assert prepared.request_sha256 == hashlib.sha256(prepared.request_bytes).hexdigest()
+    assert prepared.event_sha256 == hashlib.sha256(prepared.event_bytes).hexdigest()
+    assert transport.requests == []
+    request = json.loads(prepared.request_bytes)
+    assert request["idempotency_key"] == prepared.idempotency_key
+    assert request["witness_id"] == prepared.witness_id
+    assert request["witness_public_key_sha256"] == prepared.witness_public_key_sha256
+    assert request["external_monotonic_manifest_head_verified"] is False
+    assert request["full_consumption_external_ack_verified"] is False
+    assert request["optimizer_admission_authorized"] is False
+    assert request["checkpoint_write_authorized"] is False
+    assert request["model_write_authorized"] is False
+    assert request["prediction_authorized"] is False
+    assert request["paper_trading_authorized"] is False
+    assert request["live_execution_authorized"] is False
+    assert request["order_submission_authorized"] is False
+    assert request["execution_authorized"] is False
+    assert request["runtime_wired"] is False
+
+    receipt = client.dispatch_prepared_append(prepared)
+
+    assert receipt.sequence == 1
+    post = next(item for item in transport.requests if item[0] == "POST")
+    assert post[2] == prepared.request_bytes
+    assert post[3] == prepared.idempotency_key
+
+
+def test_dispatch_reauthenticates_prepared_append_before_network() -> None:
+    private_key = Ed25519PrivateKey.generate()
+    transport = _SignedWitnessTransport(private_key)
+    client = _client(private_key, transport)
+    differently_pinned_client = _client(Ed25519PrivateKey.generate(), transport)
+    prepared = differently_pinned_client.prepare_compare_and_append(
+        namespace=NAMESPACE,
+        expected_sequence=0,
+        expected_event_sha256=PROFILED_OBSERVATION_HEAD_GENESIS_EVENT_SHA256,
+        event_bytes=b"prepared",
+    )
+
+    with pytest.raises(
+        ProfiledTrainingExternalWitnessClientV1Error,
+        match="PROFILED_WITNESS_PREPARED_APPEND_REAUTHENTICATION_FAILED",
+    ):
+        client.dispatch_prepared_append(prepared)
+
+    assert transport.requests == []
+
+
+def test_fresh_client_reprepares_exact_persisted_inputs_before_dispatch() -> None:
+    private_key = Ed25519PrivateKey.generate()
+    transport = _SignedWitnessTransport(private_key)
+    first_client = _client(private_key, transport)
+    prepared = first_client.prepare_compare_and_append(
+        namespace=NAMESPACE,
+        expected_sequence=0,
+        expected_event_sha256=PROFILED_OBSERVATION_HEAD_GENESIS_EVENT_SHA256,
+        event_bytes=b"persist-exact-inputs",
+    )
+    persisted: dict[str, Any] = {
+        "namespace": prepared.namespace,
+        "witness_id": prepared.witness_id,
+        "witness_public_key_sha256": prepared.witness_public_key_sha256,
+        "expected_sequence": prepared.expected_sequence,
+        "expected_event_sha256": prepared.expected_event_sha256,
+        "event_sha256": prepared.event_sha256,
+        "event_byte_count": prepared.event_byte_count,
+        "event_bytes": bytes(prepared.event_bytes),
+        "request_bytes": bytes(prepared.request_bytes),
+        "request_sha256": prepared.request_sha256,
+        "request_byte_count": prepared.request_byte_count,
+        "idempotency_key": prepared.idempotency_key,
+    }
+
+    restarted_client = _client(private_key, transport)
+    rehydrated = restarted_client.prepare_compare_and_append(
+        namespace=persisted["namespace"],
+        expected_sequence=persisted["expected_sequence"],
+        expected_event_sha256=persisted["expected_event_sha256"],
+        event_bytes=persisted["event_bytes"],
+    )
+
+    assert rehydrated.request_bytes == persisted["request_bytes"]
+    assert rehydrated.witness_id == persisted["witness_id"]
+    assert (
+        rehydrated.witness_public_key_sha256
+        == persisted["witness_public_key_sha256"]
+    )
+    assert rehydrated.event_sha256 == persisted["event_sha256"]
+    assert rehydrated.event_byte_count == persisted["event_byte_count"]
+    assert rehydrated.request_sha256 == persisted["request_sha256"]
+    assert rehydrated.request_byte_count == persisted["request_byte_count"]
+    assert rehydrated.idempotency_key == persisted["idempotency_key"]
+    assert transport.requests == []
+    assert restarted_client.dispatch_prepared_append(rehydrated).sequence == 1
+
+
+def test_prepared_append_self_binds_request_fields_before_dispatch() -> None:
+    private_key = Ed25519PrivateKey.generate()
+    transport = _SignedWitnessTransport(private_key)
+    client = _client(private_key, transport)
+    prepared = client.prepare_compare_and_append(
+        namespace=NAMESPACE,
+        expected_sequence=0,
+        expected_event_sha256=PROFILED_OBSERVATION_HEAD_GENESIS_EVENT_SHA256,
+        event_bytes=b"prepared",
+    )
+    object.__setattr__(prepared, "namespace", "different-namespace")
+
+    with pytest.raises(
+        ProfiledTrainingExternalWitnessClientV1Error,
+        match="PROFILED_WITNESS_PREPARED_APPEND_REQUEST_INVALID",
+    ):
+        prepared.__post_init__()
+
+    assert transport.requests == []
+
+
+def test_prepare_accepts_largest_safe_predecessor_sequence_without_network() -> None:
+    private_key = Ed25519PrivateKey.generate()
+    transport = _SignedWitnessTransport(private_key)
+    client = _client(private_key, transport)
+
+    prepared = client.prepare_compare_and_append(
+        namespace=NAMESPACE,
+        expected_sequence=2**63 - 2,
+        expected_event_sha256="1" * 64,
+        event_bytes=b"upper-safe-sequence",
+    )
+
+    assert prepared.expected_sequence == 2**63 - 2
+    assert transport.requests == []
+
+
+@pytest.mark.parametrize("expected_sequence", [True, 2**63 - 1])
+def test_prepare_rejects_unsafe_predecessor_sequence_before_network(
+    expected_sequence: object,
+) -> None:
+    private_key = Ed25519PrivateKey.generate()
+    transport = _SignedWitnessTransport(private_key)
+    client = _client(private_key, transport)
+
+    with pytest.raises(
+        ProfiledTrainingExternalWitnessClientV1Error,
+        match="PROFILED_WITNESS_EXPECTED_SEQUENCE_INVALID",
+    ):
+        client.prepare_compare_and_append(
+            namespace=NAMESPACE,
+            expected_sequence=expected_sequence,  # type: ignore[arg-type]
+            expected_event_sha256="1" * 64,
+            event_bytes=b"unsafe-sequence",
+        )
+
+    assert transport.requests == []
 
 
 def test_unsigned_absence_is_never_accepted_as_genesis_proof() -> None:
