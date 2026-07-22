@@ -1,14 +1,19 @@
 from __future__ import annotations
 
 import json
+import re
 import time
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 import pytest
 
 from v2.backend.app.cli import v2_binance_public_metadata_ingestor as metadata
 from v2.backend.app.cli import v2_native_ingestors_live_loop as native_loop
+
+
+INGESTOR_RELEASE_SHA = "2f05742c48d09b6018381a99535703321c4be06e"
 
 
 def _now_ms() -> int:
@@ -35,6 +40,27 @@ class FakeRedis:
 
 def _fail_rest(_url: str) -> Any:
     raise AssertionError("REST fallback must not be called when WSS/cache data is present")
+
+
+def test_repository_drop_ins_pin_both_mark_price_writers_to_one_release() -> None:
+    root = Path(__file__).resolve().parents[5]
+    relative_paths = (
+        "ai-bot-v2-binance-public-metadata-ingestor.service.d/90-immutable-release.conf",
+        "ai-bot-v2-binance-mark-price-wss-seeder.service.d/90-immutable-release.conf",
+    )
+
+    for relative_path in relative_paths:
+        drop_in = (
+            root / "claude_worklog/systemd/user" / relative_path
+        ).read_text(encoding="utf-8")
+        assert set(
+            re.findall(r"ai_bot_rebuild/([0-9a-f]{40})", drop_in)
+        ) == {INGESTOR_RELEASE_SHA}
+        assert f'Environment="AI_BOT_CODE_SHA={INGESTOR_RELEASE_SHA}"' in drop_in
+        assert f"ai_bot_rebuild/{INGESTOR_RELEASE_SHA}/.venv/bin/python3" in drop_in
+        assert "ReadOnlyPaths=/home/wali/ai_bot_local_data/deployments/" in drop_in
+        assert "v2.backend.app.cli.v2_binance_" in drop_in
+        assert "order" not in drop_in.lower()
 
 
 def test_public_metadata_fetches_websocket_cache_before_rest(monkeypatch: pytest.MonkeyPatch) -> None:
