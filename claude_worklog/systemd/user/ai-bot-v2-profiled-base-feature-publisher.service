@@ -1,12 +1,9 @@
 [Unit]
-Description=AI Bot V2 atomic authenticated profiled-training publisher (read-only commission GET; no runtime/trading authority)
+Description=AI Bot V2 profiled-training evidence publisher (optional read-only commission GET; no runtime/trading authority)
 Documentation=file:///home/wali/Desktop/AI%%20BOT%%20REBUILD/claude_worklog/systemd/user/ai-bot-v2-profiled-base-feature-publisher.credentials.md
 After=network-online.target ai-bot-v2-binance-kline-wss-loop.service
 Wants=network-online.target
 ConditionFileIsExecutable=/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3
-ConditionPathExists=%h/.config/ai-bot-v2/credentials/profiled-base-feature-publisher/api-key.cred
-ConditionPathExists=%h/.config/ai-bot-v2/credentials/profiled-base-feature-publisher/api-secret.cred
-ConditionPathExists=%h/.config/ai-bot-v2/credentials/profiled-base-feature-publisher/fingerprint-hmac.cred
 StartLimitIntervalSec=900
 StartLimitBurst=3
 
@@ -26,9 +23,9 @@ Environment="PROFILED_BASE_PUBLISHER_STATE_PATH=/home/wali/ai_bot_local_data/v2_
 Environment="PROFILED_BASE_PUBLISHER_STATUS_PATH=/home/wali/ai_bot_local_data/v2_native_trainer/profiled_base_publisher_v1/profiled_base_publisher_status_v1.json"
 Environment=PROFILED_BASE_PUBLISHER_CYCLE_SECONDS=300
 Environment=PROFILED_BASE_PUBLISHER_RESOURCE_HORIZON_SECONDS=7776000
-LoadCredentialEncrypted=ALPHAFORGE_BINANCE_WAJIDALI1984_READONLY_API_KEY:%h/.config/ai-bot-v2/credentials/profiled-base-feature-publisher/api-key.cred
-LoadCredentialEncrypted=ALPHAFORGE_BINANCE_WAJIDALI1984_READONLY_API_SECRET:%h/.config/ai-bot-v2/credentials/profiled-base-feature-publisher/api-secret.cred
-LoadCredentialEncrypted=PROFILED_BASE_COMMISSION_FINGERPRINT_HMAC_SECRET:%h/.config/ai-bot-v2/credentials/profiled-base-feature-publisher/fingerprint-hmac.cred
+ImportCredential=ALPHAFORGE_BINANCE_WAJIDALI1984_READONLY_API_KEY
+ImportCredential=ALPHAFORGE_BINANCE_WAJIDALI1984_READONLY_API_SECRET
+ImportCredential=PROFILED_BASE_COMMISSION_FINGERPRINT_HMAC_SECRET
 UMask=0077
 ExecStartPre=/usr/bin/env bash -lc 'exec ./claude_worklog/tools/v2_automation_safety_preflight.sh ai-bot-v2-profiled-base-feature-publisher'
 ExecStartPre=/usr/bin/install -d -m 0700 /home/wali/ai_bot_local_data/v2_native_trainer/profiled_base_publisher_v1

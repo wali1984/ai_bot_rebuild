@@ -57,10 +57,12 @@ from v2.backend.app.services.native_trainer.ohlcv_closed_window_schema import (
     TIMEFRAME_DURATION_MS,
 )
 from v2.backend.app.services.native_trainer.profiled_base_feature_publisher_v1 import (
+    AUTHENTICATED_COST_EVIDENCE_REQUIRED_MODE,
     BOOTSTRAP_EVIDENCE_BYTES_PER_SYMBOL,
     DEFAULT_RESOURCE_SUSTAINABILITY_HORIZON_SECONDS,
     DISK_RESERVE_POLICY_V1,
     DYNAMIC_SYMBOL_SELECTION_KEY,
+    MASKED_COST_OBSERVATION_MODE,
     MINIMUM_RESOURCE_SUSTAINABILITY_HORIZON_SECONDS,
     ProfiledBaseFeaturePublisherV1,
     ProfiledBaseFeaturePublisherV1ConfigurationError,
@@ -520,6 +522,7 @@ def _publisher(
     capture_set_builder=build_canonical_ohlcv_multitimeframe_capture_set_v1,  # type: ignore[no-untyped-def]
     cost_evidence_factory=_test_cost_evidence_factory,  # type: ignore[no-untyped-def]
     commission_fingerprint_hmac_key: bytes | None = None,
+    commission_cost_mode: str = AUTHENTICATED_COST_EVIDENCE_REQUIRED_MODE,
 ) -> ProfiledBaseFeaturePublisherV1:
     return ProfiledBaseFeaturePublisherV1(
         redis_client=redis_client,
@@ -538,6 +541,7 @@ def _publisher(
         capture_set_builder=capture_set_builder,
         cost_evidence_factory=cost_evidence_factory,
         commission_fingerprint_hmac_key=commission_fingerprint_hmac_key,
+        commission_cost_mode=commission_cost_mode,
     )
 
 
@@ -1110,6 +1114,174 @@ def test_cost_blockers_never_append_parent_or_advance_coverage(
     assert calls == expected_calls
     assert status["failures"][0]["in_cycle_temporal_retryable"] is temporal_retryable
     assert not (tmp_path / "feature-ledger.sqlite3").exists()
+
+
+def test_masked_cost_mode_appends_only_quarantined_parent_without_cost_values(
+    tmp_path: Path,
+) -> None:
+    redis_client = _Redis(_payloads())
+    publisher = _publisher(
+        tmp_path,
+        redis_client,
+        cost_evidence_factory=None,
+        commission_cost_mode=MASKED_COST_OBSERVATION_MODE,
+    )
+
+    def forbidden_cost_dependency(*_args: Any, **_kwargs: Any) -> Any:
+        raise AssertionError("masked mode must not read or construct cost evidence")
+
+    publisher.commission_capture_function = forbidden_cost_dependency
+    publisher.expected_notional_builder = forbidden_cost_dependency
+    publisher.commission_refresh_builder = forbidden_cost_dependency
+    publisher.causal_cost_builder = forbidden_cost_dependency
+
+    status = publisher.run_cycle()
+
+    assert status["classification"] == "CYCLE_COMPLETE_MASKED_COST_OBSERVATIONS", status[
+        "failures"
+    ][0]["reasons"]
+    assert status["commission_cost_mode"] == MASKED_COST_OBSERVATION_MODE
+    assert status["commission_credentials_available"] is False
+    assert status["published_symbol_count"] == 0
+    assert status["exact_replay_symbol_count"] == 0
+    assert status["masked_cost_observation_symbol_count"] == 1
+    assert status["masked_cost_observation_symbols"] == ["BTCUSDT"]
+    assert status["failed_symbols"] == []
+    assert (
+        status["authority_semantics"][
+            "published_child_trainer_admission_authorized"
+        ]
+        is False
+    )
+    observation = status["masked_cost_observations"][0]
+    mask = observation["cost_observation"]
+    assert mask["ordered_feature_names"] == [
+        "fee_bps",
+        "spread_bps",
+        "expected_slippage_bps",
+        "expected_funding_bps",
+    ]
+    assert mask["missing_mask"] == [1, 1, 1, 1]
+    assert mask["stale_mask"] == [0, 0, 0, 0]
+    assert mask["source_availability_mask"] == [0, 0, 0, 0]
+    assert mask["feature_values_emitted"] is False
+    assert mask["feature_source_receipts_emitted"] is False
+    assert "feature_values" not in mask
+    assert "feature_source_receipt_sha256s" not in mask
+    assert observation["cost_values_or_receipts_fabricated"] is False
+    assert observation["commission_capture_attempted"] is False
+    assert observation["cost_source_read_attempted"] is False
+    assert observation["feature_cutoff"] <= observation["decision_time"]
+    assert observation["prospective_decision_wait_verified"] is True
+    assert observation["authority"]["parent_trainer_admission_authorized"] is False
+    assert observation["authority"]["child_trainer_admission_authorized"] is False
+    assert not any(
+        key.startswith("v2:orderbook:")
+        or key.startswith("v2:market:mark_price:")
+        or key == CAUSAL_EXPECTED_NOTIONAL_SOURCE_KEY
+        for batch in redis_client.atomic_batches
+        for key in batch
+    )
+
+    ledger = DurableFeatureSnapshotLedger((tmp_path / "feature-ledger.sqlite3").absolute())
+    integrity = ledger.verify_integrity_streaming()
+    assert integrity.verified_records == 1
+    committed = ledger.get_snapshot(observation["durable_snapshot_id"])
+    assert committed is not None
+    envelope = committed.record["frozen_envelope"]
+    assert len(envelope["ordered_feature_names"]) == 35
+    assert not {
+        "fee_bps",
+        "spread_bps",
+        "expected_slippage_bps",
+        "expected_funding_bps",
+    }.intersection(envelope["ordered_feature_names"])
+    assert envelope["strict_training_eligible"] is False
+    assert envelope["temporal_rejection_reasons"] == [
+        PROFILED_MODEL_FEATURE_SNAPSHOT_RECORD_V1_UNWIRED_REASON
+    ]
+
+
+def test_masked_parent_replays_after_state_loss_and_is_never_retro_enriched(
+    tmp_path: Path,
+) -> None:
+    redis_client = _Redis(_payloads())
+    first = _publisher(
+        tmp_path,
+        redis_client,
+        cost_evidence_factory=None,
+        commission_cost_mode=MASKED_COST_OBSERVATION_MODE,
+    ).run_cycle()
+    assert first["masked_cost_observation_symbol_count"] == 1, first["failures"][0][
+        "reasons"
+    ]
+    (tmp_path / "state.json").unlink()
+
+    replay_publisher = _publisher(
+        tmp_path,
+        redis_client,
+        cost_evidence_factory=None,
+        commission_cost_mode=MASKED_COST_OBSERVATION_MODE,
+    )
+    replay_publisher.clock = lambda: FIXED_CLOCK + timedelta(minutes=10)
+    prior_atomic_batches = len(redis_client.atomic_batches)
+    replay = replay_publisher.run_cycle()
+
+    assert replay["masked_cost_observation_symbol_count"] == 0
+    assert replay["masked_cost_observation_replay_symbol_count"] == 1, replay[
+        "failures"
+    ][0]["reasons"]
+    assert len(redis_client.atomic_batches) == prior_atomic_batches + 1
+    assert redis_client.atomic_batches[-1] == (DYNAMIC_SYMBOL_SELECTION_KEY,)
+    detail = replay["masked_cost_observations"][0]
+    assert detail["classification"] == "MASKED_COST_OBSERVATION_PARENT_EXACT_REPLAY"
+    assert detail["append_after_prospective_decision_reverified"] is True
+    assert detail["feature_append"]["new_rows_inserted_this_cycle"] is False
+    assert (
+        detail["recovery"]["classification"]
+        == "STATE_LOSS_MASKED_PARENT_LEDGER_READBACK_VERIFIED"
+    )
+    ledger = DurableFeatureSnapshotLedger((tmp_path / "feature-ledger.sqlite3").absolute())
+    assert ledger.verify_integrity_streaming().verified_records == 1
+
+    def forbidden_retro_cost(**_kwargs: Any) -> Any:
+        raise AssertionError("an unchanged masked decision must not be retro-enriched")
+
+    (tmp_path / "state.json").unlink()
+    authenticated = _publisher(tmp_path, redis_client)
+    authenticated.clock = lambda: FIXED_CLOCK + timedelta(minutes=20)
+    authenticated.cost_evidence_factory = forbidden_retro_cost
+    recovered = authenticated.run_cycle()
+    assert recovered["masked_cost_observation_replay_symbols"] == ["BTCUSDT"]
+    assert recovered["published_symbols"] == []
+    assert ledger.verify_integrity_streaming().verified_records == 1
+
+
+def test_masked_cost_mode_rejects_loaded_cost_credentials_or_factory(
+    tmp_path: Path,
+) -> None:
+    redis_client = _Redis(_payloads())
+
+    with pytest.raises(
+        ProfiledBaseFeaturePublisherV1ConfigurationError,
+        match="PROFILED_BASE_PUBLISHER_CONFIGURATION_INVALID",
+    ):
+        _publisher(
+            tmp_path,
+            redis_client,
+            commission_cost_mode=MASKED_COST_OBSERVATION_MODE,
+        )
+    with pytest.raises(
+        ProfiledBaseFeaturePublisherV1ConfigurationError,
+        match="PROFILED_BASE_PUBLISHER_CONFIGURATION_INVALID",
+    ):
+        _publisher(
+            tmp_path,
+            redis_client,
+            cost_evidence_factory=None,
+            commission_fingerprint_hmac_key=b"x" * 32,
+            commission_cost_mode=MASKED_COST_OBSERVATION_MODE,
+        )
 
 
 @pytest.mark.parametrize("failure_stage", ["pair_build", "pair_append"])
@@ -2033,10 +2205,14 @@ def test_cli_cycle_summary_stays_bounded_when_full_status_has_large_inventories(
         "selected_symbol_count": 5,
         "published_symbol_count": 4,
         "exact_replay_symbol_count": 0,
+        "masked_cost_observation_symbol_count": 1,
+        "masked_cost_observation_replay_symbol_count": 0,
         "unchanged_symbol_count": 0,
         "failed_symbol_count": 1,
         "cycle_evidence_accounted_bytes": 20_000_000,
         "status_sha256": "a" * 64,
+        "commission_cost_mode": MASKED_COST_OBSERVATION_MODE,
+        "commission_credentials_available": False,
         "authority_semantics": {
             "publisher_runtime_authority_granted": False,
             "published_child_trainer_admission_authorized": True,
@@ -2070,6 +2246,9 @@ def test_cli_cycle_summary_stays_bounded_when_full_status_has_large_inventories(
     assert summary["publisher_runtime_authority_granted"] is False
     assert summary["published_child_trainer_admission_authorized"] is True
     assert summary["automatic_trainer_transition_authorized"] is False
+    assert summary["masked_cost_observation_symbol_count"] == 1
+    assert summary["commission_cost_mode"] == MASKED_COST_OBSERVATION_MODE
+    assert summary["commission_credentials_available"] is False
     assert summary["credential_ref_read_only_assertion"] is True
     assert (
         summary["credential_ref_read_only_assertion_semantics"]
@@ -2086,7 +2265,7 @@ def test_cli_protected_commission_hmac_is_never_rendered(
     secret = "publisher-test-separate-hmac-secret-never-render"  # noqa: S105
     monkeypatch.setattr(
         cli_module,
-        "load_profiled_base_publisher_runtime_credentials",
+        "load_profiled_base_publisher_runtime_credentials_if_available",
         lambda: SimpleNamespace(
             commission_binding=SimpleNamespace(),
             fingerprint_hmac_key=secret.encode(),
@@ -2119,7 +2298,7 @@ def test_cli_missing_protected_credentials_fail_before_redis(
 ) -> None:
     monkeypatch.setattr(
         cli_module,
-        "load_profiled_base_publisher_runtime_credentials",
+        "load_profiled_base_publisher_runtime_credentials_if_available",
         lambda: (_ for _ in ()).throw(
             cli_module.ProfiledBasePublisherCredentialError(
                 "PROFILED_BASE_PUBLISHER_SYSTEMD_CREDENTIALS_DIRECTORY_INVALID"

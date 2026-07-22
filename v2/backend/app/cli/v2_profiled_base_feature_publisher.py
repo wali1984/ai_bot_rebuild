@@ -1,4 +1,4 @@
-"""CLI loop for atomic authenticated 35+4 profiled-training publication."""
+"""CLI loop for authenticated 35+4 or quarantined masked-cost publication."""
 
 from __future__ import annotations
 
@@ -16,13 +16,15 @@ from v2.backend.app.services.native_trainer.binance_usdm_commission_capture_v1 i
     capture_binance_usdm_commission_rate_v1,
 )
 from v2.backend.app.services.native_trainer.profiled_base_feature_publisher_v1 import (
+    AUTHENTICATED_COST_EVIDENCE_REQUIRED_MODE,
     DEFAULT_RESOURCE_SUSTAINABILITY_HORIZON_SECONDS,
+    MASKED_COST_OBSERVATION_MODE,
     ProfiledBaseFeaturePublisherV1,
     ProfiledBaseFeaturePublisherV1Error,
 )
 from v2.backend.app.services.native_trainer.profiled_base_publisher_runtime_credentials import (
     ProfiledBasePublisherCredentialError,
-    load_profiled_base_publisher_runtime_credentials,
+    load_profiled_base_publisher_runtime_credentials_if_available,
 )
 
 _STOP = False
@@ -57,11 +59,11 @@ def _positive_int(value: str) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Publish adjacent authenticated 35+4 profiled-training records to the durable "
-            "evidence ledger. This command never writes legacy feature "
-            "keys. An authenticated child may be trainer-admission eligible, but the "
-            "publisher grants no trainer runtime transition, prediction, paper, or live "
-            "authority."
+            "Publish authenticated 35+4 profiled-training records, or a quarantined "
+            "35-field parent with an explicit missing-cost mask when the complete optional "
+            "credential bundle is absent. This command never writes legacy feature keys. "
+            "An authenticated child may be trainer-admission eligible, but the publisher "
+            "grants no trainer runtime transition, prediction, paper, or live authority."
         )
     )
     parser.add_argument(
@@ -203,6 +205,12 @@ def bounded_cycle_summary(status: dict[str, Any], *, status_path: Path) -> dict[
         "resource_deferred_symbol_count": status.get("resource_deferred_symbol_count"),
         "published_symbol_count": status.get("published_symbol_count"),
         "exact_replay_symbol_count": status.get("exact_replay_symbol_count"),
+        "masked_cost_observation_symbol_count": status.get(
+            "masked_cost_observation_symbol_count"
+        ),
+        "masked_cost_observation_replay_symbol_count": status.get(
+            "masked_cost_observation_replay_symbol_count"
+        ),
         "unchanged_symbol_count": status.get("unchanged_symbol_count"),
         "failed_symbol_count": status.get("failed_symbol_count"),
         "cycle_evidence_accounted_bytes": status.get("cycle_evidence_accounted_bytes"),
@@ -217,6 +225,10 @@ def bounded_cycle_summary(status: dict[str, Any], *, status_path: Path) -> dict[
         "publisher_runtime_authority_granted": False,
         "published_child_trainer_admission_authorized": (published_child_admission is True),
         "automatic_trainer_transition_authorized": False,
+        "commission_cost_mode": status.get("commission_cost_mode"),
+        "commission_credentials_available": (
+            status.get("commission_credentials_available") is True
+        ),
         "credential_ref_read_only_assertion": True,
         "credential_ref_read_only_assertion_semantics": (
             "OPERATOR_PROVISIONING_LABEL_NOT_BINANCE_PERMISSION_PROOF"
@@ -231,22 +243,43 @@ def bounded_cycle_summary(status: dict[str, Any], *, status_path: Path) -> dict[
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
-        runtime_credentials = load_profiled_base_publisher_runtime_credentials()
+        runtime_credentials = (
+            load_profiled_base_publisher_runtime_credentials_if_available()
+        )
         client = _raw_redis_client(str(args.redis_url))
-        publisher = ProfiledBaseFeaturePublisherV1(
-            redis_client=client,
-            data_root=_absolute(args.data_root),
-            feature_ledger_path=_absolute(args.feature_ledger_path),
-            state_path=_absolute(args.state_path),
-            status_path=_absolute(args.status_path),
-            cycle_period_seconds=float(args.cycle_seconds),
-            resource_sustainability_horizon_seconds=float(args.resource_horizon_seconds),
-            boundary_retry_limit=int(args.boundary_retries),
-            commission_capture_function=functools.partial(
-                capture_binance_usdm_commission_rate_v1,
-                credential_binding=runtime_credentials.commission_binding,
+        publisher_arguments: dict[str, Any] = {
+            "redis_client": client,
+            "data_root": _absolute(args.data_root),
+            "feature_ledger_path": _absolute(args.feature_ledger_path),
+            "state_path": _absolute(args.state_path),
+            "status_path": _absolute(args.status_path),
+            "cycle_period_seconds": float(args.cycle_seconds),
+            "resource_sustainability_horizon_seconds": float(
+                args.resource_horizon_seconds
             ),
-            commission_fingerprint_hmac_key=(runtime_credentials.fingerprint_hmac_key),
+            "boundary_retry_limit": int(args.boundary_retries),
+        }
+        if runtime_credentials is None:
+            publisher_arguments["commission_cost_mode"] = (
+                MASKED_COST_OBSERVATION_MODE
+            )
+        else:
+            publisher_arguments.update(
+                {
+                    "commission_cost_mode": (
+                        AUTHENTICATED_COST_EVIDENCE_REQUIRED_MODE
+                    ),
+                    "commission_capture_function": functools.partial(
+                        capture_binance_usdm_commission_rate_v1,
+                        credential_binding=runtime_credentials.commission_binding,
+                    ),
+                    "commission_fingerprint_hmac_key": (
+                        runtime_credentials.fingerprint_hmac_key
+                    ),
+                }
+            )
+        publisher = ProfiledBaseFeaturePublisherV1(
+            **publisher_arguments,
         )
         signal.signal(signal.SIGINT, _request_stop)
         signal.signal(signal.SIGTERM, _request_stop)
