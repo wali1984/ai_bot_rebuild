@@ -158,6 +158,17 @@ def test_builds_authenticated_manifest_and_reopens_exact_446_1784_example(
         authenticated_base_evidence,
     )
     manifest_root = (tmp_path / "manifests").absolute()
+    manifest_root.mkdir(mode=0o700)
+    orphan_stem = ".profiled_training_observation.1234." + "a" * 32 + ".tmp"
+    orphan_paths = [
+        manifest_root / f"{orphan_stem}{suffix}"
+        for suffix in ("", "-journal", "-wal", "-shm")
+    ]
+    for orphan in orphan_paths:
+        orphan.write_bytes(b"orphaned-private-sqlite-material")
+        orphan.chmod(0o600)
+    unrelated = manifest_root / ".profiled_training_observation.not-managed.tmp"
+    unrelated.write_bytes(b"not-owned-by-the-exact-temp-namespace")
 
     built = build_profiled_training_observation_manifest_v1(
         ledger=ledger,
@@ -204,6 +215,36 @@ def test_builds_authenticated_manifest_and_reopens_exact_446_1784_example(
     assert example.runtime_wired is False
     assert page.checkpoint_write_authorized is False
     assert page.external_monotonic_manifest_head_verified is False
+    assert all(not path.exists() for path in orphan_paths)
+    assert unrelated.read_bytes() == b"not-owned-by-the-exact-temp-namespace"
+
+
+@pytest.mark.parametrize("object_kind", ["symlink", "hardlink"])
+def test_stale_temp_cleanup_rejects_suspicious_matching_inode(
+    tmp_path: Path,
+    object_kind: str,
+) -> None:
+    manifest_root = (tmp_path / "manifests").absolute()
+    manifest_root.mkdir(mode=0o700)
+    target = manifest_root / "target"
+    target.write_bytes(b"must-not-be-removed-through-a-matching-name")
+    target.chmod(0o600)
+    candidate = manifest_root / (
+        ".profiled_training_observation.4321." + "b" * 32 + ".tmp"
+    )
+    if object_kind == "symlink":
+        candidate.symlink_to(target)
+    else:
+        os.link(target, candidate)
+
+    with pytest.raises(
+        ProfiledTrainingObservationManifestV1Error,
+        match="PROFILED_OBSERVATION_STALE_TEMP_PROTECTION_INVALID",
+    ):
+        manifest_module._cleanup_stale_manifest_temporaries_locked(manifest_root)
+
+    assert target.read_bytes() == b"must-not-be-removed-through-a-matching-name"
+    assert candidate.exists() or candidate.is_symlink()
 
 
 def test_prepared_factory_clock_makes_crash_replay_deterministic(

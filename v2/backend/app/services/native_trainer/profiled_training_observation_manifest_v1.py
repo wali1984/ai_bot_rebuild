@@ -147,6 +147,11 @@ _MANIFEST_FILENAME_RE = re.compile(
     r"^profiled_training_observation_([0-9a-f]{64})\.sqlite3$",
     re.ASCII,
 )
+_MANIFEST_TEMP_FILENAME_RE = re.compile(
+    r"^\.profiled_training_observation\.[1-9][0-9]{0,19}\."
+    r"[0-9a-f]{32}\.tmp(?:-(?:journal|wal|shm))?$",
+    re.ASCII,
+)
 _ENTRY_CHAIN_DOMAIN = b"profiled_training_fixed_observation_entry_chain_v1\0"
 _FLOAT64_LABEL_DOMAIN = b"profiled_training_after_cost_label_float64_v1\0"
 
@@ -1597,6 +1602,115 @@ class ProfiledTrainingObservationPageV1:
             _fail("PROFILED_OBSERVATION_PAGE_CLOCK_ORDER_INVALID")
 
 
+def _cleanup_stale_manifest_temporaries_locked(output_root: Path) -> int:
+    """Remove only verified orphan temp inodes while the build lock is held."""
+
+    root_descriptor = -1
+    try:
+        root_descriptor = os.open(
+            output_root,
+            os.O_RDONLY
+            | getattr(os, "O_DIRECTORY", 0)
+            | getattr(os, "O_CLOEXEC", 0)
+            | getattr(os, "O_NOFOLLOW", 0),
+        )
+        opened_root = os.fstat(root_descriptor)
+        path_root = os.stat(output_root, follow_symlinks=False)
+        if (
+            not stat.S_ISDIR(opened_root.st_mode)
+            or opened_root.st_uid != os.geteuid()
+            or stat.S_IMODE(opened_root.st_mode) & 0o022
+            or (opened_root.st_dev, opened_root.st_ino)
+            != (path_root.st_dev, path_root.st_ino)
+        ):
+            _fail("PROFILED_OBSERVATION_STALE_TEMP_ROOT_PROTECTION_INVALID")
+        candidates = sorted(
+            (
+                name
+                for name in os.listdir(root_descriptor)
+                if _MANIFEST_TEMP_FILENAME_RE.fullmatch(name) is not None
+            ),
+            # SQLite sidecars precede their base temp database.
+            key=lambda name: (name.endswith(".tmp"), name),
+        )
+        removed = 0
+        for name in candidates:
+            path_stat = os.stat(
+                name,
+                dir_fd=root_descriptor,
+                follow_symlinks=False,
+            )
+            if (
+                not stat.S_ISREG(path_stat.st_mode)
+                or path_stat.st_uid != os.geteuid()
+                or path_stat.st_nlink != 1
+                or stat.S_IMODE(path_stat.st_mode) != 0o600
+            ):
+                _fail("PROFILED_OBSERVATION_STALE_TEMP_PROTECTION_INVALID")
+            candidate_descriptor = os.open(
+                name,
+                os.O_RDONLY
+                | getattr(os, "O_CLOEXEC", 0)
+                | getattr(os, "O_NOFOLLOW", 0),
+                dir_fd=root_descriptor,
+            )
+            try:
+                opened = os.fstat(candidate_descriptor)
+            finally:
+                os.close(candidate_descriptor)
+            if (
+                opened.st_dev,
+                opened.st_ino,
+                opened.st_size,
+                opened.st_uid,
+                opened.st_mode,
+                opened.st_nlink,
+            ) != (
+                path_stat.st_dev,
+                path_stat.st_ino,
+                path_stat.st_size,
+                path_stat.st_uid,
+                path_stat.st_mode,
+                path_stat.st_nlink,
+            ):
+                _fail("PROFILED_OBSERVATION_STALE_TEMP_INODE_MOVED")
+            final_stat = os.stat(
+                name,
+                dir_fd=root_descriptor,
+                follow_symlinks=False,
+            )
+            if (
+                final_stat.st_dev,
+                final_stat.st_ino,
+                final_stat.st_size,
+                final_stat.st_uid,
+                final_stat.st_mode,
+                final_stat.st_nlink,
+            ) != (
+                path_stat.st_dev,
+                path_stat.st_ino,
+                path_stat.st_size,
+                path_stat.st_uid,
+                path_stat.st_mode,
+                path_stat.st_nlink,
+            ):
+                _fail("PROFILED_OBSERVATION_STALE_TEMP_INODE_MOVED")
+            os.unlink(name, dir_fd=root_descriptor)
+            removed += 1
+        if removed:
+            os.fsync(root_descriptor)
+        return removed
+    except ProfiledTrainingObservationManifestV1Error:
+        raise
+    except OSError as exc:
+        raise ProfiledTrainingObservationManifestV1Error(
+            f"PROFILED_OBSERVATION_STALE_TEMP_CLEANUP_FAILED:{type(exc).__name__}"
+        ) from exc
+    finally:
+        if root_descriptor >= 0:
+            os.close(root_descriptor)
+
+
 def build_profiled_training_observation_manifest_v1(
     *,
     ledger: DurableFeatureSnapshotLedger,
@@ -1712,6 +1826,7 @@ def build_profiled_training_observation_manifest_v1(
     )
     try:
         fcntl.flock(lock_descriptor, fcntl.LOCK_EX)
+        _cleanup_stale_manifest_temporaries_locked(output_root)
         descriptor = os.open(
             temporary,
             os.O_RDWR | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
