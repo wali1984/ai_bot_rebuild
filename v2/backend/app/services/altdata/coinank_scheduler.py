@@ -9,7 +9,8 @@ from __future__ import annotations
 import hashlib
 import json
 import math
-from typing import Any, Mapping, Sequence
+from collections.abc import Mapping, Sequence
+from typing import Any
 
 DEFAULT_PREFERRED_SYMBOLS = ("BTCUSDT", "ETHUSDT", "SOLUSDT")
 DEFAULT_TIMEFRAME_PRIORITY = ("1h", "15m", "5m", "30m", "4h", "1d")
@@ -353,6 +354,113 @@ def advance_cursor(
     if rotating_pool_size <= 0:
         return 0
     return (int(cursor) + max(0, int(rotating_attempts))) % int(rotating_pool_size)
+
+
+def select_fair_rotating_batch(
+    endpoint: str,
+    params_list: Sequence[Mapping[str, Any]],
+    *,
+    cursor: int,
+    max_calls: int,
+    endpoint_interval_seconds: float,
+    freshness_sla_seconds: float,
+    selection_class: str,
+) -> dict[str, Any]:
+    """Rotate one homogeneous priority lane without major-symbol pinning.
+
+    Every parameter lane receives equal attempt frequency.  The cursor advances
+    by attempts rather than successes so one unavailable symbol cannot starve
+    the rest of the universe.  Freshness claims remain separate and continue
+    to use the success ledger maintained by the runtime.
+    """
+
+    records = [
+        {
+            "params": dict(params),
+            "identity": parameter_identity(endpoint, params),
+            "symbol": canonical_param_symbol(params),
+            "timeframe": str(
+                params.get("interval") or params.get("timeframe") or ""
+            ),
+            "original_index": index,
+            "selection_class": str(selection_class),
+        }
+        for index, params in enumerate(params_list)
+    ]
+    identities = [str(record["identity"]) for record in records]
+    if len(set(identities)) != len(identities):
+        raise ValueError("duplicate CoinAnk parameter identity in fair rotation")
+    pool_size = len(records)
+    normalized_cursor = int(cursor) % pool_size if pool_size else 0
+    planned_attempts = min(pool_size, max(0, int(max_calls)))
+    selection = [
+        records[(normalized_cursor + offset) % pool_size]
+        for offset in range(planned_attempts)
+    ]
+    cadence = max(0.001, float(endpoint_interval_seconds))
+    sla = max(cadence, float(freshness_sla_seconds))
+    estimated_revisit_seconds = (
+        math.ceil(pool_size / planned_attempts) * cadence
+        if pool_size and planned_attempts
+        else (0.0 if not pool_size else None)
+    )
+    return {
+        "selection": selection,
+        "cursor": normalized_cursor,
+        "pool_size": pool_size,
+        "planned_attempts": planned_attempts,
+        "estimated_revisit_seconds": estimated_revisit_seconds,
+        "freshness_sla_seconds": sla,
+        "coverage_partial": bool(
+            pool_size
+            and (
+                estimated_revisit_seconds is None
+                or estimated_revisit_seconds > sla
+            )
+        ),
+    }
+
+
+def summarize_fair_lane_coverage(
+    *,
+    cadence_observed: bool,
+    planned_capacity_satisfies_sla: bool,
+    plan_coverage_partial: bool,
+    call_budget: int,
+    attempted_calls: int,
+    fresh_success_count: int,
+    lane_count: int,
+) -> dict[str, Any]:
+    """Classify one fair lane without converting attempts into freshness."""
+
+    lanes = int(lane_count)
+    fresh = int(fresh_success_count)
+    if lanes < 0 or fresh < 0 or fresh > lanes:
+        raise ValueError("invalid fair-lane freshness counts")
+    attempt_budget_satisfied = int(attempted_calls) >= max(1, int(call_budget))
+    capacity_satisfies_sla = effective_capacity_satisfies_sla(
+        planned_capacity_satisfies_sla=bool(
+            planned_capacity_satisfies_sla
+            and not plan_coverage_partial
+            and cadence_observed
+        ),
+        call_budget=int(call_budget),
+        attempted_calls=int(attempted_calls),
+    )
+    if not cadence_observed:
+        classification = "WARMING_CADENCE"
+    elif not capacity_satisfies_sla:
+        classification = "PARTIAL_CAPACITY"
+    elif fresh < lanes:
+        classification = "WARMING_FRESHNESS"
+    else:
+        classification = "FRESH_COVERAGE_COMPLETE"
+    return {
+        "classification": classification,
+        "attempt_budget_satisfied": attempt_budget_satisfied,
+        "capacity_satisfies_sla": capacity_satisfies_sla,
+        "fresh_coverage_ratio": fresh / lanes if lanes else 0.0,
+    }
 
 
 _SEMANTIC_ENDPOINTS = frozenset(

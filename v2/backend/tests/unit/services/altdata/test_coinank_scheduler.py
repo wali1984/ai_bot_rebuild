@@ -10,7 +10,9 @@ from app.services.altdata.coinank_scheduler import (
     effective_visit_interval_seconds,
     parameter_identity,
     select_due_critical_endpoint,
+    select_fair_rotating_batch,
     select_parameter_batch,
+    summarize_fair_lane_coverage,
 )
 
 
@@ -179,6 +181,153 @@ def test_expanded_universe_fails_closed_when_rpm_share_cannot_meet_sla() -> None
     assert capacity["rpm_limited_calls"] == 20
     assert capacity["call_budget"] == 20
     assert capacity["capacity_satisfies_sla"] is False
+
+
+def test_fair_5m_surface_lane_covers_159_symbols_inside_derived_budget() -> None:
+    params = [
+        {
+            "exchange": "Binance",
+            "symbol": f"S{index}USDT",
+            "interval": "5m",
+            "productType": "SWAP",
+        }
+        for index in range(159)
+    ]
+    capacity = derive_critical_call_budget(
+        params,
+        endpoint_interval_seconds=90,
+        freshness_sla_seconds=600,
+        rpm_share=30,
+        preferred_symbols=(),
+    )
+
+    assert capacity["required_calls_for_sla"] == 27
+    assert capacity["rpm_limited_calls"] == 45
+    assert capacity["call_budget"] == 27
+    assert capacity["capacity_satisfies_sla"] is True
+
+    cursor = 0
+    observed: set[str] = set()
+    for _ in range(6):
+        plan = select_fair_rotating_batch(
+            "openInterest_kline",
+            params,
+            cursor=cursor,
+            max_calls=capacity["call_budget"],
+            endpoint_interval_seconds=90,
+            freshness_sla_seconds=600,
+            selection_class="surface_oi_source",
+        )
+        observed.update(str(record["identity"]) for record in plan["selection"])
+        cursor = advance_cursor(
+            cursor,
+            rotating_pool_size=plan["pool_size"],
+            rotating_attempts=plan["planned_attempts"],
+        )
+
+    assert len(observed) == 159
+    assert plan["estimated_revisit_seconds"] == 540
+    assert plan["coverage_partial"] is False
+    assert cursor == 3
+
+
+def test_fair_surface_lane_reports_partial_when_universe_exceeds_rate_share() -> None:
+    params = [
+        {"symbol": f"S{index}USDT", "interval": "5m"}
+        for index in range(1_000)
+    ]
+    capacity = derive_critical_call_budget(
+        params,
+        endpoint_interval_seconds=90,
+        freshness_sla_seconds=600,
+        rpm_share=30,
+        preferred_symbols=(),
+    )
+    plan = select_fair_rotating_batch(
+        "openInterest_kline",
+        params,
+        cursor=0,
+        max_calls=capacity["call_budget"],
+        endpoint_interval_seconds=90,
+        freshness_sla_seconds=600,
+        selection_class="surface_oi_source",
+    )
+
+    assert capacity["required_calls_for_sla"] == 167
+    assert capacity["call_budget"] == 45
+    assert capacity["capacity_satisfies_sla"] is False
+    assert plan["estimated_revisit_seconds"] == 2_070
+    assert plan["coverage_partial"] is True
+
+
+def test_fair_rotation_rejects_duplicate_parameter_identity() -> None:
+    params = [
+        {"symbol": "BTCUSDT", "interval": "5m"},
+        {"symbol": "BTCUSDT", "interval": "5m"},
+    ]
+
+    try:
+        select_fair_rotating_batch(
+            "openInterest_kline",
+            params,
+            cursor=0,
+            max_calls=1,
+            endpoint_interval_seconds=90,
+            freshness_sla_seconds=600,
+            selection_class="surface_oi_source",
+        )
+    except ValueError as exc:
+        assert "duplicate CoinAnk parameter identity" in str(exc)
+    else:
+        raise AssertionError("expected duplicate parameter identity rejection")
+
+
+def test_fair_lane_classification_separates_cadence_capacity_and_freshness() -> None:
+    cases = (
+        (False, True, False, 27, 27, 159, 159, "WARMING_CADENCE"),
+        (True, False, True, 27, 27, 159, 159, "PARTIAL_CAPACITY"),
+        (True, True, False, 27, 26, 159, 159, "PARTIAL_CAPACITY"),
+        (True, True, False, 27, 27, 158, 159, "WARMING_FRESHNESS"),
+        (True, True, False, 27, 27, 159, 159, "FRESH_COVERAGE_COMPLETE"),
+    )
+    for (
+        cadence_observed,
+        planned_capacity,
+        plan_partial,
+        call_budget,
+        attempted,
+        fresh,
+        lanes,
+        expected,
+    ) in cases:
+        result = summarize_fair_lane_coverage(
+            cadence_observed=cadence_observed,
+            planned_capacity_satisfies_sla=planned_capacity,
+            plan_coverage_partial=plan_partial,
+            call_budget=call_budget,
+            attempted_calls=attempted,
+            fresh_success_count=fresh,
+            lane_count=lanes,
+        )
+        assert result["classification"] == expected
+        assert result["fresh_coverage_ratio"] == fresh / lanes
+
+
+def test_fair_lane_classification_rejects_impossible_fresh_count() -> None:
+    try:
+        summarize_fair_lane_coverage(
+            cadence_observed=True,
+            planned_capacity_satisfies_sla=True,
+            plan_coverage_partial=False,
+            call_budget=1,
+            attempted_calls=1,
+            fresh_success_count=2,
+            lane_count=1,
+        )
+    except ValueError as exc:
+        assert "invalid fair-lane freshness counts" in str(exc)
+    else:
+        raise AssertionError("expected impossible fresh-count rejection")
 
 
 def test_runtime_attempt_shortfall_fails_closed_even_when_plan_fits() -> None:

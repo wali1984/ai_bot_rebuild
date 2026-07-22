@@ -21,6 +21,7 @@ if str(REPO_ROOT) not in sys.path:
 from v2.backend.app.services.altdata.coinank_scheduler import (
     advance_cursor as _advance_scheduler_cursor,
     aligned_current_end_time_ms,
+    canonical_param_symbol,
     canonical_usdt_symbol,
     derive_critical_call_budget,
     derive_critical_spend_budget_seconds,
@@ -28,13 +29,19 @@ from v2.backend.app.services.altdata.coinank_scheduler import (
     effective_visit_interval_seconds,
     parameter_identity as _scheduler_parameter_identity,
     select_due_critical_endpoint,
+    select_fair_rotating_batch,
     select_parameter_batch,
+    summarize_fair_lane_coverage,
     validate_critical_response,
 )
 from v2.backend.app.services.altdata.coinank_receipts import (
     build_coinank_flat_snapshot,
     causal_request_receipt_fields,
     request_with_causal_receipt,
+)
+from v2.backend.app.services.v2_symbol_runtime_universe import (
+    is_valid_runtime_symbol,
+    resolve_symbols,
 )
 try:
     from config import get_live_config
@@ -667,6 +674,7 @@ REQUIRED_COINANK_TFS = tuple(
     if x.strip()
 )
 INTERVALS_PRIORITY = list(REQUIRED_COINANK_TFS)
+COINANK_LIQUIDATION_OI_SOURCE_TIMEFRAME = "5m"
 
 # --- Feature gate flags (default all restrictive) ---
 COINANK_ENABLE_KLINE     = os.getenv("COINANK_ENABLE_KLINE",     "0") == "1"
@@ -1136,6 +1144,32 @@ def _major_first(symbols: list) -> list:
     return preferred + [symbol for symbol in canonical if symbol not in preferred]
 
 
+def _liquidation_surface_oi_symbols() -> list:
+    """Resolve every current training symbol for the reusable 5m OI lane."""
+
+    def _configured_symbols(value) -> list:
+        if isinstance(value, str):
+            return [item.strip() for item in value.split(",") if item.strip()]
+        try:
+            return list(value or [])
+        except TypeError:
+            return []
+
+    try:
+        resolved = resolve_symbols(include_baseline=True)
+    except Exception as exc:
+        logger.warning(f"CoinAnk runtime universe resolution failed: {exc}")
+        resolved = []
+    configured = _configured_symbols(TRAINING_SYMBOLS) + _configured_symbols(
+        COINANK_SYMBOLS
+    )
+    return [
+        symbol
+        for symbol in _major_first(list(resolved) + configured)
+        if is_valid_runtime_symbol(symbol)
+    ]
+
+
 def _active_symbols_for_deep() -> list:
     """
     Symbols that get the full deep-dive treatment (OI chart, CVD, L/S, klines).
@@ -1238,14 +1272,30 @@ def build_param_sets(key: str):
                     "size": _get_max_size(iv, 100)  # Respect size limits
                 })
     elif mode == "symbol_exchange_interval_end":
-        deep_syms = _active_symbols_for_deep()
+        deep_syms = (
+            _liquidation_surface_oi_symbols()
+            if key == "openInterest_kline"
+            else _active_symbols_for_deep()
+        )
+        intervals = (
+            list(
+                dict.fromkeys(
+                    [
+                        COINANK_LIQUIDATION_OI_SOURCE_TIMEFRAME,
+                        *INTERVALS_PRIORITY,
+                    ]
+                )
+            )
+            if key == "openInterest_kline"
+            else INTERVALS_PRIORITY
+        )
         live_row_limit = (
             COINANK_CRITICAL_LIVE_ROW_LIMIT
             if key in CRITICAL_COINANK_SCHEDULER_ENDPOINTS
             else 100
         )
         for ex in EXCHANGES:
-            for iv in INTERVALS_PRIORITY:
+            for iv in intervals:
                 for sym in deep_syms:
                     params_list.append({
                         "exchange": ex,
@@ -2705,6 +2755,11 @@ def loop():
         scheduler_cursor_key = f"coinank:scheduler:cursor:{key}"
         scheduler_status_key = f"coinank:scheduler:status:{key}"
         scheduler_last_success = {}
+        surface_oi_plan = None
+        surface_oi_capacity = None
+        surface_oi_cursor_key = None
+        surface_oi_start_cursor = 0
+        secondary_call_budget = max_calls_per_tick
         if key in CRITICAL_COINANK_SCHEDULER_ENDPOINTS:
             try:
                 persisted_cursor = int(r.get(scheduler_cursor_key) or 0) if r else 0
@@ -2718,17 +2773,70 @@ def loop():
                 }
             except Exception:
                 scheduler_last_success = {}
+            scheduler_params = params_list
+            priority_records = []
+            if key == "openInterest_kline":
+                priority_params = [
+                    params
+                    for params in params_list
+                    if str(params.get("interval") or "")
+                    == COINANK_LIQUIDATION_OI_SOURCE_TIMEFRAME
+                ]
+                scheduler_params = [
+                    params
+                    for params in params_list
+                    if str(params.get("interval") or "")
+                    != COINANK_LIQUIDATION_OI_SOURCE_TIMEFRAME
+                ]
+                surface_oi_cursor_key = (
+                    "coinank:scheduler:surface_oi_cursor:"
+                    f"{COINANK_LIQUIDATION_OI_SOURCE_TIMEFRAME}"
+                )
+                try:
+                    surface_oi_start_cursor = (
+                        int(r.get(surface_oi_cursor_key) or 0) if r else 0
+                    )
+                except Exception:
+                    surface_oi_start_cursor = 0
+                surface_oi_capacity = derive_critical_call_budget(
+                    priority_params,
+                    endpoint_interval_seconds=scheduler_visit_interval_seconds,
+                    freshness_sla_seconds=(
+                        COINANK_SCHEDULER_FRESHNESS_SLA_SECONDS
+                    ),
+                    rpm_share=COINANK_CRITICAL_RPM_SHARES[key],
+                    hard_call_cap=max_calls_per_tick,
+                    preferred_symbols=(),
+                )
+                surface_oi_plan = select_fair_rotating_batch(
+                    key,
+                    priority_params,
+                    cursor=surface_oi_start_cursor,
+                    max_calls=int(surface_oi_capacity["call_budget"]),
+                    endpoint_interval_seconds=scheduler_visit_interval_seconds,
+                    freshness_sla_seconds=(
+                        COINANK_SCHEDULER_FRESHNESS_SLA_SECONDS
+                    ),
+                    selection_class="surface_oi_source",
+                )
+                priority_records = list(surface_oi_plan["selection"])
+                secondary_call_budget = max(
+                    0,
+                    max_calls_per_tick - len(priority_records),
+                )
             scheduler_plan = select_parameter_batch(
                 key,
-                params_list,
+                scheduler_params,
                 cursor=persisted_cursor,
-                max_calls=max_calls_per_tick,
+                max_calls=max(1, secondary_call_budget),
                 now_ms=_now_ms(),
                 last_success_ms=scheduler_last_success,
                 endpoint_interval_seconds=scheduler_visit_interval_seconds,
                 freshness_sla_seconds=COINANK_SCHEDULER_FRESHNESS_SLA_SECONDS,
             )
-            scheduled_records = list(scheduler_plan["selection"])
+            scheduled_records = priority_records + list(
+                scheduler_plan["selection"][:secondary_call_budget]
+            )
             start_i = int(scheduler_plan["cursor"])
         else:
             start_i = int(_endpoint_param_cursor.get(key, 0) or 0) % max(
@@ -2744,6 +2852,7 @@ def loop():
             ]
         calls_made = 0
         scheduler_success_count = 0
+        surface_oi_success_count = 0
         scheduler_semantic_invalid_count = 0
         scheduler_semantic_invalid_reasons = {}
         attempted_scheduler_records = []
@@ -2776,13 +2885,19 @@ def loop():
                 success_flag = data.get("success") if isinstance(data, dict) else None
                 semantic_validation = None
                 if scheduler_plan is not None:
+                    semantic_finality_clock_ms = response_available_at_ms
+                    if key == "openInterest_kline":
+                        semantic_finality_clock_ms = max(
+                            1,
+                            int(request_receipt["request_started_at_ms"]) - 1,
+                        )
                     semantic_validation = validate_critical_response(
                         key,
                         data,
                         timeframe=str(
                             p.get("interval") or p.get("timeframe") or ""
                         ),
-                        available_at_ms=response_available_at_ms,
+                        available_at_ms=semantic_finality_clock_ms,
                     )
                 semantic_invalid = bool(
                     semantic_validation is not None
@@ -2865,6 +2980,11 @@ def loop():
                     success_ms = _now_ms()
                     scheduler_last_success[identity] = success_ms
                     scheduler_success_count += 1
+                    if (
+                        scheduled_record.get("selection_class")
+                        == "surface_oi_source"
+                    ):
+                        surface_oi_success_count += 1
                     if r:
                         try:
                             r.hset(scheduler_ledger_key, identity, success_ms)
@@ -2919,6 +3039,91 @@ def loop():
                 call_budget=int(critical_capacity["call_budget"]),
                 attempted_calls=len(attempted_scheduler_records),
             )
+            surface_oi_status = {}
+            surface_oi_next_cursor = None
+            if surface_oi_plan is not None and surface_oi_capacity is not None:
+                surface_attempted_records = [
+                    record
+                    for record in attempted_scheduler_records
+                    if record.get("selection_class") == "surface_oi_source"
+                ]
+                surface_oi_next_cursor = _advance_scheduler_cursor(
+                    surface_oi_start_cursor,
+                    rotating_pool_size=int(surface_oi_plan["pool_size"]),
+                    rotating_attempts=len(surface_attempted_records),
+                )
+                surface_identities = {
+                    _scheduler_parameter_identity(key, params)
+                    for params in priority_params
+                }
+                fresh_surface_success_count = sum(
+                    1
+                    for identity in surface_identities
+                    if identity in scheduler_last_success
+                    and scheduler_now_ms - scheduler_last_success[identity]
+                    <= COINANK_SCHEDULER_FRESHNESS_SLA_SECONDS * 1000
+                )
+                surface_coverage = summarize_fair_lane_coverage(
+                    cadence_observed=scheduler_cadence_observed,
+                    planned_capacity_satisfies_sla=bool(
+                        surface_oi_capacity["capacity_satisfies_sla"]
+                    ),
+                    plan_coverage_partial=bool(
+                        surface_oi_plan["coverage_partial"]
+                    ),
+                    call_budget=int(surface_oi_capacity["call_budget"]),
+                    attempted_calls=len(surface_attempted_records),
+                    fresh_success_count=fresh_surface_success_count,
+                    lane_count=len(surface_identities),
+                )
+                surface_symbols = {
+                    canonical_param_symbol(params)
+                    for params in priority_params
+                    if canonical_param_symbol(params)
+                }
+                surface_oi_status = {
+                    "surface_oi_source_timeframe": (
+                        COINANK_LIQUIDATION_OI_SOURCE_TIMEFRAME
+                    ),
+                    "surface_oi_classification": surface_coverage[
+                        "classification"
+                    ],
+                    "surface_oi_symbol_count": len(surface_symbols),
+                    "surface_oi_lane_count": len(surface_identities),
+                    "surface_oi_requested_this_tick": len(
+                        surface_attempted_records
+                    ),
+                    "surface_oi_successful_this_tick": (
+                        surface_oi_success_count
+                    ),
+                    "surface_oi_fresh_success_count": (
+                        fresh_surface_success_count
+                    ),
+                    "surface_oi_fresh_coverage_ratio": surface_coverage[
+                        "fresh_coverage_ratio"
+                    ],
+                    "surface_oi_required_calls_for_sla": (
+                        surface_oi_capacity["required_calls_for_sla"]
+                    ),
+                    "surface_oi_call_budget": surface_oi_capacity[
+                        "call_budget"
+                    ],
+                    "surface_oi_planned_capacity_satisfies_sla": (
+                        surface_oi_capacity["capacity_satisfies_sla"]
+                    ),
+                    "surface_oi_attempt_budget_satisfied": (
+                        surface_coverage["attempt_budget_satisfied"]
+                    ),
+                    "surface_oi_capacity_satisfies_sla": (
+                        surface_coverage["capacity_satisfies_sla"]
+                    ),
+                    "surface_oi_estimated_revisit_seconds": (
+                        surface_oi_plan["estimated_revisit_seconds"]
+                    ),
+                    "surface_oi_cursor_before": surface_oi_start_cursor,
+                    "surface_oi_cursor_after": surface_oi_next_cursor,
+                    "non_surface_oi_call_budget": secondary_call_budget,
+                }
             effective_scheduler_plan = select_parameter_batch(
                 key,
                 params_list,
@@ -3006,10 +3211,16 @@ def loop():
                 ],
                 "cursor_before": start_i,
                 "cursor_after": next_cursor,
+                **surface_oi_status,
             }
             if r:
                 try:
                     r.set(scheduler_cursor_key, next_cursor)
+                    if (
+                        surface_oi_cursor_key is not None
+                        and surface_oi_next_cursor is not None
+                    ):
+                        r.set(surface_oi_cursor_key, surface_oi_next_cursor)
                     r.set(
                         scheduler_status_key,
                         json.dumps(status_payload, separators=(",", ":")),

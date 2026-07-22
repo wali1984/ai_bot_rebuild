@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 import json
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -254,6 +255,18 @@ def _call_lines(function: ast.FunctionDef, name: str) -> list[int]:
     return sorted(lines)
 
 
+def _load_runtime_function(
+    tree: ast.Module,
+    name: str,
+    namespace: dict[str, Any],
+) -> Any:
+    function = _function(tree, name)
+    isolated = ast.Module(body=[function], type_ignores=[])
+    ast.fix_missing_locations(isolated)
+    exec(compile(isolated, str(RUNTIME_PATH), "exec"), namespace)  # noqa: S102
+    return namespace[name]
+
+
 def test_runtime_places_rate_gate_before_causal_network_wrapper() -> None:
     tree = ast.parse(RUNTIME_PATH.read_text(encoding="utf-8"))
     function = _function(tree, "fetch_endpoint")
@@ -298,3 +311,101 @@ def test_runtime_persistence_requires_receipts_and_redacts_header_values() -> No
     assert receipt_lines[0] < min(write_lines)
     assert "dict(SESSION.headers)" not in source
     assert "apikey_present=" in source
+
+
+def test_runtime_wires_dynamic_universe_to_fair_5m_surface_lane() -> None:
+    source = RUNTIME_PATH.read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    universe_resolver = _function(tree, "_liquidation_surface_oi_symbols")
+    parameter_builder = _function(tree, "build_param_sets")
+    runtime_loop = _function(tree, "loop")
+    universe_source = ast.get_source_segment(source, universe_resolver) or ""
+    builder_source = ast.get_source_segment(source, parameter_builder) or ""
+    loop_source = ast.get_source_segment(source, runtime_loop) or ""
+
+    assert len(_call_lines(universe_resolver, "resolve_symbols")) == 1
+    assert "TRAINING_SYMBOLS" in universe_source
+    assert "is_valid_runtime_symbol" in universe_source
+    assert 'COINANK_LIQUIDATION_OI_SOURCE_TIMEFRAME = "5m"' in source
+    assert "_liquidation_surface_oi_symbols()" in builder_source
+    assert "dict.fromkeys" in builder_source
+    assert "*INTERVALS_PRIORITY" in builder_source
+    assert len(_call_lines(runtime_loop, "select_fair_rotating_batch")) == 1
+    assert len(_call_lines(runtime_loop, "summarize_fair_lane_coverage")) == 1
+    assert 'selection_class="surface_oi_source"' in loop_source
+    assert '"surface_oi_fresh_coverage_ratio"' in loop_source
+    assert 'request_receipt["request_started_at_ms"]' in loop_source
+    assert "- 1" in loop_source
+
+
+def test_real_runtime_parameter_builder_emits_5m_lane_for_all_159_symbols() -> None:
+    source = RUNTIME_PATH.read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    symbols = [f"S{index}USDT" for index in range(159)]
+    namespace: dict[str, Any] = {
+        "WORKING_COINANK_ENDPOINTS": {
+            "openInterest_kline": {"mode": "symbol_exchange_interval_end"}
+        },
+        "EXCHANGES": ["Binance"],
+        "INTERVALS_PRIORITY": ["15m", "1h"],
+        "COINANK_LIQUIDATION_OI_SOURCE_TIMEFRAME": "5m",
+        "COINANK_CRITICAL_LIVE_ROW_LIMIT": 3,
+        "CRITICAL_COINANK_SCHEDULER_ENDPOINTS": {"openInterest_kline"},
+        "PRODUCT_TYPE": "SWAP",
+        "COINANK_PARAM_SET_LIMIT": 0,
+        "_liquidation_surface_oi_symbols": lambda: symbols,
+        "_active_symbols_for_deep": lambda: ["BTCUSDT"],
+        "_effective_end_time": lambda _tf, value: value,
+        "_plan3_endtime_for_interval": lambda _tf: BASE_MS,
+        "_get_max_size": lambda _tf, requested: requested,
+        "_validate_params": lambda _key, _params: None,
+    }
+    build_param_sets = _load_runtime_function(
+        tree,
+        "build_param_sets",
+        namespace,
+    )
+
+    params = build_param_sets("openInterest_kline")
+    five_minute = [row for row in params if row["interval"] == "5m"]
+
+    assert len(params) == 159 * 3
+    assert len(five_minute) == 159
+    assert {row["symbol"] for row in five_minute} == set(symbols)
+    assert all(row["exchange"] == "Binance" for row in five_minute)
+    assert all(row["productType"] == "SWAP" for row in five_minute)
+    assert all(row["size"] == 3 for row in five_minute)
+
+
+def test_real_runtime_universe_helper_unions_resolved_and_configured_symbols() -> None:
+    source = RUNTIME_PATH.read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    resolved = ["BTCUSDT", *(f"S{index}USDT" for index in range(158))]
+    namespace: dict[str, Any] = {
+        "_canonical_usdt": lambda value: str(value).strip().upper(),
+        "resolve_symbols": lambda **_kwargs: resolved,
+        "TRAINING_SYMBOLS": "EXTRAUSDT,BTCUSDT",
+        "COINANK_SYMBOLS": ["SOLUSDT", "bad-symbol"],
+        "is_valid_runtime_symbol": lambda value: (
+            str(value).endswith("USDT") and "-" not in str(value)
+        ),
+        "logger": SimpleNamespace(warning=lambda _message: None),
+    }
+    namespace["_major_first"] = _load_runtime_function(
+        tree,
+        "_major_first",
+        namespace,
+    )
+    resolve_oi_symbols = _load_runtime_function(
+        tree,
+        "_liquidation_surface_oi_symbols",
+        namespace,
+    )
+
+    symbols = resolve_oi_symbols()
+
+    assert len(symbols) == 161
+    assert symbols[:3] == ["BTCUSDT", "SOLUSDT", "S0USDT"]
+    assert "EXTRAUSDT" in symbols
+    assert "bad-symbol" not in symbols
+    assert len(symbols) == len(set(symbols))

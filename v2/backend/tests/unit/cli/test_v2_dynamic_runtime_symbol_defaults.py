@@ -76,10 +76,15 @@ def test_hybrid_trainer_config_default_uses_full_runtime_symbol_universe(monkeyp
 
 def test_paper_online_single_symbol_default_uses_dynamic_first_symbol(monkeypatch) -> None:
     monkeypatch.delenv("V2_SYMBOL_PROFILE", raising=False)
+    expected_first = resolve_symbols(
+        explicit=None,
+        smoke_test=False,
+        include_baseline=True,
+    )[0]
 
     assert (
         paper_online_runtime._resolve_runtime_symbol(None, smoke_test=False)
-        == BASELINE_25_SYMBOLS[0]
+        == expected_first
     )
 
 
@@ -87,9 +92,14 @@ def test_feature_snapshot_builder_single_symbol_default_uses_dynamic_first_symbo
     monkeypatch,
 ) -> None:
     monkeypatch.delenv("V2_SYMBOL_PROFILE", raising=False)
+    expected_first = resolve_symbols(
+        explicit=None,
+        smoke_test=False,
+        include_baseline=True,
+    )[0]
 
     args = v2_feature_snapshot_builder.parse_args(["--once", "--no-write"])
-    assert args.symbol == BASELINE_25_SYMBOLS[0]
+    assert args.symbol == expected_first
 
 
 def test_explicit_three_symbol_set_requires_smoke_opt_in(monkeypatch) -> None:
