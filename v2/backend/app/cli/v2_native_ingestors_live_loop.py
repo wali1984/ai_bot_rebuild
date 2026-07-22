@@ -548,7 +548,11 @@ def _fetch_funding(symbol: str, *, redis_client: Any = None) -> dict | None:
     if not isinstance(data, dict):
         return None
     observed_at = _utc_iso_precise()
+    data["symbol"] = str(data.get("symbol") or symbol).upper()
+    data["venue"] = "binance_usdm"
+    data["product_type"] = "USD-M"
     data["source"] = "binance_public_rest_premium_index_fallback"
+    data["source_endpoint"] = "/fapi/v1/premiumIndex"
     data["transport"] = "rest_fallback"
     data["event_time"] = _first_present(data.get("time"), data.get("E"))
     data["generated_at"] = observed_at

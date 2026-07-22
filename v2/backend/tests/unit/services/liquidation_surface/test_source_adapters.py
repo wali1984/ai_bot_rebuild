@@ -5,6 +5,8 @@ import json
 from typing import Any
 
 import pytest
+from v2.backend.app.cli import v2_binance_mark_price_wss_seeder as mark_seeder
+from v2.backend.app.cli import v2_native_ingestors_live_loop as native_ingestors
 from v2.backend.app.services.liquidation_surface import (
     MAX_RAW_REDIS_BYTES,
     RawRedisEvidence,
@@ -12,6 +14,9 @@ from v2.backend.app.services.liquidation_surface import (
     adapt_binance_finalized_candles,
     adapt_binance_mark_price,
     adapt_coinank_plan3_open_interest,
+)
+from v2.backend.app.services.market_state_integrity.canonical_candles import (
+    canonical_from_binance_rest,
 )
 
 SYMBOL = "BTCUSDT"
@@ -173,6 +178,42 @@ def test_candle_adapter_preserves_exact_lineage_and_latest_contiguous_suffix() -
     assert rows[0].taker_buy_quote_volume == 600.0
 
 
+def test_canonical_rest_producer_is_accepted_without_identity_inference() -> None:
+    close_time = BASE_MS + DURATION_MS - 1
+    payload = canonical_from_binance_rest(
+        [
+            BASE_MS,
+            "100",
+            "102",
+            "99",
+            "101",
+            "12",
+            close_time,
+            "1200",
+            10,
+            "6",
+            "600",
+            "0",
+        ],
+        symbol=SYMBOL,
+        timeframe=TIMEFRAME,
+        ingested_at=close_time + 10,
+    ).to_dict()
+
+    rows = adapt_binance_finalized_candles(
+        _evidence(
+            f"v2:market:ohlcv_closed:binance:{SYMBOL}:{TIMEFRAME}",
+            [payload],
+        ),
+        symbol=SYMBOL,
+        timeframe=TIMEFRAME,
+    )
+
+    assert len(rows) == 1
+    assert rows[0].venue == "binance_usdm"
+    assert payload["product_type"] == "USD-M"
+
+
 def test_candle_adapter_accepts_only_complete_canonical_resampler_identity() -> None:
     resampled = _candle_row(
         0,
@@ -251,6 +292,65 @@ def test_mark_adapter_requires_binance_identity_and_uses_consumer_receipt_clock(
     assert row.ingested_at_ms == BASE_MS + 10
     assert row.available_at_ms == CONSUMER_MS
     assert row.source_sha256 == hashlib.sha256(evidence.raw).hexdigest()
+
+
+def test_mark_wss_producer_is_accepted_without_identity_inference() -> None:
+    payload = mark_seeder._normalize_row(  # noqa: SLF001
+        {"s": SYMBOL, "p": "101.25", "i": "101.20", "E": BASE_MS + 1},
+        available_at=str(BASE_MS + 10),
+    )
+    assert payload is not None
+
+    row = adapt_binance_mark_price(
+        _evidence(f"v2:market:mark_price:{SYMBOL}", payload),
+        symbol=SYMBOL,
+    )
+
+    assert row.price == 101.25
+    assert row.venue == "binance_usdm"
+    assert payload["product_type"] == "USD-M"
+
+
+def test_native_rest_fallback_is_accepted_with_exact_endpoint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class EmptyRedis:
+        @staticmethod
+        def get(_key: str) -> None:
+            return None
+
+    monkeypatch.setenv("BINANCE_REST_FALLBACK_ALLOWED", "true")
+    monkeypatch.setattr(
+        native_ingestors,
+        "_http_get_json",
+        lambda _url, *, fallback_reason: {
+            "symbol": SYMBOL,
+            "markPrice": "101.25",
+            "indexPrice": "101.20",
+            "lastFundingRate": "0.0001",
+            "time": BASE_MS + 1,
+        },
+    )
+    monkeypatch.setattr(
+        native_ingestors,
+        "_utc_iso_precise",
+        lambda: str(BASE_MS + 10),
+    )
+
+    payload = native_ingestors._fetch_funding(  # noqa: SLF001
+        SYMBOL,
+        redis_client=EmptyRedis(),
+    )
+    assert payload is not None
+    row = adapt_binance_mark_price(
+        _evidence(f"v2:market:funding:{SYMBOL}", payload),
+        symbol=SYMBOL,
+    )
+
+    assert row.price == 101.25
+    assert payload["source_endpoint"] == "/fapi/v1/premiumIndex"
+    assert payload["venue"] == "binance_usdm"
+    assert payload["product_type"] == "USD-M"
 
 
 def test_funding_mark_adapter_accepts_only_known_usdm_premium_index_provenance() -> None:

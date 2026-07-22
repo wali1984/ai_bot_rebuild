@@ -36,6 +36,8 @@ def test_process_mark_price_message_writes_requested_symbols_only() -> None:
     payload = json.loads(redis.writes["v2:market:mark_price:BTCUSDT"])
     assert payload["mark_price"] == 60000.5
     assert payload["index_price"] == 60001.0
+    assert payload["venue"] == "binance_usdm"
+    assert payload["product_type"] == "USD-M"
     assert payload["source"] == "binance_usdm_wss_mark_price_all_symbols"
     assert payload["transport"] == "websocket_primary"
     assert payload["places_real_order"] is False

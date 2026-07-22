@@ -296,7 +296,10 @@ def test_native_ingestor_rejects_stale_funding_echo_and_uses_fresh_rest(
     assert funding["markPrice"] == "2.0"
     assert funding["time"] == fresh_ms
     assert funding["source"] == "binance_public_rest_premium_index_fallback"
+    assert funding["source_endpoint"] == "/fapi/v1/premiumIndex"
     assert funding["transport"] == "rest_fallback"
+    assert funding["venue"] == "binance_usdm"
+    assert funding["product_type"] == "USD-M"
     assert funding["generated_at"] == funding["available_at"]
 
 

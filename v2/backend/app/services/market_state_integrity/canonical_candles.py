@@ -41,6 +41,11 @@ class CanonicalCandle:
 
     def to_dict(self) -> dict[str, Any]:
         data = asdict(self)
+        # Every producer of CanonicalCandle is backed by Binance USD-M
+        # (fstream WebSocket or /fapi REST). Persist that product identity
+        # so downstream PIT adapters never infer it from a generic label.
+        data["venue"] = "binance_usdm"
+        data["product_type"] = "USD-M"
         data["candle_id"] = canonical_candle_id(data)
         data["open_time"] = self.candle_open_time
         data["close_time"] = self.candle_close_time

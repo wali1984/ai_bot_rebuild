@@ -100,6 +100,8 @@ def _normalize_row(row: Mapping[str, Any], *, available_at: str) -> dict[str, An
     return {
         "schema_version": "binance_usdm_mark_price_wss_v1",
         "symbol": symbol,
+        "venue": "binance_usdm",
+        "product_type": "USD-M",
         "mark_price": mark_price,
         "markPrice": mark_price,
         "index_price": index_price,

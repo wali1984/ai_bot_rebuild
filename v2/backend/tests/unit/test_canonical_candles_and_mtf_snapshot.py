@@ -94,6 +94,8 @@ def test_wss_closed_candle_goes_to_closed_key_with_finality_metadata() -> None:
     assert payload["candle_closed_confirmed"] is True
     assert payload["available_at"] >= payload["event_time"]
     assert payload["raw_payload_hash"]
+    assert payload["venue"] == "binance_usdm"
+    assert payload["product_type"] == "USD-M"
     assert payload["quote_volume"] == 1206.0
     assert payload["num_trades"] == 10
     assert payload["taker_buy_base_vol"] == 6.0
