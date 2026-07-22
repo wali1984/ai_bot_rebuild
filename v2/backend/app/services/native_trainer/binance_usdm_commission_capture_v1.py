@@ -90,7 +90,7 @@ _EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$", re.ASCII)
 _SYMBOL_RE = re.compile(r"^[A-Z0-9]{3,32}$", re.ASCII)
 _SAFE_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:/+-]{0,255}$", re.ASCII)
-_RATE_RE = re.compile(r"^(?:0|[1-9][0-9]*)\.[0-9]{1,18}$", re.ASCII)
+_RATE_RE = re.compile(r"^(?:0|(?:0|[1-9][0-9]*)\.[0-9]{1,18})$", re.ASCII)
 _RESPONSE_FIELDS = frozenset(
     {
         "symbol",
