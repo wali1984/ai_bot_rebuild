@@ -123,6 +123,19 @@ def _store(tmp_path: Path) -> ImmutableSourcePayloadStore:
     return ImmutableSourcePayloadStore(tmp_path / "commission-cas")
 
 
+def test_default_store_accepts_concrete_absolute_path_and_rejects_relative(
+    tmp_path: Path,
+) -> None:
+    store = broker.default_commission_broker_store(tmp_path.absolute())
+
+    assert store.root_path == tmp_path.absolute() / "commission-evidence-cas"
+    with pytest.raises(
+        broker.CommissionEvidenceBrokerError,
+        match="COMMISSION_BROKER_DATA_ROOT_INVALID",
+    ):
+        broker.default_commission_broker_store(Path("relative"))
+
+
 def _context(*, hmac_key: bytes = _HMAC_KEY) -> bracket.EvidenceSecurityContext:
     return bracket.build_evidence_security_context(
         trader_id="trader-fixture",

@@ -1768,7 +1768,7 @@ def read_authenticated_commission_evidence(
 def default_commission_broker_store(data_root: Path) -> ImmutableSourcePayloadStore:
     """Return the shared bounded immutable store used by producer and reader."""
 
-    if type(data_root) is not Path or not data_root.is_absolute():
+    if not isinstance(data_root, Path) or not data_root.is_absolute():
         _fail("COMMISSION_BROKER_DATA_ROOT_INVALID")
     return ImmutableSourcePayloadStore(data_root / "commission-evidence-cas")
 
