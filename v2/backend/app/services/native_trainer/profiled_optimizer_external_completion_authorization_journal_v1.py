@@ -2077,6 +2077,72 @@ class ProfiledOptimizerCompletionAuthorizationJournalV1:
                 if created:
                     _fsync_directory(self._path.parent)
 
+    def load_request_for_completion(
+        self,
+        *,
+        witness_id: str,
+        authorization_namespace: str,
+        completion_event_sha256: str,
+        witness_public_key_bytes: bytes,
+        writer_lease: FeatureSnapshotWriterLease | None = None,
+    ) -> ProfiledOptimizerCompletionAuthorizationJournalRecordV1 | None:
+        """Load the one exact durable request already bound to a completion."""
+
+        if (
+            not _valid_identifier(witness_id)
+            or not _valid_identifier(authorization_namespace)
+            or not _valid_sha256(completion_event_sha256)
+        ):
+            _fail("PROFILED_OPTIMIZER_AUTHORIZATION_JOURNAL_COMPLETION_LOOKUP_INVALID")
+        if (
+            type(witness_public_key_bytes) is not bytes
+            or len(witness_public_key_bytes) != ED25519_PUBLIC_KEY_BYTES
+        ):
+            _fail("PROFILED_OPTIMIZER_AUTHORIZATION_JOURNAL_COMPLETION_LOOKUP_KEY_INVALID")
+        key_sha = hashlib.sha256(witness_public_key_bytes).hexdigest()
+        with self.writer_lease(writer_lease) as held:
+            connection = self._open_connection(writer_lease=held)
+            try:
+                self._initialize_or_verify_schema(connection)
+                self._verify_integrity_connection(connection)
+                rows = connection.execute(
+                    """
+                    SELECT * FROM authorization_journal_operations
+                    WHERE namespace = ? AND completion_event_sha256 = ?
+                    ORDER BY authorization_sequence
+                    """,
+                    (authorization_namespace, completion_event_sha256),
+                ).fetchall()
+                if not rows:
+                    return None
+                if len(rows) != 1:
+                    _fail(
+                        "PROFILED_OPTIMIZER_AUTHORIZATION_JOURNAL_COMPLETION_LOOKUP_CONFLICT"
+                    )
+                row = rows[0]
+                if (
+                    row["witness_id"] != witness_id
+                    or row["witness_public_key_sha256"] != key_sha
+                ):
+                    _fail(
+                        "PROFILED_OPTIMIZER_AUTHORIZATION_JOURNAL_COMPLETION_LOOKUP_WITNESS_MISMATCH"
+                    )
+                _, stored_key = self._prepared_and_key_from_row(row)
+                if not hmac.compare_digest(stored_key, witness_public_key_bytes):
+                    _fail(
+                        "PROFILED_OPTIMIZER_AUTHORIZATION_JOURNAL_COMPLETION_LOOKUP_KEY_MISMATCH"
+                    )
+                return self._load_record_connection(
+                    connection,
+                    operation_id=row["operation_id"],
+                )
+            except sqlite3.Error as exc:
+                raise ProfiledOptimizerCompletionAuthorizationJournalV1Error(
+                    "PROFILED_OPTIMIZER_AUTHORIZATION_JOURNAL_COMPLETION_LOOKUP_FAILED"
+                ) from exc
+            finally:
+                self._close_connection(connection, writer_lease=held)
+
     def load_pending_requests(
         self,
         *,

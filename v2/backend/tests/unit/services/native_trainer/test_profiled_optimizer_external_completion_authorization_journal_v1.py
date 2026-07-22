@@ -209,6 +209,58 @@ def test_prepared_request_and_all_exact_evidence_survive_restart(
     assert pending[0].prepared == prepared
 
 
+def test_completion_lookup_reopens_exact_pending_and_anchored_record(
+    tmp_path: Path,
+    adapter_evidence: dict[str, Any],
+) -> None:
+    journal = _journal(tmp_path)
+    prepared = _prepared(adapter_evidence)
+    lookup = {
+        "witness_id": prepared.witness_id,
+        "authorization_namespace": prepared.authorization_namespace,
+        "completion_event_sha256": prepared.completion_event_sha256,
+        "witness_public_key_bytes": adapter_evidence["public_key"],
+    }
+    assert journal.load_request_for_completion(**lookup) is None
+
+    pending = journal.persist_prepared_request(
+        prepared=prepared,
+        witness_public_key_bytes=adapter_evidence["public_key"],
+    )
+    reopened_pending = journal.load_request_for_completion(**lookup)
+    assert reopened_pending == pending
+    assert reopened_pending is not None
+    assert reopened_pending.prepared.request_bytes == prepared.request_bytes
+
+    with pytest.raises(
+        ProfiledOptimizerCompletionAuthorizationJournalV1Error,
+        match="COMPLETION_LOOKUP_WITNESS_MISMATCH",
+    ):
+        journal.load_request_for_completion(
+            **{
+                **lookup,
+                "witness_public_key_bytes": _wrong_public_key(),
+            }
+        )
+
+    envelope = request_support._signed_envelope(prepared)
+    anchored = journal.commit_authorization_anchored(
+        operation_id=pending.operation_id,
+        authorization_envelope_bytes=envelope,
+        witness_public_key_bytes=adapter_evidence["public_key"],
+    )
+    restarted = ProfiledOptimizerCompletionAuthorizationJournalV1(
+        journal.path,
+        immutable_store=journal.immutable_store,
+    )
+    reopened_anchor = restarted.load_request_for_completion(**lookup)
+    assert reopened_anchor == anchored
+    assert reopened_anchor is not None
+    assert reopened_anchor.state == AUTHORIZATION_ANCHORED
+    assert reopened_anchor.verified is not None
+    assert reopened_anchor.verified.authorization_envelope_bytes == envelope
+
+
 def test_exact_prepared_replay_is_idempotent_and_changed_material_conflicts(
     tmp_path: Path,
     adapter_evidence: dict[str, Any],
