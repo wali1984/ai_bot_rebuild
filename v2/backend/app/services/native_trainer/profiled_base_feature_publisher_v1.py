@@ -549,6 +549,65 @@ def _strict_path(path: Path, *, reason: str) -> Path:
     return path
 
 
+def _regular_tree_file_bytes(root: Path) -> int:
+    """Measure only durable regular files owned by one publisher tree."""
+
+    try:
+        root_stat = os.lstat(root)
+    except FileNotFoundError:
+        return 0
+    except OSError as exc:
+        raise ProfiledBaseFeaturePublisherV1ResourceError(
+            "PROFILED_BASE_PUBLISHER_OWNED_FOOTPRINT_SAMPLE_FAILED"
+        ) from exc
+    if not stat.S_ISDIR(root_stat.st_mode) or stat.S_ISLNK(root_stat.st_mode):
+        _fail(
+            ProfiledBaseFeaturePublisherV1ResourceError,
+            "PROFILED_BASE_PUBLISHER_OWNED_FOOTPRINT_ROOT_INVALID",
+        )
+    total = 0
+    pending = [root]
+    try:
+        while pending:
+            directory = pending.pop()
+            with os.scandir(directory) as entries:
+                for entry in entries:
+                    item_stat = entry.stat(follow_symlinks=False)
+                    if stat.S_ISREG(item_stat.st_mode):
+                        total += item_stat.st_size
+                    elif stat.S_ISDIR(item_stat.st_mode):
+                        pending.append(Path(entry.path))
+                    else:
+                        _fail(
+                            ProfiledBaseFeaturePublisherV1ResourceError,
+                            "PROFILED_BASE_PUBLISHER_OWNED_FOOTPRINT_ENTRY_INVALID",
+                        )
+    except ProfiledBaseFeaturePublisherV1ResourceError:
+        raise
+    except OSError as exc:
+        raise ProfiledBaseFeaturePublisherV1ResourceError(
+            "PROFILED_BASE_PUBLISHER_OWNED_FOOTPRINT_SAMPLE_FAILED"
+        ) from exc
+    return total
+
+
+def _regular_file_bytes(path: Path) -> int:
+    try:
+        path_stat = os.lstat(path)
+    except FileNotFoundError:
+        return 0
+    except OSError as exc:
+        raise ProfiledBaseFeaturePublisherV1ResourceError(
+            "PROFILED_BASE_PUBLISHER_OWNED_FOOTPRINT_SAMPLE_FAILED"
+        ) from exc
+    if not stat.S_ISREG(path_stat.st_mode) or stat.S_ISLNK(path_stat.st_mode):
+        _fail(
+            ProfiledBaseFeaturePublisherV1ResourceError,
+            "PROFILED_BASE_PUBLISHER_OWNED_FOOTPRINT_ENTRY_INVALID",
+        )
+    return path_stat.st_size
+
+
 def _initial_state() -> dict[str, Any]:
     return {
         "schema_version": PROFILED_BASE_FEATURE_PUBLISHER_STATE_V1_SCHEMA_VERSION,
@@ -1956,6 +2015,20 @@ class ProfiledBaseFeaturePublisherV1:
                 "PROFILED_BASE_PUBLISHER_DISK_USAGE_SAMPLE_INVALID",
             )
         return values
+
+    def _owned_durable_footprint_bytes(self) -> int:
+        """Measure publisher-owned files without attributing shared-disk traffic."""
+
+        total = _regular_tree_file_bytes(self.data_root)
+        for path in (
+            self.feature_ledger_path,
+            Path(f"{self.feature_ledger_path}-wal"),
+            Path(f"{self.feature_ledger_path}-shm"),
+        ):
+            if path.is_relative_to(self.data_root):
+                continue
+            total += _regular_file_bytes(path)
+        return total
 
     def _source_ledger(
         self,
@@ -3595,6 +3668,7 @@ class ProfiledBaseFeaturePublisherV1:
         materialized_cycle_publication_count = 0
         cycle_disk_consumption_high_water = 0
         cycle_start_disk_free = disk_free
+        cycle_start_owned_durable_bytes = self._owned_durable_footprint_bytes()
         for selection_index, symbol in enumerate(planned_selection):
             _current_total, _current_used, current_disk_free = self._disk_sample()
             cycle_disk_consumption_high_water = max(
@@ -3624,6 +3698,7 @@ class ProfiledBaseFeaturePublisherV1:
             selected.append(symbol)
             rotation_last_attempted[symbol] = selection_at
             symbol_started = self.monotonic()
+            attempt_start_owned_durable_bytes = self._owned_durable_footprint_bytes()
             materialized = False
             try:
                 if (
@@ -3683,11 +3758,15 @@ class ProfiledBaseFeaturePublisherV1:
                     coverage[symbol] = outcome.coverage
             except Exception as exc:  # noqa: BLE001 - isolate every symbol
                 reasons = _error_reasons(exc)
+                failed_owned_durable_bytes = self._owned_durable_footprint_bytes()
                 try:
                     _failed_total, _failed_used, failed_disk_free = self._disk_sample()
                 except ProfiledBaseFeaturePublisherV1Error:
                     failed_disk_free = current_disk_free
-                failed_materialized_bytes = max(0, current_disk_free - failed_disk_free)
+                failed_materialized_bytes = max(
+                    0,
+                    failed_owned_durable_bytes - attempt_start_owned_durable_bytes,
+                )
                 if failed_materialized_bytes > 0:
                     materialized = True
                     materialized_cycle_evidence_bytes += failed_materialized_bytes
@@ -3739,9 +3818,14 @@ class ProfiledBaseFeaturePublisherV1:
             cycle_disk_consumption_high_water,
             max(0, cycle_start_disk_free - final_disk_free),
         )
+        final_owned_durable_bytes = self._owned_durable_footprint_bytes()
+        cycle_owned_durable_growth = max(
+            0,
+            final_owned_durable_bytes - cycle_start_owned_durable_bytes,
+        )
         evidence_delta = max(
             materialized_cycle_evidence_bytes,
-            cycle_disk_consumption_high_water,
+            cycle_owned_durable_growth,
         )
         observations = cast(dict[str, Any], state["observations"])
         observations["cycle_count"] += 1
@@ -3751,10 +3835,10 @@ class ProfiledBaseFeaturePublisherV1:
                 float(observations["materialized_publication_elapsed_seconds"])
                 + materialized_publication_elapsed
             )
-            # Charge the conservative cycle evidence high-water, including
-            # auxiliary CAS objects and failed attempts visible only through
-            # filesystem consumption.  Repeated blocked attempts therefore
-            # cannot evade the next adaptive unit-cost estimate.
+            # Attribute only deterministic artifacts and growth under paths
+            # this publisher owns. Shared-filesystem traffic still binds live
+            # headroom/backpressure, but cannot poison the per-symbol mean.
+            # Failed durable writes remain visible in the owned-path delta.
             observations["materialized_publication_bytes"] += evidence_delta
         _atomic_write_json(
             self.state_path,
@@ -3903,9 +3987,10 @@ class ProfiledBaseFeaturePublisherV1:
             "cycle_materialized_artifact_bytes": materialized_cycle_evidence_bytes,
             "cycle_materialized_publication_count": (materialized_cycle_publication_count),
             "cycle_disk_consumption_high_water_bytes": (cycle_disk_consumption_high_water),
+            "cycle_owned_durable_growth_bytes": cycle_owned_durable_growth,
             "evidence_accounting_method": (
                 "MAX_DETERMINISTIC_AUTHENTICATED_ARTIFACT_BYTES_AND_"
-                "FILESYSTEM_FREE_SPACE_HIGH_WATER"
+                "PUBLISHER_OWNED_DURABLE_PATH_GROWTH"
             ),
             "coverage": coverage_status,
             "rotation_last_attempted_at": {

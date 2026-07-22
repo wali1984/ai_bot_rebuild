@@ -2328,7 +2328,8 @@ def test_intra_cycle_backpressure_stops_after_observed_write_cost_jump(
     assert not hasattr(publisher, "_evidence_allocated_bytes")
     assert status["cycle_materialized_artifact_bytes"] == 50_000_000
     assert status["cycle_disk_consumption_high_water_bytes"] == 250_000_000
-    assert status["cycle_evidence_accounted_bytes"] == 250_000_000
+    assert status["cycle_owned_durable_growth_bytes"] == 0
+    assert status["cycle_evidence_accounted_bytes"] == 50_000_000
     assert (
         status["cycle_evidence_accounted_bytes"]
         > status["resource_decision"]["sustainable_cycle_write_budget_bytes"]
@@ -2339,7 +2340,7 @@ def test_intra_cycle_backpressure_stops_after_observed_write_cost_jump(
     )
     persisted_state = json.loads((tmp_path / "state.json").read_text(encoding="ascii"))
     assert persisted_state["observations"]["materialized_publication_bytes"] == (
-        BOOTSTRAP_EVIDENCE_BYTES_PER_SYMBOL + 250_000_000
+        BOOTSTRAP_EVIDENCE_BYTES_PER_SYMBOL + 50_000_000
     )
 
 
@@ -2355,8 +2356,8 @@ def test_failed_attempt_filesystem_cost_is_charged_to_adaptive_observations(
         (
             free_start,
             free_start,
-            free_start - 7_000_000,
-            free_start - 7_000_000,
+            free_start - 70_000_000,
+            free_start - 70_000_000,
         )
     )
 
@@ -2365,6 +2366,10 @@ def test_failed_attempt_filesystem_cost_is_charged_to_adaptive_observations(
         return DiskUsage(disk_total, disk_total - free, free)
 
     def fail_after_materialization(**_kwargs: Any):  # type: ignore[no-untyped-def]
+        publisher.data_root.mkdir(parents=True, exist_ok=True)
+        (publisher.data_root / "failed-owned-artifact.bin").write_bytes(
+            b"x" * 7_000_000
+        )
         raise ProfiledTrainingEnrichmentRecordV1Error(
             "PROFILED_TRAINING_INJECTED_FAILURE_AFTER_AUXILIARY_CAS"
         )
@@ -2377,7 +2382,8 @@ def test_failed_attempt_filesystem_cost_is_charged_to_adaptive_observations(
     assert status["failed_symbols"] == ["BTCUSDT"]
     assert status["failures"][0]["materialized_evidence_bytes"] == 7_000_000
     assert status["cycle_evidence_accounted_bytes"] == 7_000_000
-    assert status["cycle_disk_consumption_high_water_bytes"] == 7_000_000
+    assert status["cycle_disk_consumption_high_water_bytes"] == 70_000_000
+    assert status["cycle_owned_durable_growth_bytes"] == 7_000_000
     persisted = json.loads((tmp_path / "state.json").read_text("ascii"))
     assert persisted["observations"]["materialized_publication_count"] == 2
     assert persisted["observations"]["materialized_publication_bytes"] == (

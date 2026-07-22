@@ -248,6 +248,9 @@ def bounded_cycle_summary(status: dict[str, Any], *, status_path: Path) -> dict[
         "cycle_disk_consumption_high_water_bytes": status.get(
             "cycle_disk_consumption_high_water_bytes"
         ),
+        "cycle_owned_durable_growth_bytes": status.get(
+            "cycle_owned_durable_growth_bytes"
+        ),
         "resource_decision": resource_summary,
         "status_sha256": status.get("status_sha256"),
         "full_status_path": str(status_path),
