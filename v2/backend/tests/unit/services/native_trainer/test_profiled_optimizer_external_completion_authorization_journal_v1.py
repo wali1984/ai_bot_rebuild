@@ -4,9 +4,11 @@ import base64
 import hashlib
 import json
 import sqlite3
+import stat
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
+from urllib.parse import unquote, urlsplit
 
 import pytest
 from cryptography.hazmat.primitives import serialization
@@ -65,6 +67,64 @@ def _journal(tmp_path: Path) -> ProfiledOptimizerCompletionAuthorizationJournalV
         root / "completion-authorization-journal.sqlite3",
         immutable_store=ImmutableSourcePayloadStore(root / "completion-authorization-cas"),
     )
+
+
+def _filesystem_snapshot(root: Path) -> dict[str, tuple[object, ...]]:
+    snapshot: dict[str, tuple[object, ...]] = {}
+    for path in sorted(root.rglob("*")):
+        metadata = path.lstat()
+        relative = str(path.relative_to(root))
+        common = (
+            stat.S_IMODE(metadata.st_mode),
+            metadata.st_uid,
+            metadata.st_nlink,
+            metadata.st_size,
+            metadata.st_mtime_ns,
+        )
+        if stat.S_ISREG(metadata.st_mode):
+            snapshot[relative] = (
+                "file",
+                *common,
+                hashlib.sha256(path.read_bytes()).hexdigest(),
+            )
+        elif stat.S_ISDIR(metadata.st_mode):
+            snapshot[relative] = ("directory", *common)
+        elif stat.S_ISLNK(metadata.st_mode):
+            snapshot[relative] = ("symlink", *common, path.readlink())
+        else:
+            snapshot[relative] = ("other", *common)
+    return snapshot
+
+
+def _journal_evidence_snapshot(
+    journal: ProfiledOptimizerCompletionAuthorizationJournalV1,
+) -> dict[str, tuple[int, int, int, int, int, int, int, str]]:
+    paths = [
+        journal.path,
+        Path(f"{journal.path}-wal"),
+        Path(f"{journal.path}-shm"),
+    ]
+    paths.extend(
+        path
+        for path in journal.immutable_store.root_path.rglob("*")
+        if path.is_file() and not path.is_symlink()
+    )
+    snapshot: dict[str, tuple[int, int, int, int, int, int, int, str]] = {}
+    for path in sorted(set(paths)):
+        if not path.exists():
+            continue
+        metadata = path.stat()
+        snapshot[str(path)] = (
+            metadata.st_dev,
+            metadata.st_ino,
+            stat.S_IMODE(metadata.st_mode),
+            metadata.st_nlink,
+            metadata.st_size,
+            metadata.st_mtime_ns,
+            metadata.st_ctime_ns,
+            hashlib.sha256(path.read_bytes()).hexdigest(),
+        )
+    return snapshot
 
 
 def _prepared(evidence: dict[str, Any]) -> Any:
@@ -259,6 +319,200 @@ def test_completion_lookup_reopens_exact_pending_and_anchored_record(
     assert reopened_anchor.state == AUTHORIZATION_ANCHORED
     assert reopened_anchor.verified is not None
     assert reopened_anchor.verified.authorization_envelope_bytes == envelope
+
+
+def test_read_only_completion_lookup_is_exact_query_only_and_non_mutating(
+    tmp_path: Path,
+    adapter_evidence: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    journal = _journal(tmp_path)
+    prepared = _prepared(adapter_evidence)
+    pending = journal.persist_prepared_request(
+        prepared=prepared,
+        witness_public_key_bytes=adapter_evidence["public_key"],
+    )
+    anchored = journal.commit_authorization_anchored(
+        operation_id=pending.operation_id,
+        authorization_envelope_bytes=request_support._signed_envelope(prepared),
+        witness_public_key_bytes=adapter_evidence["public_key"],
+    )
+    writer_lock = Path(f"{journal.path}.writer.lock")
+    writer_lock.unlink()
+    before = _journal_evidence_snapshot(journal)
+    connect_calls: list[tuple[str, bool]] = []
+    statements: list[str] = []
+    original_connect = journal_module.sqlite3.connect
+
+    def tracking_connect(database: object, *args: Any, **kwargs: Any) -> Any:
+        connection = original_connect(database, *args, **kwargs)
+        connect_calls.append((str(database), kwargs.get("uri") is True))
+        connection.set_trace_callback(statements.append)
+        return connection
+
+    monkeypatch.setattr(journal_module.sqlite3, "connect", tracking_connect)
+
+    reopened = journal.load_request_for_completion_read_only_v1(
+        witness_id=prepared.witness_id,
+        authorization_namespace=prepared.authorization_namespace,
+        completion_event_sha256=prepared.completion_event_sha256,
+        witness_public_key_bytes=adapter_evidence["public_key"],
+    )
+
+    journal_connections = [
+        (database, uri) for database, uri in connect_calls if database != ":memory:"
+    ]
+    normalized_statements = {"".join(statement.lower().split()) for statement in statements}
+    assert reopened == anchored
+    assert journal_connections
+    assert all(
+        uri and database.startswith("file:") and "mode=ro" in database
+        for database, uri in journal_connections
+    )
+    assert all(str(journal.path) not in database for database, _ in connect_calls)
+    assert "pragmaquery_only=on" in normalized_statements
+    assert _journal_evidence_snapshot(journal) == before
+    assert not writer_lock.exists()
+
+
+def test_read_only_completion_lookup_missing_journal_creates_nothing(
+    tmp_path: Path,
+    adapter_evidence: dict[str, Any],
+) -> None:
+    journal = _journal(tmp_path)
+    prepared = _prepared(adapter_evidence)
+    writer_lock = Path(f"{journal.path}.writer.lock")
+    before = _filesystem_snapshot(tmp_path)
+
+    with pytest.raises(ProfiledOptimizerCompletionAuthorizationJournalV1Error):
+        journal.load_request_for_completion_read_only_v1(
+            witness_id=prepared.witness_id,
+            authorization_namespace=prepared.authorization_namespace,
+            completion_event_sha256=prepared.completion_event_sha256,
+            witness_public_key_bytes=adapter_evidence["public_key"],
+        )
+
+    assert not journal.path.exists()
+    assert not Path(f"{journal.path}-wal").exists()
+    assert not Path(f"{journal.path}-shm").exists()
+    assert not writer_lock.exists()
+    assert _filesystem_snapshot(tmp_path) == before
+
+
+def test_read_only_completion_lookup_observes_uncheckpointed_wal_anchor(
+    tmp_path: Path,
+    adapter_evidence: dict[str, Any],
+) -> None:
+    journal = _journal(tmp_path)
+    journal.initialize()
+    keeper = sqlite3.connect(journal.path, isolation_level=None)
+    try:
+        assert str(keeper.execute("PRAGMA journal_mode=WAL").fetchone()[0]).lower() == "wal"
+        keeper.execute("PRAGMA wal_autocheckpoint=0")
+        keeper.execute("BEGIN")
+        assert keeper.execute(
+            "SELECT COUNT(*) FROM authorization_journal_operations"
+        ).fetchone() == (0,)
+
+        prepared = _prepared(adapter_evidence)
+        pending = journal.persist_prepared_request(
+            prepared=prepared,
+            witness_public_key_bytes=adapter_evidence["public_key"],
+        )
+        anchored = journal.commit_authorization_anchored(
+            operation_id=pending.operation_id,
+            authorization_envelope_bytes=request_support._signed_envelope(prepared),
+            witness_public_key_bytes=adapter_evidence["public_key"],
+        )
+        wal_path = Path(f"{journal.path}-wal")
+        assert wal_path.is_file()
+        assert wal_path.stat().st_size > 0
+        writer_lock = Path(f"{journal.path}.writer.lock")
+        writer_lock.unlink()
+        source_paths = (
+            journal.path,
+            wal_path,
+            Path(f"{journal.path}-shm"),
+        )
+        original_modes = {
+            path: stat.S_IMODE(path.stat().st_mode) for path in source_paths if path.exists()
+        }
+        original_parent_mode = stat.S_IMODE(tmp_path.stat().st_mode)
+        try:
+            for path in original_modes:
+                path.chmod(0o400)
+            tmp_path.chmod(0o500)
+            before = _journal_evidence_snapshot(journal)
+
+            reopened = journal.load_request_for_completion_read_only_v1(
+                witness_id=prepared.witness_id,
+                authorization_namespace=prepared.authorization_namespace,
+                completion_event_sha256=prepared.completion_event_sha256,
+                witness_public_key_bytes=adapter_evidence["public_key"],
+            )
+
+            assert reopened == anchored
+            assert _journal_evidence_snapshot(journal) == before
+            assert not writer_lock.exists()
+        finally:
+            tmp_path.chmod(original_parent_mode)
+            for path, mode in original_modes.items():
+                path.chmod(mode)
+    finally:
+        keeper.rollback()
+        keeper.close()
+
+
+def test_read_only_completion_lookup_rejects_connect_time_scratch_inode_swap(
+    tmp_path: Path,
+    adapter_evidence: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    journal = _journal(tmp_path)
+    journal.initialize()
+    prepared = _prepared(adapter_evidence)
+    writer_lock = Path(f"{journal.path}.writer.lock")
+    writer_lock.unlink()
+    before = _journal_evidence_snapshot(journal)
+    original_connect = journal_module.sqlite3.connect
+    swapped_paths: list[Path] = []
+
+    def swapping_connect(database: object, *args: Any, **kwargs: Any) -> Any:
+        database_text = str(database)
+        if database_text.startswith("file:") and "mode=ro" in database_text:
+            parsed = urlsplit(database_text)
+            scratch_path = Path(unquote(parsed.path))
+            displaced = scratch_path.with_name("journal-displaced.sqlite3")
+            payload = scratch_path.read_bytes()
+            mode = stat.S_IMODE(scratch_path.stat().st_mode)
+            scratch_path.replace(displaced)
+            scratch_path.write_bytes(payload)
+            scratch_path.chmod(mode)
+            try:
+                connection = original_connect(database, *args, **kwargs)
+            finally:
+                scratch_path.unlink(missing_ok=True)
+                displaced.replace(scratch_path)
+            swapped_paths.append(scratch_path)
+            return connection
+        return original_connect(database, *args, **kwargs)
+
+    monkeypatch.setattr(journal_module.sqlite3, "connect", swapping_connect)
+
+    with pytest.raises(
+        ProfiledOptimizerCompletionAuthorizationJournalV1Error,
+        match="PROFILED_OPTIMIZER_AUTHORIZATION_JOURNAL_SNAPSHOT_INODE_CHANGED",
+    ):
+        journal.load_request_for_completion_read_only_v1(
+            witness_id=prepared.witness_id,
+            authorization_namespace=prepared.authorization_namespace,
+            completion_event_sha256=prepared.completion_event_sha256,
+            witness_public_key_bytes=adapter_evidence["public_key"],
+        )
+
+    assert len(swapped_paths) == 1
+    assert _journal_evidence_snapshot(journal) == before
+    assert not writer_lock.exists()
 
 
 def test_exact_prepared_replay_is_idempotent_and_changed_material_conflicts(

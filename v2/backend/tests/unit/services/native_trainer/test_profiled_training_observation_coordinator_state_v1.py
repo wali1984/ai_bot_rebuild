@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import stat
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -76,6 +77,33 @@ ProfiledTrainingObservationCoordinatorStateStoreV1 = (
 ProfiledTrainingObservationCoordinatorStateV1Error = (
     state_module.ProfiledTrainingObservationCoordinatorStateV1Error
 )
+
+
+def _filesystem_snapshot(root: Path) -> dict[str, tuple[object, ...]]:
+    snapshot: dict[str, tuple[object, ...]] = {}
+    for path in sorted(root.rglob("*")):
+        metadata = path.lstat()
+        relative = str(path.relative_to(root))
+        common = (
+            stat.S_IMODE(metadata.st_mode),
+            metadata.st_uid,
+            metadata.st_nlink,
+            metadata.st_size,
+            metadata.st_mtime_ns,
+        )
+        if stat.S_ISREG(metadata.st_mode):
+            snapshot[relative] = (
+                "file",
+                *common,
+                hashlib.sha256(path.read_bytes()).hexdigest(),
+            )
+        elif stat.S_ISDIR(metadata.st_mode):
+            snapshot[relative] = ("directory", *common)
+        elif stat.S_ISLNK(metadata.st_mode):
+            snapshot[relative] = ("symlink", *common, path.readlink())
+        else:
+            snapshot[relative] = ("other", *common)
+    return snapshot
 
 
 @pytest.fixture(scope="module")
@@ -292,6 +320,65 @@ def test_prepared_cursor_is_authenticated_durable_and_non_authoritative(
     assert integrity is not None
     assert integrity.transition_count == 1
     assert integrity.complete_chain_verified is True
+
+
+def test_read_only_load_absent_state_creates_no_artifacts(tmp_path: Path) -> None:
+    store = _state_store(tmp_path)
+    writer_lock = Path(f"{store.lease_target_path}.writer.lock")
+    before = _filesystem_snapshot(tmp_path)
+
+    integrity, cursor = store.load_verified_snapshot_read_only_v1()
+
+    assert integrity is None
+    assert cursor is None
+    assert _filesystem_snapshot(tmp_path) == before
+    assert not writer_lock.exists()
+
+
+def test_read_only_load_verifies_full_chain_without_mutating_state(
+    tmp_path: Path,
+    evidence: dict[str, Any],
+) -> None:
+    store = _state_store(tmp_path)
+    states = _advance_to_completion(store, evidence)
+    expected_cursor = states[-1]
+    writer_lock = Path(f"{store.lease_target_path}.writer.lock")
+    writer_lock.unlink()
+    before = _filesystem_snapshot(tmp_path)
+
+    integrity, cursor = store.load_verified_snapshot_read_only_v1()
+
+    assert cursor == expected_cursor
+    assert integrity is not None
+    assert integrity.transition_count == expected_cursor.transition_sequence
+    assert integrity.current_transition_sequence == expected_cursor.transition_sequence
+    assert integrity.current_state_event_sha256 == expected_cursor.state_event_sha256
+    assert integrity.current_cycle_id == expected_cursor.cycle_id
+    assert integrity.current_phase == expected_cursor.phase
+    assert integrity.complete_chain_verified is True
+    assert _filesystem_snapshot(tmp_path) == before
+    assert not writer_lock.exists()
+
+
+def test_read_only_load_rejects_symlinked_pointer_without_writer_artifacts(
+    tmp_path: Path,
+    evidence: dict[str, Any],
+) -> None:
+    store = _state_store(tmp_path)
+    _begin(store, evidence)
+    writer_lock = Path(f"{store.lease_target_path}.writer.lock")
+    writer_lock.unlink()
+    pointer_target = store.pointer_path.with_name("cursor-target.json")
+    store.pointer_path.replace(pointer_target)
+    store.pointer_path.symlink_to(pointer_target.name)
+
+    with pytest.raises(
+        ProfiledTrainingObservationCoordinatorStateV1Error,
+        match="PROFILED_COORDINATOR_POINTER",
+    ):
+        store.load_verified_snapshot_read_only_v1()
+
+    assert not writer_lock.exists()
 
 
 def test_same_publisher_cycle_is_idempotent_without_new_transition(

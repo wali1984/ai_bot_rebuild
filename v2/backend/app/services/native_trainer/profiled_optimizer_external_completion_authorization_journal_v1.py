@@ -16,6 +16,8 @@ import json
 import os
 import re
 import sqlite3
+import stat
+import tempfile
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -898,6 +900,364 @@ class ProfiledOptimizerCompletionAuthorizationJournalV1:
             raise ProfiledOptimizerCompletionAuthorizationJournalV1Error(
                 "PROFILED_OPTIMIZER_AUTHORIZATION_JOURNAL_CONNECTION_CLOSE_FAILED"
             ) from close_error
+
+    @staticmethod
+    def _read_only_file_signature(
+        observed: os.stat_result,
+    ) -> tuple[int, int, int, int, int, int, int, int]:
+        return (
+            observed.st_dev,
+            observed.st_ino,
+            observed.st_mode,
+            observed.st_uid,
+            observed.st_nlink,
+            observed.st_size,
+            observed.st_mtime_ns,
+            observed.st_ctime_ns,
+        )
+
+    @classmethod
+    def _open_read_only_source_file_v1(
+        cls,
+        path: Path,
+        *,
+        missing_ok: bool,
+        require_nonempty: bool,
+    ) -> tuple[int, tuple[int, int, int, int, int, int, int, int]] | None:
+        descriptor: int | None = None
+        try:
+            flags = os.O_RDONLY
+            flags |= getattr(os, "O_CLOEXEC", 0)
+            flags |= getattr(os, "O_NOFOLLOW", 0)
+            flags |= getattr(os, "O_NONBLOCK", 0)
+            descriptor = os.open(path, flags)
+            descriptor_stat = os.fstat(descriptor)
+            path_stat = os.lstat(path)
+            descriptor_signature = cls._read_only_file_signature(descriptor_stat)
+            if (
+                not stat.S_ISREG(descriptor_stat.st_mode)
+                or stat.S_ISLNK(descriptor_stat.st_mode)
+                or descriptor_stat.st_uid != os.geteuid()
+                or descriptor_stat.st_nlink != 1
+                or stat.S_IMODE(descriptor_stat.st_mode) & 0o022
+                or (require_nonempty and descriptor_stat.st_size <= 0)
+                or descriptor_signature != cls._read_only_file_signature(path_stat)
+            ):
+                _fail("PROFILED_OPTIMIZER_AUTHORIZATION_JOURNAL_READ_ONLY_FILE_INVALID")
+            return descriptor, descriptor_signature
+        except FileNotFoundError as exc:
+            if missing_ok:
+                if descriptor is not None:
+                    os.close(descriptor)
+                return None
+            raise ProfiledOptimizerCompletionAuthorizationJournalV1Error(
+                "PROFILED_OPTIMIZER_AUTHORIZATION_JOURNAL_READ_ONLY_FILE_MISSING"
+            ) from exc
+        except ProfiledOptimizerCompletionAuthorizationJournalV1Error:
+            if descriptor is not None:
+                os.close(descriptor)
+            raise
+        except OSError as exc:
+            if descriptor is not None:
+                os.close(descriptor)
+            raise ProfiledOptimizerCompletionAuthorizationJournalV1Error(
+                "PROFILED_OPTIMIZER_AUTHORIZATION_JOURNAL_READ_ONLY_FILE_OPEN_FAILED"
+            ) from exc
+
+    @classmethod
+    def _read_only_path_signature_v1(
+        cls,
+        path: Path,
+        *,
+        missing_ok: bool,
+    ) -> tuple[int, int, int, int, int, int, int, int] | None:
+        try:
+            observed = os.lstat(path)
+        except FileNotFoundError:
+            if missing_ok:
+                return None
+            _fail("PROFILED_OPTIMIZER_AUTHORIZATION_JOURNAL_READ_ONLY_FILE_MISSING")
+        except OSError as exc:
+            raise ProfiledOptimizerCompletionAuthorizationJournalV1Error(
+                "PROFILED_OPTIMIZER_AUTHORIZATION_JOURNAL_READ_ONLY_FILE_STAT_FAILED"
+            ) from exc
+        if (
+            not stat.S_ISREG(observed.st_mode)
+            or stat.S_ISLNK(observed.st_mode)
+            or observed.st_uid != os.geteuid()
+            or observed.st_nlink != 1
+            or stat.S_IMODE(observed.st_mode) & 0o022
+        ):
+            _fail("PROFILED_OPTIMIZER_AUTHORIZATION_JOURNAL_READ_ONLY_FILE_INVALID")
+        return cls._read_only_file_signature(observed)
+
+    @staticmethod
+    def _copy_read_only_source_file_v1(
+        descriptor: int,
+        *,
+        expected_size: int,
+        destination: Path,
+    ) -> str:
+        destination_descriptor: int | None = None
+        digest = hashlib.sha256()
+        try:
+            flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+            flags |= getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+            destination_descriptor = os.open(destination, flags, 0o600)
+            offset = 0
+            while offset < expected_size:
+                chunk = os.pread(
+                    descriptor,
+                    min(1024 * 1024, expected_size - offset),
+                    offset,
+                )
+                if not chunk:
+                    _fail(
+                        "PROFILED_OPTIMIZER_AUTHORIZATION_JOURNAL_READ_ONLY_COPY_FAILED"
+                    )
+                digest.update(chunk)
+                written = 0
+                while written < len(chunk):
+                    written += os.write(destination_descriptor, chunk[written:])
+                offset += len(chunk)
+            os.fsync(destination_descriptor)
+            if os.fstat(destination_descriptor).st_size != expected_size:
+                _fail("PROFILED_OPTIMIZER_AUTHORIZATION_JOURNAL_READ_ONLY_COPY_FAILED")
+            return digest.hexdigest()
+        except ProfiledOptimizerCompletionAuthorizationJournalV1Error:
+            raise
+        except OSError as exc:
+            raise ProfiledOptimizerCompletionAuthorizationJournalV1Error(
+                "PROFILED_OPTIMIZER_AUTHORIZATION_JOURNAL_READ_ONLY_COPY_FAILED"
+            ) from exc
+        finally:
+            if destination_descriptor is not None:
+                os.close(destination_descriptor)
+
+    @staticmethod
+    def _read_only_source_digest_v1(
+        descriptor: int,
+        *,
+        expected_size: int,
+    ) -> str:
+        digest = hashlib.sha256()
+        offset = 0
+        try:
+            while offset < expected_size:
+                chunk = os.pread(
+                    descriptor,
+                    min(1024 * 1024, expected_size - offset),
+                    offset,
+                )
+                if not chunk:
+                    _fail(
+                        "PROFILED_OPTIMIZER_AUTHORIZATION_JOURNAL_READ_ONLY_DIGEST_FAILED"
+                    )
+                digest.update(chunk)
+                offset += len(chunk)
+        except ProfiledOptimizerCompletionAuthorizationJournalV1Error:
+            raise
+        except OSError as exc:
+            raise ProfiledOptimizerCompletionAuthorizationJournalV1Error(
+                "PROFILED_OPTIMIZER_AUTHORIZATION_JOURNAL_READ_ONLY_DIGEST_FAILED"
+            ) from exc
+        return digest.hexdigest()
+
+    @staticmethod
+    def _create_empty_scratch_file_v1(path: Path) -> None:
+        descriptor: int | None = None
+        try:
+            flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+            flags |= getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+            descriptor = os.open(path, flags, 0o600)
+            os.fsync(descriptor)
+        except OSError as exc:
+            raise ProfiledOptimizerCompletionAuthorizationJournalV1Error(
+                "PROFILED_OPTIMIZER_AUTHORIZATION_JOURNAL_SCRATCH_CREATE_FAILED"
+            ) from exc
+        finally:
+            if descriptor is not None:
+                os.close(descriptor)
+
+    @contextmanager
+    def _read_only_connection_v1(self) -> Iterator[sqlite3.Connection]:
+        """Open a query-only copy without opening SQLite on coordinator files."""
+
+        source_main: int | None = None
+        source_wal: int | None = None
+        scratch_parent: int | None = None
+        scratch_main: int | None = None
+        connection: sqlite3.Connection | None = None
+        temporary: tempfile.TemporaryDirectory[str] | None = None
+        try:
+            opened_main = self._open_read_only_source_file_v1(
+                self._path,
+                missing_ok=False,
+                require_nonempty=True,
+            )
+            if opened_main is None:  # pragma: no cover - ``missing_ok=False`` is exhaustive.
+                _fail("PROFILED_OPTIMIZER_AUTHORIZATION_JOURNAL_READ_ONLY_FILE_MISSING")
+            source_main, main_signature = opened_main
+            header = os.pread(source_main, 100, 0)
+            if (
+                len(header) != 100
+                or header[:16] != b"SQLite format 3\0"
+                or header[18:20] != b"\x02\x02"
+            ):
+                _fail("PROFILED_OPTIMIZER_AUTHORIZATION_JOURNAL_WAL_HEADER_REQUIRED")
+
+            source_wal_path = Path(f"{self._path}-wal")
+            opened_wal = self._open_read_only_source_file_v1(
+                source_wal_path,
+                missing_ok=True,
+                require_nonempty=False,
+            )
+            wal_signature: tuple[int, int, int, int, int, int, int, int] | None = None
+            if opened_wal is not None:
+                source_wal, wal_signature = opened_wal
+
+            # SQLite ``mode=ro`` can still create or update WAL-index sidecars.
+            # Capture a stable main/WAL pair with descriptor reads, then let
+            # SQLite coordinate only inside a private, disposable directory.
+            temporary = tempfile.TemporaryDirectory(
+                prefix="profiled-authorization-read-v1-"
+            )
+            scratch_path = Path(temporary.name) / "journal.sqlite3"
+            scratch_wal_path = Path(f"{scratch_path}-wal")
+            scratch_shm_path = Path(f"{scratch_path}-shm")
+            main_digest = self._copy_read_only_source_file_v1(
+                source_main,
+                expected_size=main_signature[5],
+                destination=scratch_path,
+            )
+            wal_digest: str | None = None
+            if source_wal is not None and wal_signature is not None:
+                wal_digest = self._copy_read_only_source_file_v1(
+                    source_wal,
+                    expected_size=wal_signature[5],
+                    destination=scratch_wal_path,
+                )
+            else:
+                self._create_empty_scratch_file_v1(scratch_wal_path)
+            self._create_empty_scratch_file_v1(scratch_shm_path)
+
+            if (
+                main_signature != self._read_only_file_signature(os.fstat(source_main))
+                or main_signature
+                != self._read_only_path_signature_v1(self._path, missing_ok=False)
+                or main_digest
+                != self._read_only_source_digest_v1(
+                    source_main,
+                    expected_size=main_signature[5],
+                )
+            ):
+                _fail("PROFILED_OPTIMIZER_AUTHORIZATION_JOURNAL_READ_ONLY_SOURCE_CHANGED")
+            if source_wal is None:
+                if self._read_only_path_signature_v1(
+                    source_wal_path,
+                    missing_ok=True,
+                ) is not None:
+                    _fail(
+                        "PROFILED_OPTIMIZER_AUTHORIZATION_JOURNAL_READ_ONLY_SOURCE_CHANGED"
+                    )
+            elif wal_signature is None or (
+                wal_signature != self._read_only_file_signature(os.fstat(source_wal))
+                or wal_signature
+                != self._read_only_path_signature_v1(source_wal_path, missing_ok=False)
+                or self._read_only_source_digest_v1(
+                    source_wal,
+                    expected_size=wal_signature[5],
+                )
+                != wal_digest
+            ):
+                _fail("PROFILED_OPTIMIZER_AUTHORIZATION_JOURNAL_READ_ONLY_SOURCE_CHANGED")
+
+            parent_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
+            parent_flags |= getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+            scratch_parent = os.open(temporary.name, parent_flags)
+            scratch_parent_signature = self._read_only_file_signature(
+                os.fstat(scratch_parent)
+            )
+            if scratch_parent_signature != self._read_only_file_signature(
+                os.lstat(temporary.name)
+            ):
+                _fail("PROFILED_OPTIMIZER_AUTHORIZATION_JOURNAL_SNAPSHOT_DIRECTORY_CHANGED")
+            scratch_flags = os.O_RDONLY
+            scratch_flags |= getattr(os, "O_CLOEXEC", 0)
+            scratch_flags |= getattr(os, "O_NOFOLLOW", 0)
+            scratch_main = os.open(scratch_path, scratch_flags)
+            scratch_signature = self._read_only_file_signature(os.fstat(scratch_main))
+            connection = sqlite3.connect(
+                f"{scratch_path.as_uri()}?mode=ro",
+                timeout=60.0,
+                isolation_level=None,
+                uri=True,
+            )
+            if (
+                scratch_parent_signature
+                != self._read_only_file_signature(os.fstat(scratch_parent))
+                or scratch_parent_signature
+                != self._read_only_file_signature(os.lstat(temporary.name))
+                or scratch_signature
+                != self._read_only_path_signature_v1(
+                    scratch_path,
+                    missing_ok=False,
+                )
+            ):
+                _fail("PROFILED_OPTIMIZER_AUTHORIZATION_JOURNAL_SNAPSHOT_INODE_CHANGED")
+            database_rows = connection.execute("PRAGMA database_list").fetchall()
+            if len(database_rows) != 1 or database_rows[0][2] != str(scratch_path):
+                _fail("PROFILED_OPTIMIZER_AUTHORIZATION_JOURNAL_SNAPSHOT_PATH_INVALID")
+            connection.row_factory = sqlite3.Row
+            connection.execute(f"PRAGMA busy_timeout={SQLITE_BUSY_TIMEOUT_MILLISECONDS}")
+            connection.execute("PRAGMA query_only=ON")
+            connection.execute("PRAGMA foreign_keys=ON")
+            connection.execute("PRAGMA trusted_schema=OFF")
+            if int(connection.execute("PRAGMA query_only").fetchone()[0]) != 1:
+                _fail("PROFILED_OPTIMIZER_AUTHORIZATION_JOURNAL_QUERY_ONLY_REQUIRED")
+            if str(connection.execute("PRAGMA journal_mode").fetchone()[0]).lower() != "wal":
+                _fail("PROFILED_OPTIMIZER_AUTHORIZATION_JOURNAL_WAL_REQUIRED")
+            if int(connection.execute("PRAGMA foreign_keys").fetchone()[0]) != 1:
+                _fail("PROFILED_OPTIMIZER_AUTHORIZATION_JOURNAL_FOREIGN_KEYS_REQUIRED")
+            connection.execute("BEGIN")
+            self._verify_schema(connection)
+            yield connection
+            if not connection.in_transaction:
+                _fail("PROFILED_OPTIMIZER_AUTHORIZATION_JOURNAL_READ_SNAPSHOT_LOST")
+            if (
+                scratch_parent_signature
+                != self._read_only_file_signature(os.fstat(scratch_parent))
+                or scratch_parent_signature
+                != self._read_only_file_signature(os.lstat(temporary.name))
+                or scratch_signature
+                != self._read_only_file_signature(os.fstat(scratch_main))
+                or scratch_signature
+                != self._read_only_path_signature_v1(scratch_path, missing_ok=False)
+            ):
+                _fail("PROFILED_OPTIMIZER_AUTHORIZATION_JOURNAL_SNAPSHOT_INODE_CHANGED")
+        except ProfiledOptimizerCompletionAuthorizationJournalV1Error:
+            raise
+        except (OSError, sqlite3.Error) as exc:
+            raise ProfiledOptimizerCompletionAuthorizationJournalV1Error(
+                "PROFILED_OPTIMIZER_AUTHORIZATION_JOURNAL_READ_ONLY_CONNECTION_FAILED"
+            ) from exc
+        finally:
+            if connection is not None:
+                try:
+                    if connection.in_transaction:
+                        connection.execute("ROLLBACK")
+                finally:
+                    connection.close()
+            if scratch_main is not None:
+                os.close(scratch_main)
+            if scratch_parent is not None:
+                os.close(scratch_parent)
+            if source_wal is not None:
+                os.close(source_wal)
+            if source_main is not None:
+                os.close(source_main)
+            if temporary is not None:
+                temporary.cleanup()
 
     def _initialize_or_verify_schema(self, connection: sqlite3.Connection) -> bool:
         signature = _schema_signature(connection)
@@ -2142,6 +2502,67 @@ class ProfiledOptimizerCompletionAuthorizationJournalV1:
                 ) from exc
             finally:
                 self._close_connection(connection, writer_lease=held)
+
+    def load_request_for_completion_read_only_v1(
+        self,
+        *,
+        witness_id: str,
+        authorization_namespace: str,
+        completion_event_sha256: str,
+        witness_public_key_bytes: bytes,
+    ) -> ProfiledOptimizerCompletionAuthorizationJournalRecordV1 | None:
+        """Load one exact request from a fully verified query-only snapshot."""
+
+        if (
+            not _valid_identifier(witness_id)
+            or not _valid_identifier(authorization_namespace)
+            or not _valid_sha256(completion_event_sha256)
+        ):
+            _fail("PROFILED_OPTIMIZER_AUTHORIZATION_JOURNAL_COMPLETION_LOOKUP_INVALID")
+        if (
+            type(witness_public_key_bytes) is not bytes
+            or len(witness_public_key_bytes) != ED25519_PUBLIC_KEY_BYTES
+        ):
+            _fail("PROFILED_OPTIMIZER_AUTHORIZATION_JOURNAL_COMPLETION_LOOKUP_KEY_INVALID")
+        key_sha = hashlib.sha256(witness_public_key_bytes).hexdigest()
+        with self._read_only_connection_v1() as connection:
+            try:
+                self._verify_integrity_connection(connection)
+                rows = connection.execute(
+                    """
+                    SELECT * FROM authorization_journal_operations
+                    WHERE namespace = ? AND completion_event_sha256 = ?
+                    ORDER BY authorization_sequence
+                    """,
+                    (authorization_namespace, completion_event_sha256),
+                ).fetchall()
+                if not rows:
+                    return None
+                if len(rows) != 1:
+                    _fail(
+                        "PROFILED_OPTIMIZER_AUTHORIZATION_JOURNAL_COMPLETION_LOOKUP_CONFLICT"
+                    )
+                row = rows[0]
+                if (
+                    row["witness_id"] != witness_id
+                    or row["witness_public_key_sha256"] != key_sha
+                ):
+                    _fail(
+                        "PROFILED_OPTIMIZER_AUTHORIZATION_JOURNAL_COMPLETION_LOOKUP_WITNESS_MISMATCH"
+                    )
+                _, stored_key = self._prepared_and_key_from_row(row)
+                if not hmac.compare_digest(stored_key, witness_public_key_bytes):
+                    _fail(
+                        "PROFILED_OPTIMIZER_AUTHORIZATION_JOURNAL_COMPLETION_LOOKUP_KEY_MISMATCH"
+                    )
+                return self._load_record_connection(
+                    connection,
+                    operation_id=row["operation_id"],
+                )
+            except sqlite3.Error as exc:
+                raise ProfiledOptimizerCompletionAuthorizationJournalV1Error(
+                    "PROFILED_OPTIMIZER_AUTHORIZATION_JOURNAL_COMPLETION_LOOKUP_FAILED"
+                ) from exc
 
     def load_pending_requests(
         self,

@@ -1229,29 +1229,110 @@ class ProfiledTrainingObservationCoordinatorStateStoreV1:
         writer_lease: FeatureSnapshotWriterLease,
     ) -> ProfiledTrainingObservationCoordinatorCursorV1 | None:
         self._require_lease(writer_lease)
+        snapshot = self._read_pointer_snapshot_read_only_v1()
+        if snapshot is None:
+            return None
+        framed, _, _ = snapshot
+        return self._cursor_from_pointer_frame(framed)
+
+    @staticmethod
+    def _pointer_file_identity(
+        observed: os.stat_result,
+    ) -> tuple[int, int, int, int, int, int, int, int]:
+        return (
+            observed.st_dev,
+            observed.st_ino,
+            observed.st_mode,
+            observed.st_uid,
+            observed.st_nlink,
+            observed.st_size,
+            observed.st_mtime_ns,
+            observed.st_ctime_ns,
+        )
+
+    @staticmethod
+    def _pointer_file_is_valid(observed: os.stat_result) -> bool:
+        return (
+            stat.S_ISREG(observed.st_mode)
+            and not stat.S_ISLNK(observed.st_mode)
+            and observed.st_uid == os.geteuid()
+            and observed.st_nlink == 1
+            and not stat.S_IMODE(observed.st_mode) & 0o022
+            and 1
+            < observed.st_size
+            <= MAX_PROFILED_OBSERVATION_COORDINATOR_POINTER_BYTES + 1
+        )
+
+    def _read_pointer_snapshot_read_only_v1(
+        self,
+    ) -> tuple[bytes, int, int] | None:
+        """Read one immutable pointer view without locks or filesystem writes."""
+
+        descriptor: int | None = None
         try:
-            observed = os.lstat(self._pointer_path)
+            flags = os.O_RDONLY
+            flags |= getattr(os, "O_CLOEXEC", 0)
+            flags |= getattr(os, "O_NOFOLLOW", 0)
+            flags |= getattr(os, "O_NONBLOCK", 0)
+            descriptor = os.open(self._pointer_path, flags)
         except FileNotFoundError:
             return None
         except OSError as exc:
             raise ProfiledTrainingObservationCoordinatorStateV1Error(
                 "PROFILED_COORDINATOR_POINTER_READ_FAILED"
             ) from exc
-        if (
-            not stat.S_ISREG(observed.st_mode)
-            or stat.S_ISLNK(observed.st_mode)
-            or observed.st_uid != os.geteuid()
-            or observed.st_nlink != 1
-            or stat.S_IMODE(observed.st_mode) & 0o022
-            or not 1 < observed.st_size <= MAX_PROFILED_OBSERVATION_COORDINATOR_POINTER_BYTES + 1
-        ):
-            _fail("PROFILED_COORDINATOR_POINTER_FILE_INVALID")
         try:
-            framed = self._pointer_path.read_bytes()
+            descriptor_before = os.fstat(descriptor)
+            path_before = os.lstat(self._pointer_path)
+            if (
+                not self._pointer_file_is_valid(descriptor_before)
+                or not self._pointer_file_is_valid(path_before)
+                or (descriptor_before.st_dev, descriptor_before.st_ino)
+                != (path_before.st_dev, path_before.st_ino)
+            ):
+                _fail("PROFILED_COORDINATOR_POINTER_FILE_INVALID")
+
+            maximum_framed_bytes = MAX_PROFILED_OBSERVATION_COORDINATOR_POINTER_BYTES + 1
+            chunks: list[bytes] = []
+            observed_bytes = 0
+            while True:
+                remaining_probe = maximum_framed_bytes + 1 - observed_bytes
+                if remaining_probe <= 0:
+                    _fail("PROFILED_COORDINATOR_POINTER_FILE_INVALID")
+                chunk = os.read(descriptor, min(64 * 1024, remaining_probe))
+                if not chunk:
+                    break
+                chunks.append(chunk)
+                observed_bytes += len(chunk)
+                if observed_bytes > maximum_framed_bytes:
+                    _fail("PROFILED_COORDINATOR_POINTER_FILE_INVALID")
+            framed = b"".join(chunks)
+
+            descriptor_after = os.fstat(descriptor)
+            path_after = os.lstat(self._pointer_path)
+            stable_identity = self._pointer_file_identity(descriptor_before)
+            if (
+                stable_identity != self._pointer_file_identity(descriptor_after)
+                or stable_identity != self._pointer_file_identity(path_before)
+                or stable_identity != self._pointer_file_identity(path_after)
+                or len(framed) != descriptor_after.st_size
+            ):
+                _fail("PROFILED_COORDINATOR_POINTER_CONCURRENT_REPLACEMENT")
+            return framed, descriptor_after.st_dev, descriptor_after.st_ino
+        except ProfiledTrainingObservationCoordinatorStateV1Error:
+            raise
         except OSError as exc:
             raise ProfiledTrainingObservationCoordinatorStateV1Error(
                 "PROFILED_COORDINATOR_POINTER_READ_FAILED"
             ) from exc
+        finally:
+            if descriptor is not None:
+                os.close(descriptor)
+
+    def _cursor_from_pointer_frame(
+        self,
+        framed: bytes,
+    ) -> ProfiledTrainingObservationCoordinatorCursorV1:
         if not framed.endswith(b"\n") or b"\r" in framed:
             _fail("PROFILED_COORDINATOR_POINTER_FRAMING_INVALID")
         pointer = _strict_json(
@@ -1892,6 +1973,73 @@ class ProfiledTrainingObservationCoordinatorStateStoreV1:
         if any(prior._material[name] != current._material[name] for name in immutable_fields):
             _fail("PROFILED_COORDINATOR_SAME_CYCLE_IMMUTABLE_FIELD_CHANGED")
 
+    def _verify_integrity_from_cursor(
+        self,
+        current: ProfiledTrainingObservationCoordinatorCursorV1,
+    ) -> ProfiledTrainingObservationCoordinatorIntegrityV1:
+        observed = current
+        count = 1
+        while observed.transition_sequence > 1:
+            if count >= MAX_PROFILED_OBSERVATION_COORDINATOR_TRANSITIONS:
+                _fail("PROFILED_COORDINATOR_TRANSITION_RESOURCE_LIMIT_EXCEEDED")
+            try:
+                raw = self._store.get(observed.previous_state_event_sha256)
+            except SourcePayloadStoreError as exc:
+                raise ProfiledTrainingObservationCoordinatorStateV1Error(
+                    "PROFILED_COORDINATOR_STATE_CHAIN_CAS_INVALID"
+                ) from exc
+            prior = self._cursor_from_event(
+                event_sha256=observed.previous_state_event_sha256,
+                event_byte_count=len(raw),
+                raw=raw,
+            )
+            if prior.transition_sequence != observed.transition_sequence - 1:
+                _fail("PROFILED_COORDINATOR_STATE_CHAIN_SEQUENCE_GAP")
+            self._validate_adjacent_states(prior, observed)
+            observed = prior
+            count += 1
+        if (
+            observed.previous_state_event_sha256
+            != PROFILED_OBSERVATION_COORDINATOR_GENESIS_STATE_EVENT_SHA256
+            or count != current.transition_sequence
+        ):
+            _fail("PROFILED_COORDINATOR_STATE_CHAIN_GENESIS_INVALID")
+        return ProfiledTrainingObservationCoordinatorIntegrityV1(
+            schema_version=PROFILED_OBSERVATION_COORDINATOR_INTEGRITY_V1_SCHEMA_VERSION,
+            transition_count=count,
+            current_transition_sequence=current.transition_sequence,
+            current_state_event_sha256=current.state_event_sha256,
+            current_cycle_id=current.cycle_id,
+            current_phase=current.phase,
+            complete_chain_verified=True,
+            _construction_token=_INTEGRITY_TOKEN,
+        )
+
+    def load_verified_snapshot_read_only_v1(
+        self,
+    ) -> tuple[
+        ProfiledTrainingObservationCoordinatorIntegrityV1 | None,
+        ProfiledTrainingObservationCoordinatorCursorV1 | None,
+    ]:
+        """Return one fully verified snapshot without leases or filesystem writes."""
+
+        initial = self._read_pointer_snapshot_read_only_v1()
+        if initial is None:
+            return None, None
+        framed, device, inode = initial
+        current = self._cursor_from_pointer_frame(framed)
+        integrity = self._verify_integrity_from_cursor(current)
+        final = self._read_pointer_snapshot_read_only_v1()
+        if final is None:
+            _fail("PROFILED_COORDINATOR_POINTER_CONCURRENT_REPLACEMENT")
+        final_framed, final_device, final_inode = final
+        if (
+            (device, inode) != (final_device, final_inode)
+            or not hmac.compare_digest(framed, final_framed)
+        ):
+            _fail("PROFILED_COORDINATOR_POINTER_CONCURRENT_REPLACEMENT")
+        return integrity, current
+
     def verify_integrity(
         self,
         *,
@@ -1901,43 +2049,7 @@ class ProfiledTrainingObservationCoordinatorStateStoreV1:
             current = self._load_held(writer_lease=held)
             if current is None:
                 return None
-            observed = current
-            count = 1
-            while observed.transition_sequence > 1:
-                if count >= MAX_PROFILED_OBSERVATION_COORDINATOR_TRANSITIONS:
-                    _fail("PROFILED_COORDINATOR_TRANSITION_RESOURCE_LIMIT_EXCEEDED")
-                try:
-                    raw = self._store.get(observed.previous_state_event_sha256)
-                except SourcePayloadStoreError as exc:
-                    raise ProfiledTrainingObservationCoordinatorStateV1Error(
-                        "PROFILED_COORDINATOR_STATE_CHAIN_CAS_INVALID"
-                    ) from exc
-                prior = self._cursor_from_event(
-                    event_sha256=observed.previous_state_event_sha256,
-                    event_byte_count=len(raw),
-                    raw=raw,
-                )
-                if prior.transition_sequence != observed.transition_sequence - 1:
-                    _fail("PROFILED_COORDINATOR_STATE_CHAIN_SEQUENCE_GAP")
-                self._validate_adjacent_states(prior, observed)
-                observed = prior
-                count += 1
-            if (
-                observed.previous_state_event_sha256
-                != PROFILED_OBSERVATION_COORDINATOR_GENESIS_STATE_EVENT_SHA256
-                or count != current.transition_sequence
-            ):
-                _fail("PROFILED_COORDINATOR_STATE_CHAIN_GENESIS_INVALID")
-            return ProfiledTrainingObservationCoordinatorIntegrityV1(
-                schema_version=PROFILED_OBSERVATION_COORDINATOR_INTEGRITY_V1_SCHEMA_VERSION,
-                transition_count=count,
-                current_transition_sequence=current.transition_sequence,
-                current_state_event_sha256=current.state_event_sha256,
-                current_cycle_id=current.cycle_id,
-                current_phase=current.phase,
-                complete_chain_verified=True,
-                _construction_token=_INTEGRITY_TOKEN,
-            )
+            return self._verify_integrity_from_cursor(current)
 
 
 __all__ = (

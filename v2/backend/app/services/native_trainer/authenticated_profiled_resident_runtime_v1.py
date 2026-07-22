@@ -71,6 +71,7 @@ from v2.backend.app.services.native_trainer.profiled_optimizer_external_completi
     AUTHORIZATION_ANCHORED,
     ProfiledOptimizerCompletionAuthorizationJournalRecordV1,
     ProfiledOptimizerCompletionAuthorizationJournalV1,
+    ProfiledOptimizerCompletionAuthorizationJournalV1Error,
 )
 from v2.backend.app.services.native_trainer.profiled_training_observation_coordinator_state_v1 import (  # noqa: E501
     PROFILED_OBSERVATION_COORDINATOR_LOCAL_COMPLETION_STAGED,
@@ -421,9 +422,7 @@ def _state_snapshot(
         epoch_auth_key_id=config.epoch_auth_key_id,
         epoch_hmac_key=config.epoch_hmac_key,
     )
-    with config.state_store.writer_lease() as lease:
-        integrity = config.state_store.verify_integrity(writer_lease=lease)
-        cursor = config.state_store.load(writer_lease=lease)
+    integrity, cursor = config.state_store.load_verified_snapshot_read_only_v1()
     if cursor is None:
         if integrity is not None:
             _fail("PROFILED_RESIDENT_EMPTY_STATE_INTEGRITY_CONFLICT")
@@ -481,22 +480,26 @@ def _completion_and_authorization(
     ):
         _fail("PROFILED_RESIDENT_COMPLETION_IDENTITY_INVALID")
     try:
-        with config.completion_authorization_journal.writer_lease() as lease:
-            journal_integrity = config.completion_authorization_journal.verify_integrity(
-                writer_lease=lease
-            )
-            record = config.completion_authorization_journal.load_request_for_completion(
+        record = (
+            config.completion_authorization_journal.load_request_for_completion_read_only_v1(
                 witness_id=config.witness_id,
                 authorization_namespace=config.witness_namespace,
                 completion_event_sha256=cursor.completion_event_sha256,
                 witness_public_key_bytes=config.witness_public_key_bytes,
-                writer_lease=lease,
             )
+        )
+    except ProfiledOptimizerCompletionAuthorizationJournalV1Error as exc:
+        if exc.reasons == (
+            "PROFILED_OPTIMIZER_AUTHORIZATION_JOURNAL_READ_ONLY_FILE_MISSING",
+        ):
+            return completion, None
+        raise AuthenticatedProfiledResidentRuntimeV1Error(
+            "PROFILED_RESIDENT_AUTHORIZATION_JOURNAL_INVALID"
+        ) from exc
     except Exception as exc:
         raise AuthenticatedProfiledResidentRuntimeV1Error(
             "PROFILED_RESIDENT_AUTHORIZATION_JOURNAL_INVALID"
         ) from exc
-    journal_integrity.__post_init__()
     if record is None:
         return completion, None
     record.__post_init__()
@@ -518,7 +521,6 @@ def _completion_and_authorization(
         or verified.external_monotonic_manifest_head_verified is not True
         or verified.full_consumption_external_ack_verified is not True
         or verified.profiled_optimizer_admission_authorized is not True
-        or journal_integrity.anchored_count <= 0
     ):
         _fail("PROFILED_RESIDENT_AUTHORIZATION_IDENTITY_INVALID")
     return completion, record
