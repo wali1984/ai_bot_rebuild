@@ -51,8 +51,11 @@ PRODUCER_SCHEMA_VERSION = "v2_liquidation_surface_producer_status_v1"
 SURFACE_TIMEFRAMES = ("1m", "5m", "15m", "1h", "4h")
 COINANK_OI_TIMEFRAMES = ("5m", "15m", "30m", "1h", "4h", "1d")
 DEFAULT_ARCHIVE_TTL_SECONDS = 600
-DEFAULT_RECEIPT_TTL_SECONDS = 180
-DEFAULT_STATUS_TTL_SECONDS = 180
+# Operational retention only: these do not admit market data or influence a
+# model/risk decision. A receipt/pointer must outlive one measured full-
+# universe cycle, while its archive remains strictly longer-lived.
+DEFAULT_RECEIPT_TTL_SECONDS = 540
+DEFAULT_STATUS_TTL_SECONDS = 600
 MAX_ERROR_SAMPLES = 32
 MAX_REASON_TEXT = 192
 _SYMBOL_RE = re.compile(r"^[A-Z0-9]{5,30}$", re.ASCII)
@@ -717,20 +720,34 @@ def run_producer_cycle(
             authenticated_bracket_symbols += 1
 
     cycle_completed_at_ms = redis_now_ms(redis_client)
-    if published == lane_count:
+    cycle_duration_ms = cycle_completed_at_ms - cycle_started_at_ms
+    receipt_ttl_margin_ms = receipt_ttl_seconds * 1_000 - cycle_duration_ms
+    if published == lane_count and receipt_ttl_margin_ms > 0:
         status = "COMPLETE"
+        reason = "ALL_LANES_PUBLISHED_WITH_CONTINUOUS_POINTER_COVERAGE"
+    elif published == lane_count:
+        status = "PARTIAL"
+        reason = "RECEIPT_TTL_DID_NOT_OUTLIVE_FULL_UNIVERSE_CYCLE"
     elif published:
         status = "PARTIAL"
+        reason = "SOME_UNIVERSE_TIMEFRAME_LANES_NOT_PUBLISHED"
     else:
         status = "BLOCKED"
+        reason = "NO_UNIVERSE_TIMEFRAME_LANES_PUBLISHED"
     result: dict[str, Any] = {
         "schema_version": PRODUCER_SCHEMA_VERSION,
         "status": status,
+        "reason": reason,
         "venue": "binance_usdm",
         "publication_scope_sha256": publication_security_context.publication_scope_sha256,
         "cycle_started_at": cycle_started_at_ms,
         "cycle_completed_at": cycle_completed_at_ms,
-        "cycle_duration_ms": cycle_completed_at_ms - cycle_started_at_ms,
+        "cycle_duration_ms": cycle_duration_ms,
+        "archive_ttl_seconds": archive_ttl_seconds,
+        "receipt_ttl_seconds": receipt_ttl_seconds,
+        "status_ttl_seconds": status_ttl_seconds,
+        "receipt_ttl_margin_ms": receipt_ttl_margin_ms,
+        "continuous_pointer_coverage": receipt_ttl_margin_ms > 0,
         "symbol_count": len(ordered_symbols),
         "timeframe_count": len(ordered_timeframes),
         "lane_count": lane_count,

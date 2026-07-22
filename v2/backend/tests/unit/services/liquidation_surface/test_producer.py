@@ -358,14 +358,15 @@ def test_publication_scope_is_derived_from_exact_bracket_binding() -> None:
 
 
 class _CycleRedis:
-    def __init__(self) -> None:
+    def __init__(self, *, clock_step_ms: int = 1) -> None:
         # Keep the Redis decision clock causally after the snapshot's source
         # observation time.  A clock before ``available_at`` must fail closed.
         self.clock = BASE_MS + 300_000
+        self.clock_step_ms = clock_step_ms
         self.status_writes: list[tuple[str, bytes, int]] = []
 
     def time(self) -> tuple[int, int]:
-        self.clock += 1
+        self.clock += self.clock_step_ms
         return self.clock // 1_000, (self.clock % 1_000) * 1_000
 
     def get(self, _key: str) -> None:
@@ -376,10 +377,40 @@ class _CycleRedis:
         return True
 
 
-def test_cycle_counts_publication_without_ever_granting_authority(
+@pytest.mark.parametrize(
+    (
+        "clock_step_ms",
+        "receipt_ttl_seconds",
+        "expected_status",
+        "expected_reason",
+        "continuous_coverage",
+    ),
+    [
+        (
+            1,
+            producer.DEFAULT_RECEIPT_TTL_SECONDS,
+            "COMPLETE",
+            "ALL_LANES_PUBLISHED_WITH_CONTINUOUS_POINTER_COVERAGE",
+            True,
+        ),
+        (
+            2_000,
+            1,
+            "PARTIAL",
+            "RECEIPT_TTL_DID_NOT_OUTLIVE_FULL_UNIVERSE_CYCLE",
+            False,
+        ),
+    ],
+)
+def test_cycle_counts_publication_and_reports_pointer_coverage(
     monkeypatch: pytest.MonkeyPatch,
+    clock_step_ms: int,
+    receipt_ttl_seconds: int,
+    expected_status: str,
+    expected_reason: str,
+    continuous_coverage: bool,
 ) -> None:
-    redis_client = _CycleRedis()
+    redis_client = _CycleRedis(clock_step_ms=clock_step_ms)
     candle_key = f"v2:market:ohlcv_closed:binance:{SYMBOL}:1m"
     mark_key = f"v2:market:mark_price:{SYMBOL}"
 
@@ -418,15 +449,19 @@ def test_cycle_counts_publication_without_ever_granting_authority(
         bracket_security_context=_bracket_context(),
         publication_security_context=_publication_context(),
         mark_history=MarkPriceHistory(),
+        receipt_ttl_seconds=receipt_ttl_seconds,
     )
 
-    assert result["status"] == "COMPLETE"
+    assert result["status"] == expected_status
+    assert result["reason"] == expected_reason
     assert result["lane_count"] == 1
     assert result["published_lane_count"] == 1
     assert result["trainer_semantic_candidate_count"] == 0
     assert result["trainer_authority_count"] == 0
     assert result["observation_pointer_count"] == 1
     assert result["verified_prepared_source_bundle_count"] == 1
+    assert (result["receipt_ttl_margin_ms"] > 0) is continuous_coverage
+    assert result["continuous_pointer_coverage"] is continuous_coverage
     assert result["prediction_authority"] is False
     assert result["paper_trading_authority"] is False
     assert result["live_trading_authority"] is False

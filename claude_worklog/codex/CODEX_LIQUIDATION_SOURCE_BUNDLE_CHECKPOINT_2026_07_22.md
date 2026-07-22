@@ -31,7 +31,7 @@ and pretend those later bytes produced the earlier surface.
 - source families preserved: 4 required + 1 optional mask slot;
 - universe/runtime producer paths changed: 1;
 - receipt fields added: 5;
-- relevant tests passed: 324;
+- relevant tests passed: 325;
 - Ruff violations: 0;
 - live source lanes sized: 795/795 (0 missing finalized-candle payloads);
 - live raw source bundle: 104,936-byte maximum before compression;
@@ -44,6 +44,13 @@ and pretend those later bytes produced the earlier surface.
 - corrective dry-run: BTCUSDT/1m rebuilt with 100 candles, 1 exact mark sample,
   2 OI observations, 12 authenticated brackets, no model rejection, and a
   74,847-byte complete archive;
+- corrected full live cycle: 795/795 candidates, publications, and verified
+  bundles; 390 trainer-candidate pointers; 405 masked observations; 159/159
+  bracket symbols; 159/159 CoinAnk OI symbols; 0 build/publication errors;
+- corrected full-cycle duration: 183,453 ms. The former 180-second receipt and
+  status retention could not provide continuous pointer/status coverage, so
+  storage-only retention is now 600 seconds for archives/status and 540 seconds
+  for receipts/pointers, with an explicit measured margin and coverage gate.
 - publication/trainer authority grants added: 0;
 - live exchange mutation paths changed: 0.
 
