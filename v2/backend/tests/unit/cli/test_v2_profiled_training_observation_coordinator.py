@@ -423,3 +423,31 @@ def test_credential_contract_matches_unit_and_preserves_authority_boundary() -> 
     assert "local-integrity-only" in contract
     assert "optimizer step" in contract
     assert "all false" in contract
+
+
+def test_immutable_dropin_pins_one_exact_committed_release() -> None:
+    repo_root = Path(__file__).resolve().parents[5]
+    dropin = (
+        repo_root
+        / "claude_worklog/systemd/user/"
+        "ai-bot-v2-profiled-training-observation-coordinator.service.d/"
+        "90-immutable-release.conf"
+    ).read_text(encoding="utf-8")
+    release_sha = "0936557c844b6c9f27f4e080a6040e2b0358c061"
+    release_root = (
+        "/home/wali/ai_bot_local_data/deployments/ai_bot_rebuild/" + release_sha
+    )
+
+    assert dropin.count(release_sha) >= 8
+    assert f'Environment="AI_BOT_CODE_SHA={release_sha}"' in dropin
+    assert f"WorkingDirectory={release_root}" in dropin
+    assert f"ReadOnlyPaths={release_root}" in dropin
+    assert f"/usr/bin/git -C {release_root} diff --quiet --exit-code {release_sha} --" in dropin
+    assert (
+        f"ExecStart={release_root}/.venv/bin/python3 -B -m "
+        "v2.backend.app.cli.v2_profiled_training_observation_coordinator"
+        in dropin
+    )
+    assert dropin.count("ExecStart=\n") == 1
+    assert dropin.count("ExecStartPre=\n") == 1
+    assert "Desktop/AI BOT REBUILD/.venv" not in dropin
