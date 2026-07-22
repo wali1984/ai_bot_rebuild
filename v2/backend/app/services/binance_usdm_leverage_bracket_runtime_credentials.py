@@ -119,6 +119,30 @@ def _read_systemd_credential(directory_descriptor: int, name: str) -> str:
     return value
 
 
+def read_protected_systemd_credential(
+    name: str,
+    *,
+    environ: Mapping[str, str] | None = None,
+) -> str:
+    """Read one named systemd credential through the hardened bounded reader.
+
+    The credential name cannot contain a path separator, the credentials
+    directory must be an absolute non-symlink directory, and the leaf must be
+    a bounded regular file.  This intentionally has no environment-value or
+    ordinary-file fallback.
+    """
+
+    values = os.environ if environ is None else environ
+    directory_text = values.get(SYSTEMD_CREDENTIALS_DIRECTORY_ENV, "")
+    if not directory_text:
+        raise LeverageBracketEvidenceError("SYSTEMD_CREDENTIALS_DIRECTORY_INVALID")
+    directory_descriptor = _open_systemd_credentials_directory(Path(directory_text))
+    try:
+        return _read_systemd_credential(directory_descriptor, name)
+    finally:
+        os.close(directory_descriptor)
+
+
 def _runtime_values(
     environ: Mapping[str, str] | None,
 ) -> tuple[Path, str, str, str, str]:
@@ -241,4 +265,5 @@ __all__ = [
     "adapter_and_security_context_from_systemd_credentials",
     "binding_credential_name",
     "consumer_security_context_from_systemd_credentials",
+    "read_protected_systemd_credential",
 ]

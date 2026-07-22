@@ -246,13 +246,14 @@ def test_paper_consumer_dropin_matches_producer_public_binding_and_only_loads_hm
         assert public_binding in producer_unit
         assert public_binding in consumer_dropin
     hmac_load = (
-        "LoadCredentialEncrypted=binance_bracket_evidence_hmac_key:"
-        "%h/.config/ai-bot-v2/credentials/binance-usdm-leverage-bracket/"
-        "evidence-hmac-key.cred"
+        "LoadCredential=binance_bracket_evidence_hmac_key:"
+        "%h/.config/ai-bot-v2/credentials/binance-bracket-evidence/"
+        "evidence-hmac.cred"
     )
     assert hmac_load in producer_unit
     assert hmac_load in consumer_dropin
-    assert consumer_dropin.count("LoadCredentialEncrypted=") == 1
+    assert consumer_dropin.count("LoadCredential=") == 1
+    assert "LoadCredentialEncrypted=" not in consumer_dropin
     assert "--api_key" not in consumer_dropin
     assert "--api_secret" not in consumer_dropin
     assert "BINANCE_API_KEY=" not in consumer_dropin
