@@ -347,22 +347,21 @@ zero-inventory completion.
 
 ## 16. Deployment truth and remaining blockers
 
-This checkpoint is a library, not a running service. It has not changed the
+The state checkpoint and the caller at `20a92dc75b` are source libraries, not a
+running service. They have not changed the
 installed base feature publisher, trainer observer, checkpoint publisher,
 paper loop, risk controller, allocator, leverage, margin, or live exchange
 behavior.
 
-Remaining coordinator work is:
+The strict status reader and crash-resuming local caller are now complete.
+Remaining coordinator deployment/admission work is:
 
-1. runtime caller that restores exact cursor artifacts and invokes each phase;
-2. strict authenticated reader for publisher status/cycle hash;
-3. startup recovery of all pending witness journal appends before new status;
-4. bounded page work per invocation without losing cursor continuity;
-5. distinct external completion-authorization client and verifier;
-6. protected credential/path configuration loader;
-7. standalone CLI and user-systemd unit isolated from the base publisher;
-8. immutable release deployment and observed restart/cycle evidence; and
-9. optimizer/corpus/checkpoint integration only after external completion
+1. protected credential/path configuration loader;
+2. standalone CLI and user-systemd unit isolated from the base publisher;
+3. operational page/resource controls and canonical service status;
+4. distinct external completion-authorization client and verifier;
+5. immutable release deployment and observed restart/cycle evidence; and
+6. optimizer/corpus/checkpoint integration only after external completion
    authority verifies.
 
 An independent witness URL/token/identity/Ed25519 public key/fingerprint is

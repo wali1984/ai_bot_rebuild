@@ -75,6 +75,14 @@ not part of installed release `e34af1e6...`; a self-hash remains local
 integrity, not independent authentication or trainer admission. See
 [Profiled base-publisher cycle status reader V1](system_audit_2026_master/components/PROFILED_BASE_PUBLISHER_CYCLE_STATUS_V1.md).
 
+The source-only crash-resuming coordinator at checkpoint `20a92dc75b` now
+orders that status through deterministic manifest, witnessed head, epoch,
+contiguous inventory receipts, and local completion. Its 165-test final
+protocol regression passed, but it is not installed and deliberately grants no
+external-completion, optimizer, checkpoint/model, prediction, paper/live,
+order, execution, or runtime authority. See
+[Profiled training observation coordinator V1](system_audit_2026_master/components/PROFILED_TRAINING_OBSERVATION_COORDINATOR_V1.md).
+
 This is the repository-level entrypoint. The complete current audit is [AI_BOT_V2_FULL_REBUILD_MASTER_AUDIT_REPORT.md](system_audit_2026_master/AI_BOT_V2_FULL_REBUILD_MASTER_AUDIT_REPORT.md); the document map is [REVERSE_ENGINEERING_INDEX.md](system_audit_2026_master/REVERSE_ENGINEERING_INDEX.md).
 
 Older June/July documents remain historical snapshots. They are not current when they claim one trainer, read-only V2 APIs, operational SQL persistence, risk as final paper authority, no order transport, or the earlier service/module/test counts.
@@ -208,6 +216,7 @@ No active authorized real submitter was observed; release mode was effectively n
 - [Profiled trainer external witness runtime V1](system_audit_2026_master/components/PROFILED_TRAINING_EXTERNAL_WITNESS_RUNTIME_V1.md)
 - [Profiled trainer observation coordinator state V1](system_audit_2026_master/components/PROFILED_TRAINING_OBSERVATION_COORDINATOR_STATE_V1.md)
 - [Profiled base-publisher cycle status reader V1](system_audit_2026_master/components/PROFILED_BASE_PUBLISHER_CYCLE_STATUS_V1.md)
+- [Profiled training observation coordinator V1](system_audit_2026_master/components/PROFILED_TRAINING_OBSERVATION_COORDINATOR_V1.md)
 - [Decision/risk/paper/live execution](system_audit_2026_master/components/DECISION_RISK_PAPER_AND_LIVE_EXECUTION.md)
 - [API/auth/storage/web/mobile](system_audit_2026_master/components/API_AUTH_STORAGE_WEB_AND_MOBILE.md)
 - [Config/contracts/change impact](system_audit_2026_master/components/CONFIG_KEYS_CONTRACTS_AND_CHANGE_IMPACT.md)
