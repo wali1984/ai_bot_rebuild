@@ -242,6 +242,10 @@ def test_adaptive_plan_rotates_one_priority_gap_under_exact_weight_budget() -> N
     assert plan.pacing_ms == 10_000
     assert plan.observed_capture_sample_count == 0
     assert plan.observed_capture_max_ms == 0
+    assert plan.observed_publication_gap_sample_count == 0
+    assert plan.observed_publication_gap_max_ms == 0
+    assert plan.observed_publication_wait_sample_count == 0
+    assert plan.observed_publication_wait_ms == 0
     assert plan.projected_turn_ms == 10_000
     assert plan.projected_revisit_ms == 1_590_000
     assert plan.refresh_interval_seconds == 1_600
@@ -390,9 +394,64 @@ def test_rotation_adapts_revisit_to_authenticated_observed_capture_duration(
 
     assert plan.observed_capture_sample_count == 1
     assert plan.observed_capture_max_ms == 40
+    assert plan.observed_publication_gap_sample_count == 0
+    assert plan.observed_publication_gap_max_ms == 0
+    assert plan.observed_publication_wait_sample_count == 1
+    assert 0 <= plan.observed_publication_wait_ms <= 100
     assert plan.projected_turn_ms == 10_040
     assert plan.projected_revisit_ms == 10_040
     assert plan.refresh_interval_seconds == 21
+    assert plan.continuous_coverage_feasible is True
+
+
+def test_rotation_adapts_revisit_to_authenticated_effective_publication_cadence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    start = datetime(2026, 7, 22, 5, 0, tzinfo=UTC)
+    _result, redis, store, context, calls, _clock = _publish(
+        tmp_path,
+        monkeypatch,
+        symbols=("BTCUSDT", "ETHUSDT"),
+        start_at=start,
+    )
+    claim_key = broker.redis_claim_key(security_context=context)
+    redis.values.pop(claim_key)
+    redis.ttls.pop(claim_key)
+    delayed_clock = _Clock(start + timedelta(seconds=25))
+
+    second = broker.capture_and_publish_next_commission_evidence(
+        adapter=_adapter(),
+        redis_client=redis,
+        store=store,
+        security_context=context,
+        symbols=("BTCUSDT", "ETHUSDT"),
+        environ={"BINANCE_REST_FALLBACK_BUDGET_PER_MINUTE": "120"},
+        now_fn=delayed_clock,
+        capture_function=_capture_factory(calls),
+    )
+    plan = broker.build_adaptive_rotation_plan(
+        redis,
+        security_context=context,
+        symbols=("BTCUSDT", "ETHUSDT"),
+        environ={"BINANCE_REST_FALLBACK_BUDGET_PER_MINUTE": "120"},
+        now_fn=delayed_clock,
+    )
+
+    assert second["selected_symbol"] == "ETHUSDT"
+    assert len(calls) == 2
+    assert second["observed_publication_gap_sample_count"] == 0
+    assert second["observed_publication_wait_sample_count"] == 1
+    assert 24_000 <= second["observed_publication_wait_ms"] <= 26_000
+    assert second["projected_turn_ms"] == second["observed_publication_wait_ms"]
+    assert plan.cache_current_count == 2
+    assert plan.observed_publication_gap_sample_count == 1
+    assert 24_000 <= plan.observed_publication_gap_max_ms <= 26_000
+    assert plan.projected_turn_ms == plan.observed_publication_gap_max_ms
+    assert plan.projected_revisit_ms == 2 * plan.projected_turn_ms
+    assert plan.refresh_interval_seconds == (
+        (3 * plan.projected_turn_ms + 999) // 1_000
+    )
     assert plan.continuous_coverage_feasible is True
 
 

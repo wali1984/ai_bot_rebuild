@@ -218,6 +218,10 @@ class CommissionRotationPlan:
     pacing_ms: int
     observed_capture_sample_count: int
     observed_capture_max_ms: int
+    observed_publication_gap_sample_count: int
+    observed_publication_gap_max_ms: int
+    observed_publication_wait_sample_count: int
+    observed_publication_wait_ms: int
     projected_turn_ms: int
     projected_revisit_ms: int
     refresh_interval_seconds: int
@@ -918,6 +922,7 @@ def build_adaptive_rotation_plan(
     candidates: list[tuple[int, datetime, str]] = []
     current_count = missing_count = invalid_count = expired_count = 0
     observed_capture_durations_ms: list[int] = []
+    observed_publication_times: list[datetime] = []
     priority_set = set(priority)
     for symbol in universe:
         try:
@@ -957,6 +962,7 @@ def build_adaptive_rotation_plan(
             candidates.append((0 if symbol in priority_set else 1, expires_at, symbol))
         else:
             current_count += 1
+            observed_publication_times.append(available_at)
             observed_capture_durations_ms.append(
                 math.ceil((available_at - request_started_at).total_seconds() * 1_000)
             )
@@ -965,7 +971,36 @@ def build_adaptive_rotation_plan(
     selected = candidates[0][2]
     universe_sha = _sha256_bytes(_canonical_bytes(list(universe)))
     observed_capture_max_ms = max(observed_capture_durations_ms, default=0)
-    projected_turn_ms = pacing_ms + observed_capture_max_ms
+    ordered_publication_times = sorted(set(observed_publication_times))
+    observed_publication_gaps_ms = [
+        math.ceil((later - earlier).total_seconds() * 1_000)
+        for earlier, later in zip(
+            ordered_publication_times,
+            ordered_publication_times[1:],
+            strict=False,
+        )
+    ]
+    observed_publication_gap_max_ms = max(
+        observed_publication_gaps_ms,
+        default=0,
+    )
+    observed_publication_wait_ms = (
+        math.ceil(
+            (observed_at - ordered_publication_times[-1]).total_seconds() * 1_000
+        )
+        if ordered_publication_times
+        else 0
+    )
+    # The configured host budget is only an upper bound on request cadence:
+    # other read-only Binance consumers may bind the same shared reservation.
+    # Authenticated publication clocks expose the effective residual cadence
+    # without importing untrusted scheduler state.  Use the slower observation
+    # so a warm universe cannot silently outrun its own evidence expiry.
+    projected_turn_ms = max(
+        pacing_ms + observed_capture_max_ms,
+        observed_publication_gap_max_ms,
+        observed_publication_wait_ms,
+    )
     projected_revisit_ms = projected_turn_ms * len(universe)
     proposed_refresh_seconds = math.ceil(
         (projected_revisit_ms + projected_turn_ms) / 1_000
@@ -987,6 +1022,12 @@ def build_adaptive_rotation_plan(
         pacing_ms=pacing_ms,
         observed_capture_sample_count=len(observed_capture_durations_ms),
         observed_capture_max_ms=observed_capture_max_ms,
+        observed_publication_gap_sample_count=len(observed_publication_gaps_ms),
+        observed_publication_gap_max_ms=observed_publication_gap_max_ms,
+        observed_publication_wait_sample_count=(
+            1 if ordered_publication_times else 0
+        ),
+        observed_publication_wait_ms=observed_publication_wait_ms,
         projected_turn_ms=projected_turn_ms,
         projected_revisit_ms=projected_revisit_ms,
         refresh_interval_seconds=refresh_seconds,
@@ -1024,11 +1065,21 @@ def _persist_rotation_plan(
         "pacing_ms": plan.pacing_ms,
         "observed_capture_sample_count": plan.observed_capture_sample_count,
         "observed_capture_max_ms": plan.observed_capture_max_ms,
+        "observed_publication_gap_sample_count": (
+            plan.observed_publication_gap_sample_count
+        ),
+        "observed_publication_gap_max_ms": plan.observed_publication_gap_max_ms,
+        "observed_publication_wait_sample_count": (
+            plan.observed_publication_wait_sample_count
+        ),
+        "observed_publication_wait_ms": plan.observed_publication_wait_ms,
         "projected_turn_ms": plan.projected_turn_ms,
         "projected_revisit_ms": plan.projected_revisit_ms,
         "refresh_interval_seconds": plan.refresh_interval_seconds,
         "continuous_coverage_feasible": plan.continuous_coverage_feasible,
-        "adaptive_basis": "HOST_RATE_BUDGET_AND_AUTHENTICATED_CACHE_EXPIRY_ROTATION",
+        "adaptive_basis": (
+            "HOST_RATE_BUDGET_AUTHENTICATED_PUBLICATION_CADENCE_AND_CACHE_EXPIRY_ROTATION"
+        ),
         "static_market_threshold_used": False,
         "observed_at": plan.observed_at,
         "authority_scope": "COMMISSION_CAPTURE_SCHEDULING_ONLY",
@@ -1429,6 +1480,14 @@ def capture_and_publish_next_commission_evidence(
         "pacing_ms": plan.pacing_ms,
         "observed_capture_sample_count": plan.observed_capture_sample_count,
         "observed_capture_max_ms": plan.observed_capture_max_ms,
+        "observed_publication_gap_sample_count": (
+            plan.observed_publication_gap_sample_count
+        ),
+        "observed_publication_gap_max_ms": plan.observed_publication_gap_max_ms,
+        "observed_publication_wait_sample_count": (
+            plan.observed_publication_wait_sample_count
+        ),
+        "observed_publication_wait_ms": plan.observed_publication_wait_ms,
         "projected_turn_ms": plan.projected_turn_ms,
         "projected_revisit_ms": plan.projected_revisit_ms,
         "continuous_coverage_feasible": plan.continuous_coverage_feasible,
