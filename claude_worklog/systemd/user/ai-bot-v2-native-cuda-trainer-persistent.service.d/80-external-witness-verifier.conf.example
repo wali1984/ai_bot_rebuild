@@ -1,0 +1,5 @@
+# Inactive template. Install only after independent witness provisioning.
+[Service]
+Environment=PROFILED_OBSERVATION_WITNESS_ID=REPLACE_WITH_ESTABLISHED_WITNESS_ID
+Environment=PROFILED_OBSERVATION_WITNESS_PUBLIC_KEY_SHA256=REPLACE_WITH_64_LOWERCASE_HEX
+LoadCredential=profiled_observation_witness_ed25519_public_key:%h/.config/ai-bot-v2/credentials/profiled-training-observation-coordinator/witness-ed25519-public-key.raw

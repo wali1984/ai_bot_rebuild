@@ -1,22 +1,72 @@
 [Unit]
-StartLimitBurst=5
-StartLimitIntervalSec=600
-Description=AI Bot V2 Native Trainer Authenticated-Sample Waiting Observer
-After=network-online.target
+Description=AI Bot V2 authenticated profiled non-serving trainer publisher
+Documentation=file:///home/wali/Desktop/AI%%20BOT%%20REBUILD/claude_worklog/systemd/user/ai-bot-v2-native-cuda-trainer-persistent.credentials.md
+After=ai-bot-v2-profiled-training-observation-coordinator.service
+Wants=ai-bot-v2-profiled-training-observation-coordinator.service
+StartLimitIntervalSec=900
+StartLimitBurst=3
 
 [Service]
 Type=simple
 WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
 Environment=LIVE_GATE=blocked_human_only
 Environment="PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD"
-ExecStart="/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python" -m v2.backend.app.cli.v2_native_cuda_trainer_persistent_loop --mode waiting-for-authenticated-samples --repo-root "/home/wali/Desktop/AI BOT REBUILD" --ledger-path "/home/wali/ai_bot_local_data/v2_native_trainer/durable_feature_snapshot_ledger.sqlite3" --trusted-cost-store-root "/home/wali/ai_bot_local_data/v2_native_trainer/profiled_base_publisher_v1/profiled-training-enrichment-cas" --interval-seconds 30 --max-rows 250000
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment="XDG_CACHE_HOME=/home/wali/ai_bot_local_data/v2_native_trainer/authenticated_profiled_resident_v1/cache"
+Environment="CUDA_CACHE_PATH=/home/wali/ai_bot_local_data/v2_native_trainer/authenticated_profiled_resident_v1/cache/nv"
+Environment="TORCH_HOME=/home/wali/ai_bot_local_data/v2_native_trainer/authenticated_profiled_resident_v1/cache/torch"
+LoadCredential=profiled_observation_state_hmac_key:%h/.config/ai-bot-v2/credentials/profiled-training-observation-coordinator/state-hmac.cred
+LoadCredential=profiled_observation_manifest_hmac_key:%h/.config/ai-bot-v2/credentials/profiled-training-observation-coordinator/manifest-hmac.cred
+LoadCredential=profiled_observation_head_hmac_key:%h/.config/ai-bot-v2/credentials/profiled-training-observation-coordinator/head-hmac.cred
+LoadCredential=profiled_observation_epoch_hmac_key:%h/.config/ai-bot-v2/credentials/profiled-training-observation-coordinator/epoch-hmac.cred
+UMask=0077
+ExecStartPre=/usr/bin/install -d -m 0700 /home/wali/ai_bot_local_data/v2_native_trainer/authenticated_profiled_resident_v1
+ExecStart="/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3" -B -m v2.backend.app.cli.v2_native_cuda_trainer_persistent_loop --mode authenticated-profiled-publisher --repo-root "/home/wali/Desktop/AI BOT REBUILD" --ledger-path "/home/wali/ai_bot_local_data/v2_native_trainer/durable_feature_snapshot_ledger.sqlite3" --trusted-cost-store-root "/home/wali/ai_bot_local_data/v2_native_trainer/profiled_base_publisher_v1/profiled-training-enrichment-cas" --interval-seconds 30 --coordinator-runtime-root "/home/wali/ai_bot_local_data/v2_native_trainer/profiled_training_observation_coordinator_v1" --model-dir "/home/wali/Desktop/AI BOT REBUILD/.local_models/v2_native_rl_masa_ppo" --status-path "/home/wali/ai_bot_local_data/v2_native_trainer/authenticated_profiled_resident_v1/status.json" --namespace ai-bot-v2-profiled-observation-v1 --consumer-lane persistent-native-cuda-trainer-v1 --state-auth-key-id profiled-observation-state-v1 --manifest-auth-key-id profiled-observation-manifest-v1 --head-auth-key-id profiled-observation-head-v1 --epoch-auth-key-id profiled-observation-epoch-v1 --page-limit 256 --validation-fraction 0.2 --optimizer-input-byte-budget 8388608 --state-resource-budget-bytes 67108864 --checkpoint-serialization-byte-budget 134217728
 Restart=always
-RestartSec=5
+RestartPreventExitStatus=2 78
+RestartSec=30
+TimeoutStartSec=120
+TimeoutStopSec=90
+KillSignal=SIGTERM
+KillMode=mixed
 CPUQuota=1600%
 MemoryHigh=72G
 MemoryMax=75G
-StandardOutput=null
-StandardError=null
+TasksMax=4096
+LimitNOFILE=8192
+Nice=5
+NoNewPrivileges=true
+PrivateDevices=false
+PrivateTmp=true
+ProtectClock=true
+ProtectControlGroups=true
+ProtectHome=read-only
+ProtectHostname=true
+ProtectKernelLogs=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectSystem=strict
+ReadOnlyPaths="/home/wali/Desktop/AI BOT REBUILD"
+ReadOnlyPaths=/home/wali/ai_bot_local_data/v2_native_trainer/profiled_training_observation_coordinator_v1
+ReadOnlyPaths=/home/wali/ai_bot_local_data/v2_native_trainer/durable_feature_snapshot_ledger.sqlite3
+ReadOnlyPaths=-/home/wali/ai_bot_local_data/v2_native_trainer/durable_feature_snapshot_ledger.sqlite3-wal
+ReadOnlyPaths=-/home/wali/ai_bot_local_data/v2_native_trainer/durable_feature_snapshot_ledger.sqlite3-shm
+ReadOnlyPaths=/home/wali/ai_bot_local_data/v2_native_trainer/profiled_base_publisher_v1/profiled-training-enrichment-cas
+ReadWritePaths="/home/wali/Desktop/AI BOT REBUILD/.local_models/v2_native_rl_masa_ppo"
+ReadWritePaths=/home/wali/ai_bot_local_data/v2_native_trainer/authenticated_profiled_resident_v1
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+SystemCallArchitectures=native
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ai-bot-v2-native-cuda-trainer-persistent
+LogRateLimitIntervalSec=60
+LogRateLimitBurst=60
 
 [Install]
 WantedBy=default.target

@@ -25,7 +25,12 @@ CANONICAL_COST_ROOT = (
     "/home/wali/ai_bot_local_data/v2_native_trainer/profiled_base_publisher_v1/"
     "profiled-training-enrichment-cas"
 )
-OBSERVER_RELEASE_SHA = "76a8ae2fe1f71fd9e1dc2f68775cdeebec8fc236"
+PUBLISHER_RELEASE_SHA = "a0c0aca90c24d01d2013335e8b5983a8c39f1ce3"
+PINNED_PYTHON = (
+    "/home/wali/ai_bot_local_data/deployments/python_envs/"
+    "6360ea33fcfb9f9a81724989bbd32ace2b02bf7eaa7a8771d64d282f423173f0/"
+    "bin/python"
+)
 
 
 def _valid_args(tmp_path: Path) -> list[str]:
@@ -342,30 +347,47 @@ def test_publisher_credential_error_returns_non_restarting_config_status_safely(
     assert LEGACY_RUNTIME_MODULE not in sys.modules
 
 
-def test_repository_systemd_unit_pins_only_waiting_mode_and_canonical_paths() -> None:
+def test_repository_systemd_unit_commissions_bounded_publisher() -> None:
     root = Path(__file__).resolve().parents[5]
     unit = (
         root / "claude_worklog/systemd/user/ai-bot-v2-native-cuda-trainer-persistent.service"
     ).read_text(encoding="utf-8")
-    cli_source = Path(cli.__file__).read_text(encoding="utf-8")
 
-    assert "--mode waiting-for-authenticated-samples" in unit
+    assert "--mode authenticated-profiled-publisher" in unit
+    assert "--mode waiting-for-authenticated-samples" not in unit
     assert (
         '--ledger-path "/home/wali/ai_bot_local_data/v2_native_trainer/'
         'durable_feature_snapshot_ledger.sqlite3"'
     ) in unit
     assert f'--trusted-cost-store-root "{CANONICAL_COST_ROOT}"' in unit
-    assert "--max-rows 250000" in unit
-    assert "StandardOutput=null" in unit
-    assert "StandardError=null" in unit
-    assert "/usr/bin/env bash" not in unit
-    assert "V2_TRAINER_" not in unit
-    assert "V2_NATIVE_TRAINER_ADAPTIVE_GPU_CONTROLLER" not in unit
-    assert "--no-training" not in unit
-    assert "persistent_cuda_trainer_runtime" not in cli_source
+    assert (
+        '--coordinator-runtime-root "/home/wali/ai_bot_local_data/v2_native_trainer/'
+        'profiled_training_observation_coordinator_v1"'
+    ) in unit
+    assert (
+        '--model-dir "/home/wali/Desktop/AI BOT REBUILD/.local_models/'
+        'v2_native_rl_masa_ppo"'
+    ) in unit
+    assert "--page-limit 256" in unit
+    assert "--validation-fraction 0.2" in unit
+    assert "--optimizer-input-byte-budget 8388608" in unit
+    assert "--state-resource-budget-bytes 67108864" in unit
+    assert "--checkpoint-serialization-byte-budget 134217728" in unit
+    assert "--max-rows" not in unit
+    assert "StandardOutput=journal" in unit
+    assert "StandardError=journal" in unit
+    assert "PrivateDevices=false" in unit
+    assert "RestrictAddressFamilies=AF_UNIX" in unit
+    assert "RestartPreventExitStatus=2 78" in unit
+    assert "Wants=ai-bot-v2-profiled-training-observation-coordinator.service" in unit
+    assert unit.count("LoadCredential=") == 4
+    assert "profiled_observation_witness_ed25519_public_key" not in unit
+    assert "bearer" not in unit.lower()
+    assert "moralis" not in unit.lower()
+    assert "coinapi" not in unit.lower()
 
 
-def test_repository_systemd_drop_in_pins_immutable_observer_release() -> None:
+def test_repository_systemd_drop_in_pins_immutable_publisher_release() -> None:
     root = Path(__file__).resolve().parents[5]
     drop_in = (
         root
@@ -374,16 +396,43 @@ def test_repository_systemd_drop_in_pins_immutable_observer_release() -> None:
         "90-immutable-release.conf"
     ).read_text(encoding="utf-8")
 
-    assert set(re.findall(r"[0-9a-f]{40}", drop_in)) == {OBSERVER_RELEASE_SHA}
-    assert f'Environment="AI_BOT_CODE_SHA={OBSERVER_RELEASE_SHA}"' in drop_in
+    assert set(re.findall(r"ai_bot_rebuild/([0-9a-f]{40})", drop_in)) == {
+        PUBLISHER_RELEASE_SHA
+    }
+    assert f'Environment="AI_BOT_CODE_SHA={PUBLISHER_RELEASE_SHA}"' in drop_in
+    assert f"ConditionFileIsExecutable={PINNED_PYTHON}" in drop_in
     assert (
         f"ExecStartPre=/usr/bin/git -C /home/wali/ai_bot_local_data/deployments/"
-        f"ai_bot_rebuild/{OBSERVER_RELEASE_SHA} diff --quiet --exit-code "
-        f"{OBSERVER_RELEASE_SHA} --"
+        f"ai_bot_rebuild/{PUBLISHER_RELEASE_SHA} diff --quiet --exit-code "
+        f"{PUBLISHER_RELEASE_SHA} --"
     ) in drop_in
     assert (
-        f"ExecStart=/usr/bin/python3 -I -B /home/wali/ai_bot_local_data/deployments/"
-        f"ai_bot_rebuild/{OBSERVER_RELEASE_SHA}/v2/backend/app/cli/"
+        f"ExecStart={PINNED_PYTHON} -I -B /home/wali/ai_bot_local_data/deployments/"
+        f"ai_bot_rebuild/{PUBLISHER_RELEASE_SHA}/v2/backend/app/cli/"
         "v2_native_cuda_trainer_persistent_loop.py "
-        "--mode waiting-for-authenticated-samples"
+        "--mode authenticated-profiled-publisher"
     ) in drop_in
+    assert "--mode waiting-for-authenticated-samples" not in drop_in
+
+
+def test_repository_optional_witness_drop_in_is_verifier_only() -> None:
+    root = Path(__file__).resolve().parents[5]
+    example = (
+        root
+        / "claude_worklog/systemd/user/"
+        "ai-bot-v2-native-cuda-trainer-persistent.service.d/"
+        "80-external-witness-verifier.conf.example"
+    ).read_text(encoding="utf-8")
+    contract = (
+        root
+        / "claude_worklog/systemd/user/"
+        "ai-bot-v2-native-cuda-trainer-persistent.credentials.md"
+    ).read_text(encoding="utf-8")
+
+    assert example.count("LoadCredential=") == 1
+    assert "profiled_observation_witness_ed25519_public_key" in example
+    assert "PROFILED_OBSERVATION_WITNESS_ID" in example
+    assert "PROFILED_OBSERVATION_WITNESS_PUBLIC_KEY_SHA256" in example
+    assert "bearer" not in example.lower()
+    assert "WAITING_EXTERNAL_WITNESS_CONFIGURATION" in contract
+    assert "local_status_integrity_only" in contract
