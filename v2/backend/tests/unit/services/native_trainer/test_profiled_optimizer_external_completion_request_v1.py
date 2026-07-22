@@ -373,6 +373,12 @@ def test_prepared_request_is_exact_deterministic_and_non_authorizing(
 
     assert first == replay
     assert first.request_bytes == replay.request_bytes
+    assert (
+        request_module.rehydrate_profiled_optimizer_external_completion_prepared_request_v1(
+            request_bytes=first.request_bytes,
+        )
+        == first
+    )
     assert first.schema_version == PROFILED_OPTIMIZER_COMPLETION_PREPARED_REQUEST_V1_SCHEMA_VERSION
     assert request["schema_version"] == PROFILED_OPTIMIZER_COMPLETION_REQUEST_V1_SCHEMA_VERSION
     assert request["request_domain"] == PROFILED_OPTIMIZER_COMPLETION_REQUEST_DOMAIN

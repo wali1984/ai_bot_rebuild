@@ -1156,6 +1156,130 @@ class VerifiedProfiledOptimizerExternalCompletionResponseV1:
             _fail("PROFILED_OPTIMIZER_COMPLETION_VERIFIED_RESPONSE_SIGNATURE_UNVERIFIED")
 
 
+def rehydrate_profiled_optimizer_external_completion_prepared_request_v1(
+    *,
+    request_bytes: bytes,
+) -> ProfiledOptimizerExternalCompletionPreparedRequestV1:
+    """Rebuild and revalidate exact durable request bytes without new authority."""
+
+    material = _parse_exact_json(
+        request_bytes,
+        reason="PROFILED_OPTIMIZER_COMPLETION_REHYDRATED_REQUEST_INVALID",
+    )
+    if set(material) != _REQUEST_FIELDS:
+        _fail("PROFILED_OPTIMIZER_COMPLETION_REHYDRATED_REQUEST_FIELD_SET_INVALID")
+    claim_template = _decode_base64(
+        material.get("authorization_claim_template_base64"),
+        expected_count=material.get("authorization_claim_template_byte_count"),
+        maximum_bytes=MAX_PROFILED_OPTIMIZER_COMPLETION_AUTHORIZATION_BYTES,
+        reason="PROFILED_OPTIMIZER_COMPLETION_REHYDRATED_CLAIM_TEMPLATE_INVALID",
+    )
+    claim = _claim_template_material(claim_template)
+    manifest_binding = cast(dict[str, Any], claim["manifest_binding"])
+    head = _head_binding(material.get("manifest_head_binding"))
+    completion_event_bytes = _decode_base64(
+        material.get("completion_event_base64"),
+        expected_count=material.get("completion_event_byte_count"),
+        maximum_bytes=MAX_PROFILED_OPTIMIZER_COMPLETION_EVENT_BYTES,
+        reason="PROFILED_OPTIMIZER_COMPLETION_REHYDRATED_EVENT_INVALID",
+    )
+    final_page_event_bytes = _decode_base64(
+        material.get("final_page_receipt_event_base64"),
+        expected_count=material.get("final_page_receipt_event_byte_count"),
+        maximum_bytes=MAX_PROFILED_OPTIMIZER_COMPLETION_EVENT_BYTES,
+        reason="PROFILED_OPTIMIZER_COMPLETION_REHYDRATED_FINAL_PAGE_INVALID",
+    )
+    challenge = _decode_base64(
+        material.get("authorization_challenge_base64"),
+        expected_count=material.get("authorization_challenge_byte_count"),
+        maximum_bytes=PROFILED_OPTIMIZER_COMPLETION_CHALLENGE_BYTES,
+        reason="PROFILED_OPTIMIZER_COMPLETION_REHYDRATED_CHALLENGE_INVALID",
+    )
+    exact_request_bytes = bytes(request_bytes)
+    return ProfiledOptimizerExternalCompletionPreparedRequestV1(
+        schema_version=PROFILED_OPTIMIZER_COMPLETION_PREPARED_REQUEST_V1_SCHEMA_VERSION,
+        witness_id=cast(str, material.get("witness_id")),
+        witness_public_key_sha256=cast(
+            str,
+            material.get("witness_public_key_sha256"),
+        ),
+        authorization_namespace=cast(str, material.get("authorization_namespace")),
+        expected_authorization_sequence=cast(
+            int,
+            material.get("expected_authorization_sequence"),
+        ),
+        expected_previous_authorization_event_sha256=cast(
+            str,
+            material.get("expected_previous_authorization_event_sha256"),
+        ),
+        manifest_id=cast(str, manifest_binding.get("manifest_id")),
+        completion_event_sha256=cast(str, material.get("completion_event_sha256")),
+        completion_event_byte_count=len(completion_event_bytes),
+        completion_event_bytes=completion_event_bytes,
+        final_page_receipt_event_sha256=cast(
+            str,
+            material.get("final_page_receipt_event_sha256"),
+        ),
+        final_page_receipt_event_byte_count=len(final_page_event_bytes),
+        final_page_receipt_event_bytes=final_page_event_bytes,
+        manifest_head_namespace=cast(str, head.get("namespace")),
+        manifest_head_sequence=cast(int, head.get("sequence")),
+        manifest_head_event_sha256=cast(str, head.get("event_sha256")),
+        manifest_head_operation_id=cast(str, head.get("operation_id")),
+        authorization_challenge=challenge,
+        authorization_challenge_sha256=cast(
+            str,
+            material.get("authorization_challenge_sha256"),
+        ),
+        authorization_claim_template=claim_template,
+        authorization_claim_template_sha256=cast(
+            str,
+            material.get("authorization_claim_template_sha256"),
+        ),
+        idempotency_key=cast(str, material.get("idempotency_key")),
+        request_sha256=hashlib.sha256(exact_request_bytes).hexdigest(),
+        request_byte_count=len(exact_request_bytes),
+        request_bytes=exact_request_bytes,
+        external_monotonic_manifest_head_verified=cast(
+            bool,
+            material.get("external_monotonic_manifest_head_verified"),
+        ),
+        full_consumption_external_ack_verified=cast(
+            bool,
+            material.get("full_consumption_external_ack_verified"),
+        ),
+        profiled_optimizer_admission_authorized=cast(
+            bool,
+            material.get("profiled_optimizer_admission_authorized"),
+        ),
+        optimizer_execution_authorized=cast(
+            bool,
+            material.get("optimizer_execution_authorized"),
+        ),
+        checkpoint_write_authorized=cast(
+            bool,
+            material.get("checkpoint_write_authorized"),
+        ),
+        model_write_authorized=cast(bool, material.get("model_write_authorized")),
+        prediction_authorized=cast(bool, material.get("prediction_authorized")),
+        paper_trading_authorized=cast(
+            bool,
+            material.get("paper_trading_authorized"),
+        ),
+        live_execution_authorized=cast(
+            bool,
+            material.get("live_execution_authorized"),
+        ),
+        order_submission_authorized=cast(
+            bool,
+            material.get("order_submission_authorized"),
+        ),
+        execution_authorized=cast(bool, material.get("execution_authorized")),
+        runtime_wired=cast(bool, material.get("runtime_wired")),
+        _construction_token=_PREPARED_TOKEN,
+    )
+
+
 def prepare_profiled_optimizer_external_completion_request_v1(
     *,
     authenticated_manifest: AuthenticatedProfiledTrainingObservationManifestV1,
@@ -1473,5 +1597,6 @@ __all__ = (
     "ProfiledOptimizerExternalCompletionRequestV1Error",
     "VerifiedProfiledOptimizerExternalCompletionResponseV1",
     "prepare_profiled_optimizer_external_completion_request_v1",
+    "rehydrate_profiled_optimizer_external_completion_prepared_request_v1",
     "verify_profiled_optimizer_external_completion_response_v1",
 )
