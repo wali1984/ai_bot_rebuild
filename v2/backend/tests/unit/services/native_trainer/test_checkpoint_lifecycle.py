@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import hashlib
+import multiprocessing
 import os
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, BinaryIO
 
@@ -10,14 +13,20 @@ import pytest
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer import (
     checkpoint as checkpoint_module,
 )
+from v2.backend.app.services.native_trainer.hybrid_cuda_trainer import (
+    runtime as runtime_module,
+)
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.checkpoint import (
     V2HybridCheckpointManager,
 )
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.checkpoint_lifecycle import (
+    CHECKPOINT_LIFECYCLE_LEASE_SCHEMA_VERSION,
     NON_SERVING_CANDIDATE_LINEAGE,
     OPTIMIZER_ANOMALY_COUNTER_FIELDS,
     VERIFIED_SERVING_LINEAGE,
+    CheckpointLifecycleLeaseBusy,
     checkpoint_evidence,
+    checkpoint_lifecycle_lease,
     serving_promotion_decision,
     verified_candidate_checkpoint_evidence,
 )
@@ -41,6 +50,18 @@ from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.training_state i
     confidence_promotion_decision,
     training_partition_digest,
 )
+
+
+def _probe_lifecycle_lease(model_dir: str, result_queue: Any) -> None:
+    try:
+        with checkpoint_lifecycle_lease(
+            Path(model_dir),
+            owner_role="AUTHENTICATED_PROFILED_TRAINER",
+            blocking=False,
+        ):
+            result_queue.put("ACQUIRED")
+    except CheckpointLifecycleLeaseBusy:
+        result_queue.put("BUSY")
 
 
 def _calibration_state(fingerprint: str) -> dict[str, object]:
@@ -688,3 +709,119 @@ def test_checkpoint_source_replacement_after_verification_cannot_change_loaded_b
     assert loaded["private_checkpoint_copy_sha256"] == manifest.weight_file_sha256
     assert model_parameter_fingerprint(restored) == admitted_fingerprint
     assert model_parameter_fingerprint(restored) != replacement_fingerprint
+
+
+def test_checkpoint_lifecycle_lease_serializes_independent_processes(
+    tmp_path: Path,
+) -> None:
+    model_dir = tmp_path / ".local_models" / "lifecycle-lease"
+    process_context = multiprocessing.get_context("spawn")
+
+    with checkpoint_lifecycle_lease(
+        model_dir,
+        owner_role="NORMAL_HYBRID_TRAINER",
+        blocking=False,
+    ) as receipt:
+        held_queue = process_context.Queue()
+        held_probe = process_context.Process(
+            target=_probe_lifecycle_lease,
+            args=(str(model_dir), held_queue),
+        )
+        held_probe.start()
+        assert held_queue.get(timeout=15) == "BUSY"
+        held_probe.join(timeout=15)
+        assert held_probe.exitcode == 0
+        assert receipt.schema_version == CHECKPOINT_LIFECYCLE_LEASE_SCHEMA_VERSION
+        assert receipt.owner_role == "NORMAL_HYBRID_TRAINER"
+        assert receipt.owner_pid == os.getpid()
+        assert receipt.lifecycle_lease_acquired is True
+        assert receipt.checkpoint_write_authorized is False
+        assert receipt.serving_authorized is False
+        assert receipt.trading_authorized is False
+        assert Path(receipt.lock_path).stat().st_mode & 0o777 == 0o600
+        held_queue.close()
+        held_queue.join_thread()
+
+    released_queue = process_context.Queue()
+    released_probe = process_context.Process(
+        target=_probe_lifecycle_lease,
+        args=(str(model_dir), released_queue),
+    )
+    released_probe.start()
+    assert released_queue.get(timeout=15) == "ACQUIRED"
+    released_probe.join(timeout=15)
+    assert released_probe.exitcode == 0
+    released_queue.close()
+    released_queue.join_thread()
+
+
+def test_ordinary_runtime_holds_lifecycle_lease_across_complete_cycle(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    events: list[object] = []
+
+    class FakeConfig:
+        model_dir = tmp_path / ".local_models" / "ordinary-runtime-lease"
+
+        def validate_safety(self) -> None:
+            events.append("VALIDATED")
+
+    @contextmanager
+    def fake_lease(
+        model_dir: Path,
+        *,
+        owner_role: str,
+    ) -> Iterator[None]:
+        events.append(("LEASE_ENTER", model_dir, owner_role))
+        try:
+            yield
+        finally:
+            events.append("LEASE_EXIT")
+
+    expected_result = object()
+
+    def fake_cycle(**kwargs: Any) -> object:
+        events.append(("CYCLE", kwargs))
+        return expected_result
+
+    monkeypatch.setattr(runtime_module, "checkpoint_lifecycle_lease", fake_lease)
+    monkeypatch.setattr(
+        runtime_module,
+        "_run_hybrid_trainer_cycle_under_lifecycle_lease",
+        fake_cycle,
+    )
+    config = FakeConfig()
+    io = object()
+    replay_buffer = object()
+    prefetched = [object()]
+
+    observed = runtime_module.run_hybrid_trainer_cycle(
+        config=config,  # type: ignore[arg-type]
+        io=io,  # type: ignore[arg-type]
+        publish=False,
+        replay_buffer=replay_buffer,
+        trusted_replay_archive_root=tmp_path / "replay",
+        behavior_receipt_archive_root=tmp_path / "receipts",
+        prefetched_backfill_examples=prefetched,
+    )
+
+    assert observed is expected_result
+    assert events[0] == "VALIDATED"
+    assert events[1] == (
+        "LEASE_ENTER",
+        config.model_dir,
+        "NORMAL_HYBRID_TRAINER",
+    )
+    assert events[2][0] == "CYCLE"  # type: ignore[index]
+    forwarded = events[2][1]  # type: ignore[index]
+    assert forwarded == {
+        "config": config,
+        "io": io,
+        "publish": False,
+        "replay_buffer": replay_buffer,
+        "trusted_replay_archive_root": tmp_path / "replay",
+        "behavior_receipt_archive_root": tmp_path / "receipts",
+        "prefetched_backfill_examples": prefetched,
+    }
+    assert events[3] == "LEASE_EXIT"

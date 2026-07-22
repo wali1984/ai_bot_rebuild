@@ -45,6 +45,7 @@ from .checkpoint_lifecycle import (
     REJECTED_ATTEMPT_LINEAGE,
     VERIFIED_SERVING_LINEAGE,
     checkpoint_evidence,
+    checkpoint_lifecycle_lease,
     checkpoint_stores,
     reconcile_checkpoint_consumption,
     serving_promotion_decision,
@@ -1685,7 +1686,7 @@ def _serving_activation_binding_reasons(
     )
 
 
-def run_hybrid_trainer_cycle(
+def _run_hybrid_trainer_cycle_under_lifecycle_lease(
     *,
     config: HybridTrainerConfig,
     io: V2OnlyJsonIO | None = None,
@@ -3952,6 +3953,34 @@ def run_hybrid_trainer_cycle(
         predictions=predictions,
         lineages=lineages,
     )
+
+
+def run_hybrid_trainer_cycle(
+    *,
+    config: HybridTrainerConfig,
+    io: V2OnlyJsonIO | None = None,
+    publish: bool = True,
+    replay_buffer: Any | None = None,
+    trusted_replay_archive_root: Path | None = None,
+    behavior_receipt_archive_root: Path | None = None,
+    prefetched_backfill_examples: list[Any] | None = None,
+) -> HybridRuntimeResult:
+    """Run one ordinary cycle as a single causal checkpoint writer."""
+
+    config.validate_safety()
+    with checkpoint_lifecycle_lease(
+        config.model_dir,
+        owner_role="NORMAL_HYBRID_TRAINER",
+    ):
+        return _run_hybrid_trainer_cycle_under_lifecycle_lease(
+            config=config,
+            io=io,
+            publish=publish,
+            replay_buffer=replay_buffer,
+            trusted_replay_archive_root=trusted_replay_archive_root,
+            behavior_receipt_archive_root=behavior_receipt_archive_root,
+            prefetched_backfill_examples=prefetched_backfill_examples,
+        )
 
 
 def write_runtime_artifacts(
