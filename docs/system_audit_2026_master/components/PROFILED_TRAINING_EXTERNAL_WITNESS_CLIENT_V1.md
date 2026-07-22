@@ -1,7 +1,8 @@
 # Profiled Training External Witness Client V1
 
 Status: implemented, tested, committed, and pushed as an isolated client
-library. It is not wired to a runtime service.
+library. Its durable local journal is implemented separately; neither component
+is wired to a runtime service.
 
 Runtime authority: none.
 
@@ -16,6 +17,8 @@ Primary adversarial tests:
 - `v2/backend/tests/unit/services/native_trainer/test_profiled_training_external_witness_client_v1.py`
 
 Implementation checkpoint: `c602491e9b8d7a1949b0f85396721e2c59bdaed2`.
+
+Durable journal checkpoint: `ab1b6d810cbdd7ea3125c182e1f8b0c1f1778069`.
 
 ## 1. Purpose and trust boundary
 
@@ -227,7 +230,7 @@ latest head again. Both must agree with the receipt and original event bytes.
 
 ## 7. Crash, restart, and persistence contract
 
-The library supports but does not itself perform durable persistence:
+The client library supports but does not itself perform durable persistence:
 
 - `trusted_head_envelope_bytes()` exports the exact verified signed head;
 - `trusted_head_envelope_bytes_by_namespace` restores and re-verifies it;
@@ -248,7 +251,12 @@ signed head before clearing the pending operation. Local state remains a cache
 and audit artifact; the remote compare-and-append result is the monotonic
 authority.
 
-This durable caller/journal is not implemented at the recorded checkpoint.
+The required journal is now implemented by
+`profiled_training_external_witness_journal_v1.py` and documented in
+[PROFILED_TRAINING_EXTERNAL_WITNESS_JOURNAL_V1.md](PROFILED_TRAINING_EXTERNAL_WITNESS_JOURNAL_V1.md).
+It persists the exact prepared request before dispatch, restores pending
+requests after restart, and anchors reverified signed receipt/head envelopes.
+The production runtime caller is still not implemented or commissioned.
 
 ## 8. Completion authorization remains separate
 
@@ -306,7 +314,7 @@ The trainer optimizer publisher remains fail-closed until all of these exist:
 2. externally provisioned endpoint, bearer/client authentication, signing key,
    and pinned public-key fingerprint;
 3. server-side linearizable compare-and-append with exact idempotency replay;
-4. durable local pending-operation/head/receipt journal;
+4. production runtime caller around the implemented durable journal;
 5. purpose-specific completion-authorization endpoint and caller;
 6. dedicated supervised optimizer adapter with PPO/behavior terms disabled;
 7. actual optimizer execution receipts and atomic checkpoint writer/verifier;
