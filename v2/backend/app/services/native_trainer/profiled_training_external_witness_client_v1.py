@@ -513,9 +513,7 @@ class ProfiledTrainingExternalWitnessPreparedAppendV1:
             maximum_bytes=MAX_PROFILED_OBSERVATION_HEAD_EVENT_BYTES,
             reason="PROFILED_WITNESS_PREPARED_APPEND_REQUEST_INVALID",
         )
-        base_request = {
-            key: value for key, value in request.items() if key != "idempotency_key"
-        }
+        base_request = {key: value for key, value in request.items() if key != "idempotency_key"}
         derived_idempotency_key = hashlib.sha256(
             PROFILED_WITNESS_COMPARE_APPEND_REQUEST_DOMAIN.encode("ascii")
             + b"\0"
@@ -527,11 +525,9 @@ class ProfiledTrainingExternalWitnessPreparedAppendV1:
         if (
             request.get("schema_version")
             != PROFILED_WITNESS_COMPARE_APPEND_REQUEST_V1_SCHEMA_VERSION
-            or request.get("request_domain")
-            != PROFILED_WITNESS_COMPARE_APPEND_REQUEST_DOMAIN
+            or request.get("request_domain") != PROFILED_WITNESS_COMPARE_APPEND_REQUEST_DOMAIN
             or request.get("witness_id") != self.witness_id
-            or request.get("witness_public_key_sha256")
-            != self.witness_public_key_sha256
+            or request.get("witness_public_key_sha256") != self.witness_public_key_sha256
             or request.get("namespace") != self.namespace
             or type(request.get("expected_sequence")) is not int
             or request.get("expected_sequence") != self.expected_sequence
@@ -718,9 +714,7 @@ class ProfiledTrainingExternalWitnessHttpsTransportV1:
         return result
 
 
-class PinnedProfiledTrainingExternalWitnessClientV1(
-    ProfiledTrainingObservationExternalWitnessV1
-):
+class PinnedProfiledTrainingExternalWitnessClientV1(ProfiledTrainingObservationExternalWitnessV1):
     """Signed witness client with reverified durable-anchor restore support."""
 
     __slots__ = (
@@ -824,6 +818,65 @@ class PinnedProfiledTrainingExternalWitnessClientV1(
                 _fail("PROFILED_WITNESS_TRUSTED_HEAD_UNAVAILABLE")
             return bytes(observed[5])
 
+    def verify_signed_head_envelope(
+        self,
+        *,
+        signed_head_envelope_bytes: bytes,
+        expected_namespace: str,
+        expected_sequence: int,
+        expected_previous_event_sha256: str,
+        expected_event_sha256: str,
+        expected_event_bytes: bytes,
+    ) -> ProfiledTrainingObservationExternalWitnessEventV1:
+        """Reverify one exact persisted signed head without network or authority.
+
+        This verification-only method deliberately does not advance the client's
+        in-memory trusted head.  Startup restoration remains constructor-owned,
+        while a durable caller can use this method to authenticate the exact head
+        envelope it is about to commit beside a receipt.
+        """
+
+        namespace = _identifier(
+            expected_namespace,
+            reason="PROFILED_WITNESS_NAMESPACE_INVALID",
+        )
+        sequence = _positive_integer(
+            expected_sequence,
+            reason="PROFILED_WITNESS_EVENT_SEQUENCE_INVALID",
+        )
+        for value, reason in (
+            (
+                expected_previous_event_sha256,
+                "PROFILED_WITNESS_EXPECTED_EVENT_SHA256_INVALID",
+            ),
+            (expected_event_sha256, "PROFILED_WITNESS_EVENT_SHA256_INVALID"),
+        ):
+            if not _valid_sha256(value):
+                _fail(reason)
+        if (
+            type(expected_event_bytes) is not bytes
+            or not expected_event_bytes
+            or len(expected_event_bytes) > MAX_PROFILED_OBSERVATION_HEAD_EVENT_BYTES
+            or hashlib.sha256(expected_event_bytes).hexdigest() != expected_event_sha256
+        ):
+            _fail("PROFILED_WITNESS_EVENT_PAYLOAD_INVALID")
+        verified = self._verified_event(
+            ProfiledTrainingExternalWitnessWireResponseV1(
+                status_code=200,
+                content_type="application/json",
+                body=signed_head_envelope_bytes,
+            ),
+            expected_namespace=namespace,
+            expected_sequence=sequence,
+        ).event
+        if (
+            verified.previous_event_sha256 != expected_previous_event_sha256
+            or verified.event_sha256 != expected_event_sha256
+            or not hmac.compare_digest(verified.event_bytes, expected_event_bytes)
+        ):
+            _fail("PROFILED_WITNESS_EVENT_BINDING_INVALID")
+        return verified
+
     def _path(self, namespace: str, suffix: str) -> str:
         return f"/namespaces/{quote(namespace, safe='')}/{suffix}"
 
@@ -860,12 +913,9 @@ class PinnedProfiledTrainingExternalWitnessClientV1(
         )
         event_sha256 = hashlib.sha256(event_bytes).hexdigest()
         if (
-            unsigned.get("schema_version")
-            != PROFILED_WITNESS_WIRE_EVENT_V1_SCHEMA_VERSION
-            or unsigned.get("signature_algorithm")
-            != PROFILED_WITNESS_WIRE_SIGNATURE_ALGORITHM
-            or unsigned.get("signature_domain")
-            != PROFILED_WITNESS_WIRE_EVENT_SIGNATURE_DOMAIN
+            unsigned.get("schema_version") != PROFILED_WITNESS_WIRE_EVENT_V1_SCHEMA_VERSION
+            or unsigned.get("signature_algorithm") != PROFILED_WITNESS_WIRE_SIGNATURE_ALGORITHM
+            or unsigned.get("signature_domain") != PROFILED_WITNESS_WIRE_EVENT_SIGNATURE_DOMAIN
             or unsigned.get("witness_id") != self._witness_id
             or unsigned.get("namespace") != expected_namespace
             or (expected_sequence is not None and sequence != expected_sequence)
@@ -945,9 +995,7 @@ class PinnedProfiledTrainingExternalWitnessClientV1(
                 previous = self._observed_heads.get(event.namespace)
             if previous is None:
                 first_sequence = 1
-                expected_previous_event_sha256 = (
-                    PROFILED_OBSERVATION_HEAD_GENESIS_EVENT_SHA256
-                )
+                expected_previous_event_sha256 = PROFILED_OBSERVATION_HEAD_GENESIS_EVENT_SHA256
             else:
                 (
                     previous_sequence,
@@ -1073,17 +1121,13 @@ class PinnedProfiledTrainingExternalWitnessClientV1(
             reason="PROFILED_WITNESS_RECEIPT_SEQUENCE_INVALID",
         )
         if (
-            unsigned.get("schema_version")
-            != PROFILED_WITNESS_WIRE_APPEND_RECEIPT_V1_SCHEMA_VERSION
-            or unsigned.get("signature_algorithm")
-            != PROFILED_WITNESS_WIRE_SIGNATURE_ALGORITHM
-            or unsigned.get("signature_domain")
-            != PROFILED_WITNESS_WIRE_RECEIPT_SIGNATURE_DOMAIN
+            unsigned.get("schema_version") != PROFILED_WITNESS_WIRE_APPEND_RECEIPT_V1_SCHEMA_VERSION
+            or unsigned.get("signature_algorithm") != PROFILED_WITNESS_WIRE_SIGNATURE_ALGORITHM
+            or unsigned.get("signature_domain") != PROFILED_WITNESS_WIRE_RECEIPT_SIGNATURE_DOMAIN
             or unsigned.get("witness_id") != self._witness_id
             or unsigned.get("namespace") != expected_namespace
             or receipt_sequence != expected_sequence
-            or unsigned.get("previous_event_sha256")
-            != expected_previous_event_sha256
+            or unsigned.get("previous_event_sha256") != expected_previous_event_sha256
             or unsigned.get("event_sha256") != expected_event_sha256
             or unsigned.get("request_sha256") != expected_request_sha256
             or unsigned.get("idempotency_key") != expected_idempotency_key
@@ -1183,8 +1227,7 @@ class PinnedProfiledTrainingExternalWitnessClientV1(
 
         if (
             prior_sequence == 0
-            and expected_event_sha256
-            != PROFILED_OBSERVATION_HEAD_GENESIS_EVENT_SHA256
+            and expected_event_sha256 != PROFILED_OBSERVATION_HEAD_GENESIS_EVENT_SHA256
         ):
             _fail("PROFILED_WITNESS_EXPECTED_GENESIS_MISMATCH")
 
