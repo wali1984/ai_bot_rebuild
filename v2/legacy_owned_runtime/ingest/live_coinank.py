@@ -369,6 +369,10 @@ _ALLOWED_SYMBOLS = {
     "RIVERUSDT", "RAVEUSDT", "HIGHUSDT", "PENGUUSDT",
     "BARDUSDT", "BANKUSDT", "AUCTIONUSDT", "ALICEUSDT",
 }
+# Endpoint-local dynamic membership is refreshed from the same plan that will
+# be executed.  This keeps the validator aligned with the adaptive runtime
+# universe without widening unrelated endpoint families.
+_ALLOWED_SYMBOLS_BY_ENDPOINT: dict[str, frozenset[str]] = {}
 _ALLOWED_EXCHANGES = {"Binance"}  # extend if needed
 
 # interval -> ms
@@ -393,7 +397,8 @@ def _validate_params(ep: str, params: dict):
     """Harmless checks: endTime alignment, allowed symbol/exchange. Logs only."""
     try:
         sym = params.get("symbol")
-        if sym and sym not in _ALLOWED_SYMBOLS:
+        allowed_symbols = _ALLOWED_SYMBOLS_BY_ENDPOINT.get(ep, _ALLOWED_SYMBOLS)
+        if sym and sym not in allowed_symbols:
             _warn(ep, f"symbol not in allowed set: {sym}", params)
 
         ex = params.get("exchange")
@@ -1277,6 +1282,8 @@ def build_param_sets(key: str):
             if key == "openInterest_kline"
             else _active_symbols_for_deep()
         )
+        if key == "openInterest_kline":
+            _ALLOWED_SYMBOLS_BY_ENDPOINT[key] = frozenset(deep_syms)
         intervals = (
             list(
                 dict.fromkeys(

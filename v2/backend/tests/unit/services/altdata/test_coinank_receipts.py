@@ -353,6 +353,7 @@ def test_real_runtime_parameter_builder_emits_5m_lane_for_all_159_symbols() -> N
         "CRITICAL_COINANK_SCHEDULER_ENDPOINTS": {"openInterest_kline"},
         "PRODUCT_TYPE": "SWAP",
         "COINANK_PARAM_SET_LIMIT": 0,
+        "_ALLOWED_SYMBOLS_BY_ENDPOINT": {},
         "_liquidation_surface_oi_symbols": lambda: symbols,
         "_active_symbols_for_deep": lambda: ["BTCUSDT"],
         "_effective_end_time": lambda _tf, value: value,
@@ -375,6 +376,31 @@ def test_real_runtime_parameter_builder_emits_5m_lane_for_all_159_symbols() -> N
     assert all(row["exchange"] == "Binance" for row in five_minute)
     assert all(row["productType"] == "SWAP" for row in five_minute)
     assert all(row["size"] == 3 for row in five_minute)
+
+
+def test_runtime_validator_uses_exact_dynamic_oi_plan_membership() -> None:
+    tree = ast.parse(RUNTIME_PATH.read_text(encoding="utf-8"))
+    warnings: list[str] = []
+    namespace: dict[str, Any] = {
+        "_ALLOWED_SYMBOLS": {"BTCUSDT"},
+        "_ALLOWED_SYMBOLS_BY_ENDPOINT": {
+            "openInterest_kline": frozenset({"BTCUSDT", "NEWUSDT"})
+        },
+        "_ALLOWED_EXCHANGES": {"Binance"},
+        "_INTERVAL_MS": {"5m": 300_000},
+        "_warn": lambda _endpoint, message, _params=None: warnings.append(message),
+    }
+    validate = _load_runtime_function(tree, "_validate_params", namespace)
+
+    validate("openInterest_kline", {"symbol": "NEWUSDT", "exchange": "Binance"})
+    assert warnings == []
+
+    validate("openInterest_kline", {"symbol": "OUTSIDEUSDT", "exchange": "Binance"})
+    assert warnings == ["symbol not in allowed set: OUTSIDEUSDT"]
+
+    warnings.clear()
+    validate("fundingRate_kline", {"symbol": "NEWUSDT", "exchange": "Binance"})
+    assert warnings == ["symbol not in allowed set: NEWUSDT"]
 
 
 def test_real_runtime_universe_helper_unions_resolved_and_configured_symbols() -> None:
