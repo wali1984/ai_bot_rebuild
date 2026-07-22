@@ -195,6 +195,7 @@ No active authorized real submitter was observed; release mode was effectively n
 - [Runtime/deployment internals](system_audit_2026_master/components/RUNTIME_PROCESS_AND_DEPLOYMENT.md)
 - [Temporal data/features](system_audit_2026_master/components/DATA_TEMPORAL_LINEAGE_AND_FEATURES.md)
 - [Trainer/PPO/MASA/replay/checkpoints](system_audit_2026_master/components/TRAINER_PPO_MASA_REPLAY_AND_CHECKPOINTS.md)
+- [Profiled trainer external witness client V1](system_audit_2026_master/components/PROFILED_TRAINING_EXTERNAL_WITNESS_CLIENT_V1.md)
 - [Decision/risk/paper/live execution](system_audit_2026_master/components/DECISION_RISK_PAPER_AND_LIVE_EXECUTION.md)
 - [API/auth/storage/web/mobile](system_audit_2026_master/components/API_AUTH_STORAGE_WEB_AND_MOBILE.md)
 - [Config/contracts/change impact](system_audit_2026_master/components/CONFIG_KEYS_CONTRACTS_AND_CHANGE_IMPACT.md)
