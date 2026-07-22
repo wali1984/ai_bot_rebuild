@@ -278,15 +278,18 @@ def test_paper_loop_immutable_dropin_pins_one_paper_only_release() -> None:
         re.findall(r"deployments/ai_bot_rebuild/([0-9a-f]{40})", dropin)
     )
 
-    assert release_shas == {"88f942ad9ebbe971033b42de0b75cc50141e51c3"}
-    assert "AI_BOT_CODE_SHA=88f942ad9ebbe971033b42de0b75cc50141e51c3" in dropin
+    assert release_shas == {"c2a786d532a32e6614ba51a9a702dcc3bd4627c9"}
+    assert "AI_BOT_CODE_SHA=c2a786d532a32e6614ba51a9a702dcc3bd4627c9" in dropin
     assert (
-        "diff --quiet --exit-code 88f942ad9ebbe971033b42de0b75cc50141e51c3 --"
+        "diff --quiet --exit-code c2a786d532a32e6614ba51a9a702dcc3bd4627c9 --"
         in dropin
     )
     assert "LIVE_GATE=blocked_human_only" in base_unit
     assert "v2.backend.app.cli.v2_trade_management_paper_loop" in dropin
+    assert " -P -B -m " in dropin
     assert "--loop --interval-seconds 60" in dropin
-    assert "WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD" not in dropin
+    assert "WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD" in dropin
+    assert "RuntimeDirectory=ai-bot-v2-trade-management-paper-loop" in dropin
+    assert "V2_TRADE_MANAGEMENT_PAPER_LOOP_LOCK_PATH=%t/" in dropin
     assert "BINANCE_API_KEY=" not in dropin
     assert "BINANCE_API_SECRET=" not in dropin
