@@ -100,3 +100,12 @@ First fix the single malformed comment in `src/components/charts/proChartInterna
 - Added quantified web/iOS coverage matrix, field map, defect register, visual index, Codemagic report, and completion report.
 - iOS visible-copy defect fixed; SwiftPM build and 36 tests pass.
 - Completion remains NO-GO pending clean authenticated all-route evidence and four signal-explainability captures.
+
+## 2026-07-22 authenticated family rerun
+
+- Markets/charts: 8 routes, 32/32 captures, 4,102 fields, 1,038 source matches, zero console/request/overflow defects.
+- Ingestors/providers: 14 routes, 56/56 captures, 2,008 fields, 1,209 source matches, zero console/request/overflow defects.
+- Trading/portfolio/risk: 14 routes, 56/56 captures, 2,405 fields, 1,333 source matches, zero console/request/overflow defects.
+- Trainer/AI: 6 routes, 20/24 captures, 1,556 fields, 820 source matches, zero console/request/overflow defects; four signal-explainability captures remain renderer-blocked.
+- Admin/system: 25 routes, 100/100 captures, 7,151 fields, 3,670 source matches, zero console/request/overflow defects.
+- A single persistent preview and one Playwright process were used; fresh 24-hour admin token validated through `/api/auth/me`.
