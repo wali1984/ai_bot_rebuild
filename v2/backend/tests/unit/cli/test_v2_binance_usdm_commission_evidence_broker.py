@@ -128,6 +128,47 @@ def test_main_requires_explicit_read_only_opt_in_before_credentials(
     assert "COMMISSION_BROKER_EXPLICIT_READ_ONLY_OPT_IN_REQUIRED" in output
 
 
+def test_main_accepts_absolute_path_subclass_and_runs_one_isolated_turn(
+    monkeypatch: Any,
+    capsys: Any,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(
+        cli,
+        "adapter_and_security_context_from_systemd_credentials",
+        lambda: (object(), object()),
+    )
+    monkeypatch.setattr(cli, "_redis_client", lambda _url: object())
+    monkeypatch.setattr(cli, "default_commission_broker_store", lambda _root: object())
+    monkeypatch.setattr(
+        cli,
+        "run_turn",
+        lambda **_kwargs: {
+            "status": "READY",
+            "request_count": 1,
+            "request_executed": True,
+            "read_only": True,
+            "places_real_order": False,
+            "order_submitted": False,
+            "leverage_mutated": False,
+            "margin_mutated": False,
+        },
+    )
+    cli._STOP.clear()  # noqa: SLF001
+
+    exit_code = cli.main(
+        [
+            "--once",
+            "--execute-read-only",
+            "--data-root",
+            str(tmp_path.absolute()),
+        ]
+    )
+
+    assert exit_code == 0
+    assert json.loads(capsys.readouterr().out)["status"] == "READY"
+
+
 def test_public_status_cannot_render_secret_or_raw_material() -> None:
     status = cli.public_status(
         {

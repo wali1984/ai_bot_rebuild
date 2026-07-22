@@ -253,7 +253,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         return _CONFIG_EXIT_STATUS
     data_root = args.data_root
-    if type(data_root) is not Path or not data_root.is_absolute():
+    if not isinstance(data_root, Path) or not data_root.is_absolute():
         _emit(
             {
                 "status": "BLOCKED",
