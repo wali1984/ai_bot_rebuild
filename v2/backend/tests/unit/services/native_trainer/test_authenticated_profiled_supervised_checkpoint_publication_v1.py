@@ -206,6 +206,78 @@ def test_authenticated_candidate_is_durable_verified_and_non_serving(
         assert contract[field_name] is False
 
 
+def test_verified_existing_publication_is_recovered_without_optimizer_rerun(
+    publication_bundle: dict[str, Any],
+) -> None:
+    first = publication_bundle["first"]
+    contract = first.checkpoint_manifest.checkpoint_evidence[
+        "authenticated_profiled_supervised_publication"
+    ]
+
+    recovered = publication_module.find_authenticated_profiled_supervised_publication_for_completion_v1(  # noqa: E501
+        candidate_checkpoint_manager=publication_bundle["candidate_manager"],
+        manifest_id=contract["manifest_id"],
+        completion_event_sha256=contract["completion_event_sha256"],
+        external_authorization_envelope_sha256=(
+            contract["external_authorization_envelope_sha256"]
+        ),
+        witness_id=contract["witness_id"],
+        witness_public_key_sha256=contract["witness_public_key_sha256"],
+        witness_sequence=contract["witness_sequence"],
+    )
+
+    assert recovered is not None
+    assert recovered.status == (
+        publication_module.AUTHENTICATED_PROFILED_EXISTING_PUBLICATION_V1_STATUS
+    )
+    assert recovered.already_published is True
+    assert recovered.checkpoint_artifact_verified is True
+    assert recovered.candidate_checkpoint_id == first.candidate_checkpoint_id
+    assert recovered.candidate_checkpoint_generation == (
+        first.candidate_checkpoint_generation
+    )
+    assert recovered.checkpoint_write_authorized is False
+    assert recovered.serving_authorized is False
+    assert recovered.trading_authorized is False
+
+
+def test_existing_publication_lookup_returns_none_for_disjoint_completion(
+    publication_bundle: dict[str, Any],
+) -> None:
+    assert publication_module.find_authenticated_profiled_supervised_publication_for_completion_v1(  # noqa: E501
+        candidate_checkpoint_manager=publication_bundle["candidate_manager"],
+        manifest_id="1" * 64,
+        completion_event_sha256="2" * 64,
+        external_authorization_envelope_sha256="3" * 64,
+        witness_id="independent-witness",
+        witness_public_key_sha256="4" * 64,
+        witness_sequence=99,
+    ) is None
+
+
+def test_existing_publication_identity_overlap_conflict_fails_closed(
+    publication_bundle: dict[str, Any],
+) -> None:
+    contract = publication_bundle["first"].checkpoint_manifest.checkpoint_evidence[
+        "authenticated_profiled_supervised_publication"
+    ]
+    with pytest.raises(
+        publication_module.AuthenticatedProfiledSupervisedCheckpointPublicationV1Error,
+        match="PROFILED_SUPERVISED_EXISTING_PUBLICATION_IDENTITY_CONFLICT",
+    ):
+        publication_module.find_authenticated_profiled_supervised_publication_for_completion_v1(  # noqa: E501
+            candidate_checkpoint_manager=publication_bundle["candidate_manager"],
+            manifest_id="1" * 64,
+            completion_event_sha256=contract["completion_event_sha256"],
+            external_authorization_envelope_sha256=(
+                contract["external_authorization_envelope_sha256"]
+            ),
+            witness_id=contract["witness_id"],
+            witness_public_key_sha256=contract["witness_public_key_sha256"],
+            witness_sequence=contract["witness_sequence"],
+        )
+
+
 def test_identical_retry_reuses_exact_manifest_weight_and_generation(
     publication_bundle: dict[str, Any],
 ) -> None:
