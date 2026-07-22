@@ -250,6 +250,11 @@ async function captureRoute(page: Page, route: RouteCase, viewport: Viewport): P
   // the route/network result and let the sweep continue; the missing visual
   // capture is emitted as an explicit defect in the artifact.
   if (route.pageId === 'signal-explainability') {
+    const screenshotDir = path.join(ARTIFACT_ROOT, familyFor(route.pageId), safeName(route.path));
+    mkdirSync(screenshotDir, { recursive: true });
+    const screenshotPath = path.join(screenshotDir, `${viewport.name}.png`);
+    await bounded(page.screenshot({ path: screenshotPath, fullPage: false, timeout: 5_000 }).catch(() => undefined), undefined, 5_000);
+    const screenshotRecorded = existsSync(screenshotPath);
     page.off('response', onResponse);
     page.off('console', onConsole);
     page.off('requestfailed', onFailed);
@@ -277,8 +282,8 @@ async function captureRoute(page: Page, route: RouteCase, viewport: Viewport): P
       failed_requests: failedRequests.slice(0, 50),
       horizontal_overflow_px: null,
       forbidden_runtime_text: null,
-      screenshot_path: null,
-      screenshot_blocked_reason: 'renderer_busy_large_proof_payload',
+      screenshot_path: screenshotRecorded ? screenshotPath : null,
+      screenshot_blocked_reason: screenshotRecorded ? null : 'renderer_busy_large_proof_payload',
     };
   }
   await Promise.allSettled(responseBodies);

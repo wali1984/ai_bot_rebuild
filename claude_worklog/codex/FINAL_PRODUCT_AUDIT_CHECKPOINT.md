@@ -109,3 +109,9 @@ First fix the single malformed comment in `src/components/charts/proChartInterna
 - Trainer/AI: 6 routes, 20/24 captures, 1,556 fields, 820 source matches, zero console/request/overflow defects; four signal-explainability captures remain renderer-blocked.
 - Admin/system: 25 routes, 100/100 captures, 7,151 fields, 3,670 source matches, zero console/request/overflow defects.
 - A single persistent preview and one Playwright process were used; fresh 24-hour admin token validated through `/api/auth/me`.
+
+## 2026-07-22 final family closure
+
+- Trainer/AI rerun closed the visual gap: 6 routes, 24/24 screenshots, 1,675 fields, 971 source matches, zero console/request/overflow defects.
+- All six family artifacts now sum to 71 routes and 284/284 captures with zero runtime defects in the audited preview.
+- Live execution remains fail-closed; native iOS signing is pending only Codemagic/Apple credentials.
