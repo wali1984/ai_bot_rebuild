@@ -270,6 +270,15 @@ def test_dynamic_rotation_universe_atomically_excludes_invalid_symbol_metadata()
     assert selected["live_authority"] is False
 
 
+def test_dynamic_universe_lua_normalizes_redis_status_reply_before_type_check() -> None:
+    script = broker._DYNAMIC_UNIVERSE_READ_LUA  # noqa: SLF001
+
+    assert "local redis_type_reply = redis.call('TYPE', KEYS[1])" in script
+    assert "if type(redis_type_reply) == 'table' then" in script
+    assert "redis_type = redis_type_reply['ok']" in script
+    assert "redis_type == 'string'" in script
+
+
 @pytest.mark.parametrize(
     ("redis_client", "expected_status"),
     [

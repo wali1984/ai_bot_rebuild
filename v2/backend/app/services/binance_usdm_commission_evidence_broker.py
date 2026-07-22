@@ -178,7 +178,11 @@ return {1, tonumber(ARGV[2])}
 """
 
 _DYNAMIC_UNIVERSE_READ_LUA: Final = """
-local redis_type = redis.call('TYPE', KEYS[1])
+local redis_type_reply = redis.call('TYPE', KEYS[1])
+local redis_type = redis_type_reply
+if type(redis_type_reply) == 'table' then
+  redis_type = redis_type_reply['ok']
+end
 local payload_bytes = redis.call('STRLEN', KEYS[1])
 local payload = ''
 if redis_type == 'string' and payload_bytes <= tonumber(ARGV[1]) then
