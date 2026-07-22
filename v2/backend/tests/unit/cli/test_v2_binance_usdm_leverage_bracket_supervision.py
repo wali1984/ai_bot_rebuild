@@ -11,8 +11,8 @@ import pytest
 from v2.backend.app.cli import v2_binance_usdm_leverage_bracket_evidence as cli
 from v2.backend.app.services import binance_usdm_leverage_bracket_evidence as mod
 
-TRADER_ID = "trader-asjad"
-CREDENTIAL_REF = "ASJAD_BINANCE_READONLY"
+TRADER_ID = "trader-wajidali1984"
+CREDENTIAL_REF = "ALPHAFORGE_BINANCE_WAJIDALI1984_READONLY"
 API_KEY = "test-only-scoped-api-key"
 API_SECRET = "test-only-scoped-api-secret"  # noqa: S105
 EVIDENCE_HMAC_KEY = "test-only-separate-evidence-hmac-key-with-32-bytes"
@@ -84,17 +84,17 @@ def test_systemd_credentials_build_exact_read_only_binding(tmp_path: Path) -> No
     [
         (
             {cli.CREDENTIAL_REF_ENV: "BINANCE"},
-            "SYSTEMD_CREDENTIAL_UNAVAILABLE_TRADER-ASJAD--BINANCE--API_KEY",
+            "SYSTEMD_CREDENTIAL_UNAVAILABLE_TRADER-WAJIDALI1984--BINANCE--API_KEY",
         ),
         (
             {cli.CREDENTIAL_REF_ENV: "BINANCE_READONLY"},
-            "SYSTEMD_CREDENTIAL_UNAVAILABLE_TRADER-ASJAD--BINANCE_READONLY--API_KEY",
+            "SYSTEMD_CREDENTIAL_UNAVAILABLE_TRADER-WAJIDALI1984--BINANCE_READONLY--API_KEY",
         ),
         (
             {cli.CREDENTIAL_REF_ENV: CREDENTIAL_REF.lower()},
             (
-                "SYSTEMD_CREDENTIAL_UNAVAILABLE_TRADER-ASJAD--"
-                "ASJAD_BINANCE_READONLY--API_KEY"
+                "SYSTEMD_CREDENTIAL_UNAVAILABLE_TRADER-WAJIDALI1984--"
+                "ALPHAFORGE_BINANCE_WAJIDALI1984_READONLY--API_KEY"
             ),
         ),
         ({cli.BASE_URL_ENV: "http://fapi.binance.com"}, "BINANCE_BASE_URL_NOT_SAFE_ORIGIN"),
