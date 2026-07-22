@@ -22,7 +22,7 @@ import statistics
 from collections.abc import Iterable
 from dataclasses import asdict
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 
 from .contracts import (
     CandleObservation,
@@ -1077,6 +1077,28 @@ def build_liquidation_surface(request: SurfaceRequest) -> dict[str, Any]:
         timeframe_duration_ms=timeframe_duration_ms,
         as_of_time_ms=as_of_time_ms,
     )
+    adaptive_validity_candidates = (
+        candles[-1].close_time_ms + freshness_evidence["candle"]["budget_ms"],
+        (
+            open_interest[-1].feature_cutoff_ms
+            + freshness_evidence["open_interest"]["budget_ms"]
+            if open_interest
+            and freshness_evidence["open_interest"]["budget_ms"] is not None
+            else None
+        ),
+        (
+            mark_prices[-1].event_time_ms
+            + freshness_evidence["mark_price"]["budget_ms"]
+            if mark_prices and freshness_evidence["mark_price"]["budget_ms"] is not None
+            else None
+        ),
+    )
+    adaptive_source_valid_until = (
+        min(cast(int, value) for value in adaptive_validity_candidates)
+        if all(value is not None for value in adaptive_validity_candidates)
+        else None
+    )
+    bracket_valid_until = min((row.expires_at_ms for row in brackets), default=None)
     long_excursions = _adverse_excursions(candles, side="long")
     short_excursions = _adverse_excursions(candles, side="short")
     bracket_scenarios = tuple(brackets)
@@ -1314,6 +1336,10 @@ def build_liquidation_surface(request: SurfaceRequest) -> dict[str, Any]:
         "source_available_at": source_available_at,
         "surface_as_of": as_of_time_ms,
         "generated_at": generated_at_ms,
+        "adaptive_source_valid_until": adaptive_source_valid_until,
+        "adaptive_source_valid_until_inclusive": True,
+        "bracket_valid_until": bracket_valid_until,
+        "bracket_valid_until_exclusive": True,
         "available_at": None,
         "postcommit_receipt_bound": False,
         "source_age_ms": {

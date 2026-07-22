@@ -247,6 +247,17 @@ def test_valid_surface_is_prospective_but_requires_postcommit_receipt() -> None:
     assert all(row["price"] > payload["current_price"] for row in payload["short_levels"])
     assert payload["exchange_max_initial_leverage"] == 20
     assert payload["leverage_scenarios"] == list(range(2, 21))
+    assert payload["adaptive_source_valid_until"] == min(
+        _candles()[-1].close_time_ms
+        + payload["adaptive_freshness_evidence"]["candle"]["budget_ms"],
+        _open_interest()[-1].feature_cutoff_ms
+        + payload["adaptive_freshness_evidence"]["open_interest"]["budget_ms"],
+        _mark_prices()[-1].event_time_ms
+        + payload["adaptive_freshness_evidence"]["mark_price"]["budget_ms"],
+    )
+    assert payload["adaptive_source_valid_until_inclusive"] is True
+    assert payload["bracket_valid_until"] == min(row.expires_at_ms for row in _brackets())
+    assert payload["bracket_valid_until_exclusive"] is True
 
 
 def test_missing_brackets_emits_no_proxy_levels() -> None:
@@ -257,6 +268,7 @@ def test_missing_brackets_emits_no_proxy_levels() -> None:
     assert payload["trainer_semantic_eligible"] is False
     assert payload["trainer_authority_reason"] == "CURRENT_EXCHANGE_BRACKET_EVIDENCE_MISSING"
     assert payload["bracket_scenario_policy"] == "NO_BRACKET_PROXY_LEVELS_EMITTED"
+    assert payload["bracket_valid_until"] is None
 
 
 def test_missing_open_interest_is_diagnostic_not_trainer_eligible() -> None:
@@ -269,6 +281,7 @@ def test_missing_open_interest_is_diagnostic_not_trainer_eligible() -> None:
     )
     assert payload["trainer_semantic_eligible"] is False
     assert payload["trainer_authority_reason"] == ("POSITIVE_OPEN_INTEREST_COHORT_EVIDENCE_MISSING")
+    assert payload["adaptive_source_valid_until"] is None
 
 
 def test_missing_mark_price_uses_close_only_for_non_trainer_diagnostic() -> None:
