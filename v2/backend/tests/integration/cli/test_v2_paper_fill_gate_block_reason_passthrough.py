@@ -22,6 +22,10 @@ class FakeRedis:
         self.store: dict[str, str] = {
             "v2:live_gate:state": json.dumps({"live_gate": "blocked_human_only"})
         }
+        self.mget_calls: list[tuple[str, ...]] = []
+        self.mget_mode = "ok"
+        self.scan_calls = 0
+        self.fail_on_scan = False
         self.pipeline_transaction_flags: list[bool] = []
         self.pipeline_execute_count = 0
 
@@ -31,8 +35,23 @@ class FakeRedis:
     def get(self, key: str) -> str | None:
         return self.store.get(key)
 
-    def set(self, key: str, value: str, ex: int | None = None) -> bool:
+    def mget(self, keys: list[str]) -> list[str | None]:
+        self.mget_calls.append(tuple(keys))
+        if self.mget_mode == "raise":
+            raise RuntimeError("mget unavailable")
+        values = [self.store.get(key) for key in keys]
+        return values[:-1] if self.mget_mode == "short" else values
+
+    def set(
+        self,
+        key: str,
+        value: str,
+        ex: int | None = None,
+        nx: bool = False,
+    ) -> bool:
         # ex (ttl) is ignored in the in-memory fake.
+        if nx and key in self.store:
+            return False
         self.store[key] = value
         return True
 
@@ -41,6 +60,9 @@ class FakeRedis:
         return _FakeRedisPipeline(self)
 
     def scan_iter(self, match: str | None = None, count: int = 500):  # noqa: ARG002
+        self.scan_calls += 1
+        if self.fail_on_scan:
+            raise AssertionError("paper signal discovery must not use Redis SCAN")
         if match is None:
             yield from list(self.store.keys())
             return
@@ -84,6 +106,13 @@ class _FakeRedisPipeline:
 def _patch_connect(monkeypatch, module_path: str, fake: FakeRedis) -> None:
     mod = importlib.import_module(module_path)
     monkeypatch.setattr(mod, "_connect_redis", lambda: fake)
+
+
+def _patch_runtime_symbols(monkeypatch, symbols: list[str]) -> None:
+    universe = importlib.import_module(
+        "v2.backend.app.services.v2_symbol_runtime_universe"
+    )
+    monkeypatch.setattr(universe, "resolve_symbols", lambda: list(symbols))
 
 
 def _make_blocked_prediction(symbol: str, block_reasons: list[str]) -> dict[str, Any]:
@@ -136,6 +165,10 @@ def _make_routeable_prediction(symbol: str) -> dict[str, Any]:
         "feature_cutoff": "2026-05-17T04:59:00Z",
         "decision_time": "2026-05-17T05:00:00Z",
         "available_at": "2026-05-17T04:59:30Z",
+        "candle_closed_confirmed": True,
+        "candle_close_time": "2026-05-17T04:59:00Z",
+        "masa_feature_cutoff": "2026-05-17T04:59:00Z",
+        "ppo_decision_time": "2026-05-17T05:00:00Z",
         "symbol": symbol,
         "timeframe": "1m",
         "selected_action": "long",
@@ -334,6 +367,7 @@ def test_paper_loop_emits_held_intent_without_fill(monkeypatch) -> None:
 
 def test_paper_loop_reads_per_symbol_paper_signal_keys(monkeypatch) -> None:
     fake = FakeRedis()
+    _patch_runtime_symbols(monkeypatch, ["BTCUSDT"])
     now = datetime.now(timezone.utc).replace(microsecond=0)
     generated_utc = now.isoformat().replace("+00:00", "Z")
     available_at = (now - timedelta(seconds=30)).isoformat().replace("+00:00", "Z")
@@ -342,7 +376,7 @@ def test_paper_loop_reads_per_symbol_paper_signal_keys(monkeypatch) -> None:
     # cost_evidence_freshness_ms which the production-grade cost capture gate checks.
     orderbook_event_ms = int((now - timedelta(seconds=30)).timestamp() * 1000)
     fake.store["v2:signals:paper"] = json.dumps([])
-    fake.store["v2:signals:paper:BTCUSDT:1m"] = json.dumps(
+    fake.store["v2:signals:paper:BTCUSDT:15m"] = json.dumps(
         {
             "signal_id": "signal-btc-1m",
             "prediction_id": "prediction-btc-1m",
@@ -518,33 +552,31 @@ def test_paper_loop_reads_per_symbol_paper_signal_keys(monkeypatch) -> None:
     status = paper.run_once()
 
     assert status["paper_signals_seen"] == 1
+    assert len(fake.mget_calls) == 1
+    assert len(fake.mget_calls[0]) == len(
+        paper.PAPER_AUDIT_ALLOWED_ENTRY_TIMEFRAMES
+    )
+    assert "v2:signals:paper:BTCUSDT:15m" in fake.mget_calls[0]
+    assert "v2:signals:paper:BTCUSDT:8h" not in fake.mget_calls[0]
+    assert "v2:signals:paper:BTCUSDT" not in fake.mget_calls[0]
     assert status["intents_built"] == 1
-    assert status["intents_accepted"] == 1
+    assert status["intents_accepted"] == 0
+    assert status["intents_blocked"] == 1
     ledger = json.loads(fake.store["v2:paper:ledger"])
-    assert ledger["accepted_count"] == 1
-    assert ledger["accepted"][0]["signal_id"] == "signal-btc-1m"
-    assert ledger["accepted"][0]["prediction_id"] == "prediction-btc-1m"
-    assert ledger["accepted"][0]["intent_id"] == "signal-btc-1m"
-    assert ledger["accepted"][0]["source_intent_id"] == "signal-btc-1m"
-    assert ledger["accepted"][0]["risk_decision_id"] == "risk-btc-1m"
-    assert ledger["accepted"][0]["orchestrator_decision_id"] == "orch-btc-1m"
-    assert ledger["accepted"][0]["paper_fill_allowed"] is True
-    risk_decisions = json.loads(fake.store["v2:risk:decisions"])
-    assert risk_decisions[0]["prediction_id"] == "prediction-btc-1m"
-    assert risk_decisions[0]["expected_move_after_cost_bps"] == 20.0
-    assert risk_decisions[0]["expected_net_edge_bps"] == 20.0
-    assert risk_decisions[0]["confidence_calibrated"] == 0.66
-    latest_risk_decision = json.loads(fake.store["v2:risk:decisions:latest"])
-    assert latest_risk_decision == risk_decisions[0]
-    assert latest_risk_decision["decision_id"] == "decision-btc-1m"
-    assert latest_risk_decision["mtf_snapshot_id"] == "mtf-btc-1m"
-    assert latest_risk_decision["feature_cutoff"] == feature_cutoff
-    assert latest_risk_decision["decision_time"] == generated_utc
-    assert latest_risk_decision["available_at"] == available_at
-    assert latest_risk_decision["model_version"] == "model-v1"
-    assert latest_risk_decision["checkpoint_id"] == "ckpt-v1"
-    assert latest_risk_decision["source_hashes"] == {"feature_vector_hash": "hash-btc-1m"}
-    assert ledger["accepted"][0]["places_real_order"] is False
+    assert ledger["accepted_count"] == 0
+    assert ledger["blocked_count"] == 1
+    blocked = ledger["blocked"][0]
+    assert blocked["signal_id"] == "signal-btc-1m"
+    assert blocked["prediction_id"] == "prediction-btc-1m"
+    assert blocked["intent_id"] == "signal-btc-1m"
+    assert blocked["source_intent_id"] == "signal-btc-1m"
+    assert blocked["risk_decision_id"] == "risk-btc-1m"
+    assert blocked["orchestrator_decision_id"] == "orch-btc-1m"
+    assert blocked["paper_fill_allowed"] is False
+    assert "PAPER_CANDIDATE_MARGIN_REQUIREMENT_INVALID" in blocked[
+        "paper_fill_gate_block_reasons"
+    ]
+    assert blocked["places_real_order"] is False
     assert status["places_real_order"] is False
     assert status["writes_legacy_redis"] is False
 
@@ -592,8 +624,9 @@ def test_paper_loop_atomically_publishes_zero_candidate_margin_control_bundle(
     assert fake.pipeline_execute_count == 1
 
 
-def test_paper_loop_skips_stale_per_symbol_paper_signal_keys() -> None:
+def test_paper_loop_skips_stale_per_symbol_paper_signal_keys(monkeypatch) -> None:
     fake = FakeRedis()
+    _patch_runtime_symbols(monkeypatch, ["BTCUSDT"])
     fake.store["v2:signals:paper"] = json.dumps([])
     fake.store["v2:signals:paper:BTCUSDT:1m"] = json.dumps(
         {
@@ -620,8 +653,207 @@ def test_paper_loop_skips_stale_per_symbol_paper_signal_keys() -> None:
     assert paper._read_paper_signals(fake) == []
 
 
-def test_paper_loop_dedupes_aggregate_and_per_symbol_signal_by_prediction_id() -> None:
+def test_paper_loop_rejects_missing_malformed_and_future_signal_times(
+    monkeypatch,
+) -> None:
+    _patch_runtime_symbols(monkeypatch, ["BTCUSDT"])
+    paper = importlib.import_module("v2.backend.app.cli.v2_trade_management_paper_loop")
+    future_utc = (
+        (datetime.now(timezone.utc) + timedelta(minutes=5))
+        .replace(microsecond=0)
+        .isoformat()
+        .replace("+00:00", "Z")
+    )
+
+    for case, generated_utc in (
+        ("missing", None),
+        ("malformed", "not-a-clock"),
+        ("future", future_utc),
+    ):
+        fake = FakeRedis()
+        fake.fail_on_scan = True
+        fake.store["v2:signals:paper"] = json.dumps([])
+        row = {
+            "signal_id": f"signal-{case}-time",
+            "prediction_id": f"prediction-{case}-time",
+            "symbol": "BTCUSDT",
+            "timeframe": "1m",
+            "market_state_id": f"market-{case}-time",
+            "valid_for_paper": True,
+            "paper_fill_allowed": True,
+        }
+        if generated_utc is not None:
+            row["generated_utc"] = generated_utc
+        fake.store["v2:signals:paper:BTCUSDT:1m"] = json.dumps(row)
+
+        assert paper._read_paper_signals(fake) == []
+        assert len(fake.mget_calls) == 1
+        assert fake.scan_calls == 0
+
+
+def test_paper_loop_rejects_per_key_symbol_and_timeframe_substitution(
+    monkeypatch,
+) -> None:
     fake = FakeRedis()
+    _patch_runtime_symbols(monkeypatch, ["BTCUSDT", "ETHUSDT"])
+    generated_utc = (
+        datetime.now(timezone.utc)
+        .replace(microsecond=0)
+        .isoformat()
+        .replace("+00:00", "Z")
+    )
+    fake.store["v2:signals:paper"] = json.dumps([])
+    fake.store["v2:signals:paper:BTCUSDT:1m"] = json.dumps(
+        {
+            "signal_id": "signal-cross-timeframe",
+            "prediction_id": "prediction-cross-timeframe",
+            "symbol": "BTCUSDT",
+            "timeframe": "15m",
+            "market_state_id": "market-cross-timeframe",
+            "valid_for_paper": True,
+            "paper_fill_allowed": True,
+            "generated_utc": generated_utc,
+        }
+    )
+    fake.store["v2:signals:paper:ETHUSDT:5m"] = json.dumps(
+        {
+            "signal_id": "signal-cross-symbol",
+            "prediction_id": "prediction-cross-symbol",
+            "symbol": "BTCUSDT",
+            "timeframe": "5m",
+            "market_state_id": "market-cross-symbol",
+            "valid_for_paper": True,
+            "paper_fill_allowed": True,
+            "generated_utc": generated_utc,
+        }
+    )
+    fake.store["v2:signals:paper:BTCUSDT:15m"] = json.dumps(
+        {
+            "signal_id": "signal-conflicting-thesis-timeframe",
+            "prediction_id": "prediction-conflicting-thesis-timeframe",
+            "symbol": "BTCUSDT",
+            "timeframe": "15m",
+            "thesis_timeframe": "8h",
+            "market_state_id": "market-conflicting-thesis-timeframe",
+            "valid_for_paper": True,
+            "paper_fill_allowed": True,
+            "generated_utc": generated_utc,
+        }
+    )
+    fake.store["v2:signals:paper:BTCUSDT"] = json.dumps(
+        {
+            "signal_id": "signal-legacy-symbol-only-8h",
+            "prediction_id": "prediction-legacy-symbol-only-8h",
+            "symbol": "BTCUSDT",
+            "timeframe": "8h",
+            "market_state_id": "market-legacy-symbol-only-8h",
+            "valid_for_paper": True,
+            "paper_fill_allowed": True,
+            "generated_utc": generated_utc,
+        }
+    )
+    paper = importlib.import_module("v2.backend.app.cli.v2_trade_management_paper_loop")
+
+    assert paper._read_paper_signals(fake) == []
+    assert len(fake.mget_calls) == 1
+    assert "v2:signals:paper:BTCUSDT" not in fake.mget_calls[0]
+    assert "v2:signals:paper:BTCUSDT:8h" not in fake.mget_calls[0]
+
+
+def test_paper_loop_mget_failure_or_cardinality_mismatch_fails_closed(
+    monkeypatch,
+) -> None:
+    generated_utc = (
+        datetime.now(timezone.utc)
+        .replace(microsecond=0)
+        .isoformat()
+        .replace("+00:00", "Z")
+    )
+    paper = importlib.import_module("v2.backend.app.cli.v2_trade_management_paper_loop")
+    _patch_runtime_symbols(monkeypatch, ["BTCUSDT"])
+    for mode in ("raise", "short"):
+        fake = FakeRedis()
+        fake.mget_mode = mode
+        fake.store["v2:signals:paper"] = json.dumps([])
+        fake.store["v2:signals:paper:BTCUSDT:1m"] = json.dumps(
+            {
+                "signal_id": f"signal-{mode}",
+                "prediction_id": f"prediction-{mode}",
+                "symbol": "BTCUSDT",
+                "timeframe": "1m",
+                "market_state_id": f"market-{mode}",
+                "valid_for_paper": True,
+                "paper_fill_allowed": True,
+                "generated_utc": generated_utc,
+            }
+        )
+
+        assert paper._read_paper_signals(fake) == []
+        assert len(fake.mget_calls) == 1
+
+
+def test_paper_loop_nonempty_aggregate_keeps_other_runtime_symbol_key(
+    monkeypatch,
+) -> None:
+    generated_utc = (
+        datetime.now(timezone.utc)
+        .replace(microsecond=0)
+        .isoformat()
+        .replace("+00:00", "Z")
+    )
+    fake = FakeRedis()
+    fake.fail_on_scan = True
+    _patch_runtime_symbols(monkeypatch, ["BTCUSDT", "ETHUSDT"])
+    fake.store["v2:signals:paper"] = json.dumps(
+        [
+            {
+                "signal_id": "signal-aggregate-xrp",
+                "prediction_id": "prediction-aggregate-xrp",
+                "symbol": "XRPUSDT",
+                "timeframe": "1m",
+                "generated_utc": generated_utc,
+            }
+        ]
+    )
+    fake.store["v2:signals:paper:ETHUSDT:15m"] = json.dumps(
+        {
+            "signal_id": "signal-timeframe-eth",
+            "prediction_id": "prediction-timeframe-eth",
+            "symbol": "ETHUSDT",
+            "timeframe": "15m",
+            "market_state_id": "market-timeframe-eth",
+            "valid_for_paper": True,
+            "paper_fill_allowed": True,
+            "generated_utc": generated_utc,
+        }
+    )
+    paper = importlib.import_module("v2.backend.app.cli.v2_trade_management_paper_loop")
+
+    rows = paper._read_paper_signals(fake)
+
+    assert {row["prediction_id"] for row in rows} == {
+        "prediction-aggregate-xrp",
+        "prediction-timeframe-eth",
+    }
+    assert len(fake.mget_calls) == 1
+    assert len(fake.mget_calls[0]) == 2 * len(
+        paper.PAPER_AUDIT_ALLOWED_ENTRY_TIMEFRAMES
+    )
+    assert not any(":XRPUSDT:" in key for key in fake.mget_calls[0])
+    assert fake.scan_calls == 0
+
+
+def test_paper_loop_dedupes_aggregate_and_per_symbol_signal_by_prediction_id(
+    monkeypatch,
+) -> None:
+    fake = FakeRedis()
+    _patch_runtime_symbols(monkeypatch, ["BTCUSDT"])
+    generated_utc = (
+        datetime.now(timezone.utc)
+        .replace(microsecond=0)
+        .isoformat()
+        .replace("+00:00", "Z")
+    )
     aggregate = {
         "signal_id": "signal-aggregate",
         "prediction_id": "prediction-shared",
@@ -639,7 +871,7 @@ def test_paper_loop_dedupes_aggregate_and_per_symbol_signal_by_prediction_id() -
         "valid_for_paper": True,
         "paper_fill_allowed": True,
         "paper_fill_gate_status": "PAPER_FILL_ALLOWED",
-        "generated_utc": "2026-06-19T10:00:00Z",
+        "generated_utc": generated_utc,
     }
     per_symbol = {
         **aggregate,

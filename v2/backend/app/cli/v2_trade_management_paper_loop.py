@@ -3596,9 +3596,6 @@ def _paper_signal_adaptive_stale_policy(
 def _read_paper_signals(r) -> list[dict]:
     if r is None:
         return []
-    import time
-    scan_start = time.time()
-    max_scan_time = 15.0  # Hard timeout: 15 seconds max for SCAN to prevent hangs
     rows: list[dict] = []
     native_policy_cache: dict[str, dict[str, Any] | None] = {}
     trial_guard = _paper_confidence_trial_guard(r)
@@ -3685,7 +3682,12 @@ def _read_paper_signals(r) -> list[dict]:
         generated = _parse_strategy_time(generated_raw)
         stale_policy = _paper_signal_adaptive_stale_policy(row)
         stale_seconds = int(stale_policy["adaptive_stale_seconds"])
-        if generated is not None and (now - generated).total_seconds() > stale_seconds:
+        if generated is None:
+            return "SIGNAL_TIME_MISSING_OR_INVALID_EXCLUDED_FROM_PAPER_ADMISSION"
+        age_seconds = (now - generated).total_seconds()
+        if age_seconds < 0.0:
+            return "SIGNAL_TIME_IN_FUTURE_EXCLUDED_FROM_PAPER_ADMISSION"
+        if age_seconds > stale_seconds:
             return f"STALE_SIGNAL_GT_{stale_seconds}s_ADAPTIVE_EXCLUDED_FROM_PAPER_ADMISSION"
         return None
 
@@ -3709,24 +3711,56 @@ def _read_paper_signals(r) -> list[dict]:
             return bool(row.get("paper_fill_gate_block_reasons") or row.get("market_state_reject_reasons"))
         return False
 
-    def append_payload(raw: str | None, *, require_enriched: bool = False) -> None:
+    def append_payload(
+        raw: str | bytes | None,
+        *,
+        require_enriched: bool = False,
+        expected_symbol: str | None = None,
+        expected_timeframe: str | None = None,
+    ) -> None:
         if not raw:
             return
         try:
             data = json.loads(raw)
         except (ValueError, TypeError):
             return
+
+        def _matches_source_key(row: dict[str, Any]) -> bool:
+            if (
+                expected_symbol is not None
+                and str(row.get("symbol") or "").upper() != expected_symbol
+            ):
+                return False
+            if (
+                expected_timeframe is not None
+                and str(row.get("timeframe") or "") != expected_timeframe
+            ):
+                return False
+            if expected_timeframe is not None and any(
+                str(row.get(field)).strip() != expected_timeframe
+                for field in (
+                    "thesis_timeframe",
+                    "prediction_timeframe",
+                    "expected_move_timeframe",
+                )
+                if row.get(field) not in (None, "")
+            ):
+                return False
+            return True
+
         if isinstance(data, list):
             rows.extend([
                 _with_native_policy_fields(s)
                 for s in data
                 if isinstance(s, dict)
+                and _matches_source_key(s)
                 and (not trial_paused or not _is_paper_confidence_trial_row(s))
                 and (not require_enriched or _is_enriched_paper_signal(s))
             ])
         elif isinstance(data, dict):
             if (
-                (not trial_paused or not _is_paper_confidence_trial_row(data))
+                _matches_source_key(data)
+                and (not trial_paused or not _is_paper_confidence_trial_row(data))
                 and (not require_enriched or _is_enriched_paper_signal(data))
             ):
                 rows.append(_with_native_policy_fields(data))
@@ -3735,26 +3769,51 @@ def _read_paper_signals(r) -> list[dict]:
         append_payload(r.get(f"{V2_REDIS_PREFIX}signals:paper"))
     except Exception:
         pass
-    # CRITICAL FIX: Don't use SCAN (hangs on 1.58M-key DB).
-    # Instead: Read per-symbol signals for ALL symbols present in main signals.
-    # Main v2:signals:paper only has ~25 signals; per-symbol keys have the other ~1246.
-    # This replaces 15-30s full SCAN with bounded per-symbol reads.
+    # Never SCAN the multi-million-key runtime database. The per-timeframe
+    # publisher writes v2:signals:paper:{symbol}:{timeframe}; enumerate only
+    # the validated adaptive runtime universe and PAPER entry-timeframe
+    # contract, then fetch the exact finite key set in one MGET. Aggregate
+    # rows are already loaded above and cannot expand this bounded key set.
     try:
-        # Extract symbols from already-loaded main signals
-        signal_symbols = set()
-        for row in rows:
-            sym = str(row.get("symbol") or "").upper()
-            if sym and len(sym) > 0:
-                signal_symbols.add(sym)
-        # Read per-symbol signal keys for each symbol in main signals
-        for symbol in signal_symbols:
-            if time.time() - scan_start > max_scan_time:
-                break
-            key = f"{V2_REDIS_PREFIX}signals:paper:{symbol}"
+        from v2.backend.app.services.v2_symbol_runtime_universe import resolve_symbols
+
+        signal_symbols = {
+            str(symbol).upper()
+            for symbol in resolve_symbols()
+            if str(symbol).strip()
+        }
+        source_keys: list[tuple[str, str, str | None]] = []
+        for symbol in sorted(signal_symbols):
+            source_keys.extend(
+                (
+                    f"{V2_REDIS_PREFIX}signals:paper:{symbol}:{timeframe}",
+                    symbol,
+                    timeframe,
+                )
+                for timeframe in sorted(PAPER_AUDIT_ALLOWED_ENTRY_TIMEFRAMES)
+            )
+
+        raw_values: list[str | bytes | None] = []
+        mget = getattr(r, "mget", None)
+        if callable(mget) and source_keys:
             try:
-                append_payload(r.get(key), require_enriched=True)
+                observed = mget([key for key, _symbol, _timeframe in source_keys])
+                if isinstance(observed, list) and len(observed) == len(source_keys):
+                    raw_values = observed
             except Exception:
-                pass
+                raw_values = []
+
+        for (_key, symbol, timeframe), raw in zip(
+            source_keys,
+            raw_values,
+            strict=True,
+        ):
+            append_payload(
+                raw,
+                require_enriched=True,
+                expected_symbol=symbol,
+                expected_timeframe=timeframe,
+            )
     except Exception:
         pass
 
