@@ -1873,6 +1873,7 @@ class ProfiledTrainingLedgerSampleV1:
     feature_snapshot_id: str
     decision_time: str
     feature_cutoff: str
+    feature_available_at: str
     generated_at: str
     parent_durable_snapshot_id: str
     parent_record_sha256: str
@@ -1971,6 +1972,14 @@ class ProfiledTrainingLedgerSampleV1:
             )
         ):
             _fail("PROFILED_TRAINING_SAMPLE_RESULT_INVARIANT_INVALID")
+        if _clock(
+            self.feature_available_at,
+            reason="PROFILED_TRAINING_SAMPLE_FEATURE_AVAILABLE_AT_INVALID",
+        ) > _clock(
+            self.decision_time,
+            reason="PROFILED_TRAINING_SAMPLE_DECISION_TIME_INVALID",
+        ):
+            _fail("PROFILED_TRAINING_SAMPLE_FEATURE_AVAILABLE_AFTER_DECISION")
         if _clock(
             self.cost_evidence_available_at,
             reason="PROFILED_TRAINING_SAMPLE_COST_AVAILABLE_AT_INVALID",
@@ -2419,6 +2428,10 @@ def _admit_item(
         feature_snapshot_id=cast(str, envelope["feature_snapshot_id"]),
         decision_time=cast(str, envelope["tensor_decision_time"]),
         feature_cutoff=cast(str, envelope["feature_cutoff"]),
+        feature_available_at=cast(
+            str,
+            parent_material["core_lineage"]["transform_available_at"],
+        ),
         generated_at=cast(str, envelope["generated_at"]),
         parent_durable_snapshot_id=cast(str, parent_id),
         parent_record_sha256=cast(str, parent_material["record"]["record_sha256"]),
