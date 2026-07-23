@@ -575,19 +575,20 @@ def freeze_dataset_from_archive(
     pit_eligible_snapshots: list[Mapping[str, Any]] = []
     canonical_label_integrity: Mapping[str, Any] | None = None
     if canonical_label_integrity_proof is not None:
-        if canonical_label_archive is not None and (
-            canonical_label_integrity_proof.get("archive_integrity_verified") is True
+        if (
+            canonical_label_archive is not None
+            and canonical_label_integrity_proof.get("archive_integrity_verified")
+            is True
+            and canonical_label_archive.integrity_proof_is_current(
+                canonical_label_integrity_proof
+            )
         ):
-            # Per-row canonical-label reads revalidate this proof against the
-            # current immutable archive metadata before admitting a label.
             canonical_label_integrity = canonical_label_integrity_proof
-    elif canonical_label_archive is not None:
-        try:
-            integrity = canonical_label_archive.verify_integrity()
-        except (OSError, TypeError, ValueError):
-            integrity = {}
-        if integrity.get("archive_integrity_verified") is True:
-            canonical_label_integrity = integrity
+    # A full-tail archive proof becomes stale on every valid append.  The
+    # bounded range reader below independently checks the exact rows, their
+    # chain, and both receipt classes when no current proof is available.
+    # It is therefore the safe online path, whereas rebuilding a global proof
+    # on every trainer shard would turn normal ingestion into maintenance.
     observed_at = _strict_aware_utc(training_observed_at or utc_now())
     for snapshot in snapshots:
         reasons = _row_reject_reasons(snapshot)

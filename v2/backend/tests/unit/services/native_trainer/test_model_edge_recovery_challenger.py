@@ -152,6 +152,72 @@ def test_dataset_freeze_prefers_newest_bounded_archive_window(
     }
 
 
+def test_dataset_freeze_uses_bounded_label_range_when_cached_proof_is_stale(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    class _Archive:
+        path = tmp_path / "labels.sqlite3"
+
+        @staticmethod
+        def integrity_proof_is_current(_proof: object) -> bool:
+            return False
+
+    snapshot = _trusted_snapshot(label_source=challenger.CANONICAL_5M_LABEL_SOURCE)
+    seen_proofs: list[object] = []
+    monkeypatch.setattr(
+        challenger,
+        "iter_snapshots",
+        lambda _root, *, limit, newest_first: iter((snapshot,)),
+    )
+    monkeypatch.setattr(
+        challenger,
+        "snapshot_to_final_candle",
+        lambda _snapshot: ({"symbol": "BTCUSDT", "timeframe": "1m"}, []),
+    )
+    monkeypatch.setattr(
+        challenger,
+        "_explicit_cost_evidence",
+        lambda _snapshot: (
+            {
+                "fee_bps": 1.0,
+                "slippage_bps": 1.0,
+                "funding_bps": 0.0,
+                "total_cost_bps": 2.0,
+                "cost_evidence_source": "test",
+                "cost_evidence_hash": "test-cost-hash",
+            },
+            [],
+        ),
+    )
+
+    def bounded_label_read(*_args, **kwargs):
+        seen_proofs.append(kwargs["archive_integrity_proof"])
+        return (
+            {
+                "raw_future_return_bps": 5.0,
+                "label_available_at": _iso(minutes=300),
+                "max_future_horizon_seconds_consumed": 14_400,
+                "future_horizon_available_at": {},
+            },
+            [],
+        )
+
+    monkeypatch.setattr(challenger, "_canonical_label_evidence", bounded_label_read)
+
+    freeze = challenger.freeze_dataset_from_archive(
+        archive_root=tmp_path,
+        scan_limit=1,
+        replay_limit=1,
+        canonical_label_archive=_Archive(),
+        canonical_label_integrity_proof={"archive_integrity_verified": True},
+    )
+
+    assert len(freeze.rows) == 1
+    assert seen_proofs == [None]
+    assert freeze.manifest["canonical_label_archive_integrity_verified"] is False
+
+
 def test_row_reject_reasons_enforce_point_in_time_guards() -> None:
     assert _row_reject_reasons(_trusted_snapshot()) == []
 
