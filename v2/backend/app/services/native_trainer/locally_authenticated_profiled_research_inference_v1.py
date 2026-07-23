@@ -345,8 +345,11 @@ class _LocallyAuthenticatedProfiledResearchRawInferenceCommon:
             or not self.feature_snapshot_id
             or not self.tensor_id
             or not (clocks[0] < clocks[1] < clocks[2] <= clocks[3] <= clocks[4] <= clocks[5])
+            or type(self.total_feature_count) is not int
             or self.total_feature_count != LOGICAL_MODEL_FEATURE_COUNT
+            or type(self.available_feature_count) is not int
             or self.available_feature_count != 35
+            or type(self.data_coverage_percent) is not float
             or not math.isclose(
                 self.data_coverage_percent,
                 expected_coverage,
@@ -355,8 +358,12 @@ class _LocallyAuthenticatedProfiledResearchRawInferenceCommon:
             )
             or self.temporal_rejection_reasons
             != (PROFILED_MODEL_FEATURE_SNAPSHOT_RECORD_V1_UNWIRED_REASON,)
+            or type(self.raw_action_logits) is not tuple
             or len(self.raw_action_logits) != len(ACTION_LABELS)
-            or any(not math.isfinite(value) for value in self.raw_action_logits)
+            or any(
+                type(value) is not float or not math.isfinite(value)
+                for value in self.raw_action_logits
+            )
             or self.raw_action_logits_sha256 != stable_sha256(list(self.raw_action_logits))
             or type(self.selected_action_index) is not int
             or not 0 <= self.selected_action_index < len(ACTION_LABELS)
@@ -1056,6 +1063,48 @@ def revalidate_locally_authenticated_profiled_research_raw_inference_v2(
         ) from exc
 
 
+def validate_portable_profiled_research_raw_inference_v2_payload(
+    value: object,
+) -> dict[str, Any]:
+    """Rehydrate and fully validate exact canonical V2 JSON-style payload data."""
+
+    if type(value) is not dict:
+        _fail("LOCAL_PROFILED_RAW_INFERENCE_V2_PORTABLE_PAYLOAD_OBJECT_REQUIRED")
+    expected_fields = set(
+        LocallyAuthenticatedProfiledResearchRawInferenceV2.__dataclass_fields__
+    ) - {"_factory_token"}
+    if set(value) != expected_fields:
+        _fail("LOCAL_PROFILED_RAW_INFERENCE_V2_PORTABLE_PAYLOAD_FIELDS_INVALID")
+    normalized = dict(cast(dict[str, Any], value))
+    for field_name in (
+        "temporal_rejection_reasons",
+        "raw_action_logits",
+        "confidence_head_actions",
+        "confidence_raw_by_direction",
+        "model_action_probabilities",
+    ):
+        field_value = normalized.get(field_name)
+        if type(field_value) is not list:
+            _fail("LOCAL_PROFILED_RAW_INFERENCE_V2_PORTABLE_PAYLOAD_TYPES_INVALID")
+        normalized[field_name] = tuple(field_value)
+    try:
+        receipt = LocallyAuthenticatedProfiledResearchRawInferenceV2(
+            **normalized,
+            _factory_token=_RESULT_FACTORY_TOKEN,
+        )
+        revalidated = receipt.to_payload()
+    except LocallyAuthenticatedProfiledResearchInferenceV1Error:
+        raise
+    except Exception as exc:
+        raise LocallyAuthenticatedProfiledResearchInferenceV1Error(
+            "LOCAL_PROFILED_RAW_INFERENCE_V2_PORTABLE_PAYLOAD_INVALID:"
+            f"{type(exc).__name__}"
+        ) from exc
+    if revalidated != value:
+        _fail("LOCAL_PROFILED_RAW_INFERENCE_V2_PORTABLE_PAYLOAD_ROUNDTRIP_INVALID")
+    return revalidated
+
+
 def _validated_local_research_key(
     credentials: AuthenticatedProfiledResidentRuntimeCredentialsV1,
 ) -> bytes:
@@ -1235,4 +1284,5 @@ __all__ = (
     "LocallyAuthenticatedProfiledResearchRawInferenceV2",
     "open_locally_authenticated_profiled_research_inference_v1",
     "revalidate_locally_authenticated_profiled_research_raw_inference_v2",
+    "validate_portable_profiled_research_raw_inference_v2_payload",
 )
