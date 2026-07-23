@@ -33,17 +33,27 @@ from typing import Any, Final, NoReturn, cast
 from urllib.parse import quote
 
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.confidence import (
+    CONFIDENCE_CALIBRATION_ERROR_ESTIMATOR,
     CONFIDENCE_CALIBRATION_SCHEMA_VERSION,
     CONFIDENCE_FIT_PARTITION,
     CONFIDENCE_HEAD_ACTIONS,
     CONFIDENCE_HEAD_SCHEMA_VERSION,
     CONFIDENCE_LABEL_SEMANTICS,
     CONFIDENCE_UNCERTAINTY_METHOD,
+    LEGACY_CONFIDENCE_CALIBRATION_SCHEMA_VERSION,
+    LEGACY_CONFIDENCE_UNCERTAINTY_METHOD,
     brier_score,
     confidence_uncertainty_evidence_digest,
     expected_calibration_error,
+    fit_legacy_temperature,
     fit_temperature,
+    legacy_brier_score,
+    legacy_confidence_uncertainty_evidence_digest,
+    legacy_expected_calibration_error,
+    legacy_temperature_scaled_probability,
     normalize_calibration_state,
+    normalize_legacy_calibration_state,
+    paired_confidence_nonregression_evidence,
 )
 from v2.backend.app.services.native_trainer.immutable_source_payload_store import (
     SOURCE_PAYLOAD_ADDRESS_SCHEMA_VERSION,
@@ -67,6 +77,12 @@ PROFILED_RESEARCH_CALIBRATION_ADMISSION_V1_SCHEMA_VERSION: Final = (
 PROFILED_RESEARCH_CALIBRATION_ADMISSION_V1_CLASSIFICATION: Final = (
     "MODEL_BOUND_PURGED_FORWARD_VALIDATED_CALIBRATION_ADMISSION_V1"
 )
+PROFILED_RESEARCH_CALIBRATION_ADMISSION_V2_SCHEMA_VERSION: Final = (
+    "profiled_research_calibration_admission_v2"
+)
+PROFILED_RESEARCH_CALIBRATION_ADMISSION_V2_CLASSIFICATION: Final = (
+    "MODEL_BOUND_PURGED_FORWARD_VALIDATED_ADAPTIVE_CALIBRATION_ADMISSION_V2"
+)
 PROFILED_RESEARCH_CALIBRATION_ADMISSION_APPEND_RECEIPT_V1_SCHEMA_VERSION: Final = (
     "profiled_research_calibration_admission_append_receipt_v1"
 )
@@ -75,6 +91,9 @@ PROFILED_RESEARCH_CALIBRATION_ADMISSION_HEAD_ANCHOR_V1_SCHEMA_VERSION: Final = (
 )
 PROFILED_RESEARCH_CALIBRATION_UNCERTAINTY_METHOD: Final = (
     CONFIDENCE_UNCERTAINTY_METHOD
+)
+PROFILED_RESEARCH_CALIBRATION_LEGACY_UNCERTAINTY_METHOD: Final = (
+    LEGACY_CONFIDENCE_UNCERTAINTY_METHOD
 )
 
 _APPLICATION_ID = 0x5043414C
@@ -189,7 +208,7 @@ _PARTITION_FIELDS: Final = frozenset(
         "complete_inventory_assignment_verified",
     }
 )
-_EVIDENCE_POLICY: Final = {
+_EVIDENCE_POLICY_V1: Final = {
     "configured_sample_count_threshold_used": False,
     "static_market_threshold_used": False,
     "validation_outcomes_used_to_select_partition": False,
@@ -201,6 +220,16 @@ _EVIDENCE_POLICY: Final = {
     "one_standard_error_non_regression_required": True,
     "source_row_role_reuse_allowed": False,
     "weight_mutation_allowed": False,
+}
+_EVIDENCE_POLICY_V2: Final = {
+    **_EVIDENCE_POLICY_V1,
+    "one_standard_error_non_regression_required": False,
+    "full_sample_non_regression_required": True,
+    "every_delete_one_non_regression_required": True,
+    "adaptive_calibration_error_estimator": (
+        CONFIDENCE_CALIBRATION_ERROR_ESTIMATOR
+    ),
+    "bounded_temperature_search_used": False,
 }
 
 _TABLE_NAMES: Final = frozenset(
@@ -652,27 +681,71 @@ def _chronological_partition(rows: Sequence[_EvidenceRow]) -> _Partition | None:
     return None
 
 
-def _temperature_scaled(raw: float, temperature: float) -> float:
-    probability = max(1e-6, min(1.0 - 1e-6, raw))
-    logit = math.log(probability / (1.0 - probability))
-    scaled = max(-700.0, min(700.0, logit / temperature))
-    return 1.0 / (1.0 + math.exp(-scaled))
-
-
 def _scope_uncertainty(
+    rows: Sequence[_EvidenceRow],
+    *,
+    logit_scale: float,
+    scope: str,
+) -> dict[str, Any]:
+    probabilities = [row.raw_probability for row in rows]
+    outcomes = [int(row.observed_strictly_positive_net_pnl) for row in rows]
+    normalized_scope = scope.upper()
+    evidence = paired_confidence_nonregression_evidence(
+        probabilities,
+        outcomes,
+        logit_scale=logit_scale,
+        scope=normalized_scope,
+    )
+    evidence.update(
+        {
+            "scope": normalized_scope,
+            "method": PROFILED_RESEARCH_CALIBRATION_UNCERTAINTY_METHOD,
+            "calibration_error_estimator": (
+                CONFIDENCE_CALIBRATION_ERROR_ESTIMATOR
+            ),
+            "raw_brier": brier_score(probabilities, outcomes),
+            "calibrated_brier": brier_score(
+                probabilities,
+                outcomes,
+                logit_scale=logit_scale,
+            ),
+            "raw_ece": expected_calibration_error(probabilities, outcomes),
+            "calibrated_ece": expected_calibration_error(
+                probabilities,
+                outcomes,
+                logit_scale=logit_scale,
+            ),
+            "non_regression_proven": (
+                evidence["paired_brier_non_regression_proven"] is True
+                and evidence["ece_non_regression_proven"] is True
+            ),
+        }
+    )
+    return evidence
+
+
+def _legacy_scope_uncertainty(
     rows: Sequence[_EvidenceRow],
     *,
     temperature: float,
     scope: str,
 ) -> dict[str, Any]:
+    """Frozen V1 evidence producer used only by the legacy verifier."""
+
     probabilities = [row.raw_probability for row in rows]
     outcomes = [int(row.observed_strictly_positive_net_pnl) for row in rows]
-    calibrated = [_temperature_scaled(value, temperature) for value in probabilities]
+    calibrated = [
+        legacy_temperature_scaled_probability(value, temperature)
+        for value in probabilities
+    ]
     paired = [
         (after - outcome) ** 2
-        - (_temperature_scaled(before, 1.0) - outcome) ** 2
+        - (legacy_temperature_scaled_probability(before, 1.0) - outcome) ** 2
         for before, after, outcome in zip(
-            probabilities, calibrated, outcomes, strict=True
+            probabilities,
+            calibrated,
+            outcomes,
+            strict=True,
         )
     ]
     count = len(paired)
@@ -681,31 +754,52 @@ def _scope_uncertainty(
     if count > 1 and mean is not None:
         variance = sum((value - mean) ** 2 for value in paired) / (count - 1)
         standard_error = math.sqrt(variance / count)
-    upper = mean + standard_error if mean is not None and standard_error is not None else None
-    raw_ece = expected_calibration_error(probabilities, outcomes, 1.0)
-    calibrated_ece = expected_calibration_error(probabilities, outcomes, temperature)
+    upper = (
+        mean + standard_error
+        if mean is not None and standard_error is not None
+        else None
+    )
+    raw_ece = legacy_expected_calibration_error(probabilities, outcomes, 1.0)
+    calibrated_ece = legacy_expected_calibration_error(
+        probabilities,
+        outcomes,
+        temperature,
+    )
     ece_delta = calibrated_ece - raw_ece
     leave_one_out: list[float] = []
     if count > 1:
         for excluded in range(count):
-            loo_probabilities = [
-                value for index, value in enumerate(probabilities) if index != excluded
+            leave_one_out_probabilities = [
+                value
+                for index, value in enumerate(probabilities)
+                if index != excluded
             ]
-            loo_outcomes = [
-                value for index, value in enumerate(outcomes) if index != excluded
+            leave_one_out_outcomes = [
+                value
+                for index, value in enumerate(outcomes)
+                if index != excluded
             ]
             leave_one_out.append(
-                expected_calibration_error(
-                    loo_probabilities, loo_outcomes, temperature
+                legacy_expected_calibration_error(
+                    leave_one_out_probabilities,
+                    leave_one_out_outcomes,
+                    temperature,
                 )
-                - expected_calibration_error(loo_probabilities, loo_outcomes, 1.0)
+                - legacy_expected_calibration_error(
+                    leave_one_out_probabilities,
+                    leave_one_out_outcomes,
+                    1.0,
+                )
             )
     ece_standard_error: float | None = None
     if leave_one_out:
-        loo_mean = sum(leave_one_out) / len(leave_one_out)
+        leave_one_out_mean = sum(leave_one_out) / len(leave_one_out)
         ece_standard_error = math.sqrt(
             ((count - 1) / count)
-            * sum((value - loo_mean) ** 2 for value in leave_one_out)
+            * sum(
+                (value - leave_one_out_mean) ** 2
+                for value in leave_one_out
+            )
         )
     ece_upper = (
         ece_delta + ece_standard_error
@@ -719,28 +813,36 @@ def _scope_uncertainty(
         "paired_brier_delta_standard_error": standard_error,
         "paired_brier_delta_one_standard_error_upper_bound": upper,
         "paired_brier_uncertainty_available": standard_error is not None,
-        "paired_brier_non_regression_proven": upper is not None and upper <= 0.0,
+        "paired_brier_non_regression_proven": (
+            upper is not None and upper <= 0.0
+        ),
         "ece_delta": ece_delta,
         "ece_leave_one_out_delta": leave_one_out,
         "ece_jackknife_standard_error": ece_standard_error,
         "ece_one_standard_error_upper_bound": ece_upper,
         "ece_uncertainty_available": ece_standard_error is not None,
-        "ece_non_regression_proven": ece_upper is not None and ece_upper <= 0.0,
+        "ece_non_regression_proven": (
+            ece_upper is not None and ece_upper <= 0.0
+        ),
         "uncertainty_row_count": count,
         "uncertainty_minimum_not_configured": True,
         "uncertainty_mathematical_minimum_rows": 2,
     }
-    evidence["uncertainty_evidence_digest"] = confidence_uncertainty_evidence_digest(
-        scope=normalized_scope,
-        evidence=evidence,
+    evidence["uncertainty_evidence_digest"] = (
+        legacy_confidence_uncertainty_evidence_digest(
+            scope=normalized_scope,
+            evidence=evidence,
+        )
     )
     evidence.update(
         {
             "scope": normalized_scope,
-            "method": PROFILED_RESEARCH_CALIBRATION_UNCERTAINTY_METHOD,
-            "raw_brier": brier_score(probabilities, outcomes, 1.0),
-            "calibrated_brier": brier_score(
-                probabilities, outcomes, temperature
+            "method": PROFILED_RESEARCH_CALIBRATION_LEGACY_UNCERTAINTY_METHOD,
+            "raw_brier": legacy_brier_score(probabilities, outcomes, 1.0),
+            "calibrated_brier": legacy_brier_score(
+                probabilities,
+                outcomes,
+                temperature,
             ),
             "raw_ece": raw_ece,
             "calibrated_ece": calibrated_ece,
@@ -827,7 +929,25 @@ def _evaluate_rows(
         validation_rows_used=0,
     )
     if fitted.get("fitted") is not True:
-        _integrity("PROFILED_CALIBRATION_IDENTIFIABLE_FIT_FAILED")
+        return (
+            ProfiledResearchCalibrationEvaluationV1(
+                status="WAITING_FOR_FINITE_CALIBRATION_IDENTIFIABILITY",
+                reason=str(fitted.get("reason") or "CALIBRATION_FIT_NOT_IDENTIFIABLE"),
+                total_outcomes=len(rows),
+                eligible_rows=len(rows),
+                ineligible_rows=0,
+                model_parameter_fingerprint=fingerprint,
+                purged_train_rows=len(partition.train),
+                purged_gap_rows=len(partition.purge),
+                untouched_forward_validation_rows=len(partition.validation),
+                calibration_fitted=False,
+                uncertainty_non_regression_proven=False,
+                admission_ready=False,
+            ),
+            partition,
+            None,
+            None,
+        )
     fitted = normalize_calibration_state(
         {**fitted, "model_parameter_fingerprint": fingerprint}
     )
@@ -836,13 +956,13 @@ def _evaluate_rows(
         or fitted.get("model_parameter_fingerprint") != fingerprint
     ):
         _integrity("PROFILED_CALIBRATION_MODEL_BOUND_FIT_INVALID")
-    temperature = _finite_float(fitted.get("temperature"))
-    if temperature is None or temperature <= 0.0:
-        _integrity("PROFILED_CALIBRATION_TEMPERATURE_INVALID")
+    logit_scale = _finite_float(fitted.get("logit_scale"))
+    if logit_scale is None or logit_scale < 0.0:
+        _integrity("PROFILED_CALIBRATION_LOGIT_SCALE_INVALID")
     validation = {
         "global": _scope_uncertainty(
             partition.validation,
-            temperature=temperature,
+            logit_scale=logit_scale,
             scope="GLOBAL",
         ),
         **{
@@ -852,7 +972,7 @@ def _evaluate_rows(
                     for row in partition.validation
                     if row.selected_action == action
                 ),
-                temperature=temperature,
+                logit_scale=logit_scale,
                 scope=action,
             )
             for action in CONFIDENCE_HEAD_ACTIONS
@@ -998,14 +1118,14 @@ def _prepare_admission_artifact(
         "label_semantics": CONFIDENCE_LABEL_SEMANTICS,
     }
     base: dict[str, Any] = {
-        "schema_version": PROFILED_RESEARCH_CALIBRATION_ADMISSION_V1_SCHEMA_VERSION,
-        "classification": PROFILED_RESEARCH_CALIBRATION_ADMISSION_V1_CLASSIFICATION,
+        "schema_version": PROFILED_RESEARCH_CALIBRATION_ADMISSION_V2_SCHEMA_VERSION,
+        "classification": PROFILED_RESEARCH_CALIBRATION_ADMISSION_V2_CLASSIFICATION,
         "model_binding": model_binding,
         "source_outcome_inventory": inventory,
         "partition": partition_contract,
         "calibration_state": dict(calibration_state),
         "forward_validation": dict(forward_validation),
-        "evidence_policy": dict(_EVIDENCE_POLICY),
+        "evidence_policy": dict(_EVIDENCE_POLICY_V2),
         "authorization": dict(_AUTHORIZATION),
         "status": {
             "calibration_admission_verified": True,
@@ -1028,22 +1148,44 @@ def _prepare_admission_artifact(
     )
 
 
-def _validate_uncertainty_scope(value: object, *, expected_scope: str) -> None:
+def _validate_uncertainty_scope(
+    value: object,
+    *,
+    expected_scope: str,
+    legacy: bool,
+) -> None:
     if type(value) is not dict:
         _integrity("PROFILED_CALIBRATION_FORWARD_VALIDATION_INVALID")
     evidence = cast(dict[str, Any], value)
     row_count = evidence.get("uncertainty_row_count")
     normalized = expected_scope.upper()
     try:
-        expected_digest = confidence_uncertainty_evidence_digest(
-            scope=normalized,
-            evidence=evidence,
+        expected_digest = (
+            legacy_confidence_uncertainty_evidence_digest(
+                scope=normalized,
+                evidence=evidence,
+            )
+            if legacy
+            else confidence_uncertainty_evidence_digest(
+                scope=normalized,
+                evidence=evidence,
+            )
         )
     except (TypeError, ValueError):
         _integrity("PROFILED_CALIBRATION_UNCERTAINTY_EVIDENCE_INVALID")
     if (
         evidence.get("scope") != normalized
-        or evidence.get("method") != PROFILED_RESEARCH_CALIBRATION_UNCERTAINTY_METHOD
+        or evidence.get("method")
+        != (
+            PROFILED_RESEARCH_CALIBRATION_LEGACY_UNCERTAINTY_METHOD
+            if legacy
+            else PROFILED_RESEARCH_CALIBRATION_UNCERTAINTY_METHOD
+        )
+        or (
+            not legacy
+            and evidence.get("calibration_error_estimator")
+            != CONFIDENCE_CALIBRATION_ERROR_ESTIMATOR
+        )
         or evidence.get("uncertainty_evidence_digest") != expected_digest
         or type(row_count) is not int
         or cast(int, row_count) < 2
@@ -1066,11 +1208,17 @@ def _validate_admission_artifact(value: object) -> dict[str, Any]:
     calibration = artifact.get("calibration_state")
     validation = artifact.get("forward_validation")
     status = artifact.get("status")
+    schema_version = artifact.get("schema_version")
+    legacy = schema_version == PROFILED_RESEARCH_CALIBRATION_ADMISSION_V1_SCHEMA_VERSION
+    current = schema_version == PROFILED_RESEARCH_CALIBRATION_ADMISSION_V2_SCHEMA_VERSION
     if (
-        artifact.get("schema_version")
-        != PROFILED_RESEARCH_CALIBRATION_ADMISSION_V1_SCHEMA_VERSION
+        not (legacy or current)
         or artifact.get("classification")
-        != PROFILED_RESEARCH_CALIBRATION_ADMISSION_V1_CLASSIFICATION
+        != (
+            PROFILED_RESEARCH_CALIBRATION_ADMISSION_V1_CLASSIFICATION
+            if legacy
+            else PROFILED_RESEARCH_CALIBRATION_ADMISSION_V2_CLASSIFICATION
+        )
         or type(model) is not dict
         or set(model) != _MODEL_FIELDS
         or type(inventory) is not list
@@ -1081,7 +1229,8 @@ def _validate_admission_artifact(value: object) -> dict[str, Any]:
         or type(calibration) is not dict
         or type(validation) is not dict
         or set(validation) != {"global", *CONFIDENCE_HEAD_ACTIONS}
-        or artifact.get("evidence_policy") != _EVIDENCE_POLICY
+        or artifact.get("evidence_policy")
+        != (_EVIDENCE_POLICY_V1 if legacy else _EVIDENCE_POLICY_V2)
         or artifact.get("authorization") != _AUTHORIZATION
         or status
         != {
@@ -1112,11 +1261,19 @@ def _validate_admission_artifact(value: object) -> dict[str, Any]:
         or model_map.get("label_semantics") != CONFIDENCE_LABEL_SEMANTICS
     ):
         _integrity("PROFILED_CALIBRATION_MODEL_BINDING_INVALID")
-    normalized = normalize_calibration_state(cast(dict[str, Any], calibration))
+    normalized = (
+        normalize_legacy_calibration_state(cast(dict[str, Any], calibration))
+        if legacy
+        else normalize_calibration_state(cast(dict[str, Any], calibration))
+    )
     if (
         normalized != calibration
         or normalized.get("schema_version")
-        != CONFIDENCE_CALIBRATION_SCHEMA_VERSION
+        != (
+            LEGACY_CONFIDENCE_CALIBRATION_SCHEMA_VERSION
+            if legacy
+            else CONFIDENCE_CALIBRATION_SCHEMA_VERSION
+        )
         or normalized.get("fitted") is not True
         or normalized.get("fit_partition") != CONFIDENCE_FIT_PARTITION
         or normalized.get("validation_rows_used") != 0
@@ -1320,7 +1477,8 @@ def _validate_admission_artifact(value: object) -> dict[str, Any]:
         != validation_list
     ):
         _integrity("PROFILED_CALIBRATION_PARTITION_RECOMPUTATION_FAILED")
-    recomputed_state = fit_temperature(
+    fit_function = fit_legacy_temperature if legacy else fit_temperature
+    recomputed_state = fit_function(
         [row.raw_probability for row in reconstructed_partition.train],
         [
             int(row.observed_strictly_positive_net_pnl)
@@ -1331,38 +1489,72 @@ def _validate_admission_artifact(value: object) -> dict[str, Any]:
         fit_partition=CONFIDENCE_FIT_PARTITION,
         validation_rows_used=0,
     )
-    recomputed_state = normalize_calibration_state(
-        {
-            **recomputed_state,
-            "model_parameter_fingerprint": fingerprint,
-        }
+    bound_recomputed_state = {
+        **recomputed_state,
+        "model_parameter_fingerprint": fingerprint,
+    }
+    recomputed_state = (
+        normalize_legacy_calibration_state(bound_recomputed_state)
+        if legacy
+        else normalize_calibration_state(bound_recomputed_state)
     )
     if recomputed_state != calibration:
         _integrity("PROFILED_CALIBRATION_FIT_RECOMPUTATION_FAILED")
     fitted_temperature = _finite_float(recomputed_state.get("temperature"))
-    if fitted_temperature is None or fitted_temperature <= 0.0:
-        _integrity("PROFILED_CALIBRATION_TEMPERATURE_INVALID")
+    fitted_logit_scale = _finite_float(recomputed_state.get("logit_scale"))
+    if legacy:
+        if fitted_temperature is None or fitted_temperature <= 0.0:
+            _integrity("PROFILED_CALIBRATION_TEMPERATURE_INVALID")
+    elif fitted_logit_scale is None or fitted_logit_scale < 0.0:
+        _integrity("PROFILED_CALIBRATION_LOGIT_SCALE_INVALID")
     for scope, evidence in cast(dict[str, Any], validation).items():
-        _validate_uncertainty_scope(evidence, expected_scope=scope)
-    expected_validation = {
-        "global": _scope_uncertainty(
-            reconstructed_partition.validation,
-            temperature=fitted_temperature,
-            scope="GLOBAL",
-        ),
-        **{
-            action: _scope_uncertainty(
-                tuple(
-                    row
-                    for row in reconstructed_partition.validation
-                    if row.selected_action == action
-                ),
+        _validate_uncertainty_scope(
+            evidence,
+            expected_scope=scope,
+            legacy=legacy,
+        )
+    if legacy:
+        assert fitted_temperature is not None
+        expected_validation = {
+            "global": _legacy_scope_uncertainty(
+                reconstructed_partition.validation,
                 temperature=fitted_temperature,
-                scope=action,
-            )
-            for action in CONFIDENCE_HEAD_ACTIONS
-        },
-    }
+                scope="GLOBAL",
+            ),
+            **{
+                action: _legacy_scope_uncertainty(
+                    tuple(
+                        row
+                        for row in reconstructed_partition.validation
+                        if row.selected_action == action
+                    ),
+                    temperature=fitted_temperature,
+                    scope=action,
+                )
+                for action in CONFIDENCE_HEAD_ACTIONS
+            },
+        }
+    else:
+        assert fitted_logit_scale is not None
+        expected_validation = {
+            "global": _scope_uncertainty(
+                reconstructed_partition.validation,
+                logit_scale=fitted_logit_scale,
+                scope="GLOBAL",
+            ),
+            **{
+                action: _scope_uncertainty(
+                    tuple(
+                        row
+                        for row in reconstructed_partition.validation
+                        if row.selected_action == action
+                    ),
+                    logit_scale=fitted_logit_scale,
+                    scope=action,
+                )
+                for action in CONFIDENCE_HEAD_ACTIONS
+            },
+        }
     if expected_validation != validation:
         _integrity("PROFILED_CALIBRATION_FORWARD_VALIDATION_RECOMPUTATION_FAILED")
     if (
@@ -3010,6 +3202,8 @@ __all__ = [
     "PROFILED_RESEARCH_CALIBRATION_ADMISSION_LEDGER_V1_SCHEMA_VERSION",
     "PROFILED_RESEARCH_CALIBRATION_ADMISSION_V1_SCHEMA_VERSION",
     "PROFILED_RESEARCH_CALIBRATION_ADMISSION_V1_CLASSIFICATION",
+    "PROFILED_RESEARCH_CALIBRATION_ADMISSION_V2_SCHEMA_VERSION",
+    "PROFILED_RESEARCH_CALIBRATION_ADMISSION_V2_CLASSIFICATION",
     "PROFILED_RESEARCH_CALIBRATION_UNCERTAINTY_METHOD",
     "DurablyAdmittedProfiledResearchCalibrationV1",
     "ProfiledResearchCalibrationAdmissionIntegrityV1",

@@ -730,6 +730,7 @@ class CheckpointManifest:
     weight_file_size_bytes: int | None = None
     confidence_calibration_fitted: bool = False
     confidence_calibration_temperature: float | None = None
+    confidence_calibration_logit_scale: float | None = None
     confidence_calibration_sample: int = 0
     confidence_calibration_reason: str | None = None
     confidence_calibration_fit_partition: str | None = None
@@ -1682,6 +1683,17 @@ class V2HybridCheckpointManager:
                 and calibration.get("temperature") is not None
                 else None
             ),
+            confidence_calibration_logit_scale=(
+                float(calibration["logit_scale"])
+                if calibration.get("fitted") is True
+                and calibration.get("logit_scale") is not None
+                else (
+                    1.0 / float(calibration["temperature"])
+                    if calibration.get("fitted") is True
+                    and calibration.get("temperature") is not None
+                    else None
+                )
+            ),
             confidence_calibration_sample=int(calibration.get("sample") or 0),
             confidence_calibration_reason=calibration.get("reason"),
             confidence_calibration_fit_partition=calibration.get("fit_partition"),
@@ -2199,6 +2211,9 @@ class V2HybridCheckpointManager:
                         ),
                         confidence_calibration_temperature=raw.get(
                             "confidence_calibration_temperature"
+                        ),
+                        confidence_calibration_logit_scale=raw.get(
+                            "confidence_calibration_logit_scale"
                         ),
                         confidence_calibration_sample=calibration_sample,
                         confidence_calibration_reason=raw.get(
@@ -3016,6 +3031,9 @@ class V2HybridCheckpointManager:
             ),
             "confidence_calibration_temperature": (
                 manifest.confidence_calibration_temperature if manifest else None
+            ),
+            "confidence_calibration_logit_scale": (
+                manifest.confidence_calibration_logit_scale if manifest else None
             ),
             "confidence_calibration_sample": (
                 manifest.confidence_calibration_sample if manifest else 0

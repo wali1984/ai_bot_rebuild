@@ -81,6 +81,9 @@ from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.config import (
     TRAINER_SOURCE,
     HybridTrainerConfig,
 )
+from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.confidence import (
+    adaptive_reliability_partition,
+)
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.data_loader import (
     TrainingExample,
     V2HybridTrainerDataLoader,
@@ -484,37 +487,15 @@ def _brier_score(rows: Iterable[Mapping[str, float]]) -> float | None:
     return sum(values) / len(values) if values else None
 
 
-def _expected_calibration_error(rows: list[dict[str, float]], *, bucket_count: int = 10) -> tuple[float | None, list[dict[str, Any]]]:
+def _expected_calibration_error(
+    rows: list[dict[str, float]],
+) -> tuple[float | None, list[dict[str, Any]]]:
     if not rows:
         return None, []
-    buckets: list[dict[str, Any]] = []
-    total = len(rows)
-    weighted_error = 0.0
-    for index in range(bucket_count):
-        low = index / bucket_count
-        high = (index + 1) / bucket_count
-        if index == bucket_count - 1:
-            bucket_rows = [row for row in rows if low <= row["confidence"] <= high]
-        else:
-            bucket_rows = [row for row in rows if low <= row["confidence"] < high]
-        if not bucket_rows:
-            continue
-        avg_conf = sum(row["confidence"] for row in bucket_rows) / len(bucket_rows)
-        empirical = sum(row["outcome"] for row in bucket_rows) / len(bucket_rows)
-        error = abs(avg_conf - empirical)
-        weighted_error += (len(bucket_rows) / total) * error
-        buckets.append(
-            {
-                "bucket_min": low,
-                "bucket_max": high,
-                "sample_count": len(bucket_rows),
-                "avg_confidence": avg_conf,
-                "empirical_success_rate": empirical,
-                "absolute_calibration_error": error,
-                "brier_score": _brier_score(bucket_rows),
-            }
-        )
-    return weighted_error, buckets
+    return adaptive_reliability_partition(
+        [row["confidence"] for row in rows],
+        [int(row["outcome"]) for row in rows],
+    )
 
 
 def _expected_move_mae(rows: Iterable[Mapping[str, float]]) -> float | None:

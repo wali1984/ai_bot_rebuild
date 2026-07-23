@@ -47,11 +47,11 @@ from .confidence import (
     CONFIDENCE_UNCERTAINTY_EVIDENCE_SCHEMA_VERSION,
     CONFIDENCE_UNCERTAINTY_METHOD,
     brier_score,
-    confidence_uncertainty_evidence_digest,
     expected_calibration_error,
     fit_temperature,
+    paired_confidence_nonregression_evidence,
     profitability_target_from_trust_row,
-    resolve_confidence_temperature,
+    resolve_confidence_logit_scale,
     unfitted_calibration_state,
 )
 from .config import ACTION_COUNT, ACTION_LABELS
@@ -125,134 +125,19 @@ def _strict_finite_number(value: Any) -> bool:
         return False
 
 
-def _temperature_scaled_probability(raw: float, temperature: float) -> float:
-    probability = max(1e-6, min(1.0 - 1e-6, float(raw)))
-    logit = math.log(probability / (1.0 - probability))
-    scaled_logit = max(-700.0, min(700.0, logit / float(temperature)))
-    return 1.0 / (1.0 + math.exp(-scaled_logit))
-
-
 def _paired_confidence_nonregression_evidence(
     raw_probabilities: Sequence[float],
     outcomes: Sequence[int],
     *,
-    temperature: float,
+    logit_scale: float,
     scope: str,
 ) -> dict[str, Any]:
-    """Empirical paired uncertainty with no configured sample threshold.
-
-    Brier uses the paired per-row calibrated-minus-raw loss delta and its sample
-    standard error. ECE is not row-additive, so uncertainty is estimated by a
-    deterministic delete-one jackknife over the same untouched rows. Two rows
-    are the mathematical minimum for either variance estimate; no fixed market
-    or operator-selected minimum-N gate is used.
-    """
-
-    if len(raw_probabilities) != len(outcomes):
-        raise ValueError("confidence_uncertainty_input_length_mismatch")
-    calibrated_probabilities = [
-        _temperature_scaled_probability(raw, temperature)
-        for raw in raw_probabilities
-    ]
-    paired_deltas = [
-        (calibrated - int(outcome)) ** 2 - (float(raw) - int(outcome)) ** 2
-        for raw, calibrated, outcome in zip(
-            raw_probabilities,
-            calibrated_probabilities,
-            outcomes,
-            strict=True,
-        )
-    ]
-    count = len(paired_deltas)
-    paired_mean = sum(paired_deltas) / count if count else None
-    paired_se: float | None = None
-    if count > 1 and paired_mean is not None:
-        sample_variance = sum(
-            (value - paired_mean) ** 2 for value in paired_deltas
-        ) / (count - 1)
-        paired_se = math.sqrt(sample_variance / count)
-    paired_upper = (
-        paired_mean + paired_se
-        if paired_mean is not None and paired_se is not None
-        else None
+    return paired_confidence_nonregression_evidence(
+        raw_probabilities,
+        outcomes,
+        logit_scale=logit_scale,
+        scope=scope,
     )
-
-    raw_ece = (
-        expected_calibration_error(raw_probabilities, outcomes, 1.0)
-        if count
-        else None
-    )
-    calibrated_ece = (
-        expected_calibration_error(raw_probabilities, outcomes, temperature)
-        if count
-        else None
-    )
-    ece_delta = (
-        calibrated_ece - raw_ece
-        if raw_ece is not None and calibrated_ece is not None
-        else None
-    )
-    leave_one_out_deltas: list[float] = []
-    if count > 1:
-        for excluded in range(count):
-            loo_probabilities = [
-                value
-                for index, value in enumerate(raw_probabilities)
-                if index != excluded
-            ]
-            loo_outcomes = [
-                value for index, value in enumerate(outcomes) if index != excluded
-            ]
-            leave_one_out_deltas.append(
-                expected_calibration_error(
-                    loo_probabilities, loo_outcomes, temperature
-                )
-                - expected_calibration_error(loo_probabilities, loo_outcomes, 1.0)
-            )
-    ece_jackknife_se: float | None = None
-    if leave_one_out_deltas:
-        loo_mean = sum(leave_one_out_deltas) / len(leave_one_out_deltas)
-        ece_jackknife_se = math.sqrt(
-            ((count - 1) / count)
-            * sum((value - loo_mean) ** 2 for value in leave_one_out_deltas)
-        )
-    ece_upper = (
-        ece_delta + ece_jackknife_se
-        if ece_delta is not None and ece_jackknife_se is not None
-        else None
-    )
-    normalized_scope = str(scope).strip().upper()
-    evidence = {
-        "paired_brier_delta_per_row": paired_deltas,
-        "paired_brier_delta_mean": paired_mean,
-        "paired_brier_delta_standard_error": paired_se,
-        "paired_brier_delta_one_standard_error_upper_bound": paired_upper,
-        "paired_brier_uncertainty_available": paired_se is not None,
-        "paired_brier_non_regression_proven": (
-            paired_upper is not None and paired_upper <= 0.0
-        ),
-        "ece_delta": ece_delta,
-        "ece_leave_one_out_delta": leave_one_out_deltas,
-        "ece_jackknife_standard_error": ece_jackknife_se,
-        "ece_one_standard_error_upper_bound": ece_upper,
-        "ece_uncertainty_available": ece_jackknife_se is not None,
-        "ece_non_regression_proven": ece_upper is not None and ece_upper <= 0.0,
-        "uncertainty_row_count": count,
-        "uncertainty_minimum_not_configured": True,
-        "uncertainty_mathematical_minimum_rows": 2,
-        "uncertainty_evidence_schema_version": (
-            CONFIDENCE_UNCERTAINTY_EVIDENCE_SCHEMA_VERSION
-        ),
-        "uncertainty_scope": normalized_scope,
-        "uncertainty_method": CONFIDENCE_UNCERTAINTY_METHOD,
-    }
-    evidence["uncertainty_evidence_digest"] = (
-        confidence_uncertainty_evidence_digest(
-            scope=normalized_scope,
-            evidence=evidence,
-        )
-    )
-    return evidence
 
 
 def _cache_digest_value(value: Any) -> Any:
@@ -2449,6 +2334,7 @@ class V2HybridPPOTrainer:
                         f"validation_confidence_{action}_{calibration}_{metric}"
                     ] = None
         uncertainty_defaults: dict[str, Any] = {
+            "calibration_error_estimator": None,
             "paired_brier_delta_per_row": [],
             "paired_brier_delta_mean": None,
             "paired_brier_delta_standard_error": None,
@@ -2494,8 +2380,8 @@ class V2HybridPPOTrainer:
             base["validation_confidence_status"] = "NO_PIT_SAFE_AFTER_COST_TARGETS"
             return base
         state = self.model.confidence_calibration_state
-        temperature = resolve_confidence_temperature(state)
-        if state.get("fitted") is not True or temperature is None:
+        logit_scale = resolve_confidence_logit_scale(state)
+        if state.get("fitted") is not True or logit_scale is None:
             base["validation_confidence_status"] = "CHECKPOINT_CALIBRATION_UNFITTED"
             return base
         if not self.model.torch_available:
@@ -2627,16 +2513,22 @@ class V2HybridPPOTrainer:
             fit_row_ids.isdisjoint(validation_row_id_set)
             and int(state.get("validation_rows_used") or 0) == 0
         )
-        raw_brier = brier_score(raw_probabilities, outcomes, 1.0)
-        raw_ece = expected_calibration_error(raw_probabilities, outcomes, 1.0)
-        calibrated_brier = brier_score(raw_probabilities, outcomes, temperature)
+        raw_brier = brier_score(raw_probabilities, outcomes)
+        raw_ece = expected_calibration_error(raw_probabilities, outcomes)
+        calibrated_brier = brier_score(
+            raw_probabilities,
+            outcomes,
+            logit_scale=logit_scale,
+        )
         calibrated_ece = expected_calibration_error(
-            raw_probabilities, outcomes, temperature
+            raw_probabilities,
+            outcomes,
+            logit_scale=logit_scale,
         )
         global_uncertainty = _paired_confidence_nonregression_evidence(
             raw_probabilities,
             outcomes,
-            temperature=temperature,
+            logit_scale=logit_scale,
             scope="GLOBAL",
         )
         global_uncertainty_metrics = {
@@ -2656,13 +2548,13 @@ class V2HybridPPOTrainer:
             directional_metrics[
                 f"validation_confidence_{action}_raw_brier"
             ] = (
-                brier_score(action_probabilities, action_outcomes, 1.0)
+                brier_score(action_probabilities, action_outcomes)
                 if indices
                 else None
             )
             directional_metrics[f"validation_confidence_{action}_raw_ece"] = (
                 expected_calibration_error(
-                    action_probabilities, action_outcomes, 1.0
+                    action_probabilities, action_outcomes
                 )
                 if indices
                 else None
@@ -2670,7 +2562,11 @@ class V2HybridPPOTrainer:
             directional_metrics[
                 f"validation_confidence_{action}_calibrated_brier"
             ] = (
-                brier_score(action_probabilities, action_outcomes, temperature)
+                brier_score(
+                    action_probabilities,
+                    action_outcomes,
+                    logit_scale=logit_scale,
+                )
                 if indices
                 else None
             )
@@ -2678,7 +2574,9 @@ class V2HybridPPOTrainer:
                 f"validation_confidence_{action}_calibrated_ece"
             ] = (
                 expected_calibration_error(
-                    action_probabilities, action_outcomes, temperature
+                    action_probabilities,
+                    action_outcomes,
+                    logit_scale=logit_scale,
                 )
                 if indices
                 else None
@@ -2686,7 +2584,7 @@ class V2HybridPPOTrainer:
             action_uncertainty = _paired_confidence_nonregression_evidence(
                 action_probabilities,
                 action_outcomes,
-                temperature=temperature,
+                logit_scale=logit_scale,
                 scope=action.upper(),
             )
             directional_metrics.update(
@@ -2723,7 +2621,12 @@ class V2HybridPPOTrainer:
                 "validation_confidence_fit_validation_digest_disjoint": (
                     fit_validation_disjoint
                 ),
-                "validation_confidence_temperature_from_train_partition": temperature,
+                "validation_confidence_temperature_from_train_partition": (
+                    state.get("temperature")
+                ),
+                "validation_confidence_logit_scale_from_train_partition": (
+                    logit_scale
+                ),
                 **global_uncertainty_metrics,
                 **directional_metrics,
             }
@@ -4402,6 +4305,9 @@ class V2HybridPPOTrainer:
             "confidence_calibration_reason": fitted_confidence_state.get("reason"),
             "confidence_calibration_temperature": fitted_confidence_state.get(
                 "temperature"
+            ),
+            "confidence_calibration_logit_scale": fitted_confidence_state.get(
+                "logit_scale"
             ),
             "confidence_calibration_sample": fitted_confidence_state.get("sample"),
             "confidence_calibration_positive_outcomes": fitted_confidence_state.get(

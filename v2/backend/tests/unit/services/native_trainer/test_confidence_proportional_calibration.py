@@ -25,15 +25,17 @@ def test_proportional_penalty_does_not_collapse_at_high_missing_count() -> None:
         temperature=1.0,
         calibration_fitted=True,
     )
-    assert result["calibration_source"] == "checkpoint_bound_train_only_temperature_probability"
+    assert result["calibration_source"] == (
+        "checkpoint_bound_train_only_logit_scale_probability"
+    )
     # The fitted probability keeps one meaning. Data quality is a separate
     # admission score rather than silently rewriting that probability.
     assert result["confidence_calibrated"] == pytest.approx(0.63)
     assert 0.5 < result["confidence_quality_adjusted_for_admission"] < 0.63
-    assert result["missing_penalty"] == pytest.approx(1.0 - 0.75 * (60 / 238), abs=1e-9)
+    assert result["missing_penalty"] == pytest.approx(1.0 - (60 / 238), abs=1e-9)
 
 
-def test_proportional_penalty_floors_at_quarter_never_zero() -> None:
+def test_complete_missingness_fails_closed_without_a_static_floor() -> None:
     result = calibrate_confidence(
         raw_probability=0.9,
         data_coverage_percent=50.0,
@@ -43,13 +45,13 @@ def test_proportional_penalty_floors_at_quarter_never_zero() -> None:
         temperature=1.0,
         calibration_fitted=True,
     )
-    assert result["missing_penalty"] == 0.25
-    assert result["stale_penalty"] >= 0.25
+    assert result["missing_penalty"] == 0.0
+    assert result["stale_penalty"] == 0.0
     assert result["confidence_calibrated"] == pytest.approx(0.9)
-    assert result["confidence_quality_adjusted_for_admission"] > 0.5
+    assert result["confidence_quality_adjusted_for_admission"] == 0.5
 
 
-def test_legacy_absolute_penalty_preserved_without_total() -> None:
+def test_missing_total_feature_count_fails_quality_admission_closed() -> None:
     legacy = calibrate_confidence(
         raw_probability=0.63,
         data_coverage_percent=75.0,
@@ -58,11 +60,13 @@ def test_legacy_absolute_penalty_preserved_without_total() -> None:
         temperature=1.0,
         calibration_fitted=True,
     )
-    assert legacy["calibration_source"] == "checkpoint_bound_train_only_temperature_probability"
-    # Documents the saturation defect the proportional form fixes.
-    assert legacy["missing_penalty"] == pytest.approx(0.1)
+    assert legacy["calibration_source"] == (
+        "checkpoint_bound_train_only_logit_scale_probability"
+    )
+    assert legacy["missing_penalty"] == 0.0
+    assert legacy["stale_penalty"] == 0.0
     assert legacy["confidence_calibrated"] == pytest.approx(0.63)
-    assert legacy["confidence_quality_adjusted_for_admission"] == pytest.approx(0.5, abs=0.02)
+    assert legacy["confidence_quality_adjusted_for_admission"] == 0.5
 
 
 def test_downrating_direction_monotonic_in_missing_fraction() -> None:

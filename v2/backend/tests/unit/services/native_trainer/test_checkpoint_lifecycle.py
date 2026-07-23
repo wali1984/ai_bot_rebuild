@@ -33,6 +33,7 @@ from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.checkpoint_lifec
     verified_candidate_checkpoint_evidence,
 )
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.confidence import (
+    CONFIDENCE_CALIBRATION_ERROR_ESTIMATOR,
     CONFIDENCE_UNCERTAINTY_EVIDENCE_FIELDS,
     CONFIDENCE_UNCERTAINTY_EVIDENCE_SCHEMA_VERSION,
     CONFIDENCE_UNCERTAINTY_METHOD,
@@ -174,6 +175,9 @@ def _promotion_metrics(
         ("short_", 2, -0.02, -0.01),
     ):
         prefix = f"validation_confidence_{scope}"
+        metrics[f"{prefix}calibration_error_estimator"] = (
+            CONFIDENCE_CALIBRATION_ERROR_ESTIMATOR
+        )
         metrics[f"{prefix}paired_brier_delta_per_row"] = [brier_delta] * count
         metrics[f"{prefix}paired_brier_delta_mean"] = brier_delta
         metrics[f"{prefix}paired_brier_delta_standard_error"] = 0.0

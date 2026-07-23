@@ -13,6 +13,7 @@ from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.checkpoint impor
     V2HybridCheckpointManager,
 )
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.confidence import (
+    CONFIDENCE_CALIBRATION_ERROR_ESTIMATOR,
     CONFIDENCE_UNCERTAINTY_EVIDENCE_FIELDS,
     CONFIDENCE_UNCERTAINTY_EVIDENCE_SCHEMA_VERSION,
     CONFIDENCE_UNCERTAINTY_METHOD,
@@ -92,6 +93,9 @@ def _confidence_metrics(fingerprint: str) -> dict[str, object]:
         ("short_", 2, -0.02, -0.01),
     ):
         prefix = f"validation_confidence_{scope}"
+        metrics[f"{prefix}calibration_error_estimator"] = (
+            CONFIDENCE_CALIBRATION_ERROR_ESTIMATOR
+        )
         metrics[f"{prefix}paired_brier_delta_per_row"] = [
             brier_delta
         ] * count
@@ -752,7 +756,7 @@ def test_checkpoint_ids_are_parameter_content_addressed_and_hash_verified(
     assert tampered["load_status"] == "WEIGHT_BLOB_SHA256_MISMATCH"
 
 
-def test_expected_checkpoint_guard_blocks_reselection_before_npz_deserialization(
+def test_expected_checkpoint_guard_selects_exact_older_activation_binding(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -828,9 +832,10 @@ def test_expected_checkpoint_guard_blocks_reselection_before_npz_deserialization
     )
 
     assert first.checkpoint_id != second.checkpoint_id
-    assert result["load_status"] == "EXPECTED_CHECKPOINT_ID_MISMATCH"
-    assert result["checkpoint_id"] == second.checkpoint_id
-    assert result["expected_checkpoint_id"] == first.checkpoint_id
+    assert result["load_status"] == (
+        "SAFE_NPZ_SEMANTIC_VERIFICATION_FAILED:AssertionError"
+    )
+    assert result["checkpoint_id"] == first.checkpoint_id
     assert result["latest_checkpoint_loadable"] is False
     assert result["model_state_restored"] is False
 

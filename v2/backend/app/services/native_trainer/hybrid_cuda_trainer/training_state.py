@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any
 
 from .confidence import (
+    CONFIDENCE_CALIBRATION_ERROR_ESTIMATOR,
     CONFIDENCE_FIT_PARTITION,
     CONFIDENCE_HEAD_ACTIONS,
     CONFIDENCE_LABEL_SEMANTICS,
@@ -402,6 +403,9 @@ def confidence_promotion_decision(
         )
         uncertainty_scope = metrics.get(f"{prefix}uncertainty_scope")
         uncertainty_method = metrics.get(f"{prefix}uncertainty_method")
+        calibration_error_estimator = metrics.get(
+            f"{prefix}calibration_error_estimator"
+        )
         scope_reasons: list[str] = []
         if uncertainty_schema != CONFIDENCE_UNCERTAINTY_EVIDENCE_SCHEMA_VERSION:
             scope_reasons.append("UNCERTAINTY_EVIDENCE_SCHEMA_INVALID")
@@ -409,6 +413,8 @@ def confidence_promotion_decision(
             scope_reasons.append("UNCERTAINTY_SCOPE_INVALID")
         if uncertainty_method != CONFIDENCE_UNCERTAINTY_METHOD:
             scope_reasons.append("UNCERTAINTY_METHOD_INVALID")
+        if calibration_error_estimator != CONFIDENCE_CALIBRATION_ERROR_ESTIMATOR:
+            scope_reasons.append("CALIBRATION_ERROR_ESTIMATOR_INVALID")
         if uncertainty_rows is None:
             scope_reasons.append("ROW_COUNT_INVALID")
         elif uncertainty_rows != scope_row_count:
@@ -540,6 +546,7 @@ def confidence_promotion_decision(
             expected_uncertainty_digest = confidence_uncertainty_evidence_digest(
                 scope=scope,
                 evidence={
+                    "calibration_error_estimator": calibration_error_estimator,
                     "paired_brier_delta_per_row": parsed_paired_deltas,
                     "paired_brier_delta_mean": brier_mean,
                     "paired_brier_delta_standard_error": brier_se,
@@ -583,13 +590,39 @@ def confidence_promotion_decision(
             scope_reasons.append("PAIRED_BRIER_UNCERTAINTY_UNAVAILABLE")
         if metrics.get(f"{prefix}ece_uncertainty_available") is not True:
             scope_reasons.append("ECE_UNCERTAINTY_UNAVAILABLE")
-        if brier_upper is None or brier_upper > 0.0 or metrics.get(
-            f"{prefix}paired_brier_non_regression_proven"
-        ) is not True:
+        expected_paired_non_regression = bool(
+            brier_mean is not None
+            and brier_mean <= 0.0
+            and len(parsed_paired_deltas) > 1
+            and all(
+                (
+                    sum(
+                        value
+                        for index, value in enumerate(parsed_paired_deltas)
+                        if index != excluded
+                    )
+                    / (len(parsed_paired_deltas) - 1)
+                )
+                <= 0.0
+                for excluded in range(len(parsed_paired_deltas))
+            )
+        )
+        expected_ece_non_regression = bool(
+            ece_delta is not None
+            and ece_delta <= 0.0
+            and parsed_ece_loo
+            and all(value <= 0.0 for value in parsed_ece_loo)
+        )
+        if (
+            not expected_paired_non_regression
+            or metrics.get(f"{prefix}paired_brier_non_regression_proven")
+            is not True
+        ):
             scope_reasons.append("PAIRED_BRIER_NON_REGRESSION_NOT_PROVEN")
-        if ece_upper is None or ece_upper > 0.0 or metrics.get(
-            f"{prefix}ece_non_regression_proven"
-        ) is not True:
+        if (
+            not expected_ece_non_regression
+            or metrics.get(f"{prefix}ece_non_regression_proven") is not True
+        ):
             scope_reasons.append("ECE_NON_REGRESSION_NOT_PROVEN")
         uncertainty_comparisons[scope] = {
             "rows": scope_row_count,

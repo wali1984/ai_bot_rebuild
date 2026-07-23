@@ -63,6 +63,15 @@ def _tensor(index: int) -> FeatureTensorRecord:
     )
 
 
+def _identifiable_calibration_state() -> dict[str, object]:
+    return fit_temperature(
+        [0.8, 0.8, 0.8, 0.2, 0.2, 0.2],
+        [1, 1, 0, 1, 0, 0],
+        row_ids=[f"fit-{index}" for index in range(6)],
+        action_labels=["long", "short", "long", "short", "long", "short"],
+    )
+
+
 def _rebind_manifest_to_current_weight_sha256(
     manifest: CheckpointManifest,
 ) -> None:
@@ -406,12 +415,7 @@ def test_inference_selects_matching_directional_confidence_and_excludes_hold() -
     torch = model.torch
     net = model.net
     assert torch is not None and net is not None
-    fitted = fit_temperature(
-        [0.8, 0.2],
-        [1, 0],
-        row_ids=["win", "loss"],
-        action_labels=["long", "short"],
-    )
+    fitted = _identifiable_calibration_state()
     model.set_confidence_calibration_state(fitted)
     with torch.no_grad():
         net.policy_head.weight.zero_()
@@ -734,12 +738,7 @@ def test_model_confidence_does_not_take_max_with_policy_probability() -> None:
         net.confidence_head.weight.zero_()
         net.confidence_head.bias.fill_(math.log(0.2 / 0.8))
     model.set_confidence_calibration_state(
-        fit_temperature(
-            [0.8, 0.2],
-            [1, 0],
-            row_ids=["win", "loss"],
-            action_labels=["long", "short"],
-        )
+        _identifiable_calibration_state()
     )
 
     output = model.forward(_tensor(4))
@@ -804,12 +803,7 @@ def test_sampled_direction_uses_its_own_confidence_not_deterministic_hold(
         net.confidence_head.bias[0] = math.log(0.83 / 0.17)
         net.confidence_head.bias[1] = math.log(0.17 / 0.83)
     model.set_confidence_calibration_state(
-        fit_temperature(
-            [0.8, 0.2],
-            [1, 0],
-            row_ids=["win", "loss"],
-            action_labels=["long", "short"],
-        )
+        _identifiable_calibration_state()
     )
     deterministic = model.forward(example.tensor)
     assert deterministic.selected_action == "hold"
@@ -869,12 +863,7 @@ def test_sampled_direction_uses_its_own_confidence_not_deterministic_hold(
 
 def test_checkpoint_round_trip_binds_calibration_to_weight_blob(tmp_path: Path) -> None:
     model = V2HybridPolicyModel(input_dim=len(_tensor(6).model_vector))
-    fitted = fit_temperature(
-        [0.8, 0.2],
-        [1, 0],
-        row_ids=["win", "loss"],
-        action_labels=["long", "short"],
-    )
+    fitted = _identifiable_calibration_state()
     model.set_confidence_calibration_state(fitted)
     manager = V2HybridCheckpointManager(tmp_path / ".local_models" / "confidence")
     manifest = manager.write_checkpoint(
@@ -890,8 +879,8 @@ def test_checkpoint_round_trip_binds_calibration_to_weight_blob(tmp_path: Path) 
     assert manifest.confidence_calibration_validation_rows_used == 0
     assert manifest.confidence_head_schema_version == CONFIDENCE_HEAD_SCHEMA_VERSION
     assert manifest.confidence_head_actions == CONFIDENCE_HEAD_ACTIONS
-    assert manifest.confidence_calibration_long_sample == 1
-    assert manifest.confidence_calibration_short_sample == 1
+    assert manifest.confidence_calibration_long_sample == 3
+    assert manifest.confidence_calibration_short_sample == 3
     assert len(
         str(manifest.confidence_calibration_model_parameter_fingerprint)
     ) == 64
@@ -902,16 +891,41 @@ def test_checkpoint_round_trip_binds_calibration_to_weight_blob(tmp_path: Path) 
     ] == manifest.confidence_calibration_model_parameter_fingerprint
 
 
+def test_zero_scale_calibration_round_trips_without_fake_temperature(
+    tmp_path: Path,
+) -> None:
+    model = V2HybridPolicyModel(input_dim=len(_tensor(32).model_vector))
+    zero_scale = fit_temperature(
+        [0.9, 0.1],
+        [0, 1],
+        row_ids=["anti-long", "anti-short"],
+        action_labels=["long", "short"],
+    )
+    assert zero_scale["fitted"] is True
+    model.set_confidence_calibration_state(zero_scale)
+    manager = V2HybridCheckpointManager(tmp_path / ".local_models" / "zero_scale")
+    manifest = manager.write_checkpoint(
+        model=model,
+        input_dim=model.input_dim,
+        device=model.device,
+        cuda_active=model.cuda_active,
+    )
+    restored = V2HybridPolicyModel(input_dim=model.input_dim)
+    load = manager.load_latest_weights(restored)
+
+    assert manifest.confidence_calibration_fitted is True
+    assert manifest.confidence_calibration_temperature is None
+    assert manifest.confidence_calibration_logit_scale == 0.0
+    assert load["latest_checkpoint_loadable"] is True
+    assert restored.confidence_calibration_state["temperature"] is None
+    assert restored.confidence_calibration_state["logit_scale"] == 0.0
+
+
 def test_legacy_scalar_confidence_checkpoint_refuses_load_without_mutation(
     tmp_path: Path,
 ) -> None:
     model = V2HybridPolicyModel(input_dim=len(_tensor(7).model_vector))
-    fitted = fit_temperature(
-        [0.8, 0.2],
-        [1, 0],
-        row_ids=["win", "loss"],
-        action_labels=["long", "short"],
-    )
+    fitted = _identifiable_calibration_state()
     model.set_confidence_calibration_state(fitted)
     manager = V2HybridCheckpointManager(tmp_path / ".local_models" / "legacy_scalar")
     manifest = manager.write_checkpoint(
@@ -976,12 +990,7 @@ def test_calibration_fingerprint_mismatch_rejects_content_addressed_checkpoint(
     if not model.torch_available:
         pytest.skip("parameter-bound confidence requires torch head")
     model.set_confidence_calibration_state(
-        fit_temperature(
-            [0.8, 0.2],
-            [1, 0],
-            row_ids=["win", "loss"],
-            action_labels=["long", "short"],
-        )
+        _identifiable_calibration_state()
     )
     manager = V2HybridCheckpointManager(tmp_path / ".local_models" / "mismatch")
     manifest = manager.write_checkpoint(
@@ -1027,12 +1036,7 @@ def test_calibration_missing_fingerprint_rejects_content_addressed_checkpoint(
     if not model.torch_available:
         pytest.skip("parameter-bound confidence requires torch head")
     model.set_confidence_calibration_state(
-        fit_temperature(
-            [0.8, 0.2],
-            [1, 0],
-            row_ids=["win", "loss"],
-            action_labels=["long", "short"],
-        )
+        _identifiable_calibration_state()
     )
     manager = V2HybridCheckpointManager(
         tmp_path / ".local_models" / "missing_fingerprint"
@@ -1124,12 +1128,7 @@ def test_validation_confidence_nonfinite_tensor_is_invalid_evidence() -> None:
     if not model.torch_available:
         pytest.skip("torch unavailable")
     model.set_confidence_calibration_state(
-        fit_temperature(
-            [0.8, 0.2],
-            [1, 0],
-            row_ids=["win", "loss"],
-            action_labels=["long", "short"],
-        )
+        _identifiable_calibration_state()
     )
 
     metrics = V2HybridPPOTrainer(model=model)._validation_confidence_metrics(  # noqa: SLF001
@@ -1153,12 +1152,7 @@ def test_validation_confidence_nonfinite_forward_output_is_invalid_evidence(
         pytest.skip("torch unavailable")
     assert model.net is not None
     model.set_confidence_calibration_state(
-        fit_temperature(
-            [0.8, 0.2],
-            [1, 0],
-            row_ids=["win", "loss"],
-            action_labels=["long", "short"],
-        )
+        _identifiable_calibration_state()
     )
     original_forward = model.net.forward
 

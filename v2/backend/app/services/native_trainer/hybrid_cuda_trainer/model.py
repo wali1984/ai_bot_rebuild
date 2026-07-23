@@ -23,7 +23,7 @@ from .confidence import (
     CONFIDENCE_HEAD_SCHEMA_VERSION,
     calibrate_confidence,
     normalize_calibration_state,
-    resolve_confidence_temperature,
+    resolve_confidence_logit_scale,
     softmax,
     unfitted_calibration_state,
 )
@@ -1410,7 +1410,7 @@ class V2HybridPolicyModel:
         # the declared semantics.
         selected_action = ACTION_LABELS[selected]
         calibration_state = self.confidence_calibration_state
-        temperature = resolve_confidence_temperature(calibration_state)
+        logit_scale = resolve_confidence_logit_scale(calibration_state)
         checkpoint_calibration_metadata = {
             "checkpoint_calibration_sample": calibration_state.get("sample"),
             "checkpoint_calibration_fit_partition": calibration_state.get(
@@ -1432,7 +1432,7 @@ class V2HybridPolicyModel:
                 missing_feature_count=missing_count,
                 stale_feature_count=stale_count,
                 total_feature_count=total_features,
-                temperature=temperature,
+                logit_scale=logit_scale,
                 calibration_fitted=calibration_state.get("fitted") is True,
                 calibration_reason=calibration_state.get("reason"),
             )
@@ -1457,7 +1457,7 @@ class V2HybridPolicyModel:
                 missing_feature_count=missing_count,
                 stale_feature_count=stale_count,
                 total_feature_count=total_features,
-                temperature=None,
+                logit_scale=None,
                 calibration_fitted=False,
                 calibration_reason=(
                     "SELECTED_ACTION_NOT_DIRECTIONAL_CONFIDENCE_UNDEFINED"
@@ -1540,7 +1540,7 @@ class V2HybridPolicyModel:
             missing_feature_count=missing_count,
             stale_feature_count=stale_count,
             total_feature_count=total_features,
-            temperature=None,
+            logit_scale=None,
             calibration_fitted=False,
             calibration_reason="CPU_FALLBACK_HAS_NO_PROFITABILITY_CONFIDENCE_HEAD",
         )

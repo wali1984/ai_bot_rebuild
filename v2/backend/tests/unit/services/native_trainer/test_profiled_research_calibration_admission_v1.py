@@ -281,6 +281,9 @@ def test_evaluation_and_artifact_recompute_every_proof() -> None:
     artifact = calibration.validate_profiled_research_calibration_admission_artifact_v1(
         prepared.artifact_bytes
     )
+    assert artifact["schema_version"] == (
+        calibration.PROFILED_RESEARCH_CALIBRATION_ADMISSION_V2_SCHEMA_VERSION
+    )
     assert len(artifact["source_outcome_inventory"]) == 13
     assert artifact["partition"]["purged_gap_row_ids"] == ["row-8"]
     assert artifact["authorization"]["calibration_input_authorized"] is True
@@ -295,7 +298,7 @@ def test_evaluation_and_artifact_recompute_every_proof() -> None:
     assert artifact["authorization"]["live_execution_authorized"] is False
 
     tampered = json.loads(prepared.artifact_bytes)
-    tampered["calibration_state"]["temperature"] += 0.01
+    tampered["calibration_state"]["ece_after"] += 0.01
     material = {key: value for key, value in tampered.items() if key != "admission_material_sha256"}
     tampered["admission_material_sha256"] = calibration._sha256(material)  # noqa: SLF001
     with pytest.raises(
@@ -344,6 +347,88 @@ def test_uncertainty_delta_matches_aggregate_brier_and_method_digest() -> None:
             scope="GLOBAL", evidence=evidence
         )
     )
+
+
+def test_frozen_v1_admission_artifact_remains_verifiable() -> None:
+    prepared = _prepared()
+    train = prepared.partition.train
+    legacy_state = calibration.fit_legacy_temperature(
+        [row.raw_probability for row in train],
+        [int(row.observed_strictly_positive_net_pnl) for row in train],
+        row_ids=[row.row_id for row in train],
+        action_labels=[row.selected_action for row in train],
+    )
+    legacy_state = calibration.normalize_legacy_calibration_state(
+        {
+            **legacy_state,
+            "model_parameter_fingerprint": train[0].model_parameter_fingerprint,
+        }
+    )
+    assert legacy_state["fitted"] is True
+    temperature = legacy_state["temperature"]
+    validation = prepared.partition.validation
+    legacy_validation = {
+        "global": calibration._legacy_scope_uncertainty(  # noqa: SLF001
+            validation,
+            temperature=temperature,
+            scope="GLOBAL",
+        ),
+        **{
+            action: calibration._legacy_scope_uncertainty(  # noqa: SLF001
+                tuple(row for row in validation if row.selected_action == action),
+                temperature=temperature,
+                scope=action,
+            )
+            for action in calibration.CONFIDENCE_HEAD_ACTIONS
+        },
+    }
+    legacy_artifact = {
+        **prepared.artifact,
+        "schema_version": (
+            calibration.PROFILED_RESEARCH_CALIBRATION_ADMISSION_V1_SCHEMA_VERSION
+        ),
+        "classification": (
+            calibration.PROFILED_RESEARCH_CALIBRATION_ADMISSION_V1_CLASSIFICATION
+        ),
+        "calibration_state": legacy_state,
+        "forward_validation": legacy_validation,
+        "evidence_policy": dict(calibration._EVIDENCE_POLICY_V1),  # noqa: SLF001
+    }
+    legacy_artifact["admission_material_sha256"] = calibration._sha256(  # noqa: SLF001
+        {
+            key: value
+            for key, value in legacy_artifact.items()
+            if key != "admission_material_sha256"
+        }
+    )
+    payload = calibration._canonical_bytes(legacy_artifact, reason="test")  # noqa: SLF001
+    assert calibration.validate_profiled_research_calibration_admission_artifact_v1(
+        payload
+    ) == legacy_artifact
+
+
+def test_separable_train_fit_waits_without_integrity_failure() -> None:
+    rows = _rows()
+    partition = calibration._chronological_partition(rows)  # noqa: SLF001
+    assert partition is not None
+    train_ids = {row.row_id for row in partition.train}
+    separable = tuple(
+        replace(
+            row,
+            observed_strictly_positive_net_pnl=(row.raw_probability > 0.5),
+        )
+        if row.row_id in train_ids
+        else row
+        for row in rows
+    )
+    evaluation, selected, fitted, validation = calibration._evaluate_rows(  # noqa: SLF001
+        separable
+    )
+    assert selected is not None
+    assert fitted is None
+    assert validation is None
+    assert evaluation.status == "WAITING_FOR_FINITE_CALIBRATION_IDENTIFIABILITY"
+    assert evaluation.admission_ready is False
 
 
 def test_regressing_forward_evidence_is_held() -> None:
