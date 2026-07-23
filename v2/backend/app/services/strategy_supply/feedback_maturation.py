@@ -193,7 +193,7 @@ def entry_snapshot_rejection_reasons(row: Mapping[str, Any]) -> list[str]:
     reasons: list[str] = []
     if not isinstance(snapshot, Mapping) or not snapshot_features(snapshot):
         return ["MISSING_PIT_ENTRY_FEATURE_SNAPSHOT"]
-    if snapshot.get("candle_closed_confirmed") is False:
+    if snapshot.get("candle_closed_confirmed") is not True:
         reasons.append("UNFINISHED_ENTRY_FEATURE_CANDLE")
     expected_id = first_present(row.get("entry_feature_snapshot_id"), row.get("feature_snapshot_id"))
     snapshot_id = first_present(snapshot.get("feature_snapshot_id"), snapshot.get("snapshot_id"))

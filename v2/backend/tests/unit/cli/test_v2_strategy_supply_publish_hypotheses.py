@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from v2.backend.app.cli import v2_strategy_supply_publish_hypotheses as publisher
 from v2.backend.app.cli.v2_strategy_supply_publish_hypotheses import (
     _generator_failure_row,
     _positive_net_usd,
@@ -271,3 +272,71 @@ def test_strategy_supply_runtime_redis_client_preserves_exact_bytes(
     assert isinstance(client, Client)
     assert captured["url"] == "redis://example.invalid:6379/9"
     assert captured["decode_responses"] is False
+
+
+def test_publish_clocks_failure_and_payload_when_events_actually_occur(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clocks = iter(
+        (
+            "2026-07-23T04:00:00.000Z",
+            "2026-07-23T04:00:01.000Z",
+            "2026-07-23T04:00:02.000Z",
+            "2026-07-23T04:00:03.000Z",
+        )
+    )
+    monkeypatch.setattr(publisher, "_utc_now", lambda: next(clocks))
+    monkeypatch.setattr(
+        publisher,
+        "generate_hypotheses",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
+    client = FakeRedis({})
+
+    status = publish_strategy_supply(
+        client=client,
+        symbols=["BTCUSDT"],
+        timeframes=["1m"],
+        ttl_seconds=123,
+    )
+
+    payload = json.loads(
+        client.data["v2:strategy_supply:hypotheses:BTCUSDT:1m"]
+    )
+    failure = payload["rows"][0]
+    assert payload["cycle_started_utc"] == "2026-07-23T04:00:00.000Z"
+    assert failure["failure_observed_at"] == "2026-07-23T04:00:01.000Z"
+    assert payload["generated_utc"] == "2026-07-23T04:00:02.000Z"
+    assert status["generated_utc"] == "2026-07-23T04:00:03.000Z"
+    assert status["cycle_started_utc"] == "2026-07-23T04:00:00.000Z"
+
+
+def test_loop_refreshes_runtime_symbol_universe_each_cycle(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    universes = iter((["BTCUSDT"], ["ETHUSDT", "SOLUSDT"]))
+    published_symbols: list[list[str]] = []
+    client = object()
+
+    monkeypatch.setattr(publisher, "_redis_client", lambda: client)
+    monkeypatch.setattr(
+        publisher,
+        "resolve_symbols",
+        lambda **_kwargs: list(next(universes)),
+    )
+    monkeypatch.setattr(
+        publisher,
+        "publish_strategy_supply",
+        lambda **kwargs: (
+            published_symbols.append(list(kwargs["symbols"]))
+            or {"status": "TEST_ONLY"}
+        ),
+    )
+    monkeypatch.setattr(publisher.time, "sleep", lambda _seconds: None)
+
+    result = publisher.main(
+        ["--loop", "--max-cycles", "2", "--json", "--timeframes", "1m"]
+    )
+
+    assert result == 0
+    assert published_symbols == [["BTCUSDT"], ["ETHUSDT", "SOLUSDT"]]

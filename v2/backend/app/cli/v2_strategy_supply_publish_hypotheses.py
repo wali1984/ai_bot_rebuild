@@ -258,7 +258,7 @@ def publish_strategy_supply(
     cadence_seconds: float | None = None,
     output_dir: Path | None = None,
 ) -> dict[str, Any]:
-    generated_utc = _utc_now()
+    cycle_started_utc = _utc_now()
     all_rows: list[dict[str, Any]] = []
     positive_rows: list[dict[str, Any]] = []
     gate_clean_positive_rows: list[dict[str, Any]] = []
@@ -280,7 +280,14 @@ def publish_strategy_supply(
             try:
                 rows = generate_hypotheses(client, normalized_symbol, normalized_timeframe)
             except Exception as exc:  # noqa: BLE001 - status must carry exact runtime failure.
-                rows = [_generator_failure_row(normalized_symbol, normalized_timeframe, generated_utc, exc)]
+                rows = [
+                    _generator_failure_row(
+                        normalized_symbol,
+                        normalized_timeframe,
+                        _utc_now(),
+                        exc,
+                    )
+                ]
                 generator_failure_count += 1
             positive_for_key = [row for row in rows if _positive_net_usd(row)]
             gate_clean_for_key = [
@@ -290,10 +297,19 @@ def publish_strategy_supply(
             positive_rows.extend(positive_for_key)
             gate_clean_positive_rows.extend(gate_clean_for_key)
             no_data += sum(1 for row in rows if row.get("strategy_family") is None)
+            key_published_at = _utc_now()
             key = HYPOTHESIS_KEY.format(symbol=normalized_symbol, timeframe=normalized_timeframe)
             client.set(
                 key,
-                json.dumps({"rows": rows, "generated_utc": generated_utc}, sort_keys=True, default=str),
+                json.dumps(
+                    {
+                        "rows": rows,
+                        "generated_utc": key_published_at,
+                        "cycle_started_utc": cycle_started_utc,
+                    },
+                    sort_keys=True,
+                    default=str,
+                ),
                 ex=effective_ttl_seconds,
             )
             redis_keys_written.append(key)
@@ -303,7 +319,15 @@ def publish_strategy_supply(
             )
             client.set(
                 positive_key,
-                json.dumps({"rows": positive_for_key, "generated_utc": generated_utc}, sort_keys=True, default=str),
+                json.dumps(
+                    {
+                        "rows": positive_for_key,
+                        "generated_utc": key_published_at,
+                        "cycle_started_utc": cycle_started_utc,
+                    },
+                    sort_keys=True,
+                    default=str,
+                ),
                 ex=effective_ttl_seconds,
             )
             redis_keys_written.append(positive_key)
@@ -313,11 +337,20 @@ def publish_strategy_supply(
             )
             client.set(
                 gate_clean_key,
-                json.dumps({"rows": gate_clean_for_key, "generated_utc": generated_utc}, sort_keys=True, default=str),
+                json.dumps(
+                    {
+                        "rows": gate_clean_for_key,
+                        "generated_utc": key_published_at,
+                        "cycle_started_utc": cycle_started_utc,
+                    },
+                    sort_keys=True,
+                    default=str,
+                ),
                 ex=effective_ttl_seconds,
             )
             redis_keys_written.append(gate_clean_key)
 
+    generated_utc = _utc_now()
     status_details = _status_from_rows(
         all_rows=all_rows,
         positive_rows=positive_rows,
@@ -326,6 +359,7 @@ def publish_strategy_supply(
     latest_positive_summary = {
         "schema_version": "strategy_supply_latest_positive_summary_v1",
         "generated_utc": generated_utc,
+        "cycle_started_utc": cycle_started_utc,
         "positive_hypothesis_count": len(positive_rows),
         "gate_clean_positive_hypothesis_count": len(gate_clean_positive_rows),
         "positive_symbols": sorted({str(row.get("symbol")) for row in positive_rows if row.get("symbol")}),
@@ -340,6 +374,7 @@ def publish_strategy_supply(
     latest_error_summary = {
         "schema_version": "strategy_supply_latest_error_summary_v1",
         "generated_utc": generated_utc,
+        "cycle_started_utc": cycle_started_utc,
         "status": status_details["status"],
         "status_reason": status_details["status_reason"],
         "rejection_reason_counts": status_details["rejection_reason_counts"],
@@ -362,6 +397,7 @@ def publish_strategy_supply(
     status = {
         "schema_version": "strategy_supply_publish_status_v1",
         "generated_utc": generated_utc,
+        "cycle_started_utc": cycle_started_utc,
         "status": status_details["status"],
         "status_reason": status_details["status_reason"],
         "symbol_count": len(symbols),
@@ -425,17 +461,20 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
-    symbols = resolve_symbols(
-        explicit=_parse_csv(args.symbols),
-        smoke_test=bool(args.smoke_test),
-        include_baseline=True,
-    )
+    explicit_symbols = _parse_csv(args.symbols)
     timeframes = _parse_csv(args.timeframes) or ["1m", "5m", "15m", "1h", "4h"]
     client = _redis_client()
     cycle = 0
     last_status: dict[str, Any] | None = None
     while True:
         cycle += 1
+        # Resolve the canonical universe on every cycle so additions,
+        # removals, and quarantine changes do not require a service restart.
+        symbols = resolve_symbols(
+            explicit=explicit_symbols,
+            smoke_test=bool(args.smoke_test),
+            include_baseline=True,
+        )
         last_status = publish_strategy_supply(
             client=client,
             symbols=symbols,

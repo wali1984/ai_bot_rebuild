@@ -255,6 +255,17 @@ def test_strategy_supply_feedback_maturation_rejects_future_leaking_entry_snapsh
     assert "ENTRY_AVAILABLE_AT_AFTER_DECISION_TIME" in rejected[0]["reasons"]
 
 
+def test_entry_snapshot_requires_explicit_closed_candle_finality() -> None:
+    row = _pending_row()
+    snapshot = dict(row["entry_feature_snapshot"])
+    snapshot.pop("candle_closed_confirmed")
+    row["entry_feature_snapshot"] = snapshot
+
+    reasons = maturation.entry_snapshot_rejection_reasons(row)
+
+    assert "UNFINISHED_ENTRY_FEATURE_CANDLE" in reasons
+
+
 def test_strategy_supply_feedback_maturation_waits_for_label_window(tmp_path: Path) -> None:
     pending_path = tmp_path / "strategy_supply_pending_evidence.jsonl"
     matured_path = tmp_path / "strategy_supply_matured_evidence.jsonl"
