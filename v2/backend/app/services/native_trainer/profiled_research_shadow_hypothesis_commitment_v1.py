@@ -1625,6 +1625,16 @@ class ProfiledResearchShadowCommitmentInventorySnapshotV1:
         return _validated_inventory_snapshot_result(self)
 
     @property
+    def ordered_inventory(self) -> tuple[dict[str, Any], ...]:
+        contract = _validated_inventory_snapshot_result(self)
+        return tuple(
+            _load_inventory_pages(
+                contract=contract,
+                store=self._store,
+            )
+        )
+
+    @property
     def runtime_wired(self) -> bool:
         _validated_inventory_snapshot_result(self)
         return False
@@ -2218,6 +2228,13 @@ class ProfiledResearchShadowHypothesisCommitmentLedgerV1:
         self._writer_lease = writer_lease
         if writer_lease is not None:
             writer_lease.validate_for(self.path)
+
+    @contextmanager
+    def hold_inventory_snapshot_lease(self) -> Iterator[None]:
+        """Block source writers while a coordinator captures a canonical cut."""
+
+        with self._reader_snapshot_lease():
+            yield
 
     @contextmanager
     def writer_lease(
@@ -3764,6 +3781,25 @@ class ProfiledResearchShadowHypothesisCommitmentLedgerV1:
             if expected != contract:
                 _integrity("SHADOW_COMMITMENT_SNAPSHOT_REPLAY_MISMATCH")
         return contract
+
+    def verified_inventory_snapshot_rows(
+        self,
+        *,
+        snapshot_artifact: object,
+        store: object,
+    ) -> tuple[dict[str, Any], ...]:
+        """Reopen a verified historical prefix for coordinator crash recovery."""
+
+        contract = self.verify_inventory_snapshot(
+            snapshot_artifact=snapshot_artifact,
+            store=store,
+        )
+        return tuple(
+            _load_inventory_pages(
+                contract=contract,
+                store=cast(ImmutableSourcePayloadStore, store),
+            )
+        )
 
     def _write_postcommit_readback(
         self,

@@ -1055,11 +1055,13 @@ def test_inventory_snapshot_replays_current_head_and_remains_non_authoritative(
     observed = _clock(matured.postcommit_readback_at) + timedelta(seconds=1)
     monkeypatch.setattr(outcome, "_utc_now", lambda: observed)
 
-    snapshot = ledger.capture_inventory_snapshot(store=store)
+    with ledger.hold_inventory_snapshot_lease():
+        snapshot = ledger.capture_inventory_snapshot(store=store)
     contract = snapshot.snapshot_contract
     inventory = _snapshot_inventory(snapshot, store)
 
     assert snapshot.total_finalized_outcomes == 1
+    assert snapshot.ordered_inventory == tuple(inventory)
     assert len(contract["ordered_inventory_pages"]) == 1
     row = inventory[0]
     assert row["hypothesis_identity_sha256"] == matured.hypothesis_identity_sha256
@@ -1079,6 +1081,10 @@ def test_inventory_snapshot_replays_current_head_and_remains_non_authoritative(
         snapshot.snapshot_artifact_sha256,
         expected_byte_count=snapshot.snapshot_artifact_byte_count,
     )
+    assert ledger.verified_inventory_snapshot_rows(
+        snapshot_artifact=payload,
+        store=store,
+    ) == tuple(inventory)
     reopened = ProfiledResearchFinalizedOutcomeLedgerV1(ledger.path)
     assert reopened.verify_inventory_snapshot(
         snapshot_artifact=payload,
