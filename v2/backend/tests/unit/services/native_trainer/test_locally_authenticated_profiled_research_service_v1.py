@@ -261,6 +261,34 @@ def test_local_optimizer_reason_is_preserved_in_fail_closed_status(
     }
 
 
+def test_manifest_reason_code_is_preserved_without_payload_in_fail_closed_status(
+    tmp_path: Path,
+) -> None:
+    error = service.LocallyAuthenticatedProfiledResearchServiceV1Error(
+        "LOCAL_PROFILED_RESEARCH_MANIFEST_BUILD_FAILED:"
+        "ProfiledTrainingObservationManifestV1Error",
+        "PROFILED_OBSERVATION_SOURCE_VERIFICATION_FAILED",
+        "unsafe-unstructured-payload-must-not-render",
+    )
+
+    payload = service._status_payload(  # noqa: SLF001
+        config=_config(tmp_path),
+        credentials=_credentials(),
+        classification=service.LOCAL_PROFILED_RESEARCH_FAIL_CLOSED,
+        error=error,
+    )
+
+    assert payload["error"] == {
+        "error_type": "LocallyAuthenticatedProfiledResearchServiceV1Error",
+        "reason_codes": [
+            "LOCAL_PROFILED_RESEARCH_MANIFEST_BUILD_FAILED:"
+            "ProfiledTrainingObservationManifestV1Error",
+            "PROFILED_OBSERVATION_SOURCE_VERIFICATION_FAILED",
+        ],
+    }
+    assert "unsafe-unstructured-payload" not in str(payload)
+
+
 def test_status_must_be_inside_exact_private_runtime_root(tmp_path: Path) -> None:
     config = _config(tmp_path)
     with pytest.raises(

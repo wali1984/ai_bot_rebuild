@@ -134,6 +134,7 @@ _DOWNSTREAM_FALSE: Final = {
 _SAFE_STATUS_REASON_PREFIXES: Final = (
     "LOCAL_PROFILED_RESEARCH_",
     "PROFILED_LOCAL_RESEARCH_",
+    "PROFILED_OBSERVATION_",
 )
 
 
@@ -898,8 +899,14 @@ def run_locally_authenticated_profiled_research_cycle_v1(
             ),
         )
     except Exception as exc:
+        safe_reasons = tuple(
+            reason
+            for reason in getattr(exc, "reasons", ())
+            if type(reason) is str and reason.startswith("PROFILED_OBSERVATION_")
+        )[:32]
         raise LocallyAuthenticatedProfiledResearchServiceV1Error(
-            f"LOCAL_PROFILED_RESEARCH_MANIFEST_BUILD_FAILED:{type(exc).__name__}"
+            f"LOCAL_PROFILED_RESEARCH_MANIFEST_BUILD_FAILED:{type(exc).__name__}",
+            *safe_reasons,
         ) from exc
     publisher_after = _read_publisher_status(config)
     if publisher_after != publisher_before:
