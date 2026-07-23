@@ -34,8 +34,11 @@ from v2.backend.app.services.native_trainer.durable_canonical_5m_label_archive i
     stable_sha256 as canonical_label_stable_sha256,
 )
 from v2.backend.app.services.native_trainer.durable_feature_snapshot_archive import (
+    ArchiveWriteResult,
+    SnapshotArchiveError,
     append_snapshot,
     build_archive_record,
+    load_snapshot,
     write_checksum_manifest,
 )
 from v2.backend.app.services.native_trainer.durable_feature_snapshot_ledger import (
@@ -155,6 +158,94 @@ def _stable_snapshot_id(sample: ProfiledTrainingLedgerSampleV1) -> str:
         f"{sample.durable_snapshot_id}:"
         f"{sample.record_sha256}"
     )
+
+
+def _label_independent_feature_identity(record: Mapping[str, Any]) -> str:
+    """Bind the immutable feature/cost record while excluding label observations.
+
+    The challenger archive is keyed by the immutable profiled feature record.
+    Canonical labels are re-verified when a dataset is frozen, so a later
+    manifest may legitimately carry a different label-observation receipt for
+    the same feature record.  That later receipt must not overwrite the
+    archive entry, but neither may it be treated as the same entry unless every
+    feature and cost provenance field still agrees exactly.
+    """
+
+    source_hashes = record.get("source_hashes")
+    if not isinstance(source_hashes, Mapping):
+        raise ProfiledTrainingChallengerImportError(
+            "PROFILED_TRAINING_CHALLENGER_SOURCE_HASHES_INVALID"
+        )
+    normalized_hashes = dict(source_hashes)
+    normalized_hashes.pop("canonical_label_binding_sha256", None)
+    normalized_hashes.pop("profiled_ledger_high_water_sha256", None)
+    material = {
+        key: value
+        for key, value in record.items()
+        if key not in {"content_sha256", "label_binding", "source_hashes"}
+    }
+    material["source_hashes"] = normalized_hashes
+    return canonical_label_stable_sha256(material)
+
+
+def _valid_label_receipt_binding(record: Mapping[str, Any]) -> bool:
+    binding = record.get("label_binding")
+    source_hashes = record.get("source_hashes")
+    if not isinstance(binding, Mapping) or not isinstance(source_hashes, Mapping):
+        return False
+    binding_sha = binding.get("label_binding_sha256")
+    return (
+        record.get("label_source") == LABEL_SOURCE
+        and isinstance(binding_sha, str)
+        and bool(binding_sha)
+        and source_hashes.get("canonical_label_binding_sha256") == binding_sha
+    )
+
+
+def _append_or_reuse_label_observation_record(
+    *,
+    record: Mapping[str, Any],
+    challenger_archive_root: Path,
+) -> tuple[ArchiveWriteResult | None, bool]:
+    """Append a new record or safely reuse an exact feature/cost predecessor.
+
+    ``append_snapshot`` correctly refuses to replace a snapshot ID with a
+    different content digest.  A different digest is only reusable here when
+    it is caused exclusively by a later authenticated label-observation
+    receipt; every label-independent field must remain identical.  The stored
+    object remains immutable and the next freeze independently verifies the
+    canonical labels at its own observation time.
+    """
+
+    try:
+        return (
+            append_snapshot(
+                record,
+                root=challenger_archive_root,
+                update_checksum_manifest=False,
+            ),
+            False,
+        )
+    except SnapshotArchiveError as exc:
+        if str(exc) != "SNAPSHOT_ID_CONTENT_HASH_CHANGED":
+            raise
+    snapshot_id = record.get("snapshot_id")
+    if not isinstance(snapshot_id, str) or not snapshot_id:
+        raise ProfiledTrainingChallengerImportError(
+            "PROFILED_TRAINING_CHALLENGER_SNAPSHOT_ID_INVALID"
+        )
+    existing = load_snapshot(snapshot_id, root=challenger_archive_root, verify=True)
+    if (
+        existing is None
+        or not _valid_label_receipt_binding(existing)
+        or not _valid_label_receipt_binding(record)
+        or _label_independent_feature_identity(existing)
+        != _label_independent_feature_identity(record)
+    ):
+        raise ProfiledTrainingChallengerImportError(
+            "PROFILED_TRAINING_CHALLENGER_SNAPSHOT_ID_CONFLICT"
+        )
+    return None, True
 
 
 def _label_binding(
@@ -505,17 +596,18 @@ def import_profiled_training_ledger_to_challenger_archive_v1(
                     label_rows=label_rows,
                     label_proof=label_proof,
                 )
-                result = append_snapshot(
-                    record,
-                    root=archive_root,
-                    update_checksum_manifest=False,
+                result, reused_label_observation = (
+                    _append_or_reuse_label_observation_record(
+                        record=record,
+                        challenger_archive_root=archive_root,
+                    )
                 )
             except (OSError, ValueError, ProfiledTrainingChallengerImportError) as exc:
                 rejection_reasons[str(exc) or type(exc).__name__] += 1
                 continue
             label_paths_verified += 1
-            imported_ids.append(result.snapshot_id)
-            if result.already_present:
+            imported_ids.append(str(record["snapshot_id"]))
+            if reused_label_observation or (result is not None and result.already_present):
                 duplicate_rows += 1
             else:
                 imported_rows += 1
@@ -755,17 +847,21 @@ def import_profiled_training_observation_manifest_shard_to_challenger_archive_v1
                 sample=sample,
                 label_binding=label_binding,
             )
-            write_result = append_snapshot(
-                record,
-                root=archive_root,
-                update_checksum_manifest=False,
+            write_result, reused_label_observation = (
+                _append_or_reuse_label_observation_record(
+                    record=record,
+                    challenger_archive_root=archive_root,
+                )
             )
         except (OSError, ValueError, ProfiledTrainingChallengerImportError) as exc:
             raise ProfiledTrainingChallengerImportError(
                 "PROFILED_TRAINING_MANIFEST_SHARD_ARCHIVE_WRITE_FAILED"
             ) from exc
-        write_paths.append((write_result.blob_path, write_result.index_path))
-        if write_result.already_present:
+        if write_result is not None and not write_result.already_present:
+            write_paths.append((write_result.blob_path, write_result.index_path))
+        if reused_label_observation or (
+            write_result is not None and write_result.already_present
+        ):
             duplicates += 1
         else:
             imported += 1

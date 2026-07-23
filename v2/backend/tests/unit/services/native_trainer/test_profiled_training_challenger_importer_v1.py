@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sqlite3
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -90,7 +91,10 @@ def test_importer_reconstructs_idempotent_pit_challenger_row(
         training_observed_at=observation,
     )
     assert len(freeze.rows) == 1
-    assert freeze.manifest["canonical_label_archive_integrity_verified"] is True
+    # Online shards use a bounded canonical-label range proof when no current
+    # full-tail proof was supplied; forcing a global proof here would make a
+    # continually appended archive part of the hot path.
+    assert freeze.manifest["canonical_label_archive_integrity_verified"] is False
     assert freeze.manifest["canonical_label_rows"] == 1
     assert freeze.rows[0].label_available_at > freeze.rows[0].decision_time
     assert freeze.rows[0].cost_evidence_hash
@@ -175,6 +179,87 @@ def test_manifest_shard_importer_reuses_authenticated_observation_page(
     )
     assert resumed["shards_processed_this_run"] == 0
     assert resumed["completed"] is True
+
+
+def test_manifest_shard_importer_reuses_prior_feature_record_with_new_label_receipt(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A later label-observation receipt cannot rewrite an immutable feature row."""
+
+    evidence = base_support._build_evidence(tmp_path / "base")
+    source_root = tmp_path / "sources"
+    source_root.mkdir()
+    ledger, labels, observation, cost_root = manifest_support._setup_sources(
+        source_root,
+        evidence,
+    )
+    trusted_now = max(
+        datetime.now(tz=UTC) + timedelta(days=1),
+        datetime(2026, 7, 23, tzinfo=UTC),
+    )
+    monkeypatch.setattr(
+        manifest_support.manifest_module,
+        "_factory_wall_clock_now",
+        lambda: trusted_now,
+    )
+    first_manifest = manifest_support.build_profiled_training_observation_manifest_v1(
+        ledger=ledger,
+        trusted_immutable_cost_store_root=cost_root,
+        label_archive=labels,
+        manifest_root=(tmp_path / "first-manifests").absolute(),
+        training_observed_at=observation,
+        auth_key_id=manifest_support.AUTH_KEY_ID,
+        hmac_key=manifest_support.AUTH_KEY,
+    )
+    clone_path = (tmp_path / "canonical-label-clone.sqlite3").absolute()
+    source_connection = sqlite3.connect(f"file:{labels.path}?mode=ro", uri=True)
+    target_connection = sqlite3.connect(str(clone_path))
+    try:
+        source_connection.backup(target_connection)
+    finally:
+        target_connection.close()
+        source_connection.close()
+    cloned_labels = manifest_support.DurableCanonical5mLabelArchive(clone_path)
+    second_manifest = manifest_support.build_profiled_training_observation_manifest_v1(
+        ledger=ledger,
+        trusted_immutable_cost_store_root=cost_root,
+        label_archive=cloned_labels,
+        manifest_root=(tmp_path / "second-manifests").absolute(),
+        training_observed_at=observation,
+        auth_key_id=manifest_support.AUTH_KEY_ID,
+        hmac_key=manifest_support.AUTH_KEY,
+    )
+    challenger_archive = (tmp_path / "challenger-archive").absolute()
+
+    first = import_profiled_training_observation_manifest_shard_to_challenger_archive_v1(
+        manifest_path=first_manifest.manifest_path,
+        manifest_hmac_key=manifest_support.AUTH_KEY,
+        manifest_auth_key_id=manifest_support.AUTH_KEY_ID,
+        expected_manifest_id=first_manifest.manifest_id,
+        expected_observation_time=first_manifest.observation_time,
+        ledger=ledger,
+        trusted_immutable_cost_store_root=cost_root,
+        label_archive=labels,
+        challenger_archive_root=challenger_archive,
+    )
+    second = import_profiled_training_observation_manifest_shard_to_challenger_archive_v1(
+        manifest_path=second_manifest.manifest_path,
+        manifest_hmac_key=manifest_support.AUTH_KEY,
+        manifest_auth_key_id=manifest_support.AUTH_KEY_ID,
+        expected_manifest_id=second_manifest.manifest_id,
+        expected_observation_time=second_manifest.observation_time,
+        ledger=ledger,
+        trusted_immutable_cost_store_root=cost_root,
+        label_archive=cloned_labels,
+        challenger_archive_root=challenger_archive,
+        checkpoint_path=challenger_archive / "clone-label-receipt-checkpoint.json",
+    )
+
+    assert first["imported_rows"] == 1
+    assert second["imported_rows"] == 0
+    assert second["duplicate_rows"] == 1
+    assert len(list(iter_snapshots(challenger_archive))) == 1
 
 
 def test_sharded_importer_checkpoints_completed_cursor_without_reprocessing(
