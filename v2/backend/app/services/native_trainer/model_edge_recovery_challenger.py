@@ -23,6 +23,12 @@ from typing import Any
 from v2.backend.app.services.market_state_integrity.sample_rejection import (
     classify_training_sample,
 )
+from v2.backend.app.services.native_trainer.durable_canonical_5m_label_archive import (
+    DurableCanonical5mLabelArchive,
+)
+from v2.backend.app.services.native_trainer.durable_canonical_5m_label_archive import (
+    default_archive_path as default_canonical_5m_label_archive_path,
+)
 from v2.backend.app.services.native_trainer.durable_feature_snapshot_archive import (
     content_sha256 as archive_content_sha256,
 )
@@ -32,6 +38,7 @@ from v2.backend.app.services.native_trainer.durable_feature_snapshot_archive imp
 )
 from v2.backend.app.services.native_trainer.trusted_replay.dataset import (
     FUTURE_LABEL_PREFIXES,
+    canonical_5m_label_evidence,
     snapshot_to_final_candle,
 )
 
@@ -85,6 +92,7 @@ DEFAULT_MODEL_FEATURE_CAP = 32
 DEFAULT_TARGET_CLIP_BPS = 50.0
 DEFAULT_MIN_VALIDATION_SUPPLY_TRADES = 300
 DEFAULT_MIN_VALIDATION_SUPPLY_COVERAGE = 0.03
+CANONICAL_5M_LABEL_SOURCE = "DURABLE_CANONICAL_5M_LABEL_ARCHIVE"
 
 
 def utc_now() -> str:
@@ -384,7 +392,13 @@ def _future_label_evidence(
         return None, ["DECISION_TIME_MISSING_INVALID_OR_NAIVE"]
     features = snapshot.get("features") if isinstance(snapshot.get("features"), Mapping) else {}
     entry_price = None
-    for field in ("close", "last_price", "price_last", "ohlcv_close"):
+    for field in (
+        "decision_reference_price",
+        "close",
+        "last_price",
+        "price_last",
+        "ohlcv_close",
+    ):
         candidate = finite_float(features.get(field))
         if candidate is not None and candidate > 0.0:
             entry_price = candidate
@@ -434,16 +448,128 @@ def _future_label_evidence(
     }, []
 
 
+def _canonical_label_evidence(
+    snapshot: Mapping[str, Any],
+    *,
+    label_archive: DurableCanonical5mLabelArchive | None,
+    archive_integrity_proof: Mapping[str, Any] | None,
+    training_observed_at: datetime | None,
+) -> tuple[dict[str, Any] | None, list[str]]:
+    """Resolve an imported row's labels only from the durable canonical path."""
+
+    if label_archive is None:
+        return None, ["DURABLE_CANONICAL_5M_LABEL_ARCHIVE_REQUIRED"]
+    if archive_integrity_proof is None:
+        return None, ["DURABLE_CANONICAL_5M_LABEL_ARCHIVE_INTEGRITY_UNVERIFIED"]
+    if training_observed_at is None:
+        return None, ["TRAINING_OBSERVED_AT_MISSING_INVALID_OR_NAIVE"]
+    decision_time = _strict_aware_utc(snapshot.get("decision_time"))
+    if decision_time is None:
+        return None, ["DECISION_TIME_MISSING_INVALID_OR_NAIVE"]
+    features = (
+        snapshot.get("features")
+        if isinstance(snapshot.get("features"), Mapping)
+        else {}
+    )
+    entry_price = None
+    for field in (
+        "decision_reference_price",
+        "close",
+        "last_price",
+        "price_last",
+        "ohlcv_close",
+    ):
+        candidate = finite_float(features.get(field))
+        if candidate is not None and candidate > 0.0:
+            entry_price = candidate
+            break
+    if entry_price is None:
+        return None, ["ENTRY_PRICE_MISSING"]
+    try:
+        candles, path_proof = label_archive.verified_label_path(
+            symbol=str(snapshot.get("symbol") or "").upper(),
+            decision_time=decision_time,
+            training_observed_at=training_observed_at,
+            horizon_seconds=MAX_FUTURE_HORIZON_SECONDS,
+            archive_integrity_proof=archive_integrity_proof,
+            require_receipt_committed_by_observation=True,
+        )
+    except (OSError, TypeError, ValueError) as exc:
+        return None, [
+            "DURABLE_CANONICAL_5M_LABEL_RANGE_READ_FAILED:"
+            f"{type(exc).__name__}"
+        ]
+    if (
+        candles is None
+        or path_proof.get("status")
+        != "VERIFIED_CANONICAL_5M_TRAINER_LABEL_PATH"
+    ):
+        return None, list(
+            path_proof.get("rejection_reasons")
+            or ["DURABLE_CANONICAL_5M_LABEL_RANGE_UNVERIFIED"]
+        )
+    label_evidence, reasons = canonical_5m_label_evidence(
+        candles=candles,
+        symbol=str(snapshot.get("symbol") or "").upper(),
+        decision_time=decision_time,
+        training_observed_at=training_observed_at,
+        source_key=(
+            "durable_canonical_5m_label_archive:"
+            f"{label_archive.path}:{path_proof.get('label_path_sha256')}"
+        ),
+    )
+    if label_evidence is None:
+        return None, reasons
+    target_candle = label_evidence["horizon_candles"][TARGET_HORIZON]
+    target_close = finite_float(target_candle.get("close"))
+    if target_close is None or target_close <= 0.0:
+        return None, ["TARGET_HORIZON_CLOSE_PRICE_MISSING"]
+    label_available_at = label_evidence.get("label_available_at_datetime")
+    if not isinstance(label_available_at, datetime):
+        return None, ["FUTURE_LABEL_AVAILABLE_AT_MISSING_INVALID_OR_NAIVE"]
+    return {
+        "raw_future_return_bps": float(
+            ((target_close - entry_price) / entry_price) * 10_000.0
+        ),
+        "label_available_at": _utc_iso(label_available_at),
+        "max_future_horizon_seconds_consumed": MAX_FUTURE_HORIZON_SECONDS,
+        "future_horizon_available_at": {
+            horizon: _utc_iso(
+                datetime.fromtimestamp(
+                    int(candle["available_at"]) / 1_000.0,
+                    tz=UTC,
+                )
+            )
+            for horizon, candle in label_evidence["horizon_candles"].items()
+        },
+        "canonical_label_path_sha256": path_proof.get("label_path_sha256"),
+        "canonical_label_evidence_sha256": label_evidence.get(
+            "label_candle_evidence_sha256"
+        ),
+    }, []
+
+
 def freeze_dataset_from_archive(
     *,
     archive_root: Path,
     scan_limit: int = 60_000,
     replay_limit: int = 30_000,
+    canonical_label_archive: DurableCanonical5mLabelArchive | None = None,
+    training_observed_at: str | None = None,
 ) -> DatasetFreeze:
     snapshots = list(iter_snapshots(archive_root, limit=scan_limit))
     archive_candles: dict[tuple[str, str], list[dict[str, Any]]] = {}
     rejections: Counter[str] = Counter()
     pit_eligible_snapshots: list[Mapping[str, Any]] = []
+    canonical_label_integrity: Mapping[str, Any] | None = None
+    if canonical_label_archive is not None:
+        try:
+            integrity = canonical_label_archive.verify_integrity()
+        except (OSError, TypeError, ValueError):
+            integrity = {}
+        if integrity.get("archive_integrity_verified") is True:
+            canonical_label_integrity = integrity
+    observed_at = _strict_aware_utc(training_observed_at or utc_now())
     for snapshot in snapshots:
         reasons = _row_reject_reasons(snapshot)
         if reasons:
@@ -464,6 +590,7 @@ def freeze_dataset_from_archive(
     explicit_cost_snapshot_count = 0
     legacy_static_cost_ignored_count = 0
     legacy_static_cost_underestimated_count = 0
+    canonical_label_rows = 0
     for snapshot in pit_eligible_snapshots:
         cost_evidence, cost_reasons = _explicit_cost_evidence(snapshot)
         if cost_evidence is None:
@@ -476,10 +603,20 @@ def freeze_dataset_from_archive(
         if cost_evidence.get("legacy_static_cost_was_under_explicit_total") is True:
             legacy_static_cost_underestimated_count += 1
         pair = (str(snapshot.get("symbol") or "").upper(), str(snapshot.get("timeframe") or ""))
-        label_evidence, label_reasons = _future_label_evidence(
-            snapshot,
-            candles=archive_candles.get(pair) or [],
-        )
+        if snapshot.get("label_source") == CANONICAL_5M_LABEL_SOURCE:
+            label_evidence, label_reasons = _canonical_label_evidence(
+                snapshot,
+                label_archive=canonical_label_archive,
+                archive_integrity_proof=canonical_label_integrity,
+                training_observed_at=observed_at,
+            )
+            if label_evidence is not None:
+                canonical_label_rows += 1
+        else:
+            label_evidence, label_reasons = _future_label_evidence(
+                snapshot,
+                candles=archive_candles.get(pair) or [],
+            )
         if label_evidence is None:
             rejections.update(label_reasons)
             continue
@@ -561,6 +698,15 @@ def freeze_dataset_from_archive(
             "action_specific_cost_coverage_complete": missing_cost_snapshot_count == 0,
             "legacy_static_cost_ignored_count": legacy_static_cost_ignored_count,
             "legacy_static_cost_underestimated_count": legacy_static_cost_underestimated_count,
+            "canonical_label_archive_path": (
+                str(canonical_label_archive.path)
+                if canonical_label_archive is not None
+                else None
+            ),
+            "canonical_label_archive_integrity_verified": (
+                canonical_label_integrity is not None
+            ),
+            "canonical_label_rows": canonical_label_rows,
             "cost_source_distribution": dict(sorted(cost_sources.items())),
             "total_cost_bps_distribution": {
                 "count": len(total_costs),
@@ -1344,12 +1490,24 @@ def run_champion_challenger(
     min_validation_supply_trades: int = DEFAULT_MIN_VALIDATION_SUPPLY_TRADES,
     min_validation_supply_coverage: float = DEFAULT_MIN_VALIDATION_SUPPLY_COVERAGE,
     archive_root: Path | None = None,
+    canonical_label_archive_path: Path | None = None,
+    training_observed_at: str | None = None,
 ) -> dict[str, Any]:
     archive_root = archive_root or default_archive_root(repo_root)
+    label_path = canonical_label_archive_path or default_canonical_5m_label_archive_path(
+        repo_root
+    )
+    canonical_label_archive = (
+        DurableCanonical5mLabelArchive(label_path)
+        if label_path.is_file()
+        else None
+    )
     freeze = freeze_dataset_from_archive(
         archive_root=archive_root,
         scan_limit=scan_limit,
         replay_limit=replay_limit,
+        canonical_label_archive=canonical_label_archive,
+        training_observed_at=training_observed_at,
     )
     train_rows, validation_rows, holdout_rows, split_manifest = _split_rows(freeze.rows)
     status = "BLOCKED_INSUFFICIENT_TRUSTED_REPLAY_ROWS"

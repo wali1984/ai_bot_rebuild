@@ -8,6 +8,7 @@ from v2.backend.app.services.native_trainer.durable_feature_snapshot_archive imp
 )
 from v2.backend.app.services.native_trainer.model_edge_recovery_challenger import (
     _row_reject_reasons,
+    freeze_dataset_from_archive,
 )
 from v2.backend.app.services.native_trainer.profiled_training_challenger_importer_v1 import (
     LABEL_SOURCE,
@@ -75,6 +76,17 @@ def test_importer_reconstructs_idempotent_pit_challenger_row(
     decision_time = datetime.fromisoformat(snapshot["decision_time"].replace("Z", "+00:00"))
     assert feature_cutoff.astimezone(UTC) <= available_at.astimezone(UTC)
     assert available_at.astimezone(UTC) <= decision_time.astimezone(UTC)
+
+    freeze = freeze_dataset_from_archive(
+        archive_root=challenger_archive,
+        canonical_label_archive=labels,
+        training_observed_at=observation,
+    )
+    assert len(freeze.rows) == 1
+    assert freeze.manifest["canonical_label_archive_integrity_verified"] is True
+    assert freeze.manifest["canonical_label_rows"] == 1
+    assert freeze.rows[0].label_available_at > freeze.rows[0].decision_time
+    assert freeze.rows[0].cost_evidence_hash
 
     second = import_profiled_training_ledger_to_challenger_archive_v1(
         ledger=ledger,
