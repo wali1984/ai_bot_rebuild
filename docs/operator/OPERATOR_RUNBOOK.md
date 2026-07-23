@@ -1,6 +1,6 @@
 # Operator Runbook
 
-Last verified timestamp: 2026-07-22T12:23Z for the profiled trainer publisher/observer and trainer mark-price transport; other sections retain their dated evidence
+Last verified timestamp: 2026-07-23T03:25Z for the local profiled feature/trainer publisher path; other sections retain their dated evidence
 
 ## Purpose
 Provide the daily operator path for checking runtime health, paper halt state, live gate, service drift, website/iOS truth, and incident response entry points.
@@ -71,6 +71,117 @@ Provide the daily operator path for checking runtime health, paper halt state, l
 - Santiment: `v2:altdata:santiment:symbol:*` has runtime symbol-selection evidence and the paid-ingestor-unused alert is passing.
 
 ## Profiled trainer-publisher check (2026-07-22)
+
+### Current commissioned check — release `974caa6c26`
+
+This is the current procedure. It supersedes the older observer/witness-only
+procedure later in this section for the authorized local non-promotable lane.
+It does not authorize serving, prediction, paper/live trading or orders.
+
+First require the feature producer and trainer consumer to resolve to the same
+full immutable SHA. A mixed producer/consumer release is a hard stop because
+the cycle status is an exact-schema contract:
+
+```bash
+systemctl --user show \
+  ai-bot-v2-profiled-base-feature-publisher.service \
+  ai-bot-v2-native-cuda-trainer-persistent.service \
+  -p Id -p ActiveState -p SubState -p MainPID -p NRestarts \
+  -p WorkingDirectory -p Environment -p ExecStart
+```
+
+Both `WorkingDirectory`/`PYTHONPATH` values and both code-SHA declarations must
+contain
+`974caa6c263eeadf09fad5028d0883d304a14075`. Each service must be
+`active/running`; a nonzero historical restart count is not by itself proof of
+a current fault, but it must not increase during the acceptance window.
+
+Verify the latest producer status and its measured shard decision:
+
+```bash
+status=/home/wali/ai_bot_local_data/v2_native_trainer/profiled_base_publisher_v1/profiled_base_publisher_status_v1.json
+jq '{classification,cycle_started_at,cycle_completed_at,cycle_elapsed_seconds,
+     selected_symbols,published_symbols,exact_replay_symbols,unchanged_symbols,
+     failed_symbols,resource_deferred_symbols,
+     source_provenance_shard_preflight_count,
+     source_provenance_shard_rollover_count,
+     source_provenance_shard_preflights,authority,authority_semantics,
+     status_sha256}' "$status"
+
+cd /home/wali/ai_bot_local_data/deployments/ai_bot_rebuild/974caa6c263eeadf09fad5028d0883d304a14075
+.venv/bin/python3 -B -c 'from pathlib import Path; from v2.backend.app.services.native_trainer.profiled_base_publisher_cycle_status_v1 import read_verified_profiled_base_publisher_cycle_status_v1 as read; print(read(status_path=Path("/home/wali/ai_bot_local_data/v2_native_trainer/profiled_base_publisher_v1/profiled_base_publisher_status_v1.json")))'
+```
+
+Acceptance requires the following:
+
+- the strict reader succeeds and reports local integrity true;
+- selected symbols equal successful outcomes plus selected failures;
+- `failed_symbols` is empty for a clean cycle, or each failure is isolated with
+  no orphan feature-ledger row and a stable reason;
+- every preflight has a strictly future planned decision, a complete active
+  shard verification (or verified absence), exact five/ seven new/retry-safe
+  pass counts, and `market_or_performance_threshold_applied=false`;
+- a proactive roll selects exactly `active_shard_index + 1`, creates a private
+  `0700` directory before capture and does not mutate the prior shard;
+- `publication_shard_selection_reconciled=true` for a materialized attempt;
+- all producer authority flags remain false except the contextual published
+  child trainer-admission semantic; and
+- file size remains below the existing 16 MiB parser/resource ceiling.
+
+The first deployed cycle on this release completed at
+`2026-07-23T03:19:06.573459Z`: TLMUSDT selected/published 1/1, failures 0,
+deferred 0, preflights 1 and proactive rolls 1. The next cycle completed at
+`03:24:06.258727Z`: TRXUSDT selected/published 1/1 with the same zero-failure,
+zero-defer result. Treat those as timestamped acceptance evidence, not as a
+permanent health claim.
+
+Verify the trainer result separately:
+
+```bash
+trainer_status=/home/wali/ai_bot_local_data/v2_native_trainer/local_profiled_research_v1/status.json
+jq '{classification,code_sha,status_generated_at,error,cycle_result,
+     side_effect_contract,deployment_authorized,serving_authorized,
+     prediction_authorized,paper_trading_authorized,
+     live_execution_authorized,order_submission_authorized,
+     exchange_access_authorized,runtime_wired}' "$trainer_status"
+
+nvidia-smi --query-compute-apps=pid,process_name,used_memory --format=csv,noheader
+```
+
+A successful local cycle must report
+`LOCAL_PROFILED_RESEARCH_CHECKPOINT_PUBLISHED`, the exact release SHA,
+`checkpoint_artifact_verified=true`, `optimizer_execution_completed=true`, and
+`manifest_total_profiled_samples == manifest_admitted_example_count +
+manifest_label_unavailable_count`. Unavailable labels are safe exclusions; do
+not force them into training. Training, validation and PIT-purge counts must sum
+to admitted rows. The generation-15 acceptance result was 23 total, 22
+admitted, one unavailable, 18 training, four validation and zero purge rows.
+
+Do not restart only one side of an exact producer/consumer schema change. Use
+this controlled order:
+
+1. verify and warm the detached release's `git diff --quiet` check;
+2. stop the self-healing supervisor so it cannot race the operator;
+3. stop trainer and feature publisher;
+4. update both immutable-release drop-ins to the same full SHA and run
+   `systemctl --user daemon-reload`;
+5. start the feature publisher and require one strict-reader-clean cycle;
+6. start the trainer and require one verified local checkpoint; and
+7. restore the supervisor and confirm its action counts and exchange flags.
+
+The first start of a newly chmod-read-only worktree can make Git attempt an
+index-stat refresh inside the service sandbox and return 128. If the same exact
+`git diff --quiet --exit-code <sha> --` succeeds interactively, run it once to
+refresh the worktree index, reset the failed unit and retry. Do not bypass or
+delete the immutable-release preflight.
+
+The supervisor acceptance at `2026-07-23T03:25:55Z` was 50 components: 37
+`OK`, 12 `SKIP_DELIBERATELY_STOPPED`, one `SKIP_NOT_INSTALLED`, zero restart
+actions, `routes_to_exchange=false`, `places_exchange_action=false`, and
+`mutates_exchange_risk_params=false`. Deliberately held services remain held;
+do not force them merely to make an all-green display.
+
+### Historical observer-era procedure
 
 The publisher is online when all five planes agree:
 

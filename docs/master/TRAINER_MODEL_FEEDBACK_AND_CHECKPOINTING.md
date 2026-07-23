@@ -1,6 +1,6 @@
 # Trainer Model Feedback And Checkpointing
 
-Last verified timestamp: 2026-07-07T08:04:31Z
+Last verified timestamp: 2026-07-23T03:25:14Z for the local profiled candidate lane; legacy feedback sections retain their dated evidence
 
 ## Purpose
 Explain trainer feedback ingestion, trusted replay rows, checkpoint evidence, online learning state, and how paper outcomes become safe trainer evidence.
@@ -33,6 +33,107 @@ Explain trainer feedback ingestion, trusted replay rows, checkpoint evidence, on
 - Trader: use this document to interpret paper performance, A+ readiness, REDUCE_SIZE bootstrap rows, live gate state, and why trades are blocked.
 - Developer: use this document to find the source files, route contracts, Redis keys, tests, and evidence artifacts that must stay in sync.
 - Primary audience for this page: operator, trader, and developer.
+
+## 2026-07-22/23 local profiled candidate lane
+
+The currently commissioned trainer path is a locally authenticated,
+non-promotable research publisher. Feature producer and trainer consumer are
+pinned to the same detached, read-only source release
+`974caa6c263eeadf09fad5028d0883d304a14075`. It is intentionally separate from
+the independently witnessed promotion path and from all serving/trading paths.
+
+### Exact data flow and clocks
+
+```text
+finalized canonical 5m + 1h OHLCV
+  -> atomic source captures and immutable CAS
+  -> verified source-provenance shard append/readback
+  -> profiled parent feature record
+  -> authenticated cost-enrichment child
+  -> durable feature-snapshot ledger
+  -> fixed publisher cycle status SHA/completion time
+  -> profiled observation manifest at that exact observation time
+  -> finalized 5m label lookup bounded by manifest observation high water
+  -> causal train/validation/PIT-purge partition
+  -> CUDA optimizer
+  -> local candidate JSON + NPZ weight artifact
+```
+
+The ordering contract distinguishes `event_time`, `ingested_at`,
+`available_at`, `generated_at`, `feature_cutoff`, `decision_time` and any later
+execution time. Finalized candle close and every contributing availability must
+be no later than the feature decision. The publisher assigns no execution
+time. The trainer fixes the publisher cycle's `cycle_completed_at` as its
+manifest observation boundary; later rows cannot be smuggled into that run.
+
+The label archive is append-only, so its physical tail can legitimately grow
+while a manifest is being built. Reusing a whole-archive proof for a bounded
+row after such an append incorrectly treated safe suffix growth as corruption.
+The repaired builder now:
+
+1. fixes the exact observation-time label high water;
+2. verifies full archive integrity before the build;
+3. opens each bounded range in one read transaction;
+4. independently checks SQLite quick integrity, schema/retention identity,
+   canonical payloads, row hash chain, append receipts and post-commit
+   receipts for that range;
+5. rejects any movement of the fixed observation high water or mutation of a
+   bounded prefix; and
+6. verifies full archive integrity again after the build.
+
+An append strictly after the observation high water is therefore tolerated.
+A label unavailable at the observation time is counted and excluded; it is
+not NaN-filled, guessed, shifted to a later target or allowed to kill the whole
+trainer. This is adaptive use of available clean data, not relaxed PIT safety.
+
+### Current candidate evidence
+
+The first end-to-end candidate on the joint release completed at
+`2026-07-23T03:25:14.063038Z`:
+
+- candidate generation: 15;
+- candidate ID:
+  `v2_hybrid_ckpt_17cbe15f_90658e05e7debce4_5512088ec352`;
+- base generation/ID: 14 / `v2_hybrid_ckpt_17cbe15f_09c6fe71fb50c903_87ece1a87ce0`;
+- source manifest:
+  `b919c4282b32ce4d382499b1f35bf40bc05d1cab69a6cefd361b44ee924d833d`;
+- publisher status SHA:
+  `ef498003ef2747a624d5f635bee7a98e1ca50af66711652f461c8eaf1a810e3d`;
+- 23 total profiled samples = 22 admitted + one unavailable label;
+- 22 admitted = 18 optimizer rows + four validation rows + zero PIT-purged
+  rows;
+- complete corpus reopened after optimizer: true;
+- full entry inventory and manifest authentication verified: true;
+- CUDA active on `cuda:0`, model input dimension 1,784;
+- weight file size: 29,815,274 bytes; and
+- independently recomputed weight SHA-256:
+  `c07a0daba71d43287372b3643f49eb00748f95074c59aba27ffc4d36908a4755`.
+
+Zero PIT-purged rows in this particular partition means no admitted training
+row overlapped the validation embargo boundary; it is not a disabled purge.
+Earlier 18-row evidence produced 14 training, three validation and one purged
+row, proving that the purge activates when the observed clocks require it.
+
+### Authority and change impact
+
+The candidate directory is limited to
+`.local_models/v2_native_rl_masa_ppo/local_profiled_research_candidates`.
+Checkpoint evidence declares `local_research_non_promotable=true`. Deployment,
+serving activation/promotion, prediction, paper trading, live execution, order
+submission, exchange access, execution and runtime wiring are all false. The
+trainer has no network or exchange credential authority.
+
+Changes to any of the following require producer/consumer contract tests and a
+new immutable joint deployment: publisher status fields/hash, source shard
+preflight, feature ledger schema, cost CAS root, observation high-water rules,
+label row/receipt chain, manifest entry identity, split/purge semantics, model
+input ABI, optimizer input serialization, checkpoint evidence or candidate
+write scope. A new local checkpoint alone must never activate prediction or
+trading.
+
+Scoped verification counts for this commissioning slice were 73 publisher
+cases, 35 strict cycle-reader cases, 24 observation-manifest cases and 15 local
+research service cases. All passed; Ruff and diff whitespace checks were clean.
 
 ## Failure Modes
 - Stale runtime payload labelled as current.

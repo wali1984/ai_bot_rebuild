@@ -10,6 +10,93 @@
 
 ## Scoped trainer-publisher addendum (2026-07-22)
 
+### Local candidate publisher commissioned at 23:25 EDT
+
+This subsection is the newest trainer-publisher truth and supersedes the
+earlier same-day statements below that optimizer execution and candidate
+publication are blocked on an external witness. The independently witnessed
+promotion path remains fail-closed, but the separately authorized **local,
+non-promotable research path is online**.
+
+The feature producer and its strict trainer consumer now run from the same
+detached, read-only release
+`974caa6c263eeadf09fad5028d0883d304a14075`. At the commissioning observation,
+`ai-bot-v2-profiled-base-feature-publisher.service` was active as PID `631028`
+and `ai-bot-v2-native-cuda-trainer-persistent.service` was active as PID
+`632947`; both reported `NRestarts=0`. The self-healing supervisor was restored
+as PID `633244`, `NRestarts=0`, with `LIVE_GATE=blocked_human_only`, `V2_LIVE=0`
+and `V2_CANARY=0`. Its `2026-07-23T03:25:55Z` inventory contained 50
+components: 37 `OK`, 12 deliberately stopped and one not installed, with zero
+restart actions and no exchange route, exchange action or exchange-risk
+mutation. This does not claim that deliberately held auxiliary services are
+running.
+
+Two consecutive feature cycles on that release completed successfully:
+
+- `03:18:03.109384Z` through `03:19:06.573459Z`: TLMUSDT selected one,
+  published one, failed zero and deferred zero; and
+- `03:23:03.110270Z` through `03:24:06.258727Z`: TRXUSDT selected one,
+  published one, failed zero and deferred zero.
+
+The first cycle proved the new source-provenance preflight against live data.
+It completely verified active shard 1 (8 entries, 8,658,190 ledger bytes),
+measured one full verification pass at `1.0653769370401278` seconds, derived
+seven remaining retry-safe passes, and compared their `7.457638559280895`
+second projection plus the persisted adaptive full-symbol estimate
+`196.8155932210498` seconds with the actual injected decision-planner budget
+`56.819277` seconds. Because the combined work did not fit, it created exact
+next shard 2 with mode `0700` before market capture, left shard 1 immutable,
+then reconciled the publication to shard 2 without a post-capture hard-cap
+roll. The 60-field status was 32,030 bytes, self-hash
+`ef498003ef2747a624d5f635bee7a98e1ca50af66711652f461c8eaf1a810e3d`, and
+the independently invoked strict local reader accepted it. These timing and
+workload decisions are derived from measured local work and the causal clock
+window; they are not market-performance thresholds.
+
+The same release also removes a write-credit starvation mode. Before the
+publisher has materialized anything in a cycle, unrelated growth elsewhere on
+the shared filesystem no longer consumes the publisher's own write credit.
+The publisher still fails closed unless current free bytes cover the reserve
+plus one estimated evidence unit. After its first materialization, the larger
+of publisher-accounted bytes and shared-filesystem high-water growth binds the
+remaining cycle budget. Thus external disk traffic cannot permanently defer
+the first selected symbol, but it also cannot bypass the absolute disk reserve
+or hide in-cycle pressure.
+
+At `2026-07-23T03:25:14.063038Z`, the trainer consumed the exact first new
+publisher status and published local candidate generation 15,
+`v2_hybrid_ckpt_17cbe15f_90658e05e7debce4_5512088ec352`. Manifest
+`b919c4282b32ce4d382499b1f35bf40bc05d1cab69a6cefd361b44ee924d833d`
+contained 23 profiled samples: 22 admitted and one unavailable label excluded.
+The causal partition was 18 optimizer rows, four validation rows and zero
+purged rows. The complete corpus was reopened after optimization; full entry
+inventory and manifest authentication were verified. CUDA was active on
+`cuda:0`, input dimension was 1,784, and the 29,815,274-byte weight artifact
+rehashed to
+`c07a0daba71d43287372b3643f49eb00748f95074c59aba27ffc4d36908a4755`.
+
+The trainer's label snapshot rule now distinguishes an append-only suffix from
+a mutation of the fixed observation boundary. Each bounded label range is
+revalidated inside its own read transaction (SQLite quick check, schema and
+retention contract, canonical payload, row chain, append receipt and
+post-commit receipt), while full-archive integrity is checked before and after
+manifest construction. A label appended after the fixed observation high
+water is permitted; movement of the observation high water or any bounded
+prefix inconsistency still fails closed. This is why one unavailable label can
+be excluded without killing training or admitting an incomplete target.
+
+This lane writes only to
+`.local_models/v2_native_rl_masa_ppo/local_profiled_research_candidates`. Its
+checkpoint declares local research non-promotable, and every deployment,
+serving, prediction, paper/live trading, order submission, execution, exchange
+access and runtime-wiring authority remains false. It does not change strategy,
+risk, sizing, leverage, margin, paper execution or live execution behavior.
+
+Final scoped regression evidence was 73/73 publisher cases, 35/35 strict
+cycle-status cases, 24/24 observation-manifest cases and 15/15 local research
+service cases, with Ruff and `git diff --check` clean. The code family is
+committed and pushed as `974caa6c263eeadf09fad5028d0883d304a14075`.
+
 ### Authenticated resident commissioned at 18:51 EDT
 
 The persistent native-trainer unit is now an authenticated profiled
