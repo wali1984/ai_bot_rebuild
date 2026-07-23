@@ -115,3 +115,39 @@ First fix the single malformed comment in `src/components/charts/proChartInterna
 - Trainer/AI rerun closed the visual gap: 6 routes, 24/24 screenshots, 1,675 fields, 971 source matches, zero console/request/overflow defects.
 - All six family artifacts now sum to 71 routes and 284/284 captures with zero runtime defects in the audited preview.
 - Live execution remains fail-closed; native iOS signing is pending only Codemagic/Apple credentials.
+
+## 2026-07-23 P0 ownership/runtime refresh
+
+- Concurrency enforced at two total: one primary plus one read-only specialist.
+- No system atlas was generated and no completed page-family audit was rerun.
+- Current repository point before this checkpoint commit:
+  `codex/pipeline-trust-refresh` at `23139acdd60f412691b5fdb05ead1e5a7a012c6a`,
+  9 ahead / 0 behind.
+- Dirty paths frozen: 159 = all 155 earlier held paths plus four newly
+  classified paths. See
+  [the refreshed HOLD_LIST](./FINAL_PRODUCT_AUDIT_HOLD_LIST_20260723T041313Z.md).
+- Runtime targets checked: 26; WebSockets: 4/4; managed web services: 2/2
+  active with zero restarts; supervisor: 37 OK / 12 held / 1 not installed;
+  failed AI-bot services: zero.
+- P0 screenshots/builds/page families: 0 / 0 / 0. Existing 284/284 page-family
+  captures are retained and will not be rerun before final regression.
+- P0 defects remaining: six — stale six-symbol live wrapper, cached Redis-health
+  contradiction, duplicate Vite preview, missing OpenAPI auth declaration,
+  non-reproducible positive login/degraded auth, and Codemagic build/artifact
+  mismatch.
+- Live gate remained `blocked_human_only`; live/execution symbol counts stayed
+  0/0; order/test-order/leverage/margin mutations stayed 0/0/0/0.
+- Files edited by P0: this checkpoint plus two new audit evidence documents.
+  Services restarted: 0. Redis writes: 0. Exchange mutations: 0.
+- The hardware/real-time and product-completion task is queued behind proof that
+  the active core configuration is complete and tested.
+
+### Exact next command
+
+```bash
+cd '/home/wali/Desktop/AI BOT REBUILD' && sed -n '1,220p' v2/backend/app/cli/v2_trainer_checkpoint_evidence_publisher.py && sed -n '1,140p' v2/backend/tests/integration/cli/test_v2_trainer_checkpoint_evidence.py
+```
+
+The next slice is a bounded core-goal review of the held checkpoint-evidence
+service. It must prove that commissioned local-research candidates cannot be
+misrepresented as promotable/serving checkpoints before any hold is changed.
