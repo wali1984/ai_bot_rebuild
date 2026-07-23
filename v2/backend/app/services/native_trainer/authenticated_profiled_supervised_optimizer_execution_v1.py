@@ -3086,6 +3086,48 @@ def validate_locally_authenticated_profiled_research_execution_owner_v1(
         _fail("PROFILED_LOCAL_RESEARCH_EXECUTION_OWNER_MISMATCH")
 
 
+def verify_current_profiled_optimizer_release_source_closure_v1(
+    *,
+    expected_code_release_sha: str,
+    expected_optimizer_implementation_artifact_sha256: str,
+) -> None:
+    """Match an authenticated checkpoint to this clean deployed source tree.
+
+    Candidate recovery intentionally accepts historical releases. A runtime
+    inference boundary is stricter: it must prove that the candidate was built
+    by the exact clean release and complete application-source closure now
+    executing it.
+    """
+
+    if (
+        type(expected_code_release_sha) is not str
+        or len(expected_code_release_sha) != 40
+        or any(
+            character not in "0123456789abcdef"
+            for character in expected_code_release_sha
+        )
+        or type(expected_optimizer_implementation_artifact_sha256) is not str
+        or len(expected_optimizer_implementation_artifact_sha256) != 64
+        or any(
+            character not in "0123456789abcdef"
+            for character in expected_optimizer_implementation_artifact_sha256
+        )
+    ):
+        _fail("PROFILED_INFERENCE_RELEASE_SOURCE_CLOSURE_EXPECTATION_INVALID")
+    current_implementation_artifact_sha256 = hashlib.sha256(
+        _source_artifact()
+    ).hexdigest()
+    current_code_release_sha = _code_release_sha()
+    if not hmac.compare_digest(
+        current_implementation_artifact_sha256,
+        expected_optimizer_implementation_artifact_sha256,
+    ) or not hmac.compare_digest(
+        current_code_release_sha,
+        expected_code_release_sha,
+    ):
+        _fail("PROFILED_INFERENCE_RELEASE_SOURCE_CLOSURE_MISMATCH")
+
+
 def revalidate_locally_authenticated_profiled_research_publication_boundary_v1(
     *,
     execution: LocallyAuthenticatedProfiledResearchOptimizerExecutionV1,
@@ -3181,6 +3223,7 @@ __all__ = (
     "execute_locally_authenticated_profiled_research_optimizer_v1",
     "revalidate_authenticated_profiled_supervised_optimizer_publication_boundary_v1",
     "revalidate_locally_authenticated_profiled_research_publication_boundary_v1",
+    "verify_current_profiled_optimizer_release_source_closure_v1",
     "validate_authenticated_profiled_supervised_optimizer_execution_owner_v1",
     "validate_locally_authenticated_profiled_research_execution_owner_v1",
 )

@@ -74,6 +74,48 @@ def test_safe_static_value_error_reason_redacts_unstructured_messages(
     assert execution_module._safe_static_value_error_reason(error) == expected  # noqa: SLF001
 
 
+def test_inference_release_source_closure_requires_exact_clean_match(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source_artifact = b"complete-profiled-optimizer-source-closure"
+    source_sha256 = execution_module.hashlib.sha256(source_artifact).hexdigest()
+    release_sha = "a" * 40
+    monkeypatch.setattr(execution_module, "_source_artifact", lambda: source_artifact)
+    monkeypatch.setattr(execution_module, "_code_release_sha", lambda: release_sha)
+
+    execution_module.verify_current_profiled_optimizer_release_source_closure_v1(
+        expected_code_release_sha=release_sha,
+        expected_optimizer_implementation_artifact_sha256=source_sha256,
+    )
+
+    with pytest.raises(
+        execution_module.AuthenticatedProfiledSupervisedOptimizerExecutionV1Error,
+        match="PROFILED_INFERENCE_RELEASE_SOURCE_CLOSURE_MISMATCH",
+    ):
+        execution_module.verify_current_profiled_optimizer_release_source_closure_v1(
+            expected_code_release_sha="b" * 40,
+            expected_optimizer_implementation_artifact_sha256=source_sha256,
+        )
+
+    with pytest.raises(
+        execution_module.AuthenticatedProfiledSupervisedOptimizerExecutionV1Error,
+        match="PROFILED_INFERENCE_RELEASE_SOURCE_CLOSURE_MISMATCH",
+    ):
+        execution_module.verify_current_profiled_optimizer_release_source_closure_v1(
+            expected_code_release_sha=release_sha,
+            expected_optimizer_implementation_artifact_sha256="c" * 64,
+        )
+
+    with pytest.raises(
+        execution_module.AuthenticatedProfiledSupervisedOptimizerExecutionV1Error,
+        match="PROFILED_INFERENCE_RELEASE_SOURCE_CLOSURE_EXPECTATION_INVALID",
+    ):
+        execution_module.verify_current_profiled_optimizer_release_source_closure_v1(
+            expected_code_release_sha="A" * 40,
+            expected_optimizer_implementation_artifact_sha256=source_sha256,
+        )
+
+
 def _configure_cpu(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
     monkeypatch.setenv("V2_TRAINER_HIDDEN_SIZE", "128")
