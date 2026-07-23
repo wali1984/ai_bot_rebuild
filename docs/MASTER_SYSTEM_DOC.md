@@ -75,6 +75,18 @@ inventory and manifest authentication were verified. CUDA was active on
 rehashed to
 `c07a0daba71d43287372b3643f49eb00748f95074c59aba27ffc4d36908a4755`.
 
+A second consecutive cycle completed at `2026-07-23T03:31:23.969297Z` without
+a PID change or restart. It consumed the second new producer status
+`53f5018cf1451e2d235da31e5e0c80f0af0bb7bb472ef7177db7358936a8271b`
+and published generation 16,
+`v2_hybrid_ckpt_17cbe15f_4815088954255f22_b45d5bafcdbc`. Its manifest held
+24 total, 22 admitted and two unavailable labels; the causal partition remained
+18 training, four validation and zero purge rows. The 29,817,599-byte weight
+file independently rehashed to
+`aea5abb1db4e73d202a0e3baca92c84f43da2edd73107e765039f7d76c3aef9a`.
+The complete corpus, entry inventory and manifest authentication were again
+verified, while all downstream authority remained false.
+
 The trainer's label snapshot rule now distinguishes an append-only suffix from
 a mutation of the fixed observation boundary. Each bounded label range is
 revalidated inside its own read transaction (SQLite quick check, schema and

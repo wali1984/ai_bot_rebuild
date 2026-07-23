@@ -109,6 +109,17 @@ The first end-to-end candidate on the joint release completed at
 - independently recomputed weight SHA-256:
   `c07a0daba71d43287372b3643f49eb00748f95074c59aba27ffc4d36908a4755`.
 
+The next cycle completed at `2026-07-23T03:31:23.969297Z` with the same
+service PID and no restart. It published generation 16,
+`v2_hybrid_ckpt_17cbe15f_4815088954255f22_b45d5bafcdbc`, from manifest
+`5eaaeae173e5f5844720d6d2d8157fce4f5d1c285de01cbddc77fd339e4985d5`.
+That observation contained 24 total, 22 admitted and two unavailable samples;
+the admitted partition remained 18 optimizer, four validation and zero purge
+rows. CUDA and complete-corpus/inventory/authentication verification remained
+true. Its 29,817,599-byte weight artifact independently rehashed to
+`aea5abb1db4e73d202a0e3baca92c84f43da2edd73107e765039f7d76c3aef9a`.
+All downstream authority flags remained false.
+
 Zero PIT-purged rows in this particular partition means no admitted training
 row overlapped the validation embargo boundary; it is not a disabled purge.
 Earlier 18-row evidence produced 14 training, three validation and one purged

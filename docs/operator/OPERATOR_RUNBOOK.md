@@ -156,6 +156,9 @@ manifest_label_unavailable_count`. Unavailable labels are safe exclusions; do
 not force them into training. Training, validation and PIT-purge counts must sum
 to admitted rows. The generation-15 acceptance result was 23 total, 22
 admitted, one unavailable, 18 training, four validation and zero purge rows.
+The immediately following generation-16 result was 24 total, 22 admitted, two
+unavailable, 18 training, four validation and zero purge rows, proving that
+newly unavailable labels remained exclusions rather than stopping the loop.
 
 Do not restart only one side of an exact producer/consumer schema change. Use
 this controlled order:
