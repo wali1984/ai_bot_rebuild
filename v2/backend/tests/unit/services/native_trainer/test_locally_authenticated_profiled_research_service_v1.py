@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import sqlite3
 import types
 from pathlib import Path
 
@@ -318,6 +319,28 @@ def test_base_lineage_reason_codes_are_preserved_without_unstructured_payload(
         "reason_codes": [reason_code],
     }
     assert "unsafe-unstructured-payload" not in str(payload)
+
+
+def test_sqlite_error_name_is_preserved_without_error_message(
+    tmp_path: Path,
+) -> None:
+    error = sqlite3.OperationalError("unsafe sqlite message must not render")
+    error.sqlite_errorname = "SQLITE_IOERR_GETTEMPPATH"
+
+    payload = service._status_payload(  # noqa: SLF001
+        config=_config(tmp_path),
+        credentials=_credentials(),
+        classification=service.LOCAL_PROFILED_RESEARCH_FAIL_CLOSED,
+        error=error,
+    )
+
+    assert payload["error"] == {
+        "error_type": "OperationalError",
+        "reason_codes": [
+            "PROFILED_OBSERVATION_SQLITE_ERROR:SQLITE_IOERR_GETTEMPPATH"
+        ],
+    }
+    assert "unsafe sqlite message" not in str(payload)
 
 
 def test_status_must_be_inside_exact_private_runtime_root(tmp_path: Path) -> None:

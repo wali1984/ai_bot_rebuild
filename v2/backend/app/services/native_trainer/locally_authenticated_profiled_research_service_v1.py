@@ -22,6 +22,7 @@ import json
 import math
 import os
 import re
+import sqlite3
 import stat
 import tempfile
 import time
@@ -139,6 +140,7 @@ _SAFE_STATUS_REASON_PREFIXES: Final = (
     "PROFILED_GENESIS_BASE_",
     "PROFILED_BASE_LINEAGE_",
 )
+_SQLITE_ERROR_NAME_RE = re.compile(r"^SQLITE_[A-Z0-9_]{1,64}$", re.ASCII)
 
 
 class LocallyAuthenticatedProfiledResearchServiceV1Error(RuntimeError):
@@ -151,6 +153,22 @@ class LocallyAuthenticatedProfiledResearchServiceV1Error(RuntimeError):
 
 def _fail(*reasons: str) -> NoReturn:
     raise LocallyAuthenticatedProfiledResearchServiceV1Error(*reasons) from None
+
+
+def _safe_exception_reason_codes(error: BaseException) -> tuple[str, ...]:
+    reasons = [
+        value
+        for value in getattr(error, "reasons", ())
+        if type(value) is str and value.startswith(_SAFE_STATUS_REASON_PREFIXES)
+    ]
+    sqlite_error_name = getattr(error, "sqlite_errorname", None)
+    if (
+        isinstance(error, sqlite3.Error)
+        and type(sqlite_error_name) is str
+        and _SQLITE_ERROR_NAME_RE.fullmatch(sqlite_error_name) is not None
+    ):
+        reasons.append(f"PROFILED_OBSERVATION_SQLITE_ERROR:{sqlite_error_name}")
+    return tuple(dict.fromkeys(reasons))[:32]
 
 
 def _absolute_lexical(path: Path, *, reason: str) -> Path:
@@ -902,11 +920,7 @@ def run_locally_authenticated_profiled_research_cycle_v1(
             ),
         )
     except Exception as exc:
-        safe_reasons = tuple(
-            reason
-            for reason in getattr(exc, "reasons", ())
-            if type(reason) is str and reason.startswith("PROFILED_OBSERVATION_")
-        )[:32]
+        safe_reasons = _safe_exception_reason_codes(exc)
         raise LocallyAuthenticatedProfiledResearchServiceV1Error(
             f"LOCAL_PROFILED_RESEARCH_MANIFEST_BUILD_FAILED:{type(exc).__name__}",
             *safe_reasons,
@@ -1187,12 +1201,7 @@ def _status_payload(
     local_key = credentials.local_research_hmac_key
     if local_key is None:
         _fail("LOCAL_PROFILED_RESEARCH_AUTHORIZATION_CREDENTIAL_REQUIRED")
-    raw_reasons = getattr(error, "reasons", ()) if error is not None else ()
-    reasons = [
-        value
-        for value in raw_reasons
-        if type(value) is str and value.startswith(_SAFE_STATUS_REASON_PREFIXES)
-    ][:32]
+    reasons = [] if error is None else list(_safe_exception_reason_codes(error))
     unsigned = {
         "schema_version": LOCAL_PROFILED_RESEARCH_SERVICE_STATUS_V1_SCHEMA_VERSION,
         "status_generated_at": _utc_iso(),
