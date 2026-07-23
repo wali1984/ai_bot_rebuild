@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -17,6 +17,7 @@ from v2.backend.app.services.native_trainer.model_edge_recovery_challenger impor
 )
 from v2.backend.app.services.native_trainer.profiled_training_challenger_importer_v1 import (
     LABEL_SOURCE,
+    import_profiled_training_observation_manifest_shard_to_challenger_archive_v1,
     import_profiled_training_ledger_shards_to_challenger_archive_v1,
     import_profiled_training_ledger_to_challenger_archive_v1,
 )
@@ -104,6 +105,76 @@ def test_importer_reconstructs_idempotent_pit_challenger_row(
     assert second.imported_rows == 0
     assert second.duplicate_rows == 1
     assert second.imported_snapshot_ids == first.imported_snapshot_ids
+
+
+def test_manifest_shard_importer_reuses_authenticated_observation_page(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    evidence = base_support._build_evidence(tmp_path / "base")
+    source_root = tmp_path / "sources"
+    source_root.mkdir()
+    ledger, labels, observation, cost_root = manifest_support._setup_sources(
+        source_root,
+        evidence,
+    )
+    trusted_now = max(
+        datetime.now(tz=UTC) + timedelta(days=1),
+        datetime(2026, 7, 23, tzinfo=UTC),
+    )
+    monkeypatch.setattr(
+        manifest_support.manifest_module,
+        "_factory_wall_clock_now",
+        lambda: trusted_now,
+    )
+    built = manifest_support.build_profiled_training_observation_manifest_v1(
+        ledger=ledger,
+        trusted_immutable_cost_store_root=cost_root,
+        label_archive=labels,
+        manifest_root=(tmp_path / "manifests").absolute(),
+        training_observed_at=observation,
+        auth_key_id=manifest_support.AUTH_KEY_ID,
+        hmac_key=manifest_support.AUTH_KEY,
+    )
+    challenger_archive = (tmp_path / "manifest-challenger-archive").absolute()
+    progress: list[dict[str, object]] = []
+
+    first = import_profiled_training_observation_manifest_shard_to_challenger_archive_v1(
+        manifest_path=built.manifest_path,
+        manifest_hmac_key=manifest_support.AUTH_KEY,
+        manifest_auth_key_id=manifest_support.AUTH_KEY_ID,
+        expected_manifest_id=built.manifest_id,
+        expected_observation_time=built.observation_time,
+        ledger=ledger,
+        trusted_immutable_cost_store_root=cost_root,
+        label_archive=labels,
+        challenger_archive_root=challenger_archive,
+        progress_consumer=lambda report: progress.append(dict(report)),
+    )
+
+    assert first["imported_rows"] == 1
+    assert first["duplicate_rows"] == 0
+    assert first["source_admitted_entry_count"] == 1
+    assert first["completed"] is True
+    assert first["prediction_authorized"] is False
+    assert len(progress) == 1
+    assert progress[0]["checkpoint_path"] == first["checkpoint_path"]
+    snapshot = next(iter_snapshots(challenger_archive, limit=1))
+    assert _row_reject_reasons(snapshot) == []
+
+    resumed = import_profiled_training_observation_manifest_shard_to_challenger_archive_v1(
+        manifest_path=built.manifest_path,
+        manifest_hmac_key=manifest_support.AUTH_KEY,
+        manifest_auth_key_id=manifest_support.AUTH_KEY_ID,
+        expected_manifest_id=built.manifest_id,
+        expected_observation_time=built.observation_time,
+        ledger=ledger,
+        trusted_immutable_cost_store_root=cost_root,
+        label_archive=labels,
+        challenger_archive_root=challenger_archive,
+    )
+    assert resumed["shards_processed_this_run"] == 0
+    assert resumed["completed"] is True
 
 
 def test_sharded_importer_checkpoints_completed_cursor_without_reprocessing(

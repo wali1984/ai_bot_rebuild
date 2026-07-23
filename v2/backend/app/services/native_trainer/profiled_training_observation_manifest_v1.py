@@ -36,7 +36,7 @@ import sqlite3
 import stat
 import struct
 import uuid
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -2663,6 +2663,10 @@ def read_profiled_training_observation_page_v1(
     expected_observation_time: str,
     after_ordinal: int = 0,
     limit: int = MAX_PROFILED_OBSERVATION_PAGE_ROWS,
+    reopened_sample_consumer: Callable[
+        [ProfiledTrainingLedgerSampleV1, Mapping[str, Any]], None
+    ]
+    | None = None,
 ) -> ProfiledTrainingObservationPageV1:
     """Reopen one pinned historical page; never select a latest manifest."""
 
@@ -2694,6 +2698,8 @@ def read_profiled_training_observation_page_v1(
         _fail("PROFILED_OBSERVATION_AFTER_ORDINAL_INVALID")
     if type(limit) is not int or not 0 < limit <= MAX_PROFILED_OBSERVATION_PAGE_ROWS:
         _fail("PROFILED_OBSERVATION_PAGE_LIMIT_INVALID")
+    if reopened_sample_consumer is not None and not callable(reopened_sample_consumer):
+        _fail("PROFILED_OBSERVATION_REOPENED_SAMPLE_CONSUMER_INVALID")
     connection, metadata = _read_metadata(
         path,
         key=key,
@@ -2797,7 +2803,10 @@ def read_profiled_training_observation_page_v1(
                 ) from exc
             if _sample_binding(sample) != sample_binding:
                 _fail("PROFILED_OBSERVATION_DIRECT_SAMPLE_BINDING_MISMATCH")
-            examples.append(_example_from_authenticated_entry(entry=entry, sample=sample))
+            example = _example_from_authenticated_entry(entry=entry, sample=sample)
+            if reopened_sample_consumer is not None:
+                reopened_sample_consumer(sample, entry)
+            examples.append(example)
         next_after = int(rows[-1]["ordinal"]) if rows else after_ordinal
         has_more = next_after < total_entries
         if not has_more and previous_chain != metadata.get("entry_chain_head_sha256"):

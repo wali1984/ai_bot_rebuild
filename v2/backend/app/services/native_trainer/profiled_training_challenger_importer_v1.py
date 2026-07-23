@@ -48,6 +48,11 @@ from v2.backend.app.services.native_trainer.profiled_training_ledger_loader_v1 i
     load_profiled_training_ledger_fixed_observation_v1,
     load_profiled_training_ledger_v1,
 )
+from v2.backend.app.services.native_trainer.profiled_training_observation_manifest_v1 import (
+    ProfiledTrainingObservationManifestV1Error,
+    authenticate_profiled_training_observation_manifest_v1,
+    read_profiled_training_observation_page_v1,
+)
 from v2.backend.app.services.native_trainer.source_provenance_ledger_v4 import (
     TrainerSourceProvenanceLedgerEntryV4,
 )
@@ -72,6 +77,12 @@ DEFAULT_LABEL_INTEGRITY_CHECKPOINT_FILENAME = (
 DEFAULT_MINIMUM_TRAIN_ROWS = 1_000
 DEFAULT_MINIMUM_VALIDATION_ROWS = 100
 DEFAULT_MINIMUM_HOLDOUT_ROWS = 100
+MANIFEST_SHARD_CHECKPOINT_SCHEMA_VERSION = (
+    "profiled_training_manifest_shard_import_checkpoint_v1"
+)
+DEFAULT_MANIFEST_SHARD_CHECKPOINT_FILENAME = (
+    "profiled_training_manifest_shard_import_checkpoint_v1.json"
+)
 
 
 class ProfiledTrainingChallengerImportError(ValueError):
@@ -284,6 +295,34 @@ def _reconstructed_record(
     label_rows: list[dict[str, Any]],
     label_proof: Mapping[str, Any],
 ) -> dict[str, Any]:
+    label_binding = _label_binding(
+        sample=sample,
+        label_rows=label_rows,
+        label_proof=label_proof,
+    )
+    return _reconstructed_record_from_verified_label_binding(
+        sample=sample,
+        label_binding=label_binding,
+    )
+
+
+def _reconstructed_record_from_verified_label_binding(
+    *,
+    sample: ProfiledTrainingLedgerSampleV1,
+    label_binding: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Build one challenger row from a manifest-reverified label binding."""
+
+    binding = dict(label_binding)
+    claimed_binding_sha = binding.get("label_binding_sha256")
+    if (
+        type(claimed_binding_sha) is not str
+        or not claimed_binding_sha
+        or binding.get("decision_time") != sample.decision_time
+    ):
+        raise ProfiledTrainingChallengerImportError(
+            "PROFILED_TRAINING_CHALLENGER_MANIFEST_LABEL_BINDING_INVALID"
+        )
     decision = _aware_utc(sample.decision_time, field="DECISION_TIME")
     feature_cutoff = _aware_utc(sample.feature_cutoff, field="FEATURE_CUTOFF")
     feature_available = _aware_utc(sample.feature_available_at, field="FEATURE_AVAILABLE_AT")
@@ -300,11 +339,6 @@ def _reconstructed_record(
         raise ProfiledTrainingChallengerImportError(
             "PROFILED_TRAINING_CHALLENGER_PIT_CLOCK_ORDER_INVALID"
         )
-    label_binding = _label_binding(
-        sample=sample,
-        label_rows=label_rows,
-        label_proof=label_proof,
-    )
     mtf_material = {
         "schema_version": MTF_BINDING_SCHEMA_VERSION,
         "source_snapshot_id": sample.feature_snapshot_id,
@@ -326,7 +360,7 @@ def _reconstructed_record(
         "cost_capture_receipt_sha256": sample.cost_capture_receipt_sha256,
         "cost_cas_object_inventory_sha256": sample.cost_cas_object_inventory_sha256,
         "mtf_binding_sha256": canonical_label_stable_sha256(mtf_material),
-        "canonical_label_binding_sha256": label_binding["label_binding_sha256"],
+        "canonical_label_binding_sha256": claimed_binding_sha,
     }
     features, selected_names = _feature_mapping(sample)
     return build_archive_record(
@@ -367,7 +401,7 @@ def _reconstructed_record(
             "feature_freshness_state": "AUTHENTICATED_PROFILED_PIT_RECONSTRUCTED",
             "decision_time_group_key": sample.decision_time,
             "label_source": LABEL_SOURCE,
-            "label_binding": label_binding,
+            "label_binding": binding,
             "profiled_loader_schema_version": (
                 PROFILED_TRAINING_FIXED_OBSERVATION_V1_SCHEMA_VERSION
             ),
@@ -518,6 +552,263 @@ def import_profiled_training_ledger_to_challenger_archive_v1(
         paper_trading_authorized=False,
         live_execution_authorized=False,
     )
+
+
+def _manifest_shard_checkpoint_path(
+    *,
+    challenger_archive_root: Path,
+    checkpoint_path: Path | None,
+) -> Path:
+    path = checkpoint_path or (
+        challenger_archive_root / DEFAULT_MANIFEST_SHARD_CHECKPOINT_FILENAME
+    )
+    if (
+        not isinstance(path, Path)
+        or not path.is_absolute()
+        or ".." in path.parts
+        or path.parent != challenger_archive_root
+        or path.is_symlink()
+    ):
+        raise ProfiledTrainingChallengerImportError(
+            "PROFILED_TRAINING_MANIFEST_SHARD_CHECKPOINT_PATH_INVALID"
+        )
+    return path
+
+
+def _read_manifest_shard_checkpoint(path: Path) -> dict[str, Any] | None:
+    if not path.exists():
+        return None
+    if not path.is_file() or path.is_symlink():
+        raise ProfiledTrainingChallengerImportError(
+            "PROFILED_TRAINING_MANIFEST_SHARD_CHECKPOINT_UNSAFE"
+        )
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, ValueError) as exc:
+        raise ProfiledTrainingChallengerImportError(
+            "PROFILED_TRAINING_MANIFEST_SHARD_CHECKPOINT_INVALID"
+        ) from exc
+    if (
+        type(payload) is not dict
+        or payload.get("schema_version") != MANIFEST_SHARD_CHECKPOINT_SCHEMA_VERSION
+    ):
+        raise ProfiledTrainingChallengerImportError(
+            "PROFILED_TRAINING_MANIFEST_SHARD_CHECKPOINT_INVALID"
+        )
+    return payload
+
+
+def import_profiled_training_observation_manifest_shard_to_challenger_archive_v1(
+    *,
+    manifest_path: Path,
+    manifest_hmac_key: bytes | bytearray | memoryview,
+    manifest_auth_key_id: str,
+    expected_manifest_id: str,
+    expected_observation_time: str,
+    ledger: DurableFeatureSnapshotLedger,
+    trusted_immutable_cost_store_root: Path,
+    label_archive: DurableCanonical5mLabelArchive,
+    challenger_archive_root: Path,
+    checkpoint_path: Path | None = None,
+    shard_size: int = 1,
+    progress_consumer: Callable[[Mapping[str, Any]], None] | None = None,
+) -> dict[str, Any]:
+    """Durably import one bounded page from an exact HMAC-authenticated manifest.
+
+    This is evidence maintenance only.  It neither admits an optimizer nor
+    grants checkpoint, prediction, paper, live, or execution authority.
+    """
+
+    if (
+        type(ledger) is not DurableFeatureSnapshotLedger
+        or type(label_archive) is not DurableCanonical5mLabelArchive
+        or not isinstance(manifest_path, Path)
+        or not manifest_path.is_absolute()
+        or manifest_path.is_symlink()
+        or not isinstance(trusted_immutable_cost_store_root, Path)
+        or not trusted_immutable_cost_store_root.is_absolute()
+        or not isinstance(challenger_archive_root, Path)
+        or not challenger_archive_root.is_absolute()
+        or challenger_archive_root.is_symlink()
+        or type(shard_size) is not int
+        or not 0 < shard_size <= MAX_IMPORT_PAGE_SIZE
+        or progress_consumer is not None
+        and not callable(progress_consumer)
+    ):
+        raise ProfiledTrainingChallengerImportError(
+            "PROFILED_TRAINING_MANIFEST_SHARD_ARGUMENT_INVALID"
+        )
+    archive_root = challenger_archive_root
+    try:
+        archive_root.mkdir(mode=0o700, parents=True, exist_ok=True)
+    except OSError as exc:
+        raise ProfiledTrainingChallengerImportError(
+            "PROFILED_TRAINING_MANIFEST_SHARD_ARCHIVE_ROOT_UNAVAILABLE"
+        ) from exc
+    if not archive_root.is_dir() or archive_root.is_symlink():
+        raise ProfiledTrainingChallengerImportError(
+            "PROFILED_TRAINING_MANIFEST_SHARD_ARCHIVE_ROOT_UNSAFE"
+        )
+    try:
+        authenticated_manifest = authenticate_profiled_training_observation_manifest_v1(
+            manifest_path=manifest_path,
+            hmac_key=manifest_hmac_key,
+            expected_auth_key_id=manifest_auth_key_id,
+            expected_manifest_id=expected_manifest_id,
+            expected_observation_time=expected_observation_time,
+        )
+    except ProfiledTrainingObservationManifestV1Error as exc:
+        raise ProfiledTrainingChallengerImportError(
+            "PROFILED_TRAINING_MANIFEST_SHARD_AUTHENTICATION_FAILED"
+        ) from exc
+    path = _manifest_shard_checkpoint_path(
+        challenger_archive_root=archive_root,
+        checkpoint_path=checkpoint_path,
+    )
+    checkpoint = _read_manifest_shard_checkpoint(path)
+    if checkpoint is None:
+        after_ordinal = 0
+        completed_shards = 0
+        completed = False
+    else:
+        if (
+            checkpoint.get("archive_root") != str(archive_root)
+            or checkpoint.get("manifest_path") != str(manifest_path)
+            or checkpoint.get("manifest_id") != authenticated_manifest.manifest_id
+            or checkpoint.get("observation_time")
+            != authenticated_manifest.observation_time
+            or checkpoint.get("entry_chain_head_sha256")
+            != authenticated_manifest.entry_chain_head_sha256
+            or checkpoint.get("label_archive_path") != str(label_archive.path.resolve())
+            or checkpoint.get("cost_store_root")
+            != str(trusted_immutable_cost_store_root)
+            or type(checkpoint.get("next_after_ordinal")) is not int
+            or checkpoint["next_after_ordinal"] < 0
+            or type(checkpoint.get("completed_shards")) is not int
+            or checkpoint["completed_shards"] < 0
+            or type(checkpoint.get("completed")) is not bool
+        ):
+            raise ProfiledTrainingChallengerImportError(
+                "PROFILED_TRAINING_MANIFEST_SHARD_CHECKPOINT_CONTEXT_INVALID"
+            )
+        after_ordinal = checkpoint["next_after_ordinal"]
+        completed_shards = checkpoint["completed_shards"]
+        completed = checkpoint["completed"]
+    if completed:
+        return {
+            "schema_version": MANIFEST_SHARD_CHECKPOINT_SCHEMA_VERSION,
+            "checkpoint_path": str(path),
+            "manifest_id": authenticated_manifest.manifest_id,
+            "next_after_ordinal": after_ordinal,
+            "completed_shards": completed_shards,
+            "completed": True,
+            "shards_processed_this_run": 0,
+            "imported_rows": 0,
+            "duplicate_rows": 0,
+            "label_unavailable_rows": 0,
+            "prediction_authorized": False,
+            "paper_trading_authorized": False,
+            "live_execution_authorized": False,
+        }
+    reopened: list[tuple[ProfiledTrainingLedgerSampleV1, Mapping[str, Any]]] = []
+
+    def collect_reopened(
+        sample: ProfiledTrainingLedgerSampleV1,
+        entry: Mapping[str, Any],
+    ) -> None:
+        reopened.append((sample, entry))
+
+    try:
+        page = read_profiled_training_observation_page_v1(
+            manifest_path=manifest_path,
+            ledger=ledger,
+            trusted_immutable_cost_store_root=trusted_immutable_cost_store_root,
+            hmac_key=manifest_hmac_key,
+            expected_auth_key_id=manifest_auth_key_id,
+            expected_manifest_id=authenticated_manifest.manifest_id,
+            expected_observation_time=authenticated_manifest.observation_time,
+            after_ordinal=after_ordinal,
+            limit=shard_size,
+            reopened_sample_consumer=collect_reopened,
+        )
+    except ProfiledTrainingObservationManifestV1Error as exc:
+        raise ProfiledTrainingChallengerImportError(
+            "PROFILED_TRAINING_MANIFEST_SHARD_REOPEN_FAILED"
+        ) from exc
+    if len(reopened) != len(page.examples):
+        raise ProfiledTrainingChallengerImportError(
+            "PROFILED_TRAINING_MANIFEST_SHARD_REOPEN_COUNT_MISMATCH"
+        )
+    imported = duplicates = 0
+    write_paths: list[tuple[Path, Path]] = []
+    for sample, entry in reopened:
+        label_binding = entry.get("label_binding")
+        if (
+            type(label_binding) is not dict
+            or label_binding.get("archive_path") != str(label_archive.path.resolve())
+        ):
+            raise ProfiledTrainingChallengerImportError(
+                "PROFILED_TRAINING_MANIFEST_SHARD_LABEL_ARCHIVE_MISMATCH"
+            )
+        try:
+            record = _reconstructed_record_from_verified_label_binding(
+                sample=sample,
+                label_binding=label_binding,
+            )
+            write_result = append_snapshot(
+                record,
+                root=archive_root,
+                update_checksum_manifest=False,
+            )
+        except (OSError, ValueError, ProfiledTrainingChallengerImportError) as exc:
+            raise ProfiledTrainingChallengerImportError(
+                "PROFILED_TRAINING_MANIFEST_SHARD_ARCHIVE_WRITE_FAILED"
+            ) from exc
+        write_paths.append((write_result.blob_path, write_result.index_path))
+        if write_result.already_present:
+            duplicates += 1
+        else:
+            imported += 1
+    _commit_shard_writes_durably(
+        archive_root=archive_root,
+        write_paths=write_paths,
+    )
+    completed_shards += 1
+    completed = not page.has_more_manifest_entries
+    checkpoint_payload = {
+        "schema_version": MANIFEST_SHARD_CHECKPOINT_SCHEMA_VERSION,
+        "archive_root": str(archive_root),
+        "manifest_path": str(manifest_path),
+        "manifest_id": authenticated_manifest.manifest_id,
+        "observation_time": authenticated_manifest.observation_time,
+        "entry_chain_head_sha256": authenticated_manifest.entry_chain_head_sha256,
+        "label_archive_path": str(label_archive.path.resolve()),
+        "cost_store_root": str(trusted_immutable_cost_store_root),
+        "next_after_ordinal": page.next_after_ordinal,
+        "completed_shards": completed_shards,
+        "completed": completed,
+    }
+    _write_checkpoint_atomic(path, checkpoint_payload)
+    result = {
+        "schema_version": MANIFEST_SHARD_CHECKPOINT_SCHEMA_VERSION,
+        "checkpoint_path": str(path),
+        "manifest_id": authenticated_manifest.manifest_id,
+        "source_scanned_entry_count": page.scanned_entry_count,
+        "source_admitted_entry_count": len(reopened),
+        "label_unavailable_rows": page.label_unavailable_scanned,
+        "imported_rows": imported,
+        "duplicate_rows": duplicates,
+        "next_after_ordinal": page.next_after_ordinal,
+        "completed_shards": completed_shards,
+        "completed": completed,
+        "shards_processed_this_run": 1,
+        "prediction_authorized": False,
+        "paper_trading_authorized": False,
+        "live_execution_authorized": False,
+    }
+    if progress_consumer is not None:
+        progress_consumer(result)
+    return result
 
 
 def _checkpoint_path(
