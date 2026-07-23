@@ -218,6 +218,27 @@ def test_dataset_freeze_uses_bounded_label_range_when_cached_proof_is_stale(
     assert freeze.manifest["canonical_label_archive_integrity_verified"] is False
 
 
+def test_canonical_label_range_reader_accepts_no_global_tail_proof() -> None:
+    seen_proofs: list[object] = []
+
+    class _Archive:
+        def verified_label_path(self, **kwargs):
+            seen_proofs.append(kwargs["archive_integrity_proof"])
+            return None, {"rejection_reasons": ["RANGE_ONLY_TEST_REJECTION"]}
+
+    evidence, reasons = challenger._canonical_label_evidence(
+        _trusted_snapshot(),
+        label_archive=_Archive(),
+        archive_integrity_proof=None,
+        training_observed_at=BASE_TIME + timedelta(hours=5),
+        verified_transaction_cache=set(),
+    )
+
+    assert evidence is None
+    assert reasons == ["RANGE_ONLY_TEST_REJECTION"]
+    assert seen_proofs == [None]
+
+
 def test_row_reject_reasons_enforce_point_in_time_guards() -> None:
     assert _row_reject_reasons(_trusted_snapshot()) == []
 

@@ -460,8 +460,6 @@ def _canonical_label_evidence(
 
     if label_archive is None:
         return None, ["DURABLE_CANONICAL_5M_LABEL_ARCHIVE_REQUIRED"]
-    if archive_integrity_proof is None:
-        return None, ["DURABLE_CANONICAL_5M_LABEL_ARCHIVE_INTEGRITY_UNVERIFIED"]
     if training_observed_at is None:
         return None, ["TRAINING_OBSERVED_AT_MISSING_INVALID_OR_NAIVE"]
     decision_time = _strict_aware_utc(snapshot.get("decision_time"))
