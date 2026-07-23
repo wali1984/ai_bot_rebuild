@@ -797,6 +797,38 @@ def test_exact_replay_is_idempotent_and_does_not_append_bytes(tmp_path: Path) ->
     assert len(ledger.read_entries()) == 1
 
 
+def test_selected_read_reopens_requested_committed_entries_in_request_order(
+    tmp_path: Path,
+) -> None:
+    capture, recorded_at = _build_capture(tmp_path / "capture")
+    ledger = TrainerSourceProvenanceLedgerV4(tmp_path / "ledger-v4")
+    first = _append(ledger, capture, recorded_at, cycle_id="cycle-1")
+    second = _append(
+        ledger,
+        capture,
+        recorded_at + timedelta(seconds=1),
+        cycle_id="cycle-2",
+    )
+
+    selected = ledger.read_entries_at_sequences(sequences=(2, 1))
+
+    assert selected == (second.entry, first.entry)
+
+
+def test_selected_read_reverifies_requested_owned_source_payload(tmp_path: Path) -> None:
+    capture, recorded_at = _build_capture(tmp_path / "capture")
+    ledger = TrainerSourceProvenanceLedgerV4(tmp_path / "ledger-v4")
+    result = _append(ledger, capture, recorded_at)
+    source_address = result.entry.record["source_capture"]["full_source_payload"]
+    _owned_object_path(ledger, source_address).unlink()
+
+    with pytest.raises(
+        TrainerSourceProvenanceLedgerV4IntegrityError,
+        match="owned_full_source_cas_invalid",
+    ):
+        ledger.read_entries_at_sequences(sequences=(1,))
+
+
 def test_same_run_cycle_with_different_capture_is_conflicting_replay(
     tmp_path: Path,
 ) -> None:

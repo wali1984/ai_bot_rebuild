@@ -99,6 +99,7 @@ from v2.backend.app.services.native_trainer.profiled_model_feature_snapshot_reco
 from v2.backend.app.services.native_trainer.source_provenance_ledger_v4 import (
     TRAINER_SOURCE_PROVENANCE_LEDGER_V4_NAMESPACE,
     TRAINER_SOURCE_PROVENANCE_LEDGER_V4_SCHEMA_VERSION,
+    TrainerSourceProvenanceLedgerEntryV4,
     TrainerSourceProvenanceLedgerV4,
     TrainerSourceProvenanceLedgerV4Error,
 )
@@ -738,7 +739,9 @@ def _validate_source_provenance_binding(
     transform_available_at: datetime,
     decision_time: datetime,
     require_current_window_wss: bool = True,
-    verified_entries_cache: dict[str, tuple[Any, ...]] | None = None,
+    verified_entries_cache: dict[
+        str, dict[int, TrainerSourceProvenanceLedgerEntryV4]
+    ] | None = None,
 ) -> str:
     if type(require_current_window_wss) is not bool:
         _fail("PROFILED_TRAINING_PARENT_SOURCE_POLICY_ARGUMENT_INVALID")
@@ -770,26 +773,11 @@ def _validate_source_provenance_binding(
     root_path = Path(cast(str, root))
     if not root_path.is_dir():
         _fail("PROFILED_TRAINING_PARENT_SOURCE_LEDGER_ROOT_MISSING")
-    cache_key = str(root_path)
-    fresh_entries = (
-        verified_entries_cache.get(cache_key)
-        if verified_entries_cache is not None
-        else None
-    )
-    if fresh_entries is None:
-        try:
-            fresh_entries = TrainerSourceProvenanceLedgerV4(root_path).read_entries()
-        except TrainerSourceProvenanceLedgerV4Error as exc:
-            raise ProfiledTrainingLedgerLoaderV1Error(
-                "PROFILED_TRAINING_PARENT_SOURCE_LEDGER_FRESH_READ_FAILED"
-            ) from exc
-        if verified_entries_cache is not None:
-            verified_entries_cache[cache_key] = fresh_entries
     raw_timeframes = binding.get("timeframe_bindings")
     if type(raw_timeframes) is not list or len(raw_timeframes) != 2:
         _fail("PROFILED_TRAINING_PARENT_SOURCE_PROVENANCE_TIMEFRAMES_INVALID")
     timeframes = cast(list[object], raw_timeframes)
-    sequences: list[int] = []
+    validated_timeframes: list[tuple[dict[str, Any], int, int]] = []
     for expected_timeframe, raw_item in zip(("5m", "1h"), timeframes, strict=True):
         item = _exact_dict(
             raw_item,
@@ -845,9 +833,44 @@ def _validate_source_provenance_binding(
             or transform_available_at > decision_time
         ):
             _fail("PROFILED_TRAINING_PARENT_SOURCE_TIMEFRAME_BINDING_INVALID")
-        if sequence > len(fresh_entries):
+        validated_timeframes.append(
+            (item, cast(int, sequence), cast(int, row_count))
+        )
+    sequences = tuple(item[1] for item in validated_timeframes)
+    if len(set(sequences)) != 2:
+        _fail("PROFILED_TRAINING_PARENT_SOURCE_SEQUENCE_DUPLICATE")
+    cache_key = str(root_path)
+    fresh_entries: dict[int, TrainerSourceProvenanceLedgerEntryV4]
+    if verified_entries_cache is None:
+        fresh_entries = {}
+    else:
+        cached_entries = verified_entries_cache.get(cache_key)
+        if cached_entries is None:
+            fresh_entries = {}
+            verified_entries_cache[cache_key] = fresh_entries
+        elif type(cached_entries) is dict:
+            fresh_entries = cached_entries
+        else:
+            _fail("PROFILED_TRAINING_PARENT_SOURCE_PROVENANCE_CACHE_INVALID")
+    missing_sequences = tuple(
+        sequence for sequence in sequences if sequence not in fresh_entries
+    )
+    if missing_sequences:
+        try:
+            reopened_entries = TrainerSourceProvenanceLedgerV4(
+                root_path
+            ).read_entries_at_sequences(sequences=missing_sequences)
+        except TrainerSourceProvenanceLedgerV4Error as exc:
+            raise ProfiledTrainingLedgerLoaderV1Error(
+                "PROFILED_TRAINING_PARENT_SOURCE_LEDGER_FRESH_READ_FAILED"
+            ) from exc
+        fresh_entries.update(
+            {entry.ledger_sequence: entry for entry in reopened_entries}
+        )
+    for item, sequence, row_count in validated_timeframes:
+        fresh_entry = fresh_entries.get(sequence)
+        if fresh_entry is None:
             _fail("PROFILED_TRAINING_PARENT_SOURCE_LEDGER_ENTRY_MISSING")
-        fresh_entry = fresh_entries[sequence - 1]
         fresh_record = fresh_entry.record
         fresh_source = fresh_record.get("source_capture")
         fresh_manifest = fresh_record.get("suffix_manifest")
@@ -892,9 +915,6 @@ def _validate_source_provenance_binding(
             for row in selected_fresh_rows
         ):
             _fail("PROFILED_TRAINING_PARENT_REQUIRED_WINDOW_TRANSPORT_UNPROVEN")
-        sequences.append(sequence)
-    if len(set(sequences)) != 2:
-        _fail("PROFILED_TRAINING_PARENT_SOURCE_SEQUENCE_DUPLICATE")
     return cast(str, claimed_sha)
 
 
@@ -905,7 +925,9 @@ def _validate_parent_model_record(
         AUTHENTICATED_OHLCV_PROFILE_TRANSFORM_V1_CONFIGURATION_SHA256
     ),
     require_current_window_wss: bool = True,
-    verified_source_entries_cache: dict[str, tuple[Any, ...]] | None = None,
+    verified_source_entries_cache: dict[
+        str, dict[int, TrainerSourceProvenanceLedgerEntryV4]
+    ] | None = None,
 ) -> dict[str, Any]:
     if (
         type(expected_transform_configuration_sha256) is not str
@@ -2267,7 +2289,9 @@ def _admit_item(
     item: FixedCutoffFeatureSnapshot,
     high_water: Mapping[str, Any],
     trusted_immutable_cost_store_root: Path,
-    verified_source_entries_cache: dict[str, tuple[Any, ...]] | None = None,
+    verified_source_entries_cache: dict[
+        str, dict[int, TrainerSourceProvenanceLedgerEntryV4]
+    ] | None = None,
 ) -> ProfiledTrainingLedgerSampleV1 | ProfiledTrainingLedgerExclusionV1 | None:
     record = item.record
     if type(record) is not dict or type(record.get("frozen_envelope")) is not dict:
@@ -2670,7 +2694,9 @@ def load_profiled_training_ledger_fixed_observation_v1(
         exclusion_count = 0
         maximum_resident_page_row_count = 0
         after_sequence = 0
-        verified_source_entries_cache: dict[str, tuple[Any, ...]] = {}
+        verified_source_entries_cache: dict[
+            str, dict[int, TrainerSourceProvenanceLedgerEntryV4]
+        ] = {}
         page_iterator = ledger.iter_fixed_cutoff_pages(
             decision_time_cutoff=strict_prior_text,
             training_observed_at=strict_prior_text,
@@ -2792,7 +2818,9 @@ def load_profiled_training_ledger_v1(
     scan_limit: int = MAX_PROFILED_TRAINING_SCAN_ROWS,
     after_sequence: int = 0,
     page_cursor: str | None = None,
-    _verified_source_entries_cache: dict[str, tuple[Any, ...]] | None = None,
+    _verified_source_entries_cache: dict[
+        str, dict[int, TrainerSourceProvenanceLedgerEntryV4]
+    ] | None = None,
 ) -> ProfiledTrainingLedgerBatchV1:
     """Load one immutable, fixed-observation profiled training inventory."""
 
@@ -2997,7 +3025,9 @@ def reopen_profiled_training_ledger_sample_v1(
     durable_snapshot_id: str,
     expected_sequence: int,
     expected_record_sha256: str,
-    _verified_source_entries_cache: dict[str, tuple[Any, ...]] | None = None,
+    _verified_source_entries_cache: dict[
+        str, dict[int, TrainerSourceProvenanceLedgerEntryV4]
+    ] | None = None,
 ) -> ProfiledTrainingLedgerSampleV1:
     """Reopen one manifest-bound sample without a full-ledger rescan.
 

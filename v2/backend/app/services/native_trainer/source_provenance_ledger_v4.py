@@ -2748,6 +2748,88 @@ class TrainerSourceProvenanceLedgerV4:
                 _integrity_error("source_provenance_v4_uncommitted_tail_present")
             return tuple(_artifact(record) for record in state.records)
 
+    def read_entries_at_sequences(
+        self,
+        *,
+        sequences: tuple[int, ...],
+    ) -> tuple[TrainerSourceProvenanceLedgerEntryV4, ...]:
+        """Reopen selected committed entries without enumerating unrelated CAS objects.
+
+        The durable head authenticates the complete committed ledger-byte prefix.
+        This path verifies that binding before parsing the requested frames and
+        independently re-verifies every requested entry's owned source payloads.
+        It intentionally rejects an uncommitted tail rather than treating the
+        current head as a cursor over mutable input.
+        """
+
+        if (
+            type(sequences) is not tuple
+            or not sequences
+            or any(type(sequence) is not int or sequence <= 0 for sequence in sequences)
+            or len(set(sequences)) != len(sequences)
+        ):
+            _validation_error("source_provenance_v4_requested_sequences_invalid")
+        with self._exclusive_lock() as root:
+            store = self._open_owned_store(root)
+            raw = _read_regular_file(
+                root,
+                TRAINER_SOURCE_PROVENANCE_LEDGER_V4_FILENAME,
+                max_bytes=MAX_LEDGER_BYTES,
+                required=True,
+            )
+            head_raw = _read_regular_file(
+                root,
+                TRAINER_SOURCE_PROVENANCE_LEDGER_V4_HEAD_FILENAME,
+                max_bytes=64 * 1024,
+                required=True,
+            )
+            if raw is None or head_raw is None or not raw.endswith(b"\n"):
+                _integrity_error("source_provenance_v4_ledger_truncated_or_partial_tail")
+            lines = raw.splitlines(keepends=True)
+            if not lines or len(lines) > MAX_LEDGER_ENTRIES:
+                _integrity_error("source_provenance_v4_ledger_entry_count_invalid")
+            if any(
+                not framed.endswith(b"\n") or framed == b"\n" or b"\r" in framed
+                for framed in lines
+            ):
+                _integrity_error("source_provenance_v4_ledger_framing_invalid")
+            head = _validate_head(head_raw)
+            committed = cast(int, head["ledger_sequence"])
+            if committed != len(lines):
+                _integrity_error("source_provenance_v4_uncommitted_tail_present")
+            if (
+                head["ledger_byte_count"] != len(raw)
+                or head["ledger_sha256"] != _sha256_bytes(raw)
+            ):
+                _integrity_error("source_provenance_v4_head_ledger_binding_invalid")
+            if max(sequences) > committed:
+                _integrity_error("source_provenance_v4_requested_entry_missing")
+            requested = set(sequences)
+            records: dict[int, dict[str, Any]] = {}
+            for sequence, framed in enumerate(lines, start=1):
+                if sequence in requested:
+                    record = _parse_entry_line(framed[:-1])
+                    if record["ledger_sequence"] != sequence:
+                        _integrity_error("source_provenance_v4_hash_chain_invalid")
+                    records[sequence] = record
+            tail = records.get(committed)
+            if tail is None:
+                tail = _parse_entry_line(lines[-1][:-1])
+                if tail["ledger_sequence"] != committed:
+                    _integrity_error("source_provenance_v4_hash_chain_invalid")
+            if tail["entry_sha256"] != head["entry_sha256"]:
+                _integrity_error("source_provenance_v4_head_ledger_binding_invalid")
+            if len(records) != len(sequences):
+                _integrity_error("source_provenance_v4_requested_entry_missing")
+            for record in records.values():
+                _verify_record_owned_cas(
+                    record,
+                    store,
+                    expected_store_root=self.store_root,
+                )
+            root.verify()
+            return tuple(_artifact(records[sequence]) for sequence in sequences)
+
 
 __all__ = [
     "MAX_LEDGER_BYTES",

@@ -2759,7 +2759,7 @@ def read_profiled_training_observation_page_v1(
             _fail("PROFILED_OBSERVATION_ENTRY_INVENTORY_OMISSION")
         examples: list[ProfiledTrainingObservationExampleV1] = []
         unavailable_scanned = 0
-        verified_source_entries_cache: dict[str, tuple[Any, ...]] = {}
+        verified_source_entries_cache: dict[str, dict[int, Any]] = {}
         for expected_ordinal, row in enumerate(rows, start=after_ordinal + 1):
             if row["ordinal"] != expected_ordinal:
                 _fail("PROFILED_OBSERVATION_ENTRY_ORDINAL_GAP")

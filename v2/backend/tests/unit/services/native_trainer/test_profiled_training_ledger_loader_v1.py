@@ -1003,19 +1003,19 @@ def test_direct_reopen_reuses_verified_source_provenance_entries_within_run(
     current_item = ledger.get_snapshot(current_child["durable_snapshot_id"])
     assert current_item is not None
     calls = 0
-    original = loader_v1.TrainerSourceProvenanceLedgerV4.read_entries
+    original = loader_v1.TrainerSourceProvenanceLedgerV4.read_entries_at_sequences
 
-    def counted_read_entries(self: Any) -> Any:
+    def counted_read_entries_at_sequences(self: Any, **kwargs: Any) -> Any:
         nonlocal calls
         calls += 1
-        return original(self)
+        return original(self, **kwargs)
 
     monkeypatch.setattr(
         loader_v1.TrainerSourceProvenanceLedgerV4,
-        "read_entries",
-        counted_read_entries,
+        "read_entries_at_sequences",
+        counted_read_entries_at_sequences,
     )
-    cache: dict[str, tuple[Any, ...]] = {}
+    cache: dict[str, dict[int, Any]] = {}
     first = loader_v1.reopen_profiled_training_ledger_sample_v1(
         ledger=ledger,
         trusted_immutable_cost_store_root=cost_root,

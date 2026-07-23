@@ -48,6 +48,9 @@ from v2.backend.app.services.native_trainer.profiled_training_ledger_loader_v1 i
     load_profiled_training_ledger_fixed_observation_v1,
     load_profiled_training_ledger_v1,
 )
+from v2.backend.app.services.native_trainer.source_provenance_ledger_v4 import (
+    TrainerSourceProvenanceLedgerEntryV4,
+)
 from v2.backend.app.services.native_trainer.trusted_replay.dataset import (
     FUTURE_LABEL_PREFIXES,
 )
@@ -896,7 +899,9 @@ def import_profiled_training_ledger_shards_to_challenger_archive_v1(
     total_label_paths = 0
     total_rejections: Counter[str] = Counter()
     verified_label_transactions: set[tuple[str, str, str, str, int, str]] = set()
-    verified_source_entries: dict[str, tuple[Any, ...]] = {}
+    verified_source_entries: dict[
+        str, dict[int, TrainerSourceProvenanceLedgerEntryV4]
+    ] = {}
     shard_reports: list[dict[str, Any]] = []
     post_purge_counts: dict[str, Any] = dict(last_post_purge_counts)
     minimums_met = False
