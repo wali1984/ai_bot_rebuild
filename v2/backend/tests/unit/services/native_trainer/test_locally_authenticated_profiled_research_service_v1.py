@@ -289,6 +289,37 @@ def test_manifest_reason_code_is_preserved_without_payload_in_fail_closed_status
     assert "unsafe-unstructured-payload" not in str(payload)
 
 
+@pytest.mark.parametrize(
+    "reason_code",
+    (
+        "PROFILED_RESIDENT_SERVING_ACTIVATION_MANIFEST_INVALID",
+        "PROFILED_GENESIS_BASE_DURABLE_WRITE_FAILED",
+        "PROFILED_BASE_LINEAGE_EXACT_LOAD_FAILED",
+    ),
+)
+def test_base_lineage_reason_codes_are_preserved_without_unstructured_payload(
+    tmp_path: Path,
+    reason_code: str,
+) -> None:
+    error = service.LocallyAuthenticatedProfiledResearchServiceV1Error(
+        reason_code,
+        "unsafe-unstructured-payload-must-not-render",
+    )
+
+    payload = service._status_payload(  # noqa: SLF001
+        config=_config(tmp_path),
+        credentials=_credentials(),
+        classification=service.LOCAL_PROFILED_RESEARCH_FAIL_CLOSED,
+        error=error,
+    )
+
+    assert payload["error"] == {
+        "error_type": "LocallyAuthenticatedProfiledResearchServiceV1Error",
+        "reason_codes": [reason_code],
+    }
+    assert "unsafe-unstructured-payload" not in str(payload)
+
+
 def test_status_must_be_inside_exact_private_runtime_root(tmp_path: Path) -> None:
     config = _config(tmp_path)
     with pytest.raises(
