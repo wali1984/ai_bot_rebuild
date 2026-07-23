@@ -21,6 +21,7 @@ import math
 import os
 import time
 from collections.abc import Callable
+from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -33,8 +34,11 @@ from v2.backend.app.services.market_state_integrity.canonical_candles import (
 from v2.backend.app.services.market_state_integrity.closed_window_redis_store import (
     BINANCE_WSS_CLOSED_WINDOW_PRODUCER_ROLE,
     CLOSED_WINDOW_MAX_ROWS,
+    EXISTING_CLOSED_WINDOW_ADOPTER_ROLE,
+    ClosedWindowRedisAdoptionResult,
     ClosedWindowRedisStoreError,
     ClosedWindowRedisWriteResult,
+    adopt_existing_closed_window_publication,
     atomic_merge_closed_window,
     cadence_bounded_publication_ttls,
     require_verified_closed_window_publication,
@@ -109,6 +113,9 @@ DEFAULT_LABEL_ARCHIVE_RETRY_SECONDS = 5.0
 DEFAULT_LABEL_QUEUE_CAPACITY = MAX_CLOSE_WAVE_ROWS * 4
 MAX_LABEL_QUEUE_CAPACITY = MAX_CLOSE_WAVE_ROWS * 8
 CLOSED_WINDOW_MAX_STATUS_BLOCKED_KEYS = 4096
+CLOSED_WINDOW_ADOPTION_EVIDENCE_CLASSIFICATION = (
+    "EXACT_EXISTING_BYTES_PUBLICATION_INTEGRITY_ONLY_LEGACY_ORIGIN_UNVERIFIED"
+)
 
 
 @dataclass(frozen=True)
@@ -1167,6 +1174,18 @@ def _closed_window_status_blocker(stats: dict[str, Any]) -> str | None:
     )
 
 
+def _closed_window_adoption_status_blocker(stats: dict[str, Any]) -> str | None:
+    blocked = stats.get("ohlcv_closed_adoption_blocked_pairs")
+    if not isinstance(blocked, dict) or not blocked:
+        return None
+    first_key = sorted(str(key) for key in blocked)[0]
+    reason = str(blocked.get(first_key) or "closed_window_adoption_failed")[:160]
+    return (
+        "CLOSED_WINDOW_EXISTING_PAYLOAD_ADOPTION_HELD:"
+        f"{len(blocked)}:{first_key}:{reason}"
+    )
+
+
 def _record_closed_window_failure(
     stats: dict[str, Any],
     *,
@@ -1291,6 +1310,287 @@ def _publish_closed_window(
         ):
             redis_client.mark_broken()
         raise
+
+
+def _adoption_config_sha256(timeframe: str) -> str:
+    receipt_ttl_seconds, archive_ttl_seconds = (
+        cadence_bounded_publication_ttls(timeframe)
+    )
+    material = {
+        "schema_version": "binance_wss_existing_closed_window_adoption_config_v1",
+        "worker_id": WORKER_ID,
+        "producer_role": EXISTING_CLOSED_WINDOW_ADOPTER_ROLE,
+        "evidence_classification": CLOSED_WINDOW_ADOPTION_EVIDENCE_CLASSIFICATION,
+        "legacy_source_authenticity_verified": False,
+        "network_requests_authorized": False,
+        "ttl_policy": "preserve",
+        "receipt_ttl_seconds": receipt_ttl_seconds,
+        "archive_ttl_seconds": archive_ttl_seconds,
+    }
+    return hashlib.sha256(
+        json.dumps(material, sort_keys=True, separators=(",", ":")).encode("ascii")
+    ).hexdigest()
+
+
+def _adoption_failure_status(error: ClosedWindowRedisStoreError) -> str:
+    reason = str(error)
+    if reason == "closed_window_adoption_source_missing":
+        return "MISSING"
+    if "concurrent_write_retry_exhausted" in reason:
+        return "RACED"
+    if reason.startswith("closed_window_redis_operation_failed:"):
+        return "FAILED"
+    return "INVALID"
+
+
+def _adopt_existing_closed_window_pairs(
+    client: Any | None,
+    pairs: tuple[tuple[str, str], ...],
+) -> tuple[dict[str, Any], ...]:
+    """Run one bounded, synchronous, Redis-only adoption batch."""
+
+    if len(pairs) > CLOSED_WINDOW_MAX_STATUS_BLOCKED_KEYS:
+        raise ValueError("closed_window_adoption_pair_count_resource_limit")
+    outcomes: list[dict[str, Any]] = []
+    transport_failure: str | None = None
+    for symbol, timeframe in pairs:
+        key = _ohlcv_key(symbol, timeframe)
+        if client is None or transport_failure is not None:
+            outcomes.append(
+                {
+                    "symbol": symbol,
+                    "timeframe": timeframe,
+                    "redis_key": key,
+                    "status": "FAILED",
+                    "reason": transport_failure or "closed_window_redis_unavailable",
+                }
+            )
+            continue
+        try:
+            result: ClosedWindowRedisAdoptionResult = (
+                adopt_existing_closed_window_publication(
+                    client,
+                    redis_key=key,
+                    adopter_code_sha256=(
+                        _LOADED_CLOSED_WINDOW_PRODUCER_CODE_SHA256
+                    ),
+                    adopter_config_sha256=_adoption_config_sha256(timeframe),
+                )
+            )
+        except ClosedWindowRedisStoreError as exc:
+            reason = str(exc)[:160]
+            status = _adoption_failure_status(exc)
+            outcomes.append(
+                {
+                    "symbol": symbol,
+                    "timeframe": timeframe,
+                    "redis_key": key,
+                    "status": status,
+                    "reason": reason,
+                }
+            )
+            if status == "FAILED":
+                transport_failure = reason
+            continue
+        outcomes.append(
+            {
+                "symbol": symbol,
+                "timeframe": timeframe,
+                "redis_key": key,
+                "status": result.status,
+                "reason": None,
+                "attempts": result.attempts,
+                "row_count": result.row_count,
+                "payload_byte_count": result.payload_byte_count,
+                "revision_id": result.revision_id,
+                "producer_role": result.producer_role,
+                "producer_authenticity_verified": (
+                    result.producer_authenticity_verified
+                ),
+                "legacy_source_authenticity_verified": (
+                    result.legacy_source_authenticity_verified
+                ),
+                "trainer_admission_granted": result.trainer_admission_granted,
+                "live_execution_authorized": result.live_execution_authorized,
+            }
+        )
+    return tuple(outcomes)
+
+
+def _adopt_existing_closed_window_pairs_from_holder(
+    redis_holder: Any,
+    pairs: tuple[tuple[str, str], ...],
+) -> tuple[dict[str, Any], ...]:
+    """Resolve/reconnect Redis and run the complete batch in the worker."""
+
+    try:
+        client = redis_holder.ensure()
+    except Exception:  # noqa: BLE001 - totalize the transport boundary
+        client = None
+    outcomes = _adopt_existing_closed_window_pairs(client, pairs)
+    if any(
+        str(outcome.get("reason") or "").startswith(
+            "closed_window_redis_operation_failed:"
+        )
+        for outcome in outcomes
+    ):
+        try:
+            redis_holder.mark_broken()
+        except Exception:  # noqa: BLE001,S110 - failure already held per pair
+            pass
+    return outcomes
+
+
+def _record_closed_window_adoption_outcomes(
+    stats: dict[str, Any],
+    *,
+    outcomes: tuple[dict[str, Any], ...],
+    verified_pairs: set[tuple[str, str]],
+) -> None:
+    by_timeframe = stats.setdefault("ohlcv_closed_adoption_by_timeframe", {})
+    if not isinstance(by_timeframe, dict):
+        by_timeframe = {}
+        stats["ohlcv_closed_adoption_by_timeframe"] = by_timeframe
+    blocked = stats.setdefault("ohlcv_closed_adoption_blocked_pairs", {})
+    if not isinstance(blocked, dict):
+        blocked = {}
+        stats["ohlcv_closed_adoption_blocked_pairs"] = blocked
+    for outcome in outcomes:
+        timeframe = str(outcome["timeframe"])
+        status = str(outcome["status"])
+        tf_counts = by_timeframe.setdefault(
+            timeframe,
+            {
+                "planned": 0,
+                "attempted": 0,
+                "adopted": 0,
+                "already_receipted": 0,
+                "missing": 0,
+                "invalid": 0,
+                "raced": 0,
+                "failed": 0,
+            },
+        )
+        tf_counts["attempted"] = int(tf_counts.get("attempted") or 0) + 1
+        stats["ohlcv_closed_adoption_attempted"] = int(
+            stats.get("ohlcv_closed_adoption_attempted") or 0
+        ) + 1
+        counter_name = {
+            "ADOPTED_EXISTING_PAYLOAD": "adopted",
+            "ALREADY_RECEIPTED": "already_receipted",
+            "MISSING": "missing",
+            "INVALID": "invalid",
+            "RACED": "raced",
+            "FAILED": "failed",
+        }[status]
+        tf_counts[counter_name] = int(tf_counts.get(counter_name) or 0) + 1
+        total_name = f"ohlcv_closed_adoption_{counter_name}"
+        stats[total_name] = int(stats.get(total_name) or 0) + 1
+        pair = (str(outcome["symbol"]), timeframe)
+        if status in {"ADOPTED_EXISTING_PAYLOAD", "ALREADY_RECEIPTED"}:
+            verified_pairs.add(pair)
+            blocked.pop(str(outcome["redis_key"]), None)
+        else:
+            if len(blocked) < CLOSED_WINDOW_MAX_STATUS_BLOCKED_KEYS:
+                blocked[str(outcome["redis_key"])] = str(outcome["reason"])
+            stats["ohlcv_closed_adoption_last_failed_key"] = outcome["redis_key"]
+            stats["ohlcv_closed_adoption_last_failure"] = outcome["reason"]
+    stats["ohlcv_closed_adoption_verified_pair_count"] = len(verified_pairs)
+    stats["ohlcv_closed_adoption_blocked_pair_count"] = len(blocked)
+
+
+def _record_closed_window_adoption_plan(
+    stats: dict[str, Any],
+    *,
+    pairs: tuple[tuple[str, str], ...],
+) -> None:
+    stats["ohlcv_closed_adoption_batches_planned"] = int(
+        stats.get("ohlcv_closed_adoption_batches_planned") or 0
+    ) + 1
+    stats["ohlcv_closed_adoption_pairs_planned"] = int(
+        stats.get("ohlcv_closed_adoption_pairs_planned") or 0
+    ) + len(pairs)
+    stats["ohlcv_closed_adoption_current_pending_pair_count"] = len(pairs)
+    by_timeframe = stats.setdefault("ohlcv_closed_adoption_by_timeframe", {})
+    if not isinstance(by_timeframe, dict):
+        by_timeframe = {}
+        stats["ohlcv_closed_adoption_by_timeframe"] = by_timeframe
+    for _symbol, timeframe in pairs:
+        tf_counts = by_timeframe.setdefault(
+            timeframe,
+            {
+                "planned": 0,
+                "attempted": 0,
+                "adopted": 0,
+                "already_receipted": 0,
+                "missing": 0,
+                "invalid": 0,
+                "raced": 0,
+                "failed": 0,
+            },
+        )
+        tf_counts["planned"] = int(tf_counts.get("planned") or 0) + 1
+
+
+def _pending_closed_window_adoption_pairs(
+    *,
+    symbols: tuple[str, ...],
+    timeframes: tuple[str, ...],
+    verified_pairs: set[tuple[str, str]],
+) -> tuple[tuple[tuple[str, str], ...], tuple[tuple[str, str], ...]]:
+    current_pairs = tuple(
+        (symbol, timeframe)
+        for symbol in symbols
+        for timeframe in timeframes
+    )
+    if len(current_pairs) > CLOSED_WINDOW_MAX_STATUS_BLOCKED_KEYS:
+        raise ValueError("closed_window_adoption_pair_count_resource_limit")
+    verified_pairs.intersection_update(current_pairs)
+    pending_pairs = tuple(
+        pair
+        for pair in current_pairs
+        if pair not in verified_pairs
+    )
+    return current_pairs, pending_pairs
+
+
+async def _run_closed_window_adoption_task(
+    *,
+    redis_holder: Any,
+    pairs: tuple[tuple[str, str], ...],
+    current_pairs: tuple[tuple[str, str], ...],
+    stats: dict[str, Any],
+    verified_pairs: set[tuple[str, str]],
+) -> tuple[dict[str, Any], ...]:
+    """Isolate every synchronous Redis call in one background worker."""
+
+    try:
+        outcomes = await asyncio.to_thread(
+            _adopt_existing_closed_window_pairs_from_holder,
+            redis_holder,
+            pairs,
+        )
+    except Exception as exc:  # noqa: BLE001 - adoption cannot cancel WSS
+        reason = f"closed_window_adoption_worker_failed:{type(exc).__name__}"
+        outcomes = tuple(
+            {
+                "symbol": symbol,
+                "timeframe": timeframe,
+                "redis_key": _ohlcv_key(symbol, timeframe),
+                "status": "FAILED",
+                "reason": reason,
+            }
+            for symbol, timeframe in pairs
+        )
+    _record_closed_window_adoption_outcomes(
+        stats,
+        outcomes=outcomes,
+        verified_pairs=verified_pairs,
+    )
+    stats["ohlcv_closed_adoption_current_pending_pair_count"] = len(
+        set(current_pairs) - verified_pairs
+    )
+    return outcomes
 
 
 def _closed_window_ttl_seconds(timeframe: str, configured_floor_seconds: int) -> int:
@@ -2132,6 +2432,25 @@ async def run_loop(args: argparse.Namespace) -> int:
         "ohlcv_closed_blocked_keys": {},
         "ohlcv_closed_blocker_tracking_overflow_events": 0,
         "ohlcv_closed_ttl_policy": "set_existing_computed_ttl",
+        "ohlcv_closed_adoption_evidence_classification": (
+            CLOSED_WINDOW_ADOPTION_EVIDENCE_CLASSIFICATION
+        ),
+        "ohlcv_closed_adoption_network_requests": 0,
+        "ohlcv_closed_adoption_scan_calls": 0,
+        "ohlcv_closed_adoption_batches_planned": 0,
+        "ohlcv_closed_adoption_pairs_planned": 0,
+        "ohlcv_closed_adoption_current_pending_pair_count": 0,
+        "ohlcv_closed_adoption_attempted": 0,
+        "ohlcv_closed_adoption_adopted": 0,
+        "ohlcv_closed_adoption_already_receipted": 0,
+        "ohlcv_closed_adoption_missing": 0,
+        "ohlcv_closed_adoption_invalid": 0,
+        "ohlcv_closed_adoption_raced": 0,
+        "ohlcv_closed_adoption_failed": 0,
+        "ohlcv_closed_adoption_verified_pair_count": 0,
+        "ohlcv_closed_adoption_blocked_pair_count": 0,
+        "ohlcv_closed_adoption_by_timeframe": {},
+        "ohlcv_closed_adoption_blocked_pairs": {},
         "kline_current_keys_written": 0,
         "source_keys_written": 0,
         "parse_errors": 0,
@@ -2185,6 +2504,9 @@ async def run_loop(args: argparse.Namespace) -> int:
         closed_window_blocker = _closed_window_status_blocker(stats)
         if closed_window_blocker is not None:
             blockers.append(closed_window_blocker)
+        adoption_blocker = _closed_window_adoption_status_blocker(stats)
+        if adoption_blocker is not None:
+            blockers.append(adoption_blocker)
         if label_pipeline_enabled and label_status.get("healthy") is not True:
             blockers.append(
                 str(
@@ -2242,6 +2564,8 @@ async def run_loop(args: argparse.Namespace) -> int:
             )
 
     pipeline_task: asyncio.Task[bool] | None = None
+    adoption_task: asyncio.Task[tuple[dict[str, Any], ...]] | None = None
+    adoption_verified_pairs: set[tuple[str, str]] = set()
     try:
         while True:
             refreshed_symbols, refreshed_timeframes, refreshed_chunks = (
@@ -2300,6 +2624,41 @@ async def run_loop(args: argparse.Namespace) -> int:
                 )
                 for index, chunk in enumerate(chunks)
             ]
+            current_pairs, pending_adoption_pairs = (
+                _pending_closed_window_adoption_pairs(
+                    symbols=symbols,
+                    timeframes=timeframes,
+                    verified_pairs=adoption_verified_pairs,
+                )
+            )
+            adoption_blocked = stats.get("ohlcv_closed_adoption_blocked_pairs")
+            if isinstance(adoption_blocked, dict):
+                current_adoption_keys = {
+                    _ohlcv_key(symbol, timeframe)
+                    for symbol, timeframe in current_pairs
+                }
+                for stale_key in tuple(adoption_blocked):
+                    if stale_key not in current_adoption_keys:
+                        adoption_blocked.pop(stale_key, None)
+                stats["ohlcv_closed_adoption_blocked_pair_count"] = len(
+                    adoption_blocked
+                )
+            _record_closed_window_adoption_plan(
+                stats,
+                pairs=pending_adoption_pairs,
+            )
+            # Consumers are scheduled first. All synchronous Redis adoption
+            # work then runs serially in exactly one worker thread so the seven
+            # websocket chunks cannot be starved by the current 795-pair plan.
+            adoption_task = asyncio.create_task(
+                _run_closed_window_adoption_task(
+                    redis_holder=redis_holder,
+                    pairs=pending_adoption_pairs,
+                    current_pairs=current_pairs,
+                    stats=stats,
+                    verified_pairs=adoption_verified_pairs,
+                )
+            )
             status_task = asyncio.create_task(
                 status_writer(stop_at_monotonic)
             )
@@ -2313,6 +2672,8 @@ async def run_loop(args: argparse.Namespace) -> int:
                 status_task,
                 return_exceptions=True,
             )
+            await adoption_task
+            adoption_task = None
             pipeline_clean = True
             if label_pipeline is not None and pipeline_task is not None:
                 label_pipeline.request_stop()
@@ -2337,6 +2698,10 @@ async def run_loop(args: argparse.Namespace) -> int:
             if not args.loop:
                 return 0
     finally:
+        if adoption_task is not None and not adoption_task.done():
+            adoption_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await adoption_task
         if label_pipeline is not None:
             label_pipeline.request_stop()
         if pipeline_task is not None and not pipeline_task.done():

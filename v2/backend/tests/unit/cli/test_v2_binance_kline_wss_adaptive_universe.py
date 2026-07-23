@@ -1,13 +1,19 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
+import threading
 from collections.abc import Iterator
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
 from v2.backend.app.cli import v2_binance_kline_wss_loop as module
+from v2.backend.app.services.market_state_integrity.closed_window_redis_store import (
+    EXISTING_CLOSED_WINDOW_ADOPTER_ROLE,
+)
 
 
 def _args(**overrides: object) -> argparse.Namespace:
@@ -606,6 +612,325 @@ async def test_chunk_retry_sleep_cannot_cross_monotonic_session_deadline(
     )
 
     assert sleeps == [1.0]
+
+
+def test_adoption_plan_is_exact_795_cartesian_pairs_and_retries_reentry() -> None:
+    symbols = tuple(f"S{index:03d}USDT" for index in range(159))
+    timeframes = ("1m", "5m", "15m", "1h", "4h")
+    verified = {(symbols[0], "1m")}
+
+    current, pending = module._pending_closed_window_adoption_pairs(
+        symbols=symbols,
+        timeframes=timeframes,
+        verified_pairs=verified,
+    )
+
+    assert len(current) == 795
+    assert len(pending) == 794
+    assert current[0] == (symbols[0], "1m")
+    assert current[-1] == (symbols[-1], "4h")
+    assert (symbols[0], "1m") not in pending
+
+    module._pending_closed_window_adoption_pairs(
+        symbols=symbols[1:],
+        timeframes=timeframes,
+        verified_pairs=verified,
+    )
+    assert verified == set()
+    _current, reentered = module._pending_closed_window_adoption_pairs(
+        symbols=symbols,
+        timeframes=timeframes,
+        verified_pairs=verified,
+    )
+    assert (symbols[0], "1m") in reentered
+
+
+def test_795_pair_adoption_batch_uses_exact_keys_and_no_scan_or_network(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict[str, Any]] = []
+
+    def adopt(client: object, **kwargs: Any) -> SimpleNamespace:
+        calls.append({"client": client, **kwargs})
+        return SimpleNamespace(
+            status="ADOPTED_EXISTING_PAYLOAD",
+            attempts=1,
+            row_count=100,
+            payload_byte_count=95_000,
+            revision_id="v2_ohlcv_closed_" + "a" * 64,
+            producer_role=EXISTING_CLOSED_WINDOW_ADOPTER_ROLE,
+            producer_authenticity_verified=False,
+            legacy_source_authenticity_verified=False,
+            trainer_admission_granted=False,
+            live_execution_authorized=False,
+        )
+
+    class RedisOnly:
+        def scan(self, *_args: object, **_kwargs: object) -> None:
+            raise AssertionError("SCAN is forbidden")
+
+        def scan_iter(self, *_args: object, **_kwargs: object) -> None:
+            raise AssertionError("SCAN is forbidden")
+
+        def get(self, *_args: object, **_kwargs: object) -> None:
+            raise AssertionError("unbounded GET is forbidden")
+
+    client = RedisOnly()
+    monkeypatch.setattr(module, "adopt_existing_closed_window_publication", adopt)
+    pairs = tuple(
+        (f"S{index:03d}USDT", timeframe)
+        for index in range(159)
+        for timeframe in ("1m", "5m", "15m", "1h", "4h")
+    )
+
+    outcomes = module._adopt_existing_closed_window_pairs(client, pairs)
+
+    assert len(calls) == len(outcomes) == 795
+    assert [call["redis_key"] for call in calls] == [
+        f"v2:market:ohlcv_closed:binance:{symbol}:{timeframe}"
+        for symbol, timeframe in pairs
+    ]
+    assert all(call["client"] is client for call in calls)
+    assert all(outcome["producer_authenticity_verified"] is False for outcome in outcomes)
+    assert all(outcome["legacy_source_authenticity_verified"] is False for outcome in outcomes)
+    assert all(outcome["trainer_admission_granted"] is False for outcome in outcomes)
+    assert all(outcome["live_execution_authorized"] is False for outcome in outcomes)
+    assert calls[0]["adopter_config_sha256"] != calls[1]["adopter_config_sha256"]
+
+
+def test_adoption_counters_are_per_timeframe_and_failed_pairs_remain_pending() -> None:
+    stats: dict[str, Any] = {}
+    verified: set[tuple[str, str]] = set()
+    pairs = (("BTCUSDT", "1m"), ("ETHUSDT", "1m"), ("BTCUSDT", "4h"))
+    module._record_closed_window_adoption_plan(stats, pairs=pairs)
+    outcomes = (
+        {
+            "symbol": "BTCUSDT",
+            "timeframe": "1m",
+            "redis_key": module._ohlcv_key("BTCUSDT", "1m"),
+            "status": "ADOPTED_EXISTING_PAYLOAD",
+            "reason": None,
+        },
+        {
+            "symbol": "ETHUSDT",
+            "timeframe": "1m",
+            "redis_key": module._ohlcv_key("ETHUSDT", "1m"),
+            "status": "MISSING",
+            "reason": "closed_window_adoption_source_missing",
+        },
+        {
+            "symbol": "BTCUSDT",
+            "timeframe": "4h",
+            "redis_key": module._ohlcv_key("BTCUSDT", "4h"),
+            "status": "ALREADY_RECEIPTED",
+            "reason": None,
+        },
+    )
+
+    module._record_closed_window_adoption_outcomes(
+        stats,
+        outcomes=outcomes,
+        verified_pairs=verified,
+    )
+    _current, pending = module._pending_closed_window_adoption_pairs(
+        symbols=("BTCUSDT", "ETHUSDT"),
+        timeframes=("1m", "4h"),
+        verified_pairs=verified,
+    )
+
+    assert stats["ohlcv_closed_adoption_pairs_planned"] == 3
+    assert stats["ohlcv_closed_adoption_attempted"] == 3
+    assert stats["ohlcv_closed_adoption_adopted"] == 1
+    assert stats["ohlcv_closed_adoption_already_receipted"] == 1
+    assert stats["ohlcv_closed_adoption_missing"] == 1
+    assert stats["ohlcv_closed_adoption_blocked_pair_count"] == 1
+    assert module._closed_window_adoption_status_blocker(stats) is not None
+    assert stats["ohlcv_closed_adoption_by_timeframe"]["1m"] == {
+        "planned": 2,
+        "attempted": 2,
+        "adopted": 1,
+        "already_receipted": 0,
+        "missing": 1,
+        "invalid": 0,
+        "raced": 0,
+        "failed": 0,
+    }
+    assert verified == {("BTCUSDT", "1m"), ("BTCUSDT", "4h")}
+    assert ("ETHUSDT", "1m") in pending
+
+
+def test_adoption_transport_failure_is_bounded_and_marks_holder_broken(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = 0
+
+    def fail_transport(*_args: object, **_kwargs: object) -> None:
+        nonlocal calls
+        calls += 1
+        raise module.ClosedWindowRedisStoreError(
+            "closed_window_redis_operation_failed:TimeoutError"
+        )
+
+    class Holder:
+        broken = 0
+
+        def ensure(self) -> object:
+            return object()
+
+        def mark_broken(self) -> None:
+            self.broken += 1
+
+    holder = Holder()
+    monkeypatch.setattr(
+        module,
+        "adopt_existing_closed_window_publication",
+        fail_transport,
+    )
+    pairs = (("BTCUSDT", "1m"), ("ETHUSDT", "1m"), ("SOLUSDT", "1m"))
+
+    outcomes = module._adopt_existing_closed_window_pairs_from_holder(holder, pairs)
+
+    assert calls == 1
+    assert holder.broken == 1
+    assert len(outcomes) == 3
+    assert all(outcome["status"] == "FAILED" for outcome in outcomes)
+
+
+@pytest.mark.asyncio
+async def test_adoption_worker_reconnects_and_blocks_off_event_loop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    event_loop_thread = threading.get_ident()
+    worker_threads: list[int] = []
+    worker_started = threading.Event()
+    worker_release = threading.Event()
+
+    class Holder:
+        def ensure(self) -> object:
+            worker_threads.append(threading.get_ident())
+            return object()
+
+        def mark_broken(self) -> None:
+            raise AssertionError("healthy batch must not mark Redis broken")
+
+    def blocking_batch(
+        _client: object,
+        _pairs: tuple[tuple[str, str], ...],
+    ) -> tuple[dict[str, Any], ...]:
+        worker_threads.append(threading.get_ident())
+        worker_started.set()
+        assert worker_release.wait(timeout=2.0)
+        return (
+            {
+                "symbol": "BTCUSDT",
+                "timeframe": "1m",
+                "redis_key": module._ohlcv_key("BTCUSDT", "1m"),
+                "status": "ALREADY_RECEIPTED",
+                "reason": None,
+            },
+        )
+
+    monkeypatch.setattr(module, "_adopt_existing_closed_window_pairs", blocking_batch)
+    stats: dict[str, Any] = {}
+    verified: set[tuple[str, str]] = set()
+    pairs = (("BTCUSDT", "1m"),)
+    task = asyncio.create_task(
+        module._run_closed_window_adoption_task(
+            redis_holder=Holder(),
+            pairs=pairs,
+            current_pairs=pairs,
+            stats=stats,
+            verified_pairs=verified,
+        )
+    )
+    for _ in range(100):
+        if worker_started.is_set():
+            break
+        await asyncio.sleep(0)
+    assert worker_started.is_set()
+    event_loop_progressed = True
+    worker_release.set()
+
+    outcomes = await task
+
+    assert event_loop_progressed is True
+    assert worker_threads
+    assert all(thread_id != event_loop_thread for thread_id in worker_threads)
+    assert outcomes[0]["status"] == "ALREADY_RECEIPTED"
+    assert verified == {("BTCUSDT", "1m")}
+
+
+@pytest.mark.asyncio
+async def test_run_loop_schedules_consumers_before_adoption_worker(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    created: list[str] = []
+    real_create_task = asyncio.create_task
+    plans = iter(
+        (
+            (("BTCUSDT",), ("1m",), [("btcusdt@kline_1m",)]),
+            (("BTCUSDT",), ("1m",), [("btcusdt@kline_1m",)]),
+        )
+    )
+
+    class Holder:
+        reconnects = 0
+
+        def ensure(self) -> object:
+            return object()
+
+    async def consume(**_kwargs: Any) -> None:
+        return None
+
+    async def adopt(**_kwargs: Any) -> tuple[dict[str, Any], ...]:
+        return ()
+
+    def track_create_task(coro: Any) -> asyncio.Task[Any]:
+        created.append(coro.cr_code.co_name)
+        return real_create_task(coro)
+
+    monkeypatch.setattr(module, "websockets", object())
+    monkeypatch.setattr(module, "_RedisHolder", Holder)
+    monkeypatch.setattr(module, "_runtime_stream_plan", lambda _args: next(plans))
+    monkeypatch.setattr(module, "_consume_chunk", consume)
+    monkeypatch.setattr(module, "_run_closed_window_adoption_task", adopt)
+    monkeypatch.setattr(module.asyncio, "create_task", track_create_task)
+    monkeypatch.setattr(module, "_runtime_cycle_seconds", lambda _args: 1.0)
+    monkeypatch.setattr(
+        module,
+        "_plan_rollover_deadline",
+        lambda **_kwargs: module._RolloverDeadlinePlan(
+            planned_at_epoch_seconds=29.0,
+            deadline_epoch_seconds=30.0,
+            planned_duration_seconds=1.0,
+            maximum_seconds=1.0,
+            shortest_timeframe_seconds=60,
+            close_boundary_distance_seconds=30.0,
+            plan_mode=module.ROLLOVER_EXACT_MIDPOINT_MODE,
+        ),
+    )
+    monkeypatch.setattr(
+        module,
+        "_monotonic_deadline_from_plan",
+        lambda **_kwargs: module.time.monotonic() - 1.0,
+    )
+    monkeypatch.setattr(module, "_write_status", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "_safe_set_json", lambda *_args, **_kwargs: True)
+    args = _args(
+        loop=False,
+        ws_base="wss://example.invalid/",
+        ttl_seconds=900,
+        max_candles=100,
+        heartbeat_interval_seconds=30.0,
+        enable_canonical_5m_label_archive=False,
+        status_path=str(tmp_path / "status.json"),
+        public_path=str(tmp_path / "public.json"),
+        worklog_path=str(tmp_path / "worklog.json"),
+    )
+
+    assert await module.run_loop(args) == 0
+    assert created.index("consume") < created.index("adopt")
 
 
 @pytest.mark.asyncio

@@ -91,6 +91,16 @@ BINANCE_WSS_CLOSED_WINDOW_PRODUCER_ROLE: Final = (
 BINANCE_REST_CLOSED_WINDOW_PRODUCER_ROLE: Final = (
     "BINANCE_USDM_KLINE_REST_CANONICAL_CLOSED_WINDOW_V1"
 )
+EXISTING_CLOSED_WINDOW_ADOPTER_ROLE: Final = (
+    "CANONICAL_CLOSED_WINDOW_EXISTING_PAYLOAD_ADOPTER_V1"
+)
+_KNOWN_PUBLICATION_ROLES: Final = frozenset(
+    {
+        BINANCE_WSS_CLOSED_WINDOW_PRODUCER_ROLE,
+        BINANCE_REST_CLOSED_WINDOW_PRODUCER_ROLE,
+        EXISTING_CLOSED_WINDOW_ADOPTER_ROLE,
+    }
+)
 
 _AUTHORITY_FIELDS: Final = (
     "trainer_admission_authorized",
@@ -152,6 +162,23 @@ if byte_count > tonumber(ARGV[1]) then
 end
 local payload = redis.call('GETRANGE', KEYS[1], 0, byte_count - 1)
 return {kind, ttl, byte_count, payload}
+""".strip()
+
+_ADOPTION_BOUNDED_READ_LUA: Final = """
+-- canonical_closed_ohlcv_adoption_bounded_read_v1
+local kind_reply = redis.call('TYPE', KEYS[1])
+local kind = kind_reply['ok']
+local ttl = redis.call('PTTL', KEYS[1])
+local observed = redis.call('TIME')
+if kind ~= 'string' then
+    return {kind, ttl, 0, false, observed[1], observed[2]}
+end
+local byte_count = redis.call('STRLEN', KEYS[1])
+if byte_count > tonumber(ARGV[1]) then
+    return {kind, ttl, byte_count, false, observed[1], observed[2]}
+end
+local payload = redis.call('GETRANGE', KEYS[1], 0, byte_count - 1)
+return {kind, ttl, byte_count, payload, observed[1], observed[2]}
 """.strip()
 
 _PREPARE_PUBLICATION_LUA: Final = r"""
@@ -297,6 +324,71 @@ local observed = redis.call("TIME")
 return {commit_status, observed[1], observed[2], committed_receipt}
 """.strip()
 
+_COMMIT_ADOPTED_PUBLICATION_RECEIPT_LUA: Final = r"""
+-- canonical_closed_ohlcv_adoption_commit_v1
+local canonical_key = KEYS[1]
+local archive_key = KEYS[2]
+local receipt_key = KEYS[3]
+local pointer_key = KEYS[4]
+local payload = ARGV[1]
+local receipt_payload = ARGV[2]
+local revision_id = ARGV[3]
+local receipt_ttl = tonumber(ARGV[4])
+local max_payload = tonumber(ARGV[5])
+local max_receipt = tonumber(ARGV[6])
+
+-- Adoption is a migration bridge, never a source-writer replacement. If a
+-- writer publishes any pointer after the adoption WATCH/PREPARE boundary,
+-- retry and validate that writer's exact receipt instead of overwriting it.
+if redis.call("TYPE", pointer_key)["ok"] ~= "none" then
+  return {"RETRY", "LATEST_POINTER_APPEARED_BEFORE_ADOPTION_COMMIT"}
+end
+if string.len(payload) == 0 or string.len(payload) > max_payload then
+  return {"ERROR", "PAYLOAD_ARGUMENT_SIZE_INVALID"}
+end
+if string.len(receipt_payload) == 0 or string.len(receipt_payload) > max_receipt then
+  return {"ERROR", "RECEIPT_ARGUMENT_SIZE_INVALID"}
+end
+if redis.call("TYPE", canonical_key)["ok"] ~= "string"
+   or redis.call("STRLEN", canonical_key) > max_payload
+   or redis.call("GET", canonical_key) ~= payload then
+  return {"RETRY", "CANONICAL_KEY_CHANGED_BEFORE_ADOPTION_COMMIT"}
+end
+if redis.call("TYPE", archive_key)["ok"] ~= "string"
+   or redis.call("STRLEN", archive_key) > max_payload
+   or redis.call("GET", archive_key) ~= payload then
+  return {"ERROR", "ADOPTION_ARCHIVE_CHANGED_BEFORE_RECEIPT_COMMIT"}
+end
+if redis.call("PTTL", archive_key) <= receipt_ttl * 1000 then
+  return {"ERROR", "ARCHIVE_TTL_NOT_LONGER_THAN_RECEIPT"}
+end
+local receipt_type = redis.call("TYPE", receipt_key)["ok"]
+if receipt_type ~= "none" and receipt_type ~= "string" then
+  return {"ERROR", "RECEIPT_TYPE_INVALID"}
+end
+local committed_receipt = receipt_payload
+local commit_status = "COMMITTED"
+if receipt_type == "string" then
+  local receipt_len = redis.call("STRLEN", receipt_key)
+  if receipt_len == 0 or receipt_len > max_receipt then
+    return {"ERROR", "RECEIPT_SIZE_INVALID"}
+  end
+  committed_receipt = redis.call("GET", receipt_key)
+  if committed_receipt ~= receipt_payload then
+    return {"ERROR", "ADOPTION_RECEIPT_IDENTITY_CONFLICT"}
+  end
+  commit_status = "IDEMPOTENT"
+  if redis.call("EXPIRE", receipt_key, receipt_ttl) ~= 1 then
+    return {"ERROR", "RECEIPT_TTL_REFRESH_FAILED"}
+  end
+else
+  redis.call("SET", receipt_key, receipt_payload, "EX", receipt_ttl)
+end
+redis.call("SET", pointer_key, revision_id, "EX", receipt_ttl)
+local observed = redis.call("TIME")
+return {commit_status, observed[1], observed[2], committed_receipt}
+""".strip()
+
 _REOPEN_PUBLICATION_LUA: Final = r"""
 -- canonical_closed_ohlcv_publication_reopen_v1
 local canonical_key = KEYS[1]
@@ -411,6 +503,34 @@ class ClosedWindowRedisWriteResult:
     exact_source_schema_validated: bool = field(default=True, init=False)
     immutable_cas_captured: bool = field(default=False, init=False)
     publication_receipt_verified: bool = field(default=False, init=False)
+    trainer_admission_granted: bool = field(default=False, init=False)
+    prediction_authorized: bool = field(default=False, init=False)
+    paper_trading_authorized: bool = field(default=False, init=False)
+    live_execution_authorized: bool = field(default=False, init=False)
+
+
+@dataclass(frozen=True, slots=True)
+class ClosedWindowRedisAdoptionResult:
+    """Verified migration result without a legacy source-authenticity claim."""
+
+    redis_key: str
+    status: str
+    attempts: int
+    row_count: int
+    payload_sha256: str
+    payload_byte_count: int
+    previous_pttl_ms: int
+    revision_id: str
+    archive_key: str
+    receipt_key: str
+    latest_receipt_pointer_key: str
+    producer_role: str
+    receipt: Mapping[str, Any] = field(repr=False)
+    exact_source_schema_validated: bool = field(default=True, init=False)
+    immutable_cas_captured: bool = field(default=True, init=False)
+    publication_receipt_verified: bool = field(default=True, init=False)
+    producer_authenticity_verified: bool = field(default=False, init=False)
+    legacy_source_authenticity_verified: bool = field(default=False, init=False)
     trainer_admission_granted: bool = field(default=False, init=False)
     prediction_authorized: bool = field(default=False, init=False)
     paper_trading_authorized: bool = field(default=False, init=False)
@@ -1095,6 +1215,228 @@ def _validate_publication_receipt(
     return expected
 
 
+def _read_adoption_source_bounded(
+    pipe: Any,
+    *,
+    key: str,
+    symbol: str,
+    timeframe: str,
+    payload_cap: int,
+) -> tuple[bytes, ValidatedOHLCVClosedWindow, int, str]:
+    """Read one exact legacy window without decoding it through redis-py."""
+
+    response = pipe.eval(_ADOPTION_BOUNDED_READ_LUA, 1, key, payload_cap)
+    if type(response) is not list or len(response) != 6:
+        _invalid("closed_window_adoption_bounded_read_response_invalid")
+    redis_type = _redis_type(response[0])
+    previous_pttl_ms = _validated_pttl(response[1], redis_type=redis_type)
+    byte_count = response[2]
+    payload_response = response[3]
+    source_observed_at = _redis_clock(response[4], response[5])
+    if type(byte_count) is not int or not 0 <= byte_count <= _MAX_SIGNED_64:
+        _invalid("closed_window_adoption_payload_size_response_invalid")
+    if redis_type == "none":
+        if byte_count != 0 or payload_response is not None:
+            _invalid("closed_window_adoption_missing_key_read_inconsistent")
+        _invalid("closed_window_adoption_source_missing")
+    if redis_type != "string":
+        _invalid("closed_window_adoption_source_type_invalid")
+    if byte_count == 0 or byte_count > payload_cap:
+        _invalid("closed_window_adoption_payload_size_invalid")
+    payload = _exact_payload_bytes(
+        payload_response,
+        expected_byte_count=byte_count,
+    )
+    artifact = _validated_schema_artifact(
+        payload,
+        symbol=symbol,
+        timeframe=timeframe,
+        error_prefix="adoption_source",
+    )
+    observed_ms = int(_parse_clock(source_observed_at).timestamp() * 1000)
+    expected_latest_close = (
+        observed_ms // TIMEFRAME_DURATION_MS[timeframe]
+    ) * TIMEFRAME_DURATION_MS[timeframe] - 1
+    if (
+        artifact.max_available_at > observed_ms
+        or artifact.latest_economic_close_time > observed_ms
+    ):
+        _invalid("closed_window_adoption_source_not_yet_available")
+    if artifact.latest_economic_close_time != expected_latest_close:
+        _invalid("closed_window_adoption_source_latest_finalized_close_missing")
+    return payload, artifact, previous_pttl_ms, source_observed_at
+
+
+def _read_latest_pointer_bounded(pipe: Any, *, pointer_key: str) -> str | None:
+    response = pipe.eval(
+        _BOUNDED_READ_LUA,
+        1,
+        pointer_key,
+        len("v2_ohlcv_closed_") + 64,
+    )
+    if type(response) is not list or len(response) != 4:
+        _invalid("closed_window_adoption_pointer_read_response_invalid")
+    redis_type = _redis_type(response[0])
+    _validated_pttl(response[1], redis_type=redis_type)
+    byte_count = response[2]
+    raw = response[3]
+    if type(byte_count) is not int or not 0 <= byte_count <= _MAX_SIGNED_64:
+        _invalid("closed_window_adoption_pointer_size_response_invalid")
+    if redis_type == "none":
+        if byte_count != 0 or raw is not None:
+            _invalid("closed_window_adoption_missing_pointer_read_inconsistent")
+        return None
+    if redis_type != "string":
+        _invalid("closed_window_adoption_pointer_type_invalid")
+    if byte_count != len("v2_ohlcv_closed_") + 64:
+        _invalid("closed_window_adoption_pointer_size_invalid")
+    pointer_raw = _exact_payload_bytes(raw, expected_byte_count=byte_count)
+    try:
+        revision_id = pointer_raw.decode("ascii", errors="strict")
+    except UnicodeDecodeError:
+        _invalid("closed_window_adoption_pointer_invalid")
+    if _REVISION_ID_RE.fullmatch(revision_id) is None:
+        _invalid("closed_window_adoption_pointer_invalid")
+    return revision_id
+
+
+def _rederive_existing_publication_receipt(
+    *,
+    receipt: Mapping[str, Any],
+    artifact: ValidatedOHLCVClosedWindow,
+    canonical_key: str,
+    archive_key: str,
+    receipt_key: str,
+    pointer_key: str,
+    revision_id: str,
+) -> tuple[dict[str, Any], str]:
+    """Fully rederive a Redis receipt; its own fields are never trusted alone."""
+
+    if frozenset(receipt) != _RECEIPT_FIELDS:
+        _invalid("closed_window_publication_receipt_fields_invalid")
+    producer_role = _validated_producer_role(receipt.get("producer_role"))
+    if producer_role not in _KNOWN_PUBLICATION_ROLES:
+        _invalid("closed_window_publication_receipt_producer_role_unrecognized")
+    producer_code_sha256 = _validated_sha256(
+        receipt.get("producer_code_sha256"),
+        field_name="producer_code_sha256",
+    )
+    producer_config_sha256 = _validated_sha256(
+        receipt.get("producer_config_sha256"),
+        field_name="producer_config_sha256",
+    )
+    ttl_policy, mutable_ttl_seconds = _validated_ttl_policy(
+        receipt.get("ttl_policy"),
+        receipt.get("mutable_ttl_seconds"),
+    )
+    receipt_ttl_seconds, archive_ttl_seconds = _validated_publication_ttls(
+        ttl_policy=ttl_policy,
+        mutable_ttl_seconds=mutable_ttl_seconds,
+        receipt_ttl_seconds=receipt.get("receipt_ttl_seconds"),
+        archive_ttl_seconds=receipt.get("archive_ttl_seconds"),
+    )
+    rederived_revision_id = _publication_revision_id(
+        canonical_key=canonical_key,
+        payload_sha256=artifact.exact_payload_sha256,
+        payload_byte_count=artifact.exact_payload_byte_count,
+        producer_role=producer_role,
+        producer_code_sha256=producer_code_sha256,
+        producer_config_sha256=producer_config_sha256,
+        ttl_policy=ttl_policy,
+        mutable_ttl_seconds=mutable_ttl_seconds,
+        receipt_ttl_seconds=receipt_ttl_seconds,
+        archive_ttl_seconds=archive_ttl_seconds,
+    )
+    if rederived_revision_id != revision_id:
+        _invalid("closed_window_publication_receipt_revision_rederivation_mismatch")
+    return (
+        _validate_publication_receipt(
+            receipt=receipt,
+            artifact=artifact,
+            canonical_key=canonical_key,
+            archive_key=archive_key,
+            receipt_key=receipt_key,
+            pointer_key=pointer_key,
+            revision_id=revision_id,
+            producer_role=producer_role,
+            producer_code_sha256=producer_code_sha256,
+            producer_config_sha256=producer_config_sha256,
+            ttl_policy=ttl_policy,
+            mutable_ttl_seconds=mutable_ttl_seconds,
+            receipt_ttl_seconds=receipt_ttl_seconds,
+            archive_ttl_seconds=archive_ttl_seconds,
+        ),
+        producer_role,
+    )
+
+
+def _reopen_existing_publication(
+    client: object,
+    *,
+    canonical_key: str,
+    payload: bytes,
+    artifact: ValidatedOHLCVClosedWindow,
+    symbol: str,
+    timeframe: str,
+    revision_id: str,
+    payload_cap: int,
+) -> tuple[dict[str, Any], str, str]:
+    archive_key, receipt_key, pointer_key = _publication_keys(
+        revision_id=revision_id,
+        symbol=symbol,
+        timeframe=timeframe,
+    )
+    reopened = _publication_response(
+        _redis_eval(
+            client,
+            _REOPEN_PUBLICATION_LUA,
+            (canonical_key, archive_key, receipt_key, pointer_key),
+            (
+                payload,
+                revision_id,
+                payload_cap,
+                CLOSED_WINDOW_MAX_RECEIPT_BYTES,
+            ),
+        ),
+        expected_size=9,
+        expected_statuses=("REOPENED",),
+    )
+    reopened_payload = _exact_payload_bytes(
+        reopened[1],
+        expected_byte_count=artifact.exact_payload_byte_count,
+    )
+    if reopened_payload != payload:
+        _invalid("closed_window_adoption_archive_reopen_mismatch")
+    reopened_artifact = _validated_schema_artifact(
+        reopened_payload,
+        symbol=symbol,
+        timeframe=timeframe,
+        error_prefix="adoption_reopened",
+    )
+    if reopened_artifact != artifact:
+        _invalid("closed_window_adoption_artifact_reopen_mismatch")
+    receipt, producer_role = _rederive_existing_publication_receipt(
+        receipt=_parse_receipt(reopened[2]),
+        artifact=reopened_artifact,
+        canonical_key=canonical_key,
+        archive_key=archive_key,
+        receipt_key=receipt_key,
+        pointer_key=pointer_key,
+        revision_id=revision_id,
+    )
+    if _response_text(reopened[3]) != revision_id:
+        _invalid("closed_window_adoption_pointer_reopen_mismatch")
+    for value in reopened[4:7]:
+        if type(value) is not int or value <= 0:
+            _invalid("closed_window_adoption_ttl_response_invalid")
+    if reopened[4] <= reopened[5] or reopened[4] <= reopened[6]:
+        _invalid("closed_window_adoption_ttl_order_invalid")
+    reopened_at = _redis_clock(reopened[7], reopened[8])
+    if _parse_clock(receipt["publication_available_at"]) > _parse_clock(reopened_at):
+        _invalid("closed_window_adoption_receipt_from_future")
+    return receipt, producer_role, reopened_at
+
+
 def _read_existing_bounded(
     pipe: Any,
     *,
@@ -1649,6 +1991,284 @@ def atomic_merge_closed_window(
                 with suppress(Exception):
                     pipe.reset()
     _invalid("closed_window_concurrent_write_retry_exhausted")
+
+
+def adopt_existing_closed_window_publication(
+    client: object,
+    *,
+    redis_key: object,
+    adopter_code_sha256: object,
+    adopter_config_sha256: object,
+    max_payload_bytes: object = CLOSED_WINDOW_MAX_PAYLOAD_BYTES,
+    max_retries: object = 8,
+) -> ClosedWindowRedisAdoptionResult:
+    """Receipt exact existing bytes without asserting their legacy origin.
+
+    The compatibility key and latest pointer are watched together. A valid
+    current WSS, REST, or prior adopter receipt is atomically reopened and
+    retained. Only a missing pointer permits adoption, and the adoption commit
+    independently refuses a pointer that appears after PREPARE.
+    """
+
+    key, _exchange, symbol, timeframe = _validated_key(redis_key)
+    payload_cap = _exact_int(
+        max_payload_bytes,
+        field_name="max_payload_bytes",
+        minimum=2,
+        maximum=CLOSED_WINDOW_MAX_PAYLOAD_BYTES,
+    )
+    retries = _exact_int(
+        max_retries,
+        field_name="max_retries",
+        minimum=1,
+        maximum=CLOSED_WINDOW_MAX_WRITE_RETRIES,
+    )
+    code_sha256 = _validated_sha256(
+        adopter_code_sha256,
+        field_name="producer_code_sha256",
+    )
+    config_sha256 = _validated_sha256(
+        adopter_config_sha256,
+        field_name="producer_config_sha256",
+    )
+    receipt_ttl_seconds, archive_ttl_seconds = (
+        cadence_bounded_publication_ttls(timeframe)
+    )
+    if (
+        client is None
+        or not callable(getattr(client, "pipeline", None))
+        or not callable(getattr(client, "eval", None))
+    ):
+        _invalid("closed_window_redis_client_invalid")
+    pointer_key = (
+        f"{CLOSED_WINDOW_RECEIPT_LATEST_KEY_PREFIX}binance:{symbol}:{timeframe}"
+    )
+
+    for attempt in range(1, retries + 1):
+        pipe: Any = None
+        try:
+            pipe = cast(Any, client).pipeline(transaction=True)
+            pipe.watch(key, pointer_key)
+            (
+                payload,
+                artifact,
+                previous_pttl_ms,
+                _source_observed_at,
+            ) = _read_adoption_source_bounded(
+                pipe,
+                key=key,
+                symbol=symbol,
+                timeframe=timeframe,
+                payload_cap=payload_cap,
+            )
+            existing_revision_id = _read_latest_pointer_bounded(
+                pipe,
+                pointer_key=pointer_key,
+            )
+            if existing_revision_id is not None:
+                receipt, producer_role, _reopened_at = (
+                    _reopen_existing_publication(
+                        client,
+                        canonical_key=key,
+                        payload=payload,
+                        artifact=artifact,
+                        symbol=symbol,
+                        timeframe=timeframe,
+                        revision_id=existing_revision_id,
+                        payload_cap=payload_cap,
+                    )
+                )
+                archive_key, receipt_key, exact_pointer_key = _publication_keys(
+                    revision_id=existing_revision_id,
+                    symbol=symbol,
+                    timeframe=timeframe,
+                )
+                return ClosedWindowRedisAdoptionResult(
+                    redis_key=key,
+                    status="ALREADY_RECEIPTED",
+                    attempts=attempt,
+                    row_count=artifact.row_count,
+                    payload_sha256=artifact.exact_payload_sha256,
+                    payload_byte_count=artifact.exact_payload_byte_count,
+                    previous_pttl_ms=previous_pttl_ms,
+                    revision_id=existing_revision_id,
+                    archive_key=archive_key,
+                    receipt_key=receipt_key,
+                    latest_receipt_pointer_key=exact_pointer_key,
+                    producer_role=producer_role,
+                    receipt=receipt,
+                )
+
+            revision_id = _publication_revision_id(
+                canonical_key=key,
+                payload_sha256=artifact.exact_payload_sha256,
+                payload_byte_count=artifact.exact_payload_byte_count,
+                producer_role=EXISTING_CLOSED_WINDOW_ADOPTER_ROLE,
+                producer_code_sha256=code_sha256,
+                producer_config_sha256=config_sha256,
+                ttl_policy="preserve",
+                mutable_ttl_seconds=None,
+                receipt_ttl_seconds=receipt_ttl_seconds,
+                archive_ttl_seconds=archive_ttl_seconds,
+            )
+            archive_key, receipt_key, exact_pointer_key = _publication_keys(
+                revision_id=revision_id,
+                symbol=symbol,
+                timeframe=timeframe,
+            )
+            if exact_pointer_key != pointer_key:
+                _invalid("closed_window_adoption_pointer_derivation_mismatch")
+
+            pipe.multi()
+            pipe.eval(
+                _PREPARE_PUBLICATION_LUA,
+                3,
+                key,
+                archive_key,
+                receipt_key,
+                payload,
+                archive_ttl_seconds,
+                receipt_ttl_seconds,
+                0,
+                "preserve",
+                payload_cap,
+                CLOSED_WINDOW_MAX_RECEIPT_BYTES,
+            )
+            outcome = pipe.execute()
+            if type(outcome) is not list or len(outcome) != 1:
+                _invalid("closed_window_adoption_prepare_not_acknowledged")
+            prepared = _publication_response(
+                outcome[0],
+                expected_size=4,
+                expected_statuses=("PREPARED", "IDEMPOTENT_PREPARED"),
+            )
+            prepare_status = _response_text(prepared[0])
+            prepare_observed_at = _redis_clock(prepared[1], prepared[2])
+            if prepare_status == "PREPARED":
+                if prepared[3] is not None:
+                    _invalid("closed_window_adoption_prepare_response_invalid")
+                receipt = _build_publication_receipt(
+                    artifact=artifact,
+                    canonical_key=key,
+                    archive_key=archive_key,
+                    receipt_key=receipt_key,
+                    pointer_key=pointer_key,
+                    revision_id=revision_id,
+                    publication_available_at=prepare_observed_at,
+                    producer_role=EXISTING_CLOSED_WINDOW_ADOPTER_ROLE,
+                    producer_code_sha256=code_sha256,
+                    producer_config_sha256=config_sha256,
+                    ttl_policy="preserve",
+                    mutable_ttl_seconds=None,
+                    receipt_ttl_seconds=receipt_ttl_seconds,
+                    archive_ttl_seconds=archive_ttl_seconds,
+                )
+            else:
+                receipt = _validate_publication_receipt(
+                    receipt=_parse_receipt(prepared[3]),
+                    artifact=artifact,
+                    canonical_key=key,
+                    archive_key=archive_key,
+                    receipt_key=receipt_key,
+                    pointer_key=pointer_key,
+                    revision_id=revision_id,
+                    producer_role=EXISTING_CLOSED_WINDOW_ADOPTER_ROLE,
+                    producer_code_sha256=code_sha256,
+                    producer_config_sha256=config_sha256,
+                    ttl_policy="preserve",
+                    mutable_ttl_seconds=None,
+                    receipt_ttl_seconds=receipt_ttl_seconds,
+                    archive_ttl_seconds=archive_ttl_seconds,
+                )
+            receipt_raw = _canonical_json_bytes(
+                receipt,
+                maximum=CLOSED_WINDOW_MAX_RECEIPT_BYTES,
+            )
+            committed = _publication_response(
+                _redis_eval(
+                    client,
+                    _COMMIT_ADOPTED_PUBLICATION_RECEIPT_LUA,
+                    (key, archive_key, receipt_key, pointer_key),
+                    (
+                        payload,
+                        receipt_raw,
+                        revision_id,
+                        receipt_ttl_seconds,
+                        payload_cap,
+                        CLOSED_WINDOW_MAX_RECEIPT_BYTES,
+                    ),
+                ),
+                expected_size=4,
+                expected_statuses=("COMMITTED", "IDEMPOTENT"),
+            )
+            receipt_postcommit_at = _redis_clock(committed[1], committed[2])
+            committed_receipt = _validate_publication_receipt(
+                receipt=_parse_receipt(committed[3]),
+                artifact=artifact,
+                canonical_key=key,
+                archive_key=archive_key,
+                receipt_key=receipt_key,
+                pointer_key=pointer_key,
+                revision_id=revision_id,
+                producer_role=EXISTING_CLOSED_WINDOW_ADOPTER_ROLE,
+                producer_code_sha256=code_sha256,
+                producer_config_sha256=config_sha256,
+                ttl_policy="preserve",
+                mutable_ttl_seconds=None,
+                receipt_ttl_seconds=receipt_ttl_seconds,
+                archive_ttl_seconds=archive_ttl_seconds,
+            )
+            reopened_receipt, producer_role, reopened_at = (
+                _reopen_existing_publication(
+                    client,
+                    canonical_key=key,
+                    payload=payload,
+                    artifact=artifact,
+                    symbol=symbol,
+                    timeframe=timeframe,
+                    revision_id=revision_id,
+                    payload_cap=payload_cap,
+                )
+            )
+            if (
+                reopened_receipt != committed_receipt
+                or producer_role != EXISTING_CLOSED_WINDOW_ADOPTER_ROLE
+            ):
+                _invalid("closed_window_adoption_receipt_reopen_mismatch")
+            prepare_clock = _parse_clock(prepare_observed_at)
+            commit_clock = _parse_clock(receipt_postcommit_at)
+            reopen_clock = _parse_clock(reopened_at)
+            if not prepare_clock <= commit_clock <= reopen_clock:
+                _invalid("closed_window_adoption_clock_order_invalid")
+            return ClosedWindowRedisAdoptionResult(
+                redis_key=key,
+                status="ADOPTED_EXISTING_PAYLOAD",
+                attempts=attempt,
+                row_count=artifact.row_count,
+                payload_sha256=artifact.exact_payload_sha256,
+                payload_byte_count=artifact.exact_payload_byte_count,
+                previous_pttl_ms=previous_pttl_ms,
+                revision_id=revision_id,
+                archive_key=archive_key,
+                receipt_key=receipt_key,
+                latest_receipt_pointer_key=pointer_key,
+                producer_role=producer_role,
+                receipt=reopened_receipt,
+            )
+        except (redis.WatchError, _ClosedWindowConcurrentMutation):
+            if attempt >= retries:
+                _invalid("closed_window_adoption_concurrent_write_retry_exhausted")
+        except ClosedWindowRedisStoreError:
+            raise
+        except Exception as exc:
+            raise ClosedWindowRedisStoreError(
+                f"closed_window_redis_operation_failed:{type(exc).__name__}"
+            ) from exc
+        finally:
+            if pipe is not None:
+                with suppress(Exception):
+                    pipe.reset()
+    _invalid("closed_window_adoption_concurrent_write_retry_exhausted")
 
 
 def require_verified_closed_window_publication(
