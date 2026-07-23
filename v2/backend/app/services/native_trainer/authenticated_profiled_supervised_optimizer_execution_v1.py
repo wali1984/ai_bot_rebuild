@@ -96,6 +96,9 @@ LOCALLY_AUTHENTICATED_PROFILED_RESEARCH_OPTIMIZER_EXECUTION_V1_STATUS: Final = (
 LOCAL_PROFILED_RESEARCH_AUTHORIZATION_DOMAIN: Final = (
     "v2/native-trainer/local-profiled-research-optimizer-authorization/v1"
 )
+_SAFE_STATIC_VALUE_ERROR_CHARACTERS: Final = frozenset(
+    "abcdefghijklmnopqrstuvwxyz0123456789_"
+)
 
 _SUCCESS_STATUSES: Final = frozenset(
     {
@@ -221,6 +224,19 @@ def _canonical_clock(value: object, *, reason: str) -> str:
 
 def _utc_now() -> datetime:
     return datetime.now(tz=UTC)
+
+
+def _safe_static_value_error_reason(error: BaseException) -> str | None:
+    if type(error) is not ValueError:
+        return None
+    value = str(error)
+    if (
+        not 1 <= len(value) <= 128
+        or value[0] not in "abcdefghijklmnopqrstuvwxyz"
+        or any(character not in _SAFE_STATIC_VALUE_ERROR_CHARACTERS for character in value)
+    ):
+        return None
+    return f"PROFILED_LOCAL_RESEARCH_VALUE_ERROR:{value.upper()}"
 
 
 class _StageClock:
@@ -2959,9 +2975,11 @@ def execute_locally_authenticated_profiled_research_optimizer_v1(
             candidate_model=candidate_model,
             rollback_state=rollback_state,
         )
-        raise AuthenticatedProfiledSupervisedOptimizerExecutionV1Error(
-            f"PROFILED_LOCAL_RESEARCH_EXECUTION_FAILED:{type(exc).__name__}"
-        ) from exc
+        safe_value_error_reason = _safe_static_value_error_reason(exc)
+        reasons = [f"PROFILED_LOCAL_RESEARCH_EXECUTION_FAILED:{type(exc).__name__}"]
+        if safe_value_error_reason is not None:
+            reasons.append(safe_value_error_reason)
+        raise AuthenticatedProfiledSupervisedOptimizerExecutionV1Error(*reasons) from exc
 
 
 def validate_locally_authenticated_profiled_research_execution_owner_v1(

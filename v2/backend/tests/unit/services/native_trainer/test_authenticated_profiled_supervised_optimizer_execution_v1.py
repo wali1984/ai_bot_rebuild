@@ -55,6 +55,25 @@ def _parse_clock(value: str) -> datetime:
     return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(UTC)
 
 
+@pytest.mark.parametrize(
+    ("error", "expected"),
+    (
+        (
+            ValueError("authenticated_profiled_optimizer_contract_invalid"),
+            "PROFILED_LOCAL_RESEARCH_VALUE_ERROR:"
+            "AUTHENTICATED_PROFILED_OPTIMIZER_CONTRACT_INVALID",
+        ),
+        (ValueError("unsafe payload: /private/path"), None),
+        (RuntimeError("authenticated_profiled_optimizer_contract_invalid"), None),
+    ),
+)
+def test_safe_static_value_error_reason_redacts_unstructured_messages(
+    error: BaseException,
+    expected: str | None,
+) -> None:
+    assert execution_module._safe_static_value_error_reason(error) == expected  # noqa: SLF001
+
+
 def _configure_cpu(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
     monkeypatch.setenv("V2_TRAINER_HIDDEN_SIZE", "128")
