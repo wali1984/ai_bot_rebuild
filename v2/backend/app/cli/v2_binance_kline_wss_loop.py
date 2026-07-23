@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import hashlib
 import json
 import math
 import os
@@ -30,10 +31,13 @@ from v2.backend.app.services.market_state_integrity.canonical_candles import (
     current_candle_key,
 )
 from v2.backend.app.services.market_state_integrity.closed_window_redis_store import (
+    BINANCE_WSS_CLOSED_WINDOW_PRODUCER_ROLE,
     CLOSED_WINDOW_MAX_ROWS,
     ClosedWindowRedisStoreError,
     ClosedWindowRedisWriteResult,
     atomic_merge_closed_window,
+    cadence_bounded_publication_ttls,
+    require_verified_closed_window_publication,
 )
 from v2.backend.app.services.native_trainer.canonical_5m_label_outbox import (
     DEFAULT_MAX_PENDING_ROWS,
@@ -67,6 +71,9 @@ except Exception:  # pragma: no cover
 
 
 WORKER_ID = "v2_binance_kline_wss_loop"
+_LOADED_CLOSED_WINDOW_PRODUCER_CODE_SHA256 = hashlib.sha256(
+    Path(__file__).read_bytes()
+).hexdigest()
 DEFAULT_TIMEFRAMES = ("1m", "5m", "15m", "1h", "4h")
 ROLLOVER_TIMING_POLICY = "SHORTEST_TIMEFRAME_MIDPOINT_WITH_BOUNDED_FALLBACK_V2"
 ROLLOVER_GAP_CLASSIFICATION = "MITIGATION_NOT_CONTINUITY_PROOF"
@@ -1233,15 +1240,49 @@ def _publish_closed_window(
     )
     if client is None:
         raise ClosedWindowRedisStoreError("closed_window_redis_unavailable")
+    timeframe = row.get("timeframe")
+    receipt_ttl_seconds, archive_ttl_seconds = (
+        cadence_bounded_publication_ttls(timeframe)
+    )
+    interval_ms = (
+        TIMEFRAME_DURATION_MS.get(timeframe) if type(timeframe) is str else None
+    )
+    if interval_ms is None:
+        raise ClosedWindowRedisStoreError("closed_window_timeframe_unsupported")
+    producer_config_sha256 = hashlib.sha256(
+        json.dumps(
+            {
+                "schema_version": "binance_wss_closed_window_publication_config_v1",
+                "worker_id": WORKER_ID,
+                "row_limit": row_limit,
+                "ttl_policy": "set",
+                "mutable_ttl_seconds": ttl_seconds,
+                "receipt_ttl_seconds": receipt_ttl_seconds,
+                "archive_ttl_seconds": archive_ttl_seconds,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("ascii")
+    ).hexdigest()
     try:
-        return atomic_merge_closed_window(
+        result = atomic_merge_closed_window(
             client,
             redis_key=key,
             new_rows=(row,),
+            producer_role=BINANCE_WSS_CLOSED_WINDOW_PRODUCER_ROLE,
+            producer_code_sha256=_LOADED_CLOSED_WINDOW_PRODUCER_CODE_SHA256,
+            producer_config_sha256=producer_config_sha256,
+            receipt_ttl_seconds=receipt_ttl_seconds,
+            archive_ttl_seconds=archive_ttl_seconds,
             row_limit=row_limit,
             ttl_policy="set",
             ttl_seconds=ttl_seconds,
             replace_invalid_existing=False,
+        )
+        return require_verified_closed_window_publication(
+            result,
+            expected_redis_key=key,
+            expected_producer_role=BINANCE_WSS_CLOSED_WINDOW_PRODUCER_ROLE,
         )
     except ClosedWindowRedisStoreError as exc:
         if (
@@ -1897,7 +1938,8 @@ async def _consume_chunk(
                         # perpetually reset history to a single row (destroying
                         # REST backfills). Keep the CLI TTL as a floor only.
                         # Explicit SET TTL preserves the deployed refresh policy
-                        # while WATCH/MULTI/EXEC removes lost concurrent writes.
+                        # while the WATCH-bound receipt protocol removes lost
+                        # writes and verifies the exact immutable revision.
                         closed_ttl = _closed_window_ttl_seconds(
                             timeframe,
                             ttl_seconds,

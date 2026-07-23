@@ -128,7 +128,7 @@ def _write_result(
     existing_rows: int = 1,
     stored_rows: int = 71,
 ) -> ClosedWindowRedisWriteResult:
-    return ClosedWindowRedisWriteResult(
+    result = ClosedWindowRedisWriteResult(
         redis_key="v2:market:ohlcv_closed:binance:BTCUSDT:1m",
         attempts=1,
         existing_row_count=existing_rows,
@@ -142,7 +142,27 @@ def _write_result(
         ttl_seconds=86_400,
         previous_pttl_ms=-1,
         invalid_existing_replaced=replaced,
+        revision_id=f"v2_ohlcv_closed_{'c' * 64}",
+        archive_key="v2:market:ohlcv_closed:archive:binance:BTCUSDT:1m:test",
+        receipt_key="v2:market:ohlcv_closed:publication_receipt:test",
+        latest_receipt_pointer_key=(
+            "v2:market:ohlcv_closed:publication_receipt:latest:binance:BTCUSDT:1m"
+        ),
+        publication_available_at="2026-07-18T00:00:00.000000Z",
+        prepare_observed_at="2026-07-18T00:00:00.000000Z",
+        receipt_postcommit_observed_at="2026-07-18T00:00:00.001000Z",
+        consumer_reopened_at="2026-07-18T00:00:00.002000Z",
+        receipt_sha256="d" * 64,
+        producer_role=backfill.BINANCE_REST_CLOSED_WINDOW_PRODUCER_ROLE,
+        producer_code_sha256="e" * 64,
+        producer_config_sha256="f" * 64,
+        receipt_ttl_seconds=86_400,
+        archive_ttl_seconds=172_800,
+        receipt={},
     )
+    object.__setattr__(result, "immutable_cas_captured", True)
+    object.__setattr__(result, "publication_receipt_verified", True)
+    return result
 
 
 def test_redis_factory_requires_binary_responses(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -801,11 +821,43 @@ def test_nonready_cache_forces_rest_filters_overlap_and_merges_atomically(
     assert call["replace_invalid_existing"] is replace_invalid_existing
     assert call["ttl_policy"] == "set"
     assert call["ttl_seconds"] == 86_400
+    assert call["receipt_ttl_seconds"] == 180
+    assert call["archive_ttl_seconds"] == 240
+    assert call["producer_role"] == backfill.BINANCE_REST_CLOSED_WINDOW_PRODUCER_ROLE
+    assert len(call["producer_code_sha256"]) == 64
+    assert len(call["producer_config_sha256"]) == 64
     assert call["minimum_rows_to_preserve"] == 71
     assert outcome["write_committed"] is True
     assert outcome["closed_ingested"] == 71
     assert outcome["cache_ready_after"] is True
     assert outcome["recovery_status"] == "write_committed_cache_ready"
+
+
+def test_rest_backfill_rejects_unreceipted_atomic_write_result(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    raw_rows = [_rest_row(OBSERVED_MS - (index * 60_000)) for index in range(72, 0, -1)]
+    before = _assessment(ready=False, status="cache_missing")
+    monkeypatch.setattr(backfill, "_assess_closed_window", lambda *_args: before)
+    monkeypatch.setattr(
+        backfill,
+        "_fetch_rest_klines",
+        lambda *_args: (raw_rows, OBSERVED_MS, OBSERVED_MS),
+    )
+    unreceipted = _write_result(stored_rows=72)
+    object.__setattr__(unreceipted, "immutable_cas_captured", False)
+    object.__setattr__(unreceipted, "publication_receipt_verified", False)
+    monkeypatch.setattr(
+        backfill,
+        "atomic_merge_closed_window",
+        lambda *_args, **_kwargs: unreceipted,
+    )
+
+    with pytest.raises(
+        backfill.KlineBackfillRecoveryError,
+        match="publication_receipt_required",
+    ):
+        backfill._backfill_symbol_tf(_BinaryClient(), "BTCUSDT", "1m")
 
 
 def test_closed_ingested_is_conservative_when_row_limit_keeps_count_flat() -> None:

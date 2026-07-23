@@ -1,7 +1,14 @@
 from __future__ import annotations
 
+import hashlib
 import json
+import shutil
+import subprocess
+import time
+from collections.abc import Iterator
 from dataclasses import fields
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -12,12 +19,18 @@ from v2.backend.app.services.market_state_integrity.canonical_candles import (
     canonical_from_binance_wss,
 )
 from v2.backend.app.services.market_state_integrity.closed_window_redis_store import (
+    BINANCE_REST_CLOSED_WINDOW_PRODUCER_ROLE,
     CLOSED_WINDOW_MAX_PAYLOAD_BYTES,
+    CLOSED_WINDOW_MAX_RECEIPT_BYTES,
     ClosedWindowRedisStoreError,
     ClosedWindowRedisWriteResult,
-    atomic_merge_closed_window,
+    cadence_bounded_publication_ttls,
     merge_closed_window_rows,
+    require_verified_closed_window_publication,
     serialize_bounded_closed_window,
+)
+from v2.backend.app.services.market_state_integrity.closed_window_redis_store import (
+    atomic_merge_closed_window as _atomic_merge_closed_window,
 )
 from v2.backend.app.services.native_trainer.ohlcv_closed_window_schema import (
     MAX_OHLCV_CLOSED_PAYLOAD_BYTES,
@@ -26,6 +39,70 @@ from v2.backend.app.services.native_trainer.ohlcv_closed_window_schema import (
 
 KEY = "v2:market:ohlcv_closed:binance:BTCUSDT:1m"
 BASE_MS = 1_800_000_000_000
+CODE_SHA256 = "a" * 64
+CONFIG_SHA256 = "b" * 64
+RECEIPT_TTL_SECONDS = 86_400
+ARCHIVE_TTL_SECONDS = 172_800
+
+
+def atomic_merge_closed_window(client: object, **kwargs: Any) -> ClosedWindowRedisWriteResult:
+    kwargs.setdefault("producer_role", BINANCE_REST_CLOSED_WINDOW_PRODUCER_ROLE)
+    kwargs.setdefault("producer_code_sha256", CODE_SHA256)
+    kwargs.setdefault("producer_config_sha256", CONFIG_SHA256)
+    kwargs.setdefault("receipt_ttl_seconds", RECEIPT_TTL_SECONDS)
+    kwargs.setdefault("archive_ttl_seconds", ARCHIVE_TTL_SECONDS)
+    return _atomic_merge_closed_window(client, **kwargs)
+
+
+@pytest.fixture()  # type: ignore[misc]
+def redis_socket(tmp_path: Path) -> Iterator[str]:
+    executable = shutil.which("redis-server")
+    if executable is None:
+        pytest.skip("redis-server is required for the atomic Lua contract test")
+    socket_path = str(tmp_path / "redis.sock")
+    process = subprocess.Popen(  # noqa: S603 - fixed local executable and arguments
+        [
+            executable,
+            "--port",
+            "0",
+            "--save",
+            "",
+            "--appendonly",
+            "no",
+            "--unixsocket",
+            socket_path,
+            "--unixsocketperm",
+            "700",
+            "--dir",
+            str(tmp_path),
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    deadline = time.monotonic() + 5.0
+    client: redis.Redis | None = None
+    while time.monotonic() < deadline:
+        try:
+            client = redis.Redis(unix_socket_path=socket_path, decode_responses=False)
+            if client.ping():
+                break
+        except (OSError, redis.RedisError):
+            time.sleep(0.02)
+    else:
+        process.terminate()
+        process.wait(timeout=5)
+        pytest.fail("ephemeral redis-server did not become ready")
+    assert client is not None
+    client.flushdb()
+    try:
+        yield socket_path
+    finally:
+        process.terminate()
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=5)
 
 
 def _canonical_row(
@@ -106,8 +183,8 @@ def _payload(rows: list[dict[str, Any]]) -> str:
 
 def _stored_text(client: _FakeRedis, key: str = KEY) -> str:
     raw = client.store[key]
-    assert type(raw) is str
-    return raw
+    assert type(raw) in (str, bytes)
+    return raw if type(raw) is str else raw.decode("ascii")
 
 
 class _FakeRedis:
@@ -131,11 +208,131 @@ class _FakeRedis:
         self.pipeline_calls = 0
         self.bounded_read_calls = 0
         self.max_payload_bytes_returned = 0
+        self.clock_us = 2_000_000_000_000_000
+        self.before_commit: Any = None
+        self.before_reopen: Any = None
+        self.inject_competing_valid_receipt = False
+
+    @staticmethod
+    def _raw(value: object) -> bytes:
+        if type(value) is bytes:
+            return value
+        if type(value) is str:
+            return value.encode("utf-8")
+        raise AssertionError(f"unexpected fake Redis value: {type(value)!r}")
+
+    def _time(self) -> tuple[bytes, bytes]:
+        self.clock_us += 1_000
+        return (
+            str(self.clock_us // 1_000_000).encode("ascii"),
+            str(self.clock_us % 1_000_000).encode("ascii"),
+        )
 
     def pipeline(self, *, transaction: bool) -> _FakePipeline:
         assert transaction is True
         self.pipeline_calls += 1
         return _FakePipeline(self)
+
+    def eval(self, script: str, numkeys: int, *keys_and_args: object) -> list[object]:
+        keys = [str(value) for value in keys_and_args[:numkeys]]
+        args = list(keys_and_args[numkeys:])
+        if "canonical_closed_ohlcv_publication_commit_v1" in script:
+            canonical_key, archive_key, receipt_key, pointer_key = keys
+            payload = self._raw(args[0])
+            receipt_payload = self._raw(args[1])
+            revision_id = self._raw(args[2])
+            receipt_ttl = int(args[3])
+            if self.before_commit is not None:
+                self.before_commit(self, canonical_key, archive_key, receipt_key)
+            if self.store.get(canonical_key) != payload:
+                return [b"RETRY", b"CANONICAL_KEY_CHANGED_BEFORE_RECEIPT_COMMIT"]
+            if self.store.get(archive_key) != payload:
+                return [b"ERROR", b"ARCHIVE_CHANGED_BEFORE_RECEIPT_COMMIT"]
+            if self.inject_competing_valid_receipt:
+                self.inject_competing_valid_receipt = False
+                competing = json.loads(receipt_payload)
+                available = datetime.strptime(
+                    competing["publication_available_at"],
+                    "%Y-%m-%dT%H:%M:%S.%fZ",
+                ).replace(tzinfo=UTC)
+                competing["publication_available_at"] = (
+                    (available + timedelta(microseconds=500))
+                    .isoformat(timespec="microseconds")
+                    .replace("+00:00", "Z")
+                )
+                unsigned = {
+                    key: value
+                    for key, value in competing.items()
+                    if key != "receipt_sha256"
+                }
+                competing["receipt_sha256"] = hashlib.sha256(
+                    json.dumps(
+                        unsigned,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    ).encode("ascii")
+                ).hexdigest()
+                self.store[receipt_key] = json.dumps(
+                    competing,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode("ascii")
+            existing = self.store.get(receipt_key)
+            committed_receipt = (
+                self._raw(existing) if existing is not None else receipt_payload
+            )
+            self.store[receipt_key] = committed_receipt
+            self.pttls[receipt_key] = receipt_ttl * 1000
+            self.store[pointer_key] = revision_id
+            self.pttls[pointer_key] = receipt_ttl * 1000
+            seconds, microseconds = self._time()
+            status = (
+                b"COMMITTED"
+                if existing is None
+                else b"IDEMPOTENT"
+                if committed_receipt == receipt_payload
+                else b"ADOPTED"
+            )
+            return [status, seconds, microseconds, committed_receipt]
+        if "canonical_closed_ohlcv_publication_reopen_v1" in script:
+            canonical_key, archive_key, receipt_key, pointer_key = keys
+            payload = self._raw(args[0])
+            revision_id = self._raw(args[1])
+            if self.before_reopen is not None:
+                self.before_reopen(self, canonical_key, archive_key, receipt_key, pointer_key)
+            if self.store.get(canonical_key) != payload:
+                return [b"RETRY", b"CANONICAL_KEY_CHANGED_BEFORE_REOPEN"]
+            if archive_key not in self.store:
+                return [b"ERROR", b"ARCHIVE_MISSING"]
+            if self.store.get(archive_key) != payload:
+                return [b"ERROR", b"ARCHIVE_REOPEN_MISMATCH"]
+            if receipt_key not in self.store:
+                return [b"ERROR", b"RECEIPT_MISSING"]
+            if self.store.get(pointer_key) != revision_id:
+                return [b"RETRY", b"LATEST_POINTER_CHANGED_BEFORE_REOPEN"]
+            archive_pttl = self.pttls[archive_key]
+            receipt_pttl = self.pttls[receipt_key]
+            pointer_pttl = self.pttls[pointer_key]
+            if (
+                archive_pttl <= receipt_pttl
+                or archive_pttl <= pointer_pttl
+                or receipt_pttl <= 0
+                or pointer_pttl <= 0
+            ):
+                return [b"ERROR", b"PUBLICATION_TTL_ORDER_INVALID"]
+            seconds, microseconds = self._time()
+            return [
+                b"REOPENED",
+                self.store[archive_key],
+                self.store[receipt_key],
+                self.store[pointer_key],
+                archive_pttl,
+                receipt_pttl,
+                pointer_pttl,
+                seconds,
+                microseconds,
+            ]
+        raise AssertionError("unexpected direct Lua script")
 
 
 class _FakePipeline:
@@ -144,12 +341,24 @@ class _FakePipeline:
         self.key: str | None = None
         self.version: int | None = None
         self.pending: tuple[str, str, int | None, bool] | None = None
+        self.pending_eval: tuple[list[str], list[object]] | None = None
+        self.in_multi = False
 
     def watch(self, key: str) -> None:
         self.key = key
         self.version = self.client.versions.get(key, 0)
 
-    def eval(self, script: str, numkeys: int, key: str, cap: int) -> list[object]:
+    def eval(self, script: str, numkeys: int, *keys_and_args: object) -> object:
+        if "canonical_closed_ohlcv_publication_prepare_v1" in script:
+            assert self.in_multi is True
+            self.pending_eval = (
+                [str(value) for value in keys_and_args[:numkeys]],
+                list(keys_and_args[numkeys:]),
+            )
+            return self
+        assert len(keys_and_args) == 2
+        key = str(keys_and_args[0])
+        cap = int(keys_and_args[1])
         assert key == self.key
         assert numkeys == 1
         assert "STRLEN" in script and "GETRANGE" in script
@@ -175,7 +384,7 @@ class _FakePipeline:
         return [kind, pttl, len(payload), payload]
 
     def multi(self) -> None:
-        return None
+        self.in_multi = True
 
     def set(
         self,
@@ -187,13 +396,12 @@ class _FakePipeline:
     ) -> None:
         self.pending = (key, value, ex, keepttl)
 
-    def execute(self) -> list[bool]:
+    def execute(self) -> list[object]:
         assert self.key is not None
-        assert self.pending is not None
         if self.client.conflicts_remaining:
             self.client.conflicts_remaining -= 1
             current = self.client.store.get(self.key, "[]")
-            assert type(current) is str
+            assert type(current) in (str, bytes)
             rows = json.loads(current)
             if self.client.conflict_row is not None:
                 rows.append(self.client.conflict_row)
@@ -201,6 +409,59 @@ class _FakePipeline:
             self.client.versions[self.key] = self.client.versions.get(self.key, 0) + 1
         if self.client.versions.get(self.key, 0) != self.version:
             raise redis.WatchError("simulated concurrent writer")
+
+        if self.pending_eval is not None:
+            if not self.client.execute_ack:
+                return []
+            keys, args = self.pending_eval
+            canonical_key, archive_key, receipt_key = keys
+            payload = self.client._raw(args[0])
+            archive_ttl = int(args[1])
+            receipt_ttl = int(args[2])
+            mutable_ttl = int(args[3])
+            ttl_policy = str(args[4])
+            existing_archive = self.client.store.get(archive_key)
+            if existing_archive is not None and type(existing_archive) not in (str, bytes):
+                return [[b"ERROR", b"ARCHIVE_TYPE_INVALID"]]  # type: ignore[list-item]
+            if (
+                existing_archive is not None
+                and len(self.client._raw(existing_archive)) > int(args[5])
+            ):
+                return [[b"ERROR", b"ARCHIVE_SIZE_INVALID"]]  # type: ignore[list-item]
+            if existing_archive is not None and self.client._raw(existing_archive) != payload:
+                return [[b"ERROR", b"ARCHIVE_IDENTITY_CONFLICT"]]  # type: ignore[list-item]
+            self.client.store[archive_key] = payload
+            self.client.pttls[archive_key] = archive_ttl * 1000
+            existing_receipt = self.client.store.get(receipt_key)
+            if existing_receipt is not None and type(existing_receipt) not in (str, bytes):
+                return [[b"ERROR", b"RECEIPT_TYPE_INVALID"]]  # type: ignore[list-item]
+            if (
+                existing_receipt is not None
+                and len(self.client._raw(existing_receipt)) > int(args[6])
+            ):
+                return [[b"ERROR", b"RECEIPT_SIZE_INVALID"]]  # type: ignore[list-item]
+            previous_ttl = self.client.pttls.get(canonical_key, -1)
+            self.client.store[canonical_key] = payload
+            if ttl_policy == "set":
+                self.client.pttls[canonical_key] = mutable_ttl * 1000
+            elif ttl_policy == "preserve":
+                self.client.pttls[canonical_key] = previous_ttl
+            else:
+                self.client.pttls[canonical_key] = -1
+            self.client.versions[canonical_key] = self.client.versions.get(canonical_key, 0) + 1
+            seconds, microseconds = self.client._time()
+            return [[
+                b"IDEMPOTENT_PREPARED" if existing_receipt is not None else b"PREPARED",
+                seconds,
+                microseconds,
+                (
+                    self.client._raw(existing_receipt)
+                    if existing_receipt is not None
+                    else None
+                ),
+            ]]  # type: ignore[list-item]
+
+        assert self.pending is not None
 
         key, value, ttl_seconds, keep_ttl = self.pending
         previous_ttl = self.client.pttls.get(key, -1)
@@ -216,6 +477,7 @@ class _FakePipeline:
 
     def reset(self) -> None:
         self.pending = None
+        self.pending_eval = None
 
 
 def test_store_payload_cap_matches_exact_trainer_consumer_cap() -> None:
@@ -227,7 +489,10 @@ def test_authority_flags_are_not_public_constructor_arguments() -> None:
 
     assert init_by_name["exact_source_schema_validated"] is False
     assert init_by_name["immutable_cas_captured"] is False
+    assert init_by_name["publication_receipt_verified"] is False
     assert init_by_name["trainer_admission_granted"] is False
+    assert init_by_name["prediction_authorized"] is False
+    assert init_by_name["paper_trading_authorized"] is False
     assert init_by_name["live_execution_authorized"] is False
 
 
@@ -371,7 +636,11 @@ def test_atomic_merge_retries_and_preserves_concurrent_writer_row() -> None:
     assert result.previous_pttl_ms == 90_000
     assert client.pttls[KEY] == 90_000
     assert result.exact_source_schema_validated is True
-    assert result.immutable_cas_captured is False
+    assert result.immutable_cas_captured is True
+    assert result.publication_receipt_verified is True
+    assert result.receipt is not None
+    assert result.receipt["trainer_admission_authorized"] is False
+    assert result.receipt["paper_trading_authorized"] is False
     validate_ohlcv_closed_window(
         _stored_text(client).encode("ascii"),
         symbol="BTCUSDT",
@@ -633,3 +902,396 @@ def test_hostile_public_arguments_fail_closed(
 ) -> None:
     with pytest.raises(ClosedWindowRedisStoreError, match=reason):
         atomic_merge_closed_window(_FakeRedis(), **kwargs)
+
+
+def test_receipt_happy_path_binds_exact_bytes_bounds_identity_and_holds_authority() -> None:
+    client = _FakeRedis()
+
+    result = atomic_merge_closed_window(
+        client,
+        redis_key=KEY,
+        new_rows=[_canonical_row(0), _canonical_row(1)],
+        ttl_policy="set",
+        ttl_seconds=RECEIPT_TTL_SECONDS,
+    )
+
+    assert result.publication_receipt_verified is True
+    assert result.immutable_cas_captured is True
+    assert result.revision_id is not None and len(result.revision_id.rsplit("_", 1)[1]) == 64
+    assert client.store[result.archive_key] == _stored_text(client).encode("ascii")
+    assert client.store[result.receipt_key]
+    assert client.store[result.latest_receipt_pointer_key] == result.revision_id.encode("ascii")
+    assert result.receipt is not None
+    assert result.receipt["exact_payload_sha256"] == result.payload_sha256
+    assert result.receipt["exact_payload_byte_count"] == result.payload_byte_count
+    assert result.receipt["row_count"] == 2
+    assert result.receipt["first_candle_id"] == _canonical_row(0)["candle_id"]
+    assert result.receipt["latest_candle_id"] == _canonical_row(1)["candle_id"]
+    assert all(
+        result.receipt[field] is False
+        for field in (
+            "trainer_admission_authorized",
+            "prediction_authorized",
+            "paper_trading_authorized",
+            "live_execution_authorized",
+        )
+    )
+
+
+def test_publication_evidence_ttls_follow_cadence_not_mutable_cache_residency() -> None:
+    assert cadence_bounded_publication_ttls("1m") == (180, 240)
+    assert cadence_bounded_publication_ttls("4h") == (43_200, 57_600)
+
+    result = atomic_merge_closed_window(
+        _FakeRedis(),
+        redis_key=KEY,
+        new_rows=[_canonical_row(0)],
+        ttl_policy="set",
+        ttl_seconds=86_400,
+        receipt_ttl_seconds=180,
+        archive_ttl_seconds=240,
+    )
+
+    assert result.ttl_seconds == 86_400
+    assert result.receipt_ttl_seconds == 180
+    assert result.archive_ttl_seconds == 240
+
+
+def test_mutation_between_prepare_and_commit_retries_against_new_canonical_value() -> None:
+    client = _FakeRedis()
+
+    def mutate_once(
+        target: _FakeRedis,
+        canonical_key: str,
+        _archive_key: str,
+        _receipt_key: str,
+    ) -> None:
+        target.before_commit = None
+        target.store[canonical_key] = _payload(
+            [_canonical_row(0), _canonical_row(1)]
+        ).encode("ascii")
+        target.pttls[canonical_key] = RECEIPT_TTL_SECONDS * 1000
+        target.versions[canonical_key] = target.versions.get(canonical_key, 0) + 1
+
+    client.before_commit = mutate_once
+    result = atomic_merge_closed_window(
+        client,
+        redis_key=KEY,
+        new_rows=[_canonical_row(0)],
+        ttl_policy="set",
+        ttl_seconds=RECEIPT_TTL_SECONDS,
+    )
+
+    assert result.attempts == 2
+    assert result.stored_row_count == 2
+    assert result.publication_receipt_verified is True
+
+
+def test_concurrent_identical_publisher_adopts_first_valid_receipt() -> None:
+    client = _FakeRedis()
+    client.inject_competing_valid_receipt = True
+
+    result = atomic_merge_closed_window(
+        client,
+        redis_key=KEY,
+        new_rows=[_canonical_row(0)],
+        ttl_policy="set",
+        ttl_seconds=RECEIPT_TTL_SECONDS,
+    )
+
+    assert result.publication_receipt_verified is True
+    assert result.prepare_observed_at == result.publication_available_at
+    assert result.publication_available_at is not None
+    assert result.receipt_postcommit_observed_at is not None
+    assert result.publication_available_at < result.receipt_postcommit_observed_at
+
+
+@pytest.mark.parametrize("tamper", ["archive", "missing_receipt", "receipt_bytes"])
+def test_postcommit_tamper_or_missing_receipt_fails_closed(tamper: str) -> None:
+    client = _FakeRedis()
+
+    if tamper == "archive":
+        def before_commit(
+            target: _FakeRedis,
+            _canonical_key: str,
+            archive_key: str,
+            _receipt_key: str,
+        ) -> None:
+            target.store[archive_key] = b"[]"
+
+        client.before_commit = before_commit
+    else:
+        def before_reopen(
+            target: _FakeRedis,
+            _canonical_key: str,
+            _archive_key: str,
+            receipt_key: str,
+            _pointer_key: str,
+        ) -> None:
+            if tamper == "missing_receipt":
+                target.store.pop(receipt_key, None)
+            else:
+                target.store[receipt_key] = b"{}"
+
+        client.before_reopen = before_reopen
+
+    with pytest.raises(ClosedWindowRedisStoreError):
+        atomic_merge_closed_window(
+            client,
+            redis_key=KEY,
+            new_rows=[_canonical_row(0)],
+            ttl_policy="set",
+            ttl_seconds=RECEIPT_TTL_SECONDS,
+        )
+
+
+@pytest.mark.parametrize(
+    ("substituted_field", "substituted_value"),
+    [("symbol", "ETHUSDT"), ("timeframe", "5m")],
+)
+def test_cross_symbol_or_timeframe_receipt_substitution_fails_rederivation(
+    substituted_field: str,
+    substituted_value: str,
+) -> None:
+    client = _FakeRedis()
+
+    def substitute_receipt(
+        target: _FakeRedis,
+        _canonical_key: str,
+        _archive_key: str,
+        receipt_key: str,
+        _pointer_key: str,
+    ) -> None:
+        receipt = json.loads(target._raw(target.store[receipt_key]))
+        receipt[substituted_field] = substituted_value
+        unsigned = {key: value for key, value in receipt.items() if key != "receipt_sha256"}
+        receipt["receipt_sha256"] = hashlib.sha256(
+            json.dumps(
+                unsigned,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("ascii")
+        ).hexdigest()
+        target.store[receipt_key] = json.dumps(
+            receipt,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("ascii")
+
+    client.before_reopen = substitute_receipt
+    with pytest.raises(
+        ClosedWindowRedisStoreError,
+        match="receipt_rederivation_mismatch",
+    ):
+        atomic_merge_closed_window(
+            client,
+            redis_key=KEY,
+            new_rows=[_canonical_row(0)],
+            ttl_policy="set",
+            ttl_seconds=RECEIPT_TTL_SECONDS,
+        )
+
+
+@pytest.mark.parametrize("invalid_artifact", ["archive_type", "receipt_oversized"])
+def test_invalid_archive_or_receipt_type_and_size_fail_closed(
+    invalid_artifact: str,
+) -> None:
+    client = _FakeRedis()
+    first = atomic_merge_closed_window(
+        client,
+        redis_key=KEY,
+        new_rows=[_canonical_row(0)],
+        ttl_policy="set",
+        ttl_seconds=RECEIPT_TTL_SECONDS,
+    )
+    assert first.archive_key is not None and first.receipt_key is not None
+    if invalid_artifact == "archive_type":
+        client.store[first.archive_key] = ["wrong-type"]
+    else:
+        client.store[first.receipt_key] = b"x" * (CLOSED_WINDOW_MAX_RECEIPT_BYTES + 1)
+
+    with pytest.raises(ClosedWindowRedisStoreError):
+        atomic_merge_closed_window(
+            client,
+            redis_key=KEY,
+            new_rows=[_canonical_row(0)],
+            ttl_policy="set",
+            ttl_seconds=RECEIPT_TTL_SECONDS,
+        )
+
+
+def test_redis_clock_regression_fails_closed() -> None:
+    client = _FakeRedis()
+
+    def regress_clock(
+        target: _FakeRedis,
+        _canonical_key: str,
+        _archive_key: str,
+        _receipt_key: str,
+    ) -> None:
+        target.clock_us -= 10_000
+
+    client.before_commit = regress_clock
+    with pytest.raises(ClosedWindowRedisStoreError, match="clock_order_invalid"):
+        atomic_merge_closed_window(
+            client,
+            redis_key=KEY,
+            new_rows=[_canonical_row(0)],
+            ttl_policy="set",
+            ttl_seconds=RECEIPT_TTL_SECONDS,
+        )
+
+
+def test_ttl_inversion_is_rejected_before_redis_access() -> None:
+    client = _FakeRedis()
+
+    with pytest.raises(
+        ClosedWindowRedisStoreError,
+        match="archive_ttl_must_exceed_receipt_ttl",
+    ):
+        atomic_merge_closed_window(
+            client,
+            redis_key=KEY,
+            new_rows=[_canonical_row(0)],
+            receipt_ttl_seconds=100,
+            archive_ttl_seconds=100,
+        )
+    assert client.pipeline_calls == 0
+
+
+def test_exact_idempotent_replay_preserves_original_publication_availability() -> None:
+    client = _FakeRedis()
+    first = atomic_merge_closed_window(
+        client,
+        redis_key=KEY,
+        new_rows=[_canonical_row(0)],
+        ttl_policy="set",
+        ttl_seconds=RECEIPT_TTL_SECONDS,
+    )
+    second = atomic_merge_closed_window(
+        client,
+        redis_key=KEY,
+        new_rows=[_canonical_row(0)],
+        ttl_policy="set",
+        ttl_seconds=RECEIPT_TTL_SECONDS,
+    )
+
+    assert second.revision_id == first.revision_id
+    assert second.receipt_sha256 == first.receipt_sha256
+    assert second.publication_available_at == first.publication_available_at
+    assert second.prepare_observed_at == first.prepare_observed_at
+    assert second.consumer_reopened_at > first.consumer_reopened_at
+
+
+@pytest.mark.parametrize(
+    ("missing_field", "reason"),
+    [
+        ("producer_role", "producer_role_invalid"),
+        ("producer_code_sha256", "producer_code_sha256_invalid"),
+        ("producer_config_sha256", "producer_config_sha256_invalid"),
+        ("receipt_ttl_seconds", "receipt_ttl_seconds_invalid"),
+        ("archive_ttl_seconds", "archive_ttl_seconds_invalid"),
+    ],
+)
+def test_publication_caller_identity_and_ttl_arguments_are_required(
+    missing_field: str,
+    reason: str,
+) -> None:
+    kwargs: dict[str, object] = {
+        "redis_key": KEY,
+        "new_rows": [_canonical_row(0)],
+        "producer_role": BINANCE_REST_CLOSED_WINDOW_PRODUCER_ROLE,
+        "producer_code_sha256": CODE_SHA256,
+        "producer_config_sha256": CONFIG_SHA256,
+        "receipt_ttl_seconds": RECEIPT_TTL_SECONDS,
+        "archive_ttl_seconds": ARCHIVE_TTL_SECONDS,
+    }
+    kwargs[missing_field] = None
+
+    with pytest.raises(ClosedWindowRedisStoreError, match=reason):
+        _atomic_merge_closed_window(_FakeRedis(), **kwargs)
+
+
+def test_caller_rejects_legacy_unreceipted_write_result() -> None:
+    legacy = ClosedWindowRedisWriteResult(
+        redis_key=KEY,
+        attempts=1,
+        existing_row_count=0,
+        submitted_row_count=1,
+        stored_row_count=1,
+        rows_deduplicated_or_trimmed_for_row_limit=0,
+        rows_trimmed_for_bytes=0,
+        payload_sha256="c" * 64,
+        payload_byte_count=100,
+        ttl_policy="set",
+        ttl_seconds=RECEIPT_TTL_SECONDS,
+        previous_pttl_ms=-2,
+        invalid_existing_replaced=False,
+    )
+
+    with pytest.raises(
+        ClosedWindowRedisStoreError,
+        match="publication_receipt_required",
+    ):
+        require_verified_closed_window_publication(
+            legacy,
+            expected_redis_key=KEY,
+            expected_producer_role=BINANCE_REST_CLOSED_WINDOW_PRODUCER_ROLE,
+        )
+
+
+def test_real_redis_lua_exact_reopen_ttl_order_and_idempotence(
+    redis_socket: str,
+) -> None:
+    client = redis.Redis(unix_socket_path=redis_socket, decode_responses=False)
+    now_ms = int(time.time() * 1000)
+    open_time = ((now_ms // 60_000) - 2) * 60_000
+    close_time = open_time + 59_999
+    source = [
+        open_time,
+        "100.0",
+        "102.0",
+        "99.0",
+        "101.0",
+        "12.0",
+        close_time,
+        "1206.0",
+        10,
+        "6.0",
+        "603.0",
+        "0",
+    ]
+    row = canonical_from_binance_rest(
+        source,
+        symbol="BTCUSDT",
+        timeframe="1m",
+        ingested_at=close_time + 200,
+    ).to_dict()
+
+    first = atomic_merge_closed_window(
+        client,
+        redis_key=KEY,
+        new_rows=[row],
+        ttl_policy="set",
+        ttl_seconds=60,
+        receipt_ttl_seconds=60,
+        archive_ttl_seconds=120,
+    )
+    second = atomic_merge_closed_window(
+        client,
+        redis_key=KEY,
+        new_rows=[row],
+        ttl_policy="set",
+        ttl_seconds=60,
+        receipt_ttl_seconds=60,
+        archive_ttl_seconds=120,
+    )
+
+    assert first.publication_receipt_verified is True
+    assert client.get(KEY) == client.get(first.archive_key)
+    assert client.get(first.latest_receipt_pointer_key) == first.revision_id.encode("ascii")
+    assert client.pttl(first.archive_key) > client.pttl(first.receipt_key) > 0
+    assert client.pttl(first.archive_key) > client.pttl(first.latest_receipt_pointer_key) > 0
+    assert second.revision_id == first.revision_id
+    assert second.receipt_sha256 == first.receipt_sha256
+    assert second.publication_available_at == first.publication_available_at

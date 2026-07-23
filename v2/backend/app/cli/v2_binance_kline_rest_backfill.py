@@ -6,13 +6,15 @@ contract: the latest finalized candle must be present and the *full* latest
 contiguous suffix must contain at least the derived minimum source rows.
 
 This worker handles read-only public market data.  It never submits, changes,
-or cancels an order.  A successful Redis publication is not trainer admission,
-a provenance receipt, or live-execution authority.
+or cancels an order.  A successful write carries a postcommit-reopened writer
+publication receipt; that receipt is not source-consumer provenance, trainer
+admission, prediction authority, or paper/live-execution authority.
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 import os
@@ -47,11 +49,14 @@ from v2.backend.app.services.market_state_integrity.canonical_candles import (  
     closed_candle_key,
 )
 from v2.backend.app.services.market_state_integrity.closed_window_redis_store import (  # noqa: E402
+    BINANCE_REST_CLOSED_WINDOW_PRODUCER_ROLE,
     CLOSED_WINDOW_MAX_ROWS,
     CLOSED_WINDOW_MAX_TTL_SECONDS,
     ClosedWindowRedisStoreError,
     ClosedWindowRedisWriteResult,
     atomic_merge_closed_window,
+    cadence_bounded_publication_ttls,
+    require_verified_closed_window_publication,
 )
 from v2.backend.app.services.native_trainer.atomic_redis_source_reader import (  # noqa: E402
     AtomicRedisSourceReadError,
@@ -77,6 +82,9 @@ from v2.backend.app.services.v2_symbol_runtime_universe import (  # noqa: E402
 )
 
 BINANCE_FAPI: Final = "https://fapi.binance.com"
+_LOADED_CLOSED_WINDOW_PRODUCER_CODE_SHA256: Final = hashlib.sha256(
+    Path(__file__).read_bytes()
+).hexdigest()
 BACKFILL_LIMIT: Final = 200
 BACKFILL_TIMEFRAMES: Final = ("1h", "4h")
 # Compatibility name retained for callers; this is derived from the actual
@@ -1150,19 +1158,59 @@ def _backfill_symbol_tf(
                     recovery_status="unresolved_no_nonoverlap_finalized_rows",
                 )
 
+            mutable_ttl_seconds = _adaptive_closed_window_ttl_seconds(
+                bound_timeframe
+            )
+            receipt_ttl_seconds, archive_ttl_seconds = (
+                cadence_bounded_publication_ttls(bound_timeframe)
+            )
+            producer_config_sha256 = hashlib.sha256(
+                json.dumps(
+                    {
+                        "schema_version": (
+                            "binance_rest_closed_window_publication_config_v1"
+                        ),
+                        "row_limit": CLOSED_WINDOW_MAX_ROWS,
+                        "minimum_rows_to_preserve": min(
+                            CORE_TA_MINIMUM_SOURCE_ROWS,
+                            latest_assessment.row_count + len(additions),
+                        ),
+                        "ttl_policy": "set",
+                        "mutable_ttl_seconds": mutable_ttl_seconds,
+                        "receipt_ttl_seconds": receipt_ttl_seconds,
+                        "archive_ttl_seconds": archive_ttl_seconds,
+                    },
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode("ascii")
+            ).hexdigest()
             try:
-                write_result = atomic_merge_closed_window(
+                candidate_write_result = atomic_merge_closed_window(
                     client,
                     redis_key=latest_assessment.redis_key,
                     new_rows=additions,
+                    producer_role=BINANCE_REST_CLOSED_WINDOW_PRODUCER_ROLE,
+                    producer_code_sha256=(
+                        _LOADED_CLOSED_WINDOW_PRODUCER_CODE_SHA256
+                    ),
+                    producer_config_sha256=producer_config_sha256,
+                    receipt_ttl_seconds=receipt_ttl_seconds,
+                    archive_ttl_seconds=archive_ttl_seconds,
                     row_limit=CLOSED_WINDOW_MAX_ROWS,
                     minimum_rows_to_preserve=min(
                         CORE_TA_MINIMUM_SOURCE_ROWS,
                         latest_assessment.row_count + len(additions),
                     ),
                     ttl_policy="set",
-                    ttl_seconds=_adaptive_closed_window_ttl_seconds(bound_timeframe),
+                    ttl_seconds=mutable_ttl_seconds,
                     replace_invalid_existing=replace_invalid_existing,
+                )
+                write_result = require_verified_closed_window_publication(
+                    candidate_write_result,
+                    expected_redis_key=latest_assessment.redis_key,
+                    expected_producer_role=(
+                        BINANCE_REST_CLOSED_WINDOW_PRODUCER_ROLE
+                    ),
                 )
                 break
             except ClosedWindowRedisStoreError as exc:

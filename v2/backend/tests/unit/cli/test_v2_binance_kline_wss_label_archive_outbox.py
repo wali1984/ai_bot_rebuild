@@ -206,6 +206,38 @@ def test_closed_window_transport_error_marks_holder_broken(
     assert marked == [True]
 
 
+def test_closed_window_publisher_rejects_unreceipted_atomic_result(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, Any] = {}
+
+    def unreceipted(_client: object, **kwargs: Any) -> SimpleNamespace:
+        captured.update(kwargs)
+        return SimpleNamespace(publication_receipt_verified=False)
+
+    monkeypatch.setattr(wss_module, "atomic_merge_closed_window", unreceipted)
+
+    with pytest.raises(
+        ClosedWindowRedisStoreError,
+        match="verified_publication_result_invalid",
+    ):
+        wss_module._publish_closed_window(
+            object(),
+            key="v2:market:ohlcv_closed:binance:BTCUSDT:1m",
+            row=_payload(0, symbol="BTCUSDT", timeframe="1m"),
+            row_limit=100,
+            ttl_seconds=86_400,
+        )
+
+    assert captured["producer_role"] == (
+        wss_module.BINANCE_WSS_CLOSED_WINDOW_PRODUCER_ROLE
+    )
+    assert captured["receipt_ttl_seconds"] == 180
+    assert captured["archive_ttl_seconds"] == 240
+    assert len(captured["producer_code_sha256"]) == 64
+    assert len(captured["producer_config_sha256"]) == 64
+
+
 def test_149_symbol_close_wave_is_outboxed_once_before_one_archive_append(
     tmp_path: Path,
 ) -> None:
@@ -1393,6 +1425,11 @@ async def test_message_handler_persists_redis_before_label_admission(
 
     monkeypatch.setattr(wss_module, "websockets", FakeWebsockets())
     monkeypatch.setattr(wss_module, "atomic_merge_closed_window", fake_atomic_merge)
+    monkeypatch.setattr(
+        wss_module,
+        "require_verified_closed_window_publication",
+        lambda result, **_kwargs: result,
+    )
     stats: dict[str, Any] = {}
     task = asyncio.create_task(
         _consume_chunk(
