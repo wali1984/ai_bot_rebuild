@@ -25,6 +25,7 @@ participates in selection.
 from __future__ import annotations
 
 import fcntl
+from concurrent.futures import Future, ThreadPoolExecutor
 import hashlib
 import json
 import math
@@ -33,6 +34,7 @@ import re
 import shutil
 import stat
 import time
+import threading
 from collections.abc import Callable, Iterable, Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -1319,6 +1321,7 @@ class PublisherResourceDecisionV1:
     absolute_disk_capacity_symbols: int
     disk_capacity_symbols: int
     publication_latency_capacity_symbols: int
+    execution_worker_slots: int
     training_supply_backfill_required: bool
     bootstrap_observation_required: bool
     reasons: tuple[str, ...]
@@ -1358,6 +1361,7 @@ class PublisherResourceDecisionV1:
             "absolute_disk_capacity_symbols": self.absolute_disk_capacity_symbols,
             "disk_capacity_symbols": self.disk_capacity_symbols,
             "publication_latency_capacity_symbols": (self.publication_latency_capacity_symbols),
+            "execution_worker_slots": self.execution_worker_slots,
             "training_supply_backfill_required": self.training_supply_backfill_required,
             "bootstrap_observation_required": self.bootstrap_observation_required,
             "reasons": list(self.reasons),
@@ -1375,6 +1379,7 @@ def adaptive_resource_decision_v1(
     disk_used_bytes: int,
     disk_free_bytes: int,
     training_supply_backfill_required: bool = False,
+    execution_worker_slots: int = 1,
 ) -> PublisherResourceDecisionV1:
     """Choose an evidence-bound workload without a symbol or market cap."""
 
@@ -1388,6 +1393,8 @@ def adaptive_resource_decision_v1(
         or not math.isfinite(resource_sustainability_horizon_seconds)
         or resource_sustainability_horizon_seconds < MINIMUM_RESOURCE_SUSTAINABILITY_HORIZON_SECONDS
         or type(training_supply_backfill_required) is not bool
+        or type(execution_worker_slots) is not int
+        or execution_worker_slots <= 0
         or any(
             type(value) is not int or value < 0
             for value in (disk_total_bytes, disk_used_bytes, disk_free_bytes)
@@ -1457,7 +1464,13 @@ def adaptive_resource_decision_v1(
         write_credit_capacity,
         max(0, cumulative_sustainable_budget - publication_bytes),
     )
-    latency_capacity = max(1, math.floor(cycle_period_seconds / estimated_seconds))
+    # Independent capture/cost work can overlap; exact feature-ledger commits
+    # remain serialized below.  The slot count comes from the running host,
+    # never from a market score or a static symbol cap.
+    latency_capacity = max(
+        1,
+        math.floor(cycle_period_seconds / estimated_seconds) * execution_worker_slots,
+    )
     if training_supply_backfill_required:
         # The trainer's own authenticated status is the only temporary
         # acceleration authority.  While it reports a genuine row shortage,
@@ -1528,6 +1541,7 @@ def adaptive_resource_decision_v1(
         absolute_disk_capacity_symbols=absolute_disk_capacity,
         disk_capacity_symbols=disk_capacity,
         publication_latency_capacity_symbols=latency_capacity,
+        execution_worker_slots=execution_worker_slots,
         training_supply_backfill_required=training_supply_backfill_required,
         bootstrap_observation_required=bootstrap,
         reasons=tuple(reasons),
@@ -1857,6 +1871,17 @@ class _SymbolOutcome:
 
 
 @dataclass(frozen=True, slots=True)
+class _SymbolExecutionResult:
+    """One isolated symbol attempt, collected before deterministic state commit."""
+
+    symbol: str
+    outcome: _SymbolOutcome | None
+    error: Exception | None
+    elapsed_seconds: float
+    preflights: tuple[dict[str, Any], ...]
+
+
+@dataclass(frozen=True, slots=True)
 class _SourceShardPreflightV1:
     active_shard_index: int | None
     selected_shard_index: int
@@ -1899,6 +1924,7 @@ class ProfiledBaseFeaturePublisherV1:
         clock: Callable[[], datetime] = _utc_now,
         monotonic: Callable[[], float] = time.monotonic,
         disk_usage: Callable[[Path], Any] = shutil.disk_usage,
+        execution_worker_slots: Callable[[], int | None] = os.cpu_count,
         decision_planner: Callable[[datetime], datetime] = (prospective_decision_midpoint_v1),
         decision_waiter: Callable[[datetime], datetime] | None = None,
         capture_function: Callable[..., CanonicalOhlcvAtomicReceiptCapture] = (
@@ -1968,6 +1994,7 @@ class ProfiledBaseFeaturePublisherV1:
             or not callable(clock)
             or not callable(monotonic)
             or not callable(disk_usage)
+            or not callable(execution_worker_slots)
             or not callable(decision_planner)
             or (decision_waiter is not None and not callable(decision_waiter))
             or (cost_evidence_factory is not None and not callable(cost_evidence_factory))
@@ -2031,6 +2058,13 @@ class ProfiledBaseFeaturePublisherV1:
         self.clock = clock
         self.monotonic = monotonic
         self.disk_usage = disk_usage
+        self.execution_worker_slots = execution_worker_slots
+        # The outer publisher lease prevents a second process.  These locks
+        # preserve the stateful append boundaries while independent capture,
+        # source reads, and cost proof work overlaps.
+        self._feature_ledger_append_lock = threading.Lock()
+        self._source_shard_preflight_lock = threading.Lock()
+        self._source_provenance_append_lock = threading.Lock()
         self.decision_planner = decision_planner
         self.decision_waiter = decision_waiter or (
             lambda decision_at: wait_for_prospective_decision_v1(
@@ -2098,6 +2132,22 @@ class ProfiledBaseFeaturePublisherV1:
                 "PROFILED_BASE_PUBLISHER_DISK_USAGE_SAMPLE_INVALID",
             )
         return values
+
+    def _execution_worker_slot_count(self) -> int:
+        """Read the host-provided independent capture capacity fail-closed."""
+
+        try:
+            slots = self.execution_worker_slots()
+        except Exception as exc:  # noqa: BLE001 - platform detail must not escape
+            raise ProfiledBaseFeaturePublisherV1ResourceError(
+                "PROFILED_BASE_PUBLISHER_EXECUTION_SLOT_SAMPLE_FAILED"
+            ) from exc
+        if type(slots) is not int or slots <= 0:
+            _fail(
+                ProfiledBaseFeaturePublisherV1ResourceError,
+                "PROFILED_BASE_PUBLISHER_EXECUTION_SLOT_SAMPLE_INVALID",
+            )
+        return slots
 
     def _authenticated_training_supply_backfill_required(self) -> bool:
         """Return whether the trainer's exact status requests more valid rows.
@@ -3467,14 +3517,18 @@ class ProfiledBaseFeaturePublisherV1:
         )
         if recovered is not None:
             return recovered
-        source_shard_preflight = self._preflight_source_shard(
-            symbol=symbol,
-            publication_attempt=publication_attempt,
-            adaptive_estimated_symbol_elapsed_seconds=(
-                adaptive_estimated_symbol_elapsed_seconds
-            ),
-            shared_cycle_decision_at=shared_cycle_decision_at,
-        )
+        # Shard selection can create the next immutable shard.  It must see a
+        # coherent shard inventory even though the expensive market capture
+        # starts immediately afterwards on independent worker threads.
+        with self._source_shard_preflight_lock:
+            source_shard_preflight = self._preflight_source_shard(
+                symbol=symbol,
+                publication_attempt=publication_attempt,
+                adaptive_estimated_symbol_elapsed_seconds=(
+                    adaptive_estimated_symbol_elapsed_seconds
+                ),
+                shared_cycle_decision_at=shared_cycle_decision_at,
+            )
         source_shard_preflight.evidence["status_preflight_index"] = len(
             source_shard_preflight_evidence
         )
@@ -3515,43 +3569,50 @@ class ProfiledBaseFeaturePublisherV1:
                 "PROFILED_BASE_PUBLISHER_DECISION_MISSING_FOR_CHANGED_WINDOW",
             )
 
-        source_ledger, shard_index, rolled, projected_pair = self._source_ledger(
-            captures,
-            expected_active_index=source_shard_preflight.selected_shard_index,
-        )
-        source_shard_preflight.evidence.update(
-            {
-                "publication_shard_index": shard_index,
-                "publication_shard_relative_path": (
-                    f"source-provenance-shards/shard-{shard_index:08d}"
-                ),
-                "publication_shard_selection_reconciled": True,
-                "hard_safety_cap_rollover_after_capture": (
-                    rolled
-                    and shard_index
-                    != source_shard_preflight.selected_shard_index
-                ),
-            }
-        )
-        append_results: list[TrainerSourceProvenanceAppendResultV4] = []
-        for timeframe, capture in zip(REQUIRED_TIMEFRAMES, captures, strict=True):
-            cycle_digest = stable_sha256(
+        # Each provenance ledger append has its own filesystem lock.  Selection
+        # plus both timeframe appends still form one publisher-level critical
+        # section so another worker cannot invalidate the preflight shard
+        # binding between those operations.
+        with self._source_provenance_append_lock:
+            source_ledger, shard_index, rolled, projected_pair = self._source_ledger(
+                captures,
+                expected_active_index=source_shard_preflight.selected_shard_index,
+            )
+            source_shard_preflight.evidence.update(
                 {
-                    "schema_version": "profiled_base_source_cycle_v1",
-                    "symbol": symbol,
-                    "timeframe": timeframe,
-                    "atomic_batch_material_sha256": capture.atomic_batch_material_sha256,
-                    "suffix_digest_sha256": capture.suffix_digest_sha256,
+                    "publication_shard_index": shard_index,
+                    "publication_shard_relative_path": (
+                        f"source-provenance-shards/shard-{shard_index:08d}"
+                    ),
+                    "publication_shard_selection_reconciled": True,
+                    "hard_safety_cap_rollover_after_capture": (
+                        rolled
+                        and shard_index
+                        != source_shard_preflight.selected_shard_index
+                    ),
                 }
             )
-            append_results.append(
-                source_ledger.append_atomic_capture(
-                    capture,
-                    trainer_run_id=PROFILED_BASE_FEATURE_PUBLISHER_RUN_ID,
-                    trainer_cycle_id=f"base35:{symbol}:{timeframe}:{cycle_digest}",
-                    ledger_clock=self.clock,
+            append_results: list[TrainerSourceProvenanceAppendResultV4] = []
+            for timeframe, capture in zip(REQUIRED_TIMEFRAMES, captures, strict=True):
+                cycle_digest = stable_sha256(
+                    {
+                        "schema_version": "profiled_base_source_cycle_v1",
+                        "symbol": symbol,
+                        "timeframe": timeframe,
+                        "atomic_batch_material_sha256": capture.atomic_batch_material_sha256,
+                        "suffix_digest_sha256": capture.suffix_digest_sha256,
+                    }
                 )
-            )
+                append_results.append(
+                    source_ledger.append_atomic_capture(
+                        capture,
+                        trainer_run_id=PROFILED_BASE_FEATURE_PUBLISHER_RUN_ID,
+                        trainer_cycle_id=(
+                            f"base35:{symbol}:{timeframe}:{cycle_digest}"
+                        ),
+                        ledger_clock=self.clock,
+                    )
+                )
         source_entries = cast(
             tuple[Any, Any],
             tuple(result.entry for result in append_results),
@@ -3669,10 +3730,11 @@ class ProfiledBaseFeaturePublisherV1:
                 materialized_evidence_bytes=materialized_evidence_bytes,
             )
             try:
-                feature_append = feature_ledger.append_snapshot(record)
-                committed_parent = feature_ledger.get_snapshot(
-                    validation.durable_snapshot_id
-                )
+                with self._feature_ledger_append_lock:
+                    feature_append = feature_ledger.append_snapshot(record)
+                    committed_parent = feature_ledger.get_snapshot(
+                        validation.durable_snapshot_id
+                    )
             except FeatureSnapshotLedgerError as exc:
                 raise ProfiledBaseFeaturePublisherV1Error(
                     "PROFILED_BASE_PUBLISHER_MASKED_PARENT_APPEND_FAILED"
@@ -3905,10 +3967,11 @@ class ProfiledBaseFeaturePublisherV1:
                 ProfiledBaseFeaturePublisherV1ConfigurationError,
                 "PROFILED_BASE_PUBLISHER_APPEND_BEFORE_PROSPECTIVE_DECISION",
             )
-        feature_append = append_profiled_training_enrichment_pair_v1(
-            ledger=feature_ledger,
-            pair=pair,
-        )
+        with self._feature_ledger_append_lock:
+            feature_append = append_profiled_training_enrichment_pair_v1(
+                ledger=feature_ledger,
+                pair=pair,
+            )
         if (
             feature_append.transaction_committed is not True
             or feature_append.transaction_readback_verified is not True
@@ -4149,6 +4212,7 @@ class ProfiledBaseFeaturePublisherV1:
             "PROFILED_BASE_PUBLISHER_DISCOVERY_CLOCK_INVALID"
         )
         disk_total, disk_used, disk_free = self._disk_sample()
+        execution_worker_slots = self._execution_worker_slot_count()
         training_supply_backfill_required = (
             self._authenticated_training_supply_backfill_required()
         )
@@ -4161,6 +4225,7 @@ class ProfiledBaseFeaturePublisherV1:
             disk_used_bytes=disk_used,
             disk_free_bytes=disk_free,
             training_supply_backfill_required=training_supply_backfill_required,
+            execution_worker_slots=execution_worker_slots,
         )
         rotation = least_recently_covered_symbols_v1(
             discovery.eligible_symbols,
@@ -4225,6 +4290,13 @@ class ProfiledBaseFeaturePublisherV1:
         cycle_disk_consumption_high_water = 0
         cycle_start_disk_free = disk_free
         cycle_start_owned_durable_bytes = self._owned_durable_footprint_bytes()
+        # Keep the established serial path byte-for-byte for one slot.  On a
+        # multi-core host, only independent symbol work moves to the parallel
+        # path below; final ledger commits remain guarded by the same process.
+        parallel_selection: tuple[str, ...] = ()
+        if decision.execution_worker_slots > 1 and len(planned_selection) > 1:
+            parallel_selection = planned_selection
+            planned_selection = ()
         for selection_index, symbol in enumerate(planned_selection):
             _current_total, _current_used, current_disk_free = self._disk_sample()
             cycle_disk_consumption_high_water = max(
@@ -4396,6 +4468,199 @@ class ProfiledBaseFeaturePublisherV1:
                 if type(elapsed) in {int, float} and math.isfinite(elapsed) and elapsed >= 0:
                     if materialized:
                         materialized_publication_elapsed += float(elapsed)
+
+        if parallel_selection:
+            # Reserve against the measured per-symbol evidence unit before
+            # starting workers.  This makes a worker burst no less conservative
+            # than the prior serial selection loop.
+            reserved_evidence_bytes = 0
+            for selection_index, symbol in enumerate(parallel_selection):
+                _current_total, _current_used, current_disk_free = self._disk_sample()
+                current_safe_disk_headroom = max(
+                    0,
+                    current_disk_free - decision.disk_reserve_bytes,
+                )
+                if (
+                    current_safe_disk_headroom
+                    < decision.estimated_evidence_bytes_per_symbol
+                    or reserved_evidence_bytes
+                    + decision.estimated_evidence_bytes_per_symbol
+                    > decision.available_write_credit_bytes
+                ):
+                    resource_deferred.extend(parallel_selection[selection_index:])
+                    break
+                selected.append(symbol)
+                rotation_last_attempted[symbol] = selection_at
+                reserved_evidence_bytes += decision.estimated_evidence_bytes_per_symbol
+
+            def execute_parallel_symbol(symbol: str) -> _SymbolExecutionResult:
+                symbol_started = self.monotonic()
+                local_preflights: list[dict[str, Any]] = []
+                try:
+                    if (
+                        source_store is None
+                        or capture_set_store is None
+                        or artifact_store is None
+                        or enrichment_store is None
+                        or feature_ledger is None
+                    ):
+                        _fail(
+                            ProfiledBaseFeaturePublisherV1Error,
+                            "PROFILED_BASE_PUBLISHER_SELECTED_WITHOUT_STORES",
+                        )
+                    prior = coverage.get(symbol)
+                    outcome = self._publish_symbol(
+                        symbol=symbol,
+                        adaptive_estimated_symbol_elapsed_seconds=(
+                            decision.estimated_seconds_per_symbol
+                        ),
+                        shared_cycle_decision_at=shared_cycle_decision_at,
+                        prior_coverage=prior if type(prior) is dict else None,
+                        source_store=source_store,
+                        capture_set_store=capture_set_store,
+                        artifact_store=artifact_store,
+                        enrichment_store=enrichment_store,
+                        feature_ledger=feature_ledger,
+                        source_shard_preflight_evidence=local_preflights,
+                    )
+                    error: Exception | None = None
+                except Exception as exc:  # noqa: BLE001 - isolate every symbol
+                    outcome = None
+                    error = exc
+                elapsed = self.monotonic() - symbol_started
+                return _SymbolExecutionResult(
+                    symbol=symbol,
+                    outcome=outcome,
+                    error=error,
+                    elapsed_seconds=(
+                        float(elapsed)
+                        if type(elapsed) in {int, float}
+                        and math.isfinite(elapsed)
+                        and elapsed >= 0
+                        else 0.0
+                    ),
+                    preflights=tuple(local_preflights),
+                )
+
+            worker_count = min(
+                len(selected),
+                decision.execution_worker_slots,
+            )
+            executions: dict[str, _SymbolExecutionResult] = {}
+            if worker_count == 1:
+                for symbol in selected:
+                    executions[symbol] = execute_parallel_symbol(symbol)
+            else:
+                with ThreadPoolExecutor(
+                    max_workers=worker_count,
+                    thread_name_prefix="profiled-source-capture",
+                ) as executor:
+                    futures: dict[Future[_SymbolExecutionResult], str] = {
+                        executor.submit(execute_parallel_symbol, symbol): symbol
+                        for symbol in selected
+                    }
+                    for future, symbol in futures.items():
+                        executions[symbol] = future.result()
+
+            for symbol in selected:
+                execution = executions[symbol]
+                preflight_start = len(source_shard_preflights)
+                for preflight in execution.preflights:
+                    preflight["status_preflight_index"] = len(source_shard_preflights)
+                    source_shard_preflights.append(preflight)
+                preflight_references = _source_shard_preflight_references(
+                    source_shard_preflights,
+                    start=preflight_start,
+                )
+                if execution.outcome is None:
+                    assert execution.error is not None
+                    reasons = _error_reasons(execution.error)
+                    failures.append(
+                        {
+                            "symbol": symbol,
+                            "stage": (
+                                "MASKED_COST_OBSERVATION_PARENT_PUBLICATION"
+                                if self.commission_cost_mode
+                                == MASKED_COST_OBSERVATION_MODE
+                                else "AUTHENTICATED_PROFILED_TRAINING_PAIR_PUBLICATION"
+                            ),
+                            "reasons": list(reasons),
+                            # A shared concurrent filesystem delta is accounted
+                            # once at cycle end; never guess a failed symbol's
+                            # individual write size.
+                            "materialized_evidence_bytes": 0,
+                            "orphan_feature_ledger_record_appended": False,
+                            "coverage_advanced": False,
+                            "in_cycle_temporal_retryable": (
+                                _cost_temporal_retryable(reasons)
+                            ),
+                            "retryable": isinstance(
+                                execution.error,
+                                CanonicalOhlcvAtomicCaptureError
+                                | CanonicalOhlcvMultitimeframeCaptureSetV1Error
+                                | TrainerSourceProvenanceLedgerV4Error
+                                | FeatureSnapshotLedgerError
+                                | ProfiledTrainingEnrichmentRecordV1Error,
+                            )
+                            or (
+                                COST_EVIDENCE_UNAVAILABLE_PARENT_NOT_APPENDED
+                                in reasons
+                                and not any(
+                                    fragment in reason.upper()
+                                    for reason in reasons
+                                    for fragment in COST_OPERATOR_BLOCKER_REASON_FRAGMENTS
+                                )
+                            ),
+                            "boundary_or_finality_related": _boundary_related(reasons),
+                            "source_provenance_shard_preflight_count": len(
+                                execution.preflights
+                            ),
+                            "source_provenance_shard_preflight_references": (
+                                preflight_references
+                            ),
+                        }
+                    )
+                    continue
+
+                outcome = execution.outcome
+                detail = dict(outcome.detail)
+                if execution.preflights:
+                    detail["source_provenance_shard_preflight_count"] = len(
+                        execution.preflights
+                    )
+                    detail["source_provenance_shard_preflight_references"] = (
+                        preflight_references
+                    )
+                if outcome.classification == "UNCHANGED_FINALIZED_WINDOWS":
+                    skipped.append(detail)
+                elif outcome.classification == "MASKED_COST_OBSERVATION_PARENT_INSERTED":
+                    masked_cost_observations.append(detail)
+                    materialized_cycle_evidence_bytes += outcome.materialized_evidence_bytes
+                    materialized_cycle_publication_count += 1
+                    materialized_publication_elapsed += execution.elapsed_seconds
+                elif outcome.classification == "MASKED_COST_OBSERVATION_PARENT_EXACT_REPLAY":
+                    masked_cost_replays.append(detail)
+                    if outcome.materialized_evidence_bytes > 0:
+                        materialized_cycle_evidence_bytes += outcome.materialized_evidence_bytes
+                        materialized_cycle_publication_count += 1
+                        materialized_publication_elapsed += (
+                            decision.estimated_seconds_per_symbol
+                        )
+                elif outcome.classification.endswith("EXACT_REPLAY"):
+                    replayed.append(detail)
+                    if outcome.materialized_evidence_bytes > 0:
+                        materialized_cycle_evidence_bytes += outcome.materialized_evidence_bytes
+                        materialized_cycle_publication_count += 1
+                        materialized_publication_elapsed += (
+                            decision.estimated_seconds_per_symbol
+                        )
+                else:
+                    published.append(detail)
+                    materialized_cycle_evidence_bytes += outcome.materialized_evidence_bytes
+                    materialized_cycle_publication_count += 1
+                    materialized_publication_elapsed += execution.elapsed_seconds
+                if outcome.coverage is not None:
+                    coverage[symbol] = outcome.coverage
 
         _final_total, _final_used, final_disk_free = self._disk_sample()
         cycle_disk_consumption_high_water = max(

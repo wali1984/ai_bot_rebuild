@@ -3,6 +3,8 @@ from __future__ import annotations
 import hashlib
 import json
 import stat
+import threading
+import time
 from collections import Counter, namedtuple
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -613,6 +615,7 @@ def _publisher(
     commission_cost_mode: str = AUTHENTICATED_COST_EVIDENCE_REQUIRED_MODE,
     commission_evidence_reader=None,  # type: ignore[no-untyped-def]
     feature_ledger: DurableFeatureSnapshotLedger | None = None,
+    execution_worker_slots=lambda: 1,  # type: ignore[no-untyped-def]
 ) -> ProfiledBaseFeaturePublisherV1:
     return ProfiledBaseFeaturePublisherV1(
         redis_client=redis_client,
@@ -630,6 +633,7 @@ def _publisher(
         clock=lambda: FIXED_CLOCK - timedelta(microseconds=1),
         monotonic=_Monotonic(),
         disk_usage=lambda _path: DiskUsage(10**12, 10**9, 10**12 - 10**9),
+        execution_worker_slots=execution_worker_slots,
         decision_planner=lambda _generated_at: FIXED_CLOCK,
         decision_waiter=lambda _decision_at: FIXED_CLOCK,
         capture_function=capture_function,
@@ -2896,6 +2900,112 @@ def test_authenticated_row_shortage_uses_measured_latency_and_disk_capacity() ->
     assert "AUTHENTICATED_TRAINER_ROW_SHORTAGE_MEASURED_LATENCY_BACKFILL" in (
         backfill.reasons
     )
+
+
+def test_worker_slots_scale_only_measured_capture_latency_capacity() -> None:
+    inputs = {
+        "eligible_count": 200,
+        "observations": {
+            "cycle_count": 4,
+            "materialized_publication_count": 4,
+            "materialized_publication_elapsed_seconds": 40.0,
+            "materialized_publication_bytes": 20_000_000,
+        },
+        "cycle_period_seconds": 300.0,
+        "resource_sustainability_horizon_seconds": (
+            MINIMUM_RESOURCE_SUSTAINABILITY_HORIZON_SECONDS
+        ),
+        "disk_total_bytes": 1_000_000_000_000,
+        "disk_used_bytes": 316_000_000_000,
+        "disk_free_bytes": 684_000_000_000,
+        "training_supply_backfill_required": True,
+    }
+
+    serial = adaptive_resource_decision_v1(**inputs, execution_worker_slots=1)
+    parallel = adaptive_resource_decision_v1(**inputs, execution_worker_slots=3)
+
+    assert serial.execution_worker_slots == 1
+    assert parallel.execution_worker_slots == 3
+    assert (
+        parallel.publication_latency_capacity_symbols
+        == serial.publication_latency_capacity_symbols * 3
+    )
+    assert parallel.selected_count >= serial.selected_count
+    assert (
+        parallel.selected_count * parallel.estimated_evidence_bytes_per_symbol
+        <= parallel.available_write_credit_bytes
+    )
+
+
+def test_multi_slot_cycle_overlaps_capture_and_keeps_status_commit_ordered(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payloads = _payloads()
+    payloads[DYNAMIC_SYMBOL_SELECTION_KEY] = _canonical_bytes(
+        {
+            "generated_utc": (FIXED_CLOCK - timedelta(seconds=1)).strftime(
+                "%Y-%m-%dT%H:%M:%SZ"
+            ),
+            "symbols": ["AAAUSDT", "BTCUSDT"],
+        }
+    )
+    payloads[_key("AAAUSDT", "5m")] = payloads[_key("BTCUSDT", "5m")]
+    payloads[_key("AAAUSDT", "1h")] = payloads[_key("BTCUSDT", "1h")]
+    redis_client = _Redis(payloads)
+    redis_client.trainer_status_raw = json.dumps(
+        {"blocker_reasons": ["INSUFFICIENT_TRAIN_ROWS"]}
+    )
+    _seed_observed_state(tmp_path / "state.json")
+    publisher = _publisher(
+        tmp_path,
+        redis_client,
+        execution_worker_slots=lambda: 2,
+    )
+    active = 0
+    max_active = 0
+    observed_threads: set[int] = set()
+    active_lock = threading.Lock()
+
+    def publish_symbol(*, symbol: str, **_kwargs: Any):  # type: ignore[no-untyped-def]
+        nonlocal active, max_active
+        with active_lock:
+            active += 1
+            max_active = max(max_active, active)
+            observed_threads.add(threading.get_ident())
+        try:
+            # The wait releases the GIL, so a two-slot executor must overlap
+            # independent capture work rather than merely queue it.
+            time.sleep(0.04)
+        finally:
+            with active_lock:
+                active -= 1
+        return publisher_module._SymbolOutcome(  # noqa: SLF001
+            symbol=symbol,
+            classification="AUTHENTICATED_PROFILED_TRAINING_PAIR_INSERTED",
+            window_fingerprint_sha256="a" * 64,
+            materialized_evidence_bytes=BOOTSTRAP_EVIDENCE_BYTES_PER_SYMBOL,
+            detail={"symbol": symbol},
+            coverage={
+                "last_published_at": _iso(FIXED_CLOCK),
+                "feature_cutoff": _iso(FIXED_CLOCK - timedelta(minutes=5)),
+                "decision_time": _iso(FIXED_CLOCK),
+                "window_fingerprint_sha256": "a" * 64,
+                "durable_snapshot_id": f"snapshot-{symbol}",
+                "record_sha256": "b" * 64,
+            },
+        )
+
+    monkeypatch.setattr(publisher, "_publish_symbol", publish_symbol)
+
+    status = publisher.run_cycle()
+
+    assert max_active == 2
+    assert len(observed_threads) == 2
+    assert status["selected_symbols"] == ["AAAUSDT", "BTCUSDT"]
+    assert status["published_symbols"] == ["AAAUSDT", "BTCUSDT"]
+    assert status["resource_decision"]["execution_worker_slots"] == 2
+    assert status["resource_decision"]["training_supply_backfill_required"] is True
 
 
 def test_only_exact_trainer_row_shortage_status_enables_backfill(tmp_path: Path) -> None:
