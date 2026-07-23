@@ -471,7 +471,6 @@ def _label_binding(
     *,
     sample: ProfiledTrainingLedgerSampleV1,
     archive: DurableCanonical5mLabelArchive,
-    archive_integrity: Mapping[str, Any],
     archive_high_water: Mapping[str, Any],
     observation: datetime,
 ) -> tuple[dict[str, Any] | None, tuple[str, ...]]:
@@ -517,7 +516,14 @@ def _label_binding(
             decision_time=sample.decision_time,
             training_observed_at=strict_prior,
             horizon_seconds=sample.expected_holding_horizon_seconds,
-            archive_integrity_proof=archive_integrity,
+            # A full-tail integrity proof becomes stale whenever the healthy
+            # archive writer appends a later immutable suffix.  Each bounded
+            # range therefore verifies SQLite health, the exact canonical
+            # rows, row-chain formula, and both receipt classes inside its own
+            # read transaction.  The full archive is still verified before
+            # and after the manifest build, while ``archive_high_water`` pins
+            # the exact receipt prefix visible at ``observation``.
+            archive_integrity_proof=None,
             require_receipt_committed_by_observation=True,
         )
     except (Canonical5mArchiveError, OSError, sqlite3.Error, TypeError, ValueError) as exc:
@@ -525,12 +531,6 @@ def _label_binding(
             f"PROFILED_OBSERVATION_LABEL_PATH_READ_FAILED:{type(exc).__name__}"
         ) from exc
     if rows is None:
-        range_proof = path_proof.get("range_proof")
-        if isinstance(range_proof, Mapping) and (
-            range_proof.get("archive_integrity_proof_reused") is True
-            and range_proof.get("archive_integrity_proof_current") is False
-        ):
-            _fail("PROFILED_OBSERVATION_LABEL_INTEGRITY_PROOF_MOVED_DURING_BUILD")
         reasons = tuple(
             sorted(
                 {str(reason) for reason in path_proof.get("rejection_reasons") or () if str(reason)}
@@ -544,8 +544,10 @@ def _label_binding(
         or path_proof.get("pit_available_at_verified") is not True
         or path_proof.get("strictly_after_decision_verified") is not True
         or path_proof.get("horizon_endpoint_verified") is not True
-        or range_proof.get("archive_integrity_proof_reused") is not True
-        or range_proof.get("archive_integrity_proof_current") is not True
+        or range_proof.get("archive_integrity_proof_reused") is not False
+        or range_proof.get("archive_integrity_proof_current") is not None
+        or range_proof.get("sqlite_quick_check_verified") is not True
+        or range_proof.get("archive_schema_and_retention_verified") is not True
         or range_proof.get("canonical_payloads_verified") is not True
         or range_proof.get("content_sha256_verified") is not True
         or range_proof.get("append_transaction_precommit_receipts_verified") is not True
@@ -1905,7 +1907,6 @@ def build_profiled_training_observation_manifest_v1(
                     label_binding, label_reasons = _label_binding(
                         sample=sample,
                         archive=label_archive,
-                        archive_integrity=label_integrity,
                         archive_high_water=label_high_water,
                         observation=observation,
                     )

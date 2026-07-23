@@ -15,6 +15,9 @@ from v2.backend.app.services.market_state_integrity.canonical_candles import (
     CanonicalCandle,
 )
 from v2.backend.app.services.native_trainer import (
+    durable_canonical_5m_label_archive as label_archive_module,
+)
+from v2.backend.app.services.native_trainer import (
     durable_feature_snapshot_ledger as feature_ledger_module,
 )
 from v2.backend.app.services.native_trainer import (
@@ -158,6 +161,38 @@ def _setup_sources(
     return ledger, archive, observation, (tmp_path / "cost-cas").absolute()
 
 
+def _append_post_setup_label_suffix(
+    *,
+    archive: DurableCanonical5mLabelArchive,
+    authenticated_base_evidence: Any,
+    commit_clock: datetime,
+) -> None:
+    parent = authenticated_base_evidence.record
+    envelope = parent["frozen_envelope"]
+    feature_values = dict(
+        zip(
+            envelope["ordered_feature_names"],
+            envelope["feature_values"],
+            strict=True,
+        )
+    )
+    clock_text = commit_clock.isoformat(timespec="milliseconds").replace(
+        "+00:00",
+        "Z",
+    )
+    with pytest.MonkeyPatch.context() as clock_patch:
+        clock_patch.setattr(label_archive_module, "utc_now", lambda: clock_text)
+        archive.append_candles(
+            [
+                _label_candles(
+                    decision_time=envelope["tensor_decision_time"],
+                    entry_price=float(feature_values["close"]),
+                    rows=50,
+                )[-1]
+            ]
+        )
+
+
 def test_builds_authenticated_manifest_and_reopens_exact_446_1784_example(
     tmp_path: Path,
     authenticated_base_evidence: Any,
@@ -226,6 +261,100 @@ def test_builds_authenticated_manifest_and_reopens_exact_446_1784_example(
     assert page.external_monotonic_manifest_head_verified is False
     assert all(not path.exists() for path in orphan_paths)
     assert unrelated.read_bytes() == b"not-owned-by-the-exact-temp-namespace"
+
+
+def test_later_valid_label_suffix_does_not_move_fixed_observation_build(
+    tmp_path: Path,
+    authenticated_base_evidence: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ledger, archive, observation, cost_root = _setup_sources(
+        tmp_path,
+        authenticated_base_evidence,
+    )
+    observation_clock = datetime.fromisoformat(
+        observation.replace("Z", "+00:00")
+    ).astimezone(UTC)
+    original_verified_label_path = archive.verified_label_path
+    appended = False
+    observed_integrity_proofs: list[object] = []
+
+    def append_suffix_then_read(**kwargs: Any) -> tuple[Any, Any]:
+        nonlocal appended
+        observed_integrity_proofs.append(kwargs.get("archive_integrity_proof"))
+        if not appended:
+            appended = True
+            _append_post_setup_label_suffix(
+                archive=archive,
+                authenticated_base_evidence=authenticated_base_evidence,
+                commit_clock=observation_clock + timedelta(seconds=1),
+            )
+        return original_verified_label_path(**kwargs)
+
+    monkeypatch.setattr(archive, "verified_label_path", append_suffix_then_read)
+    built = build_profiled_training_observation_manifest_v1(
+        ledger=ledger,
+        trusted_immutable_cost_store_root=cost_root,
+        label_archive=archive,
+        manifest_root=(tmp_path / "manifests").absolute(),
+        training_observed_at=observation,
+        auth_key_id=AUTH_KEY_ID,
+        hmac_key=AUTH_KEY,
+    )
+
+    assert appended is True
+    assert observed_integrity_proofs == [None]
+    assert built.total_profiled_samples == 1
+    assert built.admitted_examples == 1
+    assert built.label_unavailable_samples == 0
+
+
+def test_label_suffix_committed_before_cutoff_still_fails_closed(
+    tmp_path: Path,
+    authenticated_base_evidence: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ledger, archive, observation, cost_root = _setup_sources(
+        tmp_path,
+        authenticated_base_evidence,
+    )
+    observation_clock = datetime.fromisoformat(
+        observation.replace("Z", "+00:00")
+    ).astimezone(UTC)
+    original_verified_label_path = archive.verified_label_path
+    appended = False
+
+    def append_visible_suffix_then_read(**kwargs: Any) -> tuple[Any, Any]:
+        nonlocal appended
+        if not appended:
+            appended = True
+            _append_post_setup_label_suffix(
+                archive=archive,
+                authenticated_base_evidence=authenticated_base_evidence,
+                commit_clock=observation_clock - timedelta(seconds=1),
+            )
+        return original_verified_label_path(**kwargs)
+
+    monkeypatch.setattr(
+        archive,
+        "verified_label_path",
+        append_visible_suffix_then_read,
+    )
+    with pytest.raises(
+        ProfiledTrainingObservationManifestV1Error,
+        match="PROFILED_OBSERVATION_LABEL_HIGH_WATER_MOVED_DURING_BUILD",
+    ):
+        build_profiled_training_observation_manifest_v1(
+            ledger=ledger,
+            trusted_immutable_cost_store_root=cost_root,
+            label_archive=archive,
+            manifest_root=(tmp_path / "manifests").absolute(),
+            training_observed_at=observation,
+            auth_key_id=AUTH_KEY_ID,
+            hmac_key=AUTH_KEY,
+        )
+
+    assert appended is True
 
 
 def test_multi_example_page_reuses_one_authenticated_source_snapshot(
