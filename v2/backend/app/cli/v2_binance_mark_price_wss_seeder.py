@@ -12,8 +12,9 @@ import argparse
 import asyncio
 import json
 import sys
-from datetime import datetime, timezone
-from typing import Any, Mapping
+from collections.abc import Mapping
+from datetime import UTC, datetime
+from typing import Any
 
 from v2.backend.app.services.binance_unified_websocket_transport import (
     BINANCE_USDM_MARKET_STREAM_URL,
@@ -29,7 +30,7 @@ LIVE_GATE = "blocked_human_only"
 
 
 def _utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+    return datetime.now(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
 def _iso_from_ms(value: Any) -> str | None:
@@ -41,7 +42,11 @@ def _iso_from_ms(value: Any) -> str | None:
         return None
     if ms <= 0:
         return None
-    return datetime.fromtimestamp(ms / 1000.0, tz=timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+    return (
+        datetime.fromtimestamp(ms / 1000.0, tz=UTC)
+        .isoformat(timespec="milliseconds")
+        .replace("+00:00", "Z")
+    )
 
 
 def _float(value: Any) -> float | None:
@@ -74,7 +79,16 @@ def _safe_set(client: Any, key: str, payload: Mapping[str, Any], *, ttl_seconds:
         return False
     if not key.startswith("v2:market:"):
         raise ValueError(f"refused_non_market_key:{key}")
-    client.set(key, json.dumps(dict(payload), sort_keys=True, separators=(",", ":")), ex=int(ttl_seconds))
+    client.set(
+        key,
+        json.dumps(
+            dict(payload),
+            allow_nan=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ),
+        ex=int(ttl_seconds),
+    )
     return True
 
 
@@ -108,7 +122,10 @@ def _normalize_row(row: Mapping[str, Any], *, available_at: str) -> dict[str, An
         "last_funding_rate": _float(row.get("r") or row.get("lastFundingRate")),
         "next_funding_time_ms": row.get("T") or row.get("nextFundingTime"),
         "event_time": event_time,
+        "generated_at": available_at,
+        "received_at": available_at,
         "available_at": available_at,
+        "expected_update_interval_seconds": 1.0,
         "source": "binance_usdm_wss_mark_price_all_symbols",
         "transport": "websocket_primary",
         "live_gate": LIVE_GATE,
@@ -205,7 +222,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--timeout-seconds", type=float, default=15.0)
     args = parser.parse_args(argv)
 
-    symbols = set(resolve_symbols(explicit=args.symbols, smoke_test=args.smoke_test, include_baseline=True))
+    symbols = set(
+        resolve_symbols(
+            explicit=args.symbols,
+            smoke_test=args.smoke_test,
+            include_baseline=True,
+        )
+    )
     redis_client = _redis_client(bool(args.write_redis))
     status: dict[str, Any] = {
         "schema_version": "binance_usdm_mark_price_wss_seeder_status_v1",
