@@ -3485,6 +3485,7 @@ class DurableCanonical5mLabelArchive:
                     else "VERIFIED_CANONICAL_5M_LABEL_RANGE"
                 ),
                 "rejection_reasons": [],
+                "range_material": range_material,
                 "range_sha256": stable_sha256(range_material),
                 "transaction_snapshot_verified": True,
             }
