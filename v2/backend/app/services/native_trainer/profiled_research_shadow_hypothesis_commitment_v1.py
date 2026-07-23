@@ -83,6 +83,18 @@ PROFILED_RESEARCH_SHADOW_PENDING_INDEX_V1_SCHEMA_VERSION: Final = (
 PROFILED_RESEARCH_SHADOW_HEAD_ANCHOR_V1_SCHEMA_VERSION: Final = (
     "profiled_research_shadow_hypothesis_head_anchor_v1"
 )
+PROFILED_RESEARCH_SHADOW_COMMITMENT_INVENTORY_SNAPSHOT_V1_SCHEMA_VERSION: Final = (
+    "profiled_research_shadow_commitment_inventory_snapshot_v1"
+)
+PROFILED_RESEARCH_SHADOW_COMMITMENT_INVENTORY_SNAPSHOT_V1_CLASSIFICATION: Final = (
+    "REPLAYABLE_SHADOW_COMMITMENT_PREFIX_PROPOSAL_NO_AUTHORITY_V1"
+)
+PROFILED_RESEARCH_SHADOW_COMMITMENT_INVENTORY_PAGE_V1_SCHEMA_VERSION: Final = (
+    "profiled_research_shadow_commitment_inventory_page_v1"
+)
+PROFILED_RESEARCH_SHADOW_COMMITMENT_INVENTORY_PAGE_V1_CLASSIFICATION: Final = (
+    "BOUNDED_SHADOW_COMMITMENT_INVENTORY_PAGE_NO_AUTHORITY_V1"
+)
 
 _APPLICATION_ID = 0x50534843
 _USER_VERSION = 1
@@ -92,6 +104,12 @@ _GENESIS_CHAIN_SHA256 = hashlib.sha256(
 _GENESIS_HEAD_ANCHOR_SHA256 = hashlib.sha256(
     f"{PROFILED_RESEARCH_SHADOW_HEAD_ANCHOR_V1_SCHEMA_VERSION}:GENESIS".encode()
 ).hexdigest()
+_GENESIS_SNAPSHOT_PAGE_SHA256 = hashlib.sha256(
+    (
+        f"{PROFILED_RESEARCH_SHADOW_COMMITMENT_INVENTORY_PAGE_V1_SCHEMA_VERSION}"
+        ":GENESIS"
+    ).encode()
+).hexdigest()
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$", re.ASCII)
 _CANONICAL_UTC_MILLISECOND_RE = re.compile(
     r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T"
@@ -99,8 +117,16 @@ _CANONICAL_UTC_MILLISECOND_RE = re.compile(
 )
 _SYMBOL_RE = re.compile(r"^[A-Z0-9]{2,32}$", re.ASCII)
 _IDENTITY_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:@/-]{0,511}$", re.ASCII)
+_CHECKPOINT_ID_RE = re.compile(
+    r"^[A-Za-z0-9][A-Za-z0-9_.:@/-]{0,255}$",
+    re.ASCII,
+)
 _MAX_JSON_BYTES = 8 * 1024 * 1024
 _MAX_LEDGER_RECORDS = 65_536
+_SNAPSHOT_PAGE_MAX_ROWS = 128
+_SNAPSHOT_PAGE_MAX_COUNT = (
+    _MAX_LEDGER_RECORDS + _SNAPSHOT_PAGE_MAX_ROWS - 1
+) // _SNAPSHOT_PAGE_MAX_ROWS
 _MAX_PENDING_RESULTS = 4_096
 _MAX_LEDGER_AGGREGATE_JSON_BYTES = 64 * 1024 * 1024
 _MAX_LEDGER_DATABASE_BYTES = 512 * 1024 * 1024
@@ -108,6 +134,8 @@ _BUSY_TIMEOUT_MS = 60_000
 _RESULT_TOKEN = object()
 _LEASE_TOKEN = object()
 _RESULT_SEAL_KEY = secrets.token_bytes(32)
+_SNAPSHOT_RESULT_TOKEN = object()
+_SNAPSHOT_RESULT_SEAL_KEY = secrets.token_bytes(32)
 
 _AUTHORIZATION: Final = {
     "consumer_eligible": False,
@@ -129,6 +157,94 @@ _AUTHORIZATION: Final = {
     "execution_authorized": False,
     "runtime_wired": False,
 }
+
+_SNAPSHOT_STATUS: Final = {
+    "source_database_replay_verified": True,
+    "source_cas_replay_verified": True,
+    "source_head_catalog_replay_verified": True,
+    "snapshot_observed_at_durably_anchored": False,
+    "canonical_current_head_selection_verified": False,
+    "terminal_outcome_accounting_verified": False,
+    "calibration_candidate_authorized": False,
+    "runtime_wired": False,
+}
+
+_SNAPSHOT_FIELDS: Final = frozenset(
+    {
+        "schema_version",
+        "classification",
+        "ledger_binding",
+        "ordered_inventory_pages",
+        "snapshot_observed_at",
+        "inventory_sha256",
+        "authorization",
+        "status",
+        "snapshot_material_sha256",
+    }
+)
+_SNAPSHOT_LEDGER_FIELDS: Final = frozenset(
+    {
+        "ledger_schema_version",
+        "ledger_path_sha256",
+        "total_committed_hypotheses",
+        "chain_head_sha256",
+        "terminal_head_anchor_sha256",
+        "terminal_head_anchored_at",
+        "inventory_page_count",
+    }
+)
+_SNAPSHOT_PAGE_DESCRIPTOR_FIELDS: Final = frozenset(
+    {
+        "page_index",
+        "first_sequence",
+        "last_sequence",
+        "row_count",
+        "page_material_sha256",
+        "page_cas_address",
+    }
+)
+_SNAPSHOT_PAGE_FIELDS: Final = frozenset(
+    {
+        "schema_version",
+        "classification",
+        "ledger_schema_version",
+        "ledger_path_sha256",
+        "page_index",
+        "first_sequence",
+        "last_sequence",
+        "row_count",
+        "previous_page_material_sha256",
+        "ordered_inventory",
+        "page_material_sha256",
+        "authorization",
+    }
+)
+_SNAPSHOT_ROW_FIELDS: Final = frozenset(
+    {
+        "sequence",
+        "hypothesis_identity_sha256",
+        "hypothesis_artifact_sha256",
+        "hypothesis_artifact_byte_count",
+        "cost_closure_sha256",
+        "cost_closure_byte_count",
+        "raw_inference_binding_sha256",
+        "checkpoint_id",
+        "checkpoint_generation",
+        "model_parameter_fingerprint",
+        "decision_time",
+        "label_earliest_available_at",
+        "commitment_sha256",
+        "append_receipt_sha256",
+        "postcommit_receipt_sha256",
+        "record_chain_sha256",
+        "head_anchor_sha256",
+        "commit_observed_at",
+        "commit_prepared_at",
+        "postcommit_observed_at",
+        "postcommit_readback_at",
+        "disposition",
+    }
+)
 
 _COMMITMENT_STATUS: Final = {
     "durable_ex_ante_commit_receipt_present": True,
@@ -447,6 +563,37 @@ def _address_mapping(address: SourcePayloadAddress) -> dict[str, object]:
         "payload_byte_count": address.payload_byte_count,
         "relative_path": address.relative_path,
     }
+
+
+def _address_from_mapping(value: object, *, reason: str) -> SourcePayloadAddress:
+    if type(value) is not dict or set(value) != {
+        "schema_version",
+        "payload_sha256",
+        "payload_byte_count",
+        "relative_path",
+    }:
+        _integrity(reason)
+    mapping = cast(dict[str, Any], value)
+    digest = _strict_sha256(mapping.get("payload_sha256"))
+    count = _strict_positive_int(
+        mapping.get("payload_byte_count"),
+        maximum=_MAX_JSON_BYTES,
+    )
+    relative = mapping.get("relative_path")
+    if (
+        mapping.get("schema_version") != SOURCE_PAYLOAD_ADDRESS_SCHEMA_VERSION
+        or digest is None
+        or count is None
+        or type(relative) is not str
+        or relative != f"sha256/{digest[:2]}/{digest}"
+    ):
+        _integrity(reason)
+    return SourcePayloadAddress(
+        schema_version=SOURCE_PAYLOAD_ADDRESS_SCHEMA_VERSION,
+        payload_sha256=digest,
+        payload_byte_count=count,
+        relative_path=relative,
+    )
 
 
 def _address_from_columns(
@@ -1453,6 +1600,607 @@ class DurablyCommittedProfiledResearchShadowHypothesisV1:
     @property
     def runtime_wired(self) -> bool:
         return self._verified_status("runtime_wired")
+
+
+@dataclass(frozen=True, slots=True)
+class ProfiledResearchShadowCommitmentInventorySnapshotV1:
+    snapshot_artifact_sha256: str
+    snapshot_artifact_byte_count: int
+    snapshot_artifact_address: SourcePayloadAddress
+    total_committed_hypotheses: int
+    chain_head_sha256: str
+    terminal_head_anchor_sha256: str
+    snapshot_observed_at: str
+    _artifact_json: str = field(repr=False, compare=False)
+    _ledger: ProfiledResearchShadowHypothesisCommitmentLedgerV1 = field(
+        repr=False,
+        compare=False,
+    )
+    _store: ImmutableSourcePayloadStore = field(repr=False, compare=False)
+    _factory_seal: str = field(repr=False, compare=False)
+    _construction_token: object = field(repr=False, compare=False)
+
+    @property
+    def snapshot_contract(self) -> dict[str, Any]:
+        return _validated_inventory_snapshot_result(self)
+
+    @property
+    def runtime_wired(self) -> bool:
+        _validated_inventory_snapshot_result(self)
+        return False
+
+
+def _snapshot_ledger_path_sha256(path: Path) -> str:
+    return _sha256(
+        {
+            "domain": "profiled-shadow-commitment-ledger-path/v1",
+            "ledger_path": str(path),
+        },
+        reason="SHADOW_COMMITMENT_SNAPSHOT_PATH_BINDING_INVALID",
+    )
+
+
+def _snapshot_inventory_row(
+    row: sqlite3.Row,
+    prepared: _PreparedHypothesis,
+) -> dict[str, Any]:
+    raw = prepared.artifact_contract.get("raw_inference_payload")
+    if type(raw) is not dict:
+        _integrity("SHADOW_COMMITMENT_SNAPSHOT_RAW_INFERENCE_INVALID")
+    raw = cast(dict[str, Any], raw)
+    return {
+        "sequence": row["sequence"],
+        "hypothesis_identity_sha256": row["hypothesis_identity_sha256"],
+        "hypothesis_artifact_sha256": row["hypothesis_artifact_sha256"],
+        "hypothesis_artifact_byte_count": row["hypothesis_artifact_byte_count"],
+        "cost_closure_sha256": row["cost_closure_sha256"],
+        "cost_closure_byte_count": row["cost_closure_byte_count"],
+        "raw_inference_binding_sha256": row["raw_inference_binding_sha256"],
+        "checkpoint_id": raw.get("checkpoint_id"),
+        "checkpoint_generation": raw.get("checkpoint_generation"),
+        "model_parameter_fingerprint": raw.get("model_parameter_fingerprint"),
+        "decision_time": row["decision_time"],
+        "label_earliest_available_at": row["label_earliest_available_at"],
+        "commitment_sha256": row["commitment_sha256"],
+        "append_receipt_sha256": row["append_receipt_sha256"],
+        "postcommit_receipt_sha256": row["readback_receipt_sha256"],
+        "record_chain_sha256": row["record_chain_sha256"],
+        "head_anchor_sha256": row["head_anchor_sha256"],
+        "commit_observed_at": row["commit_observed_at"],
+        "commit_prepared_at": row["commit_prepared_at"],
+        "postcommit_observed_at": row["postcommit_observed_at"],
+        "postcommit_readback_at": row["postcommit_readback_at"],
+        "disposition": (
+            "EX_ANTE_VERIFIED_AWAITING_TERMINAL_ACCOUNTING"
+            if row["ex_ante_durability_verified"] == 1
+            else "QUARANTINED_EX_ANTE_DURABILITY_FAILED"
+        ),
+    }
+
+
+def _validate_snapshot_inventory_rows(
+    inventory: object,
+    *,
+    expected_start_sequence: int,
+) -> list[dict[str, Any]]:
+    if type(inventory) is not list or len(inventory) > _MAX_LEDGER_RECORDS:
+        _integrity("SHADOW_COMMITMENT_SNAPSHOT_INVENTORY_INVALID")
+    rows = cast(list[Any], inventory)
+    seen_identities: set[str] = set()
+    seen_artifacts: set[str] = set()
+    for expected_sequence, raw in enumerate(rows, start=expected_start_sequence):
+        if type(raw) is not dict or set(raw) != _SNAPSHOT_ROW_FIELDS:
+            _integrity("SHADOW_COMMITMENT_SNAPSHOT_ROW_FIELDS_INVALID")
+        row = cast(dict[str, Any], raw)
+        decision = _aware_clock(row.get("decision_time"))
+        label = _aware_clock(row.get("label_earliest_available_at"))
+        commit_observed = _aware_clock(row.get("commit_observed_at"))
+        commit_prepared = _canonical_millisecond_clock(row.get("commit_prepared_at"))
+        post_observed = _aware_clock(row.get("postcommit_observed_at"))
+        post_readback = _canonical_millisecond_clock(
+            row.get("postcommit_readback_at")
+        )
+        try:
+            expected_label = (
+                decision + timedelta(
+                    seconds=CAUSAL_COST_COUNTERFACTUAL_HORIZON_SECONDS
+                )
+                if decision is not None
+                else None
+            )
+        except OverflowError:
+            expected_label = None
+        identity = row.get("hypothesis_identity_sha256")
+        artifact = row.get("hypothesis_artifact_sha256")
+        disposition = row.get("disposition")
+        if (
+            type(row.get("sequence")) is not int
+            or row.get("sequence") != expected_sequence
+            or _strict_sha256(identity) is None
+            or _strict_sha256(artifact) is None
+            or identity in seen_identities
+            or artifact in seen_artifacts
+            or _strict_positive_int(
+                row.get("hypothesis_artifact_byte_count"),
+                maximum=_MAX_JSON_BYTES,
+            )
+            is None
+            or _strict_sha256(row.get("cost_closure_sha256")) is None
+            or _strict_positive_int(
+                row.get("cost_closure_byte_count"),
+                maximum=_MAX_JSON_BYTES,
+            )
+            is None
+            or any(
+                _strict_sha256(row.get(name)) is None
+                for name in (
+                    "raw_inference_binding_sha256",
+                    "model_parameter_fingerprint",
+                    "commitment_sha256",
+                    "append_receipt_sha256",
+                    "postcommit_receipt_sha256",
+                    "record_chain_sha256",
+                    "head_anchor_sha256",
+                )
+            )
+            or type(row.get("checkpoint_id")) is not str
+            or _CHECKPOINT_ID_RE.fullmatch(cast(str, row["checkpoint_id"])) is None
+            or type(row.get("checkpoint_generation")) is not int
+            or cast(int, row["checkpoint_generation"]) <= 0
+            or decision is None
+            or _format_microsecond(decision) != row.get("decision_time")
+            or label is None
+            or _format_microsecond(label) != row.get("label_earliest_available_at")
+            or commit_observed is None
+            or _format_microsecond(commit_observed) != row.get("commit_observed_at")
+            or commit_prepared is None
+            or post_observed is None
+            or _format_microsecond(post_observed)
+            != row.get("postcommit_observed_at")
+            or post_readback is None
+            or not decision < label
+            or label != expected_label
+            or not decision <= commit_observed <= commit_prepared
+            or not commit_prepared < label
+            or not post_observed <= post_readback
+            or not commit_prepared < post_readback
+            or disposition
+            not in {
+                "EX_ANTE_VERIFIED_AWAITING_TERMINAL_ACCOUNTING",
+                "QUARANTINED_EX_ANTE_DURABILITY_FAILED",
+            }
+            or (
+                disposition
+                == "EX_ANTE_VERIFIED_AWAITING_TERMINAL_ACCOUNTING"
+                and not commit_observed < post_observed < label
+            )
+            or (
+                disposition == "QUARANTINED_EX_ANTE_DURABILITY_FAILED"
+                and commit_observed < post_observed < label
+            )
+        ):
+            _integrity("SHADOW_COMMITMENT_SNAPSHOT_ROW_INVALID")
+        seen_identities.add(cast(str, identity))
+        seen_artifacts.add(cast(str, artifact))
+    return cast(list[dict[str, Any]], rows)
+
+
+def _prepare_inventory_page_contract(
+    *,
+    ledger_path: Path,
+    page_index: int,
+    rows: list[dict[str, Any]],
+    previous_page_material_sha256: str,
+) -> dict[str, Any]:
+    first_sequence = rows[0]["sequence"]
+    last_sequence = rows[-1]["sequence"]
+    base = {
+        "schema_version": (
+            PROFILED_RESEARCH_SHADOW_COMMITMENT_INVENTORY_PAGE_V1_SCHEMA_VERSION
+        ),
+        "classification": (
+            PROFILED_RESEARCH_SHADOW_COMMITMENT_INVENTORY_PAGE_V1_CLASSIFICATION
+        ),
+        "ledger_schema_version": (
+            PROFILED_RESEARCH_SHADOW_COMMITMENT_LEDGER_V1_SCHEMA_VERSION
+        ),
+        "ledger_path_sha256": _snapshot_ledger_path_sha256(ledger_path),
+        "page_index": page_index,
+        "first_sequence": first_sequence,
+        "last_sequence": last_sequence,
+        "row_count": len(rows),
+        "previous_page_material_sha256": previous_page_material_sha256,
+        "ordered_inventory": rows,
+        "authorization": dict(_AUTHORIZATION),
+    }
+    return {**base, "page_material_sha256": _sha256(base)}
+
+
+def _validate_inventory_page_contract(value: object) -> dict[str, Any]:
+    if type(value) is not dict or set(value) != _SNAPSHOT_PAGE_FIELDS:
+        _integrity("SHADOW_COMMITMENT_SNAPSHOT_PAGE_FIELDS_INVALID")
+    page = cast(dict[str, Any], value)
+    page_index = page.get("page_index")
+    first_sequence = page.get("first_sequence")
+    last_sequence = page.get("last_sequence")
+    row_count = page.get("row_count")
+    if (
+        page.get("schema_version")
+        != PROFILED_RESEARCH_SHADOW_COMMITMENT_INVENTORY_PAGE_V1_SCHEMA_VERSION
+        or page.get("classification")
+        != PROFILED_RESEARCH_SHADOW_COMMITMENT_INVENTORY_PAGE_V1_CLASSIFICATION
+        or page.get("ledger_schema_version")
+        != PROFILED_RESEARCH_SHADOW_COMMITMENT_LEDGER_V1_SCHEMA_VERSION
+        or _strict_sha256(page.get("ledger_path_sha256")) is None
+        or type(page_index) is not int
+        or cast(int, page_index) < 0
+        or type(first_sequence) is not int
+        or cast(int, first_sequence) <= 0
+        or type(last_sequence) is not int
+        or type(row_count) is not int
+        or not 0 < cast(int, row_count) <= _SNAPSHOT_PAGE_MAX_ROWS
+        or cast(int, last_sequence)
+        != cast(int, first_sequence) + cast(int, row_count) - 1
+        or _strict_sha256(page.get("previous_page_material_sha256")) is None
+        or page.get("authorization") != _AUTHORIZATION
+    ):
+        _integrity("SHADOW_COMMITMENT_SNAPSHOT_PAGE_INVALID")
+    validated_rows = _validate_snapshot_inventory_rows(
+        page.get("ordered_inventory"),
+        expected_start_sequence=cast(int, first_sequence),
+    )
+    if (
+        len(validated_rows) != row_count
+        or validated_rows[0]["sequence"] != first_sequence
+        or validated_rows[-1]["sequence"] != last_sequence
+    ):
+        _integrity("SHADOW_COMMITMENT_SNAPSHOT_PAGE_CARDINALITY_INVALID")
+    expected_material = _sha256(
+        {
+            key: page[key]
+            for key in page
+            if key != "page_material_sha256"
+        }
+    )
+    if page.get("page_material_sha256") != expected_material:
+        _integrity("SHADOW_COMMITMENT_SNAPSHOT_PAGE_MATERIAL_INVALID")
+    return page
+
+
+def validate_profiled_research_shadow_commitment_inventory_page_v1(
+    payload: object,
+) -> dict[str, Any]:
+    if type(payload) is not bytes:
+        _validation("SHADOW_COMMITMENT_SNAPSHOT_PAGE_EXACT_BYTES_REQUIRED")
+    return _validate_inventory_page_contract(
+        _parse_exact_object(
+            cast(bytes, payload),
+            reason="SHADOW_COMMITMENT_SNAPSHOT_PAGE_JSON_INVALID",
+        )
+    )
+
+
+def _inventory_sha256(
+    *,
+    page_descriptors: list[dict[str, Any]],
+    total_committed_hypotheses: int,
+) -> str:
+    return _sha256(
+        {
+            "domain": "profiled-shadow-commitment-paged-inventory-root/v1",
+            "total_committed_hypotheses": total_committed_hypotheses,
+            "ordered_inventory_pages": page_descriptors,
+        },
+        reason="SHADOW_COMMITMENT_SNAPSHOT_INVENTORY_INVALID",
+    )
+
+
+def _prepare_inventory_snapshot_contract(
+    *,
+    ledger_path: Path,
+    rows: list[sqlite3.Row],
+    inventory: list[dict[str, Any]],
+    page_descriptors: list[dict[str, Any]],
+    snapshot_observed_at: str,
+) -> dict[str, Any]:
+    if len(rows) != len(inventory):
+        _integrity("SHADOW_COMMITMENT_SNAPSHOT_INVENTORY_CARDINALITY_INVALID")
+    ledger_binding = {
+        "ledger_schema_version": (
+            PROFILED_RESEARCH_SHADOW_COMMITMENT_LEDGER_V1_SCHEMA_VERSION
+        ),
+        "ledger_path_sha256": _snapshot_ledger_path_sha256(ledger_path),
+        "total_committed_hypotheses": len(rows),
+        "chain_head_sha256": (
+            cast(str, rows[-1]["record_chain_sha256"])
+            if rows
+            else _GENESIS_CHAIN_SHA256
+        ),
+        "terminal_head_anchor_sha256": (
+            cast(str, rows[-1]["head_anchor_sha256"])
+            if rows
+            else _GENESIS_HEAD_ANCHOR_SHA256
+        ),
+        "terminal_head_anchored_at": (
+            cast(str, rows[-1]["postcommit_readback_at"]) if rows else None
+        ),
+        "inventory_page_count": len(page_descriptors),
+    }
+    base = {
+        "schema_version": (
+            PROFILED_RESEARCH_SHADOW_COMMITMENT_INVENTORY_SNAPSHOT_V1_SCHEMA_VERSION
+        ),
+        "classification": (
+            PROFILED_RESEARCH_SHADOW_COMMITMENT_INVENTORY_SNAPSHOT_V1_CLASSIFICATION
+        ),
+        "ledger_binding": ledger_binding,
+        "ordered_inventory_pages": page_descriptors,
+        "snapshot_observed_at": snapshot_observed_at,
+        "inventory_sha256": _inventory_sha256(
+            page_descriptors=page_descriptors,
+            total_committed_hypotheses=len(inventory),
+        ),
+        "authorization": dict(_AUTHORIZATION),
+        "status": dict(_SNAPSHOT_STATUS),
+    }
+    return {**base, "snapshot_material_sha256": _sha256(base)}
+
+
+def _validate_inventory_snapshot_contract(value: object) -> dict[str, Any]:
+    if type(value) is not dict or set(value) != _SNAPSHOT_FIELDS:
+        _integrity("SHADOW_COMMITMENT_SNAPSHOT_FIELDS_INVALID")
+    contract = cast(dict[str, Any], value)
+    binding = contract.get("ledger_binding")
+    descriptors = contract.get("ordered_inventory_pages")
+    if (
+        contract.get("schema_version")
+        != PROFILED_RESEARCH_SHADOW_COMMITMENT_INVENTORY_SNAPSHOT_V1_SCHEMA_VERSION
+        or contract.get("classification")
+        != PROFILED_RESEARCH_SHADOW_COMMITMENT_INVENTORY_SNAPSHOT_V1_CLASSIFICATION
+        or type(binding) is not dict
+        or set(binding) != _SNAPSHOT_LEDGER_FIELDS
+        or type(descriptors) is not list
+        or len(descriptors) > _SNAPSHOT_PAGE_MAX_COUNT
+        or contract.get("authorization") != _AUTHORIZATION
+        or contract.get("status") != _SNAPSHOT_STATUS
+        or _strict_sha256(contract.get("inventory_sha256")) is None
+    ):
+        _integrity("SHADOW_COMMITMENT_SNAPSHOT_INVALID")
+    binding = cast(dict[str, Any], binding)
+    descriptors = cast(list[Any], descriptors)
+    total = binding.get("total_committed_hypotheses")
+    page_count = binding.get("inventory_page_count")
+    observed = _aware_clock(contract.get("snapshot_observed_at"))
+    terminal = _canonical_millisecond_clock(
+        binding.get("terminal_head_anchored_at")
+    )
+    if (
+        binding.get("ledger_schema_version")
+        != PROFILED_RESEARCH_SHADOW_COMMITMENT_LEDGER_V1_SCHEMA_VERSION
+        or _strict_sha256(binding.get("ledger_path_sha256")) is None
+        or type(total) is not int
+        or not 0 <= cast(int, total) <= _MAX_LEDGER_RECORDS
+        or type(page_count) is not int
+        or page_count != len(descriptors)
+        or (total == 0) != (page_count == 0)
+        or _strict_sha256(binding.get("chain_head_sha256")) is None
+        or _strict_sha256(binding.get("terminal_head_anchor_sha256")) is None
+        or observed is None
+        or _format_microsecond(observed) != contract.get("snapshot_observed_at")
+        or (
+            total == 0
+            and (
+                binding.get("chain_head_sha256") != _GENESIS_CHAIN_SHA256
+                or binding.get("terminal_head_anchor_sha256")
+                != _GENESIS_HEAD_ANCHOR_SHA256
+                or binding.get("terminal_head_anchored_at") is not None
+            )
+        )
+        or (total > 0 and (terminal is None or not terminal < observed))
+    ):
+        _integrity("SHADOW_COMMITMENT_SNAPSHOT_LEDGER_BINDING_INVALID")
+    expected_first = 1
+    counted = 0
+    for expected_index, raw in enumerate(descriptors):
+        if type(raw) is not dict or set(raw) != _SNAPSHOT_PAGE_DESCRIPTOR_FIELDS:
+            _integrity("SHADOW_COMMITMENT_SNAPSHOT_PAGE_DESCRIPTOR_FIELDS_INVALID")
+        descriptor = cast(dict[str, Any], raw)
+        row_count = descriptor.get("row_count")
+        first_sequence = descriptor.get("first_sequence")
+        last_sequence = descriptor.get("last_sequence")
+        address = _address_from_mapping(
+            descriptor.get("page_cas_address"),
+            reason="SHADOW_COMMITMENT_SNAPSHOT_PAGE_ADDRESS_INVALID",
+        )
+        if (
+            type(descriptor.get("page_index")) is not int
+            or descriptor.get("page_index") != expected_index
+            or type(row_count) is not int
+            or not 0 < cast(int, row_count) <= _SNAPSHOT_PAGE_MAX_ROWS
+            or type(first_sequence) is not int
+            or first_sequence != expected_first
+            or type(last_sequence) is not int
+            or last_sequence != expected_first + cast(int, row_count) - 1
+            or _strict_sha256(descriptor.get("page_material_sha256")) is None
+            or address.payload_byte_count > _MAX_JSON_BYTES
+        ):
+            _integrity("SHADOW_COMMITMENT_SNAPSHOT_PAGE_DESCRIPTOR_INVALID")
+        counted += cast(int, row_count)
+        expected_first = cast(int, last_sequence) + 1
+    if (
+        counted != total
+        or contract.get("inventory_sha256")
+        != _inventory_sha256(
+            page_descriptors=cast(list[dict[str, Any]], descriptors),
+            total_committed_hypotheses=cast(int, total),
+        )
+    ):
+        _integrity("SHADOW_COMMITMENT_SNAPSHOT_PAGE_CARDINALITY_INVALID")
+    expected_material = _sha256(
+        {
+            key: contract[key]
+            for key in contract
+            if key != "snapshot_material_sha256"
+        }
+    )
+    if contract.get("snapshot_material_sha256") != expected_material:
+        _integrity("SHADOW_COMMITMENT_SNAPSHOT_MATERIAL_INVALID")
+    return contract
+
+
+def validate_profiled_research_shadow_commitment_inventory_snapshot_v1(
+    payload: object,
+) -> dict[str, Any]:
+    if type(payload) is not bytes:
+        _validation("SHADOW_COMMITMENT_SNAPSHOT_EXACT_BYTES_REQUIRED")
+    return _validate_inventory_snapshot_contract(
+        _parse_exact_object(
+            cast(bytes, payload),
+            reason="SHADOW_COMMITMENT_SNAPSHOT_JSON_INVALID",
+        )
+    )
+
+
+def _publish_inventory_pages(
+    *,
+    ledger_path: Path,
+    inventory: list[dict[str, Any]],
+    store: ImmutableSourcePayloadStore,
+) -> list[dict[str, Any]]:
+    descriptors: list[dict[str, Any]] = []
+    previous_page_material = _GENESIS_SNAPSHOT_PAGE_SHA256
+    for page_index, offset in enumerate(
+        range(0, len(inventory), _SNAPSHOT_PAGE_MAX_ROWS)
+    ):
+        page_rows = inventory[offset : offset + _SNAPSHOT_PAGE_MAX_ROWS]
+        page = _prepare_inventory_page_contract(
+            ledger_path=ledger_path,
+            page_index=page_index,
+            rows=page_rows,
+            previous_page_material_sha256=previous_page_material,
+        )
+        _validate_inventory_page_contract(page)
+        payload = _canonical_bytes(
+            page,
+            reason="SHADOW_COMMITMENT_SNAPSHOT_PAGE_JSON_INVALID",
+        )
+        expected = _expected_address(payload)
+        try:
+            address = store.put(
+                payload,
+                expected_sha256=expected.payload_sha256,
+                expected_byte_count=expected.payload_byte_count,
+            )
+            readback = store.get(
+                address.payload_sha256,
+                expected_byte_count=address.payload_byte_count,
+            )
+        except SourcePayloadStoreError as exc:
+            raise ProfiledResearchShadowHypothesisCommitmentV1IntegrityError(
+                "SHADOW_COMMITMENT_SNAPSHOT_PAGE_CAS_PUBLICATION_FAILED"
+            ) from exc
+        if address != expected or not hmac.compare_digest(readback, payload):
+            _integrity("SHADOW_COMMITMENT_SNAPSHOT_PAGE_CAS_READBACK_INVALID")
+        descriptors.append(
+            {
+                "page_index": page_index,
+                "first_sequence": page_rows[0]["sequence"],
+                "last_sequence": page_rows[-1]["sequence"],
+                "row_count": len(page_rows),
+                "page_material_sha256": page["page_material_sha256"],
+                "page_cas_address": _address_mapping(address),
+            }
+        )
+        previous_page_material = cast(str, page["page_material_sha256"])
+    return descriptors
+
+
+def _load_inventory_pages(
+    *,
+    contract: Mapping[str, Any],
+    store: ImmutableSourcePayloadStore,
+) -> list[dict[str, Any]]:
+    binding = cast(dict[str, Any], contract["ledger_binding"])
+    descriptors = cast(list[dict[str, Any]], contract["ordered_inventory_pages"])
+    inventory: list[dict[str, Any]] = []
+    previous_page_material = _GENESIS_SNAPSHOT_PAGE_SHA256
+    for descriptor in descriptors:
+        address = _address_from_mapping(
+            descriptor["page_cas_address"],
+            reason="SHADOW_COMMITMENT_SNAPSHOT_PAGE_ADDRESS_INVALID",
+        )
+        try:
+            payload = store.get(
+                address.payload_sha256,
+                expected_byte_count=address.payload_byte_count,
+            )
+        except SourcePayloadStoreError as exc:
+            raise ProfiledResearchShadowHypothesisCommitmentV1IntegrityError(
+                "SHADOW_COMMITMENT_SNAPSHOT_PAGE_CAS_REOPEN_FAILED"
+            ) from exc
+        if _expected_address(payload) != address:
+            _integrity("SHADOW_COMMITMENT_SNAPSHOT_PAGE_ADDRESS_MISMATCH")
+        page = validate_profiled_research_shadow_commitment_inventory_page_v1(
+            payload
+        )
+        rows = cast(list[dict[str, Any]], page["ordered_inventory"])
+        if (
+            page["ledger_path_sha256"] != binding["ledger_path_sha256"]
+            or page["page_index"] != descriptor["page_index"]
+            or page["first_sequence"] != descriptor["first_sequence"]
+            or page["last_sequence"] != descriptor["last_sequence"]
+            or page["row_count"] != descriptor["row_count"]
+            or page["page_material_sha256"]
+            != descriptor["page_material_sha256"]
+            or page["previous_page_material_sha256"] != previous_page_material
+        ):
+            _integrity("SHADOW_COMMITMENT_SNAPSHOT_PAGE_REPLAY_MISMATCH")
+        inventory.extend(rows)
+        previous_page_material = cast(str, page["page_material_sha256"])
+    _validate_snapshot_inventory_rows(inventory, expected_start_sequence=1)
+    if (
+        len(inventory) != binding["total_committed_hypotheses"]
+        or _inventory_sha256(
+            page_descriptors=descriptors,
+            total_committed_hypotheses=len(inventory),
+        )
+        != contract["inventory_sha256"]
+    ):
+        _integrity("SHADOW_COMMITMENT_SNAPSHOT_INVENTORY_REPLAY_MISMATCH")
+    if inventory:
+        terminal = inventory[-1]
+        if (
+            binding["chain_head_sha256"] != terminal["record_chain_sha256"]
+            or binding["terminal_head_anchor_sha256"]
+            != terminal["head_anchor_sha256"]
+            or binding["terminal_head_anchored_at"]
+            != terminal["postcommit_readback_at"]
+        ):
+            _integrity("SHADOW_COMMITMENT_SNAPSHOT_TERMINAL_BINDING_INVALID")
+    return inventory
+
+
+def _snapshot_result_seal(
+    *,
+    artifact_sha256: str,
+    ledger: ProfiledResearchShadowHypothesisCommitmentLedgerV1,
+    store: ImmutableSourcePayloadStore,
+) -> str:
+    return hmac.new(
+        _SNAPSHOT_RESULT_SEAL_KEY,
+        _canonical_bytes(
+            {
+                "domain": "profiled-shadow-commitment-snapshot-result/v1",
+                "artifact_sha256": artifact_sha256,
+                "ledger_path": str(ledger.path),
+                "store_root_path": str(store.root_path),
+                "ledger_process_identity": id(ledger),
+                "store_process_identity": id(store),
+            },
+            reason="SHADOW_COMMITMENT_SNAPSHOT_RESULT_SEAL_INVALID",
+        ),
+        hashlib.sha256,
+    ).hexdigest()
 
 
 class ProfiledResearchShadowHypothesisCommitmentLedgerV1:
@@ -2866,6 +3614,157 @@ class ProfiledResearchShadowHypothesisCommitmentLedgerV1:
                 cas_head_anchors_verified=verified_head_anchors,
             )
 
+    def capture_inventory_snapshot(
+        self,
+        *,
+        store: object,
+    ) -> ProfiledResearchShadowCommitmentInventorySnapshotV1:
+        if type(store) is not ImmutableSourcePayloadStore:
+            _validation("SHADOW_COMMITMENT_EXACT_IMMUTABLE_STORE_REQUIRED")
+        exact_store = cast(ImmutableSourcePayloadStore, store)
+        with self._reader_snapshot_lease():
+            connection = self._connect_readonly()
+            try:
+                connection.execute("BEGIN")
+                _report, rows = self._verify_database_integrity(
+                    connection,
+                    require_postcommit=True,
+                )
+                connection.commit()
+            finally:
+                connection.close()
+            prepared = self._verify_rows_cas(rows, store=exact_store)
+            self._verify_head_anchor_catalog(rows)
+            if len(rows) != len(prepared):
+                _integrity("SHADOW_COMMITMENT_SNAPSHOT_PREPARED_CARDINALITY_INVALID")
+            inventory = [
+                _snapshot_inventory_row(row, item)
+                for row, item in zip(rows, prepared, strict=True)
+            ]
+            _validate_snapshot_inventory_rows(
+                inventory,
+                expected_start_sequence=1,
+            )
+            page_descriptors = _publish_inventory_pages(
+                ledger_path=self.path,
+                inventory=inventory,
+                store=exact_store,
+            )
+            observed = _utc_now()
+            if observed.tzinfo is None or observed.utcoffset() is None:
+                _integrity("SHADOW_COMMITMENT_SNAPSHOT_INTERNAL_CLOCK_INVALID")
+            observed_at = _format_microsecond(observed.astimezone(UTC))
+            contract = _prepare_inventory_snapshot_contract(
+                ledger_path=self.path,
+                rows=rows,
+                inventory=inventory,
+                page_descriptors=page_descriptors,
+                snapshot_observed_at=observed_at,
+            )
+            _validate_inventory_snapshot_contract(contract)
+            payload = _canonical_bytes(
+                contract,
+                reason="SHADOW_COMMITMENT_SNAPSHOT_JSON_INVALID",
+            )
+            expected = _expected_address(payload)
+            try:
+                address = exact_store.put(
+                    payload,
+                    expected_sha256=expected.payload_sha256,
+                    expected_byte_count=expected.payload_byte_count,
+                )
+                readback = exact_store.get(
+                    address.payload_sha256,
+                    expected_byte_count=address.payload_byte_count,
+                )
+            except SourcePayloadStoreError as exc:
+                raise ProfiledResearchShadowHypothesisCommitmentV1IntegrityError(
+                    "SHADOW_COMMITMENT_SNAPSHOT_CAS_PUBLICATION_FAILED"
+                ) from exc
+            if address != expected or not hmac.compare_digest(readback, payload):
+                _integrity("SHADOW_COMMITMENT_SNAPSHOT_CAS_READBACK_INVALID")
+            binding = cast(dict[str, Any], contract["ledger_binding"])
+            return ProfiledResearchShadowCommitmentInventorySnapshotV1(
+                snapshot_artifact_sha256=address.payload_sha256,
+                snapshot_artifact_byte_count=address.payload_byte_count,
+                snapshot_artifact_address=address,
+                total_committed_hypotheses=cast(
+                    int,
+                    binding["total_committed_hypotheses"],
+                ),
+                chain_head_sha256=cast(str, binding["chain_head_sha256"]),
+                terminal_head_anchor_sha256=cast(
+                    str,
+                    binding["terminal_head_anchor_sha256"],
+                ),
+                snapshot_observed_at=observed_at,
+                _artifact_json=payload.decode("ascii"),
+                _ledger=self,
+                _store=exact_store,
+                _factory_seal=_snapshot_result_seal(
+                    artifact_sha256=address.payload_sha256,
+                    ledger=self,
+                    store=exact_store,
+                ),
+                _construction_token=_SNAPSHOT_RESULT_TOKEN,
+            )
+
+    def verify_inventory_snapshot(
+        self,
+        *,
+        snapshot_artifact: object,
+        store: object,
+    ) -> dict[str, Any]:
+        if type(snapshot_artifact) is not bytes:
+            _validation("SHADOW_COMMITMENT_SNAPSHOT_EXACT_BYTES_REQUIRED")
+        if type(store) is not ImmutableSourcePayloadStore:
+            _validation("SHADOW_COMMITMENT_EXACT_IMMUTABLE_STORE_REQUIRED")
+        exact_store = cast(ImmutableSourcePayloadStore, store)
+        payload = cast(bytes, snapshot_artifact)
+        contract = validate_profiled_research_shadow_commitment_inventory_snapshot_v1(
+            payload
+        )
+        binding = cast(dict[str, Any], contract["ledger_binding"])
+        if binding["ledger_path_sha256"] != _snapshot_ledger_path_sha256(self.path):
+            _integrity("SHADOW_COMMITMENT_SNAPSHOT_LEDGER_PATH_MISMATCH")
+        total = cast(int, binding["total_committed_hypotheses"])
+        inventory = _load_inventory_pages(contract=contract, store=exact_store)
+        with self._reader_snapshot_lease():
+            connection = self._connect_readonly()
+            try:
+                connection.execute("BEGIN")
+                _report, rows = self._verify_database_integrity(
+                    connection,
+                    require_postcommit=True,
+                )
+                if len(rows) < total:
+                    _integrity("SHADOW_COMMITMENT_SNAPSHOT_PREFIX_TRUNCATED")
+                prefix = rows[:total]
+                connection.commit()
+            finally:
+                connection.close()
+            prepared = self._verify_rows_cas(prefix, store=exact_store)
+            self._verify_head_anchor_catalog(rows)
+            source_inventory = [
+                _snapshot_inventory_row(row, item)
+                for row, item in zip(prefix, prepared, strict=True)
+            ]
+            if source_inventory != inventory:
+                _integrity("SHADOW_COMMITMENT_SNAPSHOT_SOURCE_PREFIX_MISMATCH")
+            expected = _prepare_inventory_snapshot_contract(
+                ledger_path=self.path,
+                rows=prefix,
+                inventory=source_inventory,
+                page_descriptors=cast(
+                    list[dict[str, Any]],
+                    contract["ordered_inventory_pages"],
+                ),
+                snapshot_observed_at=cast(str, contract["snapshot_observed_at"]),
+            )
+            if expected != contract:
+                _integrity("SHADOW_COMMITMENT_SNAPSHOT_REPLAY_MISMATCH")
+        return contract
+
     def _write_postcommit_readback(
         self,
         *,
@@ -3867,14 +4766,77 @@ def _validated_committed_result(
     )
 
 
+def _validated_inventory_snapshot_result(
+    result: ProfiledResearchShadowCommitmentInventorySnapshotV1,
+) -> dict[str, Any]:
+    if (
+        type(result) is not ProfiledResearchShadowCommitmentInventorySnapshotV1
+        or result._construction_token is not _SNAPSHOT_RESULT_TOKEN
+        or type(result._ledger)
+        is not ProfiledResearchShadowHypothesisCommitmentLedgerV1
+        or type(result._store) is not ImmutableSourcePayloadStore
+        or _strict_sha256(result._factory_seal) is None
+    ):
+        _integrity("SHADOW_COMMITMENT_SNAPSHOT_RESULT_FACTORY_REQUIRED")
+    expected_seal = _snapshot_result_seal(
+        artifact_sha256=result.snapshot_artifact_sha256,
+        ledger=result._ledger,
+        store=result._store,
+    )
+    if not hmac.compare_digest(result._factory_seal, expected_seal):
+        _integrity("SHADOW_COMMITMENT_SNAPSHOT_RESULT_SEAL_INVALID")
+    expected_address = SourcePayloadAddress(
+        schema_version=SOURCE_PAYLOAD_ADDRESS_SCHEMA_VERSION,
+        payload_sha256=result.snapshot_artifact_sha256,
+        payload_byte_count=result.snapshot_artifact_byte_count,
+        relative_path=(
+            f"sha256/{result.snapshot_artifact_sha256[:2]}/"
+            f"{result.snapshot_artifact_sha256}"
+        ),
+    )
+    if result.snapshot_artifact_address != expected_address:
+        _integrity("SHADOW_COMMITMENT_SNAPSHOT_RESULT_ADDRESS_INVALID")
+    try:
+        payload = result._store.get(
+            result.snapshot_artifact_sha256,
+            expected_byte_count=result.snapshot_artifact_byte_count,
+        )
+    except SourcePayloadStoreError as exc:
+        raise ProfiledResearchShadowHypothesisCommitmentV1IntegrityError(
+            "SHADOW_COMMITMENT_SNAPSHOT_CAS_REOPEN_FAILED"
+        ) from exc
+    if payload.decode("ascii", errors="strict") != result._artifact_json:
+        _integrity("SHADOW_COMMITMENT_SNAPSHOT_RESULT_BYTES_MISMATCH")
+    contract = result._ledger.verify_inventory_snapshot(
+        snapshot_artifact=payload,
+        store=result._store,
+    )
+    binding = cast(dict[str, Any], contract["ledger_binding"])
+    if (
+        binding["total_committed_hypotheses"]
+        != result.total_committed_hypotheses
+        or binding["chain_head_sha256"] != result.chain_head_sha256
+        or binding["terminal_head_anchor_sha256"]
+        != result.terminal_head_anchor_sha256
+        or contract["snapshot_observed_at"] != result.snapshot_observed_at
+    ):
+        _integrity("SHADOW_COMMITMENT_SNAPSHOT_RESULT_BINDING_INVALID")
+    return contract
+
+
 __all__ = (
     "PROFILED_RESEARCH_SHADOW_COMMITMENT_APPEND_RECEIPT_V1_SCHEMA_VERSION",
+    "PROFILED_RESEARCH_SHADOW_COMMITMENT_INVENTORY_PAGE_V1_CLASSIFICATION",
+    "PROFILED_RESEARCH_SHADOW_COMMITMENT_INVENTORY_PAGE_V1_SCHEMA_VERSION",
+    "PROFILED_RESEARCH_SHADOW_COMMITMENT_INVENTORY_SNAPSHOT_V1_CLASSIFICATION",
+    "PROFILED_RESEARCH_SHADOW_COMMITMENT_INVENTORY_SNAPSHOT_V1_SCHEMA_VERSION",
     "PROFILED_RESEARCH_SHADOW_COMMITMENT_LEDGER_V1_SCHEMA_VERSION",
     "PROFILED_RESEARCH_SHADOW_COMMITMENT_POSTCOMMIT_V1_SCHEMA_VERSION",
     "PROFILED_RESEARCH_SHADOW_COMMITMENT_V1_CLASSIFICATION",
     "PROFILED_RESEARCH_SHADOW_COMMITMENT_V1_SCHEMA_VERSION",
     "PROFILED_RESEARCH_SHADOW_PENDING_INDEX_V1_SCHEMA_VERSION",
     "DurablyCommittedProfiledResearchShadowHypothesisV1",
+    "ProfiledResearchShadowCommitmentInventorySnapshotV1",
     "ProfiledResearchShadowHypothesisCommitmentIntegrityV1",
     "ProfiledResearchShadowHypothesisCommitmentLedgerV1",
     "ProfiledResearchShadowHypothesisCommitmentV1ConflictError",
@@ -3883,4 +4845,6 @@ __all__ = (
     "ProfiledResearchShadowHypothesisCommitmentV1ValidationError",
     "ProfiledResearchShadowHypothesisCommitmentWriterLease",
     "ProfiledResearchShadowHypothesisCommitmentWriterLeaseError",
+    "validate_profiled_research_shadow_commitment_inventory_page_v1",
+    "validate_profiled_research_shadow_commitment_inventory_snapshot_v1",
 )

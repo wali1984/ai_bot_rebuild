@@ -21,6 +21,9 @@ from v2.backend.app.services.native_trainer import (
 from v2.backend.app.services.native_trainer.durable_canonical_5m_label_archive import (
     DurableCanonical5mLabelArchive,
 )
+from v2.backend.app.services.native_trainer.immutable_source_payload_store import (
+    ImmutableSourcePayloadStore,
+)
 from v2.backend.app.services.native_trainer.profiled_research_finalized_outcome_ledger_v1 import (  # noqa: E501
     ProfiledResearchFinalizedOutcomeLedgerV1,
     ProfiledResearchFinalizedOutcomeV1IntegrityError,
@@ -47,6 +50,13 @@ def _clear_inference_order_registry():  # noqa: ANN201
 
 def _clock(value: str) -> datetime:
     return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(UTC)
+
+
+def _snapshot_inventory(snapshot, store):  # noqa: ANN001, ANN202
+    return outcome._load_inventory_pages(  # noqa: SLF001
+        contract=snapshot.snapshot_contract,
+        store=store,
+    )
 
 
 def _committed_bundle(
@@ -1033,3 +1043,296 @@ def test_directional_calibration_records_both_binary_classes_with_raw_brier(
     )
     assert row["fit_partition"] == "UNASSIGNED_REQUIRES_PURGED_TRAIN_ONLY_ADMISSION"
     assert row["calibration_input_authorized"] is False
+
+
+def test_inventory_snapshot_replays_current_head_and_remains_non_authoritative(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ready = _ready_bundle(tmp_path, monkeypatch)
+    matured = _mature(ready)
+    store, _commitment, _committed, _archive, _append, _rows, ledger = ready
+    observed = _clock(matured.postcommit_readback_at) + timedelta(seconds=1)
+    monkeypatch.setattr(outcome, "_utc_now", lambda: observed)
+
+    snapshot = ledger.capture_inventory_snapshot(store=store)
+    contract = snapshot.snapshot_contract
+    inventory = _snapshot_inventory(snapshot, store)
+
+    assert snapshot.total_finalized_outcomes == 1
+    assert len(contract["ordered_inventory_pages"]) == 1
+    row = inventory[0]
+    assert row["hypothesis_identity_sha256"] == matured.hypothesis_identity_sha256
+    assert row["outcome_artifact_sha256"] == matured.outcome_artifact_sha256
+    assert row["model_parameter_fingerprint"] == (
+        matured.model_parameter_fingerprint
+    )
+    assert row["calibration_eligible"] is True
+    assert contract["status"]["commitment_terminal_accounting_verified"] is False
+    assert contract["status"]["snapshot_observed_at_durably_anchored"] is False
+    assert contract["status"]["canonical_current_head_selection_verified"] is False
+    assert contract["status"]["calibration_candidate_authorized"] is False
+    assert set(contract["authorization"].values()) == {False}
+    assert snapshot.runtime_wired is False
+
+    payload = store.get(
+        snapshot.snapshot_artifact_sha256,
+        expected_byte_count=snapshot.snapshot_artifact_byte_count,
+    )
+    reopened = ProfiledResearchFinalizedOutcomeLedgerV1(ledger.path)
+    assert reopened.verify_inventory_snapshot(
+        snapshot_artifact=payload,
+        store=store,
+    ) == contract
+
+
+def test_inventory_snapshot_empty_ledger_binds_genesis_without_pages(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = ImmutableSourcePayloadStore(tmp_path / "portable-cas")
+    ledger = ProfiledResearchFinalizedOutcomeLedgerV1(tmp_path / "empty.sqlite3")
+    with ledger.writer_lease() as lease:
+        ledger._ensure_initialized(writer_lease=lease)  # noqa: SLF001
+    monkeypatch.setattr(
+        outcome,
+        "_utc_now",
+        lambda: datetime(2026, 7, 23, 18, 0, tzinfo=UTC),
+    )
+
+    snapshot = ledger.capture_inventory_snapshot(store=store)
+    contract = snapshot.snapshot_contract
+
+    assert snapshot.total_finalized_outcomes == 0
+    assert contract["ordered_inventory_pages"] == []
+    assert contract["ledger_binding"]["inventory_page_count"] == 0
+    assert contract["ledger_binding"]["chain_head_sha256"] == (
+        outcome._GENESIS_CHAIN_SHA256  # noqa: SLF001
+    )
+    assert _snapshot_inventory(snapshot, store) == []
+
+
+def test_inventory_snapshot_forced_multipage_chain_and_tamper_fail_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ready = _ready_bundle(tmp_path, monkeypatch)
+    matured = _mature(ready)
+    store, _commitment, _committed, _archive, _append, _rows, ledger = ready
+    monkeypatch.setattr(
+        outcome,
+        "_utc_now",
+        lambda: _clock(matured.postcommit_readback_at) + timedelta(seconds=1),
+    )
+    snapshot = ledger.capture_inventory_snapshot(store=store)
+    contract = snapshot.snapshot_contract
+    first = _snapshot_inventory(snapshot, store)[0]
+    second = json.loads(json.dumps(first))
+    second["sequence"] = 2
+    second["hypothesis_identity_sha256"] = outcome._sha256(  # noqa: SLF001
+        {"domain": "test-outcome-snapshot-identity", "sequence": 2}
+    )
+    second["outcome_artifact_sha256"] = outcome._sha256(  # noqa: SLF001
+        {"domain": "test-outcome-snapshot-artifact", "sequence": 2}
+    )
+    inventory = [first, second]
+    monkeypatch.setattr(outcome, "_SNAPSHOT_PAGE_MAX_ROWS", 1)
+    descriptors = outcome._publish_inventory_pages(  # noqa: SLF001
+        ledger_path=ledger.path,
+        inventory=inventory,
+        store=store,
+    )
+    paged = json.loads(json.dumps(contract))
+    paged["ordered_inventory_pages"] = descriptors
+    paged["ledger_binding"]["total_finalized_outcomes"] = 2
+    paged["ledger_binding"]["inventory_page_count"] = 2
+    paged["inventory_sha256"] = outcome._inventory_sha256(  # noqa: SLF001
+        page_descriptors=descriptors,
+        total_finalized_outcomes=2,
+    )
+    paged["snapshot_material_sha256"] = outcome._sha256(  # noqa: SLF001
+        {
+            key: value
+            for key, value in paged.items()
+            if key != "snapshot_material_sha256"
+        }
+    )
+
+    assert outcome._validate_inventory_snapshot_contract(paged) == paged  # noqa: SLF001
+    assert outcome._load_inventory_pages(  # noqa: SLF001
+        contract=paged,
+        store=store,
+    ) == inventory
+
+    wrong_digest = json.loads(json.dumps(paged))
+    wrong_digest["inventory_sha256"] = "f" * 64
+    wrong_digest["snapshot_material_sha256"] = outcome._sha256(  # noqa: SLF001
+        {
+            key: value
+            for key, value in wrong_digest.items()
+            if key != "snapshot_material_sha256"
+        }
+    )
+    with pytest.raises(
+        outcome.ProfiledResearchFinalizedOutcomeV1IntegrityError,
+        match="SNAPSHOT_PAGE_CARDINALITY_INVALID",
+    ):
+        outcome._validate_inventory_snapshot_contract(wrong_digest)  # noqa: SLF001
+
+    reordered = json.loads(json.dumps(paged))
+    reordered["ordered_inventory_pages"].reverse()
+    reordered["inventory_sha256"] = outcome._inventory_sha256(  # noqa: SLF001
+        page_descriptors=reordered["ordered_inventory_pages"],
+        total_finalized_outcomes=2,
+    )
+    reordered["snapshot_material_sha256"] = outcome._sha256(  # noqa: SLF001
+        {
+            key: value
+            for key, value in reordered.items()
+            if key != "snapshot_material_sha256"
+        }
+    )
+    with pytest.raises(
+        outcome.ProfiledResearchFinalizedOutcomeV1IntegrityError,
+        match="SNAPSHOT_PAGE_DESCRIPTOR_INVALID",
+    ):
+        outcome._validate_inventory_snapshot_contract(reordered)  # noqa: SLF001
+
+    missing = outcome._address_from_mapping(  # noqa: SLF001
+        descriptors[-1]["page_cas_address"],
+        reason="test",
+    )
+    (store.root_path / missing.relative_path).unlink()
+    with pytest.raises(
+        outcome.ProfiledResearchFinalizedOutcomeV1IntegrityError,
+        match="SNAPSHOT_PAGE_CAS_REOPEN_FAILED",
+    ):
+        outcome._load_inventory_pages(contract=paged, store=store)  # noqa: SLF001
+
+
+def test_inventory_snapshot_clock_replay_and_factory_tamper_fail_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ready = _ready_bundle(tmp_path, monkeypatch)
+    matured = _mature(ready)
+    store, _commitment, _committed, _archive, _append, _rows, ledger = ready
+    observed = _clock(matured.postcommit_readback_at) + timedelta(seconds=1)
+    monkeypatch.setattr(outcome, "_utc_now", lambda: observed)
+    snapshot = ledger.capture_inventory_snapshot(store=store)
+    contract = snapshot.snapshot_contract
+
+    tampered = json.loads(json.dumps(contract))
+    tampered["snapshot_observed_at"] = matured.postcommit_readback_at
+    material = {
+        key: value
+        for key, value in tampered.items()
+        if key != "snapshot_material_sha256"
+    }
+    tampered["snapshot_material_sha256"] = outcome._sha256(material)  # noqa: SLF001
+    with pytest.raises(
+        outcome.ProfiledResearchFinalizedOutcomeV1IntegrityError,
+        match="SNAPSHOT_LEDGER_BINDING_INVALID",
+    ):
+        outcome.validate_profiled_research_finalized_outcome_inventory_snapshot_v1(
+            outcome._canonical_bytes(tampered, reason="test")  # noqa: SLF001
+        )
+
+    descriptor = contract["ordered_inventory_pages"][0]
+    address = outcome._address_from_mapping(  # noqa: SLF001
+        descriptor["page_cas_address"],
+        reason="test",
+    )
+    page = json.loads(
+        store.get(
+            address.payload_sha256,
+            expected_byte_count=address.payload_byte_count,
+        )
+    )
+    invalid_eligibility = json.loads(json.dumps(page))
+    invalid_eligibility["ordered_inventory"][0]["calibration_eligible"] = False
+    invalid_eligibility["page_material_sha256"] = outcome._sha256(  # noqa: SLF001
+        {
+            key: value
+            for key, value in invalid_eligibility.items()
+            if key != "page_material_sha256"
+        }
+    )
+    with pytest.raises(
+        outcome.ProfiledResearchFinalizedOutcomeV1IntegrityError,
+        match="SNAPSHOT_ROW_INVALID",
+    ):
+        outcome.validate_profiled_research_finalized_outcome_inventory_page_v1(
+            outcome._canonical_bytes(invalid_eligibility, reason="test")  # noqa: SLF001
+        )
+
+    invalid_clock = json.loads(json.dumps(page))
+    invalid_clock["ordered_inventory"][0]["decision_time"] = (
+        invalid_clock["ordered_inventory"][0]["decision_time"].replace(
+            ".900000Z",
+            ".900Z",
+        )
+    )
+    invalid_clock["page_material_sha256"] = outcome._sha256(  # noqa: SLF001
+        {
+            key: value
+            for key, value in invalid_clock.items()
+            if key != "page_material_sha256"
+        }
+    )
+    with pytest.raises(
+        outcome.ProfiledResearchFinalizedOutcomeV1IntegrityError,
+        match="SNAPSHOT_ROW_INVALID",
+    ):
+        outcome.validate_profiled_research_finalized_outcome_inventory_page_v1(
+            outcome._canonical_bytes(invalid_clock, reason="test")  # noqa: SLF001
+        )
+
+    omitted = json.loads(json.dumps(contract))
+    omitted["ordered_inventory_pages"] = []
+    omitted["ledger_binding"].update(
+        {
+            "total_finalized_outcomes": 0,
+            "inventory_page_count": 0,
+            "chain_head_sha256": outcome._GENESIS_CHAIN_SHA256,  # noqa: SLF001
+            "terminal_head_anchor_sha256": (
+                outcome._GENESIS_HEAD_ANCHOR_SHA256  # noqa: SLF001
+            ),
+            "terminal_head_anchored_at": None,
+        }
+    )
+    omitted["inventory_sha256"] = outcome._sha256(  # noqa: SLF001
+        {
+            "domain": "profiled-finalized-outcome-paged-inventory-root/v1",
+            "total_finalized_outcomes": 0,
+            "ordered_inventory_pages": [],
+        }
+    )
+    omitted["snapshot_material_sha256"] = outcome._sha256(  # noqa: SLF001
+        {
+            key: value
+            for key, value in omitted.items()
+            if key != "snapshot_material_sha256"
+        }
+    )
+    historical = ledger.verify_inventory_snapshot(
+        snapshot_artifact=outcome._canonical_bytes(  # noqa: SLF001
+            omitted,
+            reason="test",
+        ),
+        store=store,
+    )
+    assert historical["status"]["canonical_current_head_selection_verified"] is False
+
+    object.__setattr__(snapshot, "chain_head_sha256", "f" * 64)
+    with pytest.raises(
+        outcome.ProfiledResearchFinalizedOutcomeV1IntegrityError,
+        match="SNAPSHOT_RESULT_BINDING_INVALID",
+    ):
+        _ = snapshot.snapshot_contract
+    object.__setattr__(snapshot, "_factory_seal", None)
+    with pytest.raises(
+        outcome.ProfiledResearchFinalizedOutcomeV1IntegrityError,
+        match="SNAPSHOT_RESULT_FACTORY_REQUIRED",
+    ):
+        _ = snapshot.snapshot_contract

@@ -96,11 +96,27 @@ PROFILED_RESEARCH_FINALIZED_OUTCOME_CALIBRATION_ROW_V1_SCHEMA_VERSION: Final = (
 PROFILED_RESEARCH_FINALIZED_OUTCOME_MODEL_BINDING_V1_SCHEMA_VERSION: Final = (
     "profiled_research_finalized_outcome_model_binding_v1"
 )
+PROFILED_RESEARCH_FINALIZED_OUTCOME_INVENTORY_SNAPSHOT_V1_SCHEMA_VERSION: Final = (
+    "profiled_research_finalized_outcome_inventory_snapshot_v1"
+)
+PROFILED_RESEARCH_FINALIZED_OUTCOME_INVENTORY_SNAPSHOT_V1_CLASSIFICATION: Final = (
+    "REPLAYABLE_FINALIZED_OUTCOME_PREFIX_PROPOSAL_NO_AUTHORITY_V1"
+)
+PROFILED_RESEARCH_FINALIZED_OUTCOME_INVENTORY_PAGE_V1_SCHEMA_VERSION: Final = (
+    "profiled_research_finalized_outcome_inventory_page_v1"
+)
+PROFILED_RESEARCH_FINALIZED_OUTCOME_INVENTORY_PAGE_V1_CLASSIFICATION: Final = (
+    "BOUNDED_FINALIZED_OUTCOME_INVENTORY_PAGE_NO_AUTHORITY_V1"
+)
 
 _APPLICATION_ID = 0x50464F4C
 _USER_VERSION = 1
 _MAX_JSON_BYTES = 8 * 1024 * 1024
 _MAX_LEDGER_RECORDS = 65_536
+_SNAPSHOT_PAGE_MAX_ROWS = 128
+_SNAPSHOT_PAGE_MAX_COUNT = (
+    _MAX_LEDGER_RECORDS + _SNAPSHOT_PAGE_MAX_ROWS - 1
+) // _SNAPSHOT_PAGE_MAX_ROWS
 _MAX_LEDGER_DATABASE_BYTES = 512 * 1024 * 1024
 _MAX_LEDGER_AGGREGATE_JSON_BYTES = 128 * 1024 * 1024
 _MAX_LABEL_PATH_ROWS = 8
@@ -110,6 +126,12 @@ _GENESIS_CHAIN_SHA256 = hashlib.sha256(
 _GENESIS_HEAD_ANCHOR_SHA256 = hashlib.sha256(
     f"{PROFILED_RESEARCH_FINALIZED_OUTCOME_HEAD_ANCHOR_V1_SCHEMA_VERSION}:GENESIS".encode()
 ).hexdigest()
+_GENESIS_SNAPSHOT_PAGE_SHA256 = hashlib.sha256(
+    (
+        f"{PROFILED_RESEARCH_FINALIZED_OUTCOME_INVENTORY_PAGE_V1_SCHEMA_VERSION}"
+        ":GENESIS"
+    ).encode()
+).hexdigest()
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$", re.ASCII)
 _SHA256_SHARD_RE = re.compile(r"^[0-9a-f]{2}$", re.ASCII)
 _SHA1_RE = re.compile(r"^[0-9a-f]{40}$", re.ASCII)
@@ -118,6 +140,8 @@ _SYMBOL_RE = re.compile(r"^[A-Z0-9]{2,32}$", re.ASCII)
 _RESULT_TOKEN = object()
 _LEASE_TOKEN = object()
 _RESULT_SEAL_KEY = secrets.token_bytes(32)
+_SNAPSHOT_RESULT_TOKEN = object()
+_SNAPSHOT_RESULT_SEAL_KEY = secrets.token_bytes(32)
 _UTC_EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
 
 _AUTHORIZATION: Final = {
@@ -140,6 +164,102 @@ _AUTHORIZATION: Final = {
     "execution_authorized": False,
     "runtime_wired": False,
 }
+
+_SNAPSHOT_STATUS: Final = {
+    "source_database_replay_verified": True,
+    "source_cas_replay_verified": True,
+    "source_head_catalog_replay_verified": True,
+    "snapshot_observed_at_durably_anchored": False,
+    "canonical_current_head_selection_verified": False,
+    "commitment_terminal_accounting_verified": False,
+    "calibration_candidate_authorized": False,
+    "runtime_wired": False,
+}
+
+_SNAPSHOT_FIELDS: Final = frozenset(
+    {
+        "schema_version",
+        "classification",
+        "ledger_binding",
+        "ordered_inventory_pages",
+        "snapshot_observed_at",
+        "inventory_sha256",
+        "authorization",
+        "status",
+        "snapshot_material_sha256",
+    }
+)
+_SNAPSHOT_LEDGER_FIELDS: Final = frozenset(
+    {
+        "ledger_schema_version",
+        "ledger_path_sha256",
+        "total_finalized_outcomes",
+        "chain_head_sha256",
+        "terminal_head_anchor_sha256",
+        "terminal_head_anchored_at",
+        "inventory_page_count",
+    }
+)
+_SNAPSHOT_PAGE_DESCRIPTOR_FIELDS: Final = frozenset(
+    {
+        "page_index",
+        "first_sequence",
+        "last_sequence",
+        "row_count",
+        "page_material_sha256",
+        "page_cas_address",
+    }
+)
+_SNAPSHOT_PAGE_FIELDS: Final = frozenset(
+    {
+        "schema_version",
+        "classification",
+        "ledger_schema_version",
+        "ledger_path_sha256",
+        "page_index",
+        "first_sequence",
+        "last_sequence",
+        "row_count",
+        "previous_page_material_sha256",
+        "ordered_inventory",
+        "page_material_sha256",
+        "authorization",
+    }
+)
+_SNAPSHOT_ROW_FIELDS: Final = frozenset(
+    {
+        "sequence",
+        "hypothesis_identity_sha256",
+        "hypothesis_artifact_sha256",
+        "commitment_append_receipt_sha256",
+        "commitment_postcommit_receipt_sha256",
+        "commitment_record_chain_sha256",
+        "outcome_artifact_sha256",
+        "outcome_artifact_byte_count",
+        "outcome_material_sha256",
+        "label_source_binding_sha256",
+        "checkpoint_id",
+        "checkpoint_generation",
+        "model_parameter_fingerprint",
+        "model_binding_sha256",
+        "decision_time",
+        "actual_label_available_at",
+        "maturation_observed_at",
+        "selected_action",
+        "calibration_eligible",
+        "calibration_row_id",
+        "raw_probability",
+        "observed_strictly_positive_net_pnl",
+        "append_receipt_sha256",
+        "postcommit_receipt_sha256",
+        "record_chain_sha256",
+        "head_anchor_sha256",
+        "commit_observed_at",
+        "commit_prepared_at",
+        "postcommit_observed_at",
+        "postcommit_readback_at",
+    }
+)
 
 _ARTIFACT_FIELDS: Final = frozenset(
     {
@@ -2457,6 +2577,611 @@ class DurablyMaturedProfiledResearchFinalizedOutcomeV1:
         return False
 
 
+@dataclass(frozen=True, slots=True)
+class ProfiledResearchFinalizedOutcomeInventorySnapshotV1:
+    snapshot_artifact_sha256: str
+    snapshot_artifact_byte_count: int
+    snapshot_artifact_address: SourcePayloadAddress
+    total_finalized_outcomes: int
+    chain_head_sha256: str
+    terminal_head_anchor_sha256: str
+    snapshot_observed_at: str
+    _artifact_json: str = field(repr=False, compare=False)
+    _ledger: ProfiledResearchFinalizedOutcomeLedgerV1 = field(
+        repr=False,
+        compare=False,
+    )
+    _store: ImmutableSourcePayloadStore = field(repr=False, compare=False)
+    _factory_seal: str = field(repr=False, compare=False)
+    _construction_token: object = field(repr=False, compare=False)
+
+    @property
+    def snapshot_contract(self) -> dict[str, Any]:
+        return _validated_inventory_snapshot_result(self)
+
+    @property
+    def runtime_wired(self) -> bool:
+        _validated_inventory_snapshot_result(self)
+        return False
+
+
+def _snapshot_ledger_path_sha256(path: Path) -> str:
+    return _sha256(
+        {
+            "domain": "profiled-finalized-outcome-ledger-path/v1",
+            "ledger_path": str(path),
+        },
+        reason="PROFILED_OUTCOME_SNAPSHOT_PATH_BINDING_INVALID",
+    )
+
+
+def _snapshot_inventory_row(row: sqlite3.Row) -> dict[str, Any]:
+    artifact = _parse_exact_object(
+        row["outcome_artifact_json"],
+        reason="PROFILED_OUTCOME_SNAPSHOT_SOURCE_JSON_INVALID",
+    )
+    hypothesis = artifact.get("hypothesis_binding")
+    model = artifact.get("model_binding")
+    calibration = artifact.get("calibration_row")
+    if (
+        type(hypothesis) is not dict
+        or type(model) is not dict
+        or type(calibration) is not dict
+    ):
+        _integrity("PROFILED_OUTCOME_SNAPSHOT_SOURCE_CONTRACT_INVALID")
+    hypothesis = cast(dict[str, Any], hypothesis)
+    model = cast(dict[str, Any], model)
+    calibration = cast(dict[str, Any], calibration)
+    return {
+        "sequence": row["sequence"],
+        "hypothesis_identity_sha256": row["hypothesis_identity_sha256"],
+        "hypothesis_artifact_sha256": row["hypothesis_artifact_sha256"],
+        "commitment_append_receipt_sha256": hypothesis.get(
+            "commitment_append_receipt_sha256"
+        ),
+        "commitment_postcommit_receipt_sha256": hypothesis.get(
+            "commitment_postcommit_receipt_sha256"
+        ),
+        "commitment_record_chain_sha256": hypothesis.get(
+            "commitment_record_chain_sha256"
+        ),
+        "outcome_artifact_sha256": row["outcome_artifact_sha256"],
+        "outcome_artifact_byte_count": row["outcome_artifact_byte_count"],
+        "outcome_material_sha256": row["outcome_material_sha256"],
+        "label_source_binding_sha256": row["label_source_binding_sha256"],
+        "checkpoint_id": model.get("checkpoint_id"),
+        "checkpoint_generation": model.get("checkpoint_generation"),
+        "model_parameter_fingerprint": model.get("model_parameter_fingerprint"),
+        "model_binding_sha256": artifact.get("model_binding_sha256"),
+        "decision_time": row["decision_time"],
+        "actual_label_available_at": row["actual_label_available_at"],
+        "maturation_observed_at": row["maturation_observed_at"],
+        "selected_action": row["selected_action"],
+        "calibration_eligible": row["calibration_eligible"] == 1,
+        "calibration_row_id": calibration.get("row_id"),
+        "raw_probability": calibration.get("raw_probability"),
+        "observed_strictly_positive_net_pnl": calibration.get(
+            "observed_strictly_positive_net_pnl"
+        ),
+        "append_receipt_sha256": row["append_receipt_sha256"],
+        "postcommit_receipt_sha256": row["readback_receipt_sha256"],
+        "record_chain_sha256": row["record_chain_sha256"],
+        "head_anchor_sha256": row["head_anchor_sha256"],
+        "commit_observed_at": row["commit_observed_at"],
+        "commit_prepared_at": row["commit_prepared_at"],
+        "postcommit_observed_at": row["postcommit_observed_at"],
+        "postcommit_readback_at": row["postcommit_readback_at"],
+    }
+
+
+def _validate_snapshot_inventory_rows(
+    inventory: object,
+    *,
+    expected_start_sequence: int,
+) -> list[dict[str, Any]]:
+    if type(inventory) is not list or len(inventory) > _MAX_LEDGER_RECORDS:
+        _integrity("PROFILED_OUTCOME_SNAPSHOT_INVENTORY_INVALID")
+    rows = cast(list[Any], inventory)
+    seen_hypotheses: set[str] = set()
+    seen_outcomes: set[str] = set()
+    for expected_sequence, raw in enumerate(rows, start=expected_start_sequence):
+        if type(raw) is not dict or set(raw) != _SNAPSHOT_ROW_FIELDS:
+            _integrity("PROFILED_OUTCOME_SNAPSHOT_ROW_FIELDS_INVALID")
+        row = cast(dict[str, Any], raw)
+        hypothesis = row.get("hypothesis_identity_sha256")
+        outcome = row.get("outcome_artifact_sha256")
+        decision = _aware_clock(row.get("decision_time"))
+        label = _aware_clock(row.get("actual_label_available_at"))
+        maturation = _aware_clock(row.get("maturation_observed_at"))
+        commit_observed = _aware_clock(row.get("commit_observed_at"))
+        commit_prepared = _canonical_millisecond_clock(row.get("commit_prepared_at"))
+        post_observed = _aware_clock(row.get("postcommit_observed_at"))
+        post_readback = _canonical_millisecond_clock(
+            row.get("postcommit_readback_at")
+        )
+        eligible = row.get("calibration_eligible")
+        selected_action = row.get("selected_action")
+        directional = selected_action in CONFIDENCE_HEAD_ACTIONS
+        probability = _finite_float(row.get("raw_probability"))
+        observed_positive = row.get("observed_strictly_positive_net_pnl")
+        if (
+            type(row.get("sequence")) is not int
+            or row.get("sequence") != expected_sequence
+            or _strict_sha256(hypothesis) is None
+            or _strict_sha256(row.get("hypothesis_artifact_sha256")) is None
+            or hypothesis in seen_hypotheses
+            or _strict_sha256(outcome) is None
+            or outcome in seen_outcomes
+            or _strict_positive_int(
+                row.get("outcome_artifact_byte_count"),
+                maximum=_MAX_JSON_BYTES,
+            )
+            is None
+            or any(
+                _strict_sha256(row.get(name)) is None
+                for name in (
+                    "commitment_append_receipt_sha256",
+                    "commitment_postcommit_receipt_sha256",
+                    "commitment_record_chain_sha256",
+                    "outcome_material_sha256",
+                    "label_source_binding_sha256",
+                    "model_parameter_fingerprint",
+                    "model_binding_sha256",
+                    "append_receipt_sha256",
+                    "postcommit_receipt_sha256",
+                    "record_chain_sha256",
+                    "head_anchor_sha256",
+                    "calibration_row_id",
+                )
+            )
+            or type(row.get("checkpoint_id")) is not str
+            or _IDENTIFIER_RE.fullmatch(cast(str, row["checkpoint_id"])) is None
+            or type(row.get("checkpoint_generation")) is not int
+            or cast(int, row["checkpoint_generation"]) <= 0
+            or decision is None
+            or _format_microsecond(decision) != row.get("decision_time")
+            or label is None
+            or _format_microsecond(label) != row.get("actual_label_available_at")
+            or maturation is None
+            or _format_microsecond(maturation) != row.get("maturation_observed_at")
+            or commit_observed is None
+            or _format_microsecond(commit_observed) != row.get("commit_observed_at")
+            or commit_prepared is None
+            or post_observed is None
+            or _format_microsecond(post_observed)
+            != row.get("postcommit_observed_at")
+            or post_readback is None
+            or not decision < label <= maturation < commit_observed
+            or not commit_observed <= commit_prepared
+            or not commit_observed < post_observed <= post_readback
+            or not commit_prepared < post_readback
+            or selected_action not in {"long", "short", "hold"}
+            or type(eligible) is not bool
+            or eligible is not directional
+            or (
+                directional
+                and (
+                    probability is None
+                    or not 0.0 <= probability <= 1.0
+                    or type(observed_positive) is not bool
+                )
+            )
+            or (
+                not directional
+                and (
+                    row.get("raw_probability") is not None
+                    or observed_positive is not None
+                )
+            )
+        ):
+            _integrity("PROFILED_OUTCOME_SNAPSHOT_ROW_INVALID")
+        seen_hypotheses.add(cast(str, hypothesis))
+        seen_outcomes.add(cast(str, outcome))
+    return cast(list[dict[str, Any]], rows)
+
+
+def _prepare_inventory_page_contract(
+    *,
+    ledger_path: Path,
+    page_index: int,
+    rows: list[dict[str, Any]],
+    previous_page_material_sha256: str,
+) -> dict[str, Any]:
+    base = {
+        "schema_version": (
+            PROFILED_RESEARCH_FINALIZED_OUTCOME_INVENTORY_PAGE_V1_SCHEMA_VERSION
+        ),
+        "classification": (
+            PROFILED_RESEARCH_FINALIZED_OUTCOME_INVENTORY_PAGE_V1_CLASSIFICATION
+        ),
+        "ledger_schema_version": (
+            PROFILED_RESEARCH_FINALIZED_OUTCOME_LEDGER_V1_SCHEMA_VERSION
+        ),
+        "ledger_path_sha256": _snapshot_ledger_path_sha256(ledger_path),
+        "page_index": page_index,
+        "first_sequence": rows[0]["sequence"],
+        "last_sequence": rows[-1]["sequence"],
+        "row_count": len(rows),
+        "previous_page_material_sha256": previous_page_material_sha256,
+        "ordered_inventory": rows,
+        "authorization": dict(_AUTHORIZATION),
+    }
+    return {**base, "page_material_sha256": _sha256(base)}
+
+
+def _validate_inventory_page_contract(value: object) -> dict[str, Any]:
+    if type(value) is not dict or set(value) != _SNAPSHOT_PAGE_FIELDS:
+        _integrity("PROFILED_OUTCOME_SNAPSHOT_PAGE_FIELDS_INVALID")
+    page = cast(dict[str, Any], value)
+    page_index = page.get("page_index")
+    first_sequence = page.get("first_sequence")
+    last_sequence = page.get("last_sequence")
+    row_count = page.get("row_count")
+    if (
+        page.get("schema_version")
+        != PROFILED_RESEARCH_FINALIZED_OUTCOME_INVENTORY_PAGE_V1_SCHEMA_VERSION
+        or page.get("classification")
+        != PROFILED_RESEARCH_FINALIZED_OUTCOME_INVENTORY_PAGE_V1_CLASSIFICATION
+        or page.get("ledger_schema_version")
+        != PROFILED_RESEARCH_FINALIZED_OUTCOME_LEDGER_V1_SCHEMA_VERSION
+        or _strict_sha256(page.get("ledger_path_sha256")) is None
+        or type(page_index) is not int
+        or cast(int, page_index) < 0
+        or type(first_sequence) is not int
+        or cast(int, first_sequence) <= 0
+        or type(last_sequence) is not int
+        or type(row_count) is not int
+        or not 0 < cast(int, row_count) <= _SNAPSHOT_PAGE_MAX_ROWS
+        or cast(int, last_sequence)
+        != cast(int, first_sequence) + cast(int, row_count) - 1
+        or _strict_sha256(page.get("previous_page_material_sha256")) is None
+        or page.get("authorization") != _AUTHORIZATION
+    ):
+        _integrity("PROFILED_OUTCOME_SNAPSHOT_PAGE_INVALID")
+    validated_rows = _validate_snapshot_inventory_rows(
+        page.get("ordered_inventory"),
+        expected_start_sequence=cast(int, first_sequence),
+    )
+    if (
+        len(validated_rows) != row_count
+        or validated_rows[0]["sequence"] != first_sequence
+        or validated_rows[-1]["sequence"] != last_sequence
+    ):
+        _integrity("PROFILED_OUTCOME_SNAPSHOT_PAGE_CARDINALITY_INVALID")
+    expected_material = _sha256(
+        {
+            key: page[key]
+            for key in page
+            if key != "page_material_sha256"
+        }
+    )
+    if page.get("page_material_sha256") != expected_material:
+        _integrity("PROFILED_OUTCOME_SNAPSHOT_PAGE_MATERIAL_INVALID")
+    return page
+
+
+def validate_profiled_research_finalized_outcome_inventory_page_v1(
+    payload: object,
+) -> dict[str, Any]:
+    if type(payload) is not bytes:
+        _validation("PROFILED_OUTCOME_SNAPSHOT_PAGE_EXACT_BYTES_REQUIRED")
+    return _validate_inventory_page_contract(
+        _parse_exact_object(
+            cast(bytes, payload),
+            reason="PROFILED_OUTCOME_SNAPSHOT_PAGE_JSON_INVALID",
+        )
+    )
+
+
+def _inventory_sha256(
+    *,
+    page_descriptors: list[dict[str, Any]],
+    total_finalized_outcomes: int,
+) -> str:
+    return _sha256(
+        {
+            "domain": "profiled-finalized-outcome-paged-inventory-root/v1",
+            "total_finalized_outcomes": total_finalized_outcomes,
+            "ordered_inventory_pages": page_descriptors,
+        },
+        reason="PROFILED_OUTCOME_SNAPSHOT_INVENTORY_INVALID",
+    )
+
+
+def _prepare_inventory_snapshot_contract(
+    *,
+    ledger_path: Path,
+    rows: list[sqlite3.Row],
+    inventory: list[dict[str, Any]],
+    page_descriptors: list[dict[str, Any]],
+    snapshot_observed_at: str,
+) -> dict[str, Any]:
+    if len(rows) != len(inventory):
+        _integrity("PROFILED_OUTCOME_SNAPSHOT_INVENTORY_CARDINALITY_INVALID")
+    ledger_binding = {
+        "ledger_schema_version": (
+            PROFILED_RESEARCH_FINALIZED_OUTCOME_LEDGER_V1_SCHEMA_VERSION
+        ),
+        "ledger_path_sha256": _snapshot_ledger_path_sha256(ledger_path),
+        "total_finalized_outcomes": len(rows),
+        "chain_head_sha256": (
+            cast(str, rows[-1]["record_chain_sha256"])
+            if rows
+            else _GENESIS_CHAIN_SHA256
+        ),
+        "terminal_head_anchor_sha256": (
+            cast(str, rows[-1]["head_anchor_sha256"])
+            if rows
+            else _GENESIS_HEAD_ANCHOR_SHA256
+        ),
+        "terminal_head_anchored_at": (
+            cast(str, rows[-1]["postcommit_readback_at"]) if rows else None
+        ),
+        "inventory_page_count": len(page_descriptors),
+    }
+    base = {
+        "schema_version": (
+            PROFILED_RESEARCH_FINALIZED_OUTCOME_INVENTORY_SNAPSHOT_V1_SCHEMA_VERSION
+        ),
+        "classification": (
+            PROFILED_RESEARCH_FINALIZED_OUTCOME_INVENTORY_SNAPSHOT_V1_CLASSIFICATION
+        ),
+        "ledger_binding": ledger_binding,
+        "ordered_inventory_pages": page_descriptors,
+        "snapshot_observed_at": snapshot_observed_at,
+        "inventory_sha256": _inventory_sha256(
+            page_descriptors=page_descriptors,
+            total_finalized_outcomes=len(inventory),
+        ),
+        "authorization": dict(_AUTHORIZATION),
+        "status": dict(_SNAPSHOT_STATUS),
+    }
+    return {**base, "snapshot_material_sha256": _sha256(base)}
+
+
+def _validate_inventory_snapshot_contract(value: object) -> dict[str, Any]:
+    if type(value) is not dict or set(value) != _SNAPSHOT_FIELDS:
+        _integrity("PROFILED_OUTCOME_SNAPSHOT_FIELDS_INVALID")
+    contract = cast(dict[str, Any], value)
+    binding = contract.get("ledger_binding")
+    descriptors = contract.get("ordered_inventory_pages")
+    if (
+        contract.get("schema_version")
+        != PROFILED_RESEARCH_FINALIZED_OUTCOME_INVENTORY_SNAPSHOT_V1_SCHEMA_VERSION
+        or contract.get("classification")
+        != PROFILED_RESEARCH_FINALIZED_OUTCOME_INVENTORY_SNAPSHOT_V1_CLASSIFICATION
+        or type(binding) is not dict
+        or set(binding) != _SNAPSHOT_LEDGER_FIELDS
+        or type(descriptors) is not list
+        or len(descriptors) > _SNAPSHOT_PAGE_MAX_COUNT
+        or contract.get("authorization") != _AUTHORIZATION
+        or contract.get("status") != _SNAPSHOT_STATUS
+        or _strict_sha256(contract.get("inventory_sha256")) is None
+    ):
+        _integrity("PROFILED_OUTCOME_SNAPSHOT_INVALID")
+    binding = cast(dict[str, Any], binding)
+    descriptors = cast(list[Any], descriptors)
+    total = binding.get("total_finalized_outcomes")
+    page_count = binding.get("inventory_page_count")
+    observed = _aware_clock(contract.get("snapshot_observed_at"))
+    terminal = _canonical_millisecond_clock(
+        binding.get("terminal_head_anchored_at")
+    )
+    if (
+        binding.get("ledger_schema_version")
+        != PROFILED_RESEARCH_FINALIZED_OUTCOME_LEDGER_V1_SCHEMA_VERSION
+        or _strict_sha256(binding.get("ledger_path_sha256")) is None
+        or type(total) is not int
+        or not 0 <= cast(int, total) <= _MAX_LEDGER_RECORDS
+        or type(page_count) is not int
+        or page_count != len(descriptors)
+        or (total == 0) != (page_count == 0)
+        or _strict_sha256(binding.get("chain_head_sha256")) is None
+        or _strict_sha256(binding.get("terminal_head_anchor_sha256")) is None
+        or observed is None
+        or _format_microsecond(observed) != contract.get("snapshot_observed_at")
+        or (
+            total == 0
+            and (
+                binding.get("chain_head_sha256") != _GENESIS_CHAIN_SHA256
+                or binding.get("terminal_head_anchor_sha256")
+                != _GENESIS_HEAD_ANCHOR_SHA256
+                or binding.get("terminal_head_anchored_at") is not None
+            )
+        )
+        or (total > 0 and (terminal is None or not terminal < observed))
+    ):
+        _integrity("PROFILED_OUTCOME_SNAPSHOT_LEDGER_BINDING_INVALID")
+    expected_first = 1
+    counted = 0
+    for expected_index, raw in enumerate(descriptors):
+        if type(raw) is not dict or set(raw) != _SNAPSHOT_PAGE_DESCRIPTOR_FIELDS:
+            _integrity("PROFILED_OUTCOME_SNAPSHOT_PAGE_DESCRIPTOR_FIELDS_INVALID")
+        descriptor = cast(dict[str, Any], raw)
+        row_count = descriptor.get("row_count")
+        first_sequence = descriptor.get("first_sequence")
+        last_sequence = descriptor.get("last_sequence")
+        address = _address_from_mapping(
+            descriptor.get("page_cas_address"),
+            reason="PROFILED_OUTCOME_SNAPSHOT_PAGE_ADDRESS_INVALID",
+        )
+        if (
+            type(descriptor.get("page_index")) is not int
+            or descriptor.get("page_index") != expected_index
+            or type(row_count) is not int
+            or not 0 < cast(int, row_count) <= _SNAPSHOT_PAGE_MAX_ROWS
+            or type(first_sequence) is not int
+            or first_sequence != expected_first
+            or type(last_sequence) is not int
+            or last_sequence != expected_first + cast(int, row_count) - 1
+            or _strict_sha256(descriptor.get("page_material_sha256")) is None
+            or address.payload_byte_count > _MAX_JSON_BYTES
+        ):
+            _integrity("PROFILED_OUTCOME_SNAPSHOT_PAGE_DESCRIPTOR_INVALID")
+        counted += cast(int, row_count)
+        expected_first = cast(int, last_sequence) + 1
+    if (
+        counted != total
+        or contract.get("inventory_sha256")
+        != _inventory_sha256(
+            page_descriptors=cast(list[dict[str, Any]], descriptors),
+            total_finalized_outcomes=cast(int, total),
+        )
+    ):
+        _integrity("PROFILED_OUTCOME_SNAPSHOT_PAGE_CARDINALITY_INVALID")
+    expected_material = _sha256(
+        {
+            key: contract[key]
+            for key in contract
+            if key != "snapshot_material_sha256"
+        }
+    )
+    if contract.get("snapshot_material_sha256") != expected_material:
+        _integrity("PROFILED_OUTCOME_SNAPSHOT_MATERIAL_INVALID")
+    return contract
+
+
+def validate_profiled_research_finalized_outcome_inventory_snapshot_v1(
+    payload: object,
+) -> dict[str, Any]:
+    if type(payload) is not bytes:
+        _validation("PROFILED_OUTCOME_SNAPSHOT_EXACT_BYTES_REQUIRED")
+    return _validate_inventory_snapshot_contract(
+        _parse_exact_object(
+            cast(bytes, payload),
+            reason="PROFILED_OUTCOME_SNAPSHOT_JSON_INVALID",
+        )
+    )
+
+
+def _publish_inventory_pages(
+    *,
+    ledger_path: Path,
+    inventory: list[dict[str, Any]],
+    store: ImmutableSourcePayloadStore,
+) -> list[dict[str, Any]]:
+    descriptors: list[dict[str, Any]] = []
+    previous_page_material = _GENESIS_SNAPSHOT_PAGE_SHA256
+    for page_index, offset in enumerate(
+        range(0, len(inventory), _SNAPSHOT_PAGE_MAX_ROWS)
+    ):
+        page_rows = inventory[offset : offset + _SNAPSHOT_PAGE_MAX_ROWS]
+        page = _prepare_inventory_page_contract(
+            ledger_path=ledger_path,
+            page_index=page_index,
+            rows=page_rows,
+            previous_page_material_sha256=previous_page_material,
+        )
+        _validate_inventory_page_contract(page)
+        payload = _canonical_bytes(
+            page,
+            reason="PROFILED_OUTCOME_SNAPSHOT_PAGE_JSON_INVALID",
+        )
+        address = _put_exact(store, payload)
+        if _get_exact(
+            store,
+            address,
+            reason="PROFILED_OUTCOME_SNAPSHOT_PAGE_CAS_READBACK_INVALID",
+        ) != payload:
+            _integrity("PROFILED_OUTCOME_SNAPSHOT_PAGE_CAS_READBACK_INVALID")
+        descriptors.append(
+            {
+                "page_index": page_index,
+                "first_sequence": page_rows[0]["sequence"],
+                "last_sequence": page_rows[-1]["sequence"],
+                "row_count": len(page_rows),
+                "page_material_sha256": page["page_material_sha256"],
+                "page_cas_address": _address_mapping(address),
+            }
+        )
+        previous_page_material = cast(str, page["page_material_sha256"])
+    return descriptors
+
+
+def _load_inventory_pages(
+    *,
+    contract: Mapping[str, Any],
+    store: ImmutableSourcePayloadStore,
+) -> list[dict[str, Any]]:
+    binding = cast(dict[str, Any], contract["ledger_binding"])
+    descriptors = cast(list[dict[str, Any]], contract["ordered_inventory_pages"])
+    inventory: list[dict[str, Any]] = []
+    previous_page_material = _GENESIS_SNAPSHOT_PAGE_SHA256
+    for descriptor in descriptors:
+        address = _address_from_mapping(
+            descriptor["page_cas_address"],
+            reason="PROFILED_OUTCOME_SNAPSHOT_PAGE_ADDRESS_INVALID",
+        )
+        payload = _get_exact(
+            store,
+            address,
+            reason="PROFILED_OUTCOME_SNAPSHOT_PAGE_CAS_REOPEN_FAILED",
+        )
+        if _expected_address(payload) != address:
+            _integrity("PROFILED_OUTCOME_SNAPSHOT_PAGE_ADDRESS_MISMATCH")
+        page = validate_profiled_research_finalized_outcome_inventory_page_v1(
+            payload
+        )
+        rows = cast(list[dict[str, Any]], page["ordered_inventory"])
+        if (
+            page["ledger_path_sha256"] != binding["ledger_path_sha256"]
+            or page["page_index"] != descriptor["page_index"]
+            or page["first_sequence"] != descriptor["first_sequence"]
+            or page["last_sequence"] != descriptor["last_sequence"]
+            or page["row_count"] != descriptor["row_count"]
+            or page["page_material_sha256"]
+            != descriptor["page_material_sha256"]
+            or page["previous_page_material_sha256"] != previous_page_material
+        ):
+            _integrity("PROFILED_OUTCOME_SNAPSHOT_PAGE_REPLAY_MISMATCH")
+        inventory.extend(rows)
+        previous_page_material = cast(str, page["page_material_sha256"])
+    _validate_snapshot_inventory_rows(inventory, expected_start_sequence=1)
+    if (
+        len(inventory) != binding["total_finalized_outcomes"]
+        or _inventory_sha256(
+            page_descriptors=descriptors,
+            total_finalized_outcomes=len(inventory),
+        )
+        != contract["inventory_sha256"]
+    ):
+        _integrity("PROFILED_OUTCOME_SNAPSHOT_INVENTORY_REPLAY_MISMATCH")
+    if inventory:
+        terminal = inventory[-1]
+        if (
+            binding["chain_head_sha256"] != terminal["record_chain_sha256"]
+            or binding["terminal_head_anchor_sha256"]
+            != terminal["head_anchor_sha256"]
+            or binding["terminal_head_anchored_at"]
+            != terminal["postcommit_readback_at"]
+        ):
+            _integrity("PROFILED_OUTCOME_SNAPSHOT_TERMINAL_BINDING_INVALID")
+    return inventory
+
+
+def _snapshot_result_seal(
+    *,
+    artifact_sha256: str,
+    ledger: ProfiledResearchFinalizedOutcomeLedgerV1,
+    store: ImmutableSourcePayloadStore,
+) -> str:
+    return hmac.new(
+        _SNAPSHOT_RESULT_SEAL_KEY,
+        _canonical_bytes(
+            {
+                "domain": "profiled-finalized-outcome-snapshot-result/v1",
+                "artifact_sha256": artifact_sha256,
+                "ledger_path": str(ledger.path),
+                "store_root_path": str(store.root_path),
+                "ledger_process_identity": id(ledger),
+                "store_process_identity": id(store),
+            },
+            reason="PROFILED_OUTCOME_SNAPSHOT_RESULT_SEAL_INVALID",
+        ),
+        hashlib.sha256,
+    ).hexdigest()
+
+
 class ProfiledResearchFinalizedOutcomeLedgerV1:
     """Append-only finalized-outcome chain with restart-safe CAS reopening."""
 
@@ -3938,6 +4663,139 @@ class ProfiledResearchFinalizedOutcomeLedgerV1:
                 clock_causality_verified=report.clock_causality_verified,
             )
 
+    def capture_inventory_snapshot(
+        self,
+        *,
+        store: object,
+    ) -> ProfiledResearchFinalizedOutcomeInventorySnapshotV1:
+        if type(store) is not ImmutableSourcePayloadStore:
+            _validation("PROFILED_OUTCOME_EXACT_IMMUTABLE_STORE_REQUIRED")
+        exact_store = cast(ImmutableSourcePayloadStore, store)
+        with self._reader_lease():
+            connection = self._connect_readonly()
+            try:
+                connection.execute("BEGIN")
+                _report, rows = self._verify_database(
+                    connection,
+                    require_postcommit=True,
+                )
+                connection.commit()
+            finally:
+                connection.close()
+            self._verify_outcome_cas(rows, store=exact_store)
+            self._verify_head_catalog(rows)
+            inventory = [_snapshot_inventory_row(row) for row in rows]
+            _validate_snapshot_inventory_rows(
+                inventory,
+                expected_start_sequence=1,
+            )
+            page_descriptors = _publish_inventory_pages(
+                ledger_path=self.path,
+                inventory=inventory,
+                store=exact_store,
+            )
+            observed = _utc_now()
+            if observed.tzinfo is None or observed.utcoffset() is None:
+                _integrity("PROFILED_OUTCOME_SNAPSHOT_INTERNAL_CLOCK_INVALID")
+            observed_at = _format_microsecond(observed.astimezone(UTC))
+            contract = _prepare_inventory_snapshot_contract(
+                ledger_path=self.path,
+                rows=rows,
+                inventory=inventory,
+                page_descriptors=page_descriptors,
+                snapshot_observed_at=observed_at,
+            )
+            _validate_inventory_snapshot_contract(contract)
+            payload = _canonical_bytes(
+                contract,
+                reason="PROFILED_OUTCOME_SNAPSHOT_JSON_INVALID",
+            )
+            address = _put_exact(exact_store, payload)
+            if _get_exact(
+                exact_store,
+                address,
+                reason="PROFILED_OUTCOME_SNAPSHOT_CAS_READBACK_INVALID",
+            ) != payload:
+                _integrity("PROFILED_OUTCOME_SNAPSHOT_CAS_READBACK_INVALID")
+            binding = cast(dict[str, Any], contract["ledger_binding"])
+            return ProfiledResearchFinalizedOutcomeInventorySnapshotV1(
+                snapshot_artifact_sha256=address.payload_sha256,
+                snapshot_artifact_byte_count=address.payload_byte_count,
+                snapshot_artifact_address=address,
+                total_finalized_outcomes=cast(
+                    int,
+                    binding["total_finalized_outcomes"],
+                ),
+                chain_head_sha256=cast(str, binding["chain_head_sha256"]),
+                terminal_head_anchor_sha256=cast(
+                    str,
+                    binding["terminal_head_anchor_sha256"],
+                ),
+                snapshot_observed_at=observed_at,
+                _artifact_json=payload.decode("ascii"),
+                _ledger=self,
+                _store=exact_store,
+                _factory_seal=_snapshot_result_seal(
+                    artifact_sha256=address.payload_sha256,
+                    ledger=self,
+                    store=exact_store,
+                ),
+                _construction_token=_SNAPSHOT_RESULT_TOKEN,
+            )
+
+    def verify_inventory_snapshot(
+        self,
+        *,
+        snapshot_artifact: object,
+        store: object,
+    ) -> dict[str, Any]:
+        if type(snapshot_artifact) is not bytes:
+            _validation("PROFILED_OUTCOME_SNAPSHOT_EXACT_BYTES_REQUIRED")
+        if type(store) is not ImmutableSourcePayloadStore:
+            _validation("PROFILED_OUTCOME_EXACT_IMMUTABLE_STORE_REQUIRED")
+        exact_store = cast(ImmutableSourcePayloadStore, store)
+        payload = cast(bytes, snapshot_artifact)
+        contract = validate_profiled_research_finalized_outcome_inventory_snapshot_v1(
+            payload
+        )
+        binding = cast(dict[str, Any], contract["ledger_binding"])
+        if binding["ledger_path_sha256"] != _snapshot_ledger_path_sha256(self.path):
+            _integrity("PROFILED_OUTCOME_SNAPSHOT_LEDGER_PATH_MISMATCH")
+        total = cast(int, binding["total_finalized_outcomes"])
+        inventory = _load_inventory_pages(contract=contract, store=exact_store)
+        with self._reader_lease():
+            connection = self._connect_readonly()
+            try:
+                connection.execute("BEGIN")
+                _report, rows = self._verify_database(
+                    connection,
+                    require_postcommit=True,
+                )
+                if len(rows) < total:
+                    _integrity("PROFILED_OUTCOME_SNAPSHOT_PREFIX_TRUNCATED")
+                prefix = rows[:total]
+                connection.commit()
+            finally:
+                connection.close()
+            self._verify_outcome_cas(prefix, store=exact_store)
+            self._verify_head_catalog(rows)
+            source_inventory = [_snapshot_inventory_row(row) for row in prefix]
+            if source_inventory != inventory:
+                _integrity("PROFILED_OUTCOME_SNAPSHOT_SOURCE_PREFIX_MISMATCH")
+            expected = _prepare_inventory_snapshot_contract(
+                ledger_path=self.path,
+                rows=prefix,
+                inventory=source_inventory,
+                page_descriptors=cast(
+                    list[dict[str, Any]],
+                    contract["ordered_inventory_pages"],
+                ),
+                snapshot_observed_at=cast(str, contract["snapshot_observed_at"]),
+            )
+            if expected != contract:
+                _integrity("PROFILED_OUTCOME_SNAPSHOT_REPLAY_MISMATCH")
+        return contract
+
 
 _RESULT_PUBLIC_FIELDS: Final = (
     "hypothesis_identity_sha256",
@@ -4090,6 +4948,58 @@ def _validated_result(
     )
 
 
+def _validated_inventory_snapshot_result(
+    result: ProfiledResearchFinalizedOutcomeInventorySnapshotV1,
+) -> dict[str, Any]:
+    if (
+        type(result) is not ProfiledResearchFinalizedOutcomeInventorySnapshotV1
+        or result._construction_token is not _SNAPSHOT_RESULT_TOKEN
+        or type(result._ledger) is not ProfiledResearchFinalizedOutcomeLedgerV1
+        or type(result._store) is not ImmutableSourcePayloadStore
+        or _strict_sha256(result._factory_seal) is None
+    ):
+        _integrity("PROFILED_OUTCOME_SNAPSHOT_RESULT_FACTORY_REQUIRED")
+    expected_seal = _snapshot_result_seal(
+        artifact_sha256=result.snapshot_artifact_sha256,
+        ledger=result._ledger,
+        store=result._store,
+    )
+    if not hmac.compare_digest(result._factory_seal, expected_seal):
+        _integrity("PROFILED_OUTCOME_SNAPSHOT_RESULT_SEAL_INVALID")
+    expected_address = SourcePayloadAddress(
+        schema_version=SOURCE_PAYLOAD_ADDRESS_SCHEMA_VERSION,
+        payload_sha256=result.snapshot_artifact_sha256,
+        payload_byte_count=result.snapshot_artifact_byte_count,
+        relative_path=(
+            f"sha256/{result.snapshot_artifact_sha256[:2]}/"
+            f"{result.snapshot_artifact_sha256}"
+        ),
+    )
+    if result.snapshot_artifact_address != expected_address:
+        _integrity("PROFILED_OUTCOME_SNAPSHOT_RESULT_ADDRESS_INVALID")
+    payload = _get_exact(
+        result._store,
+        result.snapshot_artifact_address,
+        reason="PROFILED_OUTCOME_SNAPSHOT_CAS_REOPEN_FAILED",
+    )
+    if payload.decode("ascii", errors="strict") != result._artifact_json:
+        _integrity("PROFILED_OUTCOME_SNAPSHOT_RESULT_BYTES_MISMATCH")
+    contract = result._ledger.verify_inventory_snapshot(
+        snapshot_artifact=payload,
+        store=result._store,
+    )
+    binding = cast(dict[str, Any], contract["ledger_binding"])
+    if (
+        binding["total_finalized_outcomes"] != result.total_finalized_outcomes
+        or binding["chain_head_sha256"] != result.chain_head_sha256
+        or binding["terminal_head_anchor_sha256"]
+        != result.terminal_head_anchor_sha256
+        or contract["snapshot_observed_at"] != result.snapshot_observed_at
+    ):
+        _integrity("PROFILED_OUTCOME_SNAPSHOT_RESULT_BINDING_INVALID")
+    return contract
+
+
 def validate_profiled_research_finalized_outcome_artifact_v1(
     payload: object,
 ) -> dict[str, Any]:
@@ -4114,12 +5024,17 @@ __all__ = (
     "PROFILED_RESEARCH_FINALIZED_OUTCOME_APPEND_RECEIPT_V1_SCHEMA_VERSION",
     "PROFILED_RESEARCH_FINALIZED_OUTCOME_CALIBRATION_ROW_V1_SCHEMA_VERSION",
     "PROFILED_RESEARCH_FINALIZED_OUTCOME_HEAD_ANCHOR_V1_SCHEMA_VERSION",
+    "PROFILED_RESEARCH_FINALIZED_OUTCOME_INVENTORY_PAGE_V1_CLASSIFICATION",
+    "PROFILED_RESEARCH_FINALIZED_OUTCOME_INVENTORY_PAGE_V1_SCHEMA_VERSION",
+    "PROFILED_RESEARCH_FINALIZED_OUTCOME_INVENTORY_SNAPSHOT_V1_CLASSIFICATION",
+    "PROFILED_RESEARCH_FINALIZED_OUTCOME_INVENTORY_SNAPSHOT_V1_SCHEMA_VERSION",
     "PROFILED_RESEARCH_FINALIZED_OUTCOME_LEDGER_V1_SCHEMA_VERSION",
     "PROFILED_RESEARCH_FINALIZED_OUTCOME_MODEL_BINDING_V1_SCHEMA_VERSION",
     "PROFILED_RESEARCH_FINALIZED_OUTCOME_POSTCOMMIT_V1_SCHEMA_VERSION",
     "PROFILED_RESEARCH_FINALIZED_OUTCOME_V1_CLASSIFICATION",
     "PROFILED_RESEARCH_FINALIZED_OUTCOME_V1_SCHEMA_VERSION",
     "DurablyMaturedProfiledResearchFinalizedOutcomeV1",
+    "ProfiledResearchFinalizedOutcomeInventorySnapshotV1",
     "ProfiledResearchFinalizedOutcomeIntegrityV1",
     "ProfiledResearchFinalizedOutcomeLedgerV1",
     "ProfiledResearchFinalizedOutcomeV1ConflictError",
@@ -4129,4 +5044,6 @@ __all__ = (
     "ProfiledResearchFinalizedOutcomeWriterLease",
     "ProfiledResearchFinalizedOutcomeWriterLeaseError",
     "validate_profiled_research_finalized_outcome_artifact_v1",
+    "validate_profiled_research_finalized_outcome_inventory_page_v1",
+    "validate_profiled_research_finalized_outcome_inventory_snapshot_v1",
 )

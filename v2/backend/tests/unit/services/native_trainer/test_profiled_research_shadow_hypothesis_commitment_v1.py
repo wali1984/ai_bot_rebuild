@@ -55,6 +55,13 @@ def _clock(value: str) -> datetime:
     return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(UTC)
 
 
+def _snapshot_inventory(snapshot, store):  # noqa: ANN001, ANN202
+    return commitment._load_inventory_pages(  # noqa: SLF001
+        contract=snapshot.snapshot_contract,
+        store=store,
+    )
+
+
 def _bundle(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -977,3 +984,389 @@ def test_clock_ceiling_is_conservative_at_submillisecond_deadline() -> None:
         tzinfo=UTC,
     )
     assert persisted_observation >= label_available_at
+
+
+def test_inventory_snapshot_replays_current_head_and_remains_non_authoritative(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store, closure, hypothesis = _bundle(tmp_path, monkeypatch)
+    ledger = ProfiledResearchShadowHypothesisCommitmentLedgerV1(
+        tmp_path / "commitments.sqlite3"
+    )
+    committed = ledger.commit_hypothesis(
+        hypothesis=hypothesis,
+        cost_closure=closure,
+        store=store,
+    )
+    observed = _clock(committed.postcommit_readback_at) + timedelta(seconds=1)
+    monkeypatch.setattr(commitment, "_utc_now", lambda: observed)
+
+    snapshot = ledger.capture_inventory_snapshot(store=store)
+    contract = snapshot.snapshot_contract
+    inventory = _snapshot_inventory(snapshot, store)
+
+    assert snapshot.total_committed_hypotheses == 1
+    assert len(contract["ordered_inventory_pages"]) == 1
+    assert inventory[0]["hypothesis_identity_sha256"] == (
+        committed.hypothesis_identity_sha256
+    )
+    assert inventory[0]["disposition"] == (
+        "EX_ANTE_VERIFIED_AWAITING_TERMINAL_ACCOUNTING"
+    )
+    assert contract["status"]["snapshot_observed_at_durably_anchored"] is False
+    assert contract["status"]["canonical_current_head_selection_verified"] is False
+    assert contract["status"]["terminal_outcome_accounting_verified"] is False
+    assert contract["status"]["calibration_candidate_authorized"] is False
+    assert set(contract["authorization"].values()) == {False}
+    assert snapshot.runtime_wired is False
+
+    payload = store.get(
+        snapshot.snapshot_artifact_sha256,
+        expected_byte_count=snapshot.snapshot_artifact_byte_count,
+    )
+    reopened = ProfiledResearchShadowHypothesisCommitmentLedgerV1(ledger.path)
+    assert reopened.verify_inventory_snapshot(
+        snapshot_artifact=payload,
+        store=store,
+    ) == contract
+
+
+def test_inventory_snapshot_empty_ledger_binds_genesis_without_pages(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = ImmutableSourcePayloadStore(tmp_path / "portable-cas")
+    ledger = ProfiledResearchShadowHypothesisCommitmentLedgerV1(
+        tmp_path / "empty.sqlite3"
+    )
+    with ledger.writer_lease() as lease:
+        ledger._ensure_initialized(writer_lease=lease)  # noqa: SLF001
+    monkeypatch.setattr(
+        commitment,
+        "_utc_now",
+        lambda: datetime(2026, 7, 23, 18, 0, tzinfo=UTC),
+    )
+
+    snapshot = ledger.capture_inventory_snapshot(store=store)
+    contract = snapshot.snapshot_contract
+
+    assert snapshot.total_committed_hypotheses == 0
+    assert contract["ordered_inventory_pages"] == []
+    assert contract["ledger_binding"]["inventory_page_count"] == 0
+    assert contract["ledger_binding"]["chain_head_sha256"] == (
+        commitment._GENESIS_CHAIN_SHA256  # noqa: SLF001
+    )
+    assert _snapshot_inventory(snapshot, store) == []
+
+
+def test_inventory_snapshot_enumerates_quarantined_clock_row(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store, closure, hypothesis = _bundle(tmp_path, monkeypatch)
+    generated = _clock(
+        hypothesis.contract["raw_inference_payload"]["hypothesis_generated_at"]
+    )
+    commit_observed = generated + timedelta(seconds=1)
+    clocks = iter((commit_observed, commit_observed))
+    monkeypatch.setattr(commitment, "_utc_now", lambda: next(clocks))
+    ledger = ProfiledResearchShadowHypothesisCommitmentLedgerV1(
+        tmp_path / "quarantined.sqlite3"
+    )
+    with pytest.raises(
+        ProfiledResearchShadowHypothesisCommitmentV1ValidationError,
+        match="SHADOW_COMMITMENT_EX_ANTE_DURABILITY_UNVERIFIED",
+    ):
+        ledger.commit_hypothesis(
+            hypothesis=hypothesis,
+            cost_closure=closure,
+            store=store,
+        )
+    connection = ledger._connect_readonly()  # noqa: SLF001
+    try:
+        readback_at = connection.execute(
+            """
+            SELECT postcommit_readback_at
+            FROM profiled_shadow_commitment_postcommit_receipts
+            """
+        ).fetchone()["postcommit_readback_at"]
+    finally:
+        connection.close()
+    monkeypatch.setattr(
+        commitment,
+        "_utc_now",
+        lambda: _clock(readback_at) + timedelta(seconds=1),
+    )
+
+    snapshot = ledger.capture_inventory_snapshot(store=store)
+
+    assert snapshot.total_committed_hypotheses == 1
+    assert _snapshot_inventory(snapshot, store)[0]["disposition"] == (
+        "QUARANTINED_EX_ANTE_DURABILITY_FAILED"
+    )
+
+
+def test_inventory_snapshot_forced_multipage_chain_and_tamper_fail_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store, closure, hypothesis = _bundle(tmp_path, monkeypatch)
+    ledger = ProfiledResearchShadowHypothesisCommitmentLedgerV1(
+        tmp_path / "commitments.sqlite3"
+    )
+    committed = ledger.commit_hypothesis(
+        hypothesis=hypothesis,
+        cost_closure=closure,
+        store=store,
+    )
+    monkeypatch.setattr(
+        commitment,
+        "_utc_now",
+        lambda: _clock(committed.postcommit_readback_at) + timedelta(seconds=1),
+    )
+    snapshot = ledger.capture_inventory_snapshot(store=store)
+    contract = snapshot.snapshot_contract
+    first = _snapshot_inventory(snapshot, store)[0]
+    second = json.loads(json.dumps(first))
+    second["sequence"] = 2
+    second["hypothesis_identity_sha256"] = commitment._sha256(  # noqa: SLF001
+        {"domain": "test-shadow-snapshot-identity", "sequence": 2}
+    )
+    second["hypothesis_artifact_sha256"] = commitment._sha256(  # noqa: SLF001
+        {"domain": "test-shadow-snapshot-artifact", "sequence": 2}
+    )
+    inventory = [first, second]
+    monkeypatch.setattr(commitment, "_SNAPSHOT_PAGE_MAX_ROWS", 1)
+    descriptors = commitment._publish_inventory_pages(  # noqa: SLF001
+        ledger_path=ledger.path,
+        inventory=inventory,
+        store=store,
+    )
+    paged = json.loads(json.dumps(contract))
+    paged["ordered_inventory_pages"] = descriptors
+    paged["ledger_binding"]["total_committed_hypotheses"] = 2
+    paged["ledger_binding"]["inventory_page_count"] = 2
+    paged["inventory_sha256"] = commitment._inventory_sha256(  # noqa: SLF001
+        page_descriptors=descriptors,
+        total_committed_hypotheses=2,
+    )
+    paged["snapshot_material_sha256"] = commitment._sha256(  # noqa: SLF001
+        {
+            key: value
+            for key, value in paged.items()
+            if key != "snapshot_material_sha256"
+        }
+    )
+
+    assert commitment._validate_inventory_snapshot_contract(paged) == paged  # noqa: SLF001
+    assert commitment._load_inventory_pages(  # noqa: SLF001
+        contract=paged,
+        store=store,
+    ) == inventory
+
+    wrong_digest = json.loads(json.dumps(paged))
+    wrong_digest["inventory_sha256"] = "f" * 64
+    wrong_digest["snapshot_material_sha256"] = commitment._sha256(  # noqa: SLF001
+        {
+            key: value
+            for key, value in wrong_digest.items()
+            if key != "snapshot_material_sha256"
+        }
+    )
+    with pytest.raises(
+        ProfiledResearchShadowHypothesisCommitmentV1IntegrityError,
+        match="SNAPSHOT_PAGE_CARDINALITY_INVALID",
+    ):
+        commitment._validate_inventory_snapshot_contract(wrong_digest)  # noqa: SLF001
+
+    reordered = json.loads(json.dumps(paged))
+    reordered["ordered_inventory_pages"].reverse()
+    reordered["inventory_sha256"] = commitment._inventory_sha256(  # noqa: SLF001
+        page_descriptors=reordered["ordered_inventory_pages"],
+        total_committed_hypotheses=2,
+    )
+    reordered["snapshot_material_sha256"] = commitment._sha256(  # noqa: SLF001
+        {
+            key: value
+            for key, value in reordered.items()
+            if key != "snapshot_material_sha256"
+        }
+    )
+    with pytest.raises(
+        ProfiledResearchShadowHypothesisCommitmentV1IntegrityError,
+        match="SNAPSHOT_PAGE_DESCRIPTOR_INVALID",
+    ):
+        commitment._validate_inventory_snapshot_contract(reordered)  # noqa: SLF001
+
+    missing = commitment._address_from_mapping(  # noqa: SLF001
+        descriptors[-1]["page_cas_address"],
+        reason="test",
+    )
+    (store.root_path / missing.relative_path).unlink()
+    with pytest.raises(
+        ProfiledResearchShadowHypothesisCommitmentV1IntegrityError,
+        match="SNAPSHOT_PAGE_CAS_REOPEN_FAILED",
+    ):
+        commitment._load_inventory_pages(contract=paged, store=store)  # noqa: SLF001
+
+
+def test_inventory_snapshot_clock_replay_and_factory_tamper_fail_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store, closure, hypothesis = _bundle(tmp_path, monkeypatch)
+    ledger = ProfiledResearchShadowHypothesisCommitmentLedgerV1(
+        tmp_path / "commitments.sqlite3"
+    )
+    committed = ledger.commit_hypothesis(
+        hypothesis=hypothesis,
+        cost_closure=closure,
+        store=store,
+    )
+    observed = _clock(committed.postcommit_readback_at) + timedelta(seconds=1)
+    monkeypatch.setattr(commitment, "_utc_now", lambda: observed)
+    snapshot = ledger.capture_inventory_snapshot(store=store)
+    contract = snapshot.snapshot_contract
+
+    tampered = json.loads(json.dumps(contract))
+    tampered["snapshot_observed_at"] = committed.postcommit_readback_at.replace(
+        ".000Z",
+        ".000000Z",
+    )
+    material = {
+        key: value
+        for key, value in tampered.items()
+        if key != "snapshot_material_sha256"
+    }
+    tampered["snapshot_material_sha256"] = commitment._sha256(material)  # noqa: SLF001
+    with pytest.raises(
+        ProfiledResearchShadowHypothesisCommitmentV1IntegrityError,
+        match="SNAPSHOT_LEDGER_BINDING_INVALID",
+    ):
+        commitment.validate_profiled_research_shadow_commitment_inventory_snapshot_v1(
+            commitment._canonical_bytes(tampered, reason="test")  # noqa: SLF001
+        )
+
+    descriptor = contract["ordered_inventory_pages"][0]
+    address = commitment._address_from_mapping(  # noqa: SLF001
+        descriptor["page_cas_address"],
+        reason="test",
+    )
+    page = json.loads(
+        store.get(
+            address.payload_sha256,
+            expected_byte_count=address.payload_byte_count,
+        )
+    )
+    row = page["ordered_inventory"][0]
+    prepared = _clock(row["commit_prepared_at"])
+    row["commit_observed_at"] = commitment._format_microsecond(  # noqa: SLF001
+        prepared - timedelta(microseconds=500)
+    )
+    row["postcommit_observed_at"] = commitment._format_microsecond(  # noqa: SLF001
+        prepared - timedelta(microseconds=400)
+    )
+    page["page_material_sha256"] = commitment._sha256(  # noqa: SLF001
+        {
+            key: value
+            for key, value in page.items()
+            if key != "page_material_sha256"
+        }
+    )
+    assert (
+        commitment.validate_profiled_research_shadow_commitment_inventory_page_v1(
+            commitment._canonical_bytes(  # noqa: SLF001
+                page,
+                reason="test",
+            )
+        )["ordered_inventory"][0]["postcommit_observed_at"]
+        == row["postcommit_observed_at"]
+    )
+
+    invalid_type = json.loads(json.dumps(page))
+    invalid_type["ordered_inventory"][0]["sequence"] = True
+    invalid_type["page_material_sha256"] = commitment._sha256(  # noqa: SLF001
+        {
+            key: value
+            for key, value in invalid_type.items()
+            if key != "page_material_sha256"
+        }
+    )
+    with pytest.raises(
+        ProfiledResearchShadowHypothesisCommitmentV1IntegrityError,
+        match="SNAPSHOT_ROW_INVALID",
+    ):
+        commitment.validate_profiled_research_shadow_commitment_inventory_page_v1(
+            commitment._canonical_bytes(invalid_type, reason="test")  # noqa: SLF001
+        )
+
+    invalid_horizon = json.loads(json.dumps(page))
+    invalid_horizon["ordered_inventory"][0]["label_earliest_available_at"] = (
+        commitment._format_microsecond(  # noqa: SLF001
+            _clock(row["label_earliest_available_at"]) + timedelta(microseconds=1)
+        )
+    )
+    invalid_horizon["page_material_sha256"] = commitment._sha256(  # noqa: SLF001
+        {
+            key: value
+            for key, value in invalid_horizon.items()
+            if key != "page_material_sha256"
+        }
+    )
+    with pytest.raises(
+        ProfiledResearchShadowHypothesisCommitmentV1IntegrityError,
+        match="SNAPSHOT_ROW_INVALID",
+    ):
+        commitment.validate_profiled_research_shadow_commitment_inventory_page_v1(
+            commitment._canonical_bytes(invalid_horizon, reason="test")  # noqa: SLF001
+        )
+
+    omitted = json.loads(json.dumps(contract))
+    omitted["ordered_inventory_pages"] = []
+    omitted["ledger_binding"].update(
+        {
+            "total_committed_hypotheses": 0,
+            "inventory_page_count": 0,
+            "chain_head_sha256": commitment._GENESIS_CHAIN_SHA256,  # noqa: SLF001
+            "terminal_head_anchor_sha256": (
+                commitment._GENESIS_HEAD_ANCHOR_SHA256  # noqa: SLF001
+            ),
+            "terminal_head_anchored_at": None,
+        }
+    )
+    omitted["inventory_sha256"] = commitment._sha256(  # noqa: SLF001
+        {
+            "domain": "profiled-shadow-commitment-paged-inventory-root/v1",
+            "total_committed_hypotheses": 0,
+            "ordered_inventory_pages": [],
+        }
+    )
+    omitted["snapshot_material_sha256"] = commitment._sha256(  # noqa: SLF001
+        {
+            key: value
+            for key, value in omitted.items()
+            if key != "snapshot_material_sha256"
+        }
+    )
+    historical = ledger.verify_inventory_snapshot(
+        snapshot_artifact=commitment._canonical_bytes(  # noqa: SLF001
+            omitted,
+            reason="test",
+        ),
+        store=store,
+    )
+    assert historical["status"]["canonical_current_head_selection_verified"] is False
+
+    object.__setattr__(snapshot, "chain_head_sha256", "f" * 64)
+    with pytest.raises(
+        ProfiledResearchShadowHypothesisCommitmentV1IntegrityError,
+        match="SNAPSHOT_RESULT_BINDING_INVALID",
+    ):
+        _ = snapshot.snapshot_contract
+    object.__setattr__(snapshot, "_factory_seal", None)
+    with pytest.raises(
+        ProfiledResearchShadowHypothesisCommitmentV1IntegrityError,
+        match="SNAPSHOT_RESULT_FACTORY_REQUIRED",
+    ):
+        _ = snapshot.snapshot_contract
