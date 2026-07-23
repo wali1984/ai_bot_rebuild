@@ -337,7 +337,25 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--write-artifacts", action="store_true")
     parser.add_argument("--max-rows", type=int, default=DEFAULT_MAX_TRAINING_ROWS_PER_CYCLE)
     parser.add_argument("--risk-caps-configured", action="store_true")
+    parser.add_argument(
+        "--model-dir",
+        default=".local_models/v2_native_rl_masa_ppo",
+        help="causal checkpoint root; safety validation still requires a .local_models path",
+    )
+    parser.add_argument("--trusted-replay-archive-root", default="")
+    parser.add_argument(
+        "--trusted-replay-cursor-root",
+        default="",
+        help="writable consumer cursor root kept separate from the immutable replay archive",
+    )
+    parser.add_argument("--counterfactual-archive-path", default="")
+    parser.add_argument("--canonical-5m-label-archive-path", default="")
+    parser.add_argument("--behavior-receipt-archive-root", default="")
     args = parser.parse_args(argv)
+
+    def optional_path(value: str) -> Path | None:
+        text = str(value or "").strip()
+        return Path(text).expanduser().resolve() if text else None
 
     explicit_symbols = [s.strip().upper() for s in args.symbols.split(",") if s.strip()]
     symbols = explicit_symbols or resolve_symbols()
@@ -358,10 +376,30 @@ def main(argv: list[str] | None = None) -> int:
         config = HybridTrainerConfig(
             symbols=tuple(symbols),
             timeframes=tuple(timeframes),
+            model_dir=Path(args.model_dir).expanduser().resolve(),
             max_training_rows_per_cycle=int(args.max_rows),
             risk_caps_configured=bool(args.risk_caps_configured),
         )
-        result = run_hybrid_trainer_cycle(config=config, io=io, publish=not args.no_redis or args.smoke_fixture)
+        result = run_hybrid_trainer_cycle(
+            config=config,
+            io=io,
+            publish=not args.no_redis or args.smoke_fixture,
+            trusted_replay_archive_root=optional_path(
+                args.trusted_replay_archive_root
+            ),
+            trusted_replay_cursor_root=optional_path(
+                args.trusted_replay_cursor_root
+            ),
+            counterfactual_archive_path=optional_path(
+                args.counterfactual_archive_path
+            ),
+            canonical_5m_label_archive_path=optional_path(
+                args.canonical_5m_label_archive_path
+            ),
+            behavior_receipt_archive_root=optional_path(
+                args.behavior_receipt_archive_root
+            ),
+        )
     assert result is not None
     if args.write_artifacts:
         result = write_runtime_artifacts(

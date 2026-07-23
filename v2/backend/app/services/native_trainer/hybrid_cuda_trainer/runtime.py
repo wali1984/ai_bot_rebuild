@@ -1693,6 +1693,9 @@ def _run_hybrid_trainer_cycle_under_lifecycle_lease(
     publish: bool = True,
     replay_buffer: Any | None = None,
     trusted_replay_archive_root: Path | None = None,
+    trusted_replay_cursor_root: Path | None = None,
+    counterfactual_archive_path: Path | None = None,
+    canonical_5m_label_archive_path: Path | None = None,
     behavior_receipt_archive_root: Path | None = None,
     prefetched_backfill_examples: list[Any] | None = None,
 ) -> HybridRuntimeResult:
@@ -1724,7 +1727,13 @@ def _run_hybrid_trainer_cycle_under_lifecycle_lease(
     )
     consumed_update_keys = stores.ledger.consumed_update_keys()
     safe_io = io or V2OnlyJsonIO(client=None)
-    loader = V2HybridTrainerDataLoader(io=safe_io, trusted_replay_archive_root=trusted_replay_archive_root)
+    loader = V2HybridTrainerDataLoader(
+        io=safe_io,
+        trusted_replay_archive_root=trusted_replay_archive_root,
+        trusted_replay_cursor_root=trusted_replay_cursor_root,
+        counterfactual_archive_path=counterfactual_archive_path,
+        canonical_5m_label_archive_path=canonical_5m_label_archive_path,
+    )
     data_loader_started = time.perf_counter()
     _stage_started = time.perf_counter()
     prediction_examples = loader.load_prediction_grid_examples(
@@ -3962,6 +3971,9 @@ def run_hybrid_trainer_cycle(
     publish: bool = True,
     replay_buffer: Any | None = None,
     trusted_replay_archive_root: Path | None = None,
+    trusted_replay_cursor_root: Path | None = None,
+    counterfactual_archive_path: Path | None = None,
+    canonical_5m_label_archive_path: Path | None = None,
     behavior_receipt_archive_root: Path | None = None,
     prefetched_backfill_examples: list[Any] | None = None,
 ) -> HybridRuntimeResult:
@@ -3978,6 +3990,9 @@ def run_hybrid_trainer_cycle(
             publish=publish,
             replay_buffer=replay_buffer,
             trusted_replay_archive_root=trusted_replay_archive_root,
+            trusted_replay_cursor_root=trusted_replay_cursor_root,
+            counterfactual_archive_path=counterfactual_archive_path,
+            canonical_5m_label_archive_path=canonical_5m_label_archive_path,
             behavior_receipt_archive_root=behavior_receipt_archive_root,
             prefetched_backfill_examples=prefetched_backfill_examples,
         )

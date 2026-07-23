@@ -110,6 +110,32 @@ def test_oversized_counterfactual_redis_json_is_never_fetched(
     assert status["redis_payload_bytes"] == TRAINER_FEEDBACK_REDIS_JSON_MAX_BYTES + 1
 
 
+def test_trusted_replay_cursor_state_can_be_separated_from_archive(
+    tmp_path: Path,
+) -> None:
+    archive_root = tmp_path / "immutable-archive"
+    cursor_root = tmp_path / "consumer-state"
+    loader = V2HybridTrainerDataLoader(
+        trusted_replay_archive_root=archive_root,
+        trusted_replay_cursor_root=cursor_root,
+    )
+
+    assert loader._trusted_replay_cursor_path() == (  # noqa: SLF001
+        cursor_root / "trusted_replay_cursor.json"
+    )
+    assert loader._trusted_replay_cursor_path(backfill=True) == (  # noqa: SLF001
+        cursor_root / "trusted_replay_backfill_cursor.json"
+    )
+
+    loader._write_trusted_replay_cursor(  # noqa: SLF001
+        41,
+        frontier_reached=False,
+    )
+
+    assert loader._read_trusted_replay_cursor() == 41  # noqa: SLF001
+    assert not archive_root.exists()
+
+
 def test_verified_counterfactual_archive_returns_only_bounded_newest_tail(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

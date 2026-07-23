@@ -1048,6 +1048,7 @@ class V2HybridTrainerDataLoader:
         tensor_builder: V2UnifiedFeatureTensorBuilder | None = None,
         replay_bundle_paths: Iterable[Path] = (),
         trusted_replay_archive_root: Path | None = None,
+        trusted_replay_cursor_root: Path | None = None,
         counterfactual_archive_path: Path | None = None,
         canonical_5m_label_archive_path: Path | None = None,
     ) -> None:
@@ -1055,6 +1056,9 @@ class V2HybridTrainerDataLoader:
         self.tensor_builder = tensor_builder or V2UnifiedFeatureTensorBuilder()
         self.replay_bundle_paths = tuple(Path(p) for p in replay_bundle_paths)
         self.trusted_replay_archive_root = trusted_replay_archive_root or default_archive_root()
+        self.trusted_replay_cursor_root = Path(
+            trusted_replay_cursor_root or self.trusted_replay_archive_root
+        )
         self.counterfactual_archive_path = Path(
             counterfactual_archive_path or DEFAULT_COUNTERFACTUAL_ARCHIVE_PATH
         )
@@ -2216,7 +2220,7 @@ class V2HybridTrainerDataLoader:
 
     def _trusted_replay_cursor_path(self, *, backfill: bool = False) -> Path:
         name = "trusted_replay_backfill_cursor.json" if backfill else "trusted_replay_cursor.json"
-        return Path(self.trusted_replay_archive_root) / name
+        return self.trusted_replay_cursor_root / name
 
     def _read_trusted_replay_cursor(self, *, backfill: bool = False) -> int:
         try:
@@ -2236,7 +2240,9 @@ class V2HybridTrainerDataLoader:
         epoch_wrapped: bool = False,
     ) -> None:
         try:
-            self._trusted_replay_cursor_path(backfill=backfill).write_text(
+            cursor_path = self._trusted_replay_cursor_path(backfill=backfill)
+            cursor_path.parent.mkdir(parents=True, exist_ok=True)
+            cursor_path.write_text(
                 json.dumps(
                     {
                         "manifest_offset": int(offset),
@@ -3012,7 +3018,12 @@ class V2HybridTrainerDataLoader:
         if not features:
             return None
         payloads = self._payloads_from_feature_snapshot(snapshot=snapshot, features=features, feedback_row=row)
-        tensor = self.tensor_builder.build(symbol=symbol, timeframe=timeframe, payloads=payloads)
+        tensor = self.tensor_builder.build(
+            symbol=symbol,
+            timeframe=timeframe,
+            decision_time=row.get("decision_time"),
+            payloads=payloads,
+        )
         targets = self._outcome_targets_from_row(row)
         directional_value = self._directional_label_bps_from_outcome(row)
         action = self._label_action(directional_value)
@@ -3161,6 +3172,23 @@ class V2HybridTrainerDataLoader:
         features: Mapping[str, Any],
         feedback_row: Mapping[str, Any],
     ) -> dict[str, Any]:
+        # Preserve the immutable snapshot's original causal clock on every
+        # replay projection. Otherwise historical values are evaluated against
+        # the current wall clock and the entire tensor is rejected as stale.
+        causal_clock = {
+            field_name: snapshot.get(field_name)
+            for field_name in (
+                "available_at",
+                "feature_cutoff",
+                "generated_at",
+                "generated_utc",
+            )
+            if snapshot.get(field_name) not in (None, "")
+        }
+
+        def causal(payload: Mapping[str, Any]) -> dict[str, Any]:
+            return {**dict(payload), **causal_clock}
+
         price = next(
             (
                 value
@@ -3174,12 +3202,14 @@ class V2HybridTrainerDataLoader:
             ),
             None,
         )
-        ohlcv_payload = {
+        ohlcv_payload = causal({
             **dict(features),
             "closed_candle": snapshot.get("closed_candle") if "closed_candle" in snapshot else snapshot.get("candle_closed_confirmed"),
             "is_closed": snapshot.get("is_closed") if "is_closed" in snapshot else snapshot.get("candle_closed_confirmed"),
             "candle_closed_confirmed": snapshot.get("candle_closed_confirmed"),
-        }
+            "candle_open_time": snapshot.get("candle_open_time"),
+            "candle_close_time": snapshot.get("candle_close_time"),
+        })
         provider_feature_context = snapshot.get("provider_feature_context")
         if not isinstance(provider_feature_context, Mapping):
             provider_feature_context = features.get("provider_feature_context")
@@ -3187,12 +3217,12 @@ class V2HybridTrainerDataLoader:
         if not isinstance(provider_features, Mapping):
             provider_features = features.get("provider_features")
         return {
-            "features_latest": snapshot,
+            "features_latest": dict(snapshot),
             "ohlcv": ohlcv_payload,
-            "features_ta": {"indicators": dict(features)},
-            "features_ta_full": {"features": dict(features)},
-            "technical_analysis": {"indicators": dict(features)},
-            "prices": {
+            "features_ta": causal({"indicators": dict(features)}),
+            "features_ta_full": causal({"features": dict(features)}),
+            "technical_analysis": causal({"indicators": dict(features)}),
+            "prices": causal({
                 "price": price,
                 "last": price,
                 "last_price": price,
@@ -3205,37 +3235,37 @@ class V2HybridTrainerDataLoader:
                     "indexPrice": features.get("index_price"),
                 },
                 "basis_pct": features.get("basis_pct"),
-            },
-            "funding": dict(features),
-            "open_interest": dict(features),
-            "open_interest_hist": dict(features),
-            "long_short": dict(features),
-            "orderbook": dict(features),
-            "microstructure": dict(features),
-            "liquidation_levels": dict(features),
-            "liquidity_zones": dict(features),
-            "fvg": dict(features),
-            "market_structure": dict(features),
-            "structure": dict(features),
-            "sweep_risk": dict(features),
-            "vwap_features": dict(features),
-            "volume_profile": dict(features),
-            "cvd_features": dict(features),
-            "trade_tape": dict(features),
-            "trade_tape_features": dict(features),
-            "advanced_trade_tape": dict(features),
-            "microstructure_trust": dict(features),
-            "coinank_open_interest": dict(features),
-            "coinank_funding": dict(features),
-            "coinank_long_short": dict(features),
-            "coinank_liquidations": dict(features),
-            "coinank_market_order_flow": dict(features),
-            "liquidations": dict(features),
-            "liquidations_agg": dict(features),
-            "symbol_score": dict(features),
-            "public_intel": dict(features),
-            "whale_walls": dict(features),
-            "altdata_confluence": {"features": dict(features)},
+            }),
+            "funding": causal(features),
+            "open_interest": causal(features),
+            "open_interest_hist": causal(features),
+            "long_short": causal(features),
+            "orderbook": causal(features),
+            "microstructure": causal(features),
+            "liquidation_levels": causal(features),
+            "liquidity_zones": causal(features),
+            "fvg": causal(features),
+            "market_structure": causal(features),
+            "structure": causal(features),
+            "sweep_risk": causal(features),
+            "vwap_features": causal(features),
+            "volume_profile": causal(features),
+            "cvd_features": causal(features),
+            "trade_tape": causal(features),
+            "trade_tape_features": causal(features),
+            "advanced_trade_tape": causal(features),
+            "microstructure_trust": causal(features),
+            "coinank_open_interest": causal(features),
+            "coinank_funding": causal(features),
+            "coinank_long_short": causal(features),
+            "coinank_liquidations": causal(features),
+            "coinank_market_order_flow": causal(features),
+            "liquidations": causal(features),
+            "liquidations_agg": causal(features),
+            "symbol_score": causal(features),
+            "public_intel": causal(features),
+            "whale_walls": causal(features),
+            "altdata_confluence": causal({"features": dict(features)}),
             "paper_positions": {},
             "risk_decisions": {},
             "orchestrator_decisions": {},

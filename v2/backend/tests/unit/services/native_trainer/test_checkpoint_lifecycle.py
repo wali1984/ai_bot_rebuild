@@ -849,6 +849,9 @@ def test_ordinary_runtime_holds_lifecycle_lease_across_complete_cycle(
         publish=False,
         replay_buffer=replay_buffer,
         trusted_replay_archive_root=tmp_path / "replay",
+        trusted_replay_cursor_root=tmp_path / "cursors",
+        counterfactual_archive_path=tmp_path / "counterfactual.sqlite3",
+        canonical_5m_label_archive_path=tmp_path / "labels.sqlite3",
         behavior_receipt_archive_root=tmp_path / "receipts",
         prefetched_backfill_examples=prefetched,
     )
@@ -868,6 +871,9 @@ def test_ordinary_runtime_holds_lifecycle_lease_across_complete_cycle(
         "publish": False,
         "replay_buffer": replay_buffer,
         "trusted_replay_archive_root": tmp_path / "replay",
+        "trusted_replay_cursor_root": tmp_path / "cursors",
+        "counterfactual_archive_path": tmp_path / "counterfactual.sqlite3",
+        "canonical_5m_label_archive_path": tmp_path / "labels.sqlite3",
         "behavior_receipt_archive_root": tmp_path / "receipts",
         "prefetched_backfill_examples": prefetched,
     }

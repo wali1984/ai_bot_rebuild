@@ -78,6 +78,15 @@ class _FakeTensorBuilder:
         return _tensor()
 
 
+class _CapturingTensorBuilder(_FakeTensorBuilder):
+    def __init__(self) -> None:
+        self.kwargs: dict[str, object] = {}
+
+    def build(self, **kwargs):  # noqa: ANN001
+        self.kwargs = dict(kwargs)
+        return super().build(**kwargs)
+
+
 @pytest.mark.parametrize(
     ("claim_present", "producer_claim"),
     (
@@ -418,6 +427,21 @@ def test_closed_trade_feature_snapshot_producer_veto_cannot_be_upgraded() -> Non
     assert example.trust_row["reject_reasons"] == [
         "PRODUCER_TRAINER_CONSUMABLE_NOT_LITERAL_TRUE"
     ]
+
+
+def test_closed_trade_rebuild_uses_original_decision_time() -> None:
+    builder = _CapturingTensorBuilder()
+    loader = V2HybridTrainerDataLoader(tensor_builder=builder)
+    feedback = _paper_exploration_feedback()
+
+    example = loader._closed_trade_snapshot_training_example(  # noqa: SLF001
+        feedback,
+        resolved_snapshot=_paper_exploration_snapshot(),
+        resolved_snapshot_source="unit:causal-clock",
+    )
+
+    assert example is not None
+    assert builder.kwargs["decision_time"] == feedback["decision_time"]
 
 
 def test_loader_consumes_mature_counterfactual_feedback_key(

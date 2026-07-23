@@ -86,6 +86,51 @@ def test_tensor_view_round_trips_through_archive_features() -> None:
         assert replayed.model_vector[idx] == expected, f"{feature} value corrupted in round-trip"
 
 
+def test_loader_archive_projection_preserves_original_causal_clock() -> None:
+    from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.data_loader import (
+        V2HybridTrainerDataLoader,
+    )
+
+    snapshot = {
+        "feature_snapshot_id": "archived-causal-view",
+        "available_at": AVAILABLE_AT,
+        "feature_cutoff": AVAILABLE_AT,
+        "generated_at": AVAILABLE_AT,
+        "candle_closed_confirmed": True,
+        "source_hashes": {"features": "immutable-source-hash"},
+        "features": {
+            "close": 101.0,
+            "fvg_size_bps": 42.0,
+            "vwap_slope": 0.5,
+            "cvd_slope": -1.5,
+        },
+    }
+    payloads = V2HybridTrainerDataLoader._payloads_from_feature_snapshot(  # noqa: SLF001
+        snapshot=snapshot,
+        features=snapshot["features"],
+        feedback_row={},
+    )
+    replayed = V2UnifiedFeatureTensorBuilder().build(
+        symbol="BTCUSDT",
+        timeframe="1m",
+        decision_time=DECISION_TIME,
+        payloads=payloads,
+    )
+
+    for feature, expected in (
+        ("last_price", 101.0),
+        ("fvg_size_bps", 42.0),
+        ("vwap_slope", 0.5),
+        ("cvd_slope", -1.5),
+    ):
+        index = _NAMES.index(feature)
+        assert replayed.missing_mask[index] == 0
+        assert replayed.model_vector[index] == expected
+
+    assert payloads["fvg"]["available_at"] == AVAILABLE_AT
+    assert payloads["vwap_features"]["feature_cutoff"] == AVAILABLE_AT
+
+
 def test_publisher_merges_tensor_view_into_snapshot_features() -> None:
     # Direct check on the publisher's snapshot builder.
     from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.data_loader import (
