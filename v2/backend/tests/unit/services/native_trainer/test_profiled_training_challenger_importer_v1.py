@@ -12,6 +12,7 @@ from v2.backend.app.services.native_trainer.model_edge_recovery_challenger impor
 )
 from v2.backend.app.services.native_trainer.profiled_training_challenger_importer_v1 import (
     LABEL_SOURCE,
+    import_profiled_training_ledger_shards_to_challenger_archive_v1,
     import_profiled_training_ledger_to_challenger_archive_v1,
 )
 from v2.backend.tests.unit.services.native_trainer import (
@@ -98,3 +99,48 @@ def test_importer_reconstructs_idempotent_pit_challenger_row(
     assert second.imported_rows == 0
     assert second.duplicate_rows == 1
     assert second.imported_snapshot_ids == first.imported_snapshot_ids
+
+
+def test_sharded_importer_checkpoints_completed_cursor_without_reprocessing(
+    tmp_path: Path,
+) -> None:
+    evidence = base_support._build_evidence(tmp_path / "base")
+    source_root = tmp_path / "sources"
+    source_root.mkdir()
+    ledger, labels, observation, cost_root = manifest_support._setup_sources(
+        source_root,
+        evidence,
+    )
+    challenger_archive = tmp_path / "sharded-challenger-archive"
+    progress: list[dict[str, object]] = []
+
+    first = import_profiled_training_ledger_shards_to_challenger_archive_v1(
+        ledger=ledger,
+        trusted_immutable_cost_store_root=cost_root,
+        label_archive=labels,
+        challenger_archive_root=challenger_archive,
+        training_observed_at=observation,
+        shard_size=1,
+        max_shards=2,
+        progress_consumer=lambda report: progress.append(dict(report)),
+    )
+
+    assert first["total_imported_rows"] == 1
+    assert first["shards_processed_this_run"] == 1
+    assert first["completed"] is True
+    assert len(progress) == 1
+    assert progress[0]["imported_rows"] == 1
+    assert progress[0]["checkpoint_path"] == first["checkpoint_path"]
+    assert progress[0]["shards_remaining"] == 0
+
+    resumed = import_profiled_training_ledger_shards_to_challenger_archive_v1(
+        ledger=ledger,
+        trusted_immutable_cost_store_root=cost_root,
+        label_archive=labels,
+        challenger_archive_root=challenger_archive,
+        training_observed_at=observation,
+        shard_size=1,
+    )
+
+    assert resumed["completed"] is True
+    assert resumed["shards_processed_this_run"] == 0
