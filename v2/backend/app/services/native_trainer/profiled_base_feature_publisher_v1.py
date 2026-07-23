@@ -155,6 +155,8 @@ PROFILED_MASKED_COST_OBSERVATION_V1_SCHEMA_VERSION: Final = (
 CANONICAL_KEY_PREFIX: Final = "v2:market:ohlcv_closed:binance:"
 REQUIRED_TIMEFRAMES: Final = ("5m", "1h")
 DYNAMIC_SYMBOL_SELECTION_KEY: Final = "v2:symbol_universe:dynamic_discovered_symbols"
+CHAMPION_CHALLENGER_STATUS_KEY: Final = "v2:trainer:champion_challenger_status"
+INSUFFICIENT_TRAIN_ROWS_BLOCKER: Final = "INSUFFICIENT_TRAIN_ROWS"
 
 # Resource-integrity limits only.  They never classify a market observation.
 BOOTSTRAP_EVIDENCE_BYTES_PER_SYMBOL: Final = 4_900_000
@@ -1317,6 +1319,7 @@ class PublisherResourceDecisionV1:
     absolute_disk_capacity_symbols: int
     disk_capacity_symbols: int
     publication_latency_capacity_symbols: int
+    training_supply_backfill_required: bool
     bootstrap_observation_required: bool
     reasons: tuple[str, ...]
 
@@ -1355,6 +1358,7 @@ class PublisherResourceDecisionV1:
             "absolute_disk_capacity_symbols": self.absolute_disk_capacity_symbols,
             "disk_capacity_symbols": self.disk_capacity_symbols,
             "publication_latency_capacity_symbols": (self.publication_latency_capacity_symbols),
+            "training_supply_backfill_required": self.training_supply_backfill_required,
             "bootstrap_observation_required": self.bootstrap_observation_required,
             "reasons": list(self.reasons),
             "market_performance_thresholds_applied": False,
@@ -1370,6 +1374,7 @@ def adaptive_resource_decision_v1(
     disk_total_bytes: int,
     disk_used_bytes: int,
     disk_free_bytes: int,
+    training_supply_backfill_required: bool = False,
 ) -> PublisherResourceDecisionV1:
     """Choose an evidence-bound workload without a symbol or market cap."""
 
@@ -1382,6 +1387,7 @@ def adaptive_resource_decision_v1(
         or type(resource_sustainability_horizon_seconds) not in {int, float}
         or not math.isfinite(resource_sustainability_horizon_seconds)
         or resource_sustainability_horizon_seconds < MINIMUM_RESOURCE_SUSTAINABILITY_HORIZON_SECONDS
+        or type(training_supply_backfill_required) is not bool
         or any(
             type(value) is not int or value < 0
             for value in (disk_total_bytes, disk_used_bytes, disk_free_bytes)
@@ -1451,11 +1457,25 @@ def adaptive_resource_decision_v1(
         write_credit_capacity,
         max(0, cumulative_sustainable_budget - publication_bytes),
     )
+    latency_capacity = max(1, math.floor(cycle_period_seconds / estimated_seconds))
+    if training_supply_backfill_required:
+        # The trainer's own authenticated status is the only temporary
+        # acceleration authority.  While it reports a genuine row shortage,
+        # fund no more than this cycle can complete at the observed latency and
+        # current immutable-reserve headroom.  No market score, fixed row
+        # count, or relaxed provenance condition participates in this choice.
+        measured_cycle_capacity = min(
+            eligible_count,
+            absolute_disk_capacity,
+            latency_capacity,
+        )
+        backfill_credit = estimated_bytes * measured_cycle_capacity
+        write_credit_capacity = max(write_credit_capacity, backfill_credit)
+        available_write_credit = max(available_write_credit, backfill_credit)
     disk_capacity = min(
         absolute_disk_capacity,
         available_write_credit // estimated_bytes,
     )
-    latency_capacity = max(1, math.floor(cycle_period_seconds / estimated_seconds))
     selected = min(eligible_count, disk_capacity, latency_capacity)
     reasons = [
         "LEAST_RECENTLY_COVERED_ROTATION",
@@ -1469,6 +1489,10 @@ def adaptive_resource_decision_v1(
         if bootstrap
         else "LOCAL_MATERIALIZED_PUBLICATION_BYTES_AND_LATENCY_OBSERVATIONS"
     )
+    if training_supply_backfill_required:
+        reasons.append(
+            "AUTHENTICATED_TRAINER_ROW_SHORTAGE_MEASURED_LATENCY_BACKFILL"
+        )
     if selected == disk_capacity and selected < eligible_count:
         reasons.append("DISK_HEADROOM_BINDING")
     if selected == latency_capacity and selected < eligible_count:
@@ -1504,6 +1528,7 @@ def adaptive_resource_decision_v1(
         absolute_disk_capacity_symbols=absolute_disk_capacity,
         disk_capacity_symbols=disk_capacity,
         publication_latency_capacity_symbols=latency_capacity,
+        training_supply_backfill_required=training_supply_backfill_required,
         bootstrap_observation_required=bootstrap,
         reasons=tuple(reasons),
     )
@@ -2074,6 +2099,40 @@ class ProfiledBaseFeaturePublisherV1:
             )
         return values
 
+    def _authenticated_training_supply_backfill_required(self) -> bool:
+        """Return whether the trainer's exact status requests more valid rows.
+
+        This is deliberately a fail-conservative throughput hint, not training
+        evidence and not an authorization grant. An absent, malformed, stale,
+        or otherwise unreadable status leaves the publisher on its ordinary
+        sustained disk schedule.
+        """
+
+        try:
+            raw = self.redis_client.get(CHAMPION_CHALLENGER_STATUS_KEY)
+        except Exception:  # noqa: BLE001 - status availability is non-authoritative
+            return False
+        if type(raw) is bytes:
+            try:
+                raw = raw.decode("utf-8")
+            except UnicodeDecodeError:
+                return False
+        if type(raw) is not str:
+            return False
+        try:
+            status = json.loads(raw)
+        except (TypeError, ValueError):
+            return False
+        if type(status) is not dict:
+            return False
+        blockers = status.get("blocker_reasons")
+        if (
+            type(blockers) is not list
+            or any(type(reason) is not str for reason in blockers)
+        ):
+            return False
+        return INSUFFICIENT_TRAIN_ROWS_BLOCKER in blockers
+
     def _owned_durable_footprint_bytes(self) -> int:
         """Measure publisher-owned files without attributing shared-disk traffic."""
 
@@ -2180,6 +2239,7 @@ class ProfiledBaseFeaturePublisherV1:
         symbol: str,
         publication_attempt: int,
         adaptive_estimated_symbol_elapsed_seconds: float,
+        shared_cycle_decision_at: datetime | None = None,
     ) -> _SourceShardPreflightV1:
         """Verify and, when measured work cannot fit, roll before market capture.
 
@@ -2245,14 +2305,17 @@ class ProfiledBaseFeaturePublisherV1:
                 ProfiledBaseFeaturePublisherV1ConfigurationError,
                 "PROFILED_BASE_PUBLISHER_SOURCE_SHARD_PREFLIGHT_CLOCK_MOVED_BACKWARDS",
             )
-        try:
-            planned_decision = self.decision_planner(verification_completed_at)
-        except ProfiledBaseFeaturePublisherV1Error:
-            raise
-        except Exception as exc:  # noqa: BLE001 - planner detail is suppressed
-            raise ProfiledBaseFeaturePublisherV1ConfigurationError(
-                "PROFILED_BASE_PUBLISHER_SOURCE_SHARD_PREFLIGHT_DECISION_PLANNER_FAILED"
-            ) from exc
+        if shared_cycle_decision_at is None:
+            try:
+                planned_decision = self.decision_planner(verification_completed_at)
+            except ProfiledBaseFeaturePublisherV1Error:
+                raise
+            except Exception as exc:  # noqa: BLE001 - planner detail is suppressed
+                raise ProfiledBaseFeaturePublisherV1ConfigurationError(
+                    "PROFILED_BASE_PUBLISHER_SOURCE_SHARD_PREFLIGHT_DECISION_PLANNER_FAILED"
+                ) from exc
+        else:
+            planned_decision = shared_cycle_decision_at
         planned_decision_text = _clock_text(
             planned_decision,
             reason=(
@@ -2453,6 +2516,7 @@ class ProfiledBaseFeaturePublisherV1:
         source_store: ImmutableSourcePayloadStore,
         capture_set_store: ImmutableSourcePayloadStore,
         prior_fingerprint: str | None,
+        shared_cycle_decision_at: datetime | None = None,
     ) -> tuple[
         tuple[CanonicalOhlcvAtomicReceiptCapture, CanonicalOhlcvAtomicReceiptCapture],
         str,
@@ -2486,14 +2550,17 @@ class ProfiledBaseFeaturePublisherV1:
                 generated_at, generated = self._sample_clock(
                     "PROFILED_BASE_PUBLISHER_CAPTURE_GENERATED_CLOCK_INVALID"
                 )
-                try:
-                    decision_at = self.decision_planner(generated_at)
-                except ProfiledBaseFeaturePublisherV1Error:
-                    raise
-                except Exception as exc:  # noqa: BLE001 - planner detail is suppressed
-                    raise ProfiledBaseFeaturePublisherV1ConfigurationError(
-                        "PROFILED_BASE_PUBLISHER_DECISION_PLANNER_FAILED"
-                    ) from exc
+                if shared_cycle_decision_at is None:
+                    try:
+                        decision_at = self.decision_planner(generated_at)
+                    except ProfiledBaseFeaturePublisherV1Error:
+                        raise
+                    except Exception as exc:  # noqa: BLE001 - planner detail is suppressed
+                        raise ProfiledBaseFeaturePublisherV1ConfigurationError(
+                            "PROFILED_BASE_PUBLISHER_DECISION_PLANNER_FAILED"
+                        ) from exc
+                else:
+                    decision_at = shared_cycle_decision_at
                 decision = _clock_text(
                     decision_at,
                     reason="PROFILED_BASE_PUBLISHER_DECISION_CLOCK_INVALID",
@@ -3376,6 +3443,7 @@ class ProfiledBaseFeaturePublisherV1:
         symbol: str,
         publication_attempt: int,
         adaptive_estimated_symbol_elapsed_seconds: float,
+        shared_cycle_decision_at: datetime | None,
         source_shard_preflight_evidence: list[dict[str, Any]],
         prior_coverage: Mapping[str, Any] | None,
         source_store: ImmutableSourcePayloadStore,
@@ -3405,6 +3473,7 @@ class ProfiledBaseFeaturePublisherV1:
             adaptive_estimated_symbol_elapsed_seconds=(
                 adaptive_estimated_symbol_elapsed_seconds
             ),
+            shared_cycle_decision_at=shared_cycle_decision_at,
         )
         source_shard_preflight.evidence["status_preflight_index"] = len(
             source_shard_preflight_evidence
@@ -3422,6 +3491,7 @@ class ProfiledBaseFeaturePublisherV1:
                 source_store=source_store,
                 capture_set_store=capture_set_store,
                 prior_fingerprint=prior_fingerprint,
+                shared_cycle_decision_at=shared_cycle_decision_at,
             )
         )
         if capture_set is None:
@@ -3987,6 +4057,7 @@ class ProfiledBaseFeaturePublisherV1:
         *,
         symbol: str,
         adaptive_estimated_symbol_elapsed_seconds: float,
+        shared_cycle_decision_at: datetime | None = None,
         prior_coverage: Mapping[str, Any] | None,
         source_store: ImmutableSourcePayloadStore,
         capture_set_store: ImmutableSourcePayloadStore,
@@ -4012,6 +4083,7 @@ class ProfiledBaseFeaturePublisherV1:
                     adaptive_estimated_symbol_elapsed_seconds=(
                         adaptive_estimated_symbol_elapsed_seconds
                     ),
+                    shared_cycle_decision_at=shared_cycle_decision_at,
                     source_shard_preflight_evidence=preflights,
                     prior_coverage=prior_coverage,
                     source_store=source_store,
@@ -4077,6 +4149,9 @@ class ProfiledBaseFeaturePublisherV1:
             "PROFILED_BASE_PUBLISHER_DISCOVERY_CLOCK_INVALID"
         )
         disk_total, disk_used, disk_free = self._disk_sample()
+        training_supply_backfill_required = (
+            self._authenticated_training_supply_backfill_required()
+        )
         decision = adaptive_resource_decision_v1(
             eligible_count=len(discovery.eligible_symbols),
             observations=cast(dict[str, Any], state["observations"]),
@@ -4085,13 +4160,31 @@ class ProfiledBaseFeaturePublisherV1:
             disk_total_bytes=disk_total,
             disk_used_bytes=disk_used,
             disk_free_bytes=disk_free,
+            training_supply_backfill_required=training_supply_backfill_required,
         )
         rotation = least_recently_covered_symbols_v1(
             discovery.eligible_symbols,
             cast(dict[str, Any], state["rotation_last_attempted_at"]),
         )
         planned_selection = rotation[: decision.selected_count]
-        _, selection_at = self._sample_clock("PROFILED_BASE_PUBLISHER_SELECTION_CLOCK_INVALID")
+        selection_dt, selection_at = self._sample_clock(
+            "PROFILED_BASE_PUBLISHER_SELECTION_CLOCK_INVALID"
+        )
+        shared_cycle_decision_at: datetime | None = None
+        if len(planned_selection) > 1:
+            try:
+                shared_cycle_decision_at = self.decision_planner(selection_dt)
+            except ProfiledBaseFeaturePublisherV1Error:
+                raise
+            except Exception as exc:  # noqa: BLE001 - planner detail is suppressed
+                raise ProfiledBaseFeaturePublisherV1ConfigurationError(
+                    "PROFILED_BASE_PUBLISHER_SHARED_DECISION_PLANNER_FAILED"
+                ) from exc
+            if shared_cycle_decision_at <= selection_dt:
+                _fail(
+                    ProfiledBaseFeaturePublisherV1ConfigurationError,
+                    "PROFILED_BASE_PUBLISHER_SHARED_DECISION_NOT_STRICTLY_FUTURE",
+                )
 
         if planned_selection:
             source_store, capture_set_store, artifact_store, enrichment_store = self._stores()
@@ -4195,6 +4288,7 @@ class ProfiledBaseFeaturePublisherV1:
                     adaptive_estimated_symbol_elapsed_seconds=(
                         decision.estimated_seconds_per_symbol
                     ),
+                    shared_cycle_decision_at=shared_cycle_decision_at,
                     prior_coverage=prior if type(prior) is dict else None,
                     source_store=source_store,
                     capture_set_store=capture_set_store,

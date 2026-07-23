@@ -188,7 +188,13 @@ class _Redis:
         self.server_time = server_time
         self.atomic_reads: Counter[str] = Counter()
         self.atomic_batches: list[tuple[str, ...]] = []
+        self.trainer_status_raw: bytes | str | None = None
         self.scan_calls = 0
+
+    def get(self, key: str) -> bytes | str | None:
+        if key == "v2:trainer:champion_challenger_status":
+            return self.trainer_status_raw
+        return None
 
     def get_connection_kwargs(self) -> dict[str, Any]:
         return {"decode_responses": False}
@@ -2853,6 +2859,84 @@ def test_large_universe_is_bounded_by_sustainable_cadence_disk_budget() -> None:
     assert (
         decision.selected_count * decision.estimated_evidence_bytes_per_symbol
         <= decision.available_write_credit_bytes
+    )
+
+
+def test_authenticated_row_shortage_uses_measured_latency_and_disk_capacity() -> None:
+    inputs = {
+        "eligible_count": 200,
+        "observations": {
+            "cycle_count": 4,
+            "materialized_publication_count": 4,
+            "materialized_publication_elapsed_seconds": 40.0,
+            "materialized_publication_bytes": 20_000_000,
+        },
+        "cycle_period_seconds": 300.0,
+        "resource_sustainability_horizon_seconds": (
+            MINIMUM_RESOURCE_SUSTAINABILITY_HORIZON_SECONDS
+        ),
+        "disk_total_bytes": 1_000_000_000_000,
+        "disk_used_bytes": 316_000_000_000,
+        "disk_free_bytes": 684_000_000_000,
+    }
+    sustained = adaptive_resource_decision_v1(**inputs)
+    backfill = adaptive_resource_decision_v1(
+        **inputs,
+        training_supply_backfill_required=True,
+    )
+
+    assert sustained.selected_count == 3
+    assert backfill.training_supply_backfill_required is True
+    assert backfill.selected_count == backfill.publication_latency_capacity_symbols
+    assert backfill.selected_count > sustained.selected_count
+    assert (
+        backfill.selected_count * backfill.estimated_evidence_bytes_per_symbol
+        <= backfill.safe_disk_headroom_bytes
+    )
+    assert "AUTHENTICATED_TRAINER_ROW_SHORTAGE_MEASURED_LATENCY_BACKFILL" in (
+        backfill.reasons
+    )
+
+
+def test_only_exact_trainer_row_shortage_status_enables_backfill(tmp_path: Path) -> None:
+    redis_client = _Redis(_payloads())
+    publisher = _publisher(tmp_path, redis_client)
+
+    assert publisher._authenticated_training_supply_backfill_required() is False  # noqa: SLF001
+    redis_client.trainer_status_raw = json.dumps(
+        {"blocker_reasons": ["INSUFFICIENT_TRAIN_ROWS"]}
+    ).encode("utf-8")
+    assert publisher._authenticated_training_supply_backfill_required() is True  # noqa: SLF001
+    redis_client.trainer_status_raw = json.dumps(
+        {"blocker_reasons": ["INSUFFICIENT_HOLDOUT_TRADES"]}
+    )
+    assert publisher._authenticated_training_supply_backfill_required() is False  # noqa: SLF001
+    redis_client.trainer_status_raw = b"not-json"
+    assert publisher._authenticated_training_supply_backfill_required() is False  # noqa: SLF001
+
+
+def test_shared_cycle_decision_bypasses_per_symbol_planning(tmp_path: Path) -> None:
+    publisher = _publisher(tmp_path, _Redis(_payloads()))
+    publisher.data_root.mkdir(mode=0o700)
+    publisher.decision_planner = lambda _generated_at: pytest.fail(
+        "shared cycle decision must be reused"
+    )
+    source_store, capture_set_store, _artifact_store, _enrichment_store = publisher._stores()
+
+    _captures, _fingerprint, capture_set, contract, _attempts, decision_at = (
+        publisher._capture_and_build_set(  # noqa: SLF001
+            symbol="BTCUSDT",
+            source_store=source_store,
+            capture_set_store=capture_set_store,
+            prior_fingerprint=None,
+            shared_cycle_decision_at=FIXED_CLOCK,
+        )
+    )
+
+    assert capture_set is not None
+    assert decision_at == FIXED_CLOCK
+    assert contract["timestamps"]["decision_time"] == (
+        FIXED_CLOCK.isoformat(timespec="microseconds").replace("+00:00", "Z")
     )
 
 
