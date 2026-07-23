@@ -176,6 +176,9 @@ DISK_RESERVE_POLICY_V1: Final = (
     "MAX_TWO_ESTIMATED_PUBLICATION_UNITS_OR_CEILING_ONE_FIFTH_TOTAL_DISK"
 )
 SOURCE_SHARD_RE = re.compile(r"^shard-([0-9]{8})$", re.ASCII)
+SOURCE_SHARD_PREFLIGHT_V1_SCHEMA_VERSION: Final = (
+    "profiled_base_source_shard_preflight_v1"
+)
 SYMBOL_RE = re.compile(r"^[A-Z0-9]{2,48}$", re.ASCII)
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$", re.ASCII)
 CLOCK_FORMAT: Final = "%Y-%m-%dT%H:%M:%S.%fZ"
@@ -1828,6 +1831,29 @@ class _SymbolOutcome:
     coverage: dict[str, Any] | None
 
 
+@dataclass(frozen=True, slots=True)
+class _SourceShardPreflightV1:
+    active_shard_index: int | None
+    selected_shard_index: int
+    evidence: dict[str, Any]
+
+
+def _source_shard_preflight_references(
+    preflights: list[dict[str, Any]],
+    *,
+    start: int,
+) -> list[dict[str, Any]]:
+    return [
+        {
+            "status_preflight_index": index,
+            "preflight_sha256": stable_sha256(preflights[index]),
+            "symbol": preflights[index]["symbol"],
+            "publication_attempt": preflights[index]["publication_attempt"],
+        }
+        for index in range(start, len(preflights))
+    ]
+
+
 class ProfiledBaseFeaturePublisherV1:
     """One-cycle orchestrator with per-symbol isolation and durable rotation state."""
 
@@ -2062,37 +2088,302 @@ class ProfiledBaseFeaturePublisherV1:
             total += _regular_file_bytes(path)
         return total
 
-    def _source_ledger(
+    def _source_shard_inventory(
         self,
-        captures: tuple[
-            CanonicalOhlcvAtomicReceiptCapture,
-            CanonicalOhlcvAtomicReceiptCapture,
-        ],
-    ) -> tuple[TrainerSourceProvenanceLedgerV4, int, bool, int]:
-        projected_pair = sum(_capture_projected_entry_bytes(item) for item in captures)
+        *,
+        create_root: bool,
+    ) -> tuple[Path, tuple[int, ...]]:
         root = self.data_root / "source-provenance-shards"
-        root.mkdir(mode=0o700, parents=True, exist_ok=True)
+        try:
+            root_stat = os.lstat(root)
+        except FileNotFoundError:
+            if not create_root:
+                return root, ()
+            try:
+                root.mkdir(mode=0o700, parents=True, exist_ok=False)
+                root_stat = os.lstat(root)
+            except OSError as exc:
+                raise ProfiledBaseFeaturePublisherV1ResourceError(
+                    "PROFILED_BASE_PUBLISHER_SOURCE_SHARD_ROOT_CREATE_FAILED"
+                ) from exc
+        except OSError as exc:
+            raise ProfiledBaseFeaturePublisherV1ResourceError(
+                "PROFILED_BASE_PUBLISHER_SOURCE_SHARD_INVENTORY_FAILED"
+            ) from exc
+        if not stat.S_ISDIR(root_stat.st_mode) or stat.S_ISLNK(root_stat.st_mode):
+            _fail(
+                ProfiledBaseFeaturePublisherV1ResourceError,
+                "PROFILED_BASE_PUBLISHER_SOURCE_SHARD_INVENTORY_INVALID",
+            )
         observed: list[int] = []
-        for item in root.iterdir():
-            match = SOURCE_SHARD_RE.fullmatch(item.name)
-            if match is None:
-                _fail(
-                    ProfiledBaseFeaturePublisherV1ResourceError,
-                    "PROFILED_BASE_PUBLISHER_SOURCE_SHARD_INVENTORY_INVALID",
-                )
-            if not item.is_dir() or item.is_symlink():
-                _fail(
-                    ProfiledBaseFeaturePublisherV1ResourceError,
-                    "PROFILED_BASE_PUBLISHER_SOURCE_SHARD_INVENTORY_INVALID",
-                )
-            observed.append(int(match.group(1)))
+        try:
+            for item in root.iterdir():
+                match = SOURCE_SHARD_RE.fullmatch(item.name)
+                if match is None:
+                    _fail(
+                        ProfiledBaseFeaturePublisherV1ResourceError,
+                        "PROFILED_BASE_PUBLISHER_SOURCE_SHARD_INVENTORY_INVALID",
+                    )
+                if not item.is_dir() or item.is_symlink():
+                    _fail(
+                        ProfiledBaseFeaturePublisherV1ResourceError,
+                        "PROFILED_BASE_PUBLISHER_SOURCE_SHARD_INVENTORY_INVALID",
+                    )
+                observed.append(int(match.group(1)))
+        except ProfiledBaseFeaturePublisherV1Error:
+            raise
+        except OSError as exc:
+            raise ProfiledBaseFeaturePublisherV1ResourceError(
+                "PROFILED_BASE_PUBLISHER_SOURCE_SHARD_INVENTORY_FAILED"
+            ) from exc
         observed.sort()
         if observed and observed != list(range(observed[-1] + 1)):
             _fail(
                 ProfiledBaseFeaturePublisherV1ResourceError,
                 "PROFILED_BASE_PUBLISHER_SOURCE_SHARD_SEQUENCE_INVALID",
             )
+        return root, tuple(observed)
+
+    @staticmethod
+    def _create_next_source_shard(*, root: Path, index: int) -> Path:
+        candidate = root / f"shard-{index:08d}"
+        try:
+            candidate.mkdir(mode=0o700, parents=False, exist_ok=False)
+            candidate_stat = os.lstat(candidate)
+            if (
+                not stat.S_ISDIR(candidate_stat.st_mode)
+                or stat.S_ISLNK(candidate_stat.st_mode)
+                or stat.S_IMODE(candidate_stat.st_mode) != 0o700
+            ):
+                _fail(
+                    ProfiledBaseFeaturePublisherV1ResourceError,
+                    "PROFILED_BASE_PUBLISHER_SOURCE_SHARD_ROLLOVER_DIRECTORY_INVALID",
+                )
+            flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0)
+            flags |= getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+            descriptor = os.open(root, flags)
+            try:
+                os.fsync(descriptor)
+            finally:
+                os.close(descriptor)
+        except ProfiledBaseFeaturePublisherV1Error:
+            raise
+        except OSError as exc:
+            raise ProfiledBaseFeaturePublisherV1ResourceError(
+                "PROFILED_BASE_PUBLISHER_SOURCE_SHARD_ROLLOVER_CREATE_FAILED"
+            ) from exc
+        return candidate
+
+    def _preflight_source_shard(
+        self,
+        *,
+        symbol: str,
+        publication_attempt: int,
+        adaptive_estimated_symbol_elapsed_seconds: float,
+    ) -> _SourceShardPreflightV1:
+        """Verify and, when measured work cannot fit, roll before market capture.
+
+        A new append performs one capacity read plus one load and one
+        postcommit readback per required timeframe.  An exact retry also
+        performs the takeover read inside ``_finish_existing``.  The
+        conservative count is derived from that retry-capable route, while the
+        cost of a pass is measured from the active shard with the injected
+        monotonic clock.  The adaptive full-symbol elapsed estimate is added
+        conservatively because capture, transform, and record construction
+        consume the same prospective-decision window; the persisted
+        observations do not split those costs from ledger verification.
+        """
+
+        if (
+            type(adaptive_estimated_symbol_elapsed_seconds) not in {int, float}
+            or not math.isfinite(adaptive_estimated_symbol_elapsed_seconds)
+            or adaptive_estimated_symbol_elapsed_seconds <= 0
+        ):
+            _fail(
+                ProfiledBaseFeaturePublisherV1ConfigurationError,
+                "PROFILED_BASE_PUBLISHER_SOURCE_SHARD_PREFLIGHT_ADAPTIVE_ELAPSED_INVALID",
+            )
+
+        root, observed = self._source_shard_inventory(create_root=False)
         active = observed[-1] if observed else None
+        verification_started_at, verification_started = self._sample_clock(
+            "PROFILED_BASE_PUBLISHER_SOURCE_SHARD_PREFLIGHT_START_CLOCK_INVALID"
+        )
+        active_bytes = 0
+        active_entries = 0
+        active_head_sequence: int | None = None
+        active_head_entry_sha256: str | None = None
+        verification_elapsed_seconds = 0.0
+        if active is not None:
+            active_root = root / f"shard-{active:08d}"
+            ledger = TrainerSourceProvenanceLedgerV4(active_root)
+            monotonic_started = self.monotonic()
+            entries = ledger.read_entries()
+            monotonic_completed = self.monotonic()
+            elapsed = monotonic_completed - monotonic_started
+            if type(elapsed) not in {int, float} or not math.isfinite(elapsed) or elapsed < 0:
+                _fail(
+                    ProfiledBaseFeaturePublisherV1ConfigurationError,
+                    "PROFILED_BASE_PUBLISHER_SOURCE_SHARD_PREFLIGHT_MONOTONIC_INVALID",
+                )
+            verification_elapsed_seconds = float(elapsed)
+            active_entries = len(entries)
+            if entries:
+                active_head_sequence = entries[-1].ledger_sequence
+                active_head_entry_sha256 = entries[-1].entry_sha256
+            try:
+                active_bytes = ledger.path.stat().st_size if ledger.path.exists() else 0
+            except OSError as exc:
+                raise ProfiledBaseFeaturePublisherV1ResourceError(
+                    "PROFILED_BASE_PUBLISHER_SOURCE_LEDGER_STAT_FAILED"
+                ) from exc
+        verification_completed_at, verification_completed = self._sample_clock(
+            "PROFILED_BASE_PUBLISHER_SOURCE_SHARD_PREFLIGHT_COMPLETE_CLOCK_INVALID"
+        )
+        if verification_completed_at < verification_started_at:
+            _fail(
+                ProfiledBaseFeaturePublisherV1ConfigurationError,
+                "PROFILED_BASE_PUBLISHER_SOURCE_SHARD_PREFLIGHT_CLOCK_MOVED_BACKWARDS",
+            )
+        try:
+            planned_decision = self.decision_planner(verification_completed_at)
+        except ProfiledBaseFeaturePublisherV1Error:
+            raise
+        except Exception as exc:  # noqa: BLE001 - planner detail is suppressed
+            raise ProfiledBaseFeaturePublisherV1ConfigurationError(
+                "PROFILED_BASE_PUBLISHER_SOURCE_SHARD_PREFLIGHT_DECISION_PLANNER_FAILED"
+            ) from exc
+        planned_decision_text = _clock_text(
+            planned_decision,
+            reason=(
+                "PROFILED_BASE_PUBLISHER_SOURCE_SHARD_PREFLIGHT_DECISION_CLOCK_INVALID"
+            ),
+        )
+        if planned_decision <= verification_completed_at:
+            _fail(
+                ProfiledBaseFeaturePublisherV1ConfigurationError,
+                "PROFILED_BASE_PUBLISHER_SOURCE_SHARD_PREFLIGHT_DECISION_NOT_STRICTLY_FUTURE",
+            )
+        planned_decision_budget_seconds = (
+            planned_decision - verification_completed_at
+        ).total_seconds()
+        new_append_full_verification_passes = 1 + 2 * len(REQUIRED_TIMEFRAMES)
+        remaining_full_verification_passes = 1 + 3 * len(REQUIRED_TIMEFRAMES)
+        projected_remaining_verification_seconds = (
+            verification_elapsed_seconds * remaining_full_verification_passes
+        )
+        passes_fit_planned_decision = (
+            projected_remaining_verification_seconds
+            < planned_decision_budget_seconds
+        )
+        projected_verification_and_symbol_work_seconds = (
+            projected_remaining_verification_seconds
+            + float(adaptive_estimated_symbol_elapsed_seconds)
+        )
+        combined_work_fits_planned_decision = (
+            projected_verification_and_symbol_work_seconds
+            < planned_decision_budget_seconds
+        )
+        selected = 0 if active is None else active
+        rollover_performed = False
+        if active is None:
+            rollover_reason = "NO_ACTIVE_SOURCE_SHARD"
+        elif active_entries == 0:
+            rollover_reason = "ACTIVE_SOURCE_SHARD_EMPTY"
+        elif combined_work_fits_planned_decision:
+            rollover_reason = (
+                "MEASURED_VERIFICATION_AND_ADAPTIVE_SYMBOL_WORK_FIT_"
+                "PLANNED_DECISION_WINDOW"
+            )
+        else:
+            selected = active + 1
+            self._create_next_source_shard(root=root, index=selected)
+            rollover_performed = True
+            rollover_reason = (
+                "MEASURED_VERIFICATION_AND_ADAPTIVE_SYMBOL_WORK_EXCEED_"
+                "PLANNED_DECISION_WINDOW"
+            )
+        evidence = {
+            "schema_version": SOURCE_SHARD_PREFLIGHT_V1_SCHEMA_VERSION,
+            "symbol": symbol,
+            "publication_attempt": publication_attempt,
+            "verification_started_at": verification_started,
+            "verification_completed_at": verification_completed,
+            "active_shard_present": active is not None,
+            "active_shard_index": active,
+            "active_shard_relative_path": (
+                f"source-provenance-shards/shard-{active:08d}" if active is not None else None
+            ),
+            "active_shard_integrity_verified_before_capture": True,
+            "active_ledger_bytes": active_bytes,
+            "active_ledger_entries": active_entries,
+            "active_head_sequence": active_head_sequence,
+            "active_head_entry_sha256": active_head_entry_sha256,
+            "measured_full_verification_seconds": verification_elapsed_seconds,
+            "new_append_full_verification_passes_before_transform_clock": (
+                new_append_full_verification_passes
+            ),
+            "remaining_full_verification_passes_before_transform_clock": (
+                remaining_full_verification_passes
+            ),
+            "projected_remaining_full_verification_seconds": (
+                projected_remaining_verification_seconds
+            ),
+            "planned_decision_time": planned_decision_text,
+            "planned_decision_budget_seconds": planned_decision_budget_seconds,
+            "remaining_verification_passes_fit_planned_decision": (
+                passes_fit_planned_decision
+            ),
+            "adaptive_estimated_symbol_elapsed_seconds": float(
+                adaptive_estimated_symbol_elapsed_seconds
+            ),
+            "projected_verification_and_symbol_work_seconds": (
+                projected_verification_and_symbol_work_seconds
+            ),
+            "verification_and_symbol_work_fit_planned_decision": (
+                combined_work_fits_planned_decision
+            ),
+            "default_midpoint_decision_planner_configured": (
+                self.decision_planner is prospective_decision_midpoint_v1
+            ),
+            "rollover_projection_uses_exact_replay_safe_pass_count": True,
+            "rollover_performed_before_capture": rollover_performed,
+            "rollover_reason": rollover_reason,
+            "preflight_selected_shard_index": selected,
+            "preflight_selected_shard_relative_path": (
+                f"source-provenance-shards/shard-{selected:08d}"
+            ),
+            "publication_shard_index": None,
+            "publication_shard_relative_path": None,
+            "publication_shard_selection_reconciled": False,
+            "hard_safety_cap_rollover_after_capture": False,
+            "ledger_byte_hard_safety_cap": MAX_LEDGER_BYTES,
+            "ledger_entry_hard_safety_cap": MAX_LEDGER_ENTRIES,
+            "market_or_performance_threshold_applied": False,
+        }
+        return _SourceShardPreflightV1(
+            active_shard_index=active,
+            selected_shard_index=selected,
+            evidence=evidence,
+        )
+
+    def _source_ledger(
+        self,
+        captures: tuple[
+            CanonicalOhlcvAtomicReceiptCapture,
+            CanonicalOhlcvAtomicReceiptCapture,
+        ],
+        *,
+        expected_active_index: int,
+    ) -> tuple[TrainerSourceProvenanceLedgerV4, int, bool, int]:
+        projected_pair = sum(_capture_projected_entry_bytes(item) for item in captures)
+        root, observed = self._source_shard_inventory(create_root=True)
+        active = observed[-1] if observed else None
+        if not (active == expected_active_index or (active is None and expected_active_index == 0)):
+            _fail(
+                ProfiledBaseFeaturePublisherV1ResourceError,
+                "PROFILED_BASE_PUBLISHER_SOURCE_SHARD_PREFLIGHT_BINDING_INVALID",
+            )
         active_bytes = 0
         active_entries = 0
         if active is not None:
@@ -3083,6 +3374,9 @@ class ProfiledBaseFeaturePublisherV1:
         self,
         *,
         symbol: str,
+        publication_attempt: int,
+        adaptive_estimated_symbol_elapsed_seconds: float,
+        source_shard_preflight_evidence: list[dict[str, Any]],
         prior_coverage: Mapping[str, Any] | None,
         source_store: ImmutableSourcePayloadStore,
         capture_set_store: ImmutableSourcePayloadStore,
@@ -3105,6 +3399,17 @@ class ProfiledBaseFeaturePublisherV1:
         )
         if recovered is not None:
             return recovered
+        source_shard_preflight = self._preflight_source_shard(
+            symbol=symbol,
+            publication_attempt=publication_attempt,
+            adaptive_estimated_symbol_elapsed_seconds=(
+                adaptive_estimated_symbol_elapsed_seconds
+            ),
+        )
+        source_shard_preflight.evidence["status_preflight_index"] = len(
+            source_shard_preflight_evidence
+        )
+        source_shard_preflight_evidence.append(source_shard_preflight.evidence)
         prior_fingerprint = (
             cast(str, prior_coverage.get("window_fingerprint_sha256"))
             if prior_coverage is not None
@@ -3140,7 +3445,24 @@ class ProfiledBaseFeaturePublisherV1:
                 "PROFILED_BASE_PUBLISHER_DECISION_MISSING_FOR_CHANGED_WINDOW",
             )
 
-        source_ledger, shard_index, rolled, projected_pair = self._source_ledger(captures)
+        source_ledger, shard_index, rolled, projected_pair = self._source_ledger(
+            captures,
+            expected_active_index=source_shard_preflight.selected_shard_index,
+        )
+        source_shard_preflight.evidence.update(
+            {
+                "publication_shard_index": shard_index,
+                "publication_shard_relative_path": (
+                    f"source-provenance-shards/shard-{shard_index:08d}"
+                ),
+                "publication_shard_selection_reconciled": True,
+                "hard_safety_cap_rollover_after_capture": (
+                    rolled
+                    and shard_index
+                    != source_shard_preflight.selected_shard_index
+                ),
+            }
+        )
         append_results: list[TrainerSourceProvenanceAppendResultV4] = []
         for timeframe, capture in zip(REQUIRED_TIMEFRAMES, captures, strict=True):
             cycle_digest = stable_sha256(
@@ -3664,20 +3986,33 @@ class ProfiledBaseFeaturePublisherV1:
         self,
         *,
         symbol: str,
+        adaptive_estimated_symbol_elapsed_seconds: float,
         prior_coverage: Mapping[str, Any] | None,
         source_store: ImmutableSourcePayloadStore,
         capture_set_store: ImmutableSourcePayloadStore,
         artifact_store: ImmutableSourcePayloadStore,
         enrichment_store: ImmutableSourcePayloadStore,
         feature_ledger: DurableFeatureSnapshotLedger,
+        source_shard_preflight_evidence: list[dict[str, Any]] | None = None,
     ) -> _SymbolOutcome:
         """Retry the whole finalized-window capture if a decision window is missed."""
 
         last_reasons: tuple[str, ...] = ()
+        preflights = (
+            source_shard_preflight_evidence
+            if source_shard_preflight_evidence is not None
+            else []
+        )
+        preflight_start = len(preflights)
         for attempt in range(1, self.boundary_retry_limit + 1):
             try:
                 outcome = self._publish_symbol_once(
                     symbol=symbol,
+                    publication_attempt=attempt,
+                    adaptive_estimated_symbol_elapsed_seconds=(
+                        adaptive_estimated_symbol_elapsed_seconds
+                    ),
+                    source_shard_preflight_evidence=preflights,
                     prior_coverage=prior_coverage,
                     source_store=source_store,
                     capture_set_store=capture_set_store,
@@ -3685,12 +4020,24 @@ class ProfiledBaseFeaturePublisherV1:
                     enrichment_store=enrichment_store,
                     feature_ledger=feature_ledger,
                 )
+                detail = {**outcome.detail, "publication_attempts": attempt}
+                symbol_preflight_references = _source_shard_preflight_references(
+                    preflights,
+                    start=preflight_start,
+                )
+                if symbol_preflight_references:
+                    detail["source_provenance_shard_preflight_count"] = len(
+                        symbol_preflight_references
+                    )
+                    detail["source_provenance_shard_preflight_references"] = (
+                        symbol_preflight_references
+                    )
                 return _SymbolOutcome(
                     symbol=outcome.symbol,
                     classification=outcome.classification,
                     window_fingerprint_sha256=outcome.window_fingerprint_sha256,
                     materialized_evidence_bytes=outcome.materialized_evidence_bytes,
-                    detail={**outcome.detail, "publication_attempts": attempt},
+                    detail=detail,
                     coverage=outcome.coverage,
                 )
             except (
@@ -3761,6 +4108,7 @@ class ProfiledBaseFeaturePublisherV1:
         masked_cost_observations: list[dict[str, Any]] = []
         masked_cost_replays: list[dict[str, Any]] = []
         skipped: list[dict[str, Any]] = []
+        source_shard_preflights: list[dict[str, Any]] = []
         selected: list[str] = []
         resource_deferred: list[str] = []
         failures: list[dict[str, Any]] = [
@@ -3790,9 +4138,17 @@ class ProfiledBaseFeaturePublisherV1:
                 cycle_disk_consumption_high_water,
                 max(0, cycle_start_disk_free - current_disk_free),
             )
+            # Shared-filesystem drift before this publisher writes is not this
+            # cycle's write-credit consumption.  It still binds the absolute
+            # reserve check below.  Once any publisher materialization occurs,
+            # retain the shared high-water as the conservative in-cycle cap.
             current_cycle_bytes = max(
                 materialized_cycle_evidence_bytes,
-                cycle_disk_consumption_high_water,
+                (
+                    cycle_disk_consumption_high_water
+                    if materialized_cycle_publication_count > 0
+                    else 0
+                ),
             )
             effective_next_publication_bytes = max(
                 decision.estimated_evidence_bytes_per_symbol,
@@ -3804,8 +4160,13 @@ class ProfiledBaseFeaturePublisherV1:
                     else 0
                 ),
             )
+            current_safe_disk_headroom = max(
+                0,
+                current_disk_free - decision.disk_reserve_bytes,
+            )
             if (
-                current_cycle_bytes + effective_next_publication_bytes
+                current_safe_disk_headroom < effective_next_publication_bytes
+                or current_cycle_bytes + effective_next_publication_bytes
                 > decision.available_write_credit_bytes
             ):
                 resource_deferred.extend(planned_selection[selection_index:])
@@ -3814,6 +4175,7 @@ class ProfiledBaseFeaturePublisherV1:
             rotation_last_attempted[symbol] = selection_at
             symbol_started = self.monotonic()
             attempt_start_owned_durable_bytes = self._owned_durable_footprint_bytes()
+            symbol_preflight_start = len(source_shard_preflights)
             materialized = False
             try:
                 if (
@@ -3830,12 +4192,16 @@ class ProfiledBaseFeaturePublisherV1:
                 prior = coverage.get(symbol)
                 outcome = self._publish_symbol(
                     symbol=symbol,
+                    adaptive_estimated_symbol_elapsed_seconds=(
+                        decision.estimated_seconds_per_symbol
+                    ),
                     prior_coverage=prior if type(prior) is dict else None,
                     source_store=source_store,
                     capture_set_store=capture_set_store,
                     artifact_store=artifact_store,
                     enrichment_store=enrichment_store,
                     feature_ledger=feature_ledger,
+                    source_shard_preflight_evidence=source_shard_preflights,
                 )
                 if outcome.classification == "UNCHANGED_FINALIZED_WINDOWS":
                     skipped.append(outcome.detail)
@@ -3920,6 +4286,15 @@ class ProfiledBaseFeaturePublisherV1:
                             )
                         ),
                         "boundary_or_finality_related": _boundary_related(reasons),
+                        "source_provenance_shard_preflight_count": (
+                            len(source_shard_preflights) - symbol_preflight_start
+                        ),
+                        "source_provenance_shard_preflight_references": (
+                            _source_shard_preflight_references(
+                                source_shard_preflights,
+                                start=symbol_preflight_start,
+                            )
+                        ),
                     }
                 )
             finally:
@@ -4118,6 +4493,15 @@ class ProfiledBaseFeaturePublisherV1:
             ],
             "skips": skipped,
             "failures": failures,
+            "source_provenance_shard_preflight_count": len(
+                source_shard_preflights
+            ),
+            "source_provenance_shard_rollover_count": sum(
+                1
+                for item in source_shard_preflights
+                if item["rollover_performed_before_capture"] is True
+            ),
+            "source_provenance_shard_preflights": source_shard_preflights,
             "authority": {name: False for name in AUTHORITY_FIELDS},
             "authority_semantics": {
                 "publisher_runtime_authority_granted": False,

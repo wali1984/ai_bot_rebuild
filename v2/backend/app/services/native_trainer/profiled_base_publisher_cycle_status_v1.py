@@ -21,6 +21,10 @@ from typing import Any, Final, NoReturn, cast
 from v2.backend.app.services.native_trainer.durable_feature_snapshot_ledger import (
     stable_sha256,
 )
+from v2.backend.app.services.native_trainer.source_provenance_ledger_v4 import (
+    MAX_LEDGER_BYTES,
+    MAX_LEDGER_ENTRIES,
+)
 
 PROFILED_BASE_PUBLISHER_CYCLE_STATUS_V1_SCHEMA_VERSION: Final = (
     "profiled_base_publisher_cycle_status_v1"
@@ -29,6 +33,9 @@ PROFILED_BASE_FEATURE_PUBLISHER_STATUS_V1_SCHEMA_VERSION: Final = (
     "profiled_base_feature_publisher_status_v1"
 )
 PROFILED_BASE_FEATURE_PUBLISHER_V1_SCHEMA_VERSION: Final = "profiled_base_feature_publisher_v1"
+SOURCE_SHARD_PREFLIGHT_V1_SCHEMA_VERSION: Final = (
+    "profiled_base_source_shard_preflight_v1"
+)
 
 # This equals the writer's existing state/status serialization ceiling. It is
 # a parser/resource bound, not a market, symbol, sample, or training threshold.
@@ -92,10 +99,53 @@ _STATUS_FIELDS: Final = {
     "selection_at",
     "singleton_writer_lock",
     "skips",
+    "source_provenance_shard_preflight_count",
+    "source_provenance_shard_preflights",
+    "source_provenance_shard_rollover_count",
     "state_sha256",
     "status_sha256",
     "unchanged_symbol_count",
     "unchanged_symbols",
+}
+
+_SOURCE_SHARD_PREFLIGHT_FIELDS: Final = {
+    "schema_version",
+    "status_preflight_index",
+    "symbol",
+    "publication_attempt",
+    "verification_started_at",
+    "verification_completed_at",
+    "active_shard_present",
+    "active_shard_index",
+    "active_shard_relative_path",
+    "active_shard_integrity_verified_before_capture",
+    "active_ledger_bytes",
+    "active_ledger_entries",
+    "active_head_sequence",
+    "active_head_entry_sha256",
+    "measured_full_verification_seconds",
+    "new_append_full_verification_passes_before_transform_clock",
+    "remaining_full_verification_passes_before_transform_clock",
+    "projected_remaining_full_verification_seconds",
+    "planned_decision_time",
+    "planned_decision_budget_seconds",
+    "remaining_verification_passes_fit_planned_decision",
+    "adaptive_estimated_symbol_elapsed_seconds",
+    "projected_verification_and_symbol_work_seconds",
+    "verification_and_symbol_work_fit_planned_decision",
+    "default_midpoint_decision_planner_configured",
+    "rollover_projection_uses_exact_replay_safe_pass_count",
+    "rollover_performed_before_capture",
+    "rollover_reason",
+    "preflight_selected_shard_index",
+    "preflight_selected_shard_relative_path",
+    "publication_shard_index",
+    "publication_shard_relative_path",
+    "publication_shard_selection_reconciled",
+    "hard_safety_cap_rollover_after_capture",
+    "ledger_byte_hard_safety_cap",
+    "ledger_entry_hard_safety_cap",
+    "market_or_performance_threshold_applied",
 }
 
 _PUBLISHER_AUTHORITY_FIELDS: Final = {
@@ -408,6 +458,224 @@ class VerifiedProfiledBasePublisherCycleStatusV1:
             _fail("PROFILED_BASE_STATUS_RESULT_INVALID")
 
 
+def _validate_source_shard_preflights(status: dict[str, Any]) -> None:
+    preflight_count = status.get("source_provenance_shard_preflight_count")
+    rollover_count = status.get("source_provenance_shard_rollover_count")
+    preflights = status.get("source_provenance_shard_preflights")
+    if (
+        type(preflight_count) is not int
+        or preflight_count < 0
+        or type(rollover_count) is not int
+        or rollover_count < 0
+        or type(preflights) is not list
+        or preflight_count != len(preflights)
+        or rollover_count > preflight_count
+    ):
+        _fail("PROFILED_BASE_STATUS_SOURCE_SHARD_PREFLIGHT_INVENTORY_INVALID")
+    selected_symbols = status.get("selected_symbols")
+    if type(selected_symbols) is not list:
+        _fail("PROFILED_BASE_STATUS_SOURCE_SHARD_PREFLIGHT_INVENTORY_INVALID")
+    observed_identities: set[tuple[str, int]] = set()
+    observed_rollovers = 0
+    for preflight in preflights:
+        if type(preflight) is not dict or set(preflight) != _SOURCE_SHARD_PREFLIGHT_FIELDS:
+            _fail("PROFILED_BASE_STATUS_SOURCE_SHARD_PREFLIGHT_FIELDS_INVALID")
+        symbol = preflight["symbol"]
+        attempt = preflight["publication_attempt"]
+        active_present = preflight["active_shard_present"]
+        active_index = preflight["active_shard_index"]
+        active_bytes = preflight["active_ledger_bytes"]
+        active_entries = preflight["active_ledger_entries"]
+        head_sequence = preflight["active_head_sequence"]
+        head_sha256 = preflight["active_head_entry_sha256"]
+        measured_seconds = preflight["measured_full_verification_seconds"]
+        new_append_passes = preflight[
+            "new_append_full_verification_passes_before_transform_clock"
+        ]
+        remaining_passes = preflight[
+            "remaining_full_verification_passes_before_transform_clock"
+        ]
+        projected_seconds = preflight[
+            "projected_remaining_full_verification_seconds"
+        ]
+        planned_budget = preflight["planned_decision_budget_seconds"]
+        fits_planned_decision = preflight[
+            "remaining_verification_passes_fit_planned_decision"
+        ]
+        adaptive_symbol_seconds = preflight[
+            "adaptive_estimated_symbol_elapsed_seconds"
+        ]
+        projected_combined_seconds = preflight[
+            "projected_verification_and_symbol_work_seconds"
+        ]
+        combined_work_fits = preflight[
+            "verification_and_symbol_work_fit_planned_decision"
+        ]
+        rollover = preflight["rollover_performed_before_capture"]
+        selected_index = preflight["preflight_selected_shard_index"]
+        publication_index = preflight["publication_shard_index"]
+        publication_reconciled = preflight[
+            "publication_shard_selection_reconciled"
+        ]
+        hard_cap_rollover = preflight["hard_safety_cap_rollover_after_capture"]
+        if (
+            preflight["schema_version"] != SOURCE_SHARD_PREFLIGHT_V1_SCHEMA_VERSION
+            or type(symbol) is not str
+            or _SYMBOL_RE.fullmatch(symbol) is None
+            or symbol not in selected_symbols
+            or type(attempt) is not int
+            or attempt <= 0
+            or attempt > 8
+            or (symbol, attempt) in observed_identities
+            or preflight["status_preflight_index"] != len(observed_identities)
+            or type(active_present) is not bool
+            or type(active_bytes) is not int
+            or active_bytes < 0
+            or type(active_entries) is not int
+            or active_entries < 0
+            or type(measured_seconds) not in {int, float}
+            or not math.isfinite(measured_seconds)
+            or measured_seconds < 0
+            or new_append_passes != 5
+            or remaining_passes != 7
+            or type(projected_seconds) not in {int, float}
+            or not math.isfinite(projected_seconds)
+            or projected_seconds != measured_seconds * remaining_passes
+            or type(planned_budget) not in {int, float}
+            or not math.isfinite(planned_budget)
+            or planned_budget <= 0
+            or type(fits_planned_decision) is not bool
+            or fits_planned_decision is not (projected_seconds < planned_budget)
+            or type(adaptive_symbol_seconds) not in {int, float}
+            or not math.isfinite(adaptive_symbol_seconds)
+            or adaptive_symbol_seconds <= 0
+            or type(projected_combined_seconds) not in {int, float}
+            or not math.isfinite(projected_combined_seconds)
+            or projected_combined_seconds
+            != projected_seconds + adaptive_symbol_seconds
+            or type(combined_work_fits) is not bool
+            or combined_work_fits
+            is not (projected_combined_seconds < planned_budget)
+            or type(preflight["default_midpoint_decision_planner_configured"])
+            is not bool
+            or preflight["rollover_projection_uses_exact_replay_safe_pass_count"]
+            is not True
+            or type(rollover) is not bool
+            or type(selected_index) is not int
+            or selected_index < 0
+            or type(publication_reconciled) is not bool
+            or type(hard_cap_rollover) is not bool
+            or preflight["ledger_byte_hard_safety_cap"] != MAX_LEDGER_BYTES
+            or preflight["ledger_entry_hard_safety_cap"] != MAX_LEDGER_ENTRIES
+            or preflight["market_or_performance_threshold_applied"] is not False
+            or preflight["active_shard_integrity_verified_before_capture"] is not True
+        ):
+            _fail("PROFILED_BASE_STATUS_SOURCE_SHARD_PREFLIGHT_CONTRACT_INVALID")
+        verification_started = _clock(
+            preflight["verification_started_at"],
+            reason="PROFILED_BASE_STATUS_SOURCE_SHARD_PREFLIGHT_CLOCK_INVALID",
+        )
+        verification_completed = _clock(
+            preflight["verification_completed_at"],
+            reason="PROFILED_BASE_STATUS_SOURCE_SHARD_PREFLIGHT_CLOCK_INVALID",
+        )
+        planned_decision = _clock(
+            preflight["planned_decision_time"],
+            reason="PROFILED_BASE_STATUS_SOURCE_SHARD_PREFLIGHT_CLOCK_INVALID",
+        )
+        completed_datetime = datetime.fromisoformat(
+            verification_completed.replace("Z", "+00:00")
+        )
+        planned_datetime = datetime.fromisoformat(
+            planned_decision.replace("Z", "+00:00")
+        )
+        if (
+            not verification_started <= verification_completed < planned_decision
+            or (planned_datetime - completed_datetime).total_seconds()
+            != planned_budget
+        ):
+            _fail("PROFILED_BASE_STATUS_SOURCE_SHARD_PREFLIGHT_CLOCK_ORDER_INVALID")
+        if active_present:
+            if (
+                type(active_index) is not int
+                or active_index < 0
+                or preflight["active_shard_relative_path"]
+                != f"source-provenance-shards/shard-{active_index:08d}"
+            ):
+                _fail("PROFILED_BASE_STATUS_SOURCE_SHARD_PREFLIGHT_ACTIVE_INVALID")
+        elif (
+            active_index is not None
+            or preflight["active_shard_relative_path"] is not None
+            or active_bytes != 0
+            or active_entries != 0
+        ):
+            _fail("PROFILED_BASE_STATUS_SOURCE_SHARD_PREFLIGHT_ACTIVE_INVALID")
+        if active_entries == 0:
+            if head_sequence is not None or head_sha256 is not None:
+                _fail("PROFILED_BASE_STATUS_SOURCE_SHARD_PREFLIGHT_HEAD_INVALID")
+        elif (
+            head_sequence != active_entries
+            or not _valid_sha256(head_sha256)
+            or active_bytes <= 0
+        ):
+            _fail("PROFILED_BASE_STATUS_SOURCE_SHARD_PREFLIGHT_HEAD_INVALID")
+        if preflight["preflight_selected_shard_relative_path"] != (
+            f"source-provenance-shards/shard-{selected_index:08d}"
+        ):
+            _fail("PROFILED_BASE_STATUS_SOURCE_SHARD_PREFLIGHT_SELECTION_INVALID")
+        if not active_present:
+            expected_reason = "NO_ACTIVE_SOURCE_SHARD"
+            expected_selected = 0
+            expected_rollover = False
+        elif active_entries == 0:
+            expected_reason = "ACTIVE_SOURCE_SHARD_EMPTY"
+            expected_selected = cast(int, active_index)
+            expected_rollover = False
+        elif combined_work_fits:
+            expected_reason = (
+                "MEASURED_VERIFICATION_AND_ADAPTIVE_SYMBOL_WORK_FIT_"
+                "PLANNED_DECISION_WINDOW"
+            )
+            expected_selected = cast(int, active_index)
+            expected_rollover = False
+        else:
+            expected_reason = (
+                "MEASURED_VERIFICATION_AND_ADAPTIVE_SYMBOL_WORK_EXCEED_"
+                "PLANNED_DECISION_WINDOW"
+            )
+            expected_selected = cast(int, active_index) + 1
+            expected_rollover = True
+        if (
+            preflight["rollover_reason"] != expected_reason
+            or selected_index != expected_selected
+            or rollover is not expected_rollover
+        ):
+            _fail("PROFILED_BASE_STATUS_SOURCE_SHARD_PREFLIGHT_ROLLOVER_INVALID")
+        if publication_reconciled:
+            if (
+                type(publication_index) is not int
+                or publication_index < 0
+                or preflight["publication_shard_relative_path"]
+                != f"source-provenance-shards/shard-{publication_index:08d}"
+                or hard_cap_rollover
+                is not (publication_index != selected_index)
+                or publication_index not in {selected_index, selected_index + 1}
+            ):
+                _fail(
+                    "PROFILED_BASE_STATUS_SOURCE_SHARD_PREFLIGHT_RECONCILIATION_INVALID"
+                )
+        elif (
+            publication_index is not None
+            or preflight["publication_shard_relative_path"] is not None
+            or hard_cap_rollover is not False
+        ):
+            _fail("PROFILED_BASE_STATUS_SOURCE_SHARD_PREFLIGHT_RECONCILIATION_INVALID")
+        observed_identities.add((symbol, attempt))
+        observed_rollovers += int(rollover)
+    if observed_rollovers != rollover_count:
+        _fail("PROFILED_BASE_STATUS_SOURCE_SHARD_PREFLIGHT_INVENTORY_INVALID")
+
+
 def read_verified_profiled_base_publisher_cycle_status_v1(
     *,
     status_path: Path,
@@ -479,6 +747,7 @@ def read_verified_profiled_base_publisher_cycle_status_v1(
     ):
         _fail("PROFILED_BASE_STATUS_DYNAMIC_UNIVERSE_AUTHORITY_INVALID")
     _validate_symbol_inventory(status)
+    _validate_source_shard_preflights(status)
     classification = status.get("classification")
     if (
         type(classification) is not str

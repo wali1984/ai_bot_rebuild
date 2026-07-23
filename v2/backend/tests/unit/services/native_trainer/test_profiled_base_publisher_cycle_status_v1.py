@@ -49,6 +49,9 @@ def _status() -> dict[str, Any]:
             "masked_cost_observations": [],
             "skips": [],
             "failures": [],
+            "source_provenance_shard_preflight_count": 0,
+            "source_provenance_shard_rollover_count": 0,
+            "source_provenance_shard_preflights": [],
             "rejected_discovery_key_sha256s": [],
             "authority": {
                 "trainer_admission_authorized": False,
@@ -81,6 +84,55 @@ def _status() -> dict[str, Any]:
         {name: value for name, value in status.items() if name != "status_sha256"}
     )
     return status
+
+
+def _source_shard_preflight() -> dict[str, Any]:
+    return {
+        "schema_version": "profiled_base_source_shard_preflight_v1",
+        "status_preflight_index": 0,
+        "symbol": "BTCUSDT",
+        "publication_attempt": 1,
+        "verification_started_at": "2026-07-22T14:19:02.100000Z",
+        "verification_completed_at": "2026-07-22T14:19:04.100000Z",
+        "active_shard_present": True,
+        "active_shard_index": 0,
+        "active_shard_relative_path": "source-provenance-shards/shard-00000000",
+        "active_shard_integrity_verified_before_capture": True,
+        "active_ledger_bytes": 1_000_000,
+        "active_ledger_entries": 2,
+        "active_head_sequence": 2,
+        "active_head_entry_sha256": "2" * 64,
+        "measured_full_verification_seconds": 2.0,
+        "new_append_full_verification_passes_before_transform_clock": 5,
+        "remaining_full_verification_passes_before_transform_clock": 7,
+        "projected_remaining_full_verification_seconds": 14.0,
+        "planned_decision_time": "2026-07-22T14:20:02.100000Z",
+        "planned_decision_budget_seconds": 58.0,
+        "remaining_verification_passes_fit_planned_decision": True,
+        "adaptive_estimated_symbol_elapsed_seconds": 29.0,
+        "projected_verification_and_symbol_work_seconds": 43.0,
+        "verification_and_symbol_work_fit_planned_decision": True,
+        "default_midpoint_decision_planner_configured": True,
+        "rollover_projection_uses_exact_replay_safe_pass_count": True,
+        "rollover_performed_before_capture": False,
+        "rollover_reason": (
+            "MEASURED_VERIFICATION_AND_ADAPTIVE_SYMBOL_WORK_FIT_"
+            "PLANNED_DECISION_WINDOW"
+        ),
+        "preflight_selected_shard_index": 0,
+        "preflight_selected_shard_relative_path": (
+            "source-provenance-shards/shard-00000000"
+        ),
+        "publication_shard_index": 0,
+        "publication_shard_relative_path": (
+            "source-provenance-shards/shard-00000000"
+        ),
+        "publication_shard_selection_reconciled": True,
+        "hard_safety_cap_rollover_after_capture": False,
+        "ledger_byte_hard_safety_cap": 512 * 1024 * 1024,
+        "ledger_entry_hard_safety_cap": 1_000_000,
+        "market_or_performance_threshold_applied": False,
+    }
 
 
 def _write_status(
@@ -136,6 +188,102 @@ def test_reads_exact_canonical_cycle_status_as_local_integrity_only(
     assert result.runtime_wired is False
 
 
+def test_reads_status_with_verified_source_shard_preflight_evidence(
+    tmp_path: Path,
+) -> None:
+    status = _status()
+    status.update(
+        {
+            "discovered_symbol_count": 1,
+            "discovered_symbols": ["BTCUSDT"],
+            "eligible_symbol_count": 1,
+            "eligible_symbols": ["BTCUSDT"],
+            "selected_symbol_count": 1,
+            "selected_symbols": ["BTCUSDT"],
+            "failed_symbol_count": 1,
+            "failed_symbols": ["BTCUSDT"],
+            "source_provenance_shard_preflight_count": 1,
+            "source_provenance_shard_preflights": [_source_shard_preflight()],
+        }
+    )
+    path = _write_status(tmp_path, status)
+
+    result = status_module.read_verified_profiled_base_publisher_cycle_status_v1(
+        status_path=path
+    )
+
+    assert result.selected_symbol_count == 1
+    assert result.failed_symbol_count == 1
+
+
+@pytest.mark.parametrize(
+    ("mutation", "reason"),
+    [
+        (
+            "count_mismatch",
+            "PROFILED_BASE_STATUS_SOURCE_SHARD_PREFLIGHT_INVENTORY_INVALID",
+        ),
+        (
+            "extra_evidence_field",
+            "PROFILED_BASE_STATUS_SOURCE_SHARD_PREFLIGHT_FIELDS_INVALID",
+        ),
+        (
+            "market_threshold_claim",
+            "PROFILED_BASE_STATUS_SOURCE_SHARD_PREFLIGHT_CONTRACT_INVALID",
+        ),
+        (
+            "combined_projection_mismatch",
+            "PROFILED_BASE_STATUS_SOURCE_SHARD_PREFLIGHT_CONTRACT_INVALID",
+        ),
+        (
+            "rollover_relation",
+            "PROFILED_BASE_STATUS_SOURCE_SHARD_PREFLIGHT_ROLLOVER_INVALID",
+        ),
+    ],
+)
+def test_source_shard_preflight_contract_fails_closed(
+    tmp_path: Path,
+    mutation: str,
+    reason: str,
+) -> None:
+    status = _status()
+    preflight = _source_shard_preflight()
+    status.update(
+        {
+            "discovered_symbol_count": 1,
+            "discovered_symbols": ["BTCUSDT"],
+            "eligible_symbol_count": 1,
+            "eligible_symbols": ["BTCUSDT"],
+            "selected_symbol_count": 1,
+            "selected_symbols": ["BTCUSDT"],
+            "failed_symbol_count": 1,
+            "failed_symbols": ["BTCUSDT"],
+            "source_provenance_shard_preflight_count": 1,
+            "source_provenance_shard_preflights": [preflight],
+        }
+    )
+    if mutation == "count_mismatch":
+        status["source_provenance_shard_preflight_count"] = 2
+    elif mutation == "extra_evidence_field":
+        preflight["unexpected"] = False
+    elif mutation == "market_threshold_claim":
+        preflight["market_or_performance_threshold_applied"] = True
+    elif mutation == "combined_projection_mismatch":
+        preflight["projected_verification_and_symbol_work_seconds"] = 42.0
+    else:
+        preflight["rollover_performed_before_capture"] = True
+        status["source_provenance_shard_rollover_count"] = 1
+    path = _write_status(tmp_path, status)
+
+    with pytest.raises(
+        status_module.ProfiledBasePublisherCycleStatusV1Error,
+        match=reason,
+    ):
+        status_module.read_verified_profiled_base_publisher_cycle_status_v1(
+            status_path=path
+        )
+
+
 def test_changed_payload_with_stale_status_hash_is_rejected(tmp_path: Path) -> None:
     status = _status()
     status["classification"] = "TAMPERED_AFTER_HASH"
@@ -149,7 +297,7 @@ def test_changed_payload_with_stale_status_hash_is_rejected(tmp_path: Path) -> N
 
 
 @pytest.mark.parametrize("mutation", ["missing", "extra"])
-def test_exact_57_field_contract_rejects_missing_or_extra_field(
+def test_exact_60_field_contract_rejects_missing_or_extra_field(
     tmp_path: Path,
     mutation: str,
 ) -> None:

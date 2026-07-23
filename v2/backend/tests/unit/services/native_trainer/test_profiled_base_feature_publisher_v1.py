@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import stat
 from collections import Counter, namedtuple
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -93,6 +94,9 @@ from v2.backend.app.services.native_trainer.profiled_base_feature_publisher_v1 i
     select_source_shard_index_v1,
     wait_for_prospective_decision_v1,
 )
+from v2.backend.app.services.native_trainer.profiled_base_publisher_cycle_status_v1 import (
+    read_verified_profiled_base_publisher_cycle_status_v1,
+)
 from v2.backend.app.services.native_trainer.profiled_model_feature_snapshot_record_v1 import (
     PROFILED_MODEL_FEATURE_SNAPSHOT_RECORD_V1_UNWIRED_REASON,
     ProfiledModelFeatureSnapshotRecordV1Error,
@@ -102,6 +106,7 @@ from v2.backend.app.services.native_trainer.profiled_training_enrichment_record_
 )
 from v2.backend.app.services.native_trainer.source_provenance_ledger_v4 import (
     MAX_LEDGER_BYTES,
+    TrainerSourceProvenanceLedgerV4,
     TrainerSourceProvenanceLedgerV4DurabilityError,
 )
 from v2.backend.app.services.orderbook_recorder import features as orderbook_features
@@ -612,7 +617,11 @@ def _publisher(
         status_path=(tmp_path / f"{state_name}.status").absolute(),
         cycle_period_seconds=300.0,
         boundary_retry_limit=2,
-        clock=lambda: FIXED_CLOCK,
+        # Keep the synthetic publication decision at FIXED_CLOCK so the
+        # authenticated cost fixtures remain bound to that exact instant,
+        # while satisfying the preflight contract that its observation is
+        # strictly earlier than the planned decision.
+        clock=lambda: FIXED_CLOCK - timedelta(microseconds=1),
         monotonic=_Monotonic(),
         disk_usage=lambda _path: DiskUsage(10**12, 10**9, 10**12 - 10**9),
         decision_planner=lambda _generated_at: FIXED_CLOCK,
@@ -667,6 +676,34 @@ def _seed_observed_state(path: Path) -> None:
     )
 
 
+def _seed_valid_source_shard(
+    tmp_path: Path,
+) -> TrainerSourceProvenanceLedgerV4:
+    redis_client = _Redis(_payloads())
+    data_root = (tmp_path / "publisher").absolute()
+    data_root.mkdir(mode=0o700)
+    (data_root / "source-provenance-shards").mkdir(mode=0o700)
+    source_store = ImmutableSourcePayloadStore(data_root / "atomic-capture-cas")
+    ledger = TrainerSourceProvenanceLedgerV4(
+        data_root / "source-provenance-shards" / "shard-00000000"
+    )
+    for timeframe in ("5m", "1h"):
+        capture = capture_canonical_closed_ohlcv_atomic_receipts(
+            redis_client,
+            source_store,
+            expected_symbol="BTCUSDT",
+            expected_timeframe=timeframe,
+            consumer_clock=lambda: FIXED_CLOCK,
+        )
+        ledger.append_atomic_capture(
+            capture,
+            trainer_run_id="source-shard-preflight-test",
+            trainer_cycle_id=f"source-shard-preflight-test:{timeframe}",
+            ledger_clock=lambda: FIXED_CLOCK,
+        )
+    return ledger
+
+
 def test_policy_v1_window_fingerprint_cannot_suppress_policy_v2_build(
     tmp_path: Path,
 ) -> None:
@@ -712,6 +749,10 @@ def test_policy_v1_window_fingerprint_cannot_suppress_policy_v2_build(
         capture_function=replay_capture,
         capture_set_builder=counted_builder,
     )
+    # This test replays captures already observed at FIXED_CLOCK and invokes
+    # the capture-set helper directly, so no source-shard preflight clock is
+    # sampled here.
+    publisher.clock = lambda: FIXED_CLOCK
     _, current_fingerprint, capture_set, _, _, _ = publisher._capture_and_build_set(
         symbol="BTCUSDT",
         source_store=source_store,
@@ -1817,13 +1858,30 @@ def test_happy_path_publishes_exact_adjacent_authenticated_training_pair(
     assert status["disk_resource_safety"]["policy"] == DISK_RESERVE_POLICY_V1
     assert status["disk_resource_safety"]["reserve_bytes"] == 200_000_000_000
     assert status["disk_resource_safety"]["operational_invariant_not_market_selection"] is True
+    assert status["source_provenance_shard_preflight_count"] == 1
+    assert status["source_provenance_shard_rollover_count"] == 0
     publication = status["publications"][0]
+    assert publication["source_provenance_shard_preflight_count"] == 1
+    reference = publication["source_provenance_shard_preflight_references"][0]
+    assert reference["status_preflight_index"] == 0
+    assert reference["preflight_sha256"] == publisher_module.stable_sha256(
+        status["source_provenance_shard_preflights"][0]
+    )
+    assert status["source_provenance_shard_preflights"][0][
+        "active_shard_integrity_verified_before_capture"
+    ] is True
+    assert "source_provenance_shard_preflights" not in publication
+    assert len(_canonical_bytes(status)) < 4 * 1024 * 1024
     assert publication["execution_time"] is None
     assert publication["available_at"] <= publication["decision_time"]
     assert publication["source_appends"][0]["durable_postcommit_readback_verified"] is True
     assert publication["source_appends"][1]["durable_postcommit_readback_verified"] is True
     assert publication["feature_append"]["transaction_committed"] is True
     assert publication["feature_append"]["transaction_readback_verified"] is True
+    verified_status = read_verified_profiled_base_publisher_cycle_status_v1(
+        status_path=publisher.status_path
+    )
+    assert verified_status.status_sha256 == status["status_sha256"]
     assert publication["authority"] == {
         "child_trainer_admission_authorized": True,
         "live_execution_authorized": False,
@@ -2463,6 +2521,317 @@ def test_resource_rotation_and_source_sharding_are_evidence_derived() -> None:
     ) == (8, True)
 
 
+def test_slow_verified_shard_rolls_exactly_once_before_sun_capture(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ledger = _seed_valid_source_shard(tmp_path)
+    old_ledger_bytes = ledger.path.read_bytes()
+    old_head_bytes = ledger.head_path.read_bytes()
+    sun_capture_generated_at = datetime(
+        2026,
+        7,
+        23,
+        1,
+        53,
+        2,
+        428169,
+        tzinfo=UTC,
+    )
+
+    class ManualMonotonic:
+        value = 0.0
+
+        def __call__(self) -> float:
+            return self.value
+
+    monotonic = ManualMonotonic()
+    original_read_entries = TrainerSourceProvenanceLedgerV4.read_entries
+
+    def measured_read_entries(
+        source_ledger: TrainerSourceProvenanceLedgerV4,
+    ):  # type: ignore[no-untyped-def]
+        entries = original_read_entries(source_ledger)
+        if source_ledger.root.name == "shard-00000000":
+            monotonic.value += 30.0
+        return entries
+
+    capture_calls = 0
+
+    def capture_after_roll(*_args: Any, **_kwargs: Any):  # type: ignore[no-untyped-def]
+        nonlocal capture_calls
+        capture_calls += 1
+        rolled = ledger.root.parent / "shard-00000001"
+        assert rolled.is_dir()
+        assert stat.S_IMODE(rolled.stat().st_mode) == 0o700
+        assert ledger.path.read_bytes() == old_ledger_bytes
+        assert ledger.head_path.read_bytes() == old_head_bytes
+        raise CanonicalOhlcvAtomicCaptureValidationError(
+            "canonical_ohlcv_injected_after_preflight_roll"
+        )
+
+    monkeypatch.setattr(
+        TrainerSourceProvenanceLedgerV4,
+        "read_entries",
+        measured_read_entries,
+    )
+    publisher = _publisher(
+        tmp_path,
+        _Redis(_payloads()),
+        capture_function=capture_after_roll,
+    )
+    publisher.clock = lambda: sun_capture_generated_at
+    publisher.decision_planner = prospective_decision_midpoint_v1
+    publisher.monotonic = monotonic
+
+    status = publisher.run_cycle()
+
+    assert capture_calls == 1
+    assert status["source_provenance_shard_preflight_count"] == 1
+    assert status["source_provenance_shard_rollover_count"] == 1
+    evidence = status["source_provenance_shard_preflights"][0]
+    assert evidence["symbol"] == "BTCUSDT"
+    assert evidence["active_shard_index"] == 0
+    assert evidence["active_shard_integrity_verified_before_capture"] is True
+    assert evidence["active_ledger_entries"] == 2
+    assert evidence["measured_full_verification_seconds"] == 30.0
+    assert evidence["new_append_full_verification_passes_before_transform_clock"] == 5
+    assert evidence["remaining_full_verification_passes_before_transform_clock"] == 7
+    assert evidence["projected_remaining_full_verification_seconds"] == 210.0
+    assert evidence["planned_decision_budget_seconds"] == 58.785915
+    assert evidence["planned_decision_time"] == (
+        "2026-07-23T01:54:01.214084Z"
+    )
+    assert evidence["remaining_verification_passes_fit_planned_decision"] is False
+    assert evidence["adaptive_estimated_symbol_elapsed_seconds"] == 300.0
+    assert evidence["projected_verification_and_symbol_work_seconds"] == 510.0
+    assert evidence["verification_and_symbol_work_fit_planned_decision"] is False
+    assert evidence["default_midpoint_decision_planner_configured"] is True
+    assert evidence["rollover_projection_uses_exact_replay_safe_pass_count"] is True
+    assert evidence["rollover_performed_before_capture"] is True
+    assert evidence["preflight_selected_shard_index"] == 1
+    assert evidence["publication_shard_index"] is None
+    assert evidence["publication_shard_selection_reconciled"] is False
+    assert evidence["ledger_byte_hard_safety_cap"] == MAX_LEDGER_BYTES
+    assert evidence["market_or_performance_threshold_applied"] is False
+    failure = status["failures"][0]
+    assert failure["source_provenance_shard_preflight_count"] == 1
+    failure_reference = failure["source_provenance_shard_preflight_references"][0]
+    assert failure_reference["status_preflight_index"] == 0
+    assert failure_reference["preflight_sha256"] == publisher_module.stable_sha256(
+        evidence
+    )
+    assert "source_provenance_shard_preflights" not in failure
+
+
+def test_fast_verified_shard_remains_active_under_singleton_lock(
+    tmp_path: Path,
+) -> None:
+    ledger = _seed_valid_source_shard(tmp_path)
+    publisher = _publisher(tmp_path, _Redis(_payloads()))
+    publisher.clock = lambda: datetime(2026, 7, 23, 1, 51, 0, tzinfo=UTC)
+    publisher.decision_planner = prospective_decision_midpoint_v1
+
+    with _singleton_writer_lock(publisher.data_root):
+        preflight = publisher._preflight_source_shard(  # noqa: SLF001
+            symbol="BTCUSDT",
+            publication_attempt=1,
+            adaptive_estimated_symbol_elapsed_seconds=1.0,
+        )
+
+    evidence = preflight.evidence
+    assert preflight.active_shard_index == 0
+    assert preflight.selected_shard_index == 0
+    assert evidence["active_shard_integrity_verified_before_capture"] is True
+    assert evidence["remaining_verification_passes_fit_planned_decision"] is True
+    assert evidence["rollover_performed_before_capture"] is False
+    assert evidence["rollover_reason"] == (
+        "MEASURED_VERIFICATION_AND_ADAPTIVE_SYMBOL_WORK_FIT_"
+        "PLANNED_DECISION_WINDOW"
+    )
+    assert ledger.path.is_file()
+    assert not (ledger.root.parent / "shard-00000001").exists()
+
+
+def test_verification_that_fits_alone_rolls_when_combined_adaptive_work_does_not(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ledger = _seed_valid_source_shard(tmp_path)
+    old_ledger_bytes = ledger.path.read_bytes()
+    old_head_bytes = ledger.head_path.read_bytes()
+
+    class ManualMonotonic:
+        value = 0.0
+
+        def __call__(self) -> float:
+            return self.value
+
+    monotonic = ManualMonotonic()
+    original_read_entries = TrainerSourceProvenanceLedgerV4.read_entries
+
+    def five_second_verified_read(
+        source_ledger: TrainerSourceProvenanceLedgerV4,
+    ):  # type: ignore[no-untyped-def]
+        entries = original_read_entries(source_ledger)
+        monotonic.value += 5.0
+        return entries
+
+    monkeypatch.setattr(
+        TrainerSourceProvenanceLedgerV4,
+        "read_entries",
+        five_second_verified_read,
+    )
+    publisher = _publisher(tmp_path, _Redis(_payloads()))
+    publisher.clock = lambda: datetime(
+        2026,
+        7,
+        23,
+        1,
+        53,
+        2,
+        428169,
+        tzinfo=UTC,
+    )
+    publisher.decision_planner = prospective_decision_midpoint_v1
+    publisher.monotonic = monotonic
+
+    with _singleton_writer_lock(publisher.data_root):
+        preflight = publisher._preflight_source_shard(  # noqa: SLF001
+            symbol="BTCUSDT",
+            publication_attempt=1,
+            adaptive_estimated_symbol_elapsed_seconds=29.0,
+        )
+
+    evidence = preflight.evidence
+    assert evidence["projected_remaining_full_verification_seconds"] == 35.0
+    assert evidence["remaining_verification_passes_fit_planned_decision"] is True
+    assert evidence["projected_verification_and_symbol_work_seconds"] == 64.0
+    assert evidence["verification_and_symbol_work_fit_planned_decision"] is False
+    assert evidence["rollover_performed_before_capture"] is True
+    assert evidence["rollover_reason"] == (
+        "MEASURED_VERIFICATION_AND_ADAPTIVE_SYMBOL_WORK_EXCEED_"
+        "PLANNED_DECISION_WINDOW"
+    )
+    assert preflight.selected_shard_index == 1
+    assert ledger.path.read_bytes() == old_ledger_bytes
+    assert ledger.head_path.read_bytes() == old_head_bytes
+
+
+def test_source_shard_preflight_rejects_nonfuture_injected_planner(
+    tmp_path: Path,
+) -> None:
+    publisher = _publisher(tmp_path, _Redis(_payloads()))
+    publisher.decision_planner = lambda completed_at: completed_at
+    publisher.data_root.mkdir(mode=0o700)
+
+    with _singleton_writer_lock(publisher.data_root):
+        with pytest.raises(
+            ProfiledBaseFeaturePublisherV1ConfigurationError,
+            match=(
+                "PROFILED_BASE_PUBLISHER_SOURCE_SHARD_PREFLIGHT_"
+                "DECISION_NOT_STRICTLY_FUTURE"
+            ),
+        ):
+            publisher._preflight_source_shard(  # noqa: SLF001
+                symbol="BTCUSDT",
+                publication_attempt=1,
+                adaptive_estimated_symbol_elapsed_seconds=1.0,
+            )
+
+
+def test_post_capture_hard_cap_roll_is_reconciled_in_publication_evidence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ledger = _seed_valid_source_shard(tmp_path)
+    _seed_observed_state(tmp_path / "state.json")
+    old_ledger_bytes = ledger.path.read_bytes()
+    old_head_bytes = ledger.head_path.read_bytes()
+
+    def forced_hard_cap_roll(**kwargs: Any) -> tuple[int, bool]:
+        assert kwargs["active_index"] == 0
+        return 1, True
+
+    monkeypatch.setattr(
+        publisher_module,
+        "select_source_shard_index_v1",
+        forced_hard_cap_roll,
+    )
+
+    def stop_after_source_reconciliation(*_args: Any, **_kwargs: Any) -> Any:
+        raise ProfiledTrainingEnrichmentRecordV1Error(
+            "PROFILED_TRAINING_INJECTED_AFTER_SOURCE_SHARD_RECONCILIATION"
+        )
+
+    monkeypatch.setattr(
+        publisher_module,
+        "transform_authenticated_ohlcv_profile_v1",
+        stop_after_source_reconciliation,
+    )
+    publisher = _publisher(tmp_path, _Redis(_payloads()))
+    publisher.monotonic = lambda: 0.0
+    publisher.decision_planner = lambda generated_at: generated_at + timedelta(seconds=10)
+
+    status = publisher.run_cycle()
+
+    assert status["published_symbols"] == []
+    assert status["failed_symbols"] == ["BTCUSDT"]
+    reference = status["failures"][0][
+        "source_provenance_shard_preflight_references"
+    ][0]
+    evidence = status["source_provenance_shard_preflights"][
+        reference["status_preflight_index"]
+    ]
+    assert reference["preflight_sha256"] == publisher_module.stable_sha256(evidence)
+    assert evidence["rollover_performed_before_capture"] is False
+    assert evidence["preflight_selected_shard_index"] == 0
+    assert evidence["publication_shard_index"] == 1
+    assert evidence["publication_shard_relative_path"] == (
+        "source-provenance-shards/shard-00000001"
+    )
+    assert evidence["publication_shard_selection_reconciled"] is True
+    assert evidence["hard_safety_cap_rollover_after_capture"] is True
+    rolled_ledger = TrainerSourceProvenanceLedgerV4(
+        ledger.root.parent / "shard-00000001"
+    )
+    assert len(rolled_ledger.read_entries()) == 2
+    assert ledger.path.read_bytes() == old_ledger_bytes
+    assert ledger.head_path.read_bytes() == old_head_bytes
+
+
+def test_corrupt_active_shard_fails_before_roll_or_market_capture(
+    tmp_path: Path,
+) -> None:
+    ledger = _seed_valid_source_shard(tmp_path)
+    with ledger.path.open("ab") as stream:
+        stream.write(b"{")
+    capture_calls = 0
+
+    def forbidden_capture(*_args: Any, **_kwargs: Any):  # type: ignore[no-untyped-def]
+        nonlocal capture_calls
+        capture_calls += 1
+        raise AssertionError("market capture must follow verified shard preflight")
+
+    publisher = _publisher(
+        tmp_path,
+        _Redis(_payloads()),
+        capture_function=forbidden_capture,
+    )
+    publisher.clock = lambda: datetime(2026, 7, 23, 1, 51, 0, tzinfo=UTC)
+
+    status = publisher.run_cycle()
+
+    assert capture_calls == 0
+    assert status["failed_symbols"] == ["BTCUSDT"]
+    assert status["source_provenance_shard_preflight_count"] == 0
+    assert status["source_provenance_shard_rollover_count"] == 0
+    assert status["failures"][0]["reasons"] == [
+        "source_provenance_v4_ledger_truncated_or_partial_tail"
+    ]
+    assert not (ledger.root.parent / "shard-00000001").exists()
+
+
 def test_large_universe_is_bounded_by_sustainable_cadence_disk_budget() -> None:
     decision = adaptive_resource_decision_v1(
         eligible_count=160,
@@ -2571,6 +2940,118 @@ def test_two_observed_units_can_bind_shared_filesystem_reserve() -> None:
     assert decision.disk_reserve_bytes == 300_000_000_000
     assert decision.safe_disk_headroom_bytes == 100_000_000_000
     assert decision.selected_count == 0
+
+
+def test_pre_first_shared_filesystem_drift_does_not_consume_write_credit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _seed_observed_state(tmp_path / "state.json")
+    publisher = _publisher(tmp_path, _Redis(_payloads()))
+    disk_total_bytes = 500_000_000_000
+    reserve_bytes = disk_total_bytes // 5
+    sustainable_headroom_bytes = (
+        BOOTSTRAP_EVIDENCE_BYTES_PER_SYMBOL
+        * DEFAULT_RESOURCE_SUSTAINABILITY_HORIZON_SECONDS
+        // 300
+    )
+    cycle_start_free_bytes = reserve_bytes + sustainable_headroom_bytes
+    unrelated_shared_drift_bytes = 4 * 1024
+    disk_usage_calls = 0
+
+    def shared_drift_disk_usage(_path: Path) -> DiskUsage:
+        nonlocal disk_usage_calls
+        free_bytes = (
+            cycle_start_free_bytes
+            if disk_usage_calls == 0
+            else cycle_start_free_bytes - unrelated_shared_drift_bytes
+        )
+        disk_usage_calls += 1
+        return DiskUsage(
+            disk_total_bytes,
+            disk_total_bytes - free_bytes,
+            free_bytes,
+        )
+
+    def materialize_selected_symbol(**kwargs: Any):  # type: ignore[no-untyped-def]
+        symbol = kwargs["symbol"]
+        coverage = {
+            "last_published_at": _iso(FIXED_CLOCK),
+            "feature_cutoff": _iso(FIXED_CLOCK),
+            "decision_time": _iso(FIXED_CLOCK),
+            "window_fingerprint_sha256": "a" * 64,
+            "durable_snapshot_id": f"durable-{symbol}",
+            "record_sha256": "b" * 64,
+        }
+        return publisher_module._SymbolOutcome(
+            symbol=symbol,
+            classification="AUTHENTICATED_PROFILED_TRAINING_PAIR_INSERTED",
+            window_fingerprint_sha256="a" * 64,
+            materialized_evidence_bytes=BOOTSTRAP_EVIDENCE_BYTES_PER_SYMBOL,
+            detail={"symbol": symbol},
+            coverage=coverage,
+        )
+
+    publisher.disk_usage = shared_drift_disk_usage
+    monkeypatch.setattr(publisher, "_publish_symbol", materialize_selected_symbol)
+
+    status = publisher.run_cycle()
+
+    assert status["resource_decision"]["available_write_credit_bytes"] == (
+        BOOTSTRAP_EVIDENCE_BYTES_PER_SYMBOL
+    )
+    assert status["selected_symbols"] == ["BTCUSDT"]
+    assert status["resource_deferred_symbols"] == []
+    assert status["published_symbols"] == ["BTCUSDT"]
+    assert status["cycle_disk_consumption_high_water_bytes"] == (
+        unrelated_shared_drift_bytes
+    )
+
+
+def test_pre_first_write_still_holds_when_current_free_cannot_cover_reserve_and_unit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _seed_observed_state(tmp_path / "state.json")
+    publisher = _publisher(tmp_path, _Redis(_payloads()))
+    disk_total_bytes = 500_000_000_000
+    reserve_bytes = disk_total_bytes // 5
+    sustainable_headroom_bytes = (
+        BOOTSTRAP_EVIDENCE_BYTES_PER_SYMBOL
+        * DEFAULT_RESOURCE_SUSTAINABILITY_HORIZON_SECONDS
+        // 300
+    )
+    cycle_start_free_bytes = reserve_bytes + sustainable_headroom_bytes
+    unsafe_current_free_bytes = (
+        reserve_bytes + BOOTSTRAP_EVIDENCE_BYTES_PER_SYMBOL - 1
+    )
+    disk_usage_calls = 0
+
+    def absolute_headroom_loss(_path: Path) -> DiskUsage:
+        nonlocal disk_usage_calls
+        free_bytes = (
+            cycle_start_free_bytes
+            if disk_usage_calls == 0
+            else unsafe_current_free_bytes
+        )
+        disk_usage_calls += 1
+        return DiskUsage(
+            disk_total_bytes,
+            disk_total_bytes - free_bytes,
+            free_bytes,
+        )
+
+    def forbidden_publish(**_kwargs: Any):  # type: ignore[no-untyped-def]
+        raise AssertionError("publisher must not write below reserve plus one unit")
+
+    publisher.disk_usage = absolute_headroom_loss
+    monkeypatch.setattr(publisher, "_publish_symbol", forbidden_publish)
+
+    status = publisher.run_cycle()
+
+    assert status["selected_symbols"] == []
+    assert status["resource_deferred_symbols"] == ["BTCUSDT"]
+    assert status["classification"] == "CYCLE_WRITE_BUDGET_BACKPRESSURE_HOLD"
 
 
 def test_intra_cycle_backpressure_stops_after_observed_write_cost_jump(
