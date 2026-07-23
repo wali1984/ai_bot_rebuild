@@ -4090,6 +4090,26 @@ def _validated_result(
     )
 
 
+def validate_profiled_research_finalized_outcome_artifact_v1(
+    payload: object,
+) -> dict[str, Any]:
+    """Validate canonical durable bytes for a downstream evidence consumer."""
+
+    if type(payload) is not bytes or not payload or len(payload) > _MAX_JSON_BYTES:
+        _validation("PROFILED_OUTCOME_EXACT_ARTIFACT_BYTES_REQUIRED")
+    artifact = _parse_exact_object(
+        payload,
+        reason="PROFILED_OUTCOME_ARTIFACT_JSON_INVALID",
+    )
+    _validate_artifact_structure(artifact)
+    if _canonical_bytes(
+        artifact,
+        reason="PROFILED_OUTCOME_ARTIFACT_JSON_INVALID",
+    ) != payload:
+        _integrity("PROFILED_OUTCOME_ARTIFACT_CANONICAL_BYTES_INVALID")
+    return artifact
+
+
 __all__ = (
     "PROFILED_RESEARCH_FINALIZED_OUTCOME_APPEND_RECEIPT_V1_SCHEMA_VERSION",
     "PROFILED_RESEARCH_FINALIZED_OUTCOME_CALIBRATION_ROW_V1_SCHEMA_VERSION",
@@ -4108,4 +4128,5 @@ __all__ = (
     "ProfiledResearchFinalizedOutcomeV1ValidationError",
     "ProfiledResearchFinalizedOutcomeWriterLease",
     "ProfiledResearchFinalizedOutcomeWriterLeaseError",
+    "validate_profiled_research_finalized_outcome_artifact_v1",
 )
