@@ -522,6 +522,13 @@ class VerifiedStrategyOutputPublicationV1:
         _validate_publication_result(self)
         return cast(dict[str, Any], json.loads(self._receipt_json))
 
+    @property
+    def upstream_transform(self) -> AuthenticatedStrategyTaTransformV1:
+        """Return the exact revalidated TA transform bound by this receipt."""
+
+        _validate_publication_result(self)
+        return self._upstream_transform
+
 
 @dataclass(frozen=True, slots=True)
 class StrategyOutputPaperAdmissionV1:
