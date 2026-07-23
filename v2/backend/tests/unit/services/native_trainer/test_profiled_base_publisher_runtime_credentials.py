@@ -665,6 +665,7 @@ def test_tracked_unit_is_protected_bounded_and_has_no_auto_transition() -> None:
     assert "Restart=on-failure" in unit
     assert "RestartPreventExitStatus=2 78" in unit
     assert "StartLimitBurst=3" in unit
+    assert "MemoryHigh=3G" in unit
     assert "MemoryMax=4G" in unit
     assert "CPUQuota=200%" in unit
     assert "ProtectSystem=strict" in unit
