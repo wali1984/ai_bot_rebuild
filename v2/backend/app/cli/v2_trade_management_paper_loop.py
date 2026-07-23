@@ -3290,6 +3290,67 @@ def _safe_write(r, key: str, value: str, ex: int | None = None) -> bool:
         return False
 
 
+def _safe_write_paper_cycle_control_bundle(
+    r: Any,
+    *,
+    adaptive_sizing_runtime_status: Mapping[str, Any],
+    account_margin_status: Mapping[str, Any],
+    ex: int,
+) -> bool:
+    """Publish the trainer's two paper-cycle controls as one Redis transaction."""
+
+    if (
+        r is None
+        or type(ex) is not int
+        or ex <= 0
+        or not isinstance(adaptive_sizing_runtime_status, Mapping)
+        or not isinstance(account_margin_status, Mapping)
+    ):
+        return False
+    generated_utc = adaptive_sizing_runtime_status.get("generated_utc")
+    paper_cycle_id = adaptive_sizing_runtime_status.get("paper_cycle_id")
+    if (
+        type(generated_utc) is not str
+        or generated_utc != account_margin_status.get("generated_utc")
+        or type(paper_cycle_id) is not str
+        or paper_cycle_id != account_margin_status.get("paper_cycle_id")
+        or not paper_cycle_id.startswith("paper_cycle:")
+        or not _paper_valid_sha256(paper_cycle_id.removeprefix("paper_cycle:"))
+    ):
+        return False
+    payloads = (
+        (
+            PAPER_ADAPTIVE_SIZING_RUNTIME_STATUS_REDIS_KEY,
+            adaptive_sizing_runtime_status,
+        ),
+        (PAPER_ACCOUNT_MARGIN_STATUS_REDIS_KEY, account_margin_status),
+    )
+    try:
+        serialized = [
+            (
+                key,
+                json.dumps(
+                    payload,
+                    allow_nan=False,
+                    separators=(",", ":"),
+                    sort_keys=True,
+                ),
+            )
+            for key, payload in payloads
+        ]
+        pipeline = r.pipeline(transaction=True)
+        for key, value in serialized:
+            pipeline.set(key, value, ex=ex)
+        results = pipeline.execute()
+    except Exception:
+        return False
+    return (
+        isinstance(results, (list, tuple))
+        and len(results) == len(payloads)
+        and all(result not in (None, False) for result in results)
+    )
+
+
 def _paper_exploration_bridge_enabled() -> bool:
     value = str(os.getenv("PAPER_EXPLORATION_SUPPLY_BRIDGE_ENABLED", "1")).strip().lower()
     return value not in {"0", "false", "no", "off", "disabled"}
@@ -18395,7 +18456,13 @@ def _paper_candidate_canonical_aggregate_contract(
 
 def _paper_adaptive_sizing_runtime_status(
     allocation_rows: list[dict[str, Any]],
+    *,
+    generated_utc: str | None = None,
+    paper_cycle_id: str | None = None,
 ) -> dict[str, Any]:
+    if type(allocation_rows) is not list:
+        raise ValueError("PAPER_ADAPTIVE_SIZING_SOURCE_ROWS_NOT_LIST")
+    cycle_generated_utc = generated_utc or _utc_iso()
     published_rows: list[dict[str, Any]] = []
     operator_rows: list[dict[str, Any]] = []
     source_hash_entries: list[dict[str, Any]] = []
@@ -18403,8 +18470,8 @@ def _paper_adaptive_sizing_runtime_status(
     contract_facts: list[dict[str, Any]] = []
     omitted_fields: set[str] = set()
     for source_row in allocation_rows:
-        if not isinstance(source_row, dict):
-            continue
+        if type(source_row) is not dict:
+            raise ValueError("PAPER_ADAPTIVE_SIZING_SOURCE_ROW_INVALID")
         published = _paper_candidate_allocation_publication_row(source_row)
         source_row_index = len(published_rows)
         source_hash = _paper_canonical_sha256(published)
@@ -18643,7 +18710,8 @@ def _paper_adaptive_sizing_runtime_status(
         "sample_allocations_projection_only": True,
         "sample_allocations_projection_count": len(operator_rows),
         "sample_allocations_projection_limit": (ADAPTIVE_SIZING_OPERATOR_PROJECTION_LIMIT),
-        "generated_utc": _utc_iso(),
+        "generated_utc": cycle_generated_utc,
+        "paper_cycle_id": paper_cycle_id,
         "paper_only": True,
         "places_real_order": False,
         "test_orders": False,
@@ -35493,6 +35561,27 @@ def _paper_valid_sha256(value: Any) -> bool:
     return len(text) == 64 and all(character in "0123456789abcdef" for character in text)
 
 
+def _paper_cycle_id(
+    *,
+    generated_utc: str,
+    paper_session_id: Any,
+    writer_identity: Mapping[str, Any],
+) -> str:
+    """Derive one deterministic identity shared by all cycle control payloads."""
+
+    material = {
+        "schema_version": "paper_trade_management_cycle_identity_v1",
+        "generated_utc": generated_utc,
+        "paper_session_id": str(paper_session_id or "NO_PAPER_SESSION"),
+        "writer_identity": dict(writer_identity),
+        "writer_pid": os.getpid(),
+    }
+    digest = _paper_canonical_sha256(material)
+    if digest is None:
+        raise ValueError("PAPER_CYCLE_ID_MATERIAL_NOT_CANONICAL")
+    return f"paper_cycle:{digest}"
+
+
 def _paper_cycle_reservation_contract_rejection_reasons(
     row: Mapping[str, Any],
     allocation: Mapping[str, Any],
@@ -43523,6 +43612,11 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         paper_session_id,
         paper_session_identity_rejection_reasons,
     ) = _paper_session_identity(paper_session_state)
+    paper_cycle_id = _paper_cycle_id(
+        generated_utc=started,
+        paper_session_id=paper_session_id,
+        writer_identity=_paper_runtime_owner_identity(),
+    )
     _adaptive_tuning_validation_observed_at = _utc_iso()
     _adaptive_tuning_validation_receipt = _paper_adaptive_tuning_semantic_validation(
         _adaptive_tuning_raw_state,
@@ -48968,6 +49062,8 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
     }
     paper_adaptive_sizing_runtime_status = _paper_adaptive_sizing_runtime_status(
         allocation_rows,
+        generated_utc=started,
+        paper_cycle_id=paper_cycle_id,
     )
     risk_envelope_dynamic_budget_status = {
         "operator_envelope_type": "PERCENTAGE_BASED_RISK_ENVELOPE",
@@ -49147,7 +49243,8 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
     )
     paper_account_margin_status.update(
         {
-            "generated_utc": _utc_iso(),
+            "generated_utc": started,
+            "paper_cycle_id": paper_cycle_id,
             "cycle_reserved_candidate_count": paper_margin_reservation_status.get(
                 "reserved_candidate_count",
                 0,
@@ -50368,13 +50465,18 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             ex=PAPER_TRAINING_EVIDENCE_TTL_SECONDS,
         ):
             keys_written.append(f"{V2_REDIS_PREFIX}paper:ledger")
-        if _safe_write(
+        if _safe_write_paper_cycle_control_bundle(
             r,
-            PAPER_ACCOUNT_MARGIN_STATUS_REDIS_KEY,
-            json.dumps(paper_account_margin_status),
+            adaptive_sizing_runtime_status=paper_adaptive_sizing_runtime_status,
+            account_margin_status=paper_account_margin_status,
             ex=PAPER_RUNTIME_HEARTBEAT_TTL_SECONDS,
         ):
-            keys_written.append(PAPER_ACCOUNT_MARGIN_STATUS_REDIS_KEY)
+            keys_written.extend(
+                [
+                    PAPER_ADAPTIVE_SIZING_RUNTIME_STATUS_REDIS_KEY,
+                    PAPER_ACCOUNT_MARGIN_STATUS_REDIS_KEY,
+                ]
+            )
         if _safe_write(
             r,
             f"{V2_REDIS_PREFIX}paper:outcome_labels",
@@ -50581,13 +50683,6 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             ex=PAPER_RUNTIME_HEARTBEAT_TTL_SECONDS,
         ):
             keys_written.append(f"{V2_REDIS_PREFIX}paper:trade_management:status")
-        if _safe_write(
-            r,
-            PAPER_ADAPTIVE_SIZING_RUNTIME_STATUS_REDIS_KEY,
-            json.dumps(paper_adaptive_sizing_runtime_status),
-            ex=PAPER_RUNTIME_HEARTBEAT_TTL_SECONDS,
-        ):
-            keys_written.append(PAPER_ADAPTIVE_SIZING_RUNTIME_STATUS_REDIS_KEY)
         if _safe_write(
             r,
             f"{V2_REDIS_PREFIX}paper:active_runtime_owner_status",

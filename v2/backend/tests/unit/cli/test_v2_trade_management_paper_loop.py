@@ -58,6 +58,33 @@ class _FakeRedis:
                 yield key
 
 
+class _TransactionalFakePipeline:
+    def __init__(self, redis_client: "_TransactionalFakeRedis") -> None:
+        self.redis_client = redis_client
+        self.pending: list[tuple[str, str, int | None]] = []
+
+    def set(self, key: str, value: str, ex: int | None = None):
+        self.pending.append((key, value, ex))
+        return self
+
+    def execute(self) -> list[bool]:
+        self.redis_client.execute_count += 1
+        for key, value, ex in self.pending:
+            self.redis_client.set(key, value, ex=ex)
+        return [True] * len(self.pending)
+
+
+class _TransactionalFakeRedis(_FakeRedis):
+    def __init__(self) -> None:
+        super().__init__({})
+        self.transaction_flags: list[bool] = []
+        self.execute_count = 0
+
+    def pipeline(self, transaction: bool = True) -> _TransactionalFakePipeline:
+        self.transaction_flags.append(transaction)
+        return _TransactionalFakePipeline(self)
+
+
 class _CallbackRedis(_FakeRedis):
     """Fake Redis whose selected reads can publish data and advance a clock."""
 
@@ -10930,6 +10957,86 @@ def test_paper_adaptive_sizing_runtime_status_exposes_hash_bound_operator_projec
     assert status["missing_microstructure_trust_candidate_count"] == 0
     assert status["paper_only"] is True
     assert status["places_real_order"] is False
+
+
+def test_paper_adaptive_sizing_zero_candidate_contract_is_exact_and_cycle_bound() -> None:
+    generated_utc = "2026-07-23T05:00:00.000Z"
+    paper_cycle_id = "paper_cycle:" + "a" * 64
+
+    status = paper_loop._paper_adaptive_sizing_runtime_status(  # noqa: SLF001
+        [],
+        generated_utc=generated_utc,
+        paper_cycle_id=paper_cycle_id,
+    )
+
+    assert status["generated_utc"] == generated_utc
+    assert status["paper_cycle_id"] == paper_cycle_id
+    assert status["candidate_allocation_count"] == 0
+    assert status["candidate_allocations_source_row_count"] == 0
+    assert status["candidate_allocations_source_hashes"] == []
+    assert status["candidate_allocations_canonical_aggregate_contract"]["capital"][
+        "candidate_count"
+    ] == 0
+
+
+def test_paper_adaptive_sizing_malformed_nonempty_source_cannot_become_zero() -> None:
+    with pytest.raises(ValueError, match="PAPER_ADAPTIVE_SIZING_SOURCE_ROW_INVALID"):
+        paper_loop._paper_adaptive_sizing_runtime_status(  # type: ignore[list-item]  # noqa: SLF001
+            [None]
+        )
+
+
+def test_paper_cycle_control_bundle_is_atomic_and_identity_bound(monkeypatch) -> None:
+    monkeypatch.setattr(paper_loop.os, "getpid", lambda: 4242)
+    generated_utc = "2026-07-23T05:00:00.000Z"
+    paper_cycle_id = paper_loop._paper_cycle_id(  # noqa: SLF001
+        generated_utc=generated_utc,
+        paper_session_id="session-1",
+        writer_identity={"paper_policy_owner": "CHALLENGER_V2"},
+    )
+    assert paper_cycle_id == paper_loop._paper_cycle_id(  # noqa: SLF001
+        generated_utc=generated_utc,
+        paper_session_id="session-1",
+        writer_identity={"paper_policy_owner": "CHALLENGER_V2"},
+    )
+    redis_client = _TransactionalFakeRedis()
+    sizing = {"generated_utc": generated_utc, "paper_cycle_id": paper_cycle_id}
+    margin = {"generated_utc": generated_utc, "paper_cycle_id": paper_cycle_id}
+
+    assert paper_loop._safe_write_paper_cycle_control_bundle(  # noqa: SLF001
+        redis_client,
+        adaptive_sizing_runtime_status=sizing,
+        account_margin_status=margin,
+        ex=300,
+    ) is True
+    assert redis_client.transaction_flags == [True]
+    assert redis_client.execute_count == 1
+    assert json.loads(
+        redis_client.payloads[
+            paper_loop.PAPER_ADAPTIVE_SIZING_RUNTIME_STATUS_REDIS_KEY
+        ]
+    ) == sizing
+    assert json.loads(
+        redis_client.payloads[paper_loop.PAPER_ACCOUNT_MARGIN_STATUS_REDIS_KEY]
+    ) == margin
+
+    mismatched = dict(margin, paper_cycle_id="paper_cycle:" + "b" * 64)
+    assert paper_loop._safe_write_paper_cycle_control_bundle(  # noqa: SLF001
+        redis_client,
+        adaptive_sizing_runtime_status=sizing,
+        account_margin_status=mismatched,
+        ex=300,
+    ) is False
+    assert redis_client.execute_count == 1
+
+    mismatched_clock = dict(margin, generated_utc="2026-07-23T05:00:00.001Z")
+    assert paper_loop._safe_write_paper_cycle_control_bundle(  # noqa: SLF001
+        redis_client,
+        adaptive_sizing_runtime_status=sizing,
+        account_margin_status=mismatched_clock,
+        ex=300,
+    ) is False
+    assert redis_client.execute_count == 1
 
 
 def test_adaptive_sizing_operator_projection_rejects_recursive_material_and_detects_mutation(
