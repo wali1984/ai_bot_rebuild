@@ -390,7 +390,8 @@ def test_repository_systemd_unit_commissions_local_non_promotable_publisher() ->
     assert "RestrictAddressFamilies=AF_UNIX" in unit
     assert "RestartPreventExitStatus=2 78" in unit
     assert "Environment=CUBLAS_WORKSPACE_CONFIG=:4096:8" in unit
-    assert "Wants=ai-bot-v2-profiled-base-feature-publisher.service" in unit
+    assert "After=ai-bot-v2-profiled-base-feature-publisher.service" in unit
+    assert "Wants=ai-bot-v2-profiled-base-feature-publisher.service" not in unit
     assert (
         "ExecStartPre=+/usr/bin/install -d -m 0700 "
         "/home/wali/ai_bot_local_data/v2_native_trainer/"

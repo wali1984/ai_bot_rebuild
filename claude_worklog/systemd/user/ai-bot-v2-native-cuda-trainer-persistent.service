@@ -2,7 +2,6 @@
 Description=AI Bot V2 locally authenticated profiled research publisher (non-promotable)
 Documentation=file:///home/wali/Desktop/AI%%20BOT%%20REBUILD/claude_worklog/systemd/user/ai-bot-v2-native-cuda-trainer-persistent.credentials.md
 After=ai-bot-v2-profiled-base-feature-publisher.service
-Wants=ai-bot-v2-profiled-base-feature-publisher.service
 StartLimitIntervalSec=900
 StartLimitBurst=3
 
