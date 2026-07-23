@@ -982,6 +982,66 @@ def test_direct_reopen_reports_typed_legacy_exclusion(
         )
 
 
+def test_direct_reopen_reuses_verified_source_provenance_entries_within_run(
+    tmp_path: Path,
+    authenticated_base_evidence: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ledger, cost_root, _legacy_child, current_child = (
+        _ledger_with_legacy_and_current_pairs(
+            tmp_path,
+            authenticated_base_evidence,
+        )
+    )
+    observation = _observation()
+    cost_root = cost_root.absolute()
+    batch = loader_v1.load_profiled_training_ledger_v1(
+        ledger=ledger,
+        trusted_immutable_cost_store_root=cost_root,
+        training_observed_at=observation,
+    )
+    current_item = ledger.get_snapshot(current_child["durable_snapshot_id"])
+    assert current_item is not None
+    calls = 0
+    original = loader_v1.TrainerSourceProvenanceLedgerV4.read_entries
+
+    def counted_read_entries(self: Any) -> Any:
+        nonlocal calls
+        calls += 1
+        return original(self)
+
+    monkeypatch.setattr(
+        loader_v1.TrainerSourceProvenanceLedgerV4,
+        "read_entries",
+        counted_read_entries,
+    )
+    cache: dict[str, tuple[Any, ...]] = {}
+    first = loader_v1.reopen_profiled_training_ledger_sample_v1(
+        ledger=ledger,
+        trusted_immutable_cost_store_root=cost_root,
+        fixed_observation_high_water=batch.high_water,
+        training_observed_at=observation,
+        durable_snapshot_id=current_child["durable_snapshot_id"],
+        expected_sequence=current_item.sequence,
+        expected_record_sha256=current_child["record_sha256"],
+        _verified_source_entries_cache=cache,
+    )
+    second = loader_v1.reopen_profiled_training_ledger_sample_v1(
+        ledger=ledger,
+        trusted_immutable_cost_store_root=cost_root,
+        fixed_observation_high_water=batch.high_water,
+        training_observed_at=observation,
+        durable_snapshot_id=current_child["durable_snapshot_id"],
+        expected_sequence=current_item.sequence,
+        expected_record_sha256=current_child["record_sha256"],
+        _verified_source_entries_cache=cache,
+    )
+
+    assert first.durable_snapshot_id == current_child["durable_snapshot_id"]
+    assert second == first
+    assert calls == 1
+
+
 @pytest.mark.parametrize("bad_configuration", ["5" * 64, [], {}])
 def test_unknown_transform_configuration_fails_closed(
     tmp_path: Path,

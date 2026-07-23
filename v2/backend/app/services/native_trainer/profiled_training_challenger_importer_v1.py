@@ -896,6 +896,7 @@ def import_profiled_training_ledger_shards_to_challenger_archive_v1(
     total_label_paths = 0
     total_rejections: Counter[str] = Counter()
     verified_label_transactions: set[tuple[str, str, str, str, int, str]] = set()
+    verified_source_entries: dict[str, tuple[Any, ...]] = {}
     shard_reports: list[dict[str, Any]] = []
     post_purge_counts: dict[str, Any] = dict(last_post_purge_counts)
     minimums_met = False
@@ -908,6 +909,7 @@ def import_profiled_training_ledger_shards_to_challenger_archive_v1(
             scan_limit=shard_size,
             after_sequence=after_sequence,
             page_cursor=page_cursor,
+            _verified_source_entries_cache=verified_source_entries,
         )
         imported = duplicates = label_paths = 0
         write_paths: list[tuple[Path, Path]] = []

@@ -738,6 +738,7 @@ def _validate_source_provenance_binding(
     transform_available_at: datetime,
     decision_time: datetime,
     require_current_window_wss: bool = True,
+    verified_entries_cache: dict[str, tuple[Any, ...]] | None = None,
 ) -> str:
     if type(require_current_window_wss) is not bool:
         _fail("PROFILED_TRAINING_PARENT_SOURCE_POLICY_ARGUMENT_INVALID")
@@ -769,12 +770,21 @@ def _validate_source_provenance_binding(
     root_path = Path(cast(str, root))
     if not root_path.is_dir():
         _fail("PROFILED_TRAINING_PARENT_SOURCE_LEDGER_ROOT_MISSING")
-    try:
-        fresh_entries = TrainerSourceProvenanceLedgerV4(root_path).read_entries()
-    except TrainerSourceProvenanceLedgerV4Error as exc:
-        raise ProfiledTrainingLedgerLoaderV1Error(
-            "PROFILED_TRAINING_PARENT_SOURCE_LEDGER_FRESH_READ_FAILED"
-        ) from exc
+    cache_key = str(root_path)
+    fresh_entries = (
+        verified_entries_cache.get(cache_key)
+        if verified_entries_cache is not None
+        else None
+    )
+    if fresh_entries is None:
+        try:
+            fresh_entries = TrainerSourceProvenanceLedgerV4(root_path).read_entries()
+        except TrainerSourceProvenanceLedgerV4Error as exc:
+            raise ProfiledTrainingLedgerLoaderV1Error(
+                "PROFILED_TRAINING_PARENT_SOURCE_LEDGER_FRESH_READ_FAILED"
+            ) from exc
+        if verified_entries_cache is not None:
+            verified_entries_cache[cache_key] = fresh_entries
     raw_timeframes = binding.get("timeframe_bindings")
     if type(raw_timeframes) is not list or len(raw_timeframes) != 2:
         _fail("PROFILED_TRAINING_PARENT_SOURCE_PROVENANCE_TIMEFRAMES_INVALID")
@@ -895,6 +905,7 @@ def _validate_parent_model_record(
         AUTHENTICATED_OHLCV_PROFILE_TRANSFORM_V1_CONFIGURATION_SHA256
     ),
     require_current_window_wss: bool = True,
+    verified_source_entries_cache: dict[str, tuple[Any, ...]] | None = None,
 ) -> dict[str, Any]:
     if (
         type(expected_transform_configuration_sha256) is not str
@@ -964,6 +975,7 @@ def _validate_parent_model_record(
         transform_available_at=transform_available,
         decision_time=decision,
         require_current_window_wss=require_current_window_wss,
+        verified_entries_cache=verified_source_entries_cache,
     )
     values = _float32_vector(
         typed_envelope.get("feature_values"),
@@ -2255,6 +2267,7 @@ def _admit_item(
     item: FixedCutoffFeatureSnapshot,
     high_water: Mapping[str, Any],
     trusted_immutable_cost_store_root: Path,
+    verified_source_entries_cache: dict[str, tuple[Any, ...]] | None = None,
 ) -> ProfiledTrainingLedgerSampleV1 | ProfiledTrainingLedgerExclusionV1 | None:
     record = item.record
     if type(record) is not dict or type(record.get("frozen_envelope")) is not dict:
@@ -2368,6 +2381,7 @@ def _admit_item(
             transform_configuration_sha256,
         ),
         require_current_window_wss=not legacy_transform,
+        verified_source_entries_cache=verified_source_entries_cache,
     )
     if parent_claim != parent_material["binding"]:
         _fail("PROFILED_TRAINING_PARENT_BINDING_MISMATCH")
@@ -2656,6 +2670,7 @@ def load_profiled_training_ledger_fixed_observation_v1(
         exclusion_count = 0
         maximum_resident_page_row_count = 0
         after_sequence = 0
+        verified_source_entries_cache: dict[str, tuple[Any, ...]] = {}
         page_iterator = ledger.iter_fixed_cutoff_pages(
             decision_time_cutoff=strict_prior_text,
             training_observed_at=strict_prior_text,
@@ -2684,6 +2699,7 @@ def load_profiled_training_ledger_fixed_observation_v1(
                         trusted_immutable_cost_store_root=(
                             trusted_immutable_cost_store_root
                         ),
+                        verified_source_entries_cache=verified_source_entries_cache,
                     )
                     if type(admitted) is ProfiledTrainingLedgerExclusionV1:
                         exclusions.append(cast(ProfiledTrainingLedgerExclusionV1, admitted))
@@ -2776,6 +2792,7 @@ def load_profiled_training_ledger_v1(
     scan_limit: int = MAX_PROFILED_TRAINING_SCAN_ROWS,
     after_sequence: int = 0,
     page_cursor: str | None = None,
+    _verified_source_entries_cache: dict[str, tuple[Any, ...]] | None = None,
 ) -> ProfiledTrainingLedgerBatchV1:
     """Load one immutable, fixed-observation profiled training inventory."""
 
@@ -2796,6 +2813,15 @@ def load_profiled_training_ledger_v1(
         after_sequence > 0 and type(page_cursor) is not str
     ):
         _fail("PROFILED_TRAINING_PAGE_CURSOR_REQUIREMENT_INVALID")
+    if _verified_source_entries_cache is not None and type(
+        _verified_source_entries_cache
+    ) is not dict:
+        _fail("PROFILED_TRAINING_SOURCE_PROVENANCE_CACHE_INVALID")
+    verified_source_entries_cache = (
+        _verified_source_entries_cache
+        if _verified_source_entries_cache is not None
+        else {}
+    )
     observed = _clock(
         training_observed_at,
         reason="PROFILED_TRAINING_OBSERVED_AT_INVALID",
@@ -2869,6 +2895,7 @@ def load_profiled_training_ledger_v1(
                 item=item,
                 high_water=before_high_water,
                 trusted_immutable_cost_store_root=trusted_immutable_cost_store_root,
+                verified_source_entries_cache=verified_source_entries_cache,
             )
             if type(admitted) is ProfiledTrainingLedgerExclusionV1:
                 exclusions.append(cast(ProfiledTrainingLedgerExclusionV1, admitted))
@@ -2970,6 +2997,7 @@ def reopen_profiled_training_ledger_sample_v1(
     durable_snapshot_id: str,
     expected_sequence: int,
     expected_record_sha256: str,
+    _verified_source_entries_cache: dict[str, tuple[Any, ...]] | None = None,
 ) -> ProfiledTrainingLedgerSampleV1:
     """Reopen one manifest-bound sample without a full-ledger rescan.
 
@@ -2999,6 +3027,10 @@ def reopen_profiled_training_ledger_sample_v1(
         _fail("PROFILED_TRAINING_DIRECT_REOPEN_COST_STORE_ROOT_INVALID")
     if type(fixed_observation_high_water) is not dict:
         _fail("PROFILED_TRAINING_DIRECT_REOPEN_HIGH_WATER_INVALID")
+    if _verified_source_entries_cache is not None and type(
+        _verified_source_entries_cache
+    ) is not dict:
+        _fail("PROFILED_TRAINING_DIRECT_REOPEN_SOURCE_PROVENANCE_CACHE_INVALID")
     high_water = cast(dict[str, Any], fixed_observation_high_water)
     claimed_high_water_sha256 = high_water.get("high_water_sha256")
     unsigned_high_water = {
@@ -3088,6 +3120,7 @@ def reopen_profiled_training_ledger_sample_v1(
         item=item,
         high_water=high_water,
         trusted_immutable_cost_store_root=trusted_immutable_cost_store_root,
+        verified_source_entries_cache=_verified_source_entries_cache,
     )
     if type(admitted) is ProfiledTrainingLedgerExclusionV1:
         _fail(
