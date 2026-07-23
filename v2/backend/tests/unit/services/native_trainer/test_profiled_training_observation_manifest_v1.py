@@ -20,8 +20,14 @@ from v2.backend.app.services.native_trainer import (
 from v2.backend.app.services.native_trainer import (
     profiled_training_observation_manifest_v1 as manifest_module,
 )
+from v2.backend.app.services.native_trainer.authenticated_ohlcv_profile_transform_v1 import (
+    AUTHENTICATED_OHLCV_PROFILE_TRANSFORM_V1_CONFIGURATION_SHA256,
+)
 from v2.backend.app.services.native_trainer.durable_canonical_5m_label_archive import (
     DurableCanonical5mLabelArchive,
+)
+from v2.backend.app.services.native_trainer.durable_feature_snapshot_ledger import (
+    DurableFeatureSnapshotLedger,
 )
 from v2.backend.app.services.native_trainer.profiled_model_feature_snapshot_record_v1 import (
     LOGICAL_MODEL_FEATURE_COUNT,
@@ -35,6 +41,9 @@ from v2.backend.app.services.native_trainer.profiled_training_observation_manife
     authenticate_profiled_training_observation_manifest_v1,
     build_profiled_training_observation_manifest_v1,
     read_profiled_training_observation_page_v1,
+)
+from v2.backend.app.services.native_trainer.source_provenance_ledger_v4 import (
+    TrainerSourceProvenanceLedgerV4,
 )
 from v2.backend.tests.unit.services.native_trainer import (
     test_profiled_model_feature_snapshot_record_v1 as base_support,
@@ -217,6 +226,96 @@ def test_builds_authenticated_manifest_and_reopens_exact_446_1784_example(
     assert page.external_monotonic_manifest_head_verified is False
     assert all(not path.exists() for path in orphan_paths)
     assert unrelated.read_bytes() == b"not-owned-by-the-exact-temp-namespace"
+
+
+def test_multi_example_page_reuses_one_authenticated_source_snapshot(
+    tmp_path: Path,
+    authenticated_base_evidence: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    first_parent = authenticated_base_evidence.record
+    second_parent = loader_support._rebuild_parent_with_transform_configuration(
+        first_parent,
+        transform_configuration_sha256=(
+            AUTHENTICATED_OHLCV_PROFILE_TRANSFORM_V1_CONFIGURATION_SHA256
+        ),
+        identity_suffix="second-page-sample",
+    )
+    ledger = DurableFeatureSnapshotLedger(tmp_path / "feature-ledger.sqlite3")
+    cost_root = (tmp_path / "cost-cas").absolute()
+    first_child = loader_support._child_record(
+        first_parent,
+        cost_store_root=cost_root,
+        original_tensor_suffix="-first-page-sample",
+    )
+    second_child = loader_support._child_record(
+        second_parent,
+        cost_store_root=cost_root,
+        original_tensor_suffix="-second-page-sample",
+    )
+    appended = loader_support._append_after_latest_decision(
+        ledger,
+        [first_parent, first_child, second_parent, second_child],
+    )
+    assert appended.inserted_rows == 4
+
+    envelope = first_parent["frozen_envelope"]
+    values = dict(
+        zip(
+            envelope["ordered_feature_names"],
+            envelope["feature_values"],
+            strict=True,
+        )
+    )
+    archive = DurableCanonical5mLabelArchive(tmp_path / "labels.sqlite3")
+    archive.append_candles(
+        _label_candles(
+            decision_time=envelope["tensor_decision_time"],
+            entry_price=float(values["close"]),
+        )
+    )
+    observation = loader_support._observation()
+    built = build_profiled_training_observation_manifest_v1(
+        ledger=ledger,
+        trusted_immutable_cost_store_root=cost_root,
+        label_archive=archive,
+        manifest_root=(tmp_path / "manifests").absolute(),
+        training_observed_at=observation,
+        auth_key_id=AUTH_KEY_ID,
+        hmac_key=AUTH_KEY,
+    )
+    assert built.total_profiled_samples == 2
+    assert built.admitted_examples == 2
+
+    read_only_calls = 0
+    original_read_only = TrainerSourceProvenanceLedgerV4.read_entries_read_only
+
+    def tracked_read_only(
+        source_ledger: TrainerSourceProvenanceLedgerV4,
+    ) -> tuple[Any, ...]:
+        nonlocal read_only_calls
+        read_only_calls += 1
+        return original_read_only(source_ledger)
+
+    monkeypatch.setattr(
+        TrainerSourceProvenanceLedgerV4,
+        "read_entries_read_only",
+        tracked_read_only,
+    )
+    page = read_profiled_training_observation_page_v1(
+        manifest_path=built.manifest_path,
+        ledger=ledger,
+        trusted_immutable_cost_store_root=cost_root,
+        hmac_key=AUTH_KEY,
+        expected_auth_key_id=AUTH_KEY_ID,
+        expected_manifest_id=built.manifest_id,
+        expected_observation_time=built.observation_time,
+        limit=2,
+    )
+
+    assert len(page.examples) == 2
+    assert page.scanned_entry_count == 2
+    assert read_only_calls == 1
 
 
 @pytest.mark.parametrize("object_kind", ["symlink", "hardlink"])

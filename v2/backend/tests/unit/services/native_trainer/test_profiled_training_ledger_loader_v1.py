@@ -1147,7 +1147,7 @@ def test_current_policy_source_binding_rejects_rest_in_selected_slice(
         forbidden_write_capable_read,
     )
 
-    with loader_v1._SourceProvenanceSnapshotSession() as snapshot_session:
+    with loader_v1.ProfiledTrainingSourceProvenanceSnapshotSessionV1() as snapshot_session:
         snapshot = snapshot_session.snapshot_for(source_ledger.root)
         assert snapshot.verified_entry_count == 2
         assert snapshot.verified_head_entry_sha256 == entries[-1].entry_sha256
@@ -1168,7 +1168,7 @@ def test_current_policy_source_binding_rejects_rest_in_selected_slice(
                 )
     assert read_only_calls == 1
 
-    with loader_v1._SourceProvenanceSnapshotSession() as next_invocation:
+    with loader_v1.ProfiledTrainingSourceProvenanceSnapshotSessionV1() as next_invocation:
         with pytest.raises(
             loader_v1.ProfiledTrainingLedgerLoaderV1Error,
             match="PROFILED_TRAINING_PARENT_REQUIRED_WINDOW_TRANSPORT_UNPROVEN",
@@ -1240,7 +1240,7 @@ def test_source_snapshot_session_is_one_root_bounded_and_revisit_is_fixed(
         synthetic_read,
     )
 
-    with loader_v1._SourceProvenanceSnapshotSession() as session:
+    with loader_v1.ProfiledTrainingSourceProvenanceSnapshotSessionV1() as session:
         first = session.snapshot_for(root_a)
         assert session.snapshot_for(root_a) is first
         assert not hasattr(first.entries[0], "entry_json")

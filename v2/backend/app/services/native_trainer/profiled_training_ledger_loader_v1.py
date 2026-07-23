@@ -29,6 +29,7 @@ import math
 import re
 import struct
 from collections.abc import Callable, Mapping, Sequence
+from contextlib import nullcontext
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -696,7 +697,7 @@ def _compact_source_provenance_snapshot(
     )
 
 
-class _SourceProvenanceSnapshotSession:
+class ProfiledTrainingSourceProvenanceSnapshotSessionV1:
     """Invocation-local, one-root compact cache with stable revisit identities."""
 
     __slots__ = (
@@ -712,7 +713,7 @@ class _SourceProvenanceSnapshotSession:
         self._identities: dict[str, tuple[str, int, str | None]] = {}
         self._entered = False
 
-    def __enter__(self) -> _SourceProvenanceSnapshotSession:
+    def __enter__(self) -> ProfiledTrainingSourceProvenanceSnapshotSessionV1:
         if self._entered:
             _fail("PROFILED_TRAINING_SOURCE_SNAPSHOT_SESSION_REENTRY_FORBIDDEN")
         self._entered = True
@@ -1043,11 +1044,12 @@ def _validate_source_provenance_binding(
     transform_available_at: datetime,
     decision_time: datetime,
     require_current_window_wss: bool = True,
-    source_snapshot_session: _SourceProvenanceSnapshotSession | None = None,
+    source_snapshot_session: ProfiledTrainingSourceProvenanceSnapshotSessionV1 | None = None,
 ) -> str:
     if type(require_current_window_wss) is not bool or (
         source_snapshot_session is not None
-        and type(source_snapshot_session) is not _SourceProvenanceSnapshotSession
+        and type(source_snapshot_session)
+        is not ProfiledTrainingSourceProvenanceSnapshotSessionV1
     ):
         _fail("PROFILED_TRAINING_PARENT_SOURCE_POLICY_ARGUMENT_INVALID")
     binding = _exact_dict(
@@ -1222,7 +1224,7 @@ def _validate_parent_model_record(
         AUTHENTICATED_OHLCV_PROFILE_TRANSFORM_V1_CONFIGURATION_SHA256
     ),
     require_current_window_wss: bool = True,
-    source_snapshot_session: _SourceProvenanceSnapshotSession | None = None,
+    source_snapshot_session: ProfiledTrainingSourceProvenanceSnapshotSessionV1 | None = None,
 ) -> dict[str, Any]:
     if (
         type(expected_transform_configuration_sha256) is not str
@@ -1234,7 +1236,8 @@ def _validate_parent_model_record(
         or type(require_current_window_wss) is not bool
         or (
             source_snapshot_session is not None
-            and type(source_snapshot_session) is not _SourceProvenanceSnapshotSession
+            and type(source_snapshot_session)
+            is not ProfiledTrainingSourceProvenanceSnapshotSessionV1
         )
         or require_current_window_wss
         is not (
@@ -2973,9 +2976,12 @@ def _admit_item(
     item: FixedCutoffFeatureSnapshot,
     high_water: Mapping[str, Any],
     trusted_immutable_cost_store_root: Path,
-    source_snapshot_session: _SourceProvenanceSnapshotSession,
+    source_snapshot_session: ProfiledTrainingSourceProvenanceSnapshotSessionV1,
 ) -> ProfiledTrainingLedgerSampleV1 | ProfiledTrainingLedgerExclusionV1 | None:
-    if type(source_snapshot_session) is not _SourceProvenanceSnapshotSession:
+    if (
+        type(source_snapshot_session)
+        is not ProfiledTrainingSourceProvenanceSnapshotSessionV1
+    ):
         _fail("PROFILED_TRAINING_SOURCE_SNAPSHOT_SESSION_INVALID")
     record = item.record
     if type(record) is not dict or type(record.get("frozen_envelope")) is not dict:
@@ -3374,7 +3380,7 @@ def load_profiled_training_ledger_fixed_observation_v1(
         exclusion_count = 0
         maximum_resident_page_row_count = 0
         after_sequence = 0
-        with _SourceProvenanceSnapshotSession() as source_snapshot_session:
+        with ProfiledTrainingSourceProvenanceSnapshotSessionV1() as source_snapshot_session:
             page_iterator = ledger.iter_fixed_cutoff_pages(
                 decision_time_cutoff=strict_prior_text,
                 training_observed_at=strict_prior_text,
@@ -3585,7 +3591,7 @@ def load_profiled_training_ledger_v1(
         scanned_items = items[:scan_limit]
         samples: list[ProfiledTrainingLedgerSampleV1] = []
         exclusions: list[ProfiledTrainingLedgerExclusionV1] = []
-        with _SourceProvenanceSnapshotSession() as source_snapshot_session:
+        with ProfiledTrainingSourceProvenanceSnapshotSessionV1() as source_snapshot_session:
             for item in scanned_items:
                 admitted = _admit_item(
                     ledger=ledger,
@@ -3694,6 +3700,8 @@ def reopen_profiled_training_ledger_sample_v1(
     durable_snapshot_id: str,
     expected_sequence: int,
     expected_record_sha256: str,
+    source_snapshot_session: ProfiledTrainingSourceProvenanceSnapshotSessionV1
+    | None = None,
 ) -> ProfiledTrainingLedgerSampleV1:
     """Reopen one manifest-bound sample without a full-ledger rescan.
 
@@ -3708,12 +3716,20 @@ def reopen_profiled_training_ledger_sample_v1(
 
     It deliberately does not reproduce the whole ledger high-water.  Doing so
     would turn every runtime page into O(total ledger) work and defeat the
-    observation manifest boundary.  It grants no serving or execution
-    authority.
+    observation manifest boundary.  An already-entered invocation-local source
+    snapshot session may be shared by exact manifest siblings; it still performs
+    one complete read-only chain/CAS authentication and is never process-global.
+    This function grants no serving or execution authority.
     """
 
     if type(ledger) is not DurableFeatureSnapshotLedger:
         _fail("PROFILED_TRAINING_DIRECT_REOPEN_LEDGER_EXACT_TYPE_REQUIRED")
+    if (
+        source_snapshot_session is not None
+        and type(source_snapshot_session)
+        is not ProfiledTrainingSourceProvenanceSnapshotSessionV1
+    ):
+        _fail("PROFILED_TRAINING_SOURCE_SNAPSHOT_SESSION_INVALID")
     if (
         type(trusted_immutable_cost_store_root) is not type(Path())
         or not trusted_immutable_cost_store_root.is_absolute()
@@ -3807,13 +3823,18 @@ def reopen_profiled_training_ledger_sample_v1(
     )
     if postcommit > strict_prior or decision > strict_prior:
         _fail("PROFILED_TRAINING_DIRECT_REOPEN_AFTER_FIXED_OBSERVATION")
-    with _SourceProvenanceSnapshotSession() as source_snapshot_session:
+    source_snapshot_context = (
+        ProfiledTrainingSourceProvenanceSnapshotSessionV1()
+        if source_snapshot_session is None
+        else nullcontext(source_snapshot_session)
+    )
+    with source_snapshot_context as active_source_snapshot_session:
         admitted = _admit_item(
             ledger=ledger,
             item=item,
             high_water=high_water,
             trusted_immutable_cost_store_root=trusted_immutable_cost_store_root,
-            source_snapshot_session=source_snapshot_session,
+            source_snapshot_session=active_source_snapshot_session,
         )
     if type(admitted) is ProfiledTrainingLedgerExclusionV1:
         _fail(
@@ -3859,6 +3880,7 @@ __all__ = [
     "ProfiledTrainingLedgerFixedObservationV1",
     "ProfiledTrainingLedgerLoaderV1Error",
     "ProfiledTrainingLedgerSampleV1",
+    "ProfiledTrainingSourceProvenanceSnapshotSessionV1",
     "load_profiled_training_ledger_fixed_observation_v1",
     "load_profiled_training_ledger_v1",
     "reopen_profiled_training_ledger_sample_v1",

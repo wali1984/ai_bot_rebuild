@@ -81,6 +81,7 @@ from v2.backend.app.services.native_trainer.profiled_training_ledger_loader_v1 i
     PROFILED_TRAINING_PROJECTION_V1_SCHEMA_VERSION,
     ProfiledTrainingLedgerLoaderV1Error,
     ProfiledTrainingLedgerSampleV1,
+    ProfiledTrainingSourceProvenanceSnapshotSessionV1,
     load_profiled_training_ledger_fixed_observation_v1,
     reopen_profiled_training_ledger_sample_v1,
 )
@@ -2888,43 +2889,56 @@ def read_profiled_training_observation_page_v1(
             _fail("PROFILED_OBSERVATION_ENTRY_INVENTORY_OMISSION")
         examples: list[ProfiledTrainingObservationExampleV1] = []
         unavailable_scanned = 0
-        for expected_ordinal, row in enumerate(rows, start=after_ordinal + 1):
-            if row["ordinal"] != expected_ordinal:
-                _fail("PROFILED_OBSERVATION_ENTRY_ORDINAL_GAP")
-            entry = _verify_entry_row(
-                row,
-                key=key,
-                observation_context_sha256=cast(
-                    str,
-                    metadata["observation_context_sha256"],
-                ),
-                expected_previous_chain=previous_chain,
-            )
-            previous_chain = str(row["entry_chain_sha256"])
-            if entry["label_status"] == PROFILED_OBSERVATION_LABEL_STATUS_UNAVAILABLE:
-                unavailable_scanned += 1
-                continue
-            sample_binding = cast(dict[str, Any], entry["sample_binding"])
-            try:
-                sample = reopen_profiled_training_ledger_sample_v1(
-                    ledger=ledger,
-                    trusted_immutable_cost_store_root=cost_root,
-                    fixed_observation_high_water=high_water,
-                    training_observed_at=cast(str, metadata["observation_time"]),
-                    durable_snapshot_id=cast(
+        with ProfiledTrainingSourceProvenanceSnapshotSessionV1() as source_session:
+            for expected_ordinal, row in enumerate(rows, start=after_ordinal + 1):
+                if row["ordinal"] != expected_ordinal:
+                    _fail("PROFILED_OBSERVATION_ENTRY_ORDINAL_GAP")
+                entry = _verify_entry_row(
+                    row,
+                    key=key,
+                    observation_context_sha256=cast(
                         str,
-                        sample_binding["durable_snapshot_id"],
+                        metadata["observation_context_sha256"],
                     ),
-                    expected_sequence=cast(int, sample_binding["ledger_sequence"]),
-                    expected_record_sha256=cast(str, sample_binding["record_sha256"]),
+                    expected_previous_chain=previous_chain,
                 )
-            except ProfiledTrainingLedgerLoaderV1Error as exc:
-                raise ProfiledTrainingObservationManifestV1Error(
-                    f"PROFILED_OBSERVATION_DIRECT_SAMPLE_REOPEN_FAILED:{exc}"
-                ) from exc
-            if _sample_binding(sample) != sample_binding:
-                _fail("PROFILED_OBSERVATION_DIRECT_SAMPLE_BINDING_MISMATCH")
-            examples.append(_example_from_authenticated_entry(entry=entry, sample=sample))
+                previous_chain = str(row["entry_chain_sha256"])
+                if (
+                    entry["label_status"]
+                    == PROFILED_OBSERVATION_LABEL_STATUS_UNAVAILABLE
+                ):
+                    unavailable_scanned += 1
+                    continue
+                sample_binding = cast(dict[str, Any], entry["sample_binding"])
+                try:
+                    sample = reopen_profiled_training_ledger_sample_v1(
+                        ledger=ledger,
+                        trusted_immutable_cost_store_root=cost_root,
+                        fixed_observation_high_water=high_water,
+                        training_observed_at=cast(str, metadata["observation_time"]),
+                        durable_snapshot_id=cast(
+                            str,
+                            sample_binding["durable_snapshot_id"],
+                        ),
+                        expected_sequence=cast(
+                            int,
+                            sample_binding["ledger_sequence"],
+                        ),
+                        expected_record_sha256=cast(
+                            str,
+                            sample_binding["record_sha256"],
+                        ),
+                        source_snapshot_session=source_session,
+                    )
+                except ProfiledTrainingLedgerLoaderV1Error as exc:
+                    raise ProfiledTrainingObservationManifestV1Error(
+                        f"PROFILED_OBSERVATION_DIRECT_SAMPLE_REOPEN_FAILED:{exc}"
+                    ) from exc
+                if _sample_binding(sample) != sample_binding:
+                    _fail("PROFILED_OBSERVATION_DIRECT_SAMPLE_BINDING_MISMATCH")
+                examples.append(
+                    _example_from_authenticated_entry(entry=entry, sample=sample)
+                )
         next_after = int(rows[-1]["ordinal"]) if rows else after_ordinal
         has_more = next_after < total_entries
         if not has_more and previous_chain != metadata.get("entry_chain_head_sha256"):
