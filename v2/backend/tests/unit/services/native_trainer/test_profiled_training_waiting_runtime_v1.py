@@ -18,6 +18,7 @@ from v2.backend.app.services.native_trainer import (
 )
 from v2.backend.app.services.native_trainer.durable_feature_snapshot_ledger import (
     DurableFeatureSnapshotLedger,
+    FeatureSnapshotWriterLease,
 )
 from v2.backend.app.services.native_trainer.profiled_training_waiting_runtime_v1 import (
     PROFILED_CHILD_CANDIDATES_AVAILABLE_STATE,
@@ -82,6 +83,9 @@ def test_candidate_contract_constants_match_offline_hardened_loader() -> None:
     assert waiting_runtime._PROFILED_TRANSFORM_CONFIGURATION_SHA256 == (
         AUTHENTICATED_OHLCV_PROFILE_TRANSFORM_V1_CONFIGURATION_SHA256
     )
+    assert waiting_runtime._CANONICAL_PROVENANCE_CLASSIFICATION == (
+        ledger_module.PROVENANCE_CANONICAL_V3
+    )
     assert waiting_runtime._PHYSICAL_PROFILED_FEATURE_COUNT == (
         hardened_loader.PROFILED_TRAINING_PHYSICAL_FEATURE_COUNT
     )
@@ -90,6 +94,9 @@ def test_candidate_contract_constants_match_offline_hardened_loader() -> None:
     )
     assert waiting_runtime._EXPECTED_SAMPLE_AUTHORIZATION == (
         hardened_loader._EXPECTED_AUTHORIZATION
+    )
+    assert waiting_runtime._EXPECTED_PARENT_AUTHORIZATION == (
+        hardened_loader._PARENT_FALSE_AUTHORIZATION
     )
     assert waiting_runtime._PARENT_PROFILED_FEATURE_COUNT == PHYSICAL_MODEL_FEATURE_COUNT
     assert (
@@ -131,7 +138,7 @@ def test_candidate_contract_requires_exact_parent_child_bit_identity() -> None:
             ),
             "authorization": dict(waiting_runtime._EXPECTED_PARENT_AUTHORIZATION),
         },
-        "provenance_classification": "CANONICAL_V3",
+        "provenance_classification": waiting_runtime._CANONICAL_PROVENANCE_CLASSIFICATION,
         "legacy_v1_snapshot_id": None,
         "strict_training_eligible": False,
         "missing_mask": [0] * 35,
@@ -191,7 +198,7 @@ def test_candidate_contract_requires_exact_parent_child_bit_identity() -> None:
                 "parent_model_record_binding": {"durable_snapshot_id": "profiled-parent-id"},
             }
         },
-        "provenance_classification": "CANONICAL_V3",
+        "provenance_classification": waiting_runtime._CANONICAL_PROVENANCE_CLASSIFICATION,
         "legacy_v1_snapshot_id": None,
         "strict_training_eligible": True,
         "strict_training_ineligibility_reasons": [],
@@ -217,6 +224,18 @@ def test_candidate_contract_requires_exact_parent_child_bit_identity() -> None:
     assert (
         waiting_runtime._profiled_child_candidate_rejection(legacy_item, ledger=ledger)
         == "PROFILED_CHILD_UNSUPPORTED_TRANSFORM_CONFIGURATION"
+    )
+
+    stale_provenance_item = copy.deepcopy(item)
+    stale_provenance_item.record["frozen_envelope"]["provenance_classification"] = (
+        "CANONICAL_V3"
+    )
+    assert (
+        waiting_runtime._profiled_child_candidate_rejection(
+            stale_provenance_item,
+            ledger=ledger,
+        )
+        == "PROFILED_CHILD_CANDIDATE_CONTRACT_INVALID"
     )
 
     tampered_item = copy.deepcopy(item)
@@ -568,3 +587,31 @@ def test_hardened_empty_ledger_probe_does_not_materialize_absent_cost_store(
     assert result.full_sample_authentication_performed is False
     assert not config.trusted_cost_store_root.exists()
     assert after == before
+
+
+def test_writer_guard_materializes_sidecars_before_observer_read(tmp_path: Path) -> None:
+    config = _config(tmp_path)
+    config.ledger_path.parent.mkdir(parents=True)
+
+    with FeatureSnapshotWriterLease.acquire(config.ledger_path) as writer_lease:
+        ledger = DurableFeatureSnapshotLedger(
+            config.ledger_path,
+            writer_lease=writer_lease,
+        )
+        ledger.initialize()
+        with ledger.resident_wal_sidecar_guard():
+            before = {path.name for path in config.ledger_path.parent.iterdir()}
+            assert f"{config.ledger_path.name}-wal" in before
+            assert f"{config.ledger_path.name}-shm" in before
+
+            result = inspect_authenticated_profiled_samples_v1(
+                config,
+                training_observed_at=OBSERVED_AT,
+            )
+
+            after = {path.name for path in config.ledger_path.parent.iterdir()}
+            assert result.strict_training_eligible_row_count == 0
+            assert result.profiled_child_candidate_count == 0
+            assert result.ledger_integrity_verified is True
+            assert result.scan_complete is True
+            assert after == before

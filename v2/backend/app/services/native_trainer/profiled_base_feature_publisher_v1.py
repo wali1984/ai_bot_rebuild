@@ -1,12 +1,16 @@
-"""Runtime publisher for atomic authenticated 35+4 profiled-training pairs.
+"""Runtime publisher for authenticated profiled-training evidence.
 
 The publisher is intentionally narrower than a trainer or prediction service.
 It discovers symbols from the intersection of the canonical Binance closed
 ``5m`` and ``1h`` Redis keys, captures their exact bytes with the existing
 atomic receipt adapter, and durably records both source captures before it
-computes a still-unappended 35-feature parent.  A parent is published only in
-one adjacent ledger transaction with its four label-only causal-cost values;
-neither record grants prediction, paper, or live authority.
+computes a still-unappended 35-feature parent.  With complete protected
+commission credentials, a parent is published only in one adjacent ledger
+transaction with its four label-only causal-cost values.  When the complete
+credential bundle is absent, the same point-in-time-safe parent may instead be
+appended alone as a quarantined observation with an explicit four-slot missing
+cost mask and no cost values or receipts.  Neither path grants prediction,
+paper, or live authority.
 
 Symbol coverage rotates by least-recent attempted publication, while successful
 coverage is tracked independently.  Per-cycle
@@ -36,6 +40,9 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, Final, NoReturn, cast
 
+from v2.backend.app.services.binance_usdm_commission_evidence_broker import (
+    CredentiallessCommissionEvidence,
+)
 from v2.backend.app.services.native_trainer.adaptive_ohlcv_feature_selection_profile_v1 import (
     ADAPTIVE_OHLCV_FEATURE_SELECTION_PROFILE_V1,
 )
@@ -67,14 +74,22 @@ from v2.backend.app.services.native_trainer.canonical_ohlcv_multitimeframe_captu
     build_canonical_ohlcv_multitimeframe_capture_set_v1,
     canonical_ohlcv_multitimeframe_capture_set_v1_contract,
 )
+from v2.backend.app.services.native_trainer.causal_adaptive_cold_start_notional_policy_v1 import (
+    CAUSAL_ADAPTIVE_COLD_START_NOTIONAL_PORTFOLIO_SOURCE_KEY,
+    CausalAdaptiveColdStartNotionalPolicyV1Error,
+    build_causal_adaptive_cold_start_notional_policy_v1,
+)
 from v2.backend.app.services.native_trainer.causal_cost_evidence_v1 import (
     CAUSAL_COST_COUNTERFACTUAL_HORIZON_SECONDS,
+    CAUSAL_COST_NOTIONAL_PROVENANCE_VERIFIED_STATUS,
+    CAUSAL_COST_ORDERED_FEATURE_NAMES,
     CausalCostEvidenceV1Error,
     CausalCostEvidenceV1Result,
     build_causal_cost_evidence_v1,
 )
 from v2.backend.app.services.native_trainer.causal_expected_notional_policy_v1 import (
     CAUSAL_EXPECTED_NOTIONAL_SOURCE_KEY,
+    CAUSAL_EXPECTED_NOTIONAL_ZERO_CANDIDATE_REASON,
     CausalExpectedNotionalPolicyV1Error,
     build_causal_expected_notional_policy_v1,
 )
@@ -91,6 +106,7 @@ from v2.backend.app.services.native_trainer.ohlcv_closed_window_schema import (
     TIMEFRAME_DURATION_MS,
 )
 from v2.backend.app.services.native_trainer.profiled_model_feature_snapshot_record_v1 import (
+    PHYSICAL_ORDERED_FEATURE_NAMES,
     ProfiledModelFeatureSnapshotRecordV1Error,
     build_profiled_model_feature_snapshot_record_v1,
     validate_profiled_model_feature_snapshot_record_v1,
@@ -126,6 +142,16 @@ PROFILED_BASE_FEATURE_PUBLISHER_STATUS_V1_SCHEMA_VERSION: Final = (
     "profiled_base_feature_publisher_status_v1"
 )
 PROFILED_BASE_FEATURE_PUBLISHER_RUN_ID: Final = "profiled-base-publisher-v1"
+AUTHENTICATED_COST_EVIDENCE_REQUIRED_MODE: Final = (
+    "AUTHENTICATED_COST_EVIDENCE_REQUIRED"
+)
+MASKED_COST_OBSERVATION_MODE: Final = "MASKED_COST_OBSERVATION"
+BROKER_AUTHENTICATED_COST_EVIDENCE_WITH_MASKED_FALLBACK_MODE: Final = (
+    "BROKER_AUTHENTICATED_COST_EVIDENCE_WITH_MASKED_FALLBACK"
+)
+PROFILED_MASKED_COST_OBSERVATION_V1_SCHEMA_VERSION: Final = (
+    "profiled_masked_cost_observation_v1"
+)
 CANONICAL_KEY_PREFIX: Final = "v2:market:ohlcv_closed:binance:"
 REQUIRED_TIMEFRAMES: Final = ("5m", "1h")
 DYNAMIC_SYMBOL_SELECTION_KEY: Final = "v2:symbol_universe:dynamic_discovered_symbols"
@@ -150,6 +176,9 @@ DISK_RESERVE_POLICY_V1: Final = (
     "MAX_TWO_ESTIMATED_PUBLICATION_UNITS_OR_CEILING_ONE_FIFTH_TOTAL_DISK"
 )
 SOURCE_SHARD_RE = re.compile(r"^shard-([0-9]{8})$", re.ASCII)
+SOURCE_SHARD_PREFLIGHT_V1_SCHEMA_VERSION: Final = (
+    "profiled_base_source_shard_preflight_v1"
+)
 SYMBOL_RE = re.compile(r"^[A-Z0-9]{2,48}$", re.ASCII)
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$", re.ASCII)
 CLOCK_FORMAT: Final = "%Y-%m-%dT%H:%M:%S.%fZ"
@@ -168,6 +197,15 @@ COST_TEMPORAL_RETRY_REASONS: Final = frozenset(
         "CAUSAL_COST_ATOMIC_CAPTURE_AFTER_DECISION",
         "EXPECTED_NOTIONAL_ATOMIC_CAPTURE_AFTER_DECISION",
         "EXPECTED_NOTIONAL_SOURCE_EXPIRED_AT_DECISION",
+        "COLD_START_NOTIONAL_PORTFOLIO_CAPTURE_AFTER_DECISION",
+        "COLD_START_NOTIONAL_PORTFOLIO_EXPIRED_AT_DECISION",
+        "COLD_START_NOTIONAL_CONTROL_CAPTURE_AFTER_DECISION",
+        "COLD_START_NOTIONAL_ZERO_CANDIDATE_EXPIRED_AT_DECISION",
+        "COLD_START_NOTIONAL_CANDIDATE_MARGIN_CYCLE_MISMATCH",
+        "COLD_START_NOTIONAL_CANDIDATE_MARGIN_CYCLE_ID_MISMATCH",
+        "COLD_START_NOTIONAL_MARKET_CAPTURE_AFTER_DECISION",
+        "COLD_START_NOTIONAL_MARKET_EXPIRED_AT_DECISION",
+        "COMMISSION_BROKER_DECISION_TEMPORAL_ADMISSION_FAILED",
         "PROFILED_BASE_PUBLISHER_COMMISSION_POLICY_AFTER_DECISION",
         "PROFILED_BASE_PUBLISHER_COST_RECAPTURE_WINDOW_MISSED",
         "PROFILED_BASE_PUBLISHER_NOTIONAL_PTTL_SUBSECOND_UNUSABLE",
@@ -205,6 +243,12 @@ PROFILED_TRAINING_PAIR_RECOVERY_V1_SCHEMA_VERSION: Final = (
 )
 PROFILED_TRAINING_PAIR_RECOVERY_V2_SCHEMA_VERSION: Final = (
     "profiled_training_pair_recovery_receipt_v2"
+)
+PROFILED_MASKED_PARENT_RECOVERY_DIRECTORY: Final = (
+    "profiled-masked-parent-recovery-receipts-v1"
+)
+PROFILED_MASKED_PARENT_RECOVERY_V1_SCHEMA_VERSION: Final = (
+    "profiled_masked_parent_recovery_receipt_v1"
 )
 _PAIR_RECOVERY_V1_FIELDS: Final = frozenset(
     {
@@ -245,6 +289,24 @@ _PAIR_RECOVERY_FIELDS: Final = frozenset(
         "recovery_receipt_sha256",
     }
 )
+_MASKED_PARENT_RECOVERY_FIELDS: Final = frozenset(
+    {
+        "schema_version",
+        "symbol",
+        "window_fingerprint_sha256",
+        "capture_policy_id",
+        "capture_policy_sha256",
+        "transform_configuration_sha256",
+        "parent_durable_snapshot_id",
+        "parent_record_sha256",
+        "cost_observation_binding_sha256",
+        "prepared_at",
+        "append_disposition",
+        "materialized_evidence_bytes",
+        "evidence_accounting_method",
+        "recovery_receipt_sha256",
+    }
+)
 COST_EVIDENCE_UNAVAILABLE_PARENT_NOT_APPENDED: Final = (
     "COST_EVIDENCE_UNAVAILABLE_PARENT_NOT_APPENDED"
 )
@@ -252,6 +314,30 @@ COMMISSION_REFRESH_POLICY_ID: Final = "profiled-training-commission-notional-ptt
 COMMISSION_REFRESH_POLICY_VERSION: Final = "notional-redis-pttl-server-clock-v1"
 COMMISSION_CAPTURE_FALLBACK_REASON: Final = "profiled-training-causal-cost-required"
 _EPOCH: Final = datetime(1970, 1, 1, tzinfo=UTC)
+
+
+def _masked_cost_observation_contract() -> dict[str, Any]:
+    """Return a fresh no-value mask for the atomic four-field cost bundle."""
+
+    return {
+        "schema_version": PROFILED_MASKED_COST_OBSERVATION_V1_SCHEMA_VERSION,
+        "classification": "REQUIRED_LABEL_AUXILIARY_COST_BUNDLE_UNAVAILABLE_MASKED",
+        "ordered_feature_names": list(CAUSAL_COST_ORDERED_FEATURE_NAMES),
+        "missing_mask": [1] * len(CAUSAL_COST_ORDERED_FEATURE_NAMES),
+        "stale_mask": [0] * len(CAUSAL_COST_ORDERED_FEATURE_NAMES),
+        "source_availability_mask": [0] * len(CAUSAL_COST_ORDERED_FEATURE_NAMES),
+        "feature_values_emitted": False,
+        "feature_source_receipts_emitted": False,
+        "unavailability_reason": (
+            "COMPLETE_PROTECTED_COMMISSION_CREDENTIAL_BUNDLE_ABSENT_"
+            "AT_PROSPECTIVE_DECISION"
+        ),
+        "strict_training_eligible": False,
+        "trainer_admission_authorized": False,
+        "prediction_authorized": False,
+        "paper_trading_authorized": False,
+        "live_execution_authorized": False,
+    }
 
 
 class ProfiledBaseFeaturePublisherV1Error(RuntimeError):
@@ -482,6 +568,65 @@ def _strict_path(path: Path, *, reason: str) -> Path:
     return path
 
 
+def _regular_tree_file_bytes(root: Path) -> int:
+    """Measure only durable regular files owned by one publisher tree."""
+
+    try:
+        root_stat = os.lstat(root)
+    except FileNotFoundError:
+        return 0
+    except OSError as exc:
+        raise ProfiledBaseFeaturePublisherV1ResourceError(
+            "PROFILED_BASE_PUBLISHER_OWNED_FOOTPRINT_SAMPLE_FAILED"
+        ) from exc
+    if not stat.S_ISDIR(root_stat.st_mode) or stat.S_ISLNK(root_stat.st_mode):
+        _fail(
+            ProfiledBaseFeaturePublisherV1ResourceError,
+            "PROFILED_BASE_PUBLISHER_OWNED_FOOTPRINT_ROOT_INVALID",
+        )
+    total = 0
+    pending = [root]
+    try:
+        while pending:
+            directory = pending.pop()
+            with os.scandir(directory) as entries:
+                for entry in entries:
+                    item_stat = entry.stat(follow_symlinks=False)
+                    if stat.S_ISREG(item_stat.st_mode):
+                        total += item_stat.st_size
+                    elif stat.S_ISDIR(item_stat.st_mode):
+                        pending.append(Path(entry.path))
+                    else:
+                        _fail(
+                            ProfiledBaseFeaturePublisherV1ResourceError,
+                            "PROFILED_BASE_PUBLISHER_OWNED_FOOTPRINT_ENTRY_INVALID",
+                        )
+    except ProfiledBaseFeaturePublisherV1ResourceError:
+        raise
+    except OSError as exc:
+        raise ProfiledBaseFeaturePublisherV1ResourceError(
+            "PROFILED_BASE_PUBLISHER_OWNED_FOOTPRINT_SAMPLE_FAILED"
+        ) from exc
+    return total
+
+
+def _regular_file_bytes(path: Path) -> int:
+    try:
+        path_stat = os.lstat(path)
+    except FileNotFoundError:
+        return 0
+    except OSError as exc:
+        raise ProfiledBaseFeaturePublisherV1ResourceError(
+            "PROFILED_BASE_PUBLISHER_OWNED_FOOTPRINT_SAMPLE_FAILED"
+        ) from exc
+    if not stat.S_ISREG(path_stat.st_mode) or stat.S_ISLNK(path_stat.st_mode):
+        _fail(
+            ProfiledBaseFeaturePublisherV1ResourceError,
+            "PROFILED_BASE_PUBLISHER_OWNED_FOOTPRINT_ENTRY_INVALID",
+        )
+    return path_stat.st_size
+
+
 def _initial_state() -> dict[str, Any]:
     return {
         "schema_version": PROFILED_BASE_FEATURE_PUBLISHER_STATE_V1_SCHEMA_VERSION,
@@ -675,6 +820,15 @@ def _pair_recovery_receipt_path(data_root: Path, symbol: str) -> Path:
             "PROFILED_BASE_PUBLISHER_PAIR_RECOVERY_SYMBOL_INVALID",
         )
     return data_root / PROFILED_TRAINING_PAIR_RECOVERY_V2_DIRECTORY / f"{symbol}.json"
+
+
+def _masked_parent_recovery_receipt_path(data_root: Path, symbol: str) -> Path:
+    if SYMBOL_RE.fullmatch(symbol) is None:
+        _fail(
+            ProfiledBaseFeaturePublisherV1StateError,
+            "PROFILED_BASE_PUBLISHER_MASKED_RECOVERY_SYMBOL_INVALID",
+        )
+    return data_root / PROFILED_MASKED_PARENT_RECOVERY_DIRECTORY / f"{symbol}.json"
 
 
 def _legacy_pair_recovery_receipt_path(data_root: Path, symbol: str) -> Path:
@@ -871,6 +1025,106 @@ def _load_pair_recovery_receipt(
     return receipt
 
 
+def _load_masked_parent_recovery_receipt(
+    path: Path,
+    *,
+    expected_symbol: str,
+) -> dict[str, Any] | None:
+    """Read one masked-parent pre-append intent without treating it as a commit."""
+
+    try:
+        path_stat = os.lstat(path)
+    except FileNotFoundError:
+        return None
+    except OSError as exc:
+        raise ProfiledBaseFeaturePublisherV1StateError(
+            "PROFILED_BASE_PUBLISHER_MASKED_RECOVERY_RECEIPT_READ_FAILED"
+        ) from exc
+    if (
+        not stat.S_ISREG(path_stat.st_mode)
+        or stat.S_ISLNK(path_stat.st_mode)
+        or path_stat.st_uid != os.geteuid()
+        or stat.S_IMODE(path_stat.st_mode) & 0o022
+        or path_stat.st_size <= 0
+        or path_stat.st_size > MAX_STATE_BYTES
+    ):
+        _fail(
+            ProfiledBaseFeaturePublisherV1StateError,
+            "PROFILED_BASE_PUBLISHER_MASKED_RECOVERY_RECEIPT_FILE_INVALID",
+        )
+    try:
+        raw = path.read_bytes()
+    except OSError as exc:
+        raise ProfiledBaseFeaturePublisherV1StateError(
+            "PROFILED_BASE_PUBLISHER_MASKED_RECOVERY_RECEIPT_READ_FAILED"
+        ) from exc
+    if b"\r" in raw or not raw.endswith(b"\n"):
+        _fail(
+            ProfiledBaseFeaturePublisherV1StateError,
+            "PROFILED_BASE_PUBLISHER_MASKED_RECOVERY_RECEIPT_FRAMING_INVALID",
+        )
+    try:
+        parsed = json.loads(raw[:-1].decode("ascii", errors="strict"))
+    except (UnicodeDecodeError, json.JSONDecodeError, RecursionError):
+        _fail(
+            ProfiledBaseFeaturePublisherV1StateError,
+            "PROFILED_BASE_PUBLISHER_MASKED_RECOVERY_RECEIPT_JSON_INVALID",
+        )
+    if type(parsed) is not dict or _canonical_json_bytes(parsed) + b"\n" != raw:
+        _fail(
+            ProfiledBaseFeaturePublisherV1StateError,
+            "PROFILED_BASE_PUBLISHER_MASKED_RECOVERY_RECEIPT_FIELDS_INVALID",
+        )
+    receipt = cast(dict[str, Any], parsed)
+    unsigned = {key: value for key, value in receipt.items() if key != "recovery_receipt_sha256"}
+    sha_fields = (
+        "window_fingerprint_sha256",
+        "capture_policy_sha256",
+        "transform_configuration_sha256",
+        "parent_record_sha256",
+        "cost_observation_binding_sha256",
+        "recovery_receipt_sha256",
+    )
+    if (
+        set(receipt) != _MASKED_PARENT_RECOVERY_FIELDS
+        or receipt["schema_version"]
+        != PROFILED_MASKED_PARENT_RECOVERY_V1_SCHEMA_VERSION
+        or receipt["symbol"] != expected_symbol
+        or receipt["capture_policy_id"]
+        != CANONICAL_OHLCV_MULTITIMEFRAME_CAPTURE_SET_V1_POLICY_ID
+        or receipt["capture_policy_sha256"]
+        != CANONICAL_OHLCV_MULTITIMEFRAME_CAPTURE_SET_V1_POLICY_SHA256
+        or receipt["transform_configuration_sha256"]
+        != AUTHENTICATED_OHLCV_PROFILE_TRANSFORM_V1_CONFIGURATION_SHA256
+        or receipt["append_disposition"]
+        != "PREPARED_BEFORE_MASKED_PARENT_APPEND_REQUIRES_LEDGER_READBACK"
+        or receipt["evidence_accounting_method"]
+        != (
+            "CONSERVATIVE_EXACT_CAS_PLUS_LEDGER_RECORD_MULTIPLIER_"
+            "AND_AUXILIARY_SQLITE_OVERHEAD"
+        )
+        or type(receipt["materialized_evidence_bytes"]) is not int
+        or receipt["materialized_evidence_bytes"] <= 0
+        or type(receipt["parent_durable_snapshot_id"]) is not str
+        or not receipt["parent_durable_snapshot_id"]
+        or any(
+            type(receipt[name]) is not str
+            or SHA256_RE.fullmatch(cast(str, receipt[name])) is None
+            for name in sha_fields
+        )
+        or stable_sha256(unsigned) != receipt["recovery_receipt_sha256"]
+    ):
+        _fail(
+            ProfiledBaseFeaturePublisherV1StateError,
+            "PROFILED_BASE_PUBLISHER_MASKED_RECOVERY_RECEIPT_BINDING_INVALID",
+        )
+    _parse_clock(
+        receipt["prepared_at"],
+        reason="PROFILED_BASE_PUBLISHER_MASKED_RECOVERY_PREPARED_CLOCK_INVALID",
+    )
+    return receipt
+
+
 @contextmanager
 def _singleton_writer_lock(data_root: Path) -> Iterator[dict[str, Any]]:
     """Hold the sole state/shard/publication writer capability for one cycle."""
@@ -1011,6 +1265,7 @@ def _error_reasons(exc: BaseException) -> tuple[str, ...]:
         | FeatureSnapshotLedgerError
         | SourcePayloadStoreError
         | AtomicRedisSourceReadError
+        | CausalAdaptiveColdStartNotionalPolicyV1Error
         | CausalExpectedNotionalPolicyV1Error
         | BinanceUSDMCommissionCaptureV1Error
         | CausalCostEvidenceV1Error,
@@ -1054,6 +1309,11 @@ class PublisherResourceDecisionV1:
     safe_disk_headroom_bytes: int
     resource_sustainability_horizon_seconds: float
     sustainable_cycle_write_budget_bytes: int
+    observed_cycle_count: int
+    consumed_materialized_evidence_bytes: int
+    cumulative_sustainable_write_budget_bytes: int
+    write_credit_capacity_bytes: int
+    available_write_credit_bytes: int
     absolute_disk_capacity_symbols: int
     disk_capacity_symbols: int
     publication_latency_capacity_symbols: int
@@ -1083,6 +1343,15 @@ class PublisherResourceDecisionV1:
                 self.resource_sustainability_horizon_seconds
             ),
             "sustainable_cycle_write_budget_bytes": (self.sustainable_cycle_write_budget_bytes),
+            "observed_cycle_count": self.observed_cycle_count,
+            "consumed_materialized_evidence_bytes": (
+                self.consumed_materialized_evidence_bytes
+            ),
+            "cumulative_sustainable_write_budget_bytes": (
+                self.cumulative_sustainable_write_budget_bytes
+            ),
+            "write_credit_capacity_bytes": self.write_credit_capacity_bytes,
+            "available_write_credit_bytes": self.available_write_credit_bytes,
             "absolute_disk_capacity_symbols": self.absolute_disk_capacity_symbols,
             "disk_capacity_symbols": self.disk_capacity_symbols,
             "publication_latency_capacity_symbols": (self.publication_latency_capacity_symbols),
@@ -1125,8 +1394,11 @@ def adaptive_resource_decision_v1(
     publication_count = observations.get("materialized_publication_count")
     publication_elapsed = observations.get("materialized_publication_elapsed_seconds")
     publication_bytes = observations.get("materialized_publication_bytes")
+    observed_cycle_count = observations.get("cycle_count")
     if (
-        type(publication_count) is not int
+        type(observed_cycle_count) is not int
+        or observed_cycle_count < 0
+        or type(publication_count) is not int
         or publication_count < 0
         or type(publication_elapsed) not in {int, float}
         or not math.isfinite(publication_elapsed)
@@ -1166,9 +1438,22 @@ def adaptive_resource_decision_v1(
         * min(cycle_period_seconds, resource_sustainability_horizon_seconds)
         / resource_sustainability_horizon_seconds
     )
+    # A sustainable byte rate can be smaller than one indivisible evidence
+    # unit.  Treat that rate as credit accrued across completed cycles instead
+    # of requiring every individual cycle to fund a whole unit.  The bucket is
+    # capped at the larger of one observed unit or one cycle's byte budget, so
+    # an idle publisher cannot accumulate an unbounded catch-up burst.
+    cumulative_sustainable_budget = sustainable_cycle_budget * (
+        observed_cycle_count + 1
+    )
+    write_credit_capacity = max(sustainable_cycle_budget, estimated_bytes)
+    available_write_credit = min(
+        write_credit_capacity,
+        max(0, cumulative_sustainable_budget - publication_bytes),
+    )
     disk_capacity = min(
         absolute_disk_capacity,
-        sustainable_cycle_budget // estimated_bytes,
+        available_write_credit // estimated_bytes,
     )
     latency_capacity = max(1, math.floor(cycle_period_seconds / estimated_seconds))
     selected = min(eligible_count, disk_capacity, latency_capacity)
@@ -1176,6 +1461,7 @@ def adaptive_resource_decision_v1(
         "LEAST_RECENTLY_COVERED_ROTATION",
         "IMMUTABLE_SHARED_FILESYSTEM_RESERVE_APPLIED",
         "SUSTAINABLE_DISK_HORIZON_DERIVED_WRITE_BUDGET",
+        "BOUNDED_CROSS_CYCLE_WRITE_CREDIT_ACCRUAL",
         "MATERIALIZED_PUBLICATION_LATENCY_DERIVED_WORKLOAD",
     ]
     reasons.append(
@@ -1188,7 +1474,12 @@ def adaptive_resource_decision_v1(
     if selected == latency_capacity and selected < eligible_count:
         reasons.append("CYCLE_LATENCY_BINDING")
     if selected == 0:
-        reasons.append("RESOURCE_HEADROOM_NO_SAFE_PUBLICATION_UNIT")
+        reasons.append(
+            "BOUNDED_WRITE_CREDIT_ACCRUAL_PENDING"
+            if absolute_disk_capacity > 0
+            and available_write_credit < estimated_bytes
+            else "RESOURCE_HEADROOM_NO_SAFE_PUBLICATION_UNIT"
+        )
     return PublisherResourceDecisionV1(
         discovered_eligible_count=eligible_count,
         selected_count=selected,
@@ -1205,6 +1496,11 @@ def adaptive_resource_decision_v1(
         safe_disk_headroom_bytes=safe_headroom,
         resource_sustainability_horizon_seconds=float(resource_sustainability_horizon_seconds),
         sustainable_cycle_write_budget_bytes=sustainable_cycle_budget,
+        observed_cycle_count=observed_cycle_count,
+        consumed_materialized_evidence_bytes=publication_bytes,
+        cumulative_sustainable_write_budget_bytes=cumulative_sustainable_budget,
+        write_credit_capacity_bytes=write_credit_capacity,
+        available_write_credit_bytes=available_write_credit,
         absolute_disk_capacity_symbols=absolute_disk_capacity,
         disk_capacity_symbols=disk_capacity,
         publication_latency_capacity_symbols=latency_capacity,
@@ -1535,6 +1831,29 @@ class _SymbolOutcome:
     coverage: dict[str, Any] | None
 
 
+@dataclass(frozen=True, slots=True)
+class _SourceShardPreflightV1:
+    active_shard_index: int | None
+    selected_shard_index: int
+    evidence: dict[str, Any]
+
+
+def _source_shard_preflight_references(
+    preflights: list[dict[str, Any]],
+    *,
+    start: int,
+) -> list[dict[str, Any]]:
+    return [
+        {
+            "status_preflight_index": index,
+            "preflight_sha256": stable_sha256(preflights[index]),
+            "symbol": preflights[index]["symbol"],
+            "publication_attempt": preflights[index]["publication_attempt"],
+        }
+        for index in range(start, len(preflights))
+    ]
+
+
 class ProfiledBaseFeaturePublisherV1:
     """One-cycle orchestrator with per-symbol isolation and durable rotation state."""
 
@@ -1544,6 +1863,7 @@ class ProfiledBaseFeaturePublisherV1:
         redis_client: object,
         data_root: Path,
         feature_ledger_path: Path,
+        feature_ledger: DurableFeatureSnapshotLedger | None = None,
         cycle_period_seconds: float,
         resource_sustainability_horizon_seconds: float = (
             DEFAULT_RESOURCE_SUSTAINABILITY_HORIZON_SECONDS
@@ -1567,14 +1887,20 @@ class ProfiledBaseFeaturePublisherV1:
             read_atomic_redis_sources
         ),
         expected_notional_builder: Callable[..., Any] = (build_causal_expected_notional_policy_v1),
+        cold_start_notional_builder: Callable[..., Any] = (
+            build_causal_adaptive_cold_start_notional_policy_v1
+        ),
         commission_refresh_builder: Callable[..., Any] = (
             build_binance_usdm_commission_refresh_policy_v1
         ),
         commission_capture_function: Callable[..., Any] = (capture_binance_usdm_commission_rate_v1),
+        commission_evidence_reader: Callable[..., dict[str, Any]] | None = None,
         causal_cost_builder: Callable[..., CausalCostEvidenceV1Result] = (
             build_causal_cost_evidence_v1
         ),
         commission_fingerprint_hmac_key: bytes | None = None,
+        commission_cost_mode: str = AUTHENTICATED_COST_EVIDENCE_REQUIRED_MODE,
+        exchange_credentials_loaded_by_publisher: bool = False,
         cost_recapture_waiter: Callable[[datetime], datetime] | None = None,
     ) -> None:
         self.redis_client = redis_client
@@ -1586,6 +1912,15 @@ class ProfiledBaseFeaturePublisherV1:
             feature_ledger_path,
             reason="PROFILED_BASE_PUBLISHER_FEATURE_LEDGER_PATH_INVALID",
         )
+        if feature_ledger is not None and (
+            type(feature_ledger) is not DurableFeatureSnapshotLedger
+            or feature_ledger.path != self.feature_ledger_path
+        ):
+            _fail(
+                ProfiledBaseFeaturePublisherV1ConfigurationError,
+                "PROFILED_BASE_PUBLISHER_FEATURE_LEDGER_BINDING_INVALID",
+            )
+        self._feature_ledger = feature_ledger
         self.state_path = _strict_path(
             state_path or self.data_root / "profiled_base_publisher_state_v1.json",
             reason="PROFILED_BASE_PUBLISHER_STATE_PATH_INVALID",
@@ -1613,13 +1948,50 @@ class ProfiledBaseFeaturePublisherV1:
             or (cost_evidence_factory is not None and not callable(cost_evidence_factory))
             or not callable(atomic_redis_reader)
             or not callable(expected_notional_builder)
+            or not callable(cold_start_notional_builder)
             or not callable(commission_refresh_builder)
             or not callable(commission_capture_function)
+            or (
+                commission_evidence_reader is not None
+                and not callable(commission_evidence_reader)
+            )
             or not callable(causal_cost_builder)
             or (cost_recapture_waiter is not None and not callable(cost_recapture_waiter))
             or (
                 commission_fingerprint_hmac_key is not None
                 and type(commission_fingerprint_hmac_key) is not bytes
+            )
+            or type(exchange_credentials_loaded_by_publisher) is not bool
+            or commission_cost_mode
+            not in {
+                AUTHENTICATED_COST_EVIDENCE_REQUIRED_MODE,
+                BROKER_AUTHENTICATED_COST_EVIDENCE_WITH_MASKED_FALLBACK_MODE,
+                MASKED_COST_OBSERVATION_MODE,
+            }
+            or (
+                commission_cost_mode == MASKED_COST_OBSERVATION_MODE
+                and (
+                    cost_evidence_factory is not None
+                    or commission_fingerprint_hmac_key is not None
+                    or commission_evidence_reader is not None
+                )
+            )
+            or (
+                commission_cost_mode
+                == BROKER_AUTHENTICATED_COST_EVIDENCE_WITH_MASKED_FALLBACK_MODE
+                and (
+                    commission_evidence_reader is None
+                    or commission_fingerprint_hmac_key is not None
+                    or cost_evidence_factory is not None
+                )
+            )
+            or (
+                commission_cost_mode == AUTHENTICATED_COST_EVIDENCE_REQUIRED_MODE
+                and commission_evidence_reader is not None
+            )
+            or (
+                exchange_credentials_loaded_by_publisher
+                and commission_cost_mode != AUTHENTICATED_COST_EVIDENCE_REQUIRED_MODE
             )
         ):
             _fail(
@@ -1646,10 +2018,16 @@ class ProfiledBaseFeaturePublisherV1:
         self.cost_evidence_factory = cost_evidence_factory
         self.atomic_redis_reader = atomic_redis_reader
         self.expected_notional_builder = expected_notional_builder
+        self.cold_start_notional_builder = cold_start_notional_builder
         self.commission_refresh_builder = commission_refresh_builder
         self.commission_capture_function = commission_capture_function
+        self.commission_evidence_reader = commission_evidence_reader
         self.causal_cost_builder = causal_cost_builder
         self._commission_fingerprint_hmac_key = commission_fingerprint_hmac_key
+        self.commission_cost_mode = commission_cost_mode
+        self.exchange_credentials_loaded_by_publisher = (
+            exchange_credentials_loaded_by_publisher
+        )
         self.cost_recapture_waiter = cost_recapture_waiter or (
             lambda target_at: wait_for_prospective_decision_v1(
                 target_at,
@@ -1696,37 +2074,316 @@ class ProfiledBaseFeaturePublisherV1:
             )
         return values
 
-    def _source_ledger(
+    def _owned_durable_footprint_bytes(self) -> int:
+        """Measure publisher-owned files without attributing shared-disk traffic."""
+
+        total = _regular_tree_file_bytes(self.data_root)
+        for path in (
+            self.feature_ledger_path,
+            Path(f"{self.feature_ledger_path}-wal"),
+            Path(f"{self.feature_ledger_path}-shm"),
+        ):
+            if path.is_relative_to(self.data_root):
+                continue
+            total += _regular_file_bytes(path)
+        return total
+
+    def _source_shard_inventory(
         self,
-        captures: tuple[
-            CanonicalOhlcvAtomicReceiptCapture,
-            CanonicalOhlcvAtomicReceiptCapture,
-        ],
-    ) -> tuple[TrainerSourceProvenanceLedgerV4, int, bool, int]:
-        projected_pair = sum(_capture_projected_entry_bytes(item) for item in captures)
+        *,
+        create_root: bool,
+    ) -> tuple[Path, tuple[int, ...]]:
         root = self.data_root / "source-provenance-shards"
-        root.mkdir(mode=0o700, parents=True, exist_ok=True)
+        try:
+            root_stat = os.lstat(root)
+        except FileNotFoundError:
+            if not create_root:
+                return root, ()
+            try:
+                root.mkdir(mode=0o700, parents=True, exist_ok=False)
+                root_stat = os.lstat(root)
+            except OSError as exc:
+                raise ProfiledBaseFeaturePublisherV1ResourceError(
+                    "PROFILED_BASE_PUBLISHER_SOURCE_SHARD_ROOT_CREATE_FAILED"
+                ) from exc
+        except OSError as exc:
+            raise ProfiledBaseFeaturePublisherV1ResourceError(
+                "PROFILED_BASE_PUBLISHER_SOURCE_SHARD_INVENTORY_FAILED"
+            ) from exc
+        if not stat.S_ISDIR(root_stat.st_mode) or stat.S_ISLNK(root_stat.st_mode):
+            _fail(
+                ProfiledBaseFeaturePublisherV1ResourceError,
+                "PROFILED_BASE_PUBLISHER_SOURCE_SHARD_INVENTORY_INVALID",
+            )
         observed: list[int] = []
-        for item in root.iterdir():
-            match = SOURCE_SHARD_RE.fullmatch(item.name)
-            if match is None:
-                _fail(
-                    ProfiledBaseFeaturePublisherV1ResourceError,
-                    "PROFILED_BASE_PUBLISHER_SOURCE_SHARD_INVENTORY_INVALID",
-                )
-            if not item.is_dir() or item.is_symlink():
-                _fail(
-                    ProfiledBaseFeaturePublisherV1ResourceError,
-                    "PROFILED_BASE_PUBLISHER_SOURCE_SHARD_INVENTORY_INVALID",
-                )
-            observed.append(int(match.group(1)))
+        try:
+            for item in root.iterdir():
+                match = SOURCE_SHARD_RE.fullmatch(item.name)
+                if match is None:
+                    _fail(
+                        ProfiledBaseFeaturePublisherV1ResourceError,
+                        "PROFILED_BASE_PUBLISHER_SOURCE_SHARD_INVENTORY_INVALID",
+                    )
+                if not item.is_dir() or item.is_symlink():
+                    _fail(
+                        ProfiledBaseFeaturePublisherV1ResourceError,
+                        "PROFILED_BASE_PUBLISHER_SOURCE_SHARD_INVENTORY_INVALID",
+                    )
+                observed.append(int(match.group(1)))
+        except ProfiledBaseFeaturePublisherV1Error:
+            raise
+        except OSError as exc:
+            raise ProfiledBaseFeaturePublisherV1ResourceError(
+                "PROFILED_BASE_PUBLISHER_SOURCE_SHARD_INVENTORY_FAILED"
+            ) from exc
         observed.sort()
         if observed and observed != list(range(observed[-1] + 1)):
             _fail(
                 ProfiledBaseFeaturePublisherV1ResourceError,
                 "PROFILED_BASE_PUBLISHER_SOURCE_SHARD_SEQUENCE_INVALID",
             )
+        return root, tuple(observed)
+
+    @staticmethod
+    def _create_next_source_shard(*, root: Path, index: int) -> Path:
+        candidate = root / f"shard-{index:08d}"
+        try:
+            candidate.mkdir(mode=0o700, parents=False, exist_ok=False)
+            candidate_stat = os.lstat(candidate)
+            if (
+                not stat.S_ISDIR(candidate_stat.st_mode)
+                or stat.S_ISLNK(candidate_stat.st_mode)
+                or stat.S_IMODE(candidate_stat.st_mode) != 0o700
+            ):
+                _fail(
+                    ProfiledBaseFeaturePublisherV1ResourceError,
+                    "PROFILED_BASE_PUBLISHER_SOURCE_SHARD_ROLLOVER_DIRECTORY_INVALID",
+                )
+            flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0)
+            flags |= getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+            descriptor = os.open(root, flags)
+            try:
+                os.fsync(descriptor)
+            finally:
+                os.close(descriptor)
+        except ProfiledBaseFeaturePublisherV1Error:
+            raise
+        except OSError as exc:
+            raise ProfiledBaseFeaturePublisherV1ResourceError(
+                "PROFILED_BASE_PUBLISHER_SOURCE_SHARD_ROLLOVER_CREATE_FAILED"
+            ) from exc
+        return candidate
+
+    def _preflight_source_shard(
+        self,
+        *,
+        symbol: str,
+        publication_attempt: int,
+        adaptive_estimated_symbol_elapsed_seconds: float,
+    ) -> _SourceShardPreflightV1:
+        """Verify and, when measured work cannot fit, roll before market capture.
+
+        A new append performs one capacity read plus one load and one
+        postcommit readback per required timeframe.  An exact retry also
+        performs the takeover read inside ``_finish_existing``.  The
+        conservative count is derived from that retry-capable route, while the
+        cost of a pass is measured from the active shard with the injected
+        monotonic clock.  The adaptive full-symbol elapsed estimate is added
+        conservatively because capture, transform, and record construction
+        consume the same prospective-decision window; the persisted
+        observations do not split those costs from ledger verification.
+        """
+
+        if (
+            type(adaptive_estimated_symbol_elapsed_seconds) not in {int, float}
+            or not math.isfinite(adaptive_estimated_symbol_elapsed_seconds)
+            or adaptive_estimated_symbol_elapsed_seconds <= 0
+        ):
+            _fail(
+                ProfiledBaseFeaturePublisherV1ConfigurationError,
+                "PROFILED_BASE_PUBLISHER_SOURCE_SHARD_PREFLIGHT_ADAPTIVE_ELAPSED_INVALID",
+            )
+
+        root, observed = self._source_shard_inventory(create_root=False)
         active = observed[-1] if observed else None
+        verification_started_at, verification_started = self._sample_clock(
+            "PROFILED_BASE_PUBLISHER_SOURCE_SHARD_PREFLIGHT_START_CLOCK_INVALID"
+        )
+        active_bytes = 0
+        active_entries = 0
+        active_head_sequence: int | None = None
+        active_head_entry_sha256: str | None = None
+        verification_elapsed_seconds = 0.0
+        if active is not None:
+            active_root = root / f"shard-{active:08d}"
+            ledger = TrainerSourceProvenanceLedgerV4(active_root)
+            monotonic_started = self.monotonic()
+            entries = ledger.read_entries()
+            monotonic_completed = self.monotonic()
+            elapsed = monotonic_completed - monotonic_started
+            if type(elapsed) not in {int, float} or not math.isfinite(elapsed) or elapsed < 0:
+                _fail(
+                    ProfiledBaseFeaturePublisherV1ConfigurationError,
+                    "PROFILED_BASE_PUBLISHER_SOURCE_SHARD_PREFLIGHT_MONOTONIC_INVALID",
+                )
+            verification_elapsed_seconds = float(elapsed)
+            active_entries = len(entries)
+            if entries:
+                active_head_sequence = entries[-1].ledger_sequence
+                active_head_entry_sha256 = entries[-1].entry_sha256
+            try:
+                active_bytes = ledger.path.stat().st_size if ledger.path.exists() else 0
+            except OSError as exc:
+                raise ProfiledBaseFeaturePublisherV1ResourceError(
+                    "PROFILED_BASE_PUBLISHER_SOURCE_LEDGER_STAT_FAILED"
+                ) from exc
+        verification_completed_at, verification_completed = self._sample_clock(
+            "PROFILED_BASE_PUBLISHER_SOURCE_SHARD_PREFLIGHT_COMPLETE_CLOCK_INVALID"
+        )
+        if verification_completed_at < verification_started_at:
+            _fail(
+                ProfiledBaseFeaturePublisherV1ConfigurationError,
+                "PROFILED_BASE_PUBLISHER_SOURCE_SHARD_PREFLIGHT_CLOCK_MOVED_BACKWARDS",
+            )
+        try:
+            planned_decision = self.decision_planner(verification_completed_at)
+        except ProfiledBaseFeaturePublisherV1Error:
+            raise
+        except Exception as exc:  # noqa: BLE001 - planner detail is suppressed
+            raise ProfiledBaseFeaturePublisherV1ConfigurationError(
+                "PROFILED_BASE_PUBLISHER_SOURCE_SHARD_PREFLIGHT_DECISION_PLANNER_FAILED"
+            ) from exc
+        planned_decision_text = _clock_text(
+            planned_decision,
+            reason=(
+                "PROFILED_BASE_PUBLISHER_SOURCE_SHARD_PREFLIGHT_DECISION_CLOCK_INVALID"
+            ),
+        )
+        if planned_decision <= verification_completed_at:
+            _fail(
+                ProfiledBaseFeaturePublisherV1ConfigurationError,
+                "PROFILED_BASE_PUBLISHER_SOURCE_SHARD_PREFLIGHT_DECISION_NOT_STRICTLY_FUTURE",
+            )
+        planned_decision_budget_seconds = (
+            planned_decision - verification_completed_at
+        ).total_seconds()
+        new_append_full_verification_passes = 1 + 2 * len(REQUIRED_TIMEFRAMES)
+        remaining_full_verification_passes = 1 + 3 * len(REQUIRED_TIMEFRAMES)
+        projected_remaining_verification_seconds = (
+            verification_elapsed_seconds * remaining_full_verification_passes
+        )
+        passes_fit_planned_decision = (
+            projected_remaining_verification_seconds
+            < planned_decision_budget_seconds
+        )
+        projected_verification_and_symbol_work_seconds = (
+            projected_remaining_verification_seconds
+            + float(adaptive_estimated_symbol_elapsed_seconds)
+        )
+        combined_work_fits_planned_decision = (
+            projected_verification_and_symbol_work_seconds
+            < planned_decision_budget_seconds
+        )
+        selected = 0 if active is None else active
+        rollover_performed = False
+        if active is None:
+            rollover_reason = "NO_ACTIVE_SOURCE_SHARD"
+        elif active_entries == 0:
+            rollover_reason = "ACTIVE_SOURCE_SHARD_EMPTY"
+        elif combined_work_fits_planned_decision:
+            rollover_reason = (
+                "MEASURED_VERIFICATION_AND_ADAPTIVE_SYMBOL_WORK_FIT_"
+                "PLANNED_DECISION_WINDOW"
+            )
+        else:
+            selected = active + 1
+            self._create_next_source_shard(root=root, index=selected)
+            rollover_performed = True
+            rollover_reason = (
+                "MEASURED_VERIFICATION_AND_ADAPTIVE_SYMBOL_WORK_EXCEED_"
+                "PLANNED_DECISION_WINDOW"
+            )
+        evidence = {
+            "schema_version": SOURCE_SHARD_PREFLIGHT_V1_SCHEMA_VERSION,
+            "symbol": symbol,
+            "publication_attempt": publication_attempt,
+            "verification_started_at": verification_started,
+            "verification_completed_at": verification_completed,
+            "active_shard_present": active is not None,
+            "active_shard_index": active,
+            "active_shard_relative_path": (
+                f"source-provenance-shards/shard-{active:08d}" if active is not None else None
+            ),
+            "active_shard_integrity_verified_before_capture": True,
+            "active_ledger_bytes": active_bytes,
+            "active_ledger_entries": active_entries,
+            "active_head_sequence": active_head_sequence,
+            "active_head_entry_sha256": active_head_entry_sha256,
+            "measured_full_verification_seconds": verification_elapsed_seconds,
+            "new_append_full_verification_passes_before_transform_clock": (
+                new_append_full_verification_passes
+            ),
+            "remaining_full_verification_passes_before_transform_clock": (
+                remaining_full_verification_passes
+            ),
+            "projected_remaining_full_verification_seconds": (
+                projected_remaining_verification_seconds
+            ),
+            "planned_decision_time": planned_decision_text,
+            "planned_decision_budget_seconds": planned_decision_budget_seconds,
+            "remaining_verification_passes_fit_planned_decision": (
+                passes_fit_planned_decision
+            ),
+            "adaptive_estimated_symbol_elapsed_seconds": float(
+                adaptive_estimated_symbol_elapsed_seconds
+            ),
+            "projected_verification_and_symbol_work_seconds": (
+                projected_verification_and_symbol_work_seconds
+            ),
+            "verification_and_symbol_work_fit_planned_decision": (
+                combined_work_fits_planned_decision
+            ),
+            "default_midpoint_decision_planner_configured": (
+                self.decision_planner is prospective_decision_midpoint_v1
+            ),
+            "rollover_projection_uses_exact_replay_safe_pass_count": True,
+            "rollover_performed_before_capture": rollover_performed,
+            "rollover_reason": rollover_reason,
+            "preflight_selected_shard_index": selected,
+            "preflight_selected_shard_relative_path": (
+                f"source-provenance-shards/shard-{selected:08d}"
+            ),
+            "publication_shard_index": None,
+            "publication_shard_relative_path": None,
+            "publication_shard_selection_reconciled": False,
+            "hard_safety_cap_rollover_after_capture": False,
+            "ledger_byte_hard_safety_cap": MAX_LEDGER_BYTES,
+            "ledger_entry_hard_safety_cap": MAX_LEDGER_ENTRIES,
+            "market_or_performance_threshold_applied": False,
+        }
+        return _SourceShardPreflightV1(
+            active_shard_index=active,
+            selected_shard_index=selected,
+            evidence=evidence,
+        )
+
+    def _source_ledger(
+        self,
+        captures: tuple[
+            CanonicalOhlcvAtomicReceiptCapture,
+            CanonicalOhlcvAtomicReceiptCapture,
+        ],
+        *,
+        expected_active_index: int,
+    ) -> tuple[TrainerSourceProvenanceLedgerV4, int, bool, int]:
+        projected_pair = sum(_capture_projected_entry_bytes(item) for item in captures)
+        root, observed = self._source_shard_inventory(create_root=True)
+        active = observed[-1] if observed else None
+        if not (active == expected_active_index or (active is None and expected_active_index == 0)):
+            _fail(
+                ProfiledBaseFeaturePublisherV1ResourceError,
+                "PROFILED_BASE_PUBLISHER_SOURCE_SHARD_PREFLIGHT_BINDING_INVALID",
+            )
         active_bytes = 0
         active_entries = 0
         if active is not None:
@@ -1899,12 +2556,87 @@ class ProfiledBaseFeaturePublisherV1:
             )
         return notional, market
 
+    def _read_cold_start_control_sources(self) -> AtomicRedisSourceReadBatch:
+        capture = self.atomic_redis_reader(
+            self.redis_client,
+            (
+                CAUSAL_EXPECTED_NOTIONAL_SOURCE_KEY,
+                CAUSAL_ADAPTIVE_COLD_START_NOTIONAL_PORTFOLIO_SOURCE_KEY,
+            ),
+        )
+        if type(capture) is not AtomicRedisSourceReadBatch:
+            _fail(
+                ProfiledBaseFeaturePublisherV1Error,
+                COST_EVIDENCE_UNAVAILABLE_PARENT_NOT_APPENDED,
+                "PROFILED_BASE_PUBLISHER_COLD_START_CONTROL_READER_RESULT_INVALID",
+            )
+        return capture
+
+    def _broker_commission_evidence_for_parent(
+        self,
+        *,
+        parent_record: dict[str, Any],
+    ) -> tuple[CredentiallessCommissionEvidence | None, str]:
+        """Read one authenticated fee schedule or return a safe mask reason."""
+
+        reader = self.commission_evidence_reader
+        if reader is None:
+            return None, "COMMISSION_BROKER_READER_NOT_CONFIGURED"
+        envelope = cast(dict[str, Any], parent_record["frozen_envelope"])
+        symbol = cast(str, envelope["symbol"])
+        decision_time = cast(str, envelope["tensor_decision_time"])
+        try:
+            result = reader(
+                symbol=symbol,
+                decision_time=decision_time,
+                now_fn=self.clock,
+            )
+        except Exception as exc:  # noqa: BLE001 - dependency detail stays masked
+            return None, f"COMMISSION_BROKER_READER_EXCEPTION_{type(exc).__name__.upper()}"
+        if type(result) is not dict:
+            return None, "COMMISSION_BROKER_READER_RESULT_INVALID"
+        status = result.get("status")
+        if (
+            type(status) is not str
+            or not status.isascii()
+            or not 1 <= len(status) <= 192
+            or re.fullmatch(r"[A-Z0-9_]+", status, re.ASCII) is None
+        ):
+            return None, "COMMISSION_BROKER_READER_STATUS_INVALID"
+        evidence = result.get("evidence")
+        if status == "COMMISSION_BROKER_DECISION_TEMPORAL_ADMISSION_FAILED":
+            _fail(
+                ProfiledBaseFeaturePublisherV1Error,
+                COST_EVIDENCE_UNAVAILABLE_PARENT_NOT_APPENDED,
+                status,
+            )
+        if status != "READY":
+            return None, status
+        if (
+            type(evidence) is not CredentiallessCommissionEvidence
+            or evidence.symbol != symbol
+            or evidence.decision_time != decision_time
+            or evidence.exchange_credentials_read is not False
+            or any(
+                getattr(evidence, field) is not False
+                for field in (
+                    "trainer_authority",
+                    "prediction_authority",
+                    "paper_authority",
+                    "live_authority",
+                )
+            )
+        ):
+            return None, "COMMISSION_BROKER_READY_EVIDENCE_INVALID"
+        return evidence, status
+
     def _build_runtime_cost_evidence(
         self,
         *,
         parent_record: dict[str, Any],
         enrichment_store: ImmutableSourcePayloadStore,
         decision_at: datetime,
+        commission_evidence: CredentiallessCommissionEvidence | None = None,
     ) -> tuple[CausalCostEvidenceV1Result, int]:
         envelope = cast(dict[str, Any], parent_record["frozen_envelope"])
         symbol = cast(str, envelope["symbol"])
@@ -1946,68 +2678,136 @@ class ProfiledBaseFeaturePublisherV1:
             captures = self._read_cost_sources(symbol=symbol)
 
         notional_capture, market_capture = captures
-        notional = self.expected_notional_builder(
-            atomic_capture=notional_capture,
-            source_payload_store=enrichment_store,
-            symbol=symbol,
-            feature_snapshot_identity=parent_record["durable_snapshot_id"],
-            feature_snapshot_decision_time=decision_at,
-        )
-        policy_at, policy_clock = self._sample_clock(
-            "PROFILED_BASE_PUBLISHER_COMMISSION_POLICY_CLOCK_INVALID"
-        )
-        if policy_at >= decision_at:
-            _fail(
-                ProfiledBaseFeaturePublisherV1Error,
-                COST_EVIDENCE_UNAVAILABLE_PARENT_NOT_APPENDED,
-                "PROFILED_BASE_PUBLISHER_COMMISSION_POLICY_AFTER_DECISION",
+        try:
+            notional = self.expected_notional_builder(
+                atomic_capture=notional_capture,
+                source_payload_store=enrichment_store,
+                symbol=symbol,
+                feature_snapshot_identity=parent_record["durable_snapshot_id"],
+                feature_snapshot_decision_time=decision_at,
             )
-        # This refresh receipt authenticates the notional source PTTL, so do
-        # not overclaim that it also binds the three market-source lifetimes.
-        # Their minimum remains exclusively the just-in-time recapture input.
-        notional_pttl_ms = notional_capture.results[0].pttl_ms
-        if notional_pttl_ms < 1_000:
-            _fail(
-                ProfiledBaseFeaturePublisherV1Error,
-                COST_EVIDENCE_UNAVAILABLE_PARENT_NOT_APPENDED,
-                "PROFILED_BASE_PUBLISHER_NOTIONAL_PTTL_SUBSECOND_UNUSABLE",
+            notional_refresh_pttl_ms = notional_capture.results[0].pttl_ms
+        except CausalExpectedNotionalPolicyV1Error as exc:
+            if exc.reason != CAUSAL_EXPECTED_NOTIONAL_ZERO_CANDIDATE_REASON:
+                raise
+            control_capture = self._read_cold_start_control_sources()
+            notional = self.cold_start_notional_builder(
+                control_atomic_capture=control_capture,
+                market_atomic_capture=market_capture,
+                source_payload_store=enrichment_store,
+                symbol=symbol,
+                feature_snapshot_identity=parent_record["durable_snapshot_id"],
+                feature_snapshot_decision_time=decision_at,
             )
-        refresh_interval_seconds = min(
-            IMMUTABLE_MAX_COMMISSION_EVIDENCE_SAFETY_HORIZON_SECONDS,
-            notional_pttl_ms // 1_000,
-        )
-        refresh_policy = self.commission_refresh_builder(
-            store=enrichment_store,
-            symbol=symbol,
-            policy_id=COMMISSION_REFRESH_POLICY_ID,
-            policy_version=COMMISSION_REFRESH_POLICY_VERSION,
-            refresh_interval_seconds=refresh_interval_seconds,
-            adaptive_input_receipt_sha256=notional.source_read_receipt_sha256,
-            generated_at=policy_clock,
-            available_at=policy_clock,
-            recorded_at=policy_clock,
-        )
-        commission = self.commission_capture_function(
-            store=enrichment_store,
-            symbol=symbol,
-            refresh_policy=refresh_policy,
-            fallback_reason=COMMISSION_CAPTURE_FALLBACK_REASON,
-            credential_fingerprint_hmac_key=self._commission_fingerprint_hmac_key,
-            now_fn=self.clock,
-        )
+            notional_refresh_pttl_ms = min(
+                result.pttl_ms
+                for batch in (
+                    control_capture,
+                    market_capture,
+                )
+                for result in batch.results
+            )
+        if commission_evidence is None:
+            policy_at, policy_clock = self._sample_clock(
+                "PROFILED_BASE_PUBLISHER_COMMISSION_POLICY_CLOCK_INVALID"
+            )
+            if policy_at >= decision_at:
+                _fail(
+                    ProfiledBaseFeaturePublisherV1Error,
+                    COST_EVIDENCE_UNAVAILABLE_PARENT_NOT_APPENDED,
+                    "PROFILED_BASE_PUBLISHER_COMMISSION_POLICY_AFTER_DECISION",
+                )
+            # This refresh receipt authenticates the notional source PTTL, so do
+            # not overclaim that it also binds the three market-source lifetimes.
+            # Their minimum remains exclusively the just-in-time recapture input.
+            if notional_refresh_pttl_ms < 1_000:
+                _fail(
+                    ProfiledBaseFeaturePublisherV1Error,
+                    COST_EVIDENCE_UNAVAILABLE_PARENT_NOT_APPENDED,
+                    "PROFILED_BASE_PUBLISHER_NOTIONAL_PTTL_SUBSECOND_UNUSABLE",
+                )
+            refresh_interval_seconds = min(
+                IMMUTABLE_MAX_COMMISSION_EVIDENCE_SAFETY_HORIZON_SECONDS,
+                notional_refresh_pttl_ms // 1_000,
+            )
+            refresh_policy = self.commission_refresh_builder(
+                store=enrichment_store,
+                symbol=symbol,
+                policy_id=COMMISSION_REFRESH_POLICY_ID,
+                policy_version=COMMISSION_REFRESH_POLICY_VERSION,
+                refresh_interval_seconds=refresh_interval_seconds,
+                adaptive_input_receipt_sha256=notional.source_read_receipt_sha256,
+                generated_at=policy_clock,
+                available_at=policy_clock,
+                recorded_at=policy_clock,
+            )
+            commission = self.commission_capture_function(
+                store=enrichment_store,
+                symbol=symbol,
+                refresh_policy=refresh_policy,
+                fallback_reason=COMMISSION_CAPTURE_FALLBACK_REASON,
+                credential_fingerprint_hmac_key=self._commission_fingerprint_hmac_key,
+                now_fn=self.clock,
+            )
+            fee_artifact_bytes = commission.fee_artifact_bytes
+            fee_raw_response_bytes = commission.raw_response_bytes
+            fee_schedule_receipt = commission.fee_schedule_receipt
+            auxiliary_cas_bytes = (
+                len(refresh_policy.artifact_bytes)
+                + len(refresh_policy.receipt_bytes)
+                + len(commission.sanitized_request_identity_bytes)
+            )
+            fee_transport_envelope_bytes = None
+            fee_transport_consumer_receipt_bytes = None
+        else:
+            if (
+                type(commission_evidence) is not CredentiallessCommissionEvidence
+                or commission_evidence.symbol != symbol
+                or commission_evidence.decision_time != decision_text
+                or commission_evidence.exchange_credentials_read is not False
+                or commission_evidence.trainer_authority is not False
+                or commission_evidence.prediction_authority is not False
+                or commission_evidence.paper_authority is not False
+                or commission_evidence.live_authority is not False
+            ):
+                _fail(
+                    ProfiledBaseFeaturePublisherV1Error,
+                    COST_EVIDENCE_UNAVAILABLE_PARENT_NOT_APPENDED,
+                    "PROFILED_BASE_PUBLISHER_BROKER_COMMISSION_EVIDENCE_INVALID",
+                )
+            fee_artifact_bytes = commission_evidence.fee_artifact_bytes
+            fee_raw_response_bytes = commission_evidence.raw_response_bytes
+            fee_schedule_receipt = commission_evidence.fee_schedule_receipt
+            fee_transport_envelope_bytes = commission_evidence.broker_envelope_bytes
+            fee_transport_consumer_receipt_bytes = (
+                commission_evidence.broker_consumer_receipt_bytes
+            )
+            # The broker created its own separately accounted immutable CAS.
+            # The cost builder below accounts for every object copied into this
+            # publisher's enrichment CAS, so no broker-side bytes are charged
+            # again to the publisher's local materialization budget.
+            auxiliary_cas_bytes = 0
         result = self.causal_cost_builder(
             atomic_capture=market_capture,
             source_payload_store=enrichment_store,
-            fee_schedule_artifact_bytes=commission.fee_artifact_bytes,
-            fee_schedule_raw_response_bytes=commission.raw_response_bytes,
-            fee_schedule_receipt=commission.fee_schedule_receipt,
+            fee_schedule_artifact_bytes=fee_artifact_bytes,
+            fee_schedule_raw_response_bytes=fee_raw_response_bytes,
+            fee_schedule_receipt=fee_schedule_receipt,
             expected_notional_usd=notional.expected_notional_usd,
             expected_notional_policy_artifact_bytes=notional.notional_artifact_bytes,
             expected_notional_policy_receipt=notional.notional_receipt,
+            expected_notional_policy_source_receipt_bytes=(
+                notional.source_read_receipt_bytes
+            ),
+            expected_notional_policy_factory_token=notional,
             symbol=symbol,
             feature_snapshot_identity=parent_record["durable_snapshot_id"],
             decision_time=decision_text,
             counterfactual_holding_horizon_seconds=(CAUSAL_COST_COUNTERFACTUAL_HORIZON_SECONDS),
+            fee_transport_envelope_bytes=fee_transport_envelope_bytes,
+            fee_transport_consumer_receipt_bytes=(
+                fee_transport_consumer_receipt_bytes
+            ),
         )
         if type(result) is not CausalCostEvidenceV1Result:
             _fail(
@@ -2015,11 +2815,6 @@ class ProfiledBaseFeaturePublisherV1:
                 COST_EVIDENCE_UNAVAILABLE_PARENT_NOT_APPENDED,
                 "PROFILED_BASE_PUBLISHER_COST_FACTORY_RESULT_INVALID",
             )
-        auxiliary_cas_bytes = (
-            len(refresh_policy.artifact_bytes)
-            + len(refresh_policy.receipt_bytes)
-            + len(commission.sanitized_request_identity_bytes)
-        )
         return result, auxiliary_cas_bytes
 
     def _cost_evidence_for_parent(
@@ -2028,6 +2823,7 @@ class ProfiledBaseFeaturePublisherV1:
         parent_record: dict[str, Any],
         enrichment_store: ImmutableSourcePayloadStore,
         decision_at: datetime,
+        commission_evidence: CredentiallessCommissionEvidence | None = None,
     ) -> tuple[CausalCostEvidenceV1Result, int]:
         try:
             if self.cost_evidence_factory is not None:
@@ -2042,12 +2838,33 @@ class ProfiledBaseFeaturePublisherV1:
                     parent_record=parent_record,
                     enrichment_store=enrichment_store,
                     decision_at=decision_at,
+                    commission_evidence=commission_evidence,
                 )
             if type(result) is not CausalCostEvidenceV1Result:
                 _fail(
                     ProfiledBaseFeaturePublisherV1Error,
                     COST_EVIDENCE_UNAVAILABLE_PARENT_NOT_APPENDED,
                     "PROFILED_BASE_PUBLISHER_COST_FACTORY_RESULT_INVALID",
+                )
+            result_contract = result.contract
+            notional_source = result_contract.get("notional_source")
+            provenance = (
+                notional_source.get("policy_provenance")
+                if type(notional_source) is dict
+                else None
+            )
+            if (
+                type(provenance) is not dict
+                or provenance.get("verification_status")
+                != CAUSAL_COST_NOTIONAL_PROVENANCE_VERIFIED_STATUS
+                or provenance.get("source_receipt_supplied") is not True
+                or provenance.get("factory_token_revalidated") is not True
+                or provenance.get("strict_publisher_eligible") is not True
+            ):
+                _fail(
+                    ProfiledBaseFeaturePublisherV1Error,
+                    COST_EVIDENCE_UNAVAILABLE_PARENT_NOT_APPENDED,
+                    "PROFILED_BASE_PUBLISHER_NOTIONAL_POLICY_PROVENANCE_UNVERIFIED",
                 )
             if type(auxiliary_cas_bytes) is not int or auxiliary_cas_bytes < 0:
                 _fail(
@@ -2112,6 +2929,56 @@ class ProfiledBaseFeaturePublisherV1:
             _pair_recovery_receipt_path(self.data_root, symbol),
             receipt,
             failure_reason="PROFILED_BASE_PUBLISHER_PAIR_RECOVERY_RECEIPT_WRITE_FAILED",
+        )
+
+    def _write_masked_parent_recovery_receipt(
+        self,
+        *,
+        symbol: str,
+        window_fingerprint_sha256: str,
+        parent_durable_snapshot_id: str,
+        parent_record_sha256: str,
+        cost_observation_binding_sha256: str,
+        prepared_at: str,
+        materialized_evidence_bytes: int,
+    ) -> None:
+        if type(materialized_evidence_bytes) is not int or materialized_evidence_bytes <= 0:
+            _fail(
+                ProfiledBaseFeaturePublisherV1StateError,
+                "PROFILED_BASE_PUBLISHER_MASKED_RECOVERY_ACCOUNTING_INVALID",
+            )
+        unsigned: dict[str, Any] = {
+            "schema_version": PROFILED_MASKED_PARENT_RECOVERY_V1_SCHEMA_VERSION,
+            "symbol": symbol,
+            "window_fingerprint_sha256": window_fingerprint_sha256,
+            "capture_policy_id": CANONICAL_OHLCV_MULTITIMEFRAME_CAPTURE_SET_V1_POLICY_ID,
+            "capture_policy_sha256": (
+                CANONICAL_OHLCV_MULTITIMEFRAME_CAPTURE_SET_V1_POLICY_SHA256
+            ),
+            "transform_configuration_sha256": (
+                AUTHENTICATED_OHLCV_PROFILE_TRANSFORM_V1_CONFIGURATION_SHA256
+            ),
+            "parent_durable_snapshot_id": parent_durable_snapshot_id,
+            "parent_record_sha256": parent_record_sha256,
+            "cost_observation_binding_sha256": cost_observation_binding_sha256,
+            "prepared_at": prepared_at,
+            "append_disposition": (
+                "PREPARED_BEFORE_MASKED_PARENT_APPEND_REQUIRES_LEDGER_READBACK"
+            ),
+            "materialized_evidence_bytes": materialized_evidence_bytes,
+            "evidence_accounting_method": (
+                "CONSERVATIVE_EXACT_CAS_PLUS_LEDGER_RECORD_MULTIPLIER_"
+                "AND_AUXILIARY_SQLITE_OVERHEAD"
+            ),
+        }
+        receipt = {
+            **unsigned,
+            "recovery_receipt_sha256": stable_sha256(unsigned),
+        }
+        _atomic_write_json(
+            _masked_parent_recovery_receipt_path(self.data_root, symbol),
+            receipt,
+            failure_reason="PROFILED_BASE_PUBLISHER_MASKED_RECOVERY_RECEIPT_WRITE_FAILED",
         )
 
     @staticmethod
@@ -2332,10 +3199,184 @@ class ProfiledBaseFeaturePublisherV1:
             },
         )
 
+    def _recover_masked_parent(
+        self,
+        *,
+        symbol: str,
+        prior_coverage: Mapping[str, Any] | None,
+        feature_ledger: DurableFeatureSnapshotLedger,
+    ) -> _SymbolOutcome | None:
+        """Recover an exact quarantined parent without rebuilding timestamped identity."""
+
+        receipt = _load_masked_parent_recovery_receipt(
+            _masked_parent_recovery_receipt_path(self.data_root, symbol),
+            expected_symbol=symbol,
+        )
+        if receipt is None or not feature_ledger.path.is_file():
+            return None
+        parent_id = cast(str, receipt["parent_durable_snapshot_id"])
+        if (
+            prior_coverage is not None
+            and prior_coverage.get("durable_snapshot_id") == parent_id
+        ):
+            return None
+        try:
+            parent = feature_ledger.get_snapshot(parent_id)
+        except FeatureSnapshotLedgerError as exc:
+            raise ProfiledBaseFeaturePublisherV1StateError(
+                "PROFILED_BASE_PUBLISHER_MASKED_RECOVERY_LEDGER_READ_FAILED"
+            ) from exc
+        if parent is None:
+            # The durable intent may precede a crash before append.  A fresh
+            # attempt may replace it; it never proves that a parent committed.
+            return None
+        if prior_coverage is not None:
+            prior_id = prior_coverage.get("durable_snapshot_id")
+            try:
+                prior = (
+                    feature_ledger.get_snapshot(cast(str, prior_id))
+                    if type(prior_id) is str
+                    else None
+                )
+            except FeatureSnapshotLedgerError as exc:
+                raise ProfiledBaseFeaturePublisherV1StateError(
+                    "PROFILED_BASE_PUBLISHER_MASKED_RECOVERY_PRIOR_LEDGER_READ_FAILED"
+                ) from exc
+            if prior is None:
+                _fail(
+                    ProfiledBaseFeaturePublisherV1StateError,
+                    "PROFILED_BASE_PUBLISHER_MASKED_RECOVERY_PRIOR_COVERAGE_MISSING",
+                )
+            if parent.sequence <= prior.sequence:
+                return None
+        record = parent.record
+        envelope = record.get("frozen_envelope")
+        if type(envelope) is not dict:
+            _fail(
+                ProfiledBaseFeaturePublisherV1StateError,
+                "PROFILED_BASE_PUBLISHER_MASKED_RECOVERY_PARENT_INVALID",
+            )
+        parent_envelope = cast(dict[str, Any], envelope)
+        lineage = parent_envelope.get("source_lineage_material")
+        authorization = (
+            lineage.get("authorization") if type(lineage) is dict else None
+        )
+        mask_contract = _masked_cost_observation_contract()
+        mask_binding = {
+            "schema_version": "profiled_masked_cost_observation_binding_v1",
+            "parent_durable_snapshot_id": parent_id,
+            "parent_record_sha256": receipt["parent_record_sha256"],
+            "window_fingerprint_sha256": receipt["window_fingerprint_sha256"],
+            "decision_time": parent_envelope.get("tensor_decision_time"),
+            "cost_observation": mask_contract,
+        }
+        decision_time = _parse_clock(
+            parent_envelope.get("tensor_decision_time"),
+            reason="PROFILED_BASE_PUBLISHER_MASKED_RECOVERY_DECISION_CLOCK_INVALID",
+        )
+        postcommit_at = _parse_clock(
+            parent.postcommit_readback_at,
+            reason="PROFILED_BASE_PUBLISHER_MASKED_RECOVERY_POSTCOMMIT_CLOCK_INVALID",
+        )
+        if (
+            record.get("record_sha256") != receipt["parent_record_sha256"]
+            or parent_envelope.get("symbol") != symbol
+            or parent_envelope.get("ordered_feature_names")
+            != list(PHYSICAL_ORDERED_FEATURE_NAMES)
+            or any(
+                name in cast(list[Any], parent_envelope["ordered_feature_names"])
+                for name in CAUSAL_COST_ORDERED_FEATURE_NAMES
+            )
+            or parent_envelope.get("strict_training_eligible") is not False
+            or type(authorization) is not dict
+            or any(authorization.get(name) is not False for name in AUTHORITY_FIELDS)
+            or parent_envelope.get("generated_at") != receipt["prepared_at"]
+            or stable_sha256(mask_binding)
+            != receipt["cost_observation_binding_sha256"]
+            or postcommit_at < decision_time
+        ):
+            _fail(
+                ProfiledBaseFeaturePublisherV1StateError,
+                "PROFILED_BASE_PUBLISHER_MASKED_RECOVERY_PARENT_BINDING_INVALID",
+            )
+        detail = {
+            "symbol": symbol,
+            "classification": "MASKED_COST_OBSERVATION_PARENT_EXACT_REPLAY",
+            "window_fingerprint_sha256": receipt["window_fingerprint_sha256"],
+            "feature_cutoff": parent_envelope["feature_cutoff"],
+            "decision_time": parent_envelope["tensor_decision_time"],
+            "append_after_prospective_decision_reverified": True,
+            "durable_snapshot_id": parent_id,
+            "record_sha256": receipt["parent_record_sha256"],
+            "cost_observation": mask_contract,
+            "cost_observation_binding_sha256": receipt[
+                "cost_observation_binding_sha256"
+            ],
+            "cost_values_or_receipts_fabricated": False,
+            "commission_capture_attempted": False,
+            "cost_source_read_attempted": False,
+            "materialized_evidence_bytes": receipt["materialized_evidence_bytes"],
+            "feature_append": {
+                "transaction_id": parent.append_transaction_id,
+                "new_rows_inserted_this_cycle": False,
+                "parent_sequence": parent.sequence,
+                "append_receipt_sha256": parent.append_receipt_sha256,
+                "postcommit_receipt_sha256": parent.postcommit_receipt_sha256,
+                "postcommit_readback_at": parent.postcommit_readback_at,
+                "transaction_committed": True,
+                "transaction_readback_verified": True,
+            },
+            "recovery": {
+                "classification": (
+                    "STATE_LOSS_MASKED_PARENT_LEDGER_READBACK_VERIFIED"
+                ),
+                "recovery_receipt_sha256": receipt["recovery_receipt_sha256"],
+                "ledger_reopened": True,
+                "cost_or_commission_capture_performed": False,
+                "feature_ledger_append_performed": False,
+                "coverage_recovered_from_commit_receipt": True,
+            },
+            "authority": {
+                "publisher_runtime_authority_granted": False,
+                "parent_trainer_admission_authorized": False,
+                "child_trainer_admission_authorized": False,
+                "trainer_candidate_in_lineage": False,
+                "prediction_authorized": False,
+                "paper_trading_authorized": False,
+                "live_execution_authorized": False,
+                "runtime_wired": False,
+            },
+            "legacy_feature_redis_write_performed": False,
+        }
+        return _SymbolOutcome(
+            symbol=symbol,
+            classification="MASKED_COST_OBSERVATION_PARENT_EXACT_REPLAY",
+            window_fingerprint_sha256=cast(
+                str,
+                receipt["window_fingerprint_sha256"],
+            ),
+            materialized_evidence_bytes=cast(
+                int,
+                receipt["materialized_evidence_bytes"],
+            ),
+            detail=detail,
+            coverage={
+                "last_published_at": parent.postcommit_readback_at,
+                "feature_cutoff": parent_envelope["feature_cutoff"],
+                "decision_time": parent_envelope["tensor_decision_time"],
+                "window_fingerprint_sha256": receipt["window_fingerprint_sha256"],
+                "durable_snapshot_id": parent_id,
+                "record_sha256": receipt["parent_record_sha256"],
+            },
+        )
+
     def _publish_symbol_once(
         self,
         *,
         symbol: str,
+        publication_attempt: int,
+        adaptive_estimated_symbol_elapsed_seconds: float,
+        source_shard_preflight_evidence: list[dict[str, Any]],
         prior_coverage: Mapping[str, Any] | None,
         source_store: ImmutableSourcePayloadStore,
         capture_set_store: ImmutableSourcePayloadStore,
@@ -2343,6 +3384,13 @@ class ProfiledBaseFeaturePublisherV1:
         enrichment_store: ImmutableSourcePayloadStore,
         feature_ledger: DurableFeatureSnapshotLedger,
     ) -> _SymbolOutcome:
+        recovered = self._recover_masked_parent(
+            symbol=symbol,
+            prior_coverage=prior_coverage,
+            feature_ledger=feature_ledger,
+        )
+        if recovered is not None:
+            return recovered
         recovered = self._recover_committed_pair(
             symbol=symbol,
             prior_coverage=prior_coverage,
@@ -2351,6 +3399,17 @@ class ProfiledBaseFeaturePublisherV1:
         )
         if recovered is not None:
             return recovered
+        source_shard_preflight = self._preflight_source_shard(
+            symbol=symbol,
+            publication_attempt=publication_attempt,
+            adaptive_estimated_symbol_elapsed_seconds=(
+                adaptive_estimated_symbol_elapsed_seconds
+            ),
+        )
+        source_shard_preflight.evidence["status_preflight_index"] = len(
+            source_shard_preflight_evidence
+        )
+        source_shard_preflight_evidence.append(source_shard_preflight.evidence)
         prior_fingerprint = (
             cast(str, prior_coverage.get("window_fingerprint_sha256"))
             if prior_coverage is not None
@@ -2386,7 +3445,24 @@ class ProfiledBaseFeaturePublisherV1:
                 "PROFILED_BASE_PUBLISHER_DECISION_MISSING_FOR_CHANGED_WINDOW",
             )
 
-        source_ledger, shard_index, rolled, projected_pair = self._source_ledger(captures)
+        source_ledger, shard_index, rolled, projected_pair = self._source_ledger(
+            captures,
+            expected_active_index=source_shard_preflight.selected_shard_index,
+        )
+        source_shard_preflight.evidence.update(
+            {
+                "publication_shard_index": shard_index,
+                "publication_shard_relative_path": (
+                    f"source-provenance-shards/shard-{shard_index:08d}"
+                ),
+                "publication_shard_selection_reconciled": True,
+                "hard_safety_cap_rollover_after_capture": (
+                    rolled
+                    and shard_index
+                    != source_shard_preflight.selected_shard_index
+                ),
+            }
+        )
         append_results: list[TrainerSourceProvenanceAppendResultV4] = []
         for timeframe, capture in zip(REQUIRED_TIMEFRAMES, captures, strict=True):
             cycle_digest = stable_sha256(
@@ -2444,6 +3520,240 @@ class ProfiledBaseFeaturePublisherV1:
             if feature_ledger.path.is_file()
             else None
         )
+        broker_commission_evidence: CredentiallessCommissionEvidence | None = None
+        commission_evidence_status = "DIRECT_CAPTURE_NOT_YET_ATTEMPTED"
+        commission_evidence_read_attempted = False
+        if (
+            self.commission_cost_mode
+            == BROKER_AUTHENTICATED_COST_EVIDENCE_WITH_MASKED_FALLBACK_MODE
+        ):
+            commission_evidence_read_attempted = True
+            (
+                broker_commission_evidence,
+                commission_evidence_status,
+            ) = self._broker_commission_evidence_for_parent(parent_record=record)
+        elif self.commission_cost_mode == MASKED_COST_OBSERVATION_MODE:
+            commission_evidence_status = "COMMISSION_EVIDENCE_NOT_CONFIGURED"
+        use_masked_cost_observation = (
+            self.commission_cost_mode == MASKED_COST_OBSERVATION_MODE
+            or (
+                self.commission_cost_mode
+                == BROKER_AUTHENTICATED_COST_EVIDENCE_WITH_MASKED_FALLBACK_MODE
+                and broker_commission_evidence is None
+            )
+        )
+        if use_masked_cost_observation:
+            if existing_snapshot is not None and existing_snapshot.record != record:
+                _fail(
+                    ProfiledBaseFeaturePublisherV1StateError,
+                    "PROFILED_BASE_PUBLISHER_MASKED_PARENT_EXISTING_RECORD_MISMATCH",
+                )
+            mask_contract = _masked_cost_observation_contract()
+            mask_binding = {
+                "schema_version": "profiled_masked_cost_observation_binding_v1",
+                "parent_durable_snapshot_id": validation.durable_snapshot_id,
+                "parent_record_sha256": validation.record_sha256,
+                "window_fingerprint_sha256": fingerprint,
+                "decision_time": contract["timestamps"]["decision_time"],
+                "cost_observation": mask_contract,
+            }
+            mask_binding_sha256 = stable_sha256(mask_binding)
+            parent_envelope = cast(dict[str, Any], record["frozen_envelope"])
+            parent_record_bytes = len(_canonical_json_bytes(record))
+            materialized_evidence_bytes = (
+                projected_pair
+                + int(capture_set.capture_set_manifest_byte_count)
+                + len(transformed.artifact_json.encode("ascii"))
+                + PAIR_LEDGER_RECORD_ACCOUNTING_MULTIPLIER * parent_record_bytes
+                + len(_canonical_json_bytes(mask_binding))
+                + sum(
+                    len(result.entry.entry_json.encode("ascii"))
+                    for result in append_results
+                )
+                + PAIR_AUXILIARY_CAS_SQLITE_ACCOUNTING_OVERHEAD_BYTES
+            )
+            try:
+                decision_wait_completed_at = self.decision_waiter(decision_at)
+            except ProfiledBaseFeaturePublisherV1Error:
+                raise
+            except Exception as exc:  # noqa: BLE001 - waiter detail is suppressed
+                raise ProfiledBaseFeaturePublisherV1ConfigurationError(
+                    "PROFILED_BASE_PUBLISHER_DECISION_WAITER_FAILED"
+                ) from exc
+            decision_wait_completed = _clock_text(
+                decision_wait_completed_at,
+                reason="PROFILED_BASE_PUBLISHER_DECISION_WAIT_RESULT_INVALID",
+            )
+            if decision_wait_completed_at < decision_at:
+                _fail(
+                    ProfiledBaseFeaturePublisherV1ConfigurationError,
+                    "PROFILED_BASE_PUBLISHER_APPEND_BEFORE_PROSPECTIVE_DECISION",
+                )
+            self._write_masked_parent_recovery_receipt(
+                symbol=symbol,
+                window_fingerprint_sha256=fingerprint,
+                parent_durable_snapshot_id=validation.durable_snapshot_id,
+                parent_record_sha256=validation.record_sha256,
+                cost_observation_binding_sha256=mask_binding_sha256,
+                prepared_at=cast(str, parent_envelope["generated_at"]),
+                materialized_evidence_bytes=materialized_evidence_bytes,
+            )
+            try:
+                feature_append = feature_ledger.append_snapshot(record)
+                committed_parent = feature_ledger.get_snapshot(
+                    validation.durable_snapshot_id
+                )
+            except FeatureSnapshotLedgerError as exc:
+                raise ProfiledBaseFeaturePublisherV1Error(
+                    "PROFILED_BASE_PUBLISHER_MASKED_PARENT_APPEND_FAILED"
+                ) from exc
+            if (
+                feature_append.attempted_rows != 1
+                or feature_append.inserted_rows != 1
+                or feature_append.duplicate_rows != 0
+                or feature_append.transaction_committed is not True
+                or feature_append.transaction_readback_verified is not True
+                or committed_parent is None
+                or committed_parent.record != record
+                or committed_parent.append_transaction_id
+                != feature_append.transaction_id
+                or committed_parent.append_receipt_sha256
+                != feature_append.append_receipt_sha256
+                or committed_parent.postcommit_receipt_sha256
+                != feature_append.postcommit_receipt_sha256
+                or committed_parent.postcommit_readback_at
+                != feature_append.postcommit_readback_at
+                or any(getattr(validation, name) is not False for name in AUTHORITY_FIELDS)
+            ):
+                _fail(
+                    ProfiledBaseFeaturePublisherV1Error,
+                    "PROFILED_BASE_PUBLISHER_MASKED_PARENT_POSTCOMMIT_INVALID",
+                )
+            source_ledger_entries_after = len(source_ledger.read_entries())
+            source_ledger_bytes_after = source_ledger.path.stat().st_size
+            source_details = [
+                {
+                    "timeframe": timeframe,
+                    "ledger_sequence": result.entry.ledger_sequence,
+                    "entry_sha256": result.entry.entry_sha256,
+                    "replay_identity_sha256": result.entry.replay_identity_sha256,
+                    "cycle_identity_sha256": result.entry.cycle_identity_sha256,
+                    "disposition": result.disposition,
+                    "durable_postcommit_readback_verified": (
+                        result.durable_postcommit_readback_verified
+                    ),
+                }
+                for timeframe, result in zip(
+                    REQUIRED_TIMEFRAMES,
+                    append_results,
+                    strict=True,
+                )
+            ]
+            classification = (
+                "MASKED_COST_OBSERVATION_PARENT_EXACT_REPLAY"
+                if existing_snapshot is not None
+                else "MASKED_COST_OBSERVATION_PARENT_INSERTED"
+            )
+            detail = {
+                "symbol": symbol,
+                "classification": classification,
+                "boundary_attempts": attempts,
+                "window_fingerprint_sha256": fingerprint,
+                "event_time": contract["timestamps"]["event_time"],
+                "ingested_at": contract["timestamps"]["ingested_at"],
+                "available_at": contract["timestamps"]["available_at"],
+                "capture_generated_at": contract["timestamps"]["generated_at"],
+                "feature_cutoff": parent_envelope["feature_cutoff"],
+                "decision_time": parent_envelope["tensor_decision_time"],
+                "decision_wait_completed_at": decision_wait_completed,
+                "prospective_decision_wait_verified": True,
+                "transform_available_at": transform_available_at,
+                "parent_record_generated_at": parent_envelope["generated_at"],
+                "execution_time": contract["timestamps"]["execution_time"],
+                "capture_set_sha256": validation.capture_set_sha256,
+                "transform_artifact_sha256": validation.transform_artifact_sha256,
+                "durable_snapshot_id": validation.durable_snapshot_id,
+                "record_sha256": validation.record_sha256,
+                "frozen_envelope_sha256": record["frozen_envelope_sha256"],
+                "source_lineage_sha256": validation.source_lineage_sha256,
+                "physical_model_vector_sha256": (
+                    validation.physical_model_vector_sha256
+                ),
+                "logical_model_vector_sha256": (
+                    validation.logical_projection.model_vector_sha256
+                ),
+                "lineage_binding_sha256": validation.lineage_binding_sha256,
+                "cost_observation": mask_contract,
+                "cost_observation_binding_sha256": mask_binding_sha256,
+                "cost_values_or_receipts_fabricated": False,
+                "commission_capture_attempted": False,
+                "commission_evidence_read_attempted": commission_evidence_read_attempted,
+                "commission_evidence_status": commission_evidence_status,
+                "commission_evidence_authenticated": False,
+                "cost_source_read_attempted": False,
+                "source_provenance_shard_index": shard_index,
+                "source_provenance_shard_rolled": rolled,
+                "source_pair_projected_ledger_bytes": projected_pair,
+                "materialized_evidence_bytes": materialized_evidence_bytes,
+                "source_ledger_entries_after": source_ledger_entries_after,
+                "source_ledger_entry_limit": MAX_LEDGER_ENTRIES,
+                "source_ledger_remaining_entries": (
+                    MAX_LEDGER_ENTRIES - source_ledger_entries_after
+                ),
+                "source_ledger_bytes_after": source_ledger_bytes_after,
+                "source_ledger_byte_limit": MAX_LEDGER_BYTES,
+                "source_ledger_remaining_bytes": (
+                    MAX_LEDGER_BYTES - source_ledger_bytes_after
+                ),
+                "source_appends": source_details,
+                "feature_append": {
+                    "transaction_id": feature_append.transaction_id,
+                    "original_transaction_inserted_rows": (
+                        feature_append.inserted_rows
+                    ),
+                    "new_rows_inserted_this_cycle": (
+                        existing_snapshot is None
+                    ),
+                    "parent_sequence": committed_parent.sequence,
+                    "append_receipt_sha256": (
+                        feature_append.append_receipt_sha256
+                    ),
+                    "postcommit_receipt_sha256": (
+                        feature_append.postcommit_receipt_sha256
+                    ),
+                    "postcommit_readback_at": (
+                        feature_append.postcommit_readback_at
+                    ),
+                    "transaction_committed": True,
+                    "transaction_readback_verified": True,
+                },
+                "authority": {
+                    "publisher_runtime_authority_granted": False,
+                    "parent_trainer_admission_authorized": False,
+                    "child_trainer_admission_authorized": False,
+                    "trainer_candidate_in_lineage": False,
+                    "prediction_authorized": False,
+                    "paper_trading_authorized": False,
+                    "live_execution_authorized": False,
+                    "runtime_wired": False,
+                },
+                "legacy_feature_redis_write_performed": False,
+            }
+            return _SymbolOutcome(
+                symbol=symbol,
+                classification=classification,
+                window_fingerprint_sha256=fingerprint,
+                materialized_evidence_bytes=materialized_evidence_bytes,
+                detail=detail,
+                coverage={
+                    "last_published_at": feature_append.postcommit_readback_at,
+                    "feature_cutoff": parent_envelope["feature_cutoff"],
+                    "decision_time": parent_envelope["tensor_decision_time"],
+                    "window_fingerprint_sha256": fingerprint,
+                    "durable_snapshot_id": validation.durable_snapshot_id,
+                    "record_sha256": validation.record_sha256,
+                },
+            )
         if existing_snapshot is not None:
             _fail(
                 ProfiledBaseFeaturePublisherV1Error,
@@ -2453,6 +3763,11 @@ class ProfiledBaseFeaturePublisherV1:
             parent_record=record,
             enrichment_store=enrichment_store,
             decision_at=decision_at,
+            commission_evidence=broker_commission_evidence,
+        )
+        runtime_notional_source = cast(
+            dict[str, Any],
+            cost_evidence.contract["notional_source"],
         )
         _, cost_artifact_available_at = self._sample_clock(
             "PROFILED_BASE_PUBLISHER_COST_ARTIFACT_AVAILABLE_CLOCK_INVALID"
@@ -2598,6 +3913,23 @@ class ProfiledBaseFeaturePublisherV1:
             "source_pair_projected_ledger_bytes": projected_pair,
             "materialized_evidence_bytes": materialized_evidence_bytes,
             "runtime_cost_auxiliary_cas_bytes": runtime_cost_auxiliary_cas_bytes,
+            "expected_notional_usd": runtime_notional_source[
+                "expected_notional_usd"
+            ],
+            "expected_notional_policy_id": runtime_notional_source["policy_id"],
+            "expected_notional_policy_version": runtime_notional_source[
+                "policy_version"
+            ],
+            "expected_notional_policy_source_key": runtime_notional_source[
+                "policy_source_key"
+            ],
+            "commission_evidence_read_attempted": commission_evidence_read_attempted,
+            "commission_evidence_status": (
+                commission_evidence_status
+                if commission_evidence_read_attempted
+                else "DIRECT_CAPTURE_COMPLETED"
+            ),
+            "commission_evidence_authenticated": True,
             "pair_ledger_record_accounting_multiplier": (PAIR_LEDGER_RECORD_ACCOUNTING_MULTIPLIER),
             "pair_auxiliary_cas_sqlite_accounting_overhead_bytes": (
                 PAIR_AUXILIARY_CAS_SQLITE_ACCOUNTING_OVERHEAD_BYTES
@@ -2654,20 +3986,33 @@ class ProfiledBaseFeaturePublisherV1:
         self,
         *,
         symbol: str,
+        adaptive_estimated_symbol_elapsed_seconds: float,
         prior_coverage: Mapping[str, Any] | None,
         source_store: ImmutableSourcePayloadStore,
         capture_set_store: ImmutableSourcePayloadStore,
         artifact_store: ImmutableSourcePayloadStore,
         enrichment_store: ImmutableSourcePayloadStore,
         feature_ledger: DurableFeatureSnapshotLedger,
+        source_shard_preflight_evidence: list[dict[str, Any]] | None = None,
     ) -> _SymbolOutcome:
         """Retry the whole finalized-window capture if a decision window is missed."""
 
         last_reasons: tuple[str, ...] = ()
+        preflights = (
+            source_shard_preflight_evidence
+            if source_shard_preflight_evidence is not None
+            else []
+        )
+        preflight_start = len(preflights)
         for attempt in range(1, self.boundary_retry_limit + 1):
             try:
                 outcome = self._publish_symbol_once(
                     symbol=symbol,
+                    publication_attempt=attempt,
+                    adaptive_estimated_symbol_elapsed_seconds=(
+                        adaptive_estimated_symbol_elapsed_seconds
+                    ),
+                    source_shard_preflight_evidence=preflights,
                     prior_coverage=prior_coverage,
                     source_store=source_store,
                     capture_set_store=capture_set_store,
@@ -2675,12 +4020,24 @@ class ProfiledBaseFeaturePublisherV1:
                     enrichment_store=enrichment_store,
                     feature_ledger=feature_ledger,
                 )
+                detail = {**outcome.detail, "publication_attempts": attempt}
+                symbol_preflight_references = _source_shard_preflight_references(
+                    preflights,
+                    start=preflight_start,
+                )
+                if symbol_preflight_references:
+                    detail["source_provenance_shard_preflight_count"] = len(
+                        symbol_preflight_references
+                    )
+                    detail["source_provenance_shard_preflight_references"] = (
+                        symbol_preflight_references
+                    )
                 return _SymbolOutcome(
                     symbol=outcome.symbol,
                     classification=outcome.classification,
                     window_fingerprint_sha256=outcome.window_fingerprint_sha256,
                     materialized_evidence_bytes=outcome.materialized_evidence_bytes,
-                    detail={**outcome.detail, "publication_attempts": attempt},
+                    detail=detail,
                     coverage=outcome.coverage,
                 )
             except (
@@ -2738,15 +4095,20 @@ class ProfiledBaseFeaturePublisherV1:
 
         if planned_selection:
             source_store, capture_set_store, artifact_store, enrichment_store = self._stores()
-            feature_ledger: DurableFeatureSnapshotLedger | None = DurableFeatureSnapshotLedger(
-                self.feature_ledger_path
+            feature_ledger: DurableFeatureSnapshotLedger | None = (
+                self._feature_ledger
+                if self._feature_ledger is not None
+                else DurableFeatureSnapshotLedger(self.feature_ledger_path)
             )
         else:
             source_store = capture_set_store = artifact_store = enrichment_store = None
             feature_ledger = None
         published: list[dict[str, Any]] = []
         replayed: list[dict[str, Any]] = []
+        masked_cost_observations: list[dict[str, Any]] = []
+        masked_cost_replays: list[dict[str, Any]] = []
         skipped: list[dict[str, Any]] = []
+        source_shard_preflights: list[dict[str, Any]] = []
         selected: list[str] = []
         resource_deferred: list[str] = []
         failures: list[dict[str, Any]] = [
@@ -2769,15 +4131,24 @@ class ProfiledBaseFeaturePublisherV1:
         materialized_cycle_publication_count = 0
         cycle_disk_consumption_high_water = 0
         cycle_start_disk_free = disk_free
+        cycle_start_owned_durable_bytes = self._owned_durable_footprint_bytes()
         for selection_index, symbol in enumerate(planned_selection):
             _current_total, _current_used, current_disk_free = self._disk_sample()
             cycle_disk_consumption_high_water = max(
                 cycle_disk_consumption_high_water,
                 max(0, cycle_start_disk_free - current_disk_free),
             )
+            # Shared-filesystem drift before this publisher writes is not this
+            # cycle's write-credit consumption.  It still binds the absolute
+            # reserve check below.  Once any publisher materialization occurs,
+            # retain the shared high-water as the conservative in-cycle cap.
             current_cycle_bytes = max(
                 materialized_cycle_evidence_bytes,
-                cycle_disk_consumption_high_water,
+                (
+                    cycle_disk_consumption_high_water
+                    if materialized_cycle_publication_count > 0
+                    else 0
+                ),
             )
             effective_next_publication_bytes = max(
                 decision.estimated_evidence_bytes_per_symbol,
@@ -2789,15 +4160,22 @@ class ProfiledBaseFeaturePublisherV1:
                     else 0
                 ),
             )
+            current_safe_disk_headroom = max(
+                0,
+                current_disk_free - decision.disk_reserve_bytes,
+            )
             if (
-                current_cycle_bytes + effective_next_publication_bytes
-                > decision.sustainable_cycle_write_budget_bytes
+                current_safe_disk_headroom < effective_next_publication_bytes
+                or current_cycle_bytes + effective_next_publication_bytes
+                > decision.available_write_credit_bytes
             ):
                 resource_deferred.extend(planned_selection[selection_index:])
                 break
             selected.append(symbol)
             rotation_last_attempted[symbol] = selection_at
             symbol_started = self.monotonic()
+            attempt_start_owned_durable_bytes = self._owned_durable_footprint_bytes()
+            symbol_preflight_start = len(source_shard_preflights)
             materialized = False
             try:
                 if (
@@ -2814,15 +4192,32 @@ class ProfiledBaseFeaturePublisherV1:
                 prior = coverage.get(symbol)
                 outcome = self._publish_symbol(
                     symbol=symbol,
+                    adaptive_estimated_symbol_elapsed_seconds=(
+                        decision.estimated_seconds_per_symbol
+                    ),
                     prior_coverage=prior if type(prior) is dict else None,
                     source_store=source_store,
                     capture_set_store=capture_set_store,
                     artifact_store=artifact_store,
                     enrichment_store=enrichment_store,
                     feature_ledger=feature_ledger,
+                    source_shard_preflight_evidence=source_shard_preflights,
                 )
                 if outcome.classification == "UNCHANGED_FINALIZED_WINDOWS":
                     skipped.append(outcome.detail)
+                elif outcome.classification == "MASKED_COST_OBSERVATION_PARENT_INSERTED":
+                    masked_cost_observations.append(outcome.detail)
+                    materialized = True
+                    materialized_cycle_evidence_bytes += outcome.materialized_evidence_bytes
+                    materialized_cycle_publication_count += 1
+                elif outcome.classification == "MASKED_COST_OBSERVATION_PARENT_EXACT_REPLAY":
+                    masked_cost_replays.append(outcome.detail)
+                    if outcome.materialized_evidence_bytes > 0:
+                        materialized_cycle_evidence_bytes += outcome.materialized_evidence_bytes
+                        materialized_cycle_publication_count += 1
+                        materialized_publication_elapsed += (
+                            decision.estimated_seconds_per_symbol
+                        )
                 elif outcome.classification.endswith("EXACT_REPLAY"):
                     replayed.append(outcome.detail)
                     if outcome.materialized_evidence_bytes > 0:
@@ -2844,11 +4239,15 @@ class ProfiledBaseFeaturePublisherV1:
                     coverage[symbol] = outcome.coverage
             except Exception as exc:  # noqa: BLE001 - isolate every symbol
                 reasons = _error_reasons(exc)
+                failed_owned_durable_bytes = self._owned_durable_footprint_bytes()
                 try:
                     _failed_total, _failed_used, failed_disk_free = self._disk_sample()
                 except ProfiledBaseFeaturePublisherV1Error:
                     failed_disk_free = current_disk_free
-                failed_materialized_bytes = max(0, current_disk_free - failed_disk_free)
+                failed_materialized_bytes = max(
+                    0,
+                    failed_owned_durable_bytes - attempt_start_owned_durable_bytes,
+                )
                 if failed_materialized_bytes > 0:
                     materialized = True
                     materialized_cycle_evidence_bytes += failed_materialized_bytes
@@ -2860,7 +4259,11 @@ class ProfiledBaseFeaturePublisherV1:
                 failures.append(
                     {
                         "symbol": symbol,
-                        "stage": "AUTHENTICATED_PROFILED_TRAINING_PAIR_PUBLICATION",
+                        "stage": (
+                            "MASKED_COST_OBSERVATION_PARENT_PUBLICATION"
+                            if self.commission_cost_mode == MASKED_COST_OBSERVATION_MODE
+                            else "AUTHENTICATED_PROFILED_TRAINING_PAIR_PUBLICATION"
+                        ),
                         "reasons": list(reasons),
                         "materialized_evidence_bytes": failed_materialized_bytes,
                         "orphan_feature_ledger_record_appended": False,
@@ -2883,6 +4286,15 @@ class ProfiledBaseFeaturePublisherV1:
                             )
                         ),
                         "boundary_or_finality_related": _boundary_related(reasons),
+                        "source_provenance_shard_preflight_count": (
+                            len(source_shard_preflights) - symbol_preflight_start
+                        ),
+                        "source_provenance_shard_preflight_references": (
+                            _source_shard_preflight_references(
+                                source_shard_preflights,
+                                start=symbol_preflight_start,
+                            )
+                        ),
                     }
                 )
             finally:
@@ -2896,9 +4308,14 @@ class ProfiledBaseFeaturePublisherV1:
             cycle_disk_consumption_high_water,
             max(0, cycle_start_disk_free - final_disk_free),
         )
+        final_owned_durable_bytes = self._owned_durable_footprint_bytes()
+        cycle_owned_durable_growth = max(
+            0,
+            final_owned_durable_bytes - cycle_start_owned_durable_bytes,
+        )
         evidence_delta = max(
             materialized_cycle_evidence_bytes,
-            cycle_disk_consumption_high_water,
+            cycle_owned_durable_growth,
         )
         observations = cast(dict[str, Any], state["observations"])
         observations["cycle_count"] += 1
@@ -2908,10 +4325,10 @@ class ProfiledBaseFeaturePublisherV1:
                 float(observations["materialized_publication_elapsed_seconds"])
                 + materialized_publication_elapsed
             )
-            # Charge the conservative cycle evidence high-water, including
-            # auxiliary CAS objects and failed attempts visible only through
-            # filesystem consumption.  Repeated blocked attempts therefore
-            # cannot evade the next adaptive unit-cost estimate.
+            # Attribute only deterministic artifacts and growth under paths
+            # this publisher owns. Shared-filesystem traffic still binds live
+            # headroom/backpressure, but cannot poison the per-symbol mean.
+            # Failed durable writes remain visible in the owned-path delta.
             observations["materialized_publication_bytes"] += evidence_delta
         _atomic_write_json(
             self.state_path,
@@ -2975,6 +4392,8 @@ class ProfiledBaseFeaturePublisherV1:
             if not selected and resource_deferred
             else "CYCLE_COMPLETE_PARTIAL_SYMBOL_FAILURES_ISOLATED"
             if selected_failure_count > 0
+            else "CYCLE_COMPLETE_MASKED_COST_OBSERVATIONS"
+            if masked_cost_observations or masked_cost_replays
             else "CYCLE_COMPLETE_RESOURCE_BACKPRESSURE_DEFERRED"
             if resource_deferred
             else "CYCLE_COMPLETE_ALL_SELECTED_AUTHENTICATED_OR_UNCHANGED"
@@ -3026,6 +4445,14 @@ class ProfiledBaseFeaturePublisherV1:
             "published_symbols": [item["symbol"] for item in published],
             "exact_replay_symbol_count": len(replayed),
             "exact_replay_symbols": [item["symbol"] for item in replayed],
+            "masked_cost_observation_symbol_count": len(masked_cost_observations),
+            "masked_cost_observation_symbols": [
+                item["symbol"] for item in masked_cost_observations
+            ],
+            "masked_cost_observation_replay_symbol_count": len(masked_cost_replays),
+            "masked_cost_observation_replay_symbols": [
+                item["symbol"] for item in masked_cost_replays
+            ],
             "unchanged_symbol_count": len(skipped),
             "unchanged_symbols": [item["symbol"] for item in skipped],
             "failed_symbol_count": len(failures),
@@ -3050,24 +4477,51 @@ class ProfiledBaseFeaturePublisherV1:
             "cycle_materialized_artifact_bytes": materialized_cycle_evidence_bytes,
             "cycle_materialized_publication_count": (materialized_cycle_publication_count),
             "cycle_disk_consumption_high_water_bytes": (cycle_disk_consumption_high_water),
+            "cycle_owned_durable_growth_bytes": cycle_owned_durable_growth,
             "evidence_accounting_method": (
                 "MAX_DETERMINISTIC_AUTHENTICATED_ARTIFACT_BYTES_AND_"
-                "FILESYSTEM_FREE_SPACE_HIGH_WATER"
+                "PUBLISHER_OWNED_DURABLE_PATH_GROWTH"
             ),
             "coverage": coverage_status,
             "rotation_last_attempted_at": {
                 symbol: rotation_last_attempted.get(symbol) for symbol in discovery.eligible_symbols
             },
             "publications": [*published, *replayed],
+            "masked_cost_observations": [
+                *masked_cost_observations,
+                *masked_cost_replays,
+            ],
             "skips": skipped,
             "failures": failures,
+            "source_provenance_shard_preflight_count": len(
+                source_shard_preflights
+            ),
+            "source_provenance_shard_rollover_count": sum(
+                1
+                for item in source_shard_preflights
+                if item["rollover_performed_before_capture"] is True
+            ),
+            "source_provenance_shard_preflights": source_shard_preflights,
             "authority": {name: False for name in AUTHORITY_FIELDS},
             "authority_semantics": {
                 "publisher_runtime_authority_granted": False,
                 "published_child_trainer_admission_authorized": bool(published or replayed),
+                "masked_parent_trainer_admission_authorized": False,
                 "prediction_paper_live_authority_granted": False,
                 "automatic_trainer_transition_authorized": False,
             },
+            "commission_cost_mode": self.commission_cost_mode,
+            "commission_credentials_available": (
+                self.commission_cost_mode
+                == AUTHENTICATED_COST_EVIDENCE_REQUIRED_MODE
+            ),
+            "commission_broker_reader_available": (
+                self.commission_cost_mode
+                == BROKER_AUTHENTICATED_COST_EVIDENCE_WITH_MASKED_FALLBACK_MODE
+            ),
+            "exchange_credentials_loaded_by_publisher": (
+                self.exchange_credentials_loaded_by_publisher
+            ),
             "legacy_feature_redis_write_performed": False,
             "market_performance_thresholds_applied": False,
             "singleton_writer_lock": lock_metadata,
@@ -3083,6 +4537,8 @@ class ProfiledBaseFeaturePublisherV1:
 
 
 __all__ = [
+    "AUTHENTICATED_COST_EVIDENCE_REQUIRED_MODE",
+    "BROKER_AUTHENTICATED_COST_EVIDENCE_WITH_MASKED_FALLBACK_MODE",
     "BOOTSTRAP_EVIDENCE_BYTES_PER_SYMBOL",
     "CANONICAL_KEY_PREFIX",
     "COST_EVIDENCE_UNAVAILABLE_PARENT_NOT_APPENDED",
@@ -3094,6 +4550,8 @@ __all__ = [
     "DISK_RESERVE_TOTAL_FRACTION_NUMERATOR",
     "DYNAMIC_SYMBOL_SELECTION_KEY",
     "MINIMUM_RESOURCE_SUSTAINABILITY_HORIZON_SECONDS",
+    "MASKED_COST_OBSERVATION_MODE",
+    "PROFILED_MASKED_COST_OBSERVATION_V1_SCHEMA_VERSION",
     "PROFILED_BASE_FEATURE_PUBLISHER_STATE_V1_SCHEMA_VERSION",
     "PROFILED_BASE_FEATURE_PUBLISHER_STATUS_V1_SCHEMA_VERSION",
     "PROFILED_BASE_FEATURE_PUBLISHER_V1_SCHEMA_VERSION",

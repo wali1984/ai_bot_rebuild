@@ -1,11 +1,14 @@
 # Binance USD-M Leverage-Bracket Evidence Producer
 
-This user service performs only the signed Binance USD-M `GET /fapi/v1/leverageBracket`
-read and publishes authenticated paper-sizing evidence. It cannot place, cancel, or
-modify orders and cannot change leverage or margin mode. Its evidence is an exchange
-ceiling and maintenance-margin input, never a leverage recommendation or trade
-authorization. The authenticated evidence and status contracts are version 3; version
-2 readers must fail closed rather than silently accept the added binding assertions.
+By default this user service performs only the signed Binance USD-M
+`GET /fapi/v1/leverageBracket` read and publishes authenticated paper-sizing
+evidence. An explicitly configured, currently undeployed extension can additionally
+interleave one `GET /fapi/v1/commissionRate` read at a time. Neither path can place,
+cancel, or modify orders or change leverage or margin mode. Bracket evidence is an
+exchange ceiling and maintenance-margin input, never a leverage recommendation or
+trade authorization. The authenticated bracket evidence and status contracts are
+version 3; version 2 readers must fail closed rather than silently accept the added
+binding assertions.
 
 ## Fail-closed identity and secret contract
 
@@ -105,3 +108,77 @@ systemd-analyze --user verify tools/systemd_units/ai-bot-v2-binance-usdm-leverag
 
 Installation, credential creation, service start/restart, and the first signed read
 are explicit operator actions and are not performed by repository tests.
+
+## Optional commission-evidence broker (implemented, not deployed)
+
+Supplying the CLI's `--commission-broker-data-root <absolute-path>` opt-in keeps the
+normal bracket refresh cadence and uses the in-process, authenticated
+`symbols_published` result as the maximum commission rotation universe. The optional
+`--commission-priority-symbol` can reorder a symbol already in that universe; it
+cannot add a symbol that the bracket response did not authenticate and publish.
+The checked-in systemd unit does not currently supply either option, and no service
+activation or restart is part of this code checkpoint.
+
+Every broker turn is restricted to exactly one signed
+`GET /fapi/v1/commissionRate?symbol=...` request. The existing capture factory:
+
+- reserves the endpoint's exact weight of 20 in the host-shared Redis Binance budget;
+- allows only the official USD-M mainnet/testnet HTTPS origins and disables proxy and
+  redirect forwarding of the signed request;
+- snapshots a bounded response and durably writes its exact bytes to immutable CAS
+  before the first JSON decode; and
+- persists only a domain-separated credential-binding fingerprint, sanitized request
+  identity, exact response hash/address, fee artifact, and receipts. API-key, secret,
+  signature, and raw response bytes are not placed in Redis.
+
+Rotation pacing is an operational rate-limit calculation, not a market threshold.
+It divides the configured shared per-minute budget by the route's weight, spaces
+single-symbol claims uniformly, and continuously reorders the universe by missing,
+invalid, expired, then earliest-expiring authenticated evidence. At the current
+default safety budget of 120 weight/minute, that is six calls/minute, one claim per
+10 seconds, and a 159-symbol baseline revisit of 1,590 seconds. The policy then adds
+the maximum authenticated observed capture duration and one projected turn. It does
+not assert continuous coverage until every symbol is current and the measured revisit
+fits inside the capture factory's immutable one-hour evidence safety horizon.
+
+Two Redis controls prevent a burst or stale replacement:
+
+- `v2:binance_usdm:commission_rotation_claim:<environment>:<trader>:<credential-ref>`
+  is an atomic pacing claim shared by duplicate workers and restarts; and
+- per-symbol evidence/version keys use one Lua compare-and-set. An older publication
+  is rejected, an exact same-clock retry is idempotent, and a same-clock byte conflict
+  fails closed. Both evidence and version TTLs are bounded by the evidence's exclusive
+  `expires_at`.
+
+The Redis envelope uses an HMAC domain distinct from the credential fingerprint and
+binds exact route, symbol, origin, account identifiers, clocks, CAS addresses, request
+weight, adaptive rotation receipt, and refresh-policy receipt. The credential label
+is still only an operator assertion; every envelope explicitly records
+`exchange_key_permissions_proven_by_connector=false`.
+
+`read_authenticated_commission_evidence(...)` is the intended profiled-publisher
+boundary. It needs only the independent evidence HMAC context and read access to the
+broker CAS; it never accepts or loads either Binance credential. It reopens and hashes
+the raw response, sanitized request identity, fee artifact/receipt, adaptive rotation
+artifact/receipt, and refresh-policy artifact/receipt. Admission requires the exact
+causal order
+`source_available_at <= broker_available_at <= consumer_observed_at <= available_at <= decision_time < expires_at`.
+The returned object contains the exact three inputs already accepted by the causal
+cost builder, but grants no trainer, prediction, paper, or live authority by itself.
+
+Two integration steps intentionally remain operator/release work: choose a durable
+absolute CAS path writable under the hardened unit's `ProtectSystem=strict` sandbox,
+and wire the credentialless reader into the profiled publisher's prospective decision
+path. Until both are released and a symbol has current evidence, the publisher must
+retain its masked-cost behavior; it must not synthesize a fee or fall back to a static
+value.
+
+Focused verification for this extension is:
+
+```bash
+.venv/bin/python -m pytest -q \
+  v2/backend/tests/unit/services/test_binance_usdm_commission_evidence_broker.py \
+  v2/backend/tests/unit/services/native_trainer/test_binance_usdm_commission_capture_v1.py \
+  v2/backend/tests/unit/services/native_trainer/test_causal_cost_evidence_v1.py \
+  v2/backend/tests/unit/cli/test_v2_binance_usdm_leverage_bracket_evidence.py
+```

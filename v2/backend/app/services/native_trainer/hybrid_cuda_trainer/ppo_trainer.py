@@ -8,7 +8,7 @@ import os
 import subprocess
 import threading
 import time
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from contextlib import nullcontext
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -91,6 +91,18 @@ PPO_SAMPLING_COHORT_PROOF_BINDING_MISMATCH_REASON = (
 )
 PPO_SAMPLING_COHORT_PROOF_AFTER_TRAINING_OBSERVED_REASON = (
     "AUTHENTICATED_SAMPLED_COHORT_PROOF_AFTER_TRAINING_OBSERVED_AT"
+)
+PROFILED_ADMISSION_SCOPE_EXTERNAL_WITNESS: str = (
+    "EXTERNAL_WITNESS_AUTHENTICATED"
+)
+PROFILED_ADMISSION_SCOPE_LOCAL_RESEARCH: str = (
+    "LOCAL_HMAC_AUTHENTICATED_NON_PROMOTABLE_RESEARCH"
+)
+_PROFILED_ADMISSION_SCOPES = frozenset(
+    {
+        PROFILED_ADMISSION_SCOPE_EXTERNAL_WITNESS,
+        PROFILED_ADMISSION_SCOPE_LOCAL_RESEARCH,
+    }
 )
 
 
@@ -659,6 +671,7 @@ class V2HybridPPOTrainer:
             "validation_split_actual_training_rows": len(selected),
             "validation_split_actual_validation_rows": 0,
             "validation_split_purged_training_rows": 0,
+            "validation_split_excluded_rows": 0,
             "validation_split_decision_time_invalid_rows": 0,
             "validation_split_label_timing_invalid_rows": 0,
             "validation_split_label_timing_errors": {},
@@ -790,6 +803,7 @@ class V2HybridPPOTrainer:
             metrics["validation_split_actual_training_rows"] = len(ordered_rows)
             metrics["validation_split_actual_validation_rows"] = 0
             return ordered_rows, [], metrics
+        metrics["validation_split_excluded_rows"] = len(purged)
         return [item[2] for item in training], [item[2] for item in validation], metrics
 
     def plan_exact_ppo_optimizer_attempts(
@@ -1181,6 +1195,178 @@ class V2HybridPPOTrainer:
             selected_rows=len(selected_rows_for_split),
             rejection_metrics=rejection_metrics,
             learning_mode=learning_mode,
+        )
+
+    def train_profiled_outcome_supervised(
+        self,
+        examples: tuple[TrainingExample, ...],
+        *,
+        authorize_example: Callable[[TrainingExample], str],
+        authorization_sha256: str,
+        admission_scope: str,
+        steps: int,
+        validation_fraction: float,
+    ) -> PPOTrainingResult:
+        """Train one complete, explicitly scoped profiled corpus.
+
+        The external scope is reserved for the independent-witness path.  The
+        local-research scope is cryptographically authenticated but explicitly
+        non-promotable.  Both callers must provide a process-local authorizer
+        that revalidates every exact example before partitioning and again
+        immediately before optimization.  Inventing ordinary MTF/replay
+        identifiers for these rows would be false provenance.
+
+        This method grants no checkpoint, serving, prediction, or trading
+        authority. It makes the alternate trainer boundary explicit so a
+        caller never needs to invoke private optimizer methods.
+        """
+
+        if (
+            type(examples) is not tuple
+            or not examples
+            or not callable(authorize_example)
+            or type(authorization_sha256) is not str
+            or len(authorization_sha256) != 64
+            or any(
+                value not in "0123456789abcdef"
+                for value in authorization_sha256
+            )
+            or admission_scope not in _PROFILED_ADMISSION_SCOPES
+            or type(steps) is not int
+            or steps != 1
+            or type(validation_fraction) is not float
+            or not math.isfinite(validation_fraction)
+            or not 0.0 <= validation_fraction < 1.0
+            or not self.model.torch_available
+        ):
+            raise ValueError("authenticated_profiled_optimizer_contract_invalid")
+
+        authorized_identities: list[str] = []
+        for example in examples:
+            if type(example) is not TrainingExample:
+                raise ValueError("authenticated_profiled_example_type_invalid")
+            identity = authorize_example(example)
+            if (
+                type(identity) is not str
+                or len(identity) != 64
+                or any(value not in "0123456789abcdef" for value in identity)
+                or self._has_on_policy_ppo_fields(example)
+                or not self._has_outcome_supervised_targets(example)
+            ):
+                raise ValueError(
+                    "authenticated_profiled_example_authorization_invalid"
+                )
+            authorized_identities.append(identity)
+        if len(set(authorized_identities)) != len(authorized_identities):
+            raise ValueError("authenticated_profiled_example_identity_duplicate")
+
+        training_rows, validation_rows, split_metrics = (
+            self._chronological_purged_split(
+                examples,
+                validation_fraction=validation_fraction,
+            )
+        )
+        input_row_ids = [id(row) for row in examples]
+        training_row_ids = [id(row) for row in training_rows]
+        validation_row_ids = [id(row) for row in validation_rows]
+        excluded_rows = len(examples) - len(training_rows) - len(validation_rows)
+        reported_purged_rows = split_metrics.get(
+            "validation_split_purged_training_rows"
+        )
+        reported_excluded_rows = split_metrics.get("validation_split_excluded_rows")
+        reported_training_rows = split_metrics.get(
+            "validation_split_actual_training_rows"
+        )
+        reported_validation_rows = split_metrics.get(
+            "validation_split_actual_validation_rows"
+        )
+        pit_safe_value = split_metrics.get("validation_split_pit_safe")
+        pit_safe = pit_safe_value is True
+        if (
+            not training_rows
+            or len(set(input_row_ids)) != len(input_row_ids)
+            or len(set(training_row_ids)) != len(training_row_ids)
+            or len(set(validation_row_ids)) != len(validation_row_ids)
+            or set(training_row_ids).intersection(validation_row_ids)
+            or not set(training_row_ids).union(validation_row_ids).issubset(
+                input_row_ids
+            )
+            or excluded_rows < 0
+            or type(reported_purged_rows) is not int
+            or reported_purged_rows < 0
+            or type(reported_excluded_rows) is not int
+            or reported_excluded_rows != excluded_rows
+            or type(reported_training_rows) is not int
+            or reported_training_rows != len(training_rows)
+            or type(reported_validation_rows) is not int
+            or reported_validation_rows != len(validation_rows)
+            or type(pit_safe_value) is not bool
+            or (pit_safe and reported_purged_rows != excluded_rows)
+            or (not pit_safe and excluded_rows != 0)
+            or (validation_rows and not pit_safe)
+            or (pit_safe and not validation_rows)
+            or (
+                pit_safe
+                and split_metrics.get("validation_split_reason")
+                != "PIT_SAFE_CHRONOLOGICAL_PURGED_SPLIT"
+            )
+        ):
+            raise ValueError("authenticated_profiled_partition_invalid")
+        for example in (*training_rows, *validation_rows):
+            if authorize_example(example) not in authorized_identities:
+                raise ValueError(
+                    "authenticated_profiled_example_reauthorization_failed"
+                )
+
+        return self._train_torch(
+            training_rows,
+            validation_rows=validation_rows,
+            steps=1,
+            batch_size=len(training_rows),
+            target_batch_size=len(examples),
+            available_rows=len(examples),
+            selected_rows=len(examples),
+            rejection_metrics={
+                **split_metrics,
+                "available_examples": len(examples),
+                "selected_examples": len(examples),
+                "authenticated_profiled_corpus": True,
+                "authenticated_profiled_execution_authorization_sha256": (
+                    authorization_sha256
+                ),
+                "authenticated_profiled_row_identities": authorized_identities,
+                "complete_authenticated_corpus_considered": True,
+                "profiled_admission_scope": admission_scope,
+                "external_witness_authenticated": (
+                    admission_scope == PROFILED_ADMISSION_SCOPE_EXTERNAL_WITNESS
+                ),
+                "local_research_non_promotable": (
+                    admission_scope == PROFILED_ADMISSION_SCOPE_LOCAL_RESEARCH
+                ),
+                "behavior_receipt_bound": False,
+                "ppo_behavior_policy_terms_enabled": False,
+            },
+            learning_mode="outcome_supervised",
+        )
+
+    def train_authenticated_profiled_outcome_supervised(
+        self,
+        examples: tuple[TrainingExample, ...],
+        *,
+        authorize_example: Callable[[TrainingExample], str],
+        authorization_sha256: str,
+        steps: int,
+        validation_fraction: float,
+    ) -> PPOTrainingResult:
+        """Preserve the externally witnessed profiled optimizer boundary."""
+
+        return self.train_profiled_outcome_supervised(
+            examples,
+            authorize_example=authorize_example,
+            authorization_sha256=authorization_sha256,
+            admission_scope=PROFILED_ADMISSION_SCOPE_EXTERNAL_WITNESS,
+            steps=steps,
+            validation_fraction=validation_fraction,
         )
 
     def _filter_trusted_training_rows(

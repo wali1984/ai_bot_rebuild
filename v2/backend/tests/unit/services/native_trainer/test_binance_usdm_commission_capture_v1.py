@@ -304,6 +304,24 @@ def test_no_secret_signature_or_credential_value_is_persisted_or_returned(
     )
 
 
+def test_exact_binance_integer_zero_rpi_rate_is_valid_zero_cost_evidence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    raw = (
+        b'{"symbol":"BTCUSDT","makerCommissionRate":"0.000200",'
+        b'"takerCommissionRate":"0.000500","rpiCommissionRate":"0"}'
+    )
+
+    token = _capture(monkeypatch, _store(tmp_path), response=_Response(raw))
+
+    assert token.raw_response_bytes == raw
+    assert token.maker_commission_bps == pytest.approx(2.0)
+    assert token.taker_commission_bps == pytest.approx(5.0)
+    assert token.contract["rpi_commission_bps"] == 0.0
+    assert token.contract["fee_artifact"]["rpi_commission_rate_decimal"] == "0"
+
+
 def test_explicit_protected_binding_bypasses_ambient_credential_resolution(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

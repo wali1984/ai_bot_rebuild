@@ -1,12 +1,227 @@
 # AI Bot V2 master system document
 
-**Current documentation cut:** 2026-07-16
+**Current documentation cut:** 2026-07-16, with scoped 2026-07-22 trainer-publisher addendum
 
 **Mode observed:** paper/shadow; live transport disarmed but present in source
 
 **Decision:** NO-GO for live trading and NO-GO for using current paper results as clean promotion evidence.
 
 > A dated **[Post-cut reconciliation (2026-07-16, evening)](#post-cut-reconciliation-2026-07-16-evening)** section below records verified current deltas and the operational hardening applied after this cut. The NO-GO decision is unchanged.
+
+## Scoped trainer-publisher addendum (2026-07-22)
+
+### Local candidate publisher commissioned at 23:25 EDT
+
+This subsection is the newest trainer-publisher truth and supersedes the
+earlier same-day statements below that optimizer execution and candidate
+publication are blocked on an external witness. The independently witnessed
+promotion path remains fail-closed, but the separately authorized **local,
+non-promotable research path is online**.
+
+The feature producer and its strict trainer consumer now run from the same
+detached, read-only release
+`974caa6c263eeadf09fad5028d0883d304a14075`. At the commissioning observation,
+`ai-bot-v2-profiled-base-feature-publisher.service` was active as PID `631028`
+and `ai-bot-v2-native-cuda-trainer-persistent.service` was active as PID
+`632947`; both reported `NRestarts=0`. The self-healing supervisor was restored
+as PID `633244`, `NRestarts=0`, with `LIVE_GATE=blocked_human_only`, `V2_LIVE=0`
+and `V2_CANARY=0`. Its `2026-07-23T03:25:55Z` inventory contained 50
+components: 37 `OK`, 12 deliberately stopped and one not installed, with zero
+restart actions and no exchange route, exchange action or exchange-risk
+mutation. This does not claim that deliberately held auxiliary services are
+running.
+
+Two consecutive feature cycles on that release completed successfully:
+
+- `03:18:03.109384Z` through `03:19:06.573459Z`: TLMUSDT selected one,
+  published one, failed zero and deferred zero; and
+- `03:23:03.110270Z` through `03:24:06.258727Z`: TRXUSDT selected one,
+  published one, failed zero and deferred zero.
+
+The first cycle proved the new source-provenance preflight against live data.
+It completely verified active shard 1 (8 entries, 8,658,190 ledger bytes),
+measured one full verification pass at `1.0653769370401278` seconds, derived
+seven remaining retry-safe passes, and compared their `7.457638559280895`
+second projection plus the persisted adaptive full-symbol estimate
+`196.8155932210498` seconds with the actual injected decision-planner budget
+`56.819277` seconds. Because the combined work did not fit, it created exact
+next shard 2 with mode `0700` before market capture, left shard 1 immutable,
+then reconciled the publication to shard 2 without a post-capture hard-cap
+roll. The 60-field status was 32,030 bytes, self-hash
+`ef498003ef2747a624d5f635bee7a98e1ca50af66711652f461c8eaf1a810e3d`, and
+the independently invoked strict local reader accepted it. These timing and
+workload decisions are derived from measured local work and the causal clock
+window; they are not market-performance thresholds.
+
+The same release also removes a write-credit starvation mode. Before the
+publisher has materialized anything in a cycle, unrelated growth elsewhere on
+the shared filesystem no longer consumes the publisher's own write credit.
+The publisher still fails closed unless current free bytes cover the reserve
+plus one estimated evidence unit. After its first materialization, the larger
+of publisher-accounted bytes and shared-filesystem high-water growth binds the
+remaining cycle budget. Thus external disk traffic cannot permanently defer
+the first selected symbol, but it also cannot bypass the absolute disk reserve
+or hide in-cycle pressure.
+
+At `2026-07-23T03:25:14.063038Z`, the trainer consumed the exact first new
+publisher status and published local candidate generation 15,
+`v2_hybrid_ckpt_17cbe15f_90658e05e7debce4_5512088ec352`. Manifest
+`b919c4282b32ce4d382499b1f35bf40bc05d1cab69a6cefd361b44ee924d833d`
+contained 23 profiled samples: 22 admitted and one unavailable label excluded.
+The causal partition was 18 optimizer rows, four validation rows and zero
+purged rows. The complete corpus was reopened after optimization; full entry
+inventory and manifest authentication were verified. CUDA was active on
+`cuda:0`, input dimension was 1,784, and the 29,815,274-byte weight artifact
+rehashed to
+`c07a0daba71d43287372b3643f49eb00748f95074c59aba27ffc4d36908a4755`.
+
+A second consecutive cycle completed at `2026-07-23T03:31:23.969297Z` without
+a PID change or restart. It consumed the second new producer status
+`53f5018cf1451e2d235da31e5e0c80f0af0bb7bb472ef7177db7358936a8271b`
+and published generation 16,
+`v2_hybrid_ckpt_17cbe15f_4815088954255f22_b45d5bafcdbc`. Its manifest held
+24 total, 22 admitted and two unavailable labels; the causal partition remained
+18 training, four validation and zero purge rows. The 29,817,599-byte weight
+file independently rehashed to
+`aea5abb1db4e73d202a0e3baca92c84f43da2edd73107e765039f7d76c3aef9a`.
+The complete corpus, entry inventory and manifest authentication were again
+verified, while all downstream authority remained false.
+
+The trainer's label snapshot rule now distinguishes an append-only suffix from
+a mutation of the fixed observation boundary. Each bounded label range is
+revalidated inside its own read transaction (SQLite quick check, schema and
+retention contract, canonical payload, row chain, append receipt and
+post-commit receipt), while full-archive integrity is checked before and after
+manifest construction. A label appended after the fixed observation high
+water is permitted; movement of the observation high water or any bounded
+prefix inconsistency still fails closed. This is why one unavailable label can
+be excluded without killing training or admitting an incomplete target.
+
+This lane writes only to
+`.local_models/v2_native_rl_masa_ppo/local_profiled_research_candidates`. Its
+checkpoint declares local research non-promotable, and every deployment,
+serving, prediction, paper/live trading, order submission, execution, exchange
+access and runtime-wiring authority remains false. It does not change strategy,
+risk, sizing, leverage, margin, paper execution or live execution behavior.
+
+Final scoped regression evidence was 73/73 publisher cases, 35/35 strict
+cycle-status cases, 24/24 observation-manifest cases and 15/15 local research
+service cases, with Ruff and `git diff --check` clean. The code family is
+committed and pushed as `974caa6c263eeadf09fad5028d0883d304a14075`.
+
+### Authenticated resident commissioned at 18:51 EDT
+
+The persistent native-trainer unit is now an authenticated profiled
+**non-serving candidate publisher**, not the earlier passive observer. The
+effective process is pinned to immutable release
+`7ff0e617d76bf83d6b69e6b6ec6814a3ec1b249c`; the tracked deployment boundary
+and clean-start namespace repair are committed through
+`6de36d8651814a903225b3611a9557ef6dada93b`. At the final verification it was
+`active/running` with PID `302319`, `NRestarts=0`, and the observation
+coordinator remained `active/running` with PID `4074206`, `NRestarts=0`.
+
+Four resident heartbeats advanced from `2026-07-22T22:51:20.194460Z` through
+`2026-07-22T22:52:50.225146Z` without a PID change or restart. Each 16-field
+top-level status had a verified local self-hash, an exact 30-field resident
+result, a 10-field side-effect contract, and all 18 resident Boolean result
+fields false. The service loaded the four distinct local HMAC verification
+roles, imported no optimizer runtime, and truthfully reported
+`WAITING_EXTERNAL_WITNESS_CONFIGURATION` because the optional independent
+Ed25519 verifier bundle is absent.
+
+The coordinator's anchored local state is `HEAD_STAGED`: 18 admitted examples,
+zero label-unavailable rows, a complete state chain, no witness runtime, no
+signed head, no external full-consumption acknowledgement, and no optimizer,
+checkpoint/model, prediction, paper/live, execution, or order authority. Thus
+the **publisher process is online**, but optimizer execution and candidate
+publication remain correctly blocked on independently supplied witness
+identity, public-key pin/key, and the coordinator's purpose-scoped external
+authorization. A same-host witness or fabricated receipt is not acceptable.
+
+The resident receives no bearer, endpoint, exchange, wallet, Moralis, CoinAPI,
+prediction, trading, or order credential. Its coordinator root, feature ledger
+and WAL/SHM, immutable cost CAS, repository, and deployed code are mounted
+read-only. Its only write roots are the non-serving candidate model directory
+and the private resident status/cache directory. GPU device visibility is
+retained, while Internet address families are denied. The complete credential
+and authority contract is
+[authenticated profiled trainer resident credential contract](../claude_worklog/systemd/user/ai-bot-v2-native-cuda-trainer-persistent.credentials.md).
+
+The profiled base-feature publisher is active from immutable release
+`e34af1e6a6bb9b54818e18f9279fcc9904de0922`, pinned by commit
+`cb927adaabecac0dab6e68827f8f4b6b8d37a2aa`.
+The preceding `9fcea85f...` release produced valid rows, but SQLite could remove
+and recreate the ledger WAL/SHM files after its last per-cycle connection
+closed. The read-only trainer observer correctly failed closed during that
+coordination-file gap, so its status alternated between valid and
+`DatabaseError` even though the ledger remained intact.
+
+The current publisher holds the exact singleton writer lease plus one
+transaction-free, `query_only` WAL coordination connection for its complete
+process lifetime. A 39-sample live burn-in covered 13 distinct observer scans
+and two complete publisher append cycles. TAOUSDT sequences 39/40 and TREEUSDT
+sequences 41/42 were appended as parent/strict-child pairs; both cycles had one
+published pair and zero failures. The WAL and SHM inodes remained unchanged
+while the WAL grew from 0 to 515,032 to 1,030,032 bytes. Both services remained
+active with zero restarts. The final observer scan verified 42 records, 27
+append receipts and 15 exact strict candidates with zero exclusions and a
+complete integrity scan.
+
+The earlier independent strict-loader proof also reopened LDOUSDT sequence 14
+and NIGHTUSDT sequence 16: two admitted, zero excluded, with exact 39 physical,
+446 logical and 1,784 model-vector values.
+
+The trainer's canonical mark-price Redis key is now also single-writer. Before
+commit `2f05742c48d09b6018381a99535703321c4be06e`, both the Binance USD-M
+WebSocket seeder and the public-metadata ingestor wrote
+`v2:market:mark_price:{symbol}`. The metadata writer could temporarily replace
+the canonical, causal WebSocket document with a differently shaped cache
+document. The WebSocket seeder now exclusively owns that key; the metadata
+ingestor writes `v2:market:premium_index:{symbol}`. Both services are pinned by
+commit `ad4ce92a15172b76bf9bb5f9ffc807bdb13fe48c` to the read-only
+`2f05742c...` release. A 70.047-second post-cutover probe sampled TRUMPUSDT
+1,373 times: 1,373 canonical/causal WebSocket mark documents, zero missing or
+invalid mark documents, and zero JSON errors. The separate premium-index key
+was present in 1,363 samples and advanced through two source event times. The
+publisher cycle completing at `2026-07-22T12:24:01.572529Z` selected one,
+published one and failed zero. The following cycle isolated ONEUSDT for
+unavailable canonical OHLCV REST provenance; it did not report a mark-price
+schema/JSON failure and appended no orphan row.
+
+The canonical mark document carries `event_time <= received_at`, with
+`received_at == available_at == generated_at`, a one-second expected source
+cadence, canonical finite JSON, source/schema/transport identity, and explicit
+false order/leverage/margin mutation flags. This corrects data ownership and
+PIT lineage only; it does not change strategy, risk, sizing, leverage, paper
+execution, live execution, or optimizer authority.
+
+This supersedes older claims that the profiled base publisher is staged,
+credential-blocked or only producing masked rows, and older claims that the
+persistent resident is still a passive observer. It does not supersede the
+live NO-GO. The strict samples have trainer-candidate input authority only;
+prediction, paper, live and `runtime_wired` remain false. The resident process
+is online, while its optimizer is intentionally not authorized until the
+external completion receipt exists. See the
+[authenticated recovery checkpoint](../claude_worklog/codex/CODEX_AUTHENTICATED_TRAINER_PUBLISHER_RECOVERY_2026_07_22.md)
+for the 21-object CAS contract, exact clocks/keys/fields, tests, runtime counts
+and change-impact map.
+
+The strict cycle-status reader originally checkpointed at `c61ee6ba3b` is now
+in the installed resident release lineage. It verifies the base publisher's
+exact 57-field local status contract, all ten symbol inventories and their
+writer set algebra, canonical clocks, file-race safety, and authority
+semantics. A self-hash remains local integrity, not independent authentication
+or trainer admission. See
+[Profiled base-publisher cycle status reader V1](system_audit_2026_master/components/PROFILED_BASE_PUBLISHER_CYCLE_STATUS_V1.md).
+
+The crash-resuming coordinator is installed from immutable release
+`37080a1cd015d5d51c0248f7b7e7fabbb9c24253`. It orders the base status through
+deterministic manifest, witnessed head, epoch, contiguous inventory receipts,
+and local completion. In witness-absent mode it deliberately parks after one
+`HEAD_STAGED` status rather than emitting a misleading heartbeat. It grants no
+external-completion, optimizer, checkpoint/model, prediction, paper/live,
+order, execution, or runtime authority. See
+[Profiled training observation coordinator V1](system_audit_2026_master/components/PROFILED_TRAINING_OBSERVATION_COORDINATOR_V1.md).
 
 This is the repository-level entrypoint. The complete current audit is [AI_BOT_V2_FULL_REBUILD_MASTER_AUDIT_REPORT.md](system_audit_2026_master/AI_BOT_V2_FULL_REBUILD_MASTER_AUDIT_REPORT.md); the document map is [REVERSE_ENGINEERING_INDEX.md](system_audit_2026_master/REVERSE_ENGINEERING_INDEX.md).
 
@@ -99,6 +314,38 @@ The trainer is a hybrid PPO-shaped/supervised implementation. It requires on-pol
 
 Training evidence has current blockers: external temporal lineage gaps, masked/missing-trust exceptions, a signed-direction replay label defect, transaction-cost disagreement, holdout not enforced by the main loader, architecture rather than weight identity, and archive/replay publication failure that can still leak downstream lineage. The active GRU windower also falls back to incoming list index because `TrainingExample` lacks a top-level `decision_time`; after source/PPO reordering, a target can receive a frame whose real nested decision time is later, which is future leakage.
 
+### 2026-07-22 authenticated profiled-observation delta
+
+The strict profiled path now has three relevant active, zero-restart services:
+the base feature publisher, profiled training observation coordinator and
+authenticated non-serving trainer resident. The coordinator runs from detached
+read-only release `37080a1cd015d5d51c0248f7b7e7fabbb9c24253`; the trainer
+runs from detached read-only release
+`7ff0e617d76bf83d6b69e6b6ec6814a3ec1b249c`. Manifest
+`669f74c...b99bfe8` contains 18 total/admitted examples and zero unavailable
+labels. The coordinator intentionally parks at `HEAD_STAGED` without an
+external witness, while the trainer emits a truthful 30-second heartbeat at
+`WAITING_EXTERNAL_WITNESS_CONFIGURATION`.
+
+This restores process availability, not optimizer authorization. No external
+witness drop-in is installed, no witness network request occurred, and every
+optimizer, checkpoint/model, prediction, paper/live, order, execution and
+runtime-wired flag remains false. The coordinator requires an independently
+operated HTTPS witness with two purpose-scoped bearer credentials, identity,
+pinned raw Ed25519 public key and separate digest. The trainer receives only
+the identity, public key and pin after provisioning, never either bearer.
+Generating any of them on this host would not prove independent monotonic
+history.
+
+The runtime corrections are non-semantic. State is read through a
+descriptor-anchored, pointer-double-read complete-chain verifier. The
+authorization journal is copied as a stable verified main/WAL pair to private
+scratch and queried read-only; coordinator source fingerprints must remain
+unchanged. Recoverable cycle failures remain observable and fail closed;
+malformed arguments or credentials terminate with non-restarting status 78.
+No strategy, reward, PPO/MASA objective, risk, allocation, leverage, margin,
+paper position or exchange/order behavior changed.
+
 ## Current decision/execution truth
 
 The orchestrator creates a provisional risk ID and paper flag before gateway evaluation. The gateway may write a real `DENY`; paper dereference records it, but ordinary A-grade admission tests ID existence plus local pre-trade rather than requiring action `ALLOW`.
@@ -136,6 +383,12 @@ No active authorized real submitter was observed; release mode was effectively n
 - [Runtime/deployment internals](system_audit_2026_master/components/RUNTIME_PROCESS_AND_DEPLOYMENT.md)
 - [Temporal data/features](system_audit_2026_master/components/DATA_TEMPORAL_LINEAGE_AND_FEATURES.md)
 - [Trainer/PPO/MASA/replay/checkpoints](system_audit_2026_master/components/TRAINER_PPO_MASA_REPLAY_AND_CHECKPOINTS.md)
+- [Profiled trainer external witness client V1](system_audit_2026_master/components/PROFILED_TRAINING_EXTERNAL_WITNESS_CLIENT_V1.md)
+- [Profiled trainer external witness journal V1](system_audit_2026_master/components/PROFILED_TRAINING_EXTERNAL_WITNESS_JOURNAL_V1.md)
+- [Profiled trainer external witness runtime V1](system_audit_2026_master/components/PROFILED_TRAINING_EXTERNAL_WITNESS_RUNTIME_V1.md)
+- [Profiled trainer observation coordinator state V1](system_audit_2026_master/components/PROFILED_TRAINING_OBSERVATION_COORDINATOR_STATE_V1.md)
+- [Profiled base-publisher cycle status reader V1](system_audit_2026_master/components/PROFILED_BASE_PUBLISHER_CYCLE_STATUS_V1.md)
+- [Profiled training observation coordinator V1](system_audit_2026_master/components/PROFILED_TRAINING_OBSERVATION_COORDINATOR_V1.md)
 - [Decision/risk/paper/live execution](system_audit_2026_master/components/DECISION_RISK_PAPER_AND_LIVE_EXECUTION.md)
 - [API/auth/storage/web/mobile](system_audit_2026_master/components/API_AUTH_STORAGE_WEB_AND_MOBILE.md)
 - [Config/contracts/change impact](system_audit_2026_master/components/CONFIG_KEYS_CONTRACTS_AND_CHANGE_IMPACT.md)

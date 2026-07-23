@@ -45,6 +45,33 @@ class _FakeRedis:
                 yield key
 
 
+class _TransactionalFakePipeline:
+    def __init__(self, redis_client: "_TransactionalFakeRedis") -> None:
+        self.redis_client = redis_client
+        self.pending: list[tuple[str, str, int | None]] = []
+
+    def set(self, key: str, value: str, ex: int | None = None):
+        self.pending.append((key, value, ex))
+        return self
+
+    def execute(self) -> list[bool]:
+        self.redis_client.execute_count += 1
+        for key, value, ex in self.pending:
+            self.redis_client.set(key, value, ex=ex)
+        return [True] * len(self.pending)
+
+
+class _TransactionalFakeRedis(_FakeRedis):
+    def __init__(self) -> None:
+        super().__init__({})
+        self.transaction_flags: list[bool] = []
+        self.execute_count = 0
+
+    def pipeline(self, transaction: bool = True) -> _TransactionalFakePipeline:
+        self.transaction_flags.append(transaction)
+        return _TransactionalFakePipeline(self)
+
+
 def _preemptive_allow_decision(**overrides) -> dict[str, object]:
     decision = {
         "preemptive_decision_id": "test_preemptive_allow",
@@ -5759,7 +5786,123 @@ def _allowed_allocation(**overrides):
     return payload
 
 
-def test_paper_adaptive_sizing_runtime_status_exposes_full_candidate_allocations(
+def test_portfolio_context_accounts_existing_open_margin_fail_closed() -> None:
+    redis_client = _FakeRedis(
+        {
+            "v2:portfolio:state": {
+                "equity": 1_000.0,
+                "cash_balance": 1_000.0,
+                "wallet_balance": 1_000.0,
+            }
+        }
+    )
+    existing_ledger = {
+        "open_positions": [
+            {
+                "position_id": "paper_pos_btc",
+                "symbol": "BTCUSDT",
+                "side": "long",
+                "net_quantity": 6.0,
+                "avg_entry_price": 100.0,
+                "effective_leverage": 3.0,
+                "maintenance_margin_rate": 0.005,
+                "current_capital_accounting": {
+                    "accounting_scope": "CURRENT_EXECUTED_PAPER_POSITION",
+                    "effective_leverage": 3.0,
+                    "effective_leverage_validated": True,
+                    "maintenance_margin_rate": 0.005,
+                },
+                "allocated_margin_usd": 1.0,
+            }
+        ]
+    }
+
+    context = paper_loop._portfolio_equity_context(  # noqa: SLF001
+        redis_client,
+        existing_ledger=existing_ledger,
+    )
+
+    assert context["used_margin_usd"] == pytest.approx(600.0)
+    assert context["available_margin"] == pytest.approx(400.0)
+    assert context["paper_account_margin_status"]["invariant_holds"] is True
+    margin_row = context["paper_account_margin_status"]["position_margin_rows"][0]
+    assert margin_row["effective_leverage"] == 1.0
+    assert margin_row["unauthenticated_leverage_claim_downgraded_to_one_x"] is True
+
+
+@pytest.mark.parametrize("reported_equity", [0.0, -25.0])
+def test_portfolio_context_does_not_resurrect_nonpositive_equity(
+    reported_equity: float,
+) -> None:
+    redis_client = _FakeRedis(
+        {
+            "v2:portfolio:state": {
+                "equity": reported_equity,
+                "cash_balance": 1_000.0,
+                "wallet_balance": 1_000.0,
+                "initial_capital": 1_000.0,
+            }
+        }
+    )
+
+    context = paper_loop._portfolio_equity_context(  # noqa: SLF001
+        redis_client,
+        existing_ledger={"open_positions": []},
+    )
+
+    assert context["equity"] == reported_equity
+    assert context["available_margin"] == 0.0
+    assert context["paper_account_margin_status"]["status"] == "FAIL_CLOSED"
+
+
+def test_portfolio_context_does_not_resurrect_nonpositive_wallet() -> None:
+    redis_client = _FakeRedis(
+        {
+            "v2:portfolio:state": {
+                "equity": 1_000.0,
+                "cash_balance": 1_000.0,
+                "wallet_balance": 0.0,
+                "initial_capital": 1_000.0,
+            }
+        }
+    )
+
+    context = paper_loop._portfolio_equity_context(  # noqa: SLF001
+        redis_client,
+        existing_ledger={"open_positions": []},
+    )
+
+    assert context["equity"] == 1_000.0
+    assert context["wallet_balance"] == 0.0
+    assert context["available_margin"] == 0.0
+    assert context["paper_account_margin_status"]["status"] == "FAIL_CLOSED"
+
+
+def test_portfolio_context_preserves_malformed_open_rows() -> None:
+    redis_client = _FakeRedis(
+        {
+            "v2:portfolio:state": {
+                "equity": 1_000.0,
+                "cash_balance": 1_000.0,
+                "wallet_balance": 1_000.0,
+            }
+        }
+    )
+
+    context = paper_loop._portfolio_equity_context(  # noqa: SLF001
+        redis_client,
+        existing_ledger={"open_positions": ["corrupt-open-position-row"]},
+    )
+
+    assert context["paper_ledger_open_position_count"] == 1
+    assert context["available_margin"] == 0.0
+    assert context["paper_account_margin_status"]["accounting_complete"] is False
+    assert context["paper_account_margin_status"][
+        "invalid_open_position_margin_count"
+    ] == 1
+
+
+def test_paper_adaptive_sizing_runtime_status_exposes_hash_bound_operator_projections(
     monkeypatch,
 ) -> None:
     monkeypatch.setattr(paper_loop, "_utc_iso", lambda: "2026-06-22T13:30:00Z")
@@ -5811,16 +5954,43 @@ def test_paper_adaptive_sizing_runtime_status_exposes_full_candidate_allocations
     assert status["paper_candidates_with_allocation"] == 30
     assert status["candidate_allocation_count"] == 30
     assert [row["allocation_id"] for row in status["candidate_allocations"]] == [
-        row["allocation_id"] for row in allocation_rows
+        row["allocation_id"] for row in allocation_rows[:5]
     ]
     assert all(row["paper_only"] is True for row in status["candidate_allocations"])
     assert all(row["places_real_order"] is False for row in status["candidate_allocations"])
     assert all(row["test_order"] is False for row in status["candidate_allocations"])
     assert all(row["leverage_mutation"] is False for row in status["candidate_allocations"])
     assert all(row["margin_mode_mutation"] is False for row in status["candidate_allocations"])
-    assert status["candidate_allocations_complete"] is True
+    assert status["candidate_allocations_complete"] is False
+    assert status["candidate_allocations_projection_only"] is True
+    assert status["candidate_allocations_projection_count"] == 5
+    assert status["candidate_allocations_projection_limit"] == 5
+    assert status["candidate_allocations_full_payload_omitted"] is True
+    assert status["candidate_allocations_authoritative_sources_unchanged"] is True
+    assert status["candidate_allocations_source_row_count"] == 30
+    assert len(status["candidate_allocations_source_hashes"]) == 30
+    source_hashes = [
+        row["source_row_canonical_sha256"]
+        for row in status["candidate_allocations_source_hashes"]
+    ]
+    assert all(paper_loop._paper_valid_sha256(value) for value in source_hashes)  # noqa: SLF001
+    assert status["candidate_allocations_aggregate_sha256"] == (
+        paper_loop._paper_canonical_sha256(source_hashes)  # noqa: SLF001
+    )
+    assert status["candidate_allocations_all_source_rows_hashable"] is True
+    assert status["candidate_allocations_unhashable_source_row_count"] == 0
+    assert "model_inputs" in status["candidate_allocations_omitted_fields"]
+    assert "model_inputs" not in status[
+        "candidate_allocations_operator_allowlisted_fields"
+    ]
+    assert all(
+        row["operator_projection_only"] is True
+        and row["full_source_payload_omitted"] is True
+        and "model_inputs" not in row
+        for row in status["candidate_allocations"]
+    )
     assert status["candidate_allocations_source"] == (
-        "paper_loop_allocation_rows_before_sample_truncation"
+        "paper_loop_allocation_rows_hash_bound_operator_projection_only"
     )
     assert status["candidate_allocations_selected_before_outcome"] is True
     assert status["candidate_allocations_future_labels_used_as_features"] is False
@@ -5830,8 +6000,9 @@ def test_paper_adaptive_sizing_runtime_status_exposes_full_candidate_allocations
     assert status["paper_evidence_lanes"]["paper_loop_fresh"] is True
     assert status["paper_evidence_lanes"]["rows_last_hour"] == 30
     assert status["paper_evidence_lanes"]["live_mutation_flags_all_false"] is True
-    assert len(status["sample_allocations"]) == 25
-    assert status["sample_allocations"] == status["candidate_allocations"][:25]
+    assert len(status["sample_allocations"]) == 5
+    assert status["sample_allocations"] == status["candidate_allocations"]
+    assert status["sample_allocations_projection_only"] is True
     assert status["accepted_allocation_count"] == 15
     assert status["allocator_pass_rows"] == 15
     assert status["blocked_allocation_count"] == 15
@@ -5903,6 +6074,142 @@ def test_paper_adaptive_sizing_runtime_status_exposes_full_candidate_allocations
     assert status["missing_microstructure_trust_candidate_count"] == 0
     assert status["paper_only"] is True
     assert status["places_real_order"] is False
+
+
+def test_paper_adaptive_sizing_zero_candidate_contract_is_exact_and_cycle_bound() -> None:
+    generated_utc = "2026-07-22T12:00:00.000Z"
+    paper_cycle_id = "paper_cycle:" + "a" * 64
+
+    status = paper_loop._paper_adaptive_sizing_runtime_status(  # noqa: SLF001
+        [],
+        generated_utc=generated_utc,
+        paper_cycle_id=paper_cycle_id,
+    )
+
+    assert status["generated_utc"] == generated_utc
+    assert status["paper_cycle_id"] == paper_cycle_id
+    assert status["candidate_allocations"] == []
+    assert status["candidate_allocations_complete"] is False
+    assert status["candidate_allocations_projection_only"] is True
+    assert status["candidate_allocations_source_row_count"] == 0
+    assert status["candidate_allocations_source_hashes"] == []
+    assert status["candidate_allocations_all_source_rows_hashable"] is True
+    assert status["candidate_allocations_unhashable_source_row_count"] == 0
+    empty_hash = paper_loop._paper_canonical_sha256([])  # noqa: SLF001
+    assert status["candidate_allocations_aggregate_sha256"] == empty_hash
+    contract = status["candidate_allocations_canonical_aggregate_contract"]
+    assert contract["source_rows_aggregate_sha256"] == empty_hash
+    assert contract["contract_fact_hashes"] == []
+    assert contract["contract_fact_hashes_aggregate_sha256"] == empty_hash
+    assert contract["zero_liquidation"] == {
+        "a_grade_candidate_count": 0,
+        "passed_a_grade_candidate_count": 0,
+        "failed_a_grade_candidate_count": 0,
+        "all_a_grade_candidates_pass": False,
+        "blocker_counts": {},
+    }
+    assert contract["hedge"]["all_active_hedge_candidates_pass"] is True
+    assert contract["capital"] == {
+        "candidate_count": 0,
+        "allocator_decision_counts": {},
+        "original_allocator_decision_counts": {},
+        "paper_opportunity_tier_counts": {},
+        "recommended_leverage_counts": {},
+        "recommended_margin_mode_counts": {},
+        "classification_counts": {},
+        "a_grade_candidate_count": 0,
+        "accepted_a_grade_candidate_count": 0,
+        "underfunded_a_grade_candidate_count": 0,
+        "allowed_before_non_executable_tier_block_count": 0,
+        "numeric_sums": {},
+        "account_context": {},
+    }
+    contract_material = dict(contract)
+    embedded_hash = contract_material.pop("contract_hash")
+    assert embedded_hash == paper_loop._paper_canonical_sha256(  # noqa: SLF001
+        contract_material
+    )
+
+
+def test_paper_adaptive_sizing_malformed_nonempty_source_cannot_become_zero() -> None:
+    with pytest.raises(ValueError, match="PAPER_ADAPTIVE_SIZING_SOURCE_ROW_INVALID"):
+        paper_loop._paper_adaptive_sizing_runtime_status(  # type: ignore[list-item]  # noqa: SLF001
+            [None]
+        )
+
+
+def test_paper_adaptive_sizing_positive_contract_hash_binds_full_source() -> None:
+    allocation = _allowed_allocation(
+        allocation_id="positive-allocation",
+        paper_opportunity_tier="B_GRADE_EXPLORATION_PAPER",
+        source_tier="B_GRADE_EXPLORATION_PAPER",
+        recommended_leverage=2.0,
+        recommended_margin_mode="isolated",
+    )
+
+    status = paper_loop._paper_adaptive_sizing_runtime_status([allocation])  # noqa: SLF001
+    source_hash = status["candidate_allocations_source_hashes"][0][
+        "source_row_canonical_sha256"
+    ]
+    contract = status["candidate_allocations_canonical_aggregate_contract"]
+
+    assert paper_loop._paper_valid_sha256(source_hash)  # noqa: SLF001
+    assert contract["source_row_count"] == 1
+    assert contract["contract_evaluated_row_count"] == 1
+    assert contract["source_rows_all_hashable"] is True
+    assert contract["contract_fact_hashes_all_hashable"] is True
+    assert contract["capital"]["candidate_count"] == 1
+    assert contract["capital"]["recommended_leverage_counts"] == {"2.0": 1}
+    assert contract["capital"]["numeric_sums"]["gross_notional_usd"] == 1000.0
+
+    allocation["model_inputs"]["mutation_sentinel"] = "changed"
+    mutated = paper_loop._paper_adaptive_sizing_runtime_status([allocation])  # noqa: SLF001
+    assert mutated["candidate_allocations_source_hashes"][0][
+        "source_row_canonical_sha256"
+    ] != source_hash
+    assert mutated["candidate_allocations_aggregate_sha256"] != status[
+        "candidate_allocations_aggregate_sha256"
+    ]
+
+
+def test_paper_cycle_control_bundle_is_one_transaction_and_shared_identity(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(paper_loop.os, "getpid", lambda: 4242)
+    generated_utc = "2026-07-22T12:00:00.000Z"
+    writer_identity = {"paper_policy_owner": "CHALLENGER_V2"}
+    paper_cycle_id = paper_loop._paper_cycle_id(  # noqa: SLF001
+        generated_utc=generated_utc,
+        paper_session_id="session-1",
+        writer_identity=writer_identity,
+    )
+    assert paper_cycle_id == paper_loop._paper_cycle_id(  # noqa: SLF001
+        generated_utc=generated_utc,
+        paper_session_id="session-1",
+        writer_identity=writer_identity,
+    )
+    redis_client = _TransactionalFakeRedis()
+    sizing = {"generated_utc": generated_utc, "paper_cycle_id": paper_cycle_id}
+    margin = {"generated_utc": generated_utc, "paper_cycle_id": paper_cycle_id}
+
+    written = paper_loop._safe_write_paper_cycle_control_bundle(  # noqa: SLF001
+        redis_client,
+        adaptive_sizing_runtime_status=sizing,
+        account_margin_status=margin,
+        ex=300,
+    )
+
+    assert written is True
+    assert redis_client.transaction_flags == [True]
+    assert redis_client.execute_count == 1
+    assert json.loads(
+        redis_client.payloads[
+            paper_loop.PAPER_ADAPTIVE_SIZING_RUNTIME_STATUS_REDIS_KEY
+        ]
+    ) == sizing
+    assert json.loads(
+        redis_client.payloads[paper_loop.PAPER_ACCOUNT_MARGIN_STATUS_REDIS_KEY]
+    ) == margin
 
 
 def test_paper_evidence_lanes_expose_shadow_counterfactual_and_replay(monkeypatch) -> None:
@@ -5997,8 +6304,7 @@ def test_candidate_publication_derives_paper_accounting_aliases_from_decision_ti
     allocation.pop("take_profit_structure", None)
     allocation.pop("depth_impact_bps", None)
 
-    status = paper_loop._paper_adaptive_sizing_runtime_status([allocation])  # noqa: SLF001
-    published = status["candidate_allocations"][0]
+    published = paper_loop._paper_candidate_allocation_publication_row(allocation)  # noqa: SLF001
 
     assert published["paper_only"] is True
     assert published["places_real_order"] is False
@@ -6044,8 +6350,7 @@ def test_candidate_publication_derives_bounded_hedge_contract_from_budget(monkey
         },
     )
 
-    status = paper_loop._paper_adaptive_sizing_runtime_status([allocation])  # noqa: SLF001
-    published = status["candidate_allocations"][0]
+    published = paper_loop._paper_candidate_allocation_publication_row(allocation)  # noqa: SLF001
 
     assert published["hedge_enabled"] is True
     assert published["hedge_parent_id"] == "alloc-hedge"
@@ -6093,8 +6398,7 @@ def test_candidate_publication_disables_hedge_when_cost_exceeds_shortfall_reduct
         },
     )
 
-    status = paper_loop._paper_adaptive_sizing_runtime_status([allocation])  # noqa: SLF001
-    published = status["candidate_allocations"][0]
+    published = paper_loop._paper_candidate_allocation_publication_row(allocation)  # noqa: SLF001
 
     assert published["hedge_enabled"] is False
     assert published["hedge_budget_usd"] == 0.0
@@ -6139,8 +6443,8 @@ def test_candidate_publication_derives_zero_liquidation_rare_event_stress_suite(
         liquidation_buffer_bps=500.0,
     )
 
+    published = paper_loop._paper_candidate_allocation_publication_row(allocation)  # noqa: SLF001
     status = paper_loop._paper_adaptive_sizing_runtime_status([allocation])  # noqa: SLF001
-    published = status["candidate_allocations"][0]
     stress = published["pre_entry_stress_tests"]
 
     assert status["rare_event_stress_complete_candidate_count"] == 1
@@ -6170,8 +6474,8 @@ def test_paper_adaptive_sizing_status_blocks_missing_tier_allocations(monkeypatc
     monkeypatch.setattr(paper_loop, "_utc_iso", lambda: "2026-06-22T13:30:00Z")
     allocation = _allowed_allocation(allocation_id="alloc-missing-tier")
 
+    published = paper_loop._paper_candidate_allocation_publication_row(allocation)  # noqa: SLF001
     status = paper_loop._paper_adaptive_sizing_runtime_status([allocation])  # noqa: SLF001
-    published = status["candidate_allocations"][0]
 
     assert status["accepted_allocation_count"] == 0
     assert status["blocked_allocation_count"] == 1
@@ -8162,6 +8466,25 @@ def test_default_writer_lock_contends_across_different_working_directories(
             holder.stdin.write("\n")
             holder.stdin.flush()
         holder.communicate(timeout=30)
+
+
+def test_writer_lock_path_accepts_operator_configured_absolute_runtime_path(
+    tmp_path: Path,
+) -> None:
+    configured = (tmp_path / "runtime/paper-writer.lock").absolute()
+
+    resolved = paper_loop._configured_paper_loop_lock_path(  # noqa: SLF001
+        {paper_loop.PAPER_LOOP_LOCK_PATH_ENV: str(configured)}
+    )
+
+    assert resolved == configured
+
+
+def test_writer_lock_path_rejects_relative_operator_configuration() -> None:
+    with pytest.raises(RuntimeError, match="PAPER_LOOP_LOCK_PATH_MUST_BE_ABSOLUTE"):
+        paper_loop._configured_paper_loop_lock_path(  # noqa: SLF001
+            {paper_loop.PAPER_LOOP_LOCK_PATH_ENV: "relative/paper-writer.lock"}
+        )
 
 
 def test_main_loop_routes_each_public_status_through_compact_writer(

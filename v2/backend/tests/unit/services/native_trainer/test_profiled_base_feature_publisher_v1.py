@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import stat
 from collections import Counter, namedtuple
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -14,11 +15,20 @@ from v2.backend.app.cli import v2_profiled_base_feature_publisher as cli_module
 from v2.backend.app.cli.v2_profiled_base_feature_publisher import (
     bounded_cycle_summary,
 )
+from v2.backend.app.services import (
+    binance_usdm_commission_evidence_broker as commission_broker_module,
+)
+from v2.backend.app.services.binance_usdm_commission_evidence_broker import (
+    CredentiallessCommissionEvidence,
+)
 from v2.backend.app.services.native_trainer import (
     binance_usdm_commission_capture_v1 as commission_capture_module,
 )
 from v2.backend.app.services.native_trainer import (
     profiled_base_feature_publisher_v1 as publisher_module,
+)
+from v2.backend.app.services.native_trainer import (
+    profiled_training_ledger_loader_v1 as loader_module,
 )
 from v2.backend.app.services.native_trainer.atomic_redis_source_reader import (
     read_atomic_redis_sources,
@@ -34,17 +44,23 @@ from v2.backend.app.services.native_trainer.canonical_ohlcv_multitimeframe_captu
     CanonicalOhlcvMultitimeframeCaptureSetV1Error,
     build_canonical_ohlcv_multitimeframe_capture_set_v1,
 )
+from v2.backend.app.services.native_trainer.causal_adaptive_cold_start_notional_policy_v1 import (
+    CAUSAL_ADAPTIVE_COLD_START_NOTIONAL_POLICY_ID,
+    CAUSAL_ADAPTIVE_COLD_START_NOTIONAL_PORTFOLIO_SOURCE_KEY,
+    CausalAdaptiveColdStartNotionalPolicyV1ValidationError,
+    causal_adaptive_cold_start_notional_policy_source_key_v1,
+)
 from v2.backend.app.services.native_trainer.causal_cost_evidence_v1 import (
     CAUSAL_COST_FEE_ARTIFACT_V1_SCHEMA_VERSION,
     CAUSAL_COST_FEE_RECEIPT_V1_SCHEMA_VERSION,
-    CAUSAL_COST_NOTIONAL_ARTIFACT_V1_SCHEMA_VERSION,
-    CAUSAL_COST_NOTIONAL_RECEIPT_V1_SCHEMA_VERSION,
+    CAUSAL_COST_NOTIONAL_PROVENANCE_VERIFIED_STATUS,
     CausalCostEvidenceV1ValidationError,
     build_causal_cost_evidence_v1,
 )
 from v2.backend.app.services.native_trainer.causal_expected_notional_policy_v1 import (
     CAUSAL_EXPECTED_NOTIONAL_SOURCE_KEY,
     CausalExpectedNotionalPolicyV1ValidationError,
+    build_causal_expected_notional_policy_v1,
 )
 from v2.backend.app.services.native_trainer.durable_feature_snapshot_ledger import (
     DurableFeatureSnapshotLedger,
@@ -57,10 +73,13 @@ from v2.backend.app.services.native_trainer.ohlcv_closed_window_schema import (
     TIMEFRAME_DURATION_MS,
 )
 from v2.backend.app.services.native_trainer.profiled_base_feature_publisher_v1 import (
+    AUTHENTICATED_COST_EVIDENCE_REQUIRED_MODE,
     BOOTSTRAP_EVIDENCE_BYTES_PER_SYMBOL,
+    BROKER_AUTHENTICATED_COST_EVIDENCE_WITH_MASKED_FALLBACK_MODE,
     DEFAULT_RESOURCE_SUSTAINABILITY_HORIZON_SECONDS,
     DISK_RESERVE_POLICY_V1,
     DYNAMIC_SYMBOL_SELECTION_KEY,
+    MASKED_COST_OBSERVATION_MODE,
     MINIMUM_RESOURCE_SUSTAINABILITY_HORIZON_SECONDS,
     ProfiledBaseFeaturePublisherV1,
     ProfiledBaseFeaturePublisherV1ConfigurationError,
@@ -75,6 +94,9 @@ from v2.backend.app.services.native_trainer.profiled_base_feature_publisher_v1 i
     select_source_shard_index_v1,
     wait_for_prospective_decision_v1,
 )
+from v2.backend.app.services.native_trainer.profiled_base_publisher_cycle_status_v1 import (
+    read_verified_profiled_base_publisher_cycle_status_v1,
+)
 from v2.backend.app.services.native_trainer.profiled_model_feature_snapshot_record_v1 import (
     PROFILED_MODEL_FEATURE_SNAPSHOT_RECORD_V1_UNWIRED_REASON,
     ProfiledModelFeatureSnapshotRecordV1Error,
@@ -84,14 +106,21 @@ from v2.backend.app.services.native_trainer.profiled_training_enrichment_record_
 )
 from v2.backend.app.services.native_trainer.source_provenance_ledger_v4 import (
     MAX_LEDGER_BYTES,
+    TrainerSourceProvenanceLedgerV4,
     TrainerSourceProvenanceLedgerV4DurabilityError,
 )
 from v2.backend.app.services.orderbook_recorder import features as orderbook_features
+from v2.backend.tests.unit.services import (
+    test_binance_usdm_commission_evidence_broker as commission_broker_support,
+)
 from v2.backend.tests.unit.services.native_trainer import (
     test_binance_usdm_commission_capture_v1 as commission_support,
 )
 from v2.backend.tests.unit.services.native_trainer import (
     test_canonical_ohlcv_multitimeframe_capture_set_v1 as capture_support,
+)
+from v2.backend.tests.unit.services.native_trainer import (
+    test_causal_adaptive_cold_start_notional_policy_v1 as cold_start_support,
 )
 from v2.backend.tests.unit.services.native_trainer import (
     test_causal_cost_evidence_v1 as cost_support,
@@ -314,11 +343,65 @@ def _runtime_cost_source_payloads(
     }
 
 
+def _paper_margin_status(*, generated_at: datetime, paper_cycle_id: str) -> bytes:
+    margin_base = 2_985.59472051
+    used_margin = 0.0
+    free_margin = margin_base - used_margin
+    margin_buffer = 509.04412243
+    after_buffer = free_margin - margin_buffer
+    return _canonical_bytes(
+        {
+            "schema_version": "paper_account_margin_v1",
+            "status": "PASS",
+            "source": "POST_LIFECYCLE_CANONICAL_OPEN_POSITIONS",
+            "accounting_complete": True,
+            "control_inputs_valid": True,
+            "admission_inputs_valid": True,
+            "margin_buffer_input_valid": True,
+            "newly_reserved_margin_input_valid": True,
+            "reservations_included_in_open_positions_input_valid": True,
+            "margin_buffer_invariant_holds": True,
+            "no_negative_free_margin": True,
+            "invariant": True,
+            "invariant_holds": True,
+            "numeric_invariant_holds": True,
+            "margin_base_available": True,
+            "used_margin_aggregation_valid": True,
+            "projected_used_margin_aggregation_valid": True,
+            "open_position_collection_complete": True,
+            "open_position_canonical_identities_unique": True,
+            "newly_reserved_included_in_used_margin": True,
+            "pre_lifecycle_reservation_invariant_holds": True,
+            "cycle_reserved_candidate_count": 0,
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+            "failure_reasons": [],
+            "invalid_open_position_margin_rows": [],
+            "invalid_open_position_margin_count": 0,
+            "duplicate_open_position_identity_group_count": 0,
+            "duplicate_open_position_identity_row_count": 0,
+            "open_position_collection_iteration_invalid_reason": None,
+            "newly_reserved_margin_usd": 0.0,
+            "newly_reserved_margin_unrounded_usd": 0.0,
+            "margin_base_usd": margin_base,
+            "used_margin_usd": used_margin,
+            "free_margin_usd": free_margin,
+            "margin_buffer_usd": margin_buffer,
+            "free_margin_after_buffer_usd": after_buffer,
+            "usable_margin_after_buffer_before_reservations_usd": after_buffer,
+            "generated_utc": _iso(generated_at),
+            "paper_cycle_id": paper_cycle_id,
+        }
+    )
+
+
 def _test_cost_evidence_factory(
     *,
     parent_record: dict[str, Any],
     enrichment_store: ImmutableSourcePayloadStore,
     decision_at: datetime,
+    strict_notional_provenance: bool = True,
 ):  # type: ignore[no-untyped-def]
     envelope = parent_record["frozen_envelope"]
     symbol = envelope["symbol"]
@@ -461,39 +544,28 @@ def _test_cost_evidence_factory(
             "rpi_commission_bps": 1.0,
         }
     )
-    notional_artifact = {
-        "schema_version": CAUSAL_COST_NOTIONAL_ARTIFACT_V1_SCHEMA_VERSION,
-        "symbol": symbol,
-        "feature_snapshot_identity": identity,
-        "value_unit": "USD",
-        "expected_notional_usd": 1_000.0,
-        "policy_id": "publisher-test-causal-notional-v1",
-        "policy_version": "sha256:" + "3" * 64,
-        "policy_source_key": "v2:paper:adaptive_sizing_runtime_status",
-        "effective_at": effective_at,
-        "available_at": effective_at,
-        "expires_at": _iso(decision_at + timedelta(minutes=1)),
-        "causality_scope": "FEATURE_SNAPSHOT_DECISION_EXPECTED_EXECUTION_NOTIONAL",
-        "fallback_used": False,
-        "static_default_used": False,
-    }
-    notional_artifact_bytes = _canonical_bytes(notional_artifact)
-    notional_receipt = _self_hash(
-        {
-            "schema_version": CAUSAL_COST_NOTIONAL_RECEIPT_V1_SCHEMA_VERSION,
-            "receipt_kind": "DIRECT_READ",
-            "artifact_payload_sha256": hashlib.sha256(notional_artifact_bytes).hexdigest(),
-            "artifact_payload_byte_count": len(notional_artifact_bytes),
-            "policy_source_key": notional_artifact["policy_source_key"],
-            "source_schema_version": CAUSAL_COST_NOTIONAL_ARTIFACT_V1_SCHEMA_VERSION,
-            "source_transport": "DURABLE_CAUSAL_POLICY_LEDGER",
-            "symbol": symbol,
-            "feature_snapshot_identity": identity,
-            "effective_at": effective_at,
-            "available_at": effective_at,
-            "expires_at": notional_artifact["expires_at"],
-            "authority_scope": "FEATURE_SNAPSHOT_CAUSAL_EXPECTED_NOTIONAL",
-        }
+    notional_status = notional_support._status(
+        count=2,
+        gross_notional_usd=2_000.0,
+    )
+    notional_status["generated_utc"] = effective_at
+    notional_token = build_causal_expected_notional_policy_v1(
+        atomic_capture=read_atomic_redis_sources(
+            cost_support._Redis(
+                {
+                    CAUSAL_EXPECTED_NOTIONAL_SOURCE_KEY: json.dumps(
+                        notional_status
+                    ).encode("utf-8")
+                },
+                pttl_ms=60_000,
+                server_time=server_at,
+            ),
+            (CAUSAL_EXPECTED_NOTIONAL_SOURCE_KEY,),
+        ),
+        source_payload_store=enrichment_store,
+        symbol=symbol,
+        feature_snapshot_identity=identity,
+        feature_snapshot_decision_time=decision_at,
     )
     return build_causal_cost_evidence_v1(
         atomic_capture=market_capture,
@@ -501,9 +573,21 @@ def _test_cost_evidence_factory(
         fee_schedule_artifact_bytes=fee_artifact_bytes,
         fee_schedule_raw_response_bytes=raw_fee,
         fee_schedule_receipt=fee_receipt,
-        expected_notional_usd=1_000.0,
-        expected_notional_policy_artifact_bytes=notional_artifact_bytes,
-        expected_notional_policy_receipt=notional_receipt,
+        expected_notional_usd=notional_token.expected_notional_usd,
+        expected_notional_policy_artifact_bytes=(
+            notional_token.notional_artifact_bytes
+        ),
+        expected_notional_policy_receipt=notional_token.notional_receipt,
+        **(
+            {
+                "expected_notional_policy_source_receipt_bytes": (
+                    notional_token.source_read_receipt_bytes
+                ),
+                "expected_notional_policy_factory_token": notional_token,
+            }
+            if strict_notional_provenance
+            else {}
+        ),
         symbol=symbol,
         feature_snapshot_identity=identity,
         decision_time=_iso(decision_at),
@@ -520,16 +604,24 @@ def _publisher(
     capture_set_builder=build_canonical_ohlcv_multitimeframe_capture_set_v1,  # type: ignore[no-untyped-def]
     cost_evidence_factory=_test_cost_evidence_factory,  # type: ignore[no-untyped-def]
     commission_fingerprint_hmac_key: bytes | None = None,
+    commission_cost_mode: str = AUTHENTICATED_COST_EVIDENCE_REQUIRED_MODE,
+    commission_evidence_reader=None,  # type: ignore[no-untyped-def]
+    feature_ledger: DurableFeatureSnapshotLedger | None = None,
 ) -> ProfiledBaseFeaturePublisherV1:
     return ProfiledBaseFeaturePublisherV1(
         redis_client=redis_client,
         data_root=(tmp_path / "publisher").absolute(),
         feature_ledger_path=(tmp_path / "feature-ledger.sqlite3").absolute(),
+        feature_ledger=feature_ledger,
         state_path=(tmp_path / state_name).absolute(),
         status_path=(tmp_path / f"{state_name}.status").absolute(),
         cycle_period_seconds=300.0,
         boundary_retry_limit=2,
-        clock=lambda: FIXED_CLOCK,
+        # Keep the synthetic publication decision at FIXED_CLOCK so the
+        # authenticated cost fixtures remain bound to that exact instant,
+        # while satisfying the preflight contract that its observation is
+        # strictly earlier than the planned decision.
+        clock=lambda: FIXED_CLOCK - timedelta(microseconds=1),
         monotonic=_Monotonic(),
         disk_usage=lambda _path: DiskUsage(10**12, 10**9, 10**12 - 10**9),
         decision_planner=lambda _generated_at: FIXED_CLOCK,
@@ -538,7 +630,32 @@ def _publisher(
         capture_set_builder=capture_set_builder,
         cost_evidence_factory=cost_evidence_factory,
         commission_fingerprint_hmac_key=commission_fingerprint_hmac_key,
+        commission_cost_mode=commission_cost_mode,
+        commission_evidence_reader=commission_evidence_reader,
     )
+
+
+def test_publisher_accepts_only_exact_path_bound_resident_ledger(tmp_path: Path) -> None:
+    ledger_path = (tmp_path / "feature-ledger.sqlite3").absolute()
+    resident = DurableFeatureSnapshotLedger(ledger_path)
+    publisher = _publisher(
+        tmp_path,
+        _Redis(_payloads()),
+        feature_ledger=resident,
+    )
+    assert publisher._feature_ledger is resident  # noqa: SLF001
+
+    with pytest.raises(
+        ProfiledBaseFeaturePublisherV1ConfigurationError,
+        match="PROFILED_BASE_PUBLISHER_FEATURE_LEDGER_BINDING_INVALID",
+    ):
+        _publisher(
+            tmp_path,
+            _Redis(_payloads()),
+            feature_ledger=DurableFeatureSnapshotLedger(
+                (tmp_path / "wrong-ledger.sqlite3").absolute()
+            ),
+        )
 
 
 def _seed_observed_state(path: Path) -> None:
@@ -557,6 +674,34 @@ def _seed_observed_state(path: Path) -> None:
         json.dumps(state, allow_nan=False, separators=(",", ":"), sort_keys=True) + "\n",
         encoding="ascii",
     )
+
+
+def _seed_valid_source_shard(
+    tmp_path: Path,
+) -> TrainerSourceProvenanceLedgerV4:
+    redis_client = _Redis(_payloads())
+    data_root = (tmp_path / "publisher").absolute()
+    data_root.mkdir(mode=0o700)
+    (data_root / "source-provenance-shards").mkdir(mode=0o700)
+    source_store = ImmutableSourcePayloadStore(data_root / "atomic-capture-cas")
+    ledger = TrainerSourceProvenanceLedgerV4(
+        data_root / "source-provenance-shards" / "shard-00000000"
+    )
+    for timeframe in ("5m", "1h"):
+        capture = capture_canonical_closed_ohlcv_atomic_receipts(
+            redis_client,
+            source_store,
+            expected_symbol="BTCUSDT",
+            expected_timeframe=timeframe,
+            consumer_clock=lambda: FIXED_CLOCK,
+        )
+        ledger.append_atomic_capture(
+            capture,
+            trainer_run_id="source-shard-preflight-test",
+            trainer_cycle_id=f"source-shard-preflight-test:{timeframe}",
+            ledger_clock=lambda: FIXED_CLOCK,
+        )
+    return ledger
 
 
 def test_policy_v1_window_fingerprint_cannot_suppress_policy_v2_build(
@@ -604,6 +749,10 @@ def test_policy_v1_window_fingerprint_cannot_suppress_policy_v2_build(
         capture_function=replay_capture,
         capture_set_builder=counted_builder,
     )
+    # This test replays captures already observed at FIXED_CLOCK and invokes
+    # the capture-set helper directly, so no source-shard preflight clock is
+    # sampled here.
+    publisher.clock = lambda: FIXED_CLOCK
     _, current_fingerprint, capture_set, _, _, _ = publisher._capture_and_build_set(
         symbol="BTCUSDT",
         source_store=source_store,
@@ -745,6 +894,9 @@ def test_runtime_default_cost_chain_uses_ordered_atomic_sources_and_real_factori
             "v2:market:mark_price:BTCUSDT",
         ),
     ]
+    assert (
+        CAUSAL_ADAPTIVE_COLD_START_NOTIONAL_PORTFOLIO_SOURCE_KEY,
+    ) not in redis_client.atomic_batches
     assert len(refresh_tokens) == 1
     refresh = refresh_tokens[0]
     assert refresh.refresh_interval_seconds == 1
@@ -759,6 +911,15 @@ def test_runtime_default_cost_chain_uses_ordered_atomic_sources_and_real_factori
         + len(refresh.receipt_bytes)
         + len(commission_tokens[0].sanitized_request_identity_bytes)
     )
+    cost_store = ImmutableSourcePayloadStore(Path(publication["cost_store_root"]))
+    cost_contract = json.loads(
+        cost_store.get(publication["cost_capture_artifact_sha256"])
+    )
+    positive_provenance = cost_contract["notional_source"]["policy_provenance"]
+    assert positive_provenance["verification_status"] == (
+        CAUSAL_COST_NOTIONAL_PROVENANCE_VERIFIED_STATUS
+    )
+    assert positive_provenance["bound_source_object_count"] == 1
     ledger = DurableFeatureSnapshotLedger((tmp_path / "feature-ledger.sqlite3").absolute())
     assert ledger.verify_integrity_streaming().verified_records == 2
 
@@ -769,6 +930,331 @@ def test_runtime_default_cost_chain_uses_ordered_atomic_sources_and_real_factori
     unchanged = publisher.run_cycle()
     assert unchanged["unchanged_symbols"] == ["BTCUSDT"]
     assert len(http_calls) == 1
+
+
+def _credentialless_fee_evidence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> CredentiallessCommissionEvidence:
+    _result, broker_redis, store, context, calls, clock = (
+        commission_broker_support._publish(  # noqa: SLF001 - cross-boundary E2E fixture
+            tmp_path,
+            monkeypatch,
+            start_at=FIXED_CLOCK - timedelta(seconds=2),
+        )
+    )
+    selected = commission_broker_module.read_authenticated_commission_evidence(
+        broker_redis,
+        store=store,
+        security_context=context,
+        symbol="BTCUSDT",
+        decision_time=FIXED_CLOCK,
+        now_fn=clock,
+    )
+    assert len(calls) == 1
+    assert selected["status"] == "READY"
+    evidence = selected["evidence"]
+    assert type(evidence) is CredentiallessCommissionEvidence
+    return evidence
+
+
+def test_broker_reader_builds_strict_pair_without_exchange_credentials(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payloads = _payloads()
+    server_at = FIXED_CLOCK - timedelta(milliseconds=500)
+    payloads[DYNAMIC_SYMBOL_SELECTION_KEY] = json.dumps(
+        {
+            "generated_utc": server_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "symbols": ["BTCUSDT"],
+        },
+        sort_keys=True,
+    ).encode()
+    notional_status = notional_support._status()
+    notional_status["generated_utc"] = _iso(
+        server_at - timedelta(milliseconds=100)
+    )
+    payloads[CAUSAL_EXPECTED_NOTIONAL_SOURCE_KEY] = json.dumps(
+        notional_status
+    ).encode("utf-8")
+    payloads.update(
+        _runtime_cost_source_payloads(symbol="BTCUSDT", decision_at=FIXED_CLOCK)
+    )
+    redis_client = _Redis(payloads, pttl_ms=1_501, server_time=server_at)
+    evidence = _credentialless_fee_evidence(tmp_path, monkeypatch)
+    reads: list[dict[str, Any]] = []
+
+    def reader(**kwargs: Any) -> dict[str, Any]:
+        reads.append(dict(kwargs))
+        return {"status": "READY", "evidence": evidence}
+
+    publisher = _publisher(
+        tmp_path,
+        redis_client,
+        cost_evidence_factory=None,
+        commission_cost_mode=(
+            BROKER_AUTHENTICATED_COST_EVIDENCE_WITH_MASKED_FALLBACK_MODE
+        ),
+        commission_evidence_reader=reader,
+    )
+    publisher.clock = lambda: FIXED_CLOCK - timedelta(microseconds=100)
+
+    def forbidden_direct_capture(**_kwargs: Any) -> Any:
+        raise AssertionError(
+            "credentialless broker mode must not load or call exchange credentials"
+        )
+
+    publisher.commission_capture_function = forbidden_direct_capture
+
+    status = publisher.run_cycle()
+
+    assert status["published_symbols"] == ["BTCUSDT"], status["failures"]
+    assert status["masked_cost_observation_symbol_count"] == 0
+    assert status["commission_broker_reader_available"] is True
+    assert status["commission_credentials_available"] is False
+    assert status["exchange_credentials_loaded_by_publisher"] is False
+    assert len(reads) == 1
+    assert reads[0]["symbol"] == "BTCUSDT"
+    assert reads[0]["decision_time"] == _iso(FIXED_CLOCK)
+    publication = status["publications"][0]
+    assert publication["commission_evidence_read_attempted"] is True
+    assert publication["commission_evidence_status"] == "READY"
+    assert publication["commission_evidence_authenticated"] is True
+    assert publication["runtime_cost_auxiliary_cas_bytes"] == 0
+    cost_store = ImmutableSourcePayloadStore(Path(publication["cost_store_root"]))
+    cost_artifact_bytes = cost_store.get(publication["cost_capture_artifact_sha256"])
+    cost_contract = json.loads(cost_artifact_bytes)
+    transport = cost_contract["fee_transport_provenance"]
+    assert transport["broker_envelope_sha256"] == evidence.broker_envelope_sha256
+    assert (
+        transport["consumer_receipt_payload_sha256"]
+        == evidence.broker_consumer_receipt_sha256
+    )
+    assert transport["exchange_credentials_read"] is False
+    assert cost_contract["fee_source_authenticity_status"] == (
+        "BROKER_READER_HMAC_CAS_AND_PIT_VERIFIED_WITH_SIGNED_RECEIPT_PERSISTED"
+    )
+    assert cost_store.get(evidence.broker_envelope_sha256) == evidence.broker_envelope_bytes
+    assert cost_store.get(evidence.broker_consumer_receipt_sha256) == (
+        evidence.broker_consumer_receipt_bytes
+    )
+    ledger = DurableFeatureSnapshotLedger(
+        (tmp_path / "feature-ledger.sqlite3").absolute()
+    )
+    assert ledger.verify_integrity_streaming().verified_records == 2
+
+    batch = loader_module.load_profiled_training_ledger_v1(
+        ledger=ledger,
+        trusted_immutable_cost_store_root=Path(publication["cost_store_root"]),
+        training_observed_at=_iso(datetime.now(UTC) + timedelta(seconds=1)),
+    )
+    assert len(batch.samples) == 1
+    assert batch.exclusions == ()
+
+
+def test_broker_temporal_miss_retries_whole_window_instead_of_masking(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payloads = _payloads()
+    server_at = FIXED_CLOCK - timedelta(milliseconds=500)
+    notional_status = notional_support._status()
+    notional_status["generated_utc"] = _iso(
+        server_at - timedelta(milliseconds=100)
+    )
+    payloads[CAUSAL_EXPECTED_NOTIONAL_SOURCE_KEY] = json.dumps(
+        notional_status
+    ).encode("utf-8")
+    payloads.update(
+        _runtime_cost_source_payloads(symbol="BTCUSDT", decision_at=FIXED_CLOCK)
+    )
+    redis_client = _Redis(payloads, pttl_ms=1_501, server_time=server_at)
+    evidence = _credentialless_fee_evidence(tmp_path, monkeypatch)
+    reads = 0
+
+    def reader(**_kwargs: Any) -> dict[str, Any]:
+        nonlocal reads
+        reads += 1
+        if reads == 1:
+            return {
+                "status": "COMMISSION_BROKER_DECISION_TEMPORAL_ADMISSION_FAILED",
+                "evidence": None,
+            }
+        return {"status": "READY", "evidence": evidence}
+
+    publisher = _publisher(
+        tmp_path,
+        redis_client,
+        cost_evidence_factory=None,
+        commission_cost_mode=(
+            BROKER_AUTHENTICATED_COST_EVIDENCE_WITH_MASKED_FALLBACK_MODE
+        ),
+        commission_evidence_reader=reader,
+    )
+
+    status = publisher.run_cycle()
+
+    assert reads == 2
+    assert status["published_symbols"] == ["BTCUSDT"], status["failures"]
+    assert status["masked_cost_observation_symbol_count"] == 0
+    assert status["publications"][0]["publication_attempts"] == 2
+    ledger = DurableFeatureSnapshotLedger(
+        (tmp_path / "feature-ledger.sqlite3").absolute()
+    )
+    assert ledger.verify_integrity_streaming().verified_records == 2
+
+
+def test_zero_candidate_cold_start_builds_strict_pair_from_adaptive_paper_margin(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payloads = _payloads()
+    server_at = FIXED_CLOCK - timedelta(milliseconds=500)
+    payloads[DYNAMIC_SYMBOL_SELECTION_KEY] = json.dumps(
+        {
+            "generated_utc": server_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "symbols": ["BTCUSDT"],
+        },
+        sort_keys=True,
+    ).encode()
+    notional_status = cold_start_support._zero_candidate_payload()
+    notional_status["generated_utc"] = _iso(
+        server_at - timedelta(milliseconds=100)
+    )
+    payloads[CAUSAL_EXPECTED_NOTIONAL_SOURCE_KEY] = json.dumps(
+        notional_status
+    ).encode("utf-8")
+    payloads[CAUSAL_ADAPTIVE_COLD_START_NOTIONAL_PORTFOLIO_SOURCE_KEY] = (
+        _paper_margin_status(
+            generated_at=server_at - timedelta(milliseconds=100),
+            paper_cycle_id=notional_status["paper_cycle_id"],
+        )
+    )
+    payloads.update(
+        _runtime_cost_source_payloads(symbol="BTCUSDT", decision_at=FIXED_CLOCK)
+    )
+    redis_client = _Redis(payloads, pttl_ms=1_501, server_time=server_at)
+    evidence = _credentialless_fee_evidence(tmp_path, monkeypatch)
+
+    def reader(**_kwargs: Any) -> dict[str, Any]:
+        return {"status": "READY", "evidence": evidence}
+
+    publisher = _publisher(
+        tmp_path,
+        redis_client,
+        cost_evidence_factory=None,
+        commission_cost_mode=(
+            BROKER_AUTHENTICATED_COST_EVIDENCE_WITH_MASKED_FALLBACK_MODE
+        ),
+        commission_evidence_reader=reader,
+    )
+    publisher.clock = lambda: FIXED_CLOCK - timedelta(microseconds=100)
+
+    def forbidden_direct_capture(**_kwargs: Any) -> Any:
+        raise AssertionError("cold-start broker mode must remain credentialless")
+
+    publisher.commission_capture_function = forbidden_direct_capture
+
+    status = publisher.run_cycle()
+
+    assert status["published_symbols"] == ["BTCUSDT"], status["failures"]
+    assert status["masked_cost_observation_symbol_count"] == 0
+    assert redis_client.atomic_batches.count(
+        (CAUSAL_EXPECTED_NOTIONAL_SOURCE_KEY,)
+    ) == 1
+    assert redis_client.atomic_batches.count(
+        (
+            CAUSAL_EXPECTED_NOTIONAL_SOURCE_KEY,
+            CAUSAL_ADAPTIVE_COLD_START_NOTIONAL_PORTFOLIO_SOURCE_KEY,
+        )
+    ) == 1
+    publication = status["publications"][0]
+    assert publication["expected_notional_usd"] == 2_476.55059808
+    assert publication["expected_notional_policy_id"] == (
+        CAUSAL_ADAPTIVE_COLD_START_NOTIONAL_POLICY_ID
+    )
+    assert publication["expected_notional_policy_source_key"] == (
+        causal_adaptive_cold_start_notional_policy_source_key_v1("BTCUSDT")
+    )
+    assert publication["commission_evidence_authenticated"] is True
+    cost_store = ImmutableSourcePayloadStore(Path(publication["cost_store_root"]))
+    cost_contract = json.loads(
+        cost_store.get(publication["cost_capture_artifact_sha256"])
+    )
+    notional_source = cost_contract["notional_source"]
+    assert notional_source["expected_notional_usd"] == 2_476.55059808
+    assert notional_source["policy_id"] == (
+        CAUSAL_ADAPTIVE_COLD_START_NOTIONAL_POLICY_ID
+    )
+    assert notional_source["fallback_used"] is False
+    assert notional_source["static_default_used"] is False
+    cold_provenance = notional_source["policy_provenance"]
+    assert cold_provenance["verification_status"] == (
+        CAUSAL_COST_NOTIONAL_PROVENANCE_VERIFIED_STATUS
+    )
+    assert cold_provenance["bound_source_object_count"] == 5
+    assert cold_provenance["strict_publisher_eligible"] is True
+    ledger = DurableFeatureSnapshotLedger(
+        (tmp_path / "feature-ledger.sqlite3").absolute()
+    )
+    assert ledger.verify_integrity_streaming().verified_records == 2
+
+    batch = loader_module.load_profiled_training_ledger_v1(
+        ledger=ledger,
+        trusted_immutable_cost_store_root=Path(publication["cost_store_root"]),
+        training_observed_at=_iso(datetime.now(UTC) + timedelta(seconds=1)),
+    )
+    assert len(batch.samples) == 1
+    assert batch.exclusions == ()
+
+
+def test_broker_missing_or_stale_evidence_masks_without_bad_training_row(
+    tmp_path: Path,
+) -> None:
+    redis_client = _Redis(_payloads())
+    reads: list[dict[str, Any]] = []
+
+    def reader(**kwargs: Any) -> dict[str, Any]:
+        reads.append(dict(kwargs))
+        return {"status": "COMMISSION_EVIDENCE_MISSING", "evidence": None}
+
+    publisher = _publisher(
+        tmp_path,
+        redis_client,
+        cost_evidence_factory=None,
+        commission_cost_mode=(
+            BROKER_AUTHENTICATED_COST_EVIDENCE_WITH_MASKED_FALLBACK_MODE
+        ),
+        commission_evidence_reader=reader,
+    )
+
+    def forbidden_cost_dependency(*_args: Any, **_kwargs: Any) -> Any:
+        raise AssertionError("missing broker evidence must mask before reading cost sources")
+
+    publisher.commission_capture_function = forbidden_cost_dependency
+    publisher.expected_notional_builder = forbidden_cost_dependency
+    publisher.commission_refresh_builder = forbidden_cost_dependency
+    publisher.causal_cost_builder = forbidden_cost_dependency
+
+    status = publisher.run_cycle()
+
+    assert status["published_symbol_count"] == 0
+    assert status["masked_cost_observation_symbols"] == ["BTCUSDT"]
+    assert status["failed_symbols"] == []
+    assert status["commission_broker_reader_available"] is True
+    assert status["exchange_credentials_loaded_by_publisher"] is False
+    assert len(reads) == 1
+    observation = status["masked_cost_observations"][0]
+    assert observation["commission_evidence_read_attempted"] is True
+    assert observation["commission_evidence_status"] == "COMMISSION_EVIDENCE_MISSING"
+    assert observation["commission_evidence_authenticated"] is False
+    assert observation["cost_source_read_attempted"] is False
+    assert observation["authority"]["child_trainer_admission_authorized"] is False
+    ledger = DurableFeatureSnapshotLedger(
+        (tmp_path / "feature-ledger.sqlite3").absolute()
+    )
+    assert ledger.verify_integrity_streaming().verified_records == 1
 
 
 @pytest.mark.parametrize(
@@ -1034,6 +1520,30 @@ def test_post_decision_cost_capture_retries_whole_prospective_record(
     assert ledger.verify_integrity_streaming().verified_records == 2
 
 
+def test_injected_cost_factory_cannot_bypass_strict_notional_provenance(
+    tmp_path: Path,
+) -> None:
+    publisher = _publisher(tmp_path, _Redis(_payloads()))
+
+    def unverified_factory(**kwargs: Any):  # type: ignore[no-untyped-def]
+        return _test_cost_evidence_factory(
+            **kwargs,
+            strict_notional_provenance=False,
+        )
+
+    publisher.cost_evidence_factory = unverified_factory
+
+    status = publisher.run_cycle()
+
+    assert status["published_symbols"] == []
+    assert status["failed_symbols"] == ["BTCUSDT"]
+    assert "PROFILED_BASE_PUBLISHER_NOTIONAL_POLICY_PROVENANCE_UNVERIFIED" in (
+        status["failures"][0]["reasons"]
+    )
+    assert status["failures"][0]["coverage_advanced"] is False
+    assert not (tmp_path / "feature-ledger.sqlite3").exists()
+
+
 @pytest.mark.parametrize(
     ("failure", "expected_calls", "temporal_retryable"),
     [
@@ -1078,6 +1588,20 @@ def test_post_decision_cost_capture_retries_whole_prospective_record(
             True,
         ),
         (
+            CausalAdaptiveColdStartNotionalPolicyV1ValidationError(
+                "COLD_START_NOTIONAL_MARKET_CAPTURE_AFTER_DECISION"
+            ),
+            2,
+            True,
+        ),
+        (
+            CausalAdaptiveColdStartNotionalPolicyV1ValidationError(
+                "COLD_START_NOTIONAL_MARKET_EXPIRED_AT_DECISION"
+            ),
+            2,
+            True,
+        ),
+        (
             CausalCostEvidenceV1ValidationError("CAUSAL_COST_ORDERBOOK_CROSSED_OR_ZERO_SPREAD"),
             1,
             False,
@@ -1112,6 +1636,174 @@ def test_cost_blockers_never_append_parent_or_advance_coverage(
     assert not (tmp_path / "feature-ledger.sqlite3").exists()
 
 
+def test_masked_cost_mode_appends_only_quarantined_parent_without_cost_values(
+    tmp_path: Path,
+) -> None:
+    redis_client = _Redis(_payloads())
+    publisher = _publisher(
+        tmp_path,
+        redis_client,
+        cost_evidence_factory=None,
+        commission_cost_mode=MASKED_COST_OBSERVATION_MODE,
+    )
+
+    def forbidden_cost_dependency(*_args: Any, **_kwargs: Any) -> Any:
+        raise AssertionError("masked mode must not read or construct cost evidence")
+
+    publisher.commission_capture_function = forbidden_cost_dependency
+    publisher.expected_notional_builder = forbidden_cost_dependency
+    publisher.commission_refresh_builder = forbidden_cost_dependency
+    publisher.causal_cost_builder = forbidden_cost_dependency
+
+    status = publisher.run_cycle()
+
+    assert status["classification"] == "CYCLE_COMPLETE_MASKED_COST_OBSERVATIONS", status[
+        "failures"
+    ][0]["reasons"]
+    assert status["commission_cost_mode"] == MASKED_COST_OBSERVATION_MODE
+    assert status["commission_credentials_available"] is False
+    assert status["published_symbol_count"] == 0
+    assert status["exact_replay_symbol_count"] == 0
+    assert status["masked_cost_observation_symbol_count"] == 1
+    assert status["masked_cost_observation_symbols"] == ["BTCUSDT"]
+    assert status["failed_symbols"] == []
+    assert (
+        status["authority_semantics"][
+            "published_child_trainer_admission_authorized"
+        ]
+        is False
+    )
+    observation = status["masked_cost_observations"][0]
+    mask = observation["cost_observation"]
+    assert mask["ordered_feature_names"] == [
+        "fee_bps",
+        "spread_bps",
+        "expected_slippage_bps",
+        "expected_funding_bps",
+    ]
+    assert mask["missing_mask"] == [1, 1, 1, 1]
+    assert mask["stale_mask"] == [0, 0, 0, 0]
+    assert mask["source_availability_mask"] == [0, 0, 0, 0]
+    assert mask["feature_values_emitted"] is False
+    assert mask["feature_source_receipts_emitted"] is False
+    assert "feature_values" not in mask
+    assert "feature_source_receipt_sha256s" not in mask
+    assert observation["cost_values_or_receipts_fabricated"] is False
+    assert observation["commission_capture_attempted"] is False
+    assert observation["cost_source_read_attempted"] is False
+    assert observation["feature_cutoff"] <= observation["decision_time"]
+    assert observation["prospective_decision_wait_verified"] is True
+    assert observation["authority"]["parent_trainer_admission_authorized"] is False
+    assert observation["authority"]["child_trainer_admission_authorized"] is False
+    assert not any(
+        key.startswith("v2:orderbook:")
+        or key.startswith("v2:market:mark_price:")
+        or key == CAUSAL_EXPECTED_NOTIONAL_SOURCE_KEY
+        for batch in redis_client.atomic_batches
+        for key in batch
+    )
+
+    ledger = DurableFeatureSnapshotLedger((tmp_path / "feature-ledger.sqlite3").absolute())
+    integrity = ledger.verify_integrity_streaming()
+    assert integrity.verified_records == 1
+    committed = ledger.get_snapshot(observation["durable_snapshot_id"])
+    assert committed is not None
+    envelope = committed.record["frozen_envelope"]
+    assert len(envelope["ordered_feature_names"]) == 35
+    assert not {
+        "fee_bps",
+        "spread_bps",
+        "expected_slippage_bps",
+        "expected_funding_bps",
+    }.intersection(envelope["ordered_feature_names"])
+    assert envelope["strict_training_eligible"] is False
+    assert envelope["temporal_rejection_reasons"] == [
+        PROFILED_MODEL_FEATURE_SNAPSHOT_RECORD_V1_UNWIRED_REASON
+    ]
+
+
+def test_masked_parent_replays_after_state_loss_and_is_never_retro_enriched(
+    tmp_path: Path,
+) -> None:
+    redis_client = _Redis(_payloads())
+    first = _publisher(
+        tmp_path,
+        redis_client,
+        cost_evidence_factory=None,
+        commission_cost_mode=MASKED_COST_OBSERVATION_MODE,
+    ).run_cycle()
+    assert first["masked_cost_observation_symbol_count"] == 1, first["failures"][0][
+        "reasons"
+    ]
+    (tmp_path / "state.json").unlink()
+
+    replay_publisher = _publisher(
+        tmp_path,
+        redis_client,
+        cost_evidence_factory=None,
+        commission_cost_mode=MASKED_COST_OBSERVATION_MODE,
+    )
+    replay_publisher.clock = lambda: FIXED_CLOCK + timedelta(minutes=10)
+    prior_atomic_batches = len(redis_client.atomic_batches)
+    replay = replay_publisher.run_cycle()
+
+    assert replay["masked_cost_observation_symbol_count"] == 0
+    assert replay["masked_cost_observation_replay_symbol_count"] == 1, replay[
+        "failures"
+    ][0]["reasons"]
+    assert len(redis_client.atomic_batches) == prior_atomic_batches + 1
+    assert redis_client.atomic_batches[-1] == (DYNAMIC_SYMBOL_SELECTION_KEY,)
+    detail = replay["masked_cost_observations"][0]
+    assert detail["classification"] == "MASKED_COST_OBSERVATION_PARENT_EXACT_REPLAY"
+    assert detail["append_after_prospective_decision_reverified"] is True
+    assert detail["feature_append"]["new_rows_inserted_this_cycle"] is False
+    assert (
+        detail["recovery"]["classification"]
+        == "STATE_LOSS_MASKED_PARENT_LEDGER_READBACK_VERIFIED"
+    )
+    ledger = DurableFeatureSnapshotLedger((tmp_path / "feature-ledger.sqlite3").absolute())
+    assert ledger.verify_integrity_streaming().verified_records == 1
+
+    def forbidden_retro_cost(**_kwargs: Any) -> Any:
+        raise AssertionError("an unchanged masked decision must not be retro-enriched")
+
+    (tmp_path / "state.json").unlink()
+    authenticated = _publisher(tmp_path, redis_client)
+    authenticated.clock = lambda: FIXED_CLOCK + timedelta(minutes=20)
+    authenticated.cost_evidence_factory = forbidden_retro_cost
+    recovered = authenticated.run_cycle()
+    assert recovered["masked_cost_observation_replay_symbols"] == ["BTCUSDT"]
+    assert recovered["published_symbols"] == []
+    assert ledger.verify_integrity_streaming().verified_records == 1
+
+
+def test_masked_cost_mode_rejects_loaded_cost_credentials_or_factory(
+    tmp_path: Path,
+) -> None:
+    redis_client = _Redis(_payloads())
+
+    with pytest.raises(
+        ProfiledBaseFeaturePublisherV1ConfigurationError,
+        match="PROFILED_BASE_PUBLISHER_CONFIGURATION_INVALID",
+    ):
+        _publisher(
+            tmp_path,
+            redis_client,
+            commission_cost_mode=MASKED_COST_OBSERVATION_MODE,
+        )
+    with pytest.raises(
+        ProfiledBaseFeaturePublisherV1ConfigurationError,
+        match="PROFILED_BASE_PUBLISHER_CONFIGURATION_INVALID",
+    ):
+        _publisher(
+            tmp_path,
+            redis_client,
+            cost_evidence_factory=None,
+            commission_fingerprint_hmac_key=b"x" * 32,
+            commission_cost_mode=MASKED_COST_OBSERVATION_MODE,
+        )
+
+
 @pytest.mark.parametrize("failure_stage", ["pair_build", "pair_append"])
 def test_pair_failure_stages_never_leave_an_orphan_parent(
     tmp_path: Path,
@@ -1144,7 +1836,14 @@ def test_happy_path_publishes_exact_adjacent_authenticated_training_pair(
     tmp_path: Path,
 ) -> None:
     redis_client = _Redis(_payloads())
-    publisher = _publisher(tmp_path, redis_client)
+    resident_ledger = DurableFeatureSnapshotLedger(
+        (tmp_path / "feature-ledger.sqlite3").absolute()
+    )
+    publisher = _publisher(
+        tmp_path,
+        redis_client,
+        feature_ledger=resident_ledger,
+    )
 
     status = publisher.run_cycle()
 
@@ -1159,13 +1858,30 @@ def test_happy_path_publishes_exact_adjacent_authenticated_training_pair(
     assert status["disk_resource_safety"]["policy"] == DISK_RESERVE_POLICY_V1
     assert status["disk_resource_safety"]["reserve_bytes"] == 200_000_000_000
     assert status["disk_resource_safety"]["operational_invariant_not_market_selection"] is True
+    assert status["source_provenance_shard_preflight_count"] == 1
+    assert status["source_provenance_shard_rollover_count"] == 0
     publication = status["publications"][0]
+    assert publication["source_provenance_shard_preflight_count"] == 1
+    reference = publication["source_provenance_shard_preflight_references"][0]
+    assert reference["status_preflight_index"] == 0
+    assert reference["preflight_sha256"] == publisher_module.stable_sha256(
+        status["source_provenance_shard_preflights"][0]
+    )
+    assert status["source_provenance_shard_preflights"][0][
+        "active_shard_integrity_verified_before_capture"
+    ] is True
+    assert "source_provenance_shard_preflights" not in publication
+    assert len(_canonical_bytes(status)) < 4 * 1024 * 1024
     assert publication["execution_time"] is None
     assert publication["available_at"] <= publication["decision_time"]
     assert publication["source_appends"][0]["durable_postcommit_readback_verified"] is True
     assert publication["source_appends"][1]["durable_postcommit_readback_verified"] is True
     assert publication["feature_append"]["transaction_committed"] is True
     assert publication["feature_append"]["transaction_readback_verified"] is True
+    verified_status = read_verified_profiled_base_publisher_cycle_status_v1(
+        status_path=publisher.status_path
+    )
+    assert verified_status.status_sha256 == status["status_sha256"]
     assert publication["authority"] == {
         "child_trainer_admission_authorized": True,
         "live_execution_authorized": False,
@@ -1177,7 +1893,8 @@ def test_happy_path_publishes_exact_adjacent_authenticated_training_pair(
         "trainer_candidate_in_lineage": True,
     }
 
-    ledger = DurableFeatureSnapshotLedger((tmp_path / "feature-ledger.sqlite3").absolute())
+    assert publisher._feature_ledger is resident_ledger  # noqa: SLF001
+    ledger = resident_ledger
     child = ledger.get_snapshot(publication["durable_snapshot_id"])
     parent = ledger.get_snapshot(publication["parent_durable_snapshot_id"])
     assert child is not None
@@ -1771,6 +2488,7 @@ def test_resource_rotation_and_source_sharding_are_evidence_derived() -> None:
     decision = adaptive_resource_decision_v1(
         eligible_count=200,
         observations={
+            "cycle_count": 4,
             "materialized_publication_count": 4,
             "materialized_publication_elapsed_seconds": 40.0,
             "materialized_publication_bytes": 20_000_000,
@@ -1803,10 +2521,322 @@ def test_resource_rotation_and_source_sharding_are_evidence_derived() -> None:
     ) == (8, True)
 
 
+def test_slow_verified_shard_rolls_exactly_once_before_sun_capture(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ledger = _seed_valid_source_shard(tmp_path)
+    old_ledger_bytes = ledger.path.read_bytes()
+    old_head_bytes = ledger.head_path.read_bytes()
+    sun_capture_generated_at = datetime(
+        2026,
+        7,
+        23,
+        1,
+        53,
+        2,
+        428169,
+        tzinfo=UTC,
+    )
+
+    class ManualMonotonic:
+        value = 0.0
+
+        def __call__(self) -> float:
+            return self.value
+
+    monotonic = ManualMonotonic()
+    original_read_entries = TrainerSourceProvenanceLedgerV4.read_entries
+
+    def measured_read_entries(
+        source_ledger: TrainerSourceProvenanceLedgerV4,
+    ):  # type: ignore[no-untyped-def]
+        entries = original_read_entries(source_ledger)
+        if source_ledger.root.name == "shard-00000000":
+            monotonic.value += 30.0
+        return entries
+
+    capture_calls = 0
+
+    def capture_after_roll(*_args: Any, **_kwargs: Any):  # type: ignore[no-untyped-def]
+        nonlocal capture_calls
+        capture_calls += 1
+        rolled = ledger.root.parent / "shard-00000001"
+        assert rolled.is_dir()
+        assert stat.S_IMODE(rolled.stat().st_mode) == 0o700
+        assert ledger.path.read_bytes() == old_ledger_bytes
+        assert ledger.head_path.read_bytes() == old_head_bytes
+        raise CanonicalOhlcvAtomicCaptureValidationError(
+            "canonical_ohlcv_injected_after_preflight_roll"
+        )
+
+    monkeypatch.setattr(
+        TrainerSourceProvenanceLedgerV4,
+        "read_entries",
+        measured_read_entries,
+    )
+    publisher = _publisher(
+        tmp_path,
+        _Redis(_payloads()),
+        capture_function=capture_after_roll,
+    )
+    publisher.clock = lambda: sun_capture_generated_at
+    publisher.decision_planner = prospective_decision_midpoint_v1
+    publisher.monotonic = monotonic
+
+    status = publisher.run_cycle()
+
+    assert capture_calls == 1
+    assert status["source_provenance_shard_preflight_count"] == 1
+    assert status["source_provenance_shard_rollover_count"] == 1
+    evidence = status["source_provenance_shard_preflights"][0]
+    assert evidence["symbol"] == "BTCUSDT"
+    assert evidence["active_shard_index"] == 0
+    assert evidence["active_shard_integrity_verified_before_capture"] is True
+    assert evidence["active_ledger_entries"] == 2
+    assert evidence["measured_full_verification_seconds"] == 30.0
+    assert evidence["new_append_full_verification_passes_before_transform_clock"] == 5
+    assert evidence["remaining_full_verification_passes_before_transform_clock"] == 7
+    assert evidence["projected_remaining_full_verification_seconds"] == 210.0
+    assert evidence["planned_decision_budget_seconds"] == 58.785915
+    assert evidence["planned_decision_time"] == (
+        "2026-07-23T01:54:01.214084Z"
+    )
+    assert evidence["remaining_verification_passes_fit_planned_decision"] is False
+    assert evidence["adaptive_estimated_symbol_elapsed_seconds"] == 300.0
+    assert evidence["projected_verification_and_symbol_work_seconds"] == 510.0
+    assert evidence["verification_and_symbol_work_fit_planned_decision"] is False
+    assert evidence["default_midpoint_decision_planner_configured"] is True
+    assert evidence["rollover_projection_uses_exact_replay_safe_pass_count"] is True
+    assert evidence["rollover_performed_before_capture"] is True
+    assert evidence["preflight_selected_shard_index"] == 1
+    assert evidence["publication_shard_index"] is None
+    assert evidence["publication_shard_selection_reconciled"] is False
+    assert evidence["ledger_byte_hard_safety_cap"] == MAX_LEDGER_BYTES
+    assert evidence["market_or_performance_threshold_applied"] is False
+    failure = status["failures"][0]
+    assert failure["source_provenance_shard_preflight_count"] == 1
+    failure_reference = failure["source_provenance_shard_preflight_references"][0]
+    assert failure_reference["status_preflight_index"] == 0
+    assert failure_reference["preflight_sha256"] == publisher_module.stable_sha256(
+        evidence
+    )
+    assert "source_provenance_shard_preflights" not in failure
+
+
+def test_fast_verified_shard_remains_active_under_singleton_lock(
+    tmp_path: Path,
+) -> None:
+    ledger = _seed_valid_source_shard(tmp_path)
+    publisher = _publisher(tmp_path, _Redis(_payloads()))
+    publisher.clock = lambda: datetime(2026, 7, 23, 1, 51, 0, tzinfo=UTC)
+    publisher.decision_planner = prospective_decision_midpoint_v1
+
+    with _singleton_writer_lock(publisher.data_root):
+        preflight = publisher._preflight_source_shard(  # noqa: SLF001
+            symbol="BTCUSDT",
+            publication_attempt=1,
+            adaptive_estimated_symbol_elapsed_seconds=1.0,
+        )
+
+    evidence = preflight.evidence
+    assert preflight.active_shard_index == 0
+    assert preflight.selected_shard_index == 0
+    assert evidence["active_shard_integrity_verified_before_capture"] is True
+    assert evidence["remaining_verification_passes_fit_planned_decision"] is True
+    assert evidence["rollover_performed_before_capture"] is False
+    assert evidence["rollover_reason"] == (
+        "MEASURED_VERIFICATION_AND_ADAPTIVE_SYMBOL_WORK_FIT_"
+        "PLANNED_DECISION_WINDOW"
+    )
+    assert ledger.path.is_file()
+    assert not (ledger.root.parent / "shard-00000001").exists()
+
+
+def test_verification_that_fits_alone_rolls_when_combined_adaptive_work_does_not(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ledger = _seed_valid_source_shard(tmp_path)
+    old_ledger_bytes = ledger.path.read_bytes()
+    old_head_bytes = ledger.head_path.read_bytes()
+
+    class ManualMonotonic:
+        value = 0.0
+
+        def __call__(self) -> float:
+            return self.value
+
+    monotonic = ManualMonotonic()
+    original_read_entries = TrainerSourceProvenanceLedgerV4.read_entries
+
+    def five_second_verified_read(
+        source_ledger: TrainerSourceProvenanceLedgerV4,
+    ):  # type: ignore[no-untyped-def]
+        entries = original_read_entries(source_ledger)
+        monotonic.value += 5.0
+        return entries
+
+    monkeypatch.setattr(
+        TrainerSourceProvenanceLedgerV4,
+        "read_entries",
+        five_second_verified_read,
+    )
+    publisher = _publisher(tmp_path, _Redis(_payloads()))
+    publisher.clock = lambda: datetime(
+        2026,
+        7,
+        23,
+        1,
+        53,
+        2,
+        428169,
+        tzinfo=UTC,
+    )
+    publisher.decision_planner = prospective_decision_midpoint_v1
+    publisher.monotonic = monotonic
+
+    with _singleton_writer_lock(publisher.data_root):
+        preflight = publisher._preflight_source_shard(  # noqa: SLF001
+            symbol="BTCUSDT",
+            publication_attempt=1,
+            adaptive_estimated_symbol_elapsed_seconds=29.0,
+        )
+
+    evidence = preflight.evidence
+    assert evidence["projected_remaining_full_verification_seconds"] == 35.0
+    assert evidence["remaining_verification_passes_fit_planned_decision"] is True
+    assert evidence["projected_verification_and_symbol_work_seconds"] == 64.0
+    assert evidence["verification_and_symbol_work_fit_planned_decision"] is False
+    assert evidence["rollover_performed_before_capture"] is True
+    assert evidence["rollover_reason"] == (
+        "MEASURED_VERIFICATION_AND_ADAPTIVE_SYMBOL_WORK_EXCEED_"
+        "PLANNED_DECISION_WINDOW"
+    )
+    assert preflight.selected_shard_index == 1
+    assert ledger.path.read_bytes() == old_ledger_bytes
+    assert ledger.head_path.read_bytes() == old_head_bytes
+
+
+def test_source_shard_preflight_rejects_nonfuture_injected_planner(
+    tmp_path: Path,
+) -> None:
+    publisher = _publisher(tmp_path, _Redis(_payloads()))
+    publisher.decision_planner = lambda completed_at: completed_at
+    publisher.data_root.mkdir(mode=0o700)
+
+    with _singleton_writer_lock(publisher.data_root):
+        with pytest.raises(
+            ProfiledBaseFeaturePublisherV1ConfigurationError,
+            match=(
+                "PROFILED_BASE_PUBLISHER_SOURCE_SHARD_PREFLIGHT_"
+                "DECISION_NOT_STRICTLY_FUTURE"
+            ),
+        ):
+            publisher._preflight_source_shard(  # noqa: SLF001
+                symbol="BTCUSDT",
+                publication_attempt=1,
+                adaptive_estimated_symbol_elapsed_seconds=1.0,
+            )
+
+
+def test_post_capture_hard_cap_roll_is_reconciled_in_publication_evidence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ledger = _seed_valid_source_shard(tmp_path)
+    _seed_observed_state(tmp_path / "state.json")
+    old_ledger_bytes = ledger.path.read_bytes()
+    old_head_bytes = ledger.head_path.read_bytes()
+
+    def forced_hard_cap_roll(**kwargs: Any) -> tuple[int, bool]:
+        assert kwargs["active_index"] == 0
+        return 1, True
+
+    monkeypatch.setattr(
+        publisher_module,
+        "select_source_shard_index_v1",
+        forced_hard_cap_roll,
+    )
+
+    def stop_after_source_reconciliation(*_args: Any, **_kwargs: Any) -> Any:
+        raise ProfiledTrainingEnrichmentRecordV1Error(
+            "PROFILED_TRAINING_INJECTED_AFTER_SOURCE_SHARD_RECONCILIATION"
+        )
+
+    monkeypatch.setattr(
+        publisher_module,
+        "transform_authenticated_ohlcv_profile_v1",
+        stop_after_source_reconciliation,
+    )
+    publisher = _publisher(tmp_path, _Redis(_payloads()))
+    publisher.monotonic = lambda: 0.0
+    publisher.decision_planner = lambda generated_at: generated_at + timedelta(seconds=10)
+
+    status = publisher.run_cycle()
+
+    assert status["published_symbols"] == []
+    assert status["failed_symbols"] == ["BTCUSDT"]
+    reference = status["failures"][0][
+        "source_provenance_shard_preflight_references"
+    ][0]
+    evidence = status["source_provenance_shard_preflights"][
+        reference["status_preflight_index"]
+    ]
+    assert reference["preflight_sha256"] == publisher_module.stable_sha256(evidence)
+    assert evidence["rollover_performed_before_capture"] is False
+    assert evidence["preflight_selected_shard_index"] == 0
+    assert evidence["publication_shard_index"] == 1
+    assert evidence["publication_shard_relative_path"] == (
+        "source-provenance-shards/shard-00000001"
+    )
+    assert evidence["publication_shard_selection_reconciled"] is True
+    assert evidence["hard_safety_cap_rollover_after_capture"] is True
+    rolled_ledger = TrainerSourceProvenanceLedgerV4(
+        ledger.root.parent / "shard-00000001"
+    )
+    assert len(rolled_ledger.read_entries()) == 2
+    assert ledger.path.read_bytes() == old_ledger_bytes
+    assert ledger.head_path.read_bytes() == old_head_bytes
+
+
+def test_corrupt_active_shard_fails_before_roll_or_market_capture(
+    tmp_path: Path,
+) -> None:
+    ledger = _seed_valid_source_shard(tmp_path)
+    with ledger.path.open("ab") as stream:
+        stream.write(b"{")
+    capture_calls = 0
+
+    def forbidden_capture(*_args: Any, **_kwargs: Any):  # type: ignore[no-untyped-def]
+        nonlocal capture_calls
+        capture_calls += 1
+        raise AssertionError("market capture must follow verified shard preflight")
+
+    publisher = _publisher(
+        tmp_path,
+        _Redis(_payloads()),
+        capture_function=forbidden_capture,
+    )
+    publisher.clock = lambda: datetime(2026, 7, 23, 1, 51, 0, tzinfo=UTC)
+
+    status = publisher.run_cycle()
+
+    assert capture_calls == 0
+    assert status["failed_symbols"] == ["BTCUSDT"]
+    assert status["source_provenance_shard_preflight_count"] == 0
+    assert status["source_provenance_shard_rollover_count"] == 0
+    assert status["failures"][0]["reasons"] == [
+        "source_provenance_v4_ledger_truncated_or_partial_tail"
+    ]
+    assert not (ledger.root.parent / "shard-00000001").exists()
+
+
 def test_large_universe_is_bounded_by_sustainable_cadence_disk_budget() -> None:
     decision = adaptive_resource_decision_v1(
         eligible_count=160,
         observations={
+            "cycle_count": 10,
             "materialized_publication_count": 10,
             "materialized_publication_elapsed_seconds": 10.0,
             "materialized_publication_bytes": 49_000_000,
@@ -1822,14 +2852,54 @@ def test_large_universe_is_bounded_by_sustainable_cadence_disk_budget() -> None:
     assert decision.selected_count == 3
     assert (
         decision.selected_count * decision.estimated_evidence_bytes_per_symbol
-        <= decision.sustainable_cycle_write_budget_bytes
+        <= decision.available_write_credit_bytes
     )
+
+
+def test_indivisible_evidence_unit_accrues_bounded_cross_cycle_credit() -> None:
+    base_observations = {
+        "materialized_publication_count": 1,
+        "materialized_publication_elapsed_seconds": 1.0,
+        "materialized_publication_bytes": 10_000_000,
+    }
+    resource_inputs = {
+        "eligible_count": 75,
+        "cycle_period_seconds": 300.0,
+        "resource_sustainability_horizon_seconds": (
+            MINIMUM_RESOURCE_SUSTAINABILITY_HORIZON_SECONDS
+        ),
+        "disk_total_bytes": 500_000_000_000,
+        "disk_used_bytes": 296_320_000_000,
+        "disk_free_bytes": 203_680_000_000,
+    }
+
+    before_credit = adaptive_resource_decision_v1(
+        observations={**base_observations, "cycle_count": 2},
+        **resource_inputs,
+    )
+    funded = adaptive_resource_decision_v1(
+        observations={**base_observations, "cycle_count": 4},
+        **resource_inputs,
+    )
+
+    assert before_credit.sustainable_cycle_write_budget_bytes == 4_000_000
+    assert before_credit.estimated_evidence_bytes_per_symbol == 10_000_000
+    assert before_credit.available_write_credit_bytes == 2_000_000
+    assert before_credit.selected_count == 0
+    assert "BOUNDED_WRITE_CREDIT_ACCRUAL_PENDING" in before_credit.reasons
+    assert "RESOURCE_HEADROOM_NO_SAFE_PUBLICATION_UNIT" not in before_credit.reasons
+    assert funded.cumulative_sustainable_write_budget_bytes == 20_000_000
+    assert funded.write_credit_capacity_bytes == 10_000_000
+    assert funded.available_write_credit_bytes == 10_000_000
+    assert funded.selected_count == 1
+    assert "BOUNDED_CROSS_CYCLE_WRITE_CREDIT_ACCRUAL" in funded.reasons
 
 
 def test_shared_filesystem_reserve_holds_when_free_space_is_at_reserve() -> None:
     decision = adaptive_resource_decision_v1(
         eligible_count=160,
         observations={
+            "cycle_count": 10,
             "materialized_publication_count": 10,
             "materialized_publication_elapsed_seconds": 10.0,
             "materialized_publication_bytes": 49_000_000,
@@ -1854,6 +2924,7 @@ def test_two_observed_units_can_bind_shared_filesystem_reserve() -> None:
     decision = adaptive_resource_decision_v1(
         eligible_count=1,
         observations={
+            "cycle_count": 1,
             "materialized_publication_count": 1,
             "materialized_publication_elapsed_seconds": 1.0,
             "materialized_publication_bytes": 150_000_000_000,
@@ -1869,6 +2940,118 @@ def test_two_observed_units_can_bind_shared_filesystem_reserve() -> None:
     assert decision.disk_reserve_bytes == 300_000_000_000
     assert decision.safe_disk_headroom_bytes == 100_000_000_000
     assert decision.selected_count == 0
+
+
+def test_pre_first_shared_filesystem_drift_does_not_consume_write_credit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _seed_observed_state(tmp_path / "state.json")
+    publisher = _publisher(tmp_path, _Redis(_payloads()))
+    disk_total_bytes = 500_000_000_000
+    reserve_bytes = disk_total_bytes // 5
+    sustainable_headroom_bytes = (
+        BOOTSTRAP_EVIDENCE_BYTES_PER_SYMBOL
+        * DEFAULT_RESOURCE_SUSTAINABILITY_HORIZON_SECONDS
+        // 300
+    )
+    cycle_start_free_bytes = reserve_bytes + sustainable_headroom_bytes
+    unrelated_shared_drift_bytes = 4 * 1024
+    disk_usage_calls = 0
+
+    def shared_drift_disk_usage(_path: Path) -> DiskUsage:
+        nonlocal disk_usage_calls
+        free_bytes = (
+            cycle_start_free_bytes
+            if disk_usage_calls == 0
+            else cycle_start_free_bytes - unrelated_shared_drift_bytes
+        )
+        disk_usage_calls += 1
+        return DiskUsage(
+            disk_total_bytes,
+            disk_total_bytes - free_bytes,
+            free_bytes,
+        )
+
+    def materialize_selected_symbol(**kwargs: Any):  # type: ignore[no-untyped-def]
+        symbol = kwargs["symbol"]
+        coverage = {
+            "last_published_at": _iso(FIXED_CLOCK),
+            "feature_cutoff": _iso(FIXED_CLOCK),
+            "decision_time": _iso(FIXED_CLOCK),
+            "window_fingerprint_sha256": "a" * 64,
+            "durable_snapshot_id": f"durable-{symbol}",
+            "record_sha256": "b" * 64,
+        }
+        return publisher_module._SymbolOutcome(
+            symbol=symbol,
+            classification="AUTHENTICATED_PROFILED_TRAINING_PAIR_INSERTED",
+            window_fingerprint_sha256="a" * 64,
+            materialized_evidence_bytes=BOOTSTRAP_EVIDENCE_BYTES_PER_SYMBOL,
+            detail={"symbol": symbol},
+            coverage=coverage,
+        )
+
+    publisher.disk_usage = shared_drift_disk_usage
+    monkeypatch.setattr(publisher, "_publish_symbol", materialize_selected_symbol)
+
+    status = publisher.run_cycle()
+
+    assert status["resource_decision"]["available_write_credit_bytes"] == (
+        BOOTSTRAP_EVIDENCE_BYTES_PER_SYMBOL
+    )
+    assert status["selected_symbols"] == ["BTCUSDT"]
+    assert status["resource_deferred_symbols"] == []
+    assert status["published_symbols"] == ["BTCUSDT"]
+    assert status["cycle_disk_consumption_high_water_bytes"] == (
+        unrelated_shared_drift_bytes
+    )
+
+
+def test_pre_first_write_still_holds_when_current_free_cannot_cover_reserve_and_unit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _seed_observed_state(tmp_path / "state.json")
+    publisher = _publisher(tmp_path, _Redis(_payloads()))
+    disk_total_bytes = 500_000_000_000
+    reserve_bytes = disk_total_bytes // 5
+    sustainable_headroom_bytes = (
+        BOOTSTRAP_EVIDENCE_BYTES_PER_SYMBOL
+        * DEFAULT_RESOURCE_SUSTAINABILITY_HORIZON_SECONDS
+        // 300
+    )
+    cycle_start_free_bytes = reserve_bytes + sustainable_headroom_bytes
+    unsafe_current_free_bytes = (
+        reserve_bytes + BOOTSTRAP_EVIDENCE_BYTES_PER_SYMBOL - 1
+    )
+    disk_usage_calls = 0
+
+    def absolute_headroom_loss(_path: Path) -> DiskUsage:
+        nonlocal disk_usage_calls
+        free_bytes = (
+            cycle_start_free_bytes
+            if disk_usage_calls == 0
+            else unsafe_current_free_bytes
+        )
+        disk_usage_calls += 1
+        return DiskUsage(
+            disk_total_bytes,
+            disk_total_bytes - free_bytes,
+            free_bytes,
+        )
+
+    def forbidden_publish(**_kwargs: Any):  # type: ignore[no-untyped-def]
+        raise AssertionError("publisher must not write below reserve plus one unit")
+
+    publisher.disk_usage = absolute_headroom_loss
+    monkeypatch.setattr(publisher, "_publish_symbol", forbidden_publish)
+
+    status = publisher.run_cycle()
+
+    assert status["selected_symbols"] == []
+    assert status["resource_deferred_symbols"] == ["BTCUSDT"]
+    assert status["classification"] == "CYCLE_WRITE_BUDGET_BACKPRESSURE_HOLD"
 
 
 def test_intra_cycle_backpressure_stops_after_observed_write_cost_jump(
@@ -1940,14 +3123,19 @@ def test_intra_cycle_backpressure_stops_after_observed_write_cost_jump(
     assert not hasattr(publisher, "_evidence_allocated_bytes")
     assert status["cycle_materialized_artifact_bytes"] == 50_000_000
     assert status["cycle_disk_consumption_high_water_bytes"] == 250_000_000
-    assert status["cycle_evidence_accounted_bytes"] == 250_000_000
+    assert status["cycle_owned_durable_growth_bytes"] == 0
+    assert status["cycle_evidence_accounted_bytes"] == 50_000_000
     assert (
         status["cycle_evidence_accounted_bytes"]
         > status["resource_decision"]["sustainable_cycle_write_budget_bytes"]
     )
+    assert (
+        status["cycle_evidence_accounted_bytes"]
+        > status["resource_decision"]["available_write_credit_bytes"]
+    )
     persisted_state = json.loads((tmp_path / "state.json").read_text(encoding="ascii"))
     assert persisted_state["observations"]["materialized_publication_bytes"] == (
-        BOOTSTRAP_EVIDENCE_BYTES_PER_SYMBOL + 250_000_000
+        BOOTSTRAP_EVIDENCE_BYTES_PER_SYMBOL + 50_000_000
     )
 
 
@@ -1963,8 +3151,8 @@ def test_failed_attempt_filesystem_cost_is_charged_to_adaptive_observations(
         (
             free_start,
             free_start,
-            free_start - 7_000_000,
-            free_start - 7_000_000,
+            free_start - 70_000_000,
+            free_start - 70_000_000,
         )
     )
 
@@ -1973,6 +3161,10 @@ def test_failed_attempt_filesystem_cost_is_charged_to_adaptive_observations(
         return DiskUsage(disk_total, disk_total - free, free)
 
     def fail_after_materialization(**_kwargs: Any):  # type: ignore[no-untyped-def]
+        publisher.data_root.mkdir(parents=True, exist_ok=True)
+        (publisher.data_root / "failed-owned-artifact.bin").write_bytes(
+            b"x" * 7_000_000
+        )
         raise ProfiledTrainingEnrichmentRecordV1Error(
             "PROFILED_TRAINING_INJECTED_FAILURE_AFTER_AUXILIARY_CAS"
         )
@@ -1985,7 +3177,8 @@ def test_failed_attempt_filesystem_cost_is_charged_to_adaptive_observations(
     assert status["failed_symbols"] == ["BTCUSDT"]
     assert status["failures"][0]["materialized_evidence_bytes"] == 7_000_000
     assert status["cycle_evidence_accounted_bytes"] == 7_000_000
-    assert status["cycle_disk_consumption_high_water_bytes"] == 7_000_000
+    assert status["cycle_disk_consumption_high_water_bytes"] == 70_000_000
+    assert status["cycle_owned_durable_growth_bytes"] == 7_000_000
     persisted = json.loads((tmp_path / "state.json").read_text("ascii"))
     assert persisted["observations"]["materialized_publication_count"] == 2
     assert persisted["observations"]["materialized_publication_bytes"] == (
@@ -2000,6 +3193,7 @@ def test_short_resource_horizon_cannot_defeat_ninety_day_sustainability(
         adaptive_resource_decision_v1(
             eligible_count=160,
             observations={
+                "cycle_count": 0,
                 "materialized_publication_count": 0,
                 "materialized_publication_elapsed_seconds": 0.0,
                 "materialized_publication_bytes": 0,
@@ -2033,10 +3227,14 @@ def test_cli_cycle_summary_stays_bounded_when_full_status_has_large_inventories(
         "selected_symbol_count": 5,
         "published_symbol_count": 4,
         "exact_replay_symbol_count": 0,
+        "masked_cost_observation_symbol_count": 1,
+        "masked_cost_observation_replay_symbol_count": 0,
         "unchanged_symbol_count": 0,
         "failed_symbol_count": 1,
         "cycle_evidence_accounted_bytes": 20_000_000,
         "status_sha256": "a" * 64,
+        "commission_cost_mode": MASKED_COST_OBSERVATION_MODE,
+        "commission_credentials_available": False,
         "authority_semantics": {
             "publisher_runtime_authority_granted": False,
             "published_child_trainer_admission_authorized": True,
@@ -2047,6 +3245,10 @@ def test_cli_cycle_summary_stays_bounded_when_full_status_has_large_inventories(
             "estimated_evidence_bytes_per_symbol": 5_000_000,
             "estimated_seconds_per_symbol": 2.0,
             "sustainable_cycle_write_budget_bytes": 25_000_000,
+            "observed_cycle_count": 10,
+            "consumed_materialized_evidence_bytes": 100_000_000,
+            "write_credit_capacity_bytes": 25_000_000,
+            "available_write_credit_bytes": 25_000_000,
             "disk_reserve_policy": DISK_RESERVE_POLICY_V1,
             "disk_reserve_bytes": 200_000_000_000,
             "safe_disk_headroom_bytes": 484_000_000_000,
@@ -2070,6 +3272,14 @@ def test_cli_cycle_summary_stays_bounded_when_full_status_has_large_inventories(
     assert summary["publisher_runtime_authority_granted"] is False
     assert summary["published_child_trainer_admission_authorized"] is True
     assert summary["automatic_trainer_transition_authorized"] is False
+    assert summary["masked_cost_observation_symbol_count"] == 1
+    assert summary["commission_cost_mode"] == MASKED_COST_OBSERVATION_MODE
+    assert summary["commission_credentials_available"] is False
+    assert summary["resource_decision"]["observed_cycle_count"] == 10
+    assert (
+        summary["resource_decision"]["available_write_credit_bytes"]
+        == 25_000_000
+    )
     assert summary["credential_ref_read_only_assertion"] is True
     assert (
         summary["credential_ref_read_only_assertion_semantics"]
@@ -2079,6 +3289,138 @@ def test_cli_cycle_summary_stays_bounded_when_full_status_has_large_inventories(
     assert summary["live_execution_authorized"] is False
 
 
+def test_cli_holds_writer_lease_and_wal_guard_for_complete_resident_loop(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    events: list[str] = []
+    ledger_path = (tmp_path / "resident-ledger.sqlite3").resolve()
+
+    class FakeWriterLease:
+        @classmethod
+        def acquire(cls, path: Path) -> FakeWriterLease:
+            assert path == ledger_path
+            events.append("lease_acquire")
+            return cls()
+
+        def __enter__(self) -> FakeWriterLease:
+            events.append("lease_enter")
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            events.append("lease_exit")
+
+    class FakeWalGuard:
+        def __enter__(self) -> None:
+            events.append("wal_guard_enter")
+
+        def __exit__(self, *_args: object) -> None:
+            events.append("wal_guard_exit")
+
+    class FakeLedger:
+        def __init__(self, path: Path, *, writer_lease: object) -> None:
+            assert path == ledger_path
+            assert isinstance(writer_lease, FakeWriterLease)
+            self.path = path
+            events.append("ledger_construct")
+
+        def initialize(self) -> None:
+            events.append("ledger_initialize")
+
+        def resident_wal_sidecar_guard(self) -> FakeWalGuard:
+            return FakeWalGuard()
+
+    class FakePublisher:
+        def __init__(self, **kwargs: object) -> None:
+            assert isinstance(kwargs["feature_ledger"], FakeLedger)
+            assert kwargs["feature_ledger_path"] == ledger_path
+            self.status_path = tmp_path / "status.json"
+            events.append("publisher_construct")
+
+        def run_cycle(self) -> dict[str, object]:
+            events.append("publisher_cycle")
+            return {"classification": "TEST_COMPLETE"}
+
+    monkeypatch.setattr(cli_module, "_STOP", False)
+    monkeypatch.setattr(cli_module, "_raw_redis_client", lambda _url: object())
+    monkeypatch.setattr(
+        cli_module,
+        "load_profiled_base_publisher_runtime_credentials_if_available",
+        lambda: None,
+    )
+    monkeypatch.setattr(cli_module, "FeatureSnapshotWriterLease", FakeWriterLease)
+    monkeypatch.setattr(cli_module, "DurableFeatureSnapshotLedger", FakeLedger)
+    monkeypatch.setattr(cli_module, "ProfiledBaseFeaturePublisherV1", FakePublisher)
+    monkeypatch.setattr(cli_module.signal, "signal", lambda *_args: None)
+
+    assert (
+        cli_module.main(
+            [
+                "--once",
+                "--data-root",
+                str((tmp_path / "data").resolve()),
+                "--feature-ledger-path",
+                str(ledger_path),
+            ]
+        )
+        == 0
+    )
+    assert events == [
+        "lease_acquire",
+        "lease_enter",
+        "ledger_construct",
+        "ledger_initialize",
+        "publisher_construct",
+        "wal_guard_enter",
+        "publisher_cycle",
+        "wal_guard_exit",
+        "lease_exit",
+    ]
+    assert '"classification":"TEST_COMPLETE"' in capsys.readouterr().out
+
+
+def test_cli_ledger_guard_failure_renders_fail_closed_reason(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    class FailingWriterLease:
+        @classmethod
+        def acquire(cls, _path: Path) -> None:
+            raise cli_module.FeatureSnapshotWriterLeaseError(
+                "resident_writer_lease_injected_failure"
+            )
+
+    monkeypatch.setattr(cli_module, "_STOP", False)
+    monkeypatch.setattr(cli_module, "_raw_redis_client", lambda _url: object())
+    monkeypatch.setattr(
+        cli_module,
+        "load_profiled_base_publisher_runtime_credentials_if_available",
+        lambda: None,
+    )
+    monkeypatch.setattr(cli_module, "FeatureSnapshotWriterLease", FailingWriterLease)
+
+    assert (
+        cli_module.main(
+            [
+                "--once",
+                "--data-root",
+                str((tmp_path / "data").resolve()),
+                "--feature-ledger-path",
+                str((tmp_path / "ledger.sqlite3").resolve()),
+            ]
+        )
+        == 78
+    )
+    error = json.loads(capsys.readouterr().err)
+    assert error["classification"] == "FAIL_CLOSED"
+    assert error["reasons"] == ["resident_writer_lease_injected_failure"]
+    assert error["publisher_runtime_authority_granted"] is False
+    assert error["published_child_trainer_admission_authorized"] is False
+    assert error["live_execution_authorized"] is False
+
+
 def test_cli_protected_commission_hmac_is_never_rendered(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -2086,7 +3428,7 @@ def test_cli_protected_commission_hmac_is_never_rendered(
     secret = "publisher-test-separate-hmac-secret-never-render"  # noqa: S105
     monkeypatch.setattr(
         cli_module,
-        "load_profiled_base_publisher_runtime_credentials",
+        "load_profiled_base_publisher_runtime_credentials_if_available",
         lambda: SimpleNamespace(
             commission_binding=SimpleNamespace(),
             fingerprint_hmac_key=secret.encode(),
@@ -2119,7 +3461,7 @@ def test_cli_missing_protected_credentials_fail_before_redis(
 ) -> None:
     monkeypatch.setattr(
         cli_module,
-        "load_profiled_base_publisher_runtime_credentials",
+        "load_profiled_base_publisher_runtime_credentials_if_available",
         lambda: (_ for _ in ()).throw(
             cli_module.ProfiledBasePublisherCredentialError(
                 "PROFILED_BASE_PUBLISHER_SYSTEMD_CREDENTIALS_DIRECTORY_INVALID"
@@ -2139,3 +3481,76 @@ def test_cli_missing_protected_credentials_fail_before_redis(
     captured = capsys.readouterr()
     assert redis_called is False
     assert "PROFILED_BASE_PUBLISHER_SYSTEMD_CREDENTIALS_DIRECTORY_INVALID" in captured.err
+
+
+def test_cli_broker_mode_loads_only_verifier_context_and_no_exchange_bundle(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    client = object()
+    security_context = object()
+    broker_store = object()
+    captured_arguments: dict[str, Any] = {}
+
+    def forbidden_exchange_bundle() -> Any:
+        raise AssertionError("broker-reader publisher must not load exchange credentials")
+
+    monkeypatch.setattr(
+        cli_module,
+        "load_profiled_base_publisher_runtime_credentials_if_available",
+        forbidden_exchange_bundle,
+    )
+    monkeypatch.setattr(
+        cli_module,
+        "consumer_security_context_from_systemd_credentials",
+        lambda: security_context,
+    )
+    monkeypatch.setattr(cli_module, "_raw_redis_client", lambda _url: client)
+    monkeypatch.setattr(
+        cli_module,
+        "default_commission_broker_store",
+        lambda _path: broker_store,
+    )
+
+    class FakePublisher:
+        status_path = (tmp_path / "status.json").absolute()
+
+        def run_cycle(self) -> dict[str, Any]:
+            return {
+                "classification": "CYCLE_COMPLETE_MASKED_COST_OBSERVATIONS",
+                "commission_cost_mode": (
+                    BROKER_AUTHENTICATED_COST_EVIDENCE_WITH_MASKED_FALLBACK_MODE
+                ),
+                "commission_credentials_available": False,
+                "commission_broker_reader_available": True,
+                "exchange_credentials_loaded_by_publisher": False,
+                "authority_semantics": {
+                    "published_child_trainer_admission_authorized": False,
+                },
+            }
+
+    def fake_publisher(**kwargs: Any) -> FakePublisher:
+        captured_arguments.update(kwargs)
+        return FakePublisher()
+
+    monkeypatch.setattr(cli_module, "ProfiledBaseFeaturePublisherV1", fake_publisher)
+    cli_module._STOP = False  # noqa: SLF001
+    broker_root = (tmp_path / "broker").absolute()
+
+    exit_code = cli_module.main(
+        ["--once", "--commission-broker-data-root", str(broker_root)]
+    )
+
+    assert exit_code == 0
+    assert captured_arguments["redis_client"] is client
+    assert captured_arguments["commission_cost_mode"] == (
+        BROKER_AUTHENTICATED_COST_EVIDENCE_WITH_MASKED_FALLBACK_MODE
+    )
+    reader = captured_arguments["commission_evidence_reader"]
+    assert callable(reader)
+    assert reader.keywords["store"] is broker_store
+    assert reader.keywords["security_context"] is security_context
+    rendered = capsys.readouterr().out
+    assert '"commission_broker_reader_available":true' in rendered
+    assert '"exchange_credentials_loaded_by_publisher":false' in rendered

@@ -6,6 +6,11 @@ requires ``BINANCE_REST_FALLBACK_ALLOWED=true``. Writes only ``v2:market:*``
 Redis keys and a public payload. Never makes a signed request, never calls a
 mutation endpoint, never reads or prints any credential value.
 
+The strict ``v2:market:mark_price:{symbol}`` namespace is single-writer owned
+by ``v2_binance_mark_price_wss_seeder``. This metadata process publishes its
+normalized cache/REST view under ``v2:market:premium_index:{symbol}`` so it can
+never replace the canonical WebSocket bytes consumed by the trainer.
+
 Fallback endpoints (all public, no auth):
   * ``/fapi/v1/premiumIndex`` -> mark price + funding rate per symbol
   * ``/fapi/v1/openInterest`` -> open interest per symbol
@@ -72,6 +77,7 @@ LIVE_GATE = "blocked_human_only"
 # an event-time age check a dead premium-index sample can be re-published with
 # a fresh Redis TTL forever.
 PREMIUM_INDEX_CACHE_MAX_AGE_SECONDS = 120.0
+PREMIUM_INDEX_KEY_TEMPLATE = "v2:market:premium_index:{symbol}"
 
 PUBLIC_OUT_DIR = REPO / "v2/frontend/public/v2_binance_public_metadata/latest"
 
@@ -200,6 +206,7 @@ def _premium_index_cache_candidates(
     candidates: list[tuple[str, dict[str, Any]]] = []
     for key in (
         f"v2:market:mark_price:{symbol}",
+        PREMIUM_INDEX_KEY_TEMPLATE.format(symbol=symbol),
         f"v2:market:funding:{symbol}",
         f"v2:market:prices:{symbol}",
     ):
@@ -627,10 +634,14 @@ def write_redis(r, symbol: str, *, premium: Dict[str, Any], oi: Dict[str, Any],
                 book: Dict[str, Any], ttl_s: int) -> Dict[str, int]:
     """Write three V2 keys per symbol with the configured TTL."""
     if r is None:
-        return {"v2:market:mark_price": 0, "v2:market:open_interest": 0, "v2:market:orderbook_top": 0}
+        return {
+            "v2:market:premium_index": 0,
+            "v2:market:open_interest": 0,
+            "v2:market:orderbook_top": 0,
+        }
     written: Dict[str, int] = {}
     payloads = [
-        (f"v2:market:mark_price:{symbol}", premium),
+        (PREMIUM_INDEX_KEY_TEMPLATE.format(symbol=symbol), premium),
         (f"v2:market:open_interest:{symbol}", oi),
         (f"v2:market:orderbook_top:{symbol}", book),
     ]

@@ -47,6 +47,7 @@ _PROFILED_LINEAGE_STATUS: Final = "STRICT_TRAINING_CANDIDATE_NO_SERVING_OR_EXECU
 _PROFILED_TRANSFORM_CONFIGURATION_SHA256: Final = (
     "3db3bcfa1ef4245a1d463d66ab39a67850f9fd56c592cd6ff0bca28d29f91fb5"
 )
+_CANONICAL_PROVENANCE_CLASSIFICATION: Final = "CANONICAL_RECEIPT_BACKED_V3"
 _EXPECTED_SAMPLE_AUTHORIZATION: Final = {
     "trainer_admission_authorized": True,
     "prediction_authorized": False,
@@ -66,6 +67,8 @@ _PARENT_PROFILED_SCHEMA: Final = "profiled_model_feature_snapshot_record_v1"
 _PARENT_PROFILED_CLASSIFICATION: Final = "AUTHENTICATED_OHLCV_MODEL_ONLY_LEDGER_V3_UNWIRED"
 _PARENT_PROFILED_STATUS: Final = "VALIDATED_QUARANTINED_NO_RUNTIME_AUTHORITY"
 _EXPECTED_PARENT_AUTHORIZATION: Final = {
+    "feature_snapshot_published": False,
+    "consumer_eligible": False,
     "trainer_admission_authorized": False,
     "prediction_authorized": False,
     "paper_trading_authorized": False,
@@ -235,7 +238,8 @@ def _profiled_child_candidate_rejection(
         or attestation.get("status") != _PROFILED_LINEAGE_STATUS
         or attestation.get("physical_feature_count") != _PHYSICAL_PROFILED_FEATURE_COUNT
         or authorization != _EXPECTED_SAMPLE_AUTHORIZATION
-        or envelope.get("provenance_classification") != "CANONICAL_V3"
+        or envelope.get("provenance_classification")
+        != _CANONICAL_PROVENANCE_CLASSIFICATION
         or envelope.get("legacy_v1_snapshot_id") is not None
         or envelope.get("strict_training_eligible") is not True
         or envelope.get("strict_training_ineligibility_reasons") != []
@@ -294,7 +298,8 @@ def _profiled_child_candidate_rejection(
         or parent_lineage.get("transform_configuration_sha256")
         != _PROFILED_TRANSFORM_CONFIGURATION_SHA256
         or parent_lineage.get("authorization") != _EXPECTED_PARENT_AUTHORIZATION
-        or parent_envelope.get("provenance_classification") != "CANONICAL_V3"
+        or parent_envelope.get("provenance_classification")
+        != _CANONICAL_PROVENANCE_CLASSIFICATION
         or parent_envelope.get("legacy_v1_snapshot_id") is not None
         or parent_envelope.get("strict_training_eligible") is not False
         or parent_envelope.get("missing_mask") != [0] * _PARENT_PROFILED_FEATURE_COUNT

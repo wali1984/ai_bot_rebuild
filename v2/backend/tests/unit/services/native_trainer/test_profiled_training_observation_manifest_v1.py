@@ -15,13 +15,22 @@ from v2.backend.app.services.market_state_integrity.canonical_candles import (
     CanonicalCandle,
 )
 from v2.backend.app.services.native_trainer import (
+    durable_canonical_5m_label_archive as label_archive_module,
+)
+from v2.backend.app.services.native_trainer import (
     durable_feature_snapshot_ledger as feature_ledger_module,
 )
 from v2.backend.app.services.native_trainer import (
     profiled_training_observation_manifest_v1 as manifest_module,
 )
+from v2.backend.app.services.native_trainer.authenticated_ohlcv_profile_transform_v1 import (
+    AUTHENTICATED_OHLCV_PROFILE_TRANSFORM_V1_CONFIGURATION_SHA256,
+)
 from v2.backend.app.services.native_trainer.durable_canonical_5m_label_archive import (
     DurableCanonical5mLabelArchive,
+)
+from v2.backend.app.services.native_trainer.durable_feature_snapshot_ledger import (
+    DurableFeatureSnapshotLedger,
 )
 from v2.backend.app.services.native_trainer.profiled_model_feature_snapshot_record_v1 import (
     LOGICAL_MODEL_FEATURE_COUNT,
@@ -35,6 +44,9 @@ from v2.backend.app.services.native_trainer.profiled_training_observation_manife
     authenticate_profiled_training_observation_manifest_v1,
     build_profiled_training_observation_manifest_v1,
     read_profiled_training_observation_page_v1,
+)
+from v2.backend.app.services.native_trainer.source_provenance_ledger_v4 import (
+    TrainerSourceProvenanceLedgerV4,
 )
 from v2.backend.tests.unit.services.native_trainer import (
     test_profiled_model_feature_snapshot_record_v1 as base_support,
@@ -149,6 +161,38 @@ def _setup_sources(
     return ledger, archive, observation, (tmp_path / "cost-cas").absolute()
 
 
+def _append_post_setup_label_suffix(
+    *,
+    archive: DurableCanonical5mLabelArchive,
+    authenticated_base_evidence: Any,
+    commit_clock: datetime,
+) -> None:
+    parent = authenticated_base_evidence.record
+    envelope = parent["frozen_envelope"]
+    feature_values = dict(
+        zip(
+            envelope["ordered_feature_names"],
+            envelope["feature_values"],
+            strict=True,
+        )
+    )
+    clock_text = commit_clock.isoformat(timespec="milliseconds").replace(
+        "+00:00",
+        "Z",
+    )
+    with pytest.MonkeyPatch.context() as clock_patch:
+        clock_patch.setattr(label_archive_module, "utc_now", lambda: clock_text)
+        archive.append_candles(
+            [
+                _label_candles(
+                    decision_time=envelope["tensor_decision_time"],
+                    entry_price=float(feature_values["close"]),
+                    rows=50,
+                )[-1]
+            ]
+        )
+
+
 def test_builds_authenticated_manifest_and_reopens_exact_446_1784_example(
     tmp_path: Path,
     authenticated_base_evidence: Any,
@@ -158,6 +202,17 @@ def test_builds_authenticated_manifest_and_reopens_exact_446_1784_example(
         authenticated_base_evidence,
     )
     manifest_root = (tmp_path / "manifests").absolute()
+    manifest_root.mkdir(mode=0o700)
+    orphan_stem = ".profiled_training_observation.1234." + "a" * 32 + ".tmp"
+    orphan_paths = [
+        manifest_root / f"{orphan_stem}{suffix}"
+        for suffix in ("", "-journal", "-wal", "-shm")
+    ]
+    for orphan in orphan_paths:
+        orphan.write_bytes(b"orphaned-private-sqlite-material")
+        orphan.chmod(0o600)
+    unrelated = manifest_root / ".profiled_training_observation.not-managed.tmp"
+    unrelated.write_bytes(b"not-owned-by-the-exact-temp-namespace")
 
     built = build_profiled_training_observation_manifest_v1(
         ledger=ledger,
@@ -204,6 +259,316 @@ def test_builds_authenticated_manifest_and_reopens_exact_446_1784_example(
     assert example.runtime_wired is False
     assert page.checkpoint_write_authorized is False
     assert page.external_monotonic_manifest_head_verified is False
+    assert all(not path.exists() for path in orphan_paths)
+    assert unrelated.read_bytes() == b"not-owned-by-the-exact-temp-namespace"
+
+
+def test_later_valid_label_suffix_does_not_move_fixed_observation_build(
+    tmp_path: Path,
+    authenticated_base_evidence: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ledger, archive, observation, cost_root = _setup_sources(
+        tmp_path,
+        authenticated_base_evidence,
+    )
+    observation_clock = datetime.fromisoformat(
+        observation.replace("Z", "+00:00")
+    ).astimezone(UTC)
+    original_verified_label_path = archive.verified_label_path
+    appended = False
+    observed_integrity_proofs: list[object] = []
+
+    def append_suffix_then_read(**kwargs: Any) -> tuple[Any, Any]:
+        nonlocal appended
+        observed_integrity_proofs.append(kwargs.get("archive_integrity_proof"))
+        if not appended:
+            appended = True
+            _append_post_setup_label_suffix(
+                archive=archive,
+                authenticated_base_evidence=authenticated_base_evidence,
+                commit_clock=observation_clock + timedelta(seconds=1),
+            )
+        return original_verified_label_path(**kwargs)
+
+    monkeypatch.setattr(archive, "verified_label_path", append_suffix_then_read)
+    built = build_profiled_training_observation_manifest_v1(
+        ledger=ledger,
+        trusted_immutable_cost_store_root=cost_root,
+        label_archive=archive,
+        manifest_root=(tmp_path / "manifests").absolute(),
+        training_observed_at=observation,
+        auth_key_id=AUTH_KEY_ID,
+        hmac_key=AUTH_KEY,
+    )
+
+    assert appended is True
+    assert observed_integrity_proofs == [None]
+    assert built.total_profiled_samples == 1
+    assert built.admitted_examples == 1
+    assert built.label_unavailable_samples == 0
+
+
+def test_label_suffix_committed_before_cutoff_still_fails_closed(
+    tmp_path: Path,
+    authenticated_base_evidence: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ledger, archive, observation, cost_root = _setup_sources(
+        tmp_path,
+        authenticated_base_evidence,
+    )
+    observation_clock = datetime.fromisoformat(
+        observation.replace("Z", "+00:00")
+    ).astimezone(UTC)
+    original_verified_label_path = archive.verified_label_path
+    appended = False
+
+    def append_visible_suffix_then_read(**kwargs: Any) -> tuple[Any, Any]:
+        nonlocal appended
+        if not appended:
+            appended = True
+            _append_post_setup_label_suffix(
+                archive=archive,
+                authenticated_base_evidence=authenticated_base_evidence,
+                commit_clock=observation_clock - timedelta(seconds=1),
+            )
+        return original_verified_label_path(**kwargs)
+
+    monkeypatch.setattr(
+        archive,
+        "verified_label_path",
+        append_visible_suffix_then_read,
+    )
+    with pytest.raises(
+        ProfiledTrainingObservationManifestV1Error,
+        match="PROFILED_OBSERVATION_LABEL_HIGH_WATER_MOVED_DURING_BUILD",
+    ):
+        build_profiled_training_observation_manifest_v1(
+            ledger=ledger,
+            trusted_immutable_cost_store_root=cost_root,
+            label_archive=archive,
+            manifest_root=(tmp_path / "manifests").absolute(),
+            training_observed_at=observation,
+            auth_key_id=AUTH_KEY_ID,
+            hmac_key=AUTH_KEY,
+        )
+
+    assert appended is True
+
+
+def test_multi_example_page_reuses_one_authenticated_source_snapshot(
+    tmp_path: Path,
+    authenticated_base_evidence: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    first_parent = authenticated_base_evidence.record
+    second_parent = loader_support._rebuild_parent_with_transform_configuration(
+        first_parent,
+        transform_configuration_sha256=(
+            AUTHENTICATED_OHLCV_PROFILE_TRANSFORM_V1_CONFIGURATION_SHA256
+        ),
+        identity_suffix="second-page-sample",
+    )
+    ledger = DurableFeatureSnapshotLedger(tmp_path / "feature-ledger.sqlite3")
+    cost_root = (tmp_path / "cost-cas").absolute()
+    first_child = loader_support._child_record(
+        first_parent,
+        cost_store_root=cost_root,
+        original_tensor_suffix="-first-page-sample",
+    )
+    second_child = loader_support._child_record(
+        second_parent,
+        cost_store_root=cost_root,
+        original_tensor_suffix="-second-page-sample",
+    )
+    appended = loader_support._append_after_latest_decision(
+        ledger,
+        [first_parent, first_child, second_parent, second_child],
+    )
+    assert appended.inserted_rows == 4
+
+    envelope = first_parent["frozen_envelope"]
+    values = dict(
+        zip(
+            envelope["ordered_feature_names"],
+            envelope["feature_values"],
+            strict=True,
+        )
+    )
+    archive = DurableCanonical5mLabelArchive(tmp_path / "labels.sqlite3")
+    archive.append_candles(
+        _label_candles(
+            decision_time=envelope["tensor_decision_time"],
+            entry_price=float(values["close"]),
+        )
+    )
+    observation = loader_support._observation()
+    built = build_profiled_training_observation_manifest_v1(
+        ledger=ledger,
+        trusted_immutable_cost_store_root=cost_root,
+        label_archive=archive,
+        manifest_root=(tmp_path / "manifests").absolute(),
+        training_observed_at=observation,
+        auth_key_id=AUTH_KEY_ID,
+        hmac_key=AUTH_KEY,
+    )
+    assert built.total_profiled_samples == 2
+    assert built.admitted_examples == 2
+
+    read_only_calls = 0
+    original_read_only = TrainerSourceProvenanceLedgerV4.read_entries_read_only
+
+    def tracked_read_only(
+        source_ledger: TrainerSourceProvenanceLedgerV4,
+    ) -> tuple[Any, ...]:
+        nonlocal read_only_calls
+        read_only_calls += 1
+        return original_read_only(source_ledger)
+
+    monkeypatch.setattr(
+        TrainerSourceProvenanceLedgerV4,
+        "read_entries_read_only",
+        tracked_read_only,
+    )
+    page = read_profiled_training_observation_page_v1(
+        manifest_path=built.manifest_path,
+        ledger=ledger,
+        trusted_immutable_cost_store_root=cost_root,
+        hmac_key=AUTH_KEY,
+        expected_auth_key_id=AUTH_KEY_ID,
+        expected_manifest_id=built.manifest_id,
+        expected_observation_time=built.observation_time,
+        limit=2,
+    )
+
+    assert len(page.examples) == 2
+    assert page.scanned_entry_count == 2
+    assert read_only_calls == 1
+
+
+@pytest.mark.parametrize("object_kind", ["symlink", "hardlink"])
+def test_stale_temp_cleanup_rejects_suspicious_matching_inode(
+    tmp_path: Path,
+    object_kind: str,
+) -> None:
+    manifest_root = (tmp_path / "manifests").absolute()
+    manifest_root.mkdir(mode=0o700)
+    target = manifest_root / "target"
+    target.write_bytes(b"must-not-be-removed-through-a-matching-name")
+    target.chmod(0o600)
+    candidate = manifest_root / (
+        ".profiled_training_observation.4321." + "b" * 32 + ".tmp"
+    )
+    if object_kind == "symlink":
+        candidate.symlink_to(target)
+    else:
+        os.link(target, candidate)
+
+    with pytest.raises(
+        ProfiledTrainingObservationManifestV1Error,
+        match="PROFILED_OBSERVATION_STALE_TEMP_PROTECTION_INVALID",
+    ):
+        manifest_module._cleanup_stale_manifest_temporaries_locked(manifest_root)
+
+    assert target.read_bytes() == b"must-not-be-removed-through-a-matching-name"
+    assert candidate.exists() or candidate.is_symlink()
+
+
+def test_prepared_factory_clock_makes_crash_replay_deterministic(
+    tmp_path: Path,
+    authenticated_base_evidence: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ledger, archive, observation, cost_root = _setup_sources(
+        tmp_path,
+        authenticated_base_evidence,
+    )
+    prepared_factory_clock = (
+        datetime.fromisoformat(observation.replace("Z", "+00:00"))
+        .astimezone(UTC)
+        .isoformat(timespec="microseconds")
+        .replace("+00:00", "Z")
+    )
+    calls = 0
+
+    def forbidden_wall_clock() -> datetime:
+        nonlocal calls
+        calls += 1
+        raise AssertionError("prepared replay must not resample the wall clock")
+
+    monkeypatch.setattr(manifest_module, "_factory_wall_clock_now", forbidden_wall_clock)
+    arguments = {
+        "ledger": ledger,
+        "trusted_immutable_cost_store_root": cost_root,
+        "label_archive": archive,
+        "manifest_root": (tmp_path / "prepared-manifests").absolute(),
+        "training_observed_at": observation,
+        "auth_key_id": AUTH_KEY_ID,
+        "hmac_key": AUTH_KEY,
+        "prepared_factory_wall_clock_observed_at": prepared_factory_clock,
+    }
+    first = build_profiled_training_observation_manifest_v1(**arguments)
+    second = build_profiled_training_observation_manifest_v1(**arguments)
+
+    assert calls == 0
+    assert first.factory_wall_clock_observed_at == prepared_factory_clock
+    assert second.manifest_path == first.manifest_path
+    assert second.manifest_id == first.manifest_id
+
+
+def test_prepared_factory_clock_rejects_noncanonical_value(
+    tmp_path: Path,
+    authenticated_base_evidence: Any,
+) -> None:
+    ledger, archive, observation, cost_root = _setup_sources(
+        tmp_path,
+        authenticated_base_evidence,
+    )
+    prepared = datetime.fromisoformat(observation.replace("Z", "+00:00")).astimezone(UTC)
+    noncanonical = prepared.isoformat(timespec="seconds").replace("+00:00", "Z")
+
+    with pytest.raises(
+        ProfiledTrainingObservationManifestV1Error,
+        match="PROFILED_OBSERVATION_PREPARED_FACTORY_WALL_CLOCK_INVALID",
+    ):
+        build_profiled_training_observation_manifest_v1(
+            ledger=ledger,
+            trusted_immutable_cost_store_root=cost_root,
+            label_archive=archive,
+            manifest_root=(tmp_path / "invalid-prepared-manifests").absolute(),
+            training_observed_at=observation,
+            auth_key_id=AUTH_KEY_ID,
+            hmac_key=AUTH_KEY,
+            prepared_factory_wall_clock_observed_at=noncanonical,
+        )
+
+
+def test_prepared_factory_clock_rejects_value_before_observation(
+    tmp_path: Path,
+    authenticated_base_evidence: Any,
+) -> None:
+    ledger, archive, observation, cost_root = _setup_sources(
+        tmp_path,
+        authenticated_base_evidence,
+    )
+    before = datetime.fromisoformat(observation.replace("Z", "+00:00")) - timedelta(microseconds=1)
+    before_text = before.astimezone(UTC).isoformat(timespec="microseconds").replace("+00:00", "Z")
+
+    with pytest.raises(
+        ProfiledTrainingObservationManifestV1Error,
+        match="PROFILED_OBSERVATION_RETROSPECTIVE_CUTOFF_AFTER_FACTORY_WALL_CLOCK",
+    ):
+        build_profiled_training_observation_manifest_v1(
+            ledger=ledger,
+            trusted_immutable_cost_store_root=cost_root,
+            label_archive=archive,
+            manifest_root=(tmp_path / "invalid-prepared-manifests").absolute(),
+            training_observed_at=observation,
+            auth_key_id=AUTH_KEY_ID,
+            hmac_key=AUTH_KEY,
+            prepared_factory_wall_clock_observed_at=before_text,
+        )
 
 
 def test_label_path_missing_at_observation_is_typed_exclusion_not_bad_label(
@@ -575,9 +940,7 @@ def test_manifest_distinguishes_generated_decision_postcommit_and_observation_cl
     assert adapter_contract["schema_version"] == (
         PROFILED_OBSERVATION_TRAINING_EXAMPLE_ADAPTER_CONTRACT_VERSION
     )
-    assert adapter_contract["trust_row_available_at_source_field"] == (
-        "postcommit_readback_at"
-    )
+    assert adapter_contract["trust_row_available_at_source_field"] == ("postcommit_readback_at")
     assert adapter_contract["record_generated_at_must_not_exceed_decision_time"] is True
     assert adapter_contract["postcommit_readback_at_must_exceed_decision_time"] is True
     assert adapter_contract["postcommit_readback_at_must_exceed_record_generated_at"] is True
@@ -587,8 +950,9 @@ def test_manifest_distinguishes_generated_decision_postcommit_and_observation_cl
     assert trust["training_example_adapter_contract_version"] == (
         PROFILED_OBSERVATION_TRAINING_EXAMPLE_ADAPTER_CONTRACT_VERSION
     )
-    assert trust["training_example_adapter_contract_sha256"] == (
-        context["training_example_adapter_contract_sha256"]
+    assert (
+        trust["training_example_adapter_contract_sha256"]
+        == (context["training_example_adapter_contract_sha256"])
     )
     assert trust["available_at"] == trust["postcommit_readback_at"]
     assert trust["available_at"] == trust["trainer_sample_available_at"]
@@ -613,9 +977,7 @@ def test_manifest_distinguishes_generated_decision_postcommit_and_observation_cl
     revised_context = {
         **context,
         "training_example_adapter_contract": revised_contract,
-        "training_example_adapter_contract_sha256": manifest_module.stable_sha256(
-            revised_contract
-        ),
+        "training_example_adapter_contract_sha256": manifest_module.stable_sha256(revised_contract),
     }
     revised_metadata_without_id = {
         **{name: value for name, value in metadata.items() if name != "manifest_id"},

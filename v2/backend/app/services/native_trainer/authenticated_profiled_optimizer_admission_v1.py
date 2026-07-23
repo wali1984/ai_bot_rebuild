@@ -3,8 +3,9 @@
 This module is deliberately a validator, not a trainer.  It reauthenticates a
 fixed observation manifest, reopens the exact local full-consumption receipt,
 verifies an independently signed Ed25519 completion authorization, and then
-reopens one exact sample/label/tensor tuple from the manifest and its durable
-stores.  The result is an outcome-supervised optimizer *input candidate*.
+reopens either one exact sample/label/tensor tuple or every tuple through a
+bounded full-manifest walk.  The results are outcome-supervised optimizer
+*input candidates*.
 
 No signing key, signing helper, optimizer, checkpoint writer, model publisher,
 prediction path, or trading path exists here.  A local completion candidate,
@@ -38,9 +39,11 @@ import hmac
 import json
 import math
 import re
+import secrets
 import struct
 from collections.abc import Sequence
 from dataclasses import dataclass, field
+from dataclasses import fields as dataclass_fields
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Final, NoReturn, cast
@@ -68,10 +71,16 @@ from v2.backend.app.services.native_trainer.immutable_source_payload_store impor
     SourcePayloadStoreError,
 )
 from v2.backend.app.services.native_trainer.profiled_model_feature_snapshot_record_v1 import (
+    LOGICAL_MODEL_FEATURE_COUNT,
     LOGICAL_MODEL_INPUT_COUNT,
+    LOGICAL_PROFILE_SELECTION_MASK,
+    LOGICAL_PROFILE_SELECTION_MASK_SHA256,
 )
 from v2.backend.app.services.native_trainer.profiled_training_ledger_loader_v1 import (
     PROFILED_TRAINING_ENRICHMENT_LINEAGE_V1_KEY,
+    PROFILED_TRAINING_PROJECTION_V1_CONFIGURATION_SHA256,
+    PROFILED_TRAINING_PROJECTION_V1_IMPLEMENTATION_SHA256,
+    PROFILED_TRAINING_PROJECTION_V1_SCHEMA_VERSION,
 )
 from v2.backend.app.services.native_trainer.profiled_training_observation_manifest_head_v1 import (
     LocalProfiledTrainingObservationCompletionCandidateV1,
@@ -81,6 +90,7 @@ from v2.backend.app.services.native_trainer.profiled_training_observation_manife
     read_local_profiled_training_observation_page_receipt_v1,
 )
 from v2.backend.app.services.native_trainer.profiled_training_observation_manifest_v1 import (
+    MAX_PROFILED_OBSERVATION_PAGE_ROWS,
     PROFILED_OBSERVATION_TRAINING_EXAMPLE_ADAPTER_CONTRACT_VERSION,
     AuthenticatedProfiledTrainingObservationManifestV1,
     ProfiledTrainingObservationExampleV1,
@@ -122,7 +132,12 @@ _IDENTIFIER_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:@/-]{0,127}$", re.ASCII)
 _ADMISSION_TOKEN = object()
 _TARGET_TOKEN = object()
 _VERIFIED_AUTHORIZATION_TOKEN = object()
+_FACTORY_SEAL_TOKEN = object()
+_FACTORY_SEAL_KEY = secrets.token_bytes(32)
+_TARGET_FACTORY_SEAL_DOMAIN = b"authenticated_profiled_outcome_target_factory_seal_v1"
+_ADMISSION_FACTORY_SEAL_DOMAIN = b"authenticated_profiled_optimizer_admission_factory_seal_v1"
 _MODEL_VECTOR_DOMAIN = b"authenticated_profiled_optimizer_model_input_float64_v1\0"
+_LOGICAL_MODEL_VECTOR_DOMAIN = b"canonical_feature_model_vector_v3\0"
 _LABEL_VALUE_DOMAIN = b"profiled_training_after_cost_label_float64_v1\0"
 
 _DOWNSTREAM_FALSE = {
@@ -148,6 +163,56 @@ class AuthenticatedProfiledOptimizerAdmissionV1Error(RuntimeError):
 
 def _fail(*reasons: str) -> NoReturn:
     raise AuthenticatedProfiledOptimizerAdmissionV1Error(*reasons) from None
+
+
+class _FactorySeal:
+    """One-time factory seal that cannot be carried onto changed material."""
+
+    __slots__ = ("_digest", "_domain")
+
+    def __init__(self, *, domain: bytes, construction_token: object) -> None:
+        if construction_token is not _FACTORY_SEAL_TOKEN or type(domain) is not bytes:
+            _fail("PROFILED_OPTIMIZER_FACTORY_SEAL_CONSTRUCTION_FORBIDDEN")
+        object.__setattr__(self, "_domain", bytes(domain))
+        object.__setattr__(self, "_digest", None)
+
+    def __setattr__(self, _name: str, _value: object) -> NoReturn:
+        _fail("PROFILED_OPTIMIZER_FACTORY_SEAL_IMMUTABLE")
+
+    def validate_or_bind(self, *, domain: bytes, material: object, reason: str) -> None:
+        if self._domain != domain:
+            _fail(reason)
+        expected = hmac.digest(
+            _FACTORY_SEAL_KEY,
+            domain
+            + b"\0"
+            + _canonical_json_bytes(
+                material,
+                reason=reason,
+            ),
+            "sha256",
+        )
+        current = self._digest
+        if current is None:
+            object.__setattr__(self, "_digest", expected)
+        elif type(current) is not bytes or not hmac.compare_digest(current, expected):
+            _fail(reason)
+
+
+def _require_factory_seal(
+    value: object,
+    *,
+    domain: bytes,
+    material: object,
+    reason: str,
+) -> None:
+    if type(value) is not _FactorySeal:
+        _fail(reason)
+    cast(_FactorySeal, value).validate_or_bind(
+        domain=domain,
+        material=material,
+        reason=reason,
+    )
 
 
 def _valid_sha256(value: object) -> bool:
@@ -353,6 +418,93 @@ def _completion_binding(
     }
 
 
+def profiled_optimizer_external_completion_claim_template_v1(
+    *,
+    authenticated_manifest: AuthenticatedProfiledTrainingObservationManifestV1,
+    completion: LocalProfiledTrainingObservationCompletionCandidateV1,
+    final_page: LocalProfiledTrainingObservationPageReceiptV1,
+    witness_id: str,
+    namespace: str,
+    witness_public_key_sha256: str,
+    authorization_sequence: int,
+    previous_authorization_event_sha256: str,
+    authorization_challenge: bytes | bytearray | memoryview,
+) -> bytes:
+    """Return the canonical completion claim with only ``accepted_at`` absent.
+
+    A durable purpose-specific request persists these exact bytes before any
+    future dispatch.  The independent witness may add only its canonical
+    acceptance clock and signature.  This encoder accepts no private key and
+    creates no authorization envelope or optimizer authority.
+    """
+
+    return _canonical_json_bytes(
+        _authorization_claim_template_material(
+            authenticated_manifest=authenticated_manifest,
+            completion=completion,
+            final_page=final_page,
+            witness_id=witness_id,
+            namespace=namespace,
+            witness_public_key_sha256=witness_public_key_sha256,
+            authorization_sequence=authorization_sequence,
+            previous_authorization_event_sha256=(previous_authorization_event_sha256),
+            authorization_challenge=_challenge(authorization_challenge),
+        ),
+        reason="PROFILED_OPTIMIZER_EXTERNAL_COMPLETION_CLAIM_TEMPLATE_INVALID",
+    )
+
+
+def _authorization_claim_template_material(
+    *,
+    authenticated_manifest: AuthenticatedProfiledTrainingObservationManifestV1,
+    completion: LocalProfiledTrainingObservationCompletionCandidateV1,
+    final_page: LocalProfiledTrainingObservationPageReceiptV1,
+    witness_id: str,
+    namespace: str,
+    witness_public_key_sha256: str,
+    authorization_sequence: int,
+    previous_authorization_event_sha256: str,
+    authorization_challenge: bytes,
+) -> dict[str, Any]:
+    witness = _identifier(witness_id, reason="PROFILED_OPTIMIZER_WITNESS_ID_INVALID")
+    witness_namespace = _identifier(
+        namespace,
+        reason="PROFILED_OPTIMIZER_WITNESS_NAMESPACE_INVALID",
+    )
+    if not _valid_sha256(witness_public_key_sha256):
+        _fail("PROFILED_OPTIMIZER_WITNESS_PUBLIC_KEY_FINGERPRINT_INVALID")
+    if (
+        type(authorization_sequence) is not int
+        or authorization_sequence <= 0
+        or authorization_sequence > 2**63 - 1
+    ):
+        _fail("PROFILED_OPTIMIZER_WITNESS_SEQUENCE_INVALID")
+    if not _valid_sha256(previous_authorization_event_sha256):
+        _fail("PROFILED_OPTIMIZER_WITNESS_PREVIOUS_EVENT_INVALID")
+    challenge = _challenge(authorization_challenge)
+    return {
+        "schema_version": (PROFILED_OPTIMIZER_EXTERNAL_COMPLETION_AUTHORIZATION_V1_SCHEMA_VERSION),
+        "signature_algorithm": (PROFILED_OPTIMIZER_EXTERNAL_COMPLETION_AUTHORIZATION_ALGORITHM),
+        "signature_domain": PROFILED_OPTIMIZER_EXTERNAL_COMPLETION_AUTHORIZATION_DOMAIN,
+        "witness_id": witness,
+        "namespace": witness_namespace,
+        "declared_witness_public_key_sha256": witness_public_key_sha256,
+        "authorization_sequence": authorization_sequence,
+        "previous_authorization_event_sha256": previous_authorization_event_sha256,
+        "authorization_challenge_sha256": hashlib.sha256(challenge).hexdigest(),
+        "authorization_challenge_byte_count": len(challenge),
+        "authorization_scope": PROFILED_OPTIMIZER_ADMISSION_SCOPE,
+        "manifest_binding": _manifest_binding(authenticated_manifest),
+        "full_consumption_binding": _completion_binding(completion, final_page),
+        "external_monotonic_manifest_head_verified": True,
+        "full_consumption_external_ack_verified": True,
+        "profiled_optimizer_admission_authorized": True,
+        "outcome_supervised_objective_only": True,
+        "behavior_policy_terms_authorized": False,
+        **_DOWNSTREAM_FALSE,
+    }
+
+
 def _authorization_unsigned_material(
     *,
     authenticated_manifest: AuthenticatedProfiledTrainingObservationManifestV1,
@@ -366,18 +518,17 @@ def _authorization_unsigned_material(
     authorization_challenge: bytes,
     accepted_at: str,
 ) -> dict[str, Any]:
-    witness = _identifier(witness_id, reason="PROFILED_OPTIMIZER_WITNESS_ID_INVALID")
-    witness_namespace = _identifier(
-        namespace,
-        reason="PROFILED_OPTIMIZER_WITNESS_NAMESPACE_INVALID",
+    template = _authorization_claim_template_material(
+        authenticated_manifest=authenticated_manifest,
+        completion=completion,
+        final_page=final_page,
+        witness_id=witness_id,
+        namespace=namespace,
+        witness_public_key_sha256=witness_public_key_sha256,
+        authorization_sequence=authorization_sequence,
+        previous_authorization_event_sha256=previous_authorization_event_sha256,
+        authorization_challenge=authorization_challenge,
     )
-    if not _valid_sha256(witness_public_key_sha256):
-        _fail("PROFILED_OPTIMIZER_WITNESS_PUBLIC_KEY_FINGERPRINT_INVALID")
-    if type(authorization_sequence) is not int or authorization_sequence <= 0:
-        _fail("PROFILED_OPTIMIZER_WITNESS_SEQUENCE_INVALID")
-    if not _valid_sha256(previous_authorization_event_sha256):
-        _fail("PROFILED_OPTIMIZER_WITNESS_PREVIOUS_EVENT_INVALID")
-    challenge = _challenge(authorization_challenge)
     accepted = _clock(
         accepted_at,
         reason="PROFILED_OPTIMIZER_WITNESS_ACCEPTED_AT_INVALID",
@@ -392,28 +543,7 @@ def _authorization_unsigned_material(
     )
     if accepted <= max(observation, final_page_verified):
         _fail("PROFILED_OPTIMIZER_WITNESS_ACCEPTED_BEFORE_FULL_CONSUMPTION")
-    return {
-        "schema_version": (PROFILED_OPTIMIZER_EXTERNAL_COMPLETION_AUTHORIZATION_V1_SCHEMA_VERSION),
-        "signature_algorithm": (PROFILED_OPTIMIZER_EXTERNAL_COMPLETION_AUTHORIZATION_ALGORITHM),
-        "signature_domain": PROFILED_OPTIMIZER_EXTERNAL_COMPLETION_AUTHORIZATION_DOMAIN,
-        "witness_id": witness,
-        "namespace": witness_namespace,
-        "declared_witness_public_key_sha256": witness_public_key_sha256,
-        "authorization_sequence": authorization_sequence,
-        "previous_authorization_event_sha256": previous_authorization_event_sha256,
-        "authorization_challenge_sha256": hashlib.sha256(challenge).hexdigest(),
-        "authorization_challenge_byte_count": len(challenge),
-        "accepted_at": accepted_at,
-        "authorization_scope": PROFILED_OPTIMIZER_ADMISSION_SCOPE,
-        "manifest_binding": _manifest_binding(authenticated_manifest),
-        "full_consumption_binding": _completion_binding(completion, final_page),
-        "external_monotonic_manifest_head_verified": True,
-        "full_consumption_external_ack_verified": True,
-        "profiled_optimizer_admission_authorized": True,
-        "outcome_supervised_objective_only": True,
-        "behavior_policy_terms_authorized": False,
-        **_DOWNSTREAM_FALSE,
-    }
+    return {**template, "accepted_at": accepted_at}
 
 
 def profiled_optimizer_external_completion_signing_payload_v1(
@@ -579,7 +709,16 @@ def _verify_external_authorization(
         authorization_challenge=authorization_challenge,
         accepted_at=cast(str, parsed.get("accepted_at")),
     )
-    if unsigned != expected:
+    if not hmac.compare_digest(
+        _canonical_json_bytes(
+            unsigned,
+            reason="PROFILED_OPTIMIZER_EXTERNAL_AUTHORIZATION_JSON_INVALID",
+        ),
+        _canonical_json_bytes(
+            expected,
+            reason="PROFILED_OPTIMIZER_EXTERNAL_AUTHORIZATION_JSON_INVALID",
+        ),
+    ):
         _fail("PROFILED_OPTIMIZER_EXTERNAL_AUTHORIZATION_BINDING_MISMATCH")
     public_key_bytes, public_key_sha256 = _public_key(
         witness_public_key_bytes,
@@ -650,6 +789,29 @@ def _model_vector_sha256(values: Sequence[float]) -> str:
     return digest.hexdigest()
 
 
+def _logical_model_vector_sha256(values: Sequence[float]) -> str:
+    """Reproduce the authenticated projection's float32 model-vector hash."""
+
+    if len(values) != LOGICAL_MODEL_INPUT_COUNT:
+        _fail("PROFILED_OPTIMIZER_LOGICAL_MODEL_INPUT_COUNT_INVALID")
+    digest = hashlib.sha256()
+    digest.update(_LOGICAL_MODEL_VECTOR_DOMAIN)
+    digest.update(bytes.fromhex(FEATURE_SOURCE_REGISTRY_V4_ABI_SHA256))
+    digest.update(struct.pack(">I", LOGICAL_MODEL_FEATURE_COUNT))
+    for value in values:
+        if type(value) is not float or not math.isfinite(value):
+            _fail("PROFILED_OPTIMIZER_LOGICAL_MODEL_INPUT_NONFINITE")
+        try:
+            encoded = struct.pack(">f", value)
+            canonical = struct.unpack(">f", encoded)[0]
+        except (OverflowError, struct.error):
+            _fail("PROFILED_OPTIMIZER_LOGICAL_MODEL_INPUT_INVALID")
+        if canonical != value:
+            _fail("PROFILED_OPTIMIZER_LOGICAL_MODEL_INPUT_NOT_FLOAT32_CANONICAL")
+        digest.update(encoded)
+    return digest.hexdigest()
+
+
 def _example_fingerprint(candidate: ProfiledTrainingObservationExampleV1) -> str:
     if type(candidate) is not ProfiledTrainingObservationExampleV1:
         _fail("PROFILED_OPTIMIZER_EXAMPLE_EXACT_TYPE_REQUIRED")
@@ -717,8 +879,8 @@ def _direct_decision_feature_clocks(
     *,
     ledger: DurableFeatureSnapshotLedger,
     candidate: ProfiledTrainingObservationExampleV1,
-) -> tuple[str, str, str, str]:
-    """Reopen the child and parent records and return four distinct clocks."""
+) -> tuple[str, str, str, str, str, str]:
+    """Reopen parent projection lineage and return its clocks and hashes."""
 
     example = candidate.training_example
     if (
@@ -748,6 +910,17 @@ def _direct_decision_feature_clocks(
     enrichment = child_lineage.get(PROFILED_TRAINING_ENRICHMENT_LINEAGE_V1_KEY)
     if type(enrichment) is not dict:
         _fail("PROFILED_OPTIMIZER_CHILD_ENRICHMENT_BINDING_MISSING")
+    if (
+        enrichment.get("logical_profile_selection_mask_sha256")
+        != LOGICAL_PROFILE_SELECTION_MASK_SHA256
+        or enrichment.get("projection_schema_version")
+        != PROFILED_TRAINING_PROJECTION_V1_SCHEMA_VERSION
+        or enrichment.get("projection_implementation_sha256")
+        != PROFILED_TRAINING_PROJECTION_V1_IMPLEMENTATION_SHA256
+        or enrichment.get("projection_configuration_sha256")
+        != PROFILED_TRAINING_PROJECTION_V1_CONFIGURATION_SHA256
+    ):
+        _fail("PROFILED_OPTIMIZER_CHILD_PROJECTION_CONTRACT_INVALID")
     parent_binding = enrichment.get("parent_model_record_binding")
     if type(parent_binding) is not dict:
         _fail("PROFILED_OPTIMIZER_PARENT_BINDING_INVALID")
@@ -775,6 +948,15 @@ def _direct_decision_feature_clocks(
         or parent_envelope.get("tensor_decision_time") != example.decision_time
     ):
         _fail("PROFILED_OPTIMIZER_PARENT_DIRECT_IDENTITY_MISMATCH")
+    logical_model_vector_sha256 = parent_binding.get("logical_model_vector_sha256")
+    logical_projection_sha256 = parent_binding.get("logical_projection_sha256")
+    if (
+        parent_binding.get("logical_profile_selection_mask_sha256")
+        != LOGICAL_PROFILE_SELECTION_MASK_SHA256
+        or not _valid_sha256(logical_model_vector_sha256)
+        or not _valid_sha256(logical_projection_sha256)
+    ):
+        _fail("PROFILED_OPTIMIZER_PARENT_PROJECTION_BINDING_INVALID")
     parent_lineage = parent_envelope.get("source_lineage_material")
     if type(parent_lineage) is not dict:
         _fail("PROFILED_OPTIMIZER_PARENT_LINEAGE_INVALID")
@@ -808,6 +990,8 @@ def _direct_decision_feature_clocks(
         cast(str, source_feature_available_at),
         cast(str, decision_feature_available_at),
         cast(str, feature_generated_at),
+        cast(str, logical_model_vector_sha256),
+        cast(str, logical_projection_sha256),
     )
 
 
@@ -930,6 +1114,154 @@ def _validate_candidate_semantics(
 
 
 @dataclass(frozen=True, slots=True)
+class LocallyValidatedProfiledResearchExampleV1:
+    """PIT and direct-lineage proof for one local-only research example.
+
+    This value deliberately grants no optimizer, checkpoint, serving,
+    prediction, paper, live, exchange, deployment, or order authority.  It is
+    only the semantic input to a separately authenticated research authorizer.
+    """
+
+    ordinal: int
+    sample_identity_sha256: str
+    label_binding_sha256: str
+    tensor_binding_sha256: str
+    example_fingerprint_sha256: str
+    logical_model_vector_sha256: str
+    logical_projection_sha256: str
+    model_feature_cutoff: str
+    record_wide_evidence_cutoff: str
+    source_feature_available_at: str
+    decision_feature_available_at: str
+    feature_generated_at: str
+    training_record_generated_at: str
+    decision_time: str
+    trainer_sample_available_at: str
+    label_available_at: str
+    observation_time: str
+    horizon_seconds: int
+    optimizer_execution_authorized: bool = False
+    checkpoint_write_authorized: bool = False
+    prediction_authorized: bool = False
+    serving_authorized: bool = False
+    paper_trading_authorized: bool = False
+    live_execution_authorized: bool = False
+    order_submission_authorized: bool = False
+    runtime_wired: bool = False
+
+    def __post_init__(self) -> None:
+        hashes = (
+            self.sample_identity_sha256,
+            self.label_binding_sha256,
+            self.tensor_binding_sha256,
+            self.example_fingerprint_sha256,
+            self.logical_model_vector_sha256,
+            self.logical_projection_sha256,
+        )
+        if (
+            type(self.ordinal) is not int
+            or self.ordinal <= 0
+            or not all(_valid_sha256(value) for value in hashes)
+            or type(self.horizon_seconds) is not int
+            or self.horizon_seconds <= 0
+            or any(
+                value is not False
+                for value in (
+                    self.optimizer_execution_authorized,
+                    self.checkpoint_write_authorized,
+                    self.prediction_authorized,
+                    self.serving_authorized,
+                    self.paper_trading_authorized,
+                    self.live_execution_authorized,
+                    self.order_submission_authorized,
+                    self.runtime_wired,
+                )
+            )
+        ):
+            _fail("PROFILED_LOCAL_RESEARCH_VALIDATION_RESULT_INVALID")
+
+
+def validate_profiled_observation_example_for_local_research_v1(
+    *,
+    ledger: DurableFeatureSnapshotLedger,
+    candidate: ProfiledTrainingObservationExampleV1,
+    observation_time: str,
+) -> LocallyValidatedProfiledResearchExampleV1:
+    """Reopen exact lineage and prove PIT safety without witness authority."""
+
+    if type(ledger) is not DurableFeatureSnapshotLedger:
+        _fail("PROFILED_OPTIMIZER_LEDGER_EXACT_TYPE_REQUIRED")
+    candidate_clocks = _validate_candidate_semantics(
+        candidate,
+        observation_time=observation_time,
+    )
+    fingerprint = _example_fingerprint(candidate)
+    feature_clocks = _direct_decision_feature_clocks(
+        ledger=ledger,
+        candidate=candidate,
+    )
+    (
+        record_wide_evidence_cutoff,
+        training_record_generated_at,
+        decision_time,
+        trainer_sample_available_at,
+        label_available_at,
+        observed_at,
+        horizon_seconds,
+    ) = candidate_clocks
+    (
+        model_feature_cutoff,
+        source_feature_available_at,
+        decision_feature_available_at,
+        feature_generated_at,
+        logical_model_vector_sha256,
+        logical_projection_sha256,
+    ) = feature_clocks
+    if not (
+        _clock(
+            feature_generated_at,
+            reason="PROFILED_OPTIMIZER_FEATURE_GENERATED_AT_INVALID",
+        )
+        <= _clock(
+            training_record_generated_at,
+            reason="PROFILED_OPTIMIZER_TRAINING_RECORD_GENERATED_AT_INVALID",
+        )
+        <= _clock(decision_time, reason="PROFILED_OPTIMIZER_DECISION_TIME_INVALID")
+        and _clock(
+            model_feature_cutoff,
+            reason="PROFILED_OPTIMIZER_MODEL_FEATURE_CUTOFF_INVALID",
+        )
+        <= _clock(
+            record_wide_evidence_cutoff,
+            reason="PROFILED_OPTIMIZER_RECORD_WIDE_CUTOFF_INVALID",
+        )
+        and logical_model_vector_sha256
+        == _logical_model_vector_sha256(candidate.training_example.tensor.model_vector)
+    ):
+        _fail("PROFILED_OPTIMIZER_MODEL_AND_TRAINING_CLOCK_ORDER_INVALID")
+    return LocallyValidatedProfiledResearchExampleV1(
+        ordinal=candidate.ordinal,
+        sample_identity_sha256=candidate.sample_identity_sha256,
+        label_binding_sha256=candidate.label_binding_sha256,
+        tensor_binding_sha256=candidate.tensor_binding_sha256,
+        example_fingerprint_sha256=fingerprint,
+        logical_model_vector_sha256=logical_model_vector_sha256,
+        logical_projection_sha256=logical_projection_sha256,
+        model_feature_cutoff=model_feature_cutoff,
+        record_wide_evidence_cutoff=record_wide_evidence_cutoff,
+        source_feature_available_at=source_feature_available_at,
+        decision_feature_available_at=decision_feature_available_at,
+        feature_generated_at=feature_generated_at,
+        training_record_generated_at=training_record_generated_at,
+        decision_time=decision_time,
+        trainer_sample_available_at=trainer_sample_available_at,
+        label_available_at=label_available_at,
+        observation_time=observed_at,
+        horizon_seconds=horizon_seconds,
+    )
+
+
+@dataclass(frozen=True, slots=True)
 class AuthenticatedProfiledOutcomeSupervisedTargetV1:
     schema_version: str
     label_binding_sha256: str
@@ -943,6 +1275,7 @@ class AuthenticatedProfiledOutcomeSupervisedTargetV1:
     canonical_finalized_label_bound: bool
     future_labels_excluded_from_feature_tensor: bool
     static_action_threshold_used: bool
+    _factory_seal: _FactorySeal = field(repr=False, compare=False)
     _construction_token: object = field(repr=False, compare=False)
 
     def __post_init__(self) -> None:
@@ -965,14 +1298,18 @@ class AuthenticatedProfiledOutcomeSupervisedTargetV1:
             self._construction_token is not _TARGET_TOKEN
             or self.schema_version != AUTHENTICATED_PROFILED_OUTCOME_TARGET_V1_SCHEMA_VERSION
             or not _valid_sha256(self.label_binding_sha256)
+            or type(self.action_index) is not int
             or self.action_index not in {0, 1, 2}
+            or type(self.target_action) is not str
             or self.target_action != {0: "hold", 1: "long", 2: "short"}[self.action_index]
+            or type(self.signed_expected_move_after_cost_bps) is not float
             or not math.isfinite(self.signed_expected_move_after_cost_bps)
             or self.label_value_float64_sha256
             != _float64_sha256(
                 self.signed_expected_move_after_cost_bps,
                 reason="PROFILED_OPTIMIZER_TARGET_VALUE_INVALID",
             )
+            or type(self.horizon_seconds) is not int
             or self.horizon_seconds <= 0
             or self.target_sha256 != stable_sha256(material)
             or self.canonical_finalized_label_bound is not True
@@ -983,6 +1320,12 @@ class AuthenticatedProfiledOutcomeSupervisedTargetV1:
         _clock(
             self.label_available_at,
             reason="PROFILED_OPTIMIZER_TARGET_LABEL_AVAILABLE_AT_INVALID",
+        )
+        _require_factory_seal(
+            self._factory_seal,
+            domain=_TARGET_FACTORY_SEAL_DOMAIN,
+            material=material,
+            reason="PROFILED_OPTIMIZER_OUTCOME_TARGET_FACTORY_SEAL_INVALID",
         )
 
 
@@ -1016,8 +1359,37 @@ def _outcome_target(
     return AuthenticatedProfiledOutcomeSupervisedTargetV1(
         **material,
         target_sha256=stable_sha256(material),
+        _factory_seal=_FactorySeal(
+            domain=_TARGET_FACTORY_SEAL_DOMAIN,
+            construction_token=_FACTORY_SEAL_TOKEN,
+        ),
         _construction_token=_TARGET_TOKEN,
     )
+
+
+def _admission_factory_seal_value(value: object) -> object:
+    if type(value) is AuthenticatedProfiledOutcomeSupervisedTargetV1:
+        return {
+            "target_sha256": cast(
+                AuthenticatedProfiledOutcomeSupervisedTargetV1,
+                value,
+            ).target_sha256
+        }
+    if type(value) is tuple:
+        return [_admission_factory_seal_value(item) for item in cast(tuple[object, ...], value)]
+    if value is None or type(value) in {str, int, float, bool}:
+        return value
+    _fail("PROFILED_OPTIMIZER_ADMISSION_FACTORY_SEAL_MATERIAL_INVALID")
+
+
+def _admission_factory_seal_material(
+    admission: AuthenticatedProfiledOptimizerAdmissionV1,
+) -> dict[str, object]:
+    return {
+        item.name: _admission_factory_seal_value(getattr(admission, item.name))
+        for item in dataclass_fields(admission)
+        if not item.name.startswith("_")
+    }
 
 
 @dataclass(frozen=True, slots=True)
@@ -1028,8 +1400,15 @@ class AuthenticatedProfiledOptimizerAdmissionV1:
     manifest_observation_context_sha256: str
     manifest_entry_chain_head_sha256: str
     manifest_ordered_entry_identities_sha256: str
+    manifest_total_profiled_samples: int
+    manifest_admitted_example_count: int
+    manifest_label_unavailable_count: int
     completion_event_sha256: str
     completion_ordered_page_root_sha256: str
+    completion_page_count: int
+    completion_consumed_entry_count: int
+    completion_admitted_entry_count: int
+    completion_label_unavailable_count: int
     external_authorization_envelope_sha256: str
     witness_id: str
     witness_namespace: str
@@ -1045,6 +1424,13 @@ class AuthenticatedProfiledOptimizerAdmissionV1:
     tensor_binding_sha256: str
     feature_registry_sha256: str
     feature_registry_abi_sha256: str
+    logical_profile_selection_mask: tuple[int, ...] = field(repr=False)
+    logical_profile_selection_mask_sha256: str
+    projection_schema_version: str
+    projection_implementation_sha256: str
+    projection_configuration_sha256: str
+    logical_model_vector_sha256: str
+    logical_projection_sha256: str
     model_feature_cutoff: str
     record_wide_evidence_cutoff: str
     source_feature_available_at: str
@@ -1071,9 +1457,13 @@ class AuthenticatedProfiledOptimizerAdmissionV1:
     order_submission_authorized: bool
     execution_authorized: bool
     runtime_wired: bool
+    _factory_seal: _FactorySeal = field(repr=False, compare=False)
     _construction_token: object = field(repr=False, compare=False)
 
     def __post_init__(self) -> None:
+        if type(self.supervised_target) is not AuthenticatedProfiledOutcomeSupervisedTargetV1:
+            _fail("PROFILED_OPTIMIZER_ADMISSION_TARGET_EXACT_TYPE_REQUIRED")
+        self.supervised_target.__post_init__()
         if (
             self._construction_token is not _ADMISSION_TOKEN
             or self.schema_version != AUTHENTICATED_PROFILED_OPTIMIZER_ADMISSION_V1_SCHEMA_VERSION
@@ -1095,16 +1485,63 @@ class AuthenticatedProfiledOptimizerAdmissionV1:
                     self.tensor_binding_sha256,
                     self.feature_registry_sha256,
                     self.feature_registry_abi_sha256,
+                    self.logical_profile_selection_mask_sha256,
+                    self.projection_implementation_sha256,
+                    self.projection_configuration_sha256,
+                    self.logical_model_vector_sha256,
+                    self.logical_projection_sha256,
                     self.model_input_float64_sha256,
                 )
             )
+            or any(
+                type(value) is not int or value < 0
+                for value in (
+                    self.manifest_total_profiled_samples,
+                    self.manifest_admitted_example_count,
+                    self.manifest_label_unavailable_count,
+                    self.completion_page_count,
+                    self.completion_consumed_entry_count,
+                    self.completion_admitted_entry_count,
+                    self.completion_label_unavailable_count,
+                )
+            )
+            or self.manifest_total_profiled_samples
+            != self.manifest_admitted_example_count + self.manifest_label_unavailable_count
+            or self.manifest_admitted_example_count <= 0
+            or self.completion_page_count <= 0
+            or self.completion_consumed_entry_count != self.manifest_total_profiled_samples
+            or self.completion_admitted_entry_count != self.manifest_admitted_example_count
+            or self.completion_label_unavailable_count != self.manifest_label_unavailable_count
+            or type(self.ordinal) is not int
             or self.ordinal <= 0
+            or self.ordinal > self.manifest_total_profiled_samples
+            or type(self.symbol) is not str
             or not self.symbol
+            or type(self.timeframe) is not str
             or not self.timeframe
+            or type(self.witness_sequence) is not int
             or self.witness_sequence <= 0
+            or type(self.witness_id) is not str
+            or type(self.witness_namespace) is not str
             or _IDENTIFIER_RE.fullmatch(self.witness_id) is None
             or _IDENTIFIER_RE.fullmatch(self.witness_namespace) is None
+            or type(self.logical_profile_selection_mask) is not tuple
+            or self.logical_profile_selection_mask != LOGICAL_PROFILE_SELECTION_MASK
+            or self.logical_profile_selection_mask_sha256 != LOGICAL_PROFILE_SELECTION_MASK_SHA256
+            or stable_sha256(list(self.logical_profile_selection_mask))
+            != self.logical_profile_selection_mask_sha256
+            or self.projection_schema_version != PROFILED_TRAINING_PROJECTION_V1_SCHEMA_VERSION
+            or self.projection_implementation_sha256
+            != PROFILED_TRAINING_PROJECTION_V1_IMPLEMENTATION_SHA256
+            or self.projection_configuration_sha256
+            != PROFILED_TRAINING_PROJECTION_V1_CONFIGURATION_SHA256
+            or self.feature_registry_sha256 != FEATURE_SOURCE_REGISTRY_V4_SHA256
+            or self.feature_registry_abi_sha256 != FEATURE_SOURCE_REGISTRY_V4_ABI_SHA256
+            or type(self.model_input) is not tuple
             or self.model_input_float64_sha256 != _model_vector_sha256(self.model_input)
+            or self.logical_model_vector_sha256 != _logical_model_vector_sha256(self.model_input)
+            or self.supervised_target.label_binding_sha256 != self.label_binding_sha256
+            or self.supervised_target.label_available_at != self.label_available_at
             or self.profiled_optimizer_admission_validated is not True
             or self.outcome_supervised_objective_eligible is not True
             or self.behavior_receipt_bound is not False
@@ -1125,7 +1562,7 @@ class AuthenticatedProfiledOptimizerAdmissionV1:
             )
         ):
             _fail("PROFILED_OPTIMIZER_ADMISSION_RESULT_INVALID")
-        _clock(
+        witness_accepted = _clock(
             self.witness_accepted_at,
             reason="PROFILED_OPTIMIZER_RESULT_WITNESS_ACCEPTED_AT_INVALID",
         )
@@ -1175,8 +1612,145 @@ class AuthenticatedProfiledOptimizerAdmissionV1:
             and feature_generated <= training_generated <= decision < sample_available
             and decision < label_available < observation
             and sample_available < observation
+            and observation < witness_accepted
         ):
             _fail("PROFILED_OPTIMIZER_ADMISSION_RESULT_CLOCK_ORDER_INVALID")
+        _require_factory_seal(
+            self._factory_seal,
+            domain=_ADMISSION_FACTORY_SEAL_DOMAIN,
+            material=_admission_factory_seal_material(self),
+            reason="PROFILED_OPTIMIZER_ADMISSION_FACTORY_SEAL_INVALID",
+        )
+
+
+def _admission_from_authenticated_candidate(
+    *,
+    candidate: ProfiledTrainingObservationExampleV1,
+    candidate_clocks: tuple[str, str, str, str, str, str, int],
+    decision_feature_clocks: tuple[str, str, str, str, str, str],
+    authenticated_manifest: AuthenticatedProfiledTrainingObservationManifestV1,
+    completion: LocalProfiledTrainingObservationCompletionCandidateV1,
+    verified_external: VerifiedProfiledOptimizerExternalCompletionAuthorizationV1,
+) -> AuthenticatedProfiledOptimizerAdmissionV1:
+    """Materialize one sealed data-only admission from already reopened evidence."""
+
+    (
+        record_wide_evidence_cutoff,
+        training_record_generated_at,
+        decision_time,
+        trainer_sample_available_at,
+        label_available_at,
+        observation_time,
+        horizon_seconds,
+    ) = candidate_clocks
+    (
+        model_feature_cutoff,
+        source_feature_available_at,
+        decision_feature_available_at,
+        feature_generated_at,
+        logical_model_vector_sha256,
+        logical_projection_sha256,
+    ) = decision_feature_clocks
+    if not (
+        _clock(
+            feature_generated_at,
+            reason="PROFILED_OPTIMIZER_FEATURE_GENERATED_AT_INVALID",
+        )
+        <= _clock(
+            training_record_generated_at,
+            reason="PROFILED_OPTIMIZER_TRAINING_RECORD_GENERATED_AT_INVALID",
+        )
+        <= _clock(decision_time, reason="PROFILED_OPTIMIZER_DECISION_TIME_INVALID")
+        and _clock(
+            model_feature_cutoff,
+            reason="PROFILED_OPTIMIZER_MODEL_FEATURE_CUTOFF_INVALID",
+        )
+        <= _clock(
+            record_wide_evidence_cutoff,
+            reason="PROFILED_OPTIMIZER_RECORD_WIDE_CUTOFF_INVALID",
+        )
+    ):
+        _fail("PROFILED_OPTIMIZER_MODEL_AND_TRAINING_CLOCK_ORDER_INVALID")
+    target = _outcome_target(
+        candidate,
+        label_available_at=label_available_at,
+        horizon_seconds=horizon_seconds,
+    )
+    model_input = tuple(candidate.training_example.tensor.model_vector)
+    if logical_model_vector_sha256 != _logical_model_vector_sha256(model_input):
+        _fail("PROFILED_OPTIMIZER_LOGICAL_MODEL_VECTOR_DIRECT_BINDING_MISMATCH")
+    return AuthenticatedProfiledOptimizerAdmissionV1(
+        schema_version=AUTHENTICATED_PROFILED_OPTIMIZER_ADMISSION_V1_SCHEMA_VERSION,
+        manifest_id=authenticated_manifest.manifest_id,
+        manifest_metadata_sha256=authenticated_manifest.metadata_sha256,
+        manifest_observation_context_sha256=(authenticated_manifest.observation_context_sha256),
+        manifest_entry_chain_head_sha256=(authenticated_manifest.entry_chain_head_sha256),
+        manifest_ordered_entry_identities_sha256=(
+            authenticated_manifest.ordered_entry_identities_sha256
+        ),
+        manifest_total_profiled_samples=authenticated_manifest.total_profiled_samples,
+        manifest_admitted_example_count=authenticated_manifest.admitted_example_count,
+        manifest_label_unavailable_count=authenticated_manifest.label_unavailable_count,
+        completion_event_sha256=completion.completion_event_sha256,
+        completion_ordered_page_root_sha256=completion.ordered_page_root_sha256,
+        completion_page_count=completion.page_count,
+        completion_consumed_entry_count=completion.consumed_entry_count,
+        completion_admitted_entry_count=completion.admitted_entry_count,
+        completion_label_unavailable_count=completion.label_unavailable_count,
+        external_authorization_envelope_sha256=(verified_external.authorization_envelope_sha256),
+        witness_id=verified_external.witness_id,
+        witness_namespace=verified_external.namespace,
+        witness_public_key_sha256=verified_external.witness_public_key_sha256,
+        witness_sequence=verified_external.authorization_sequence,
+        witness_previous_event_sha256=(verified_external.previous_authorization_event_sha256),
+        witness_accepted_at=verified_external.accepted_at,
+        ordinal=candidate.ordinal,
+        symbol=candidate.training_example.symbol,
+        timeframe=candidate.training_example.timeframe,
+        sample_identity_sha256=candidate.sample_identity_sha256,
+        label_binding_sha256=candidate.label_binding_sha256,
+        tensor_binding_sha256=candidate.tensor_binding_sha256,
+        feature_registry_sha256=FEATURE_SOURCE_REGISTRY_V4_SHA256,
+        feature_registry_abi_sha256=FEATURE_SOURCE_REGISTRY_V4_ABI_SHA256,
+        logical_profile_selection_mask=LOGICAL_PROFILE_SELECTION_MASK,
+        logical_profile_selection_mask_sha256=LOGICAL_PROFILE_SELECTION_MASK_SHA256,
+        projection_schema_version=PROFILED_TRAINING_PROJECTION_V1_SCHEMA_VERSION,
+        projection_implementation_sha256=(PROFILED_TRAINING_PROJECTION_V1_IMPLEMENTATION_SHA256),
+        projection_configuration_sha256=(PROFILED_TRAINING_PROJECTION_V1_CONFIGURATION_SHA256),
+        logical_model_vector_sha256=logical_model_vector_sha256,
+        logical_projection_sha256=logical_projection_sha256,
+        model_feature_cutoff=model_feature_cutoff,
+        record_wide_evidence_cutoff=record_wide_evidence_cutoff,
+        source_feature_available_at=source_feature_available_at,
+        decision_feature_available_at=decision_feature_available_at,
+        feature_generated_at=feature_generated_at,
+        training_record_generated_at=training_record_generated_at,
+        decision_time=decision_time,
+        trainer_sample_available_at=trainer_sample_available_at,
+        label_available_at=label_available_at,
+        observation_time=observation_time,
+        model_input=model_input,
+        model_input_float64_sha256=_model_vector_sha256(model_input),
+        supervised_target=target,
+        profiled_optimizer_admission_validated=True,
+        outcome_supervised_objective_eligible=True,
+        behavior_receipt_bound=False,
+        ppo_behavior_policy_terms_enabled=False,
+        optimizer_execution_authorized=False,
+        checkpoint_write_authorized=False,
+        model_write_authorized=False,
+        prediction_authorized=False,
+        paper_trading_authorized=False,
+        live_execution_authorized=False,
+        order_submission_authorized=False,
+        execution_authorized=False,
+        runtime_wired=False,
+        _factory_seal=_FactorySeal(
+            domain=_ADMISSION_FACTORY_SEAL_DOMAIN,
+            construction_token=_FACTORY_SEAL_TOKEN,
+        ),
+        _construction_token=_ADMISSION_TOKEN,
+    )
 
 
 def admit_authenticated_profiled_optimizer_candidate_v1(
@@ -1332,6 +1906,8 @@ def admit_authenticated_profiled_optimizer_candidate_v1(
         source_feature_available_at,
         decision_feature_available_at,
         feature_generated_at,
+        logical_model_vector_sha256,
+        logical_projection_sha256,
     ) = _direct_decision_feature_clocks(
         ledger=ledger,
         candidate=reopened,
@@ -1351,93 +1927,252 @@ def admit_authenticated_profiled_optimizer_candidate_v1(
         ) from exc
     if _manifest_binding(manifest_before) != _manifest_binding(manifest_after):
         _fail("PROFILED_OPTIMIZER_MANIFEST_MOVED_DURING_ADMISSION")
-
-    (
-        record_wide_evidence_cutoff,
-        training_record_generated_at,
-        decision_time,
-        trainer_sample_available_at,
-        label_available_at,
-        observation_time,
-        horizon_seconds,
-    ) = reopened_clocks
-    if not (
-        _clock(
-            feature_generated_at,
-            reason="PROFILED_OPTIMIZER_FEATURE_GENERATED_AT_INVALID",
-        )
-        <= _clock(
-            training_record_generated_at,
-            reason="PROFILED_OPTIMIZER_TRAINING_RECORD_GENERATED_AT_INVALID",
-        )
-        <= _clock(decision_time, reason="PROFILED_OPTIMIZER_DECISION_TIME_INVALID")
-        and _clock(
+    return _admission_from_authenticated_candidate(
+        candidate=reopened,
+        candidate_clocks=reopened_clocks,
+        decision_feature_clocks=(
             model_feature_cutoff,
-            reason="PROFILED_OPTIMIZER_MODEL_FEATURE_CUTOFF_INVALID",
-        )
-        <= _clock(
-            record_wide_evidence_cutoff,
-            reason="PROFILED_OPTIMIZER_RECORD_WIDE_CUTOFF_INVALID",
-        )
-    ):
-        _fail("PROFILED_OPTIMIZER_MODEL_AND_TRAINING_CLOCK_ORDER_INVALID")
-    target = _outcome_target(
-        reopened,
-        label_available_at=label_available_at,
-        horizon_seconds=horizon_seconds,
+            source_feature_available_at,
+            decision_feature_available_at,
+            feature_generated_at,
+            logical_model_vector_sha256,
+            logical_projection_sha256,
+        ),
+        authenticated_manifest=manifest_after,
+        completion=completion,
+        verified_external=verified_external,
     )
-    model_input = tuple(reopened.training_example.tensor.model_vector)
-    return AuthenticatedProfiledOptimizerAdmissionV1(
-        schema_version=AUTHENTICATED_PROFILED_OPTIMIZER_ADMISSION_V1_SCHEMA_VERSION,
-        manifest_id=manifest_before.manifest_id,
-        manifest_metadata_sha256=manifest_before.metadata_sha256,
-        manifest_observation_context_sha256=manifest_before.observation_context_sha256,
-        manifest_entry_chain_head_sha256=manifest_before.entry_chain_head_sha256,
-        manifest_ordered_entry_identities_sha256=(manifest_before.ordered_entry_identities_sha256),
-        completion_event_sha256=completion.completion_event_sha256,
-        completion_ordered_page_root_sha256=completion.ordered_page_root_sha256,
-        external_authorization_envelope_sha256=(verified_external.authorization_envelope_sha256),
-        witness_id=verified_external.witness_id,
-        witness_namespace=verified_external.namespace,
-        witness_public_key_sha256=verified_external.witness_public_key_sha256,
-        witness_sequence=verified_external.authorization_sequence,
-        witness_previous_event_sha256=(verified_external.previous_authorization_event_sha256),
-        witness_accepted_at=verified_external.accepted_at,
-        ordinal=reopened.ordinal,
-        symbol=reopened.training_example.symbol,
-        timeframe=reopened.training_example.timeframe,
-        sample_identity_sha256=reopened.sample_identity_sha256,
-        label_binding_sha256=reopened.label_binding_sha256,
-        tensor_binding_sha256=reopened.tensor_binding_sha256,
-        feature_registry_sha256=FEATURE_SOURCE_REGISTRY_V4_SHA256,
-        feature_registry_abi_sha256=FEATURE_SOURCE_REGISTRY_V4_ABI_SHA256,
-        model_feature_cutoff=model_feature_cutoff,
-        record_wide_evidence_cutoff=record_wide_evidence_cutoff,
-        source_feature_available_at=source_feature_available_at,
-        decision_feature_available_at=decision_feature_available_at,
-        feature_generated_at=feature_generated_at,
-        training_record_generated_at=training_record_generated_at,
-        decision_time=decision_time,
-        trainer_sample_available_at=trainer_sample_available_at,
-        label_available_at=label_available_at,
-        observation_time=observation_time,
-        model_input=model_input,
-        model_input_float64_sha256=_model_vector_sha256(model_input),
-        supervised_target=target,
-        profiled_optimizer_admission_validated=True,
-        outcome_supervised_objective_eligible=True,
-        behavior_receipt_bound=False,
-        ppo_behavior_policy_terms_enabled=False,
-        optimizer_execution_authorized=False,
-        checkpoint_write_authorized=False,
-        model_write_authorized=False,
-        prediction_authorized=False,
-        paper_trading_authorized=False,
-        live_execution_authorized=False,
-        order_submission_authorized=False,
-        execution_authorized=False,
-        runtime_wired=False,
-        _construction_token=_ADMISSION_TOKEN,
+
+
+def admit_authenticated_profiled_optimizer_manifest_batch_v1(
+    *,
+    manifest_path: Path,
+    ledger: DurableFeatureSnapshotLedger,
+    trusted_immutable_cost_store_root: Path,
+    manifest_hmac_key: bytes | bytearray | memoryview,
+    manifest_auth_key_id: str,
+    expected_manifest_id: str,
+    expected_observation_time: str,
+    local_completion: LocalProfiledTrainingObservationCompletionCandidateV1,
+    completion_staging_store: ImmutableSourcePayloadStore,
+    epoch_hmac_key: bytes | bytearray | memoryview,
+    epoch_auth_key_id: str,
+    external_authorization_envelope: bytes,
+    expected_witness_id: str,
+    expected_witness_namespace: str,
+    witness_public_key_bytes: bytes,
+    expected_witness_public_key_sha256: str,
+    expected_witness_sequence: int,
+    expected_previous_witness_event_sha256: str,
+    authorization_challenge: bytes | bytearray | memoryview,
+    page_limit: int = MAX_PROFILED_OBSERVATION_PAGE_ROWS,
+) -> tuple[AuthenticatedProfiledOptimizerAdmissionV1, ...]:
+    """Admit every trainable entry from one fully consumed manifest.
+
+    The immutable manifest is fully authenticated exactly before and after the
+    bounded page walk.  The completion receipt, terminal page, external
+    envelope, and witness signature are each reopened or verified once for the
+    batch.  Every manifest row is nevertheless scanned exactly once through the
+    existing page reader, and every admitted sample keeps the same causal,
+    finality, dirty-sample, and role-separation checks as single-row admission.
+
+    No partial result is returned: cursor, admitted, unavailable, and total
+    inventory counts must reconcile with both the manifest and the completion
+    receipt before the sealed tuple becomes observable to the caller.
+    """
+
+    if type(ledger) is not DurableFeatureSnapshotLedger:
+        _fail("PROFILED_OPTIMIZER_LEDGER_EXACT_TYPE_REQUIRED")
+    if type(completion_staging_store) is not ImmutableSourcePayloadStore:
+        _fail("PROFILED_OPTIMIZER_COMPLETION_STORE_EXACT_TYPE_REQUIRED")
+    if type(local_completion) is not LocalProfiledTrainingObservationCompletionCandidateV1:
+        _fail("PROFILED_OPTIMIZER_LOCAL_COMPLETION_EXACT_TYPE_REQUIRED")
+    if type(page_limit) is not int or not 0 < page_limit <= MAX_PROFILED_OBSERVATION_PAGE_ROWS:
+        _fail("PROFILED_OPTIMIZER_BATCH_PAGE_LIMIT_INVALID")
+    challenge = _challenge(authorization_challenge)
+
+    try:
+        manifest_before = authenticate_profiled_training_observation_manifest_v1(
+            manifest_path=manifest_path,
+            hmac_key=manifest_hmac_key,
+            expected_auth_key_id=manifest_auth_key_id,
+            expected_manifest_id=expected_manifest_id,
+            expected_observation_time=expected_observation_time,
+        )
+        completion = read_local_profiled_training_observation_completion_candidate_v1(
+            staging_store=completion_staging_store,
+            completion_event_sha256=local_completion.completion_event_sha256,
+            completion_event_byte_count=local_completion.completion_event_byte_count,
+            epoch_hmac_key=epoch_hmac_key,
+            epoch_auth_key_id=epoch_auth_key_id,
+        )
+    except (
+        ProfiledTrainingObservationManifestV1Error,
+        ProfiledTrainingObservationManifestHeadV1Error,
+    ) as exc:
+        raise AuthenticatedProfiledOptimizerAdmissionV1Error(
+            f"PROFILED_OPTIMIZER_UPSTREAM_AUTHENTICATION_FAILED:{type(exc).__name__}"
+        ) from exc
+    if (
+        completion.manifest_id != manifest_before.manifest_id
+        or completion.consumed_entry_count != manifest_before.total_profiled_samples
+        or completion.admitted_entry_count != manifest_before.admitted_example_count
+        or completion.label_unavailable_count != manifest_before.label_unavailable_count
+        or completion.terminal_entry_chain_sha256 != manifest_before.entry_chain_head_sha256
+        or completion.page_count <= 0
+        or completion.admitted_entry_count <= 0
+    ):
+        _fail("PROFILED_OPTIMIZER_COMPLETION_MANIFEST_BINDING_INVALID")
+    final_page_sha = completion._material.get("final_page_receipt_event_sha256")
+    if not _valid_sha256(final_page_sha):
+        _fail("PROFILED_OPTIMIZER_FINAL_PAGE_RECEIPT_ADDRESS_INVALID")
+    try:
+        final_page_bytes = completion_staging_store.get(cast(str, final_page_sha))
+        final_page = read_local_profiled_training_observation_page_receipt_v1(
+            staging_store=completion_staging_store,
+            page_receipt_event_sha256=cast(str, final_page_sha),
+            page_receipt_event_byte_count=len(final_page_bytes),
+            epoch_hmac_key=epoch_hmac_key,
+            epoch_auth_key_id=epoch_auth_key_id,
+        )
+    except (SourcePayloadStoreError, ProfiledTrainingObservationManifestHeadV1Error) as exc:
+        raise AuthenticatedProfiledOptimizerAdmissionV1Error(
+            f"PROFILED_OPTIMIZER_FINAL_PAGE_REOPEN_FAILED:{type(exc).__name__}"
+        ) from exc
+    _completion_binding(completion, final_page)
+    verified_external = _verify_external_authorization(
+        authorization_envelope=external_authorization_envelope,
+        authenticated_manifest=manifest_before,
+        completion=completion,
+        final_page=final_page,
+        expected_witness_id=expected_witness_id,
+        expected_namespace=expected_witness_namespace,
+        witness_public_key_bytes=witness_public_key_bytes,
+        expected_witness_public_key_sha256=expected_witness_public_key_sha256,
+        expected_authorization_sequence=expected_witness_sequence,
+        expected_previous_authorization_event_sha256=(expected_previous_witness_event_sha256),
+        authorization_challenge=challenge,
+    )
+
+    cursor = 0
+    scanned_count = 0
+    admitted_count = 0
+    unavailable_count = 0
+    last_admitted_ordinal = 0
+    validated_candidates: list[
+        tuple[
+            ProfiledTrainingObservationExampleV1,
+            tuple[str, str, str, str, str, str, int],
+            tuple[str, str, str, str, str, str],
+        ]
+    ] = []
+    while cursor < manifest_before.total_profiled_samples:
+        try:
+            page = read_profiled_training_observation_page_v1(
+                manifest_path=manifest_path,
+                ledger=ledger,
+                trusted_immutable_cost_store_root=trusted_immutable_cost_store_root,
+                hmac_key=manifest_hmac_key,
+                expected_auth_key_id=manifest_auth_key_id,
+                expected_manifest_id=expected_manifest_id,
+                expected_observation_time=expected_observation_time,
+                after_ordinal=cursor,
+                limit=page_limit,
+            )
+        except ProfiledTrainingObservationManifestV1Error as exc:
+            raise AuthenticatedProfiledOptimizerAdmissionV1Error(
+                f"PROFILED_OPTIMIZER_BATCH_PAGE_REOPEN_FAILED:{type(exc).__name__}"
+            ) from exc
+        expected_scanned = min(
+            page_limit,
+            manifest_before.total_profiled_samples - cursor,
+        )
+        expected_next = cursor + expected_scanned
+        expected_has_more = expected_next < manifest_before.total_profiled_samples
+        if (
+            page.manifest_id != manifest_before.manifest_id
+            or page.observation_time != manifest_before.observation_time
+            or page.requested_after_ordinal != cursor
+            or page.scanned_entry_count != expected_scanned
+            or page.next_after_ordinal != expected_next
+            or page.has_more_manifest_entries is not expected_has_more
+            or page.label_unavailable_scanned < 0
+            or len(page.examples) + page.label_unavailable_scanned != page.scanned_entry_count
+        ):
+            _fail("PROFILED_OPTIMIZER_BATCH_PAGE_INVENTORY_INVALID")
+        for candidate in page.examples:
+            if (
+                type(candidate) is not ProfiledTrainingObservationExampleV1
+                or candidate.ordinal <= last_admitted_ordinal
+                or not cursor < candidate.ordinal <= expected_next
+            ):
+                _fail("PROFILED_OPTIMIZER_BATCH_ADMITTED_ORDINAL_INVALID")
+            candidate_clocks = _validate_candidate_semantics(
+                candidate,
+                observation_time=manifest_before.observation_time,
+            )
+            _example_fingerprint(candidate)
+            decision_feature_clocks = _direct_decision_feature_clocks(
+                ledger=ledger,
+                candidate=candidate,
+            )
+            validated_candidates.append((candidate, candidate_clocks, decision_feature_clocks))
+            last_admitted_ordinal = candidate.ordinal
+        scanned_count += page.scanned_entry_count
+        admitted_count += len(page.examples)
+        unavailable_count += page.label_unavailable_scanned
+        cursor = page.next_after_ordinal
+
+    try:
+        manifest_after = authenticate_profiled_training_observation_manifest_v1(
+            manifest_path=manifest_path,
+            hmac_key=manifest_hmac_key,
+            expected_auth_key_id=manifest_auth_key_id,
+            expected_manifest_id=expected_manifest_id,
+            expected_observation_time=expected_observation_time,
+        )
+    except ProfiledTrainingObservationManifestV1Error as exc:
+        raise AuthenticatedProfiledOptimizerAdmissionV1Error(
+            f"PROFILED_OPTIMIZER_MANIFEST_REAUTHENTICATION_FAILED:{type(exc).__name__}"
+        ) from exc
+    before_storage_identity = (
+        manifest_before.manifest_path,
+        manifest_before.manifest_file_device,
+        manifest_before.manifest_file_inode,
+        manifest_before.manifest_file_byte_count,
+    )
+    after_storage_identity = (
+        manifest_after.manifest_path,
+        manifest_after.manifest_file_device,
+        manifest_after.manifest_file_inode,
+        manifest_after.manifest_file_byte_count,
+    )
+    if (
+        _manifest_binding(manifest_before) != _manifest_binding(manifest_after)
+        or before_storage_identity != after_storage_identity
+    ):
+        _fail("PROFILED_OPTIMIZER_MANIFEST_MOVED_DURING_ADMISSION")
+    if (
+        cursor != manifest_after.total_profiled_samples
+        or scanned_count != manifest_after.total_profiled_samples
+        or admitted_count != manifest_after.admitted_example_count
+        or unavailable_count != manifest_after.label_unavailable_count
+        or len(validated_candidates) != completion.admitted_entry_count
+        or scanned_count != completion.consumed_entry_count
+        or unavailable_count != completion.label_unavailable_count
+    ):
+        _fail("PROFILED_OPTIMIZER_BATCH_FULL_INVENTORY_MISMATCH")
+
+    return tuple(
+        _admission_from_authenticated_candidate(
+            candidate=candidate,
+            candidate_clocks=candidate_clocks,
+            decision_feature_clocks=decision_feature_clocks,
+            authenticated_manifest=manifest_after,
+            completion=completion,
+            verified_external=verified_external,
+        )
+        for candidate, candidate_clocks, decision_feature_clocks in validated_candidates
     )
 
 
@@ -1448,10 +2183,15 @@ __all__ = (
     "PROFILED_OPTIMIZER_EXTERNAL_COMPLETION_AUTHORIZATION_DOMAIN",
     "PROFILED_OPTIMIZER_EXTERNAL_COMPLETION_AUTHORIZATION_SEPARATOR",
     "PROFILED_OPTIMIZER_EXTERNAL_COMPLETION_AUTHORIZATION_V1_SCHEMA_VERSION",
+    "PROFILED_OPTIMIZER_OBJECTIVE_LANE",
     "AuthenticatedProfiledOptimizerAdmissionV1",
     "AuthenticatedProfiledOptimizerAdmissionV1Error",
     "AuthenticatedProfiledOutcomeSupervisedTargetV1",
+    "LocallyValidatedProfiledResearchExampleV1",
     "VerifiedProfiledOptimizerExternalCompletionAuthorizationV1",
     "admit_authenticated_profiled_optimizer_candidate_v1",
+    "admit_authenticated_profiled_optimizer_manifest_batch_v1",
+    "profiled_optimizer_external_completion_claim_template_v1",
+    "validate_profiled_observation_example_for_local_research_v1",
     "profiled_optimizer_external_completion_signing_payload_v1",
 )

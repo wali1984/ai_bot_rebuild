@@ -81,6 +81,7 @@ from v2.backend.app.services.native_trainer.profiled_training_ledger_loader_v1 i
     PROFILED_TRAINING_PROJECTION_V1_SCHEMA_VERSION,
     ProfiledTrainingLedgerLoaderV1Error,
     ProfiledTrainingLedgerSampleV1,
+    ProfiledTrainingSourceProvenanceSnapshotSessionV1,
     load_profiled_training_ledger_fixed_observation_v1,
     reopen_profiled_training_ledger_sample_v1,
 )
@@ -145,6 +146,11 @@ _SHA256_RE = re.compile(r"^[0-9a-f]{64}$", re.ASCII)
 _AUTH_KEY_ID_RE = re.compile(r"^[A-Za-z0-9_.:@/-]{1,128}$", re.ASCII)
 _MANIFEST_FILENAME_RE = re.compile(
     r"^profiled_training_observation_([0-9a-f]{64})\.sqlite3$",
+    re.ASCII,
+)
+_MANIFEST_TEMP_FILENAME_RE = re.compile(
+    r"^\.profiled_training_observation\.[1-9][0-9]{0,19}\."
+    r"[0-9a-f]{32}\.tmp(?:-(?:journal|wal|shm))?$",
     re.ASCII,
 )
 _ENTRY_CHAIN_DOMAIN = b"profiled_training_fixed_observation_entry_chain_v1\0"
@@ -465,7 +471,6 @@ def _label_binding(
     *,
     sample: ProfiledTrainingLedgerSampleV1,
     archive: DurableCanonical5mLabelArchive,
-    archive_integrity: Mapping[str, Any],
     archive_high_water: Mapping[str, Any],
     observation: datetime,
 ) -> tuple[dict[str, Any] | None, tuple[str, ...]]:
@@ -511,7 +516,14 @@ def _label_binding(
             decision_time=sample.decision_time,
             training_observed_at=strict_prior,
             horizon_seconds=sample.expected_holding_horizon_seconds,
-            archive_integrity_proof=archive_integrity,
+            # A full-tail integrity proof becomes stale whenever the healthy
+            # archive writer appends a later immutable suffix.  Each bounded
+            # range therefore verifies SQLite health, the exact canonical
+            # rows, row-chain formula, and both receipt classes inside its own
+            # read transaction.  The full archive is still verified before
+            # and after the manifest build, while ``archive_high_water`` pins
+            # the exact receipt prefix visible at ``observation``.
+            archive_integrity_proof=None,
             require_receipt_committed_by_observation=True,
         )
     except (Canonical5mArchiveError, OSError, sqlite3.Error, TypeError, ValueError) as exc:
@@ -519,12 +531,6 @@ def _label_binding(
             f"PROFILED_OBSERVATION_LABEL_PATH_READ_FAILED:{type(exc).__name__}"
         ) from exc
     if rows is None:
-        range_proof = path_proof.get("range_proof")
-        if isinstance(range_proof, Mapping) and (
-            range_proof.get("archive_integrity_proof_reused") is True
-            and range_proof.get("archive_integrity_proof_current") is False
-        ):
-            _fail("PROFILED_OBSERVATION_LABEL_INTEGRITY_PROOF_MOVED_DURING_BUILD")
         reasons = tuple(
             sorted(
                 {str(reason) for reason in path_proof.get("rejection_reasons") or () if str(reason)}
@@ -538,8 +544,10 @@ def _label_binding(
         or path_proof.get("pit_available_at_verified") is not True
         or path_proof.get("strictly_after_decision_verified") is not True
         or path_proof.get("horizon_endpoint_verified") is not True
-        or range_proof.get("archive_integrity_proof_reused") is not True
-        or range_proof.get("archive_integrity_proof_current") is not True
+        or range_proof.get("archive_integrity_proof_reused") is not False
+        or range_proof.get("archive_integrity_proof_current") is not None
+        or range_proof.get("sqlite_quick_check_verified") is not True
+        or range_proof.get("archive_schema_and_retention_verified") is not True
         or range_proof.get("canonical_payloads_verified") is not True
         or range_proof.get("content_sha256_verified") is not True
         or range_proof.get("append_transaction_precommit_receipts_verified") is not True
@@ -1597,6 +1605,115 @@ class ProfiledTrainingObservationPageV1:
             _fail("PROFILED_OBSERVATION_PAGE_CLOCK_ORDER_INVALID")
 
 
+def _cleanup_stale_manifest_temporaries_locked(output_root: Path) -> int:
+    """Remove only verified orphan temp inodes while the build lock is held."""
+
+    root_descriptor = -1
+    try:
+        root_descriptor = os.open(
+            output_root,
+            os.O_RDONLY
+            | getattr(os, "O_DIRECTORY", 0)
+            | getattr(os, "O_CLOEXEC", 0)
+            | getattr(os, "O_NOFOLLOW", 0),
+        )
+        opened_root = os.fstat(root_descriptor)
+        path_root = os.stat(output_root, follow_symlinks=False)
+        if (
+            not stat.S_ISDIR(opened_root.st_mode)
+            or opened_root.st_uid != os.geteuid()
+            or stat.S_IMODE(opened_root.st_mode) & 0o022
+            or (opened_root.st_dev, opened_root.st_ino)
+            != (path_root.st_dev, path_root.st_ino)
+        ):
+            _fail("PROFILED_OBSERVATION_STALE_TEMP_ROOT_PROTECTION_INVALID")
+        candidates = sorted(
+            (
+                name
+                for name in os.listdir(root_descriptor)
+                if _MANIFEST_TEMP_FILENAME_RE.fullmatch(name) is not None
+            ),
+            # SQLite sidecars precede their base temp database.
+            key=lambda name: (name.endswith(".tmp"), name),
+        )
+        removed = 0
+        for name in candidates:
+            path_stat = os.stat(
+                name,
+                dir_fd=root_descriptor,
+                follow_symlinks=False,
+            )
+            if (
+                not stat.S_ISREG(path_stat.st_mode)
+                or path_stat.st_uid != os.geteuid()
+                or path_stat.st_nlink != 1
+                or stat.S_IMODE(path_stat.st_mode) != 0o600
+            ):
+                _fail("PROFILED_OBSERVATION_STALE_TEMP_PROTECTION_INVALID")
+            candidate_descriptor = os.open(
+                name,
+                os.O_RDONLY
+                | getattr(os, "O_CLOEXEC", 0)
+                | getattr(os, "O_NOFOLLOW", 0),
+                dir_fd=root_descriptor,
+            )
+            try:
+                opened = os.fstat(candidate_descriptor)
+            finally:
+                os.close(candidate_descriptor)
+            if (
+                opened.st_dev,
+                opened.st_ino,
+                opened.st_size,
+                opened.st_uid,
+                opened.st_mode,
+                opened.st_nlink,
+            ) != (
+                path_stat.st_dev,
+                path_stat.st_ino,
+                path_stat.st_size,
+                path_stat.st_uid,
+                path_stat.st_mode,
+                path_stat.st_nlink,
+            ):
+                _fail("PROFILED_OBSERVATION_STALE_TEMP_INODE_MOVED")
+            final_stat = os.stat(
+                name,
+                dir_fd=root_descriptor,
+                follow_symlinks=False,
+            )
+            if (
+                final_stat.st_dev,
+                final_stat.st_ino,
+                final_stat.st_size,
+                final_stat.st_uid,
+                final_stat.st_mode,
+                final_stat.st_nlink,
+            ) != (
+                path_stat.st_dev,
+                path_stat.st_ino,
+                path_stat.st_size,
+                path_stat.st_uid,
+                path_stat.st_mode,
+                path_stat.st_nlink,
+            ):
+                _fail("PROFILED_OBSERVATION_STALE_TEMP_INODE_MOVED")
+            os.unlink(name, dir_fd=root_descriptor)
+            removed += 1
+        if removed:
+            os.fsync(root_descriptor)
+        return removed
+    except ProfiledTrainingObservationManifestV1Error:
+        raise
+    except OSError as exc:
+        raise ProfiledTrainingObservationManifestV1Error(
+            f"PROFILED_OBSERVATION_STALE_TEMP_CLEANUP_FAILED:{type(exc).__name__}"
+        ) from exc
+    finally:
+        if root_descriptor >= 0:
+            os.close(root_descriptor)
+
+
 def build_profiled_training_observation_manifest_v1(
     *,
     ledger: DurableFeatureSnapshotLedger,
@@ -1607,8 +1724,15 @@ def build_profiled_training_observation_manifest_v1(
     auth_key_id: str,
     hmac_key: bytes | bytearray | memoryview,
     scan_limit: int = MAX_PROFILED_TRAINING_SCAN_ROWS,
+    prepared_factory_wall_clock_observed_at: str | None = None,
 ) -> ProfiledTrainingObservationManifestBuildV1:
-    """Build one immutable manifest with bounded-memory source consumption."""
+    """Build one immutable manifest with bounded-memory source consumption.
+
+    ``prepared_factory_wall_clock_observed_at`` is an optional crash-recovery
+    input. A coordinator may durably record one wall-clock value before
+    construction and replay that exact value after a crash. Ordinary callers
+    leave it unset and retain the original direct wall-clock sampling behavior.
+    """
 
     key = _validated_key(hmac_key)
     cost_root = _exact_absolute_path(
@@ -1632,14 +1756,23 @@ def build_profiled_training_observation_manifest_v1(
         reason="PROFILED_OBSERVATION_CLOCK_INVALID",
     )
     observation_text = _canonical_clock(observation)
-    factory_clock_raw = _factory_wall_clock_now()
-    if (
-        type(factory_clock_raw) is not datetime
-        or factory_clock_raw.tzinfo is None
-        or factory_clock_raw.utcoffset() is None
-    ):
-        _fail("PROFILED_OBSERVATION_FACTORY_WALL_CLOCK_INVALID")
-    factory_clock_text = _canonical_clock(factory_clock_raw)
+    if prepared_factory_wall_clock_observed_at is None:
+        factory_clock_raw = _factory_wall_clock_now()
+        if (
+            type(factory_clock_raw) is not datetime
+            or factory_clock_raw.tzinfo is None
+            or factory_clock_raw.utcoffset() is None
+        ):
+            _fail("PROFILED_OBSERVATION_FACTORY_WALL_CLOCK_INVALID")
+        factory_clock_text = _canonical_clock(factory_clock_raw)
+    else:
+        if type(prepared_factory_wall_clock_observed_at) is not str:
+            _fail("PROFILED_OBSERVATION_PREPARED_FACTORY_WALL_CLOCK_INVALID")
+        prepared_factory_clock = _clock(
+            prepared_factory_wall_clock_observed_at,
+            reason="PROFILED_OBSERVATION_PREPARED_FACTORY_WALL_CLOCK_INVALID",
+        )
+        factory_clock_text = _canonical_clock(prepared_factory_clock)
     factory_clock = _clock(
         factory_clock_text,
         reason="PROFILED_OBSERVATION_FACTORY_WALL_CLOCK_INVALID",
@@ -1696,6 +1829,7 @@ def build_profiled_training_observation_manifest_v1(
     )
     try:
         fcntl.flock(lock_descriptor, fcntl.LOCK_EX)
+        _cleanup_stale_manifest_temporaries_locked(output_root)
         descriptor = os.open(
             temporary,
             os.O_RDWR | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
@@ -1749,9 +1883,7 @@ def build_profiled_training_observation_manifest_v1(
                         PROFILED_TRAINING_PROJECTION_V1_CONFIGURATION_SHA256
                     ),
                     "training_example_adapter_contract": adapter_contract,
-                    "training_example_adapter_contract_sha256": stable_sha256(
-                        adapter_contract
-                    ),
+                    "training_example_adapter_contract_sha256": stable_sha256(adapter_contract),
                 }
                 observation_context_sha256 = stable_sha256(context)
 
@@ -1775,7 +1907,6 @@ def build_profiled_training_observation_manifest_v1(
                     label_binding, label_reasons = _label_binding(
                         sample=sample,
                         archive=label_archive,
-                        archive_integrity=label_integrity,
                         archive_high_water=label_high_water,
                         observation=observation,
                     )
@@ -2759,43 +2890,56 @@ def read_profiled_training_observation_page_v1(
             _fail("PROFILED_OBSERVATION_ENTRY_INVENTORY_OMISSION")
         examples: list[ProfiledTrainingObservationExampleV1] = []
         unavailable_scanned = 0
-        for expected_ordinal, row in enumerate(rows, start=after_ordinal + 1):
-            if row["ordinal"] != expected_ordinal:
-                _fail("PROFILED_OBSERVATION_ENTRY_ORDINAL_GAP")
-            entry = _verify_entry_row(
-                row,
-                key=key,
-                observation_context_sha256=cast(
-                    str,
-                    metadata["observation_context_sha256"],
-                ),
-                expected_previous_chain=previous_chain,
-            )
-            previous_chain = str(row["entry_chain_sha256"])
-            if entry["label_status"] == PROFILED_OBSERVATION_LABEL_STATUS_UNAVAILABLE:
-                unavailable_scanned += 1
-                continue
-            sample_binding = cast(dict[str, Any], entry["sample_binding"])
-            try:
-                sample = reopen_profiled_training_ledger_sample_v1(
-                    ledger=ledger,
-                    trusted_immutable_cost_store_root=cost_root,
-                    fixed_observation_high_water=high_water,
-                    training_observed_at=cast(str, metadata["observation_time"]),
-                    durable_snapshot_id=cast(
+        with ProfiledTrainingSourceProvenanceSnapshotSessionV1() as source_session:
+            for expected_ordinal, row in enumerate(rows, start=after_ordinal + 1):
+                if row["ordinal"] != expected_ordinal:
+                    _fail("PROFILED_OBSERVATION_ENTRY_ORDINAL_GAP")
+                entry = _verify_entry_row(
+                    row,
+                    key=key,
+                    observation_context_sha256=cast(
                         str,
-                        sample_binding["durable_snapshot_id"],
+                        metadata["observation_context_sha256"],
                     ),
-                    expected_sequence=cast(int, sample_binding["ledger_sequence"]),
-                    expected_record_sha256=cast(str, sample_binding["record_sha256"]),
+                    expected_previous_chain=previous_chain,
                 )
-            except ProfiledTrainingLedgerLoaderV1Error as exc:
-                raise ProfiledTrainingObservationManifestV1Error(
-                    f"PROFILED_OBSERVATION_DIRECT_SAMPLE_REOPEN_FAILED:{exc}"
-                ) from exc
-            if _sample_binding(sample) != sample_binding:
-                _fail("PROFILED_OBSERVATION_DIRECT_SAMPLE_BINDING_MISMATCH")
-            examples.append(_example_from_authenticated_entry(entry=entry, sample=sample))
+                previous_chain = str(row["entry_chain_sha256"])
+                if (
+                    entry["label_status"]
+                    == PROFILED_OBSERVATION_LABEL_STATUS_UNAVAILABLE
+                ):
+                    unavailable_scanned += 1
+                    continue
+                sample_binding = cast(dict[str, Any], entry["sample_binding"])
+                try:
+                    sample = reopen_profiled_training_ledger_sample_v1(
+                        ledger=ledger,
+                        trusted_immutable_cost_store_root=cost_root,
+                        fixed_observation_high_water=high_water,
+                        training_observed_at=cast(str, metadata["observation_time"]),
+                        durable_snapshot_id=cast(
+                            str,
+                            sample_binding["durable_snapshot_id"],
+                        ),
+                        expected_sequence=cast(
+                            int,
+                            sample_binding["ledger_sequence"],
+                        ),
+                        expected_record_sha256=cast(
+                            str,
+                            sample_binding["record_sha256"],
+                        ),
+                        source_snapshot_session=source_session,
+                    )
+                except ProfiledTrainingLedgerLoaderV1Error as exc:
+                    raise ProfiledTrainingObservationManifestV1Error(
+                        f"PROFILED_OBSERVATION_DIRECT_SAMPLE_REOPEN_FAILED:{exc}"
+                    ) from exc
+                if _sample_binding(sample) != sample_binding:
+                    _fail("PROFILED_OBSERVATION_DIRECT_SAMPLE_BINDING_MISMATCH")
+                examples.append(
+                    _example_from_authenticated_entry(entry=entry, sample=sample)
+                )
         next_after = int(rows[-1]["ordinal"]) if rows else after_ordinal
         has_more = next_after < total_entries
         if not has_more and previous_chain != metadata.get("entry_chain_head_sha256"):

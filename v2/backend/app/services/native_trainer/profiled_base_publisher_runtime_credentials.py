@@ -86,7 +86,11 @@ def _expected_credentials_directory() -> Path:
     return Path("/run/user") / str(os.geteuid()) / "credentials" / SYSTEMD_UNIT_NAME
 
 
-def _open_credentials_directory(directory: Path) -> int:
+def _open_credentials_directory(
+    directory: Path,
+    *,
+    allow_absent_final_directory: bool = False,
+) -> int | None:
     if not directory.is_absolute() or directory.anchor != os.sep or ".." in directory.parts:
         _fail("PROFILED_BASE_PUBLISHER_SYSTEMD_CREDENTIALS_DIRECTORY_INVALID")
     flags = (
@@ -98,8 +102,16 @@ def _open_credentials_directory(directory: Path) -> int:
     descriptor = -1
     try:
         descriptor = os.open(os.sep, flags)
-        for component in directory.parts[1:]:
-            next_descriptor = os.open(component, flags, dir_fd=descriptor)
+        components = directory.parts[1:]
+        for index, component in enumerate(components):
+            try:
+                next_descriptor = os.open(component, flags, dir_fd=descriptor)
+            except FileNotFoundError:
+                os.close(descriptor)
+                descriptor = -1
+                if allow_absent_final_directory and index == len(components) - 1:
+                    return None
+                raise
             os.close(descriptor)
             descriptor = next_descriptor
         metadata = os.fstat(descriptor)
@@ -181,6 +193,8 @@ def load_profiled_base_publisher_runtime_credentials(
     if directory != _expected_credentials_directory():
         _fail("PROFILED_BASE_PUBLISHER_SYSTEMD_CREDENTIALS_DIRECTORY_BINDING_INVALID")
     directory_descriptor = _open_credentials_directory(directory)
+    if directory_descriptor is None:
+        _fail("PROFILED_BASE_PUBLISHER_SYSTEMD_CREDENTIALS_DIRECTORY_INVALID")
     try:
         api_key = _read_credential(directory_descriptor, API_KEY_SYSTEMD_CREDENTIAL)
         api_secret = _read_credential(directory_descriptor, API_SECRET_SYSTEMD_CREDENTIAL)
@@ -208,6 +222,41 @@ def load_profiled_base_publisher_runtime_credentials(
     )
 
 
+def load_profiled_base_publisher_runtime_credentials_if_available(
+    *,
+    environ: Mapping[str, str] | None = None,
+) -> ProfiledBasePublisherRuntimeCredentials | None:
+    """Return a complete protected bundle, or ``None`` for exact total absence.
+
+    ``ImportCredential=`` exports the fixed per-unit credential-directory path
+    even when no matching credential exists, but systemd 255 does not create
+    the final directory in that case.  Only that exact final-directory absence
+    selects masked-cost observation mode.  An existing directory is always
+    passed through the strict all-or-nothing loader, so partial, malformed, or
+    permission-invalid bundles cannot silently degrade.
+    """
+
+    values = os.environ if environ is None else environ
+    if values.get(TRADER_ID_ENV) != EXPECTED_TRADER_ID:
+        _fail("PROFILED_BASE_PUBLISHER_TRADER_ID_BINDING_INVALID")
+    if values.get(CREDENTIAL_REF_ENV) != EXPECTED_CREDENTIAL_REF:
+        _fail("PROFILED_BASE_PUBLISHER_CREDENTIAL_REF_BINDING_INVALID")
+    directory_text = values.get(SYSTEMD_CREDENTIALS_DIRECTORY_ENV, "")
+    if not directory_text:
+        _fail("PROFILED_BASE_PUBLISHER_SYSTEMD_CREDENTIALS_DIRECTORY_INVALID")
+    directory = Path(directory_text)
+    if directory != _expected_credentials_directory():
+        _fail("PROFILED_BASE_PUBLISHER_SYSTEMD_CREDENTIALS_DIRECTORY_BINDING_INVALID")
+    directory_descriptor = _open_credentials_directory(
+        directory,
+        allow_absent_final_directory=True,
+    )
+    if directory_descriptor is None:
+        return None
+    os.close(directory_descriptor)
+    return load_profiled_base_publisher_runtime_credentials(environ=values)
+
+
 __all__ = [
     "API_KEY_SYSTEMD_CREDENTIAL",
     "API_SECRET_SYSTEMD_CREDENTIAL",
@@ -223,4 +272,5 @@ __all__ = [
     "SYSTEMD_UNIT_NAME",
     "TRADER_ID_ENV",
     "load_profiled_base_publisher_runtime_credentials",
+    "load_profiled_base_publisher_runtime_credentials_if_available",
 ]

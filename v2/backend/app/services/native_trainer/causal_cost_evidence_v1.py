@@ -11,6 +11,11 @@ The caller must supply authoritative, time-bounded fee-schedule bytes plus a
 self-hashed source receipt and equally explicit expected-notional policy bytes
 plus a self-hashed causal source receipt.  There is no configured fee,
 notional, spread, impact, funding, or freshness fallback in this module.
+
+When supplied as a pair, the optional fee-transport envelope and consumer
+receipt preserve the broker reader's HMAC, eight-object CAS, rotation, and
+point-in-time verification in lineage only.  They add no physical model slot
+and grant no trainer or execution authority.
 """
 
 from __future__ import annotations
@@ -88,7 +93,74 @@ _DEPTH_SCHEMA = "direct_orderbook_depth_v1"
 _FEATURES_SCHEMA = "direct_orderbook_features_v1"
 _MARK_SCHEMA = "binance_usdm_mark_price_wss_v1"
 _FEE_SOURCE_TRANSPORT = "DETACHED_SIGNED_BINANCE_USDM_COMMISSION_RESPONSE_UNWIRED"
+_FEE_BROKER_TRANSPORT = "AUTHENTICATED_BINANCE_USDM_COMMISSION_BROKER_HMAC_V1"
+_FEE_BROKER_SCHEMA_VERSION = "v2_binance_usdm_commission_evidence_broker_v1"
+_FEE_BROKER_CONSUMER_RECEIPT_SCHEMA_VERSION = (
+    "v2_binance_usdm_commission_consumer_read_receipt_v1"
+)
+_FEE_BROKER_CONSUMER_RECEIPT_FIELDS = frozenset(
+    """
+    schema_version receipt_kind broker_schema_version producer source request_method
+    request_path symbol decision_time source_available_at broker_available_at
+    consumer_observed_at consumer_checked_at expires_at broker_envelope_sha256
+    broker_envelope_evidence_hmac_sha256 rotation_receipt_sha256 raw_response_sha256
+    fee_artifact_sha256 fee_receipt_sha256 credential_binding_fingerprint_sha256
+    evidence_auth_algorithm evidence_auth_key_id verification_checks broker_cas_object_count
+    exchange_credentials_read trainer_authority prediction_authority paper_authority
+    live_authority content_checksum_sha256 evidence_hmac_sha256
+    """.split()
+)
+_FEE_BROKER_ENVELOPE_FIELDS = frozenset(
+    """
+    schema_version producer source request_method request_path security_type symbol
+    exchange_environment base_url_origin trader_id credential_ref credential_binding_id
+    credential_binding_fingerprint_sha256 credential_ref_read_only_assertion
+    credential_ref_read_only_assertion_semantics exchange_key_permissions_proven_by_connector
+    evidence_auth_algorithm evidence_auth_key_id request_started_at response_observed_at
+    source_available_at broker_generated_at broker_available_at broker_available_at_semantics
+    expires_at raw_response_sha256 raw_response_byte_count raw_response_cas_address
+    raw_response_stored_in_redis sanitized_request_identity_sha256
+    sanitized_request_identity_cas_address fee_artifact_sha256 fee_artifact_cas_address
+    fee_receipt_sha256 fee_receipt_payload_sha256 fee_receipt_cas_address
+    refresh_policy_artifact_cas_address refresh_policy_receipt_sha256
+    refresh_policy_receipt_payload_sha256 refresh_policy_receipt_cas_address
+    rotation_artifact_cas_address rotation_receipt_sha256 rotation_receipt_cas_address
+    taker_commission_bps maker_commission_bps rpi_commission_bps request_weight
+    shared_budget_required shared_budget_scope raw_response_stored_in_redis
+    exchange_credentials_stored read_only trainer_authority prediction_authority
+    paper_authority live_authority places_real_order order_submitted leverage_mutated
+    margin_mutated content_checksum_sha256 evidence_hmac_sha256
+    """.split()
+)
+_FEE_BROKER_VERIFICATION_CHECKS = [
+    "CANONICAL_REDIS_ENVELOPE",
+    "ENVELOPE_CONTENT_CHECKSUM",
+    "ENVELOPE_HMAC",
+    "EIGHT_IMMUTABLE_CAS_READBACKS",
+    "CAS_ENVELOPE_HASH_BINDINGS",
+    "FEE_REFRESH_ROTATION_CONTENT_BINDINGS",
+    "BROKER_SOURCE_CONSUMER_DECISION_CLOCK_ORDER",
+    "EVIDENCE_EXPIRY",
+]
 _NOTIONAL_SOURCE_TRANSPORT = "DURABLE_CAUSAL_POLICY_LEDGER"
+CAUSAL_COST_NOTIONAL_POLICY_PROVENANCE_SCHEMA_VERSION: Final = (
+    "causal_cost_expected_notional_policy_provenance_v1"
+)
+_EXPECTED_NOTIONAL_SOURCE_RECEIPT_SCHEMA_VERSION = (
+    "causal_expected_notional_atomic_source_read_receipt_v1"
+)
+_COLD_START_NOTIONAL_SOURCE_RECEIPT_SCHEMA_VERSION = (
+    "causal_adaptive_cold_start_notional_source_receipt_v1"
+)
+CAUSAL_COST_NOTIONAL_PROVENANCE_VERIFIED_STATUS: Final = (
+    "FACTORY_TOKEN_SOURCE_RECEIPT_CAS_POLICY_VERSION_AND_BOUND_OBJECTS_VERIFIED"
+)
+CAUSAL_COST_NOTIONAL_PROVENANCE_SOURCE_ONLY_STATUS: Final = (
+    "SOURCE_RECEIPT_CAS_POLICY_VERSION_AND_BOUND_OBJECTS_VERIFIED_NO_FACTORY_TOKEN"
+)
+CAUSAL_COST_NOTIONAL_PROVENANCE_NOT_SUPPLIED_STATUS: Final = (
+    "NOT_SUPPLIED_COMPATIBILITY_FACTORY_CALL_NOT_STRICT_PUBLISHER_ELIGIBLE"
+)
 _CLOCK_FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$", re.ASCII)
 _SYMBOL_RE = re.compile(r"^[A-Z0-9]{3,32}$", re.ASCII)
@@ -1266,6 +1338,219 @@ def _validate_fee_evidence(
     )
 
 
+def _validate_fee_transport_provenance(
+    *,
+    store: ImmutableSourcePayloadStore,
+    envelope_bytes: object,
+    consumer_receipt_bytes: object,
+    fee_artifact_bytes: bytes,
+    fee_raw_response_bytes: bytes,
+    fee_receipt: Mapping[str, Any],
+    symbol: str,
+    decision_iso: str,
+    decision_at: datetime,
+) -> tuple[
+    dict[str, Any] | None,
+    tuple[tuple[SourcePayloadAddress, bytes], ...],
+    str | None,
+]:
+    """Bind an optional authenticated broker transport without changing the ABI."""
+
+    if envelope_bytes is None and consumer_receipt_bytes is None:
+        return None, (), None
+    if type(envelope_bytes) is not bytes or type(consumer_receipt_bytes) is not bytes:
+        _validation("CAUSAL_COST_FEE_BROKER_TRANSPORT_PAIR_REQUIRED")
+    typed_envelope_bytes = cast(bytes, envelope_bytes)
+    typed_consumer_receipt_bytes = cast(bytes, consumer_receipt_bytes)
+    envelope = _parse_exact_json_bytes(
+        typed_envelope_bytes,
+        reason="CAUSAL_COST_FEE_BROKER_ENVELOPE_JSON_INVALID",
+    )
+    receipt = _parse_exact_json_bytes(
+        typed_consumer_receipt_bytes,
+        reason="CAUSAL_COST_FEE_BROKER_CONSUMER_RECEIPT_JSON_INVALID",
+    )
+    if frozenset(envelope) != _FEE_BROKER_ENVELOPE_FIELDS:
+        _validation("CAUSAL_COST_FEE_BROKER_ENVELOPE_FIELDS_INVALID")
+    if frozenset(receipt) != _FEE_BROKER_CONSUMER_RECEIPT_FIELDS:
+        _validation("CAUSAL_COST_FEE_BROKER_CONSUMER_RECEIPT_FIELDS_INVALID")
+
+    false_authority = {
+        "exchange_credentials_read": False,
+        "trainer_authority": False,
+        "prediction_authority": False,
+        "paper_authority": False,
+        "live_authority": False,
+    }
+    expected_envelope = {
+        "schema_version": _FEE_BROKER_SCHEMA_VERSION,
+        "producer": "v2_binance_usdm_commission_evidence_broker",
+        "source": "BINANCE_USDM_USER_DATA_GET_FAPI_V1_COMMISSION_RATE",
+        "request_method": "GET",
+        "request_path": "/fapi/v1/commissionRate",
+        "security_type": "USER_DATA",
+        "symbol": symbol,
+        "evidence_auth_algorithm": "HMAC-SHA256",
+        "request_weight": 20,
+        "shared_budget_required": True,
+        "shared_budget_scope": "host_redis",
+        "raw_response_stored_in_redis": False,
+        "exchange_credentials_stored": False,
+        "read_only": True,
+        "trainer_authority": False,
+        "prediction_authority": False,
+        "paper_authority": False,
+        "live_authority": False,
+        "places_real_order": False,
+        "order_submitted": False,
+        "leverage_mutated": False,
+        "margin_mutated": False,
+    }
+    expected_receipt = {
+        "schema_version": _FEE_BROKER_CONSUMER_RECEIPT_SCHEMA_VERSION,
+        "receipt_kind": "AUTHENTICATED_BROKER_CONSUMER_READ",
+        "broker_schema_version": _FEE_BROKER_SCHEMA_VERSION,
+        "producer": expected_envelope["producer"],
+        "source": expected_envelope["source"],
+        "request_method": "GET",
+        "request_path": "/fapi/v1/commissionRate",
+        "symbol": symbol,
+        "decision_time": decision_iso,
+        "evidence_auth_algorithm": "HMAC-SHA256",
+        "verification_checks": _FEE_BROKER_VERIFICATION_CHECKS,
+        "broker_cas_object_count": 8,
+        **false_authority,
+    }
+    if any(envelope.get(name) != value for name, value in expected_envelope.items()):
+        _validation("CAUSAL_COST_FEE_BROKER_ENVELOPE_IDENTITY_INVALID")
+    if any(receipt.get(name) != value for name, value in expected_receipt.items()):
+        _validation("CAUSAL_COST_FEE_BROKER_CONSUMER_RECEIPT_IDENTITY_INVALID")
+
+    envelope_sha256 = hashlib.sha256(typed_envelope_bytes).hexdigest()
+    consumer_receipt_sha256 = hashlib.sha256(typed_consumer_receipt_bytes).hexdigest()
+    fee_artifact_sha256 = hashlib.sha256(fee_artifact_bytes).hexdigest()
+    raw_response_sha256 = hashlib.sha256(fee_raw_response_bytes).hexdigest()
+    required_hashes = (
+        envelope.get("content_checksum_sha256"),
+        envelope.get("evidence_hmac_sha256"),
+        envelope.get("rotation_receipt_sha256"),
+        envelope.get("credential_binding_fingerprint_sha256"),
+        receipt.get("content_checksum_sha256"),
+        receipt.get("evidence_hmac_sha256"),
+        receipt.get("broker_envelope_evidence_hmac_sha256"),
+    )
+    if any(
+        type(value) is not str or _SHA256_RE.fullmatch(value) is None
+        for value in required_hashes
+    ):
+        _validation("CAUSAL_COST_FEE_BROKER_HASH_INVALID")
+    envelope_checksum_material = {
+        key: value
+        for key, value in envelope.items()
+        if key not in {"content_checksum_sha256", "evidence_hmac_sha256"}
+    }
+    receipt_checksum_material = {
+        key: value
+        for key, value in receipt.items()
+        if key not in {"content_checksum_sha256", "evidence_hmac_sha256"}
+    }
+    if (
+        envelope.get("content_checksum_sha256") != _sha256(envelope_checksum_material)
+        or receipt.get("content_checksum_sha256") != _sha256(receipt_checksum_material)
+        or receipt.get("broker_envelope_sha256") != envelope_sha256
+        or receipt.get("broker_envelope_evidence_hmac_sha256")
+        != envelope.get("evidence_hmac_sha256")
+        or receipt.get("rotation_receipt_sha256")
+        != envelope.get("rotation_receipt_sha256")
+        or receipt.get("raw_response_sha256") != raw_response_sha256
+        or envelope.get("raw_response_sha256") != raw_response_sha256
+        or receipt.get("fee_artifact_sha256") != fee_artifact_sha256
+        or envelope.get("fee_artifact_sha256") != fee_artifact_sha256
+        or receipt.get("fee_receipt_sha256") != fee_receipt.get("receipt_sha256")
+        or envelope.get("fee_receipt_sha256") != fee_receipt.get("receipt_sha256")
+        or receipt.get("credential_binding_fingerprint_sha256")
+        != envelope.get("credential_binding_fingerprint_sha256")
+        or receipt.get("evidence_auth_key_id") != envelope.get("evidence_auth_key_id")
+    ):
+        _validation("CAUSAL_COST_FEE_BROKER_TRANSPORT_BINDING_INVALID")
+
+    source_iso, source_at = _clock(
+        receipt.get("source_available_at"),
+        reason="CAUSAL_COST_FEE_BROKER_SOURCE_AVAILABLE_AT_INVALID",
+    )
+    broker_iso, broker_at = _clock(
+        receipt.get("broker_available_at"),
+        reason="CAUSAL_COST_FEE_BROKER_AVAILABLE_AT_INVALID",
+    )
+    observed_iso, observed_at = _clock(
+        receipt.get("consumer_observed_at"),
+        reason="CAUSAL_COST_FEE_BROKER_CONSUMER_OBSERVED_AT_INVALID",
+    )
+    checked_iso, checked_at = _clock(
+        receipt.get("consumer_checked_at"),
+        reason="CAUSAL_COST_FEE_BROKER_CONSUMER_CHECKED_AT_INVALID",
+    )
+    expires_iso, expires_at = _clock(
+        receipt.get("expires_at"),
+        reason="CAUSAL_COST_FEE_BROKER_EXPIRES_AT_INVALID",
+    )
+    if (
+        not source_at <= broker_at <= observed_at <= checked_at <= decision_at < expires_at
+        or envelope.get("source_available_at") != source_iso
+        or envelope.get("broker_available_at") != broker_iso
+        or envelope.get("expires_at") != expires_iso
+        or receipt.get("decision_time") != decision_iso
+    ):
+        _validation("CAUSAL_COST_FEE_BROKER_TEMPORAL_BINDING_INVALID")
+    _label(
+        receipt.get("evidence_auth_key_id"),
+        reason="CAUSAL_COST_FEE_BROKER_AUTH_KEY_ID_INVALID",
+    )
+
+    envelope_address = _put_exact(
+        store,
+        typed_envelope_bytes,
+        failure_reason="CAUSAL_COST_FEE_BROKER_ENVELOPE_CAS_FAILED",
+    )
+    receipt_address = _put_exact(
+        store,
+        typed_consumer_receipt_bytes,
+        failure_reason="CAUSAL_COST_FEE_BROKER_CONSUMER_RECEIPT_CAS_FAILED",
+    )
+    provenance = {
+        "schema_version": "causal_cost_fee_transport_provenance_v1",
+        "source_transport": _FEE_BROKER_TRANSPORT,
+        "verification_status": (
+            "BROKER_READER_VERIFIED_HMAC_EIGHT_CAS_OBJECTS_AND_PIT;"
+            "SIGNED_CONSUMER_RECEIPT_STRUCTURALLY_BOUND"
+        ),
+        "broker_envelope_sha256": envelope_sha256,
+        "broker_envelope_cas_address": _address_mapping(envelope_address),
+        "broker_envelope_evidence_hmac_sha256": envelope["evidence_hmac_sha256"],
+        "consumer_receipt_payload_sha256": consumer_receipt_sha256,
+        "consumer_receipt_cas_address": _address_mapping(receipt_address),
+        "consumer_receipt_evidence_hmac_sha256": receipt["evidence_hmac_sha256"],
+        "rotation_receipt_sha256": receipt["rotation_receipt_sha256"],
+        "source_available_at": source_iso,
+        "broker_available_at": broker_iso,
+        "consumer_observed_at": observed_iso,
+        "consumer_checked_at": checked_iso,
+        "decision_time": decision_iso,
+        "expires_at": expires_iso,
+        "evidence_auth_algorithm": "HMAC-SHA256",
+        "evidence_auth_key_id": receipt["evidence_auth_key_id"],
+        **false_authority,
+    }
+    return (
+        provenance,
+        (
+            (envelope_address, typed_envelope_bytes),
+            (receipt_address, typed_consumer_receipt_bytes),
+        ),
+        consumer_receipt_sha256,
+    )
+
+
 def _validate_notional_evidence(
     *,
     store: ImmutableSourcePayloadStore,
@@ -1397,6 +1682,497 @@ def _validate_notional_evidence(
     )
 
 
+def _bound_cas_object(
+    *,
+    store: ImmutableSourcePayloadStore,
+    address_value: object,
+    expected_sha256: object,
+    expected_byte_count: object,
+    reason: str,
+) -> tuple[SourcePayloadAddress, bytes]:
+    if (
+        type(address_value) is not dict
+        or frozenset(cast(dict[str, Any], address_value))
+        != {
+            "schema_version",
+            "payload_sha256",
+            "payload_byte_count",
+            "relative_path",
+        }
+        or type(expected_sha256) is not str
+        or _SHA256_RE.fullmatch(expected_sha256) is None
+        or type(expected_byte_count) is not int
+        or expected_byte_count <= 0
+    ):
+        _validation(reason)
+    mapping = cast(dict[str, Any], address_value)
+    expected_relative_path = (
+        f"sha256/{expected_sha256[:2]}/{expected_sha256}"
+    )
+    if (
+        mapping.get("schema_version") != SOURCE_PAYLOAD_ADDRESS_SCHEMA_VERSION
+        or mapping.get("payload_sha256") != expected_sha256
+        or mapping.get("payload_byte_count") != expected_byte_count
+        or mapping.get("relative_path") != expected_relative_path
+    ):
+        _validation(reason)
+    try:
+        payload = store.get(
+            expected_sha256,
+            expected_byte_count=expected_byte_count,
+        )
+    except SourcePayloadStoreError as exc:
+        raise CausalCostEvidenceV1IntegrityError(reason) from exc
+    if (
+        len(payload) != expected_byte_count
+        or not hmac.compare_digest(hashlib.sha256(payload).hexdigest(), expected_sha256)
+    ):
+        _integrity(reason)
+    return (
+        SourcePayloadAddress(
+            schema_version=SOURCE_PAYLOAD_ADDRESS_SCHEMA_VERSION,
+            payload_sha256=expected_sha256,
+            payload_byte_count=expected_byte_count,
+            relative_path=expected_relative_path,
+        ),
+        payload,
+    )
+
+
+def _validate_notional_policy_provenance(
+    *,
+    store: ImmutableSourcePayloadStore,
+    source_receipt_bytes: object,
+    factory_token: object,
+    notional_source: Mapping[str, Any],
+    symbol: str,
+    feature_snapshot_identity: str,
+    decision_iso: str,
+) -> tuple[
+    dict[str, Any],
+    tuple[tuple[SourcePayloadAddress, bytes], ...],
+    str | None,
+]:
+    false_authority = {
+        "trainer_authority": False,
+        "prediction_authority": False,
+        "paper_authority": False,
+        "live_authority": False,
+        "order_authority": False,
+    }
+    if source_receipt_bytes is None:
+        if factory_token is not None:
+            _validation("CAUSAL_COST_NOTIONAL_FACTORY_TOKEN_WITHOUT_SOURCE_RECEIPT")
+        return (
+            {
+                "schema_version": (
+                    CAUSAL_COST_NOTIONAL_POLICY_PROVENANCE_SCHEMA_VERSION
+                ),
+                "verification_status": (
+                    CAUSAL_COST_NOTIONAL_PROVENANCE_NOT_SUPPLIED_STATUS
+                ),
+                "source_receipt_supplied": False,
+                "factory_token_revalidated": False,
+                "strict_publisher_eligible": False,
+                "bound_source_object_count": 0,
+                "bound_source_payload_byte_count": 0,
+                **false_authority,
+            },
+            (),
+            None,
+        )
+    receipt = _parse_exact_json_bytes(
+        source_receipt_bytes,
+        reason="CAUSAL_COST_NOTIONAL_SOURCE_RECEIPT_BYTES_INVALID",
+    )
+    supplied_receipt_sha256 = receipt.get("receipt_sha256")
+    if (
+        type(supplied_receipt_sha256) is not str
+        or _SHA256_RE.fullmatch(supplied_receipt_sha256) is None
+    ):
+        _validation("CAUSAL_COST_NOTIONAL_SOURCE_RECEIPT_SELF_HASH_INVALID")
+    detached_receipt = {
+        key: value for key, value in receipt.items() if key != "receipt_sha256"
+    }
+    if not hmac.compare_digest(
+        supplied_receipt_sha256,
+        _sha256(detached_receipt),
+    ):
+        _validation("CAUSAL_COST_NOTIONAL_SOURCE_RECEIPT_SELF_HASH_INVALID")
+
+    schema_version = receipt.get("schema_version")
+    if schema_version not in {
+        _EXPECTED_NOTIONAL_SOURCE_RECEIPT_SCHEMA_VERSION,
+        _COLD_START_NOTIONAL_SOURCE_RECEIPT_SCHEMA_VERSION,
+    }:
+        _validation("CAUSAL_COST_NOTIONAL_SOURCE_RECEIPT_SCHEMA_UNSUPPORTED")
+    expected_common = {
+        "symbol": symbol,
+        "feature_snapshot_identity": feature_snapshot_identity,
+        "decision_time": decision_iso,
+        "policy_id": notional_source["policy_id"],
+        "source_generated_at": notional_source["effective_at"],
+        "available_at": notional_source["available_at"],
+        "expires_at": notional_source["expires_at"],
+        "fallback_used": False,
+        "static_default_used": False,
+        "read_only": True,
+        **false_authority,
+    }
+    if any(receipt.get(name) != value for name, value in expected_common.items()):
+        _validation("CAUSAL_COST_NOTIONAL_SOURCE_RECEIPT_IDENTITY_INVALID")
+    if receipt.get("expected_notional_usd") != notional_source["expected_notional_usd"]:
+        _validation("CAUSAL_COST_NOTIONAL_SOURCE_RECEIPT_VALUE_INVALID")
+    implementation_hash = receipt.get("implementation_contract_sha256")
+    policy_config_hash = receipt.get("policy_config_sha256")
+    policy_module_hash = receipt.get("module_code_sha256")
+    if any(
+        type(value) is not str or _SHA256_RE.fullmatch(value) is None
+        for value in (
+            implementation_hash,
+            policy_config_hash,
+            policy_module_hash,
+        )
+    ):
+        _validation("CAUSAL_COST_NOTIONAL_SOURCE_RECEIPT_CODE_BINDING_INVALID")
+
+    bound_objects: list[tuple[SourcePayloadAddress, bytes]] = []
+    bound_sources: list[dict[str, Any]] = []
+    factory_token_verified = False
+    if schema_version == _EXPECTED_NOTIONAL_SOURCE_RECEIPT_SCHEMA_VERSION:
+        from v2.backend.app.services.native_trainer import (
+            causal_expected_notional_policy_v1 as expected_policy,
+        )
+
+        if (
+            frozenset(receipt)
+            != expected_policy.CAUSAL_EXPECTED_NOTIONAL_SOURCE_RECEIPT_FIELDS
+            or receipt.get("receipt_kind") != "ATOMIC_REDIS_EXACT_READ_DERIVATION"
+            or receipt.get("source_key")
+            != expected_policy.CAUSAL_EXPECTED_NOTIONAL_SOURCE_KEY
+            or receipt.get("source_key") != notional_source["policy_source_key"]
+            or receipt.get("policy_id")
+            != expected_policy.CAUSAL_EXPECTED_NOTIONAL_POLICY_ID
+            or receipt.get("policy_source_key") is not None
+            or receipt.get("candidate_supply_status")
+            != "POSITIVE_HASH_BOUND_AGGREGATE_AVAILABLE"
+            or receipt.get("zero_candidate_handling")
+            != "FAIL_CLOSED_NO_ARTIFACT_NO_DEFAULT"
+            or receipt.get("operator_projection_used") is not False
+            or implementation_hash
+            != expected_policy.CAUSAL_EXPECTED_NOTIONAL_IMPLEMENTATION_CONTRACT_SHA256
+            or policy_config_hash
+            != expected_policy.CAUSAL_EXPECTED_NOTIONAL_POLICY_CONFIG_SHA256
+        ):
+            _validation("CAUSAL_COST_EXPECTED_NOTIONAL_SOURCE_RECEIPT_INVALID")
+        try:
+            expected_module_hash = hashlib.sha256(
+                Path(expected_policy.__file__).read_bytes()
+            ).hexdigest()
+        except OSError as exc:
+            raise CausalCostEvidenceV1IntegrityError(
+                "CAUSAL_COST_EXPECTED_NOTIONAL_MODULE_BYTES_UNAVAILABLE"
+            ) from exc
+        if policy_module_hash != expected_module_hash:
+            _validation("CAUSAL_COST_EXPECTED_NOTIONAL_MODULE_HASH_INVALID")
+        if factory_token is not None:
+            if type(factory_token) is not expected_policy.CausalExpectedNotionalPolicyTokenV1:
+                _validation("CAUSAL_COST_EXPECTED_NOTIONAL_FACTORY_TOKEN_INVALID")
+            token = cast(expected_policy.CausalExpectedNotionalPolicyTokenV1, factory_token)
+            token_contract = token.contract
+            if (
+                not hmac.compare_digest(
+                    token.source_read_receipt_bytes,
+                    cast(bytes, source_receipt_bytes),
+                )
+                or token.source_read_receipt_sha256 != supplied_receipt_sha256
+                or token.notional_artifact_address.payload_sha256
+                != notional_source["artifact_payload_sha256"]
+                or token.notional_receipt_sha256
+                != notional_source["input_receipt_sha256"]
+                or token.expected_notional_usd
+                != notional_source["expected_notional_usd"]
+                or token.policy_version != notional_source["policy_version"]
+                or token_contract["source_read_receipt"]["receipt_sha256"]
+                != supplied_receipt_sha256
+            ):
+                _validation(
+                    "CAUSAL_COST_EXPECTED_NOTIONAL_FACTORY_TOKEN_BINDING_INVALID"
+                )
+            factory_token_verified = True
+        raw_sha256 = receipt.get("raw_status_payload_sha256")
+        raw_byte_count = receipt.get("raw_status_payload_byte_count")
+        address, payload = _bound_cas_object(
+            store=store,
+            address_value=receipt.get("raw_status_cas_address"),
+            expected_sha256=raw_sha256,
+            expected_byte_count=raw_byte_count,
+            reason="CAUSAL_COST_EXPECTED_NOTIONAL_RAW_STATUS_CAS_INVALID",
+        )
+        bound_objects.append((address, payload))
+        bound_sources.append(
+            {
+                "role": "paper_candidate_status",
+                "source_key": receipt["source_key"],
+                "payload_sha256": raw_sha256,
+                "payload_byte_count": raw_byte_count,
+                "payload_cas_address": _address_mapping(address),
+            }
+        )
+        version_material = {
+            "schema_version": "causal_expected_notional_policy_version_material_v1",
+            "source_read_receipt_sha256": supplied_receipt_sha256,
+            "implementation_contract_sha256": implementation_hash,
+            "policy_config_sha256": policy_config_hash,
+            "module_code_sha256": policy_module_hash,
+        }
+    else:
+        from v2.backend.app.services.native_trainer import (
+            causal_adaptive_cold_start_notional_policy_v1 as cold_policy,
+        )
+        from v2.backend.app.services.native_trainer import (
+            causal_expected_notional_policy_v1 as expected_policy,
+        )
+
+        causal_cost_hash = receipt.get("causal_cost_module_code_sha256")
+        candidate_module_hash = receipt.get(
+            "candidate_notional_module_code_sha256"
+        )
+        if (
+            frozenset(receipt)
+            != cold_policy.CAUSAL_ADAPTIVE_COLD_START_NOTIONAL_SOURCE_RECEIPT_FIELDS
+            or receipt.get("receipt_kind")
+            != "TWO_ATOMIC_REDIS_EXACT_READ_DERIVATION"
+            or receipt.get("policy_id")
+            != cold_policy.CAUSAL_ADAPTIVE_COLD_START_NOTIONAL_POLICY_ID
+            or receipt.get("policy_source_key")
+            != cold_policy.causal_adaptive_cold_start_notional_policy_source_key_v1(
+                symbol
+            )
+            or receipt.get("candidate_supply_status")
+            != "ZERO_CANDIDATE_HASH_BOUND_COLD_START_BRANCH"
+            or receipt.get("candidate_rows_consumed") != 0
+            or receipt.get("candidate_fabricated") is not False
+            or receipt.get("leverage_assumption") is not None
+            or receipt.get("operator_projection_used") is not False
+            or implementation_hash
+            != cold_policy.CAUSAL_ADAPTIVE_COLD_START_NOTIONAL_IMPLEMENTATION_CONTRACT_SHA256
+            or policy_config_hash
+            != cold_policy.CAUSAL_ADAPTIVE_COLD_START_NOTIONAL_POLICY_CONFIG_SHA256
+            or type(causal_cost_hash) is not str
+            or _SHA256_RE.fullmatch(causal_cost_hash) is None
+            or type(candidate_module_hash) is not str
+            or _SHA256_RE.fullmatch(candidate_module_hash) is None
+        ):
+            _validation("CAUSAL_COST_COLD_START_NOTIONAL_SOURCE_RECEIPT_INVALID")
+        try:
+            expected_policy_module_hash = hashlib.sha256(
+                Path(cold_policy.__file__).read_bytes()
+            ).hexdigest()
+            expected_candidate_module_hash = hashlib.sha256(
+                Path(expected_policy.__file__).read_bytes()
+            ).hexdigest()
+        except OSError as exc:
+            raise CausalCostEvidenceV1IntegrityError(
+                "CAUSAL_COST_COLD_START_NOTIONAL_MODULE_BYTES_UNAVAILABLE"
+            ) from exc
+        if (
+            policy_module_hash != expected_policy_module_hash
+            or causal_cost_hash != _module_code_sha256()
+            or candidate_module_hash != expected_candidate_module_hash
+        ):
+            _validation("CAUSAL_COST_COLD_START_NOTIONAL_MODULE_HASH_INVALID")
+        if factory_token is not None:
+            if (
+                type(factory_token)
+                is not cold_policy.CausalAdaptiveColdStartNotionalPolicyTokenV1
+            ):
+                _validation("CAUSAL_COST_COLD_START_NOTIONAL_FACTORY_TOKEN_INVALID")
+            token = cast(
+                cold_policy.CausalAdaptiveColdStartNotionalPolicyTokenV1,
+                factory_token,
+            )
+            token_contract = token.contract
+            if (
+                not hmac.compare_digest(
+                    token.source_read_receipt_bytes,
+                    cast(bytes, source_receipt_bytes),
+                )
+                or token.source_read_receipt_sha256 != supplied_receipt_sha256
+                or token.notional_artifact_address.payload_sha256
+                != notional_source["artifact_payload_sha256"]
+                or token.notional_receipt_sha256
+                != notional_source["input_receipt_sha256"]
+                or token.expected_notional_usd
+                != notional_source["expected_notional_usd"]
+                or token.policy_version != notional_source["policy_version"]
+                or token_contract["source_read_receipt"]["receipt_sha256"]
+                != supplied_receipt_sha256
+            ):
+                _validation(
+                    "CAUSAL_COST_COLD_START_NOTIONAL_FACTORY_TOKEN_BINDING_INVALID"
+                )
+            factory_token_verified = True
+        source_bindings = receipt.get("source_bindings")
+        expected_roles_and_keys = (
+            (
+                "zero_candidate_status",
+                expected_policy.CAUSAL_EXPECTED_NOTIONAL_SOURCE_KEY,
+            ),
+            (
+                "paper_account_margin_status",
+                cold_policy.CAUSAL_ADAPTIVE_COLD_START_NOTIONAL_PORTFOLIO_SOURCE_KEY,
+            ),
+            ("orderbook_depth", f"v2:orderbook:depth:binance:{symbol}"),
+            ("orderbook_features", f"v2:orderbook:features:binance:{symbol}"),
+            ("mark_price", f"v2:market:mark_price:{symbol}"),
+        )
+        if type(source_bindings) is not list or len(source_bindings) != 5:
+            _validation("CAUSAL_COST_COLD_START_NOTIONAL_SOURCE_BINDINGS_INVALID")
+        batch_bindings: list[tuple[str, str]] = []
+        for binding_value, (expected_role, expected_key) in zip(
+            cast(list[object], source_bindings),
+            expected_roles_and_keys,
+            strict=True,
+        ):
+            if (
+                type(binding_value) is not dict
+                or frozenset(cast(dict[str, Any], binding_value))
+                != {
+                    "role",
+                    "source_key",
+                    "payload_sha256",
+                    "payload_byte_count",
+                    "payload_cas_address",
+                    "atomic_batch_id",
+                    "atomic_batch_material_sha256",
+                    "source_pttl_ms",
+                }
+            ):
+                _validation(
+                    "CAUSAL_COST_COLD_START_NOTIONAL_SOURCE_BINDING_FIELDS_INVALID"
+                )
+            binding = cast(dict[str, Any], binding_value)
+            batch_id = binding.get("atomic_batch_id")
+            batch_material_sha256 = binding.get("atomic_batch_material_sha256")
+            if (
+                binding.get("role") != expected_role
+                or binding.get("source_key") != expected_key
+                or type(batch_id) is not str
+                or not batch_id.startswith("trainer_atomic_redis_source_read_v2_")
+                or type(batch_material_sha256) is not str
+                or _SHA256_RE.fullmatch(batch_material_sha256) is None
+                or batch_id
+                != f"trainer_atomic_redis_source_read_v2_{batch_material_sha256}"
+                or type(binding.get("source_pttl_ms")) is not int
+                or binding["source_pttl_ms"] <= 0
+            ):
+                _validation(
+                    "CAUSAL_COST_COLD_START_NOTIONAL_SOURCE_BINDING_INVALID"
+                )
+            address, payload = _bound_cas_object(
+                store=store,
+                address_value=binding.get("payload_cas_address"),
+                expected_sha256=binding.get("payload_sha256"),
+                expected_byte_count=binding.get("payload_byte_count"),
+                reason="CAUSAL_COST_COLD_START_NOTIONAL_SOURCE_CAS_INVALID",
+            )
+            bound_objects.append((address, payload))
+            bound_sources.append(
+                {
+                    "role": expected_role,
+                    "source_key": expected_key,
+                    "payload_sha256": address.payload_sha256,
+                    "payload_byte_count": address.payload_byte_count,
+                    "payload_cas_address": _address_mapping(address),
+                    "atomic_batch_id": batch_id,
+                    "atomic_batch_material_sha256": batch_material_sha256,
+                }
+            )
+            batch_bindings.append((batch_id, batch_material_sha256))
+        if not (
+            batch_bindings[0] == batch_bindings[1]
+            and batch_bindings[2] == batch_bindings[3] == batch_bindings[4]
+            and batch_bindings[0] != batch_bindings[2]
+        ):
+            _validation(
+                "CAUSAL_COST_COLD_START_NOTIONAL_ATOMIC_BATCH_PARTITION_INVALID"
+            )
+        version_material = {
+            "schema_version": (
+                "causal_adaptive_cold_start_notional_version_material_v1"
+            ),
+            "source_read_receipt_sha256": supplied_receipt_sha256,
+            "implementation_contract_sha256": implementation_hash,
+            "policy_config_sha256": policy_config_hash,
+            "module_code_sha256": policy_module_hash,
+            "causal_cost_module_code_sha256": causal_cost_hash,
+            "candidate_notional_module_code_sha256": candidate_module_hash,
+        }
+
+    expected_policy_version = "sha256:" + _sha256(version_material)
+    if notional_source.get("policy_version") != expected_policy_version:
+        _validation("CAUSAL_COST_NOTIONAL_SOURCE_POLICY_VERSION_INVALID")
+    typed_source_receipt_bytes = cast(bytes, source_receipt_bytes)
+    source_receipt_address = _put_exact(
+        store,
+        typed_source_receipt_bytes,
+        failure_reason="CAUSAL_COST_NOTIONAL_SOURCE_RECEIPT_CAS_FAILED",
+    )
+    provenance = {
+        "schema_version": CAUSAL_COST_NOTIONAL_POLICY_PROVENANCE_SCHEMA_VERSION,
+        "verification_status": (
+            CAUSAL_COST_NOTIONAL_PROVENANCE_VERIFIED_STATUS
+            if factory_token_verified
+            else CAUSAL_COST_NOTIONAL_PROVENANCE_SOURCE_ONLY_STATUS
+        ),
+        "source_receipt_supplied": True,
+        "factory_token_revalidated": factory_token_verified,
+        "strict_publisher_eligible": factory_token_verified,
+        "source_receipt_schema_version": schema_version,
+        "source_receipt_sha256": supplied_receipt_sha256,
+        "source_receipt_payload_sha256": (
+            source_receipt_address.payload_sha256
+        ),
+        "source_receipt_payload_byte_count": (
+            source_receipt_address.payload_byte_count
+        ),
+        "source_receipt_cas_address": _address_mapping(source_receipt_address),
+        "policy_version_rederived": True,
+        "bound_source_object_count": len(bound_sources),
+        "bound_source_payload_byte_count": sum(
+            cast(int, item["payload_byte_count"]) for item in bound_sources
+        ),
+        "bound_sources": bound_sources,
+        **false_authority,
+    }
+    return (
+        provenance,
+        (
+            (source_receipt_address, typed_source_receipt_bytes),
+            *bound_objects,
+        ),
+        supplied_receipt_sha256,
+    )
+
+
+def _unique_exact_objects(
+    objects: Sequence[tuple[SourcePayloadAddress, bytes]],
+) -> tuple[tuple[SourcePayloadAddress, bytes], ...]:
+    unique: dict[str, tuple[SourcePayloadAddress, bytes]] = {}
+    for address, payload in objects:
+        existing = unique.get(address.payload_sha256)
+        if existing is not None:
+            existing_address, existing_payload = existing
+            if existing_address != address or not hmac.compare_digest(
+                existing_payload, payload
+            ):
+                _integrity("CAUSAL_COST_DUPLICATE_CAS_ADDRESS_MISMATCH")
+            continue
+        unique[address.payload_sha256] = (address, payload)
+    return tuple(unique.values())
+
+
 def _market_source_receipt(
     *,
     role: str,
@@ -1521,10 +2297,14 @@ def build_causal_cost_evidence_v1(
     expected_notional_usd: object,
     expected_notional_policy_artifact_bytes: object,
     expected_notional_policy_receipt: object,
+    expected_notional_policy_source_receipt_bytes: object = None,
+    expected_notional_policy_factory_token: object = None,
     symbol: object,
     feature_snapshot_identity: object,
     decision_time: object,
     counterfactual_holding_horizon_seconds: object,
+    fee_transport_envelope_bytes: object = None,
+    fee_transport_consumer_receipt_bytes: object = None,
 ) -> CausalCostEvidenceV1Result:
     """Build four audit-only float32 scalars from complete causal evidence.
 
@@ -1574,6 +2354,20 @@ def build_causal_cost_evidence_v1(
         feature_snapshot_identity=snapshot_identity,
         decision_at=decision_at,
     )
+    (
+        notional_policy_provenance,
+        notional_provenance_objects,
+        notional_source_receipt_sha256,
+    ) = _validate_notional_policy_provenance(
+        store=store,
+        source_receipt_bytes=expected_notional_policy_source_receipt_bytes,
+        factory_token=expected_notional_policy_factory_token,
+        notional_source=notional_source,
+        symbol=normalized_symbol,
+        feature_snapshot_identity=snapshot_identity,
+        decision_iso=decision_iso,
+    )
+    notional_source["policy_provenance"] = notional_policy_provenance
     fee_value, fee_source, fee_receipt, fee_objects = _validate_fee_evidence(
         store=store,
         artifact_bytes=fee_schedule_artifact_bytes,
@@ -1581,6 +2375,19 @@ def build_causal_cost_evidence_v1(
         receipt=fee_schedule_receipt,
         symbol=normalized_symbol,
         decision_at=decision_at,
+    )
+    fee_transport_provenance, fee_transport_objects, fee_transport_receipt_sha256 = (
+        _validate_fee_transport_provenance(
+            store=store,
+            envelope_bytes=fee_transport_envelope_bytes,
+            consumer_receipt_bytes=fee_transport_consumer_receipt_bytes,
+            fee_artifact_bytes=cast(bytes, fee_schedule_artifact_bytes),
+            fee_raw_response_bytes=cast(bytes, fee_schedule_raw_response_bytes),
+            fee_receipt=fee_receipt,
+            symbol=normalized_symbol,
+            decision_iso=decision_iso,
+            decision_at=decision_at,
+        )
     )
     spread_value, impact_value, orderbook_derivation = _validate_orderbook_sources(
         depth=payloads["orderbook_depth"],
@@ -1651,8 +2458,41 @@ def build_causal_cost_evidence_v1(
             AtomicRedisSourceReadBatch, atomic_capture
         ).batch_material_sha256,
         "profiled_39_record_id": None,
+        **(
+            {
+                "notional_policy_source_receipt_sha256": (
+                    notional_source_receipt_sha256
+                )
+            }
+            if notional_source_receipt_sha256 is not None
+            else {}
+        ),
+        **(
+            {
+                "fee_transport_consumer_receipt_payload_sha256": (
+                    fee_transport_receipt_sha256
+                )
+            }
+            if fee_transport_receipt_sha256 is not None
+            else {}
+        ),
     }
     module_sha256 = _module_code_sha256()
+    fee_required_child_roles = ["authoritative_fee_schedule"]
+    fee_child_bindings: tuple[dict[str, Any], ...] = (
+        {
+            "input_role": "authoritative_fee_schedule",
+            "receipt_sha256": fee_receipt["receipt_sha256"],
+        },
+    )
+    if fee_transport_receipt_sha256 is not None:
+        fee_required_child_roles.append("authenticated_fee_transport_consumer_read")
+        fee_child_bindings += (
+            {
+                "input_role": "authenticated_fee_transport_consumer_read",
+                "receipt_payload_sha256": fee_transport_receipt_sha256,
+            },
+        )
     specs = (
         (
             "fee_bps",
@@ -1660,14 +2500,9 @@ def build_causal_cost_evidence_v1(
             {
                 "component_semantics": "TAKER_FEE_BPS_PER_SIDE",
                 "formula": "RAW_TAKER_COMMISSION_RATE_TIMES_10000",
-                "required_child_roles": ["authoritative_fee_schedule"],
+                "required_child_roles": fee_required_child_roles,
             },
-            (
-                {
-                    "input_role": "authoritative_fee_schedule",
-                    "receipt_sha256": fee_receipt["receipt_sha256"],
-                },
-            ),
+            fee_child_bindings,
             {
                 "raw_taker_commission_rate": _parse_detached_response_bytes(
                     cast(bytes, fee_schedule_raw_response_bytes)
@@ -1786,13 +2621,20 @@ def build_causal_cost_evidence_v1(
         "market_sources": market_sources,
         "market_source_read_receipts": source_receipts,
         "fee_source": fee_source,
+        **(
+            {"fee_transport_provenance": fee_transport_provenance}
+            if fee_transport_provenance is not None
+            else {}
+        ),
         "notional_source": notional_source,
         "funding_settlement_contract": funding_derivation,
         "market_source_authenticity_status": (
             "RECORDER_KEY_SCHEMA_TRANSPORT_SEMANTICS_REDERIVED_NO_UPSTREAM_SIGNATURE"
         ),
         "fee_source_authenticity_status": (
-            "DETACHED_STRUCTURAL_VALIDATION_ONLY_FACTORY_SIGNED_CAPTURE_PENDING"
+            "BROKER_READER_HMAC_CAS_AND_PIT_VERIFIED_WITH_SIGNED_RECEIPT_PERSISTED"
+            if fee_transport_provenance is not None
+            else "DETACHED_STRUCTURAL_VALIDATION_ONLY_FACTORY_SIGNED_CAPTURE_PENDING"
         ),
         "no_static_fallback_or_floor": True,
         "optional_provider_dependencies": [],
@@ -1830,12 +2672,16 @@ def build_causal_cost_evidence_v1(
             tuple(receipt_value["receipt_sha256"] for receipt_value in receipts),
         ),
         _store=store,
-        _exact_objects=(
-            *market_objects,
-            *notional_objects,
-            *fee_objects,
-            *source_receipt_objects,
-            (artifact_address, artifact_bytes),
+        _exact_objects=_unique_exact_objects(
+            (
+                *market_objects,
+                *notional_objects,
+                *notional_provenance_objects,
+                *fee_objects,
+                *fee_transport_objects,
+                *source_receipt_objects,
+                (artifact_address, artifact_bytes),
+            )
         ),
         _construction_token=_CONSTRUCTION_TOKEN,
     )
@@ -1943,6 +2789,10 @@ __all__ = [
     "CAUSAL_COST_FEE_ARTIFACT_V1_SCHEMA_VERSION",
     "CAUSAL_COST_FEE_RECEIPT_V1_SCHEMA_VERSION",
     "CAUSAL_COST_NOTIONAL_ARTIFACT_V1_SCHEMA_VERSION",
+    "CAUSAL_COST_NOTIONAL_POLICY_PROVENANCE_SCHEMA_VERSION",
+    "CAUSAL_COST_NOTIONAL_PROVENANCE_NOT_SUPPLIED_STATUS",
+    "CAUSAL_COST_NOTIONAL_PROVENANCE_SOURCE_ONLY_STATUS",
+    "CAUSAL_COST_NOTIONAL_PROVENANCE_VERIFIED_STATUS",
     "CAUSAL_COST_NOTIONAL_RECEIPT_V1_SCHEMA_VERSION",
     "CAUSAL_COST_ORDERED_FEATURE_NAMES",
     "CAUSAL_COST_SOURCE_RECEIPT_V1_SCHEMA_VERSION",

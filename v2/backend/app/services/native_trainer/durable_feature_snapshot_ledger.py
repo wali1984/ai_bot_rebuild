@@ -2994,6 +2994,67 @@ class DurableFeatureSnapshotLedger:
             if acquired_here:
                 held.release()
 
+    @contextmanager
+    def resident_wal_sidecar_guard(
+        self,
+        *,
+        writer_lease: FeatureSnapshotWriterLease | None = None,
+    ) -> Iterator[None]:
+        """Keep WAL coordination files materialized under writer ownership.
+
+        SQLite may remove ``-wal``/``-shm`` after the last connection closes.
+        A read-only observer must not recreate those files, so the resident
+        writer keeps one transaction-free coordination connection open between
+        append cycles.  Requiring the exact continuously held writer lease
+        prevents a consumer from using this method to acquire write-side
+        filesystem authority.
+        """
+
+        held = writer_lease if writer_lease is not None else self._writer_lease
+        if held is None:
+            raise FeatureSnapshotWriterLeaseError(
+                "resident_wal_sidecar_guard_writer_lease_required"
+            )
+        FeatureSnapshotWriterLease.require_exact(held, self.path)
+        self._ensure_initialized(writer_lease=held)
+        connection: _StorageGuardedSQLiteConnection | None = None
+        try:
+            connection = self._connect_write(writer_lease=held)
+            self._validate_schema(connection)
+            connection.execute("PRAGMA query_only=ON")
+            FeatureSnapshotWriterLease.require_exact(held, self.path)
+            if (
+                int(connection.execute("PRAGMA query_only").fetchone()[0]) != 1
+                or str(connection.execute("PRAGMA journal_mode").fetchone()[0]).lower()
+                != "wal"
+                or connection.in_transaction
+            ):
+                raise FeatureSnapshotLedgerError(
+                    "resident_wal_sidecar_guard_readonly_state_invalid"
+                )
+            if _observed_wal_sidecar_roles(self.path) != frozenset({"wal", "shm"}):
+                raise FeatureSnapshotLedgerError(
+                    "resident_wal_sidecar_guard_materialization_failed"
+                )
+            yield
+            FeatureSnapshotWriterLease.require_exact(held, self.path)
+            if (
+                int(connection.execute("PRAGMA query_only").fetchone()[0]) != 1
+                or str(connection.execute("PRAGMA journal_mode").fetchone()[0]).lower()
+                != "wal"
+                or connection.in_transaction
+            ):
+                raise FeatureSnapshotLedgerError(
+                    "resident_wal_sidecar_guard_readonly_state_invalid"
+                )
+            if _observed_wal_sidecar_roles(self.path) != frozenset({"wal", "shm"}):
+                raise FeatureSnapshotLedgerError(
+                    "resident_wal_sidecar_guard_lost"
+                )
+        finally:
+            if connection is not None:
+                connection.close()
+
     @staticmethod
     def _configure_connection(connection: sqlite3.Connection) -> None:
         connection.row_factory = sqlite3.Row

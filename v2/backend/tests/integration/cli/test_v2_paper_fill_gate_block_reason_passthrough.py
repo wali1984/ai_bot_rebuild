@@ -22,6 +22,8 @@ class FakeRedis:
         self.store: dict[str, str] = {
             "v2:live_gate:state": json.dumps({"live_gate": "blocked_human_only"})
         }
+        self.pipeline_transaction_flags: list[bool] = []
+        self.pipeline_execute_count = 0
 
     def ping(self) -> bool:
         return True
@@ -33,6 +35,10 @@ class FakeRedis:
         # ex (ttl) is ignored in the in-memory fake.
         self.store[key] = value
         return True
+
+    def pipeline(self, transaction: bool = True):
+        self.pipeline_transaction_flags.append(transaction)
+        return _FakeRedisPipeline(self)
 
     def scan_iter(self, match: str | None = None, count: int = 500):  # noqa: ARG002
         if match is None:
@@ -57,6 +63,22 @@ class FakeRedis:
 
     def ttl(self, key: str) -> int:  # noqa: ARG002
         return 300
+
+
+class _FakeRedisPipeline:
+    def __init__(self, redis_client: FakeRedis) -> None:
+        self.redis_client = redis_client
+        self.pending: list[tuple[str, str, int | None]] = []
+
+    def set(self, key: str, value: str, ex: int | None = None):
+        self.pending.append((key, value, ex))
+        return self
+
+    def execute(self) -> list[bool]:
+        self.redis_client.pipeline_execute_count += 1
+        for key, value, ex in self.pending:
+            self.redis_client.set(key, value, ex=ex)
+        return [True] * len(self.pending)
 
 
 def _patch_connect(monkeypatch, module_path: str, fake: FakeRedis) -> None:
@@ -525,6 +547,49 @@ def test_paper_loop_reads_per_symbol_paper_signal_keys(monkeypatch) -> None:
     assert ledger["accepted"][0]["places_real_order"] is False
     assert status["places_real_order"] is False
     assert status["writes_legacy_redis"] is False
+
+
+def test_paper_loop_atomically_publishes_zero_candidate_margin_control_bundle(
+    monkeypatch,
+) -> None:
+    fake = FakeRedis()
+    fake.store["v2:signals:paper"] = json.dumps([])
+    fake.store["v2:portfolio:state"] = json.dumps(
+        {
+            "equity": 10_000.0,
+            "wallet_balance": 10_000.0,
+            "cash_balance": 10_000.0,
+        }
+    )
+    _patch_connect(monkeypatch, "v2.backend.app.cli.v2_trade_management_paper_loop", fake)
+    paper = importlib.import_module("v2.backend.app.cli.v2_trade_management_paper_loop")
+    monkeypatch.setattr(paper, "_read_lifecycle_state_file", lambda path=None: {})
+    monkeypatch.setattr(paper, "_read_accepted_fill_state_file", lambda path=None: {})
+    monkeypatch.setattr(paper, "_read_continuous_edge_guardian_gate", lambda r: {})
+
+    status = paper.run_once()
+
+    assert status["paper_signals_seen"] == 0
+    assert status["intents_accepted"] == 0
+    ledger = json.loads(fake.store["v2:paper:ledger"])
+    margin_status = json.loads(fake.store["v2:paper:account_margin_status"])
+    sizing_status = json.loads(
+        fake.store["v2:paper:adaptive_sizing_runtime_status"]
+    )
+    assert margin_status == ledger["paper_account_margin_status"]
+    assert ledger["paper_margin_reservation_status"]["invariant_holds"] is True
+    assert sizing_status["candidate_allocation_count"] == 0
+    assert sizing_status["candidate_allocations_complete"] is False
+    assert sizing_status["candidate_allocations_canonical_aggregate_contract"][
+        "source_row_count"
+    ] == 0
+    assert margin_status["status"] == "PASS"
+    assert margin_status["cycle_reserved_candidate_count"] == 0
+    assert margin_status["generated_utc"] == sizing_status["generated_utc"]
+    assert margin_status["paper_cycle_id"] == sizing_status["paper_cycle_id"]
+    assert margin_status["paper_cycle_id"].startswith("paper_cycle:")
+    assert fake.pipeline_transaction_flags == [True]
+    assert fake.pipeline_execute_count == 1
 
 
 def test_paper_loop_skips_stale_per_symbol_paper_signal_keys() -> None:

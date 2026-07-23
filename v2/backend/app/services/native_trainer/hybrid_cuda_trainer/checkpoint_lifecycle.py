@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+import fcntl
 import math
-from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+import os
+import stat
+import threading
+from collections.abc import Callable, Iterator, Mapping
+from contextlib import contextmanager
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Final
 
 from .checkpoint import V2HybridCheckpointManager
 from .training_state import PPOConsumptionLedger, candidate_progress_decision
@@ -14,6 +19,26 @@ from .training_state import PPOConsumptionLedger, candidate_progress_decision
 NON_SERVING_CANDIDATE_LINEAGE = "NON_SERVING_TRAINING_CANDIDATE"
 REJECTED_ATTEMPT_LINEAGE = "REJECTED_TRAINING_ATTEMPT"
 VERIFIED_SERVING_LINEAGE = "VERIFIED_SERVING_POLICY"
+CHECKPOINT_LIFECYCLE_LEASE_SCHEMA_VERSION: Final = (
+    "v2_checkpoint_causal_root_lifecycle_lease_v1"
+)
+LOCAL_PROFILED_RESEARCH_TRAINER_LEASE_OWNER_ROLE: Final = (
+    "LOCAL_PROFILED_RESEARCH_TRAINER"
+)
+CHECKPOINT_LIFECYCLE_LEASE_OWNER_ROLES: Final = frozenset(
+    {
+        "NORMAL_HYBRID_TRAINER",
+        "AUTHENTICATED_PROFILED_TRAINER",
+        LOCAL_PROFILED_RESEARCH_TRAINER_LEASE_OWNER_ROLE,
+    }
+)
+_CHECKPOINT_LIFECYCLE_LOCK_NAME: Final = ".checkpoint_lifecycle.lock"
+_CHECKPOINT_LIFECYCLE_RECEIPT_TOKEN = object()
+_ACTIVE_CHECKPOINT_LIFECYCLE_LEASES_LOCK = threading.Lock()
+_ACTIVE_CHECKPOINT_LIFECYCLE_LEASES: dict[
+    int,
+    CheckpointLifecycleLeaseReceipt,
+] = {}
 
 OPTIMIZER_ANOMALY_COUNTER_FIELDS = (
     "non_finite_feature_count",
@@ -105,6 +130,129 @@ class TrainerCheckpointStores:
     candidate: V2HybridCheckpointManager
     rejected_attempt: V2HybridCheckpointManager
     ledger: PPOConsumptionLedger
+
+
+@dataclass(frozen=True, slots=True)
+class CheckpointLifecycleLeaseReceipt:
+    schema_version: str
+    causal_root: str
+    lock_path: str
+    owner_role: str
+    owner_pid: int
+    lifecycle_lease_acquired: bool
+    checkpoint_write_authorized: bool
+    serving_authorized: bool
+    trading_authorized: bool
+    _owner_thread_id: int = field(repr=False, compare=False)
+    _construction_token: object = field(repr=False, compare=False)
+
+
+class CheckpointLifecycleLeaseBusy(RuntimeError):
+    """Another process owns the complete checkpoint lifecycle."""
+
+
+def require_active_checkpoint_lifecycle_lease(
+    receipt: CheckpointLifecycleLeaseReceipt,
+    *,
+    model_dir: Path,
+    owner_role: str,
+) -> None:
+    """Require an unexpired lease capability for this process, thread, and root."""
+
+    if type(receipt) is not CheckpointLifecycleLeaseReceipt:
+        raise TypeError("checkpoint_lifecycle_lease_receipt_exact_type_required")
+    if not isinstance(model_dir, Path):
+        raise TypeError("checkpoint_lifecycle_model_dir_path_required")
+    if owner_role not in CHECKPOINT_LIFECYCLE_LEASE_OWNER_ROLES:
+        raise ValueError("checkpoint_lifecycle_owner_role_invalid")
+    manager = V2HybridCheckpointManager(model_dir)
+    manager._validate_model_dir()  # noqa: SLF001
+    expected_causal_root = str(manager._causal_root.resolve())  # noqa: SLF001
+    with _ACTIVE_CHECKPOINT_LIFECYCLE_LEASES_LOCK:
+        active = _ACTIVE_CHECKPOINT_LIFECYCLE_LEASES.get(id(receipt))
+    if (
+        active is not receipt
+        or receipt._construction_token is not _CHECKPOINT_LIFECYCLE_RECEIPT_TOKEN
+        or receipt.schema_version != CHECKPOINT_LIFECYCLE_LEASE_SCHEMA_VERSION
+        or receipt.causal_root != expected_causal_root
+        or receipt.owner_role != owner_role
+        or receipt.owner_pid != os.getpid()
+        or receipt._owner_thread_id != threading.get_ident()
+        or receipt.lifecycle_lease_acquired is not True
+        or receipt.checkpoint_write_authorized is not False
+        or receipt.serving_authorized is not False
+        or receipt.trading_authorized is not False
+    ):
+        raise RuntimeError("checkpoint_lifecycle_lease_not_active_for_caller")
+
+
+@contextmanager
+def checkpoint_lifecycle_lease(
+    model_dir: Path,
+    *,
+    owner_role: str,
+    blocking: bool = True,
+) -> Iterator[CheckpointLifecycleLeaseReceipt]:
+    """Serialize base selection, optimization, and publication by causal root."""
+
+    if not isinstance(model_dir, Path):
+        raise TypeError("checkpoint_lifecycle_model_dir_path_required")
+    if owner_role not in CHECKPOINT_LIFECYCLE_LEASE_OWNER_ROLES:
+        raise ValueError("checkpoint_lifecycle_owner_role_invalid")
+    if type(blocking) is not bool:
+        raise TypeError("checkpoint_lifecycle_blocking_exact_bool_required")
+    manager = V2HybridCheckpointManager(model_dir)
+    manager._validate_model_dir()  # noqa: SLF001
+    causal_root = manager._causal_root.resolve()  # noqa: SLF001
+    causal_root.mkdir(parents=True, exist_ok=True)
+    lock_path = causal_root / _CHECKPOINT_LIFECYCLE_LOCK_NAME
+    flags = os.O_RDWR | os.O_CREAT | os.O_CLOEXEC | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(lock_path, flags, 0o600)
+    except OSError as exc:
+        raise RuntimeError("checkpoint_lifecycle_lock_open_failed") from exc
+    acquired = False
+    try:
+        metadata = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(metadata.st_mode)
+            or metadata.st_nlink != 1
+            or metadata.st_uid != os.geteuid()
+        ):
+            raise RuntimeError("checkpoint_lifecycle_lock_identity_invalid")
+        os.fchmod(descriptor, 0o600)
+        operation = fcntl.LOCK_EX | (0 if blocking else fcntl.LOCK_NB)
+        try:
+            fcntl.flock(descriptor, operation)
+        except BlockingIOError as exc:
+            raise CheckpointLifecycleLeaseBusy(
+                "checkpoint_lifecycle_lease_busy"
+            ) from exc
+        acquired = True
+        receipt = CheckpointLifecycleLeaseReceipt(
+            schema_version=CHECKPOINT_LIFECYCLE_LEASE_SCHEMA_VERSION,
+            causal_root=str(causal_root),
+            lock_path=str(lock_path),
+            owner_role=owner_role,
+            owner_pid=os.getpid(),
+            lifecycle_lease_acquired=True,
+            checkpoint_write_authorized=False,
+            serving_authorized=False,
+            trading_authorized=False,
+            _owner_thread_id=threading.get_ident(),
+            _construction_token=_CHECKPOINT_LIFECYCLE_RECEIPT_TOKEN,
+        )
+        with _ACTIVE_CHECKPOINT_LIFECYCLE_LEASES_LOCK:
+            _ACTIVE_CHECKPOINT_LIFECYCLE_LEASES[id(receipt)] = receipt
+        try:
+            yield receipt
+        finally:
+            with _ACTIVE_CHECKPOINT_LIFECYCLE_LEASES_LOCK:
+                _ACTIVE_CHECKPOINT_LIFECYCLE_LEASES.pop(id(receipt), None)
+    finally:
+        if acquired:
+            fcntl.flock(descriptor, fcntl.LOCK_UN)
+        os.close(descriptor)
 
 
 def checkpoint_stores(model_dir: Path) -> TrainerCheckpointStores:

@@ -10,6 +10,7 @@ from typing import Any
 
 import pytest
 
+from v2.backend.app.cli import v2_binance_mark_price_wss_seeder as mark_price_seeder
 from v2.backend.app.services.native_trainer.atomic_redis_source_reader import (
     read_atomic_redis_sources,
 )
@@ -417,6 +418,38 @@ def test_builds_four_exact_receipts_without_downstream_authority(
         "trainer_admission_authorized": False,
     }
     assert contract["optional_provider_dependencies"] == []
+    provenance = contract["notional_source"]["policy_provenance"]
+    assert provenance["source_receipt_supplied"] is False
+    assert provenance["factory_token_revalidated"] is False
+    assert provenance["strict_publisher_eligible"] is False
+
+
+def test_wss_seeder_payload_satisfies_causal_mark_clock_contract(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payloads = _market_payloads(monkeypatch)
+    mark = mark_price_seeder._normalize_row(  # noqa: SLF001
+        {
+            "s": _SYMBOL,
+            "p": "100.05",
+            "i": "100.04",
+            "r": "0.0001",
+            "T": 1_784_635_801_000,
+            "E": int(datetime(2026, 7, 21, 12, 0, tzinfo=UTC).timestamp() * 1000),
+        },
+        available_at="2026-07-21T12:00:00.100Z",
+    )
+    assert mark is not None
+    payloads["mark"] = mark
+
+    result = build_causal_cost_evidence_v1(
+        **_inputs(tmp_path, monkeypatch, payloads=payloads)
+    )
+
+    assert result.ordered_values[3] == pytest.approx(1.0)
+    assert mark["event_time"] <= mark["received_at"]
+    assert mark["received_at"] == mark["available_at"] == mark["generated_at"]
 
 
 def test_rejects_caller_spread_and_impact_scalar_substitution(

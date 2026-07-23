@@ -508,6 +508,41 @@ def test_fresh_read_succeeds_after_original_p0b_cas_is_deleted(tmp_path: Path) -
     assert fresh_entries[0].entry_sha256 == appended.entry.entry_sha256
 
 
+def test_shared_reader_opens_existing_lock_read_only_and_takes_shared_flock(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    capture, recorded_at = _build_capture(tmp_path / "capture")
+    ledger = TrainerSourceProvenanceLedgerV4(tmp_path / "ledger-v4")
+    appended = _append(ledger, capture, recorded_at)
+    real_open = ledger_module.os.open
+    real_flock = ledger_module.fcntl.flock
+    lock_open_flags: list[int] = []
+    lock_operations: list[int] = []
+
+    def guarded_open(path: Any, flags: int, *args: Any, **kwargs: Any) -> int:
+        if path == ledger_module.TRAINER_SOURCE_PROVENANCE_LEDGER_V4_LOCK_FILENAME:
+            lock_open_flags.append(flags)
+            assert flags & os.O_ACCMODE == os.O_RDONLY
+            assert flags & os.O_CREAT == 0
+        return real_open(path, flags, *args, **kwargs)
+
+    def observed_flock(descriptor: int, operation: int) -> Any:
+        lock_operations.append(operation)
+        return real_flock(descriptor, operation)
+
+    monkeypatch.setattr(ledger_module.os, "open", guarded_open)
+    monkeypatch.setattr(ledger_module.fcntl, "flock", observed_flock)
+
+    entries = TrainerSourceProvenanceLedgerV4(
+        ledger.root
+    ).read_entries_read_only()
+
+    assert entries == (appended.entry,)
+    assert len(lock_open_flags) == 1
+    assert lock_operations == [ledger_module.fcntl.LOCK_SH, ledger_module.fcntl.LOCK_UN]
+
+
 def test_missing_ledger_owned_full_source_cas_fails_closed(tmp_path: Path) -> None:
     capture, recorded_at = _build_capture(tmp_path / "capture")
     ledger = TrainerSourceProvenanceLedgerV4(tmp_path / "ledger-v4")

@@ -2545,6 +2545,62 @@ class TrainerSourceProvenanceLedgerV4:
                 os.close(descriptor)
                 root.close()
 
+    @contextmanager
+    def _shared_read_lock(self) -> Iterator[_VerifiedRootChain]:
+        """Hold the existing writer lock read-only for a coherent snapshot.
+
+        The strict trainer observer is filesystem-read-only.  It must still
+        serialize with ``append_atomic_capture()``, but it must never create or
+        open the lock for write merely to verify committed provenance.  The
+        writer creates the owner-only lock before any committed ledger can
+        exist; absence therefore fails closed rather than being repaired by a
+        reader.
+        """
+
+        root = _open_verified_root(self.root, create_final=False)
+        try:
+            self._pin_root_identity(root)
+        except BaseException:
+            root.close()
+            raise
+        flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0)
+        flags |= getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
+        try:
+            descriptor = os.open(
+                TRAINER_SOURCE_PROVENANCE_LEDGER_V4_LOCK_FILENAME,
+                flags,
+                dir_fd=root.final_fd,
+            )
+        except OSError as exc:
+            root.close()
+            _durability_error("source_provenance_v4_read_lock_open_failed", cause=exc)
+        try:
+            _validate_regular_file(
+                root.final_fd,
+                TRAINER_SOURCE_PROVENANCE_LEDGER_V4_LOCK_FILENAME,
+                descriptor,
+                reason="source_provenance_v4_read_lock_identity_invalid",
+            )
+            try:
+                fcntl.flock(descriptor, fcntl.LOCK_SH)
+            except OSError as exc:
+                _durability_error("source_provenance_v4_read_lock_acquire_failed", cause=exc)
+            root.verify()
+            _validate_regular_file(
+                root.final_fd,
+                TRAINER_SOURCE_PROVENANCE_LEDGER_V4_LOCK_FILENAME,
+                descriptor,
+                reason="source_provenance_v4_read_lock_changed",
+            )
+            yield root
+            root.verify()
+        finally:
+            try:
+                fcntl.flock(descriptor, fcntl.LOCK_UN)
+            finally:
+                os.close(descriptor)
+                root.close()
+
     def append_atomic_capture(
         self,
         capture: CanonicalOhlcvAtomicReceiptCapture,
@@ -2738,6 +2794,20 @@ class TrainerSourceProvenanceLedgerV4:
         """Read only a completely committed, fully chained v4 ledger."""
 
         with self._exclusive_lock() as root:
+            store = self._open_owned_store(root)
+            state = _load_state(
+                root,
+                store,
+                expected_store_root=self.store_root,
+            )
+            if state.pending_record is not None:
+                _integrity_error("source_provenance_v4_uncommitted_tail_present")
+            return tuple(_artifact(record) for record in state.records)
+
+    def read_entries_read_only(self) -> tuple[TrainerSourceProvenanceLedgerEntryV4, ...]:
+        """Verify one committed snapshot without any filesystem write access."""
+
+        with self._shared_read_lock() as root:
             store = self._open_owned_store(root)
             state = _load_state(
                 root,

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import stat
 from contextlib import contextmanager
 from pathlib import Path
@@ -129,6 +130,54 @@ def test_exact_systemd_binding_ignores_generic_environment_and_hides_secrets(
     assert "forbidden-generic" not in rendered
 
 
+def test_optional_loader_returns_complete_bundle_without_weakening_validation(
+    tmp_path: Path,
+) -> None:
+    _write_runtime_credentials(tmp_path)
+
+    loaded = (
+        credentials.load_profiled_base_publisher_runtime_credentials_if_available(
+            environ=_runtime_environment(tmp_path)
+        )
+    )
+
+    assert loaded is not None
+    assert loaded.commission_binding.api_key == API_KEY
+    assert loaded.commission_binding.api_secret == API_SECRET
+    assert loaded.fingerprint_hmac_key == FINGERPRINT_HMAC.encode()
+
+
+def test_optional_loader_accepts_only_absent_final_systemd_directory(
+    tmp_path: Path,
+) -> None:
+    tmp_path.rmdir()
+
+    loaded = (
+        credentials.load_profiled_base_publisher_runtime_credentials_if_available(
+            environ=_runtime_environment(tmp_path)
+        )
+    )
+
+    assert loaded is None
+
+
+def test_optional_loader_rejects_partial_existing_bundle(tmp_path: Path) -> None:
+    _write_credential(
+        tmp_path,
+        credentials.API_KEY_SYSTEMD_CREDENTIAL,
+        API_KEY,
+    )
+    tmp_path.chmod(0o500)
+
+    with pytest.raises(
+        credentials.ProfiledBasePublisherCredentialError,
+        match="PROFILED_BASE_PUBLISHER_SYSTEMD_CREDENTIAL_UNAVAILABLE_.*API_SECRET",
+    ):
+        credentials.load_profiled_base_publisher_runtime_credentials_if_available(
+            environ=_runtime_environment(tmp_path)
+        )
+
+
 def test_production_credentials_directory_is_fixed_to_exact_user_unit_path() -> None:
     assert _production_expected_credentials_directory() == Path(
         f"/run/user/{os.geteuid()}/credentials/"
@@ -158,7 +207,7 @@ def test_arbitrary_compatible_directory_fails_exact_path_binding_before_open(
         credentials.ProfiledBasePublisherCredentialError,
         match="PROFILED_BASE_PUBLISHER_SYSTEMD_CREDENTIALS_DIRECTORY_BINDING_INVALID",
     ):
-        credentials.load_profiled_base_publisher_runtime_credentials(
+        credentials.load_profiled_base_publisher_runtime_credentials_if_available(
             environ=_runtime_environment(tmp_path)
         )
     assert open_called is False
@@ -455,7 +504,7 @@ def test_invalid_or_reused_secret_fails_closed_without_rendering_value(
     _write_credential(tmp_path, credential_name, value)
 
     with pytest.raises(credentials.ProfiledBasePublisherCredentialError, match=expected) as exc:
-        credentials.load_profiled_base_publisher_runtime_credentials(
+        credentials.load_profiled_base_publisher_runtime_credentials_if_available(
             environ=_runtime_environment(tmp_path)
         )
     assert value not in str(exc.value)
@@ -523,40 +572,48 @@ def test_cli_injects_protected_binding_and_never_uses_secret_argv_or_output(
     )
 
 
-def test_cli_missing_protected_bundle_exits_config_without_contacting_redis(
+def test_cli_absent_imported_bundle_runs_masked_without_commission_factory(
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     monkeypatch.setenv(credentials.TRADER_ID_ENV, credentials.EXPECTED_TRADER_ID)
     monkeypatch.setenv(credentials.CREDENTIAL_REF_ENV, credentials.EXPECTED_CREDENTIAL_REF)
-    monkeypatch.delenv(credentials.SYSTEMD_CREDENTIALS_DIRECTORY_ENV, raising=False)
-    redis_called = False
+    monkeypatch.setenv(credentials.SYSTEMD_CREDENTIALS_DIRECTORY_ENV, str(tmp_path))
+    tmp_path.rmdir()
+    redis_client = object()
+    monkeypatch.setattr(cli, "_raw_redis_client", lambda _url: redis_client)
+    observed: dict[str, Any] = {}
 
-    def forbidden_redis(_url: str) -> object:
-        nonlocal redis_called
-        redis_called = True
-        raise AssertionError("Redis must not be contacted without protected credentials")
+    class FakePublisher:
+        def __init__(self, **kwargs: Any) -> None:
+            observed.update(kwargs)
+            self.status_path = Path("profiled-masked-status.json").absolute()
 
-    monkeypatch.setattr(cli, "_raw_redis_client", forbidden_redis)
+        def run_cycle(self) -> dict[str, Any]:
+            return {
+                "classification": "CYCLE_COMPLETE_MASKED_COST_OBSERVATIONS",
+                "commission_cost_mode": cli.MASKED_COST_OBSERVATION_MODE,
+                "commission_credentials_available": False,
+                "masked_cost_observation_symbol_count": 1,
+                "masked_cost_observation_replay_symbol_count": 0,
+                "authority_semantics": {
+                    "published_child_trainer_admission_authorized": False,
+                },
+            }
 
-    assert cli.main(["--once"]) == 78
-    error = json.loads(capsys.readouterr().err)
-    assert redis_called is False
-    assert error["classification"] == "FAIL_CLOSED"
-    assert error["reasons"] == [
-        "PROFILED_BASE_PUBLISHER_SYSTEMD_CREDENTIALS_DIRECTORY_INVALID"
-    ]
-    assert error["publisher_runtime_authority_granted"] is False
-    assert error["automatic_trainer_transition_authorized"] is False
-    assert error["credential_ref_read_only_assertion"] is True
-    assert (
-        error["credential_ref_read_only_assertion_semantics"]
-        == "OPERATOR_PROVISIONING_LABEL_NOT_BINANCE_PERMISSION_PROOF"
-    )
-    assert error["exchange_key_permissions_proven_by_connector"] is False
-    assert error["prediction_authorized"] is False
-    assert error["paper_trading_authorized"] is False
-    assert error["live_execution_authorized"] is False
+    monkeypatch.setattr(cli, "ProfiledBaseFeaturePublisherV1", FakePublisher)
+    monkeypatch.setattr(cli, "_STOP", False)
+
+    assert cli.main(["--once"]) == 0
+    summary = json.loads(capsys.readouterr().out)
+    assert observed["redis_client"] is redis_client
+    assert observed["commission_cost_mode"] == cli.MASKED_COST_OBSERVATION_MODE
+    assert "commission_capture_function" not in observed
+    assert "commission_fingerprint_hmac_key" not in observed
+    assert summary["commission_credentials_available"] is False
+    assert summary["published_child_trainer_admission_authorized"] is False
+    assert summary["masked_cost_observation_symbol_count"] == 1
 
 
 def test_tracked_unit_is_protected_bounded_and_has_no_auto_transition() -> None:
@@ -570,24 +627,45 @@ def test_tracked_unit_is_protected_bounded_and_has_no_auto_transition() -> None:
     assert "BINANCE_API_KEY=" not in unit
     assert "BINANCE_API_SECRET=" not in unit
     assert "PROFILED_BASE_COMMISSION_FINGERPRINT_HMAC_SECRET=" not in unit
-    assert "BINANCE_REST_FALLBACK_ALLOWED=true" in unit
+    assert "BINANCE_REST_FALLBACK_ALLOWED=true" not in unit
     assert f"ALPHAFORGE_INITIAL_TRADER_ID={credentials.EXPECTED_TRADER_ID}" in unit
     assert (
         f"ALPHAFORGE_INITIAL_TRADER_BINANCE_CREDENTIAL_REF="
         f"{credentials.EXPECTED_CREDENTIAL_REF}" in unit
     )
-    assert f"LoadCredentialEncrypted={credentials.API_KEY_SYSTEMD_CREDENTIAL}:" in unit
-    assert f"LoadCredentialEncrypted={credentials.API_SECRET_SYSTEMD_CREDENTIAL}:" in unit
+    for forbidden_name in (
+        credentials.API_KEY_SYSTEMD_CREDENTIAL,
+        credentials.API_SECRET_SYSTEMD_CREDENTIAL,
+        credentials.FINGERPRINT_HMAC_SYSTEMD_CREDENTIAL,
+    ):
+        assert forbidden_name not in unit
+    assert "ImportCredential=" not in unit
+    assert unit.count("LoadCredential=") == 1
     assert (
-        f"LoadCredentialEncrypted={credentials.FINGERPRINT_HMAC_SYSTEMD_CREDENTIAL}:" in unit
+        "LoadCredential=binance_bracket_evidence_hmac_key:"
+        "%h/.config/ai-bot-v2/credentials/binance-bracket-evidence/evidence-hmac.cred"
+        in unit
     )
-    assert unit.count("LoadCredentialEncrypted=") == 3
-    assert unit.count("ConditionPathExists=") == 3
+    assert (
+        "PROFILED_BASE_COMMISSION_BROKER_DATA_ROOT=/home/wali/ai_bot_local_data/"
+        "v2_authenticated_evidence/binance_usdm_commission_broker_v1" in unit
+    )
+    assert (
+        "ReadOnlyPaths=/home/wali/ai_bot_local_data/v2_authenticated_evidence/"
+        "binance_usdm_commission_broker_v1" in unit
+    )
+    assert "BINANCE_USDM_REST_BASE_URL=https://fapi.binance.com" in unit
+    assert "BINANCE_BRACKET_EVIDENCE_HMAC_KEY_ID=binance-bracket-evidence-v1" in unit
+    assert (
+        "Wants=network-online.target "
+        "ai-bot-v2-binance-usdm-commission-evidence-broker.service" in unit
+    )
     assert unit.count("ExecStart=") == 1
     assert "Type=simple" in unit
     assert "Restart=on-failure" in unit
     assert "RestartPreventExitStatus=2 78" in unit
     assert "StartLimitBurst=3" in unit
+    assert "MemoryHigh=3G" in unit
     assert "MemoryMax=4G" in unit
     assert "CPUQuota=200%" in unit
     assert "ProtectSystem=strict" in unit
@@ -615,13 +693,41 @@ def test_documented_credential_contract_matches_unit_names() -> None:
         / "claude_worklog/systemd/user/ai-bot-v2-profiled-base-feature-publisher.credentials.md"
     ).read_text(encoding="utf-8")
 
-    for name in (
+    for forbidden_name in (
         credentials.API_KEY_SYSTEMD_CREDENTIAL,
         credentials.API_SECRET_SYSTEMD_CREDENTIAL,
         credentials.FINGERPRINT_HMAC_SYSTEMD_CREDENTIAL,
     ):
-        assert name in contract
+        assert forbidden_name not in contract
+    assert "binance_bracket_evidence_hmac_key" in contract
     assert "at least 32 UTF-8 bytes" in contract
     assert "GET /fapi/v1/commissionRate" in contract
     assert "host-shared Redis budget" in contract
-    assert "no trainer-process transition" in contract
+    assert "no automatic downstream" in contract
+    assert "no trainer admission" in contract
+    assert "[1,1,1,1]" in contract
+    assert "ImportCredential=" in contract
+    assert "publisher unit contains zero" in contract
+    assert "API-key, API-secret, commission-fingerprint-key" in contract
+
+
+def test_publisher_immutable_dropin_uses_one_release_and_read_only_broker_root() -> None:
+    repo_root = Path(__file__).resolve().parents[6]
+    dropin = (
+        repo_root
+        / "claude_worklog/systemd/user/"
+        "ai-bot-v2-profiled-base-feature-publisher.service.d/"
+        "90-immutable-release.conf"
+    ).read_text(encoding="utf-8")
+    release_shas = set(
+        re.findall(r"deployments/ai_bot_rebuild/([0-9a-f]{40})", dropin)
+    )
+
+    assert release_shas == {"e34af1e6a6bb9b54818e18f9279fcc9904de0922"}
+    assert "AI_BOT_CODE_SHA=e34af1e6a6bb9b54818e18f9279fcc9904de0922" in dropin
+    assert "diff --quiet --exit-code e34af1e6a6bb9b54818e18f9279fcc9904de0922 --" in dropin
+    assert (
+        "ReadOnlyPaths=/home/wali/ai_bot_local_data/v2_authenticated_evidence/"
+        "binance_usdm_commission_broker_v1" in dropin
+    )
+    assert "WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD" not in dropin
