@@ -3,6 +3,11 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from pathlib import Path
 
+import pytest
+
+from v2.backend.app.services.native_trainer import (
+    profiled_training_challenger_importer_v1 as importer,
+)
 from v2.backend.app.services.native_trainer.durable_feature_snapshot_archive import (
     iter_snapshots,
 )
@@ -103,6 +108,7 @@ def test_importer_reconstructs_idempotent_pit_challenger_row(
 
 def test_sharded_importer_checkpoints_completed_cursor_without_reprocessing(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     evidence = base_support._build_evidence(tmp_path / "base")
     source_root = tmp_path / "sources"
@@ -113,6 +119,11 @@ def test_sharded_importer_checkpoints_completed_cursor_without_reprocessing(
     )
     challenger_archive = tmp_path / "sharded-challenger-archive"
     progress: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        importer,
+        "write_checksum_manifest",
+        lambda _root: (_ for _ in ()).throw(AssertionError("global checksum scan")),
+    )
 
     first = import_profiled_training_ledger_shards_to_challenger_archive_v1(
         ledger=ledger,

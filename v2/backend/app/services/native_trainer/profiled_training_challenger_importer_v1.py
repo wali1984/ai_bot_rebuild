@@ -587,6 +587,70 @@ def _write_checkpoint_atomic(path: Path, payload: Mapping[str, Any]) -> None:
             pass
 
 
+def _fsync_existing_file(path: Path) -> None:
+    if not path.is_file() or path.is_symlink():
+        raise ProfiledTrainingChallengerImportError(
+            "PROFILED_TRAINING_CHALLENGER_SHARD_FILE_UNSAFE"
+        )
+    try:
+        descriptor = os.open(path, os.O_RDONLY)
+        try:
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+    except OSError as exc:
+        raise ProfiledTrainingChallengerImportError(
+            "PROFILED_TRAINING_CHALLENGER_SHARD_FILE_FSYNC_FAILED"
+        ) from exc
+
+
+def _fsync_existing_directory(path: Path) -> None:
+    if not path.is_dir() or path.is_symlink():
+        raise ProfiledTrainingChallengerImportError(
+            "PROFILED_TRAINING_CHALLENGER_SHARD_DIRECTORY_UNSAFE"
+        )
+    try:
+        descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+    except OSError as exc:
+        raise ProfiledTrainingChallengerImportError(
+            "PROFILED_TRAINING_CHALLENGER_SHARD_DIRECTORY_FSYNC_FAILED"
+        ) from exc
+
+
+def _commit_shard_writes_durably(
+    *,
+    archive_root: Path,
+    write_paths: list[tuple[Path, Path]],
+) -> None:
+    """Make only this shard durable; never rescan the global archive here."""
+
+    if not write_paths:
+        return
+    directories = {
+        archive_root,
+        archive_root / "index",
+        archive_root / "index" / "snapshot_id",
+    }
+    for blob_path, index_path in write_paths:
+        try:
+            blob_path.relative_to(archive_root)
+            index_path.relative_to(archive_root)
+        except ValueError as exc:
+            raise ProfiledTrainingChallengerImportError(
+                "PROFILED_TRAINING_CHALLENGER_SHARD_WRITE_OUTSIDE_ARCHIVE"
+            ) from exc
+        _fsync_existing_file(blob_path)
+        _fsync_existing_file(index_path)
+        directories.update((blob_path.parent, index_path.parent))
+    _fsync_existing_file(archive_root / "manifest.jsonl")
+    for directory in sorted(directories, key=str):
+        _fsync_existing_directory(directory)
+
+
 def _post_purge_counts(
     *,
     challenger_archive_root: Path,
@@ -762,6 +826,7 @@ def import_profiled_training_ledger_shards_to_challenger_archive_v1(
             page_cursor=page_cursor,
         )
         imported = duplicates = label_paths = 0
+        write_paths: list[tuple[Path, Path]] = []
         rejections: Counter[str] = Counter(
             str(exclusion.reason) for exclusion in batch.exclusions
         )
@@ -799,14 +864,21 @@ def import_profiled_training_ledger_shards_to_challenger_archive_v1(
                 rejections[str(exc) or type(exc).__name__] += 1
                 continue
             label_paths += 1
+            write_paths.append((write_result.blob_path, write_result.index_path))
             if write_result.already_present:
                 duplicates += 1
             else:
                 imported += 1
-        # Checksum first, cursor second: no completed shard can point past an
-        # archive whose durable read-side integrity was not refreshed.
-        if batch.samples:
-            write_checksum_manifest(archive_root)
+        # The full archive has millions of historical snapshots, so a global
+        # checksum rewrite is not a bounded shard operation.  The blob, index,
+        # append-only manifest, and their directories are fsynced before the
+        # cursor checkpoint instead.  A crash before that checkpoint restarts
+        # this page idempotently; a completed checkpoint never points past a
+        # durable shard.
+        _commit_shard_writes_durably(
+            archive_root=archive_root,
+            write_paths=write_paths,
+        )
         post_purge_counts = _post_purge_counts(
             challenger_archive_root=archive_root,
             label_archive=label_archive,

@@ -557,7 +557,16 @@ def freeze_dataset_from_archive(
     canonical_label_archive: DurableCanonical5mLabelArchive | None = None,
     training_observed_at: str | None = None,
 ) -> DatasetFreeze:
-    snapshots = list(iter_snapshots(archive_root, limit=scan_limit))
+    # The archive is append-only.  Prefer the newest fixed-size window so
+    # newly authenticated PIT imports are visible to the bounded runtime
+    # without an unbounded walk over historical manifest entries.
+    snapshots = list(
+        iter_snapshots(
+            archive_root,
+            limit=scan_limit,
+            newest_first=True,
+        )
+    )
     archive_candles: dict[tuple[str, str], list[dict[str, Any]]] = {}
     rejections: Counter[str] = Counter()
     pit_eligible_snapshots: list[Mapping[str, Any]] = []

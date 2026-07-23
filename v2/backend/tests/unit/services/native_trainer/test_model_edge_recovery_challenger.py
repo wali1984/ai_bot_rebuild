@@ -125,6 +125,33 @@ def _row(
     )
 
 
+def test_dataset_freeze_prefers_newest_bounded_archive_window(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    observed: dict[str, object] = {}
+
+    def newest_only_iterator(root, *, limit, newest_first):
+        observed.update(
+            {"root": root, "limit": limit, "newest_first": newest_first}
+        )
+        return iter(())
+
+    monkeypatch.setattr(challenger, "iter_snapshots", newest_only_iterator)
+
+    freeze = challenger.freeze_dataset_from_archive(
+        archive_root=tmp_path,
+        scan_limit=7,
+    )
+
+    assert freeze.rows == []
+    assert observed == {
+        "root": tmp_path,
+        "limit": 7,
+        "newest_first": True,
+    }
+
+
 def test_row_reject_reasons_enforce_point_in_time_guards() -> None:
     assert _row_reject_reasons(_trusted_snapshot()) == []
 
