@@ -51,6 +51,7 @@ from v2.backend.app.services.native_trainer.durable_canonical_5m_label_archive i
 )
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.confidence import (
     CONFIDENCE_HEAD_ACTIONS,
+    CONFIDENCE_HEAD_SCHEMA_VERSION,
     CONFIDENCE_LABEL_SEMANTICS,
 )
 from v2.backend.app.services.native_trainer.immutable_source_payload_store import (
@@ -92,6 +93,9 @@ PROFILED_RESEARCH_FINALIZED_OUTCOME_HEAD_ANCHOR_V1_SCHEMA_VERSION: Final = (
 PROFILED_RESEARCH_FINALIZED_OUTCOME_CALIBRATION_ROW_V1_SCHEMA_VERSION: Final = (
     "profiled_research_finalized_outcome_calibration_row_v1"
 )
+PROFILED_RESEARCH_FINALIZED_OUTCOME_MODEL_BINDING_V1_SCHEMA_VERSION: Final = (
+    "profiled_research_finalized_outcome_model_binding_v1"
+)
 
 _APPLICATION_ID = 0x50464F4C
 _USER_VERSION = 1
@@ -108,6 +112,8 @@ _GENESIS_HEAD_ANCHOR_SHA256 = hashlib.sha256(
 ).hexdigest()
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$", re.ASCII)
 _SHA256_SHARD_RE = re.compile(r"^[0-9a-f]{2}$", re.ASCII)
+_SHA1_RE = re.compile(r"^[0-9a-f]{40}$", re.ASCII)
+_IDENTIFIER_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:@/-]{0,255}$", re.ASCII)
 _SYMBOL_RE = re.compile(r"^[A-Z0-9]{2,32}$", re.ASCII)
 _RESULT_TOKEN = object()
 _LEASE_TOKEN = object()
@@ -140,6 +146,8 @@ _ARTIFACT_FIELDS: Final = frozenset(
         "schema_version",
         "classification",
         "hypothesis_binding",
+        "model_binding",
+        "model_binding_sha256",
         "maturation_observed_at",
         "actual_label_available_at",
         "label_source_binding",
@@ -152,6 +160,25 @@ _ARTIFACT_FIELDS: Final = frozenset(
         "status",
         "authorization",
         "research_only",
+    }
+)
+_MODEL_BINDING_FIELDS: Final = frozenset(
+    {
+        "schema_version",
+        "checkpoint_id",
+        "checkpoint_generation",
+        "checkpoint_generated_at",
+        "checkpoint_weight_sha256",
+        "model_id",
+        "model_parameter_fingerprint",
+        "candidate_contract_sha256",
+        "candidate_authorization_receipt_sha256",
+        "candidate_code_release_sha",
+        "confidence_head_schema_version",
+        "confidence_head_actions",
+        "profitability_label_semantics",
+        "raw_inference_binding_sha256",
+        "hypothesis_artifact_sha256",
     }
 )
 _HYPOTHESIS_BINDING_FIELDS: Final = frozenset(
@@ -265,6 +292,10 @@ _CALIBRATION_ROW_FIELDS: Final = frozenset(
         "hindsight_action_substitution_used",
         "fit_partition",
         "calibration_input_authorized",
+        "model_binding_sha256",
+        "model_parameter_fingerprint",
+        "checkpoint_id",
+        "checkpoint_generation",
     }
 )
 
@@ -1015,6 +1046,10 @@ class _PreparedOutcome:
     selected_action: str
     diagnostic_best_after_cost_action: str
     calibration_eligible: bool
+    checkpoint_id: str
+    checkpoint_generation: int
+    model_parameter_fingerprint: str
+    model_binding_sha256: str
 
 
 def _validate_source_free_label_semantics(
@@ -1437,6 +1472,7 @@ def _validate_artifact_structure(
     ):
         _integrity("PROFILED_OUTCOME_ARTIFACT_ENVELOPE_INVALID")
     hypothesis_binding = artifact.get("hypothesis_binding")
+    model_binding = artifact.get("model_binding")
     label_binding = artifact.get("label_source_binding")
     inventory = artifact.get("label_candle_inventory")
     economics = artifact.get("economics")
@@ -1444,6 +1480,8 @@ def _validate_artifact_structure(
     if (
         type(hypothesis_binding) is not dict
         or set(hypothesis_binding) != _HYPOTHESIS_BINDING_FIELDS
+        or type(model_binding) is not dict
+        or set(model_binding) != _MODEL_BINDING_FIELDS
         or type(label_binding) is not dict
         or set(label_binding) != _LABEL_SOURCE_BINDING_FIELDS
         or type(inventory) is not list
@@ -1460,6 +1498,15 @@ def _validate_artifact_structure(
         or set(calibration) != _CALIBRATION_ROW_FIELDS
     ):
         _integrity("PROFILED_OUTCOME_ARTIFACT_NESTED_FIELDS_INVALID")
+    expected_model_binding, expected_model_binding_sha = _model_binding(
+        raw=model_binding,
+        hypothesis_binding=hypothesis_binding,
+    )
+    if (
+        model_binding != expected_model_binding
+        or artifact.get("model_binding_sha256") != expected_model_binding_sha
+    ):
+        _integrity("PROFILED_OUTCOME_MODEL_BINDING_STRUCTURE_INVALID")
     _validate_source_free_label_semantics(
         artifact=artifact,
         hypothesis_binding=hypothesis_binding,
@@ -1524,6 +1571,12 @@ def _validate_artifact_structure(
         or calibration.get("fit_partition")
         != "UNASSIGNED_REQUIRES_PURGED_TRAIN_ONLY_ADMISSION"
         or calibration.get("calibration_input_authorized") is not False
+        or calibration.get("model_binding_sha256") != expected_model_binding_sha
+        or calibration.get("model_parameter_fingerprint")
+        != model_binding.get("model_parameter_fingerprint")
+        or calibration.get("checkpoint_id") != model_binding.get("checkpoint_id")
+        or calibration.get("checkpoint_generation")
+        != model_binding.get("checkpoint_generation")
     ):
         _integrity("PROFILED_OUTCOME_CALIBRATION_SEMANTICS_INVALID")
     expected_row_id = _sha256(
@@ -1538,6 +1591,7 @@ def _validate_artifact_structure(
             "raw_inference_binding_sha256": hypothesis_binding.get(
                 "raw_inference_binding_sha256"
             ),
+            "model_binding_sha256": expected_model_binding_sha,
             "label_source_binding_sha256": binding_sha,
             "selected_action": selected_action,
         }
@@ -1642,6 +1696,77 @@ def _hypothesis_binding(
     ):
         _integrity("PROFILED_OUTCOME_HYPOTHESIS_BINDING_INVALID")
     return binding, raw
+
+
+def _model_binding(
+    *,
+    raw: Mapping[str, Any],
+    hypothesis_binding: Mapping[str, Any],
+) -> tuple[dict[str, Any], str]:
+    binding = {
+        "schema_version": (
+            PROFILED_RESEARCH_FINALIZED_OUTCOME_MODEL_BINDING_V1_SCHEMA_VERSION
+        ),
+        "checkpoint_id": raw.get("checkpoint_id"),
+        "checkpoint_generation": raw.get("checkpoint_generation"),
+        "checkpoint_generated_at": raw.get("checkpoint_generated_at"),
+        "checkpoint_weight_sha256": raw.get("checkpoint_weight_sha256"),
+        "model_id": raw.get("model_id"),
+        "model_parameter_fingerprint": raw.get("model_parameter_fingerprint"),
+        "candidate_contract_sha256": raw.get("candidate_contract_sha256"),
+        "candidate_authorization_receipt_sha256": raw.get(
+            "candidate_authorization_receipt_sha256"
+        ),
+        "candidate_code_release_sha": raw.get("candidate_code_release_sha"),
+        "confidence_head_schema_version": raw.get(
+            "confidence_head_schema_version"
+        ),
+        "confidence_head_actions": raw.get("confidence_head_actions"),
+        "profitability_label_semantics": (
+            raw.get("confidence_label_semantics")
+            if raw.get("confidence_label_semantics") is not None
+            else raw.get("profitability_label_semantics")
+        ),
+        "raw_inference_binding_sha256": hypothesis_binding.get(
+            "raw_inference_binding_sha256"
+        ),
+        "hypothesis_artifact_sha256": hypothesis_binding.get(
+            "hypothesis_artifact_sha256"
+        ),
+    }
+    checkpoint_clock = _aware_clock(binding["checkpoint_generated_at"])
+    decision_clock = _aware_clock(hypothesis_binding.get("decision_time"))
+    if (
+        set(binding) != _MODEL_BINDING_FIELDS
+        or type(binding["checkpoint_id"]) is not str
+        or _IDENTIFIER_RE.fullmatch(binding["checkpoint_id"]) is None
+        or type(binding["checkpoint_generation"]) is not int
+        or binding["checkpoint_generation"] <= 0
+        or checkpoint_clock is None
+        or decision_clock is None
+        or checkpoint_clock >= decision_clock
+        or type(binding["model_id"]) is not str
+        or not binding["model_id"]
+        or any(
+            _strict_sha256(binding[name]) is None
+            for name in (
+                "checkpoint_weight_sha256",
+                "model_parameter_fingerprint",
+                "candidate_contract_sha256",
+                "candidate_authorization_receipt_sha256",
+                "raw_inference_binding_sha256",
+                "hypothesis_artifact_sha256",
+            )
+        )
+        or type(binding["candidate_code_release_sha"]) is not str
+        or _SHA1_RE.fullmatch(binding["candidate_code_release_sha"]) is None
+        or binding["confidence_head_schema_version"]
+        != CONFIDENCE_HEAD_SCHEMA_VERSION
+        or binding["confidence_head_actions"] != list(CONFIDENCE_HEAD_ACTIONS)
+        or binding["profitability_label_semantics"] != CONFIDENCE_LABEL_SEMANTICS
+    ):
+        _integrity("PROFILED_OUTCOME_MODEL_BINDING_INVALID")
+    return binding, _sha256(binding)
 
 
 def _internally_observed_clock() -> tuple[str, datetime]:
@@ -1816,6 +1941,8 @@ def _derive_economics(
     hypothesis_artifact_sha256: str,
     label_source_binding_sha256: str,
     decision_time: str,
+    model_binding: Mapping[str, Any],
+    model_binding_sha256: str,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     decision_reference = contract.get("decision_reference_binding")
     cost_binding = contract.get("cost_evidence_binding")
@@ -1971,6 +2098,7 @@ def _derive_economics(
             "hypothesis_identity_sha256": hypothesis_identity_sha256,
             "hypothesis_artifact_sha256": hypothesis_artifact_sha256,
             "raw_inference_binding_sha256": contract.get("raw_inference_binding_sha256"),
+            "model_binding_sha256": model_binding_sha256,
             "label_source_binding_sha256": label_source_binding_sha256,
             "selected_action": selected_action,
         }
@@ -1991,6 +2119,10 @@ def _derive_economics(
         "hindsight_action_substitution_used": False,
         "fit_partition": "UNASSIGNED_REQUIRES_PURGED_TRAIN_ONLY_ADMISSION",
         "calibration_input_authorized": False,
+        "model_binding_sha256": model_binding_sha256,
+        "model_parameter_fingerprint": model_binding["model_parameter_fingerprint"],
+        "checkpoint_id": model_binding["checkpoint_id"],
+        "checkpoint_generation": model_binding["checkpoint_generation"],
     }
     return economics, calibration
 
@@ -2003,6 +2135,10 @@ def _prepare_new_outcome(
     observed_at: str,
 ) -> _PreparedOutcome:
     hypothesis_binding, raw = _hypothesis_binding(committed)
+    model_binding, model_binding_sha = _model_binding(
+        raw=raw,
+        hypothesis_binding=hypothesis_binding,
+    )
     rows, proof, label_binding, label_binding_sha = _validated_label_source(
         archive=archive,
         hypothesis_binding=hypothesis_binding,
@@ -2019,6 +2155,8 @@ def _prepare_new_outcome(
         hypothesis_artifact_sha256=committed.hypothesis_artifact_sha256,
         label_source_binding_sha256=label_binding_sha,
         decision_time=committed.decision_time,
+        model_binding=model_binding,
+        model_binding_sha256=model_binding_sha,
     )
     actual_available = cast(str, label_binding["actual_label_available_at"])
     inventory = cast(list[dict[str, Any]], label_binding["candle_inventory"])
@@ -2026,6 +2164,8 @@ def _prepare_new_outcome(
         "schema_version": PROFILED_RESEARCH_FINALIZED_OUTCOME_V1_SCHEMA_VERSION,
         "classification": PROFILED_RESEARCH_FINALIZED_OUTCOME_V1_CLASSIFICATION,
         "hypothesis_binding": hypothesis_binding,
+        "model_binding": model_binding,
+        "model_binding_sha256": model_binding_sha,
         "maturation_observed_at": observed_at,
         "actual_label_available_at": actual_available,
         "label_source_binding": label_binding,
@@ -2065,6 +2205,12 @@ def _prepare_new_outcome(
             str, economics["diagnostic_best_after_cost_action"]
         ),
         calibration_eligible=cast(bool, calibration["eligible"]),
+        checkpoint_id=cast(str, model_binding["checkpoint_id"]),
+        checkpoint_generation=cast(int, model_binding["checkpoint_generation"]),
+        model_parameter_fingerprint=cast(
+            str, model_binding["model_parameter_fingerprint"]
+        ),
+        model_binding_sha256=model_binding_sha,
     )
 
 
@@ -2092,6 +2238,15 @@ def _reopen_prepared(
     hypothesis_binding, raw = _hypothesis_binding(committed)
     if stored_hypothesis_binding != hypothesis_binding:
         _integrity("PROFILED_OUTCOME_HYPOTHESIS_REOPEN_BINDING_MISMATCH")
+    model_binding, model_binding_sha = _model_binding(
+        raw=raw,
+        hypothesis_binding=hypothesis_binding,
+    )
+    if (
+        artifact.get("model_binding") != model_binding
+        or artifact.get("model_binding_sha256") != model_binding_sha
+    ):
+        _integrity("PROFILED_OUTCOME_MODEL_REOPEN_BINDING_MISMATCH")
     stored_label_binding_sha = artifact.get("label_source_binding_sha256")
     stored_proof = artifact.get("label_path_proof_at_maturation")
     stored_inventory = artifact.get("label_candle_inventory")
@@ -2143,11 +2298,15 @@ def _reopen_prepared(
         hypothesis_artifact_sha256=committed.hypothesis_artifact_sha256,
         label_source_binding_sha256=current_label_binding_sha,
         decision_time=committed.decision_time,
+        model_binding=model_binding,
+        model_binding_sha256=model_binding_sha,
     )
     expected_material = {
         "schema_version": PROFILED_RESEARCH_FINALIZED_OUTCOME_V1_SCHEMA_VERSION,
         "classification": PROFILED_RESEARCH_FINALIZED_OUTCOME_V1_CLASSIFICATION,
         "hypothesis_binding": hypothesis_binding,
+        "model_binding": model_binding,
+        "model_binding_sha256": model_binding_sha,
         "maturation_observed_at": observed_at,
         "actual_label_available_at": current_label_binding[
             "actual_label_available_at"
@@ -2188,6 +2347,12 @@ def _reopen_prepared(
             str, economics["diagnostic_best_after_cost_action"]
         ),
         calibration_eligible=cast(bool, calibration["eligible"]),
+        checkpoint_id=cast(str, model_binding["checkpoint_id"]),
+        checkpoint_generation=cast(int, model_binding["checkpoint_generation"]),
+        model_parameter_fingerprint=cast(
+            str, model_binding["model_parameter_fingerprint"]
+        ),
+        model_binding_sha256=model_binding_sha,
     )
 
 
@@ -2224,6 +2389,10 @@ class DurablyMaturedProfiledResearchFinalizedOutcomeV1:
     selected_action: str
     diagnostic_best_after_cost_action: str
     calibration_eligible: bool
+    checkpoint_id: str
+    checkpoint_generation: int
+    model_parameter_fingerprint: str
+    model_binding_sha256: str
     transaction_id: str
     append_receipt_sha256: str
     postcommit_readback_receipt_sha256: str
@@ -3599,6 +3768,10 @@ class ProfiledResearchFinalizedOutcomeLedgerV1:
                 "diagnostic_best_after_cost_action"
             ],
             "calibration_eligible": row["calibration_eligible"] == 1,
+            "checkpoint_id": prepared.checkpoint_id,
+            "checkpoint_generation": prepared.checkpoint_generation,
+            "model_parameter_fingerprint": prepared.model_parameter_fingerprint,
+            "model_binding_sha256": prepared.model_binding_sha256,
             "transaction_id": row["transaction_id"],
             "append_receipt_sha256": row["append_receipt_sha256"],
             "postcommit_readback_receipt_sha256": row["readback_receipt_sha256"],
@@ -3782,6 +3955,10 @@ _RESULT_PUBLIC_FIELDS: Final = (
     "selected_action",
     "diagnostic_best_after_cost_action",
     "calibration_eligible",
+    "checkpoint_id",
+    "checkpoint_generation",
+    "model_parameter_fingerprint",
+    "model_binding_sha256",
     "transaction_id",
     "append_receipt_sha256",
     "postcommit_readback_receipt_sha256",
@@ -3918,6 +4095,7 @@ __all__ = (
     "PROFILED_RESEARCH_FINALIZED_OUTCOME_CALIBRATION_ROW_V1_SCHEMA_VERSION",
     "PROFILED_RESEARCH_FINALIZED_OUTCOME_HEAD_ANCHOR_V1_SCHEMA_VERSION",
     "PROFILED_RESEARCH_FINALIZED_OUTCOME_LEDGER_V1_SCHEMA_VERSION",
+    "PROFILED_RESEARCH_FINALIZED_OUTCOME_MODEL_BINDING_V1_SCHEMA_VERSION",
     "PROFILED_RESEARCH_FINALIZED_OUTCOME_POSTCOMMIT_V1_SCHEMA_VERSION",
     "PROFILED_RESEARCH_FINALIZED_OUTCOME_V1_CLASSIFICATION",
     "PROFILED_RESEARCH_FINALIZED_OUTCOME_V1_SCHEMA_VERSION",

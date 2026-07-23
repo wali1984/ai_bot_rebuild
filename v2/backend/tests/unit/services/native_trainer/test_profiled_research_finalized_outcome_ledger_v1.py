@@ -167,16 +167,29 @@ def _mature(ready):  # noqa: ANN001, ANN202
     )
 
 
+def _model_binding(committed, raw):  # noqa: ANN001, ANN202
+    hypothesis_binding, _validated_raw = outcome._hypothesis_binding(  # noqa: SLF001
+        committed
+    )
+    return outcome._model_binding(  # noqa: SLF001
+        raw=raw,
+        hypothesis_binding=hypothesis_binding,
+    )
+
+
 def test_matures_exact_selected_long_outcome_and_remains_non_authoritative(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     ready = _ready_bundle(tmp_path, monkeypatch)
-    store, _commitment_ledger, _committed, _archive, _append, rows, ledger = ready
+    store, _commitment_ledger, committed, _archive, _append, rows, ledger = ready
 
     matured = _mature(ready)
+    contract = matured.outcome_contract
     economics = matured.economics
     calibration = matured.calibration_row
+    model_binding = contract["model_binding"]
+    raw = committed.hypothesis_contract["raw_inference_payload"]
 
     entry = 100.05
     raw_return = (float(rows[-1]["close"]) - entry) / entry * 10_000.0
@@ -197,6 +210,22 @@ def test_matures_exact_selected_long_outcome_and_remains_non_authoritative(
     assert calibration["raw_probability"] == 0.72
     assert calibration["observed_strictly_positive_net_pnl"] is True
     assert calibration["raw_brier_contribution"] == pytest.approx((0.72 - 1.0) ** 2)
+    assert len(model_binding) == 15
+    assert model_binding["checkpoint_id"] == raw["checkpoint_id"]
+    assert model_binding["checkpoint_generation"] == raw["checkpoint_generation"]
+    assert model_binding["model_parameter_fingerprint"] == raw[
+        "model_parameter_fingerprint"
+    ]
+    assert contract["model_binding_sha256"] == outcome._sha256(  # noqa: SLF001
+        model_binding
+    )
+    assert calibration["model_binding_sha256"] == contract["model_binding_sha256"]
+    assert calibration["model_parameter_fingerprint"] == matured.model_parameter_fingerprint
+    assert calibration["checkpoint_id"] == matured.checkpoint_id
+    assert calibration["checkpoint_generation"] == matured.checkpoint_generation
+    assert matured.checkpoint_id == raw["checkpoint_id"]
+    assert matured.checkpoint_generation == raw["checkpoint_generation"]
+    assert matured.model_binding_sha256 == contract["model_binding_sha256"]
     assert len(matured.authorization) == 18
     assert set(matured.authorization.values()) == {False}
     assert matured.runtime_wired is False
@@ -264,6 +293,7 @@ def test_selected_action_economics_preserve_ex_ante_action_and_funding_sign(
     raw["selected_action_index"] = selected_index
     raw["selected_directional_profitability_raw"] = raw_probability
     rows = _label_rows(committed, final_close=final_close)
+    model_binding, model_binding_sha = _model_binding(committed, raw)
 
     economics, calibration = outcome._derive_economics(  # noqa: SLF001
         contract=contract,
@@ -273,6 +303,8 @@ def test_selected_action_economics_preserve_ex_ante_action_and_funding_sign(
         hypothesis_artifact_sha256=committed.hypothesis_artifact_sha256,
         label_source_binding_sha256="a" * 64,
         decision_time=committed.decision_time,
+        model_binding=model_binding,
+        model_binding_sha256=model_binding_sha,
     )
 
     base = (
@@ -426,6 +458,7 @@ def test_decision_one_microsecond_after_open_excludes_overlap_without_float_roun
         outcome._datetime_from_epoch_milliseconds(first_open_ms)  # noqa: SLF001
         + timedelta(microseconds=1)
     )
+    model_binding, model_binding_sha = _model_binding(committed, raw)
 
     economics, _calibration = outcome._derive_economics(  # noqa: SLF001
         contract=contract,
@@ -435,6 +468,8 @@ def test_decision_one_microsecond_after_open_excludes_overlap_without_float_roun
         hypothesis_artifact_sha256=committed.hypothesis_artifact_sha256,
         label_source_binding_sha256="f" * 64,
         decision_time=exact_decision,
+        model_binding=model_binding,
+        model_binding_sha256=model_binding_sha,
     )
 
     assert outcome._epoch_microseconds(_clock(exact_decision)) % 1_000 == 1  # noqa: SLF001
@@ -613,6 +648,10 @@ opened = outcomes.ProfiledResearchFinalizedOutcomeLedgerV1(
 )
 print(json.dumps({
     "artifact": opened.outcome_artifact_sha256,
+    "checkpoint_id": opened.checkpoint_id,
+    "checkpoint_generation": opened.checkpoint_generation,
+    "model_parameter_fingerprint": opened.model_parameter_fingerprint,
+    "model_binding_sha256": opened.model_binding_sha256,
     "runtime": opened.runtime_wired,
 }, sort_keys=True))
 """
@@ -636,6 +675,10 @@ print(json.dumps({
     )
     assert json.loads(restarted.stdout) == {
         "artifact": matured.outcome_artifact_sha256,
+        "checkpoint_id": matured.checkpoint_id,
+        "checkpoint_generation": matured.checkpoint_generation,
+        "model_parameter_fingerprint": matured.model_parameter_fingerprint,
+        "model_binding_sha256": matured.model_binding_sha256,
         "runtime": False,
     }
 
@@ -745,7 +788,15 @@ def test_forged_committed_result_is_rejected_before_label_use(
 
 @pytest.mark.parametrize(
     "semantic_mutation",
-    ("economics", "proof", "label_digest", "range_digest", "unknown"),
+    (
+        "economics",
+        "proof",
+        "label_digest",
+        "range_digest",
+        "model_binding",
+        "calibration_model",
+        "unknown",
+    ),
 )
 def test_source_free_artifact_validation_rejects_self_consistent_contradictions(
     tmp_path: Path,
@@ -765,6 +816,10 @@ def test_source_free_artifact_validation_rejects_self_consistent_contradictions(
         artifact["label_path_proof_at_maturation"]["range_proof"][
             "range_sha256"
         ] = "e" * 64
+    elif semantic_mutation == "model_binding":
+        artifact["model_binding"]["model_parameter_fingerprint"] = "a" * 64
+    elif semantic_mutation == "calibration_model":
+        artifact["calibration_row"]["model_parameter_fingerprint"] = "b" * 64
     else:
         artifact["future_label"] = 1.0
     material = {
@@ -906,6 +961,7 @@ def test_exact_zero_net_is_not_profitable_and_never_changes_selected_action(
     ]
     long_cost = 2.0 * fee + spread + 2.0 * impact + funding
     exact_zero_close = entry * (1.0 + long_cost / 10_000.0)
+    model_binding, model_binding_sha = _model_binding(committed, raw)
 
     economics, calibration = outcome._derive_economics(  # noqa: SLF001
         contract=contract,
@@ -915,6 +971,8 @@ def test_exact_zero_net_is_not_profitable_and_never_changes_selected_action(
         hypothesis_artifact_sha256=committed.hypothesis_artifact_sha256,
         label_source_binding_sha256="b" * 64,
         decision_time=committed.decision_time,
+        model_binding=model_binding,
+        model_binding_sha256=model_binding_sha,
     )
 
     assert economics["selected_action"] == "long"
@@ -935,6 +993,7 @@ def test_signed_funding_is_applied_oppositely_to_long_and_short_costs(
     contract = json.loads(json.dumps(committed.hypothesis_contract))
     contract["cost_evidence_binding"]["ordered_values"][-1] = signed_funding
     raw = contract["raw_inference_payload"]
+    model_binding, model_binding_sha = _model_binding(committed, raw)
 
     economics, _calibration = outcome._derive_economics(  # noqa: SLF001
         contract=contract,
@@ -944,6 +1003,8 @@ def test_signed_funding_is_applied_oppositely_to_long_and_short_costs(
         hypothesis_artifact_sha256=committed.hypothesis_artifact_sha256,
         label_source_binding_sha256="c" * 64,
         decision_time=committed.decision_time,
+        model_binding=model_binding,
+        model_binding_sha256=model_binding_sha,
     )
 
     assert economics["long_total_cost_bps"] - economics[
