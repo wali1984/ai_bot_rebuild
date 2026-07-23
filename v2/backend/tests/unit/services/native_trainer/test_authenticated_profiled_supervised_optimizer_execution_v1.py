@@ -208,6 +208,7 @@ def test_executes_exactly_one_authenticated_outcome_supervised_step(
     assert result.admitted_example_count == 1
     assert result.optimizer_training_row_count == 1
     assert result.validation_row_count == 0
+    assert result.purged_training_row_count == 0
     assert result.optimizer_steps_requested == result.optimizer_steps_completed == 1
     assert result.learning_mode == "outcome_supervised"
     assert result.base_model_parameter_fingerprint == model_parameter_fingerprint(base_model)
@@ -224,6 +225,7 @@ def test_executes_exactly_one_authenticated_outcome_supervised_step(
     assert training_artifact["outcome_supervised_update_used"] is True
     assert training_artifact["ppo_clipped_surrogate_rows"] == 0
     assert training_artifact["outcome_supervised_batch_rows"] == 1
+    assert training_artifact["validation_split_excluded_rows"] == 0
     assert training_artifact["optimizer_steps_this_cycle"] == 1
     assert training_artifact["tensor_nan_inf_count"] == 0
     assert type(training_artifact["feedback_head_nudge_applied"]) is bool
@@ -278,6 +280,7 @@ def test_local_research_scope_trains_once_but_grants_no_downstream_authority(
     assert result.admitted_example_count == 1
     assert result.training_rows == 1
     assert result.validation_rows == 0
+    assert result.purged_training_rows == 0
     assert result.base_model_parameter_fingerprint == base_fingerprint
     assert model_parameter_fingerprint(model) == base_fingerprint
     assert result.candidate_model_parameter_fingerprint == model_parameter_fingerprint(

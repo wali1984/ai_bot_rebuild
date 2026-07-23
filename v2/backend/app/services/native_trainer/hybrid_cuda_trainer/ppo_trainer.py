@@ -671,6 +671,7 @@ class V2HybridPPOTrainer:
             "validation_split_actual_training_rows": len(selected),
             "validation_split_actual_validation_rows": 0,
             "validation_split_purged_training_rows": 0,
+            "validation_split_excluded_rows": 0,
             "validation_split_decision_time_invalid_rows": 0,
             "validation_split_label_timing_invalid_rows": 0,
             "validation_split_label_timing_errors": {},
@@ -802,6 +803,7 @@ class V2HybridPPOTrainer:
             metrics["validation_split_actual_training_rows"] = len(ordered_rows)
             metrics["validation_split_actual_validation_rows"] = 0
             return ordered_rows, [], metrics
+        metrics["validation_split_excluded_rows"] = len(purged)
         return [item[2] for item in training], [item[2] for item in validation], metrics
 
     def plan_exact_ppo_optimizer_attempts(
@@ -1264,11 +1266,49 @@ class V2HybridPPOTrainer:
                 validation_fraction=validation_fraction,
             )
         )
+        input_row_ids = [id(row) for row in examples]
+        training_row_ids = [id(row) for row in training_rows]
+        validation_row_ids = [id(row) for row in validation_rows]
+        excluded_rows = len(examples) - len(training_rows) - len(validation_rows)
+        reported_purged_rows = split_metrics.get(
+            "validation_split_purged_training_rows"
+        )
+        reported_excluded_rows = split_metrics.get("validation_split_excluded_rows")
+        reported_training_rows = split_metrics.get(
+            "validation_split_actual_training_rows"
+        )
+        reported_validation_rows = split_metrics.get(
+            "validation_split_actual_validation_rows"
+        )
+        pit_safe_value = split_metrics.get("validation_split_pit_safe")
+        pit_safe = pit_safe_value is True
         if (
             not training_rows
-            or len(training_rows) + len(validation_rows) != len(examples)
-            or {id(row) for row in training_rows}.intersection(
-                {id(row) for row in validation_rows}
+            or len(set(input_row_ids)) != len(input_row_ids)
+            or len(set(training_row_ids)) != len(training_row_ids)
+            or len(set(validation_row_ids)) != len(validation_row_ids)
+            or set(training_row_ids).intersection(validation_row_ids)
+            or not set(training_row_ids).union(validation_row_ids).issubset(
+                input_row_ids
+            )
+            or excluded_rows < 0
+            or type(reported_purged_rows) is not int
+            or reported_purged_rows < 0
+            or type(reported_excluded_rows) is not int
+            or reported_excluded_rows != excluded_rows
+            or type(reported_training_rows) is not int
+            or reported_training_rows != len(training_rows)
+            or type(reported_validation_rows) is not int
+            or reported_validation_rows != len(validation_rows)
+            or type(pit_safe_value) is not bool
+            or (pit_safe and reported_purged_rows != excluded_rows)
+            or (not pit_safe and excluded_rows != 0)
+            or (validation_rows and not pit_safe)
+            or (pit_safe and not validation_rows)
+            or (
+                pit_safe
+                and split_metrics.get("validation_split_reason")
+                != "PIT_SAFE_CHRONOLOGICAL_PURGED_SPLIT"
             )
         ):
             raise ValueError("authenticated_profiled_partition_invalid")

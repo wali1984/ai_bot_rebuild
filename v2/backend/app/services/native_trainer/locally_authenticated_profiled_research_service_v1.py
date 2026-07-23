@@ -682,6 +682,16 @@ def _verify_local_candidate_manifest(
         or manifest.model_parameter_fingerprint
         != contract.get("candidate_policy_fingerprint")
         or manifest.consumed_ppo_update_keys != ()
+        or type(contract.get("optimizer_training_row_count")) is not int
+        or contract["optimizer_training_row_count"] <= 0
+        or type(contract.get("validation_row_count")) is not int
+        or contract["validation_row_count"] < 0
+        or type(contract.get("purged_training_row_count")) is not int
+        or contract["purged_training_row_count"] < 0
+        or contract["optimizer_training_row_count"]
+        + contract["validation_row_count"]
+        + contract["purged_training_row_count"]
+        != contract.get("manifest_admitted_example_count")
         or any(
             contract.get(name) is not True
             for name in (
@@ -1120,6 +1130,9 @@ def run_locally_authenticated_profiled_research_cycle_v1(
             "optimizer_training_result_artifact_sha256": (
                 execution.training_result_artifact_sha256
             ),
+            "optimizer_training_row_count": execution.training_rows,
+            "validation_row_count": execution.validation_rows,
+            "purged_training_row_count": execution.purged_training_rows,
             "code_release_sha": execution.code_release_sha,
             "base_checkpoint_id": base_checkpoint_id,
             "base_policy_fingerprint": base_policy_fingerprint,

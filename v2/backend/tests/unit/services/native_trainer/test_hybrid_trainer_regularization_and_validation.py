@@ -20,6 +20,7 @@ from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.model import V2H
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.ppo_trainer import (
     ENV_PPO_ENTROPY_COEFFICIENT_MAX,
     ENV_PPO_LEARNING_RATE_MAX,
+    PROFILED_ADMISSION_SCOPE_LOCAL_RESEARCH,
     V2HybridPPOTrainer,
     overfit_gap_threshold,
 )
@@ -370,6 +371,7 @@ def test_validation_split_is_chronological_keeps_ties_and_purges_label_overlap()
     assert [row.tensor.tensor_id for row in training] == ["tensor_0"]
     assert {row.tensor.tensor_id for row in validation} == {"tensor_2", "tensor_3"}
     assert metrics["validation_split_purged_training_rows"] == 1
+    assert metrics["validation_split_excluded_rows"] == 1
     assert metrics["validation_split_pit_safe"] is True
     assert metrics["validation_split_temporal_overlap"] is False
     assert metrics["validation_split_label_overlap"] is False
@@ -377,6 +379,77 @@ def test_validation_split_is_chronological_keeps_ties_and_purges_label_overlap()
         metrics["validation_split_training_label_available_at_max"]
         < metrics["validation_split_validation_start_decision_time"]
     )
+
+
+def test_profiled_optimizer_accounts_for_intentionally_purged_rows() -> None:
+    rows = [
+        _example(0, 1, decision_time="2026-06-19T00:01:00Z"),
+        _example(1, 2, decision_time="2026-06-19T00:07:00Z"),
+        _example(2, 1, decision_time="2026-06-19T00:11:00Z"),
+        _example(3, 2, decision_time="2026-06-19T00:11:00Z"),
+    ]
+    model = V2HybridPolicyModel(input_dim=len(rows[0].tensor.model_vector))
+    if not model.torch_available:
+        pytest.skip("torch unavailable")
+    trainer = V2HybridPPOTrainer(model=model)
+    identities = {id(row): f"{ordinal:064x}" for ordinal, row in enumerate(rows, 1)}
+
+    result = trainer.train_profiled_outcome_supervised(
+        tuple(reversed(rows)),
+        authorize_example=lambda row: identities[id(row)],
+        authorization_sha256="f" * 64,
+        admission_scope=PROFILED_ADMISSION_SCOPE_LOCAL_RESEARCH,
+        steps=1,
+        validation_fraction=0.25,
+    )
+
+    assert result.train_rows == 1
+    assert result.validation_rows == 2
+    assert result.metrics["validation_split_pit_safe"] is True
+    assert result.metrics["validation_split_purged_training_rows"] == 1
+    assert result.metrics["validation_split_excluded_rows"] == 1
+    assert (
+        result.train_rows
+        + result.validation_rows
+        + result.metrics["validation_split_excluded_rows"]
+        == len(rows)
+    )
+
+
+def test_profiled_optimizer_rejects_unaccounted_partition_rows(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rows = _mixed_rows(4)
+    model = V2HybridPolicyModel(input_dim=len(rows[0].tensor.model_vector))
+    if not model.torch_available:
+        pytest.skip("torch unavailable")
+    trainer = V2HybridPPOTrainer(model=model)
+    identities = {id(row): f"{ordinal:064x}" for ordinal, row in enumerate(rows, 1)}
+    monkeypatch.setattr(
+        trainer,
+        "_chronological_purged_split",
+        lambda selected, *, validation_fraction: (
+            [selected[0]],
+            [selected[-1]],
+            {
+                "validation_split_pit_safe": True,
+                "validation_split_actual_training_rows": 1,
+                "validation_split_actual_validation_rows": 1,
+                "validation_split_purged_training_rows": 0,
+                "validation_split_excluded_rows": 0,
+            },
+        ),
+    )
+
+    with pytest.raises(ValueError, match="authenticated_profiled_partition_invalid"):
+        trainer.train_profiled_outcome_supervised(
+            tuple(rows),
+            authorize_example=lambda row: identities[id(row)],
+            authorization_sha256="f" * 64,
+            admission_scope=PROFILED_ADMISSION_SCOPE_LOCAL_RESEARCH,
+            steps=1,
+            validation_fraction=0.25,
+        )
 
 
 def test_validation_split_missing_label_horizon_fails_closed_but_keeps_learning_rows() -> None:

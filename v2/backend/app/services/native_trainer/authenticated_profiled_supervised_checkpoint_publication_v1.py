@@ -515,8 +515,13 @@ def _partition_digest(
                 execution.ordered_optimizer_training_rows_sha256
             ),
             "ordered_validation_rows_sha256": execution.ordered_validation_rows_sha256,
+            "ordered_purged_training_rows_sha256": (
+                execution.ordered_purged_training_rows_sha256
+            ),
+            "admitted_example_count": execution.admitted_example_count,
             "optimizer_training_row_count": execution.optimizer_training_row_count,
             "validation_row_count": execution.validation_row_count,
+            "purged_training_row_count": execution.purged_training_row_count,
         }
     )
 
@@ -628,8 +633,13 @@ def _publication_contract(
             execution.ordered_optimizer_training_rows_sha256
         ),
         "ordered_validation_rows_sha256": execution.ordered_validation_rows_sha256,
+        "ordered_purged_training_rows_sha256": (
+            execution.ordered_purged_training_rows_sha256
+        ),
+        "admitted_example_count": execution.admitted_example_count,
         "optimizer_training_row_count": execution.optimizer_training_row_count,
         "validation_row_count": execution.validation_row_count,
+        "purged_training_row_count": execution.purged_training_row_count,
         "optimizer_steps_completed": execution.optimizer_steps_completed,
         "learning_mode": execution.learning_mode,
         "training_partition_digest": training_partition_digest,
@@ -777,6 +787,7 @@ def _recovery_contract_valid(
         "candidate_nonparameter_model_state_sha256",
         "ordered_optimizer_training_rows_sha256",
         "ordered_validation_rows_sha256",
+        "ordered_purged_training_rows_sha256",
         "training_partition_digest",
         "optimizer_implementation_artifact_sha256",
         "optimizer_configuration_artifact_sha256",
@@ -817,6 +828,14 @@ def _recovery_contract_valid(
         and material["optimizer_training_row_count"] > 0
         and type(material.get("validation_row_count")) is int
         and material["validation_row_count"] >= 0
+        and type(material.get("purged_training_row_count")) is int
+        and material["purged_training_row_count"] >= 0
+        and type(material.get("admitted_example_count")) is int
+        and material["admitted_example_count"] > 0
+        and material["optimizer_training_row_count"]
+        + material["validation_row_count"]
+        + material["purged_training_row_count"]
+        == material["admitted_example_count"]
         and material.get("optimizer_steps_completed") == 1
         and material.get("learning_mode") == "outcome_supervised"
         and material.get("optimizer_state_persisted") is False

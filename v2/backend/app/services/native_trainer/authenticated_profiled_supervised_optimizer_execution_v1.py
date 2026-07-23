@@ -1184,6 +1184,12 @@ def _configuration_artifact(
         "validation_split_actual_validation_rows": split_metrics.get(
             "validation_split_actual_validation_rows"
         ),
+        "validation_split_purged_training_rows": split_metrics.get(
+            "validation_split_purged_training_rows"
+        ),
+        "validation_split_excluded_rows": split_metrics.get(
+            "validation_split_excluded_rows"
+        ),
         "optimizer_input_byte_budget": optimizer_input_byte_budget,
         "optimizer_input_accounted_bytes": optimizer_input_accounted_bytes,
         "state_resource_budget_bytes": state_resource_budget_bytes,
@@ -1298,6 +1304,18 @@ def _training_result_artifact(result: PPOTrainingResult) -> bytes:
         "training_cycle_abort_reason": metrics.get("training_cycle_abort_reason"),
         "validation_split_pit_safe": metrics.get("validation_split_pit_safe"),
         "validation_split_reason": metrics.get("validation_split_reason"),
+        "validation_split_actual_training_rows": metrics.get(
+            "validation_split_actual_training_rows"
+        ),
+        "validation_split_actual_validation_rows": metrics.get(
+            "validation_split_actual_validation_rows"
+        ),
+        "validation_split_purged_training_rows": metrics.get(
+            "validation_split_purged_training_rows"
+        ),
+        "validation_split_excluded_rows": metrics.get(
+            "validation_split_excluded_rows"
+        ),
         "feedback_head_nudge_applied": metrics.get("feedback_head_nudge_applied"),
         "expected_move_head_saturation_recovery_applied": metrics.get(
             "expected_move_head_saturation_recovery_applied"
@@ -1354,8 +1372,10 @@ def _execution_material(values: Mapping[str, object]) -> dict[str, object]:
         "admitted_example_count",
         "optimizer_training_row_count",
         "validation_row_count",
+        "purged_training_row_count",
         "ordered_optimizer_training_rows_sha256",
         "ordered_validation_rows_sha256",
+        "ordered_purged_training_rows_sha256",
         "optimizer_steps_requested",
         "optimizer_steps_completed",
         "learning_mode",
@@ -1427,8 +1447,10 @@ class AuthenticatedProfiledSupervisedOptimizerExecutionV1:
     admitted_example_count: int
     optimizer_training_row_count: int
     validation_row_count: int
+    purged_training_row_count: int
     ordered_optimizer_training_rows_sha256: str
     ordered_validation_rows_sha256: str
+    ordered_purged_training_rows_sha256: str
     optimizer_steps_requested: int
     optimizer_steps_completed: int
     learning_mode: str
@@ -1527,6 +1549,7 @@ class AuthenticatedProfiledSupervisedOptimizerExecutionV1:
             self.deterministic_seed_material_sha256,
             self.ordered_optimizer_training_rows_sha256,
             self.ordered_validation_rows_sha256,
+            self.ordered_purged_training_rows_sha256,
             self.before_state_snapshot_sha256,
             self.after_state_snapshot_sha256,
             self.checkpoint_inventory_sha256,
@@ -1604,9 +1627,17 @@ class AuthenticatedProfiledSupervisedOptimizerExecutionV1:
             or hashlib.sha256(self.training_result_artifact_json_bytes).hexdigest()
             != self.training_result_artifact_sha256
             or self.in_memory_execution_receipt_sha256 != expected_receipt
+            or type(self.admitted_example_count) is not int
             or self.admitted_example_count <= 0
+            or type(self.optimizer_training_row_count) is not int
             or self.optimizer_training_row_count <= 0
-            or self.optimizer_training_row_count + self.validation_row_count
+            or type(self.validation_row_count) is not int
+            or self.validation_row_count < 0
+            or type(self.purged_training_row_count) is not int
+            or self.purged_training_row_count < 0
+            or self.optimizer_training_row_count
+            + self.validation_row_count
+            + self.purged_training_row_count
             != self.admitted_example_count
             or self.optimizer_steps_requested != 1
             or self.optimizer_steps_completed != 1
@@ -1703,8 +1734,10 @@ def _execution_material_names() -> tuple[str, ...]:
         "admitted_example_count",
         "optimizer_training_row_count",
         "validation_row_count",
+        "purged_training_row_count",
         "ordered_optimizer_training_rows_sha256",
         "ordered_validation_rows_sha256",
+        "ordered_purged_training_rows_sha256",
         "optimizer_steps_requested",
         "optimizer_steps_completed",
         "learning_mode",
@@ -1757,6 +1790,11 @@ def _validate_training_result(
     if type(result) is not PPOTrainingResult:
         _fail("PROFILED_SUPERVISED_EXECUTION_TRAINING_RESULT_EXACT_TYPE_REQUIRED")
     metrics = result.metrics
+    excluded_rows = metrics.get("validation_split_excluded_rows")
+    purged_rows = metrics.get("validation_split_purged_training_rows")
+    actual_training_rows = metrics.get("validation_split_actual_training_rows")
+    actual_validation_rows = metrics.get("validation_split_actual_validation_rows")
+    pit_safe = metrics.get("validation_split_pit_safe")
     if (
         result.status not in _SUCCESS_STATUSES
         or result.training_steps != 1
@@ -1804,9 +1842,31 @@ def _validate_training_result(
         or metrics.get("validation_split_pit_safe")
         is not split_metrics.get("validation_split_pit_safe")
         or metrics.get("validation_split_reason") != split_metrics.get("validation_split_reason")
-        or metrics.get("validation_split_actual_training_rows") != len(training_rows)
-        or metrics.get("validation_split_actual_validation_rows") != len(validation_rows)
-        or (bool(validation_rows) and metrics.get("validation_split_pit_safe") is not True)
+        or type(actual_training_rows) is not int
+        or actual_training_rows != len(training_rows)
+        or type(actual_validation_rows) is not int
+        or actual_validation_rows != len(validation_rows)
+        or type(pit_safe) is not bool
+        or type(excluded_rows) is not int
+        or excluded_rows < 0
+        or type(purged_rows) is not int
+        or purged_rows < 0
+        or len(training_rows) + len(validation_rows) + excluded_rows
+        != len(authorized_row_identities)
+        or (
+            excluded_rows > 0
+            and (
+                pit_safe is not True
+                or purged_rows != excluded_rows
+            )
+        )
+        or (bool(validation_rows) and pit_safe is not True)
+        or (pit_safe is True and not validation_rows)
+        or (
+            pit_safe is True
+            and metrics.get("validation_split_reason")
+            != "PIT_SAFE_CHRONOLOGICAL_PURGED_SPLIT"
+        )
         or type(metrics.get("feedback_head_nudge_applied")) is not bool
         or type(metrics.get("expected_move_head_saturation_recovery_applied")) is not bool
         or type(metrics.get("expected_move_head_saturation_recovery_reason")) is not str
@@ -2070,6 +2130,14 @@ def execute_authenticated_profiled_supervised_optimizer_v1(
             )
             training_rows = result.optimizer_training_examples
             validation_rows = result.validation_examples
+            selected_partition_ids = {
+                id(example) for example in (*training_rows, *validation_rows)
+            }
+            purged_training_rows = tuple(
+                example
+                for example in examples
+                if id(example) not in selected_partition_ids
+            )
             split_metrics = result.metrics
             _validate_training_result(
                 result=result,
@@ -2135,6 +2203,9 @@ def execute_authenticated_profiled_supervised_optimizer_v1(
         training_corpus_rows = tuple(row_by_example_id[id(example)] for example in training_rows)
         validation_corpus_rows = tuple(
             row_by_example_id[id(example)] for example in validation_rows
+        )
+        purged_training_corpus_rows = tuple(
+            row_by_example_id[id(example)] for example in purged_training_rows
         )
         configuration_artifact = _configuration_artifact(
             trainer=candidate_trainer,
@@ -2242,6 +2313,7 @@ def execute_authenticated_profiled_supervised_optimizer_v1(
             "admitted_example_count": len(examples),
             "optimizer_training_row_count": len(training_rows),
             "validation_row_count": len(validation_rows),
+            "purged_training_row_count": len(purged_training_rows),
             "ordered_optimizer_training_rows_sha256": _ordered_row_inventory_sha256(
                 training_corpus_rows,
                 domain="v2/native-trainer/authenticated-profiled-supervised-execution/train-rows/v1",
@@ -2249,6 +2321,13 @@ def execute_authenticated_profiled_supervised_optimizer_v1(
             "ordered_validation_rows_sha256": _ordered_row_inventory_sha256(
                 validation_corpus_rows,
                 domain="v2/native-trainer/authenticated-profiled-supervised-execution/validation-rows/v1",
+            ),
+            "ordered_purged_training_rows_sha256": _ordered_row_inventory_sha256(
+                purged_training_corpus_rows,
+                domain=(
+                    "v2/native-trainer/authenticated-profiled-supervised-execution/"
+                    "purged-train-rows/v1"
+                ),
             ),
             "optimizer_steps_requested": 1,
             "optimizer_steps_completed": 1,
@@ -2388,6 +2467,7 @@ def _local_research_result_material(values: Mapping[str, object]) -> dict[str, o
         "training_result_artifact_sha256",
         "training_rows",
         "validation_rows",
+        "purged_training_rows",
         "loss_before",
         "loss_after",
         "weight_delta_norm",
@@ -2427,6 +2507,7 @@ class LocallyAuthenticatedProfiledResearchOptimizerExecutionV1:
     training_result_artifact_sha256: str
     training_rows: int
     validation_rows: int
+    purged_training_rows: int
     loss_before: float
     loss_after: float
     weight_delta_norm: float
@@ -2495,7 +2576,12 @@ class LocallyAuthenticatedProfiledResearchOptimizerExecutionV1:
             or self.training_rows <= 0
             or type(self.validation_rows) is not int
             or self.validation_rows < 0
-            or self.training_rows + self.validation_rows != self.admitted_example_count
+            or type(self.purged_training_rows) is not int
+            or self.purged_training_rows < 0
+            or self.training_rows
+            + self.validation_rows
+            + self.purged_training_rows
+            != self.admitted_example_count
             or any(
                 type(value) is not float or not math.isfinite(value)
                 for value in (self.loss_before, self.loss_after, self.weight_delta_norm)
@@ -2570,6 +2656,7 @@ def _local_research_result_material_names() -> tuple[str, ...]:
         "training_result_artifact_sha256",
         "training_rows",
         "validation_rows",
+        "purged_training_rows",
         "loss_before",
         "loss_after",
         "weight_delta_norm",
@@ -2856,6 +2943,7 @@ def execute_locally_authenticated_profiled_research_optimizer_v1(
             )
         training_rows = result.optimizer_training_examples
         validation_rows = result.validation_examples
+        purged_training_rows = int(result.metrics["validation_split_excluded_rows"])
         _validate_training_result(
             result=result,
             training_rows=training_rows,
@@ -2932,6 +3020,7 @@ def execute_locally_authenticated_profiled_research_optimizer_v1(
             "training_result_artifact_sha256": training_result_artifact_sha256,
             "training_rows": len(training_rows),
             "validation_rows": len(validation_rows),
+            "purged_training_rows": purged_training_rows,
             "loss_before": float(cast(float, result.loss_before)),
             "loss_after": float(cast(float, result.loss_after)),
             "weight_delta_norm": float(result.metrics["weight_delta_norm"]),
