@@ -555,6 +555,7 @@ def freeze_dataset_from_archive(
     scan_limit: int = 60_000,
     replay_limit: int = 30_000,
     canonical_label_archive: DurableCanonical5mLabelArchive | None = None,
+    canonical_label_integrity_proof: Mapping[str, Any] | None = None,
     training_observed_at: str | None = None,
 ) -> DatasetFreeze:
     # The archive is append-only.  Prefer the newest fixed-size window so
@@ -571,7 +572,14 @@ def freeze_dataset_from_archive(
     rejections: Counter[str] = Counter()
     pit_eligible_snapshots: list[Mapping[str, Any]] = []
     canonical_label_integrity: Mapping[str, Any] | None = None
-    if canonical_label_archive is not None:
+    if canonical_label_integrity_proof is not None:
+        if canonical_label_archive is not None and (
+            canonical_label_integrity_proof.get("archive_integrity_verified") is True
+        ):
+            # Per-row canonical-label reads revalidate this proof against the
+            # current immutable archive metadata before admitting a label.
+            canonical_label_integrity = canonical_label_integrity_proof
+    elif canonical_label_archive is not None:
         try:
             integrity = canonical_label_archive.verify_integrity()
         except (OSError, TypeError, ValueError):

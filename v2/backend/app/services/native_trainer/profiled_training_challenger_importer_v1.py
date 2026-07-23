@@ -60,6 +60,12 @@ IMPORT_SNAPSHOT_PREFIX = "profiled_training_challenger_v1"
 MAX_IMPORT_PAGE_SIZE = 32
 SHARD_CHECKPOINT_SCHEMA_VERSION = "profiled_training_challenger_import_checkpoint_v1"
 DEFAULT_SHARD_CHECKPOINT_FILENAME = "profiled_training_challenger_import_checkpoint_v1.json"
+LABEL_INTEGRITY_CHECKPOINT_SCHEMA_VERSION = (
+    "profiled_training_challenger_label_integrity_checkpoint_v1"
+)
+DEFAULT_LABEL_INTEGRITY_CHECKPOINT_FILENAME = (
+    "profiled_training_challenger_label_integrity_checkpoint_v1.json"
+)
 DEFAULT_MINIMUM_TRAIN_ROWS = 1_000
 DEFAULT_MINIMUM_VALIDATION_ROWS = 100
 DEFAULT_MINIMUM_HOLDOUT_ROWS = 100
@@ -552,6 +558,73 @@ def _read_checkpoint(path: Path) -> dict[str, Any] | None:
     return payload
 
 
+def _label_integrity_checkpoint_path(*, challenger_archive_root: Path) -> Path:
+    path = challenger_archive_root / DEFAULT_LABEL_INTEGRITY_CHECKPOINT_FILENAME
+    if path.parent != challenger_archive_root or path.is_symlink():
+        raise ProfiledTrainingChallengerImportError(
+            "PROFILED_TRAINING_CHALLENGER_LABEL_INTEGRITY_CHECKPOINT_PATH_INVALID"
+        )
+    return path
+
+
+def _read_label_integrity_checkpoint(path: Path) -> dict[str, Any] | None:
+    if not path.exists():
+        return None
+    if not path.is_file() or path.is_symlink():
+        raise ProfiledTrainingChallengerImportError(
+            "PROFILED_TRAINING_CHALLENGER_LABEL_INTEGRITY_CHECKPOINT_UNSAFE"
+        )
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, ValueError) as exc:
+        raise ProfiledTrainingChallengerImportError(
+            "PROFILED_TRAINING_CHALLENGER_LABEL_INTEGRITY_CHECKPOINT_INVALID"
+        ) from exc
+    if (
+        type(payload) is not dict
+        or payload.get("schema_version") != LABEL_INTEGRITY_CHECKPOINT_SCHEMA_VERSION
+        or type(payload.get("label_archive_path")) is not str
+        or not isinstance(payload.get("integrity_proof"), dict)
+    ):
+        raise ProfiledTrainingChallengerImportError(
+            "PROFILED_TRAINING_CHALLENGER_LABEL_INTEGRITY_CHECKPOINT_INVALID"
+        )
+    return payload
+
+
+def _load_or_verify_label_integrity(
+    *,
+    challenger_archive_root: Path,
+    label_archive: DurableCanonical5mLabelArchive,
+) -> tuple[dict[str, Any], bool, Path]:
+    """Reuse a full proof only while each bounded label read proves it current."""
+
+    path = _label_integrity_checkpoint_path(
+        challenger_archive_root=challenger_archive_root,
+    )
+    cached = _read_label_integrity_checkpoint(path)
+    if cached is not None:
+        if cached["label_archive_path"] != str(label_archive.path.resolve()):
+            raise ProfiledTrainingChallengerImportError(
+                "PROFILED_TRAINING_CHALLENGER_LABEL_INTEGRITY_CHECKPOINT_CONTEXT_INVALID"
+            )
+        return dict(cached["integrity_proof"]), True, path
+    integrity = label_archive.verify_integrity()
+    if integrity.get("archive_integrity_verified") is not True:
+        raise ProfiledTrainingChallengerImportError(
+            "PROFILED_TRAINING_CHALLENGER_LABEL_ARCHIVE_INTEGRITY_UNVERIFIED"
+        )
+    _write_checkpoint_atomic(
+        path,
+        {
+            "schema_version": LABEL_INTEGRITY_CHECKPOINT_SCHEMA_VERSION,
+            "label_archive_path": str(label_archive.path.resolve()),
+            "integrity_proof": integrity,
+        },
+    )
+    return integrity, False, path
+
+
 def _write_checkpoint_atomic(path: Path, payload: Mapping[str, Any]) -> None:
     if not path.parent.is_dir() or path.parent.is_symlink():
         raise ProfiledTrainingChallengerImportError(
@@ -655,6 +728,7 @@ def _post_purge_counts(
     *,
     challenger_archive_root: Path,
     label_archive: DurableCanonical5mLabelArchive,
+    label_archive_integrity_proof: Mapping[str, Any] | None = None,
     training_observed_at: str,
 ) -> dict[str, int]:
     # Import locally to retain the importer as the one-way data boundary.
@@ -666,6 +740,7 @@ def _post_purge_counts(
     freeze = freeze_dataset_from_archive(
         archive_root=challenger_archive_root,
         canonical_label_archive=label_archive,
+        canonical_label_integrity_proof=label_archive_integrity_proof,
         training_observed_at=training_observed_at,
     )
     train, validation, holdout, split_manifest = _split_rows(freeze.rows)
@@ -697,8 +772,8 @@ def import_profiled_training_ledger_shards_to_challenger_archive_v1(
     """Import bounded authenticated shards and atomically checkpoint progress.
 
     The cursor is advanced only after every row in its shard has been written
-    to the challenger archive and the archive checksum manifest has been
-    durably refreshed.  A restart resumes at the next immutable ledger page;
+    and its blob, index, and append manifest have been durably fsynced.  A
+    restart resumes at the next immutable ledger page;
     a crash before checkpointing may verify a partial page again, but archive
     snapshot IDs make that recovery idempotent.
     """
@@ -745,11 +820,6 @@ def import_profiled_training_ledger_shards_to_challenger_archive_v1(
         challenger_archive_root=archive_root,
         checkpoint_path=checkpoint_path,
     )
-    integrity = label_archive.verify_integrity()
-    if integrity.get("archive_integrity_verified") is not True:
-        raise ProfiledTrainingChallengerImportError(
-            "PROFILED_TRAINING_CHALLENGER_LABEL_ARCHIVE_INTEGRITY_UNVERIFIED"
-        )
     checkpoint = _read_checkpoint(path)
     if checkpoint is None:
         observed = _utc_iso(
@@ -804,10 +874,18 @@ def import_profiled_training_ledger_shards_to_challenger_archive_v1(
                 else _post_purge_counts(
                     challenger_archive_root=archive_root,
                     label_archive=label_archive,
+                    label_archive_integrity_proof=None,
                     training_observed_at=observed,
                 )
             ),
         }
+
+    integrity, label_integrity_checkpoint_reused, label_integrity_path = (
+        _load_or_verify_label_integrity(
+            challenger_archive_root=archive_root,
+            label_archive=label_archive,
+        )
+    )
 
     total_imported = total_duplicates = total_excluded = 0
     total_label_paths = 0
@@ -882,6 +960,7 @@ def import_profiled_training_ledger_shards_to_challenger_archive_v1(
         post_purge_counts = _post_purge_counts(
             challenger_archive_root=archive_root,
             label_archive=label_archive,
+            label_archive_integrity_proof=integrity,
             training_observed_at=observed,
         )
         minimums_met = (
@@ -933,6 +1012,8 @@ def import_profiled_training_ledger_shards_to_challenger_archive_v1(
             "post_purge_counts": post_purge_counts,
             "minimums_met": minimums_met,
             "checkpoint_path": str(path),
+            "label_integrity_checkpoint_path": str(label_integrity_path),
+            "label_integrity_checkpoint_reused": label_integrity_checkpoint_reused,
         }
         shard_reports.append(report)
         if progress_consumer is not None:
@@ -947,6 +1028,8 @@ def import_profiled_training_ledger_shards_to_challenger_archive_v1(
     return {
         "schema_version": SHARD_CHECKPOINT_SCHEMA_VERSION,
         "checkpoint_path": str(path),
+        "label_integrity_checkpoint_path": str(label_integrity_path),
+        "label_integrity_checkpoint_reused": label_integrity_checkpoint_reused,
         "training_observed_at": observed,
         "shards_completed": completed_shards,
         "shards_processed_this_run": len(shard_reports),

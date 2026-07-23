@@ -118,11 +118,24 @@ def test_sharded_importer_checkpoints_completed_cursor_without_reprocessing(
         evidence,
     )
     challenger_archive = tmp_path / "sharded-challenger-archive"
+    challenger_archive.mkdir()
     progress: list[dict[str, object]] = []
+    integrity, reused, integrity_path = importer._load_or_verify_label_integrity(
+        challenger_archive_root=challenger_archive,
+        label_archive=labels,
+    )
+    assert integrity["archive_integrity_verified"] is True
+    assert reused is False
+    assert integrity_path.is_file()
     monkeypatch.setattr(
         importer,
         "write_checksum_manifest",
         lambda _root: (_ for _ in ()).throw(AssertionError("global checksum scan")),
+    )
+    monkeypatch.setattr(
+        labels,
+        "verify_integrity",
+        lambda: (_ for _ in ()).throw(AssertionError("full label integrity scan")),
     )
 
     first = import_profiled_training_ledger_shards_to_challenger_archive_v1(
@@ -142,6 +155,7 @@ def test_sharded_importer_checkpoints_completed_cursor_without_reprocessing(
     assert len(progress) == 1
     assert progress[0]["imported_rows"] == 1
     assert progress[0]["checkpoint_path"] == first["checkpoint_path"]
+    assert progress[0]["label_integrity_checkpoint_reused"] is True
     assert progress[0]["shards_remaining"] == 0
 
     resumed = import_profiled_training_ledger_shards_to_challenger_archive_v1(
