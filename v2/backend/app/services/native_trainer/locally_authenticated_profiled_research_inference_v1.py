@@ -1036,6 +1036,26 @@ class LocallyAuthenticatedProfiledResearchInferenceHandleV1:
         )
 
 
+def revalidate_locally_authenticated_profiled_research_raw_inference_v2(
+    value: object,
+) -> dict[str, Any]:
+    """Revalidate one exact factory-built V2 receipt for research consumers."""
+
+    if type(value) is not LocallyAuthenticatedProfiledResearchRawInferenceV2:
+        _fail("LOCAL_PROFILED_RAW_INFERENCE_V2_EXACT_TYPE_REQUIRED")
+    receipt = cast(LocallyAuthenticatedProfiledResearchRawInferenceV2, value)
+    try:
+        receipt.__post_init__(_RESULT_FACTORY_TOKEN)
+        return receipt.to_payload()
+    except LocallyAuthenticatedProfiledResearchInferenceV1Error:
+        raise
+    except Exception as exc:
+        raise LocallyAuthenticatedProfiledResearchInferenceV1Error(
+            "LOCAL_PROFILED_RAW_INFERENCE_V2_REVALIDATION_FAILED:"
+            f"{type(exc).__name__}"
+        ) from exc
+
+
 def _validated_local_research_key(
     credentials: AuthenticatedProfiledResidentRuntimeCredentialsV1,
 ) -> bytes:
@@ -1214,4 +1234,5 @@ __all__ = (
     "LocallyAuthenticatedProfiledResearchRawInferenceV1",
     "LocallyAuthenticatedProfiledResearchRawInferenceV2",
     "open_locally_authenticated_profiled_research_inference_v1",
+    "revalidate_locally_authenticated_profiled_research_raw_inference_v2",
 )
