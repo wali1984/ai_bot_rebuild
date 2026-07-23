@@ -887,11 +887,14 @@ def import_profiled_training_ledger_shards_to_challenger_archive_v1(
         )
     )
 
+    last_post_purge_counts = checkpoint.get("last_post_purge_counts") if checkpoint else None
+    if not isinstance(last_post_purge_counts, dict):
+        last_post_purge_counts = {}
     total_imported = total_duplicates = total_excluded = 0
     total_label_paths = 0
     total_rejections: Counter[str] = Counter()
     shard_reports: list[dict[str, Any]] = []
-    post_purge_counts: dict[str, int] = {}
+    post_purge_counts: dict[str, Any] = dict(last_post_purge_counts)
     minimums_met = False
     for shard_index in range(max_shards):
         shard_started = datetime.now(UTC)
@@ -957,21 +960,31 @@ def import_profiled_training_ledger_shards_to_challenger_archive_v1(
             archive_root=archive_root,
             write_paths=write_paths,
         )
-        post_purge_counts = _post_purge_counts(
-            challenger_archive_root=archive_root,
-            label_archive=label_archive,
-            label_archive_integrity_proof=integrity,
-            training_observed_at=observed,
-        )
-        minimums_met = (
-            post_purge_counts["train_rows"] >= minimum_train_rows
-            and post_purge_counts["validation_rows"] >= minimum_validation_rows
-            and post_purge_counts["untouched_holdout_rows"] >= minimum_holdout_rows
-        )
         completed_shards += 1
         after_sequence = batch.next_after_sequence
         page_cursor = batch.next_cursor
         completed = batch.next_cursor is None
+        # Materializing the complete challenger view is intentionally deferred
+        # until this fixed observation is exhausted.  Repeating its 60k-row
+        # bounded scan after every one-row source page starves the checkpoint
+        # path while adding no new decision-time group evidence.  Each source
+        # page remains fully durable and resumable; the final page computes the
+        # exact post-purge proof before the completed checkpoint is published.
+        post_purge_assessed = completed
+        if post_purge_assessed:
+            post_purge_counts = _post_purge_counts(
+                challenger_archive_root=archive_root,
+                label_archive=label_archive,
+                label_archive_integrity_proof=integrity,
+                training_observed_at=observed,
+            )
+            minimums_met = (
+                post_purge_counts["train_rows"] >= minimum_train_rows
+                and post_purge_counts["validation_rows"] >= minimum_validation_rows
+                and post_purge_counts["untouched_holdout_rows"] >= minimum_holdout_rows
+            )
+        else:
+            minimums_met = False
         checkpoint_payload = {
             "schema_version": SHARD_CHECKPOINT_SCHEMA_VERSION,
             "archive_root": str(archive_root),
@@ -1010,6 +1023,7 @@ def import_profiled_training_ledger_shards_to_challenger_archive_v1(
             ),
             "elapsed_seconds": elapsed_seconds,
             "post_purge_counts": post_purge_counts,
+            "post_purge_assessment_pending": not post_purge_assessed,
             "minimums_met": minimums_met,
             "checkpoint_path": str(path),
             "label_integrity_checkpoint_path": str(label_integrity_path),
