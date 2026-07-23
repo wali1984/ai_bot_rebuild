@@ -412,6 +412,16 @@ def _extract_epoch_seconds(payload: Any) -> float | None:
         "last_update_ms",
         "last_run_ts",
         "last_snapshot_ms",
+        # Derived records can represent an older source event while being
+        # freshly recomputed from a current reference price.  Their numeric
+        # lifecycle clocks are legitimate liveness evidence and must not be
+        # discarded merely because they are epoch milliseconds rather than
+        # ISO strings.
+        "event_time",
+        "ingested_at",
+        "available_at",
+        "generated_at",
+        "feature_cutoff",
     ):
         value = payload.get(key)
         if isinstance(value, (int, float)) and value > 0:
