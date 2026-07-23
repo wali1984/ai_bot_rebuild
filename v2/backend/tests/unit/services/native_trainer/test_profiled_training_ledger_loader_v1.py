@@ -64,6 +64,28 @@ def _digest(label: str) -> str:
     return hashlib.sha256(label.encode("ascii")).hexdigest()
 
 
+def test_nested_cost_artifact_addresses_extend_exact_inventory() -> None:
+    digest = _digest("nested-transport-receipt")
+    address = {
+        "schema_version": loader_v1.SOURCE_PAYLOAD_ADDRESS_SCHEMA_VERSION,
+        "payload_sha256": digest,
+        "payload_byte_count": 19,
+        "relative_path": f"sha256/{digest[:2]}/{digest}",
+    }
+    inventory: dict[str, int] = {}
+
+    loader_v1._bind_nested_embedded_cas_addresses(
+        {
+            "fee_transport_provenance": {
+                "consumer_receipt_cas_address": address,
+            }
+        },
+        expected_inventory=inventory,
+    )
+
+    assert inventory == {digest: 19}
+
+
 def _derivation(label: str) -> dict[str, Any]:
     return {
         "schema_version": FEATURE_SOURCE_DERIVATION_SCHEMA_VERSION,

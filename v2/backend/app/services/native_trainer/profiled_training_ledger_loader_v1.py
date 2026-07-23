@@ -382,6 +382,15 @@ _SOURCE_TIMEFRAME_BINDING_FIELDS = frozenset(
     }
 )
 _IMMUTABLE_COST_LOCATORS = frozenset({"FILE_CONTENT_ADDRESS", "SQLITE_IMMUTABLE_ROW"})
+_EMBEDDED_CAS_ADDRESS_FIELDS = frozenset(
+    {
+        "schema_version",
+        "payload_sha256",
+        "payload_byte_count",
+        "relative_path",
+    }
+)
+_MAX_EMBEDDED_CAS_ADDRESS_NODES = 4_096
 _MARKET_DIRECT_READ_RECEIPT_FIELDS = frozenset(
     {
         "schema_version",
@@ -1162,6 +1171,56 @@ def _validate_causal_immutable_receipt(
         _fail(reason)
 
 
+def _bind_embedded_cas_address(
+    value: object,
+    *,
+    expected_inventory: dict[str, int],
+) -> None:
+    if type(value) is not dict or set(value) != _EMBEDDED_CAS_ADDRESS_FIELDS:
+        _fail("PROFILED_TRAINING_COST_EMBEDDED_CAS_ADDRESS_INVALID")
+    digest = value.get("payload_sha256")
+    byte_count = value.get("payload_byte_count")
+    if (
+        value.get("schema_version") != SOURCE_PAYLOAD_ADDRESS_SCHEMA_VERSION
+        or not _valid_sha256(digest)
+        or type(byte_count) is not int
+        or byte_count <= 0
+        or value.get("relative_path")
+        != f"sha256/{cast(str, digest)[:2]}/{digest}"
+    ):
+        _fail("PROFILED_TRAINING_COST_EMBEDDED_CAS_ADDRESS_INVALID")
+    prior = expected_inventory.get(cast(str, digest))
+    if prior is not None and prior != byte_count:
+        _fail("PROFILED_TRAINING_COST_EMBEDDED_CAS_ADDRESS_CONFLICT")
+    expected_inventory[cast(str, digest)] = byte_count
+
+
+def _bind_nested_embedded_cas_addresses(
+    value: object,
+    *,
+    expected_inventory: dict[str, int],
+) -> None:
+    """Add only exact CAS addresses declared anywhere in a cost artifact."""
+
+    pending: list[object] = [value]
+    nodes_seen = 0
+    while pending:
+        node = pending.pop()
+        nodes_seen += 1
+        if nodes_seen > _MAX_EMBEDDED_CAS_ADDRESS_NODES:
+            _fail("PROFILED_TRAINING_COST_EMBEDDED_CAS_ADDRESS_GRAPH_TOO_LARGE")
+        if type(node) is dict:
+            if set(node) == _EMBEDDED_CAS_ADDRESS_FIELDS:
+                _bind_embedded_cas_address(
+                    node,
+                    expected_inventory=expected_inventory,
+                )
+            else:
+                pending.extend(node.values())
+        elif type(node) is list:
+            pending.extend(node)
+
+
 def _reopen_cost_cas(
     *,
     binding: Mapping[str, Any],
@@ -1302,29 +1361,6 @@ def _reopen_cost_cas(
         int, binding["cost_capture_artifact_byte_count"]
     )
 
-    def bind_embedded_address(value: object) -> None:
-        if type(value) is not dict or set(value) != {
-            "schema_version",
-            "payload_sha256",
-            "payload_byte_count",
-            "relative_path",
-        }:
-            _fail("PROFILED_TRAINING_COST_EMBEDDED_CAS_ADDRESS_INVALID")
-        digest = value.get("payload_sha256")
-        byte_count = value.get("payload_byte_count")
-        if (
-            value.get("schema_version") != SOURCE_PAYLOAD_ADDRESS_SCHEMA_VERSION
-            or not _valid_sha256(digest)
-            or type(byte_count) is not int
-            or byte_count <= 0
-            or value.get("relative_path") != f"sha256/{cast(str, digest)[:2]}/{digest}"
-        ):
-            _fail("PROFILED_TRAINING_COST_EMBEDDED_CAS_ADDRESS_INVALID")
-        prior = expected_inventory.get(cast(str, digest))
-        if prior is not None and prior != byte_count:
-            _fail("PROFILED_TRAINING_COST_EMBEDDED_CAS_ADDRESS_CONFLICT")
-        expected_inventory[cast(str, digest)] = byte_count
-
     market_sources = artifact.get("market_sources")
     fee_source = artifact.get("fee_source")
     notional_source = artifact.get("notional_source")
@@ -1338,16 +1374,32 @@ def _reopen_cost_cas(
         source = market_sources.get(role)
         if type(source) is not dict:
             _fail("PROFILED_TRAINING_COST_ARTIFACT_SOURCE_INVENTORY_INVALID")
-        bind_embedded_address(source.get("payload_cas_address"))
-        bind_embedded_address(source.get("direct_read_receipt_cas_address"))
+        _bind_embedded_cas_address(
+            source.get("payload_cas_address"),
+            expected_inventory=expected_inventory,
+        )
+        _bind_embedded_cas_address(
+            source.get("direct_read_receipt_cas_address"),
+            expected_inventory=expected_inventory,
+        )
     for address_field in (
         "artifact_cas_address",
         "input_receipt_cas_address",
         "raw_response_cas_address",
     ):
-        bind_embedded_address(fee_source.get(address_field))
+        _bind_embedded_cas_address(
+            fee_source.get(address_field),
+            expected_inventory=expected_inventory,
+        )
     for address_field in ("artifact_cas_address", "input_receipt_cas_address"):
-        bind_embedded_address(notional_source.get(address_field))
+        _bind_embedded_cas_address(
+            notional_source.get(address_field),
+            expected_inventory=expected_inventory,
+        )
+    _bind_nested_embedded_cas_addresses(
+        artifact,
+        expected_inventory=expected_inventory,
+    )
     if inventory != expected_inventory:
         _fail("PROFILED_TRAINING_COST_CAS_INVENTORY_NOT_EXACT")
 
