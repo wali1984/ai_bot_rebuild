@@ -4,7 +4,9 @@ This boundary does not create a canonical prediction or PAPER signal. It
 reopens one exact local-only checkpoint, verifies that the checkpoint was
 produced by the clean source closure currently executing, freshly recomputes
 one profiled feature record from its immutable evidence, and returns raw logits
-with every downstream authority false.
+with every downstream authority false. The frozen V1 receipt remains available;
+V2 additionally binds the model-adjusted opening distribution, expected-move
+output, and uncalibrated long/short profitability-head values.
 """
 
 from __future__ import annotations
@@ -46,6 +48,12 @@ from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.checkpoint_lifec
     LOCAL_PROFILED_RESEARCH_TRAINER_LEASE_OWNER_ROLE,
     checkpoint_lifecycle_lease,
 )
+from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.confidence import (
+    CONFIDENCE_HEAD_ACTION_INDEX,
+    CONFIDENCE_HEAD_ACTIONS,
+    CONFIDENCE_HEAD_SCHEMA_VERSION,
+    CONFIDENCE_LABEL_SEMANTICS,
+)
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.config import (
     ACTION_LABELS,
 )
@@ -80,8 +88,14 @@ from v2.backend.app.services.native_trainer.source_provenance_ledger_v4 import (
 LOCAL_PROFILED_RESEARCH_INFERENCE_V1_SCHEMA_VERSION: Final = (
     "locally_authenticated_profiled_research_inference_v1"
 )
+LOCAL_PROFILED_RESEARCH_INFERENCE_V2_SCHEMA_VERSION: Final = (
+    "locally_authenticated_profiled_research_inference_v2"
+)
 LOCAL_PROFILED_RESEARCH_RAW_INFERENCE_V1_CLASSIFICATION: Final = (
     "LOCAL_PROFILED_RESEARCH_RAW_UNWIRED_HYPOTHESIS_V1"
+)
+LOCAL_PROFILED_RESEARCH_RAW_INFERENCE_V2_CLASSIFICATION: Final = (
+    "LOCAL_PROFILED_RESEARCH_RAW_UNWIRED_HYPOTHESIS_V2"
 )
 _SHA1_RE = re.compile(r"^[0-9a-f]{40}$", re.ASCII)
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$", re.ASCII)
@@ -205,7 +219,7 @@ def _handle_seal_material(
 
 
 @dataclass(frozen=True, slots=True)
-class LocallyAuthenticatedProfiledResearchRawInferenceV1:
+class _LocallyAuthenticatedProfiledResearchRawInferenceCommon:
     schema_version: str
     classification: str
     checkpoint_id: str
@@ -265,6 +279,25 @@ class LocallyAuthenticatedProfiledResearchRawInferenceV1:
     _factory_token: InitVar[object | None] = None
 
     def __post_init__(self, _factory_token: object | None) -> None:
+        self._validate_common(
+            _factory_token=_factory_token,
+            expected_schema_version=(
+                LOCAL_PROFILED_RESEARCH_INFERENCE_V1_SCHEMA_VERSION
+            ),
+            expected_classification=(
+                LOCAL_PROFILED_RESEARCH_RAW_INFERENCE_V1_CLASSIFICATION
+            ),
+            require_logit_argmax_selected=True,
+        )
+
+    def _validate_common(
+        self,
+        *,
+        _factory_token: object | None,
+        expected_schema_version: str,
+        expected_classification: str,
+        require_logit_argmax_selected: bool,
+    ) -> None:
         if _factory_token is not _RESULT_FACTORY_TOKEN:
             _fail("LOCAL_PROFILED_RAW_INFERENCE_FACTORY_REQUIRED")
         hashes = (
@@ -298,8 +331,8 @@ class LocallyAuthenticatedProfiledResearchRawInferenceV1:
             else -1.0
         )
         if (
-            self.schema_version != LOCAL_PROFILED_RESEARCH_INFERENCE_V1_SCHEMA_VERSION
-            or self.classification != LOCAL_PROFILED_RESEARCH_RAW_INFERENCE_V1_CLASSIFICATION
+            self.schema_version != expected_schema_version
+            or self.classification != expected_classification
             or _IDENTIFIER_RE.fullmatch(self.checkpoint_id) is None
             or type(self.checkpoint_generation) is not int
             or self.checkpoint_generation <= 0
@@ -325,10 +358,15 @@ class LocallyAuthenticatedProfiledResearchRawInferenceV1:
             or len(self.raw_action_logits) != len(ACTION_LABELS)
             or any(not math.isfinite(value) for value in self.raw_action_logits)
             or self.raw_action_logits_sha256 != stable_sha256(list(self.raw_action_logits))
-            or self.selected_action_index
-            != max(
-                range(len(self.raw_action_logits)),
-                key=self.raw_action_logits.__getitem__,
+            or type(self.selected_action_index) is not int
+            or not 0 <= self.selected_action_index < len(ACTION_LABELS)
+            or (
+                require_logit_argmax_selected
+                and self.selected_action_index
+                != max(
+                    range(len(self.raw_action_logits)),
+                    key=self.raw_action_logits.__getitem__,
+                )
             )
             or self.selected_action != ACTION_LABELS[self.selected_action_index]
             or not self.model_device
@@ -361,6 +399,92 @@ class LocallyAuthenticatedProfiledResearchRawInferenceV1:
             **self._material(),
             "hypothesis_binding_sha256": self.hypothesis_binding_sha256,
         }
+
+
+@dataclass(frozen=True, slots=True)
+class LocallyAuthenticatedProfiledResearchRawInferenceV1(
+    _LocallyAuthenticatedProfiledResearchRawInferenceCommon
+):
+    """Frozen V1 raw inference receipt."""
+
+
+@dataclass(frozen=True, slots=True)
+class LocallyAuthenticatedProfiledResearchRawInferenceV2(
+    _LocallyAuthenticatedProfiledResearchRawInferenceCommon
+):
+    """V1-compatible raw receipt plus uncalibrated directional confidence heads."""
+
+    confidence_head_schema_version: str = ""
+    confidence_label_semantics: str = ""
+    confidence_head_actions: tuple[str, ...] = ()
+    confidence_raw_by_direction: tuple[float, ...] = ()
+    selected_action_is_directional: bool = False
+    selected_directional_profitability_raw: float | None = None
+    model_action_probabilities: tuple[float, ...] = ()
+    expected_move_bps: float = 0.0
+
+    def __post_init__(self, _factory_token: object | None) -> None:
+        self._validate_common(
+            _factory_token=_factory_token,
+            expected_schema_version=(
+                LOCAL_PROFILED_RESEARCH_INFERENCE_V2_SCHEMA_VERSION
+            ),
+            expected_classification=(
+                LOCAL_PROFILED_RESEARCH_RAW_INFERENCE_V2_CLASSIFICATION
+            ),
+            require_logit_argmax_selected=False,
+        )
+        selected_head_index = CONFIDENCE_HEAD_ACTION_INDEX.get(self.selected_action)
+        expected_selected_raw = (
+            self.confidence_raw_by_direction[selected_head_index]
+            if selected_head_index is not None
+            and len(self.confidence_raw_by_direction) == len(CONFIDENCE_HEAD_ACTIONS)
+            else None
+        )
+        if (
+            self.confidence_head_schema_version != CONFIDENCE_HEAD_SCHEMA_VERSION
+            or self.confidence_label_semantics != CONFIDENCE_LABEL_SEMANTICS
+            or type(self.confidence_head_actions) is not tuple
+            or self.confidence_head_actions != CONFIDENCE_HEAD_ACTIONS
+            or type(self.confidence_raw_by_direction) is not tuple
+            or len(self.confidence_raw_by_direction) != len(CONFIDENCE_HEAD_ACTIONS)
+            or any(
+                type(value) is not float
+                or not math.isfinite(value)
+                or not 0.0 <= value <= 1.0
+                for value in self.confidence_raw_by_direction
+            )
+            or self.selected_action_is_directional
+            is not (selected_head_index is not None)
+            or (
+                self.selected_directional_profitability_raw is not None
+                and type(self.selected_directional_profitability_raw) is not float
+            )
+            or self.selected_directional_profitability_raw != expected_selected_raw
+            or type(self.model_action_probabilities) is not tuple
+            or len(self.model_action_probabilities) != len(ACTION_LABELS)
+            or any(
+                type(value) is not float
+                or not math.isfinite(value)
+                or not 0.0 <= value <= 1.0
+                for value in self.model_action_probabilities
+            )
+            or not math.isclose(
+                sum(self.model_action_probabilities),
+                1.0,
+                rel_tol=0.0,
+                abs_tol=1e-9,
+            )
+            or self.selected_action_index not in {0, 1, 2}
+            or self.selected_action_index
+            != max(
+                range(3),
+                key=self.model_action_probabilities.__getitem__,
+            )
+            or type(self.expected_move_bps) is not float
+            or not math.isfinite(self.expected_move_bps)
+        ):
+            _fail("LOCAL_PROFILED_RAW_INFERENCE_V2_CONFIDENCE_HEAD_INVALID")
 
 
 @dataclass(frozen=True, slots=True)
@@ -487,7 +611,72 @@ class LocallyAuthenticatedProfiledResearchInferenceHandleV1:
             TrainerSourceProvenanceLedgerEntryV4,
         ],
     ) -> LocallyAuthenticatedProfiledResearchRawInferenceV1:
-        """Freshly verify one immutable record and return quarantined logits."""
+        """Freshly verify one immutable record and return the frozen V1 receipt."""
+
+        return cast(
+            LocallyAuthenticatedProfiledResearchRawInferenceV1,
+            self._infer_profiled_record(
+                result_version=1,
+                record=record,
+                transform_result=transform_result,
+                capture_set_contract=capture_set_contract,
+                capture_set_store=capture_set_store,
+                artifact_store=artifact_store,
+                source_provenance_ledger=source_provenance_ledger,
+                source_provenance_entries=source_provenance_entries,
+            ),
+        )
+
+    def infer_profiled_record_v2(
+        self,
+        *,
+        record: Mapping[str, Any],
+        transform_result: AuthenticatedOhlcvProfileTransformV1Result,
+        capture_set_contract: Mapping[str, Any],
+        capture_set_store: ImmutableSourcePayloadStore,
+        artifact_store: ImmutableSourcePayloadStore,
+        source_provenance_ledger: TrainerSourceProvenanceLedgerV4,
+        source_provenance_entries: tuple[
+            TrainerSourceProvenanceLedgerEntryV4,
+            TrainerSourceProvenanceLedgerEntryV4,
+        ],
+    ) -> LocallyAuthenticatedProfiledResearchRawInferenceV2:
+        """Return V1 evidence plus raw long/short profitability-head outputs."""
+
+        return cast(
+            LocallyAuthenticatedProfiledResearchRawInferenceV2,
+            self._infer_profiled_record(
+                result_version=2,
+                record=record,
+                transform_result=transform_result,
+                capture_set_contract=capture_set_contract,
+                capture_set_store=capture_set_store,
+                artifact_store=artifact_store,
+                source_provenance_ledger=source_provenance_ledger,
+                source_provenance_entries=source_provenance_entries,
+            ),
+        )
+
+    def _infer_profiled_record(
+        self,
+        *,
+        result_version: int,
+        record: Mapping[str, Any],
+        transform_result: AuthenticatedOhlcvProfileTransformV1Result,
+        capture_set_contract: Mapping[str, Any],
+        capture_set_store: ImmutableSourcePayloadStore,
+        artifact_store: ImmutableSourcePayloadStore,
+        source_provenance_ledger: TrainerSourceProvenanceLedgerV4,
+        source_provenance_entries: tuple[
+            TrainerSourceProvenanceLedgerEntryV4,
+            TrainerSourceProvenanceLedgerEntryV4,
+        ],
+    ) -> (
+        LocallyAuthenticatedProfiledResearchRawInferenceV1
+        | LocallyAuthenticatedProfiledResearchRawInferenceV2
+    ):
+        if result_version not in {1, 2}:
+            _fail("LOCAL_PROFILED_INFERENCE_RESULT_VERSION_INVALID")
 
         self._validate_invariants()
         if type(record) is not dict:
@@ -654,13 +843,106 @@ class LocallyAuthenticatedProfiledResearchInferenceHandleV1:
                 raise LocallyAuthenticatedProfiledResearchInferenceV1Error(
                     "LOCAL_PROFILED_INFERENCE_MODEL_OUTPUT_INVALID:" f"{type(exc).__name__}"
                 ) from exc
+            confidence_raw_by_direction: tuple[float, ...] = ()
+            selected_action_is_directional = False
+            selected_directional_profitability_raw: float | None = None
+            model_action_probabilities: tuple[float, ...] = ()
+            expected_move_bps = 0.0
+            if result_version == 2:
+                try:
+                    confidence_raw = forward.confidence_raw
+                    calibration = forward.calibration
+                    action_probabilities_source = forward.action_probabilities
+                    expected_move_bps = forward.expected_move_bps
+                except Exception as exc:
+                    raise LocallyAuthenticatedProfiledResearchInferenceV1Error(
+                        "LOCAL_PROFILED_INFERENCE_MODEL_OUTPUT_INVALID:"
+                        f"{type(exc).__name__}"
+                    ) from exc
+                if (
+                    type(confidence_raw) is not float
+                    or type(calibration) is not dict
+                    or type(action_probabilities_source) is not tuple
+                    or any(
+                        type(value) is not float
+                        for value in action_probabilities_source
+                    )
+                    or type(expected_move_bps) is not float
+                ):
+                    _fail("LOCAL_PROFILED_INFERENCE_MODEL_OUTPUT_INVALID")
+                model_action_probabilities = action_probabilities_source
+                raw_mapping = calibration.get("confidence_raw_by_direction")
+                if type(raw_mapping) is not dict or set(raw_mapping) != set(
+                    CONFIDENCE_HEAD_ACTIONS
+                ):
+                    _fail("LOCAL_PROFILED_INFERENCE_MODEL_OUTPUT_INVALID")
+                try:
+                    confidence_raw_by_direction = tuple(
+                        raw_mapping[action]
+                        for action in CONFIDENCE_HEAD_ACTIONS
+                    )
+                except (KeyError, TypeError) as exc:
+                    raise LocallyAuthenticatedProfiledResearchInferenceV1Error(
+                        "LOCAL_PROFILED_INFERENCE_MODEL_OUTPUT_INVALID:"
+                        f"{type(exc).__name__}"
+                    ) from exc
+                selected_confidence_index = CONFIDENCE_HEAD_ACTION_INDEX.get(
+                    selected_action
+                )
+                selected_action_is_directional = (
+                    selected_confidence_index is not None
+                )
+                selected_directional_profitability_raw = (
+                    confidence_raw_by_direction[selected_confidence_index]
+                    if selected_confidence_index is not None
+                    else None
+                )
+                if (
+                    len(confidence_raw_by_direction) != len(CONFIDENCE_HEAD_ACTIONS)
+                    or any(
+                        type(value) is not float
+                        or not math.isfinite(value)
+                        or not 0.0 <= value <= 1.0
+                        for value in confidence_raw_by_direction
+                    )
+                    or len(model_action_probabilities) != len(ACTION_LABELS)
+                    or any(
+                        type(value) is not float
+                        or not math.isfinite(value)
+                        or not 0.0 <= value <= 1.0
+                        for value in model_action_probabilities
+                    )
+                    or not math.isclose(
+                        sum(model_action_probabilities),
+                        1.0,
+                        rel_tol=0.0,
+                        abs_tol=1e-9,
+                    )
+                    or selected_action_index not in {0, 1, 2}
+                    or selected_action_index
+                    != max(
+                        range(3),
+                        key=model_action_probabilities.__getitem__,
+                    )
+                    or not math.isfinite(expected_move_bps)
+                    or (
+                        confidence_raw != selected_directional_profitability_raw
+                        if selected_directional_profitability_raw is not None
+                        else confidence_raw != 0.0
+                    )
+                ):
+                    _fail("LOCAL_PROFILED_INFERENCE_MODEL_OUTPUT_INVALID")
             if (
                 forward_model_id != self.model_id
                 or len(logits) != len(ACTION_LABELS)
                 or any(not math.isfinite(value) for value in logits)
                 or type(selected_action_index) is not int
                 or not 0 <= selected_action_index < len(ACTION_LABELS)
-                or selected_action_index != max(range(len(logits)), key=logits.__getitem__)
+                or (
+                    result_version == 1
+                    and selected_action_index
+                    != max(range(len(logits)), key=logits.__getitem__)
+                )
                 or selected_action != ACTION_LABELS[selected_action_index]
                 or type(model_device) is not str
                 or not model_device
@@ -720,9 +1002,36 @@ class LocallyAuthenticatedProfiledResearchInferenceHandleV1:
             "external_witness_verified": False,
             **{name: False for name in _FALSE_AUTHORITY_FIELDS},
         }
-        return LocallyAuthenticatedProfiledResearchRawInferenceV1(
+        if result_version == 1:
+            return LocallyAuthenticatedProfiledResearchRawInferenceV1(
+                **values,
+                hypothesis_binding_sha256=stable_sha256(
+                    _json_object_material(values)
+                ),
+                _factory_token=_RESULT_FACTORY_TOKEN,
+            )
+        v2_values = {
             **values,
-            hypothesis_binding_sha256=stable_sha256(_json_object_material(values)),
+            "schema_version": LOCAL_PROFILED_RESEARCH_INFERENCE_V2_SCHEMA_VERSION,
+            "classification": (
+                LOCAL_PROFILED_RESEARCH_RAW_INFERENCE_V2_CLASSIFICATION
+            ),
+            "confidence_head_schema_version": CONFIDENCE_HEAD_SCHEMA_VERSION,
+            "confidence_label_semantics": CONFIDENCE_LABEL_SEMANTICS,
+            "confidence_head_actions": CONFIDENCE_HEAD_ACTIONS,
+            "confidence_raw_by_direction": confidence_raw_by_direction,
+            "selected_action_is_directional": selected_action_is_directional,
+            "selected_directional_profitability_raw": (
+                selected_directional_profitability_raw
+            ),
+            "model_action_probabilities": model_action_probabilities,
+            "expected_move_bps": expected_move_bps,
+        }
+        return LocallyAuthenticatedProfiledResearchRawInferenceV2(
+            **v2_values,
+            hypothesis_binding_sha256=stable_sha256(
+                _json_object_material(v2_values)
+            ),
             _factory_token=_RESULT_FACTORY_TOKEN,
         )
 
@@ -897,9 +1206,12 @@ def open_locally_authenticated_profiled_research_inference_v1(
 
 __all__ = (
     "LOCAL_PROFILED_RESEARCH_INFERENCE_V1_SCHEMA_VERSION",
+    "LOCAL_PROFILED_RESEARCH_INFERENCE_V2_SCHEMA_VERSION",
     "LOCAL_PROFILED_RESEARCH_RAW_INFERENCE_V1_CLASSIFICATION",
+    "LOCAL_PROFILED_RESEARCH_RAW_INFERENCE_V2_CLASSIFICATION",
     "LocallyAuthenticatedProfiledResearchInferenceHandleV1",
     "LocallyAuthenticatedProfiledResearchInferenceV1Error",
     "LocallyAuthenticatedProfiledResearchRawInferenceV1",
+    "LocallyAuthenticatedProfiledResearchRawInferenceV2",
     "open_locally_authenticated_profiled_research_inference_v1",
 )

@@ -47,6 +47,12 @@ class _FakeModel:
             action_logits=(0.0, 2.0, 1.0, 0.0, -1.0, -2.0, -3.0),
             selected_action_index=1,
             selected_action="long",
+            confidence_raw=0.72,
+            calibration={
+                "confidence_raw_by_direction": {"long": 0.72, "short": 0.31}
+            },
+            action_probabilities=(0.10, 0.60, 0.10, 0.05, 0.05, 0.05, 0.05),
+            expected_move_bps=18.5,
             device="cpu",
             cuda_active=False,
             model_tensors_device_verified=True,
@@ -277,6 +283,8 @@ def test_fresh_record_revalidation_preserves_real_coverage_and_quarantine(
     )
 
     tensor = _FakeModel.last_tensor
+    assert type(result) is inference.LocallyAuthenticatedProfiledResearchRawInferenceV1
+    assert len(result.__dataclass_fields__) - 1 == 56
     assert tensor is not None
     assert len(tensor.model_vector) == 1784
     assert sum(tensor.source_availability) == 35
@@ -294,17 +302,231 @@ def test_fresh_record_revalidation_preserves_real_coverage_and_quarantine(
     binding = payload.pop("hypothesis_binding_sha256")
     assert type(payload["temporal_rejection_reasons"]) is list
     assert type(payload["raw_action_logits"]) is list
+    assert "confidence_head_schema_version" not in payload
+    assert "confidence_raw_by_direction" not in payload
     assert binding == inference.stable_sha256(payload)
     assert all(
         payload[field_name] is False
         for field_name in inference._FALSE_AUTHORITY_FIELDS  # noqa: SLF001
     )
-
     with pytest.raises(
         inference.LocallyAuthenticatedProfiledResearchInferenceV1Error,
         match="LOCAL_PROFILED_INFERENCE_SOURCE_ORDER_NOT_MONOTONIC",
     ):
         handle.infer_profiled_record_v1(
+            record=evidence.record,
+            transform_result=evidence.transformed,
+            capture_set_contract=evidence.contract,
+            capture_set_store=evidence.capture_store,
+            artifact_store=evidence.artifact_store,
+            source_provenance_ledger=evidence.source_ledger,
+            source_provenance_entries=evidence.source_entries,
+        )
+
+
+def test_v2_hash_binds_directional_profitability_head_without_authority(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    handle = _open_handle(monkeypatch, tmp_path / "handle")
+    evidence = _build_evidence(monkeypatch, tmp_path / "evidence")
+    clocks = iter(
+        (
+            "2026-07-21T13:00:00.000000Z",
+            "2026-07-21T13:00:01.000000Z",
+        )
+    )
+    monkeypatch.setattr(inference, "_utc_iso", lambda: next(clocks))
+
+    result = handle.infer_profiled_record_v2(
+        record=evidence.record,
+        transform_result=evidence.transformed,
+        capture_set_contract=evidence.contract,
+        capture_set_store=evidence.capture_store,
+        artifact_store=evidence.artifact_store,
+        source_provenance_ledger=evidence.source_ledger,
+        source_provenance_entries=evidence.source_entries,
+    )
+
+    assert type(result) is inference.LocallyAuthenticatedProfiledResearchRawInferenceV2
+    assert not isinstance(
+        result,
+        inference.LocallyAuthenticatedProfiledResearchRawInferenceV1,
+    )
+    assert len(result.__dataclass_fields__) - 1 == 64
+    assert (
+        result.schema_version
+        == inference.LOCAL_PROFILED_RESEARCH_INFERENCE_V2_SCHEMA_VERSION
+    )
+    assert result.confidence_head_actions == ("long", "short")
+    assert result.confidence_raw_by_direction == (0.72, 0.31)
+    assert result.selected_action_is_directional is True
+    assert result.selected_directional_profitability_raw == 0.72
+    assert result.model_action_probabilities == (
+        0.10,
+        0.60,
+        0.10,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+    )
+    assert result.expected_move_bps == 18.5
+    assert result.confidence_calibrated is None
+    assert result.profitability_probability is None
+    payload = result.to_payload()
+    binding = payload.pop("hypothesis_binding_sha256")
+    assert type(payload["confidence_head_actions"]) is list
+    assert type(payload["confidence_raw_by_direction"]) is list
+    assert type(payload["model_action_probabilities"]) is list
+    assert binding == inference.stable_sha256(payload)
+    assert all(
+        payload[field_name] is False
+        for field_name in inference._FALSE_AUTHORITY_FIELDS  # noqa: SLF001
+    )
+    with pytest.raises(
+        inference.LocallyAuthenticatedProfiledResearchInferenceV1Error,
+        match="LOCAL_PROFILED_RAW_INFERENCE_RESULT_INVALID",
+    ):
+        replace(
+            result,
+            confidence_raw_by_direction=(0.71, 0.31),
+            _factory_token=inference._RESULT_FACTORY_TOKEN,  # noqa: SLF001
+        )
+    mutable_material = result.to_payload()
+    mutable_material.pop("hypothesis_binding_sha256")
+    mutable_material["confidence_raw_by_direction"] = [0.72, 0.31]
+    with pytest.raises(
+        inference.LocallyAuthenticatedProfiledResearchInferenceV1Error,
+        match="LOCAL_PROFILED_RAW_INFERENCE_V2_CONFIDENCE_HEAD_INVALID",
+    ):
+        replace(
+            result,
+            confidence_raw_by_direction=[0.72, 0.31],
+            hypothesis_binding_sha256=inference.stable_sha256(mutable_material),
+            _factory_token=inference._RESULT_FACTORY_TOKEN,  # noqa: SLF001
+        )
+
+
+def test_v2_non_directional_action_has_no_selected_profitability_value(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    handle = _open_handle(monkeypatch, tmp_path / "handle")
+    evidence = _build_evidence(monkeypatch, tmp_path / "evidence")
+    clocks = iter(
+        (
+            "2026-07-21T13:00:00.000000Z",
+            "2026-07-21T13:00:01.000000Z",
+        )
+    )
+    monkeypatch.setattr(inference, "_utc_iso", lambda: next(clocks))
+
+    original_forward = _FakeModel.forward
+
+    def hold_forward(self, tensor):  # noqa: ANN001, ANN202
+        result = original_forward(self, tensor)
+        # The real model can select hold through expected-move alignment even
+        # when a directional raw logit is larger. V2 preserves that distinction.
+        result.selected_action_index = 0
+        result.selected_action = "hold"
+        result.confidence_raw = 0.0
+        result.action_probabilities = (
+            0.60,
+            0.10,
+            0.10,
+            0.05,
+            0.05,
+            0.05,
+            0.05,
+        )
+        return result
+
+    monkeypatch.setattr(_FakeModel, "forward", hold_forward)
+    result = handle.infer_profiled_record_v2(
+        record=evidence.record,
+        transform_result=evidence.transformed,
+        capture_set_contract=evidence.contract,
+        capture_set_store=evidence.capture_store,
+        artifact_store=evidence.artifact_store,
+        source_provenance_ledger=evidence.source_ledger,
+        source_provenance_entries=evidence.source_entries,
+    )
+
+    assert result.selected_action == "hold"
+    assert result.selected_action_is_directional is False
+    assert result.selected_directional_profitability_raw is None
+
+
+def test_v2_rejects_malformed_confidence_and_nonopening_selection(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    handle = _open_handle(monkeypatch, tmp_path / "handle")
+    evidence = _build_evidence(monkeypatch, tmp_path / "evidence")
+    monkeypatch.setattr(
+        inference,
+        "_utc_iso",
+        lambda: "2026-07-21T13:00:00.000000Z",
+    )
+    original_forward = _FakeModel.forward
+
+    def incomplete_head(self, tensor):  # noqa: ANN001, ANN202
+        result = original_forward(self, tensor)
+        result.calibration = {"confidence_raw_by_direction": {"long": 0.72}}
+        return result
+
+    monkeypatch.setattr(_FakeModel, "forward", incomplete_head)
+    with pytest.raises(
+        inference.LocallyAuthenticatedProfiledResearchInferenceV1Error,
+        match="LOCAL_PROFILED_INFERENCE_MODEL_OUTPUT_INVALID",
+    ):
+        handle.infer_profiled_record_v2(
+            record=evidence.record,
+            transform_result=evidence.transformed,
+            capture_set_contract=evidence.contract,
+            capture_set_store=evidence.capture_store,
+            artifact_store=evidence.artifact_store,
+            source_provenance_ledger=evidence.source_ledger,
+            source_provenance_entries=evidence.source_entries,
+        )
+
+    def boolean_head(self, tensor):  # noqa: ANN001, ANN202
+        result = original_forward(self, tensor)
+        result.confidence_raw = True
+        result.calibration = {
+            "confidence_raw_by_direction": {"long": True, "short": 0.31}
+        }
+        return result
+
+    monkeypatch.setattr(_FakeModel, "forward", boolean_head)
+    with pytest.raises(
+        inference.LocallyAuthenticatedProfiledResearchInferenceV1Error,
+        match="LOCAL_PROFILED_INFERENCE_MODEL_OUTPUT_INVALID",
+    ):
+        handle.infer_profiled_record_v2(
+            record=evidence.record,
+            transform_result=evidence.transformed,
+            capture_set_contract=evidence.contract,
+            capture_set_store=evidence.capture_store,
+            artifact_store=evidence.artifact_store,
+            source_provenance_ledger=evidence.source_ledger,
+            source_provenance_entries=evidence.source_entries,
+        )
+
+    def close_action(self, tensor):  # noqa: ANN001, ANN202
+        result = original_forward(self, tensor)
+        result.selected_action_index = 3
+        result.selected_action = "close_long"
+        result.confidence_raw = 0.0
+        return result
+
+    monkeypatch.setattr(_FakeModel, "forward", close_action)
+    with pytest.raises(
+        inference.LocallyAuthenticatedProfiledResearchInferenceV1Error,
+        match="LOCAL_PROFILED_INFERENCE_MODEL_OUTPUT_INVALID",
+    ):
+        handle.infer_profiled_record_v2(
             record=evidence.record,
             transform_result=evidence.transformed,
             capture_set_contract=evidence.contract,
