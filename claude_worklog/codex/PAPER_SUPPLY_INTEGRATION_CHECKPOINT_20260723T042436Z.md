@@ -7,7 +7,7 @@
 - Parent: `6d731a635dd122dd2e8a2765ef7970a20c5cad08`
 - Upstream after code push: `origin/codex/paper-admission-remediation-20260721`
 - Divergence after code push: `0 ahead / 0 behind`
-- Deployment state: **not deployed at this checkpoint**
+- Deployment state: **deployed and verified for three bounded paper cycles**
 
 ## Scope completed
 
@@ -37,17 +37,50 @@ The configuration is deliberately fail closed:
 - Diff whitespace errors: **0**
 - Disabled-bypass occurrences in the integrated loop: **0**
 - Supply bridge definitions/call sites in the integrated loop: **1/1**
-- Routes inspected in this slice: **0**
-- API fields checked in this slice: **0**
+- Routes inspected in this slice: **1** canonical live-gate route
+- Live-safety fields checked per post-cutover proof: **11**
 - Screenshots captured: **0**
 - Frontend/mobile builds run: **0**
-- Services restarted: **0**
-- Redis writes: **0**
+- Services restarted: **1** — only the paper loop
+- Direct operator Redis writes: **0**
+- Runtime supply receipts observed: **3**
 - Exchange calls/orders/leverage/margin mutations: **0**
-- Immediate slice defects remaining: **1** — immutable deployment and bounded
-  runtime-cycle proof have not yet been performed.
+- Immediate slice defects remaining: **0**
+- Downstream supply blockers remaining: **1** — the held strategy-supply
+  publisher currently exposes zero runtime keys, so the bridge correctly emits
+  zero candidates rather than manufacturing them.
 - Previously recorded P0 product defects remaining: **6**; none was re-audited
   or changed by this paper-only slice.
+
+## Deployment proof
+
+- Immutable release path:
+  `/home/wali/ai_bot_local_data/deployments/ai_bot_rebuild/9ef0e6e91340b47fad203b2eae9ac00971519879`
+- Release integrity: tracked diff clean against code SHA; directory read-only;
+  tested shared Python environment linked as `.venv`.
+- Unit: `ai-bot-v2-trade-management-paper-loop.service`
+- Runtime lock:
+  `/run/user/1000/ai-bot-v2-trade-management-paper-loop/writer.lock`
+- Replacement PID: `717005`
+- Start time: `2026-07-23T04:28:08Z`
+- Automatic restarts after cutover: **0**
+- The old process received SIGTERM at `04:27:05Z`, drained cleanly at
+  `04:28:08Z`, and was not force-killed or restarted a second time.
+
+Three post-start bridge receipts were observed:
+
+| Cycle start | Inventory receipt | Bridge latency | Status | Hard failures | Source keys | Candidates |
+|---|---|---:|---|---:|---:|---:|
+| `04:28:10.197Z` | `04:28:11.164Z` | 8.702 s | `ACTIVE` | 0 | 0 | 0 |
+| `04:29:33.366Z` | `04:29:34.335Z` | 13.134 s | `ACTIVE` | 0 | 0 | 0 |
+| `04:30:57.462Z` | present | 7.489 s | `ACTIVE` | 0 | 0 | 0 |
+
+Mean observed bridge latency was **9.775 seconds** and the bounded maximum was
+**13.134 seconds**. Every observed receipt reported paper-only operation,
+`routes_to_live=false`, `places_real_order=false`, and no order, test-order,
+leverage, or margin mutation. The canonical live-gate endpoint independently
+remained `blocked_human_only`, with empty live/execution symbol lists and the
+same six mutation flags false.
 
 ## Verified test surface
 
@@ -77,17 +110,18 @@ This was slice regression verification, not another system-atlas audit.
 
 ## Exact resume point
 
-1. Confirm the current canonical live gate remains human-blocked with empty
-   live and execution symbol sets.
-2. Create a detached immutable deployment worktree at code commit
-   `9ef0e6e91340b47fad203b2eae9ac00971519879`.
-3. Configure the paper-loop unit with a writable absolute lock path outside
-   the immutable release and verify the unit definition.
-4. Restart only the paper-loop service, then observe a bounded number of cycles.
-5. Prove the supply status no longer reports the disabled bypass, record cycle
-   latency/candidate counts, and re-confirm zero live orders or mutations.
-6. If candidate count remains zero, retain that honest result and trace the
-   next held upstream publisher; do not manufacture supply.
+1. Preserve this paper release; do not restart it merely to re-prove the
+   completed cutover.
+2. Integrate the already-audited strategy authority, feedback quarantine,
+   causal closed-candle inputs, and optional-input masking commits into one
+   clean strategy-publisher release in their proven ancestry order.
+3. Run only the directly affected strategy/PIT/finality regression surface and
+   record collected counts.
+4. Verify its immutable unit configuration while it remains stopped, then
+   start only the strategy-supply publisher.
+5. Require fresh strategy runtime keys and causal timestamps before expecting
+   candidates. If admission still returns zero, retain and explain the real
+   gate outcome; do not lower safety, risk, or economic gates.
 
 ## Commands used for this checkpoint
 
