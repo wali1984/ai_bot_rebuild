@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any, NoReturn, cast
 
 import pytest
@@ -329,6 +330,55 @@ def _all_mapping_keys(value: object) -> list[str]:
     if isinstance(value, list | tuple):
         return [key for item in value for key in _all_mapping_keys(item)]
     return []
+
+
+def test_status_file_argument_preserves_default_and_accepts_env_override(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.delenv(coverage.STATUS_FILE_ENV_VAR, raising=False)
+    assert coverage._parse_args([]).status_file == coverage.STATUS_FILE
+
+    env_target = tmp_path / "env" / "coverage.json"
+    monkeypatch.setenv(coverage.STATUS_FILE_ENV_VAR, str(env_target))
+    assert coverage._parse_args([]).status_file == env_target
+
+    cli_target = tmp_path / "cli" / "coverage.json"
+    assert coverage._parse_args(["--status-file", str(cli_target)]).status_file == cli_target
+
+
+@pytest.mark.parametrize("source", ("environment", "cli"))
+def test_status_file_argument_rejects_relative_targets(
+    monkeypatch: pytest.MonkeyPatch,
+    source: str,
+) -> None:
+    argv: list[str] = []
+    if source == "environment":
+        monkeypatch.setenv(coverage.STATUS_FILE_ENV_VAR, "relative/status.json")
+    else:
+        monkeypatch.delenv(coverage.STATUS_FILE_ENV_VAR, raising=False)
+        argv = ["--status-file", "relative/status.json"]
+
+    with pytest.raises(SystemExit, match="^2$"):
+        coverage._parse_args(argv)
+
+
+def test_write_status_file_uses_explicit_external_target(tmp_path: Path) -> None:
+    target = tmp_path / "operator-runtime" / "coverage.json"
+    census = {
+        "generated_utc": "2026-07-23T05:00:00Z",
+        "universe_count": 1,
+        "summary": {"symbols_fully_covered": 0, "symbols_with_gaps": 1},
+    }
+    heal = {"details": [{"not": "published"}], "errors": 0}
+
+    coverage.write_status_file(census, heal, status_file=target)
+
+    payload = json.loads(target.read_text(encoding="utf-8"))
+    assert payload["generated_utc"] == census["generated_utc"]
+    assert payload["universe_count"] == 1
+    assert payload["backfill"] == {"errors": 0}
+    assert "details" not in payload["backfill"]
 
 
 def test_redis_factories_keep_decoded_and_exact_binary_clients_separate(

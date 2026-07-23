@@ -205,6 +205,16 @@ STATUS_FILE = (
     _repo / "v2/frontend/public/operator_runtime/v2_universe_coverage_sync/latest/"
     "v2_universe_coverage_sync_status.json"
 )
+STATUS_FILE_ENV_VAR = "V2_UNIVERSE_COVERAGE_SYNC_STATUS_FILE"
+
+
+def _absolute_status_file(value: str) -> Path:
+    """Require an explicit external status target for immutable releases."""
+
+    path = Path(value)
+    if not path.is_absolute() or not path.name or "\x00" in value:
+        raise argparse.ArgumentTypeError("status file must be an absolute file path")
+    return path
 
 
 def _utc_iso(ts: float | None = None) -> str:
@@ -1648,10 +1658,16 @@ def publish_census(r: redis.Redis, census: dict[str, Any]) -> None:
     r.set(CENSUS_REDIS_KEY, payload, ex=CENSUS_TTL_SECONDS)
 
 
-def write_status_file(census: dict[str, Any], heal: dict[str, Any]) -> None:
+def write_status_file(
+    census: dict[str, Any],
+    heal: dict[str, Any],
+    *,
+    status_file: Path | None = None,
+) -> None:
     """Compact operator status (summary only; full census lives in Redis)."""
+    target = STATUS_FILE if status_file is None else status_file
     try:
-        STATUS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        target.parent.mkdir(parents=True, exist_ok=True)
         payload = {
             "schema_version": "v2_universe_coverage_sync_status_v1",
             "worker_id": WORKER_ID,
@@ -1662,7 +1678,7 @@ def write_status_file(census: dict[str, Any], heal: dict[str, Any]) -> None:
             "census_redis_key": CENSUS_REDIS_KEY,
             "live_gate": "blocked_human_only",
         }
-        STATUS_FILE.write_text(json.dumps(payload, indent=2, sort_keys=True, default=str))
+        target.write_text(json.dumps(payload, indent=2, sort_keys=True, default=str))
     except OSError as exc:
         print(f"[{WORKER_ID}] WARN status file write failed: {exc}")
 
@@ -1706,6 +1722,15 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--json",
         action="store_true",
         help="Print the full after-census JSON to stdout.",
+    )
+    parser.add_argument(
+        "--status-file",
+        type=_absolute_status_file,
+        default=os.environ.get(STATUS_FILE_ENV_VAR) or str(STATUS_FILE),
+        help=(
+            "Absolute operator-status output path (default: "
+            f"${STATUS_FILE_ENV_VAR} or the repository public path)."
+        ),
     )
     return parser.parse_args(argv)
 
@@ -1769,7 +1794,7 @@ def main(argv: list[str] | None = None) -> int:
     }
 
     publish_census(r, census_after)
-    write_status_file(census_after, heal)
+    write_status_file(census_after, heal, status_file=args.status_file)
 
     after_summary = census_after["summary"]
     print(
