@@ -2759,6 +2759,7 @@ def read_profiled_training_observation_page_v1(
             _fail("PROFILED_OBSERVATION_ENTRY_INVENTORY_OMISSION")
         examples: list[ProfiledTrainingObservationExampleV1] = []
         unavailable_scanned = 0
+        verified_source_entries_cache: dict[str, tuple[Any, ...]] = {}
         for expected_ordinal, row in enumerate(rows, start=after_ordinal + 1):
             if row["ordinal"] != expected_ordinal:
                 _fail("PROFILED_OBSERVATION_ENTRY_ORDINAL_GAP")
@@ -2788,6 +2789,7 @@ def read_profiled_training_observation_page_v1(
                     ),
                     expected_sequence=cast(int, sample_binding["ledger_sequence"]),
                     expected_record_sha256=cast(str, sample_binding["record_sha256"]),
+                    _verified_source_entries_cache=verified_source_entries_cache,
                 )
             except ProfiledTrainingLedgerLoaderV1Error as exc:
                 raise ProfiledTrainingObservationManifestV1Error(
