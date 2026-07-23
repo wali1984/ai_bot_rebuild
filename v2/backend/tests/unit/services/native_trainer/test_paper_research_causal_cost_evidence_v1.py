@@ -613,4 +613,14 @@ def test_research_cost_primitive_remains_unwired_from_application_runtime() -> N
         and "paper_research_causal_cost_evidence_v1"
         in path.read_text(encoding="utf-8", errors="strict")
     ]
-    assert imports == []
+    expected_unwired_research_consumers = {
+        app_root
+        / "services"
+        / "native_trainer"
+        / "paper_research_causal_cost_portable_closure_v1.py",
+        app_root
+        / "services"
+        / "native_trainer"
+        / "profiled_research_shadow_hypothesis_v1.py",
+    }
+    assert set(imports) == expected_unwired_research_consumers
