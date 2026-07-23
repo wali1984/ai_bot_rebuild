@@ -238,4 +238,7 @@ def test_native_trainer_registry_observes_waiting_and_training_modes() -> None:
     assert trainer.heartbeat_files == (
         "v2/runtime/"
         "native_cuda_trainer_waiting_for_authenticated_samples_status.json",
+        "/home/wali/ai_bot_local_data/v2_native_trainer/"
+        "local_profiled_research_v1/status.json",
     )
+    assert trainer.heartbeat_field == "status_generated_at"
