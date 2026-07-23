@@ -454,6 +454,7 @@ def _canonical_label_evidence(
     label_archive: DurableCanonical5mLabelArchive | None,
     archive_integrity_proof: Mapping[str, Any] | None,
     training_observed_at: datetime | None,
+    verified_transaction_cache: set[tuple[str, str, str, str, int, str]],
 ) -> tuple[dict[str, Any] | None, list[str]]:
     """Resolve an imported row's labels only from the durable canonical path."""
 
@@ -493,6 +494,7 @@ def _canonical_label_evidence(
             horizon_seconds=MAX_FUTURE_HORIZON_SECONDS,
             archive_integrity_proof=archive_integrity_proof,
             require_receipt_committed_by_observation=True,
+            _verified_transaction_cache=verified_transaction_cache,
         )
     except (OSError, TypeError, ValueError) as exc:
         return None, [
@@ -608,6 +610,10 @@ def freeze_dataset_from_archive(
     legacy_static_cost_ignored_count = 0
     legacy_static_cost_underestimated_count = 0
     canonical_label_rows = 0
+    # This is an in-process performance cache only.  Each cache hit remains
+    # bound to the current immutable archive chain and rechecks the receipt
+    # and postcommit rows before it can avoid their shared identity walk.
+    verified_label_transactions: set[tuple[str, str, str, str, int, str]] = set()
     for snapshot in pit_eligible_snapshots:
         cost_evidence, cost_reasons = _explicit_cost_evidence(snapshot)
         if cost_evidence is None:
@@ -626,6 +632,7 @@ def freeze_dataset_from_archive(
                 label_archive=canonical_label_archive,
                 archive_integrity_proof=canonical_label_integrity,
                 training_observed_at=observed_at,
+                verified_transaction_cache=verified_label_transactions,
             )
             if label_evidence is not None:
                 canonical_label_rows += 1

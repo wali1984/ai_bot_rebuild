@@ -2878,6 +2878,9 @@ class DurableCanonical5mLabelArchive:
         archive_integrity_proof: Mapping[str, Any] | None = None,
         _allow_sparse_coverage: bool = False,
         _require_receipt_cutoff: bool = False,
+        _verified_transaction_cache: set[
+            tuple[str, str, str, str, int, str]
+        ] | None = None,
     ) -> tuple[list[dict[str, Any]] | None, dict[str, Any]]:
         """Return one complete contiguous range or a fail-closed proof."""
 
@@ -2991,6 +2994,7 @@ class DurableCanonical5mLabelArchive:
         pit_verified_rows = 0
         append_receipts_verified = 0
         postcommit_receipts_verified = 0
+        transaction_identity_cache_hits = 0
         row_chain_provenance: list[dict[str, Any]] = []
         append_receipt_hashes: list[str] = []
         postcommit_receipt_hashes: list[str] = []
@@ -3246,29 +3250,6 @@ class DurableCanonical5mLabelArchive:
                     append_receipt_hashes.append(
                         str(receipt["receipt_sha256"])
                     )
-                    identities = [
-                        (
-                            str(identity["symbol"]),
-                            int(identity["candle_close_time_ms"]),
-                            str(identity["content_sha256"]),
-                        )
-                        for identity in connection.execute(
-                            """
-                            SELECT symbol, candle_close_time_ms, content_sha256
-                            FROM canonical_5m_candles
-                            WHERE append_transaction_id = ?
-                            ORDER BY symbol, candle_close_time_ms,
-                                     content_sha256
-                            LIMIT ?
-                            """,
-                            (transaction_id, MAX_APPEND_ROWS + 1),
-                        )
-                    ]
-                    if len(identities) != int(receipt["inserted_rows"]):
-                        reasons.append(
-                            "LABEL_ARCHIVE_APPEND_RECEIPT_INSERTED_ROWS_MISMATCH"
-                        )
-                        continue
                     postcommit = connection.execute(
                         """
                         SELECT transaction_id, readback_schema_version,
@@ -3309,14 +3290,70 @@ class DurableCanonical5mLabelArchive:
                         str(postcommit["append_receipt_sha256"])
                         != str(receipt["receipt_sha256"])
                         or int(postcommit["inserted_rows"])
-                        != len(identities)
-                        or str(postcommit["inserted_identities_sha256"])
-                        != self._inserted_identities_sha256(identities)
+                        != int(receipt["inserted_rows"])
                     ):
                         reasons.append(
                             "LABEL_ARCHIVE_POSTCOMMIT_READBACK_BINDING_MISMATCH"
                         )
                         continue
+                    cache_namespace = str(
+                        archive_integrity_proof.get("archive_chain_sha256")
+                        if archive_integrity_proof is not None
+                        else metadata.get("archive_chain_sha256")
+                    )
+                    cache_key = (
+                        cache_namespace,
+                        transaction_id,
+                        str(receipt["receipt_sha256"]),
+                        str(postcommit["readback_receipt_sha256"]),
+                        int(receipt["inserted_rows"]),
+                        str(postcommit["inserted_identities_sha256"]),
+                    )
+                    if (
+                        _verified_transaction_cache is not None
+                        and cache_key in _verified_transaction_cache
+                    ):
+                        transaction_identity_cache_hits += 1
+                        postcommit_receipts_verified += 1
+                        postcommit_receipt_hashes.append(
+                            str(postcommit["readback_receipt_sha256"])
+                        )
+                        continue
+                    identities = [
+                        (
+                            str(identity["symbol"]),
+                            int(identity["candle_close_time_ms"]),
+                            str(identity["content_sha256"]),
+                        )
+                        for identity in connection.execute(
+                            """
+                            SELECT symbol, candle_close_time_ms, content_sha256
+                            FROM canonical_5m_candles
+                            WHERE append_transaction_id = ?
+                            ORDER BY symbol, candle_close_time_ms,
+                                     content_sha256
+                            LIMIT ?
+                            """,
+                            (transaction_id, MAX_APPEND_ROWS + 1),
+                        )
+                    ]
+                    if len(identities) != int(receipt["inserted_rows"]):
+                        reasons.append(
+                            "LABEL_ARCHIVE_APPEND_RECEIPT_INSERTED_ROWS_MISMATCH"
+                        )
+                        continue
+                    if str(postcommit["inserted_identities_sha256"]) != (
+                        self._inserted_identities_sha256(identities)
+                    ):
+                        reasons.append(
+                            "LABEL_ARCHIVE_POSTCOMMIT_READBACK_BINDING_MISMATCH"
+                        )
+                        continue
+                    if (
+                        _verified_transaction_cache is not None
+                        and len(_verified_transaction_cache) < MAX_QUERY_ROWS
+                    ):
+                        _verified_transaction_cache.add(cache_key)
                     postcommit_receipts_verified += 1
                     postcommit_receipt_hashes.append(
                         str(postcommit["readback_receipt_sha256"])
@@ -3430,6 +3467,7 @@ class DurableCanonical5mLabelArchive:
                 "postcommit_readback_receipt_sha256": sorted(
                     postcommit_receipt_hashes
                 ),
+                "transaction_identity_cache_hits": transaction_identity_cache_hits,
             }
         )
         if reasons:
@@ -3691,6 +3729,9 @@ class DurableCanonical5mLabelArchive:
         horizon_seconds: int,
         archive_integrity_proof: Mapping[str, Any] | None = None,
         require_receipt_committed_by_observation: bool = False,
+        _verified_transaction_cache: set[
+            tuple[str, str, str, str, int, str]
+        ] | None = None,
     ) -> tuple[list[dict[str, Any]] | None, dict[str, Any]]:
         """Read the exact finalized-5m path needed by one trainer decision.
 
@@ -3817,6 +3858,7 @@ class DurableCanonical5mLabelArchive:
             _require_receipt_cutoff=(
                 require_receipt_committed_by_observation
             ),
+            _verified_transaction_cache=_verified_transaction_cache,
         )
         proof["range_proof"] = range_proof
         if rows is None:

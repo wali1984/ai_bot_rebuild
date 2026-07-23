@@ -424,6 +424,7 @@ def import_profiled_training_ledger_to_challenger_archive_v1(
         )
 
     imported_ids: list[str] = []
+    verified_label_transactions: set[tuple[str, str, str, str, int, str]] = set()
     rejection_reasons: Counter[str] = Counter()
     imported_rows = 0
     duplicate_rows = 0
@@ -450,6 +451,7 @@ def import_profiled_training_ledger_to_challenger_archive_v1(
                     horizon_seconds=sample.expected_holding_horizon_seconds,
                     archive_integrity_proof=integrity,
                     require_receipt_committed_by_observation=True,
+                    _verified_transaction_cache=verified_label_transactions,
                 )
                 if (
                     label_rows is None
@@ -893,6 +895,7 @@ def import_profiled_training_ledger_shards_to_challenger_archive_v1(
     total_imported = total_duplicates = total_excluded = 0
     total_label_paths = 0
     total_rejections: Counter[str] = Counter()
+    verified_label_transactions: set[tuple[str, str, str, str, int, str]] = set()
     shard_reports: list[dict[str, Any]] = []
     post_purge_counts: dict[str, Any] = dict(last_post_purge_counts)
     minimums_met = False
@@ -920,6 +923,7 @@ def import_profiled_training_ledger_shards_to_challenger_archive_v1(
                     horizon_seconds=sample.expected_holding_horizon_seconds,
                     archive_integrity_proof=integrity,
                     require_receipt_committed_by_observation=True,
+                    _verified_transaction_cache=verified_label_transactions,
                 )
                 if (
                     label_rows is None

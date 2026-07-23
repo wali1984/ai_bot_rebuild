@@ -287,6 +287,42 @@ def test_append_and_indexed_range_read_are_transaction_and_pit_verified(
     assert proof["range_sha256"]
 
 
+def test_verified_range_memoizes_only_receipt_identities_bound_to_current_chain(
+    tmp_path: Path,
+) -> None:
+    archive = DurableCanonical5mLabelArchive(tmp_path / "labels.sqlite3")
+    candles = _path()
+    archive.append_candles(candles)
+    integrity = archive.verify_integrity()
+    transaction_cache: set[tuple[str, str, str, str, int, str]] = set()
+
+    first_rows, first_proof = archive.verified_range(
+        symbol="BTCUSDT",
+        start_close_time_ms=int(candles[0]["candle_close_time"]),
+        end_close_time_ms=int(candles[-1]["candle_close_time"]),
+        training_observed_at=OBSERVED,
+        limit=49,
+        archive_integrity_proof=integrity,
+        _verified_transaction_cache=transaction_cache,
+    )
+    second_rows, second_proof = archive.verified_range(
+        symbol="BTCUSDT",
+        start_close_time_ms=int(candles[0]["candle_close_time"]),
+        end_close_time_ms=int(candles[-1]["candle_close_time"]),
+        training_observed_at=OBSERVED,
+        limit=49,
+        archive_integrity_proof=integrity,
+        _verified_transaction_cache=transaction_cache,
+    )
+
+    assert first_rows is not None
+    assert second_rows == first_rows
+    assert first_proof["transaction_identity_cache_hits"] == 0
+    assert second_proof["transaction_identity_cache_hits"] == 1
+    assert second_proof["append_transaction_precommit_receipts_verified"] is True
+    assert second_proof["postcommit_readback_receipts_verified"] is True
+
+
 def test_same_wall_clock_appends_use_strict_causal_receipt_frontier(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
