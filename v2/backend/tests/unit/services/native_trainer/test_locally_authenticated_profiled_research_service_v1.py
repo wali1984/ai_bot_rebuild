@@ -208,6 +208,28 @@ def test_missing_dedicated_local_authorizer_fails_before_cycle(
     assert called is False
 
 
+def test_publisher_status_reader_uses_keyword_only_verified_boundary(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = _config(tmp_path)
+    expected = object()
+    received: dict[str, object] = {}
+
+    def reader(*, status_path: Path) -> object:
+        received["status_path"] = status_path
+        return expected
+
+    monkeypatch.setattr(
+        service,
+        "read_verified_profiled_base_publisher_cycle_status_v1",
+        reader,
+    )
+
+    assert service._read_publisher_status(config) is expected  # noqa: SLF001
+    assert received == {"status_path": config.publisher_status_path}
+
+
 def test_local_optimizer_reason_is_preserved_in_fail_closed_status(
     tmp_path: Path,
 ) -> None:

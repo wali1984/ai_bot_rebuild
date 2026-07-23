@@ -426,7 +426,7 @@ def _read_publisher_status(
 ) -> VerifiedProfiledBasePublisherCycleStatusV1:
     try:
         return read_verified_profiled_base_publisher_cycle_status_v1(
-            config.publisher_status_path
+            status_path=config.publisher_status_path
         )
     except Exception as exc:
         raise LocallyAuthenticatedProfiledResearchServiceV1Error(
