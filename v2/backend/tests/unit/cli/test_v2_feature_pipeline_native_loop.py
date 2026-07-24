@@ -1459,6 +1459,28 @@ def test_explicit_orderbook_imbalance_must_be_inside_unit_interval() -> None:
     assert features["toxicity_proxy"] is None
 
 
+def test_read_orderbook_skips_partial_primary_for_complete_binance_features() -> None:
+    mod = importlib.import_module("v2.backend.app.cli.v2_feature_pipeline_native_loop")
+    fake = FakeRedis()
+    fake.store["v2:market:orderbook:BTCUSDT"] = json.dumps(
+        {"best_bid": 99.0, "best_ask": 101.0, "source": "partial_primary"}
+    )
+    fake.store["v2:orderbook:features:binance:BTCUSDT"] = json.dumps(
+        {
+            "best_bid": 99.0,
+            "best_ask": 101.0,
+            "depth_imbalance": -0.25,
+            "source": "complete_binance_features",
+        }
+    )
+
+    selected = mod._read_orderbook(fake, "BTCUSDT")  # noqa: SLF001
+
+    assert selected is not None
+    assert selected["source"] == "complete_binance_features"
+    assert selected["depth_imbalance"] == -0.25
+
+
 def test_snapshot_core_book_and_cost_evidence_uses_only_selected_orderbook(
     monkeypatch,
 ) -> None:

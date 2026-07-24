@@ -1179,6 +1179,7 @@ def _exact_candle_temporal_lineage(
 def _read_orderbook(r, symbol: str) -> dict | None:
     if r is None:
         return None
+    fallback: dict | None = None
     for key in (
         f"{V2_REDIS_PREFIX}market:orderbook:{symbol}",
         f"{V2_REDIS_PREFIX}market:orderbook:binance:{symbol}",
@@ -1193,8 +1194,17 @@ def _read_orderbook(r, symbol: str) -> dict | None:
         except (ValueError, TypeError):
             continue
         if isinstance(data, dict):
-            return data
-    return None
+            if fallback is None:
+                fallback = data
+            depth_imbalance = _coerce_numeric(data.get("depth_imbalance"))
+            bids = data.get("bids")
+            asks = data.get("asks")
+            if (
+                depth_imbalance is not None
+                and -1.0 <= depth_imbalance <= 1.0
+            ) or (isinstance(bids, list) and bids and isinstance(asks, list) and asks):
+                return data
+    return fallback
 
 
 def _read_oi_hist(r, symbol: str) -> list | None:
