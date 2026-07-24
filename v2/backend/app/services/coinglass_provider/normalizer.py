@@ -22,6 +22,7 @@ def normalize_coinglass_payload(
     data = _data(payload)
     source_interval = spec.source_interval
     bar_open: datetime | None = None
+    liquidation_window_24h: dict[str, Any] | None = None
     bar_close: datetime | None = None
     source_age_seconds: float | None = None
     source_fresh: bool | None = None
@@ -135,6 +136,25 @@ def normalize_coinglass_payload(
                 features["coinglass_liquidation_sell_usd_1h"] = sell
                 features["coinglass_liquidation_total_usd_1h"] = total
                 features["coinglass_liquidation_imbalance_usd"] = imbalance
+        # Authenticated rolling-24h window from the full aggregated-history rows
+        # (independent of the single latest bar above).  Consumed by the feature
+        # pipeline's _read_liq_notional_24h to populate last_liq_bps_24h only when
+        # complete; fail-closed otherwise.
+        _liq_window = aggregate_liquidation_notional_24h(
+            data,
+            observed_at=observed_dt,
+            max_source_age_seconds=spec.max_source_age_seconds,
+        )
+        liquidation_window_24h = {
+            "complete": bool(_liq_window.get("complete")),
+            "notional_usd": _liq_window.get("notional_usd"),
+            "bar_count": _liq_window.get("bar_count"),
+            "window_open": _iso(_liq_window.get("window_open")),
+            "window_close": _iso(_liq_window.get("window_close")),
+            "feature_cutoff": _iso(_liq_window.get("feature_cutoff")),
+            "source_age_seconds": _liq_window.get("source_age_seconds"),
+            "reason": _liq_window.get("reason"),
+        }
     elif spec.group == "liquidation_heatmap_or_levels":
         above = _bounded_float(
             row,
@@ -283,6 +303,7 @@ def normalize_coinglass_payload(
         "heartbeat_only": not actual,
         "core_system_blocked": False,
         "raw_key_exposed": False,
+        "liquidation_window_24h": liquidation_window_24h,
     }
 
 
@@ -492,6 +513,99 @@ def _latest_closed_row(
             "CLOSED_ROW_TOO_OLD",
         )
     return row, opened_at, closed_at, source_age_seconds, "LATEST_CLOSED_ROW"
+
+
+def aggregate_liquidation_notional_24h(
+    data: Any,
+    *,
+    observed_at: datetime,
+    max_source_age_seconds: int | None,
+    window_hours: int = 24,
+) -> dict[str, Any]:
+    """Authenticated rolling-24h liquidation notional from CoinGlass 1h history.
+
+    Sums total (long + short) liquidation USD across the ``window_hours``
+    CONSECUTIVE closed 1h bars ending at the most recent closed bar.  Fails
+    closed (``complete=False``, ``notional_usd=None``) unless every required
+    hour is present, closed, fresh, and gap-free.  No value is invented and no
+    gap is bridged: a missing or stale window must stay rejected so the
+    downstream RL trust gate never receives a fabricated 24h aggregate.
+    """
+    interval_seconds = 3600
+    if not isinstance(data, list):
+        return {"complete": False, "reason": "NO_HISTORY_LIST", "notional_usd": None}
+    bars: list[tuple[datetime, datetime, float]] = []
+    for row in data:
+        if not isinstance(row, Mapping):
+            continue
+        opened_at = _event_datetime(row)
+        if opened_at is None:
+            continue
+        closed_at = opened_at + timedelta(seconds=interval_seconds)
+        if closed_at > observed_at:
+            continue  # bar not yet closed at observation time
+        short = _bounded_float(
+            row, "aggregated_short_liquidation_usd", "shortLiquidationUsd", minimum=0.0
+        )
+        long_side = _bounded_float(
+            row, "aggregated_long_liquidation_usd", "longLiquidationUsd", minimum=0.0
+        )
+        if short is None or long_side is None:
+            continue  # incomplete bar -> cannot admit into the authenticated window
+        bars.append((opened_at, closed_at, float(long_side) + float(short)))
+    if not bars:
+        return {"complete": False, "reason": "NO_CLOSED_BARS", "notional_usd": None}
+    bars.sort(key=lambda item: item[0])
+    latest_close = bars[-1][1]
+    source_age_seconds = max(0.0, (observed_at - latest_close).total_seconds())
+    if (
+        not max_source_age_seconds
+        or isinstance(max_source_age_seconds, bool)
+        or max_source_age_seconds <= 0
+    ):
+        return {
+            "complete": False,
+            "reason": "SOURCE_AGE_CONTRACT_INVALID",
+            "notional_usd": None,
+        }
+    if source_age_seconds > max_source_age_seconds:
+        return {
+            "complete": False,
+            "reason": "LATEST_BAR_TOO_OLD",
+            "notional_usd": None,
+            "source_age_seconds": source_age_seconds,
+        }
+    if int(window_hours) <= 0:
+        return {"complete": False, "reason": "INVALID_WINDOW_HOURS", "notional_usd": None}
+    window = bars[-int(window_hours):]
+    if len(window) < int(window_hours):
+        return {
+            "complete": False,
+            "reason": "INSUFFICIENT_BARS",
+            "bar_count": len(window),
+            "notional_usd": None,
+        }
+    for index in range(1, len(window)):
+        gap = (window[index][0] - window[index - 1][0]).total_seconds()
+        if abs(gap - interval_seconds) > 1.0:
+            return {
+                "complete": False,
+                "reason": "NON_CONSECUTIVE_WINDOW",
+                "notional_usd": None,
+            }
+    notional = float(sum(bar[2] for bar in window))
+    if not math.isfinite(notional):
+        return {"complete": False, "reason": "NON_FINITE_NOTIONAL", "notional_usd": None}
+    return {
+        "complete": True,
+        "reason": "AUTHENTICATED_ROLLING_24H_WINDOW",
+        "notional_usd": notional,
+        "bar_count": len(window),
+        "window_open": window[0][0],
+        "window_close": window[-1][1],
+        "feature_cutoff": latest_close,
+        "source_age_seconds": source_age_seconds,
+    }
 
 
 def _interval_seconds(interval: str) -> int | None:

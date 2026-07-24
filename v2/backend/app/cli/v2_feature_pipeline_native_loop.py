@@ -1918,26 +1918,61 @@ def _merge_external_v2_features(
     }
 
 
+_LIQ_NOTIONAL_24H_WINDOW_KEY = (
+    V2_REDIS_PREFIX + "coinglass:liquidations:window24h:{symbol}"
+)
+# The authenticated 24h window closes on a 1h bar boundary; allow the window's
+# feature_cutoff to trail the decision by at most one bar plus ingest lag before
+# it is considered stale and rejected.
+_LIQ_NOTIONAL_24H_MAX_STALENESS_MS = 2 * 60 * 60 * 1000
+
+
 def _read_liq_notional_24h(
     r,
     symbol: str,
     *,
     decision_ms: int | None = None,
 ) -> float | None:
-    """Mask the 24h liquidation feature until a complete source is bound.
+    """Authenticated rolling-24h liquidation notional, point-in-time bound.
 
-    The deployed Binance ``forceOrder`` feed is explicitly a lossy snapshot
-    stream.  Its observed aggregate can support lower-bound operator telemetry,
-    but it cannot prove complete 24h capture and has no authenticated producer
-    receipt.  Reading that mutable payload here would let it self-assert the
-    completeness needed to populate ``last_liq_bps_24h``.  Do not read it.
-
-    ``r``, ``symbol`` and ``decision_ms`` remain in the signature so a future
-    complete-capture integration can be added behind an independently verified
-    source contract without changing the feature-builder call boundary.
+    Reads the CoinGlass-derived 24h window published by the coinglass provider
+    (24 consecutive closed 1h bars summed; see
+    ``coinglass_provider.normalizer.aggregate_liquidation_notional_24h``).
+    Returns the notional ONLY when the window is complete, its ``feature_cutoff``
+    is at or before the decision (no future leak), and it is fresh; otherwise
+    returns None so ``last_liq_bps_24h`` stays masked and the RL trust gate fails
+    closed.  The lossy Binance ``forceOrder`` stream is never read here and no
+    value is invented or gap is bridged.
     """
-    del r, symbol, decision_ms
-    return None
+    if r is None or not symbol:
+        return None
+    try:
+        raw = r.get(_LIQ_NOTIONAL_24H_WINDOW_KEY.format(symbol=str(symbol).upper()))
+    except Exception:  # noqa: BLE001 - a redis fault must fail closed, not crash the builder
+        return None
+    if not raw:
+        return None
+    try:
+        payload = json.loads(raw)
+    except (ValueError, TypeError):
+        return None
+    if not isinstance(payload, dict) or payload.get("complete") is not True:
+        return None
+    notional = payload.get("notional_usd")
+    if not isinstance(notional, (int, float)) or isinstance(notional, bool):
+        return None
+    notional = float(notional)
+    if not math.isfinite(notional) or notional < 0.0:
+        return None
+    cutoff_ms = _parse_time_ms(payload.get("feature_cutoff"))
+    if cutoff_ms is None:
+        return None
+    if decision_ms is not None and cutoff_ms > int(decision_ms):
+        return None  # window closes after the decision -> future leak, reject
+    reference_ms = int(decision_ms) if decision_ms is not None else cutoff_ms
+    if reference_ms - cutoff_ms > _LIQ_NOTIONAL_24H_MAX_STALENESS_MS:
+        return None  # stale window relative to the decision, reject
+    return notional
 
 
 def _klines_to_ohlc_series(klines: list) -> tuple[list[float], list[float], list[float], list[float]]:

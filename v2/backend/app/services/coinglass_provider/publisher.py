@@ -148,6 +148,26 @@ def publish_coinglass_result(
             elif not spec.source_interval:
                 _set_json(redis_client, key, admitted_envelope, ex=spec.ttl_seconds)
                 keys_written.append(key)
+        if spec.group == "liquidation_orders":
+            window = admitted_envelope.get("liquidation_window_24h")
+            if isinstance(window, dict):
+                window_key = f"v2:coinglass:liquidations:window24h:{symbol}"
+                window_payload = {
+                    **window,
+                    "symbol": symbol,
+                    "provider": "coinglass",
+                    "source": "coinglass_aggregated_history_1h",
+                    "generated_at": now,
+                    "available_at": now,
+                    "schema_version": "coinglass_liquidation_window_24h_v1",
+                }
+                _set_json(
+                    redis_client,
+                    window_key,
+                    window_payload,
+                    ex=int(spec.ttl_seconds or 3660),
+                )
+                keys_written.append(window_key)
         feature_key = f"v2:features:coinglass:{symbol}:{timeframe}"
         feature_payload, feature_ttl = _merge_feature_payload(
             redis_client,
