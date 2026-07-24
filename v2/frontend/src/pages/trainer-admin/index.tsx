@@ -71,6 +71,17 @@ interface TrainerAdminData {
       validation_trade_count?: number | null;
       untouched_holdout_trade_count?: number | null;
     } | null;
+    blocker_reasons?: string[] | null;
+  } | null;
+  cuda_active?: boolean | null;
+  cuda_runtime?: {
+    gpu_name?: string | null;
+    cuda_available?: boolean | null;
+    compute_capability?: string | null;
+    torch_cuda_version?: string | null;
+    memory_allocated_bytes?: number | null;
+    memory_total_bytes?: number | null;
+    gpu_idle_data_starved?: boolean | null;
   } | null;
   active_jobs: Array<{ id: string; status: string; started_at: string | null; progress: number | null }>;
 }
@@ -154,6 +165,10 @@ export default function TrainerAdminPage(): JSX.Element {
         <KV label="Promotion" value={loading ? '…' : (challenger?.promotion_allowed ? 'allowed' : 'blocked')} color={challenger?.promotion_allowed ? 'var(--buy)' : 'var(--sell)'} />
         <KV label="Promotion Reason" value={loading ? '…' : (challenger?.promotion_reason ?? 'runtime key missing')} color={challenger?.promotion_allowed ? 'var(--buy)' : 'var(--warn)'} />
         <KV label="Holdout Trades" value={loading ? '…' : String(challenger?.backtests_processed?.untouched_holdout_trade_count ?? '—')} color={(challenger?.backtests_processed?.untouched_holdout_trade_count ?? 0) >= 100 ? 'var(--buy)' : 'var(--warn)'} />
+        <KV label="Train Rows" value={loading ? '…' : `${challenger?.backtests_processed?.train_rows ?? 0} / 1000`} color={(challenger?.backtests_processed?.train_rows ?? 0) >= 1000 ? 'var(--buy)' : 'var(--warn)'} />
+        <KV label="Holdout / Val Rows" value={loading ? '…' : `${challenger?.backtests_processed?.untouched_holdout_rows ?? 0} / ${challenger?.backtests_processed?.validation_rows ?? 0}`} />
+        <KV label="GPU" value={loading ? '…' : (data?.cuda_runtime?.gpu_name ?? (data?.cuda_active ? 'CUDA active' : '—'))} color={data?.cuda_runtime?.cuda_available ? 'var(--buy)' : 'var(--text-muted)'} />
+        <KV label="GPU State" value={loading ? '…' : (data?.cuda_runtime ? (data.cuda_runtime.gpu_idle_data_starved ? 'idle · data-starved' : `${((data.cuda_runtime.memory_allocated_bytes ?? 0) / 1e9).toFixed(1)} GB active`) : '—')} color={data?.cuda_runtime?.gpu_idle_data_starved ? 'var(--warn)' : (data?.cuda_runtime ? 'var(--buy)' : 'var(--text-muted)')} />
         <KV label="Replay Windows" value={loading ? '…' : String(challenger?.replay_windows_processed ?? '—')} />
         <KV label="Model Version" value={loading ? '…' : (data?.model_id ?? data?.model_version ?? '—')} />
         <KV label="Checkpoint" value={loading ? '…' : (data?.checkpoint_id ?? data?.checkpoint ?? '—')} />
