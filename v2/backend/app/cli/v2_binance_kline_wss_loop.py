@@ -2323,7 +2323,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--ttl-seconds", type=int, default=900)
     parser.add_argument("--ws-base", default=DEFAULT_WS_BASE)
     parser.add_argument("--total-seconds", type=float, default=86400.0)
-    parser.add_argument("--max-seconds-per-session", type=float, default=600.0)
+    # Each session end is a break-before-make reconnect that can drop a candle
+    # (ROLLOVER_GAP_CLASSIFICATION = MITIGATION_NOT_CONTINUITY_PROOF).  At the
+    # old 600s (10 min) cadence that was ~144 reconnects/day/chunk, so dropped
+    # candles recurred far faster than the ~6h it takes a gap to roll out of the
+    # 71-candle core-TA coverage window -- meaning downstream feature-window
+    # coverage could stay blocked indefinitely.  A 1h session (24/day) makes
+    # gaps rarer than that roll-off so coverage reliably recovers.  Binance
+    # allows 24h sessions; dead connections are still caught reactively by the
+    # websocket keepalive regardless of this proactive rollover cadence.
+    parser.add_argument("--max-seconds-per-session", type=float, default=3600.0)
     parser.add_argument(
         "--universe-refresh-seconds",
         type=float,
