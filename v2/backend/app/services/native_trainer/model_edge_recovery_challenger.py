@@ -549,6 +549,53 @@ def _canonical_label_evidence(
     }, []
 
 
+def _legacy_cost_evidence_unavailable(snapshot: Mapping[str, Any]) -> bool:
+    """Authenticate the immutable pre-cost profiled-replay cohort.
+
+    Only the profiled_pit_replay_v1 records — proven by snapshot-id prefix, schema,
+    source, PIT-replay projection authority flags, and 64-hex lineage hashes — are
+    recognised as legitimately cost-evidence-unavailable.  A forged prefix without
+    the full authenticated shape is NOT trusted and still fails coverage.
+    """
+
+    snapshot_id = str(
+        snapshot.get("snapshot_id") or snapshot.get("feature_snapshot_id") or ""
+    )
+    projection = (
+        snapshot.get("pit_replay_projection")
+        if isinstance(snapshot.get("pit_replay_projection"), Mapping)
+        else {}
+    )
+    source_hashes = (
+        snapshot.get("source_hashes")
+        if isinstance(snapshot.get("source_hashes"), Mapping)
+        else {}
+    )
+    required_hashes = (
+        "profiled_child_record_sha256",
+        "profiled_parent_lineage_binding_sha256",
+        "profiled_parent_record_sha256",
+    )
+    return bool(
+        snapshot_id.startswith("profiled_pit_replay_v1_")
+        and snapshot.get("schema_version")
+        == "durable_feature_snapshot_archive_record_v1"
+        and snapshot.get("source")
+        == "PROFILED_TRAINING_LEDGER_LOADER_V1_PLUS_CANONICAL_5M_LABEL_BINDING"
+        and projection.get("schema_version") == "profiled_pit_replay_projection_v1"
+        and projection.get("source_loader") == "profiled_training_ledger_loader_v1"
+        and projection.get("trainer_admission_authorized") is True
+        and projection.get("prediction_authorized") is False
+        and projection.get("paper_trading_authorized") is False
+        and projection.get("live_execution_authorized") is False
+        and all(
+            isinstance(source_hashes.get(name), str)
+            and len(str(source_hashes[name])) == 64
+            for name in required_hashes
+        )
+    )
+
+
 def freeze_dataset_from_archive(
     *,
     archive_root: Path,
@@ -605,6 +652,7 @@ def freeze_dataset_from_archive(
 
     out: list[EdgeRecoveryRow] = []
     missing_cost_snapshot_count = 0
+    legacy_cost_evidence_unavailable_count = 0
     explicit_cost_snapshot_count = 0
     legacy_static_cost_ignored_count = 0
     legacy_static_cost_underestimated_count = 0
@@ -616,6 +664,14 @@ def freeze_dataset_from_archive(
     for snapshot in pit_eligible_snapshots:
         cost_evidence, cost_reasons = _explicit_cost_evidence(snapshot)
         if cost_evidence is None:
+            if _legacy_cost_evidence_unavailable(snapshot):
+                # Authenticated immutable pre-cost profiled-replay cohort: already
+                # excluded from training; it must NOT count as a missing-cost row
+                # (which would flip action_specific_cost_coverage_complete=False and
+                # block the champion gate).  Reported separately, not fabricated.
+                legacy_cost_evidence_unavailable_count += 1
+                rejections.update(["legacy_cost_evidence_unavailable"])
+                continue
             missing_cost_snapshot_count += 1
             rejections.update(cost_reasons)
             continue
