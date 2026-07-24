@@ -234,6 +234,11 @@ interface ChampionChallengerStatus {
   promotion_reason?: string | null;
   paper_challenger_enabled?: boolean | null;
   holdout_metrics?: ChampionChallengerHoldout | null;
+  backtests_processed?: {
+    train_rows?: number | null;
+    validation_rows?: number | null;
+    untouched_holdout_rows?: number | null;
+  } | null;
 }
 interface AGradeTrainer {
   online_learning_status?: string | null;
@@ -946,6 +951,7 @@ function TrainerDeepTelemetry(): JSX.Element | null {
         <TCell label="Challenger dir. acc" value={dirAcc != null ? `${(dirAcc * 100).toFixed(1)}%` : '—'} color={dirAcc != null ? (dirAcc >= 0.55 ? '#26c281' : '#f59e0b') : 'var(--text-muted)'} />
         <TCell label="Challenger expectancy" value={holdout.after_cost_expectancy_bps != null ? `${holdout.after_cost_expectancy_bps.toFixed(1)} bps` : '—'} color={(holdout.after_cost_expectancy_bps ?? 0) > 0 ? '#26c281' : '#ef5350'} />
         <TCell label="Challenger trades" value={countText(holdout.trade_count)} note="holdout" />
+        <TCell label="Train rows" value={`${cc.backtests_processed?.train_rows ?? 0} / 1000`} color={(cc.backtests_processed?.train_rows ?? 0) >= 1000 ? '#26c281' : '#f59e0b'} note="need 1000 for challenger" />
         <TCell label="Evidence class" value={(edge.evidence_class ?? '—').replace(/_/g, ' ').toLowerCase()} note="not A+ until forward-canary" />
       </TSection>
 

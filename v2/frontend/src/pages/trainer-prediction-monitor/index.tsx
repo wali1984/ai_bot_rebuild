@@ -92,6 +92,23 @@ interface TrainerStatusFlat {
   checkpoint_id?: string | null;
   data_coverage?: number | null;
   cuda_active?: boolean | null;
+  champion_challenger_status?: {
+    best_challenger_id?: string | null;
+    promotion_allowed?: boolean | null;
+    blocker_reasons?: string[] | null;
+    backtests_processed?: {
+      train_rows?: number | null;
+      validation_rows?: number | null;
+      untouched_holdout_rows?: number | null;
+    } | null;
+  } | null;
+  cuda_runtime?: {
+    gpu_name?: string | null;
+    cuda_available?: boolean | null;
+    gpu_idle_data_starved?: boolean | null;
+    memory_allocated_bytes?: number | null;
+    memory_total_bytes?: number | null;
+  } | null;
 }
 
 function fmt(n: number | null, d = 2): string {
@@ -187,9 +204,13 @@ function fmtCoveragePct(n: number | null | undefined): string {
 function TrainerStatusPanel({
   data,
   evidenceAgeSeconds,
+  challenger,
+  cudaRuntime,
 }: {
   data: AIPredictionsData | null;
   evidenceAgeSeconds: number | null;
+  challenger?: TrainerStatusFlat['champion_challenger_status'];
+  cudaRuntime?: TrainerStatusFlat['cuda_runtime'];
 }): JSX.Element {
   const state = data?.trainer_status ?? null;
   const offline = data?.offline_pretrain_status ?? null;
@@ -203,6 +224,9 @@ function TrainerStatusPanel({
           { label: 'Evidence Age', value: age ?? '—', color: isStaleTrainerState(state) ? 'var(--warn)' : undefined },
           { label: 'Checkpoint', value: data?.checkpoint_id ?? '—' },
           { label: 'CUDA', value: data?.cuda_active == null ? '—' : data.cuda_active ? 'active' : 'inactive', color: data?.cuda_active ? 'var(--buy)' : undefined },
+          { label: 'Train Rows', value: `${challenger?.backtests_processed?.train_rows ?? 0} / 1000`, color: (challenger?.backtests_processed?.train_rows ?? 0) >= 1000 ? 'var(--buy)' : 'var(--warn)' },
+          { label: 'GPU', value: cudaRuntime?.gpu_name ?? (data?.cuda_active ? 'CUDA active' : '—'), color: cudaRuntime?.cuda_available ? 'var(--buy)' : undefined },
+          { label: 'GPU State', value: cudaRuntime ? (cudaRuntime.gpu_idle_data_starved ? 'idle · data-starved' : `${((cudaRuntime.memory_allocated_bytes ?? 0) / 1e9).toFixed(1)} GB active`) : '—', color: cudaRuntime?.gpu_idle_data_starved ? 'var(--warn)' : undefined },
           { label: 'Data Coverage', value: fmtCoveragePct(data?.data_coverage) },
           { label: 'Offline Pretrain', value: offline?.phase ? offline.phase.replace(/_/g, ' ') : '—', color: offline?.phase?.toUpperCase().includes('ABORT') ? 'var(--warn)' : undefined },
           { label: 'Last Pretrain Run', value: offline?.generated_utc ? new Date(offline.generated_utc).toLocaleString() : '—' },
@@ -423,7 +447,7 @@ export default function AIPredictionsPage(): JSX.Element {
 
       {/* Trainer status */}
       <div style={{ padding: '0 24px 16px' }}>
-        <TrainerStatusPanel data={data} evidenceAgeSeconds={trainerEvidenceAgeSeconds} />
+        <TrainerStatusPanel data={data} evidenceAgeSeconds={trainerEvidenceAgeSeconds} challenger={trainerFlat?.champion_challenger_status} cudaRuntime={trainerFlat?.cuda_runtime} />
       </div>
 
       {/* Prediction matrix */}
