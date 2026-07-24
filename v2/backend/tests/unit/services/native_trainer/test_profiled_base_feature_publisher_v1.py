@@ -2937,6 +2937,42 @@ def test_worker_slots_scale_only_measured_capture_latency_capacity() -> None:
     )
 
 
+@pytest.mark.parametrize(
+    ("cpu_max", "host_cpu_count", "expected_slots"),
+    [
+        ("max 100000\n", 32, 32),
+        ("200000 100000\n", 32, 2),
+        ("150000 100000\n", 32, 2),
+        ("50000 100000\n", 32, 1),
+        ("800000 100000\n", 4, 4),
+    ],
+)
+def test_worker_slots_intersect_host_capacity_with_cgroup_quota(
+    cpu_max: str,
+    host_cpu_count: int,
+    expected_slots: int,
+) -> None:
+    assert publisher_module._worker_slots_from_cpu_max_v1(  # noqa: SLF001
+        cpu_max=cpu_max,
+        host_cpu_count=host_cpu_count,
+    ) == expected_slots
+
+
+@pytest.mark.parametrize(
+    "cpu_max",
+    ("", "max", "0 100000", "100000 0", "not-a-number 100000"),
+)
+def test_worker_slots_reject_invalid_cgroup_quota(cpu_max: str) -> None:
+    with pytest.raises(
+        ProfiledBaseFeaturePublisherV1ConfigurationError,
+        match="PROFILED_BASE_PUBLISHER_CPU_CAPACITY_INPUT_INVALID",
+    ):
+        publisher_module._worker_slots_from_cpu_max_v1(  # noqa: SLF001
+            cpu_max=cpu_max,
+            host_cpu_count=32,
+        )
+
+
 def test_multi_slot_cycle_overlaps_capture_and_keeps_status_commit_ordered(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

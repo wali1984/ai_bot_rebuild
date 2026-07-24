@@ -1296,6 +1296,98 @@ def _cost_temporal_retryable(reasons: Iterable[str]) -> bool:
     )
 
 
+def _worker_slots_from_cpu_max_v1(*, cpu_max: str, host_cpu_count: int) -> int:
+    """Bound parallel capture work by the service's cgroup CPU entitlement."""
+
+    if type(cpu_max) is not str or type(host_cpu_count) is not int or host_cpu_count <= 0:
+        _fail(
+            ProfiledBaseFeaturePublisherV1ConfigurationError,
+            "PROFILED_BASE_PUBLISHER_CPU_CAPACITY_INPUT_INVALID",
+        )
+    fields = cpu_max.split()
+    if len(fields) != 2:
+        _fail(
+            ProfiledBaseFeaturePublisherV1ConfigurationError,
+            "PROFILED_BASE_PUBLISHER_CPU_CAPACITY_INPUT_INVALID",
+        )
+    quota_text, period_text = fields
+    if quota_text == "max":
+        return host_cpu_count
+    if not quota_text.isascii() or not quota_text.isdecimal() or not period_text.isascii() or not period_text.isdecimal():
+        _fail(
+            ProfiledBaseFeaturePublisherV1ConfigurationError,
+            "PROFILED_BASE_PUBLISHER_CPU_CAPACITY_INPUT_INVALID",
+        )
+    quota = int(quota_text)
+    period = int(period_text)
+    if quota <= 0 or period <= 0:
+        _fail(
+            ProfiledBaseFeaturePublisherV1ConfigurationError,
+            "PROFILED_BASE_PUBLISHER_CPU_CAPACITY_INPUT_INVALID",
+        )
+    # A fractional quota can make forward progress with one worker; a partial
+    # second entitlement admits two independent I/O-bound captures without
+    # exceeding the CPU count visible to the process.
+    return min(host_cpu_count, max(1, math.ceil(quota / period)))
+
+
+def effective_execution_worker_slots_v1() -> int:
+    """Return host capacity intersected with this process's cgroup CPU quota.
+
+    The publisher's systemd CPUQuota is an operational boundary.  Launching a
+    host-wide worker pool inside that boundary causes queued capture work to
+    miss its prospective decision windows, so it is not usable capacity.
+    """
+
+    host_cpu_count = os.cpu_count()
+    if type(host_cpu_count) is not int or host_cpu_count <= 0:
+        _fail(
+            ProfiledBaseFeaturePublisherV1ResourceError,
+            "PROFILED_BASE_PUBLISHER_HOST_CPU_CAPACITY_UNAVAILABLE",
+        )
+    try:
+        with Path("/proc/self/cgroup").open("r", encoding="ascii") as stream:
+            cgroup_lines = tuple(stream)
+    except OSError:
+        # Outside a cgroup-v2 system there is no service quota to intersect.
+        return host_cpu_count
+    relative_path: str | None = None
+    for line in cgroup_lines:
+        if not line.endswith("\n"):
+            continue
+        fields = line[:-1].split(":", 2)
+        if len(fields) == 3 and fields[0] == "0" and fields[1] == "":
+            relative_path = fields[2]
+            break
+    if relative_path is None:
+        return host_cpu_count
+    components = tuple(part for part in relative_path.split("/") if part)
+    if any(part in {".", ".."} or not part.isascii() for part in components):
+        _fail(
+            ProfiledBaseFeaturePublisherV1ResourceError,
+            "PROFILED_BASE_PUBLISHER_CGROUP_PATH_INVALID",
+        )
+    cpu_max_path = Path("/sys/fs/cgroup").joinpath(*components, "cpu.max")
+    try:
+        with cpu_max_path.open("r", encoding="ascii") as stream:
+            cpu_max = stream.read()
+    except FileNotFoundError:
+        return host_cpu_count
+    except OSError as exc:
+        raise ProfiledBaseFeaturePublisherV1ResourceError(
+            "PROFILED_BASE_PUBLISHER_CPU_CAPACITY_READ_FAILED"
+        ) from exc
+    try:
+        return _worker_slots_from_cpu_max_v1(
+            cpu_max=cpu_max,
+            host_cpu_count=host_cpu_count,
+        )
+    except ProfiledBaseFeaturePublisherV1ConfigurationError as exc:
+        raise ProfiledBaseFeaturePublisherV1ResourceError(
+            "PROFILED_BASE_PUBLISHER_CPU_CAPACITY_INVALID"
+        ) from exc
+
+
 @dataclass(frozen=True, slots=True)
 class PublisherResourceDecisionV1:
     discovered_eligible_count: int
@@ -1924,7 +2016,7 @@ class ProfiledBaseFeaturePublisherV1:
         clock: Callable[[], datetime] = _utc_now,
         monotonic: Callable[[], float] = time.monotonic,
         disk_usage: Callable[[Path], Any] = shutil.disk_usage,
-        execution_worker_slots: Callable[[], int | None] = os.cpu_count,
+        execution_worker_slots: Callable[[], int] = effective_execution_worker_slots_v1,
         decision_planner: Callable[[datetime], datetime] = (prospective_decision_midpoint_v1),
         decision_waiter: Callable[[datetime], datetime] | None = None,
         capture_function: Callable[..., CanonicalOhlcvAtomicReceiptCapture] = (
