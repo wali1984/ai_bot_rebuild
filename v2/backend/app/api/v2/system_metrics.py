@@ -292,6 +292,14 @@ INGESTOR_FEEDS: dict[str, dict[str, Any]] = {
         "ts_field": None,
         "value_fields": {},
     },
+    "live_binance_mark_price": {
+        # Read-only all-symbol mark/index price WS producer (hardened 2026-07-24
+        # with restart resilience). ~159 TTL'd keys prove liveness.
+        "title": "Binance USD-M Mark/Index Price WS",
+        "pattern": "v2:market:mark_price:*",
+        "ts_field": None,
+        "value_fields": {},
+    },
     "live_coinank": {
         "title": "CoinAnk Alt Data",
         "pattern": "v2:altdata:public_intel:symbol:*",

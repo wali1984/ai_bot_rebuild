@@ -580,6 +580,31 @@ def _latest_scheduled_pretrain_report() -> dict[str, Any] | None:
         return None
 
 
+_PROFILED_RESEARCH_STATUS_PATH = os.environ.get(
+    "V2_TRAINER_PROFILED_RESEARCH_STATUS_PATH",
+    "/home/wali/ai_bot_local_data/v2_native_trainer/local_profiled_research_v1/status.json",
+)
+
+
+def _read_profiled_research_cuda_runtime() -> dict[str, Any] | None:
+    """Read the running profiled-research trainer's ``cuda_runtime`` block.
+
+    The RTX 5080 GPU telemetry is written to the trainer's ``status.json`` on
+    disk, but the legacy gpu_runtime builder reads ``v2:trainer:hybrid_cuda:status``
+    which the profiled-research trainer never populates — so the GPU was invisible
+    to every UI even though the block exists. Read-only file read; failure-safe.
+    """
+    try:
+        p = Path(_PROFILED_RESEARCH_STATUS_PATH)
+        if not p.is_file():
+            return None
+        data = json.loads(p.read_text())
+        cr = data.get("cuda_runtime") if isinstance(data, dict) else None
+        return cr if isinstance(cr, dict) else None
+    except Exception:  # noqa: BLE001 - telemetry read must never break the route
+        return None
+
+
 def _attach_model_identity_status(shape: dict[str, Any], r: Any) -> dict[str, Any]:
     """Attach model-identity runtime truths (WI-1/WI-2 era) from Redis + reports.
 
@@ -648,6 +673,38 @@ def _attach_model_identity_status(shape: dict[str, Any], r: Any) -> dict[str, An
                 "a_plus_readiness_signal": backtest.get("a_plus_readiness_signal"),
                 "evidence_class": backtest.get("evidence_class"),
                 "status": backtest.get("status"),
+            }
+    # RTX 5080 GPU telemetry from the RUNNING profiled-research trainer's
+    # status.json (the gpu block above reads a Redis key the trainer never sets).
+    _cuda_runtime = _read_profiled_research_cuda_runtime()
+    if _cuda_runtime:
+        _allocated = _cuda_runtime.get("memory_allocated_bytes")
+        out["cuda_runtime"] = {
+            "schema_version": "trainer_status_cuda_runtime_v1",
+            "source": "file:local_profiled_research_v1/status.json",
+            "gpu_name": _cuda_runtime.get("gpu_name"),
+            "cuda_available": _cuda_runtime.get("cuda_available"),
+            "compute_capability": _cuda_runtime.get("compute_capability"),
+            "torch_version": _cuda_runtime.get("torch_version"),
+            "torch_cuda_version": _cuda_runtime.get("torch_cuda_version"),
+            "device_count": _cuda_runtime.get("device_count"),
+            "memory_total_bytes": _cuda_runtime.get("memory_total_bytes"),
+            "memory_free_bytes": _cuda_runtime.get("memory_free_bytes"),
+            "memory_allocated_bytes": _allocated,
+            "memory_reserved_bytes": _cuda_runtime.get("memory_reserved_bytes"),
+            "peak_memory_allocated_bytes": _cuda_runtime.get("peak_memory_allocated_bytes"),
+            # GPU present + available but zero memory allocated == idle because the
+            # trainer is data-starved (distinct from "no GPU present").
+            "gpu_idle_data_starved": bool(_cuda_runtime.get("cuda_available")) and (_allocated or 0) == 0,
+        }
+        if not out.get("gpu_runtime") and _cuda_runtime.get("cuda_available") is not None:
+            out["gpu_runtime"] = {
+                "schema_version": "trainer_status_gpu_runtime_v1",
+                "source": "file:local_profiled_research_v1/status.json",
+                "gpu_name": _cuda_runtime.get("gpu_name"),
+                "cuda_available": _cuda_runtime.get("cuda_available"),
+                "current_vram_used_mb": round((_allocated or 0) / 1e6, 1),
+                "vram_cap_mb": round((_cuda_runtime.get("memory_total_bytes") or 0) / 1e6, 1),
             }
     learning_metrics = _dict_value(payload.get("learning_metrics"))
     out["runtime_mode"] = {
