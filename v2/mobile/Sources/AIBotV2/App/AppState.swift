@@ -3,6 +3,11 @@ import Observation
 
 /// Central app-level state shared across all views.
 /// Injected via @Environment in AIBotV2App.
+/// @MainActor-isolated: it holds @MainActor @Observable managers (AuthManager)
+/// and drives SwiftUI, so its stored-property initializers must run on the main
+/// actor. Without this, `auth = AuthManager()` calls a main-actor init from a
+/// nonisolated context (Swift 6 strict concurrency error).
+@MainActor
 @Observable
 public final class AppState {
 
