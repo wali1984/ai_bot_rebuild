@@ -1126,6 +1126,73 @@ async def get_trainer_summary() -> dict[str, Any]:
     )
 
 
+_BASE_PUBLISHER_STATUS_PATH = os.environ.get(
+    "V2_BASE_PUBLISHER_STATUS_PATH",
+    "/home/wali/ai_bot_local_data/v2_native_trainer/profiled_base_publisher_v1/"
+    "profiled_base_publisher_status_v1.json",
+)
+_COVERAGE_SYNC_STATUS_PATH = os.environ.get(
+    "V2_COVERAGE_SYNC_STATUS_PATH",
+    str(Path(__file__).resolve().parents[5]
+        / "v2/frontend/public/operator_runtime/v2_universe_coverage_sync/latest/"
+          "v2_universe_coverage_sync_status.json"),
+)
+
+
+@router.get("/supply")
+async def get_trainer_supply_status() -> dict[str, Any]:
+    """Read-only base-publisher supply status: explains WHY the trainer / paper
+    pipeline panels are empty right now (published_symbol_count=0, the window
+    failure reasons) and confirms coverage-sync is in census-only mode so no REST
+    row contaminates the WSS-only decision windows. Populated by disk status files
+    that previously had no API reader. Never mutates anything."""
+    from collections import Counter
+
+    out: dict[str, Any] = {
+        "schema_version": "trainer_supply_status_v1",
+        "source": "file:profiled_base_publisher_v1/status_v1.json",
+    }
+    try:
+        p = Path(_BASE_PUBLISHER_STATUS_PATH)
+        if p.is_file():
+            d = json.loads(p.read_text())
+            reasons: Counter[str] = Counter()
+            for f in d.get("failures", []) or []:
+                if isinstance(f, dict):
+                    for rz in (f.get("reasons") or []):
+                        reasons[str(rz)] += 1
+            published = d.get("published_symbol_count")
+            out.update({
+                "cycle_completed_at": d.get("cycle_completed_at"),
+                "published_symbol_count": published,
+                "discovered_symbol_count": d.get("discovered_symbol_count"),
+                "eligible_symbol_count": d.get("eligible_symbol_count"),
+                "selected_symbol_count": d.get("selected_symbol_count"),
+                "failed_symbol_count": d.get("failed_symbol_count"),
+                "failure_reasons": dict(reasons),
+                "publishing": bool(published),
+            })
+        else:
+            out["base_publisher_status_available"] = False
+    except Exception:  # noqa: BLE001 - read-only telemetry must not error the route
+        out["base_publisher_status_available"] = False
+    try:
+        cp = Path(_COVERAGE_SYNC_STATUS_PATH)
+        if cp.is_file():
+            cs = json.loads(cp.read_text())
+            bf = cs.get("backfill") or {}
+            out["coverage_sync"] = {
+                "census_only": bool(bf.get("dry_run")),
+                "completion_status": bf.get("completion_status"),
+                "gap_pairs_found": bf.get("gap_pairs_found"),
+                "rest_writes_attempted": bf.get("attempted"),
+                "note": "census-only (--no-backfill): no REST rows enter the WSS-only windows",
+            }
+    except Exception:  # noqa: BLE001
+        pass
+    return out
+
+
 PAPER_EXPLORATION_BRIDGE_KEYS = {
     "supply_status": "v2:paper:exploration:supply_status",
     "materialization_queue_status": "v2:paper:exploration:materialization_queue_status",
