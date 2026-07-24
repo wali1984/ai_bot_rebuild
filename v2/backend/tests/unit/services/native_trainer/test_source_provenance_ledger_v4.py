@@ -818,6 +818,56 @@ def test_second_entry_chains_to_first_and_same_capture_may_bind_new_cycle(
     assert entries[1].previous_entry_sha256 == entries[0].entry_sha256
 
 
+def test_append_reuses_owned_cas_proofs_only_inside_its_writer_lock(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Post-commit readback rechecks the chain without rehashing its prefix."""
+
+    capture, recorded_at = _build_capture(tmp_path / "capture")
+    ledger = TrainerSourceProvenanceLedgerV4(tmp_path / "ledger-v4")
+    first = _append(ledger, capture, recorded_at, cycle_id="cycle-1")
+    calls: list[str] = []
+    original = ledger_module._verify_record_owned_cas
+
+    def tracked_verify(record: dict[str, Any], *args: Any, **kwargs: Any) -> None:
+        calls.append(cast(str, record["entry_sha256"]))
+        original(record, *args, **kwargs)
+
+    monkeypatch.setattr(ledger_module, "_verify_record_owned_cas", tracked_verify)
+    second = _append(
+        ledger,
+        capture,
+        recorded_at + timedelta(seconds=1),
+        cycle_id="cycle-2",
+    )
+
+    # The writer verifies the committed prefix once and the new entry once.
+    # The required post-commit readback still reparses/hash-chains both entries,
+    # but uses only those two positive proofs while the same writer lock is held.
+    assert calls == [first.entry.entry_sha256, second.entry.entry_sha256]
+
+
+def test_writer_scoped_owned_cas_proof_does_not_survive_public_read(
+    tmp_path: Path,
+) -> None:
+    capture, recorded_at = _build_capture(tmp_path / "capture")
+    ledger = TrainerSourceProvenanceLedgerV4(tmp_path / "ledger-v4")
+    result = _append(ledger, capture, recorded_at)
+    source_address = result.entry.record["source_capture"]["full_source_payload"]
+    source_path = _owned_object_path(ledger, source_address)
+    original = source_path.read_bytes()
+    source_path.unlink()
+    source_path.write_bytes(bytes([original[0] ^ 1]) + original[1:])
+    source_path.chmod(0o400)
+
+    with pytest.raises(
+        TrainerSourceProvenanceLedgerV4IntegrityError,
+        match="owned_full_source_cas_invalid",
+    ):
+        ledger.read_entries()
+
+
 def test_exact_replay_is_idempotent_and_does_not_append_bytes(tmp_path: Path) -> None:
     capture, recorded_at = _build_capture(tmp_path / "capture")
     ledger = TrainerSourceProvenanceLedgerV4(tmp_path / "ledger-v4")

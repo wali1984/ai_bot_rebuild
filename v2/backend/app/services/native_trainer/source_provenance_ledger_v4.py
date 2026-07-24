@@ -2161,11 +2161,44 @@ def _read_regular_file(
         os.close(descriptor)
 
 
+@dataclass(slots=True)
+class _WriterScopedOwnedCasVerificationCache:
+    """Positive CAS proofs reusable only during one writer-held append.
+
+    A provenance append reads the same committed prefix before it appends and
+    again for its mandatory post-commit readback.  The ledger lock makes that
+    one append a coherent operation, while the referenced objects are
+    content-addressed immutable payloads.  Retaining a *positive* proof for
+    that narrow scope avoids re-hashing the same historical objects several
+    times without allowing a proof to survive a public read or a later append.
+
+    Structural parsing, each entry's self-hash, the chain, and the durable head
+    remain revalidated on every readback.  Negative/error results are never
+    cached.
+    """
+
+    verified_entry_sha256: set[str] = field(default_factory=set)
+
+    def contains(self, record: dict[str, Any]) -> bool:
+        entry_sha256 = record.get("entry_sha256")
+        return (
+            type(entry_sha256) is str
+            and entry_sha256 in self.verified_entry_sha256
+        )
+
+    def add(self, record: dict[str, Any]) -> None:
+        entry_sha256 = record.get("entry_sha256")
+        if type(entry_sha256) is not str:
+            _integrity_error("source_provenance_v4_entry_sha256_invalid")
+        self.verified_entry_sha256.add(entry_sha256)
+
+
 def _load_state(
     root: _VerifiedRootChain,
     store: ImmutableSourcePayloadStore,
     *,
     expected_store_root: Path,
+    writer_scoped_owned_cas_cache: _WriterScopedOwnedCasVerificationCache | None = None,
 ) -> _LedgerState:
     raw = (
         _read_regular_file(
@@ -2199,11 +2232,17 @@ def _load_state(
         if not framed.endswith(b"\n") or framed == b"\n" or b"\r" in framed:
             _integrity_error("source_provenance_v4_ledger_framing_invalid")
         record = _parse_entry_line(framed[:-1])
-        _verify_record_owned_cas(
-            record,
-            store,
-            expected_store_root=expected_store_root,
-        )
+        if (
+            writer_scoped_owned_cas_cache is None
+            or not writer_scoped_owned_cas_cache.contains(record)
+        ):
+            _verify_record_owned_cas(
+                record,
+                store,
+                expected_store_root=expected_store_root,
+            )
+            if writer_scoped_owned_cas_cache is not None:
+                writer_scoped_owned_cas_cache.add(record)
         if record["ledger_sequence"] != sequence or record["previous_entry_sha256"] != previous:
             _integrity_error("source_provenance_v4_hash_chain_invalid")
         records.append(record)
@@ -2392,11 +2431,13 @@ def _postcommit_readback(
     expected_store_root: Path,
     expected_entry_json: str,
     expected_sequence: int,
+    writer_scoped_owned_cas_cache: _WriterScopedOwnedCasVerificationCache | None = None,
 ) -> dict[str, Any]:
     state = _load_state(
         root,
         store,
         expected_store_root=expected_store_root,
+        writer_scoped_owned_cas_cache=writer_scoped_owned_cas_cache,
     )
     if (
         state.pending_record is not None
@@ -2615,6 +2656,9 @@ class TrainerSourceProvenanceLedgerV4:
         cycle_id = _required_id(trainer_cycle_id, reason="source_provenance_v4_cycle_id_invalid")
         with self._exclusive_lock() as root:
             store = self._open_owned_store(root)
+            # Scoped to this exclusive-lock ownership only.  A later append or
+            # any public read starts from no cached CAS proof.
+            writer_scoped_owned_cas_cache = _WriterScopedOwnedCasVerificationCache()
             # This is the authoritative P0-B validation and durable pin.  It
             # intentionally occurs after LOCK_EX, not in an earlier preflight.
             replay_material = _capture_replay_material(
@@ -2633,6 +2677,7 @@ class TrainerSourceProvenanceLedgerV4:
                 root,
                 store,
                 expected_store_root=self.store_root,
+                writer_scoped_owned_cas_cache=writer_scoped_owned_cas_cache,
             )
             for index, existing in enumerate(state.records):
                 if existing["cycle_identity_sha256"] != cycle_identity:
@@ -2645,12 +2690,14 @@ class TrainerSourceProvenanceLedgerV4:
                         store,
                         state,
                         existing,
+                        writer_scoped_owned_cas_cache=writer_scoped_owned_cas_cache,
                     )
                 return self._finish_existing(
                     root,
                     store,
                     existing,
                     disposition="EXACT_REPLAY",
+                    writer_scoped_owned_cas_cache=writer_scoped_owned_cas_cache,
                 )
 
             pending = state.pending_record
@@ -2695,6 +2742,7 @@ class TrainerSourceProvenanceLedgerV4:
                 store,
                 expected_store_root=self.store_root,
             )
+            writer_scoped_owned_cas_cache.add(validated_record)
             root.verify()
             framed = entry_json.encode("ascii") + b"\n"
             if len(state.raw_bytes) + len(framed) > MAX_LEDGER_BYTES:
@@ -2713,6 +2761,7 @@ class TrainerSourceProvenanceLedgerV4:
                 expected_store_root=self.store_root,
                 expected_entry_json=entry_json,
                 expected_sequence=sequence,
+                writer_scoped_owned_cas_cache=writer_scoped_owned_cas_cache,
             )
             return _append_result(
                 _artifact(readback),
@@ -2725,14 +2774,18 @@ class TrainerSourceProvenanceLedgerV4:
         store: ImmutableSourcePayloadStore,
         state: _LedgerState,
         pending: dict[str, Any],
+        *,
+        writer_scoped_owned_cas_cache: _WriterScopedOwnedCasVerificationCache,
     ) -> TrainerSourceProvenanceAppendResultV4:
         if state.pending_record is not pending or len(state.records) != state.committed_count + 1:
             _integrity_error("source_provenance_v4_pending_tail_shape_invalid")
-        _verify_record_owned_cas(
-            pending,
-            store,
-            expected_store_root=self.store_root,
-        )
+        if not writer_scoped_owned_cas_cache.contains(pending):
+            _verify_record_owned_cas(
+                pending,
+                store,
+                expected_store_root=self.store_root,
+            )
+            writer_scoped_owned_cas_cache.add(pending)
         _fsync_ledger(root)
         _fsync_directory_fd(root.final_fd)
         head = _head_material(
@@ -2748,6 +2801,7 @@ class TrainerSourceProvenanceLedgerV4:
             expected_store_root=self.store_root,
             expected_entry_json=entry_json,
             expected_sequence=len(state.records),
+            writer_scoped_owned_cas_cache=writer_scoped_owned_cas_cache,
         )
         return _append_result(
             _artifact(readback),
@@ -2761,6 +2815,7 @@ class TrainerSourceProvenanceLedgerV4:
         existing: dict[str, Any],
         *,
         disposition: str,
+        writer_scoped_owned_cas_cache: _WriterScopedOwnedCasVerificationCache,
     ) -> TrainerSourceProvenanceAppendResultV4:
         # Exact replay also takes over durability: both data and head are
         # re-fsynced, then re-read under the same interprocess lock.
@@ -2768,6 +2823,7 @@ class TrainerSourceProvenanceLedgerV4:
             root,
             store,
             expected_store_root=self.store_root,
+            writer_scoped_owned_cas_cache=writer_scoped_owned_cas_cache,
         )
         if state.pending_record is not None or not state.records:
             _integrity_error("source_provenance_v4_exact_replay_state_invalid")
@@ -2784,6 +2840,7 @@ class TrainerSourceProvenanceLedgerV4:
             expected_store_root=self.store_root,
             expected_entry_json=_canonical_json(state.records[-1]),
             expected_sequence=len(state.records),
+            writer_scoped_owned_cas_cache=writer_scoped_owned_cas_cache,
         )
         return _append_result(
             _artifact(existing),
