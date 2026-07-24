@@ -132,7 +132,46 @@ DYNAMIC_SYMBOL_SELECTION_KEY: Final = "v2:symbol_universe:dynamic_discovered_sym
 
 # Resource-integrity limits only.  They never classify a market observation.
 BOOTSTRAP_EVIDENCE_BYTES_PER_SYMBOL: Final = 4_900_000
-MINIMUM_RESOURCE_SUSTAINABILITY_HORIZON_SECONDS: Final = 90 * 24 * 60 * 60
+
+# Disk-sustainability floor.  The publisher paces its per-cycle evidence writes so
+# it stays a shared-disk citizen over this horizon; the default keeps the historic
+# 90-day behaviour EXACTLY when the override env var is unset.  An explicit operator
+# override (PROFILED_BASE_PUBLISHER_MINIMUM_HORIZON_OVERRIDE_SECONDS) may shorten the
+# floor for a bounded, monitored training-supply sprint, but is itself clamped: never
+# below a hard 3-day absolute floor and never above the 90-day default.  This is a
+# resource-pacing knob only — it never lowers a correctness/label/PIT gate, and the
+# publisher still self-limits to the 1/5-of-total immutable disk reserve regardless.
+_DEFAULT_DISK_SUSTAINABILITY_FLOOR_SECONDS: Final = 90 * 24 * 60 * 60
+_ABSOLUTE_DISK_SUSTAINABILITY_FLOOR_SECONDS: Final = 3 * 24 * 60 * 60
+_MINIMUM_HORIZON_OVERRIDE_ENV: Final = (
+    "PROFILED_BASE_PUBLISHER_MINIMUM_HORIZON_OVERRIDE_SECONDS"
+)
+
+
+def _resolve_minimum_resource_sustainability_horizon_seconds() -> int:
+    """Resolve the disk-sustainability floor, honouring a clamped operator override.
+
+    Unset/blank/invalid env -> the exact historic 90-day default.  A valid override
+    is clamped into [3 days, 90 days] so the floor can be shortened for a monitored
+    sprint but never removed.
+    """
+
+    raw = os.environ.get(_MINIMUM_HORIZON_OVERRIDE_ENV)
+    if raw is None or raw.strip() == "":
+        return _DEFAULT_DISK_SUSTAINABILITY_FLOOR_SECONDS
+    try:
+        requested = int(float(raw))
+    except (TypeError, ValueError):
+        return _DEFAULT_DISK_SUSTAINABILITY_FLOOR_SECONDS
+    return max(
+        _ABSOLUTE_DISK_SUSTAINABILITY_FLOOR_SECONDS,
+        min(_DEFAULT_DISK_SUSTAINABILITY_FLOOR_SECONDS, requested),
+    )
+
+
+MINIMUM_RESOURCE_SUSTAINABILITY_HORIZON_SECONDS: Final = (
+    _resolve_minimum_resource_sustainability_horizon_seconds()
+)
 DEFAULT_RESOURCE_SUSTAINABILITY_HORIZON_SECONDS: Final = (
     MINIMUM_RESOURCE_SUSTAINABILITY_HORIZON_SECONDS
 )
