@@ -2751,6 +2751,76 @@ class ProfiledBaseFeaturePublisherV1:
             *last_reasons,
         )
 
+    def _rebind_capture_set_after_source_provenance_if_expired(
+        self,
+        *,
+        captures: tuple[
+            CanonicalOhlcvAtomicReceiptCapture,
+            CanonicalOhlcvAtomicReceiptCapture,
+        ],
+        capture_set_store: ImmutableSourcePayloadStore,
+        capture_set: Any,
+        contract: Mapping[str, Any],
+        decision_at: datetime,
+        shared_cycle_decision_at: datetime | None,
+    ) -> tuple[Any, dict[str, Any], datetime, bool]:
+        """Rebind a changed finalized capture only when its planned decision expired.
+
+        Source-provenance appends can legitimately take longer than the
+        remaining part of the initial prospective 5-minute window.  The
+        finalized captures remain valid, but a record must never be generated
+        at or after the decision bound embedded in its capture-set contract.
+        Rebuild only the capture-set envelope with a newly planned future
+        decision after the verified source writes complete.  This writes a new
+        immutable envelope; it never changes captures, source-ledger entries,
+        cost evidence, or any prior artifact.
+        """
+
+        if shared_cycle_decision_at is not None:
+            return capture_set, dict(contract), decision_at, False
+        observed_at, observed = self._sample_clock(
+            "PROFILED_BASE_PUBLISHER_POST_SOURCE_PROVENANCE_CLOCK_INVALID"
+        )
+        if observed_at < decision_at:
+            return capture_set, dict(contract), decision_at, False
+        try:
+            rebound_decision_at = self.decision_planner(observed_at)
+        except ProfiledBaseFeaturePublisherV1Error:
+            raise
+        except Exception as exc:  # noqa: BLE001 - planner detail is suppressed
+            raise ProfiledBaseFeaturePublisherV1ConfigurationError(
+                "PROFILED_BASE_PUBLISHER_REBOUND_DECISION_PLANNER_FAILED"
+            ) from exc
+        rebound_decision = _clock_text(
+            rebound_decision_at,
+            reason="PROFILED_BASE_PUBLISHER_REBOUND_DECISION_CLOCK_INVALID",
+        )
+        if rebound_decision_at <= observed_at:
+            _fail(
+                ProfiledBaseFeaturePublisherV1ConfigurationError,
+                "PROFILED_BASE_PUBLISHER_REBOUND_DECISION_NOT_STRICTLY_FUTURE",
+            )
+        rebuilt_capture_set = self.capture_set_builder(
+            profile=ADAPTIVE_OHLCV_FEATURE_SELECTION_PROFILE_V1,
+            atomic_captures=captures,
+            capture_set_store=capture_set_store,
+            generated_at=observed,
+            decision_time=rebound_decision,
+        )
+        rebuilt_contract = canonical_ohlcv_multitimeframe_capture_set_v1_contract(
+            rebuilt_capture_set
+        )
+        if (
+            rebuilt_contract.get("timestamps", {}).get("generated_at") != observed
+            or rebuilt_contract.get("timestamps", {}).get("decision_time")
+            != rebound_decision
+        ):
+            _fail(
+                ProfiledBaseFeaturePublisherV1Error,
+                "PROFILED_BASE_PUBLISHER_REBOUND_CAPTURE_SET_CLOCK_BINDING_INVALID",
+            )
+        return rebuilt_capture_set, rebuilt_contract, rebound_decision_at, True
+
     @staticmethod
     def _cost_market_keys(symbol: str) -> tuple[str, str, str]:
         return (
@@ -3732,6 +3802,22 @@ class ProfiledBaseFeaturePublisherV1:
                         ledger_clock=self.clock,
                     )
                 )
+        (
+            capture_set,
+            contract,
+            decision_at,
+            capture_set_decision_rebased_after_source_provenance,
+        ) = self._rebind_capture_set_after_source_provenance_if_expired(
+            captures=captures,
+            capture_set_store=capture_set_store,
+            capture_set=capture_set,
+            contract=contract,
+            decision_at=decision_at,
+            shared_cycle_decision_at=shared_cycle_decision_at,
+        )
+        source_shard_preflight.evidence[
+            "capture_set_decision_rebased_after_source_provenance"
+        ] = capture_set_decision_rebased_after_source_provenance
         source_entries = cast(
             tuple[Any, Any],
             tuple(result.entry for result in append_results),

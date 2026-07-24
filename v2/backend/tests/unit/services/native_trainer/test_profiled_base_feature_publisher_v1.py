@@ -3122,6 +3122,51 @@ def test_shared_cycle_decision_bypasses_per_symbol_planning(tmp_path: Path) -> N
     )
 
 
+def test_expired_capture_set_decision_is_rebound_after_source_provenance(
+    tmp_path: Path,
+) -> None:
+    """A slow authenticated source append must not create an after-decision record."""
+
+    publisher = _publisher(tmp_path, _Redis(_payloads()))
+    publisher.data_root.mkdir(mode=0o700)
+    source_store, capture_set_store, _artifact_store, _enrichment_store = publisher._stores()
+    captures, _fingerprint, capture_set, contract, _attempts, decision_at = (
+        publisher._capture_and_build_set(  # noqa: SLF001
+            symbol="BTCUSDT",
+            source_store=source_store,
+            capture_set_store=capture_set_store,
+            prior_fingerprint=None,
+        )
+    )
+    assert capture_set is not None
+    assert decision_at == FIXED_CLOCK
+
+    source_append_completed_at = FIXED_CLOCK + timedelta(seconds=1)
+    publisher.clock = lambda: source_append_completed_at
+    publisher.decision_planner = lambda generated_at: generated_at + timedelta(seconds=1)
+
+    rebound_set, rebound_contract, rebound_decision, did_rebind = (
+        publisher._rebind_capture_set_after_source_provenance_if_expired(  # noqa: SLF001
+            captures=captures,
+            capture_set_store=capture_set_store,
+            capture_set=capture_set,
+            contract=contract,
+            decision_at=decision_at,
+            shared_cycle_decision_at=None,
+        )
+    )
+
+    assert did_rebind is True
+    assert rebound_set is not capture_set
+    assert rebound_decision == source_append_completed_at + timedelta(seconds=1)
+    assert rebound_contract["timestamps"]["generated_at"] == (
+        source_append_completed_at.isoformat(timespec="microseconds").replace("+00:00", "Z")
+    )
+    assert rebound_contract["timestamps"]["decision_time"] == (
+        rebound_decision.isoformat(timespec="microseconds").replace("+00:00", "Z")
+    )
+
+
 def test_indivisible_evidence_unit_accrues_bounded_cross_cycle_credit() -> None:
     base_observations = {
         "materialized_publication_count": 1,
