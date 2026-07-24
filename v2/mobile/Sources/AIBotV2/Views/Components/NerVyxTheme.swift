@@ -186,7 +186,7 @@ struct LivePulse: View {
                 .frame(width: 7, height: 7)
         }
         .onAppear {
-            withAnimation(.easeOut(duration: 1.6).repeatForever(autoreverses: false)) {
+            withAnimation(.default.repeatForever(autoreverses: false)) {
                 animating = true
             }
         }

@@ -178,7 +178,7 @@ struct LoginView: View {
 
     private var advancedSection: some View {
         VStack(spacing: 0) {
-            Button(action: { withAnimation(.easeInOut(duration: 0.2)) { showAdvanced.toggle() } }) {
+            Button(action: { withAnimation(.default) { showAdvanced.toggle() } }) {
                 HStack(spacing: 6) {
                     Image(systemName: "gearshape")
                         .font(.caption)
