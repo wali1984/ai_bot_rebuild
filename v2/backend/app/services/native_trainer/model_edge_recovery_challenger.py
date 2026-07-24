@@ -30,6 +30,9 @@ from v2.backend.app.services.native_trainer.durable_feature_snapshot_archive imp
     default_archive_root,
     iter_snapshots,
 )
+from v2.backend.app.services.native_trainer.profiled_pit_replay_projection_v1 import (
+    PROFILED_PIT_REPLAY_PROJECTION_V1_SCHEMA_VERSION,
+)
 from v2.backend.app.services.native_trainer.trusted_replay.dataset import (
     FUTURE_LABEL_PREFIXES,
     snapshot_to_final_candle,
@@ -438,6 +441,188 @@ def _future_label_evidence(
     }, []
 
 
+def _profiled_pit_edge_row(
+    snapshot: Mapping[str, Any],
+) -> tuple[EdgeRecoveryRow | None, list[str] | None]:
+    """Materialize only a loader-authenticated, canonically labeled PIT row.
+
+    A profiled replay projection is deliberately not relabeled from nearby
+    archive candles.  Its label was sealed from the canonical 5m range at the
+    fixed observation during import, and is validated here as outcome data
+    rather than passed into the model feature vector.
+    """
+
+    projection_raw = snapshot.get("pit_replay_projection")
+    if projection_raw is None:
+        return None, None
+    if not isinstance(projection_raw, Mapping):
+        return None, ["PROFILED_PIT_REPLAY_PROJECTION_INVALID"]
+    projection = projection_raw
+    if (
+        projection.get("schema_version") != PROFILED_PIT_REPLAY_PROJECTION_V1_SCHEMA_VERSION
+        or projection.get("source_loader") != "profiled_training_ledger_loader_v1"
+        or projection.get("trainer_admission_authorized") is not True
+        or any(
+            projection.get(name) is not False
+            for name in (
+                "prediction_authorized",
+                "paper_trading_authorized",
+                "live_execution_authorized",
+                "runtime_wired",
+            )
+        )
+    ):
+        return None, ["PROFILED_PIT_REPLAY_PROJECTION_AUTHORITY_INVALID"]
+    label_raw = projection.get("label_binding")
+    cost_raw = projection.get("action_specific_cost_evidence")
+    if not isinstance(label_raw, Mapping) or not isinstance(cost_raw, Mapping):
+        return None, ["PROFILED_PIT_REPLAY_PROJECTION_PROVENANCE_MISSING"]
+    label = label_raw
+    costs = cost_raw
+    if (
+        label.get("schema_version") != "profiled_training_finalized_label_binding_v1"
+        or label.get("future_labels_not_in_feature_tensor") is not True
+        or label.get("auxiliary_cost_values_excluded_from_model_vector") is not True
+        or label.get("static_action_threshold_used") is not False
+        or label.get("decision_time") != snapshot.get("decision_time")
+        or not all(
+            isinstance(label.get(name), str) and len(str(label[name])) == 64
+            for name in (
+                "label_binding_sha256",
+                "directional_cost_evidence_sha256",
+                "label_path_sha256",
+                "label_range_sha256",
+            )
+        )
+    ):
+        return None, ["PROFILED_PIT_REPLAY_PROJECTION_LABEL_PROVENANCE_INVALID"]
+    decision_time = _strict_aware_utc(snapshot.get("decision_time"))
+    feature_cutoff = _strict_aware_utc(snapshot.get("feature_cutoff"))
+    available_at = _strict_aware_utc(snapshot.get("available_at"))
+    label_available_at = _strict_aware_utc(costs.get("label_available_at"))
+    label_horizon_seconds = costs.get("label_horizon_seconds")
+    if (
+        decision_time is None
+        or feature_cutoff is None
+        or available_at is None
+        or label_available_at is None
+        or type(label_horizon_seconds) is not int
+        or label_horizon_seconds < MAX_FUTURE_HORIZON_SECONDS
+        or feature_cutoff > available_at
+        or available_at > decision_time
+        or label_available_at < decision_time + timedelta(seconds=MAX_FUTURE_HORIZON_SECONDS)
+    ):
+        return None, ["PROFILED_PIT_REPLAY_PROJECTION_CLOCK_OR_HORIZON_INVALID"]
+    raw_return = finite_float(costs.get("raw_future_return_bps"))
+    long_cost = finite_float(costs.get("long_round_trip_cost_bps"))
+    short_cost = finite_float(costs.get("short_round_trip_cost_bps"))
+    long_net = finite_float(costs.get("long_net_bps"))
+    short_net = finite_float(costs.get("short_net_bps"))
+    fee_per_side = finite_float(costs.get("fee_bps_per_side"))
+    full_spread = finite_float(costs.get("full_spread_bps"))
+    slippage_per_side = finite_float(costs.get("expected_slippage_bps_per_side"))
+    funding = finite_float(costs.get("signed_expected_funding_bps"))
+    numeric = (
+        raw_return,
+        long_cost,
+        short_cost,
+        long_net,
+        short_net,
+        fee_per_side,
+        full_spread,
+        slippage_per_side,
+        funding,
+    )
+    if any(value is None for value in numeric):
+        return None, ["PROFILED_PIT_REPLAY_PROJECTION_COST_INVALID"]
+    assert all(value is not None for value in numeric)
+    assert raw_return is not None and long_cost is not None and short_cost is not None
+    assert long_net is not None and short_net is not None
+    assert fee_per_side is not None and full_spread is not None
+    assert slippage_per_side is not None and funding is not None
+    base_cost = 2.0 * fee_per_side + full_spread + 2.0 * slippage_per_side
+    tolerance = 1e-8
+    if (
+        fee_per_side < 0.0
+        or full_spread < 0.0
+        or slippage_per_side < 0.0
+        or long_cost < 0.0
+        or short_cost < 0.0
+        or not math.isclose(long_cost, base_cost + funding, rel_tol=0.0, abs_tol=tolerance)
+        or not math.isclose(short_cost, base_cost - funding, rel_tol=0.0, abs_tol=tolerance)
+        or not math.isclose(long_net, raw_return - long_cost, rel_tol=0.0, abs_tol=tolerance)
+        or not math.isclose(short_net, -raw_return - short_cost, rel_tol=0.0, abs_tol=tolerance)
+    ):
+        return None, ["PROFILED_PIT_REPLAY_PROJECTION_COST_ECONOMICS_INVALID"]
+    target_action = (
+        "long"
+        if long_net > max(0.0, short_net)
+        else "short"
+        if short_net > max(0.0, long_net)
+        else "hold"
+    )
+    if label.get("label_target_action") != target_action:
+        return None, ["PROFILED_PIT_REPLAY_PROJECTION_TARGET_ACTION_INVALID"]
+    source_hashes = snapshot.get("source_hashes")
+    required_source_hashes = (
+        "profiled_child_record_sha256",
+        "profiled_parent_record_sha256",
+        "cost_capture_artifact_sha256",
+        "canonical_label_binding_sha256",
+        "canonical_label_path_sha256",
+        "directional_cost_evidence_sha256",
+    )
+    if (
+        not isinstance(source_hashes, Mapping)
+        or any(
+            not isinstance(source_hashes.get(name), str)
+            or len(str(source_hashes[name])) != 64
+            for name in required_source_hashes
+        )
+        or source_hashes.get("canonical_label_binding_sha256")
+        != label.get("label_binding_sha256")
+        or source_hashes.get("directional_cost_evidence_sha256")
+        != label.get("directional_cost_evidence_sha256")
+    ):
+        return None, ["PROFILED_PIT_REPLAY_PROJECTION_SOURCE_LINEAGE_INVALID"]
+    features = numeric_features_from_snapshot(snapshot)
+    if not features:
+        return None, ["PROFILED_PIT_REPLAY_PROJECTION_FEATURES_INVALID"]
+    snapshot_id = str(snapshot.get("snapshot_id") or snapshot.get("feature_snapshot_id") or "")
+    if not snapshot_id:
+        return None, ["PROFILED_PIT_REPLAY_PROJECTION_SNAPSHOT_ID_MISSING"]
+    return (
+        EdgeRecoveryRow(
+            sample_id=f"edge_recovery_profiled_pit_v1:{snapshot_id}",
+            snapshot_id=snapshot_id,
+            symbol=str(snapshot.get("symbol") or "").upper(),
+            timeframe=str(snapshot.get("timeframe") or ""),
+            decision_time=_utc_iso(decision_time),
+            feature_cutoff=_utc_iso(feature_cutoff),
+            available_at=_utc_iso(available_at),
+            label_available_at=_utc_iso(label_available_at),
+            raw_future_return_bps=raw_return,
+            long_net_bps=long_net,
+            short_net_bps=short_net,
+            hold_net_bps=0.0,
+            fee_bps=2.0 * fee_per_side,
+            slippage_bps=full_spread + 2.0 * slippage_per_side,
+            funding_bps=funding,
+            total_cost_bps=max(long_cost, short_cost),
+            long_total_cost_bps=long_cost,
+            short_total_cost_bps=short_cost,
+            cost_evidence_source=(
+                "profiled_training_ledger_loader_v1+canonical_5m_label_binding"
+            ),
+            cost_evidence_hash=str(label["directional_cost_evidence_sha256"]),
+            legacy_static_cost_bps_ignored=None,
+            target_action=target_action,
+            features=features,
+        ),
+        None,
+    )
+
+
 def freeze_dataset_from_archive(
     *,
     archive_root: Path,
@@ -452,6 +637,13 @@ def freeze_dataset_from_archive(
         reasons = _row_reject_reasons(snapshot)
         if reasons:
             rejections.update(reasons)
+            continue
+        profiled_row, profiled_reasons = _profiled_pit_edge_row(snapshot)
+        if profiled_reasons is not None:
+            rejections.update(profiled_reasons)
+            continue
+        if profiled_row is not None:
+            pit_eligible_snapshots.append(snapshot)
             continue
         candle, reasons = snapshot_to_final_candle(snapshot)
         if candle is None:
@@ -469,6 +661,16 @@ def freeze_dataset_from_archive(
     legacy_static_cost_ignored_count = 0
     legacy_static_cost_underestimated_count = 0
     for snapshot in pit_eligible_snapshots:
+        profiled_row, profiled_reasons = _profiled_pit_edge_row(snapshot)
+        if profiled_reasons is not None:
+            rejections.update(profiled_reasons)
+            continue
+        if profiled_row is not None:
+            explicit_cost_snapshot_count += 1
+            out.append(profiled_row)
+            if replay_limit and len(out) >= int(replay_limit):
+                break
+            continue
         cost_evidence, cost_reasons = _explicit_cost_evidence(snapshot)
         if cost_evidence is None:
             missing_cost_snapshot_count += 1

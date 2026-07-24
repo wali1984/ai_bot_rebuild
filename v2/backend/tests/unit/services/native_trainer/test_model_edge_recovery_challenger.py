@@ -10,6 +10,10 @@ from v2.backend.app.services.native_trainer import (
     profiled_training_observation_manifest_v1 as observation_manifest,
 )
 from v2.backend.app.services.native_trainer.durable_feature_snapshot_archive import (
+    append_snapshot,
+    build_archive_record,
+)
+from v2.backend.app.services.native_trainer.durable_feature_snapshot_archive import (
     content_sha256 as archive_content_sha256,
 )
 from v2.backend.app.services.native_trainer.model_edge_recovery_challenger import (
@@ -29,6 +33,7 @@ from v2.backend.app.services.native_trainer.model_edge_recovery_challenger impor
     build_paper_challenger_signal,
     champion_challenger_status_from_result,
     evaluate_predictions,
+    freeze_dataset_from_archive,
     predict_rows,
     publish_champion_challenger_status,
     train_challenger_model,
@@ -244,6 +249,90 @@ def test_directional_outcome_preserves_signed_funding_for_short_label() -> None:
 
     assert outcome.short_round_trip_cost_bps == pytest.approx(3.0)
     assert outcome.label_expected_move_after_cost_bps == pytest.approx(-7.0)
+
+
+def test_freeze_uses_canonical_label_for_profiled_pit_projection(tmp_path) -> None:
+    timestamp = (
+        BASE_TIME.isoformat(timespec="microseconds").replace("+00:00", "Z")
+    )
+    label_available = (
+        (BASE_TIME + timedelta(hours=4))
+        .isoformat(timespec="microseconds")
+        .replace("+00:00", "Z")
+    )
+    source_hashes = {
+        "profiled_child_record_sha256": "a" * 64,
+        "profiled_parent_record_sha256": "b" * 64,
+        "cost_capture_artifact_sha256": "c" * 64,
+        "canonical_label_binding_sha256": "d" * 64,
+        "canonical_label_path_sha256": "e" * 64,
+        "directional_cost_evidence_sha256": "f" * 64,
+    }
+    record = build_archive_record(
+        snapshot_id="profiled_pit_replay_v1_test",
+        symbol="BTCUSDT",
+        timeframe="5m",
+        feature_cutoff=timestamp,
+        decision_time=timestamp,
+        available_at=timestamp,
+        mtf_snapshot_id="feature_snapshot_v3_" + ("b" * 64),
+        features={"close": 100.0, "rsi_14": 55.0},
+        source_hashes=source_hashes,
+        extra={
+            "candle_closed_confirmed": True,
+            "latest_unclosed_kline_excluded": True,
+            "pit_replay_projection": {
+                "schema_version": "profiled_pit_replay_projection_v1",
+                "source_loader": "profiled_training_ledger_loader_v1",
+                "trainer_admission_authorized": True,
+                "prediction_authorized": False,
+                "paper_trading_authorized": False,
+                "live_execution_authorized": False,
+                "runtime_wired": False,
+                "label_binding": {
+                    "schema_version": "profiled_training_finalized_label_binding_v1",
+                    "label_binding_sha256": "d" * 64,
+                    "directional_cost_evidence_sha256": "f" * 64,
+                    "label_path_sha256": "e" * 64,
+                    "label_range_sha256": "0" * 64,
+                    "decision_time": timestamp,
+                    "future_labels_not_in_feature_tensor": True,
+                    "auxiliary_cost_values_excluded_from_model_vector": True,
+                    "static_action_threshold_used": False,
+                    "label_target_action": "short",
+                },
+                "action_specific_cost_evidence": {
+                    "fee_bps_per_side": 1.0,
+                    "full_spread_bps": 2.0,
+                    "expected_slippage_bps_per_side": 0.5,
+                    "signed_expected_funding_bps": 1.0,
+                    "long_round_trip_cost_bps": 6.0,
+                    "short_round_trip_cost_bps": 4.0,
+                    "raw_future_return_bps": -10.0,
+                    "long_net_bps": -16.0,
+                    "short_net_bps": 6.0,
+                    "label_available_at": label_available,
+                    "label_horizon_seconds": 4 * 60 * 60,
+                },
+            },
+        },
+    )
+    append_snapshot(record, root=tmp_path)
+    profiled_row, profiled_reasons = challenger._profiled_pit_edge_row(record)
+    assert profiled_reasons is None
+    assert profiled_row is not None
+
+    freeze = freeze_dataset_from_archive(
+        archive_root=tmp_path,
+        scan_limit=10,
+        replay_limit=10,
+    )
+
+    assert len(freeze.rows) == 1
+    assert freeze.rows[0].raw_future_return_bps == pytest.approx(-10.0)
+    assert freeze.rows[0].long_total_cost_bps == pytest.approx(6.0)
+    assert freeze.rows[0].short_total_cost_bps == pytest.approx(4.0)
+    assert freeze.rows[0].short_net_bps == pytest.approx(6.0)
 
 
 def test_train_challenger_model_selects_on_validation_and_holdout_beats_baseline() -> None:
