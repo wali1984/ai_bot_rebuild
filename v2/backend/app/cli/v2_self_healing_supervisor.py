@@ -295,8 +295,20 @@ def run_once(client: Any, *, dry_run: bool, write_redis: bool) -> dict[str, Any]
             if dry_run:
                 row["remediation"] = "dry_run"
             else:
+                # Clear any StartLimitBurst "failed" latch first.  Once a unit
+                # trips the start-limit it stays in the failed state, and a
+                # plain `restart` is rejected ("start request repeated too
+                # quickly") until the failure is reset — so without this a
+                # crash-looped unit sits dead indefinitely despite the
+                # supervisor running.  reset-failed is a harmless no-op on a
+                # healthy unit, so it is safe to run unconditionally here.
+                reset = _run(["systemctl", "--user", "reset-failed", spec.unit])
                 proc = _run(["systemctl", "--user", "restart", spec.unit])
-                row["remediation"] = {"returncode": proc.returncode, "stderr": proc.stderr.strip()[-500:]}
+                row["remediation"] = {
+                    "returncode": proc.returncode,
+                    "reset_failed_returncode": reset.returncode,
+                    "stderr": proc.stderr.strip()[-500:],
+                }
                 if proc.returncode == 0:
                     restarted.append(spec.unit)
                     _record_restart(client, spec.unit, now)
