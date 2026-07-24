@@ -2561,6 +2561,7 @@ class ProfiledBaseFeaturePublisherV1:
             "publication_shard_index": None,
             "publication_shard_relative_path": None,
             "publication_shard_selection_reconciled": False,
+            "preflight_active_shard_advanced_before_publication": False,
             "hard_safety_cap_rollover_after_capture": False,
             "ledger_byte_hard_safety_cap": MAX_LEDGER_BYTES,
             "ledger_entry_hard_safety_cap": MAX_LEDGER_ENTRIES,
@@ -2580,11 +2581,27 @@ class ProfiledBaseFeaturePublisherV1:
         ],
         *,
         expected_active_index: int,
-    ) -> tuple[TrainerSourceProvenanceLedgerV4, int, bool, int]:
+    ) -> tuple[TrainerSourceProvenanceLedgerV4, int, bool, int, bool]:
         projected_pair = sum(_capture_projected_entry_bytes(item) for item in captures)
         root, observed = self._source_shard_inventory(create_root=True)
         active = observed[-1] if observed else None
-        if not (active == expected_active_index or (active is None and expected_active_index == 0)):
+        preflight_generation_advanced = active != expected_active_index
+        # Parallel capture may outlive a later worker's serialized preflight.
+        # That later preflight can create the next empty shard before this
+        # worker reaches the append boundary.  The singleton publisher lease
+        # plus this caller's append lock make a *forward-only* active-shard
+        # change attributable to this same publisher cycle, so re-open and
+        # verify that newer shard rather than rejecting an otherwise valid
+        # captured window.  A rollback, disappearance, or non-monotonic shard
+        # index still fails closed.
+        if not (
+            active == expected_active_index
+            or (active is None and expected_active_index == 0)
+            or (
+                active is not None
+                and active > expected_active_index
+            )
+        ):
             _fail(
                 ProfiledBaseFeaturePublisherV1ResourceError,
                 "PROFILED_BASE_PUBLISHER_SOURCE_SHARD_PREFLIGHT_BINDING_INVALID",
@@ -2613,6 +2630,7 @@ class ProfiledBaseFeaturePublisherV1:
             index,
             rolled,
             projected_pair,
+            preflight_generation_advanced,
         )
 
     @staticmethod
@@ -3666,7 +3684,13 @@ class ProfiledBaseFeaturePublisherV1:
         # section so another worker cannot invalidate the preflight shard
         # binding between those operations.
         with self._source_provenance_append_lock:
-            source_ledger, shard_index, rolled, projected_pair = self._source_ledger(
+            (
+                source_ledger,
+                shard_index,
+                rolled,
+                projected_pair,
+                preflight_generation_advanced,
+            ) = self._source_ledger(
                 captures,
                 expected_active_index=source_shard_preflight.selected_shard_index,
             )
@@ -3677,6 +3701,9 @@ class ProfiledBaseFeaturePublisherV1:
                         f"source-provenance-shards/shard-{shard_index:08d}"
                     ),
                     "publication_shard_selection_reconciled": True,
+                    "preflight_active_shard_advanced_before_publication": (
+                        preflight_generation_advanced
+                    ),
                     "hard_safety_cap_rollover_after_capture": (
                         rolled
                         and shard_index
@@ -4327,21 +4354,11 @@ class ProfiledBaseFeaturePublisherV1:
         selection_dt, selection_at = self._sample_clock(
             "PROFILED_BASE_PUBLISHER_SELECTION_CLOCK_INVALID"
         )
+        # Parallel workers can begin their verified source-shard preflight at
+        # materially different times.  Give every symbol its own prospective
+        # decision planning at capture time; a cycle-level midpoint can expire
+        # while a valid worker waits for prior shard verification.
         shared_cycle_decision_at: datetime | None = None
-        if len(planned_selection) > 1:
-            try:
-                shared_cycle_decision_at = self.decision_planner(selection_dt)
-            except ProfiledBaseFeaturePublisherV1Error:
-                raise
-            except Exception as exc:  # noqa: BLE001 - planner detail is suppressed
-                raise ProfiledBaseFeaturePublisherV1ConfigurationError(
-                    "PROFILED_BASE_PUBLISHER_SHARED_DECISION_PLANNER_FAILED"
-                ) from exc
-            if shared_cycle_decision_at <= selection_dt:
-                _fail(
-                    ProfiledBaseFeaturePublisherV1ConfigurationError,
-                    "PROFILED_BASE_PUBLISHER_SHARED_DECISION_NOT_STRICTLY_FUTURE",
-                )
 
         if planned_selection:
             source_store, capture_set_store, artifact_store, enrichment_store = self._stores()

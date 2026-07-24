@@ -2663,6 +2663,39 @@ def test_fast_verified_shard_remains_active_under_singleton_lock(
     assert not (ledger.root.parent / "shard-00000001").exists()
 
 
+def test_source_ledger_reconciles_forward_preflight_generation(
+    tmp_path: Path,
+) -> None:
+    """Parallel preflights may create a newer empty shard before append."""
+
+    ledger = _seed_valid_source_shard(tmp_path)
+    publisher = _publisher(tmp_path, _Redis(_payloads()))
+    root = ledger.root.parent
+    publisher._create_next_source_shard(root=root, index=1)  # noqa: SLF001
+    source_store = ImmutableSourcePayloadStore(publisher.data_root / "atomic-capture-cas")
+    captures = tuple(
+        capture_canonical_closed_ohlcv_atomic_receipts(
+            _Redis(_payloads()),
+            source_store,
+            expected_symbol="BTCUSDT",
+            expected_timeframe=timeframe,
+            consumer_clock=lambda: FIXED_CLOCK,
+        )
+        for timeframe in ("5m", "1h")
+    )
+
+    selected, shard_index, rolled, _projected_bytes, advanced = publisher._source_ledger(  # noqa: SLF001
+        captures,  # type: ignore[arg-type]
+        expected_active_index=0,
+    )
+
+    assert selected.root.name == "shard-00000001"
+    assert shard_index == 1
+    assert rolled is False
+    assert advanced is True
+    assert ledger.path.is_file()
+
+
 def test_verification_that_fits_alone_rolls_when_combined_adaptive_work_does_not(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -3001,10 +3034,12 @@ def test_multi_slot_cycle_overlaps_capture_and_keeps_status_commit_ordered(
     active = 0
     max_active = 0
     observed_threads: set[int] = set()
+    shared_decisions: list[object] = []
     active_lock = threading.Lock()
 
     def publish_symbol(*, symbol: str, **_kwargs: Any):  # type: ignore[no-untyped-def]
         nonlocal active, max_active
+        shared_decisions.append(_kwargs["shared_cycle_decision_at"])
         with active_lock:
             active += 1
             max_active = max(max_active, active)
@@ -3042,6 +3077,7 @@ def test_multi_slot_cycle_overlaps_capture_and_keeps_status_commit_ordered(
     assert status["published_symbols"] == ["AAAUSDT", "BTCUSDT"]
     assert status["resource_decision"]["execution_worker_slots"] == 2
     assert status["resource_decision"]["training_supply_backfill_required"] is True
+    assert shared_decisions == [None, None]
 
 
 def test_only_exact_trainer_row_shortage_status_enables_backfill(tmp_path: Path) -> None:
