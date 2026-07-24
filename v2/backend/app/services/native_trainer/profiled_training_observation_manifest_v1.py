@@ -467,7 +467,7 @@ def _sample_binding(sample: ProfiledTrainingLedgerSampleV1) -> dict[str, Any]:
     return {**material, "sample_identity_sha256": stable_sha256(material)}
 
 
-def _label_binding(
+def build_profiled_training_label_binding_v1(
     *,
     sample: ProfiledTrainingLedgerSampleV1,
     archive: DurableCanonical5mLabelArchive,
@@ -2031,7 +2031,7 @@ def build_profiled_training_observation_manifest_v1(
                     )
                 for sample in samples:
                     ordinal += 1
-                    label_binding, label_reasons = _label_binding(
+                    label_binding, label_reasons = build_profiled_training_label_binding_v1(
                         sample=sample,
                         archive=label_archive,
                         archive_high_water=label_high_water,
@@ -3156,6 +3156,7 @@ __all__ = [
     "ProfiledTrainingObservationPageV1",
     "authenticate_profiled_training_observation_inventory_page_v1",
     "authenticate_profiled_training_observation_manifest_v1",
+    "build_profiled_training_label_binding_v1",
     "build_profiled_training_observation_manifest_v1",
     "read_profiled_training_observation_page_v1",
 ]
