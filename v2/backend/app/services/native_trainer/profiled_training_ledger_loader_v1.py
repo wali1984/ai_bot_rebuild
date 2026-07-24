@@ -104,6 +104,7 @@ from v2.backend.app.services.native_trainer.profiled_model_feature_snapshot_reco
 from v2.backend.app.services.native_trainer.source_provenance_ledger_v4 import (
     TRAINER_SOURCE_PROVENANCE_LEDGER_V4_NAMESPACE,
     TRAINER_SOURCE_PROVENANCE_LEDGER_V4_SCHEMA_VERSION,
+    TrainerSourceProvenanceLedgerCurrentAttestationV4,
     TrainerSourceProvenanceLedgerEntryV4,
     TrainerSourceProvenanceLedgerV4,
     TrainerSourceProvenanceLedgerV4Error,
@@ -591,6 +592,7 @@ class _SourceProvenanceValidationRow:
 
 @dataclass(frozen=True, slots=True)
 class _SourceProvenanceValidationEntry:
+    ledger_sequence: int
     entry_sha256: str
     entry_json_sha256: str
     replay_identity_sha256: str
@@ -643,6 +645,7 @@ def _compact_source_provenance_snapshot(
         typed_rows = cast(list[dict[str, Any]], rows)
         compact_entries.append(
             _SourceProvenanceValidationEntry(
+                ledger_sequence=entry.ledger_sequence,
                 entry_sha256=entry.entry_sha256,
                 entry_json_sha256=hashlib.sha256(
                     entry.entry_json.encode("ascii")
@@ -697,12 +700,25 @@ def _compact_source_provenance_snapshot(
     )
 
 
+@dataclass(frozen=True, slots=True)
+class _DirectSourceProvenanceValidationSnapshot:
+    """Selected source entries bound to one complete current ledger head."""
+
+    root_text: str
+    root_sha256: str
+    committed_entry_count: int
+    head_entry_sha256: str
+    entries_by_sequence: Mapping[int, _SourceProvenanceValidationEntry]
+
+
 class ProfiledTrainingSourceProvenanceSnapshotSessionV1:
     """Invocation-local, one-root compact cache with stable revisit identities."""
 
     __slots__ = (
         "_current_root",
         "_current_snapshot",
+        "_current_direct_root",
+        "_current_direct_snapshot",
         "_entered",
         "_identities",
     )
@@ -710,6 +726,8 @@ class ProfiledTrainingSourceProvenanceSnapshotSessionV1:
     def __init__(self) -> None:
         self._current_root: str | None = None
         self._current_snapshot: _SourceProvenanceValidationSnapshot | None = None
+        self._current_direct_root: str | None = None
+        self._current_direct_snapshot: _DirectSourceProvenanceValidationSnapshot | None = None
         self._identities: dict[str, tuple[str, int, str | None]] = {}
         self._entered = False
 
@@ -723,6 +741,8 @@ class ProfiledTrainingSourceProvenanceSnapshotSessionV1:
         self._entered = False
         self._current_root = None
         self._current_snapshot = None
+        self._current_direct_root = None
+        self._current_direct_snapshot = None
         self._identities.clear()
 
     def snapshot_for(
@@ -749,6 +769,61 @@ class ProfiledTrainingSourceProvenanceSnapshotSessionV1:
             _fail("PROFILED_TRAINING_SOURCE_SNAPSHOT_MOVED_DURING_LOAD")
         self._current_root = root_text
         self._current_snapshot = snapshot
+        return snapshot
+
+    def direct_snapshot_for(
+        self,
+        root_path: Path,
+        *,
+        sequences: tuple[int, ...],
+    ) -> _DirectSourceProvenanceValidationSnapshot:
+        """Return exact source dependencies without reopening unrelated CAS."""
+
+        if not self._entered:
+            _fail("PROFILED_TRAINING_SOURCE_SNAPSHOT_SESSION_NOT_ENTERED")
+        root_text = str(root_path)
+        current = self._current_direct_snapshot
+        if (
+            self._current_direct_root == root_text
+            and current is not None
+            and all(sequence in current.entries_by_sequence for sequence in sequences)
+        ):
+            return current
+        attestation: TrainerSourceProvenanceLedgerCurrentAttestationV4 = (
+            TrainerSourceProvenanceLedgerV4(root_path).read_current_attested_entries_read_only(
+                sequences=sequences
+            )
+        )
+        compact = _compact_source_provenance_snapshot(
+            root_text=root_text,
+            entries=attestation.entries,
+        )
+        identity = (
+            compact.root_sha256,
+            attestation.committed_entry_count,
+            attestation.head_entry_sha256,
+        )
+        prior_identity = self._identities.setdefault(root_text, identity)
+        if prior_identity != identity:
+            _fail("PROFILED_TRAINING_SOURCE_SNAPSHOT_MOVED_DURING_LOAD")
+        merged: dict[int, _SourceProvenanceValidationEntry] = {}
+        if self._current_direct_root == root_text and current is not None:
+            merged.update(current.entries_by_sequence)
+        merged.update(
+            {
+                entry.ledger_sequence: entry
+                for entry in compact.entries
+            }
+        )
+        snapshot = _DirectSourceProvenanceValidationSnapshot(
+            root_text=root_text,
+            root_sha256=compact.root_sha256,
+            committed_entry_count=attestation.committed_entry_count,
+            head_entry_sha256=attestation.head_entry_sha256,
+            entries_by_sequence=merged,
+        )
+        self._current_direct_root = root_text
+        self._current_direct_snapshot = snapshot
         return snapshot
 
 
@@ -1045,11 +1120,16 @@ def _validate_source_provenance_binding(
     decision_time: datetime,
     require_current_window_wss: bool = True,
     source_snapshot_session: ProfiledTrainingSourceProvenanceSnapshotSessionV1 | None = None,
+    direct_current_entry_attestation: bool = False,
 ) -> str:
-    if type(require_current_window_wss) is not bool or (
+    if (
+        type(require_current_window_wss) is not bool
+        or type(direct_current_entry_attestation) is not bool
+        or (
         source_snapshot_session is not None
         and type(source_snapshot_session)
         is not ProfiledTrainingSourceProvenanceSnapshotSessionV1
+        )
     ):
         _fail("PROFILED_TRAINING_PARENT_SOURCE_POLICY_ARGUMENT_INVALID")
     binding = _exact_dict(
@@ -1080,47 +1160,106 @@ def _validate_source_provenance_binding(
     root_path = Path(cast(str, root))
     if not root_path.is_dir():
         _fail("PROFILED_TRAINING_PARENT_SOURCE_LEDGER_ROOT_MISSING")
-    try:
-        fresh_snapshot = (
-            _compact_source_provenance_snapshot(
-                root_text=cast(str, root),
-                entries=TrainerSourceProvenanceLedgerV4(
-                    root_path
-                ).read_entries_read_only(),
+    fresh_entries: tuple[_SourceProvenanceValidationEntry, ...] = ()
+    if not direct_current_entry_attestation:
+        try:
+            fresh_snapshot = (
+                _compact_source_provenance_snapshot(
+                    root_text=cast(str, root),
+                    entries=TrainerSourceProvenanceLedgerV4(
+                        root_path
+                    ).read_entries_read_only(),
+                )
+                if source_snapshot_session is None
+                else source_snapshot_session.snapshot_for(root_path)
             )
-            if source_snapshot_session is None
-            else source_snapshot_session.snapshot_for(root_path)
-        )
-    except TrainerSourceProvenanceLedgerV4Error as exc:
-        raise ProfiledTrainingLedgerLoaderV1Error(
-            "PROFILED_TRAINING_PARENT_SOURCE_LEDGER_FRESH_READ_FAILED"
-        ) from exc
-    if (
-        fresh_snapshot.root_text != root
-        or fresh_snapshot.root_sha256 != binding.get("source_ledger_root_sha256")
-        or fresh_snapshot.verified_entry_count != len(fresh_snapshot.entries)
-        or (
-            fresh_snapshot.verified_head_entry_sha256
-            != (
-                fresh_snapshot.entries[-1].entry_sha256
-                if fresh_snapshot.entries
-                else None
+        except TrainerSourceProvenanceLedgerV4Error as exc:
+            raise ProfiledTrainingLedgerLoaderV1Error(
+                "PROFILED_TRAINING_PARENT_SOURCE_LEDGER_FRESH_READ_FAILED"
+            ) from exc
+        if (
+            fresh_snapshot.root_text != root
+            or fresh_snapshot.root_sha256 != binding.get("source_ledger_root_sha256")
+            or fresh_snapshot.verified_entry_count != len(fresh_snapshot.entries)
+            or (
+                fresh_snapshot.verified_head_entry_sha256
+                != (
+                    fresh_snapshot.entries[-1].entry_sha256
+                    if fresh_snapshot.entries
+                    else None
+                )
             )
-        )
-    ):
-        _fail("PROFILED_TRAINING_PARENT_SOURCE_SNAPSHOT_IDENTITY_INVALID")
-    fresh_entries = fresh_snapshot.entries
+        ):
+            _fail("PROFILED_TRAINING_PARENT_SOURCE_SNAPSHOT_IDENTITY_INVALID")
+        fresh_entries = fresh_snapshot.entries
     raw_timeframes = binding.get("timeframe_bindings")
     if type(raw_timeframes) is not list or len(raw_timeframes) != 2:
         _fail("PROFILED_TRAINING_PARENT_SOURCE_PROVENANCE_TIMEFRAMES_INVALID")
-    timeframes = cast(list[object], raw_timeframes)
-    sequences: list[int] = []
-    for expected_timeframe, raw_item in zip(("5m", "1h"), timeframes, strict=True):
-        item = _exact_dict(
+    timeframes = tuple(
+        _exact_dict(
             raw_item,
             _SOURCE_TIMEFRAME_BINDING_FIELDS,
             reason="PROFILED_TRAINING_PARENT_SOURCE_TIMEFRAME_FIELDS_INVALID",
         )
+        for raw_item in cast(list[object], raw_timeframes)
+    )
+    direct_entries: Mapping[int, _SourceProvenanceValidationEntry] | None = None
+    if direct_current_entry_attestation:
+        requested_sequences = tuple(
+            sorted(
+                cast(int, item["source_ledger_sequence"])
+                for item in timeframes
+                if type(item.get("source_ledger_sequence")) is int
+                and cast(int, item["source_ledger_sequence"]) > 0
+            )
+        )
+        if len(requested_sequences) != len(timeframes) or len(set(requested_sequences)) != len(
+            requested_sequences
+        ):
+            _fail("PROFILED_TRAINING_PARENT_SOURCE_TIMEFRAME_BINDING_INVALID")
+        try:
+            direct_snapshot = (
+                TrainerSourceProvenanceLedgerV4(
+                    root_path
+                ).read_current_attested_entries_read_only(
+                    sequences=requested_sequences
+                )
+                if source_snapshot_session is None
+                else source_snapshot_session.direct_snapshot_for(
+                    root_path,
+                    sequences=requested_sequences,
+                )
+            )
+        except TrainerSourceProvenanceLedgerV4Error as exc:
+            raise ProfiledTrainingLedgerLoaderV1Error(
+                "PROFILED_TRAINING_PARENT_SOURCE_LEDGER_FRESH_READ_FAILED"
+            ) from exc
+        if source_snapshot_session is None:
+            assert type(direct_snapshot) is TrainerSourceProvenanceLedgerCurrentAttestationV4
+            compact_direct = _compact_source_provenance_snapshot(
+                root_text=cast(str, root),
+                entries=direct_snapshot.entries,
+            )
+            if (
+                compact_direct.root_sha256 != binding.get("source_ledger_root_sha256")
+                or direct_snapshot.committed_entry_count < max(requested_sequences)
+            ):
+                _fail("PROFILED_TRAINING_PARENT_SOURCE_SNAPSHOT_IDENTITY_INVALID")
+            direct_entries = {
+                entry.ledger_sequence: entry
+                for entry in compact_direct.entries
+            }
+        else:
+            assert type(direct_snapshot) is _DirectSourceProvenanceValidationSnapshot
+            if (
+                direct_snapshot.root_text != root
+                or direct_snapshot.root_sha256 != binding.get("source_ledger_root_sha256")
+                or direct_snapshot.committed_entry_count < max(requested_sequences)
+            ):
+                _fail("PROFILED_TRAINING_PARENT_SOURCE_SNAPSHOT_IDENTITY_INVALID")
+            direct_entries = direct_snapshot.entries_by_sequence
+    sequences: list[int] = []
+    for expected_timeframe, item in zip(("5m", "1h"), timeframes, strict=True):
         item_sha = item.get("timeframe_source_provenance_binding_sha256")
         item_unsigned = {
             key: value
@@ -1170,9 +1309,14 @@ def _validate_source_provenance_binding(
             or transform_available_at > decision_time
         ):
             _fail("PROFILED_TRAINING_PARENT_SOURCE_TIMEFRAME_BINDING_INVALID")
-        if sequence > len(fresh_entries):
-            _fail("PROFILED_TRAINING_PARENT_SOURCE_LEDGER_ENTRY_MISSING")
-        fresh_entry = fresh_entries[sequence - 1]
+        if direct_entries is None:
+            if sequence > len(fresh_entries):
+                _fail("PROFILED_TRAINING_PARENT_SOURCE_LEDGER_ENTRY_MISSING")
+            fresh_entry = fresh_entries[sequence - 1]
+        else:
+            fresh_entry = direct_entries.get(cast(int, sequence))
+            if fresh_entry is None:
+                _fail("PROFILED_TRAINING_PARENT_SOURCE_LEDGER_ENTRY_MISSING")
         fresh_rows = fresh_entry.ordered_rows
         start = item.get("capture_selected_start_ordinal")
         if (
@@ -1225,6 +1369,7 @@ def _validate_parent_model_record(
     ),
     require_current_window_wss: bool = True,
     source_snapshot_session: ProfiledTrainingSourceProvenanceSnapshotSessionV1 | None = None,
+    direct_current_entry_attestation: bool = False,
 ) -> dict[str, Any]:
     if (
         type(expected_transform_configuration_sha256) is not str
@@ -1234,6 +1379,7 @@ def _validate_parent_model_record(
             _LEGACY_PROFILED_TRANSFORM_CONFIGURATION_SHA256,
         }
         or type(require_current_window_wss) is not bool
+        or type(direct_current_entry_attestation) is not bool
         or (
             source_snapshot_session is not None
             and type(source_snapshot_session)
@@ -1300,6 +1446,7 @@ def _validate_parent_model_record(
         decision_time=decision,
         require_current_window_wss=require_current_window_wss,
         source_snapshot_session=source_snapshot_session,
+        direct_current_entry_attestation=direct_current_entry_attestation,
     )
     values = _float32_vector(
         typed_envelope.get("feature_values"),
@@ -3102,6 +3249,7 @@ def _admit_item(
         ),
         require_current_window_wss=not legacy_transform,
         source_snapshot_session=source_snapshot_session,
+        direct_current_entry_attestation=direct_current_attestation,
     )
     if parent_claim != parent_material["binding"]:
         _fail("PROFILED_TRAINING_PARENT_BINDING_MISMATCH")

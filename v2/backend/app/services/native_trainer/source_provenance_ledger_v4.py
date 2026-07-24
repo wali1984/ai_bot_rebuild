@@ -31,7 +31,7 @@ import re
 import stat
 import threading
 import uuid
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -439,6 +439,45 @@ class TrainerSourceProvenanceLedgerEntryV4:
         """Return a fresh, fully validated mapping."""
 
         return _parse_entry_line(self.entry_json.encode("ascii"))
+
+
+@dataclass(frozen=True, slots=True)
+class TrainerSourceProvenanceLedgerCurrentAttestationV4:
+    """Read-only attestation for exact selected entries at one durable head.
+
+    The source ledger's durable head binds the complete committed byte prefix.
+    A consumer that depends on selected source entries verifies their complete
+    causal prefix (including every predecessor's owned CAS evidence), while
+    unrelated later entries remain bound by the durable current head.
+    """
+
+    committed_entry_count: int
+    ledger_byte_count: int
+    ledger_sha256: str
+    head_entry_sha256: str
+    entries: tuple[TrainerSourceProvenanceLedgerEntryV4, ...]
+    _construction_token: object = field(repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        if (
+            self._construction_token is not _CONSTRUCTION_TOKEN
+            or type(self.committed_entry_count) is not int
+            or self.committed_entry_count <= 0
+            or type(self.ledger_byte_count) is not int
+            or self.ledger_byte_count <= 0
+            or not _is_sha256(self.ledger_sha256)
+            or not _is_sha256(self.head_entry_sha256)
+            or not self.entries
+            or any(
+                type(entry) is not TrainerSourceProvenanceLedgerEntryV4
+                for entry in self.entries
+            )
+            or tuple(entry.ledger_sequence for entry in self.entries)
+            != tuple(sorted(entry.ledger_sequence for entry in self.entries))
+            or len({entry.ledger_sequence for entry in self.entries}) != len(self.entries)
+            or any(entry.ledger_sequence > self.committed_entry_count for entry in self.entries)
+        ):
+            _integrity_error("source_provenance_v4_current_attestation_invalid")
 
 
 @dataclass(frozen=True, slots=True)
@@ -2875,6 +2914,114 @@ class TrainerSourceProvenanceLedgerV4:
                 _integrity_error("source_provenance_v4_uncommitted_tail_present")
             return tuple(_artifact(record) for record in state.records)
 
+    def read_current_attested_entries_read_only(
+        self,
+        *,
+        sequences: Sequence[int],
+    ) -> TrainerSourceProvenanceLedgerCurrentAttestationV4:
+        """Reopen selected source entries under a complete durable-head proof.
+
+        The normal reader validates every historical entry and every owned CAS
+        object.  That is required when exposing the complete ledger.  A
+        bounded downstream replay instead depends only on concrete, manifest-
+        bound entry sequences.  This reader re-hashes the entire committed
+        ledger prefix and validates the durable head, then reparses and
+        reopens the complete causal prefix through the highest selected
+        sequence.  It never creates, repairs, or changes ledger/CAS state.
+        """
+
+        if (
+            type(sequences) not in {tuple, list}
+            or not sequences
+            or any(type(sequence) is not int or sequence <= 0 for sequence in sequences)
+        ):
+            _validation_error("source_provenance_v4_selected_sequences_invalid")
+        requested = tuple(sequences)
+        if requested != tuple(sorted(requested)) or len(set(requested)) != len(requested):
+            _validation_error("source_provenance_v4_selected_sequences_not_canonical")
+
+        with self._shared_read_lock() as root:
+            store = self._open_owned_store(root)
+            raw = _read_regular_file(
+                root,
+                TRAINER_SOURCE_PROVENANCE_LEDGER_V4_FILENAME,
+                max_bytes=MAX_LEDGER_BYTES,
+                required=True,
+            )
+            head_raw = _read_regular_file(
+                root,
+                TRAINER_SOURCE_PROVENANCE_LEDGER_V4_HEAD_FILENAME,
+                max_bytes=64 * 1024,
+                required=True,
+            )
+            assert raw is not None and head_raw is not None
+            if not raw.endswith(b"\n"):
+                _integrity_error("source_provenance_v4_ledger_truncated_or_partial_tail")
+            head = _validate_head(head_raw)
+            committed = cast(int, head["ledger_sequence"])
+            if (
+                raw.count(b"\n") != committed
+                or len(raw) != head["ledger_byte_count"]
+                or _sha256_bytes(raw) != head["ledger_sha256"]
+                or requested[-1] > committed
+            ):
+                _integrity_error("source_provenance_v4_current_head_binding_invalid")
+
+            requested_set = set(requested)
+            selected: dict[int, dict[str, Any]] = {}
+            last_record: dict[str, Any] | None = None
+            previous_entry_sha256 = TRAINER_SOURCE_PROVENANCE_LEDGER_V4_GENESIS_SHA256
+            offset = 0
+            for sequence in range(1, committed + 1):
+                line_end = raw.find(b"\n", offset)
+                if line_end < offset:
+                    _integrity_error("source_provenance_v4_ledger_framing_invalid")
+                if sequence <= requested[-1] or sequence == committed:
+                    framed = raw[offset:line_end]
+                    if not framed or b"\r" in framed:
+                        _integrity_error("source_provenance_v4_ledger_framing_invalid")
+                    record = _parse_entry_line(framed)
+                    if record["ledger_sequence"] != sequence:
+                        _integrity_error("source_provenance_v4_hash_chain_invalid")
+                    if sequence == 1 and (
+                        record["previous_entry_sha256"]
+                        != TRAINER_SOURCE_PROVENANCE_LEDGER_V4_GENESIS_SHA256
+                    ):
+                        _integrity_error("source_provenance_v4_hash_chain_invalid")
+                    if (
+                        1 < sequence <= requested[-1]
+                        and record["previous_entry_sha256"] != previous_entry_sha256
+                    ):
+                        _integrity_error("source_provenance_v4_hash_chain_invalid")
+                    if sequence <= requested[-1]:
+                        _verify_record_owned_cas(
+                            record,
+                            store,
+                            expected_store_root=self.store_root,
+                        )
+                        previous_entry_sha256 = cast(str, record["entry_sha256"])
+                    if sequence in requested_set:
+                        selected[sequence] = record
+                    if sequence == committed:
+                        last_record = record
+                offset = line_end + 1
+            if (
+                offset != len(raw)
+                or last_record is None
+                or last_record["entry_sha256"] != head["entry_sha256"]
+                or tuple(selected) != requested
+            ):
+                _integrity_error("source_provenance_v4_current_head_binding_invalid")
+
+            return TrainerSourceProvenanceLedgerCurrentAttestationV4(
+                committed_entry_count=committed,
+                ledger_byte_count=len(raw),
+                ledger_sha256=cast(str, head["ledger_sha256"]),
+                head_entry_sha256=cast(str, head["entry_sha256"]),
+                entries=tuple(_artifact(selected[sequence]) for sequence in requested),
+                _construction_token=_CONSTRUCTION_TOKEN,
+            )
+
 
 __all__ = [
     "MAX_LEDGER_BYTES",
@@ -2894,6 +3041,7 @@ __all__ = [
     "TRAINER_SOURCE_PROVENANCE_LEDGER_V4_STORE_ROOT_RELATIVE_PATH",
     "TRAINER_SOURCE_PROVENANCE_LEDGER_V4_STORE_SCHEMA_VERSION",
     "TrainerSourceProvenanceAppendResultV4",
+    "TrainerSourceProvenanceLedgerCurrentAttestationV4",
     "TrainerSourceProvenanceLedgerEntryV4",
     "TrainerSourceProvenanceLedgerV4",
     "TrainerSourceProvenanceLedgerV4ConflictError",

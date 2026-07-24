@@ -543,6 +543,37 @@ def test_shared_reader_opens_existing_lock_read_only_and_takes_shared_flock(
     assert lock_operations == [ledger_module.fcntl.LOCK_SH, ledger_module.fcntl.LOCK_UN]
 
 
+def test_current_attested_reader_reopens_selected_entry_and_causal_prefix(
+    tmp_path: Path,
+) -> None:
+    first_capture, first_recorded_at = _build_capture(tmp_path / "capture-a")
+    second_capture, second_recorded_at = _build_capture(
+        tmp_path / "capture-b",
+        price_offset=1,
+    )
+    ledger = TrainerSourceProvenanceLedgerV4(tmp_path / "ledger-v4")
+    first = _append(ledger, first_capture, first_recorded_at, cycle_id="trainer-cycle-a")
+    second = _append(ledger, second_capture, second_recorded_at, cycle_id="trainer-cycle-b")
+
+    attestation = TrainerSourceProvenanceLedgerV4(
+        ledger.root
+    ).read_current_attested_entries_read_only(sequences=(2,))
+
+    assert attestation.committed_entry_count == 2
+    assert attestation.head_entry_sha256 == second.entry.entry_sha256
+    assert [entry.ledger_sequence for entry in attestation.entries] == [2]
+
+    first_source_address = first.entry.record["source_capture"]["full_source_payload"]
+    _owned_object_path(ledger, first_source_address).unlink()
+    with pytest.raises(
+        TrainerSourceProvenanceLedgerV4IntegrityError,
+        match="owned_full_source_cas_invalid",
+    ):
+        TrainerSourceProvenanceLedgerV4(
+            ledger.root
+        ).read_current_attested_entries_read_only(sequences=(2,))
+
+
 def test_missing_ledger_owned_full_source_cas_fails_closed(tmp_path: Path) -> None:
     capture, recorded_at = _build_capture(tmp_path / "capture")
     ledger = TrainerSourceProvenanceLedgerV4(tmp_path / "ledger-v4")
