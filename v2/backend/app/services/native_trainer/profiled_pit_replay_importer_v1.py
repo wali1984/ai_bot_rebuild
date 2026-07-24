@@ -236,7 +236,6 @@ def import_next_profiled_pit_replay_shard_v1(
             f"PROFILED_PIT_REPLAY_IMPORTER_SOURCE_READ_FAILED:{type(exc).__name__}"
         ) from exc
     observation = datetime.fromisoformat(training_observed_at.replace("Z", "+00:00"))
-    label_before = _label_high_water(archive=label_archive, observation=observation)
     exclusions: Counter[str] = Counter()
     records: list[dict[str, Any]] = []
     with ProfiledTrainingSourceProvenanceSnapshotSessionV1() as source_snapshot_session:
@@ -249,13 +248,21 @@ def import_next_profiled_pit_replay_shard_v1(
             )
             for item in items
         ]
+    samples = [
+        admitted
+        for admitted in admitted_items
+        if type(admitted) is ProfiledTrainingLedgerSampleV1
+    ]
     for admitted in admitted_items:
         if admitted is None:
             continue
         if type(admitted) is not ProfiledTrainingLedgerSampleV1:
             exclusions[str(admitted.reason)] += 1
-            continue
-        sample = admitted
+    label_before: dict[str, Any] | None = None
+    if samples:
+        label_before = _label_high_water(archive=label_archive, observation=observation)
+    for sample in samples:
+        assert label_before is not None
         try:
             label_binding, label_reasons = build_profiled_training_label_binding_v1(
                 sample=sample,
@@ -276,9 +283,10 @@ def import_next_profiled_pit_replay_shard_v1(
                 label_binding=label_binding,
             )
         )
-    label_after = _label_high_water(archive=label_archive, observation=observation)
-    if label_after != label_before:
-        _fail("PROFILED_PIT_REPLAY_IMPORTER_LABEL_HIGH_WATER_MOVED")
+    if label_before is not None:
+        label_after = _label_high_water(archive=label_archive, observation=observation)
+        if label_after != label_before:
+            _fail("PROFILED_PIT_REPLAY_IMPORTER_LABEL_HIGH_WATER_MOVED")
 
     already_present = 0
     for record in records:
@@ -295,7 +303,9 @@ def import_next_profiled_pit_replay_shard_v1(
             "source_record_sha256s": [
                 item.record.get("record_sha256") for item in items
             ],
-            "label_high_water_sha256": label_before["high_water_sha256"],
+            "label_high_water_sha256": (
+                label_before["high_water_sha256"] if label_before is not None else None
+            ),
             "record_content_sha256s": [record["content_sha256"] for record in records],
             "excluded_by_reason": dict(sorted(exclusions.items())),
         }
