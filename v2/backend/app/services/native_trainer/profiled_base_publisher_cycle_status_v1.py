@@ -142,6 +142,7 @@ _SOURCE_SHARD_PREFLIGHT_FIELDS: Final = {
     "publication_shard_index",
     "publication_shard_relative_path",
     "publication_shard_selection_reconciled",
+    "preflight_active_shard_advanced_before_publication",
     "hard_safety_cap_rollover_after_capture",
     "ledger_byte_hard_safety_cap",
     "ledger_entry_hard_safety_cap",
