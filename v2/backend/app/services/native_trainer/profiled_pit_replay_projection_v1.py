@@ -25,6 +25,7 @@ from v2.backend.app.services.native_trainer.profiled_model_feature_snapshot_reco
     PHYSICAL_ORDERED_FEATURE_NAMES,
 )
 from v2.backend.app.services.native_trainer.profiled_training_ledger_loader_v1 import (
+    PROFILED_TRAINING_PHYSICAL_FEATURE_COUNT,
     ProfiledTrainingLedgerSampleV1,
 )
 
@@ -115,7 +116,7 @@ def project_profiled_training_sample_to_replay_snapshot_v1(
     if type(sample) is not ProfiledTrainingLedgerSampleV1:
         _fail("PROFILED_PIT_REPLAY_PROJECTION_SAMPLE_EXACT_TYPE_REQUIRED")
     label = _label_mapping(label_binding)
-    if len(sample.physical_feature_values) != PHYSICAL_MODEL_FEATURE_COUNT:
+    if len(sample.physical_feature_values) != PROFILED_TRAINING_PHYSICAL_FEATURE_COUNT:
         _fail("PROFILED_PIT_REPLAY_PROJECTION_PHYSICAL_VECTOR_LENGTH_INVALID")
     if len(PHYSICAL_ORDERED_FEATURE_NAMES) != PHYSICAL_MODEL_FEATURE_COUNT:
         _fail("PROFILED_PIT_REPLAY_PROJECTION_PHYSICAL_SCHEMA_INVALID")
@@ -170,7 +171,7 @@ def project_profiled_training_sample_to_replay_snapshot_v1(
         name: _finite(value, reason="PROFILED_PIT_REPLAY_PROJECTION_FEATURE_INVALID")
         for name, value in zip(
             PHYSICAL_ORDERED_FEATURE_NAMES,
-            sample.physical_feature_values,
+            sample.physical_feature_values[:PHYSICAL_MODEL_FEATURE_COUNT],
             strict=True,
         )
     }

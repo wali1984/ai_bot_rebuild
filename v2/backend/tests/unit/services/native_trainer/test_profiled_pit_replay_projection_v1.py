@@ -4,14 +4,12 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from v2.backend.app.services.native_trainer.profiled_model_feature_snapshot_record_v1 import (
-    PHYSICAL_MODEL_FEATURE_COUNT,
-)
 from v2.backend.app.services.native_trainer.profiled_pit_replay_projection_v1 import (
     ProfiledPitReplayProjectionV1Error,
     project_profiled_training_sample_to_replay_snapshot_v1,
 )
 from v2.backend.app.services.native_trainer.profiled_training_ledger_loader_v1 import (
+    PROFILED_TRAINING_PHYSICAL_FEATURE_COUNT,
     ProfiledTrainingLedgerSampleV1,
 )
 
@@ -60,7 +58,7 @@ def _sample() -> ProfiledTrainingLedgerSampleV1:
         "decision_reference_price_payload_sha256": "5" * 64,
         "decision_reference_price_receipt_sha256": "6" * 64,
         "physical_feature_values": tuple(
-            float(index + 1) for index in range(PHYSICAL_MODEL_FEATURE_COUNT)
+            float(index + 1) for index in range(PROFILED_TRAINING_PHYSICAL_FEATURE_COUNT)
         ),
         "auxiliary_label_values": (1.0, 2.0, 0.5, 1.0),
         "postcommit_readback_at": _clock(11),
