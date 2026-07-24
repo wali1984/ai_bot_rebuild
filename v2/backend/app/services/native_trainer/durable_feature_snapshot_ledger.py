@@ -20,6 +20,7 @@ import math
 import os
 import re
 import sqlite3
+import time as _time
 import stat
 import struct
 import weakref
@@ -3153,7 +3154,40 @@ class DurableFeatureSnapshotLedger:
             if close_error is not None:
                 raise close_error
 
+    # Bounded retry for transient torn reads.  The immutable=1 attestation probe
+    # reads the already-checkpointed main inode while a concurrent writer may be
+    # mid-commit; that can momentarily surface sqlite3 "file is not a database"
+    # (wrapped as feature_snapshot_checkpoint_provenance_unattested).  Torn
+    # windows are sub-second, so a few short retries clear them.  GENUINE
+    # corruption fails every attempt and still raises unchanged — provenance is
+    # never weakened, only the transient race is tolerated.
+    _READONLY_OPEN_MAX_ATTEMPTS = 5
+    _READONLY_OPEN_BACKOFF_SECONDS = 0.2
+    _READONLY_OPEN_RETRYABLE_LEDGER_REASON = (
+        "feature_snapshot_checkpoint_provenance_unattested"
+    )
+
     def _open_readonly_connection(
+        self,
+        *,
+        query_only: bool,
+    ) -> _StorageGuardedSQLiteConnection:
+        last_exc: BaseException | None = None
+        for attempt in range(self._READONLY_OPEN_MAX_ATTEMPTS):
+            try:
+                return self._open_readonly_connection_once(query_only=query_only)
+            except sqlite3.DatabaseError as exc:
+                last_exc = exc
+            except FeatureSnapshotLedgerError as exc:
+                if str(exc) != self._READONLY_OPEN_RETRYABLE_LEDGER_REASON:
+                    raise
+                last_exc = exc
+            if attempt + 1 < self._READONLY_OPEN_MAX_ATTEMPTS:
+                _time.sleep(self._READONLY_OPEN_BACKOFF_SECONDS * (attempt + 1))
+        assert last_exc is not None
+        raise last_exc
+
+    def _open_readonly_connection_once(
         self,
         *,
         query_only: bool,
