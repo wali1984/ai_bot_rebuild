@@ -6,11 +6,10 @@ Claude Code owns the native trainer; this watchdog keeps it alive without any
 manual authorization step. It recovers BOTH failure modes that leave the trainer
 not-actually-training:
 
-1. DEAD/inactive service — e.g. the ConditionPathExists human-authorization
-   marker was cleared, or the unit was SIGTERM'd. systemd shows inactive/dead
-   with a stale status file, which the freshness-based self-healing supervisor
-   misses. (This is what left it down ~75 min on 2026-07-24.) The watchdog
-   re-authorizes (recreates the /run marker) and starts it.
+1. DEAD/inactive service — e.g. the process was SIGTERM'd. systemd shows
+   inactive/dead with a stale status file, which the freshness-based
+   self-healing supervisor misses. (This left it down ~75 min on 2026-07-24.)
+   The watchdog starts it unless the durable deliberate-stop registry holds it.
 2. Sticky FAIL_CLOSED — the immutable=1 torn-read defect (a write landing
    mid-read tears the ledger header -> FeatureSnapshotReadbackError ->
    LOCAL_PROFILED_RESEARCH_FAIL_CLOSED). Stopgap until the in-code read-retry
@@ -23,12 +22,17 @@ STOP_MARKER so auto-recovery can be paused for debugging.
 from __future__ import annotations
 
 import json
+import os
+import stat
 import subprocess
 import time
 from pathlib import Path
 
 SERVICE = "ai-bot-v2-native-cuda-trainer-persistent.service"
-AUTH_MARKER = Path("/run/user/1000/ai-bot-v2-native-cuda-trainer-authorized")
+DELIBERATELY_STOPPED_FILE = Path(
+    "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/self_healing/"
+    "deliberately_stopped_units.txt"
+)
 STATUS_PATH = Path(
     "/home/wali/ai_bot_local_data/v2_native_trainer/local_profiled_research_v1/status.json"
 )
@@ -85,18 +89,35 @@ def _service_active() -> bool:
         return True  # fail safe: don't thrash if systemctl is unavailable
 
 
-def _reauthorize_marker() -> None:
-    """Recreate the runtime authorization marker (no human gate; operator directive)."""
+def _deliberate_stop_reason() -> str | None:
+    """Return a fail-closed reason when the service must not be restarted."""
+
     try:
-        AUTH_MARKER.write_text(
-            "auto-authorized (no human gate; watchdog; operator directive 2026-07-24)\n"
-        )
-    except Exception:
-        pass
+        marker_stat = os.lstat(DELIBERATELY_STOPPED_FILE)
+    except OSError:
+        return "deliberately_stopped_registry_unavailable"
+    if (
+        not stat.S_ISREG(marker_stat.st_mode)
+        or marker_stat.st_nlink != 1
+        or marker_stat.st_uid != os.geteuid()
+        or marker_stat.st_size > 1024 * 1024
+    ):
+        return "deliberately_stopped_registry_invalid"
+    try:
+        units: set[str] = set()
+        for line in DELIBERATELY_STOPPED_FILE.read_text(encoding="utf-8").splitlines():
+            unit = line.strip()
+            if not unit or unit.startswith("#"):
+                continue
+            if not unit.endswith(".service") or any(character.isspace() for character in unit):
+                return "deliberately_stopped_registry_invalid"
+            units.add(unit)
+    except OSError:
+        return "deliberately_stopped_registry_unreadable"
+    return "service_deliberately_stopped" if SERVICE in units else None
 
 
 def _restart(state: dict, reason: str) -> int:
-    _reauthorize_marker()
     try:
         subprocess.run(
             ["systemctl", "--user", "reset-failed", SERVICE],
@@ -140,6 +161,10 @@ def main() -> int:
 
     # --- failure mode 1: DEAD/inactive service (highest priority) ---
     if not _service_active():
+        deliberate_stop_reason = _deliberate_stop_reason()
+        if deliberate_stop_reason is not None:
+            print(f"watchdog: service DEAD but held ({deliberate_stop_reason}); standing down")
+            return 0
         if rate_limited:
             print("watchdog: service DEAD but rate-limited; will retry next tick")
             return 0
