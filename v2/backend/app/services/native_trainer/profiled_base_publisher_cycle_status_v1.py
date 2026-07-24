@@ -565,6 +565,8 @@ def _validate_source_shard_preflights(status: dict[str, Any]) -> None:
             or type(selected_index) is not int
             or selected_index < 0
             or type(publication_reconciled) is not bool
+            or type(preflight["preflight_active_shard_advanced_before_publication"])
+            is not bool
             or type(hard_cap_rollover) is not bool
             or preflight["ledger_byte_hard_safety_cap"] != MAX_LEDGER_BYTES
             or preflight["ledger_entry_hard_safety_cap"] != MAX_LEDGER_ENTRIES

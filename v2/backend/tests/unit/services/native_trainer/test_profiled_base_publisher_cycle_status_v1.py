@@ -128,6 +128,7 @@ def _source_shard_preflight() -> dict[str, Any]:
             "source-provenance-shards/shard-00000000"
         ),
         "publication_shard_selection_reconciled": True,
+        "preflight_active_shard_advanced_before_publication": False,
         "hard_safety_cap_rollover_after_capture": False,
         "ledger_byte_hard_safety_cap": 512 * 1024 * 1024,
         "ledger_entry_hard_safety_cap": 1_000_000,
@@ -232,6 +233,10 @@ def test_reads_status_with_verified_source_shard_preflight_evidence(
             "PROFILED_BASE_STATUS_SOURCE_SHARD_PREFLIGHT_CONTRACT_INVALID",
         ),
         (
+            "preflight_advance_flag_not_bool",
+            "PROFILED_BASE_STATUS_SOURCE_SHARD_PREFLIGHT_CONTRACT_INVALID",
+        ),
+        (
             "combined_projection_mismatch",
             "PROFILED_BASE_STATUS_SOURCE_SHARD_PREFLIGHT_CONTRACT_INVALID",
         ),
@@ -268,6 +273,8 @@ def test_source_shard_preflight_contract_fails_closed(
         preflight["unexpected"] = False
     elif mutation == "market_threshold_claim":
         preflight["market_or_performance_threshold_applied"] = True
+    elif mutation == "preflight_advance_flag_not_bool":
+        preflight["preflight_active_shard_advanced_before_publication"] = "false"
     elif mutation == "combined_projection_mismatch":
         preflight["projected_verification_and_symbol_work_seconds"] = 42.0
     else:
