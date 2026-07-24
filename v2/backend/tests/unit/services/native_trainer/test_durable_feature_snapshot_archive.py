@@ -171,3 +171,49 @@ def test_prediction_payload_archive_record_accepts_flattened_replay_snapshot() -
     assert record["available_at"] == AVAILABLE_AT
     assert record["candle_closed_confirmed"] is True
     assert content_sha256(record) == record["content_sha256"]
+
+
+def test_prediction_payload_archive_record_never_derives_producer_admission() -> None:
+    payload = {
+        "feature_snapshot_id": "snapshot-no-claim",
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
+        "feature_cutoff": FEATURE_CUTOFF,
+        "decision_time": DECISION_TIME,
+        "available_at": AVAILABLE_AT,
+        "mtf_snapshot_id": "mtf-1",
+        "replay_snapshot": {
+            "feature_snapshot": {
+                "features": {"close": 101.0},
+                "candle_closed_confirmed": True,
+                "latest_unclosed_kline_excluded": True,
+            },
+        },
+    }
+
+    record = build_archive_record_from_prediction_payload(payload)
+
+    assert record is not None
+    assert "trainer_consumable" not in record
+
+
+@pytest.mark.parametrize("claim", [True, False])
+def test_prediction_payload_archive_record_preserves_explicit_producer_admission(
+    claim: bool,
+) -> None:
+    payload = {
+        "feature_snapshot_id": f"snapshot-claim-{claim}",
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
+        "feature_cutoff": FEATURE_CUTOFF,
+        "decision_time": DECISION_TIME,
+        "available_at": AVAILABLE_AT,
+        "mtf_snapshot_id": "mtf-1",
+        "trainer_consumable": claim,
+        "replay_snapshot": {"feature_snapshot": {"features": {"close": 101.0}}},
+    }
+
+    record = build_archive_record_from_prediction_payload(payload)
+
+    assert record is not None
+    assert record["trainer_consumable"] is claim
