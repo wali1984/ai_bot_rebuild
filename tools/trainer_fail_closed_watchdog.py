@@ -10,10 +10,10 @@ not-actually-training:
    inactive/dead with a stale status file, which the freshness-based
    self-healing supervisor misses. (This left it down ~75 min on 2026-07-24.)
    The watchdog starts it unless the durable deliberate-stop registry holds it.
-2. Sticky FAIL_CLOSED — the immutable=1 torn-read defect (a write landing
-   mid-read tears the ledger header -> FeatureSnapshotReadbackError ->
-   LOCAL_PROFILED_RESEARCH_FAIL_CLOSED). Stopgap until the in-code read-retry
-   ships via re-commission.
+2. Sticky known-transient torn-read failure — a legacy immutable=1 read race
+   can surface ``FeatureSnapshotReadbackError``.  Other FAIL_CLOSED states are
+   evidence or contract failures and must remain visible for repair; restarting
+   them would only discard the diagnostic and repeat the unsafe input.
 
 Safety: paper-only, non-promotable trainer. Places no orders, changes no
 leverage/margin, never enables live. Rate-limited; honors an operator
@@ -48,12 +48,8 @@ STOP_MARKER = Path(
 )
 
 FAIL_CLASSIFICATIONS = {"LOCAL_PROFILED_RESEARCH_FAIL_CLOSED"}
-TORN_READ_FRAGMENTS = (
+KNOWN_TRANSIENT_TORN_READ_FRAGMENTS = (
     "FeatureSnapshotReadbackError",
-    "FIXED_OBSERVATION_READ_FAILED",
-    "MANIFEST_BUILD_FAILED",
-    "file is not a database",
-    "checkpoint_provenance_unattested",
 )
 
 GRACE_SECONDS = 300          # FAIL_CLOSED must persist this long before acting
@@ -142,12 +138,12 @@ def _restart(state: dict, reason: str) -> int:
     return 0
 
 
-def _is_fail_closed(status: dict) -> bool:
-    if str(status.get("classification")) in FAIL_CLASSIFICATIONS:
-        return True
+def _is_known_transient_torn_read(status: dict) -> bool:
+    if str(status.get("classification")) not in FAIL_CLASSIFICATIONS:
+        return False
     err = status.get("error")
     blob = json.dumps(err) if err else ""
-    return any(frag in blob for frag in TORN_READ_FRAGMENTS)
+    return any(fragment in blob for fragment in KNOWN_TRANSIENT_TORN_READ_FRAGMENTS)
 
 
 def main() -> int:
@@ -170,13 +166,17 @@ def main() -> int:
             return 0
         return _restart(state, "service_dead_or_inactive")
 
-    # --- failure mode 2: sticky FAIL_CLOSED while running ---
+    # --- failure mode 2: sticky known-transient torn read while running ---
     status = _load_json(STATUS_PATH)
     if not status:
         print("watchdog: service active, no status.json; no action")
         return 0
 
-    if not _is_fail_closed(status):
+    if str(status.get("classification")) in FAIL_CLASSIFICATIONS and not _is_known_transient_torn_read(status):
+        print("watchdog: non-transient FAIL_CLOSED; preserving evidence and standing down")
+        return 0
+
+    if not _is_known_transient_torn_read(status):
         if state.get("fail_first_seen"):
             state.pop("fail_first_seen", None)
             _save_state(state)

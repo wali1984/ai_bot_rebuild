@@ -59,3 +59,28 @@ def test_dead_service_with_unreadable_registry_fails_closed(
     )
 
     assert watchdog.main() == 0
+
+
+def test_non_transient_fail_closed_is_not_restarted(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    watchdog = _watchdog_module()
+    monkeypatch.setattr(watchdog, "STOP_MARKER", tmp_path / "no-stop-marker")
+    monkeypatch.setattr(watchdog, "STATE_PATH", tmp_path / "state.json")
+    monkeypatch.setattr(watchdog, "_service_active", lambda: True)
+    monkeypatch.setattr(
+        watchdog,
+        "_load_json",
+        lambda _path: {
+            "classification": "LOCAL_PROFILED_RESEARCH_FAIL_CLOSED",
+            "error": {"reason_codes": ["PROFILED_BASE_STATUS_FIELDS_INVALID"]},
+        },
+    )
+    monkeypatch.setattr(
+        watchdog,
+        "_restart",
+        lambda *_args, **_kwargs: pytest.fail("contract failures must not be retried"),
+    )
+
+    assert watchdog.main() == 0
