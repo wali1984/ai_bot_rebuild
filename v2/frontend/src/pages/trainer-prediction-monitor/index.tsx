@@ -109,6 +109,10 @@ interface TrainerStatusFlat {
     memory_allocated_bytes?: number | null;
     memory_total_bytes?: number | null;
   } | null;
+  inference_sidecar?: {
+    predictions_count?: number | null;
+    trust_gate_rejection_count?: number | null;
+  } | null;
 }
 
 function fmt(n: number | null, d = 2): string {
@@ -206,11 +210,13 @@ function TrainerStatusPanel({
   evidenceAgeSeconds,
   challenger,
   cudaRuntime,
+  inference,
 }: {
   data: AIPredictionsData | null;
   evidenceAgeSeconds: number | null;
   challenger?: TrainerStatusFlat['champion_challenger_status'];
   cudaRuntime?: TrainerStatusFlat['cuda_runtime'];
+  inference?: TrainerStatusFlat['inference_sidecar'];
 }): JSX.Element {
   const state = data?.trainer_status ?? null;
   const offline = data?.offline_pretrain_status ?? null;
@@ -227,6 +233,8 @@ function TrainerStatusPanel({
           { label: 'Train Rows', value: `${challenger?.backtests_processed?.train_rows ?? 0} / 1000`, color: (challenger?.backtests_processed?.train_rows ?? 0) >= 1000 ? 'var(--buy)' : 'var(--warn)' },
           { label: 'GPU', value: cudaRuntime?.gpu_name ?? (data?.cuda_active ? 'CUDA active' : '—'), color: cudaRuntime?.cuda_available ? 'var(--buy)' : undefined },
           { label: 'GPU State', value: cudaRuntime ? (cudaRuntime.gpu_idle_data_starved ? 'idle · data-starved' : `${((cudaRuntime.memory_allocated_bytes ?? 0) / 1e9).toFixed(1)} GB active`) : '—', color: cudaRuntime?.gpu_idle_data_starved ? 'var(--warn)' : undefined },
+          { label: 'Sidecar predictions', value: String(inference?.predictions_count ?? '—') },
+          { label: 'Trust-gate rejects', value: String(inference?.trust_gate_rejection_count ?? '—'), color: (inference?.trust_gate_rejection_count ?? 0) > 0 ? 'var(--warn)' : undefined },
           { label: 'Data Coverage', value: fmtCoveragePct(data?.data_coverage) },
           { label: 'Offline Pretrain', value: offline?.phase ? offline.phase.replace(/_/g, ' ') : '—', color: offline?.phase?.toUpperCase().includes('ABORT') ? 'var(--warn)' : undefined },
           { label: 'Last Pretrain Run', value: offline?.generated_utc ? new Date(offline.generated_utc).toLocaleString() : '—' },
@@ -447,7 +455,7 @@ export default function AIPredictionsPage(): JSX.Element {
 
       {/* Trainer status */}
       <div style={{ padding: '0 24px 16px' }}>
-        <TrainerStatusPanel data={data} evidenceAgeSeconds={trainerEvidenceAgeSeconds} challenger={trainerFlat?.champion_challenger_status} cudaRuntime={trainerFlat?.cuda_runtime} />
+        <TrainerStatusPanel data={data} evidenceAgeSeconds={trainerEvidenceAgeSeconds} challenger={trainerFlat?.champion_challenger_status} cudaRuntime={trainerFlat?.cuda_runtime} inference={trainerFlat?.inference_sidecar} />
       </div>
 
       {/* Prediction matrix */}
