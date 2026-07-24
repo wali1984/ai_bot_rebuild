@@ -389,18 +389,22 @@ def _compute_accepted_position(row: dict[str, Any], r: Any) -> tuple[dict[str, A
 
 
 def _sum_closed_realized(rows: list[dict[str, Any]]) -> float:
+    # Authoritative NET realized PnL only.  A legitimate break-even close has
+    # realized_net_pnl_usd == 0.0, which is falsy, so a boolean `or` chain would
+    # skip it and fall through to a GROSS alias (realized_pnl_usd / realized_pnl
+    # / pnl_usd), silently mixing gross into the net sum and corrupting published
+    # net economics (G13/G14).  Select the NET keys None-aware so 0.0 is treated
+    # as an authoritative value and the gross aliases are never consulted here.
+    net_keys = ("realized_net_pnl_usd", "realized_net_pnl", "net_pnl_usd")
     total = 0.0
     for row in rows:
-        total += _safe_float(
-            row.get("realized_net_pnl_usd")
-            or row.get("realized_net_pnl")
-            or row.get("net_pnl_usd")
-            or row.get("realized_pnl_usd")
-            or row.get("realized_pnl_usdt")
-            or row.get("realized_pnl")
-            or row.get("pnl_usd"),
-            0.0,
-        )
+        net_value = None
+        for key in net_keys:
+            candidate = row.get(key)
+            if candidate is not None:
+                net_value = candidate
+                break
+        total += _safe_float(net_value, 0.0)
     return total
 
 
