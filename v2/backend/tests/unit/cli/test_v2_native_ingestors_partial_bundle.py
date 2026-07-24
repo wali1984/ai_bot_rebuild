@@ -58,6 +58,7 @@ def test_symbol_bundle_preserves_valid_families_when_one_timeframe_is_unavailabl
 def test_internal_transport_timeout_is_reported_as_partial_unavailability(
     monkeypatch: Any,
 ) -> None:
+    monkeypatch.setenv(worker.OPTIONAL_DERIVATIVE_REST_ENV, "true")
     monkeypatch.setattr(worker, "_rest_fallback_disabled", lambda: False)
     monkeypatch.setattr(
         worker,
@@ -80,8 +81,8 @@ def test_internal_transport_timeout_is_reported_as_partial_unavailability(
         "funding": "UNAVAILABLE_OR_REJECTED_BY_SOURCE_GATE",
         "open_interest": "UNAVAILABLE_OR_REJECTED_BY_SOURCE_GATE",
         "orderbook": "UNAVAILABLE_OR_REJECTED_BY_SOURCE_GATE",
-        "open_interest_hist": "UNAVAILABLE_OR_REJECTED_BY_SOURCE_GATE",
-        "long_short": "UNAVAILABLE_OR_REJECTED_BY_SOURCE_GATE",
+        "open_interest_hist": "SOURCE_CACHE_READ_FAILED",
+        "long_short": "LONG_SHORT_RATIO_REST_REQUEST_FAILED",
     }
 
 

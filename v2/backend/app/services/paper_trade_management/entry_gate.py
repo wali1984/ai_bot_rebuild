@@ -17,9 +17,12 @@ This gate runs BEFORE the local pre-trade, fee, and churn gates. Any intent that
 fails here is added to blocked[] with a clear reason and never becomes a fill or
 shadow observation. It does not interact with exchange APIs.
 """
+
 from __future__ import annotations
 
 import json
+import math
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -40,7 +43,9 @@ from .side_performance import (
 )
 
 DEFAULT_PAPER_ENTRY_ALLOWED_TIMEFRAMES = frozenset({"1m", "5m", "15m", "1h", "4h"})
-DEFAULT_PAPER_ENTRY_OPERATOR_SYMBOL_EXCLUSION_LIST = frozenset()  # Adaptive: tracked by outcome memory, not hardcoded
+DEFAULT_PAPER_ENTRY_OPERATOR_SYMBOL_EXCLUSION_LIST: frozenset[str] = (
+    frozenset()
+)  # Adaptive: tracked by outcome memory, not hardcoded
 
 
 def load_side_performance(redis_client: Any | None) -> dict[str, Any] | None:
@@ -72,6 +77,7 @@ class PaperEntryGateConfig:
                             no-trade and risk gates decide automatic blocks.
     outcome_thresholds: thresholds for dynamic outcome-memory degradation.
     """
+
     # Explicit operator-level symbol blocks (de-listing, regulatory, etc.)
     # Dynamic outcome-memory blocks are layered on top of these.
     symbol_exclusion_list: frozenset[str] = field(
@@ -121,13 +127,15 @@ class PaperEntryGateConfig:
     #   EPICUSDT: -294 bps (pattern: micro-cap with thin order book)
     # Only applies to trend_mode — their mean_reversion performance is tracked separately.
     trend_mode_micro_cap_exclusion: frozenset[str] = field(
-        default_factory=lambda: frozenset({
-            "SYNUSDT",
-            "RAVEUSDT",
-            "LITUSDT",
-            "CAPUSDT",
-            "EPICUSDT",
-        }),
+        default_factory=lambda: frozenset(
+            {
+                "SYNUSDT",
+                "RAVEUSDT",
+                "LITUSDT",
+                "CAPUSDT",
+                "EPICUSDT",
+            }
+        ),
     )
     # Outcome-memory degradation thresholds
     outcome_thresholds: OutcomeMemoryThresholds = field(
@@ -151,7 +159,7 @@ def _load_liq_regime_data(sym: str, tf: str, redis_client: Any) -> dict[str, Any
         raw = redis_client.get(key)
         if not raw:
             return None
-        data = json.loads(raw) if isinstance(raw, (str, bytes)) else None
+        data = json.loads(raw) if isinstance(raw, str | bytes) else None
         if not isinstance(data, dict):
             return None
         if data.get("liquidation_is_stale"):
@@ -170,7 +178,7 @@ def _load_cascade_context(sym: str, tf: str, redis_client: Any) -> dict[str, Any
         raw = redis_client.get(key)
         if not raw:
             return None
-        data = json.loads(raw) if isinstance(raw, (str, bytes)) else None
+        data = json.loads(raw) if isinstance(raw, str | bytes) else None
         if not isinstance(data, dict):
             return None
         if not data.get("cascade_context_status"):
@@ -211,10 +219,13 @@ def expected_move_after_cost_favorable_for_side(
     """Return True when the signed after-cost move favors the requested side."""
     if expected_move_after_cost_bps is None:
         return False
-    return _expected_move_block_reason(
-        side=side,
-        expected_move_after_cost_bps=expected_move_after_cost_bps,
-    ) is None
+    return (
+        _expected_move_block_reason(
+            side=side,
+            expected_move_after_cost_bps=expected_move_after_cost_bps,
+        )
+        is None
+    )
 
 
 def _get_adaptive_confidence_floors(redis_client: Any | None) -> tuple[float, float]:
@@ -229,8 +240,28 @@ def _get_adaptive_confidence_floors(redis_client: Any | None) -> tuple[float, fl
             short_floor = float(state.get("adaptive_short_confidence_floor", 0.50))
             return long_floor, short_floor
     except Exception:
-        pass
+        return 0.50, 0.50
     return 0.50, 0.50
+
+
+def _validated_adaptive_confidence_floors(
+    value: Any,
+) -> tuple[float, float] | None:
+    """Return finite probability floors or ``None`` for malformed evidence."""
+    if not isinstance(value, list | tuple) or len(value) != 2:
+        return None
+    floors: list[float] = []
+    for raw_floor in value:
+        if isinstance(raw_floor, bool):
+            return None
+        try:
+            floor = float(raw_floor)
+        except (TypeError, ValueError):
+            return None
+        if not math.isfinite(floor) or not 0.0 <= floor <= 1.0:
+            return None
+        floors.append(floor)
+    return floors[0], floors[1]
 
 
 def evaluate_entry_gate(
@@ -247,6 +278,10 @@ def evaluate_entry_gate(
     config: PaperEntryGateConfig | None = None,
     side_performance: dict[str, Any] | None = None,
     side_gate_config: SideGateConfig | None = None,
+    cascade_context: Mapping[str, Any] | None = None,
+    adaptive_confidence_floors: tuple[float, float] | None = None,
+    adaptive_confidence_floors_source: str | None = None,
+    runtime_evidence_preloaded: bool = False,
 ) -> dict[str, Any]:
     """Return allowed=True/False with reasons list.
 
@@ -258,6 +293,12 @@ def evaluate_entry_gate(
         5. Expected move is favorable for the requested side
         6. Dynamic outcome-memory degradation (Phase 3)
         7. Side-level performance gate (LONG/SHORT expectancy + calibration floor)
+
+    With ``runtime_evidence_preloaded=True``, all runtime evidence must be
+    supplied by the caller. The gate performs no Redis fallback for cascade or
+    liquidation context, confidence tuning, outcome memory, or side
+    performance; missing relevant evidence blocks the candidate. Legacy
+    callers retain the existing read-through behavior when the flag is false.
 
     Never raises; returns allowed=False with reasons on any unexpected input.
     Does not call external services beyond Redis. Read-only — places no orders.
@@ -274,7 +315,7 @@ def evaluate_entry_gate(
 
     # 2. Operator timeframe filter. The default allows all native paper
     # timeframes; outcome-memory quarantine handles dynamic degradation.
-    _noisy_tfs = frozenset()
+    _noisy_tfs: frozenset[str] = frozenset()
     if tf and tf not in cfg.allowed_entry_timeframes:
         if tf in _noisy_tfs and cfg.major_move_override_enabled and major_move_detected:
             pass  # major-move override permits noisy TF entry
@@ -302,21 +343,23 @@ def evaluate_entry_gate(
         and cfg.short_trend_mode_regime_gate_enabled
         and side_mode_key not in cfg.blocked_side_mode_combinations
     ):
-        cascade_context = _load_cascade_context(sym, tf, redis_client)
-        if cascade_context is not None:
+        resolved_cascade_context = cascade_context if isinstance(cascade_context, Mapping) else None
+        if resolved_cascade_context is None and not runtime_evidence_preloaded:
+            resolved_cascade_context = _load_cascade_context(sym, tf, redis_client)
+        if resolved_cascade_context is not None:
             context_allowed, context_reason = context_allows_short_trend_paper_entry(
-                cascade_context,
+                resolved_cascade_context,
                 threshold=cfg.short_trend_cascade_risk_min,
             )
             if not context_allowed:
                 reason = context_reason or "REGIME_GATE_NO_CASCADE_DATA"
                 reasons.append(f"{reason}:short:trend_mode:{sym}:{tf}")
+        elif runtime_evidence_preloaded:
+            reasons.append("RUNTIME_EVIDENCE_PRELOAD_MISSING:CASCADE_CONTEXT")
         else:
             liq_data = _load_liq_regime_data(sym, tf, redis_client)
             if liq_data is None:
-                reasons.append(
-                    f"REGIME_GATE_NO_CASCADE_DATA:short:trend_mode:{sym}:{tf}"
-                )
+                reasons.append(f"REGIME_GATE_NO_CASCADE_DATA:short:trend_mode:{sym}:{tf}")
             else:
                 cascade_risk = float(liq_data.get("liquidation_cascade_risk") or 0.0)
                 if cascade_risk < cfg.short_trend_cascade_risk_min:
@@ -336,10 +379,26 @@ def evaluate_entry_gate(
     # 4. Minimum confidence
     # ADAPTIVE: Read confidence floor from Redis if available, otherwise use config
     confidence_floor = cfg.min_confidence_calibrated
+    confidence_floor_source = "CONFIG"
     if confidence_floor <= 0:
-        # No config floor, try to get adaptive floor from Redis
-        long_floor, short_floor = _get_adaptive_confidence_floors(redis_client)
-        confidence_floor = long_floor if (side or "").lower() == "long" else short_floor
+        validated_floors = _validated_adaptive_confidence_floors(adaptive_confidence_floors)
+        if validated_floors is not None:
+            long_floor, short_floor = validated_floors
+            confidence_floor = long_floor if normalized_side == "long" else short_floor
+            confidence_floor_source = (
+                str(adaptive_confidence_floors_source).strip().upper()
+                if adaptive_confidence_floors_source not in (None, "")
+                else "PRELOADED_ADAPTIVE_TUNING"
+            )
+        elif runtime_evidence_preloaded:
+            confidence_floor = 0.0
+            confidence_floor_source = "PRELOADED_RUNTIME_EVIDENCE_MISSING"
+            reasons.append("RUNTIME_EVIDENCE_PRELOAD_MISSING:ADAPTIVE_CONFIDENCE_FLOORS")
+        else:
+            # Legacy read-through path when no explicit tuning snapshot is supplied.
+            long_floor, short_floor = _get_adaptive_confidence_floors(redis_client)
+            confidence_floor = long_floor if normalized_side == "long" else short_floor
+            confidence_floor_source = "REDIS_OR_DEFAULT_ADAPTIVE_TUNING"
 
     if confidence_floor > 0 and confidence_calibrated is not None:
         if confidence_calibrated < confidence_floor:
@@ -359,7 +418,11 @@ def evaluate_entry_gate(
     # 6. Dynamic outcome-memory degradation (Phase 3)
     # Load from Redis if not pre-loaded; falls back to static soak-test defaults
     if outcome_memory_bucket is None and tf:
-        outcome_memory_bucket = load_outcome_memory_bucket(sym, tf, redis_client)
+        if runtime_evidence_preloaded:
+            missing_reason = "RUNTIME_EVIDENCE_PRELOAD_MISSING:OUTCOME_MEMORY_BUCKET"
+            reasons.append(missing_reason)
+        else:
+            outcome_memory_bucket = load_outcome_memory_bucket(sym, tf, redis_client)
 
     outcome_result: dict[str, Any] = {}
     if outcome_memory_bucket is not None:
@@ -372,6 +435,13 @@ def evaluate_entry_gate(
                     f"OUTCOME_MEMORY_BLOCK:{block_reason}:"
                     f"source={outcome_result.get('source', 'UNKNOWN')}"
                 )
+    elif runtime_evidence_preloaded and tf:
+        outcome_result = {
+            "allowed": False,
+            "blocked": True,
+            "reasons": ["RUNTIME_EVIDENCE_PRELOAD_MISSING:OUTCOME_MEMORY_BUCKET"],
+            "source": "PRELOADED_RUNTIME_EVIDENCE_MISSING",
+        }
 
     # 7. Side-level performance gate (Phase 2 directional-balance repair).
     # A side with non-positive expectancy over enough closed trades cannot
@@ -379,15 +449,26 @@ def evaluate_entry_gate(
     side_gate_result: dict[str, Any] = {}
     if normalized_side in {"long", "short"}:
         if side_performance is None:
-            side_performance = load_side_performance(redis_client)
+            if runtime_evidence_preloaded:
+                reasons.append("RUNTIME_EVIDENCE_PRELOAD_MISSING:SIDE_PERFORMANCE")
+            else:
+                side_performance = load_side_performance(redis_client)
         side_gate_result = evaluate_side_gate(
             side_performance,
             side=normalized_side,
             confidence_calibrated=confidence_calibrated,
             config=side_gate_config,
         )
+        if runtime_evidence_preloaded and side_performance is None:
+            side_gate_result["allowed"] = False
+            side_gate_result["reasons"] = [
+                "RUNTIME_EVIDENCE_PRELOAD_MISSING:SIDE_PERFORMANCE",
+                *side_gate_result.get("reasons", []),
+            ]
         if not side_gate_result.get("allowed", True):
             for side_reason in side_gate_result.get("reasons", []):
+                if side_reason == "RUNTIME_EVIDENCE_PRELOAD_MISSING:SIDE_PERFORMANCE":
+                    continue
                 reasons.append(f"SIDE_GATE_BLOCK:{side_reason}")
 
     return {
@@ -397,6 +478,9 @@ def evaluate_entry_gate(
         "timeframe": tf,
         "side": (side or "").strip().lower(),
         "side_gate_result": side_gate_result,
+        "runtime_evidence_preloaded": runtime_evidence_preloaded,
+        "confidence_floor": confidence_floor,
+        "confidence_floor_source": confidence_floor_source,
         "strategy_mode": mode,
         "major_move_override_applied": (
             major_move_detected and tf in _noisy_tfs and tf not in cfg.allowed_entry_timeframes

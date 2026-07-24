@@ -392,10 +392,11 @@ out = {
     "passed": passed,
     "failed": failed,
     "warned": warned,
-    "status": "PASS" if failed == 0 else "FAIL",
+    # Certification is zero-tolerance: an unverified WARNING is not a PASS.
+    "status": "PASS" if failed == 0 and warned == 0 else "FAIL",
     "results": RESULTS
 }
 out_path.write_text(json.dumps(out, indent=2))
 print(f"\nResults written to {out_path}")
 
-sys.exit(0 if failed == 0 else 1)
+sys.exit(0 if failed == 0 and warned == 0 else 1)

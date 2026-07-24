@@ -17,9 +17,12 @@ from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.config import (
 )
 from v2.backend.app.services.v2_symbol_runtime_universe import (
     BASELINE_25_SYMBOLS,
+    PREFERRED_MAJOR_SYMBOLS,
     SMOKE_TEST_SYMBOLS,
     SYMBOL_UNIVERSE_PUBLIC_PAYLOAD,
     resolve_symbols,
+    resolve_symbols_for_purpose,
+    resolve_symbols_for_purpose_with_provenance,
 )
 
 
@@ -79,7 +82,7 @@ def test_paper_online_single_symbol_default_uses_dynamic_first_symbol(monkeypatc
 
     assert (
         paper_online_runtime._resolve_runtime_symbol(None, smoke_test=False)
-        == BASELINE_25_SYMBOLS[0]
+        == PREFERRED_MAJOR_SYMBOLS[0]
     )
 
 
@@ -89,7 +92,7 @@ def test_feature_snapshot_builder_single_symbol_default_uses_dynamic_first_symbo
     monkeypatch.delenv("V2_SYMBOL_PROFILE", raising=False)
 
     args = v2_feature_snapshot_builder.parse_args(["--once", "--no-write"])
-    assert args.symbol == BASELINE_25_SYMBOLS[0]
+    assert args.symbol == PREFERRED_MAJOR_SYMBOLS[0]
 
 
 def test_explicit_three_symbol_set_requires_smoke_opt_in(monkeypatch) -> None:
@@ -154,3 +157,205 @@ def test_smoke_only_confirmation_does_not_override_broad_discovered_scope(
 
     assert tuple(symbols) != SMOKE_TEST_SYMBOLS
     assert set(BASELINE_25_SYMBOLS).issubset(set(symbols))
+
+
+def test_collection_scope_does_not_fabricate_unconfirmed_preferred_majors(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from v2.backend.app.services import v2_symbol_runtime_universe as svc
+
+    payload = tmp_path / "symbol_universe_status.json"
+    payload.write_text(
+        json.dumps(
+            {
+                "data_collection_symbols": ["BTCUSDT", "DOGEUSDT"],
+                "binance_usdm_confirmed_symbols": ["BTCUSDT", "DOGEUSDT"],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(svc, "SYMBOL_UNIVERSE_PUBLIC_PAYLOAD", payload)
+
+    symbols = svc.resolve_symbols_for_purpose(
+        "data_collection", include_baseline=False
+    )
+
+    assert symbols == ["BTCUSDT", "DOGEUSDT"]
+    assert "ETHUSDT" not in symbols
+    assert "SOLUSDT" not in symbols
+
+
+def test_preference_env_can_only_add_after_mandatory_btc_eth_sol(monkeypatch) -> None:
+    from v2.backend.app.services import v2_symbol_runtime_universe as svc
+
+    monkeypatch.setenv(
+        "V2_PREFERRED_MAJOR_SYMBOLS",
+        "dogeusdt,BTCUSDT,not-a-symbol,dogeusdt",
+    )
+
+    assert svc._preferred_majors() == (
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT",
+        "DOGEUSDT",
+    )
+
+
+def test_fresh_adaptive_purpose_scopes_are_separate_and_never_authorize_execution(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from v2.backend.app.services import v2_symbol_runtime_universe as svc
+
+    payload = tmp_path / "symbol_universe_status.json"
+    payload.write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-07-20T05:10:00Z",
+                "binance_usdm_confirmed_symbols": [
+                    "BTCUSDT",
+                    "ETHUSDT",
+                    "DOGEUSDT",
+                ],
+                "adaptive_training_selected_symbols": [
+                    "DOGEUSDT",
+                    "ETHUSDT",
+                    "BTCUSDT",
+                ],
+                "adaptive_paper_new_entry_symbols": ["DOGEUSDT", "BTCUSDT"],
+                "adaptive_scope_activation": {
+                    "requested": True,
+                    "scope_aware_consumers_bound": True,
+                    "active": True,
+                },
+                "adaptive_symbol_selection": {
+                    "decision_time": "2026-07-20T05:10:00Z",
+                    "selection_is_execution_authorization": False,
+                    "training_selected_symbols": [
+                        "DOGEUSDT",
+                        "ETHUSDT",
+                        "BTCUSDT",
+                    ],
+                    "trading_selected_symbols": ["DOGEUSDT", "BTCUSDT"],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(svc, "SYMBOL_UNIVERSE_PUBLIC_PAYLOAD", payload)
+    decision = "2026-07-20T05:11:00Z"
+
+    assert resolve_symbols_for_purpose("training", decision_time=decision) == [
+        "BTCUSDT",
+        "ETHUSDT",
+        "DOGEUSDT",
+    ]
+    assert resolve_symbols_for_purpose("trading", decision_time=decision) == [
+        "BTCUSDT",
+        "DOGEUSDT",
+    ]
+    provenance = resolve_symbols_for_purpose_with_provenance(
+        "trading", decision_time=decision
+    )
+    assert provenance["fresh"] is True
+    assert provenance["selection_is_execution_authorization"] is False
+    assert provenance["scope_source_mode"] == "adaptive_active"
+
+
+def test_default_off_purpose_resolver_uses_authoritative_legacy_scopes(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from v2.backend.app.services import v2_symbol_runtime_universe as svc
+
+    payload = tmp_path / "symbol_universe_status.json"
+    payload.write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-07-20T05:10:00Z",
+                "binance_usdm_confirmed_symbols": [
+                    "BTCUSDT",
+                    "ETHUSDT",
+                    "DOGEUSDT",
+                ],
+                "training_symbols": ["DOGEUSDT", "ETHUSDT"],
+                "paper_symbols": ["DOGEUSDT"],
+                "adaptive_training_selected_symbols": ["BTCUSDT"],
+                "adaptive_paper_new_entry_symbols": ["BTCUSDT"],
+                "adaptive_scope_activation": {
+                    "requested": False,
+                    "scope_aware_consumers_bound": False,
+                    "active": False,
+                },
+                "adaptive_symbol_selection": {
+                    "decision_time": "2026-07-20T05:10:00Z",
+                    "selection_is_execution_authorization": False,
+                    "training_selected_symbols": ["BTCUSDT"],
+                    "trading_selected_symbols": ["BTCUSDT"],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(svc, "SYMBOL_UNIVERSE_PUBLIC_PAYLOAD", payload)
+    decision = "2026-07-20T05:11:00Z"
+
+    assert resolve_symbols_for_purpose("training", decision_time=decision) == [
+        "ETHUSDT",
+        "DOGEUSDT",
+    ]
+    assert resolve_symbols_for_purpose("trading", decision_time=decision) == [
+        "DOGEUSDT"
+    ]
+    provenance = resolve_symbols_for_purpose_with_provenance(
+        "training", decision_time=decision
+    )
+    assert provenance["fresh"] is True
+    assert provenance["adaptive_scope_activation_active"] is False
+    assert provenance["scope_source_mode"] == "authoritative_legacy_default_off"
+
+
+def test_stale_adaptive_scope_has_no_baseline_or_major_fallback(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from v2.backend.app.services import v2_symbol_runtime_universe as svc
+
+    payload = tmp_path / "symbol_universe_status.json"
+    payload.write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-07-20T05:00:00Z",
+                "binance_usdm_confirmed_symbols": ["BTCUSDT", "ETHUSDT", "SOLUSDT"],
+                "adaptive_training_selected_symbols": ["BTCUSDT", "ETHUSDT", "SOLUSDT"],
+                "adaptive_paper_new_entry_symbols": ["BTCUSDT"],
+                "adaptive_scope_activation": {
+                    "requested": True,
+                    "scope_aware_consumers_bound": True,
+                    "active": True,
+                },
+                "adaptive_symbol_selection": {
+                    "decision_time": "2026-07-20T05:00:00Z",
+                    "selection_is_execution_authorization": False,
+                    "training_selected_symbols": [
+                        "BTCUSDT",
+                        "ETHUSDT",
+                        "SOLUSDT",
+                    ],
+                    "trading_selected_symbols": ["BTCUSDT"],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(svc, "SYMBOL_UNIVERSE_PUBLIC_PAYLOAD", payload)
+
+    assert resolve_symbols_for_purpose(
+        "training", decision_time="2026-07-20T05:10:00Z"
+    ) == []
+    provenance = resolve_symbols_for_purpose_with_provenance(
+        "trading", decision_time="2026-07-20T05:10:00Z"
+    )
+    assert provenance["symbols"] == []
+    assert "adaptive_symbol_payload_stale" in provenance["blockers"]

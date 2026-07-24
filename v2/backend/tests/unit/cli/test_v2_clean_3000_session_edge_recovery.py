@@ -1,6 +1,161 @@
 from __future__ import annotations
 
+import hashlib
+import json
+from datetime import datetime
+from pathlib import Path
+
 from v2.backend.app.cli import v2_clean_3000_session_edge_recovery as recovery
+
+
+def _canonical_sha256(value: object) -> str:
+    return hashlib.sha256(
+        json.dumps(
+            value,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=True,
+            allow_nan=False,
+        ).encode("utf-8")
+    ).hexdigest()
+
+
+def _authorized_phase7_artifact(*, repair_deployed_utc: str) -> dict[str, object]:
+    repo_root = Path(recovery.__file__).resolve().parents[4]
+    generated_utc = "2026-07-18T00:00:00Z"
+    expires_at = "2099-07-18T00:00:00Z"
+    ttl_seconds = int(
+        (
+            datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
+            - datetime.fromisoformat(generated_utc.replace("Z", "+00:00"))
+        ).total_seconds()
+    )
+    run_id = "phase7_runtime_run_current"
+    cycle_id = "phase7_cycle_current"
+    process_instance_id = "host:789:phase7_nonce"
+    runtime_output = {
+        "paper_session_id": "paper_3000",
+        "observed_exit_count": 1,
+        "behavior_observations": {
+            "atr_stop_floor": True,
+            "regime_scaled_atr_stop": True,
+            "missing_atr_floor_fallback": True,
+            "mfe_breakeven_protection": True,
+            "model_reversal_precedence": True,
+            "atr_loser_bucket_quarantine": True,
+        },
+        "exit_events": [
+            {
+                "exit_event_id": "exit_phase7_current_1",
+                "run_id": run_id,
+                "cycle_id": cycle_id,
+                "process_instance_id": process_instance_id,
+                "paper_session_id": "paper_3000",
+                "event_time": "2026-07-17T23:59:00Z",
+                "available_at": "2026-07-17T23:59:30Z",
+                "generated_at": "2026-07-18T00:00:00Z",
+                "source_hashes": {"paper_exit_event": "a" * 64},
+                "paper_only": True,
+                "routes_to_live": False,
+            }
+        ],
+    }
+    runtime_output_sha256 = _canonical_sha256(runtime_output)
+    source_paths = (
+        "v2/backend/app/services/native_trainer/a_plus_phase7_exit_repair.py",
+        "v2/backend/app/services/paper_trade_management/exits.py",
+        "v2/backend/app/services/paper_trade_management/position_state.py",
+        "v2/backend/app/cli/v2_trade_management_paper_loop.py",
+        "v2/backend/app/cli/v2_clean_3000_session_edge_recovery.py",
+    )
+    test_nodes = [
+        "v2/backend/tests/unit/cli/test_v2_trade_management_paper_loop.py::"
+        "test_phase7_current_runtime_artifact_contract_authorizes_pre_repair_only",
+        "v2/backend/tests/unit/cli/test_v2_clean_3000_session_edge_recovery.py::"
+        "test_phase7_current_runtime_artifact_contract_authorizes_pre_repair_only",
+    ]
+    test_paths = [node.split("::", 1)[0] for node in test_nodes]
+    production_hashes = {
+        path: hashlib.sha256((repo_root / path).read_bytes()).hexdigest()
+        for path in source_paths
+    }
+    test_hashes = {
+        path: hashlib.sha256((repo_root / path).read_bytes()).hexdigest()
+        for path in test_paths
+    }
+    authorization_material = {
+        "schema_version": "a_plus_phase7_exit_repair_status_v2",
+        "generated_utc": generated_utc,
+        "repair_deployed_utc": repair_deployed_utc,
+        "expires_at": expires_at,
+        "ttl_seconds": ttl_seconds,
+        "run_id": run_id,
+        "cycle_id": cycle_id,
+        "process_instance_id": process_instance_id,
+        "canonical_current_paper_exit_runtime_evidence_present": True,
+        "paper_entry_freeze_clear_allowed_by_exit_repair": True,
+        "runtime_output_sha256": runtime_output_sha256,
+    }
+    runner_command = "phase7-runtime-evidence-runner --paper-only --no-live"
+    receipt: dict[str, object] = {
+        "schema_version": "v2_a_plus_phase7_runtime_authorization_receipt_v1",
+        "run_id": run_id,
+        "cycle_id": cycle_id,
+        "process_instance_id": process_instance_id,
+        "completed_at": generated_utc,
+        "expires_at": expires_at,
+        "ttl_seconds": ttl_seconds,
+        "outcome": "PASSED",
+        "exit_code": 0,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "runner_command": runner_command,
+        "runner_command_sha256": hashlib.sha256(
+            runner_command.encode("utf-8")
+        ).hexdigest(),
+        "pytest_nodeids": test_nodes,
+        "production_source_sha256": production_hashes,
+        "test_source_sha256": test_hashes,
+        "runtime_output_sha256": runtime_output_sha256,
+        "authorization_output_sha256": _canonical_sha256(
+            authorization_material
+        ),
+    }
+    receipt["receipt_sha256"] = _canonical_sha256(receipt)
+    return {
+        "schema_version": "a_plus_phase7_exit_repair_status_v2",
+        "generated_utc": generated_utc,
+        "repair_deployed_utc": repair_deployed_utc,
+        "expires_at": expires_at,
+        "ttl_seconds": ttl_seconds,
+        "run_id": run_id,
+        "cycle_id": cycle_id,
+        "process_instance_id": process_instance_id,
+        "repair_test_passed": True,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "paper_entry_freeze_clear_allowed_by_exit_repair": True,
+        "pass_conditions": {
+            "canonical_current_paper_exit_runtime_evidence_present": True
+        },
+        "current_paper_exit_runtime_evidence": {
+            "schema_version": "phase7_current_paper_exit_runtime_evidence_v1",
+            "generated_utc": generated_utc,
+            "expires_at": expires_at,
+            "ttl_seconds": ttl_seconds,
+            "run_id": run_id,
+            "cycle_id": cycle_id,
+            "process_instance_id": process_instance_id,
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+            "runtime_output": runtime_output,
+            "runtime_output_sha256": runtime_output_sha256,
+        },
+        "runtime_authorization_receipt": receipt,
+    }
 
 
 def test_current_session_rows_exclude_old_and_missing_session_rows() -> None:
@@ -350,12 +505,19 @@ def test_three_hundred_gate_requires_long_short_and_20_symbols() -> None:
     assert gate["pass_conditions"]["at_least_20_symbols"] is False
 
 
-def test_atr_stop_cluster_recoverable_after_verified_exit_repair(tmp_path, monkeypatch) -> None:
+def test_phase7_current_runtime_artifact_contract_authorizes_pre_repair_only(
+    tmp_path, monkeypatch
+) -> None:
     """Pre-repair ATR-stop losses stop driving the blocking cluster once a
     verified exit-repair artifact exists; new post-repair losses re-block."""
     artifact = tmp_path / "atr_stop_cluster_repair_status.json"
     artifact.write_text(
-        '{"repair_test_passed": true, "repair_deployed_utc": "2026-07-06T07:00:00Z"}',
+        json.dumps(
+            _authorized_phase7_artifact(
+                repair_deployed_utc="2026-07-06T07:00:00Z"
+            ),
+            sort_keys=True,
+        ),
         encoding="utf-8",
     )
     monkeypatch.setattr(recovery, "ATR_EXIT_REPAIR_STATUS_PATH", artifact)
@@ -395,6 +557,83 @@ def test_atr_stop_cluster_recoverable_after_verified_exit_repair(tmp_path, monke
     ]
     metrics_no_ts = recovery._performance(rows_no_ts)  # noqa: SLF001
     assert metrics_no_ts["atr_stop_cluster"] is True
+
+
+def test_phase7_consumer_rejects_legacy_boolean_and_expired_runtime_artifact(
+    tmp_path, monkeypatch
+) -> None:
+    artifact = tmp_path / "atr_stop_cluster_repair_status.json"
+    artifact.write_text(
+        '{"repair_test_passed": true, "repair_deployed_utc": "2026-07-06T07:00:00Z"}',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(recovery, "ATR_EXIT_REPAIR_STATUS_PATH", artifact)
+    assert (
+        recovery._verified_exit_repair_deployed_utc(  # noqa: SLF001
+            observed_utc="2026-07-18T00:05:00Z"
+        )
+        is None
+    )
+
+    artifact.write_text(
+        json.dumps(
+            _authorized_phase7_artifact(
+                repair_deployed_utc="2026-07-06T07:00:00Z"
+            ),
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    assert (
+        recovery._verified_exit_repair_deployed_utc(  # noqa: SLF001
+            observed_utc="2100-07-18T00:00:00Z"
+        )
+        is None
+    )
+
+
+def test_phase7_consumer_rejects_rehashed_cross_cycle_and_source_tamper(
+    tmp_path, monkeypatch
+) -> None:
+    artifact = tmp_path / "atr_stop_cluster_repair_status.json"
+    payload = _authorized_phase7_artifact(
+        repair_deployed_utc="2026-07-06T07:00:00Z"
+    )
+    receipt = payload["runtime_authorization_receipt"]
+    assert isinstance(receipt, dict)
+    receipt["cycle_id"] = "different_cycle"
+    receipt["receipt_sha256"] = _canonical_sha256(
+        {key: value for key, value in receipt.items() if key != "receipt_sha256"}
+    )
+    artifact.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
+    monkeypatch.setattr(recovery, "ATR_EXIT_REPAIR_STATUS_PATH", artifact)
+    assert (
+        recovery._verified_exit_repair_deployed_utc(  # noqa: SLF001
+            observed_utc="2026-07-18T00:05:00Z"
+        )
+        is None
+    )
+
+    payload = _authorized_phase7_artifact(
+        repair_deployed_utc="2026-07-06T07:00:00Z"
+    )
+    receipt = payload["runtime_authorization_receipt"]
+    assert isinstance(receipt, dict)
+    source_hashes = receipt["production_source_sha256"]
+    assert isinstance(source_hashes, dict)
+    source_hashes[
+        "v2/backend/app/services/paper_trade_management/exits.py"
+    ] = "f" * 64
+    receipt["receipt_sha256"] = _canonical_sha256(
+        {key: value for key, value in receipt.items() if key != "receipt_sha256"}
+    )
+    artifact.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
+    assert (
+        recovery._verified_exit_repair_deployed_utc(  # noqa: SLF001
+            observed_utc="2026-07-18T00:05:00Z"
+        )
+        is None
+    )
 
 
 def test_atr_stop_cluster_stays_blocking_without_verified_repair_artifact(tmp_path, monkeypatch) -> None:

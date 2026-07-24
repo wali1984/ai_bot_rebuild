@@ -8,8 +8,16 @@ the flat baseline). Paper-only.
 """
 from __future__ import annotations
 
+import json
 from datetime import datetime, timedelta, timezone
 
+from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.on_policy_behavior import (
+    EXACT_COST_PROVENANCE_SCHEMA_VERSION,
+    build_exact_cost_provenance,
+)
+from v2.backend.app.services.paper_trade_management import (
+    adaptive_cost_model as adaptive_cost_module,
+)
 from v2.backend.app.services.paper_trade_management.adaptive_cost_model import (
     DEFAULT_TAKER_FEE_BPS_PER_SIDE,
     FLAT_BASELINE_ROUND_TRIP_BPS,
@@ -27,6 +35,25 @@ from v2.backend.app.services.paper_trade_management.adaptive_cost_model import (
 NOW = datetime(2026, 7, 17, 6, 0, 0, tzinfo=timezone.utc)
 
 
+def test_default_cost_fee_schedule_identity_matches_paper_entry_contract(
+    monkeypatch,
+) -> None:
+    from v2.backend.app.cli import v2_trade_management_paper_loop as paper_loop
+
+    monkeypatch.delenv("V2_COST_TAKER_FEE_BPS_PER_SIDE", raising=False)
+    estimate = estimate_round_trip_cost_bps(
+        "BTCUSDT",
+        get_json=lambda _key: None,
+        now_utc=NOW,
+    )
+    assert estimate.fee_schedule_evidence_sha256 == (
+        paper_loop._fee_schedule_evidence_sha256(  # noqa: SLF001
+            fee_bps_per_side=estimate.taker_fee_bps_per_side,
+            fee_source=paper_loop.PAPER_CONFIGURED_FEE_SCHEDULE_SOURCE,
+        )
+    )
+
+
 def _book(
     *,
     age_seconds: float = 5.0,
@@ -37,11 +64,20 @@ def _book(
     depth_5_ask_usd: float | None = 1_000_000.0,
     depth_total_usd: float | None = 1_400_000.0,
 ) -> dict:
+    available_at = NOW - timedelta(seconds=age_seconds)
     payload = {
+        "schema_version": "v2_orderbook_features_v1",
         "symbol": "BTCUSDT",
-        "generated_at": (NOW - timedelta(seconds=age_seconds))
+        "event_time": (available_at - timedelta(milliseconds=100))
         .isoformat(timespec="milliseconds")
         .replace("+00:00", "Z"),
+        "available_at": available_at.isoformat(timespec="milliseconds").replace(
+            "+00:00", "Z"
+        ),
+        "generated_at": NOW.isoformat(timespec="milliseconds").replace(
+            "+00:00", "Z"
+        ),
+        "sequence_gap_flag": 0,
         "spread_bps": spread_bps,
         "depth_total_usd": depth_total_usd,
         "depth_5_bid_usd": depth_5_bid_usd,
@@ -142,6 +178,101 @@ def test_stale_orderbook_falls_back_conservative_at_flat_baseline() -> None:
     assert any(note.startswith("orderbook_stale_age_") for note in est.notes)
 
 
+def test_adaptive_freshness_uses_robust_recent_cadence_and_binds_expiry() -> None:
+    adaptive_cost_module._ORDERBOOK_AVAILABILITY_STATE.clear()  # noqa: SLF001
+
+    def observed_book(now: datetime, available: datetime) -> dict:
+        row = _book()
+        row.update(
+            {
+                "event_time": (available - timedelta(milliseconds=100))
+                .isoformat(timespec="milliseconds")
+                .replace("+00:00", "Z"),
+                "available_at": available.isoformat(timespec="milliseconds").replace(
+                    "+00:00", "Z"
+                ),
+                "generated_at": now.isoformat(timespec="milliseconds").replace(
+                    "+00:00", "Z"
+                ),
+            }
+        )
+        return row
+
+    observations = (
+        (NOW, NOW - timedelta(seconds=1)),
+        (NOW + timedelta(seconds=60), NOW + timedelta(seconds=59)),
+        (NOW + timedelta(seconds=120), NOW + timedelta(seconds=119)),
+        # One long source outage must not inflate the robust median+MAD window.
+        (NOW + timedelta(seconds=720), NOW + timedelta(seconds=719)),
+    )
+    estimate = None
+    for now, available in observations:
+        estimate = estimate_round_trip_cost_bps(
+            "BTCUSDT",
+            get_json=_getter(observed_book(now, available)),
+            notional_usd=250.0,
+            now_utc=now,
+        )
+    assert estimate is not None
+    assert estimate.adaptive_freshness_proven is True
+    assert estimate.adaptive_freshness_sample_count == 3
+    assert estimate.adaptive_freshness_method == (
+        "RECENT_DISTINCT_SOURCE_INTERVAL_MEDIAN_PLUS_MAD"
+    )
+    assert estimate.adaptive_max_age_seconds == 60.0
+    assert estimate.expires_at == "2026-07-17T06:12:59.000000Z"
+
+
+def test_adaptive_freshness_proof_is_not_vetoed_by_legacy_static_max_age() -> None:
+    adaptive_cost_module._ORDERBOOK_AVAILABILITY_STATE.clear()  # noqa: SLF001
+    estimate = None
+    for offset in (0, 10, 20, 30):
+        now = NOW + timedelta(seconds=offset)
+        available = now - timedelta(seconds=1)
+        book = _book(age_seconds=1.0)
+        book.update(
+            {
+                "event_time": (available - timedelta(milliseconds=100))
+                .isoformat(timespec="milliseconds")
+                .replace("+00:00", "Z"),
+                "available_at": available.isoformat(timespec="milliseconds").replace(
+                    "+00:00", "Z"
+                ),
+                "generated_at": now.isoformat(timespec="milliseconds").replace(
+                    "+00:00", "Z"
+                ),
+            }
+        )
+        estimate = estimate_round_trip_cost_bps(
+            "BTCUSDT",
+            get_json=_getter(book),
+            notional_usd=250.0,
+            max_orderbook_age_seconds=0.1,
+            now_utc=now,
+        )
+
+    assert estimate is not None
+    assert estimate.spread_age_seconds == 1.0
+    assert estimate.spread_age_seconds > 0.1
+    assert estimate.adaptive_freshness_proven is True
+    assert estimate.adaptive_max_age_seconds == 10.0
+    assert estimate.freshness_status == FRESHNESS_FRESH_ORDERBOOK
+    assert estimate.conservative_floor_applied is False
+
+
+def test_future_orderbook_clock_is_never_clamped_to_fresh() -> None:
+    future = _book(age_seconds=-1.0)
+    estimate = estimate_round_trip_cost_bps(
+        "FUTUREUSDT",
+        get_json=_getter(future),
+        notional_usd=250.0,
+        now_utc=NOW,
+    )
+    assert estimate.freshness_status == FRESHNESS_FALLBACK_CONSERVATIVE
+    assert estimate.source_future_clock_invalid is True
+    assert "orderbook_source_clock_in_future" in estimate.notes
+
+
 def test_missing_orderbook_falls_back_conservative_never_optimistic() -> None:
     est = estimate_round_trip_cost_bps(
         "NEWUSDT", get_json=_getter(None), notional_usd=250.0, now_utc=NOW
@@ -194,6 +325,7 @@ def test_publish_cost_estimate_prefers_client_with_ttl() -> None:
             calls["key"] = key
             calls["ex"] = ex
             calls["value"] = value
+            return True
 
     est = estimate_round_trip_cost_bps(
         "BTCUSDT", get_json=_getter(_book()), notional_usd=250.0, now_utc=NOW
@@ -205,6 +337,66 @@ def test_publish_cost_estimate_prefers_client_with_ttl() -> None:
     assert '"freshness_status"' in calls["value"]
 
 
+def test_published_adaptive_cost_is_directly_consumable_by_exact_ppo() -> None:
+    adaptive_cost_module._ORDERBOOK_AVAILABILITY_STATE.clear()  # noqa: SLF001
+    estimate = None
+    for offset in (0, 10, 20, 30):
+        now = NOW + timedelta(seconds=offset)
+        available = now - timedelta(seconds=1)
+        book = _book(age_seconds=1.0)
+        book.update(
+            {
+                "event_time": (available - timedelta(milliseconds=100))
+                .isoformat(timespec="milliseconds")
+                .replace("+00:00", "Z"),
+                "available_at": available.isoformat(timespec="milliseconds").replace(
+                    "+00:00", "Z"
+                ),
+                "generated_at": now.isoformat(timespec="milliseconds").replace(
+                    "+00:00", "Z"
+                ),
+            }
+        )
+        estimate = estimate_round_trip_cost_bps(
+            "BTCUSDT",
+            get_json=_getter(book),
+            notional_usd=250.0,
+            now_utc=now,
+        )
+
+    assert estimate is not None
+    published: dict[str, object] = {}
+
+    class _Client:
+        def set(self, key: str, value: str, ex: int | None = None) -> bool:
+            published.update(
+                {
+                    "key": key,
+                    "payload": json.loads(value),
+                    "ttl": ex,
+                }
+            )
+            return True
+
+    assert publish_cost_estimate(estimate, client=_Client()) is True
+    consumer_observed_at = (
+        NOW + timedelta(seconds=30, milliseconds=500)
+    ).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+    provenance = build_exact_cost_provenance(
+        source_key=str(published["key"]),
+        source_payload=published["payload"],  # type: ignore[arg-type]
+        consumer_observed_at=consumer_observed_at,
+    )
+
+    assert provenance["schema_version"] == EXACT_COST_PROVENANCE_SCHEMA_VERSION
+    assert provenance["source_payload"]["publication_ttl_seconds"] == published[
+        "ttl"
+    ]
+    assert provenance["orderbook_source_payload_sha256"] == (
+        estimate.orderbook_source_payload_sha256
+    )
+
+
 def test_publish_cost_estimate_never_raises() -> None:
     class _Broken:
         def set(self, key, value, ex=None):
@@ -214,3 +406,17 @@ def test_publish_cost_estimate_never_raises() -> None:
         "BTCUSDT", get_json=_getter(None), notional_usd=250.0, now_utc=NOW
     )
     assert publish_cost_estimate(est, client=_Broken()) is False
+
+
+def test_publish_cost_estimate_rejects_unacknowledged_or_non_ttl_writer() -> None:
+    class _Unacknowledged:
+        def set(self, _key, _value, ex=None):
+            del ex
+            return None
+
+    est = estimate_round_trip_cost_bps(
+        "BTCUSDT", get_json=_getter(None), notional_usd=250.0, now_utc=NOW
+    )
+
+    assert publish_cost_estimate(est, client=_Unacknowledged()) is False
+    assert publish_cost_estimate(est, set_json=lambda _key, _payload: True) is False

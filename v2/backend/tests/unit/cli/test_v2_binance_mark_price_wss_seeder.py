@@ -38,6 +38,10 @@ def test_process_mark_price_message_writes_requested_symbols_only() -> None:
     assert payload["index_price"] == 60001.0
     assert payload["source"] == "binance_usdm_wss_mark_price_all_symbols"
     assert payload["transport"] == "websocket_primary"
+    assert payload["event_time"] == "2026-05-28T20:26:40.000Z"
+    assert payload["generated_at"] == payload["available_at"]
+    assert payload["received_at"] == payload["available_at"]
+    assert payload["expected_update_interval_seconds"] == 1.0
     assert payload["places_real_order"] is False
     assert payload["test_orders"] is False
     assert payload["leverage_mutation"] is False

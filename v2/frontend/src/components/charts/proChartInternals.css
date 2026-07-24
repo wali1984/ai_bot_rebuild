@@ -1,7 +1,7 @@
 /* ── ProChart + ProChartSymbolPanel internal styling ─────────────────────────
    Imported by components/charts/ProChart.tsx and ProChartSymbolPanel.tsx.
    Before this file existed no CSS anywhere targeted .prochart__* or
-   .symbol-panel*/.symbol-row*: the toolbar rendered as raw text lines, the
+   .symbol-panel* or .symbol-row*: the toolbar rendered as raw text lines, the
    watchlist as default browser buttons, and price + freshness text collided
    ("$66,528.40s"). Theme-aware via CSS variables only. */
 

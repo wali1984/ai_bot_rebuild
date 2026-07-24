@@ -765,39 +765,49 @@ def _theoretical_axis_values() -> dict[str, list[Any]]:
     }
 
 
-def _feasible_axis_value_coverage(results: list[dict[str, Any]]) -> dict[str, Any]:
+def _empty_feasible_axis_values() -> dict[str, set[Any]]:
+    return {
+        "notional_multipliers": set(),
+        "leverage_values": set(),
+        "margin_modes": set(),
+        "stop_distance_bps_values": set(),
+        "take_profit_plans": set(),
+        "hedge_flags": set(),
+    }
+
+
+def _accumulate_feasible_axis_values(
+    feasible: dict[str, set[Any]],
+    results: list[dict[str, Any]],
+) -> None:
+    for row in results:
+        for output_field, source_field in (
+            ("notional_multipliers", "notional_multiplier"),
+            ("leverage_values", "leverage"),
+            ("stop_distance_bps_values", "stop_distance_bps"),
+        ):
+            parsed = _coerce_float(row.get(source_field))
+            if parsed is not None:
+                feasible[output_field].add(parsed)
+        for output_field, source_field in (
+            ("margin_modes", "margin_mode"),
+            ("take_profit_plans", "take_profit_plan"),
+        ):
+            value = row.get(source_field)
+            if value not in (None, ""):
+                feasible[output_field].add(str(value))
+        hedge_enabled = row.get("hedge_enabled")
+        if isinstance(hedge_enabled, bool):
+            feasible["hedge_flags"].add(hedge_enabled)
+
+
+def _feasible_axis_value_coverage_from_sets(
+    feasible_sets: dict[str, set[Any]],
+) -> dict[str, Any]:
     theoretical = _theoretical_axis_values()
     feasible = {
-        "notional_multipliers": sorted({
-            _coerce_float(row.get("notional_multiplier"))
-            for row in results
-            if _coerce_float(row.get("notional_multiplier")) is not None
-        }),
-        "leverage_values": sorted({
-            _coerce_float(row.get("leverage"))
-            for row in results
-            if _coerce_float(row.get("leverage")) is not None
-        }),
-        "margin_modes": sorted({
-            str(row.get("margin_mode"))
-            for row in results
-            if row.get("margin_mode") not in (None, "")
-        }),
-        "stop_distance_bps_values": sorted({
-            _coerce_float(row.get("stop_distance_bps"))
-            for row in results
-            if _coerce_float(row.get("stop_distance_bps")) is not None
-        }),
-        "take_profit_plans": sorted({
-            str(row.get("take_profit_plan"))
-            for row in results
-            if row.get("take_profit_plan") not in (None, "")
-        }),
-        "hedge_flags": sorted({
-            row.get("hedge_enabled")
-            for row in results
-            if isinstance(row.get("hedge_enabled"), bool)
-        }),
+        key: sorted(values)
+        for key, values in feasible_sets.items()
     }
     observed_stop_multiplier_count = len(feasible["stop_distance_bps_values"])
     return {
@@ -826,6 +836,12 @@ def _feasible_axis_value_coverage(results: list[dict[str, Any]]) -> dict[str, An
     }
 
 
+def _feasible_axis_value_coverage(results: list[dict[str, Any]]) -> dict[str, Any]:
+    feasible = _empty_feasible_axis_values()
+    _accumulate_feasible_axis_values(feasible, results)
+    return _feasible_axis_value_coverage_from_sets(feasible)
+
+
 def _finalize_candidate_config_audit(audit: dict[str, Any]) -> dict[str, Any]:
     theoretical = int(audit.get("theoretical_configuration_count") or 0)
     considered = int(audit.get("configurations_considered_count") or 0)
@@ -841,16 +857,25 @@ def _finalize_candidate_config_audit(audit: dict[str, Any]) -> dict[str, Any]:
     return audit
 
 
-def _hedge_accounting_audit(results: list[dict[str, Any]]) -> dict[str, Any]:
-    hedge_enabled_count = 0
-    hedge_disabled_count = 0
-    hedge_budget_positive_count = 0
-    hedge_cost_positive_count = 0
-    expected_shortfall_reduced_count = 0
-    max_hedge_budget = 0.0
-    max_hedge_cost = 0.0
-    reduction_factors: set[float] = set()
-    missing_fields: dict[str, int] = {}
+def _empty_hedge_accounting_accumulator() -> dict[str, Any]:
+    return {
+        "configuration_count": 0,
+        "hedge_enabled_configuration_count": 0,
+        "hedge_disabled_configuration_count": 0,
+        "hedge_budget_positive_count": 0,
+        "hedge_cost_positive_count": 0,
+        "expected_shortfall_reduced_count": 0,
+        "max_hedge_budget_usd": 0.0,
+        "max_hedge_cost_usd": 0.0,
+        "hedge_tail_loss_reduction_factors": set(),
+        "missing_field_counts": {},
+    }
+
+
+def _accumulate_hedge_accounting(
+    accumulator: dict[str, Any],
+    results: list[dict[str, Any]],
+) -> None:
     required_fields = (
         "hedge_enabled",
         "hedge_budget_usd",
@@ -860,32 +885,61 @@ def _hedge_accounting_audit(results: list[dict[str, Any]]) -> dict[str, Any]:
         "unhedged_expected_shortfall_usd",
         "expected_shortfall_usd",
     )
+    missing_fields = accumulator["missing_field_counts"]
+    reduction_factors = accumulator["hedge_tail_loss_reduction_factors"]
     for result in results:
+        accumulator["configuration_count"] += 1
         for field in required_fields:
             if field not in result:
                 missing_fields[field] = missing_fields.get(field, 0) + 1
         hedge_enabled = result.get("hedge_enabled") is True
         if hedge_enabled:
-            hedge_enabled_count += 1
+            accumulator["hedge_enabled_configuration_count"] += 1
         else:
-            hedge_disabled_count += 1
+            accumulator["hedge_disabled_configuration_count"] += 1
         hedge_budget = _coerce_float(result.get("hedge_budget_usd")) or 0.0
         hedge_cost = _coerce_float(result.get("hedge_cost_usd")) or 0.0
         hedge_factor = _coerce_float(result.get("hedge_tail_loss_reduction_factor"))
         unhedged_shortfall = _coerce_float(result.get("unhedged_expected_shortfall_usd")) or 0.0
         expected_shortfall = _coerce_float(result.get("expected_shortfall_usd")) or 0.0
         if hedge_budget > 0.0:
-            hedge_budget_positive_count += 1
+            accumulator["hedge_budget_positive_count"] += 1
         if hedge_cost > 0.0:
-            hedge_cost_positive_count += 1
+            accumulator["hedge_cost_positive_count"] += 1
         if unhedged_shortfall > expected_shortfall:
-            expected_shortfall_reduced_count += 1
+            accumulator["expected_shortfall_reduced_count"] += 1
         if hedge_factor is not None:
             reduction_factors.add(round(hedge_factor, 8))
-        max_hedge_budget = max(max_hedge_budget, hedge_budget)
-        max_hedge_cost = max(max_hedge_cost, hedge_cost)
+        accumulator["max_hedge_budget_usd"] = max(
+            accumulator["max_hedge_budget_usd"],
+            hedge_budget,
+        )
+        accumulator["max_hedge_cost_usd"] = max(
+            accumulator["max_hedge_cost_usd"],
+            hedge_cost,
+        )
+
+
+def _finalize_hedge_accounting_accumulator(
+    accumulator: dict[str, Any],
+) -> dict[str, Any]:
+    configuration_count = int(accumulator["configuration_count"])
+    hedge_enabled_count = int(
+        accumulator["hedge_enabled_configuration_count"]
+    )
+    hedge_disabled_count = int(
+        accumulator["hedge_disabled_configuration_count"]
+    )
+    hedge_budget_positive_count = int(
+        accumulator["hedge_budget_positive_count"]
+    )
+    hedge_cost_positive_count = int(accumulator["hedge_cost_positive_count"])
+    expected_shortfall_reduced_count = int(
+        accumulator["expected_shortfall_reduced_count"]
+    )
+    missing_fields = accumulator["missing_field_counts"]
     complete = (
-        bool(results)
+        configuration_count > 0
         and not missing_fields
         and hedge_enabled_count > 0
         and hedge_disabled_count > 0
@@ -895,20 +949,28 @@ def _hedge_accounting_audit(results: list[dict[str, Any]]) -> dict[str, Any]:
     )
     return {
         "status": "PASSED" if complete else "NO_GO_HEDGE_ACCOUNTING_INCOMPLETE",
-        "configuration_count": len(results),
+        "configuration_count": configuration_count,
         "hedge_enabled_configuration_count": hedge_enabled_count,
         "hedge_disabled_configuration_count": hedge_disabled_count,
         "hedge_budget_positive_count": hedge_budget_positive_count,
         "hedge_cost_positive_count": hedge_cost_positive_count,
         "expected_shortfall_reduced_count": expected_shortfall_reduced_count,
-        "max_hedge_budget_usd": round(max_hedge_budget, 8),
-        "max_hedge_cost_usd": round(max_hedge_cost, 8),
-        "hedge_tail_loss_reduction_factors": sorted(reduction_factors),
+        "max_hedge_budget_usd": round(accumulator["max_hedge_budget_usd"], 8),
+        "max_hedge_cost_usd": round(accumulator["max_hedge_cost_usd"], 8),
+        "hedge_tail_loss_reduction_factors": sorted(
+            accumulator["hedge_tail_loss_reduction_factors"]
+        ),
         "missing_field_counts": dict(sorted(missing_fields.items())),
         "hedge_cost_bps_when_enabled": COUNTERFACTUAL_HEDGE_COST_BPS,
         "tail_loss_reduction_factor_when_enabled": COUNTERFACTUAL_HEDGE_TAIL_LOSS_REDUCTION_FACTOR,
         "hedge_budget_usd_formula": "unhedged_expected_shortfall_usd - expected_shortfall_usd",
     }
+
+
+def _hedge_accounting_audit(results: list[dict[str, Any]]) -> dict[str, Any]:
+    accumulator = _empty_hedge_accounting_accumulator()
+    _accumulate_hedge_accounting(accumulator, results)
+    return _finalize_hedge_accounting_accumulator(accumulator)
 
 
 def _simulate_candidate(
@@ -963,7 +1025,11 @@ def _simulate_candidate(
     slippage_bps = cost_values["slippage_bps"]
     fee_bps = cost_values["fee_bps"]
     funding_bps = cost_values["funding_bps"]
-    maintenance = max(0.0, _coerce_float(_row_value(row, "maintenance_margin_rate")) or 0.005)
+    maintenance = _coerce_float(_row_value(row, "maintenance_margin_rate"))
+    if maintenance is None or not 0.0 < maintenance < 1.0:
+        prune("MISSING_OR_INVALID_MAINTENANCE_MARGIN_RATE", _configuration_grid_count())
+        audit["configurations_considered_count"] = audit["pruned_configuration_count"]
+        return [], _finalize_candidate_config_audit(audit)
     mfe_bps = max(0.0, _coerce_float(_row_value(row, "mfe_bps")) or abs(realized_bps))
     results: list[dict[str, Any]] = []
     for multiplier in DEFAULT_NOTIONAL_MULTIPLIERS:
@@ -1230,14 +1296,41 @@ def run_counterfactual_sweep(
             continue
         source_bucket["event_time_valid_candidate_count"] += 1
         candidates.append(row)
-    all_results: list[dict[str, Any]] = []
+    feasible_result_count = 0
+    feasible_axis_values = _empty_feasible_axis_values()
+    hedge_accounting_accumulator = _empty_hedge_accounting_accumulator()
     best_by_signal: list[dict[str, Any]] = []
-    configuration_audits: list[dict[str, Any]] = []
+    configuration_audit_sample: list[dict[str, Any]] = []
+    theoretical_configuration_count = 0
+    configurations_considered_count = 0
+    pruned_configuration_count = 0
+    pruned_reason_counts: dict[str, int] = {}
     equity = envelope.starting_equity_usd
     for index, row in enumerate(candidates):
         simulated, configuration_audit = _simulate_candidate(row, equity=equity, envelope=envelope)
-        configuration_audits.append(configuration_audit)
-        all_results.extend(simulated)
+        if len(configuration_audit_sample) < 20:
+            configuration_audit_sample.append(configuration_audit)
+        theoretical_configuration_count += int(
+            configuration_audit.get("theoretical_configuration_count") or 0
+        )
+        configurations_considered_count += int(
+            configuration_audit.get("configurations_considered_count") or 0
+        )
+        pruned_configuration_count += int(
+            configuration_audit.get("pruned_configuration_count") or 0
+        )
+        for reason, count in (
+            configuration_audit.get("pruned_reason_counts") or {}
+        ).items():
+            pruned_reason_counts[reason] = (
+                pruned_reason_counts.get(reason, 0) + int(count or 0)
+            )
+        feasible_result_count += len(simulated)
+        _accumulate_feasible_axis_values(feasible_axis_values, simulated)
+        _accumulate_hedge_accounting(
+            hedge_accounting_accumulator,
+            simulated,
+        )
         if not simulated:
             source_bucket = source_kind_readiness.setdefault(_source_kind(row), _empty_a_grade_source_readiness())
             source_bucket["no_feasible_configuration_count"] += 1
@@ -1275,22 +1368,6 @@ def run_counterfactual_sweep(
     total_log_growth = sum(float(item["selected"]["expected_log_growth"]) for item in best_by_signal)
     worst_shortfall = max((float(item["selected"]["expected_shortfall_usd"]) for item in best_by_signal), default=0.0)
     max_liq_probability = max((float(item["selected"]["liquidation_probability"]) for item in best_by_signal), default=0.0)
-    theoretical_configuration_count = sum(
-        int(audit.get("theoretical_configuration_count") or 0)
-        for audit in configuration_audits
-    )
-    configurations_considered_count = sum(
-        int(audit.get("configurations_considered_count") or 0)
-        for audit in configuration_audits
-    )
-    pruned_configuration_count = sum(
-        int(audit.get("pruned_configuration_count") or 0)
-        for audit in configuration_audits
-    )
-    pruned_reason_counts: dict[str, int] = {}
-    for audit in configuration_audits:
-        for reason, count in (audit.get("pruned_reason_counts") or {}).items():
-            pruned_reason_counts[reason] = pruned_reason_counts.get(reason, 0) + int(count or 0)
     config_space_audit = {
         "axis_count": 6,
         "per_candidate_theoretical_configuration_count": _configuration_grid_count(),
@@ -1299,19 +1376,26 @@ def run_counterfactual_sweep(
         "theoretical_configuration_count": theoretical_configuration_count,
         "considered_count": configurations_considered_count,
         "configurations_considered_count": configurations_considered_count,
-        "feasible_count": len(all_results),
-        "feasible_configuration_count": len(all_results),
+        "feasible_count": feasible_result_count,
+        "feasible_configuration_count": feasible_result_count,
         "pruned_count": pruned_configuration_count,
         "pruned_configuration_count": pruned_configuration_count,
         "configuration_count_reconciled": configurations_considered_count == theoretical_configuration_count,
         "feasible_plus_pruned_reconciled": (
-            len(all_results) + pruned_configuration_count == theoretical_configuration_count
+            feasible_result_count + pruned_configuration_count
+            == theoretical_configuration_count
         ),
         "pruned_reason_counts": dict(sorted(pruned_reason_counts.items())),
-        "axis_value_coverage": _feasible_axis_value_coverage(all_results),
-        "candidate_configuration_audit_sample": configuration_audits[:20],
+        "axis_value_coverage": _feasible_axis_value_coverage_from_sets(
+            feasible_axis_values
+        ),
+        "candidate_configuration_audit_sample": configuration_audit_sample,
+        "feasible_rows_materialized_across_candidates": False,
+        "feasible_rows_aggregated_streaming": True,
     }
-    hedge_accounting_audit = _hedge_accounting_audit(all_results)
+    hedge_accounting_audit = _finalize_hedge_accounting_accumulator(
+        hedge_accounting_accumulator
+    )
     near_a_grade_sample = sorted(
         near_a_grade_rows,
         key=lambda item: (
@@ -1399,7 +1483,7 @@ def run_counterfactual_sweep(
         "skipped_no_feasible_configuration_count": skipped_no_feasible_configuration,
         "skipped_no_feasible_configuration_reason_counts": dict(sorted(skipped_no_feasible_configuration_reason_counts.items())),
         "skipped_no_feasible_configuration_sample": skipped_no_feasible_configuration_sample,
-        "sweep_result_count": len(all_results),
+        "sweep_result_count": feasible_result_count,
         "config_space_audit": config_space_audit,
         "hedge_accounting_audit": hedge_accounting_audit,
         "best_configuration_count": len(best_by_signal),

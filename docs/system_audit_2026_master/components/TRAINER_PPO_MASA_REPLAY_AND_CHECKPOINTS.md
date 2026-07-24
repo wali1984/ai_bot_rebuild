@@ -1,5 +1,11 @@
 # Trainer, PPO, MASA, Replay, and Checkpoints
 
+> **2026-07-17 source addendum:** temporal windows now require canonical decision time; labels carry resolved availability; in-cycle validation is chronological and label-purged; checkpoint promotion requires positive uncertainty-adjusted held-out serving-policy edge. Trusted replay separates side-specific after-cost counterfactual targets from actual behavior outcome. PPO freezes the entry action and requires categorical `RAW_LOGITS_SOFTMAX_V1` sampling; the current deterministic expected-move-aligned selector is explicitly PPO-ineligible and outcome-supervised. Trajectory semantics, global final-holdout isolation, and complete upstream PIT lineage remain open. Prediction publication propagates successful replay metadata to the caller and suppresses lineage on publication failure. See [../ADAPTIVE_END_TO_END_CONTROL_AND_ACCOUNTING_2026-07-17.md](../ADAPTIVE_END_TO_END_CONTROL_AND_ACCOUNTING_2026-07-17.md).
+
+> **Leverage-study addendum:** `leverage_margin_exploration` v2 removes the old algebraic 1x tie and can select 1x/2x/3x only from complete PIT lower-bound-edge/account/tail evidence under tighten-only safety caps. The existing `policy_backtest` caller does not provide that contract and now returns no recommendation. This is study-only; it does not size paper or live orders.
+
+> **Feature-ABI generation warning:** the 477-feature/1,908-value figures below describe the 2026-07-16 audited deployment. The intended 2026-07-17 worktree contract resolves 446 ordered features and 1,784 model values, and the reconciled trainer/PIT suite passed 374 tests at its recorded source cut. That source/test reconciliation does not migrate or identify deployed checkpoints, caches, replay rows, backtests, or historical predictions. Treat 477/1,908 as the audited deployed/history generation and 446/1,784 as the intended current source generation until a versioned feature-spec digest and checkpoint/data migration prove compatibility.
+
 Audit date: 2026-07-16
 
 Repository revision observed during the audit: `2dd584d632790c54c1054f7c4453cb9d36d0987c`
@@ -10,19 +16,19 @@ Scope: V2 native hybrid trainer only; documentation analysis, no trainer, strate
 
 The currently deployed learner is a 38,958,347-parameter PyTorch residual MLP plus a GRU temporal branch. It receives a 16-frame sequence of 1,908-float vectors built from 477 ordered features and three 477-element masks. It exposes seven policy logits and four scalar heads: value, expected move, confidence, and MASA.
 
-The name `PPO` is only conditionally accurate. Most observed online updates are outcome-supervised updates, not PPO updates. When PPO rows do exist, the implementation calculates a clipped surrogate, but the stored old log probability and the newly evaluated log probability are not guaranteed to refer to the same action or even the same probability transformation. There is no GAE, no temporal return recursion, no bootstrap, and the configured `gamma` is reported but unused. The value head is trained against expected directional move divided by 100, not a discounted return.
+The name `PPO` is only conditionally accurate. Current native serving is deterministic expected-move alignment, so its paper rows are explicitly excluded from PPO and use outcome supervision. A clipped surrogate can activate only for a row whose immutable action was genuinely sampled categorically from `RAW_LOGITS_SOFTMAX_V1`; current/new probabilities are then gathered at that same action. No action-generation repair in this turn creates such rows. There is no GAE, temporal return recursion, or bootstrap, and configured `gamma` is reported but unused. The value head is trained against expected directional move divided by 100, not a discounted return.
 
 The most important rebuild and change-safety conclusions are:
 
 1. The exact ordered `FEATURE_SPEC` is an ABI. Its audit-time length is 477 and the model ABI is 1,908 floats per frame.
-2. Training temporal order is not reliably based on `trust_row.decision_time`. `TrainingExample` has no top-level `decision_time`, so the active window builder falls back to incoming list order.
-3. Online validation is a deterministic tail slice of a reordered, replay-buffer-derived batch. It is not an immutable temporal holdout.
-4. The published trusted-replay holdout window is not excluded from normal online training. Calling it untouched is therefore not currently provable.
+2. Training windows now use canonical `TrainingExample.decision_time` and fail closed without it; upstream per-source availability truth and padding-mask use remain open.
+3. Online validation now uses a chronological label-horizon-purged split and cannot promote a checkpoint unless that split is PIT-safe and serving-policy after-cost edge has a positive one-standard-error lower bound.
+4. The published final holdout window is still not enforced as one immutable exclusion ledger across all online/offline consumers. Calling the final holdout untouched is therefore not currently provable.
 5. Model and checkpoint IDs identify a subset of architecture settings, not learned weight content. Live and offline artifacts can have the same IDs but different bytes and predictions.
 6. AdamW and AMP scaler state are recreated on every `train()` call. Several head biases are then mutated directly outside the optimizer.
 7. Replay, paper feedback, shaped reward, and prediction gating use inconsistent cost assumptions and, in places, different target semantics.
 8. Checkpoint weight and manifest files are individually atomic but are not an atomic pair, are not content-addressed, and have no interprocess writer lock.
-9. Prediction publication mutates a shallow copy. The runtime ignores the returned success boolean and publishes lineage from the unmodified original, creating a replay/archive failure split-brain.
+9. Prediction publication now commits persisted replay metadata back to the caller and suppresses lineage on a false publication result. Deployed failure injection and multi-key transactional proof remain absent.
 10. The running RL-core sidecar does not load the native hybrid model or its NPZ. It publishes a separate sidecar and stamps checkpoint evidence while explicitly declaring that the weights were not loaded into that process.
 
 These are reconstruction findings, not authorization to alter training, risk, paper, or live behavior. Any fix affecting the objective, labels, gating, cost model, action semantics, or checkpoint promotion requires explicit operator approval and a new offline proof.
@@ -111,11 +117,11 @@ Two consequences are easy to miss:
 - Prediction uses the post-training model if promotion succeeds, or the restored prior model if promotion fails (`runtime.py:575-620`, `675-717`).
 - When the feedback lane alone fills all 16,384 deque slots, earlier backfill and frontier rows appended in the same cycle are evicted before selection. The audit-time status showed `fresh_examples_built=16384` and 346 frontier rows, while the final buffer was 16,384, so insertion order can make the nominal replay lanes contribute no final rows.
 
-## 5. Tensor ABI: 477 features become 1,908 floats
+## 5. Tensor ABI: historical 477/1,908 and current 446/1,784 generations
 
 ### 5.1 Ordered feature contract
 
-`FEATURE_SPEC` is an ordered tuple of `(feature_name, source_label)` pairs (`tensor_builder.py:17-670`). At audit time:
+`FEATURE_SPEC` is an ordered tuple of `(feature_name, source_label)` pairs (`tensor_builder.py:17-670`). At the 2026-07-16 deployed audit time:
 
 - feature count: 477;
 - feature names were unique;
@@ -150,6 +156,8 @@ The ordered source-label distribution was:
 
 The complete per-feature order should be regenerated directly from `FEATURE_SPEC`; another component document, `DATA_TEMPORAL_LINEAGE_AND_FEATURES.md`, owns the broader feature/source lineage inventory. A copy implementation must never sort this tuple or reconstruct it from a set or mapping.
 
+The current worktree is a later schema generation. Commit `e88e2318e3` removed 31 AiCoin/Nansen/LunarCrush/Santiment entries by operator directive while retaining 155 `taf_*` entries, leaving 446 ordered features and 1,784 concatenated values. The historical distribution/table above explains old deployed checkpoints and must not be silently relabeled as current. Local count/width tests now assert 446/1,784 and the combined trainer/pipeline suite passes 374 tests; cross-generation checkpoint/replay/cache compatibility remains RE-044.
+
 ### 5.2 Record and four contiguous blocks
 
 `FeatureTensorRecord` carries the fields defined at `tensor_builder.py:673-688`. Its `model_vector` is concatenated exactly as follows (`tensor_builder.py:690-697`):
@@ -160,6 +168,8 @@ The complete per-feature order should be regenerated directly from `FEATURE_SPEC
 | `[477, 954)` | 477 | `missing_mask` | `1.0` when missing, else `0.0` |
 | `[954, 1431)` | 477 | `stale_mask` | `1.0` when stale, else `0.0` |
 | `[1431, 1908)` | 477 | `source_availability` | `1.0` when the value is present, else `0.0` |
+
+For the current 446-feature generation, the same concatenation contract uses `[0,446)`, `[446,892)`, `[892,1338)`, and `[1338,1784)` respectively. Segment meaning did not change; width and ordered feature membership did.
 
 The builder implements those masks at `tensor_builder.py:1772-1789`. `source_availability` is currently the complement of missingness. It is not proof that a source was point-in-time available, nor does it encode `available_at <= decision_time`. The record also contains a duplicate-named `source_availability_vector`; the returned record sets it to the same vector.
 
@@ -193,27 +203,19 @@ This can silently replace a real zero with another source or `None`. A rebuild m
 
 `build_example_windows()` groups rows by uppercase symbol and lowercase timeframe, sorts each group by decision time, takes the current and preceding frames, and left-pads by repeating the oldest frame (`temporal_windowing.py:74-130`). The intended output is 16 frames, oldest first, with the current frame last.
 
-### 6.2 Actual training chronology defect
+### 6.2 Repaired training chronology contract
 
-`TrainingExample` contains symbol, timeframe, tensor, two labels, payload keys, row classification, and `trust_row`; it has no top-level `decision_time` (`data_loader.py:136-145`). The windower calls `getattr(example, "decision_time", None)` (`temporal_windowing.py:91-97`). For normal rows this returns `None`, so it uses the row's incoming list index as a monotonic proxy.
+`TrainingExample.__post_init__` now resolves a top-level immutable `decision_time` from the explicit field or named trust-row decision fields and canonicalizes it to UTC microseconds. Missing/invalid time remains `None`. `build_example_windows()` rejects rows without a usable positive time, sorts each `(symbol,timeframe)` group by `(decision_time, original_index)`, and asserts that every frame is no newer than its target. `model_batch_tensor()` raises when temporal mode lacks a lookup/window; it cannot repeat the current frame to conceal missing chronology.
 
-The incoming list is not guaranteed temporal:
-
-- runtime assembly is backfill, frontier replay, then feedback;
-- the replay deque retains its tail;
-- trainer selection moves PPO rows before outcome-only rows (`ppo_trainer.py:304-326`);
-- it then takes a deterministic prefix and a tail validation split (`ppo_trainer.py:442-456`);
-- feedback itself is grouped by source priority, not globally sorted by decision time.
-
-Therefore the active GRU history is loader/reordering order, not proven event chronology. A row can receive earlier list elements whose actual `trust_row.decision_time` is later. The no-lookahead claim in the windower docstring is only true when a usable top-level decision time exists or the caller has already supplied strict chronological order.
+This removes the active list-index chronology fallback even though incoming assembly can still be backfill/frontier/feedback and PPO/outcome priority order. Rows with missing temporal evidence now lose their causal window rather than borrowing that input order. Remaining PIT risk is upstream: a canonical row timestamp cannot prove every enriched field preserved its own truthful `available_at`.
 
 ### 6.3 Training/validation history coupling and padding
 
-The trainer builds one lookup from `train_rows + validation_rows` (`ppo_trainer.py:943-997`). The validation frames can use earlier training frames, which is reasonable for causal history if the order is temporal, but it magnifies the list-order defect when it is not.
+The trainer builds one lookup from `train_rows + validation_rows`. Validation frames may use earlier training frames, which is causal history only because the windower now orders by immutable decision time and asserts no future frame.
 
 `WindowedExample` builds a `pad_mask`, but `build_window_lookup()` stores only the window (`temporal_windowing.py:133-140`). `model_batch_tensor()` never returns the mask (`143-179`). The GRU therefore sees repeated left-padding frames as real observations.
 
-The input cache fingerprints only four boundary `(tensor_id, label_action_index)` tokens plus lengths and temporal settings (`ppo_trainer.py:956-1027`). It does not fingerprint all rows, their trust times, labels beyond the sampled boundaries, or ordered feature values. Different equal-length batches with matching boundary tokens can theoretically reuse stale tensors.
+The input cache fingerprint limitation remains: it does not content-bind every ordered row/value/time/label. Different equal-length batches with matching sampled boundary tokens can theoretically reuse stale tensors.
 
 ### 6.4 Inference temporal state
 
@@ -374,9 +376,11 @@ The trainer consumes:
 - `label_expected_move_after_cost_bps`;
 - `payload_keys`;
 - `row_classification`;
-- optional `trust_row` (`data_loader.py:136-145`).
+- optional `trust_row`;
+- immutable resolved `decision_time` and `label_available_at`, plus label timing source/validity/error;
+- immutable `behavior_action_index` and `behavior_action`.
 
-All rollout fields, outcome data, temporal evidence, sample identity, and execution lineage live inside the untyped `trust_row` mapping. Misspelling a key usually changes lane eligibility rather than causing a schema error.
+Most rollout fields, outcome data, sample identity, and execution lineage still live inside the untyped `trust_row` mapping. Misspelling a key usually changes lane eligibility rather than causing a schema error. Decision/label timing and behavior-action identity are resolved once so later trust-row mutation cannot silently change split or action semantics.
 
 ### 9.2 Lane classification
 
@@ -388,20 +392,29 @@ After trust filtering, `train()` partitions rows (`ppo_trainer.py:294-440`):
 - PPO-only: only PPO rows are retained;
 - outcome-only: only outcome rows are retained.
 
-Rows accepted by trust filtering but satisfying neither contract are discarded from learning. The chosen lane then takes `learnable_rows[:tuned_batch_size]`, without shuffle, and reserves the last 20% by default for validation (`ppo_trainer.py:442-456`). In mixed mode, the PPO-first reorder intentionally keeps scarce PPO rows out of validation, but destroys global temporal order.
+Rows accepted by trust filtering but satisfying neither contract are discarded from learning. The chosen lane takes `learnable_rows[:tuned_batch_size]`, then `_chronological_purged_split` restores chronological order for the selected population. By default it begins with a nominal last 20%, keeps every equal decision timestamp on the validation side, and purges candidate training rows whose outcome label was not available strictly before the validation boundary. If timing/boundary/purge proof fails, all selected rows remain candidate-learning rows, validation is empty, and promotion receives `validation_split_pit_safe=false`.
 
 ### 9.3 PPO eligibility fields
 
-`_has_on_policy_ppo_fields()` requires (`ppo_trainer.py:565-572`):
+`_has_on_policy_ppo_fields()` now requires:
 
 - `old_log_prob`;
 - `old_value`;
 - `reward`;
 - `done`;
 - `rollout_id`;
-- either `trajectory_index` or `trajectory_step`.
+- either `trajectory_index` or `trajectory_step`;
+- finite numeric `old_log_prob`, `old_value`, and `reward`;
+- a boolean `done`;
+- an immutable `behavior_action_index`/`behavior_action` pair that agrees with `ACTION_LABELS`, vector bounds, and every present behavior/legacy selected-action alias;
+- `behavior_policy_sampling_mode=CATEGORICAL_SAMPLE`;
+- `behavior_policy_distribution_contract=RAW_LOGITS_SOFTMAX_V1`.
 
-The paper loop materializes those fields when a native-policy position closes (`v2_trade_management_paper_loop.py:1268-1429`). It uses entry-time selected probability/log probability and policy value, realized net PnL divided by 100, `done=True`, a rollout ID, and usually trajectory index zero.
+`TrainingExample.__post_init__` freezes that identity from canonical behavior fields or the entry-time `selected_action_index`/`selected_action` aliases. It deliberately never uses hindsight `label_action_index`. Missing, out-of-range, non-integral, or conflicting identity disables PPO for the row. If its realized outcome contract is otherwise valid, the row may still train through the outcome-supervised lane.
+
+The current publisher does **not** sample. It labels its selector `DETERMINISTIC_ARGMAX_ALIGNMENT` and its adjusted probability transform `EXPECTED_MOVE_ALIGNED_POLICY_V1`, sets the on-policy-present flag false, and records `DETERMINISTIC_POLICY_NOT_ON_POLICY_SAMPLED`. Replay/prediction/signal publication, paper entry enrichment, bounded entry snapshot, accepted-fill persistence, lifecycle/outcome construction, and closed feedback preserve that evidence. Therefore present native-policy paper rows are outcome-supervised, not PPO, even if they carry entry probability/value fields.
+
+To create a genuine PPO row, action generation itself—not a later annotation—must draw a categorical action from the exact raw-softmax distribution, persist the sampled action and distribution/version, and keep that immutable identity through close feedback. This task did not enable such sampling.
 
 Only `old_log_prob`, `old_value`, and `reward` affect the objective. `done`, rollout ID, and trajectory position are eligibility flags only. They are not used to group, order, bootstrap, or terminate trajectories.
 
@@ -453,14 +466,14 @@ Only the clipped surrogate and entropy use the PPO-row mask. The supervised and 
 
 Outcome-only mode is `supervised_loss - supervised_entropy_bonus * entropy`; the bonus defaults to zero (`ppo_trainer.py:1361-1366`). An optional differentiable tail-CVaR term can be enabled with `V2_TRAINER_TAIL_CVAR_WEIGHT`; its default is zero and its return proxy is `(P(long)-P(short)) * raw_move_target/100` over all rows (`1301-1378`).
 
-### 10.3 PPO semantic breaks
+### 10.3 PPO eligibility repair and remaining semantic breaks
 
-There are two independent action mismatches:
+The source now separates two formerly collapsed action tensors:
 
-1. Entry `old_log_prob` comes from the published selected-action probability after `_expected_move_aligned_policy()` has altered and renormalized the raw softmax (`model.py:378-408`, `publisher.py:1387-1410`). New log probability is calculated from raw current logits (`ppo_trainer.py:1312-1316`). These are different policies.
-2. New log probability is gathered at `policy_target_actions`, a future outcome-supervised label, not at a preserved action-taken field (`ppo_trainer.py:998-1001`, `1198-1201`, `1312-1316`). The single-direction guard may rewrite long/short labels to hold while the old log probability still describes the taken long/short action (`2116-2145`).
+1. `behavior_actions` is the immutable entry action and controls the PPO current/new log-probability gather.
+2. `policy_target_actions` is the hindsight/supervised label and controls cross entropy only. The single-direction guard can rewrite it to HOLD without changing the PPO gather.
 
-The PPO ratio is mathematically meaningful only when old and new probabilities describe the same action under the same transformation. Current code does not enforce that invariant.
+The same-action half of the PPO invariant is repaired. The transformation mismatch is now prevented from becoming an active ratio by eligibility: only a categorically sampled `RAW_LOGITS_SOFTMAX_V1` entry may use the clipped objective. Current deterministic expected-move-aligned entries are explicitly excluded and remain outcome-supervised. This is deliberately a fail-closed repair, not evidence that PPO is flowing. Stored old log probability is still not numerically cross-checked against stored action probability, and full checkpoint/policy-transform/trajectory provenance is not yet one immutable contract.
 
 ### 10.4 No GAE, discounted return, or trajectory learning
 
@@ -468,11 +481,13 @@ The PPO ratio is mathematically meaningful only when old and new probabilities d
 
 The value head is not a PPO critic in the conventional sense. It is trained against expected directional move divided by 100 (`ppo_trainer.py:1185`, `1344`), while its entry output is subtracted from realized reward to form advantage. This mixes a move regressor with a return baseline.
 
-### 10.5 Validation is a different objective
+### 10.5 Purged validation and serving-policy edge
 
-Validation evaluates only policy cross entropy plus `0.01 * expected-move MSE` (`ppo_trainer.py:823-914`). It omits value, MASA, confidence, entropy, tail-CVaR, and clipped PPO terms. A checkpoint can improve the optimized total while worsening the promotion metric, or vice versa.
+Validation loss still evaluates only policy cross entropy plus `0.01 * expected-move MSE`; it omits value, MASA, confidence, entropy, tail-CVaR, and clipped PPO terms. A checkpoint can improve the optimized total while worsening this loss, or vice versa.
 
-Validation rows are the tail of the deterministic selected batch, not a random or strict temporal split. Repeated offline epochs reuse the same split and use its metrics for model selection, so it is validation, not an untouched final test set.
+The split itself is now strict within the selected batch. `TrainingExample` resolves the latest valid outcome availability from explicit close/outcome timestamps and positive label horizons. `_chronological_purged_split` sorts by decision time, keeps timestamp ties together, and excludes every training row whose label overlaps the validation start. Invalid/missing timing produces zero represented validation rows and `validation_split_pit_safe=false`.
+
+Promotion additionally evaluates the actual expected-move-aligned serving selector on all validation rows. LONG receives the signed after-cost label, SHORT its negative, and HOLD zero; HOLD remains in the denominator. It requires positive mean edge and `mean - one standard error > 0` over exactly the full validation set. Missing/negative evidence blocks promotion before validation-loss logic. This is stronger in-cycle evidence, but it is still not the repository-wide immutable final holdout: repeated online/offline consumers need a shared sample-exclusion ledger before any live-readiness claim.
 
 ### 10.6 Full-batch repeated steps
 
@@ -499,7 +514,7 @@ There are two additional inconsistencies:
 
 Policy class weights are inverse-frequency over present classes, clipped to `[0.25, 4.0]`; absent classes receive zero weight (`ppo_trainer.py:2088-2105`). If a batch contains long but no short, or short but no long, all directional policy labels are rewritten to hold and their move targets are rewritten to zero (`ppo_trainer.py:1073-1096`, `2116-2199`).
 
-This protects against one-sided collapse but also discards valid one-sided market evidence and changes the action at which PPO new log probability is evaluated.
+This protects against one-sided collapse but can discard valid one-sided supervised market evidence. It no longer changes the action at which PPO new log probability is evaluated; PPO uses the frozen behavior action.
 
 ## 11. Reward, cost, and label semantics
 
@@ -525,12 +540,18 @@ Changing fee or slippage config changes prediction eligibility immediately but d
 
 Trusted replay uses the first finalized candle at or after 5m, 15m, 1h, and 4h horizons; the 15-minute return becomes the label (`trusted_replay/dataset.py:291-306`). Directional action threshold is +/-4 bps. It is a future-candle outcome label, not executed PnL.
 
-Important defects/limitations:
+The 2026-07-17 repair computes both counterfactual sides independently:
 
-- MFE and MAE are raw future high/low price moves and are not made side-relative (`dataset.py:307-321`).
-- `trade_outcome` receives `abs(after_cost)` for every directional target, so a chosen future-derived long or short target is always classified as a win (`321-322`).
-- `action_was_profitable` is `target_action in {long, short}` (`393-400`), which is tautological for any directional target and does not evaluate the action originally selected by the model.
-- replay reward is `after_cost/100`, but outcome-only training uses the directional label fields; the reward field does not directly enter that loss.
+`long_net = raw_return - costs`; `short_net = -raw_return - costs`.
+
+It chooses a direction only when that side is positive and clears the threshold; otherwise it chooses HOLD. The row separately records counterfactual LONG/SHORT/selected net PnL and the actual normalized behavior action's net PnL/outcome. Costs can no longer turn a losing direction into a fabricated win, and `action_was_profitable` is based on the selected side's signed net result.
+
+Remaining limitations:
+
+- MFE and MAE are still raw future high/low price moves rather than side-relative excursions.
+- the label is a best-action counterfactual from future finalized candles, not an executed behavior outcome;
+- replay reward is counterfactual target net bps divided by 100, while outcome-only training uses directional target fields; it is not on-policy PPO reward;
+- historical replay created under the old sign/cost schema must be versioned/regenerated rather than silently re-certified.
 
 ### 11.5 Closed-trade labels
 
@@ -551,13 +572,15 @@ The system has meaningful PIT checks:
 - MASA/PPO cutoff mismatch is checked (`data_loader.py:579-585`, `ppo_trainer.py:634-637`);
 - offline batch training runs a row-level point-in-time report before GPU work (`v2_trainer_offline_batch_train.py:423-441`, `v2_trainer_offline_hyperparameter_sweep.py:76-147`).
 
-However, the accepted population includes explicit exceptions that conflict with the repository-wide rule that dirty samples must never enter training:
+The 2026-07-17 repair narrows historical `MISSING_MASKED` admission. The replay loader now requires all of the following: only optional/event-dependent missing names, no `critical_family_absent:*`, no stale names, actual snapshot lineage, and an independent source attestation that the family was introduced after snapshot time. Unproven schema introduction and critical-family absence receive explicit rejection counters. The final training override independently rejects any critical-family marker even when the row self-asserts safety.
 
-- `_example_trusted_for_training()` accepts any `MISSING_MASKED` row after loader acceptance (`data_loader.py:608-619`);
-- historical replay accepts missing-masked rows if no stale features and OHLCV core is not absent, and can clear missing-critical-family rejection (`data_loader.py:1660-1745`);
-- PPO filtering accepts optional/event-dependent missing families (`ppo_trainer.py:595-608`, `705-754`);
-- PPO filtering accepts cost-only missing families (`ppo_trainer.py:510-526`);
-- a high-confidence losing feedback row removes every `MISSING_TRUST_*` reason (`data_loader.py:527-568`). Temporal violations remain, but the trust envelope may be incomplete.
+Explicit exceptions nevertheless remain and require a unified field-family contract before closure:
+
+- `_example_trusted_for_training()` can accept a loader-approved `MISSING_MASKED` row;
+- PPO filtering has narrowly defined optional/event-dependent and derived-cost-only training masks;
+- a high-confidence losing feedback path can remove `MISSING_TRUST_*` reasons. Temporal violations remain, but the trust envelope may still be incomplete.
+
+These exceptions are not permission to use unfinished candles, future availability, stale fields, NaN-required values, or critical missing feature families. A rebuild should express optionality and schema introduction in a versioned feature schema, not mutable row assertions.
 
 The offline PIT report fails closed on a missing trust row or decision time and checks several ordering fields, but it only rejects an unfinished candle when an explicit finality flag is false. A missing finality flag is not independently rejected there (`v2_trainer_offline_hyperparameter_sweep.py:103-145`).
 
@@ -591,7 +614,7 @@ The cursor JSON write uses direct `Path.write_text()` and swallows `OSError` (`d
 
 ### 13.3 Process-local replay deque
 
-The persistent trainer has `deque(maxlen=16384)` (`persistent_cuda_trainer_runtime.py:2569-2579`). It is not persisted and is lost on restart. The source comment estimates 374 floats and about 25 MB, but the current vector is 1,908 floats before Python object/tuple overhead; the comment is stale and materially understates memory.
+The persistent trainer has `deque(maxlen=16384)` (`persistent_cuda_trainer_runtime.py:2569-2579`). It is not persisted and is lost on restart. The source comment estimates 374 floats and about 25 MB, but the current source vector is 1,784 floats and the historical deployed vector was 1,908 before Python object/tuple overhead; either generation makes the comment stale and materially understates memory.
 
 Backfill is built in a daemon thread with its own Redis client and loader, then transferred through a locked queue (`persistent_cuda_trainer_runtime.py:2844-2908`). The replay deque itself is assembled on the main cycle. There is no dedupe by sample ID or tensor ID.
 
@@ -702,35 +725,32 @@ Runtime computes a SHA-256 after checkpoint handling (`runtime.py:113-123`, `616
 
 ### 15.5 Promotion guard
 
-Source default is active. With a prior loadable checkpoint and validation rows, regression tolerance is `max(0.02, 0.15 * abs(before_loss))`; overfit-gap rejection is separately configurable (`runtime.py:171-285`). A process-local rejection streak defaults to 50. It never releases explicit validation regression, but by default can release a stable overfit-gap rejection (`runtime.py:288-355`, `552-574`).
+Promotion now has a mandatory PIT/economic evidence layer even if the configurable validation-loss guard is disabled. Before bootstrap or existing-checkpoint comparison, it requires:
 
-The deployed persistent unit explicitly sets `V2_TRAINER_VALIDATION_CHECKPOINT_GUARD=false`. Thus the source guard design is not the current operator behavior.
+1. `validation_split_pit_safe=true` with at least one validation row;
+2. serving-policy edge evaluated for exactly every validation row;
+3. positive mean after-cost edge;
+4. positive `mean - one standard error` lower bound.
 
-If promotion is rejected, runtime reloads the prior checkpoint into the same model and aborts if restore cannot be verified (`runtime.py:587-615`). This is an important invariant to preserve.
+Missing/invalid timing, absent edge, nonpositive edge, and uncertainty-nonpositive edge are hard rejections. Only after that mandatory pass does the optional validation-loss guard apply. With a prior loadable checkpoint, regression tolerance remains `max(0.02, 0.15 * abs(before_loss))`; overfit-gap rejection is separately configurable. A material validation improvement can promote with an overfit-gap advisory unless strict-overfit mode is enabled.
+
+The process-local rejection streak is now diagnostic only. Even when its threshold is reached, it records why force promotion was blocked; it does not release PIT/edge, divergence, overfit, or other rejections. The environment flag named `V2_TRAINER_FORCE_PROMOTE_AFTER_REJECTION_STREAK` therefore does not grant an actual bypass in this source state.
+
+The deployed unit's validation-guard configuration must be re-read after reload rather than inferred from an older snapshot. Regardless of that value, the mandatory PIT/edge gate remains active in source.
+
+If promotion is rejected, runtime attempts to reload the prior checkpoint into the same model. When a prior loadable checkpoint was expected, an unverifiable restore aborts; when no verifiable prior generation exists, the serving guard below suppresses all model-derived evidence. This is an important invariant to preserve.
+
+The current repair makes that invariant explicit at every serving consumer. A rejected candidate can be used only after verified restoration of the prior checkpoint. Otherwise `model_serving_allowed=false`, source `NONE_REJECTED_CANDIDATE_SUPPRESSED`, and reason `REJECTED_CANDIDATE_WITHOUT_VERIFIED_PRIOR_RESTORE`; policy backtest, model forward, prediction publication and lineage do not run. Status/policy backtest report `SUPPRESSED_REJECTED_CANDIDATE_NO_VERIFIED_RESTORE`, `prediction_suppressed_count`, and evidence class `NO_EVIDENCE_REJECTED_CANDIDATE_SUPPRESSED`.
 
 ## 16. Publication split-brain
 
-`publish_prediction()` immediately creates a shallow copy (`publisher.py:1176-1180`). Archive and replay results mutate only that copy. It returns a boolean.
+The 2026-07-17 repair closes the known caller/copy escape in source. `publish_prediction()` still works on a private payload copy, but after successful replay and primary prediction persistence it commits the exact persisted replay metadata and fail-closed mutations back to the caller-owned payload. `run_hybrid_trainer_cycle()` checks the boolean and calls downstream lineage publication only on success. Archive/replay/prediction failure therefore suppresses orchestrator/risk/signal lineage instead of continuing with the stale pre-write object.
 
-The runtime calls it but ignores the boolean, then always calls `publish_lineage()` with the original payload (`runtime.py:705-716`). The original payload was created with:
+The publisher also propagates exact candle finality, source times, MASA/PPO cutoffs, PPO decision time, and behavior-policy sampling/distribution contract through the prediction/replay/decision/signal surfaces. Candle finality is never inferred; persisted replay success is evidence only after the write succeeds.
 
-- a replay snapshot ID;
-- a replay snapshot key;
-- `replay_snapshot_write_success=false` (`publisher.py:1092-1098`).
+Decision surfaces returned by this publisher are proposals, not authorities. Every trainer orchestrator/risk/paper preview and signal carries `authoritative_decision=false`, `record_authority=TRAINER_NON_AUTHORITATIVE_PROPOSAL`, and the trainer proposal source. The publisher no longer writes any `v2:decision:risk:*`, `v2:decision:orchestrator:*`, or `v2:decision:index:*` key. Canonical risk belongs to the risk worker; canonical orchestrator persistence must belong to the orchestrator worker. Consumer code must never upgrade a trainer preview to ALLOW.
 
-`publish_lineage()` requests `require_replay_write=True` but does not supply a Redis client (`publisher.py:1288-1291`). The trust validator accepts a non-true write flag when both replay ID and key are present (`market_state_integrity/trust.py:348-352`). It verifies actual Redis existence only when a client is supplied (`366-374`).
-
-Failure sequence:
-
-1. Prediction payload is constructed and appears routeable.
-2. Publisher copies it.
-3. Durable archive or replay write fails; only the copy is blocked or publication returns false.
-4. Runtime discards false.
-5. Original still has routeable flags plus a syntactically present replay ID/key.
-6. Lineage validation can pass without checking Redis.
-7. Orchestrator, risk, paper, signal, and per-ID lineage keys are written from the original (`publisher.py:1318-1515`).
-
-The publication API must return the committed payload/result, and downstream publication must depend on that committed result. The replay snapshot, canonical prediction, and lineage set should be one transaction or an idempotent state machine with a commit marker.
+Residual closure work remains: deployed failure injection must prove archive, replay, and primary-key failure each suppress all following keys; the multi-key set is still not one Redis transaction or content-addressed generation; and a routeable row has not yet proven byte/field equality across every surface.
 
 The canonical primary key `v2:prediction:{symbol}:{timeframe}` is mutable last-write-wins (`config.py:42`, `publisher.py:1225-1229`). Immutable prediction-by-ID records and explicit owner/generation metadata are needed for exact replay.
 
@@ -914,7 +934,7 @@ The repository contains focused tests for:
 
 These tests verify many local contracts but do not close the cross-component findings above.
 
-### 21.2 Fresh audit validation result
+### 21.2 Historical audit validation result
 
 The audit ran:
 
@@ -922,11 +942,31 @@ The audit ran:
 
 Result: 66 passed and 6 failed. All six failures occur in publisher `_trusted_replay_snapshot` because the tests' `example().tensor` `SimpleNamespace` fixture lacks the newly required `missing_mask`. The intended publisher/trust assertions are not reached. This is stale test-fixture/contract drift; it is not evidence that canonical temporal guards themselves failed. The fixtures must be updated deliberately, then those six assertions rerun.
 
-### 21.3 Required missing tests
+### 21.3 2026-07-17 source-repair validation
+
+The final focused PIT/promotion/PPO/authority suite passed 100 tests. A targeted publication-commit plus rejected-candidate serving-suppression pair passed two tests and the affected trainer/integrity modules compiled cleanly.
+
+The initial full native-trainer plus pipeline-trust run produced 371 passed and three failures in `test_ta_full_feature_expansion.py`. Investigation established that commit `e88e2318e3` intentionally removed 31 AiCoin/Nansen/LunarCrush/Santiment features by operator directive while retaining all 155 `taf_*` features; current source is therefore 446 ordered features and a 1,784-value four-segment vector. The three stale test expectations were updated from 477/1,908 to 446/1,784, and the same combined suite then passed 374 tests.
+
+That result validates the local current-source contract; it does not retroactively make older 477/1,908 checkpoints, caches, temporal buffers, or replay rows compatible. RE-044 remains open until the exact ordered-name digest and width are schema-versioned across publisher, trainer, backtest, restore, and archived data, with incompatible generations invalidated or quarantined.
+
+The focused coverage proves source behavior for:
+
+- chronological decision-time split, equal-time grouping and label-horizon purge;
+- fail-closed missing/invalid label timing;
+- positive held-out serving-policy mean and one-standard-error lower-bound promotion requirements;
+- rejection-streak non-override;
+- deterministic-policy PPO ineligibility and categorical raw-softmax eligibility;
+- critical-family missing-mask rejection despite self-attestation;
+- zero backtest/inference/prediction/lineage from a rejected candidate without verified restore;
+- replay publication metadata committed before lineage;
+- zero trainer canonical decision/index writes and explicit non-authoritative proposal fields.
+
+### 21.4 Required missing tests
 
 Before rebuilding or changing this component, add:
 
-1. **Tensor ABI golden test:** exact 477 count, ordered digest, unique names, four 477-element segments, 1,908 total, and feature/source alignment.
+1. **Tensor ABI golden test:** exact 446 count, ordered digest, unique names, four 446-element segments, 1,784 total, feature/source alignment, and explicit rejection of older incompatible generations.
 2. **Valid-zero matrix:** zero must survive every fallback, reward, PnL, and cost path.
 3. **Availability semantics:** source presence must not be accepted as timestamp availability.
 4. **Temporal shuffle test:** randomly reorder examples while keeping trust times; windows must remain time-sorted and contain no future frame.

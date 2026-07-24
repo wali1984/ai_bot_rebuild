@@ -22,6 +22,9 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Deque
 
+from v2.backend.app.services.market_data.current_price_resolver import (
+    resolve_current_price,
+)
 from v2.backend.app.services.v2_symbol_runtime_universe import resolve_symbols
 
 try:
@@ -43,9 +46,47 @@ DEFAULT_PUBLISH_HEARTBEAT_SEC = 60
 DEFAULT_SYMBOL_REFRESH_SEC = 60
 DEFAULT_TTL_SECONDS = 900
 STALENESS_STALE_MS = 15 * 60 * 1000
+MAX_FUTURE_CLOCK_SKEW_MS = 0
 CLEANUP_BATCH_INTERVAL = 50
+PENDING_CLAIM_INTERVAL = 12
+PENDING_MIN_IDLE_MS = 60 * 1000
+CASCADE_HISTORY_SAMPLE_INTERVAL_MS = max(
+    1000,
+    int(os.getenv("V2_LIQ_LEVELS_CASCADE_SAMPLE_INTERVAL_MS", "60000")),
+)
+MAX_EVENTS_PER_SYMBOL_TIMEFRAME = max(
+    100,
+    int(os.getenv("V2_LIQ_LEVELS_MAX_EVENTS_PER_SYMBOL_TIMEFRAME", "20000")),
+)
 DEFAULT_TIMEFRAMES = ("1m", "5m", "15m", "1h", "4h")
 VALID_LIQUIDATION_SYMBOL_RE = re.compile(r"^[A-Z0-9]+USDT$")
+OBSERVATION_SEMANTIC_KIND = "observed_forced_liquidation_clusters"
+OBSERVATION_SEMANTIC_TYPE = (
+    "retrospective_observed_forced_liquidation_clusters_not_future_thresholds"
+)
+FUTURE_LIQUIDATION_ALIAS_FIELDS = frozenset({
+    "liquidation_long_level",
+    "liquidation_short_level",
+    "nearest_liquidation_level_above",
+    "nearest_liquidation_level_below",
+    "liquidation_long_strength",
+    "liquidation_short_strength",
+    "liquidation_long_distance_pct",
+    "liquidation_short_distance_pct",
+    "distance_to_long_liq_bps",
+    "distance_to_short_liq_bps",
+    "liquidation_sweep_target_long",
+    "liquidation_sweep_target_short",
+    "liquidation_sweep_target_long_distance_bps",
+    "liquidation_sweep_target_short_distance_bps",
+    "liquidation_zones_count_long",
+    "liquidation_zones_count_short",
+    "liquidation_levels_count_long",
+    "liquidation_levels_count_short",
+    "liquidation_levels_json",
+})
+QUARANTINE_MAXLEN = 2000
+QUARANTINE_TTL_SECONDS = 7 * 24 * 3600
 
 BUCKET_WIDTH_PCT = {
     "1m": 0.0010,
@@ -66,6 +107,9 @@ def _v2_key(key: str) -> str:
     if key.startswith(V2_REDIS_PREFIX):
         return key
     return f"{V2_REDIS_PREFIX}{key}"
+
+
+QUARANTINE_STREAM = _v2_key("liquidations:events:quarantine")
 
 
 def _parse_csv(value: str | None, default: tuple[str, ...]) -> tuple[str, ...]:
@@ -96,6 +140,15 @@ def tf_to_seconds(tf: str) -> int:
     if tf.endswith("d"):
         return int(tf[:-1]) * 86400
     raise ValueError(f"Unknown timeframe: {tf}")
+
+
+def observation_window_seconds(tf: str, max_retention_seconds: int) -> int:
+    """Return a distinct, bounded observation window for each timeframe.
+
+    A one-hour floor keeps the 1m view useful for sparse symbols without
+    making 1m and 5m aliases of the same two-hour sample.
+    """
+    return min(max(tf_to_seconds(tf) * 20, 3600), max_retention_seconds)
 
 
 def _bucket_step(price: float, tf: str) -> float:
@@ -131,7 +184,10 @@ class LevelEngine:
         self.stream_name = _v2_key(config.stream_name)
         self.symbols: tuple[str, ...] = ()
         self.state: dict[str, dict[str, Deque[dict[str, Any]]]] = {}
-        self.ewma_price: dict[str, float | None] = {}
+        self.state_truncated: dict[str, dict[str, bool]] = {}
+        self.seen_src_ids: dict[str, set[str]] = {}
+        self.seen_src_id_order: dict[str, Deque[str]] = {}
+        self.liquidation_event_price_ewma: dict[str, float | None] = {}
         # Rolling per-symbol×tf intensity samples (decay-weighted total
         # liquidation strength). cascade_risk v2 ranks the current sample
         # against this history so the value means "how extreme is this
@@ -141,12 +197,26 @@ class LevelEngine:
         # every symbol during any directional market, which made the regime
         # gate classify ~half of all cycles as LIQUIDITY_SWEEP.)
         self.intensity_history: dict[str, dict[str, Deque[float]]] = {}
+        self.intensity_history_last_sample_ms: dict[str, dict[str, int]] = {}
         self.last_publish: dict[tuple[str, str], int] = {}
         self.last_log = 0.0
         self.last_symbol_refresh = 0.0
         self.iteration_count = 0
         self.events_processed = 0
         self.events_ignored = 0
+        self.events_deduplicated = 0
+        self.events_quarantined = 0
+        self.reject_reasons: dict[str, int] = defaultdict(int)
+        self.pending_messages_recovered = 0
+        self.pending_recovery_supported: bool | None = None
+        self.capture_start_ms = int(time.time() * 1000)
+        self.capture_start_ms_by_symbol: dict[str, int] = {}
+        self.capture_observed_through_ms = 0
+        self.capture_caught_up = False
+        self.capture_gap_detected = False
+        self.capture_group_lag: int | None = None
+        self.capture_pending_count: int | None = None
+        self.capture_status_error: str | None = None
         self._last_publish_ts = 0.0
         self.refresh_symbols(force=True)
         self.ensure_group()
@@ -173,19 +243,45 @@ class LevelEngine:
             )
         )
         for symbol in new_symbols:
-            self.state.setdefault(symbol, {tf: deque() for tf in self.config.timeframes})
+            is_new_symbol = symbol not in self.state
+            self.state.setdefault(
+                symbol,
+                {
+                    tf: deque(maxlen=MAX_EVENTS_PER_SYMBOL_TIMEFRAME)
+                    for tf in self.config.timeframes
+                },
+            )
+            self.state_truncated.setdefault(
+                symbol, {tf: False for tf in self.config.timeframes}
+            )
+            self.seen_src_ids.setdefault(symbol, set())
+            self.seen_src_id_order.setdefault(symbol, deque())
             self.intensity_history.setdefault(
                 symbol, {tf: deque(maxlen=720) for tf in self.config.timeframes}
             )
+            self.intensity_history_last_sample_ms.setdefault(
+                symbol, {tf: 0 for tf in self.config.timeframes}
+            )
             for tf in self.config.timeframes:
-                self.state[symbol].setdefault(tf, deque())
+                self.state[symbol].setdefault(
+                    tf, deque(maxlen=MAX_EVENTS_PER_SYMBOL_TIMEFRAME)
+                )
+                self.state_truncated[symbol].setdefault(tf, False)
                 self.intensity_history[symbol].setdefault(tf, deque(maxlen=720))
-            self.ewma_price.setdefault(symbol, None)
+                self.intensity_history_last_sample_ms[symbol].setdefault(tf, 0)
+            self.liquidation_event_price_ewma.setdefault(symbol, None)
+            if is_new_symbol:
+                self.capture_start_ms_by_symbol[symbol] = int(now * 1000)
         stale_symbols = set(self.state) - set(new_symbols)
         for symbol in stale_symbols:
             self.state.pop(symbol, None)
-            self.ewma_price.pop(symbol, None)
+            self.state_truncated.pop(symbol, None)
+            self.seen_src_ids.pop(symbol, None)
+            self.seen_src_id_order.pop(symbol, None)
+            self.liquidation_event_price_ewma.pop(symbol, None)
             self.intensity_history.pop(symbol, None)
+            self.intensity_history_last_sample_ms.pop(symbol, None)
+            self.capture_start_ms_by_symbol.pop(symbol, None)
         self.symbols = new_symbols
         self.last_symbol_refresh = now
 
@@ -198,105 +294,305 @@ class LevelEngine:
 
     def reset_consumer_group_to_recent_tail(self) -> None:
         try:
-            info = self.redis.xinfo_stream(self.stream_name)
-            stream_len = int(info.get("length", 0) or 0)
-            if stream_len < 10000:
-                return
-            target_ms = int(time.time() * 1000) - 2 * 3600 * 1000
-            entries = self.redis.xrange(self.stream_name, min=f"{target_ms}-0", count=1)
-            seek_id = entries[0][0] if entries else info.get("last-generated-id", "$")
-            self.redis.xgroup_setid(self.stream_name, GROUP_NAME, seek_id)
+            longest_window_seconds = max(
+                observation_window_seconds(tf, self.config.max_retention_seconds)
+                for tf in self.config.timeframes
+            )
+            observed_now_ms = int(time.time() * 1000)
+            target_ms = observed_now_ms - longest_window_seconds * 1000
+            first_entries = self.redis.xrange(
+                self.stream_name, min="-", max="+", count=1
+            )
+            if first_entries:
+                first_stream_ms = int(str(first_entries[0][0]).split("-", 1)[0])
+                self.capture_start_ms = max(target_ms, first_stream_ms)
+            else:
+                self.capture_start_ms = observed_now_ms
+            for symbol in self.symbols:
+                self.capture_start_ms_by_symbol[symbol] = self.capture_start_ms
+            self.redis.xgroup_setid(self.stream_name, GROUP_NAME, f"{target_ms}-0")
         except Exception as exc:
+            self.capture_gap_detected = True
             print(f"[{WORKER_ID}] recent-tail reset skipped: {exc}")
 
-    def _get_latest_price(self, symbol: str) -> float:
-        cached = self.ewma_price.get(symbol)
-        if cached is not None and cached > 0:
-            return float(cached)
+    def _append_event(self, symbol: str, tf: str, event: dict[str, Any]) -> None:
+        dq = self.state[symbol][tf]
+        if dq.maxlen is not None and len(dq) >= dq.maxlen:
+            self.state_truncated[symbol][tf] = True
+        dq.append(event)
 
-        for key in (f"v2:features:latest:{symbol}:1m",):
-            try:
-                raw = self.redis.get(key)
-                if raw:
-                    payload = json.loads(raw)
-                    features = payload.get("features") if isinstance(payload, dict) else {}
-                    if isinstance(features, dict):
-                        for field in ("micro_price", "ema_12", "ema_26"):
-                            value = features.get(field)
-                            if value is not None and float(value) > 0:
-                                return float(value)
-            except Exception:
-                pass
+    def _remember_src_id(self, symbol: str, src_id: str) -> bool:
+        """Return False for an already-seen ID; retain a bounded ID window."""
+        if not src_id:
+            return True
+        seen = self.seen_src_ids[symbol]
+        if src_id in seen:
+            return False
+        order = self.seen_src_id_order[symbol]
+        while len(order) >= MAX_EVENTS_PER_SYMBOL_TIMEFRAME:
+            seen.discard(order.popleft())
+        order.append(src_id)
+        seen.add(src_id)
+        return True
 
+    def _observation_coverage(
+        self,
+        symbol: str,
+        tf: str,
+        *,
+        now_ms: int,
+        window_ms: int,
+    ) -> tuple[int, float, bool, bool]:
+        capture_start_ms = int(
+            self.capture_start_ms_by_symbol.get(symbol, self.capture_start_ms)
+        )
+        coverage_ms = max(0, now_ms - capture_start_ms)
+        coverage_ratio = min(1.0, coverage_ms / window_ms) if window_ms > 0 else 0.0
+        truncated = bool(self.state_truncated.get(symbol, {}).get(tf, False))
+        complete = (
+            coverage_ratio >= 1.0
+            and self.capture_caught_up
+            and not self.capture_gap_detected
+            and not truncated
+        )
+        return capture_start_ms, coverage_ratio, complete, truncated
+
+    @staticmethod
+    def _redis_field(row: dict[Any, Any], name: str) -> Any:
+        return row.get(name, row.get(name.encode("utf-8")))
+
+    def _refresh_capture_status(self, *, now_ms: int | None = None) -> bool:
+        """Prove the group has neither unread stream lag nor pending work."""
+        observed_now_ms = int(time.time() * 1000) if now_ms is None else int(now_ms)
         try:
-            raw = self.redis.get(f"v2:market:prices:{symbol}")
-            if raw:
-                payload = json.loads(raw)
-                ticker = payload.get("ticker_24hr") if isinstance(payload, dict) else {}
-                if isinstance(ticker, dict):
-                    for field in ("lastPrice", "weightedAvgPrice", "openPrice"):
-                        value = ticker.get(field)
-                        if value is not None and float(value) > 0:
-                            return float(value)
-        except Exception:
-            pass
+            group_rows = self.redis.xinfo_groups(self.stream_name)
+            matching_group = next(
+                (
+                    row for row in group_rows
+                    if str(self._redis_field(row, "name")).removeprefix("b'").rstrip("'")
+                    == GROUP_NAME
+                ),
+                None,
+            )
+            if matching_group is None:
+                raise RuntimeError("consumer_group_missing")
+            raw_lag = self._redis_field(matching_group, "lag")
+            if raw_lag is None:
+                raise RuntimeError("consumer_group_lag_unavailable")
+            group_lag = int(raw_lag)
+            pending_summary = self.redis.xpending(self.stream_name, GROUP_NAME)
+            if isinstance(pending_summary, dict):
+                raw_pending = pending_summary.get(
+                    "pending", pending_summary.get(b"pending")
+                )
+            elif isinstance(pending_summary, (tuple, list)) and pending_summary:
+                raw_pending = pending_summary[0]
+            else:
+                raw_pending = pending_summary
+            if raw_pending is None:
+                raise RuntimeError("consumer_group_pending_unavailable")
+            pending_count = int(raw_pending)
+            self.capture_group_lag = group_lag
+            self.capture_pending_count = pending_count
+            self.capture_caught_up = group_lag == 0 and pending_count == 0
+            self.capture_status_error = None
+            if self.capture_caught_up:
+                self.capture_observed_through_ms = observed_now_ms
+            return self.capture_caught_up
+        except Exception as exc:
+            self.capture_caught_up = False
+            self.capture_group_lag = None
+            self.capture_pending_count = None
+            self.capture_status_error = f"{type(exc).__name__}:{exc}"
+            return False
 
-        for key in (f"v2:market:orderbook:binance:{symbol}", f"v2:market:orderbook:{symbol}"):
-            try:
-                raw = self.redis.get(key)
-                if not raw:
-                    continue
-                payload = json.loads(raw)
-                bids = payload.get("bids") if isinstance(payload, dict) else []
-                asks = payload.get("asks") if isinstance(payload, dict) else []
-                if bids and asks:
-                    bid = float(bids[0][0])
-                    ask = float(asks[0][0])
-                    if bid > 0 and ask > 0:
-                        return (bid + ask) / 2.0
-            except Exception:
-                pass
+    def _cascade_intensity_percentile(
+        self,
+        symbol: str,
+        tf: str,
+        *,
+        intensity_now: float,
+        now_ms: int,
+        coverage_complete: bool,
+    ) -> float | None:
+        """Rank fixed-cadence intensity samples once PIT coverage is proven."""
+        history = self.intensity_history.setdefault(symbol, {}).setdefault(
+            tf, deque(maxlen=720)
+        )
+        risk: float | None = None
+        if coverage_complete and len(history) >= 20:
+            risk = round(
+                sum(1 for sample in history if sample < intensity_now) / len(history),
+                6,
+            )
+        last_samples = self.intensity_history_last_sample_ms.setdefault(
+            symbol, {}
+        )
+        last_sample_ms = int(last_samples.get(tf) or 0)
+        if (
+            coverage_complete
+            and (
+                last_sample_ms <= 0
+                or now_ms - last_sample_ms >= CASCADE_HISTORY_SAMPLE_INTERVAL_MS
+            )
+        ):
+            history.append(float(intensity_now))
+            last_samples[tf] = int(now_ms)
+        return risk
 
+    def _get_latest_price(self, symbol: str) -> dict[str, Any]:
+        """Resolve an execution-grade market reference before event EWMA."""
         try:
-            raw = self.redis.get(f"v2:market:liquidations:latest:{symbol}")
-            if raw:
-                payload = json.loads(raw)
-                value = payload.get("price") if isinstance(payload, dict) else None
-                if value is not None and float(value) > 0:
-                    return float(value)
-        except Exception:
-            pass
-        return 0.0
+            resolved = resolve_current_price(self.redis, symbol)
+        except Exception as exc:
+            resolved = {"reason_if_missing": f"resolver_error:{type(exc).__name__}"}
+        try:
+            resolved_price = float(resolved.get("price"))
+        except (TypeError, ValueError):
+            resolved_price = 0.0
+        if (
+            math.isfinite(resolved_price)
+            and resolved_price > 0
+            and resolved.get("execution_grade") is True
+            and resolved.get("fallback_used") is not True
+        ):
+            return {
+                "price": resolved_price,
+                "source": f"current_price_resolver:{resolved.get('source') or 'unknown'}",
+                "staleness_seconds": resolved.get("staleness_seconds"),
+                "execution_grade": True,
+                "resolver_reason": None,
+            }
 
-    def _parse_event(self, fields: dict[str, str]) -> dict[str, Any]:
+        fallback = self.liquidation_event_price_ewma.get(symbol)
+        if fallback is not None and fallback > 0:
+            return {
+                "price": float(fallback),
+                "source": "liquidation_event_price_ewma_fallback",
+                "staleness_seconds": None,
+                "execution_grade": False,
+                "resolver_reason": resolved.get("reason_if_missing") or "no_fresh_market_price",
+            }
+        return {
+            "price": 0.0,
+            "source": "unavailable",
+            "staleness_seconds": None,
+            "execution_grade": False,
+            "resolver_reason": resolved.get("reason_if_missing") or "no_fresh_market_price",
+        }
+
+    def _update_liquidation_event_price_ewma(self, event: dict[str, Any]) -> None:
+        symbol = str(event["symbol"])
+        price = float(event["price"])
+        previous = self.liquidation_event_price_ewma.get(symbol)
+        self.liquidation_event_price_ewma[symbol] = (
+            price if previous is None else 0.9 * float(previous) + 0.1 * price
+        )
+
+    def _parse_event(
+        self,
+        fields: dict[str, str],
+        *,
+        now_ms: int | None = None,
+    ) -> tuple[dict[str, Any], str | None]:
         try:
             symbol = str(fields.get("symbol", "")).upper()
             if symbol not in self.state:
-                return {}
-            ts = int(fields.get("ts") or 0)
-            ingest_ts = int(fields.get("ingest_ts") or 0)
+                return {}, "symbol_out_of_scope"
+            event_time = int(fields.get("event_time") or fields.get("ts") or 0)
+            ingested_at = int(fields.get("ingested_at") or fields.get("ingest_ts") or 0)
+            available_at = int(fields.get("available_at") or 0)
+            generated_at = int(fields.get("generated_at") or 0)
+            feature_cutoff = int(fields.get("feature_cutoff") or 0)
             price = float(fields.get("price") or 0)
             qty = float(fields.get("qty") or 0)
             notional = float(fields.get("notional") or 0)
             side = str(fields.get("side", "")).upper()
+            source = str(fields.get("source") or "")
+            src_id = str(fields.get("src_id") or "")
         except Exception:
-            return {}
+            return {}, "malformed_event"
 
-        now_ms = int(time.time() * 1000)
-        if ts > 0 and (now_ms - ts) > 24 * 3600 * 1000 and ingest_ts > 0:
-            ts = ingest_ts
-        if ts <= 0 or price <= 0 or qty <= 0 or notional <= 0:
-            return {}
+        observed_now_ms = int(time.time() * 1000) if now_ms is None else int(now_ms)
+        oldest_allowed_ms = observed_now_ms - self.config.max_retention_seconds * 1000
+        if min(event_time, ingested_at, available_at, generated_at, feature_cutoff) <= 0:
+            return {}, "missing_clock_lineage"
+        if event_time < oldest_allowed_ms:
+            return {}, "event_time_too_old"
+        if event_time > observed_now_ms + MAX_FUTURE_CLOCK_SKEW_MS:
+            return {}, "event_time_in_future"
+        if ingested_at > observed_now_ms + MAX_FUTURE_CLOCK_SKEW_MS:
+            return {}, "ingested_at_in_future"
+        if available_at > observed_now_ms + MAX_FUTURE_CLOCK_SKEW_MS:
+            return {}, "available_at_in_future"
+        if generated_at > observed_now_ms + MAX_FUTURE_CLOCK_SKEW_MS:
+            return {}, "generated_at_in_future"
+        if ingested_at + MAX_FUTURE_CLOCK_SKEW_MS < event_time:
+            return {}, "ingested_before_event"
+        if available_at < ingested_at:
+            return {}, "available_before_ingest"
+        if generated_at < ingested_at:
+            return {}, "generated_before_ingest"
+        if generated_at > available_at:
+            return {}, "generated_after_available"
+        if feature_cutoff < event_time:
+            return {}, "feature_cutoff_before_event"
+        if feature_cutoff > available_at:
+            return {}, "feature_cutoff_after_available"
+        if (
+            not all(math.isfinite(value) for value in (price, qty, notional))
+            or price <= 0
+            or qty <= 0
+            or notional <= 0
+        ):
+            return {}, "invalid_numeric_value"
         if side not in {"LONG_LIQ", "SHORT_LIQ"}:
-            return {}
+            return {}, "invalid_liquidation_side"
+        if not source or not src_id:
+            return {}, "missing_source_lineage"
         return {
-            "ts": ts,
+            "ts": event_time,
+            "event_time": event_time,
+            "ingested_at": ingested_at,
+            "available_at": available_at,
+            "source_generated_at": generated_at,
+            "feature_cutoff": feature_cutoff,
             "price": price,
             "qty": qty,
             "notional": notional,
             "side": side,
             "symbol": symbol,
-        }
+            "source": source,
+            "src_id": src_id,
+        }, None
+
+    def _quarantine_event(
+        self,
+        *,
+        msg_id: str,
+        fields: dict[str, str],
+        reason: str,
+        now_ms: int,
+    ) -> None:
+        if reason == "symbol_out_of_scope":
+            return
+        try:
+            self.redis.xadd(
+                QUARANTINE_STREAM,
+                {
+                    "source_stream": self.stream_name,
+                    "source_message_id": str(msg_id),
+                    "reason": reason,
+                    "quarantined_at": str(now_ms),
+                    "event": json.dumps(fields, sort_keys=True, default=str)[:8000],
+                },
+                maxlen=QUARANTINE_MAXLEN,
+                approximate=True,
+            )
+            self.redis.expire(QUARANTINE_STREAM, QUARANTINE_TTL_SECONDS)
+            self.events_quarantined += 1
+        except Exception as exc:
+            print(f"[{WORKER_ID}] quarantine write skipped: {exc}")
 
     def _extract_levels(
         self,
@@ -320,7 +616,10 @@ class LevelEngine:
         max_strength = items[0][1]
         threshold = max_strength * min_strength_ratio
         significant = [(b, v) for b, v in items if v >= threshold][:max_levels]
-        return [{"price": round(b * step, 8), "strength": round(v, 4)} for b, v in significant]
+        return [
+            {"price": round((b + 0.5) * step, 8), "strength": round(v, 4)}
+            for b, v in significant
+        ]
 
     def _compute_zones(
         self,
@@ -367,70 +666,158 @@ class LevelEngine:
         return sorted(result, key=lambda z: z["total_strength"], reverse=True)
 
     def _compute_mapping(self, symbol: str, tf: str, now_ms: int) -> dict[str, Any] | None:
-        window_seconds = max(tf_to_seconds(tf) * 20, 2 * 3600)
-        window_seconds = min(window_seconds, self.config.max_retention_seconds)
+        window_seconds = observation_window_seconds(tf, self.config.max_retention_seconds)
         window_ms = window_seconds * 1000
         dq = self.state[symbol][tf]
-        while dq and (now_ms - int(dq[0]["ts"])) > window_ms:
-            dq.popleft()
+        retained = [
+            event for event in dq
+            if 0 <= now_ms - int(event["ts"]) <= window_ms
+        ]
+        if len(retained) != len(dq):
+            dq.clear()
+            dq.extend(sorted(retained, key=lambda event: int(event["ts"])))
 
-        current_price = self._get_latest_price(symbol)
-        if not dq:
-            if current_price <= 0:
-                return None
-            step = _bucket_step(current_price, tf)
+        price_reference = self._get_latest_price(symbol)
+        current_price = float(price_reference["price"])
+        current_price_source = str(price_reference["source"])
+        current_price_staleness_seconds = price_reference.get("staleness_seconds")
+        current_price_execution_grade = bool(price_reference.get("execution_grade"))
+        current_price_resolver_reason = price_reference.get("resolver_reason")
+        (
+            coverage_start_ts,
+            coverage_ratio,
+            coverage_complete,
+            observation_truncated,
+        ) = self._observation_coverage(
+            symbol,
+            tf,
+            now_ms=now_ms,
+            window_ms=window_ms,
+        )
+        intensity_now = float(sum(
+            _decay_weight(
+                float(event["notional"]),
+                max(0, now_ms - int(event["ts"])),
+                window_ms,
+            )
+            for event in dq
+        ))
+        cascade_risk = self._cascade_intensity_percentile(
+            symbol,
+            tf,
+            intensity_now=intensity_now,
+            now_ms=now_ms,
+            coverage_complete=coverage_complete,
+        )
+        if not dq or not current_price_execution_grade:
+            has_events = bool(dq)
+            if has_events:
+                last_event = max(dq, key=lambda event: int(event["ts"]))
+                last_event_ts = int(last_event["ts"])
+                last_ingested_at = max(
+                    int(event.get("ingested_at") or 0) for event in dq
+                )
+                staleness_ms = max(0, now_ms - last_event_ts)
+                liq_volume = sum(float(event["notional"]) for event in dq)
+                count_5m = sum(
+                    1 for event in dq
+                    if now_ms - int(event["ts"]) <= 5 * 60 * 1000
+                )
+            else:
+                last_event_ts = 0
+                last_ingested_at = 0
+                staleness_ms = self.config.max_retention_seconds * 1000
+                liq_volume = 0.0
+                count_5m = 0
+            no_fresh_reference = not current_price_execution_grade
+            evidence_reason = (
+                "no_fresh_market_price_reference"
+                if no_fresh_reference
+                else "no_liquidation_events_in_window"
+            )
+            step = _bucket_step(current_price, tf) if current_price > 0 else 0.0
             empty_levels = json.dumps({
                 "step": step,
-                "top_long": [], "top_short": [],
-                "levels_long": [], "levels_short": [],
-                "zones_long": [], "zones_short": [],
-                "sweep_target_long": None, "sweep_target_short": None,
+                "observed_top_long_clusters": [],
+                "observed_top_short_clusters": [],
+                "observed_clusters_long": [],
+                "observed_clusters_short": [],
+                "observed_cluster_zones_long": [],
+                "observed_cluster_zones_short": [],
                 "current_price": current_price,
-                "no_events_reason": "no_liquidation_events_in_window",
+                "current_price_source": current_price_source,
+                "current_price_staleness_seconds": current_price_staleness_seconds,
+                "current_price_execution_grade": current_price_execution_grade,
+                "current_price_resolver_reason": current_price_resolver_reason,
+                "semantic_kind": OBSERVATION_SEMANTIC_KIND,
+                "semantic_type": OBSERVATION_SEMANTIC_TYPE,
+                "window_seconds": window_seconds,
+                "coverage_start_ts": coverage_start_ts,
+                "coverage_ratio": round(coverage_ratio, 6),
+                "coverage_complete": coverage_complete,
+                "observation_truncated": observation_truncated,
+                "evidence_unavailable_reason": evidence_reason,
+                "event_count": len(dq),
+                "event_time": last_event_ts,
+                "ingested_at": last_ingested_at,
+                "available_at": now_ms,
+                "generated_at": now_ms,
+                "feature_cutoff": last_event_ts,
             })
             return {
-                "liquidation_long_level": 0.0,
-                "liquidation_short_level": 0.0,
-                "nearest_liquidation_level_above": 0.0,
-                "nearest_liquidation_level_below": 0.0,
-                "liquidation_long_strength": 0.0,
-                "liquidation_short_strength": 0.0,
-                "liquidation_long_distance_pct": 100.0,
-                "liquidation_short_distance_pct": 100.0,
-                # No events in window = no cascade evidence. Mask missing
-                # (None) rather than synthesizing a value; the v1 default of
-                # 0.5 sat exactly on the regime gate's >=0.5 sweep condition.
-                "liquidation_cascade_risk": None,
+                "observed_forced_liquidation_cluster_long_price": None,
+                "observed_forced_liquidation_cluster_short_price": None,
+                "observed_forced_liquidation_cluster_nearest_above": None,
+                "observed_forced_liquidation_cluster_nearest_below": None,
+                "observed_forced_liquidation_cluster_long_strength": 0.0,
+                "observed_forced_liquidation_cluster_short_strength": 0.0,
+                "observed_forced_liquidation_cluster_long_distance_bps": None,
+                "observed_forced_liquidation_cluster_short_distance_bps": None,
+                # Fixed-cadence zero-activity observations become a real 0th
+                # percentile only after full PIT coverage and warmup.
+                "liquidation_cascade_risk": cascade_risk,
                 "liquidation_cascade_risk_semantics": "intensity_percentile_v2",
-                "distance_to_long_liq_bps": None,
-                "distance_to_short_liq_bps": None,
+                "liquidation_intensity_decayed": round(intensity_now, 4),
                 "liquidation_pressure_direction": 0.0,
-                "liquidation_count_5m": 0,
-                "last_liq_bps_proxy": 0.0,
-                "liquidation_sweep_target_long": None,
-                "liquidation_sweep_target_short": None,
-                "liquidation_sweep_target_long_distance_bps": None,
-                "liquidation_sweep_target_short_distance_bps": None,
-                "liquidation_zones_count_long": 0,
-                "liquidation_zones_count_short": 0,
-                "liquidation_levels_count_long": 0,
-                "liquidation_levels_count_short": 0,
-                "liquidation_volume": 0.0,
-                "liquidation_levels_json": empty_levels,
+                "liquidation_count_5m": count_5m,
+                "last_liq_bps_proxy": None,
+                "observed_forced_liquidation_cluster_zones_count_long": 0,
+                "observed_forced_liquidation_cluster_zones_count_short": 0,
+                "observed_forced_liquidation_clusters_count_long": 0,
+                "observed_forced_liquidation_clusters_count_short": 0,
+                "liquidation_volume": liq_volume,
+                "observed_forced_liquidation_clusters_json": empty_levels,
                 "liquidation_updated_ts": now_ms,
-                "liquidation_last_event_ts": 0,
-                "liquidation_staleness_ms": self.config.max_retention_seconds * 1000,
+                "liquidation_last_event_ts": last_event_ts,
+                "liquidation_staleness_ms": staleness_ms,
                 "liquidation_is_stale": 1,
-                "liquidation_no_events": 1,
+                "liquidation_no_events": 0 if has_events else 1,
+                "liquidation_no_fresh_market_reference": 1 if no_fresh_reference else 0,
+                "liquidation_evidence_unavailable_reason": evidence_reason,
                 "liquidation_current_price": current_price,
+                "liquidation_current_price_source": current_price_source,
+                "liquidation_current_price_staleness_seconds": current_price_staleness_seconds,
+                "liquidation_current_price_execution_grade": 1 if current_price_execution_grade else 0,
+                "liquidation_current_price_resolver_reason": current_price_resolver_reason,
+                "liquidation_event_price_ewma": self.liquidation_event_price_ewma.get(symbol),
+                "liquidation_semantic_kind": OBSERVATION_SEMANTIC_KIND,
+                "liquidation_semantic_type": OBSERVATION_SEMANTIC_TYPE,
+                "liquidation_observation_window_seconds": window_seconds,
+                "liquidation_observation_coverage_start_ts": coverage_start_ts,
+                "liquidation_observation_coverage_ratio": round(coverage_ratio, 6),
+                "liquidation_observation_coverage_complete": 1 if coverage_complete else 0,
+                "liquidation_observation_truncated": 1 if observation_truncated else 0,
+                "event_time": last_event_ts,
+                "ingested_at": last_ingested_at,
+                "available_at": now_ms,
+                "generated_at": now_ms,
+                "feature_cutoff": last_event_ts,
                 "liquidation_source": "binance",
                 "native_worker_id": WORKER_ID,
             }
 
-        mid_price = self.ewma_price.get(symbol) or float(dq[-1]["price"])
-        self.ewma_price[symbol] = 0.9 * mid_price + 0.1 * float(dq[-1]["price"])
-        ref_price = current_price if current_price > 0 else self.ewma_price[symbol]
-        step = _bucket_step(float(self.ewma_price[symbol] or mid_price), tf)
+        ref_price = current_price
+        step = _bucket_step(ref_price, tf)
         heat_long: dict[int, float] = defaultdict(float)
         heat_short: dict[int, float] = defaultdict(float)
         liq_volume = 0.0
@@ -445,11 +832,20 @@ class LevelEngine:
                 heat_short[bucket] += weight
             liq_volume += float(event["notional"])
 
-        # Full level arrays (up to 20 significant levels per side)
-        levels_long = self._extract_levels(heat_long, step)
-        levels_short = self._extract_levels(heat_short, step)
+        # Filter direction before strength truncation so >20 stronger
+        # wrong-side buckets cannot hide a valid directional cluster.
+        directional_long = {
+            bucket: strength for bucket, strength in heat_long.items()
+            if (bucket + 0.5) * step < ref_price
+        }
+        directional_short = {
+            bucket: strength for bucket, strength in heat_short.items()
+            if (bucket + 0.5) * step > ref_price
+        }
+        levels_long = self._extract_levels(directional_long, step)
+        levels_short = self._extract_levels(directional_short, step)
 
-        # Backward-compat top-3 fields
+        # Top observed clusters for the retrospective JSON contract.
         top_long = levels_long[:3]
         top_short = levels_short[:3]
         long_level = levels_long[0]["price"] if levels_long else 0.0
@@ -457,33 +853,13 @@ class LevelEngine:
         long_strength = levels_long[0]["strength"] if levels_long else 0.0
         short_strength = levels_short[0]["strength"] if levels_short else 0.0
 
-        # Zone clustering — merges nearby levels into sweep-target zones
+        # Retrospective zone clustering for heatmap/diagnostic use only.
         zones_long = self._compute_zones(levels_long, step)
         zones_short = self._compute_zones(levels_short, step)
 
-        # Sweep targets: strongest zone MEANINGFULLY AWAY from the reference
-        # price. Liquidations fire AT market price, so the strongest zone of
-        # past events is almost always a few bps from ref_price — publishing
-        # that as a "target" is a tautological echo (it kept every symbol
-        # inside the regime gate's 35bps sweep-proximity condition). A real
-        # target must sit beyond the zone's own half-width plus one bucket.
-        def _sweep_target(zones: list[dict[str, Any]]) -> float | None:
-            for zone in zones:
-                center = float(zone.get("zone_center") or 0.0)
-                if center <= 0 or ref_price <= 0:
-                    continue
-                half_width = (
-                    float(zone.get("zone_high") or center)
-                    - float(zone.get("zone_low") or center)
-                ) / 2.0
-                if abs(center - ref_price) > half_width + step:
-                    return center
-            return None
-
-        sweep_target_long = _sweep_target(zones_long)
-        sweep_target_short = _sweep_target(zones_short)
-
-        last_event_ts = int(dq[-1]["ts"])
+        last_event = max(dq, key=lambda event: int(event["ts"]))
+        last_event_ts = int(last_event["ts"])
+        last_ingested_at = max(int(event.get("ingested_at") or 0) for event in dq)
         long_distance_pct = abs(ref_price - long_level) / ref_price * 100 if long_level > 0 and ref_price else 100.0
         short_distance_pct = abs(short_level - ref_price) / ref_price * 100 if short_level > 0 and ref_price else 100.0
         staleness_ms = now_ms - last_event_ts
@@ -508,29 +884,6 @@ class LevelEngine:
         # in any directional market) which made LIQUIDITY_SWEEP fire on ~half
         # of all regime classifications system-wide.
         total_strength = long_strength + short_strength
-        intensity_now = float(sum(heat_long.values()) + sum(heat_short.values()))
-        _hist = self.intensity_history.setdefault(symbol, {}).setdefault(
-            tf, deque(maxlen=720)
-        )
-        # Warmup honesty: after a restart the event deque REFILLS from the
-        # stream tail, so intensity grows monotonically until the retention
-        # window saturates — every current sample would rank above all
-        # history and the percentile would peg at 1.0 (observed on BTCUSDT
-        # 25min post-restart). Rank (and record) samples only once the
-        # oldest retained event spans >=75% of the window; publish None
-        # (honest missing) until then.
-        _window_fill = (
-            (now_ms - int(dq[0]["ts"])) / window_ms if dq and window_ms > 0 else 0.0
-        )
-        if _window_fill >= 0.75 and len(_hist) >= 20:
-            cascade_risk = round(
-                sum(1 for sample in _hist if sample < intensity_now) / len(_hist), 6
-            )
-        else:
-            cascade_risk = None
-        if _window_fill >= 0.75:
-            _hist.append(intensity_now)
-
         # Pressure direction: signed balance of long vs short strength, in [-1, +1].
         # +1 = massive long liquidation pressure (bears dominate); -1 = short liquidation pressure.
         pressure_direction = round((long_strength - short_strength) / (total_strength + 1e-9), 6) if total_strength > 0 else 0.0
@@ -539,17 +892,8 @@ class LevelEngine:
         five_min_ms = 5 * 60 * 1000
         count_5m = sum(1 for e in dq if (now_ms - int(e["ts"])) <= five_min_ms)
 
-        # Sweep-target distances in basis points (bps = pct * 100)
-        sweep_long_dist_bps: float | None = None
-        sweep_short_dist_bps: float | None = None
-        if sweep_target_long is not None and ref_price > 0:
-            sweep_long_dist_bps = round(abs(sweep_target_long - ref_price) / ref_price * 10000, 2)
-        if sweep_target_short is not None and ref_price > 0:
-            sweep_short_dist_bps = round(abs(sweep_target_short - ref_price) / ref_price * 10000, 2)
-
         # Last-liquidation bps proxy: price deviation of the most recent event from
         # current price, signed by side. LONG_LIQ = longs hit below (-), SHORT_LIQ = shorts hit above (+).
-        last_event = dq[-1]
         last_liq_bps_proxy: float = 0.0
         if ref_price > 0:
             raw_bps = (float(last_event["price"]) - ref_price) / ref_price * 10000
@@ -558,36 +902,48 @@ class LevelEngine:
         levels_json = json.dumps({
             "step": step,
             "current_price": ref_price,
-            "top_long": top_long,
-            "top_short": top_short,
-            "levels_long": levels_long,
-            "levels_short": levels_short,
-            "zones_long": zones_long,
-            "zones_short": zones_short,
-            "sweep_target_long": sweep_target_long,
-            "sweep_target_short": sweep_target_short,
+            "current_price_source": current_price_source,
+            "current_price_staleness_seconds": current_price_staleness_seconds,
+            "current_price_execution_grade": current_price_execution_grade,
+            "current_price_resolver_reason": current_price_resolver_reason,
+            "liquidation_event_price_ewma": self.liquidation_event_price_ewma.get(symbol),
+            "semantic_kind": OBSERVATION_SEMANTIC_KIND,
+            "semantic_type": OBSERVATION_SEMANTIC_TYPE,
+            "observed_top_long_clusters": top_long,
+            "observed_top_short_clusters": top_short,
+            "observed_clusters_long": levels_long,
+            "observed_clusters_short": levels_short,
+            "observed_cluster_zones_long": zones_long,
+            "observed_cluster_zones_short": zones_short,
             "event_count": len(dq),
             "staleness_ms": staleness_ms,
+            "window_seconds": window_seconds,
+            "coverage_start_ts": coverage_start_ts,
+            "coverage_ratio": round(coverage_ratio, 6),
+            "coverage_complete": coverage_complete,
+            "observation_truncated": observation_truncated,
+            "event_time": last_event_ts,
+            "ingested_at": last_ingested_at,
+            "available_at": now_ms,
+            "generated_at": now_ms,
+            "feature_cutoff": last_event_ts,
         })
 
         return {
-            # Core level prices
-            "liquidation_long_level": long_level,
-            "liquidation_short_level": short_level,
-            # Nearest level scalars for tensor
-            "nearest_liquidation_level_above": nearest_above,
-            "nearest_liquidation_level_below": nearest_below,
-            # Strength per side
-            "liquidation_long_strength": long_strength,
-            "liquidation_short_strength": short_strength,
-            # Distance from current price
-            "liquidation_long_distance_pct": round(long_distance_pct, 4),
-            "liquidation_short_distance_pct": round(short_distance_pct, 4),
-            # Bps aliases under the field names the microstructure sweep
-            # detector actually reads (its proximity inputs were silently
-            # dead against the *_pct names).
-            "distance_to_long_liq_bps": round(long_distance_pct * 100.0, 2),
-            "distance_to_short_liq_bps": round(short_distance_pct * 100.0, 2),
+            # Explicit retrospective cluster fields. These are observed past
+            # forced executions, never open-position liquidation thresholds.
+            "observed_forced_liquidation_cluster_long_price": long_level or None,
+            "observed_forced_liquidation_cluster_short_price": short_level or None,
+            "observed_forced_liquidation_cluster_nearest_above": nearest_above or None,
+            "observed_forced_liquidation_cluster_nearest_below": nearest_below or None,
+            "observed_forced_liquidation_cluster_long_strength": long_strength,
+            "observed_forced_liquidation_cluster_short_strength": short_strength,
+            "observed_forced_liquidation_cluster_long_distance_bps": (
+                round(long_distance_pct * 100.0, 2) if long_level > 0 else None
+            ),
+            "observed_forced_liquidation_cluster_short_distance_bps": (
+                round(short_distance_pct * 100.0, 2) if short_level > 0 else None
+            ),
             # Derived risk scalars (cascade = intensity percentile, see above)
             "liquidation_cascade_risk": cascade_risk,
             "liquidation_cascade_risk_semantics": "intensity_percentile_v2",
@@ -597,27 +953,40 @@ class LevelEngine:
             "liquidation_count_5m": count_5m,
             # Last-event bps proxy (signed by liquidation side)
             "last_liq_bps_proxy": last_liq_bps_proxy,
-            # Sweep targets
-            "liquidation_sweep_target_long": sweep_target_long,
-            "liquidation_sweep_target_short": sweep_target_short,
-            "liquidation_sweep_target_long_distance_bps": sweep_long_dist_bps,
-            "liquidation_sweep_target_short_distance_bps": sweep_short_dist_bps,
-            # Zone / level counts
-            "liquidation_zones_count_long": len(zones_long),
-            "liquidation_zones_count_short": len(zones_short),
-            "liquidation_levels_count_long": len(levels_long),
-            "liquidation_levels_count_short": len(levels_short),
+            "observed_forced_liquidation_cluster_zones_count_long": len(zones_long),
+            "observed_forced_liquidation_cluster_zones_count_short": len(zones_short),
+            "observed_forced_liquidation_clusters_count_long": len(levels_long),
+            "observed_forced_liquidation_clusters_count_short": len(levels_short),
             # Aggregate notional
             "liquidation_volume": liq_volume,
             # JSON blob for heatmap visualization
-            "liquidation_levels_json": levels_json,
+            "observed_forced_liquidation_clusters_json": levels_json,
             # Timestamps / staleness
             "liquidation_updated_ts": now_ms,
             "liquidation_last_event_ts": last_event_ts,
             "liquidation_staleness_ms": staleness_ms,
             "liquidation_is_stale": 1 if staleness_ms > STALENESS_STALE_MS else 0,
             "liquidation_no_events": 0,
+            "liquidation_no_fresh_market_reference": 0,
+            "liquidation_evidence_unavailable_reason": None,
             "liquidation_current_price": ref_price,
+            "liquidation_current_price_source": current_price_source,
+            "liquidation_current_price_staleness_seconds": current_price_staleness_seconds,
+            "liquidation_current_price_execution_grade": 1 if current_price_execution_grade else 0,
+            "liquidation_current_price_resolver_reason": current_price_resolver_reason,
+            "liquidation_event_price_ewma": self.liquidation_event_price_ewma.get(symbol),
+            "liquidation_semantic_kind": OBSERVATION_SEMANTIC_KIND,
+            "liquidation_semantic_type": OBSERVATION_SEMANTIC_TYPE,
+            "liquidation_observation_window_seconds": window_seconds,
+            "liquidation_observation_coverage_start_ts": coverage_start_ts,
+            "liquidation_observation_coverage_ratio": round(coverage_ratio, 6),
+            "liquidation_observation_coverage_complete": 1 if coverage_complete else 0,
+            "liquidation_observation_truncated": 1 if observation_truncated else 0,
+            "event_time": last_event_ts,
+            "ingested_at": last_ingested_at,
+            "available_at": now_ms,
+            "generated_at": now_ms,
+            "feature_cutoff": last_event_ts,
             "liquidation_source": "binance",
             "native_worker_id": WORKER_ID,
         }
@@ -626,14 +995,48 @@ class LevelEngine:
         unified_key = _v2_key(f"unified_features:{symbol}:{tf}")
         latest_key = f"{unified_key}:latest"
         level_key = _v2_key(f"liquidations:levels:{symbol}:{tf}")
-        # Redis hset rejects None values — convert them to empty string so the
-        # unified_features hash always stores a valid type. The JSON artifact
-        # in level_key preserves the real None via json.dumps.
-        hset_mapping = {k: ("" if v is None else v) for k, v in mapping.items()}
+        dedicated_mapping = dict(mapping)
+        for legacy_alias in FUTURE_LIQUIDATION_ALIAS_FIELDS:
+            dedicated_mapping.pop(legacy_alias, None)
+        for generic_clock in (
+            "event_time",
+            "ingested_at",
+            "available_at",
+            "generated_at",
+            "feature_cutoff",
+        ):
+            if generic_clock in dedicated_mapping:
+                dedicated_mapping.setdefault(
+                    f"liquidation_{generic_clock}",
+                    dedicated_mapping[generic_clock],
+                )
+        generic_clocks = {
+            "event_time", "ingested_at", "available_at",
+            "generated_at", "feature_cutoff",
+        }
+        hset_mapping = {
+            key: value
+            for key, value in dedicated_mapping.items()
+            if key not in generic_clocks and value is not None
+        }
+        fields_to_delete = sorted(
+            FUTURE_LIQUIDATION_ALIAS_FIELDS
+            | {
+                key for key, value in dedicated_mapping.items()
+                if key not in generic_clocks and value is None
+            }
+        )
         pipe = self.redis.pipeline()
+        if fields_to_delete:
+            pipe.hdel(unified_key, *fields_to_delete)
+            pipe.hdel(latest_key, *fields_to_delete)
         pipe.hset(unified_key, mapping=hset_mapping)
         pipe.hset(latest_key, mapping=hset_mapping)
-        pipe.set(level_key, json.dumps(mapping, sort_keys=True, default=str), ex=self.config.ttl_seconds)
+        pipe.set(
+            level_key,
+            json.dumps(dedicated_mapping, sort_keys=True, default=str),
+            ex=self.config.ttl_seconds,
+        )
         pipe.expire(unified_key, self.config.ttl_seconds)
         pipe.expire(latest_key, self.config.ttl_seconds)
         pipe.execute()
@@ -650,6 +1053,80 @@ class LevelEngine:
             mapping = self._compute_mapping(symbol, tf, now_ms)
             if mapping:
                 self._publish_mapping(symbol, tf, mapping, now_ms)
+
+    def _claim_stale_pending(self) -> list[tuple[str, dict[str, str]]]:
+        """Claim one bounded batch left pending by a failed/dead consumer."""
+        try:
+            response = self.redis.xautoclaim(
+                self.stream_name,
+                GROUP_NAME,
+                CONSUMER_NAME,
+                min_idle_time=PENDING_MIN_IDLE_MS,
+                start_id="0-0",
+                count=self.config.batch_size,
+            )
+            self.pending_recovery_supported = True
+            items = list(response[1] if response and len(response) > 1 else [])
+            self.pending_messages_recovered += len(items)
+            return items
+        except Exception as exc:
+            if self.pending_recovery_supported is not False:
+                print(f"[{WORKER_ID}] stale-pending recovery unavailable: {exc}")
+            self.pending_recovery_supported = False
+            self.capture_gap_detected = True
+            return []
+
+    def _process_stream_items(
+        self,
+        items: list[tuple[str, dict[str, str]]],
+        *,
+        now_ms: int | None = None,
+    ) -> list[tuple[str, str]]:
+        """Publish accepted events before ACK; rejected events are quarantined."""
+        dirty: list[tuple[str, str]] = []
+        accepted_message_ids: list[str] = []
+        for msg_id, fields in items:
+            observed_now_ms = (
+                int(time.time() * 1000) if now_ms is None else int(now_ms)
+            )
+            event, reject_reason = self._parse_event(
+                dict(fields), now_ms=observed_now_ms
+            )
+            if not event:
+                self.events_ignored += 1
+                reason = reject_reason or "unknown_rejection"
+                self.reject_reasons[reason] += 1
+                self._quarantine_event(
+                    msg_id=str(msg_id),
+                    fields=dict(fields),
+                    reason=reason,
+                    now_ms=observed_now_ms,
+                )
+                self.redis.xack(self.stream_name, GROUP_NAME, msg_id)
+                continue
+            symbol = str(event["symbol"])
+            if not self._remember_src_id(symbol, str(event.get("src_id") or "")):
+                self.events_deduplicated += 1
+                self.redis.xack(self.stream_name, GROUP_NAME, msg_id)
+                continue
+            self._update_liquidation_event_price_ewma(event)
+            for tf in self.config.timeframes:
+                self._append_event(symbol, tf, event)
+                dirty.append((symbol, tf))
+            self.events_processed += 1
+            accepted_message_ids.append(str(msg_id))
+
+        if accepted_message_ids:
+            # Any exception here leaves every accepted ID pending. On restart
+            # XAUTOCLAIM replays it into clean in-memory state; no observation
+            # is ACKed before its derived Redis mappings exist.
+            self._publish_updates(dirty)
+            self.redis.xack(
+                self.stream_name,
+                GROUP_NAME,
+                *accepted_message_ids,
+            )
+        return dirty
 
     def _heartbeat_publish(self) -> None:
         now_ms = int(time.time() * 1000)
@@ -674,6 +1151,21 @@ class LevelEngine:
             "timeframes": list(self.config.timeframes),
             "events_processed": self.events_processed,
             "events_ignored": self.events_ignored,
+            "events_deduplicated": self.events_deduplicated,
+            "events_quarantined": self.events_quarantined,
+            "reject_reasons": dict(self.reject_reasons),
+            "pending_messages_recovered": self.pending_messages_recovered,
+            "pending_recovery_supported": self.pending_recovery_supported,
+            "ack_after_derived_publish": True,
+            "capture_start_ms": self.capture_start_ms,
+            "capture_start_ms_by_symbol": dict(self.capture_start_ms_by_symbol),
+            "capture_observed_through_ms": self.capture_observed_through_ms,
+            "capture_caught_up": self.capture_caught_up,
+            "capture_gap_detected": self.capture_gap_detected,
+            "capture_group_lag": self.capture_group_lag,
+            "capture_pending_count": self.capture_pending_count,
+            "capture_status_error": self.capture_status_error,
+            "max_events_per_symbol_timeframe": MAX_EVENTS_PER_SYMBOL_TIMEFRAME,
             "mappings_published_this_heartbeat": published,
             "dynamic_symbol_refresh_enabled": True,
             "writes_legacy_redis": False,
@@ -708,12 +1200,18 @@ class LevelEngine:
     def _cleanup_deques(self, now_ms: int) -> None:
         for symbol in self.symbols:
             for tf in self.config.timeframes:
-                window_seconds = max(tf_to_seconds(tf) * 20, 2 * 3600)
-                window_seconds = min(window_seconds, self.config.max_retention_seconds)
+                window_seconds = observation_window_seconds(
+                    tf, self.config.max_retention_seconds
+                )
                 window_ms = window_seconds * 1000
                 dq = self.state[symbol][tf]
-                while dq and (now_ms - int(dq[0]["ts"])) > window_ms:
-                    dq.popleft()
+                retained = [
+                    event for event in dq
+                    if 0 <= now_ms - int(event["ts"]) <= window_ms
+                ]
+                if len(retained) != len(dq):
+                    dq.clear()
+                    dq.extend(sorted(retained, key=lambda event: int(event["ts"])))
 
     def _maybe_log(self) -> None:
         now = time.time()
@@ -743,6 +1241,15 @@ class LevelEngine:
             self.refresh_symbols()
             if self.iteration_count % CLEANUP_BATCH_INTERVAL == 0:
                 self._cleanup_deques(now_ms)
+            if (
+                self.iteration_count == 1
+                or self.iteration_count % PENDING_CLAIM_INTERVAL == 0
+            ):
+                pending_items = self._claim_stale_pending()
+                if pending_items:
+                    self._process_stream_items(
+                        pending_items,
+                    )
             messages = self.redis.xreadgroup(
                 groupname=GROUP_NAME,
                 consumername=CONSUMER_NAME,
@@ -751,28 +1258,20 @@ class LevelEngine:
                 block=self.config.block_ms,
             )
             if not messages:
+                self._refresh_capture_status()
                 self._heartbeat_publish()
                 self._maybe_log()
                 continue
 
             dirty: list[tuple[str, str]] = []
             for _, items in messages:
-                for msg_id, fields in items:
-                    try:
-                        event = self._parse_event(dict(fields))
-                        if not event:
-                            self.events_ignored += 1
-                            self.redis.xack(self.stream_name, GROUP_NAME, msg_id)
-                            continue
-                        symbol = str(event["symbol"])
-                        for tf in self.config.timeframes:
-                            self.state[symbol][tf].append(event)
-                            dirty.append((symbol, tf))
-                        self.events_processed += 1
-                    finally:
-                        self.redis.xack(self.stream_name, GROUP_NAME, msg_id)
+                dirty.extend(
+                    self._process_stream_items(
+                        list(items),
+                    )
+                )
+            self._refresh_capture_status()
             if time.time() - self._last_publish_ts >= 2.0 or len(dirty) < self.config.batch_size:
-                self._publish_updates(dirty)
                 self._heartbeat_publish()
                 self._last_publish_ts = time.time()
             self._maybe_log()

@@ -217,13 +217,19 @@ def _svc(name: str, unit_stem: str, category: str, **kw) -> ComponentSpec:
 # ~3-5x the component's publish interval. Trainer uses ~26min (its cycle is
 # 12-26min, pre-existing) to avoid false positives.
 _FE = "v2/frontend/public/operator_runtime"  # file-heartbeat prefix
+_LOCAL_PROFILED_RESEARCH_TRAINER_STATUS = (
+    "/home/wali/ai_bot_local_data/v2_native_trainer/"
+    "local_profiled_research_v1/status.json"
+)
 
 NON_INGESTOR_COMPONENTS: tuple[ComponentSpec, ...] = (
     # --- trainer subsystem ---
-    # Native trainer has two explicitly selected resident modes.  The legacy
+    # Native trainer has three explicitly selected resident modes.  The legacy
     # training runtime publishes the first path; the authenticated-sample
-    # waiting observer publishes the second.  Observe the freshest valid clock
-    # so a stale artifact from the inactive mode cannot restart the active mode.
+    # waiting observer publishes the second; the locally authenticated research
+    # publisher writes the third outside the read-only repository mount. Observe
+    # the freshest valid clock so a stale artifact from an inactive mode cannot
+    # restart the active mode.
     # The 1800s limit remains deliberately generous for the legacy 12-26min
     # training cycle; the waiting observer currently publishes every 30s.
     _svc("native_cuda_trainer_persistent", "native-cuda-trainer-persistent", "trainer",
@@ -231,8 +237,9 @@ NON_INGESTOR_COMPONENTS: tuple[ComponentSpec, ...] = (
          heartbeat_file="v2/frontend/public/v2_persistent_cuda_trainer_resource_utilization_and_paper_drawdown_guard/latest/native_cuda_trainer_persistent_runtime_status.json",
          heartbeat_files=(
              "v2/runtime/native_cuda_trainer_waiting_for_authenticated_samples_status.json",
+             _LOCAL_PROFILED_RESEARCH_TRAINER_STATUS,
          ),
-         heartbeat_field="generated_utc", max_staleness_seconds=1800),
+         heartbeat_field="status_generated_at", max_staleness_seconds=1800),
     _svc("continuous_offline_gpu_trainer", "continuous-offline-gpu-trainer", "trainer",
          criticality="normal", process_pattern="continuous_offline_gpu_trainer_loop.sh"),
     _svc("trainer_checkpoint_evidence", "trainer-checkpoint-evidence", "trainer", criticality="normal",

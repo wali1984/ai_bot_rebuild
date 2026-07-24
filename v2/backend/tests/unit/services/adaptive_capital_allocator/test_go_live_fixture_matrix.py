@@ -17,13 +17,19 @@ from __future__ import annotations
 
 import fnmatch
 import json
-import math
 
 from v2.backend.app.cli import v2_trade_management_paper_loop as pl
 from v2.backend.app.services.adaptive_capital_allocator import (
     AllocationInput,
     allocate_live_candidate,
-    allocate_paper_candidate,
+)
+from v2.backend.app.services.adaptive_capital_allocator.allocator import (
+    PAPER_LIQUIDATION_ATR_EVIDENCE_HASH_LINEAGE_KEY,
+    PAPER_LIQUIDATION_ATR_EVIDENCE_LINEAGE_KEY,
+    build_paper_liquidation_atr_evidence,
+)
+from v2.backend.tests.unit.services.adaptive_capital_allocator.growth_receipt_test_utils import (
+    allocate_authorized_growth as allocate_paper_candidate,
 )
 from v2.backend.app.services.altdata.provider_consumption_status import (
     build_provider_consumption_status,
@@ -63,12 +69,42 @@ def _alloc(**overrides) -> AllocationInput:
         slippage_bps=2.0,
         fee_bps=4.0,
         expected_funding_bps=0.0,
+        maintenance_margin_rate=0.005,
         min_notional=5.0,
         step_size=0.0001,
         min_qty=0.0001,
         lineage_ids={"signal_id": "phase8"},
     )
     base.update(overrides)
+    entry_atr_bps = base.get("entry_atr_bps", base["volatility_bps"])
+    base["entry_atr_bps"] = entry_atr_bps
+    receipt, reasons = build_paper_liquidation_atr_evidence(
+        feature_snapshot={
+            "feature_snapshot_id": "go-live-matrix-final-feature",
+            "symbol": base["symbol"],
+            "timeframe": base["timeframe"],
+            "feature_freshness_state": "CURRENT",
+            "candle_closed_confirmed": True,
+            "latest_unclosed_kline_excluded": True,
+            "candle_close_time": "2026-07-11T17:59:55Z",
+            "feature_cutoff": "2026-07-11T17:59:56Z",
+            "available_at": "2026-07-11T17:59:57Z",
+            "generated_at": "2026-07-11T17:59:58Z",
+            "features": {"atr_bps": entry_atr_bps},
+        },
+        symbol=base["symbol"],
+        timeframe=base["timeframe"],
+        entry_price=base["price"],
+        allocation_decision_time="2026-07-11T17:59:59Z",
+    )
+    assert not reasons
+    assert receipt is not None
+    lineage_ids = dict(base.get("lineage_ids") or {})
+    lineage_ids[PAPER_LIQUIDATION_ATR_EVIDENCE_LINEAGE_KEY] = receipt
+    lineage_ids[PAPER_LIQUIDATION_ATR_EVIDENCE_HASH_LINEAGE_KEY] = receipt[
+        "evidence_sha256"
+    ]
+    base["lineage_ids"] = lineage_ids
     return AllocationInput(**base)
 
 
@@ -304,7 +340,7 @@ def test_paper_fill_rejected_with_exact_true_blocker() -> None:
 # --------------------------------------------------------------------------- #
 # G. PPO on-policy
 # --------------------------------------------------------------------------- #
-def test_ppo_on_policy_row_created_from_policy_sampled_close() -> None:
+def test_self_attested_policy_sampled_close_stays_outcome_supervised() -> None:
     rows = pl._build_trainer_feedback_rows(
         close_events=[
             {
@@ -320,9 +356,13 @@ def test_ppo_on_policy_row_created_from_policy_sampled_close() -> None:
                 "feature_cutoff": "2026-07-08T04:14:59.999Z",
                 "available_at": "2026-07-08T04:17:02.188Z",
                 "decision_time": "2026-07-08T04:19:20.458Z",
-                "selected_action_probability": 0.8,
-                "policy_value": 0.25,
-                "realized_net_pnl_bps": 12.0,
+                    "selected_action_probability": 0.8,
+                    "policy_value": 0.25,
+                    "behavior_policy_sampling_mode": "CATEGORICAL_SAMPLE",
+                    "behavior_policy_distribution_contract": (
+                        "RAW_LOGITS_SOFTMAX_V1"
+                    ),
+                    "realized_net_pnl_bps": 12.0,
                 "position_id": "",
             }
         ],
@@ -338,9 +378,18 @@ def test_ppo_on_policy_row_created_from_policy_sampled_close() -> None:
         ],
     )
     assert len(rows) == 1
-    assert rows[0]["ppo_on_policy_entry_fields_present"] is True
-    assert rows[0]["old_log_prob"] == math.log(0.8)
-    assert rows[0]["paper_learning_lane"] == "PPO_ON_POLICY_PAPER_EXPLORATION"
+    # Self-attested sampling fields are not an exact behavior receipt. The
+    # closed paper trade remains useful as outcome supervision, but it cannot
+    # be mislabeled as an on-policy PPO update.
+    assert rows[0]["ppo_on_policy_entry_fields_present"] is False
+    assert rows[0].get("old_log_prob") is None
+    assert rows[0]["paper_learning_lane"] == "OUTCOME_SUPERVISED_PAPER"
+    assert rows[0]["ppo_on_policy_ineligible_reason"] == (
+        "BEHAVIOR_POLICY_RECEIPT_INVALID"
+    )
+    assert "behavior_policy_receipt_missing" in rows[0][
+        "ppo_on_policy_receipt_rejection_reasons"
+    ]
     assert rows[0]["routes_to_live"] is False
     assert rows[0]["places_real_order"] is False
 

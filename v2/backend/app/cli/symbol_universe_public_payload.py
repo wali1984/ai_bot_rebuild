@@ -3,16 +3,25 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
+import os
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
+from v2.backend.app.services.adaptive_symbol_selection import (
+    select_adaptive_symbol_universe,
+)
+from v2.backend.app.services.adaptive_symbol_selection_runtime import (
+    build_runtime_selection_evidence,
+)
 from v2.backend.app.services.symbol_universe.service import (
     DYNAMIC_SYMBOL_SOURCES,
-    LEGACY_ACTIVE_SYMBOLS_25,
     SYMBOL_SELECTION_SCORE_FACTORS,
     SymbolUniverseService,
 )
-
+from v2.backend.app.services.v2_symbol_runtime_universe import (
+    PREFERRED_MAJOR_SYMBOLS,
+    is_valid_runtime_symbol,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 V2_ROOT = REPO_ROOT / "v2"
@@ -20,8 +29,20 @@ PUBLIC_DIR = V2_ROOT / "frontend" / "public" / "operator_runtime" / "symbol_univ
 LOCAL_DIR = V2_ROOT / "runtime" / "symbol_universe" / "latest"
 FINAL_DIR = REPO_ROOT / "claude_worklog" / "final_readiness" / "symbol_universe_public_payload" / "latest"
 PAYLOAD_NAME = "symbol_universe_status.json"
+EDGE_ATTRIBUTION_PATH = (
+    V2_ROOT
+    / "frontend/public/operator_runtime/"
+    "v2_dynamic_93_edge_recovery_and_signal_quality_burndown/latest/"
+    "v2_dynamic_93_by_symbol_edge_attribution.json"
+)
 
 LIVE_GATE_STATUS = "blocked_human_only"
+ADAPTIVE_SCOPE_ACTIVATION_ENV = "V2_ADAPTIVE_SYMBOL_SCOPES_ACTIVE"
+ADAPTIVE_SCOPE_CONSUMERS_BOUND_ENV = "V2_ADAPTIVE_SYMBOL_SCOPE_CONSUMERS_BOUND"
+ADAPTIVE_SCOPE_DEFAULT_BLOCKER = "default_off_requires_explicit_operator_activation"
+ADAPTIVE_SCOPE_CONSUMER_BLOCKER = (
+    "scope_aware_training_paper_and_position_management_consumers_not_bound"
+)
 SYMBOL_UNIVERSE_CONTRACT = "SYMBOL_UNIVERSE_CONTRACT_REQUIRED"
 SYMBOL_UNIVERSE_SERVICE_PATH = "v2/backend/app/services/symbol_universe/service.py"
 LEGACY_ACTIVE_SYMBOL_SOURCE = "legacy_config.py_SYMBOLS_current_25"
@@ -32,7 +53,11 @@ ACTIVE_PAPER_POSITION_SOURCE_PATHS = (
 
 
 def iso_now() -> str:
-    return dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return (
+        dt.datetime.now(dt.timezone.utc)
+        .isoformat(timespec="microseconds")
+        .replace("+00:00", "Z")
+    )
 
 
 def _read_json(path: Path) -> Any | None:
@@ -71,6 +96,105 @@ def _as_symbols(value: Any) -> list[str]:
         if text:
             out.append(text)
     return sorted(set(out))
+
+
+def _preferred_first(symbols: Iterable[str]) -> list[str]:
+    normalized = {
+        str(symbol or "").strip().upper()
+        for symbol in symbols
+        if is_valid_runtime_symbol(str(symbol or "").strip().upper())
+    }
+    return [
+        *[symbol for symbol in PREFERRED_MAJOR_SYMBOLS if symbol in normalized],
+        *sorted(normalized - set(PREFERRED_MAJOR_SYMBOLS)),
+    ]
+
+
+def _preferred_then_ranked(
+    ranked: Iterable[str],
+    candidates: Iterable[str],
+) -> list[str]:
+    allowed = {
+        str(symbol or "").strip().upper()
+        for symbol in candidates
+        if is_valid_runtime_symbol(str(symbol or "").strip().upper())
+    }
+    out: list[str] = []
+    seen: set[str] = set()
+    for raw in (*PREFERRED_MAJOR_SYMBOLS, *tuple(ranked), *tuple(sorted(allowed))):
+        symbol = str(raw or "").strip().upper()
+        if symbol in allowed and symbol not in seen:
+            seen.add(symbol)
+            out.append(symbol)
+    return out
+
+
+def _previous_adaptive_state(payload: Any) -> Mapping[str, Any] | None:
+    if not isinstance(payload, Mapping):
+        return None
+    state = payload.get("adaptive_symbol_selection")
+    return state if isinstance(state, Mapping) else None
+
+
+def _runtime_evidence_summary(payload: Mapping[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(payload, Mapping):
+        return {
+            "status": "not_collected",
+            "schema_version": None,
+            "metrics": {},
+            "source_contract": {},
+        }
+    rows = payload.get("evidence_rows")
+    return {
+        "status": "collected" if isinstance(rows, list) else "invalid",
+        "schema_version": payload.get("schema_version"),
+        "decision_time": payload.get("decision_time"),
+        "metrics": payload.get("metrics") if isinstance(payload.get("metrics"), Mapping) else {},
+        "source_contract": (
+            payload.get("source_contract")
+            if isinstance(payload.get("source_contract"), Mapping)
+            else {}
+        ),
+        "places_real_order": False,
+        "writes_redis": False,
+    }
+
+
+def _bind_evidence_to_current_candidates(
+    evidence_rows: Iterable[Any],
+    *,
+    allowed_symbols: set[str],
+) -> list[Any]:
+    """Fail closed when evidence asserts an out-of-scope exchange identity.
+
+    Runtime rows are normally collected from ``allowed_symbols`` already, but
+    the public payload builder is also called directly by tests and startup
+    tooling.  A row-level ``exchange_confirmed`` boolean must therefore never
+    be able to override the publisher's current discovered + exchange-confirmed
+    authority.
+    """
+
+    bound_rows: list[Any] = []
+    for raw in evidence_rows:
+        if not isinstance(raw, Mapping):
+            bound_rows.append(raw)
+            continue
+        row = dict(raw)
+        symbol = str(row.get("symbol") or "").strip().upper()
+        if symbol not in allowed_symbols:
+            row["exchange_confirmed"] = False
+            existing = row.get("source_blockers")
+            blockers = (
+                [str(item) for item in existing if str(item)]
+                if isinstance(existing, (list, tuple, set))
+                else []
+            )
+            blockers.append(
+                "symbol_not_in_current_exchange_confirmed_discovered_candidate_set"
+            )
+            row["source_blockers"] = sorted(set(blockers))
+        bound_rows.append(row)
+    return bound_rows
 
 
 def _collect_payloads(root: Path) -> list[tuple[Path, dict[str, Any]]]:
@@ -218,8 +342,24 @@ def _active_paper_position_symbols(root: Path) -> tuple[list[str], list[str]]:
     return sorted(symbols), sorted(sources)
 
 
-def build_payload(root: Path = REPO_ROOT, *, generated_at: str | None = None) -> dict[str, Any]:
+def build_payload(
+    root: Path = REPO_ROOT,
+    *,
+    generated_at: str | None = None,
+    adaptive_runtime_evidence: Mapping[str, Any] | None = None,
+    previous_adaptive_state: Mapping[str, Any] | None = None,
+    activate_adaptive_scopes: bool = False,
+    adaptive_scope_consumers_bound: bool = False,
+) -> dict[str, Any]:
     generated_at = generated_at or iso_now()
+    if (
+        type(activate_adaptive_scopes) is not bool
+        or type(adaptive_scope_consumers_bound) is not bool
+    ):
+        raise ValueError("adaptive_scope_activation_flag_must_be_boolean")
+    adaptive_scope_activation_active = (
+        activate_adaptive_scopes and adaptive_scope_consumers_bound
+    )
     service = SymbolUniverseService()
     worker_payloads = _collect_payloads(root)
     discovered, discovered_sources = _union(
@@ -282,6 +422,73 @@ def build_payload(root: Path = REPO_ROOT, *, generated_at: str | None = None) ->
         binance_confirmed=binance_confirmed,
         evidence_sources=active_paper_sources,
     )
+    # Preference is ordering-only: never add a major that failed discovery,
+    # exchange confirmation, or the existing scope-evidence checks.  Keep the
+    # authoritative legacy scopes consistent with adaptive and resolver output
+    # while adaptive selection remains shadow/default-off.
+    training = _preferred_first(training)
+    paper = _preferred_first(paper)
+    live_data = _preferred_first(live_data)
+    confirmed_set = set(binance_confirmed)
+    discovered_set = set(discovered)
+    data_collection_candidates = {
+        symbol
+        for symbol in (confirmed_set & discovered_set)
+        if confirmed_set and is_valid_runtime_symbol(symbol)
+    }
+    evidence_rows_raw = (
+        adaptive_runtime_evidence.get("evidence_rows")
+        if isinstance(adaptive_runtime_evidence, Mapping)
+        else None
+    )
+    evidence_rows = (
+        _bind_evidence_to_current_candidates(
+            evidence_rows_raw,
+            allowed_symbols=data_collection_candidates,
+        )
+        if isinstance(evidence_rows_raw, list)
+        else []
+    )
+    selection_decision_time = (
+        adaptive_runtime_evidence.get("decision_time")
+        if isinstance(adaptive_runtime_evidence, Mapping)
+        else generated_at
+    ) or generated_at
+    publisher_generated_clock = _parse_generated_ts({"generated_at": generated_at})
+    selection_decision_clock = _parse_generated_ts(
+        {"generated_at": selection_decision_time}
+    )
+    if isinstance(adaptive_runtime_evidence, Mapping) and (
+        publisher_generated_clock is None
+        or selection_decision_clock is None
+        or publisher_generated_clock <= selection_decision_clock
+    ):
+        raise ValueError(
+            "symbol_universe_generated_at_must_follow_adaptive_selection_decision_time"
+        )
+    adaptive_selection = select_adaptive_symbol_universe(
+        evidence_rows,
+        decision_time=selection_decision_time,
+        previous_state=previous_adaptive_state,
+    )
+    data_collection_symbols = _preferred_then_ranked(
+        adaptive_selection["training_ranked_symbols"],
+        data_collection_candidates,
+    )
+    adaptive_training_symbols = list(adaptive_selection["training_selected_symbols"])
+    adaptive_paper_new_entry_symbols = list(adaptive_selection["trading_selected_symbols"])
+    active_position_management_symbols = _preferred_first(active_paper_symbols)
+    if adaptive_scope_activation_active:
+        # Open positions remain visible only in the management/live-data scope.
+        # The existing downstream paper worker interprets ``paper_symbols`` as
+        # new-entry capable, so management-only symbols must never be unioned
+        # into either authoritative candidate field.
+        training = list(adaptive_training_symbols)
+        paper = list(adaptive_paper_new_entry_symbols)
+        live_data = list(active_position_management_symbols)
+        rejected_training = sorted(set(requested_training) - set(training))
+        rejected_paper = sorted(set(requested_paper) - set(paper))
+        rejected_live_data = sorted(set(active_paper_symbols) - set(live_data))
     source_paths = sorted(set(discovered_sources + dynamic_sources + observed_sources + training_sources + paper_sources + binance_sources))
     evidence_gaps = sorted(set(training_blockers + paper_blockers + live_data_blockers))
     if not binance_confirmed:
@@ -302,9 +509,20 @@ def build_payload(root: Path = REPO_ROOT, *, generated_at: str | None = None) ->
         "dynamic_discovered_symbols": dynamic_discovered,
         "dynamic_symbol_sources": list(DYNAMIC_SYMBOL_SOURCES),
         "observed_symbols": observed,
+        "data_collection_symbols": data_collection_symbols,
         "training_symbols": training,
         "paper_symbols": paper,
         "live_data_symbols": live_data,
+        "adaptive_training_eligible_symbols": adaptive_selection[
+            "training_eligible_symbols"
+        ],
+        "adaptive_trading_eligible_symbols": adaptive_selection[
+            "trading_eligible_symbols"
+        ],
+        "adaptive_training_selected_symbols": adaptive_training_symbols,
+        "adaptive_paper_new_entry_symbols": adaptive_paper_new_entry_symbols,
+        "active_position_management_symbols": active_position_management_symbols,
+        "active_position_retention_grants_new_entry_eligibility": False,
         "requested_training_symbols": requested_training,
         "requested_paper_symbols": requested_paper,
         "requested_live_data_symbols": active_paper_symbols,
@@ -318,7 +536,59 @@ def build_payload(root: Path = REPO_ROOT, *, generated_at: str | None = None) ->
             "paper_source_paths": paper_sources,
             "live_data_source_paths": active_paper_sources,
             "binance_confirmation_source_paths": binance_sources,
+            "adaptive_candidate_source": (
+                "exchange_confirmed_discovered_symbols_not_worker_requested_scopes"
+            ),
         },
+        "adaptive_symbol_selection": adaptive_selection,
+        "adaptive_runtime_evidence": _runtime_evidence_summary(
+            adaptive_runtime_evidence
+        ),
+        "adaptive_clock_contract": {
+            "selection_decision_time": adaptive_selection["decision_time"],
+            "publisher_generated_at": generated_at,
+            "selection_decision_precedes_publisher_generation": (
+                selection_decision_clock is not None
+                and publisher_generated_clock is not None
+                and selection_decision_clock < publisher_generated_clock
+            ),
+            "decision_time_is_not_generated_at": (
+                str(selection_decision_time) != str(generated_at)
+            ),
+        },
+        "adaptive_scope_activation": {
+            "requested": activate_adaptive_scopes,
+            "scope_aware_consumers_bound": adaptive_scope_consumers_bound,
+            "active": adaptive_scope_activation_active,
+            "default_on": False,
+            "activation_env": ADAPTIVE_SCOPE_ACTIVATION_ENV,
+            "scope_aware_consumers_bound_env": ADAPTIVE_SCOPE_CONSUMERS_BOUND_ENV,
+            "activation_blocked_reason": (
+                None
+                if adaptive_scope_activation_active
+                else (
+                    ADAPTIVE_SCOPE_CONSUMER_BLOCKER
+                    if activate_adaptive_scopes
+                    else ADAPTIVE_SCOPE_DEFAULT_BLOCKER
+                )
+            ),
+            "authoritative_training_source": (
+                "adaptive_training_selected_only"
+                if adaptive_scope_activation_active
+                else "legacy_requested_scope_evidence_unchanged"
+            ),
+            "authoritative_paper_source": (
+                "adaptive_trading_selected_only"
+                if adaptive_scope_activation_active
+                else "legacy_requested_scope_evidence_unchanged"
+            ),
+            "paper_new_entry_symbols": adaptive_paper_new_entry_symbols,
+            "retained_open_position_symbols": active_position_management_symbols,
+            "retained_open_positions_are_new_entry_eligible": False,
+        },
+        "adaptive_rankings_are_opportunity_and_feasibility_candidates_not_forecasts": True,
+        "adaptive_guaranteed_return_claim": False,
+        "adaptive_guaranteed_1000x_claim": False,
         "symbol_universe_payload_evidence_gaps": sorted(set(evidence_gaps)),
         "binance_usdm_confirmed_symbols": binance_confirmed,
         "binance_usdm_tradability_authority": (
@@ -346,11 +616,109 @@ def write_payload(payload: Mapping[str, Any]) -> None:
         _write_json(directory / PAYLOAD_NAME, payload)
 
 
+def collect_runtime_adaptive_evidence(symbols: list[str]) -> dict[str, Any]:
+    """Collect bounded local evidence; failure returns an empty fail-closed set."""
+
+    try:
+        import redis
+
+        reader = redis.Redis.from_url(
+            os.getenv("REDIS_URL", "redis://localhost:6379/0"),
+            decode_responses=False,
+            socket_connect_timeout=1.0,
+            socket_timeout=2.0,
+        )
+        edge_payload = _read_json(EDGE_ATTRIBUTION_PATH)
+        return build_runtime_selection_evidence(
+            reader,
+            symbols,
+            edge_payload=edge_payload if isinstance(edge_payload, Mapping) else None,
+        )
+    except Exception as exc:
+        # The public publisher must remain available even when local evidence is
+        # unavailable.  Empty rows are intentional: selector admission then
+        # fails closed and the default-off legacy scopes remain unchanged.
+        return {
+            "schema_version": "v2_adaptive_symbol_selection_runtime_evidence_v1",
+            "decision_time": iso_now(),
+            "evidence_rows": [],
+            "metrics": {
+                "requested_symbol_count": len(symbols),
+                "evidence_row_count": 0,
+                "collection_error": type(exc).__name__,
+            },
+            "source_contract": {
+                "status": "collection_failed_fail_closed",
+            },
+            "places_real_order": False,
+            "writes_redis": False,
+            "selection_is_execution_authorization": False,
+        }
+
+
+def _activation_from_env() -> bool:
+    return os.environ.get(ADAPTIVE_SCOPE_ACTIVATION_ENV, "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def _scope_aware_consumers_bound_from_env() -> bool:
+    return os.environ.get(ADAPTIVE_SCOPE_CONSUMERS_BOUND_ENV, "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Publish the V2 Symbol Universe public payload.")
     parser.add_argument("--write", action="store_true")
+    parser.add_argument(
+        "--activate-adaptive-scopes",
+        action="store_true",
+        help=(
+            "Explicitly replace authoritative training/paper scopes with the "
+            "strict adaptive selections. Default is OFF."
+        ),
+    )
+    parser.add_argument(
+        "--confirm-scope-aware-consumers-bound",
+        action="store_true",
+        help=(
+            "Second explicit activation guard: confirm training, paper-entry, "
+            "and open-position management consumers use their distinct scopes."
+        ),
+    )
     args = parser.parse_args(argv)
-    payload = build_payload()
+    activation_requested = args.activate_adaptive_scopes or _activation_from_env()
+    scope_aware_consumers_bound = (
+        args.confirm_scope_aware_consumers_bound
+        or _scope_aware_consumers_bound_from_env()
+    )
+    previous_payload = _read_json(PUBLIC_DIR / PAYLOAD_NAME)
+    previous_state = _previous_adaptive_state(previous_payload)
+    # First pass resolves exchange-confirmed discovery candidates only.  It
+    # does not consume worker-requested training/paper scopes as rank evidence.
+    base_payload = build_payload(
+        generated_at=iso_now(),
+        previous_adaptive_state=previous_state,
+        activate_adaptive_scopes=False,
+        adaptive_scope_consumers_bound=False,
+    )
+    runtime_evidence = collect_runtime_adaptive_evidence(
+        list(base_payload["data_collection_symbols"])
+    )
+    payload = build_payload(
+        generated_at=iso_now(),
+        adaptive_runtime_evidence=runtime_evidence,
+        previous_adaptive_state=previous_state,
+        activate_adaptive_scopes=activation_requested,
+        adaptive_scope_consumers_bound=scope_aware_consumers_bound,
+    )
     if args.write:
         write_payload(payload)
     print(json.dumps(payload, indent=2, sort_keys=True))

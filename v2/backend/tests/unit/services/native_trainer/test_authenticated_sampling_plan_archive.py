@@ -722,6 +722,7 @@ def test_sampled_hold_can_terminalize_without_entry_and_complete_cohort(
     assert verified["cohort_verified"] is True
     assert verified["receipt_membership_verified"] is True
     assert verified["terminalized_receipt_count"] == 1
+    assert verified["generated_at"] == COMPLETENESS_AT
 
 
 def test_directional_entry_outcome_path_still_completes_cohort(

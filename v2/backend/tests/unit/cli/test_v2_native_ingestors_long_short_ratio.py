@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 
 import pytest
 
@@ -17,17 +18,21 @@ class FakeRedis:
 
 def test_fetch_long_short_ratio_normalizes_binance_row(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("BINANCE_REST_FALLBACK_ALLOWED", "true")
+    monkeypatch.setenv(loop.OPTIONAL_DERIVATIVE_REST_ENV, "true")
+    newest_bucket_ms = int(time.time() // 300 * 300 * 1000)
 
     def fake_get(url: str, *, fallback_reason: str | None = None):
         assert "globalLongShortAccountRatio" in url
+        assert "limit=4" in url
         return [
             {
                 "symbol": "BTCUSDT",
                 "longShortRatio": "1.25",
                 "longAccount": "0.555",
                 "shortAccount": "0.445",
-                "timestamp": "1715500120000",
+                "timestamp": str(newest_bucket_ms - (offset * 300_000)),
             }
+            for offset in reversed(range(4))
         ]
 
     monkeypatch.setattr(loop, "_http_get_json", fake_get)
@@ -40,12 +45,22 @@ def test_fetch_long_short_ratio_normalizes_binance_row(monkeypatch: pytest.Monke
     assert payload["short_account_ratio"] == 0.445
     assert payload["source"] == "binance_global_long_short_account_ratio_rest_fallback"
     assert payload["transport"] == "rest_fallback"
+    assert payload["event_time"] == str(newest_bucket_ms)
+    assert payload["ingested_at"] == payload["available_at"]
+    assert "generated_at" not in payload
+    assert payload["source_freshness"]["cadence_proven"] is True
+    assert payload["source_freshness"]["adaptive_max_age_seconds"] == 300.0
+    assert payload["source_freshness"]["readiness_eligible"] is True
+    assert payload["source_freshness"]["source_receipt_authority"] is False
+    assert payload["source_freshness"]["trainer_authority"] is False
+    assert payload["cadence_evidence"]["cadence_basis_transport_authenticated"] is False
 
 
 def test_fetch_long_short_ratio_restricted_binance_payload_is_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("BINANCE_REST_FALLBACK_ALLOWED", "true")
+    monkeypatch.setenv(loop.OPTIONAL_DERIVATIVE_REST_ENV, "true")
     monkeypatch.setattr(
         loop,
         "_http_get_json",

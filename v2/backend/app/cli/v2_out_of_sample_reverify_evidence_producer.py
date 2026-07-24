@@ -822,6 +822,32 @@ def _paper_loop_once_allocation_row(
             or payload.get("generated_at")
         ),
     }
+    operator_projection_only = bool(
+        allocation.get("operator_projection_only") is True
+        or (
+            source_list_field == "candidate_allocations"
+            and runtime.get("candidate_allocations_projection_only") is True
+        )
+        or (
+            source_list_field == "sample_allocations"
+            and runtime.get("sample_allocations_projection_only") is True
+        )
+    )
+    if operator_projection_only:
+        row.update(
+            {
+                "_producer_operator_projection_only": True,
+                "operator_projection_only": True,
+                "full_source_payload_omitted": (
+                    allocation.get("full_source_payload_omitted") is True
+                ),
+                "source_row_index": allocation.get("source_row_index"),
+                "source_row_canonical_sha256": allocation.get(
+                    "source_row_canonical_sha256"
+                ),
+                "source_row_hash_status": allocation.get("source_row_hash_status"),
+            }
+        )
     raw_outcome_fields = sorted(
         field
         for field in OUTCOME_FIELDS
@@ -6448,6 +6474,11 @@ def _paper_allocation_protocol_reasons(
     generated_utc: str,
 ) -> list[str]:
     reasons: list[str] = []
+    if (
+        row.get("_producer_operator_projection_only") is True
+        or row.get("operator_projection_only") is True
+    ):
+        reasons.append("OPERATOR_PROJECTION_NOT_CANONICAL_CANDIDATE_EVIDENCE")
     source_kind = str(row.get("_producer_source_kind") or "")
     if source_kind and source_kind not in PENDING_ELIGIBLE_SOURCE_KINDS:
         reasons.append("SOURCE_KIND_NOT_ELIGIBLE_TO_CREATE_PENDING_RECORD")
@@ -6498,6 +6529,11 @@ def _paper_allocation_fidelity_bucket(
     *,
     expected_fingerprint: str,
 ) -> str:
+    if (
+        row.get("_producer_operator_projection_only") is True
+        or row.get("operator_projection_only") is True
+    ):
+        return "operator_projection_context_only"
     source_list_field = str(row.get("_producer_source_list_field") or "")
     if source_list_field != "candidate_allocations":
         return "sample_allocation_context_only"
@@ -6733,6 +6769,20 @@ def _paper_allocation_source_diagnostics(
 
     candidate_allocation_count = source_list_field_counts.get("candidate_allocations", 0)
     sample_allocation_count = source_list_field_counts.get("sample_allocations", 0)
+    operator_projection_count = allocation_fidelity_counts.get(
+        "operator_projection_context_only",
+        0,
+    )
+    canonical_candidate_allocation_count = sum(
+        1
+        for row in allocation_rows
+        if str(row.get("_producer_source_list_field") or "")
+        == "candidate_allocations"
+        and not (
+            row.get("_producer_operator_projection_only") is True
+            or row.get("operator_projection_only") is True
+        )
+    )
     full_fidelity_frozen_candidate_allocation_count = allocation_fidelity_counts.get(
         "full_fidelity_frozen_candidate_allocation",
         0,
@@ -6761,7 +6811,9 @@ def _paper_allocation_source_diagnostics(
     ]
     if not allocation_rows:
         status = "NO_PAPER_ALLOCATION_ROWS_PROCESSED"
-    elif candidate_allocation_count == 0:
+    elif canonical_candidate_allocation_count == 0 and operator_projection_count > 0:
+        status = "NO_GO_OPERATOR_PROJECTIONS_NOT_CANONICAL_CANDIDATE_EVIDENCE"
+    elif canonical_candidate_allocation_count == 0:
         status = "NO_GO_NO_FULL_CANDIDATE_ALLOCATIONS_EXPOSED"
     elif ready_full_candidate_allocation_count == 0:
         status = "NO_GO_FULL_CANDIDATE_ALLOCATIONS_NOT_GATE_READY"
@@ -6779,8 +6831,13 @@ def _paper_allocation_source_diagnostics(
         "processed_source_row_count": len(rows),
         "allocation_row_count": len(allocation_rows),
         "candidate_allocation_count": candidate_allocation_count,
+        "canonical_candidate_allocation_count": canonical_candidate_allocation_count,
+        "operator_projection_context_count": operator_projection_count,
         "sample_allocation_count": sample_allocation_count,
-        "full_candidate_allocation_source_exposed": candidate_allocation_count > 0,
+        "full_candidate_allocation_source_exposed": (
+            canonical_candidate_allocation_count > 0
+        ),
+        "operator_projections_are_context_only": True,
         "sample_allocations_are_context_only": True,
         "ready_for_pending_gate_count": ready_for_pending_gate_count,
         "ready_full_candidate_allocation_count": ready_full_candidate_allocation_count,

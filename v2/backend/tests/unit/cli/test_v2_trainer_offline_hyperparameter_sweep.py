@@ -5,16 +5,18 @@ import pytest
 
 from v2.backend.app.cli import v2_trainer_offline_hyperparameter_sweep as sweep_mod
 from v2.backend.app.cli.v2_trainer_offline_hyperparameter_sweep import (
+    _diverged,
     main,
     point_in_time_safety_report,
     run_hyperparameter_sweep,
     stage_recovery_checkpoint,
-    _diverged,
 )
-from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.model import V2HybridPolicyModel
-from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.data_loader import TrainingExample
-from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.tensor_builder import FeatureTensorRecord
 from v2.backend.app.services.market_state_integrity.trust import TRUST_SCHEMA_VERSION
+from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.data_loader import TrainingExample
+from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.model import V2HybridPolicyModel
+from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.tensor_builder import (
+    FeatureTensorRecord,
+)
 
 
 def _tensor(index: int) -> FeatureTensorRecord:
@@ -116,10 +118,28 @@ def test_sweep_returns_ranked_results_and_offline_safety() -> None:
     if not model.torch_available:
         pytest.skip("torch unavailable")
     grid = [
-        {"learning_rate": 1e-4, "entropy_coefficient": 0.01, "supervised_entropy_bonus": 0.0, "weight_decay": 0.02, "dropout": 0.10},
-        {"learning_rate": 3e-4, "entropy_coefficient": 0.02, "supervised_entropy_bonus": 0.0, "weight_decay": 0.02, "dropout": 0.10},
+        {
+            "learning_rate": 1e-4,
+            "entropy_coefficient": 0.01,
+            "supervised_entropy_bonus": 0.0,
+            "weight_decay": 0.02,
+            "dropout": 0.10,
+        },
+        {
+            "learning_rate": 3e-4,
+            "entropy_coefficient": 0.02,
+            "supervised_entropy_bonus": 0.0,
+            "weight_decay": 0.02,
+            "dropout": 0.10,
+        },
     ]
-    report = run_hyperparameter_sweep(rows, grid=grid, steps=2, batch_size=8, validation_fraction=0.34)
+    report = run_hyperparameter_sweep(
+        rows,
+        grid=grid,
+        steps=2,
+        batch_size=8,
+        validation_fraction=0.34,
+    )
     assert report["config_count"] == 2
     assert report["places_real_order"] is False
     assert report["offline_only"] is True

@@ -1682,9 +1682,9 @@ def test_major_move_fields_reach_trainer_feedback() -> None:
             "market_regime_at_entry": "correlated_breakout_squeeze",
             **_premium_ingestor_context_fields(),
             "major_move_signal_id": "major_move_abc",
-            "squeeze_evidence_score": 0.74,
             "future_window_label_source": "closed_candle_replay_label",
             **_audit_quality_fields(),
+            "squeeze_evidence_score": 0.74,
         }
     )
     result = reconcile_paper_lifecycle(

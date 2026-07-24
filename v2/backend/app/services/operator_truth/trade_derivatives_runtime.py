@@ -20,6 +20,9 @@ TRADE_OUT = PUBLIC_ROOT / "operator_runtime/v2_trade_terminal/latest"
 DERIVATIVES_OUT = PUBLIC_ROOT / "operator_runtime/v2_derivatives/latest"
 EST = timezone(timedelta(hours=-4))
 ACCEPTED_SYMBOL_FALLBACK = ("BNBUSDT", "BTCUSDT", "ETHUSDT", "PAXGUSDT", "XAUTUSDT", "ZECUSDT")
+COINANK_GLOBAL_MAX_AGE_SECONDS = 900.0
+COINANK_SYMBOL_MAX_AGE_SECONDS = 600.0
+COINANK_MAX_FUTURE_SKEW_SECONDS = 5.0
 
 
 def est_now() -> str:
@@ -160,6 +163,39 @@ def age_from_iso(value: Any) -> float | None:
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=EST)
     return max(0.0, (datetime.now(timezone.utc) - parsed.astimezone(timezone.utc)).total_seconds())
+
+
+def _strict_utc_clock(value: Any) -> datetime | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return None
+    return parsed.astimezone(timezone.utc)
+
+
+def _coinank_clock_contract_valid(
+    payload: Mapping[str, Any],
+    *,
+    max_age_seconds: float,
+) -> bool:
+    cutoff = _strict_utc_clock(payload.get("feature_cutoff"))
+    available = _strict_utc_clock(payload.get("available_at"))
+    generated = _strict_utc_clock(
+        payload.get("generated_at") or payload.get("generated_utc")
+    )
+    if cutoff is None or available is None or generated is None:
+        return False
+    now = datetime.now(timezone.utc)
+    if not cutoff <= available <= generated:
+        return False
+    if generated > now + timedelta(seconds=COINANK_MAX_FUTURE_SKEW_SECONDS):
+        return False
+    age_seconds = (now - available).total_seconds()
+    return -COINANK_MAX_FUTURE_SKEW_SECONDS <= age_seconds <= max_age_seconds
 
 
 def first_number(*values: Any) -> float | None:
@@ -615,14 +651,27 @@ def _global_regime(client: Any) -> dict[str, Any]:
     the per-symbol tables lacked.
     """
     g = redis_json(client, "v2:coinank:global:latest", {}) or {}
-    mrc = dict_or_empty(g.get("market_regime_context"))
-    members = dict_or_empty(g.get("members"))
+    contract_valid = bool(
+        isinstance(g, Mapping)
+        and g.get("actual_payload_present") is True
+        and g.get("is_fresh") is True
+        and g.get("coverage_complete") is True
+        and g.get("temporal_contract_valid") is True
+        and _coinank_clock_contract_valid(
+            g,
+            max_age_seconds=COINANK_GLOBAL_MAX_AGE_SECONDS,
+        )
+    )
+    mrc = dict_or_empty(g.get("market_regime_context")) if contract_valid else {}
+    members = dict_or_empty(g.get("members")) if contract_valid else {}
 
     def _member(name: str) -> float | None:
         row = members.get(name)
         if isinstance(row, Mapping):
+            if row.get("valid") is not True:
+                return None
             return to_float(row.get("value"))
-        return to_float(row)
+        return None
 
     total_oi = first_number(mrc.get("total_open_interest_usd"), _member("total_oi"))
     ls_ratio = first_number(mrc.get("aggregate_long_short_ratio"), _member("long_short_ratio"))
@@ -640,9 +689,17 @@ def _global_regime(client: Any) -> dict[str, Any]:
     eth_dom = _plausible(first_number(mrc.get("eth_dominance"), _member("eth_dominance")), 1.0)
     volatility = _plausible(first_number(mrc.get("volatility_index"), _member("volatility_index")), 0.0)
     return {
-        "data_status": "CURRENT_OR_RECENT" if g else "NO_CURRENT_GLOBAL_REGIME_SOURCE",
+        "data_status": (
+            "CURRENT_OR_RECENT"
+            if contract_valid
+            else "INVALID_OR_STALE_GLOBAL_REGIME_SOURCE"
+            if g
+            else "NO_CURRENT_GLOBAL_REGIME_SOURCE"
+        ),
         "generated_utc": g.get("generated_utc"),
-        "age_seconds": age_from_iso(g.get("generated_utc")),
+        "available_at": g.get("available_at"),
+        "feature_cutoff": g.get("feature_cutoff"),
+        "age_seconds": age_from_iso(g.get("available_at") or g.get("generated_utc")),
         "present_member_count": g.get("present_member_count"),
         "is_fresh": g.get("is_fresh"),
         "total_open_interest_usd": total_oi,
@@ -657,7 +714,13 @@ def _global_regime(client: Any) -> dict[str, Any]:
         "eth_dominance": eth_dom,
         "volatility_index": volatility,
         "source_key": "v2:coinank:global:latest",
-        "missing_reason_if_any": None if g else "NO_CURRENT_GLOBAL_REGIME_SOURCE",
+        "missing_reason_if_any": (
+            None
+            if contract_valid
+            else "COINANK_GLOBAL_CONTRACT_INVALID_OR_STALE"
+            if g
+            else "NO_CURRENT_GLOBAL_REGIME_SOURCE"
+        ),
     }
 
 
@@ -739,14 +802,56 @@ def _coinank_symbol_intel(client: Any, symbol: str) -> dict[str, Any]:
     Source: ``v2:coinank:symbol:{symbol}`` (v2_coinank_intel_bridge) -- the same
     payload mirrored to ``v2:features:coinank:{symbol}:15m``.
     """
-    cs = redis_json(client, f"v2:coinank:symbol:{symbol}", {}) or {}
-    feats = dict_or_empty(cs.get("features"))
+    source_key = f"v2:coinank:symbol:{symbol}"
+    cs = redis_json(client, source_key, {}) or {}
+    contract_valid = bool(
+        isinstance(cs, Mapping)
+        and cs.get("actual_payload_present") is True
+        and cs.get("feature_eligible") is True
+        and cs.get("temporal_contract_valid") is True
+        and _coinank_clock_contract_valid(
+            cs,
+            max_age_seconds=COINANK_SYMBOL_MAX_AGE_SECONDS,
+        )
+    )
+    feats = dict_or_empty(cs.get("features")) if contract_valid else {}
+    units = dict_or_empty(cs.get("feature_units")) if contract_valid else {}
+
+    def _with_unit(name: str, expected_unit: str) -> float | None:
+        if units.get(name) != expected_unit:
+            return None
+        return first_number(feats.get(name))
+
+    open_interest = first_number(feats.get("coinank_open_interest"))
+    open_interest_unit = units.get("coinank_open_interest")
+    if open_interest_unit != "provider_reported_open_interest_unit_unknown":
+        open_interest = None
+        open_interest_unit = None
     return {
-        "coinank_derivatives_score": first_number(cs.get("coinank_derivatives_score"), feats.get("coinank_derivatives_score")),
-        "coinank_open_interest_usd": first_number(feats.get("coinank_open_interest")),
-        "coinank_long_turnover_usd": first_number(feats.get("coinank_liquidation_long_turnover")),
-        "coinank_short_turnover_usd": first_number(feats.get("coinank_liquidation_short_turnover")),
-        "coinank_liquidation_imbalance_usd": first_number(feats.get("coinank_liquidation_imbalance_usd")),
+        "data_status": "CURRENT_OR_RECENT" if contract_valid else "INVALID_OR_STALE_COINANK_SYMBOL_SOURCE",
+        "source_key": source_key,
+        "feature_cutoff": cs.get("feature_cutoff") if contract_valid else None,
+        "available_at": cs.get("available_at") if contract_valid else None,
+        "coinank_derivatives_score": first_number(
+            cs.get("coinank_derivatives_score"),
+            feats.get("coinank_derivatives_score"),
+        )
+        if contract_valid
+        else None,
+        "coinank_open_interest": open_interest,
+        "coinank_open_interest_unit": open_interest_unit,
+        # Kept as an explicit null compatibility field so callers cannot silently
+        # continue treating provider-unit-unknown OI as a USD aggregate.
+        "coinank_open_interest_usd": None,
+        "coinank_long_turnover_usd": _with_unit(
+            "coinank_liquidation_long_turnover", "usd"
+        ),
+        "coinank_short_turnover_usd": _with_unit(
+            "coinank_liquidation_short_turnover", "usd"
+        ),
+        "coinank_liquidation_imbalance_usd": _with_unit(
+            "coinank_liquidation_imbalance_usd", "usd"
+        ),
     }
 
 

@@ -328,11 +328,14 @@ def test_orphan_hedge_unwinds_immediately() -> None:
     # Parent's fill already closed in a prior cycle: only the hedge replays.
     existing = {
         "closed_trades": [
-            {
-                "symbol": "BTCUSDT",
-                "close_reason": "TIER_2_TRAILING_STOP",
-                "source_fill_ids": ["f1"],
-                "realized_pnl_usd": 1.0,
+                {
+                    "symbol": "BTCUSDT",
+                    "close_reason": "TIER_2_TRAILING_STOP",
+                    "source_fill_ids": ["f1"],
+                    "entry_cost_is_final_close": True,
+                    "entry_cost_pre_close_quantity": 1.0,
+                    "entry_cost_closed_quantity": 1.0,
+                    "realized_pnl_usd": 1.0,
                 "realized_net_pnl_usd": 1.0,
             }
         ]

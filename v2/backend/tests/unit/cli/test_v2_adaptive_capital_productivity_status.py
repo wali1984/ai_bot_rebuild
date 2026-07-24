@@ -39,6 +39,8 @@ def _trade(**overrides):
         "recommended_leverage": 2.0,
         "effective_leverage": 2.0,
         "recommended_margin_mode": "isolated_paper_simulated",
+        "maintenance_margin_rate": 0.005,
+        "maintenance_margin_rate_source": "SYNTHETIC_TEST_AUTHENTICATED_BRACKET",
         "stop_distance_bps": 80.0,
         "liquidation_price_estimate": 50.0,
         "liquidation_buffer_bps": 4800.0,
@@ -161,6 +163,8 @@ def _paper_signal(**overrides):
         "expected_slippage_bps": 2.0,
         "fee_bps": 4.0,
         "expected_funding_bps": 0.0,
+        "maintenance_margin_rate": 0.005,
+        "maintenance_margin_rate_source": "SYNTHETIC_TEST_AUTHENTICATED_BRACKET",
         "entry_atr_bps": 30.0,
         "mfe_bps": 120.0,
         "mae_bps": 25.0,
@@ -230,6 +234,10 @@ def _qualified_closed_candle_replay_policy_rows(
                 "recommended_leverage": 2.0,
                 "effective_leverage": 2.0,
                 "recommended_margin_mode": "isolated_paper_simulated",
+                "maintenance_margin_rate": 0.005,
+                "maintenance_margin_rate_source": (
+                    "SYNTHETIC_TEST_AUTHENTICATED_BRACKET"
+                ),
                 "stop_distance_bps": 75.0,
                 "take_profit_structure": "single_target",
                 "hedge_budget_usd": 0.0,

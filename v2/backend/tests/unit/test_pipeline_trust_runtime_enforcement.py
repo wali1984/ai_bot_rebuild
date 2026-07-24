@@ -19,8 +19,16 @@ from app.services.market_state_integrity.trust import (
     validate_prediction_trust_contract,
 )
 from app.services.native_trainer.hybrid_cuda_trainer.data_loader import TrainingExample
+from app.services.native_trainer.hybrid_cuda_trainer.confidence import (
+    CONFIDENCE_HEAD_ACTIONS,
+    CONFIDENCE_HEAD_SCHEMA_VERSION,
+    CONFIDENCE_LABEL_SEMANTICS,
+)
 from app.services.native_trainer.hybrid_cuda_trainer.ppo_trainer import V2HybridPPOTrainer
-from app.services.native_trainer.hybrid_cuda_trainer.publisher import build_prediction_payload
+from app.services.native_trainer.hybrid_cuda_trainer.publisher import (
+    V2HybridPredictionPublisher,
+    build_prediction_payload,
+)
 from app.services.native_trainer.hybrid_cuda_trainer.tensor_builder import _latest_kline
 
 BASE_MS = 1_700_000_000_000
@@ -635,6 +643,7 @@ def trust_row(**overrides: Any) -> dict[str, Any]:
         "source_available_time": ISO_CLOSE,
         "available_at": ISO_CLOSE,
         "feature_cutoff": ISO_CLOSE,
+        "decision_time": ISO_DECISION,
         "decision_time_est": ISO_DECISION,
         "masa_feature_cutoff": ISO_CLOSE,
         "ppo_feature_cutoff": ISO_CLOSE,
@@ -655,6 +664,17 @@ def trust_row(**overrides: Any) -> dict[str, Any]:
 
 def example(**trust_overrides: Any) -> TrainingExample:
     row_classification = str(trust_overrides.pop("row_classification", "TRAINABLE"))
+    if trust_overrides.get("old_log_prob") not in (None, ""):
+        trust_overrides.setdefault("behavior_action_index", 0)
+        trust_overrides.setdefault("behavior_action", "hold")
+        trust_overrides.setdefault(
+            "behavior_policy_sampling_mode",
+            "CATEGORICAL_SAMPLE",
+        )
+        trust_overrides.setdefault(
+            "behavior_policy_distribution_contract",
+            "RAW_LOGITS_SOFTMAX_V1",
+        )
     return TrainingExample(
         symbol="BTCUSDT",
         timeframe="1m",
@@ -673,9 +693,31 @@ class FakeModel:
     torch = None
     input_dim = 1
     device = "cpu"
+    model_id = "pipeline-trust-fake-model"
+
+    def __init__(self) -> None:
+        # The production trainer fingerprints the exact served parameters before
+        # it admits any row. Keep the test double subject to that same contract.
+        self._fallback_weights = [0.1, -0.1, 0.0]
+        self._confidence_calibration_state: dict[str, Any] = {}
+
+    def set_confidence_calibration_state(self, state: dict[str, Any]) -> dict[str, Any]:
+        self._confidence_calibration_state = dict(state)
+        return dict(self._confidence_calibration_state)
 
     def forward(self, _tensor: Any) -> SimpleNamespace:
-        return SimpleNamespace(action_probabilities=[1.0, 0.0, 0.0], expected_move_bps=0.0)
+        return SimpleNamespace(
+            action_logits=[1.0, 0.0, 0.0],
+            action_probabilities=[1.0, 0.0, 0.0],
+            selected_action_index=0,
+            selected_action="hold",
+            expected_move_bps=0.0,
+            confidence_raw=1.0,
+            confidence_calibrated=1.0,
+            policy_value=0.0,
+            masa_signal=0.0,
+            calibration={},
+        )
 
 
 def test_ppo_trainer_excludes_dirty_rows_before_training() -> None:
@@ -696,7 +738,10 @@ def test_ppo_trainer_excludes_dirty_rows_before_training() -> None:
         batch_size=4,
     )
 
-    assert result.train_rows == 1
+    # The clean row reaches trusted admission, but this fixture deliberately
+    # lacks a finalized close receipt, so no PPO optimizer step may be claimed.
+    assert result.metrics["accepted_training_rows"] == 1
+    assert result.train_rows == 0
     assert result.metrics["training_rejection_count"] == 1
     assert "EXPLICIT_ACCEPTED_FOR_TRAINING_FALSE" in result.metrics["training_rejection_reason_counts"]
 
@@ -759,12 +804,14 @@ def test_ppo_trainer_accepts_optional_masked_feature_gaps() -> None:
             batch_size=4,
     )
 
-    assert result.status != "NO_TRUSTED_TRAINING_ROWS"
-    assert result.train_rows == 1
+    # Optional masked gaps are admitted; an open/pending policy position still
+    # cannot become a completed on-policy optimizer row.
+    assert result.metrics["accepted_training_rows"] == 1
+    assert result.train_rows == 0
     assert "ROW_CLASSIFICATION_MISSING_MASKED" not in result.metrics["training_rejection_reason_counts"]
 
 
-def test_ppo_trainer_accepts_historical_replay_missing_mask_without_weakening_live_integrity() -> None:
+def test_ppo_trainer_rejects_self_attested_historical_critical_missing_mask() -> None:
     trainer = V2HybridPPOTrainer(model=FakeModel())
 
     result = trainer.train(
@@ -803,13 +850,13 @@ def test_ppo_trainer_accepts_historical_replay_missing_mask_without_weakening_li
         batch_size=4,
     )
 
-    assert result.status != "NO_TRUSTED_TRAINING_ROWS"
-    assert result.train_rows == 1
+    assert result.status == "NO_TRUSTED_TRAINING_ROWS"
+    assert result.train_rows == 0
     reasons = result.metrics["training_rejection_reason_counts"]
-    assert "MISSING_CRITICAL_FEATURE_FAMILY" not in reasons
-    assert "ROW_CLASSIFICATION_MISSING_MASKED" not in reasons
-    assert result.metrics["trusted_replay_rows_loaded"] == 1
-    assert result.metrics["policy_sampled_rows_seen"] == 1
+    assert "MISSING_CRITICAL_FEATURE_FAMILY" in reasons
+    assert "ROW_CLASSIFICATION_MISSING_MASKED" in reasons
+    diagnostic = result.metrics["training_rejection_family_diagnostics"][0]
+    assert diagnostic["unsafe_to_train_reason"] == "CRITICAL_FEATURE_FAMILY_MISSING"
 
 
 def test_ppo_trainer_rejects_historical_missing_mask_when_stale() -> None:
@@ -863,11 +910,12 @@ def model_output(**overrides: Any) -> SimpleNamespace:
     payload = {
         "selected_action": "hold",
         "selected_action_index": 0,
+        "action_logits": [1.0, 0.0, 0.0],
         "action_probabilities": [1.0, 0.0, 0.0],
         "expected_move_bps": 10.0,
         "confidence_raw": 0.9,
         "confidence_calibrated": 0.9,
-        "calibration": "synthetic",
+        "calibration": {},
         "policy_value": 0.0,
         "masa_signal": 0.5,
         "model_id": "model-1",
@@ -876,6 +924,18 @@ def model_output(**overrides: Any) -> SimpleNamespace:
         "model_tensors_device_verified": False,
     }
     payload.update(overrides)
+    selected_action = str(payload["selected_action"])
+    if selected_action in CONFIDENCE_HEAD_ACTIONS and "calibration" not in overrides:
+        payload["calibration"] = {
+            "calibration_fitted": True,
+            "probability_semantics_valid": True,
+            "label_semantics": CONFIDENCE_LABEL_SEMANTICS,
+            "confidence_head_schema_version": CONFIDENCE_HEAD_SCHEMA_VERSION,
+            "confidence_head_actions": list(CONFIDENCE_HEAD_ACTIONS),
+            "selected_action_is_directional": True,
+            "selected_action": selected_action,
+            "model_parameter_fingerprint": "d" * 64,
+        }
     return SimpleNamespace(**payload)
 
 
@@ -895,6 +955,21 @@ def test_prediction_payload_publishes_top_level_trust_metadata() -> None:
     assert payload["decision_time"] == payload["generated_utc"]
     assert payload["available_at"] == ISO_CLOSE
     assert payload["feature_decision_time"] == ISO_DECISION
+    assert payload["candle_closed_confirmed"] is True
+    assert payload["candle_close_time"] == ISO_CLOSE
+    assert payload["masa_feature_cutoff"] == ISO_CLOSE
+    assert payload["ppo_feature_cutoff"] == ISO_CLOSE
+    assert payload["ppo_decision_time"] == payload["decision_time"]
+    assert payload["behavior_policy_sampling_mode"] == (
+        "DETERMINISTIC_ARGMAX_ALIGNMENT"
+    )
+    assert payload["behavior_policy_distribution_contract"] == (
+        "EXPECTED_MOVE_ALIGNED_POLICY_V1"
+    )
+    assert payload["ppo_on_policy_entry_fields_present"] is False
+    assert payload["ppo_on_policy_ineligible_reason"] == (
+        "DETERMINISTIC_POLICY_NOT_ON_POLICY_SAMPLED"
+    )
     assert payload["model_version"] == payload["model_source"]
     assert payload["checkpoint_id"] == "v2_hybrid_checkpoint_manifest_pending"
     assert payload["source_hashes"]["feature_vector_hash"] == payload["feature_vector_hash"]
@@ -910,9 +985,192 @@ def test_prediction_payload_publishes_top_level_trust_metadata() -> None:
     assert replay["feature_snapshot"]["feature_snapshot_id"] == payload["feature_snapshot_id"]
     assert replay["feature_snapshot"]["features"] == {"ret_pct": 0.1}
     assert replay["selected_action"] == payload["selected_action"]
+    assert replay["behavior_policy_sampling_mode"] == (
+        payload["behavior_policy_sampling_mode"]
+    )
+    assert replay["behavior_policy_distribution_contract"] == (
+        payload["behavior_policy_distribution_contract"]
+    )
+    assert replay["ppo_on_policy_entry_fields_present"] is False
     assert replay["model_version"] == payload["model_version"]
     assert replay["checkpoint_id"] == payload["checkpoint_id"]
     assert replay["source_hashes"] == payload["source_hashes"]
+
+
+def test_prediction_payload_never_infers_missing_candle_finality() -> None:
+    payload = build_prediction_payload(
+        example=example(candle_closed_confirmed=None, candle_close_time=None),
+        model_output=model_output(
+            selected_action="long",
+            selected_action_index=1,
+            action_probabilities=[0.05, 0.9, 0.05],
+        ),
+        checkpoint=None,
+        round_trip_cost_bps=0.0,
+        min_data_coverage_percent=1.0,
+        min_confidence_calibrated=0.1,
+        min_edge_after_cost_bps=1.0,
+    )
+
+    assert payload["candle_closed_confirmed"] is None
+    assert payload["candle_close_time"] is None
+    assert payload["paper_fill_allowed"] is False
+    assert payload["routes_to_orchestrator"] is False
+
+
+def test_prediction_publish_commits_replay_write_before_lineage_risk(
+    monkeypatch,
+) -> None:
+    from app.services.native_trainer.hybrid_cuda_trainer import publisher as publisher_module
+
+    class CaptureIO:
+        def __init__(self) -> None:
+            self.rows: dict[str, Any] = {}
+
+        def set_json(self, key: str, value: Any, ex: int | None = None) -> bool:
+            del ex
+            self.rows[key] = value
+            return True
+
+        def set_json_expiring(
+            self,
+            key: str,
+            value: Any,
+            *,
+            ex: int,
+        ) -> bool:
+            assert ex > 0
+            self.rows[key] = value
+            return True
+
+        def get_json(self, key: str) -> Any:
+            return self.rows.get(key)
+
+    monkeypatch.setattr(
+        publisher_module,
+        "append_snapshot",
+        lambda _record, update_checksum_manifest=False: SimpleNamespace(
+            snapshot_id="archive-1",
+            content_sha256="sha-1",
+            blob_path=Path("/tmp/archive-1.json"),
+        ),
+    )
+    payload = build_prediction_payload(
+        example=example(),
+        model_output=model_output(
+            selected_action="long",
+            selected_action_index=1,
+            action_probabilities=[0.05, 0.9, 0.05],
+        ),
+        checkpoint=None,
+        round_trip_cost_bps=0.0,
+        min_data_coverage_percent=1.0,
+        min_confidence_calibrated=0.1,
+        min_edge_after_cost_bps=1.0,
+    )
+    assert payload["replay_snapshot_write_success"] is False
+
+    io = CaptureIO()
+    publisher = V2HybridPredictionPublisher(io=io)
+    assert publisher.publish_prediction(payload) is True
+    assert payload["replay_snapshot_write_success"] is True
+    assert payload["replay_snapshot_write_acknowledged"] is True
+    assert payload["replay_snapshot_readback_verified"] is True
+    assert len(payload["replay_snapshot_content_sha256"]) == 64
+    assert payload["replay_snapshot_ttl_seconds"] == 86_400
+    assert payload["replay_snapshot_key"] == f"v2:replay:snapshots:{payload['prediction_id']}"
+
+    lineage = publisher.publish_lineage(
+        prediction_payload=payload,
+        min_confidence_calibrated=0.1,
+        min_data_coverage_percent=1.0,
+        risk_caps_configured=True,
+    )
+    risk_lineage = lineage["risk_decision_record"]
+    assert risk_lineage["trust_gate_result"]["allowed"] is True
+    canonical_decision_keys = [
+        key
+        for key in io.rows
+        if key.startswith(
+            (
+                "v2:decision:risk:",
+                "v2:decision:orchestrator:",
+                "v2:decision:index:",
+            )
+        )
+    ]
+    assert canonical_decision_keys == []
+    assert risk_lineage["authoritative_decision"] is False
+    assert risk_lineage["record_authority"] == (
+        "TRAINER_NON_AUTHORITATIVE_PROPOSAL"
+    )
+    assert risk_lineage["candle_closed_confirmed"] is True
+    assert risk_lineage["masa_feature_cutoff"] == ISO_CLOSE
+    assert risk_lineage["ppo_decision_time"] == payload["decision_time"]
+
+
+def test_prediction_publish_rejects_corrupt_replay_snapshot_readback(
+    monkeypatch,
+) -> None:
+    from app.services.native_trainer.hybrid_cuda_trainer import publisher as publisher_module
+
+    class CorruptReadbackIO:
+        def __init__(self) -> None:
+            self.rows: dict[str, Any] = {}
+
+        def set_json_expiring(
+            self,
+            key: str,
+            value: Any,
+            *,
+            ex: int,
+        ) -> bool:
+            assert ex > 0
+            self.rows[key] = value
+            return True
+
+        def get_json(self, key: str) -> Any:
+            if key.startswith("v2:replay:snapshots:"):
+                return {"corrupt": True}
+            return self.rows.get(key)
+
+        def set_json(self, key: str, value: Any, ex: int | None = None) -> bool:
+            del ex
+            self.rows[key] = value
+            return True
+
+    monkeypatch.setattr(
+        publisher_module,
+        "append_snapshot",
+        lambda _record, update_checksum_manifest=False: SimpleNamespace(
+            snapshot_id="archive-corrupt-readback",
+            content_sha256="sha-corrupt-readback",
+            blob_path=Path("/tmp/archive-corrupt-readback.json"),
+        ),
+    )
+    payload = build_prediction_payload(
+        example=example(),
+        model_output=model_output(
+            selected_action="long",
+            selected_action_index=1,
+            action_probabilities=[0.05, 0.9, 0.05],
+        ),
+        checkpoint=None,
+        round_trip_cost_bps=0.0,
+        min_data_coverage_percent=1.0,
+        min_confidence_calibrated=0.1,
+        min_edge_after_cost_bps=1.0,
+    )
+
+    assert V2HybridPredictionPublisher(
+        io=CorruptReadbackIO()
+    ).publish_prediction(payload) is False
+    assert payload["replay_snapshot_write_acknowledged"] is True
+    assert payload["replay_snapshot_readback_verified"] is False
+    assert payload["replay_snapshot_write_success"] is False
+    assert payload["replay_snapshot_publication_error"] == (
+        "REPLAY_SNAPSHOT_EXACT_READBACK_FAILED"
+    )
 
 
 def test_prediction_payload_neutralizes_non_directional_after_cost_edge() -> None:
@@ -951,8 +1209,17 @@ def test_prediction_payload_short_after_cost_moves_toward_zero() -> None:
 
     assert payload["selected_action"] == "short"
     assert payload["expected_move_after_cost_bps"] == -108.0
-    assert payload["paper_fill_allowed"] is True
-    assert payload["paper_fill_gate_block_reasons"] == []
+    # Correct directional arithmetic is necessary but is not independent
+    # authority to fill: this focused fixture has no exact adaptive-cost
+    # provenance or complete tensor-mask lineage.
+    assert payload["paper_fill_allowed"] is False
+    assert any(
+        reason.startswith("ordinary_paper_exact_cost:")
+        for reason in payload["ordinary_paper_admission_rejection_reasons"]
+    )
+    assert "expected_move_after_cost_direction_mismatch" not in payload[
+        "paper_fill_gate_block_reasons"
+    ]
 
 
 def test_prediction_payload_blocks_directional_sign_mismatch_after_costs() -> None:
@@ -1019,9 +1286,15 @@ def test_trusted_mode_finality_inference_is_forbidden() -> None:
 
 
 def test_current_or_unknown_finality_candle_cannot_reach_tensor_builder() -> None:
-    assert _latest_kline([{"open": 1, "high": 1, "low": 1, "close": 1, "closed_candle": False}]) == {}
-    assert _latest_kline([{"open": 1, "high": 1, "low": 1, "close": 1}]) == {}
-    assert _latest_kline([{"open": 1, "high": 1, "low": 1, "close": 1, "closed_candle": True}])["close"] == 1
+    decision_time_ms = 1_700_000_100_000
+    for row in (
+        {"open": 1, "high": 1, "low": 1, "close": 1, "closed_candle": False},
+        {"open": 1, "high": 1, "low": 1, "close": 1},
+        {"open": 1, "high": 1, "low": 1, "close": 1, "closed_candle": True},
+    ):
+        latest, reasons = _latest_kline([row], decision_time_ms=decision_time_ms)
+        assert latest == {}
+        assert reasons
 
 
 def test_binance_legacy_list_klines_without_finality_are_blocked() -> None:
@@ -1029,13 +1302,18 @@ def test_binance_legacy_list_klines_without_finality_are_blocked() -> None:
     closed = [now_ms - 120_000, "1", "2", "0.5", "1.5", "10", now_ms - 60_000, "15", 3, "5", "7", "0"]
     unclosed = [now_ms - 30_000, "9", "10", "8", "9.5", "11", now_ms + 30_000, "20", 4, "6", "8", "0"]
 
-    latest = _latest_kline([closed, unclosed])
+    latest, reasons = _latest_kline(
+        [closed, unclosed],
+        decision_time_ms=now_ms,
+    )
 
     assert latest == {}
+    assert "OHLCV_FINALITY_UNKNOWN" in reasons
 
 
 def test_canonical_closed_kline_can_reach_tensor_builder() -> None:
-    latest = _latest_kline(
+    close_time_ms = 1_700_000_000_000
+    latest, reasons = _latest_kline(
         [
             {
                 "open": 1,
@@ -1045,11 +1323,14 @@ def test_canonical_closed_kline_can_reach_tensor_builder() -> None:
                 "volume": 10,
                 "candle_closed_confirmed": True,
                 "is_closed": True,
+                "close_time": close_time_ms,
             }
-        ]
+        ],
+        decision_time_ms=close_time_ms + 1,
     )
 
     assert latest["close"] == 1.5
+    assert reasons == ()
 
 
 def test_inactive_blocked_hold_paper_intent_does_not_require_snapshots(tmp_path: Path) -> None:

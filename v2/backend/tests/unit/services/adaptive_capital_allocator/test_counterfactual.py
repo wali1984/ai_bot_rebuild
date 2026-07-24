@@ -23,6 +23,7 @@ def _candidate(**overrides):
         "expected_slippage_bps": 2.0,
         "fee_bps": 4.0,
         "expected_funding_bps": 0.0,
+        "maintenance_margin_rate": 0.005,
         "entry_atr_bps": 30.0,
         "mfe_bps": 120.0,
         "mae_bps": 25.0,
@@ -63,6 +64,13 @@ def test_counterfactual_sweep_selects_best_event_time_valid_configuration() -> N
     assert sweep["config_space_audit"]["configuration_count_reconciled"] is True
     assert sweep["config_space_audit"]["feasible_plus_pruned_reconciled"] is True
     assert sweep["config_space_audit"]["feasible_configuration_count"] == sweep["sweep_result_count"]
+    assert sweep["config_space_audit"][
+        "feasible_rows_materialized_across_candidates"
+    ] is False
+    assert sweep["config_space_audit"]["feasible_rows_aggregated_streaming"] is True
+    assert sweep["hedge_accounting_audit"]["configuration_count"] == sweep[
+        "sweep_result_count"
+    ]
     axis_coverage = sweep["config_space_audit"]["axis_value_coverage"]
     assert axis_coverage["theoretical_axis_values"] == {
         "notional_multipliers": [0.25, 0.5, 1.0, 2.0, 3.0, 5.0],
@@ -156,6 +164,35 @@ def test_counterfactual_sweep_selects_best_event_time_valid_configuration() -> N
     assert sweep["config_axes"]["margin_modes"] == ["isolated", "cross"]
     assert sweep["config_axes"]["hedge_flags"] == [False, True]
     assert selected["liquidation_buffer_bps"] >= CounterfactualRiskEnvelope().min_liquidation_buffer_bps
+
+
+def test_counterfactual_sweep_prunes_every_configuration_without_maintenance_evidence() -> None:
+    candidate = _candidate()
+    candidate.pop("maintenance_margin_rate")
+
+    sweep = run_counterfactual_sweep([candidate])
+
+    assert sweep["sweep_result_count"] == 0
+    audit = sweep["config_space_audit"]["candidate_configuration_audit_sample"][0]
+    assert audit["feasible_configuration_count"] == 0
+    assert audit["pruned_configuration_count"] == audit["theoretical_configuration_count"]
+    assert audit["pruned_reason_counts"] == {
+        "MISSING_OR_INVALID_MAINTENANCE_MARGIN_RATE": audit[
+            "theoretical_configuration_count"
+        ]
+    }
+
+
+def test_counterfactual_sweep_rejects_out_of_contract_maintenance_rate() -> None:
+    sweep = run_counterfactual_sweep([_candidate(maintenance_margin_rate=0.0)])
+
+    assert sweep["sweep_result_count"] == 0
+    audit = sweep["config_space_audit"]["candidate_configuration_audit_sample"][0]
+    assert audit["pruned_reason_counts"] == {
+        "MISSING_OR_INVALID_MAINTENANCE_MARGIN_RATE": audit[
+            "theoretical_configuration_count"
+        ]
+    }
 
 
 def test_counterfactual_sweep_honors_explicit_source_kind_override() -> None:

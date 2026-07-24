@@ -2891,6 +2891,86 @@ def test_rows_from_json_extracts_full_candidate_allocations_before_samples(
     assert all(row["future_labels_used_as_features"] is False for row in rows)
 
 
+def test_operator_candidate_projections_remain_context_only_not_canonical_evidence(
+    tmp_path: Path,
+) -> None:
+    source_json = tmp_path / "paper_adaptive_sizing_runtime_status.json"
+    source_hash = "a" * 64
+    source_json.write_text(
+        json.dumps(
+            {
+                "generated_utc": "2026-06-21T12:00:00Z",
+                "paper_only": True,
+                "candidate_allocation_count": 9,
+                "candidate_allocations_projection_only": True,
+                "candidate_allocations_projection_count": 1,
+                "candidate_allocations": [
+                    {
+                        "schema_version": (
+                            "paper_adaptive_sizing_operator_projection_v1"
+                        ),
+                        "operator_projection_only": True,
+                        "full_source_payload_omitted": True,
+                        "source_row_index": 0,
+                        "source_row_canonical_sha256": source_hash,
+                        "source_row_hash_status": (
+                            "BOUND_FULL_PUBLISHED_SOURCE_ROW"
+                        ),
+                        "allocation_id": "operator-projection-1",
+                        "symbol": "BTCUSDT",
+                        "timeframe": "5m",
+                        "side": "long",
+                        "decision_time": "2026-06-21T11:59:59Z",
+                        "generated_at": "2026-06-21T11:59:59Z",
+                        "available_at": "2026-06-21T11:59:58Z",
+                        "feature_cutoff": "2026-06-21T11:55:00Z",
+                        "selector_policy_fingerprint": (
+                            producer.EXPECTED_SELECTOR_POLICY_FINGERPRINT
+                        ),
+                        "paper_only": True,
+                        "places_real_order": False,
+                    }
+                ],
+                "sample_allocations": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    rows, _ = producer._rows_from_json(source_json)
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["_producer_operator_projection_only"] is True
+    assert row["operator_projection_only"] is True
+    assert row["source_row_canonical_sha256"] == source_hash
+    assert producer._paper_allocation_fidelity_bucket(  # noqa: SLF001
+        row,
+        expected_fingerprint=producer.EXPECTED_SELECTOR_POLICY_FINGERPRINT,
+    ) == "operator_projection_context_only"
+    reasons = producer._paper_allocation_gate_reasons(  # noqa: SLF001
+        row,
+        expected_fingerprint=producer.EXPECTED_SELECTOR_POLICY_FINGERPRINT,
+        eligible_bucket_keys=set(),
+        generated_utc="2026-06-21T12:00:00Z",
+    )
+    assert "OPERATOR_PROJECTION_NOT_CANONICAL_CANDIDATE_EVIDENCE" in reasons
+    diagnostics = producer._paper_allocation_source_diagnostics(  # noqa: SLF001
+        rows,
+        expected_fingerprint=producer.EXPECTED_SELECTOR_POLICY_FINGERPRINT,
+        eligible_bucket_keys=set(),
+        generated_utc="2026-06-21T12:00:00Z",
+    )
+    assert diagnostics["status"] == (
+        "NO_GO_OPERATOR_PROJECTIONS_NOT_CANONICAL_CANDIDATE_EVIDENCE"
+    )
+    assert diagnostics["candidate_allocation_count"] == 1
+    assert diagnostics["canonical_candidate_allocation_count"] == 0
+    assert diagnostics["operator_projection_context_count"] == 1
+    assert diagnostics["full_candidate_allocation_source_exposed"] is False
+    assert diagnostics["ready_full_candidate_allocation_count"] == 0
+
+
 def test_strategy_supply_evidence_sidecar_writes_pending_not_a_plus(
     tmp_path: Path,
 ) -> None:

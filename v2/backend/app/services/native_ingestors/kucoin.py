@@ -18,7 +18,7 @@ Legacy citation:
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Iterable
 
@@ -130,6 +130,8 @@ def build_public_rest_endpoints(spot: bool) -> tuple[KuCoinRestEndpoint, ...]:
         return (
             KuCoinRestEndpoint("ticker_all", "GET", KUCOIN_BASE_SPOT,
                                "/api/v1/market/allTickers"),
+            KuCoinRestEndpoint("ticker", "GET", KUCOIN_BASE_SPOT,
+                               "/api/v1/market/orderbook/level1"),
             KuCoinRestEndpoint("klines", "GET", KUCOIN_BASE_SPOT,
                                "/api/v1/market/candles"),
             KuCoinRestEndpoint("orderbook20", "GET", KUCOIN_BASE_SPOT,
@@ -140,14 +142,16 @@ def build_public_rest_endpoints(spot: bool) -> tuple[KuCoinRestEndpoint, ...]:
     return (
         KuCoinRestEndpoint("contracts_active", "GET", KUCOIN_BASE_FUTURES,
                            "/api/v1/contracts/active"),
+        KuCoinRestEndpoint("ticker", "GET", KUCOIN_BASE_FUTURES,
+                           "/api/v1/ticker"),
         KuCoinRestEndpoint("contract_detail", "GET", KUCOIN_BASE_FUTURES,
                            "/api/v1/contracts/"),  # +symbol
         KuCoinRestEndpoint("funding_current", "GET", KUCOIN_BASE_FUTURES,
                            "/api/v1/funding-rate/"),  # +symbol/current
         KuCoinRestEndpoint("klines", "GET", KUCOIN_BASE_FUTURES,
                            "/api/v1/kline/query"),
-        KuCoinRestEndpoint("orderbook_l2", "GET", KUCOIN_BASE_FUTURES,
-                           "/api/v1/level2/snapshot"),
+        KuCoinRestEndpoint("orderbook20", "GET", KUCOIN_BASE_FUTURES,
+                           "/api/v1/level2/depth20"),
     )
 
 
@@ -155,10 +159,15 @@ def build_public_wss_topics(symbols_v2: Iterable[str], spot: bool = True) -> tup
     out: list[KuCoinWssRequest] = []
     for s in symbols_v2:
         kc = v2_to_kucoin_spot_symbol(s) if spot else v2_to_kucoin_futures_symbol(s)
-        out.append(KuCoinWssRequest(topic=f"/market/ticker:{kc}"))
-        out.append(KuCoinWssRequest(topic=f"/market/level2:{kc}"))
-        if not spot:
-            out.append(KuCoinWssRequest(topic=f"/contractMarket/fundingRate:{kc}"))
+        if spot:
+            out.append(KuCoinWssRequest(topic=f"/market/ticker:{kc}"))
+            out.append(KuCoinWssRequest(topic=f"/market/level2:{kc}"))
+        else:
+            out.append(KuCoinWssRequest(topic=f"/contractMarket/tickerV2:{kc}"))
+            out.append(KuCoinWssRequest(topic=f"/contractMarket/level2:{kc}"))
+            # KuCoin publishes funding/mark/index changes on the futures
+            # instrument channel; there is no public fundingRate topic.
+            out.append(KuCoinWssRequest(topic=f"/contract/instrument:{kc}"))
     return tuple(out)
 
 

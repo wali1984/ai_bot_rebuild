@@ -29,8 +29,16 @@ class FakeRedis:
     def get(self, key: str) -> str | None:
         return self.store.get(key)
 
-    def set(self, key: str, value: str, ex: int | None = None) -> bool:
+    def set(
+        self,
+        key: str,
+        value: str,
+        ex: int | None = None,
+        nx: bool = False,
+    ) -> bool:
         # ex (ttl) is ignored in the in-memory fake.
+        if nx and key in self.store:
+            return False
         self.store[key] = value
         return True
 
@@ -112,6 +120,11 @@ def _make_routeable_prediction(symbol: str) -> dict[str, Any]:
         "feature_snapshot_id": f"fs_{symbol}",
         "mtf_snapshot_id": f"mtf_{symbol}",
         "feature_cutoff": "2026-05-17T04:59:00Z",
+        "candle_close_time": "2026-05-17T04:59:00Z",
+        "candle_closed_confirmed": True,
+        "masa_feature_cutoff": "2026-05-17T04:59:00Z",
+        "ppo_feature_cutoff": "2026-05-17T04:59:00Z",
+        "ppo_decision_time": "2026-05-17T05:00:00Z",
         "decision_time": "2026-05-17T05:00:00Z",
         "available_at": "2026-05-17T04:59:30Z",
         "symbol": symbol,
@@ -192,6 +205,11 @@ def test_orchestrator_preserves_trust_envelope_on_routeable_signal(monkeypatch) 
         assert row["feature_cutoff"] == "2026-05-17T04:59:00Z"
         assert row["decision_time"] == "2026-05-17T05:00:00Z"
         assert row["available_at"] == "2026-05-17T04:59:30Z"
+        assert row["candle_closed_confirmed"] is True
+        assert row["candle_close_time"] == "2026-05-17T04:59:00Z"
+        assert row["masa_feature_cutoff"] == "2026-05-17T04:59:00Z"
+        assert row["ppo_feature_cutoff"] == "2026-05-17T04:59:00Z"
+        assert row["ppo_decision_time"] == "2026-05-17T05:00:00Z"
         assert row["selected_action"] == "long"
         assert row["model_version"] == "model_v1"
         assert row["checkpoint_id"] == "ckpt_v1"
@@ -314,6 +332,9 @@ def test_paper_loop_reads_per_symbol_paper_signal_keys(monkeypatch) -> None:
     fake = FakeRedis()
     now = datetime.now(timezone.utc).replace(microsecond=0)
     generated_utc = now.isoformat().replace("+00:00", "Z")
+    decision_expires_at = (now + timedelta(hours=2)).isoformat().replace(
+        "+00:00", "Z"
+    )
     available_at = (now - timedelta(seconds=30)).isoformat().replace("+00:00", "Z")
     feature_cutoff = (now - timedelta(minutes=1)).isoformat().replace("+00:00", "Z")
     # Orderbook timestamp 30s ago (epoch ms) — required for cost_source_timestamp /
@@ -412,6 +433,49 @@ def test_paper_loop_reads_per_symbol_paper_signal_keys(monkeypatch) -> None:
             },
         }
     )
+    fake.store["v2:decision:risk:risk-btc-1m"] = json.dumps(
+        {
+            "risk_decision_id": "risk-btc-1m",
+            "decision_id": "decision-btc-1m",
+            "prediction_id": "prediction-btc-1m",
+                "signal_id": "signal-btc-1m",
+                "orchestrator_decision_id": "orch-btc-1m",
+                "symbol": "BTCUSDT",
+                "timeframe": "15m",
+                "feature_snapshot_id": "fs-btc-1m",
+                "feature_vector_hash": "hash-btc-1m",
+                "input_feature_hash": "hash-btc-1m",
+                "risk_action": "allow",
+                "decision": "allow",
+                "created_at": generated_utc,
+                "generated_utc": generated_utc,
+                "expires_at": decision_expires_at,
+                "producer": "v2_risk_gateway_live_loop",
+            "routes_to_live": False,
+            "places_real_order": False,
+        }
+    )
+    fake.store["v2:decision:orchestrator:orch-btc-1m"] = json.dumps(
+        {
+            "orchestrator_decision_id": "orch-btc-1m",
+            "decision_id": "decision-btc-1m",
+            "prediction_id": "prediction-btc-1m",
+            "signal_id": "signal-btc-1m",
+                "symbol": "BTCUSDT",
+                "timeframe": "15m",
+                "feature_snapshot_id": "fs-btc-1m",
+                "feature_vector_hash": "hash-btc-1m",
+                "input_feature_hash": "hash-btc-1m",
+                "orchestrator_action": "proceed_long",
+                "decision": "proceed_long",
+                "created_at": generated_utc,
+                "generated_utc": generated_utc,
+                "expires_at": decision_expires_at,
+                "producer": "v2_orchestrator_arbitration_loop",
+            "routes_to_live": False,
+            "places_real_order": False,
+        }
+    )
     fake.store["v2:market:prices:BTCUSDT"] = json.dumps(
         {
             "ticker_24hr": {"lastPrice": "100.0"},
@@ -497,16 +561,33 @@ def test_paper_loop_reads_per_symbol_paper_signal_keys(monkeypatch) -> None:
 
     assert status["paper_signals_seen"] == 1
     assert status["intents_built"] == 1
-    assert status["intents_accepted"] == 1
+    # Discovery is independent from admission. The signal is found and its
+    # canonical risk record resolves, but incomplete A+/preemptive evidence
+    # remains fail-closed instead of being fast-path accepted.
+    assert status["intents_accepted"] == 0
+    assert status["intents_blocked"] == 1
     ledger = json.loads(fake.store["v2:paper:ledger"])
-    assert ledger["accepted_count"] == 1
-    assert ledger["accepted"][0]["signal_id"] == "signal-btc-1m"
-    assert ledger["accepted"][0]["prediction_id"] == "prediction-btc-1m"
-    assert ledger["accepted"][0]["intent_id"] == "signal-btc-1m"
-    assert ledger["accepted"][0]["source_intent_id"] == "signal-btc-1m"
-    assert ledger["accepted"][0]["risk_decision_id"] == "risk-btc-1m"
-    assert ledger["accepted"][0]["orchestrator_decision_id"] == "orch-btc-1m"
-    assert ledger["accepted"][0]["paper_fill_allowed"] is True
+    assert ledger["accepted_count"] == 0
+    margin_status = ledger["paper_account_margin_status"]
+    assert margin_status["generated_utc"]
+    assert margin_status["invariant_holds"] is True
+    reservation_status = ledger["paper_margin_reservation_status"]
+    assert reservation_status["generated_utc"]
+    assert reservation_status["cross_process_atomic"] is False
+    assert reservation_status["single_active_writer_required"] is True
+    standalone_margin_status = json.loads(
+        fake.store["v2:paper:account_margin_status"]
+    )
+    assert standalone_margin_status["generated_utc"] == margin_status["generated_utc"]
+    blocked = ledger["blocked"][0]
+    assert blocked["signal_id"] == "signal-btc-1m"
+    assert blocked["prediction_id"] == "prediction-btc-1m"
+    assert blocked["risk_decision_id"] == "risk-btc-1m"
+    assert blocked["orchestrator_decision_id"] == "orch-btc-1m"
+    assert blocked["risk_decision_record_resolved"] is True
+    assert blocked["risk_decision_source"] == "PER_ID_DECISION_RECORD"
+    assert blocked["risk_decision"] == "PASS"
+    assert blocked["paper_fill_allowed"] is False
     risk_decisions = json.loads(fake.store["v2:risk:decisions"])
     assert risk_decisions[0]["prediction_id"] == "prediction-btc-1m"
     assert risk_decisions[0]["expected_move_after_cost_bps"] == 20.0
@@ -522,7 +603,7 @@ def test_paper_loop_reads_per_symbol_paper_signal_keys(monkeypatch) -> None:
     assert latest_risk_decision["model_version"] == "model-v1"
     assert latest_risk_decision["checkpoint_id"] == "ckpt-v1"
     assert latest_risk_decision["source_hashes"] == {"feature_vector_hash": "hash-btc-1m"}
-    assert ledger["accepted"][0]["places_real_order"] is False
+    assert blocked["places_real_order"] is False
     assert status["places_real_order"] is False
     assert status["writes_legacy_redis"] is False
 

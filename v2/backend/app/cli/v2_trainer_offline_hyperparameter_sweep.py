@@ -693,7 +693,7 @@ def _looks_like_runtime_model_dir(path: Path) -> bool:
         runtime_resolved = RUNTIME_MODEL_DIR.expanduser().resolve(strict=False)
         if target_resolved == runtime_resolved:
             return True
-    except Exception:
+    except Exception:  # noqa: S110
         pass
     text = Path(path).as_posix().rstrip("/")
     runtime = RUNTIME_MODEL_DIR.as_posix().rstrip("/")
@@ -722,13 +722,8 @@ def _train_model_for_config(
             os.environ["V2_TRAINER_DROPOUT"] = prev_dropout
     if load_checkpoint:
         try:
-            from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.checkpoint import (
-                V2HybridCheckpointManager,
-            )
-            from pathlib import Path
-
             V2HybridCheckpointManager(Path(".local_models/v2_native_rl_masa_ppo")).load_latest_weights(model)
-        except Exception:
+        except Exception:  # noqa: S110
             pass
     trainer = V2HybridPPOTrainer(
         model=model,
@@ -801,7 +796,9 @@ def stage_recovery_checkpoint(
         )
     stage_dir = Path(stage_model_dir)
     if _looks_like_runtime_model_dir(stage_dir):
-        raise ValueError("refusing to stage offline recovery into the active runtime model directory")
+        raise ValueError(
+            "refusing to stage offline recovery into the active runtime model directory"
+        )
 
     model, candidate = _train_model_for_config(
         examples,
@@ -955,9 +952,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--steps", type=int, default=200)
     p.add_argument("--batch-size", type=int, default=4096)
     p.add_argument("--validation-fraction", type=float, default=0.2)
-    p.add_argument("--from-checkpoint", action="store_true", help="start each config from the current checkpoint")
+    p.add_argument(
+        "--from-checkpoint",
+        action="store_true",
+        help="start each config from the current checkpoint",
+    )
     p.add_argument("--output", default=None, help="write the sweep JSON here")
-    p.add_argument("--promote", action="store_true", help="(NOT IMPLEMENTED HERE) reserved; sweep is report-only")
+    p.add_argument(
+        "--promote",
+        action="store_true",
+        help="(NOT IMPLEMENTED HERE) reserved; sweep is report-only",
+    )
     p.add_argument(
         "--stage-checkpoint",
         action="store_true",
@@ -1000,7 +1005,14 @@ def main(argv: list[str] | None = None) -> int:
         closed_trade_only=True,
     )
     if not examples:
-        print(json.dumps({"error": "no training examples loaded from replay", "offline_only": True}))
+        print(
+            json.dumps(
+                {
+                    "error": "no training examples loaded from replay",
+                    "offline_only": True,
+                }
+            )
+        )
         return 2
     report = run_hyperparameter_sweep(
         examples,

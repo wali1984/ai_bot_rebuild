@@ -1,9 +1,15 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from copy import deepcopy
 
 import pytest
 
+from v2.backend.app.services.adaptive_capital_allocator.allocator import (
+    build_paper_liquidation_atr_evidence,
+    paper_isolated_liquidation_geometry,
+)
 from v2.backend.app.services.paper_trade_management import lifecycle
 from v2.backend.app.services.paper_trade_management.exits import PaperExitConfig
 from v2.backend.app.services.paper_trade_management.lifecycle import (
@@ -403,6 +409,168 @@ def test_rehashed_invalid_economic_field_is_still_rejected(
     )
 
     assert expected_blocker in validate_paper_position_reconstruction(snapshot)
+
+
+def test_restart_reconstruction_revalidates_paper_atr_receipt_and_residual_buffer() -> None:
+    opened, _, _ = _open_multi_fill_position()
+    snapshot = deepcopy(opened["open_positions"][0])
+    receipt, receipt_reasons = build_paper_liquidation_atr_evidence(
+        feature_snapshot={
+            "feature_snapshot_id": "restart-atr-snapshot",
+            "symbol": "BTCUSDT",
+            "timeframe": "1m",
+            "feature_freshness_state": "CURRENT",
+                "candle_closed_confirmed": True,
+                "latest_unclosed_kline_excluded": True,
+                "candle_close_time": "2026-07-17T09:58:59Z",
+                "feature_cutoff": "2026-07-17T09:59:00Z",
+            "available_at": "2026-07-17T09:59:01Z",
+            "generated_at": "2026-07-17T09:59:02Z",
+            "features": {"atr_bps": 1.0},
+        },
+        symbol="BTCUSDT",
+        timeframe="1m",
+        entry_price=snapshot["avg_entry_price"],
+        allocation_decision_time="2026-07-17T09:59:03Z",
+    )
+    assert receipt_reasons == []
+    assert receipt is not None
+    receipt_hash = receipt["evidence_sha256"]
+    allocation_lineage = {
+        "paper_liquidation_atr_evidence": receipt,
+        "paper_liquidation_atr_evidence_sha256": receipt_hash,
+        "paper_liquidation_atr_prebind_entry_atr_bps": 500.0,
+        "paper_liquidation_atr_prebind_value_mismatch": True,
+        "paper_liquidation_atr_allocation_input_binding": (
+            "EXACT_CANONICAL_PIT_FINAL_ENTRY_FEATURE_SNAPSHOT_RECEIPT"
+        ),
+    }
+    allocation_input_material = {
+        "schema_version": "adaptive_capital_allocation_input_v1",
+        "mode": "paper",
+        "allocation_input": {
+            "symbol": "BTCUSDT",
+            "timeframe": "1m",
+            "entry_atr_bps": 1.0,
+            "lineage_ids": allocation_lineage,
+        },
+        "risk_envelope": {"max_effective_leverage": 75.0},
+    }
+    allocation_input_hash = hashlib.sha256(
+        json.dumps(
+            allocation_input_material,
+            sort_keys=True,
+            separators=(",", ":"),
+            default=str,
+            allow_nan=False,
+        ).encode("utf-8")
+    ).hexdigest()
+    maintenance_rate = 0.004
+    stop_distance = 50.0
+    fee_bps = 4.0
+    slippage_bps = 3.0
+    funding_bps = 0.0
+    liquidation_geometry = paper_isolated_liquidation_geometry(
+        side=str(snapshot["side"]),
+        entry_price=float(snapshot["avg_entry_price"]),
+        leverage=float(snapshot["effective_leverage"]),
+        maintenance_margin_rate=maintenance_rate,
+    )
+    assert liquidation_geometry is not None
+    selected_residual_buffer = (
+        liquidation_geometry[0]
+        - stop_distance
+        - fee_bps
+        - slippage_bps
+        - abs(funding_bps)
+    )
+    snapshot["adaptive_allocation"] = {
+        "effective_leverage": snapshot["effective_leverage"],
+        "allocated_margin_usd": snapshot["allocated_margin_usd"],
+        "gross_notional_usd": snapshot["gross_notional_usd"],
+        "liquidation_buffer_bps": selected_residual_buffer,
+        "allocation_input_hash": allocation_input_hash,
+        "allocation_input_material": allocation_input_material,
+        "lineage_ids": allocation_lineage,
+        "model_inputs": {
+            "mode": "paper",
+            "allocation_input_hash": allocation_input_hash,
+            "selected_leverage": snapshot["effective_leverage"],
+            "permitted_leverage_values": [1.0, 2.0],
+            "risk_envelope": {"max_effective_leverage": 75.0},
+            "maintenance_margin_rate_effective": maintenance_rate,
+            "stop_distance_bps": stop_distance,
+            "fee_bps": fee_bps,
+            "slippage_bps": slippage_bps,
+            "expected_funding_bps": funding_bps,
+            "paper_liquidation_atr_evidence_sha256": receipt_hash,
+            "paper_liquidation_atr_bps": 1.0,
+            "paper_liquidation_buffer_contract_status": "READY",
+            "paper_required_liquidation_buffer_bps": 5.0,
+        },
+    }
+    snapshot["position_reconstruction_hash"] = paper_position_reconstruction_hash(
+        snapshot
+    )
+    assert snapshot["allocated_margin_usd"] * snapshot["effective_leverage"] == (
+        pytest.approx(snapshot["gross_notional_usd"])
+    )
+    assert validate_paper_position_reconstruction(snapshot) == []
+
+    insufficient_buffer = deepcopy(snapshot)
+    insufficient_buffer["adaptive_allocation"]["model_inputs"][
+        "paper_required_liquidation_buffer_bps"
+    ] = selected_residual_buffer + 1.0
+    insufficient_buffer["position_reconstruction_hash"] = (
+        paper_position_reconstruction_hash(insufficient_buffer)
+    )
+    assert (
+        "POSITION_RECONSTRUCTION_PAPER_LIQUIDATION_BUFFER_INVALID"
+        in validate_paper_position_reconstruction(insufficient_buffer)
+    )
+
+    tampered_receipt = deepcopy(snapshot)
+    tampered_receipt["adaptive_allocation"]["lineage_ids"][
+        "paper_liquidation_atr_evidence"
+    ]["atr_bps"] = 0.1
+    tampered_receipt["position_reconstruction_hash"] = paper_position_reconstruction_hash(
+        tampered_receipt
+    )
+    assert (
+        "POSITION_RECONSTRUCTION_PAPER_LIQUIDATION_ATR_RECEIPT_INVALID"
+        in validate_paper_position_reconstruction(tampered_receipt)
+    )
+
+    coherently_rehashed_input_mismatch = deepcopy(snapshot)
+    coherently_rehashed_input_mismatch["adaptive_allocation"][
+        "allocation_input_material"
+    ]["allocation_input"]["entry_atr_bps"] = 2.0
+    coherently_rehashed_input_hash = hashlib.sha256(
+        json.dumps(
+            coherently_rehashed_input_mismatch["adaptive_allocation"][
+                "allocation_input_material"
+            ],
+            sort_keys=True,
+            separators=(",", ":"),
+            default=str,
+            allow_nan=False,
+        ).encode("utf-8")
+    ).hexdigest()
+    coherently_rehashed_input_mismatch["adaptive_allocation"][
+        "allocation_input_hash"
+    ] = coherently_rehashed_input_hash
+    coherently_rehashed_input_mismatch["adaptive_allocation"]["model_inputs"][
+        "allocation_input_hash"
+    ] = coherently_rehashed_input_hash
+    coherently_rehashed_input_mismatch["position_reconstruction_hash"] = (
+        paper_position_reconstruction_hash(coherently_rehashed_input_mismatch)
+    )
+    assert (
+        "POSITION_RECONSTRUCTION_PAPER_LIQUIDATION_ATR_RECEIPT_INVALID"
+        in validate_paper_position_reconstruction(
+            coherently_rehashed_input_mismatch
+        )
+    )
 
 
 def test_legacy_partial_snapshot_without_exact_envelope_fails_closed() -> None:

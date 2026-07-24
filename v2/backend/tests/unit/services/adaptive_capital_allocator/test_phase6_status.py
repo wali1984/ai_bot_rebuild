@@ -1,11 +1,21 @@
 from __future__ import annotations
 
-from v2.backend.app.services.adaptive_capital_allocator import AllocationInput, allocate_paper_candidate
+from typing import cast
+
+from v2.backend.app.services.adaptive_capital_allocator import AllocationInput
+from v2.backend.app.services.adaptive_capital_allocator.allocator import (
+    PAPER_LIQUIDATION_ATR_EVIDENCE_HASH_LINEAGE_KEY,
+    PAPER_LIQUIDATION_ATR_EVIDENCE_LINEAGE_KEY,
+    build_paper_liquidation_atr_evidence,
+)
 from v2.backend.app.services.adaptive_capital_allocator.phase6_status import (
     build_adaptive_leverage_margin_simulation_status,
     build_capital_productivity_runtime_status,
     build_portfolio_exposure_runtime_status,
     build_risk_of_ruin_runtime_status,
+)
+from v2.backend.tests.unit.services.adaptive_capital_allocator.growth_receipt_test_utils import (
+    allocate_authorized_growth,
 )
 
 
@@ -25,6 +35,7 @@ def _row(**overrides: object) -> AllocationInput:
         "liquidity_score": 1.0,
         "spread_bps": 2.0,
         "slippage_bps": 2.0,
+        "maintenance_margin_rate": 0.005,
         "drawdown_bps": 0.0,
         "symbol_exposure_usdt": 0.0,
         "total_exposure_usdt": 100.0,
@@ -33,11 +44,38 @@ def _row(**overrides: object) -> AllocationInput:
         "lineage_ids": {"prediction_id": "pred"},
     }
     values.update(overrides)
+    entry_atr_bps = values.get("entry_atr_bps", values["volatility_bps"])
+    values["entry_atr_bps"] = entry_atr_bps
+    receipt, reasons = build_paper_liquidation_atr_evidence(
+        feature_snapshot={
+            "feature_snapshot_id": "phase6-final-feature",
+            "symbol": values["symbol"],
+            "timeframe": values["timeframe"],
+            "feature_freshness_state": "CURRENT",
+            "candle_closed_confirmed": True,
+            "latest_unclosed_kline_excluded": True,
+            "candle_close_time": "2026-07-18T11:59:55Z",
+            "feature_cutoff": "2026-07-18T11:59:56Z",
+            "available_at": "2026-07-18T11:59:57Z",
+            "generated_at": "2026-07-18T11:59:58Z",
+            "features": {"atr_bps": entry_atr_bps},
+        },
+        symbol=values["symbol"],
+        timeframe=values["timeframe"],
+        entry_price=values["price"],
+        allocation_decision_time="2026-07-18T11:59:59Z",
+    )
+    assert not reasons
+    assert receipt is not None
+    lineage_ids = dict(cast(dict[str, object], values.get("lineage_ids") or {}))
+    lineage_ids[PAPER_LIQUIDATION_ATR_EVIDENCE_LINEAGE_KEY] = receipt
+    lineage_ids[PAPER_LIQUIDATION_ATR_EVIDENCE_HASH_LINEAGE_KEY] = receipt["evidence_sha256"]
+    values["lineage_ids"] = lineage_ids
     return AllocationInput(**values)
 
 
 def _payloads() -> list[dict[str, object]]:
-    weak = allocate_paper_candidate(
+    weak = allocate_authorized_growth(
         _row(
             confidence_calibrated=0.62,
             expected_move_after_cost_bps=40.0,
@@ -46,7 +84,7 @@ def _payloads() -> list[dict[str, object]]:
             lineage_ids={"prediction_id": "weak"},
         )
     ).to_payload()
-    strong = allocate_paper_candidate(
+    strong = allocate_authorized_growth(
         _row(
             confidence_calibrated=0.9,
             expected_move_after_cost_bps=180.0,
@@ -70,7 +108,7 @@ def test_phase6_leverage_margin_status_passes_real_allocator_payloads() -> None:
 
 
 def test_phase6_leverage_margin_status_blocks_pf_below_one_leverage_increase() -> None:
-    row = allocate_paper_candidate(
+    row = allocate_authorized_growth(
         _row(
             confidence_calibrated=0.9,
             expected_move_after_cost_bps=180.0,

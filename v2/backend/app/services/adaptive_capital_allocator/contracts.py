@@ -1,10 +1,25 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import Any, Literal
 
-
 ADAPTIVE_CAPITAL_POLICY_VERSION = "ADAPTIVE_CAPITAL_ALLOCATOR_V1"
+
+
+class MaintenanceMarginInputState(Enum):
+    """Distinguish an omitted legacy LIVE input from an explicit ``None``.
+
+    The legacy contract defaulted an omitted value to ``0.005`` but raised when
+    callers explicitly supplied ``None``.  PAPER needs omission to remain
+    distinguishable so it can fail closed instead of inventing exchange
+    maintenance evidence.
+    """
+
+    UNSET = "MAINTENANCE_MARGIN_INPUT_UNSET"
+
+
+MAINTENANCE_MARGIN_INPUT_UNSET = MaintenanceMarginInputState.UNSET
 
 
 AllocationDecision = Literal[
@@ -18,6 +33,7 @@ AllocationDecision = Literal[
     "BLOCK_EXPOSURE_BUDGET",
     "BLOCK_DRAWDOWN_GUARD",
     "BLOCK_EXCHANGE_MIN_ORDER",
+    "BLOCK_EXCHANGE_MAX_ORDER",
     "BLOCK_INSUFFICIENT_MARGIN",
     "BLOCK_LIQUIDATION_RISK",
 ]
@@ -56,7 +72,14 @@ class AllocationInput:
     fee_bps: float = 4.0
     expected_funding_bps: float = 0.0
     stop_distance_bps: float | None = None
-    maintenance_margin_rate: float = 0.005
+    # Must come from symbol/tier-specific exchange or paper-market evidence.
+    # A paper allocator may not fabricate a generic maintenance rate because
+    # that would make every derived liquidation price and buffer fictitious.
+    # Live retains its historical compatibility value inside the allocator
+    # until a separately approved live-contract migration supplies the field.
+    maintenance_margin_rate: float | None | MaintenanceMarginInputState = (
+        MAINTENANCE_MARGIN_INPUT_UNSET
+    )
     permitted_leverage_values: tuple[float, ...] = (1.0, 2.0, 3.0)
     hedge_budget_pct_of_risk: float = 0.0
     drawdown_bps: float = 0.0
@@ -66,6 +89,7 @@ class AllocationInput:
     regime_score: float = 1.0
     min_qty: float | None = None
     step_size: float | None = None
+    max_qty: float | None = None
     min_notional: float | None = None
     ppo_action_probability: float | None = None
     masa_confidence: float | None = None
@@ -81,12 +105,20 @@ class AllocationInput:
     # Rolling median exit overshoot (|realized gross pnl_bps| - atr_stop_bps)
     # over recent TIER_1 stop closes, published by the paper loop.
     exit_overshoot_premium_bps: float | None = None
-    # Hedge-aware sizing (2026-07-17): when the adaptive hedge engine is
-    # active for this fill's lifecycle, the position's true worst-case
-    # adverse excursion is bounded near the hedge arm fraction of its stop
-    # (plus hedge execution drag), not the full stop — the allocator may
-    # size risk_budget against the smaller distance (floored at half the
-    # full stop for hedge-slippage humility).
+    # Paper-only bounded size controls (for example strategy haircuts and
+    # recovery probes) must be applied inside the allocator so all
+    # exchange filters, margin calculations, liquidation estimates, and
+    # economic aliases are derived from the same reduced risk budget.  Live
+    # allocation ignores this paper-only field and preserves existing sizing.
+    paper_risk_budget_fraction: float = 1.0
+    # Continuous, evidence-derived paper quality multiplier.  It is a second,
+    # independent upper bound: both the adaptive loss budget and the gross
+    # notional ceiling are contracted by this weight before exchange filters
+    # or margin math.  Live allocation ignores this paper-only field.
+    paper_quality_sizing_weight: float = 1.0
+    # A hedge request is diagnostic only.  It is not proof of an atomically
+    # funded and filled hedge, so the allocator always sizes against the full
+    # unhedged stop until such proof exists.
     adaptive_hedge_sizing_enabled: bool = False
 
 
@@ -94,6 +126,10 @@ class AllocationInput:
 class AllocationResult:
     adaptive_capital_policy_version: str
     allocation_id: str
+    allocation_input_schema_version: str
+    allocation_input_hash: str
+    allocation_input_hash_algorithm: str
+    allocation_input_material: dict[str, Any]
     symbol: str
     timeframe: str
     action: str
@@ -152,7 +188,7 @@ class AllocationResult:
     cross_margin_available_buffer_usd: float
     portfolio_liquidation_buffer_usd: float
     worst_case_portfolio_loss_usd: float
-    maintenance_margin_estimate_usd: float
+    maintenance_margin_estimate_usd: float | None
     margin_call_risk: str
     cross_margin_safe: bool
     why_cross_margin_or_isolated: str
@@ -176,7 +212,7 @@ class AllocationResult:
     lineage_ids: dict[str, Any]
 
     def to_payload(self) -> dict[str, Any]:
-        return {
+        payload = {
             "adaptive_capital_policy_version": self.adaptive_capital_policy_version,
             "allocation_id": self.allocation_id,
             "symbol": self.symbol,
@@ -262,3 +298,17 @@ class AllocationResult:
             "model_inputs": self.model_inputs,
             "lineage_ids": self.lineage_ids,
         }
+        if self.model_inputs.get("mode") == "paper":
+            payload.update(
+                {
+                    "allocation_input_schema_version": (
+                        self.allocation_input_schema_version
+                    ),
+                    "allocation_input_hash": self.allocation_input_hash,
+                    "allocation_input_hash_algorithm": (
+                        self.allocation_input_hash_algorithm
+                    ),
+                    "allocation_input_material": self.allocation_input_material,
+                }
+            )
+        return payload

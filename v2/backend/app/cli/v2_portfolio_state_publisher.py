@@ -21,6 +21,9 @@ from pathlib import Path
 from typing import Any
 
 from v2.backend.app.services.paper_accounting.mark_to_market import build_accounting_state
+from v2.backend.app.services.paper_trade_management.margin_accounting import (
+    build_paper_margin_status,
+)
 
 V2_REDIS_PREFIX = "v2:"
 REPO_ROOT = Path(__file__).resolve().parents[4]
@@ -500,6 +503,7 @@ def run_once(write_redis: bool = True) -> dict:
     raw_closed_position_count = 0
     invalid_admission_source_id_count = 0
     session_initial_capital = PAPER_INITIAL_CAPITAL
+    authoritative_open_positions_for_margin: list[dict[str, Any]] = []
 
     if r:
         history_symbols_tracked = len(list(r.scan_iter(match="v2:paper:position_history:*", count=500)))
@@ -607,6 +611,7 @@ def run_once(write_redis: bool = True) -> dict:
                 for row in _as_list(ledger.get("open_positions"))
                 if isinstance(row, dict)
             ]
+            authoritative_open_positions_for_margin = ledger_open_rows
             ledger_positions_by_symbol = ledger.get("positions_by_symbol")
             ledger_open_count = _coerce_float(
                 ledger.get("open_position_count")
@@ -761,6 +766,35 @@ def run_once(write_redis: bool = True) -> dict:
     )
     cash_balance = session_initial_capital + realized_pnl_usd
     equity = cash_balance + unrealized_pnl_usd
+    margin_rows = (
+        authoritative_open_positions_for_margin
+        if authoritative_open_positions_for_margin
+        else ([] if ledger_authoritative_no_open_positions else open_positions)
+    )
+    prior_margin_status = previous_portfolio_state.get("paper_account_margin_status")
+    ledger_margin_status = current_ledger_payload.get("paper_account_margin_status")
+    margin_buffer_pct = _coerce_float(
+        ledger_margin_status.get("min_available_margin_buffer_pct")
+        if isinstance(ledger_margin_status, dict)
+        else None
+    )
+    if margin_buffer_pct is None and isinstance(prior_margin_status, dict):
+        margin_buffer_pct = _coerce_float(
+            prior_margin_status.get("min_available_margin_buffer_pct")
+        )
+    paper_account_margin_status = build_paper_margin_status(
+        equity=equity,
+        wallet_balance=cash_balance,
+        open_positions=margin_rows,
+        min_available_margin_buffer_pct=margin_buffer_pct or 0.0,
+        reservations_included_in_open_positions=True,
+    )
+    paper_account_margin_status["source"] = (
+        "V2_PAPER_LEDGER_OPEN_POSITIONS"
+        if authoritative_open_positions_for_margin
+        else "PORTFOLIO_RECONSTRUCTED_OPEN_POSITIONS"
+    )
+    paper_account_margin_status["generated_utc"] = now_utc
     total_pnl_usd = realized_pnl_usd + unrealized_pnl_usd
     invalid_admission_realized_pnl_usd = _sum_closed_realized(invalid_admission_closed_rows)
     raw_realized_pnl_including_invalid_admissions = (
@@ -966,8 +1000,16 @@ def run_once(write_redis: bool = True) -> dict:
         # Legacy: Gross PnL alias (for backwards compatibility, not used for equity)
         "realized_pnl_usd": round(realized_pnl_usd, 8),
         "cash_balance": round(cash_balance, 8),
+        "wallet_balance": round(cash_balance, 8),
         "open_position_notional": round(open_position_notional, 8),
         "equity": round(equity, 8),
+        "used_margin_usd": paper_account_margin_status["used_margin_usd"],
+        "available_margin": paper_account_margin_status["free_margin_usd"],
+        "free_margin_usd": paper_account_margin_status["free_margin_usd"],
+        "free_margin_after_buffer_usd": paper_account_margin_status[
+            "free_margin_after_buffer_usd"
+        ],
+        "paper_account_margin_status": paper_account_margin_status,
         "current_session_equity": round(equity, 8),
         "clean_session_valid_equity_usd": round(equity, 8),
         "clean_session_valid_realized_pnl_usd": round(realized_pnl_usd, 8),
