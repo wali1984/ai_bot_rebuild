@@ -284,7 +284,7 @@ struct LiveReadinessView: View {
         if !gates.isEmpty {
             VStack(spacing: 8) {
                 Button {
-                    withAnimation(.snappy(duration: 0.25)) { toggleSection(key) }
+                    withAnimation(.easeInOut(duration: 0.25)) { toggleSection(key) }
                 } label: {
                     HStack(spacing: 10) {
                         Image(systemName: icon)
@@ -314,7 +314,7 @@ struct LiveReadinessView: View {
                                 gate: gate,
                                 isExpanded: expandedGates.contains(gate.id)
                             ) {
-                                withAnimation(.snappy(duration: 0.2)) { toggleGate(gate.id) }
+                                withAnimation(.easeInOut(duration: 0.2)) { toggleGate(gate.id) }
                             }
                             if gate.id != gates.last?.id {
                                 NerVyxDivider().padding(.leading, 46)

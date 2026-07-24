@@ -325,7 +325,7 @@ struct ProvidersView: View {
             ForEach(vm.degradedProviders, id: \.provider) { provider in
                 let color = providerColor(provider.providerDashboardTone)
                 Button {
-                    withAnimation(.snappy(duration: 0.25)) {
+                    withAnimation(.easeInOut(duration: 0.25)) {
                         expandedProviders.insert(provider.provider)
                     }
                 } label: {
@@ -388,7 +388,7 @@ struct ProvidersView: View {
         let isExpanded = expandedProviders.contains(provider.provider)
         return VStack(alignment: .leading, spacing: 10) {
             Button {
-                withAnimation(.snappy(duration: 0.25)) {
+                withAnimation(.easeInOut(duration: 0.25)) {
                     if isExpanded {
                         expandedProviders.remove(provider.provider)
                     } else {

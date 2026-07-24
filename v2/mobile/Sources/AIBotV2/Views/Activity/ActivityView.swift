@@ -230,7 +230,7 @@ struct ActivityView: View {
         HStack(spacing: 8) {
             ForEach(ActivityWindow.allCases) { window in
                 Button {
-                    withAnimation(.snappy(duration: 0.2)) { selectedWindow = window }
+                    withAnimation(.easeInOut(duration: 0.2)) { selectedWindow = window }
                 } label: {
                     Text(window.rawValue)
                         .font(.system(size: 12, weight: .bold, design: .monospaced))
@@ -352,7 +352,7 @@ struct ActivityView: View {
             HStack(spacing: 8) {
                 ForEach(ActivityFilter.allCases) { filter in
                     Button {
-                        withAnimation(.snappy(duration: 0.2)) { selectedFilter = filter }
+                        withAnimation(.easeInOut(duration: 0.2)) { selectedFilter = filter }
                     } label: {
                         Text(filter.rawValue)
                             .font(.system(size: 11, weight: .bold))
