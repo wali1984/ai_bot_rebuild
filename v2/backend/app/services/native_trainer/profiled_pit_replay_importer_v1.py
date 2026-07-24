@@ -36,8 +36,9 @@ from v2.backend.app.services.native_trainer.profiled_pit_replay_projection_v1 im
     project_profiled_training_sample_to_replay_snapshot_v1,
 )
 from v2.backend.app.services.native_trainer.profiled_training_ledger_loader_v1 import (
-    ProfiledTrainingLedgerLoaderV1Error,
-    load_profiled_training_ledger_v1,
+    ProfiledTrainingLedgerSampleV1,
+    ProfiledTrainingSourceProvenanceSnapshotSessionV1,
+    admit_profiled_training_ledger_item_direct_v1,
 )
 from v2.backend.app.services.native_trainer.profiled_training_observation_manifest_v1 import (
     ProfiledTrainingObservationManifestV1Error,
@@ -224,24 +225,37 @@ def import_next_profiled_pit_replay_shard_v1(
     state = _read_state(state_root)
     started = datetime.now(tz=UTC)
     try:
-        batch = load_profiled_training_ledger_v1(
-            ledger=ledger,
-            trusted_immutable_cost_store_root=trusted_immutable_cost_store_root,
+        items = ledger.query_fixed_cutoff(
+            decision_time_cutoff=training_observed_at,
             training_observed_at=training_observed_at,
-            scan_limit=source_shard_rows,
+            limit=source_shard_rows,
             after_sequence=cast(int, state["last_completed_sequence"]),
         )
-    except ProfiledTrainingLedgerLoaderV1Error as exc:
+    except Exception as exc:
         raise ProfiledPitReplayImporterV1Error(
-            f"PROFILED_PIT_REPLAY_IMPORTER_SOURCE_READ_FAILED:{exc}"
+            f"PROFILED_PIT_REPLAY_IMPORTER_SOURCE_READ_FAILED:{type(exc).__name__}"
         ) from exc
-    observation = datetime.fromisoformat(batch.training_observed_at.replace("Z", "+00:00"))
+    observation = datetime.fromisoformat(training_observed_at.replace("Z", "+00:00"))
     label_before = _label_high_water(archive=label_archive, observation=observation)
     exclusions: Counter[str] = Counter()
     records: list[dict[str, Any]] = []
-    for exclusion in batch.exclusions:
-        exclusions[str(exclusion.reason)] += 1
-    for sample in batch.samples:
+    with ProfiledTrainingSourceProvenanceSnapshotSessionV1() as source_snapshot_session:
+        admitted_items = [
+            admit_profiled_training_ledger_item_direct_v1(
+                ledger=ledger,
+                item=item,
+                trusted_immutable_cost_store_root=trusted_immutable_cost_store_root,
+                source_snapshot_session=source_snapshot_session,
+            )
+            for item in items
+        ]
+    for admitted in admitted_items:
+        if admitted is None:
+            continue
+        if type(admitted) is not ProfiledTrainingLedgerSampleV1:
+            exclusions[str(admitted.reason)] += 1
+            continue
+        sample = admitted
         try:
             label_binding, label_reasons = build_profiled_training_label_binding_v1(
                 sample=sample,
@@ -270,13 +284,17 @@ def import_next_profiled_pit_replay_shard_v1(
     for record in records:
         write = append_snapshot(record, root=archive_root, update_checksum_manifest=True)
         already_present += int(write.already_present)
-    if batch.scanned_end_sequence is not None:
-        if batch.scanned_end_sequence <= state["last_completed_sequence"]:
+    scanned_start_sequence = items[0].sequence if items else None
+    scanned_end_sequence = items[-1].sequence if items else None
+    if scanned_end_sequence is not None:
+        if scanned_end_sequence <= state["last_completed_sequence"]:
             _fail("PROFILED_PIT_REPLAY_IMPORTER_SOURCE_CHECKPOINT_NONMONOTONIC")
         shard_material = {
-            "source_start_sequence": batch.scanned_start_sequence,
-            "source_end_sequence": batch.scanned_end_sequence,
-            "source_high_water_sha256": batch.high_water_sha256,
+            "source_start_sequence": scanned_start_sequence,
+            "source_end_sequence": scanned_end_sequence,
+            "source_record_sha256s": [
+                item.record.get("record_sha256") for item in items
+            ],
             "label_high_water_sha256": label_before["high_water_sha256"],
             "record_content_sha256s": [record["content_sha256"] for record in records],
             "excluded_by_reason": dict(sorted(exclusions.items())),
@@ -285,22 +303,22 @@ def import_next_profiled_pit_replay_shard_v1(
         completed.append({**shard_material, "shard_sha256": stable_sha256(shard_material)})
         state = {
             "schema_version": PROFILED_PIT_REPLAY_IMPORTER_V1_SCHEMA_VERSION,
-            "last_completed_sequence": batch.scanned_end_sequence,
+            "last_completed_sequence": scanned_end_sequence,
             "completed_shards": completed,
         }
         _write_state_atomic(state_root, state)
     elapsed = (datetime.now(tz=UTC) - started).total_seconds()
     return ProfiledPitReplayImportShardResultV1(
-        training_observed_at=batch.training_observed_at,
-        source_start_sequence=batch.scanned_start_sequence,
-        source_end_sequence=batch.scanned_end_sequence,
-        source_rows_scanned=batch.scanned_record_count,
+        training_observed_at=training_observed_at,
+        source_start_sequence=scanned_start_sequence,
+        source_end_sequence=scanned_end_sequence,
+        source_rows_scanned=len(items),
         rows_imported=len(records) - already_present,
         rows_already_present=already_present,
         rows_excluded=sum(exclusions.values()),
         excluded_by_reason=dict(sorted(exclusions.items())),
         checkpoint_last_completed_sequence=cast(int, state["last_completed_sequence"]),
-        source_rows_remaining=batch.has_remaining_strict_rows,
+        source_rows_remaining=len(items) == source_shard_rows,
         elapsed_seconds=elapsed,
     )
 

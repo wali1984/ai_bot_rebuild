@@ -6,6 +6,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from v2.backend.app.services.native_trainer import profiled_pit_replay_importer_v1 as importer
+from v2.backend.app.services.native_trainer import profiled_training_ledger_loader_v1 as loader
 from v2.backend.app.services.native_trainer.durable_canonical_5m_label_archive import (
     DurableCanonical5mLabelArchive,
 )
@@ -14,6 +15,7 @@ from v2.backend.app.services.native_trainer.durable_feature_snapshot_archive imp
 )
 from v2.backend.app.services.native_trainer.durable_feature_snapshot_ledger import (
     DurableFeatureSnapshotLedger,
+    FixedCutoffFeatureSnapshot,
 )
 
 
@@ -23,21 +25,20 @@ def _clock() -> str:
     )
 
 
+class _Session:
+    def __enter__(self) -> _Session:
+        return self
+
+    def __exit__(self, *_args: object) -> None:
+        return None
+
+
 def test_importer_checkpoints_only_after_archived_rows_are_readable(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
     source_sample = object()
-    batch = SimpleNamespace(
-        training_observed_at=_clock(),
-        scanned_start_sequence=1,
-        scanned_end_sequence=1,
-        scanned_record_count=1,
-        samples=(source_sample,),
-        exclusions=(),
-        high_water_sha256="a" * 64,
-        has_remaining_strict_rows=True,
-    )
+    source_item = SimpleNamespace(sequence=1, record={"record_sha256": "a" * 64})
     record = build_archive_record(
         snapshot_id="profiled_pit_replay_v1_test",
         symbol="BTCUSDT",
@@ -49,7 +50,22 @@ def test_importer_checkpoints_only_after_archived_rows_are_readable(
         features={"close": 100.0},
     )
     appended: list[dict[str, object]] = []
-    monkeypatch.setattr(importer, "load_profiled_training_ledger_v1", lambda **_kwargs: batch)
+    monkeypatch.setattr(
+        DurableFeatureSnapshotLedger,
+        "query_fixed_cutoff",
+        lambda _self, **_kwargs: [source_item],
+    )
+    monkeypatch.setattr(
+        importer,
+        "admit_profiled_training_ledger_item_direct_v1",
+        lambda **_kwargs: source_sample,
+    )
+    monkeypatch.setattr(importer, "ProfiledTrainingLedgerSampleV1", object)
+    monkeypatch.setattr(
+        importer,
+        "ProfiledTrainingSourceProvenanceSnapshotSessionV1",
+        _Session,
+    )
     monkeypatch.setattr(
         importer,
         "_label_high_water",
@@ -91,3 +107,25 @@ def test_importer_checkpoints_only_after_archived_rows_are_readable(
     assert checkpoint["completed_shards"][0]["record_content_sha256s"] == [
         record["content_sha256"]
     ]
+
+
+def test_direct_loader_adapter_uses_current_receipt_attestation(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_admit(**kwargs: object) -> object:
+        captured.update(kwargs)
+        return "admitted"
+
+    monkeypatch.setattr(loader, "_admit_item", fake_admit)
+    monkeypatch.setattr(loader, "ProfiledTrainingSourceProvenanceSnapshotSessionV1", _Session)
+    result = loader.admit_profiled_training_ledger_item_direct_v1(
+        ledger=DurableFeatureSnapshotLedger(tmp_path / "source.sqlite3"),
+        item=object.__new__(FixedCutoffFeatureSnapshot),
+        trusted_immutable_cost_store_root=tmp_path,
+    )
+
+    assert result == "admitted"
+    assert captured["high_water"] is None

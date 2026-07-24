@@ -2974,7 +2974,7 @@ def _admit_item(
     *,
     ledger: DurableFeatureSnapshotLedger,
     item: FixedCutoffFeatureSnapshot,
-    high_water: Mapping[str, Any],
+    high_water: Mapping[str, Any] | None,
     trusted_immutable_cost_store_root: Path,
     source_snapshot_session: ProfiledTrainingSourceProvenanceSnapshotSessionV1,
 ) -> ProfiledTrainingLedgerSampleV1 | ProfiledTrainingLedgerExclusionV1 | None:
@@ -3059,33 +3059,39 @@ def _admit_item(
     parent_id = parent_claim.get("durable_snapshot_id")
     if type(parent_id) is not str:
         _fail("PROFILED_TRAINING_PARENT_ID_INVALID")
-    high_water_maximum = high_water.get("verified_records")
-    high_water_head_sequence = high_water.get("authenticated_prefix_head_sequence")
-    high_water_archive_chain = high_water.get("archive_chain_sha256")
-    high_water_observed = high_water.get("strict_prior_observation")
-    if (
-        type(high_water_maximum) is not int
-        or high_water_maximum <= 0
-        or type(high_water_head_sequence) is not int
-        or high_water_head_sequence <= 0
-        or not _valid_sha256(high_water_archive_chain)
-        or type(high_water_observed) is not str
-        or item.sequence <= 1
-    ):
-        _fail("PROFILED_TRAINING_PARENT_BOUNDED_REOPEN_CONTEXT_INVALID")
-    parent = ledger.get_snapshot_bounded(
-        durable_snapshot_id=parent_id,
-        expected_sequence=None,
-        expected_record_sha256=None,
-        training_observed_at=high_water_observed,
-        maximum_sequence=high_water_maximum,
-        expected_frontier_head_sequence=high_water_head_sequence,
-        expected_frontier_record_count=high_water_maximum,
-        expected_frontier_archive_chain_sha256=cast(
-            str,
-            high_water_archive_chain,
-        ),
-    )
+    direct_current_attestation = high_water is None
+    if direct_current_attestation:
+        parent = ledger.get_snapshot(parent_id)
+        high_water_maximum = None
+    else:
+        assert high_water is not None
+        high_water_maximum = high_water.get("verified_records")
+        high_water_head_sequence = high_water.get("authenticated_prefix_head_sequence")
+        high_water_archive_chain = high_water.get("archive_chain_sha256")
+        high_water_observed = high_water.get("strict_prior_observation")
+        if (
+            type(high_water_maximum) is not int
+            or high_water_maximum <= 0
+            or type(high_water_head_sequence) is not int
+            or high_water_head_sequence <= 0
+            or not _valid_sha256(high_water_archive_chain)
+            or type(high_water_observed) is not str
+            or item.sequence <= 1
+        ):
+            _fail("PROFILED_TRAINING_PARENT_BOUNDED_REOPEN_CONTEXT_INVALID")
+        parent = ledger.get_snapshot_bounded(
+            durable_snapshot_id=parent_id,
+            expected_sequence=None,
+            expected_record_sha256=None,
+            training_observed_at=high_water_observed,
+            maximum_sequence=high_water_maximum,
+            expected_frontier_head_sequence=high_water_head_sequence,
+            expected_frontier_record_count=high_water_maximum,
+            expected_frontier_archive_chain_sha256=cast(
+                str,
+                high_water_archive_chain,
+            ),
+        )
     if parent is None:
         _fail("PROFILED_TRAINING_PARENT_LEDGER_RECORD_MISSING")
     parent_material = _validate_parent_model_record(
@@ -3189,14 +3195,32 @@ def _admit_item(
         != parent_material["logical"]["logical_projection_sha256"]
     ):
         _fail("PROFILED_TRAINING_LOGICAL_PROJECTION_PARENT_MISMATCH")
-    high_water_sha = high_water.get("high_water_sha256")
-    if (
-        not _valid_sha256(high_water_sha)
-        or type(high_water.get("verified_records")) is not int
-        or item.sequence > high_water["verified_records"]
-        or parent.sequence > high_water["verified_records"]
-    ):
-        _fail("PROFILED_TRAINING_LEDGER_HEAD_PROOF_INVALID")
+    if direct_current_attestation:
+        high_water_sha = stable_sha256(
+            {
+                "schema_version": "profiled_training_direct_current_attestation_v1",
+                "child_sequence": item.sequence,
+                "child_durable_snapshot_id": record.get("durable_snapshot_id"),
+                "child_record_sha256": record.get("record_sha256"),
+                "parent_sequence": parent.sequence,
+                "parent_durable_snapshot_id": parent.record.get("durable_snapshot_id"),
+                "parent_record_sha256": parent.record.get("record_sha256"),
+                "append_transaction_id": item.append_transaction_id,
+                "append_receipt_sha256": item.append_receipt_sha256,
+                "postcommit_receipt_sha256": item.postcommit_receipt_sha256,
+                "postcommit_readback_at": item.postcommit_readback_at,
+            }
+        )
+    else:
+        assert high_water is not None
+        high_water_sha = high_water.get("high_water_sha256")
+        if (
+            not _valid_sha256(high_water_sha)
+            or type(high_water.get("verified_records")) is not int
+            or item.sequence > high_water["verified_records"]
+            or parent.sequence > high_water["verified_records"]
+        ):
+            _fail("PROFILED_TRAINING_LEDGER_HEAD_PROOF_INVALID")
     parent_binding_sha = stable_sha256(parent_material["binding"])
     return ProfiledTrainingLedgerSampleV1(
         sequence=item.sequence,
@@ -3288,6 +3312,53 @@ def _admit_item(
         runtime_wired=False,
         _construction_token=_RESULT_TOKEN,
     )
+
+
+def admit_profiled_training_ledger_item_direct_v1(
+    *,
+    ledger: DurableFeatureSnapshotLedger,
+    item: FixedCutoffFeatureSnapshot,
+    trusted_immutable_cost_store_root: Path,
+    source_snapshot_session: ProfiledTrainingSourceProvenanceSnapshotSessionV1 | None = None,
+) -> ProfiledTrainingLedgerSampleV1 | ProfiledTrainingLedgerExclusionV1 | None:
+    """Authenticate one current, receipt-attested ledger item without a full scan.
+
+    This bounded importer seam is for append-only historical reconstruction.
+    It validates the exact child and its atomic parent through the ledger's
+    current-tail attestation, then reruns the complete profiled source and
+    cost-CAS contract.  It grants no serving or execution authority.
+    """
+
+    if type(ledger) is not DurableFeatureSnapshotLedger:
+        _fail("PROFILED_TRAINING_DIRECT_ITEM_LEDGER_EXACT_TYPE_REQUIRED")
+    if type(item) is not FixedCutoffFeatureSnapshot:
+        _fail("PROFILED_TRAINING_DIRECT_ITEM_EXACT_TYPE_REQUIRED")
+    if (
+        type(trusted_immutable_cost_store_root) is not type(Path())
+        or not trusted_immutable_cost_store_root.is_absolute()
+        or ".." in trusted_immutable_cost_store_root.parts
+        or "\x00" in str(trusted_immutable_cost_store_root)
+    ):
+        _fail("PROFILED_TRAINING_DIRECT_ITEM_COST_STORE_ROOT_INVALID")
+    if (
+        source_snapshot_session is not None
+        and type(source_snapshot_session)
+        is not ProfiledTrainingSourceProvenanceSnapshotSessionV1
+    ):
+        _fail("PROFILED_TRAINING_DIRECT_ITEM_SOURCE_SNAPSHOT_SESSION_INVALID")
+    context = (
+        ProfiledTrainingSourceProvenanceSnapshotSessionV1()
+        if source_snapshot_session is None
+        else nullcontext(source_snapshot_session)
+    )
+    with context as active_source_snapshot_session:
+        return _admit_item(
+            ledger=ledger,
+            item=item,
+            high_water=None,
+            trusted_immutable_cost_store_root=trusted_immutable_cost_store_root,
+            source_snapshot_session=active_source_snapshot_session,
+        )
 
 
 def load_profiled_training_ledger_fixed_observation_v1(
@@ -3881,6 +3952,7 @@ __all__ = [
     "ProfiledTrainingLedgerLoaderV1Error",
     "ProfiledTrainingLedgerSampleV1",
     "ProfiledTrainingSourceProvenanceSnapshotSessionV1",
+    "admit_profiled_training_ledger_item_direct_v1",
     "load_profiled_training_ledger_fixed_observation_v1",
     "load_profiled_training_ledger_v1",
     "reopen_profiled_training_ledger_sample_v1",
