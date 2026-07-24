@@ -114,11 +114,38 @@ async def get_monitoring_data_surfaces(_: UserRecord = Depends(_require_monitori
     }
 
 
+def _binance_ws_live_status() -> str:
+    """Live status for the Binance USD-M WS feed: 'active' when the WS-sourced
+    mark-price / kline keys are present in Redis, else 'check_required'. Replaces
+    a hardcoded literal that could never turn green."""
+    try:
+        from v2.backend.app.api.v2._common import get_redis
+
+        r = get_redis()
+        if r is None:
+            return "check_required"
+        # O(1) exists() on canonical major keys — a SCAN over the ~1.58M-key
+        # namespace would not reliably hit the sparse WS keys in a bounded page.
+        for key in (
+            "v2:market:mark_price:BTCUSDT",
+            "v2:market:mark_price:ETHUSDT",
+            "v2:market:ohlcv_closed:binance:BTCUSDT:5m",
+        ):
+            try:
+                if r.exists(key):
+                    return "active"
+            except Exception:  # noqa: BLE001
+                continue
+        return "check_required"
+    except Exception:  # noqa: BLE001 - status derivation must not error the route
+        return "check_required"
+
+
 @router.get("/realtime-streams")
 async def get_monitoring_realtime_streams(_: UserRecord = Depends(_require_monitoring_reader)) -> dict[str, Any]:
     """Return status of known realtime data streams."""
     streams = [
-        {"name": "Binance USD-M Ticker WS", "type": "websocket", "status": "check_required", "endpoint": "wss://fstream.binance.com"},
+        {"name": "Binance USD-M Ticker WS", "type": "websocket", "status": _binance_ws_live_status(), "endpoint": "wss://fstream.binance.com"},
         {"name": "Market Overview Polling", "type": "api_poll", "status": "active", "endpoint": "/api/v2/market/overview", "interval_ms": 30000},
         {"name": "Signals Poll", "type": "api_poll", "status": "active", "endpoint": "/api/v2/signals", "interval_ms": 10000},
         {"name": "Portfolio Poll", "type": "api_poll", "status": "active", "endpoint": "/api/v2/portfolio", "interval_ms": 15000},
