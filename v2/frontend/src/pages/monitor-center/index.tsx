@@ -18,6 +18,14 @@ interface RoutesData { routes: RouteEntry[]; total: number; timestamp: string; }
 interface SurfacesData { surfaces: DataSurface[]; total: number; connected: number; unavailable: number; timestamp: string; }
 interface StreamsData { streams: RealtimeStream[]; total: number; active: number; timestamp: string; }
 interface BuildStatus { dist_exists: boolean; index_exists: boolean; status: string; timestamp: string; }
+interface SupplyData {
+  published_symbol_count?: number | null;
+  eligible_symbol_count?: number | null;
+  selected_symbol_count?: number | null;
+  publishing?: boolean | null;
+  failure_reasons?: Record<string, number> | null;
+  coverage_sync?: { census_only?: boolean | null; gap_pairs_found?: number | null; rest_writes_attempted?: number | null } | null;
+}
 
 function statusColor(s: string): string {
   const l = s.toLowerCase();
@@ -40,11 +48,14 @@ export default function MonitorCenterPage(): JSX.Element {
   const surfaces = useRealtimeResource<SurfacesData>({ url: '/api/v2/admin/monitoring/data-surfaces', source: '/api/v2/admin/monitoring/data-surfaces', source_type: 'websocket', pollIntervalMs: 60_000, staleThresholdMs: 180_000, mode: 'read_only' });
   const streams = useRealtimeResource<StreamsData>({ url: '/api/v2/admin/monitoring/realtime-streams', source: '/api/v2/admin/monitoring/realtime-streams', source_type: 'websocket', pollIntervalMs: 30_000, staleThresholdMs: 90_000, mode: 'read_only' });
   const build = useRealtimeResource<BuildStatus>({ url: '/api/v2/admin/monitoring/build-status', source: '/api/v2/admin/monitoring/build-status', source_type: 'websocket', pollIntervalMs: 60_000, staleThresholdMs: 180_000, mode: 'read_only' });
+  const supply = useRealtimeResource<SupplyData>({ url: '/api/v2/trainer/supply', source: '/api/v2/trainer/supply', source_type: 'websocket', pollIntervalMs: 30_000, staleThresholdMs: 90_000, mode: 'read_only' });
 
   const rData = routes.envelope.data;
   const sData = surfaces.envelope.data;
   const stData = streams.envelope.data;
   const bData = build.envelope.data;
+  const supData = supply.envelope.data;
+  const topReason = supData?.failure_reasons ? Object.entries(supData.failure_reasons).sort((a, b) => b[1] - a[1])[0] : null;
 
   return (
     <div
@@ -76,6 +87,22 @@ export default function MonitorCenterPage(): JSX.Element {
       <div style={{ padding: '20px 24px 0' }}>
         <h2 style={{ margin: '0 0 10px', fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>System Resources</h2>
         <SystemResourcesPanel />
+      </div>
+
+      {/* Supply / base-publisher health — explains why downstream panels are empty */}
+      <div style={{ padding: '20px 24px 0' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+          <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>Supply Health</h2>
+          <FreshnessBadge status={supply.envelope.freshness_status} lagMs={supply.envelope.lag_ms} />
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12 }}>
+          <KV label="Publishing" value={supply.loading ? '…' : (supData?.publishing ? 'yes' : 'no')} color={supData?.publishing ? 'var(--buy)' : 'var(--warn)'} />
+          <KV label="Published" value={supply.loading ? '…' : String(supData?.published_symbol_count ?? '—')} color={(supData?.published_symbol_count ?? 0) > 0 ? 'var(--buy)' : 'var(--warn)'} />
+          <KV label="Eligible / Selected" value={supply.loading ? '…' : `${supData?.eligible_symbol_count ?? '—'} / ${supData?.selected_symbol_count ?? '—'}`} />
+          <KV label="Coverage-sync" value={supply.loading ? '…' : (supData?.coverage_sync?.census_only ? 'census-only' : 'backfill')} color={supData?.coverage_sync?.census_only ? 'var(--buy)' : 'var(--warn)'} />
+          <KV label="REST writes" value={supply.loading ? '…' : String(supData?.coverage_sync?.rest_writes_attempted ?? '—')} color={(supData?.coverage_sync?.rest_writes_attempted ?? 0) === 0 ? 'var(--buy)' : 'var(--sell)'} />
+          <KV label="Top blocker" value={supply.loading ? '…' : (topReason ? `${topReason[1]}× ${topReason[0].replace(/_/g, ' ').slice(0, 28)}` : '—')} color={topReason ? 'var(--warn)' : 'var(--text-muted)'} />
+        </div>
       </div>
 
       {/* Page / Route coverage */}
