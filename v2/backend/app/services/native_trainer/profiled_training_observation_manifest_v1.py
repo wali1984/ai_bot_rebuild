@@ -1519,12 +1519,136 @@ class AuthenticatedProfiledTrainingObservationInventoryPageV1:
 
 
 @dataclass(frozen=True, slots=True)
+class ProfiledTrainingObservationDirectionalOutcomeV1:
+    """Authenticated action-specific replay economics for one admitted sample.
+
+    These values are copied only after the manifest HMAC, entry chain, label
+    binding, durable ledger sample, cost-CAS inventory, and canonical label
+    path have all been reopened and verified.  They remain outcome data: this
+    object grants no optimizer, serving, paper, or execution authority.
+    """
+
+    label_binding_sha256: str
+    directional_cost_evidence_sha256: str
+    label_available_at: str
+    label_horizon_seconds: int
+    raw_future_return_bps: float
+    long_round_trip_cost_bps: float
+    short_round_trip_cost_bps: float
+    long_net_bps: float
+    short_net_bps: float
+    fee_bps_per_side: float
+    full_spread_bps: float
+    expected_slippage_bps_per_side: float
+    signed_expected_funding_bps: float
+    target_action: str
+    label_expected_move_after_cost_bps: float
+    _construction_token: object = field(repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        numeric = (
+            self.raw_future_return_bps,
+            self.long_round_trip_cost_bps,
+            self.short_round_trip_cost_bps,
+            self.long_net_bps,
+            self.short_net_bps,
+            self.fee_bps_per_side,
+            self.full_spread_bps,
+            self.expected_slippage_bps_per_side,
+            self.signed_expected_funding_bps,
+            self.label_expected_move_after_cost_bps,
+        )
+        if (
+            self._construction_token is not _EXAMPLE_TOKEN
+            or not _valid_sha256(self.label_binding_sha256)
+            or not _valid_sha256(self.directional_cost_evidence_sha256)
+            or type(self.label_horizon_seconds) is not int
+            or self.label_horizon_seconds <= 0
+            or self.target_action not in {"hold", "long", "short"}
+            or any(
+                isinstance(value, bool)
+                or not isinstance(value, int | float)
+                or not math.isfinite(float(value))
+                for value in numeric
+            )
+            or self.long_round_trip_cost_bps < 0.0
+            or self.short_round_trip_cost_bps < 0.0
+            or self.fee_bps_per_side < 0.0
+            or self.full_spread_bps < 0.0
+            or self.expected_slippage_bps_per_side < 0.0
+        ):
+            _fail("PROFILED_OBSERVATION_DIRECTIONAL_OUTCOME_INVALID")
+        base_execution_cost = (
+            2.0 * float(self.fee_bps_per_side)
+            + float(self.full_spread_bps)
+            + 2.0 * float(self.expected_slippage_bps_per_side)
+        )
+        tolerance = 1e-8
+        if (
+            not math.isclose(
+                float(self.long_round_trip_cost_bps),
+                base_execution_cost + float(self.signed_expected_funding_bps),
+                rel_tol=0.0,
+                abs_tol=tolerance,
+            )
+            or not math.isclose(
+                float(self.short_round_trip_cost_bps),
+                base_execution_cost - float(self.signed_expected_funding_bps),
+                rel_tol=0.0,
+                abs_tol=tolerance,
+            )
+            or not math.isclose(
+                float(self.long_net_bps),
+                float(self.raw_future_return_bps)
+                - float(self.long_round_trip_cost_bps),
+                rel_tol=0.0,
+                abs_tol=tolerance,
+            )
+            or not math.isclose(
+                float(self.short_net_bps),
+                -float(self.raw_future_return_bps)
+                - float(self.short_round_trip_cost_bps),
+                rel_tol=0.0,
+                abs_tol=tolerance,
+            )
+        ):
+            _fail("PROFILED_OBSERVATION_DIRECTIONAL_OUTCOME_ECONOMICS_INVALID")
+        expected_action = target_action_from_net_edges(
+            long_net_bps=float(self.long_net_bps),
+            short_net_bps=float(self.short_net_bps),
+        )
+        expected_label = {
+            "hold": 0.0,
+            "long": float(self.long_net_bps),
+            # The canonical label represents the selected directional move,
+            # so a profitable short is positive after-cost movement even
+            # though its counterfactual short PnL is stored as a signed value.
+            "short": -float(self.short_net_bps),
+        }[self.target_action]
+        if (
+            self.target_action != expected_action
+            or not math.isclose(
+                float(self.label_expected_move_after_cost_bps),
+                expected_label,
+                rel_tol=0.0,
+                abs_tol=tolerance,
+            )
+        ):
+            _fail("PROFILED_OBSERVATION_DIRECTIONAL_OUTCOME_LABEL_INVALID")
+        _clock(
+            self.label_available_at,
+            reason="PROFILED_OBSERVATION_LABEL_AVAILABLE_AT_INVALID",
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class ProfiledTrainingObservationExampleV1:
     ordinal: int
     sample_identity_sha256: str
     label_binding_sha256: str
     tensor_binding_sha256: str
     training_example: TrainingExample
+    directional_outcome: ProfiledTrainingObservationDirectionalOutcomeV1
     optimizer_admission_authorized: bool
     checkpoint_write_authorized: bool
     prediction_authorized: bool
@@ -1545,6 +1669,9 @@ class ProfiledTrainingObservationExampleV1:
                     self.tensor_binding_sha256,
                 )
             )
+            or type(self.directional_outcome)
+            is not ProfiledTrainingObservationDirectionalOutcomeV1
+            or self.directional_outcome.label_binding_sha256 != self.label_binding_sha256
             or any(
                 value is not False
                 for value in (
@@ -2767,12 +2894,49 @@ def _example_from_authenticated_entry(
         or example.decision_time != sample.decision_time
     ):
         _fail("PROFILED_OBSERVATION_TRAINING_EXAMPLE_TIMING_INVALID")
+    directional_outcome = ProfiledTrainingObservationDirectionalOutcomeV1(
+        label_binding_sha256=cast(str, label["label_binding_sha256"]),
+        directional_cost_evidence_sha256=cast(
+            str,
+            label["directional_cost_evidence_sha256"],
+        ),
+        label_available_at=label_available_at,
+        label_horizon_seconds=horizon_seconds,
+        raw_future_return_bps=cast(float, directional_cost["raw_return_bps"]),
+        long_round_trip_cost_bps=cast(
+            float,
+            directional_cost["long_round_trip_cost_bps"],
+        ),
+        short_round_trip_cost_bps=cast(
+            float,
+            directional_cost["short_round_trip_cost_bps"],
+        ),
+        long_net_bps=cast(float, directional_cost["long_net_bps"]),
+        short_net_bps=cast(float, directional_cost["short_net_bps"]),
+        fee_bps_per_side=cast(float, directional_cost["fee_bps_per_side"]),
+        full_spread_bps=cast(float, directional_cost["full_spread_bps"]),
+        expected_slippage_bps_per_side=cast(
+            float,
+            directional_cost["expected_slippage_bps_per_side"],
+        ),
+        signed_expected_funding_bps=cast(
+            float,
+            directional_cost["signed_expected_funding_bps"],
+        ),
+        target_action=cast(str, label["label_target_action"]),
+        label_expected_move_after_cost_bps=cast(
+            float,
+            label["label_expected_move_after_cost_bps"],
+        ),
+        _construction_token=_EXAMPLE_TOKEN,
+    )
     return ProfiledTrainingObservationExampleV1(
         ordinal=cast(int, entry["ordinal"]),
         sample_identity_sha256=cast(str, sample_binding["sample_identity_sha256"]),
         label_binding_sha256=cast(str, label["label_binding_sha256"]),
         tensor_binding_sha256=cast(str, tensor_binding["tensor_binding_sha256"]),
         training_example=example,
+        directional_outcome=directional_outcome,
         optimizer_admission_authorized=False,
         checkpoint_write_authorized=False,
         prediction_authorized=False,
@@ -2985,6 +3149,7 @@ __all__ = [
     "PROFILED_OBSERVATION_ORDERED_DIGEST_SCHEMA_VERSION",
     "PROFILED_OBSERVATION_RUNTIME_STATUS",
     "PROFILED_OBSERVATION_TRAINING_EXAMPLE_ADAPTER_CONTRACT_VERSION",
+    "ProfiledTrainingObservationDirectionalOutcomeV1",
     "ProfiledTrainingObservationExampleV1",
     "ProfiledTrainingObservationManifestBuildV1",
     "ProfiledTrainingObservationManifestV1Error",

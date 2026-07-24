@@ -6,6 +6,9 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from v2.backend.app.services.native_trainer import model_edge_recovery_challenger as challenger
+from v2.backend.app.services.native_trainer import (
+    profiled_training_observation_manifest_v1 as observation_manifest,
+)
 from v2.backend.app.services.native_trainer.durable_feature_snapshot_archive import (
     content_sha256 as archive_content_sha256,
 )
@@ -111,6 +114,8 @@ def _row(
         slippage_bps=1.0,
         funding_bps=max(0.0, total_cost_bps - 2.0),
         total_cost_bps=total_cost_bps,
+        long_total_cost_bps=total_cost_bps,
+        short_total_cost_bps=total_cost_bps,
         cost_evidence_source="features.fee_bps+features.expected_slippage_bps+features.expected_funding_bps",
         cost_evidence_hash=f"cost-evidence-{index:03d}",
         legacy_static_cost_bps_ignored=None,
@@ -185,6 +190,60 @@ def test_evaluate_predictions_reports_challenger_trade_edge() -> None:
     assert metrics["per_timeframe"]["1m"]["trade_count"] == 4
     assert metrics["cost_source_distribution"]["total_cost_bps"]["mean"] == 2.0
     assert metrics["edge_claim_allowed"] is False
+
+
+def test_evaluate_predictions_preserves_asymmetric_directional_costs() -> None:
+    """Signed funding must remain action-specific through PnL evaluation."""
+
+    base = _row(0, 10.0, 1.0, total_cost_bps=3.0)
+    row = replace(
+        base,
+        funding_bps=1.0,
+        total_cost_bps=4.0,
+        long_total_cost_bps=4.0,
+        short_total_cost_bps=2.0,
+        long_net_bps=6.0,
+        short_net_bps=-12.0,
+    )
+
+    metrics = evaluate_predictions(
+        rows=[row],
+        predictions=[5.0],
+        threshold_bps=1.0,
+    )
+
+    assert metrics["row_contract_rejections_by_reason"] == {}
+    assert metrics["after_cost_expectancy_bps"] == pytest.approx(6.0)
+
+
+def test_directional_outcome_preserves_signed_funding_for_short_label() -> None:
+    """A profitable short label stays positive without symmetrizing funding."""
+
+    outcome = observation_manifest.ProfiledTrainingObservationDirectionalOutcomeV1(
+        label_binding_sha256="a" * 64,
+        directional_cost_evidence_sha256="b" * 64,
+        label_available_at=(
+            (BASE_TIME + timedelta(minutes=16))
+            .isoformat(timespec="microseconds")
+            .replace("+00:00", "Z")
+        ),
+        label_horizon_seconds=900,
+        raw_future_return_bps=-10.0,
+        long_round_trip_cost_bps=5.0,
+        short_round_trip_cost_bps=3.0,
+        long_net_bps=-15.0,
+        short_net_bps=7.0,
+        fee_bps_per_side=1.0,
+        full_spread_bps=1.0,
+        expected_slippage_bps_per_side=0.5,
+        signed_expected_funding_bps=1.0,
+        target_action="short",
+        label_expected_move_after_cost_bps=-7.0,
+        _construction_token=observation_manifest._EXAMPLE_TOKEN,
+    )
+
+    assert outcome.short_round_trip_cost_bps == pytest.approx(3.0)
+    assert outcome.label_expected_move_after_cost_bps == pytest.approx(-7.0)
 
 
 def test_train_challenger_model_selects_on_validation_and_holdout_beats_baseline() -> None:

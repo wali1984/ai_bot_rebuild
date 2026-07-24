@@ -175,6 +175,8 @@ class EdgeRecoveryRow:
     slippage_bps: float
     funding_bps: float
     total_cost_bps: float
+    long_total_cost_bps: float
+    short_total_cost_bps: float
     cost_evidence_source: str
     cost_evidence_hash: str
     legacy_static_cost_bps_ignored: float | None
@@ -199,6 +201,8 @@ class EdgeRecoveryRow:
             "slippage_bps": self.slippage_bps,
             "funding_bps": self.funding_bps,
             "total_cost_bps": self.total_cost_bps,
+            "long_total_cost_bps": self.long_total_cost_bps,
+            "short_total_cost_bps": self.short_total_cost_bps,
             "cost_evidence_source": self.cost_evidence_source,
             "cost_evidence_hash": self.cost_evidence_hash,
             "legacy_static_cost_bps_ignored": self.legacy_static_cost_bps_ignored,
@@ -525,6 +529,8 @@ def freeze_dataset_from_archive(
                 slippage_bps=float(cost_evidence["slippage_bps"]),
                 funding_bps=float(cost_evidence["funding_bps"]),
                 total_cost_bps=total_cost_bps,
+                long_total_cost_bps=total_cost_bps,
+                short_total_cost_bps=total_cost_bps,
                 cost_evidence_source=str(cost_evidence["cost_evidence_source"]),
                 cost_evidence_hash=str(cost_evidence["cost_evidence_hash"]),
                 legacy_static_cost_bps_ignored=finite_float(
@@ -832,30 +838,69 @@ def _row_label_contract_reasons(row: EdgeRecoveryRow) -> list[str]:
         reasons.append("ROW_SLIPPAGE_NEGATIVE")
     if total_cost is not None and total_cost < 0.0:
         reasons.append("ROW_TOTAL_COST_NEGATIVE")
+    long_total_cost = finite_float(row.long_total_cost_bps)
+    short_total_cost = finite_float(row.short_total_cost_bps)
+    if long_total_cost is None:
+        reasons.append("ROW_LONG_TOTAL_COST_MISSING_OR_NONFINITE")
+    elif long_total_cost < 0.0:
+        reasons.append("ROW_LONG_TOTAL_COST_NEGATIVE")
+    if short_total_cost is None:
+        reasons.append("ROW_SHORT_TOTAL_COST_MISSING_OR_NONFINITE")
+    elif short_total_cost < 0.0:
+        reasons.append("ROW_SHORT_TOTAL_COST_NEGATIVE")
     tolerance = 1e-8
-    if None not in (fee, slippage, funding, total_cost):
+    if None not in (
+        fee,
+        slippage,
+        funding,
+        total_cost,
+        long_total_cost,
+        short_total_cost,
+    ):
         assert fee is not None and slippage is not None and funding is not None
         assert total_cost is not None
+        assert long_total_cost is not None and short_total_cost is not None
         if not math.isclose(
             total_cost,
-            fee + slippage + abs(funding),
+            max(long_total_cost, short_total_cost),
             rel_tol=0.0,
             abs_tol=tolerance,
         ):
+            reasons.append("ROW_TOTAL_COST_CONSERVATIVE_DIRECTIONAL_MISMATCH")
+        if (
+            math.isclose(
+                long_total_cost,
+                short_total_cost,
+                rel_tol=0.0,
+                abs_tol=tolerance,
+            )
+            and not math.isclose(
+                total_cost,
+                fee + slippage + abs(funding),
+                rel_tol=0.0,
+                abs_tol=tolerance,
+            )
+        ):
             reasons.append("ROW_TOTAL_COST_COMPONENT_MISMATCH")
-    if raw_return is not None and total_cost is not None:
+    if raw_return is not None and None not in (long_total_cost, short_total_cost):
         long_net = numeric_fields["LONG_NET"]
         short_net = numeric_fields["SHORT_NET"]
         hold_net = numeric_fields["HOLD_NET"]
+        assert long_total_cost is not None and short_total_cost is not None
         if long_net is not None and not math.isclose(
-            long_net, raw_return - total_cost, rel_tol=0.0, abs_tol=tolerance
+            long_net, raw_return - long_total_cost, rel_tol=0.0, abs_tol=tolerance
         ):
             reasons.append("ROW_LONG_NET_LABEL_MISMATCH")
         if short_net is not None and not math.isclose(
-            short_net, -raw_return - total_cost, rel_tol=0.0, abs_tol=tolerance
+            short_net, -raw_return - short_total_cost, rel_tol=0.0, abs_tol=tolerance
         ):
             reasons.append("ROW_SHORT_NET_LABEL_MISMATCH")
-        if hold_net is not None and not math.isclose(hold_net, 0.0, rel_tol=0.0, abs_tol=tolerance):
+        if hold_net is not None and not math.isclose(
+            hold_net,
+            0.0,
+            rel_tol=0.0,
+            abs_tol=tolerance,
+        ):
             reasons.append("ROW_HOLD_NET_LABEL_NOT_ZERO")
     if not str(row.cost_evidence_source or "").strip():
         reasons.append("ROW_COST_EVIDENCE_SOURCE_MISSING")
