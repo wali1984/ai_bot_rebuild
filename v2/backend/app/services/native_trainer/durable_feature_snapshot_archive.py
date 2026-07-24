@@ -212,31 +212,27 @@ def build_archive_record_from_prediction_payload(payload: Mapping[str, Any]) -> 
         if "latest_unclosed_kline_excluded" in feature_snapshot
         else payload.get("latest_unclosed_kline_excluded")
     )
-    # Producer trainer-consumable attestation. The 2026-07-18 loader veto
-    # (data_loader._producer_trainer_consumable_evidence, rejection reason
-    # PRODUCER_TRAINER_CONSUMABLE_NOT_LITERAL_TRUE) admits a snapshot into the
-    # trusted-replay corpus only when the producer stamps a literal-True claim.
-    # This builder previously never emitted the field, so every durable archive
-    # record was rejected and both the online champion/challenger and the
-    # offline GPU trainer starved to zero examples. A prediction-derived
-    # snapshot is trainer-consumable iff its decision candle is closed and the
-    # latest forming kline was excluded (no look-ahead on the decision bar);
-    # ``features`` is already guaranteed non-empty above. An explicit upstream
-    # bool claim, when present, is preserved (honours a producer veto).
-    # Downstream PIT gates (label validity, embargo, lineage classification,
-    # latest-unclosed-exclusion) remain authoritative after this coarse gate.
+    # The archive writer is not the feature producer and must not manufacture
+    # a producer admission claim from adjacent PIT fields.  Preserve an explicit
+    # upstream boolean claim only; an absent or malformed claim remains absent
+    # and is fail-closed by the trusted-replay loader.
     upstream_trainer_consumable = (
         feature_snapshot.get("trainer_consumable")
         if "trainer_consumable" in feature_snapshot
         else payload.get("trainer_consumable")
     )
+    archive_extra = {
+        "prediction_id": payload.get("prediction_id"),
+        "signal_id": payload.get("signal_id"),
+        "decision_id": payload.get("decision_id"),
+        "model_version": payload.get("model_version"),
+        "checkpoint_id": payload.get("checkpoint_id"),
+        "candle_closed_confirmed": candle_closed_confirmed,
+        "latest_unclosed_kline_excluded": latest_unclosed_kline_excluded,
+        "source": "trainer_prediction_payload",
+    }
     if type(upstream_trainer_consumable) is bool:
-        trainer_consumable = upstream_trainer_consumable
-    else:
-        trainer_consumable = bool(
-            candle_closed_confirmed is True
-            and latest_unclosed_kline_excluded is True
-        )
+        archive_extra["trainer_consumable"] = upstream_trainer_consumable
     return build_archive_record(
         snapshot_id=snapshot_id,
         symbol=payload.get("symbol"),
@@ -251,17 +247,7 @@ def build_archive_record_from_prediction_payload(payload: Mapping[str, Any]) -> 
         source_availability=payload.get("source_availability_vector") or {},
         source_hashes=payload.get("source_hashes") or feature_snapshot.get("source_hashes") or {},
         created_at=payload.get("generated_utc") or payload.get("generated_at") or utc_now(),
-        extra={
-            "prediction_id": payload.get("prediction_id"),
-            "signal_id": payload.get("signal_id"),
-            "decision_id": payload.get("decision_id"),
-            "model_version": payload.get("model_version"),
-            "checkpoint_id": payload.get("checkpoint_id"),
-            "candle_closed_confirmed": candle_closed_confirmed,
-            "latest_unclosed_kline_excluded": latest_unclosed_kline_excluded,
-            "trainer_consumable": trainer_consumable,
-            "source": "trainer_prediction_payload",
-        },
+        extra=archive_extra,
     )
 
 
