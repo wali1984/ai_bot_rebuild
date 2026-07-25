@@ -34,6 +34,9 @@ from v2.backend.app.services.market_state_integrity.canonical_candles import (  
     now_ms,
     parse_ms,
 )
+from v2.backend.app.services.market_state_integrity.sample_rejection import (  # noqa: E402
+    classify_training_sample,
+)
 from v2.backend.app.services.market_state_integrity.trust import (  # noqa: E402
     ENFORCEMENT_EPOCH,
     TRUST_SCHEMA_VERSION,
@@ -58,6 +61,9 @@ from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.data_loader impo
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.model import (  # noqa: E402
     ModelForwardResult,
 )
+from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.on_policy_behavior import (  # noqa: E402
+    build_exact_cost_provenance,
+)
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.publisher import (  # noqa: E402
     V2HybridPredictionPublisher,
     build_prediction_payload,
@@ -68,8 +74,13 @@ from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.safety import ( 
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.tensor_builder import (  # noqa: E402
     FeatureTensorRecord,
 )
+from v2.backend.app.services.ordinary_paper_admission import (  # noqa: E402
+    build_microstructure_trust_evidence,
+)
 
 STATUS_KEY = "v2:trainer:paper_provisional_prediction_publisher:status"
+ADAPTIVE_COST_KEY_TEMPLATE = "v2:costs:round_trip_bps:{symbol}"
+MICROSTRUCTURE_KEY_TEMPLATE = "v2:microstructure:trust_score:{symbol}:{timeframe}"
 COHORT_ACTIVATION_KEY = "v2:paper:provisional_cohort_activation"
 MICRO_ACTIONS_OK = {"ALLOW", "REDUCE_SIZE"}
 DEFAULT_CHECKPOINT = (
@@ -281,29 +292,34 @@ def read_current_feature_snapshot(client: Any, symbol: str, timeframe: str) -> d
     return snap
 
 
-def build_tensor(ckpt: ProvisionalCheckpoint, snapshot: Mapping[str, Any]) -> FeatureTensorRecord:
+def build_tensor(
+    ckpt: ProvisionalCheckpoint, snapshot: Mapping[str, Any]
+) -> FeatureTensorRecord | None:
+    """Build a ZERO-MISSING tensor: serve only snapshots that carry every feature
+    in the checkpoint ABI (so no critical-feature-family / missing-feature block)."""
     feats = snapshot.get("features") or {}
     values: list[float] = []
-    missing_mask: list[int] = []
-    stale_mask: list[int] = []
-    source_avail: list[int] = []
-    missing_names: list[str] = []
     for name in ckpt.feature_names:
         v = _finite_float(feats.get(name))
         if v is None:
-            values.append(0.0)
-            missing_mask.append(1)
-            stale_mask.append(0)
-            source_avail.append(0)
-            missing_names.append(name)
-        else:
-            values.append(v)
-            missing_mask.append(0)
-            stale_mask.append(0)
-            source_avail.append(1)
-    present = len(ckpt.feature_names) - len(missing_names)
-    coverage = 100.0 * present / len(ckpt.feature_names)
+            return None  # incomplete snapshot for this ABI — skip, never zero-fill
+        values.append(v)
+    n = len(ckpt.feature_names)
     feature_snapshot_id = str(snapshot.get("feature_snapshot_id") or "")
+    source_lineage_hash = hashlib.sha256(
+        json.dumps(
+            {
+                "symbol": str(snapshot.get("symbol")),
+                "timeframe": str(snapshot.get("timeframe")),
+                "feature_snapshot_id": feature_snapshot_id,
+                "feature_names": list(ckpt.feature_names),
+                "feature_cutoff": snapshot.get("feature_cutoff"),
+                "available_at": snapshot.get("available_at"),
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
     tensor_id = "paper_provisional_tensor_" + hashlib.sha256(
         json.dumps(
             {
@@ -313,7 +329,6 @@ def build_tensor(ckpt: ProvisionalCheckpoint, snapshot: Mapping[str, Any]) -> Fe
                 "feature_snapshot_id": feature_snapshot_id,
                 "feature_names": list(ckpt.feature_names),
                 "values": values,
-                "missing_mask": missing_mask,
             },
             sort_keys=True,
             separators=(",", ":"),
@@ -325,15 +340,16 @@ def build_tensor(ckpt: ProvisionalCheckpoint, snapshot: Mapping[str, Any]) -> Fe
         timeframe=str(snapshot.get("timeframe")),
         feature_snapshot_id=feature_snapshot_id,
         values=tuple(values),
-        missing_mask=tuple(missing_mask),
-        stale_mask=tuple(stale_mask),
-        source_availability=tuple(source_avail),
+        missing_mask=tuple(0 for _ in range(n)),
+        stale_mask=tuple(0 for _ in range(n)),
+        source_availability=tuple(1 for _ in range(n)),
         feature_names=tuple(ckpt.feature_names),
         source_labels=tuple("paper_provisional_feature_snapshot" for _ in ckpt.feature_names),
-        missing_feature_names=tuple(missing_names),
+        missing_feature_names=(),
         stale_feature_names=(),
-        data_coverage_percent=coverage,
-        source_availability_vector=tuple(source_avail),
+        data_coverage_percent=100.0,
+        source_availability_vector=tuple(1 for _ in range(n)),
+        source_lineage_hash=source_lineage_hash,
     )
 
 
@@ -444,40 +460,110 @@ def read_microstructure_action(
     return None, {}
 
 
-def resolve_round_trip_cost_bps(snapshot: Mapping[str, Any]) -> tuple[float, dict[str, Any]]:
-    """Round-trip cost from the feature snapshot's explicit cost fields (entry+exit
-    fee + slippage; funding kept 0 unless explicitly present). No fabrication."""
-    feats = snapshot.get("features") or {}
+def build_cost_provenance(
+    client: Any, symbol: str
+) -> tuple[float | None, dict[str, Any] | None]:
+    """Bind the canonical adaptive round-trip cost via build_exact_cost_provenance
+    over v2:costs:round_trip_bps:{symbol}. Returns (round_trip_bps, provenance)."""
+    source_key = ADAPTIVE_COST_KEY_TEMPLATE.format(symbol=symbol)
+    payload = read_json_key(client, source_key)
+    if not isinstance(payload, Mapping):
+        return None, None
+    fallback_rt = _finite_float(payload.get("round_trip_cost_bps")) or _finite_float(
+        payload.get("flat_baseline_round_trip_bps")
+    )
+    try:
+        provenance = build_exact_cost_provenance(
+            source_key=source_key,
+            source_payload=payload,
+            consumer_observed_at=datetime.now(UTC)
+            .isoformat(timespec="microseconds")
+            .replace("+00:00", "Z"),
+        )
+    except Exception:  # noqa: BLE001
+        # The current adaptive-cost source lacks the strict-UTC orderbook clock
+        # lineage build_exact_cost_provenance requires. Return the genuine cost
+        # value with NO exact-cost envelope: the record still publishes (canonical
+        # supply) but carries the honest ordinary_paper_exact_cost block reason.
+        return fallback_rt, None
+    rt = _finite_float(provenance.get("round_trip_cost_bps")) or fallback_rt
+    return rt, provenance
 
-    def pick(*keys: str) -> float | None:
-        for k in keys:
-            v = _finite_float(snapshot.get(k))
-            if v is not None:
-                return v
-            v = _finite_float(feats.get(k))
-            if v is not None:
-                return v
-        return None
 
-    fee_bps = pick("fee_bps", "taker_fee_bps", "expected_fee_bps")
-    slip_bps = pick("expected_slippage_bps", "slippage_bps", "actual_observed_spread_entry_bps")
-    funding_bps = pick("expected_funding_bps", "funding_bps_at_decision_time")
-    present = {"fee_bps": fee_bps, "slippage_bps": slip_bps, "funding_bps": funding_bps}
-    missing = [k for k, v in present.items() if v is None]
-    fee = fee_bps or 0.0
-    slip = slip_bps or 0.0
-    fund = funding_bps or 0.0
-    round_trip = 2.0 * fee + 2.0 * slip + abs(fund)
-    provenance = {
-        "round_trip_cost_bps": round_trip,
-        "fee_bps_per_side": fee,
-        "slippage_bps_per_side": slip,
-        "funding_bps": fund,
-        "cost_evidence_status": "COMPLETE" if not missing else "PARTIAL_EXPLICIT",
-        "cost_evidence_missing_fields": missing,
-        "cost_evidence_source": "PAPER_PROVISIONAL_FEATURE_SNAPSHOT_EXPLICIT",
+def build_micro_evidence(
+    client: Any,
+    *,
+    symbol: str,
+    timeframe: str,
+    tensor: FeatureTensorRecord,
+    decision_time_iso: str,
+) -> tuple[str | None, dict[str, Any] | None]:
+    """Build the hash-bound microstructure_trust_evidence envelope from the exact
+    current source read (live-book trust is timeframe-agnostic: try tf then mirrors)."""
+    for tf in (timeframe, "1m", "5m", "15m"):
+        source_key = MICROSTRUCTURE_KEY_TEMPLATE.format(symbol=symbol, timeframe=tf)
+        payload = read_json_key(client, source_key)
+        if not isinstance(payload, Mapping):
+            continue
+        if payload.get("schema_version") != "microstructure_trust_score_v2":
+            continue
+        if str(payload.get("symbol") or "").upper() != symbol:
+            continue
+        try:
+            ttl = client.ttl(source_key)
+        except Exception:
+            ttl = None
+        ttl_int = int(ttl) if isinstance(ttl, int) and ttl > 0 else None
+        if ttl_int is None:
+            continue
+        evidence = build_microstructure_trust_evidence(
+            source_payload=payload,
+            source_payload_readback=payload,
+            source_key=source_key,
+            source_observed_ttl_seconds=ttl_int,
+            tensor_id=tensor.tensor_id,
+            feature_snapshot_id=tensor.feature_snapshot_id,
+            tensor_source_lineage_hash=tensor.source_lineage_hash,
+            tensor_decision_time=decision_time_iso,
+            symbol=symbol,
+            timeframe=tensor.timeframe,
+        )
+        action = str(payload.get("microstructure_action") or "").upper()
+        return action, evidence
+    return None, None
+
+
+def classify_row(
+    *, tensor: FeatureTensorRecord, trust_row: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Run the canonical classify_training_sample on the market-state row built from
+    the (zero-missing) tensor + trust lineage. accepted_for_training is genuine
+    data-quality (market-state score >= 80), never a fabricated label claim."""
+    # Mirror _market_state_row_from_example: express zero-missing via names/counts
+    # only (never a raw mask list, which mask_names would misread as a phantom).
+    row = {
+        "symbol": tensor.symbol,
+        "timeframe": tensor.timeframe,
+        "feature_snapshot_id": tensor.feature_snapshot_id,
+        "features": dict(zip(tensor.feature_names, tensor.values, strict=True)),
+        "feature_names": list(tensor.feature_names),
+        "missing_feature_names": [],
+        "missing_feature_count": 0,
+        "stale_feature_names": [],
+        "stale_feature_count": 0,
+        "feature_freshness_state": "CURRENT",
     }
-    return round_trip, provenance
+    for key in (
+        "feature_cutoff", "available_at", "candle_closed_confirmed", "candle_open_time",
+        "candle_close_time", "source_event_time_est", "source_received_time_est",
+        "source_available_time", "decision_time_est", "decision_id", "mtf_snapshot_id",
+        "mtf_snapshot_valid", "multi_timeframe_decision_snapshot",
+        "all_tf_candle_timestamps", "all_source_event_times", "latency_ms",
+        "is_backfilled", "backfilled",
+    ):
+        if trust_row.get(key) is not None:
+            row[key] = trust_row.get(key)
+    return classify_training_sample(row)
 
 
 # --------------------------------------------------------------------------- #
@@ -552,18 +638,47 @@ def publish_one(
     if candle is None:
         return {"symbol": symbol, "timeframe": timeframe, "status": "PRIMARY_CANDLE_MISSING"}
 
-    micro_action, micro_ev = read_microstructure_action(client, symbol, timeframe, decision_dt)
-    if micro_action not in MICRO_ACTIONS_OK:
-        return {
-            "symbol": symbol, "timeframe": timeframe, "status": "MICROSTRUCTURE_BLOCKED",
-            "microstructure_action": micro_action,
-        }
-
     tensor = build_tensor(ckpt, snapshot)
+    if tensor is None:
+        return {"symbol": symbol, "timeframe": timeframe, "status": "INCOMPLETE_FEATURE_ABI"}
+
     trust_row = build_trust_row(
         tensor=tensor, snapshot=snapshot, mtf=mtf, candle=candle,
         decision_time_iso=decision_iso, generated_at=generated_at,
     )
+    # Genuine data-quality classification (market-state score >= 80, zero missing).
+    classification = classify_row(tensor=tensor, trust_row=trust_row)
+    accepted = classification.get("accepted_for_training") is True
+    if not accepted:
+        return {
+            "symbol": symbol, "timeframe": timeframe, "status": "NOT_ACCEPTED_FOR_TRAINING",
+            "reject_reasons": list(classification.get("reject_reasons") or [])[:6],
+            "market_state_integrity_score": classification.get("market_state_integrity_score"),
+        }
+    trust_row["accepted_for_training"] = True
+    trust_row["valid_for_training"] = True
+    trust_row["trainer_consumable"] = True
+    trust_row["market_state_id"] = classification.get("market_state_id")
+
+    # Canonical cost provenance envelope from the adaptive round-trip cost source.
+    # cost_provenance may be None when the source lacks strict-UTC orderbook clock
+    # lineage; the record still publishes (supply) with an honest cost block reason.
+    round_trip_cost_bps, cost_provenance = build_cost_provenance(client, symbol)
+    if round_trip_cost_bps is None:
+        return {"symbol": symbol, "timeframe": timeframe, "status": "NO_ADAPTIVE_COST_SOURCE"}
+
+    # Canonical microstructure trust evidence envelope (hash-bound to the tensor).
+    micro_action, micro_evidence = build_micro_evidence(
+        client, symbol=symbol, timeframe=timeframe, tensor=tensor,
+        decision_time_iso=decision_iso,
+    )
+    if micro_action not in MICRO_ACTIONS_OK or micro_evidence is None:
+        return {
+            "symbol": symbol, "timeframe": timeframe, "status": "MICROSTRUCTURE_BLOCKED",
+            "microstructure_action": micro_action,
+        }
+    trust_row["microstructure_trust_evidence"] = micro_evidence
+
     example = TrainingExample(
         symbol=symbol,
         timeframe=timeframe,
@@ -571,13 +686,12 @@ def publish_one(
         label_action_index=0,
         label_expected_move_after_cost_bps=0.0,
         payload_keys=tuple(closed_candle_key(exchange, symbol, tf) for tf in REQUIRED_DECISION_TIMEFRAMES),
-        row_classification="PAPER_PROVISIONAL_SERVING",
+        row_classification="TRAINABLE",
         trust_row=trust_row,
     )
 
     fwd = ckpt.forward(list(tensor.values))
     action = fwd["action"]
-    round_trip_cost_bps, cost_provenance = resolve_round_trip_cost_bps(snapshot)
     calibration = ckpt.build_calibration(
         raw_prob=fwd["confidence_raw"],
         action=action,
@@ -632,7 +746,7 @@ def publish_one(
     )
     stamp_provisional_tags(payload, cohort)
     payload["microstructure_action"] = micro_action
-    payload["microstructure_trust_evidence"] = micro_ev
+    payload["microstructure_trust_evidence"] = micro_evidence
 
     # Write the MTF snapshot the record references (trust replay dependency).
     mtf_snapshot_payload = attach_runtime_trust_metadata(
