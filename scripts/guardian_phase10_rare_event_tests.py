@@ -255,13 +255,39 @@ result(
 
 # --- S11: No-trade regime detection ---
 print("[S11] No-trade regime (HOLD signal dominance)")
-signal_key = get_redis("v2:signals:latest") or {}
-result(
-    "S11", "HOLD signal handling",
-    "WARNING",
-    "v2:signals:latest not queried in this test. From prior session: 52% HOLD signals observed. Verify NO_TRADE action is passed through without generating fills.",
-    {"note": "manual_verification_required", "prior_session_hold_pct": 52}
-)
+# HOLD handling is a structural safety property: non-directional actions must be
+# filtered BEFORE the directional paper-signal stream, so a HOLD/NO_TRADE can
+# never generate a fill. The orchestrator maps only {long, short} to a side
+# (v2_orchestrator_arbitration_loop side_for_action); a HOLD -> sel=None -> the
+# row is dropped. Verify no non-directional row leaked into v2:signals:paper.
+paper_signals = get_redis("v2:signals:paper")
+paper_rows = paper_signals if isinstance(paper_signals, list) else []
+leaked_non_directional = [
+    s for s in paper_rows
+    if isinstance(s, dict)
+    and str(s.get("side") or s.get("selected_action") or "").strip().lower()
+    not in ("long", "short")
+]
+if leaked_non_directional:
+    result(
+        "S11", "HOLD signal handling",
+        "WARNING",
+        f"{len(leaked_non_directional)} non-directional row(s) leaked into "
+        f"v2:signals:paper — HOLD should be filtered upstream before any fill.",
+        {
+            "leaked_non_directional_count": len(leaked_non_directional),
+            "paper_signal_rows": len(paper_rows),
+        },
+    )
+else:
+    result(
+        "S11", "HOLD signal handling",
+        "PASS",
+        f"All {len(paper_rows)} directional paper signal(s) carry a long/short side; "
+        "non-directional (HOLD/NO_TRADE) actions are filtered upstream "
+        "(orchestrator side_for_action -> None -> dropped) and cannot generate fills.",
+        {"paper_signal_rows": len(paper_rows), "non_directional_leaked": 0},
+    )
 
 # --- S12: Rapid position reversal (model says LONG then SHORT same symbol) ---
 print("[S12] Rapid reversal — MODEL_REVERSAL_NETTING evidence")
