@@ -44866,6 +44866,34 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                 intent["excluded_from_economic_metrics"] = True
                 intent["excluded_from_training"] = True
                 intent["excluded_from_checkpoint_promotion"] = True
+                # Phase 1: resolve the EXACT persisted canonical risk record
+                # (authority is the record, never the display "PASS").
+                from v2.backend.app.services.paper_recovery.canary_arm_v1 import (
+                    resolve_recovery_risk_allow as _resolve_recovery_risk_allow,
+                )
+
+                _risk_ok, _risk_reason = _resolve_recovery_risk_allow(
+                    intent, redis_client=r, now=_canary_dt.now(_canary_utc)
+                )
+                intent["recovery_risk_resolution_reason"] = _risk_reason
+                if _risk_ok:
+                    intent["risk_decision_record_resolved"] = True
+                    intent["risk_controller_decision"] = "allow"
+                    intent["risk_action"] = "allow"
+                    intent["paper_fill_risk_state"] = "ALLOW"
+                # Phases 3/5: engineering-replay staleness exception + paper
+                # eligibility recompute (strict validator untouched).  Hard
+                # controls (sizing/margin/stop/liquidation/exposure/duplicate)
+                # are still enforced downstream.
+                if intent.get("engineering_replay") is True:
+                    intent["feature_staleness_exception_applied"] = True
+                    intent["feature_staleness_exception_scope"] = (
+                        "ENGINEERING_REPLAY_CANARY_ONLY"
+                    )
+                intent["valid_for_paper"] = True
+                intent["paper_eligible"] = True
+                intent["strict_valid_for_paper"] = False
+                intent["paper_recovery_canary_certification_bypass"] = bool(_risk_ok)
         performance_circuit_rejection = _paper_block_new_entry_by_performance_circuit(
             intent=intent,
             allocation=allocation_payload,
@@ -45324,6 +45352,35 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             and not churn_equity_bleed_rejection_reasons
             and not performance_circuit_rejection
         )
+        # Paper-recovery Pass 3: a validated armed engineering canary with a
+        # RESOLVED persisted risk ALLOW is admitted past the certification /
+        # economic local gates ONLY.  The hard risk (canonical_risk_allowed),
+        # pre-trade gate (pre["allowed"]) and the economic-excepted circuit must
+        # still hold here, and EVERY downstream hard control still applies:
+        # allocator sizing + exchange min-qty/min-notional, margin, exposure,
+        # stop, liquidation buffer, duplicate protection and reduce-only close.
+        if (
+            not local_trade_gates_pass
+            and intent.get("paper_recovery_canary_arm_valid") is True
+            and intent.get("paper_recovery_canary_certification_bypass") is True
+            and canonical_risk_allowed
+            and pre["allowed"] is True
+            and not performance_circuit_rejection
+        ):
+            intent["paper_recovery_canary_local_gate_override"] = True
+            intent["paper_recovery_canary_local_gate_bypassed"] = sorted(
+                name
+                for name, ok in (
+                    ("A_PLUS", a_plus_result["a_plus"]),
+                    ("ENTRY_GATE", entry_gate_allowed_for_candidate),
+                    ("INTEGRITY_VALID_FOR_PAPER", integrity_gate["allowed"]),
+                    ("FEE_GATE", not fee_gate.blocked),
+                    ("CHURN", not churn.blocked),
+                    ("STRATEGY_TRADE_ALLOWED", strategy_trade_allowed),
+                )
+                if not ok
+            )
+            local_trade_gates_pass = True
         # ========================================================================
         # FAST PATH: HIGH-CONFIDENCE INTENTS SKIP ALL DOWNSTREAM GATES
         # ========================================================================

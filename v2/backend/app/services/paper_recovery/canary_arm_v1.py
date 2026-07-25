@@ -175,6 +175,91 @@ def consume_canary_arm(redis_client: Any, *, prediction_id: str, arm_id: str) ->
     return bool(ok)
 
 
+# Certification/liveness-only block reasons an armed engineering-replay canary may
+# clear — NEVER a hard control (sizing/margin/stop/liquidation/exposure/duplicate/
+# mark-price all stay enforced).
+BYPASSABLE_CERTIFICATION_BLOCK_REASONS = (
+    "STALE_FEATURE_STATE",
+    "MARKET_STATE_INTEGRITY_SCORE_BELOW_PAPER_MIN",
+    "VALID_FOR_PAPER_NOT_TRUE",
+    "MISSING_ENTRY_FEATURE_AVAILABLE_AT",
+    "MISSING_ENTRY_FEATURE_GENERATED_AT",
+    "MISSING_ENTRY_FEATURE_CUTOFF",
+    "ENTRY_FEATURE_CANDLE_NOT_CONFIRMED_CLOSED",
+    "MISSING_EXPLICIT_FUNDING_BPS_AT_DECISION_TIME",
+    "source_event_time_missing",
+    "candle_open_or_close_time_missing",
+    "CANONICAL_RISK_DECISION_UNRESOLVED",
+    "RISK_GATEWAY_DECISION_PENDING",
+)
+
+
+def resolve_recovery_risk_allow(
+    intent: Mapping[str, Any],
+    *,
+    redis_client: Any,
+    now: datetime,
+) -> tuple[bool, str | None]:
+    """For an armed canary, resolve the EXACT persisted canonical risk record and
+    confirm risk_action=allow with matching identities and no live marker.  The
+    persisted ``v2:decision:risk:{risk_decision_id}`` record is the authority — the
+    display value ``PASS`` is never trusted alone.  Returns (resolved, reason)."""
+
+    risk_decision_id = str(intent.get("risk_decision_id") or "")
+    if not risk_decision_id:
+        return False, "RECOVERY_RISK_ID_MISSING"
+    try:
+        raw = redis_client.get(f"v2:decision:risk:{risk_decision_id}")
+    except Exception:  # noqa: BLE001
+        return False, "RECOVERY_RISK_RECORD_LOOKUP_ERROR"
+    if not raw:
+        return False, "RECOVERY_RISK_RECORD_MISSING"
+    try:
+        rec = json.loads(raw)
+    except json.JSONDecodeError:
+        return False, "RECOVERY_RISK_RECORD_MALFORMED"
+    expires = _parse(rec.get("expires_at"))
+    if expires is not None and now >= expires:
+        return False, "RECOVERY_RISK_RECORD_EXPIRED"
+    if str(rec.get("prediction_id") or "") != str(intent.get("prediction_id") or ""):
+        return False, "RECOVERY_RISK_PREDICTION_ID_MISMATCH"
+    rec_orch = str(rec.get("orchestrator_decision_id") or "")
+    if rec_orch != str(intent.get("orchestrator_decision_id") or ""):
+        return False, "RECOVERY_RISK_ORCHESTRATOR_ID_MISMATCH"
+    if str(rec.get("symbol") or "") != str(intent.get("symbol") or ""):
+        return False, "RECOVERY_RISK_SYMBOL_MISMATCH"
+    if str(rec.get("timeframe") or "") != str(intent.get("timeframe") or ""):
+        return False, "RECOVERY_RISK_TIMEFRAME_MISMATCH"
+    action = str(rec.get("decision") or rec.get("risk_action") or "").lower()
+    if action != "allow":
+        return False, "RECOVERY_RISK_ACTION_NOT_ALLOW"
+    if rec.get("places_real_order") is True or rec.get("routes_to_live") is True:
+        return False, "RECOVERY_RISK_LIVE_MARKER_PRESENT"
+    if str(rec.get("live_gate") or "blocked_human_only") != "blocked_human_only":
+        return False, "RECOVERY_RISK_LIVE_MARKER_PRESENT"
+    return True, None
+
+
+def apply_certification_bypass(
+    block_reasons: list[str],
+    *,
+    armed_engineering_replay: bool,
+) -> tuple[list[str], list[str]]:
+    """For a validated armed engineering-replay canary, remove ONLY certification/
+    liveness block reasons; every hard control is preserved."""
+
+    if not armed_engineering_replay:
+        return list(block_reasons), []
+    removed: list[str] = []
+    remaining: list[str] = []
+    for reason in block_reasons:
+        if reason in BYPASSABLE_CERTIFICATION_BLOCK_REASONS:
+            removed.append(reason)
+        else:
+            remaining.append(reason)
+    return remaining, removed
+
+
 def apply_economic_control_exception(
     block_reasons: list[str],
     *,

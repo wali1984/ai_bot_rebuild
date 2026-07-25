@@ -162,3 +162,88 @@ def test_bypassable_set_is_exactly_the_three_economic_controls():
         "DUPLICATE_POSITION",
     ):
         assert hard not in BYPASSABLE_ECONOMIC_BLOCK_REASONS
+
+
+import json as _json  # noqa: E402
+
+from v2.backend.app.services.paper_recovery.canary_arm_v1 import (  # noqa: E402
+    apply_certification_bypass,
+    resolve_recovery_risk_allow,
+)
+
+
+def _risk_record(**overrides):
+    rec = {
+        "prediction_id": "recovery_pred_x",
+        "orchestrator_decision_id": "dec_recovery_pred_x",
+        "symbol": "BTCUSDT",
+        "timeframe": "5m",
+        "decision": "allow",
+        "risk_action": "allow",
+        "places_real_order": False,
+        "routes_to_live": False,
+        "live_gate": "blocked_human_only",
+    }
+    rec.update(overrides)
+    return rec
+
+
+def test_resolve_recovery_risk_allow_accepts_persisted_allow():
+    r = FakeRedis()
+    r.d["v2:decision:risk:rd_dec_recovery_pred_x"] = _json.dumps(_risk_record())
+    ok, reason = resolve_recovery_risk_allow(_armed_intent(), redis_client=r, now=NOW)
+    assert ok is True and reason is None
+
+
+def test_resolve_recovery_risk_missing_record():
+    r = FakeRedis()
+    ok, reason = resolve_recovery_risk_allow(_armed_intent(), redis_client=r, now=NOW)
+    assert ok is False and reason == "RECOVERY_RISK_RECORD_MISSING"
+
+
+def test_resolve_recovery_risk_action_not_allow():
+    r = FakeRedis()
+    r.d["v2:decision:risk:rd_dec_recovery_pred_x"] = _json.dumps(
+        _risk_record(decision="deny", risk_action="deny")
+    )
+    ok, reason = resolve_recovery_risk_allow(_armed_intent(), redis_client=r, now=NOW)
+    assert ok is False and reason == "RECOVERY_RISK_ACTION_NOT_ALLOW"
+
+
+def test_resolve_recovery_risk_prediction_mismatch():
+    r = FakeRedis()
+    r.d["v2:decision:risk:rd_dec_recovery_pred_x"] = _json.dumps(
+        _risk_record(prediction_id="other")
+    )
+    ok, reason = resolve_recovery_risk_allow(_armed_intent(), redis_client=r, now=NOW)
+    assert ok is False and reason == "RECOVERY_RISK_PREDICTION_ID_MISMATCH"
+
+
+def test_resolve_recovery_risk_live_marker():
+    r = FakeRedis()
+    r.d["v2:decision:risk:rd_dec_recovery_pred_x"] = _json.dumps(
+        _risk_record(places_real_order=True)
+    )
+    ok, reason = resolve_recovery_risk_allow(_armed_intent(), redis_client=r, now=NOW)
+    assert ok is False and reason == "RECOVERY_RISK_LIVE_MARKER_PRESENT"
+
+
+def test_certification_bypass_removes_only_certification():
+    blocks = [
+        "STALE_FEATURE_STATE",
+        "VALID_FOR_PAPER_NOT_TRUE",
+        "MISSING_ENTRY_FEATURE_AVAILABLE_AT",
+        "INVALID_LIQUIDATION_BUFFER",
+        "EXPOSURE_CAP_EXCEEDED",
+    ]
+    remaining, removed = apply_certification_bypass(blocks, armed_engineering_replay=True)
+    assert "STALE_FEATURE_STATE" in removed
+    assert "VALID_FOR_PAPER_NOT_TRUE" in removed
+    assert "INVALID_LIQUIDATION_BUFFER" in remaining
+    assert "EXPOSURE_CAP_EXCEEDED" in remaining
+
+
+def test_certification_bypass_noop_when_unarmed():
+    blocks = ["STALE_FEATURE_STATE"]
+    remaining, removed = apply_certification_bypass(blocks, armed_engineering_replay=False)
+    assert remaining == blocks and removed == []
