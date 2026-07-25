@@ -1568,3 +1568,86 @@ def test_live_archive_admission_is_finalized_wss_5m_only() -> None:
     assert accepted[0]["source"] == "binance_wss"
     assert accepted[0]["timeframe"] == "5m"
     assert accepted[0]["is_closed"] is True
+
+
+@pytest.mark.asyncio
+async def test_nonblocking_submission_keeps_wave_coalescing_and_acks_via_callback(
+    tmp_path: Path,
+) -> None:
+    """WQ-R35: the receive path must not await durability per close.
+
+    Submitting a full wave without awaiting must leave the pipeline free to
+    coalesce the whole wave into one outbox/archive transaction (the inline
+    await capped queue depth at one, forcing per-row fsyncs), and the stats
+    acks must land via done-callback once durability resolves.
+    """
+
+    stats: dict[str, Any] = {}
+    pipeline = _Canonical5mLabelArchivePipeline(
+        archive_path=tmp_path / "archive.sqlite3",
+        outbox_path=tmp_path / "outbox.sqlite3",
+        queue_capacity=REPRESENTATIVE_ADAPTIVE_WAVE_ROWS,
+        batch_rows=REPRESENTATIVE_ADAPTIVE_WAVE_ROWS,
+        max_pending_rows=REPRESENTATIVE_ADAPTIVE_WAVE_ROWS * 2,
+        flush_seconds=0.01,
+        retry_seconds=0.01,
+        stats=stats,
+    )
+    assert await pipeline.initialize() is True
+
+    for index in range(REPRESENTATIVE_ADAPTIVE_WAVE_ROWS):
+        assert (
+            wss_module._submit_wss_canonical_5m_label_without_receive_stall(
+                _candle(index),
+                pipeline,
+                stats,
+            )
+            is None
+        )
+    assert stats.get("canonical_5m_label_handler_durable_acks") is None
+
+    assert await pipeline.run_until(time.time()) is True
+    await asyncio.sleep(0.05)
+
+    assert stats["canonical_5m_label_outbox_transactions"] == 1
+    assert stats["canonical_5m_label_archive_transactions"] == 1
+    assert (
+        stats["canonical_5m_label_handler_durable_acks"]
+        == REPRESENTATIVE_ADAPTIVE_WAVE_ROWS
+    )
+    assert stats.get("canonical_5m_label_handler_rejections") is None
+
+
+@pytest.mark.asyncio
+async def test_nonblocking_submission_ignores_non_5m_and_records_async_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stats: dict[str, Any] = {}
+    assert (
+        wss_module._submit_wss_canonical_5m_label_without_receive_stall(
+            _candle(1, timeframe="1m"),
+            None,
+            stats,
+        )
+        is None
+    )
+    assert stats == {}
+
+    failing: asyncio.Future[Any] = asyncio.get_running_loop().create_future()
+    monkeypatch.setattr(
+        wss_module,
+        "_submit_wss_canonical_5m_label",
+        lambda canonical, label_pipeline: failing,
+    )
+    wss_module._submit_wss_canonical_5m_label_without_receive_stall(
+        _candle(2),
+        None,
+        stats,
+    )
+    failing.set_exception(RuntimeError("durability worker crashed"))
+    await asyncio.sleep(0)
+
+    assert stats["canonical_5m_label_handler_rejections"] == 1
+    assert stats["canonical_5m_label_async_admission_last_error"].startswith(
+        "RuntimeError:durability worker crashed"[:20]
+    )

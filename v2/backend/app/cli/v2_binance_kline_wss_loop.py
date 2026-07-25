@@ -1664,6 +1664,14 @@ async def _await_wss_canonical_5m_label_durability(
     if acknowledgement is None:
         return None
     result = await asyncio.shield(acknowledgement)
+    _record_canonical_5m_label_admission(stats, result)
+    return result
+
+
+def _record_canonical_5m_label_admission(
+    stats: dict[str, Any],
+    result: _Canonical5mLabelAdmissionResult,
+) -> None:
     if result.durable_outbox_committed:
         stats["canonical_5m_label_handler_durable_acks"] = int(
             stats.get("canonical_5m_label_handler_durable_acks") or 0
@@ -1672,7 +1680,49 @@ async def _await_wss_canonical_5m_label_durability(
         stats["canonical_5m_label_handler_rejections"] = int(
             stats.get("canonical_5m_label_handler_rejections") or 0
         ) + 1
-    return result
+
+
+def _submit_wss_canonical_5m_label_without_receive_stall(
+    canonical: Any,
+    label_pipeline: _Canonical5mLabelArchivePipeline | None,
+    stats: dict[str, Any],
+) -> None:
+    """Admit a 5m close to the durable label pipeline without blocking recv.
+
+    The admission future still resolves only after the pipeline producer's
+    FULL-sync commit-readback (that contract lives in the pipeline, not
+    here); stats acks are recorded via done-callback when durability
+    resolves. Awaiting durability inline capped the pipeline queue depth at
+    one, degrading the designed whole-wave coalescing into ~159 sequential
+    fsync commits per 5m boundary and stalling the shared receive loop past
+    the websocket queue runway — shedding entire close-waves (WQ-R35;
+    2026-07-24 17:30Z universal 5m gap, recurring 1m gaps at 5m boundaries).
+    """
+
+    acknowledgement = _submit_wss_canonical_5m_label(
+        canonical,
+        label_pipeline,
+    )
+    if acknowledgement is None:
+        return
+
+    def _on_durability_resolved(
+        future: "asyncio.Future[_Canonical5mLabelAdmissionResult]",
+    ) -> None:
+        if future.cancelled():
+            return
+        error = future.exception()
+        if error is not None:
+            stats["canonical_5m_label_handler_rejections"] = int(
+                stats.get("canonical_5m_label_handler_rejections") or 0
+            ) + 1
+            stats["canonical_5m_label_async_admission_last_error"] = (
+                f"{type(error).__name__}:{str(error)[:160]}"
+            )
+            return
+        _record_canonical_5m_label_admission(stats, future.result())
+
+    acknowledgement.add_done_callback(_on_durability_resolved)
 
 
 def _base_status(
@@ -1891,6 +1941,8 @@ async def _consume_chunk(
                         "closed_candle": bool((data.get("k") or {}).get("x")) if isinstance(data.get("k"), dict) else False,
                     }
                     if canonical.is_closed:
+                        received_key = f"close_events_received_{timeframe}"
+                        stats[received_key] = int(stats.get(received_key) or 0) + 1
                         key = _ohlcv_key(symbol, timeframe)
                         # Closed-candle HISTORY must outlive the candle interval:
                         # a flat 900s TTL expired 1h/4h keys between closes and
@@ -1936,9 +1988,10 @@ async def _consume_chunk(
                     # Preserve the independent existing market-data feed first.
                     # The returned admission future is resolved by the producer
                     # worker only after the exact payload is FULL-sync committed
-                    # to the outbox and read back; this handler never emits a
-                    # premature durable acknowledgement.
-                    await _await_wss_canonical_5m_label_durability(
+                    # to the outbox and read back; stats acks land via callback
+                    # so the receive loop never stalls behind durability
+                    # (WQ-R35: inline awaiting shed whole close-waves).
+                    _submit_wss_canonical_5m_label_without_receive_stall(
                         canonical,
                         label_pipeline,
                         stats,
