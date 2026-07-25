@@ -23763,6 +23763,8 @@ def _paper_row_excluded_from_strict_governance(row: dict[str, Any]) -> bool:
 
 def _paper_performance_source_rows(
     closed_rows: list[dict[str, Any]],
+    *,
+    cohort_id: str | None = None,
 ) -> list[dict[str, Any]]:
     paper_rows = [
         row
@@ -23772,6 +23774,17 @@ def _paper_performance_source_rows(
         and _paper_performance_realized_bps(row) is not None
         and not _paper_row_excluded_from_strict_governance(row)
     ]
+    if cohort_id is not None:
+        # Cohort-scoped governance (Phase 6): a provisional cohort's breaker reads
+        # ONLY rows stamped with its exact paper_strategy_cohort_id. A fresh cohort
+        # with no completed trades yields an EMPTY set (=> ACTIVE_INSUFFICIENT_
+        # COHORT_SAMPLE) and NEVER falls back to the historical global trade sample,
+        # so the July losing cohort can never halt the new cohort.
+        return [
+            row
+            for row in paper_rows
+            if str(row.get("paper_strategy_cohort_id") or "") == cohort_id
+        ]
     if paper_rows:
         return paper_rows
     # No paper_only strict rows: fall back to any strict-governance row with a
@@ -25487,8 +25500,9 @@ def _paper_performance_circuit_breaker_status(
     closed_rows: list[dict[str, Any]],
     *,
     generated_utc: str | None = None,
+    cohort_id: str | None = None,
 ) -> dict[str, Any]:
-    source_rows = _paper_performance_source_rows(closed_rows)
+    source_rows = _paper_performance_source_rows(closed_rows, cohort_id=cohort_id)
     status_generated_utc = generated_utc or _utc_iso()
     strict_edge_cohort_material = _paper_strict_edge_cohort_material(source_rows)
     strict_edge_cohort_material_hash = _paper_canonical_sha256(strict_edge_cohort_material)
@@ -25630,10 +25644,22 @@ def _paper_performance_circuit_breaker_status(
         block_reasons.append("HIGH_CONFIDENCE_LOSS_CLUSTER")
 
     new_entries_allowed = not block_reasons
+    # Cohort-scoped breaker (Phase 6): when this is a cohort-scoped evaluation with
+    # no completed cohort trades, the strict rolling detectors cannot fire (they
+    # require >=5 cohort rows), so it is ACTIVE by construction. Label that state
+    # explicitly and NEVER inherit the historical global halt.
+    _cohort_scoped = cohort_id is not None
+    _cohort_insufficient = _cohort_scoped and len(source_rows) == 0
+    if _cohort_scoped and not block_reasons and _cohort_insufficient:
+        _state = "ACTIVE_INSUFFICIENT_COHORT_SAMPLE"
+    else:
+        _state = "HALTED_PERFORMANCE" if block_reasons else "ACTIVE"
     return {
         "schema_version": "paper_performance_circuit_breaker_status_v1",
-        "status": "HALTED_PERFORMANCE" if block_reasons else "ACTIVE",
-        "state": "HALTED_PERFORMANCE" if block_reasons else "ACTIVE",
+        "status": _state,
+        "state": _state,
+        "cohort_id": cohort_id,
+        "cohort_scoped": _cohort_scoped,
         "enabled": True,
         "paper_only": True,
         "routes_to_live": False,
@@ -44971,10 +44997,24 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                 intent["paper_eligible"] = True
                 intent["strict_valid_for_paper"] = False
                 intent["paper_recovery_canary_certification_bypass"] = bool(_risk_ok)
+        # Phase 6 cohort isolation: a provisional-cohort intent is governed by its
+        # OWN cohort-scoped breaker (fresh => ACTIVE_INSUFFICIENT_COHORT_SAMPLE),
+        # never the historical global HALTED breaker. Ordinary intents (no cohort
+        # id) keep the unchanged global breaker. No per-trade economic exception.
+        _intent_cohort_id = str(intent.get("paper_strategy_cohort_id") or "") or None
+        _breaker_for_intent = pre_cycle_paper_performance_circuit_breaker_status
+        if _intent_cohort_id is not None:
+            _breaker_for_intent = _paper_performance_circuit_breaker_status(
+                existing_closed_rows, cohort_id=_intent_cohort_id
+            )
+            intent["paper_cohort_breaker_state"] = _breaker_for_intent.get("state")
+            intent["paper_cohort_breaker_new_entries_allowed"] = _breaker_for_intent.get(
+                "new_entries_allowed"
+            )
         performance_circuit_rejection = _paper_block_new_entry_by_performance_circuit(
             intent=intent,
             allocation=allocation_payload,
-            performance_circuit_breaker_status=(pre_cycle_paper_performance_circuit_breaker_status),
+            performance_circuit_breaker_status=_breaker_for_intent,
             halted_empty_book_probe_context=halted_empty_book_probe_context,
         )
         if intent.get("paper_halted_empty_book_probe") is True:
