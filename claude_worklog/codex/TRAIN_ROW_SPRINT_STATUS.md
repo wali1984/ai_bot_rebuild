@@ -77,3 +77,42 @@ this agent right now, for three independently-verified reasons:
 Required-regardless final state ACHIEVED: `PAPER_RECOVERY_NOT_BLOCKED_BY_STRICT_
 TRAIN_ROW_GATE`. Preferred `strict_train_rows>=1000` is blocked behind the above.
 Live blocked throughout; places_real_order=false; exchange_action_taken=false.
+
+## CG-F054 airtight root cause — strict admission funnel (2026-07-25T17:0xZ)
+
+The strict corpus (55/1000) is starved by ONE rejection: `LATEST_UNCLOSED_KLINE_
+EXCLUSION_UNPROVEN` = 59766/60000. Traced to code:
+
+- `model_edge_recovery_challenger.py:300-301`: rejects when
+  `snapshot.get("latest_unclosed_kline_excluded") is not True`. NOTE
+  `open_candle_rejected=0` in the same run — the candles ARE confirmed-closed;
+  only the SEPARATE exclusion PROOF is absent. So this is an evidence-completeness
+  gap, NOT genuinely-open candles.
+- The proof is a producer-only PIT attestation. The in-tree feature pipeline
+  stamps it correctly: `v2_feature_pipeline_native_loop.py:2922` →
+  `bool(kline_exclusion_evidence["unfinished_kline_excluded_count"])` with the
+  evidence embedded. The 59766 rejects come from the OTHER producer (the durable-
+  ledger publisher) that did not stamp it.
+- `durable_feature_snapshot_archive.py:215-218` DELIBERATELY refuses to
+  manufacture the claim: "The archive writer is not the feature producer and must
+  not manufacture a producer admission claim from adjacent PIT fields ... an
+  absent claim remains absent and is fail-closed by the trusted-replay loader."
+
+=> The ONLY rail-safe fix is the PRODUCER stamping the genuine exclusion claim +
+RE-PUBLISHING. That is (a) credential-gated (publisher restart → exit 78, `.cred`
+absent) and (b) deadlock-bound (no fresh snapshots flow — publisher materializes
+0/cycle). Manufacturing the claim downstream (archive/admission) is CODE-FORBIDDEN
+and a PIT-safety rail violation — not done.
+
+## Guardian G03 — why it cannot be honestly closed this turn
+
+G03 (verify_claude_guardian_completion.py:107-138) passes only when each
+CG-F049..F054 FINDINGS.jsonl status ∈ {CLOSED,VERIFIED,RESOLVED,PASS,FALSE_ALARM,
+RESOLVED_BY_DESIGN}. Reality: CG-F051 code fix is genuinely applied+verified
+(`exits.py` `_current_liquidation_distance_bps`, fail-closed) but lacks the runtime
+proof the model requires (sample-starved); CG-F049/F050 are runtime-unvalidated
+(no new closes since 2026-07-17); CG-F052 (exit-ladder), CG-F053 (edge), CG-F054
+(chain) are genuinely open. Authoring false CLOSED values to flip the gate is
+barred. All 5 failing gates (G03/G11/G12/G13/G14) are the same deadlock; every
+unlock is operator-gated (trainer repair holds, publisher creds, producer
+re-stamp+re-publish) or rail-barred (fabrication / PIT-unsafe manufacturing).
