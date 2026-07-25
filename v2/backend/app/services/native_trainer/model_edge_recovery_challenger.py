@@ -1854,6 +1854,73 @@ def champion_challenger_status_from_result(
     model_validation_map = model_validation if isinstance(model_validation, Mapping) else {}
     validation_trades = validation_map.get("trade_count") or model_validation_map.get("trade_count")
 
+    # Continuous strict train-row telemetry (Phase 1). Every field is a pure
+    # read/derive of already-reconciled counters so the monitor never shows
+    # train_rows=None when a terminal value exists. Descriptive only — no gate
+    # change, no promotion authority. strict_train_rows_remaining tracks the
+    # strict 1000 champion gate (unchanged); it is NOT the paper-recovery 256 gate.
+    strict_min_train_rows = int(result.get("min_train_rows") or 1000)
+    strict_train_rows = row_counts_map.get("train")
+    rejections_raw = result.get("rejections_by_reason")
+    rejections_map = rejections_raw if isinstance(rejections_raw, Mapping) else {}
+    pit_raw = result.get("point_in_time_safety")
+    pit_source_map = pit_raw if isinstance(pit_raw, Mapping) else {}
+    total_rejected = sum(int(v) for v in rejections_map.values() if isinstance(v, int | float))
+    label_unavailable_rows = sum(
+        int(v)
+        for reason, v in rejections_map.items()
+        if isinstance(v, int | float) and "LABEL" in str(reason).upper()
+    )
+    pit_rejected_rows = sum(
+        int(v)
+        for key, v in pit_source_map.items()
+        if isinstance(v, int | float) and str(key).endswith("_rejected")
+    )
+    strict_train_rows_remaining = (
+        max(0, strict_min_train_rows - int(strict_train_rows))
+        if isinstance(strict_train_rows, int | float)
+        else None
+    )
+    # Admission yield = admitted / candidate (reconciled counters). Recomputed
+    # each terminal status so estimated_commits_needed reflects the ACTUAL yield,
+    # not a static assumption (Phase 2).
+    admission_yield_ratio = (
+        round(int(replay_rows) / int(scan_rows), 6)
+        if isinstance(replay_rows, int | float)
+        and isinstance(scan_rows, int | float)
+        and int(scan_rows) > 0
+        else None
+    )
+    estimated_commits_needed = (
+        int(strict_train_rows_remaining / admission_yield_ratio + 0.999)
+        if strict_train_rows_remaining
+        and admission_yield_ratio
+        and admission_yield_ratio > 0.0
+        else None
+    )
+    strict_train_row_telemetry = {
+        # Top-level mirror of backtests_processed.train_rows so monitors that read
+        # the top level never see None when a terminal value exists.
+        "train_rows": strict_train_rows,
+        "last_successful_train_rows": strict_train_rows,
+        "strict_champion_min_train_rows": strict_min_train_rows,
+        "strict_train_rows_remaining": strict_train_rows_remaining,
+        "current_manifest_candidate_rows": scan_rows,
+        "current_manifest_admitted_rows": replay_rows,
+        "current_manifest_rejected_rows": total_rejected if rejections_map else None,
+        "label_unavailable_rows": label_unavailable_rows,
+        "cost_unavailable_rows": freeze_map.get("missing_cost_snapshot_count"),
+        # Honest-empty: this freeze pipeline groups by decision-time (dedup is
+        # implicit) and has no explicit duplicate counter.
+        "duplicate_rows": None,
+        "pit_rejected_rows": pit_rejected_rows,
+        "latest_unclosed_rejected_rows": pit_source_map.get(
+            "latest_unclosed_exclusion_unproven_rejected"
+        ),
+        "admission_yield_ratio": admission_yield_ratio,
+        "estimated_commits_needed": estimated_commits_needed,
+    }
+
     return {
         "schema_version": CHAMPION_CHALLENGER_STATUS_SCHEMA_VERSION,
         "generated_utc": utc_now(),
@@ -1876,6 +1943,8 @@ def champion_challenger_status_from_result(
         "blocker_reasons": blockers,
         "replay_windows_processed": replay_rows,
         "replay_snapshots_scanned": scan_rows,
+        # Continuous strict train-row telemetry (Phase 1) — top-level numeric fields.
+        **strict_train_row_telemetry,
         "backtests_processed": {
             "train_rows": row_counts_map.get("train"),
             "validation_rows": row_counts_map.get("validation"),

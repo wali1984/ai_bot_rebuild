@@ -741,3 +741,54 @@ def test_publish_champion_challenger_status_writes_canonical_redis_key() -> None
     assert status["promotion_allowed"] is False
     assert fake.rows[0][0] == CHAMPION_CHALLENGER_STATUS_REDIS_KEY
     assert fake.rows[0][2] is not None and fake.rows[0][2] >= 60
+
+
+def test_status_publishes_continuous_strict_train_row_telemetry() -> None:
+    # Phase-1 telemetry: top-level train_rows (never None when terminal exists) +
+    # the operator numeric fields, all reconciled from the result counters.
+    result = {
+        "status": "BLOCKED_INSUFFICIENT_TRUSTED_REPLAY_ROWS",
+        "row_counts": {"train": 55, "validation": 14, "untouched_holdout": 45},
+        "dataset_freeze": {
+            "trusted_replay_rows": 55,
+            "snapshots_scanned": 60000,
+            "missing_cost_snapshot_count": 3,
+        },
+        "rejections_by_reason": {
+            "LATEST_UNCLOSED_KLINE_EXCLUSION_UNPROVEN": 59766,
+            "LABEL_NOT_AVAILABLE": 120,
+        },
+        "point_in_time_safety": {
+            "latest_unclosed_exclusion_unproven_rejected": 59766,
+            "open_candle_rejected": 0,
+        },
+        "min_train_rows": 1000,
+    }
+    s = champion_challenger_status_from_result(result)
+    assert s["train_rows"] == 55  # top-level mirror, not None
+    assert s["last_successful_train_rows"] == 55
+    assert s["strict_champion_min_train_rows"] == 1000
+    assert s["strict_train_rows_remaining"] == 945
+    assert s["current_manifest_candidate_rows"] == 60000
+    assert s["current_manifest_admitted_rows"] == 55
+    assert s["current_manifest_rejected_rows"] == 59886
+    assert s["label_unavailable_rows"] == 120
+    assert s["cost_unavailable_rows"] == 3
+    assert s["duplicate_rows"] is None  # honest-empty, no dedup counter
+    assert s["pit_rejected_rows"] == 59766
+    assert s["latest_unclosed_rejected_rows"] == 59766
+    assert s["admission_yield_ratio"] == round(55 / 60000, 6)
+    # Safety anchors must be untouched by descriptive telemetry.
+    assert s["safety"]["live_gate"] == challenger.LIVE_GATE_BLOCKED
+    assert s["safety"]["routes_to_live"] is False
+    assert s["safety"]["places_real_order"] is False
+    # backtests_processed still carries the nested value.
+    assert s["backtests_processed"]["train_rows"] == 55
+
+
+def test_status_train_rows_never_none_when_terminal_absent_is_honest() -> None:
+    # No row_counts -> honest None everywhere (not a fabricated 0).
+    s = champion_challenger_status_from_result({"status": "UNKNOWN"})
+    assert s["train_rows"] is None
+    assert s["strict_train_rows_remaining"] is None
+    assert s["admission_yield_ratio"] is None
