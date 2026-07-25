@@ -211,3 +211,27 @@ to build the brain without live samples (memory: "offline+H2L drives improvement
 Both are multi-hour/multi-day. Neither G13 nor G14 can be made to PASS this turn
 without fabricating edge/performance or forcing trades past hard controls — both
 barred by the rails. Live blocked throughout; no order artifacts; no position.
+
+## Why the deadlock is NOT mine to break this turn (raw evidence, 2026-07-25T05:5xZ)
+
+The offline edge-building trainers that would restore model edge (CG-F053) + fresh
+routable predictions (CG-F054) are ALL under a **deliberate Codex fail-closed
+repair hold**, verified via systemd:
+- `ai-bot-v2-trainer-scheduled-pretrain.service` (offline historical pretrain +
+  H2L) — `99-codex-repair-hold.conf` -> `RefuseManualStart=yes`.
+- `ai-bot-v2-continuous-offline-gpu-trainer.service` — same drop-in + listed in
+  `claude_worklog/self_healing/deliberately_stopped_units.txt`.
+- `ai-bot-v2-native-ppo-masa-continuous-training-guard.service` — same drop-in.
+All exited ~2026-07-18 01:2x-01:5x and their enabled timers are inactive/dead.
+The deliberately_stopped note: "Remove each entry together with its drop-in only
+after that component's evidence and bounded-resource release gate passes." A
+sibling containment note (2026-07-21) records that "autonomous Claude/Codex
+execution is paused while the operator-led recovery goal owns the dirty worktree."
+
+Therefore every path to break the poor-PF -> circuit-HALT -> no-samples -> frozen-
+edge deadlock is either (a) a DELIBERATE Codex safety hold pending an operator-
+controlled release gate (the offline trainers — must NOT override), or (b) the hard
+allocation/exposure boundary + genuine microstructure-data gap the Pass-3 canary
+hit (must NOT fabricate/bypass). Guardian G13/G14 cannot honestly PASS until that
+release gate is opened by the operator-led recovery lane and the trainer rebuilds
+genuine edge over new samples. Documented, not forced. Live blocked throughout.
