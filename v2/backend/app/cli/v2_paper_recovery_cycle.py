@@ -31,6 +31,10 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from v2.backend.app.services.paper_provisional.policy_v1 import (
+    cohort_identity,
+    load_paper_provisional_policy_v1,
+)
 from v2.backend.app.services.paper_recovery.paper_recovery_policy_v1 import (
     ENGINEERING_CANARY_TAGS,
     SNAPSHOT_PIT_WAIVER_FIELDS,
@@ -64,6 +68,23 @@ def _recovery_checkpoint_train_rows() -> int | None:
         return None
     value = meta.get("train_rows")
     return int(value) if isinstance(value, int | float) else None
+
+
+def _paper_initial_equity(r: Any) -> float:
+    """Best-effort current paper equity for the cohort's initial-equity stamp."""
+    for key in ("v2:paper:session", "v2:portfolio:state"):
+        try:
+            raw = r.get(key)
+            if not raw:
+                continue
+            data = json.loads(raw)
+            for field_name in ("initial_capital", "starting_equity_usd", "equity_usd", "equity"):
+                value = data.get(field_name)
+                if isinstance(value, int | float) and value > 0:
+                    return float(value)
+        except (OSError, ValueError, TypeError, AttributeError):
+            continue
+    return 3000.0
 LEDGER = DATA_ROOT / "durable_feature_snapshot_ledger.sqlite3"
 CANONICAL_PREDICTION_KEY = "v2:prediction:{symbol}:{timeframe}"
 RECOVERY_MODEL_KEY = "v2:prediction:recovery:{symbol}:{timeframe}"
@@ -359,6 +380,37 @@ def run(mode: str, symbol: str, timeframe: str, observe_seconds: int) -> dict[st
     deny = policy.deny_live_route(prediction)
     if deny is None:
         return {"status": "FATAL_SAFETY", "reason": "RECOVERY_ARTIFACT_NOT_GUARDED"}
+
+    # Phase 6-7: NORMAL autonomous 100-row paper eligibility for --mode fresh.
+    # This is NOT the engineering-canary exception path: no single-use arm, no
+    # per-trade economic-control bypass. Refuse injection unless the 100-row paper
+    # gate is satisfied, then stamp the provisional cohort identity + never-live
+    # eligibility tags so the prediction routes as a normal paper checkpoint.
+    if mode == "fresh":
+        pp_policy = load_paper_provisional_policy_v1(os.environ)
+        pp_rows = _recovery_checkpoint_train_rows()
+        pp_gate = pp_policy.gate(train_rows=pp_rows)
+        if not pp_gate["paper_provisional_gate_satisfied"]:
+            blocked = {
+                "status": "REJECTED",
+                "reason": "PAPER_PROVISIONAL_TRAIN_ROWS_BELOW_MINIMUM",
+                **pp_gate,
+                **train_gate_status_fields,
+                "live_gate": GATE_BLOCKED,
+                "places_real_order": False,
+                "exchange_action_taken": False,
+            }
+            r.set(RECOVERY_STATUS_KEY, json.dumps(blocked), ex=1800)
+            return blocked
+        prediction.update(pp_policy.eligibility_tags(train_rows=pp_rows))
+        prediction.update(
+            cohort_identity(
+                checkpoint_id=str(prediction.get("checkpoint_id") or "paper_recovery_checkpoint"),
+                activation_time_utc=_iso(_now()),
+                initial_paper_equity_usd=_paper_initial_equity(r),
+            )
+        )
+
     if prediction.get("selected_action") not in ("long", "short"):
         hold_status = {
             "status": "NO_DIRECTIONAL_SIGNAL",
