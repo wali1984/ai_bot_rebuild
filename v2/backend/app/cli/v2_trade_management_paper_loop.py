@@ -212,9 +212,31 @@ PAPER_ACCOUNT_MARGIN_STATUS_REDIS_KEY = f"{V2_REDIS_PREFIX}paper:account_margin_
 DEFAULT_PAYLOAD_PATH = Path(
     "v2/frontend/public/operator_runtime/v2_trade_management_paper/live/latest/v2_trade_management_paper_live_status.json"
 )
-PAPER_LOOP_LOCK_PATH = (
-    Path(__file__).resolve().parents[4] / "logs/v2_trade_management_paper_loop.lock"
-)
+PAPER_LOOP_LOCK_PATH_ENV = "V2_TRADE_MANAGEMENT_PAPER_LOOP_LOCK_PATH"
+
+
+def _configured_paper_loop_lock_path(
+    environ: Mapping[str, str] | None = None,
+) -> Path:
+    # Immutable-release deploys mount the release dir read-only, so the writer
+    # lock MUST be redirectable to a writable runtime dir via the env var. The
+    # module-relative path is only the local-dev fallback. (Restored 2026-07-25;
+    # a prior refactor hardcoded the module-relative path and broke read-only
+    # release startup with OSError Errno 30.)
+    source = os.environ if environ is None else environ
+    configured = str(source.get(PAPER_LOOP_LOCK_PATH_ENV) or "").strip()
+    path = (
+        Path(configured).expanduser()
+        if configured
+        else Path(__file__).resolve().parents[4]
+        / "logs/v2_trade_management_paper_loop.lock"
+    )
+    if not path.is_absolute():
+        raise RuntimeError("PAPER_LOOP_LOCK_PATH_MUST_BE_ABSOLUTE")
+    return path
+
+
+PAPER_LOOP_LOCK_PATH = _configured_paper_loop_lock_path()
 CHECKPOINT_DIR = Path(".local_models/v2_native_rl_masa_ppo")
 TRADE_MANAGEMENT_PUBLIC_DIR = Path(
     "v2/frontend/public/operator_runtime/v2_paper_trade_management/latest"
