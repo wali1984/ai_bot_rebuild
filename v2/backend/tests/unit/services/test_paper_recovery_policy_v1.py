@@ -151,3 +151,16 @@ def test_live_gate_anchor_cannot_be_overridden() -> None:
     )
     assert policy.live_gate_required == "blocked_human_only"
     assert policy.exchange_action_required_false is True
+
+
+def test_recovery_min_train_rows_defaults_to_256_and_is_below_strict_1000() -> None:
+    policy = load_paper_recovery_policy_v1({})
+    # Paper-recovery floor is 256, deliberately far below the strict champion
+    # gate (1000). 272 (recovery checkpoint) >= 256 => gate satisfied.
+    assert policy.minimum_recovery_train_rows == 256
+    assert policy.minimum_recovery_train_rows < 1000
+
+
+def test_recovery_min_train_rows_env_override() -> None:
+    policy = load_paper_recovery_policy_v1({"PAPER_RECOVERY_MIN_TRAIN_ROWS": "300"})
+    assert policy.minimum_recovery_train_rows == 300

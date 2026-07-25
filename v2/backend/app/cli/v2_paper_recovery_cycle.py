@@ -36,6 +36,9 @@ from v2.backend.app.services.paper_recovery.paper_recovery_policy_v1 import (
     SNAPSHOT_PIT_WAIVER_FIELDS,
     load_paper_recovery_policy_v1,
 )
+from v2.backend.app.services.trainer_corpus_sprint.sprint_arm_v1 import (
+    paper_recovery_train_gate,
+)
 
 DATA_ROOT = Path(
     os.environ.get(
@@ -43,6 +46,24 @@ DATA_ROOT = Path(
         "/home/wali/ai_bot_local_data/v2_native_trainer",
     )
 )
+RECOVERY_CHECKPOINT_META_PATH = Path(
+    ".local_models/paper_recovery/paper_recovery_checkpoint_v1.json"
+)
+
+
+def _recovery_checkpoint_train_rows() -> int | None:
+    """Read the paper-recovery checkpoint's actual train_rows (272), if present.
+
+    This is the paper-only, non-promotable recovery corpus — NOT the strict
+    champion trusted-replay corpus. Returns None when the checkpoint is absent so
+    the gate reports honestly rather than fabricating a count.
+    """
+    try:
+        meta = json.loads(RECOVERY_CHECKPOINT_META_PATH.read_text())
+    except (OSError, ValueError):
+        return None
+    value = meta.get("train_rows")
+    return int(value) if isinstance(value, int | float) else None
 LEDGER = DATA_ROOT / "durable_feature_snapshot_ledger.sqlite3"
 CANONICAL_PREDICTION_KEY = "v2:prediction:{symbol}:{timeframe}"
 RECOVERY_MODEL_KEY = "v2:prediction:recovery:{symbol}:{timeframe}"
@@ -362,6 +383,16 @@ def run(mode: str, symbol: str, timeframe: str, observe_seconds: int) -> dict[st
     observed = _observe_chain(r, prediction["prediction_id"], observe_seconds)
     routed = observed["orchestrator_decision_present"] and observed["risk_decision_present"]
 
+    # Paper-recovery train-gate — deliberately independent of the strict 1000-row
+    # champion gate. The recovery checkpoint is paper-only + non-promotable +
+    # never live-eligible, so paper fill/close/lifecycle/accounting must NOT wait
+    # on the strict corpus. 272 (checkpoint) >= 256 => PASS.
+    recovery_train_rows = _recovery_checkpoint_train_rows()
+    train_gate = paper_recovery_train_gate(
+        train_rows=recovery_train_rows,
+        min_train_rows=policy.minimum_recovery_train_rows,
+    )
+
     status = {
         "schema_version": "v2_paper_recovery_cycle_status_v1",
         "generated_utc": _iso(_now()),
@@ -375,6 +406,10 @@ def run(mode: str, symbol: str, timeframe: str, observe_seconds: int) -> dict[st
         "recovery_deny_guard": deny,
         "chain_observation": observed,
         "canonical_records_produced": routed,
+        # Paper-recovery train-gate (256) + explicit decoupling assertion.
+        **train_gate,
+        "paper_recovery_not_blocked_by_strict_train_row_gate": True,
+        "strict_champion_min_train_rows": 1000,
         "strict_promotion_ready": False,
         "strict_pit_complete": False,
         "economic_certification": "FAIL",

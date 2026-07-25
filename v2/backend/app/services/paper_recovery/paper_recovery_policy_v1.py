@@ -126,7 +126,11 @@ class PaperRecoveryPolicyV1:
     allow_snapshot_pit_waiver: bool = True
     allow_single_interval_gap: bool = True
     allow_reduced_feature_abi: bool = True
-    minimum_recovery_train_rows: int = 200
+    # Paper-recovery train-row floor. Deliberately far below the strict champion
+    # gate (1000): the recovery checkpoint is paper-only + non-promotable +
+    # never live-eligible, so it must NOT wait on the strict 1000-row corpus.
+    # 272 (current recovery checkpoint) >= 256 => PAPER_RECOVERY_TRAIN_GATE_SATISFIED.
+    minimum_recovery_train_rows: int = 256
     allow_non_promotable_checkpoint: bool = True
     allow_engineering_canary: bool = True
     # Non-bypassable safety anchors — fixed, never configurable to a live value.
@@ -320,7 +324,7 @@ def load_paper_recovery_policy_v1(
             environ.get("PAPER_RECOVERY_ALLOW_REDUCED_FEATURE_ABI"), True
         ),
         minimum_recovery_train_rows=_as_int(
-            environ.get("PAPER_RECOVERY_MIN_TRAIN_ROWS"), 200, minimum=1
+            environ.get("PAPER_RECOVERY_MIN_TRAIN_ROWS"), 256, minimum=1
         ),
         allow_non_promotable_checkpoint=_as_bool(
             environ.get("PAPER_RECOVERY_ALLOW_NON_PROMOTABLE_CHECKPOINT"), True
