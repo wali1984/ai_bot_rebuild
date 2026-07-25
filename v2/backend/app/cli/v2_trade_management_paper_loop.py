@@ -44858,35 +44858,61 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         intent["paper_performance_circuit_breaker_new_entries_allowed"] = (
             pre_cycle_paper_performance_circuit_breaker_status.get("new_entries_allowed") is True
         )
-        # Paper-recovery Pass 3: propagate the engineering-canary recovery markers
-        # from the canonical prediction (authoritative source; the orchestrator
-        # signal-row builder does not carry them) onto THIS intent, so the
-        # single-use armed canary is recognizable at the arm gate below. Ordinary
-        # predictions carry NONE of these markers, so ordinary intents are never
-        # stamped here and their behavior is unchanged.
-        if (prediction.get("engineering_canary") is True) or (s.get("engineering_canary") is True):
-            intent["engineering_canary"] = True
-            intent["paper_recovery_only"] = bool(
-                _first_present(
-                    prediction.get("paper_recovery_only"),
-                    s.get("paper_recovery_only"),
+        # Paper-recovery Pass 3: the paper loop indexes "predictions" FROM the
+        # paper signals (deliberately, to avoid an expensive full-namespace Redis
+        # SCAN), so the engineering-canary markers set on the CANONICAL prediction
+        # are absent from this intent. Recover them via the single-use arm: if an
+        # arm exists for this intent's prediction_id AND the canonical prediction
+        # confirms engineering_canary for the same id, stamp the markers. Ordinary
+        # intents have no arm (one O(1) GET, no SCAN) and are skipped entirely, so
+        # ordinary behavior is unchanged. This carries NO live capability.
+        _canary_pid = str(intent.get("prediction_id") or "")
+        _canary_tf = str(intent.get("timeframe") or "")
+        if _canary_pid and intent.get("engineering_canary") is not True:
+            _canary_arm_raw = None
+            try:
+                _canary_arm_raw = r.get(
+                    f"{V2_REDIS_PREFIX}paper:recovery:canary_arm:{_canary_pid}"
                 )
-            )
-            # A sealed engineering-canary IS a historical replay; scope the
-            # staleness exception (consumed at ~44910) to this armed intent only.
-            intent["engineering_replay"] = True
-            for _canary_field in (
-                "engineering_canary_max_notional_usd",
-                "engineering_canary_max_open_positions",
-                "funding_policy",
-                "expected_funding_bps",
-                "expected_funding_bps_source",
-            ):
-                _canary_value = _first_present(
-                    prediction.get(_canary_field), s.get(_canary_field)
-                )
-                if _canary_value is not None:
-                    intent[_canary_field] = _canary_value
+            except Exception:  # noqa: BLE001
+                _canary_arm_raw = None
+            if _canary_arm_raw:
+                _canary_canon: dict[str, Any] = {}
+                try:
+                    _canary_canon_raw = r.get(
+                        f"{V2_REDIS_PREFIX}prediction:{symbol}:{_canary_tf}"
+                    )
+                    if _canary_canon_raw:
+                        _canary_canon = json.loads(_canary_canon_raw)
+                except Exception:  # noqa: BLE001
+                    _canary_canon = {}
+                if (
+                    isinstance(_canary_canon, dict)
+                    and _canary_canon.get("engineering_canary") is True
+                    and str(_canary_canon.get("prediction_id") or "") == _canary_pid
+                ):
+                    intent["engineering_canary"] = True
+                    intent["paper_recovery_only"] = bool(
+                        _canary_canon.get("paper_recovery_only")
+                    )
+                    # A sealed engineering-canary IS a historical replay; scope the
+                    # staleness exception (consumed at ~44910) to this intent only.
+                    intent["engineering_replay"] = True
+                    for _canary_field in (
+                        "engineering_canary_max_notional_usd",
+                        "engineering_canary_max_open_positions",
+                        "funding_policy",
+                        "expected_funding_bps",
+                        "expected_funding_bps_source",
+                        "entry_feature_available_at",
+                        "entry_feature_generated_at",
+                        "entry_feature_cutoff",
+                        "entry_feature_decision_time",
+                        "entry_feature_candle_closed_confirmed",
+                    ):
+                        _canary_value = _canary_canon.get(_canary_field)
+                        if _canary_value is not None:
+                            intent[_canary_field] = _canary_value
         # Paper-recovery Pass 3: validate the single-use engineering-canary arm
         # against this exact intent's IDs. On success, stamp the intent so the
         # circuit check below (and only it) bypasses the three economic controls.
