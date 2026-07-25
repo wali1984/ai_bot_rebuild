@@ -778,6 +778,14 @@ def test_status_publishes_continuous_strict_train_row_telemetry() -> None:
     assert s["pit_rejected_rows"] == 59766
     assert s["latest_unclosed_rejected_rows"] == 59766
     assert s["admission_yield_ratio"] == round(55 / 60000, 6)
+    # Autonomous paper gate (100) shares the admitted corpus; strict stays 1000.
+    assert s["last_terminal_train_rows"] == 55
+    assert s["paper_train_rows_required"] == 100
+    assert s["paper_train_rows_remaining"] == 45
+    assert s["strict_train_rows_required"] == 1000
+    assert s["current_candidate_rows"] == 60000
+    assert s["current_admitted_rows"] == 55
+
     # Safety anchors must be untouched by descriptive telemetry.
     assert s["safety"]["live_gate"] == challenger.LIVE_GATE_BLOCKED
     assert s["safety"]["routes_to_live"] is False

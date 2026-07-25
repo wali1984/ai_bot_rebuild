@@ -33,6 +33,9 @@ TARGET_TRAIN = 1000
 # Paper-recovery train gate — separate corpus (paper-only, non-promotable) and a
 # far lower floor than the strict champion gate. 272 (recovery checkpoint) >= 256.
 PAPER_RECOVERY_TARGET = 256
+# Autonomous PAPER checkpoint gate — the SAME admitted-row corpus as the strict
+# champion gate, at a lower threshold (paper-only, non-promotable, never-live).
+PAPER_CHECKPOINT_TARGET = 100
 
 
 def recovery_train_rows():
@@ -152,8 +155,20 @@ while True:
           f"{C['d']}(paper-only, non-promotable, independent of the 1000 champion gate){C['x']}")
     print()
     tr = train_rows if isinstance(train_rows, int) else 0
+    # Autonomous PAPER checkpoint gate (100) — same admitted corpus, lower threshold.
+    paper_req = cc.get("paper_train_rows_required") or PAPER_CHECKPOINT_TARGET
+    paper_rem = cc.get("paper_train_rows_remaining")
+    if paper_rem is None:
+        paper_rem = max(0, paper_req - tr)
+    paper_pass = tr >= paper_req
+    paper_col = C["g"] if paper_pass else C["y"]
+    print(f"{C['b']}PAPER CHECKPOINT GATE (need {paper_req}):{C['x']} "
+          f"{paper_col}{tr}/{paper_req} {'PASS' if paper_pass else 'PENDING'}{C['x']} "
+          f"{C['d']}(remaining {paper_rem}; paper-only, non-promotable, never live){C['x']}")
+    print()
     print(f"{C['b']}STRICT CHAMPION GATE (need {TARGET_TRAIN}):{C['x']}")
-    print("  " + bar(tr, TARGET_TRAIN) + f"   {C['d']}strict champion: {tr}/{TARGET_TRAIN}{C['x']}")
+    print("  " + bar(tr, TARGET_TRAIN) + f"   {C['d']}strict champion: {tr}/{TARGET_TRAIN} "
+          f"(remaining {cc.get('strict_train_rows_remaining', TARGET_TRAIN - tr)}){C['x']}")
     if train_rows is None:
         print(f"  {C['y']}train_rows=None{C['x']} {C['d']}(no terminal manifest value yet this run){C['x']}")
     print()

@@ -1881,6 +1881,16 @@ def champion_challenger_status_from_result(
         if isinstance(strict_train_rows, int | float)
         else None
     )
+    # Autonomous PAPER checkpoint gate (100) shares the SAME admitted-row corpus as
+    # the strict champion gate (1000) — same funnel output, a lower threshold. It is
+    # a paper-only, non-promotable, never-live gate; it does NOT lower the strict
+    # real-money gate (that stays strict_min_train_rows and is evidence-gated).
+    paper_min_train_rows = int(result.get("paper_min_train_rows") or 100)
+    paper_train_rows_remaining = (
+        max(0, paper_min_train_rows - int(strict_train_rows))
+        if isinstance(strict_train_rows, int | float)
+        else None
+    )
     # Admission yield = admitted / candidate (reconciled counters). Recomputed
     # each terminal status so estimated_commits_needed reflects the ACTUAL yield,
     # not a static assumption (Phase 2).
@@ -1902,9 +1912,17 @@ def champion_challenger_status_from_result(
         # Top-level mirror of backtests_processed.train_rows so monitors that read
         # the top level never see None when a terminal value exists.
         "train_rows": strict_train_rows,
+        "last_terminal_train_rows": strict_train_rows,
         "last_successful_train_rows": strict_train_rows,
+        # Autonomous paper gate (100) — same corpus, lower threshold; paper-only.
+        "paper_train_rows_required": paper_min_train_rows,
+        "paper_train_rows_remaining": paper_train_rows_remaining,
         "strict_champion_min_train_rows": strict_min_train_rows,
+        "strict_train_rows_required": strict_min_train_rows,
         "strict_train_rows_remaining": strict_train_rows_remaining,
+        "current_candidate_rows": scan_rows,
+        "current_admitted_rows": replay_rows,
+        "current_rejected_rows": total_rejected if rejections_map else None,
         "current_manifest_candidate_rows": scan_rows,
         "current_manifest_admitted_rows": replay_rows,
         "current_manifest_rejected_rows": total_rejected if rejections_map else None,

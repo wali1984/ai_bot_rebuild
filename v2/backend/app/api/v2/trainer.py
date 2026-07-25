@@ -779,9 +779,16 @@ def _missing_champion_challenger_status() -> dict[str, Any]:
         # Strict train-row telemetry (Phase 1) — honest-empty defaults that match
         # the live schema so consumers never see a missing key vs a real None.
         "train_rows": None,
+        "last_terminal_train_rows": None,
         "last_successful_train_rows": None,
+        "paper_train_rows_required": 100,
+        "paper_train_rows_remaining": None,
         "strict_champion_min_train_rows": 1000,
+        "strict_train_rows_required": 1000,
         "strict_train_rows_remaining": None,
+        "current_candidate_rows": None,
+        "current_admitted_rows": None,
+        "current_rejected_rows": None,
         "current_manifest_candidate_rows": None,
         "current_manifest_admitted_rows": None,
         "current_manifest_rejected_rows": None,
