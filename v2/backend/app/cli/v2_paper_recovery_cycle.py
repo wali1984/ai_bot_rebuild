@@ -183,6 +183,16 @@ def _build_injectable(
         "masa_feature_cutoff": _iso(masa_cutoff),
         "candle_close_time": _iso(candle_close),
         "candle_closed_confirmed": True,
+        "source_event_time": _iso(candle_close),
+        "candle_open_time": _iso(candle_close - timedelta(minutes=5)),
+        # Entry-feature temporal completeness the paper-loop entry gate requires
+        # (prefixed fields; all <= decision_time).  Truthful current recovery
+        # timing — the recovery lane carries no future data.
+        "entry_feature_available_at": _iso(available_at),
+        "entry_feature_generated_at": _iso(available_at),
+        "entry_feature_cutoff": _iso(feature_cutoff),
+        "entry_feature_decision_time": _iso(decision_time),
+        "entry_feature_candle_closed_confirmed": True,
         "ttl_seconds": RECOVERY_PRED_TTL_SECONDS,
         "feature_snapshot_id": snapshot_id,
         "feature_tensor_id": snapshot_id,
