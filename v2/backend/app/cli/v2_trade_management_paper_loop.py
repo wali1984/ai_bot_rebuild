@@ -27557,6 +27557,18 @@ def _paper_block_new_entry_by_performance_circuit(
         reasons.append("PAPER_BUCKET_QUARANTINE_BLOCKED_REENTRY")
     if hard_matched_loss_cluster_keys:
         reasons.append("PAPER_HIGH_CONFIDENCE_LOSS_CLUSTER_BLOCKED_REENTRY")
+    # Paper-recovery Pass 3: a validated single-use engineering-canary arm (stamped
+    # onto the intent at the call site) may bypass ONLY these three economic /
+    # certification controls so the fill/close/accounting plumbing can be verified.
+    # The global circuit breaker state is unchanged; ordinary intents keep all
+    # three; every hard control (sizing/margin/stop/liquidation/exposure/duplicate/
+    # accounting) and the blocked live gate are untouched.
+    if reasons and intent.get("paper_recovery_canary_arm_valid") is True:
+        from v2.backend.app.services.paper_recovery.canary_arm_v1 import (
+            apply_economic_control_exception,
+        )
+
+        reasons, _canary_bypassed = apply_economic_control_exception(reasons, armed=True)
     if not reasons:
         return False
 
@@ -44824,6 +44836,36 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         intent["paper_performance_circuit_breaker_new_entries_allowed"] = (
             pre_cycle_paper_performance_circuit_breaker_status.get("new_entries_allowed") is True
         )
+        # Paper-recovery Pass 3: validate the single-use engineering-canary arm
+        # against this exact intent's IDs. On success, stamp the intent so the
+        # circuit check below (and only it) bypasses the three economic controls.
+        # Ordinary intents are never armed; every hard control still applies.
+        if intent.get("engineering_canary") is True and intent.get("paper_recovery_only") is True:
+            try:
+                from datetime import UTC as _canary_utc
+                from datetime import datetime as _canary_dt
+
+                from v2.backend.app.services.paper_recovery.canary_arm_v1 import (
+                    validate_canary_arm as _validate_canary_arm,
+                )
+
+                _canary_arm, _canary_reject = _validate_canary_arm(
+                    intent, redis_client=r, now=_canary_dt.now(_canary_utc)
+                )
+            except Exception:  # noqa: BLE001
+                _canary_arm, _canary_reject = None, "CANARY_ARM_VALIDATION_ERROR"
+            intent["paper_recovery_canary_arm_valid"] = _canary_arm is not None
+            intent["paper_recovery_canary_arm_reject_reason"] = _canary_reject
+            if _canary_arm is not None:
+                intent["economic_control_exception_applied"] = True
+                intent["economic_control_exception_reasons"] = [
+                    "PERFORMANCE_CIRCUIT_BREAKER",
+                    "BUCKET_QUARANTINE",
+                    "LOSS_CLUSTER",
+                ]
+                intent["excluded_from_economic_metrics"] = True
+                intent["excluded_from_training"] = True
+                intent["excluded_from_checkpoint_promotion"] = True
         performance_circuit_rejection = _paper_block_new_entry_by_performance_circuit(
             intent=intent,
             allocation=allocation_payload,
