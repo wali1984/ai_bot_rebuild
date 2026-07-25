@@ -329,6 +329,17 @@ def run(mode: str, symbol: str, timeframe: str, observe_seconds: int) -> dict[st
         return {"status": "REJECTED", "reason": "NO_SNAPSHOT", "symbol": symbol}
 
     r = _redis()
+    # Recovery train-gate (256) is a property of the recovery CHECKPOINT, not the
+    # directional signal — publish it on every evaluated path (incl. HOLD) so
+    # PAPER_RECOVERY_TRAIN_GATE_SATISFIED always exists at runtime. 272 >= 256.
+    train_gate_status_fields = {
+        **paper_recovery_train_gate(
+            train_rows=_recovery_checkpoint_train_rows(),
+            min_train_rows=policy.minimum_recovery_train_rows,
+        ),
+        "paper_recovery_not_blocked_by_strict_train_row_gate": True,
+        "strict_champion_min_train_rows": 1000,
+    }
     forced_side = None
     model_pred = None
     if mode == "engineering_canary":
@@ -349,12 +360,18 @@ def run(mode: str, symbol: str, timeframe: str, observe_seconds: int) -> dict[st
     if deny is None:
         return {"status": "FATAL_SAFETY", "reason": "RECOVERY_ARTIFACT_NOT_GUARDED"}
     if prediction.get("selected_action") not in ("long", "short"):
-        return {
+        hold_status = {
             "status": "NO_DIRECTIONAL_SIGNAL",
             "reason": "RECOVERY_MODEL_EMITTED_HOLD",
             "prediction_id": prediction["prediction_id"],
             "recovery_deny_guard": deny,
+            **train_gate_status_fields,
+            "live_gate": GATE_BLOCKED,
+            "places_real_order": False,
+            "exchange_action_taken": False,
         }
+        r.set(RECOVERY_STATUS_KEY, json.dumps(hold_status), ex=1800)
+        return hold_status
 
     key = CANONICAL_PREDICTION_KEY.format(symbol=symbol, timeframe=timeframe)
     existing = r.get(key)
@@ -383,16 +400,6 @@ def run(mode: str, symbol: str, timeframe: str, observe_seconds: int) -> dict[st
     observed = _observe_chain(r, prediction["prediction_id"], observe_seconds)
     routed = observed["orchestrator_decision_present"] and observed["risk_decision_present"]
 
-    # Paper-recovery train-gate — deliberately independent of the strict 1000-row
-    # champion gate. The recovery checkpoint is paper-only + non-promotable +
-    # never live-eligible, so paper fill/close/lifecycle/accounting must NOT wait
-    # on the strict corpus. 272 (checkpoint) >= 256 => PASS.
-    recovery_train_rows = _recovery_checkpoint_train_rows()
-    train_gate = paper_recovery_train_gate(
-        train_rows=recovery_train_rows,
-        min_train_rows=policy.minimum_recovery_train_rows,
-    )
-
     status = {
         "schema_version": "v2_paper_recovery_cycle_status_v1",
         "generated_utc": _iso(_now()),
@@ -407,9 +414,7 @@ def run(mode: str, symbol: str, timeframe: str, observe_seconds: int) -> dict[st
         "chain_observation": observed,
         "canonical_records_produced": routed,
         # Paper-recovery train-gate (256) + explicit decoupling assertion.
-        **train_gate,
-        "paper_recovery_not_blocked_by_strict_train_row_gate": True,
-        "strict_champion_min_train_rows": 1000,
+        **train_gate_status_fields,
         "strict_promotion_ready": False,
         "strict_pit_complete": False,
         "economic_certification": "FAIL",
