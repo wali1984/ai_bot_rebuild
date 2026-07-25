@@ -914,6 +914,42 @@ def _deconflict_telemetry_payload(
     }
 
 
+def _paper_recovery_market_state_waiver(prediction: dict) -> bool:
+    """PaperRecoveryPolicyV1 Path-A waiver of the strict market-state continuity
+    cliff — ONLY for paper-only, recovery-tagged predictions when recovery mode
+    is explicitly enabled, and only when every immovable live-safety anchor is
+    present on the prediction.  Never admits anything live-routable; the canonical
+    orchestrator decision and the downstream risk gateway still evaluate it.
+    """
+
+    if prediction.get("paper_recovery_only") is not True:
+        return False
+    try:
+        from v2.backend.app.services.paper_recovery.paper_recovery_policy_v1 import (
+            load_paper_recovery_policy_v1,
+        )
+
+        policy = load_paper_recovery_policy_v1(os.environ)
+    except Exception:
+        return False
+    if not policy.enabled:
+        return False
+    if not policy.is_symbol_allowed(str(prediction.get("symbol") or "")):
+        return False
+    # Immovable safety re-assertion — a waived recovery prediction can never be
+    # routable to real execution.
+    if (
+        prediction.get("live_gate") != "blocked_human_only"
+        or prediction.get("places_real_order") is not False
+        or prediction.get("routes_to_live") is not False
+        or prediction.get("live_eligible") is not False
+    ):
+        return False
+    # Confirms the artifact is recovery-tagged (deny_live_route returns a reason
+    # for exactly these artifacts).
+    return policy.deny_live_route(prediction) is not None
+
+
 def run_once() -> dict:
     from v2.backend.app.services.orchestrator_arbitration import (
         OrchestratorArbitrationService, Proposal, validate_signal,
@@ -954,6 +990,12 @@ def run_once() -> dict:
             # The ordinary lane has independently revalidated immutable
             # structure and uses the positive score magnitude as a continuous
             # sizing factor.  The legacy 80-point cliff is telemetry only.
+            integrity_block_reasons = []
+        if integrity_block_reasons and _paper_recovery_market_state_waiver(p):
+            # PaperRecoveryPolicyV1 Path-A waiver of the strict market-state
+            # continuity cliff for paper-only recovery-tagged predictions.
+            # Temporal / microstructure / route / risk gates below still apply.
+            p = {**p, "paper_recovery_market_state_waiver": True}
             integrity_block_reasons = []
         temporal_block_reasons = _prediction_temporal_rejection_reasons(p)
         integrity_block_reasons.extend(temporal_block_reasons)
