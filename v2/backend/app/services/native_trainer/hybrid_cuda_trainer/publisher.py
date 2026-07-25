@@ -635,6 +635,16 @@ def _trusted_replay_snapshot(
         "candle_closed_confirmed": trust_row.get("candle_closed_confirmed"),
         "candle_open_time": trust_row.get("candle_open_time"),
         "candle_close_time": trust_row.get("candle_close_time"),
+        # Explicitly preserve the producer finality proof into the archived
+        # feature snapshot (the archive builder cannot manufacture an absent
+        # field). Sourced from the feature-pipeline snapshot; the strict freeze
+        # admits on latest_unclosed_kline_excluded=True.
+        "latest_unclosed_kline_excluded": trust_row.get("latest_unclosed_kline_excluded"),
+        "latest_unclosed_exclusion_method": trust_row.get("latest_unclosed_exclusion_method"),
+        "latest_unclosed_exclusion_decision_time_ms": trust_row.get(
+            "latest_unclosed_exclusion_decision_time_ms"
+        ),
+        "latest_closed_kline_close_time_ms": trust_row.get("latest_closed_kline_close_time_ms"),
         "source_event_time_est": trust_row.get("source_event_time_est"),
         "source_received_time_est": trust_row.get("source_received_time_est"),
         "source_available_time": trust_row.get("source_available_time"),

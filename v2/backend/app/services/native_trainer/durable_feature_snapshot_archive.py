@@ -212,6 +212,19 @@ def build_archive_record_from_prediction_payload(payload: Mapping[str, Any]) -> 
         if "latest_unclosed_kline_excluded" in feature_snapshot
         else payload.get("latest_unclosed_kline_excluded")
     )
+
+    def _preserve(field: str) -> Any:
+        # Preserve an explicit upstream producer value only (feature_snapshot,
+        # then payload); never derived from adjacent PIT fields.
+        if field in feature_snapshot:
+            return feature_snapshot.get(field)
+        return payload.get(field)
+
+    latest_unclosed_exclusion_method = _preserve("latest_unclosed_exclusion_method")
+    latest_unclosed_exclusion_decision_time_ms = _preserve(
+        "latest_unclosed_exclusion_decision_time_ms"
+    )
+    latest_closed_kline_close_time_ms = _preserve("latest_closed_kline_close_time_ms")
     # The archive writer is not the feature producer and must not manufacture
     # a producer admission claim from adjacent PIT fields.  Preserve an explicit
     # upstream boolean claim only; an absent or malformed claim remains absent
@@ -229,6 +242,9 @@ def build_archive_record_from_prediction_payload(payload: Mapping[str, Any]) -> 
         "checkpoint_id": payload.get("checkpoint_id"),
         "candle_closed_confirmed": candle_closed_confirmed,
         "latest_unclosed_kline_excluded": latest_unclosed_kline_excluded,
+        "latest_unclosed_exclusion_method": latest_unclosed_exclusion_method,
+        "latest_unclosed_exclusion_decision_time_ms": latest_unclosed_exclusion_decision_time_ms,
+        "latest_closed_kline_close_time_ms": latest_closed_kline_close_time_ms,
         "source": "trainer_prediction_payload",
     }
     if type(upstream_trainer_consumable) is bool:
