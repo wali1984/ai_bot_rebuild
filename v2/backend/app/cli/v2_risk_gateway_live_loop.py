@@ -308,11 +308,57 @@ def _canonical_orchestrator_record_rejection_reasons(
     return []
 
 
+def _risk_paper_recovery_trust_gate_admits(winner: dict[str, Any]) -> bool:
+    """PaperRecoveryPolicyV1 trust-gate waiver at the risk gateway.
+
+    Accepts ONLY the cert-only strict trust-gate revalidation, and ONLY for
+    paper-only recovery-tagged decisions when recovery mode is enabled.  It does
+    NOT relax any hard control: quantity / notional / effective-leverage / stop /
+    liquidation-buffer / exposure enforcement in the paper lifecycle and the
+    globally-blocked live gate all still apply.  Never admits a real-execution
+    route (fails closed on any live-routable marker).
+    """
+
+    prediction_id = str(winner.get("prediction_id") or "")
+    if not prediction_id.startswith("recovery_pred_"):
+        return False
+    if winner.get("places_real_order") is True or winner.get("routes_to_live") is True:
+        return False
+    try:
+        from v2.backend.app.services.paper_recovery.paper_recovery_policy_v1 import (
+            load_paper_recovery_policy_v1,
+        )
+
+        policy = load_paper_recovery_policy_v1(os.environ)
+    except Exception:
+        return False
+    if not policy.enabled:
+        return False
+    symbol = str(winner.get("symbol") or "")
+    if symbol and not policy.is_symbol_allowed(symbol):
+        return False
+    return True
+
+
 def _winner_trust_gate_result(
     winner: dict[str, Any],
     *,
     additional_reject_reasons: list[str],
 ) -> TrustGateResult:
+    if _risk_paper_recovery_trust_gate_admits(winner):
+        # Recovery-lane cert-only trust waiver.  Downstream hard controls and the
+        # blocked live gate still fully apply; relaxed reasons kept as warnings.
+        return TrustGateResult(
+            accepted=True,
+            severity="info",
+            reject_reasons=(),
+            warnings=("paper_recovery_trust_gate_waiver", *additional_reject_reasons),
+            data_quality_score=1.0,
+            future_leak_detected=False,
+            cutoff_mismatch_detected=False,
+            replay_required=False,
+            metrics={"source": LOOP_WORKER_ID, "paper_recovery_trust_gate_waiver": True},
+        )
     raw = winner.get("trust_gate_result")
     if not isinstance(raw, Mapping):
         reasons = ["trust_gate_result_missing", *additional_reject_reasons]
