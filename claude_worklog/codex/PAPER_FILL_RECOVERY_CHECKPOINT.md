@@ -176,3 +176,38 @@ FILL_HELD_AT_HARD_ALLOCATION_EXPOSURE_BOUNDARY`. Live blocked throughout;
 places_real_order=false; exchange_action_taken=false; no order artifacts; no
 position opened; global breaker still HALTED for ordinary intents; paper loop
 healthy (NRestarts=0, single writer).
+
+## Guardian gate root-cause — raw-evidence chain (2026-07-25T05:4xZ)
+
+Guardian FAIL 11/16; the 5 failing gates (G03/G11/G12/G13/G14) all trace to ONE
+systemic deadlock, verified against raw runtime (not summaries):
+
+- **G13** notional-wtd expectancy = -18.13 bps, **G14** PF = 0.658 — computed over
+  the SAME 92-trade sample; `v2:paper:closed_trades` latest close =
+  `2026-07-17T22:48:28Z` (raw: redis GET). **No paper close in 8 days.**
+- **Why no closes:** `v2:paper:performance_circuit_breaker_status.state =
+  HALTED_PERFORMANCE` (global halt, triggered by the genuinely poor PF 0.658) +
+  the allocation hard boundary the Pass-3 canary hit. Ordinary entries halted.
+- **Why edge can't improve (CG-F053):** no new samples -> model edge frozen.
+- **Why no fresh routable predictions (CG-F054):** native-cuda-trainer-persistent
+  status.json `status_generated_at=2026-07-25T05:25:28Z` (LIVE) but
+  `prediction_authorized=False`, `serving_authorized=False` — it runs by design as
+  `locally-authenticated-profiled-research-publisher` (non-promotable OBSERVER),
+  NOT a serving predictor. All 1284 `v2:prediction:*` keys are stale
+  `generated_utc=2026-07-18T05:19Z` relics. Serving path stopped 7 days ago.
+- CG-F049/F050/F051/F052 fixes are in code (CG-F051 liquidation exit verified: the
+  `getattr(position,'liquidation_distance_bps')` bug is already replaced by
+  `_current_liquidation_distance_bps()` computing side-aware distance to
+  `position.liquidation_price_estimate`, fail-closed) but all four are
+  SAMPLE-STARVED for runtime proof — blocked on the same no-new-closes deadlock.
+
+**Deadlock:** poor PF -> circuit HALTED + no serving predictions -> no new paper
+trades -> no new samples -> edge frozen -> poor PF persists. Breaking it needs
+either (a) the dedicated recovery-allocation Phase-7 build (waive ONLY temporal/
+certification vetos for the validated single-use arm while the allocator still
+enforces hard liquidation/margin/stop/EXPOSURE on a real conservative size) plus a
+genuinely microstructure-complete snapshot, or (b) offline/backtest edge training
+to build the brain without live samples (memory: "offline+H2L drives improvement").
+Both are multi-hour/multi-day. Neither G13 nor G14 can be made to PASS this turn
+without fabricating edge/performance or forcing trades past hard controls — both
+barred by the rails. Live blocked throughout; no order artifacts; no position.
