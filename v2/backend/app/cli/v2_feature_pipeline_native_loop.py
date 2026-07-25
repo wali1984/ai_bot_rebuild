@@ -1034,6 +1034,35 @@ def _closed_klines_with_evidence(
     return closed, closed[-1] if closed else None, evidence
 
 
+def latest_unclosed_kline_exclusion_proof(
+    *,
+    latest_closed_kline: object,
+    latest_closed_kline_close_ms: int | None,
+    decision_ms: int | None,
+) -> tuple[bool, str]:
+    """Honest, no-lookahead finality proof for latest_unclosed_kline_excluded.
+
+    ``_closed_klines_with_evidence`` excludes, by construction, every unfinished
+    candle and every candle with close_ms > decision_ms. So the latest still-open
+    candle is DEMONSTRABLY excluded whenever a latest_closed_kline exists whose
+    close is at/before the decision instant. Returns (proven, method). Never
+    derived from wall-clock or neighbouring rows; requires the closed-kline filter
+    to have produced a decision-time-bounded closed candle.
+    """
+    proven = (
+        latest_closed_kline is not None
+        and latest_closed_kline_close_ms is not None
+        and decision_ms is not None
+        and latest_closed_kline_close_ms <= decision_ms
+    )
+    method = (
+        "CLOSED_KLINE_FILTER_DECISION_TIME_BOUNDED_V1"
+        if proven
+        else "NO_CLOSED_KLINE_LATEST_UNCLOSED_EXCLUSION_UNPROVEN"
+    )
+    return proven, method
+
+
 def _closed_klines(klines: list | None, *, decision_ms: int) -> tuple[list, list | None]:
     closed, latest, _evidence = _closed_klines_with_evidence(
         klines,
@@ -2627,6 +2656,15 @@ def run_once(symbols: tuple[str, ...], timeframe: str, *, write_trainer_snapshot
                 candle_open_time = _ms_to_utc_iso(candle_open_ms)
             if candle_close_ms is not None:
                 candle_close_time = _ms_to_utc_iso(candle_close_ms)
+        # Honest finality proof for the latest-unclosed-kline exclusion (consumed
+        # in the snapshot dict below + propagated to the durable archive).
+        _latest_unclosed_excluded, _latest_unclosed_method = (
+            latest_unclosed_kline_exclusion_proof(
+                latest_closed_kline=latest_closed_kline,
+                latest_closed_kline_close_ms=candle_close_ms,
+                decision_ms=decision_ms,
+            )
+        )
         closed_candle_stale = (
             closed_candle_available
             and _closed_candle_is_stale(
@@ -2919,9 +2957,16 @@ def run_once(symbols: tuple[str, ...], timeframe: str, *, write_trainer_snapshot
             "ohlcv_closed_age_seconds": (
                 None if candle_close_ms is None else max(0, int((decision_ms - candle_close_ms) / 1000))
             ),
-            "latest_unclosed_kline_excluded": bool(
-                kline_exclusion_evidence["unfinished_kline_excluded_count"]
-            ),
+            # Positive finality proof (fixes the prior false-negative
+            # bool(unfinished_kline_excluded_count), which only credited finality
+            # when a forming candle was PHYSICALLY dropped — so the trainer archive
+            # stamped null and the strict freeze rejected these rows as
+            # LATEST_UNCLOSED_KLINE_EXCLUSION_UNPROVEN). No lookahead: the filter
+            # only keeps close_ms <= decision_ms candles.
+            "latest_unclosed_kline_excluded": _latest_unclosed_excluded,
+            "latest_unclosed_exclusion_method": _latest_unclosed_method,
+            "latest_unclosed_exclusion_decision_time_ms": decision_ms,
+            "latest_closed_kline_close_time_ms": candle_close_ms,
             **kline_exclusion_evidence,
             "orderbook_present": bool(m.get("_orderbook")),
             "long_short_present": bool(m.get("_long_short")),
