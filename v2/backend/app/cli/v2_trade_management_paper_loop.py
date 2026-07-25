@@ -44858,6 +44858,35 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         intent["paper_performance_circuit_breaker_new_entries_allowed"] = (
             pre_cycle_paper_performance_circuit_breaker_status.get("new_entries_allowed") is True
         )
+        # Paper-recovery Pass 3: propagate the engineering-canary recovery markers
+        # from the canonical prediction (authoritative source; the orchestrator
+        # signal-row builder does not carry them) onto THIS intent, so the
+        # single-use armed canary is recognizable at the arm gate below. Ordinary
+        # predictions carry NONE of these markers, so ordinary intents are never
+        # stamped here and their behavior is unchanged.
+        if (prediction.get("engineering_canary") is True) or (s.get("engineering_canary") is True):
+            intent["engineering_canary"] = True
+            intent["paper_recovery_only"] = bool(
+                _first_present(
+                    prediction.get("paper_recovery_only"),
+                    s.get("paper_recovery_only"),
+                )
+            )
+            # A sealed engineering-canary IS a historical replay; scope the
+            # staleness exception (consumed at ~44910) to this armed intent only.
+            intent["engineering_replay"] = True
+            for _canary_field in (
+                "engineering_canary_max_notional_usd",
+                "engineering_canary_max_open_positions",
+                "funding_policy",
+                "expected_funding_bps",
+                "expected_funding_bps_source",
+            ):
+                _canary_value = _first_present(
+                    prediction.get(_canary_field), s.get(_canary_field)
+                )
+                if _canary_value is not None:
+                    intent[_canary_field] = _canary_value
         # Paper-recovery Pass 3: validate the single-use engineering-canary arm
         # against this exact intent's IDs. On success, stamp the intent so the
         # circuit check below (and only it) bypasses the three economic controls.

@@ -566,6 +566,31 @@ def _prediction_to_proposal_and_signal(p: dict) -> tuple[dict, dict] | None:
     signal["model_version"] = model_version
     signal["checkpoint_id"] = p.get("checkpoint_id")
     signal["feature_snapshot_id"] = feature_snapshot_id
+    # Paper-recovery engineering-canary: propagate the recovery markers + sealed
+    # entry-feature/funding carrier fields from the prediction onto the paper
+    # signal, so the single-use armed canary stays recognizable through
+    # signal -> paper-loop intent (the paper loop indexes predictions FROM
+    # signals, so an un-propagated marker is lost). Ordinary predictions carry
+    # none of these markers, so ordinary signals are unaffected. This never
+    # routes to live: the risk gateway + paper loop keep every live control.
+    if p.get("engineering_canary") is True:
+        for _canary_field in (
+            "engineering_canary",
+            "paper_recovery_only",
+            "engineering_canary_max_notional_usd",
+            "engineering_canary_max_open_positions",
+            "entry_feature_available_at",
+            "entry_feature_generated_at",
+            "entry_feature_cutoff",
+            "entry_feature_decision_time",
+            "entry_feature_candle_closed_confirmed",
+            "expected_funding_bps",
+            "expected_funding_bps_source",
+            "funding_policy",
+            "paper_eligible",
+        ):
+            if p.get(_canary_field) is not None:
+                signal[_canary_field] = p.get(_canary_field)
     return proposal, signal
 
 
