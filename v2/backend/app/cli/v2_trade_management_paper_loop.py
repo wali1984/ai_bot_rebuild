@@ -2037,6 +2037,77 @@ def _with_paper_session_metadata_rows(
     ]
 
 
+def _read_active_paper_provisional_cohort(r: Any) -> dict[str, Any] | None:
+    """Resolve the fresh provisional cohort identity (Phase 5-6), or None.
+
+    Read order: PAPER_PROVISIONAL_ACTIVE_COHORT_ID env override, then the shared
+    Redis activation record (``v2:paper:provisional_cohort_activation``). The
+    activation is frozen once at cohort activation so the cohort id is STABLE.
+    Returns None when no fresh cohort is active — ordinary/historical intents then
+    keep the unchanged global breaker (the July losing cohort stays HALTED).
+    """
+    env_cohort = str(os.environ.get("PAPER_PROVISIONAL_ACTIVE_COHORT_ID") or "").strip()
+    if env_cohort:
+        return {"paper_strategy_cohort_id": env_cohort}
+    if r is None:
+        return None
+    try:
+        raw = r.get(f"{V2_REDIS_PREFIX}paper:provisional_cohort_activation")
+    except Exception:
+        return None
+    if not raw:
+        return None
+    try:
+        rec = json.loads(raw)
+    except Exception:
+        return None
+    if not isinstance(rec, dict):
+        return None
+    cohort_id = str(rec.get("paper_strategy_cohort_id") or "").strip()
+    if not cohort_id:
+        return None
+    return rec
+
+
+def _stamp_paper_cohort_metadata(
+    row: dict[str, Any],
+    cohort: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    """Stamp the fresh provisional cohort identity onto a provisional-cohort row.
+
+    Idempotent and non-relabeling: if the row already carries a DIFFERENT
+    ``paper_strategy_cohort_id`` it is returned unchanged (history is never
+    relabeled — the historical losing cohort keeps its own id and its global
+    HALTED_PERFORMANCE breaker). When ``cohort`` is None the row is unchanged.
+    """
+    if not isinstance(row, dict) or not isinstance(cohort, Mapping):
+        return row
+    cohort_id = str(cohort.get("paper_strategy_cohort_id") or "").strip()
+    if not cohort_id:
+        return row
+    existing = str(row.get("paper_strategy_cohort_id") or "").strip()
+    if existing and existing != cohort_id:
+        return row
+    enriched = dict(row)
+    enriched["paper_strategy_cohort_id"] = cohort_id
+    if cohort.get("checkpoint_id"):
+        enriched.setdefault("paper_cohort_checkpoint_id", str(cohort.get("checkpoint_id")))
+    if cohort.get("paper_cohort_activation_utc"):
+        enriched.setdefault(
+            "paper_cohort_activation_utc", str(cohort.get("paper_cohort_activation_utc"))
+        )
+    if cohort.get("paper_cohort_initial_equity_usd") is not None:
+        enriched.setdefault(
+            "paper_cohort_initial_equity_usd",
+            _coerce_float(cohort.get("paper_cohort_initial_equity_usd")),
+        )
+    enriched.setdefault("paper_only", True)
+    enriched.setdefault("routes_to_live", False)
+    enriched.setdefault("places_real_order", False)
+    enriched.setdefault("live_eligible", False)
+    return enriched
+
+
 STRATEGY_ROUTER_RUNTIME_PROVENANCE_FIELDS = (
     "strategy_feature_snapshot_status",
     "strategy_feature_snapshot_id",
@@ -42927,6 +42998,10 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         existing_closed_rows,
         generated_utc=started,
     )
+    # Phase 5-6: resolve the fresh provisional cohort identity once per cycle so
+    # provisional-checkpoint intents can be stamped (and their cohort breaker
+    # published) without relabeling ordinary/historical intents.
+    cycle_provisional_cohort = _read_active_paper_provisional_cohort(r)
     pre_cycle_paper_bleed_halt_status = _paper_bleed_halt_status(
         pre_cycle_paper_performance_circuit_breaker_status,
         generated_utc=started,
@@ -46305,6 +46380,28 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             paper_session_id=paper_session_id,
             starting_equity_usd=paper_starting_equity_usd,
         )
+        # Phase 5: stamp the fresh provisional cohort id ONLY when this intent
+        # originates from the provisional checkpoint (marker match) or already
+        # carries that exact cohort id. Ordinary intents are never stamped and keep
+        # the global (historical HALTED) breaker; history is never relabeled.
+        if cycle_provisional_cohort is not None:
+            _prov_ck = str(cycle_provisional_cohort.get("checkpoint_id") or "")
+            _prov_cohort_id = str(
+                cycle_provisional_cohort.get("paper_strategy_cohort_id") or ""
+            )
+            _intent_ck = str(
+                accepted_intent.get("paper_provisional_checkpoint_id")
+                or accepted_intent.get("paper_cohort_checkpoint_id")
+                or accepted_intent.get("checkpoint_id")
+                or ""
+            )
+            _intent_cohort = str(accepted_intent.get("paper_strategy_cohort_id") or "")
+            if (_prov_ck and _intent_ck == _prov_ck) or (
+                _prov_cohort_id and _intent_cohort == _prov_cohort_id
+            ):
+                accepted_intent = _stamp_paper_cohort_metadata(
+                    accepted_intent, cycle_provisional_cohort
+                )
         accepted_intent["decision"] = "ACCEPTED_PAPER_FILL"
         accepted_intent["entry_price_provenance_observed"] = bool(
             intent.get("entry_price_provenance_present")
@@ -49973,6 +50070,29 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             ex=PAPER_RUNTIME_HEARTBEAT_TTL_SECONDS,
         ):
             keys_written.append(f"{V2_REDIS_PREFIX}paper:performance_circuit_breaker_status")
+        # Phase 6: publish the cohort-scoped breaker under its own key so the fresh
+        # provisional cohort is governed by ITS results, while the global key above
+        # stays HALTED_PERFORMANCE for the historical losing cohort. The cohort key
+        # is a strict superset add — it never mutates the global breaker.
+        _active_cohort = cycle_provisional_cohort
+        if _active_cohort is not None:
+            _active_cohort_id = str(_active_cohort.get("paper_strategy_cohort_id") or "")
+            _cohort_breaker_status = _paper_performance_circuit_breaker_status(
+                closes,
+                generated_utc=started,
+                cohort_id=_active_cohort_id,
+            )
+            _cohort_breaker_key = (
+                f"{V2_REDIS_PREFIX}paper:performance_circuit_breaker_status:"
+                f"{_active_cohort_id}"
+            )
+            if _safe_write(
+                r,
+                _cohort_breaker_key,
+                json.dumps(_cohort_breaker_status),
+                ex=PAPER_RUNTIME_HEARTBEAT_TTL_SECONDS,
+            ):
+                keys_written.append(_cohort_breaker_key)
         if _safe_write(
             r,
             f"{V2_REDIS_PREFIX}paper:bleed_halt_status",
