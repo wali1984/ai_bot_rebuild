@@ -101,3 +101,78 @@ REMAINING to reach PAPER_RECOVERY_CANARY_LIFECYCLE_COMPLETE (exact sites from re
 
 NOT bypassed: any hard control. Live blocked; places_real_order=false; exchange_action_taken=false.
 Global paper_performance_circuit_breaker stays HALTED_PERFORMANCE for ordinary intents.
+
+## Pass 3 — DEPLOYED + PROVEN chain; exact terminal blocker (2026-07-25T05:3xZ)
+
+Final SHA `d30c6e07b1` deployed as immutable release
+`deployments/ai_bot_rebuild/d30c6e07b168...` (git worktree + shared venv symlink +
+untracked co-agent runtime deps copied verbatim; drop-in repinned SHA-only; ONLY
+the paper loop restarted; ActiveState=active, ExecMainStatus=0, NRestarts=0,
+single writer holds the flock; lock now in the writable runtime dir).
+
+### Regression fixed to make ANY immutable-release deploy of this branch start
+`PAPER_LOOP_LOCK_PATH` had been hardcoded to `Path(__file__).parents[4]/logs`,
+which is inside the read-only release mount → `OSError Errno 30` at startup.
+Restored the env-configurable resolver (commit 3d8c9ed7e8). Also: 24 co-agent
+files (cycle_reservation.py, exact_on_policy_entry_outbox.py, adaptive_symbol_
+selection*, coinank_scheduler.py, tests) are present-on-disk but UNTRACKED on this
+branch though imported at runtime; a fresh `git worktree` checkout omits them.
+Copied verbatim into the release (matches the running stable release). **Branch
+hygiene: these need committing for reproducible deploys.**
+
+### PROVEN end-to-end (engineering_canary recovery_pred_200a2e...):
+recovery prediction -> orchestrator ALLOW (`dec_...`, proceed_long) -> **persisted
+risk ALLOW** (`rd_dec_...`, allow_proceed_long) -> per-tf paper signal -> paper
+intent. On the intent, EVERY Pass-3 control fired correctly:
+`paper_recovery_canary_arm_valid=True`, `economic_control_exception_applied=True`
+(the 3 economic strings stripped at the SOLE producer), `risk_decision_record_
+resolved=True`/`risk_controller_decision=allow`/`paper_fill_risk_state=ALLOW`,
+`feature_staleness_exception_applied=True`, `valid_for_paper=True`,
+`certification_bypass=True`, `paper_recovery_canary_local_gate_override=True`
+(bypassed A_PLUS/ENTRY_GATE/INTEGRITY_VALID_FOR_PAPER/STRATEGY_TRADE_ALLOWED).
+Marker propagation solved self-contained: paper loop recovers engineering_canary
+markers via the arm + a single targeted GET of the canonical prediction (the loop
+indexes predictions FROM signals, so upstream markers are otherwise lost).
+
+### TERMINAL blocker = allocation sized to ZERO (NOT a fill, honestly):
+`target_notional_usdt=0.0`. Root cause = the ordinary paper ALLOCATION runs at
+PL:44847, BEFORE the arm is validated at PL:44934, and a CASCADE of allocation
+vetos sets `risk_veto=True` (zero size) on incomplete OHLCV-replay evidence:
+- PL:44838 `PAPER_ALLOCATION_POINT_IN_TIME_CONTRACT_BLOCKED` — allocation_pit
+  status != PASS (ALLOCATION_INPUT_TIME_MISSING entry_feature/microstructure/
+  portfolio_state clocks; ORDER_INVALID entry_atr_available_at>generated_at ~531ms;
+  MICROSTRUCTURE_SOURCE_HASH_INVALID). Temporal/certification gate.
+- PL:44787 `PAPER_CANDIDATE_DYNAMIC_ENVELOPE_RESERVATION_BLOCKED` +
+  `paper_cycle_reservation_build_rejection_reasons` = RESERVATION_LIMIT_CHANGED on
+  max_single_symbol_exposure_pct / max_total_portfolio_risk_pct / min_available_
+  margin_buffer_pct — these are tied to **EXPOSURE hard controls**.
+- allocator `BLOCK_LIQUIDATION_RISK`=no_safe_leverage_margin_configuration +
+  `MICROSTRUCTURE_TRUST_SCORE_MISSING` (trust=0.0; OHLCV-only recovery lane has NO
+  microstructure evidence).
+
+### Why not force it — the two shortcuts are both barred by the operator's rails
+1. Provide microstructure trust score / valid source hash -> FABRICATING evidence
+   that never existed for the OHLCV recovery lane. Barred ("no fabricated feature
+   freshness / genuine attestation").
+2. Blanket-clear `risk_veto` before PL:44847 -> waives the reservation vetos that
+   guard EXPOSURE/risk-limit HARD controls. Barred (exposure non-bypassable).
+
+### Legitimate path to the FILL (Phase 7, substantial, NOT rushed under budget)
+Establish the arm state BEFORE PL:44631 (marker recovery + validate_canary_arm),
+then a dedicated recovery-allocation that (a) waives ONLY the temporal/certification
+PIT + reservation-consistency vetos for the validated single-use arm, while (b) the
+allocator still computes a REAL conservative size and enforces the HARD
+liquidation/margin/stop/EXPOSURE/duplicate controls on that size — and supplies a
+complete, PIT-ordered, genuinely-derivable allocation-input bundle (OHLCV ATR with
+corrected ~531ms ordering; entry_feature/portfolio_state clocks). Microstructure
+trust must be honestly ABSENT (not fabricated); either the recovery-allocation
+tolerates its absence as a scoped certification waiver, or the fill legitimately
+requires a symbol/timeframe with a genuine fresh microstructure-complete snapshot —
+which is the system-wide feature/microstructure staleness that is the real root
+blocker the whole recovery effort exists to fix.
+
+Terminal state this pass: `PAPER_RECOVERY_CANARY_CHAIN_AND_CERTIFICATION_PROVEN;
+FILL_HELD_AT_HARD_ALLOCATION_EXPOSURE_BOUNDARY`. Live blocked throughout;
+places_real_order=false; exchange_action_taken=false; no order artifacts; no
+position opened; global breaker still HALTED for ordinary intents; paper loop
+healthy (NRestarts=0, single writer).
