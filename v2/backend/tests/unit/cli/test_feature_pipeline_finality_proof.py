@@ -64,3 +64,33 @@ def test_closed_filter_excludes_unfinished_and_future_keeps_bounded():
         decision_ms=1000,
     )
     assert proven is True
+
+
+def test_fixed_producer_snapshot_is_admitted_by_strict_validator():
+    """End-to-end: a snapshot carrying the fixed producer's finality proof passes
+    the strict freeze validator; the old null form is rejected on exactly the
+    latest-unclosed reason. Proves the forward funnel repair for new observations.
+    """
+    from v2.backend.app.services.native_trainer.durable_feature_snapshot_archive import (
+        content_sha256,
+    )
+    from v2.backend.app.services.native_trainer.model_edge_recovery_challenger import (
+        _row_reject_reasons,
+    )
+
+    snap = {
+        "features": {"ret_1": 0.1, "ret_5": -0.2, "atr_bps": 30.0},
+        "decision_time": "2026-07-25T17:00:00Z",
+        "feature_cutoff": "2026-07-25T16:59:58Z",
+        "available_at": "2026-07-25T16:59:59Z",
+        "candle_closed_confirmed": True,
+        "latest_unclosed_kline_excluded": True,  # honest output of the fixed producer
+        "mtf_snapshot_id": "mtf_abc123",
+    }
+    snap["content_sha256"] = content_sha256(snap)
+    assert _row_reject_reasons(snap) == []  # fully admitted
+
+    old = dict(snap)
+    old["latest_unclosed_kline_excluded"] = None  # pre-fix producer output
+    old["content_sha256"] = content_sha256(old)
+    assert _row_reject_reasons(old) == ["LATEST_UNCLOSED_KLINE_EXCLUSION_UNPROVEN"]
