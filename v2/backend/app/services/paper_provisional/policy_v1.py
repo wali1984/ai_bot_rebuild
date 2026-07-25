@@ -38,13 +38,20 @@ PAPER_PROVISIONAL_SAFETY_TAGS: dict[str, Any] = {
 }
 
 
+# Documented operator-configured provisional paper exposure cap (USD). Large
+# enough that a venue minimum survives a REDUCE_SIZE liquidity haircut, i.e. it is
+# NOT a hardcoded $10. Overridable via PAPER_PROVISIONAL_MAX_NOTIONAL_USD.
+DEFAULT_PROVISIONAL_MAX_NOTIONAL_USD = 100.0
+
+
 @dataclass(frozen=True)
 class PaperProvisionalLimitsV1:
     """Phase-8 paper risk limits for the provisional cohort (paper controls)."""
 
     maximum_concurrent_positions: int = 1
-    maximum_notional_per_position_usd: float = 10.0
-    maximum_total_exposure_usd: float = 10.0
+    # Operator-configured paper exposure cap — NOT a per-symbol hardcoded $10.
+    maximum_notional_per_position_usd: float = DEFAULT_PROVISIONAL_MAX_NOTIONAL_USD
+    maximum_total_exposure_usd: float = DEFAULT_PROVISIONAL_MAX_NOTIONAL_USD
     lowest_permitted_leverage: float = 1.0
     mandatory_stop: bool = True
     reduce_only_close: bool = True
@@ -64,6 +71,65 @@ class PaperProvisionalLimitsV1:
             "averaging_down": self.averaging_down,
             "automatic_hedging": self.automatic_hedging,
         }
+
+
+def minimum_valid_notional(
+    *,
+    venue_minimum_notional_usd: float,
+    microstructure_liquidity_multiplier: float,
+) -> float:
+    """Smallest requested notional whose executable slice clears the venue minimum.
+
+    A microstructure REDUCE_SIZE haircut multiplies the executable size by
+    ``microstructure_liquidity_multiplier`` (e.g. 0.35), so the REQUESTED notional
+    must be venue_minimum / multiplier for the post-haircut slice to still meet the
+    exchange minimum notional.
+    """
+    mult = float(microstructure_liquidity_multiplier)
+    if mult <= 0.0:
+        return float(venue_minimum_notional_usd)
+    return float(venue_minimum_notional_usd) / mult
+
+
+def provisional_notional_plan(
+    *,
+    venue_minimum_notional_usd: float,
+    minimum_quantity: float,
+    mark_price_usd: float,
+    microstructure_liquidity_multiplier: float,
+    exposure_cap_usd: float,
+    free_margin_usd: float,
+    effective_leverage: float = 1.0,
+) -> dict[str, Any]:
+    """Compute the smallest valid provisional request, or a precise rejection.
+
+    Never rounds above the risk-approved budget: if the smallest venue-valid
+    request cannot fit under the cohort exposure cap or free margin, the symbol is
+    rejected (choose another) rather than forcing a fit.
+    """
+    min_notional = minimum_valid_notional(
+        venue_minimum_notional_usd=venue_minimum_notional_usd,
+        microstructure_liquidity_multiplier=microstructure_liquidity_multiplier,
+    )
+    # Also honor the exchange LOT_SIZE minimum quantity at the current mark.
+    min_qty_notional = float(minimum_quantity) * float(mark_price_usd)
+    request_notional = max(min_notional, min_qty_notional)
+    leverage = max(1.0, float(effective_leverage))
+    allocated_margin = request_notional / leverage
+    fits = (
+        request_notional <= float(exposure_cap_usd)
+        and allocated_margin <= float(free_margin_usd)
+    )
+    return {
+        "minimum_valid_notional_usd": round(min_notional, 6),
+        "request_notional_usd": round(request_notional, 6) if fits else None,
+        "allocated_margin_usd": round(allocated_margin, 6) if fits else None,
+        "effective_leverage": leverage,
+        "fits_within_cohort_exposure_cap": fits,
+        "reject_reason": None
+        if fits
+        else "PROVISIONAL_MIN_VALID_NOTIONAL_EXCEEDS_CAP_OR_MARGIN_CHOOSE_ANOTHER_SYMBOL",
+    }
 
 
 @dataclass(frozen=True)
@@ -153,6 +219,18 @@ def load_paper_provisional_policy_v1(
             return default
         return max(minimum, value)
 
+    def _as_float(raw: Any, default: float, *, minimum: float) -> float:
+        try:
+            value = float(str(raw).strip())
+        except (TypeError, ValueError):
+            return default
+        return max(minimum, value)
+
+    cap = _as_float(
+        source.get("PAPER_PROVISIONAL_MAX_NOTIONAL_USD"),
+        DEFAULT_PROVISIONAL_MAX_NOTIONAL_USD,
+        minimum=1.0,
+    )
     return PaperProvisionalCheckpointPolicyV1(
         minimum_paper_provisional_train_rows=_as_int(
             source.get("PAPER_MIN_TRAIN_ROWS"),
@@ -162,4 +240,8 @@ def load_paper_provisional_policy_v1(
         # Strict champion gate is a hard constant here — never env-lowered by this
         # policy (the strict real-money gate is redesigned separately, not here).
         strict_champion_min_train_rows=STRICT_CHAMPION_MIN_TRAIN_ROWS,
+        limits=PaperProvisionalLimitsV1(
+            maximum_notional_per_position_usd=cap,
+            maximum_total_exposure_usd=cap,
+        ),
     )

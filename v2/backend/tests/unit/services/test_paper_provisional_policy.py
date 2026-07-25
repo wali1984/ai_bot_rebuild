@@ -62,8 +62,8 @@ def test_provisional_limits_are_tight_paper_controls():
     p = PaperProvisionalCheckpointPolicyV1()
     lim = p.limits.to_dict()
     assert lim["maximum_concurrent_positions"] == 1
-    assert lim["maximum_notional_per_position_usd"] == 10.0
-    assert lim["maximum_total_exposure_usd"] == 10.0
+    assert lim["maximum_notional_per_position_usd"] == 100.0  # operator cap, not hardcoded $10
+    assert lim["maximum_total_exposure_usd"] == 100.0
     assert lim["lowest_permitted_leverage"] == 1.0
     assert lim["mandatory_stop"] is True
     assert lim["reduce_only_close"] is True
@@ -83,3 +83,45 @@ def test_cohort_identity_is_fresh_and_never_relabels_history():
     )
     assert c["paper_cohort_initial_equity_usd"] == 2985.59
     assert c["live_eligible"] is False
+
+
+def test_exposure_cap_is_not_hardcoded_ten_and_env_configurable():
+    from v2.backend.app.services.paper_provisional.policy_v1 import (
+        DEFAULT_PROVISIONAL_MAX_NOTIONAL_USD,
+        load_paper_provisional_policy_v1,
+    )
+    p = load_paper_provisional_policy_v1({})
+    assert p.limits.maximum_notional_per_position_usd == DEFAULT_PROVISIONAL_MAX_NOTIONAL_USD
+    assert p.limits.maximum_notional_per_position_usd > 10.0  # not the old hardcoded $10
+    p2 = load_paper_provisional_policy_v1({"PAPER_PROVISIONAL_MAX_NOTIONAL_USD": "60"})
+    assert p2.limits.maximum_notional_per_position_usd == 60.0
+
+
+def test_minimum_valid_notional_accounts_for_reduce_size_haircut():
+    from v2.backend.app.services.paper_provisional.policy_v1 import minimum_valid_notional
+    # venue min $5, REDUCE_SIZE 0.35 -> request must be 5/0.35 ~= 14.29
+    v = minimum_valid_notional(
+        venue_minimum_notional_usd=5.0, microstructure_liquidity_multiplier=0.35
+    )
+    assert round(v, 2) == 14.29
+
+
+def test_provisional_notional_plan_fits_and_rejects():
+    from v2.backend.app.services.paper_provisional.policy_v1 import provisional_notional_plan
+    ok = provisional_notional_plan(
+        venue_minimum_notional_usd=5.0, minimum_quantity=0.001, mark_price_usd=3000.0,
+        microstructure_liquidity_multiplier=0.35, exposure_cap_usd=100.0,
+        free_margin_usd=2900.0, effective_leverage=1.0,
+    )
+    assert ok["fits_within_cohort_exposure_cap"] is True
+    assert ok["request_notional_usd"] >= ok["minimum_valid_notional_usd"]
+    assert ok["reject_reason"] is None
+    # A too-tight cap rejects rather than forcing a fit above budget.
+    bad = provisional_notional_plan(
+        venue_minimum_notional_usd=100.0, minimum_quantity=0.001, mark_price_usd=3000.0,
+        microstructure_liquidity_multiplier=0.35, exposure_cap_usd=10.0,
+        free_margin_usd=2900.0, effective_leverage=1.0,
+    )
+    assert bad["fits_within_cohort_exposure_cap"] is False
+    assert bad["request_notional_usd"] is None
+    assert "CHOOSE_ANOTHER_SYMBOL" in bad["reject_reason"]
