@@ -193,6 +193,14 @@ def _build_injectable(
         "entry_feature_cutoff": _iso(feature_cutoff),
         "entry_feature_decision_time": _iso(decision_time),
         "entry_feature_candle_closed_confirmed": True,
+        # Engineering-canary neutral funding (explicitly tagged, excluded from
+        # economics) — never a silent zero substitution.
+        "funding_bps_at_decision_time": 0.0,
+        "expected_funding_bps": 0.0,
+        "expected_funding_bps_source": "ENGINEERING_REPLAY_NEUTRAL",
+        "funding_policy": "ENGINEERING_REPLAY_NEUTRAL_EXCLUDED_FROM_ECONOMICS",
+        # paper eligibility is independent of live eligibility.
+        "paper_eligible": True,
         "ttl_seconds": RECOVERY_PRED_TTL_SECONDS,
         "feature_snapshot_id": snapshot_id,
         "feature_tensor_id": snapshot_id,
@@ -332,6 +340,24 @@ def run(mode: str, symbol: str, timeframe: str, observe_seconds: int) -> dict[st
     if existing:
         r.set(RECOVERY_QUARANTINE_KEY.format(symbol=symbol, timeframe=timeframe), existing, ex=3600)
     r.set(key, json.dumps(prediction), ex=RECOVERY_PRED_TTL_SECONDS)
+
+    # Phase 1: create the single-use, ID-bound engineering-canary arm so the
+    # paper loop can bypass ONLY the three economic controls for this exact
+    # canary.  IDs are deterministic (dec_<pid> / rd_dec_<pid>).
+    if mode == "engineering_canary":
+        from v2.backend.app.services.paper_recovery.canary_arm_v1 import create_canary_arm
+
+        pid = prediction["prediction_id"]
+        create_canary_arm(
+            r,
+            arm_id="canary_arm_" + _sha256(pid + str(_now().timestamp()))[:20],
+            symbol=symbol,
+            timeframe=timeframe,
+            prediction_id=pid,
+            orchestrator_decision_id="dec_" + pid,
+            risk_decision_id="rd_dec_" + pid,
+            now=_now(),
+        )
 
     observed = _observe_chain(r, prediction["prediction_id"], observe_seconds)
     routed = observed["orchestrator_decision_present"] and observed["risk_decision_present"]
