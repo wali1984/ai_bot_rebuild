@@ -140,6 +140,7 @@ def run_cycle(
     serving_context = {
         "serving_runtime_release_sha": serving_release_sha(),
         "active_model_registry_generation": active.generation,
+        "checkpoint_generation": active.generation,
         "checkpoint_classification": active.classification,
         "cycle_id": cycle_identity["cycle_id"],
         "process_instance_id": cycle_identity["process_instance_id"],

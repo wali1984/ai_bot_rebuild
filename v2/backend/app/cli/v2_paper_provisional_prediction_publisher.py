@@ -1079,6 +1079,7 @@ def publish_one(
         # runtime (registry generation, serving release sha, evidence hashes).
         for key in (
             "serving_runtime_release_sha", "active_model_registry_generation",
+            "checkpoint_generation",
             "feature_evidence_sha256", "cost_evidence_sha256",
             "microstructure_evidence_sha256",
         ):

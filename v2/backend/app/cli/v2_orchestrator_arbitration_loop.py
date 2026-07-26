@@ -216,6 +216,9 @@ def _write_per_id_orchestrator_decision_record(
         "feature_vector_hash",
         "input_feature_hash",
         "ordinary_paper_admission_evidence_sha256",
+        "checkpoint_generation",
+        "paper_strategy_cohort_id",
+        "feature_abi_sha256",
         "producer",
     )
     if existing and all(existing.get(field) == record.get(field) for field in stable_fields):
@@ -695,6 +698,7 @@ _TRUST_ENVELOPE_FIELDS = (
     "paper_strategy_cohort_id",
     "paper_cohort_checkpoint_id",
     "active_model_registry_generation",
+    "checkpoint_generation",
     "entry_feature_snapshot_id",
     "entry_feature_available_at",
     "entry_feature_generated_at",

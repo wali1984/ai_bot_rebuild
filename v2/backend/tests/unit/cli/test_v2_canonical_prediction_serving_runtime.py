@@ -17,6 +17,7 @@ class _IO:
 
 def test_run_cycle_reports_real_evidence_validity_counts(monkeypatch) -> None:
     publisher_kwargs = {}
+    publish_kwargs = []
     observations = iter(
         [
             {
@@ -40,7 +41,11 @@ def test_run_cycle_reports_real_evidence_validity_counts(monkeypatch) -> None:
 
     monkeypatch.setattr(serving, "V2HybridPredictionPublisher", _publisher)
     monkeypatch.setattr(serving, "read_active_cohort", lambda _client: {})
-    monkeypatch.setattr(serving, "publish_one", lambda **_kwargs: next(observations))
+    def _publish_one(**kwargs):
+        publish_kwargs.append(kwargs)
+        return next(observations)
+
+    monkeypatch.setattr(serving, "publish_one", _publish_one)
     active = SimpleNamespace(
         ckpt=SimpleNamespace(
             checkpoint_id="checkpoint-1",
@@ -71,3 +76,10 @@ def test_run_cycle_reports_real_evidence_validity_counts(monkeypatch) -> None:
         serving.Path.cwd()
         / ".local_data/v2_native_trainer/durable_feature_snapshot_archive"
     )
+    assert {row["serving_context"]["checkpoint_generation"] for row in publish_kwargs} == {
+        2
+    }
+    assert {
+        row["serving_context"]["active_model_registry_generation"]
+        for row in publish_kwargs
+    } == {2}

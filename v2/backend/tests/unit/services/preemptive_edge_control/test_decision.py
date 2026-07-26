@@ -76,6 +76,40 @@ def test_evaluate_candidate_blocks_when_guardian_missing() -> None:
     assert decision["allow_live_dry_run"] is False
 
 
+def test_preemptive_decision_preserves_governed_checkpoint_lineage() -> None:
+    decision = evaluate_candidate(
+        _candidate(
+            prediction_id="prediction-3",
+            signal_id="signal-3",
+            risk_decision_id="risk-3",
+            orchestrator_decision_id="orchestrator-3",
+            intent_id="intent-3",
+            checkpoint_id="checkpoint-3",
+            active_model_registry_generation=3,
+            paper_strategy_cohort_id="paper_serving_abi_v2:test",
+            feature_abi_sha256="a" * 64,
+            feature_builder_sha256="b" * 64,
+            expected_move_after_cost_bps_signed=18.0,
+            expected_move_after_cost_bps_directional=18.0,
+        )
+    )
+
+    assert decision["prediction_id"] == "prediction-3"
+    assert decision["signal_id"] == "signal-3"
+    assert decision["risk_decision_id"] == "risk-3"
+    assert decision["orchestrator_decision_id"] == "orchestrator-3"
+    assert decision["intent_id"] == "intent-3"
+    assert decision["checkpoint_id"] == "checkpoint-3"
+    assert decision["checkpoint_generation"] == 3
+    assert decision["paper_strategy_cohort_id"] == "paper_serving_abi_v2:test"
+    assert decision["feature_abi_sha256"] == "a" * 64
+    assert decision["feature_builder_sha256"] == "b" * 64
+    assert decision["expected_move_after_cost_bps_signed"] == 18.0
+    assert decision["expected_move_after_cost_bps_directional"] == 18.0
+    assert decision["routes_to_live"] is False
+    assert decision["places_real_order"] is False
+
+
 def test_evaluate_candidate_blocks_negative_bucket_before_entry() -> None:
     decision = evaluate_candidate(
         _candidate(confidence_calibrated=0.91),

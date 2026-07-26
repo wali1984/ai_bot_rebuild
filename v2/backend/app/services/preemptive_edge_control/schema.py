@@ -186,6 +186,28 @@ def canonicalize_preemptive_decision(
             "signal_id": candidate.get("signal_id"),
             "risk_decision_id": candidate.get("risk_decision_id"),
             "orchestrator_decision_id": candidate.get("orchestrator_decision_id"),
+            "intent_id": candidate.get("intent_id"),
+            "checkpoint_id": candidate.get("checkpoint_id"),
+            "active_model_registry_generation": candidate.get(
+                "active_model_registry_generation"
+            ),
+            "checkpoint_generation": _first(
+                candidate.get("checkpoint_generation"),
+                candidate.get("active_model_registry_generation"),
+            ),
+            "paper_strategy_cohort_id": candidate.get("paper_strategy_cohort_id"),
+            "feature_abi_sha256": candidate.get("feature_abi_sha256"),
+            "feature_builder_sha256": candidate.get("feature_builder_sha256"),
+            "expected_move_after_cost_bps": candidate.get(
+                "expected_move_after_cost_bps"
+            ),
+            "expected_move_after_cost_bps_signed": _first(
+                candidate.get("expected_move_after_cost_bps_signed"),
+                candidate.get("expected_move_after_cost_bps"),
+            ),
+            "expected_move_after_cost_bps_directional": candidate.get(
+                "expected_move_after_cost_bps_directional"
+            ),
             "symbol": candidate.get("symbol"),
             "timeframe": _first(candidate.get("timeframe"), candidate.get("thesis_timeframe")),
             "side": _side(candidate),
