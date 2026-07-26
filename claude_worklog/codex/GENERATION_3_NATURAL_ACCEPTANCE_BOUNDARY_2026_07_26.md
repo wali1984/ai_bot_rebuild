@@ -76,3 +76,16 @@ open. G12 remains 17/17 PASS. Do not emit `V2_PERMANENT_RECOVERY_COMPLETE`.
 Safe next action: leave the paper-only services and unchanged gates running;
 resume lifecycle/restart acceptance only after a natural governed admission is
 observed. A new model generation is not authorized by this evidence.
+
+## Post-boundary confirmation
+
+Ongoing observation was kept separate from the frozen acceptance window. Cycles
+51 through 60 added 169 candidates and again produced zero admissions, fills,
+positions, or closes. Every candidate was rejected primarily as
+`BLOCK_MICROSTRUCTURE_UNSAFE`; zero candidates had microstructure action
+`ALLOW`, zero passed the advanced-indicator predicate, zero were otherwise
+valid except for the model, and zero were otherwise valid except for
+microstructure. Ten candidates satisfied the model-loss probation bound.
+
+This confirms the same external market/evidence alignment blocker without
+creating a governed basis for retraining or changing an admission threshold.
