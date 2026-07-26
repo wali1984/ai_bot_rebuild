@@ -608,6 +608,7 @@ def publish_one(
     symbol: str,
     timeframe: str,
     exchange: str = "binance",
+    serving_context: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     generated_at = utc_now()
     snapshot = read_current_feature_snapshot(client, symbol, timeframe)
@@ -745,6 +746,19 @@ def publish_one(
         decision_time_utc=decision_iso,
     )
     stamp_provisional_tags(payload, cohort)
+    if serving_context:
+        # PredictionRecordV2 policy/lineage fields stamped by the canonical serving
+        # runtime (registry generation, serving release sha, evidence hashes).
+        for key in (
+            "serving_runtime_release_sha", "active_model_registry_generation",
+            "feature_evidence_sha256", "cost_evidence_sha256",
+            "microstructure_evidence_sha256",
+        ):
+            if serving_context.get(key) is not None:
+                payload[key] = serving_context.get(key)
+        payload.setdefault(
+            "checkpoint_classification", serving_context.get("checkpoint_classification")
+        )
     payload["microstructure_action"] = micro_action
     payload["microstructure_trust_evidence"] = micro_evidence
 
