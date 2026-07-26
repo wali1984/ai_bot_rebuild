@@ -37,3 +37,19 @@ def test_cost_edge_preserves_zero_gross_move_as_non_positive_edge() -> None:
     assert result["expected_edge_after_cost_bps"] == 0.0
     assert "EXPECTED_EDGE_AFTER_COST_NON_POSITIVE" in result["cost_edge_reasons"]
     assert result["cost_edge_valid"] is False
+
+
+def test_cost_edge_prefers_directional_short_return() -> None:
+    result = assess_cost_edge(
+        {
+            "expected_move_after_cost_bps": -12.5,
+            "expected_move_after_cost_bps_directional": 12.5,
+            "spread_bps": 1.0,
+            "slippage_bps": 1.0,
+            "fee_bps": 4.0,
+            "funding_bps": 0.5,
+        }
+    )
+
+    assert result["expected_edge_after_cost_bps"] == 12.5
+    assert "EXPECTED_EDGE_AFTER_COST_NON_POSITIVE" not in result["cost_edge_reasons"]

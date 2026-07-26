@@ -88,6 +88,18 @@ def test_loss_probability_blocks_missing_cost() -> None:
     assert "BLOCK_MISSING_COST" in result["loss_probability_reasons"]
 
 
+def test_loss_probability_prefers_directional_short_return() -> None:
+    result = evaluate_loss_probability(
+        {
+            "expected_move_after_cost_bps": -12.5,
+            "expected_move_after_cost_bps_directional": 12.5,
+            "microstructure_trust_score": 0.8,
+        }
+    )
+
+    assert "BLOCK_NEGATIVE_EXPECTANCY" not in result["loss_probability_reasons"]
+
+
 def test_loss_probability_allows_positive_clean_probation() -> None:
     result = evaluate_loss_probability(
         {

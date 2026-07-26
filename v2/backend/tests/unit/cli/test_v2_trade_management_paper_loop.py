@@ -11821,7 +11821,7 @@ def test_pre_trade_fee_context_prefers_explicit_signal_fee() -> None:
     assert context["fee_bps_configured_schedule"] is False
 
 
-def test_paper_after_cost_edge_prefers_position_directional_short_value() -> None:
+def test_paper_after_cost_edge_preserves_market_signed_short_value() -> None:
     value = paper_loop._paper_expected_move_after_cost_value(  # noqa: SLF001
         {
             "side": "short",
@@ -11831,7 +11831,7 @@ def test_paper_after_cost_edge_prefers_position_directional_short_value() -> Non
         }
     )
 
-    assert value == pytest.approx(12.5)
+    assert value == pytest.approx(-12.5)
 
 
 def test_read_v2_feature_snapshot_missing_timeframe_does_not_default_to_1m() -> None:

@@ -88,6 +88,7 @@ def evaluate_loss_probability(candidate: Mapping[str, Any]) -> dict[str, Any]:
     )
     expected_bps = _f(
         _first_present(
+            candidate.get("expected_move_after_cost_bps_directional"),
             candidate.get("expected_move_after_cost_bps"),
             candidate.get("expected_edge_after_cost_bps"),
         )

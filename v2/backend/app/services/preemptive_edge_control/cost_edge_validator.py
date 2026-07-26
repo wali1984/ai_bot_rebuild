@@ -45,7 +45,15 @@ def assess_cost_edge(candidate: dict[str, Any]) -> dict[str, Any]:
             candidate.get("expected_gross_move_bps"),
         )
     )
-    explicit_net = _f(candidate.get("expected_move_after_cost_bps"))
+    # Cost admission reasons about the requested position's return. Canonical
+    # SHORT candidates also retain a negative market-signed move for the side
+    # audit, so consume the explicit positive directional edge when present.
+    explicit_net = _f(
+        _first_present(
+            candidate.get("expected_move_after_cost_bps_directional"),
+            candidate.get("expected_move_after_cost_bps"),
+        )
+    )
 
     cost_parts = [value for value in (spread, slippage, fee, funding) if value is not None]
     cost_bps = sum(abs(value) for value in cost_parts) if cost_parts else None
