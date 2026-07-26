@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import hashlib
+import json
+
 from v2.backend.app.services.preemptive_edge_control.decision import (
     evaluate_candidate,
+    replay_preemptive_decision,
     summarize_decisions,
 )
 
@@ -120,6 +124,53 @@ def test_preemptive_decision_preserves_governed_checkpoint_lineage() -> None:
     assert decision["paper_cohort_preemptive_controls_scoped"] is True
     assert decision["routes_to_live"] is False
     assert decision["places_real_order"] is False
+
+
+def test_tuning_input_material_is_compact_source_bound_and_replayable() -> None:
+    tuning_state = {
+        "schema_version": "adaptive_gate_tuning_v2",
+        "adaptive_loss_probability_threshold": 0.82,
+        "adaptive_microstructure_trust_threshold": 0.41,
+        "enable_b_grade": True,
+        "generated_at": "2026-07-26T22:00:00Z",
+        "canonical_source_snapshot": {"outcomes": ["x" * 1024] * 2048},
+    }
+    expected_source_hash = hashlib.sha256(
+        json.dumps(
+            tuning_state,
+            sort_keys=True,
+            separators=(",", ":"),
+            default=str,
+        ).encode("utf-8")
+    ).hexdigest()
+
+    decision = evaluate_candidate(
+        _candidate(),
+        continuous_edge_guardian_gate=_guardian(),
+        adaptive_tuning_state=tuning_state,
+        decision_time="2026-07-26T22:00:01Z",
+    )
+    material = decision["preemptive_input_material"]
+    tuning_material = material["adaptive_tuning_state"]
+
+    assert tuning_material == {
+        "schema_version": "preemptive_adaptive_tuning_input_snapshot_v1",
+        "source_payload_sha256": expected_source_hash,
+        "source_schema_version": "adaptive_gate_tuning_v2",
+        "source_generated_at": "2026-07-26T22:00:00Z",
+        "source_available_at": None,
+        "source_expires_at": None,
+        "source_canonical_key": None,
+        "adaptive_loss_probability_threshold": 0.82,
+        "adaptive_microstructure_trust_threshold": 0.41,
+        "enable_b_grade": True,
+    }
+    assert decision["adaptive_tuning_state_hash"] == expected_source_hash
+    assert len(json.dumps(material)) < 100_000
+    assert replay_preemptive_decision(
+        material,
+        expected_input_hash=decision["preemptive_input_hash"],
+    ) == decision
 
 
 def test_evaluate_candidate_blocks_negative_bucket_before_entry() -> None:

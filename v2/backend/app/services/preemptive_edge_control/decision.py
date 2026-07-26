@@ -56,6 +56,14 @@ PAPER_RISK_CONTROLLER_EXPLORATION_MIN_EXIT_FEASIBILITY = 0.50
 SCHEMA_VERSION = "preemptive_edge_control_decision_v1"
 PREEMPTIVE_INPUT_SCHEMA_VERSION = "preemptive_edge_control_input_v2"
 PREEMPTIVE_INPUT_HASH_ALGORITHM = "sha256(canonical-json-v1)"
+ADAPTIVE_TUNING_INPUT_SNAPSHOT_SCHEMA_VERSION = (
+    "preemptive_adaptive_tuning_input_snapshot_v1"
+)
+ADAPTIVE_TUNING_CONSUMED_FIELDS = (
+    "adaptive_loss_probability_threshold",
+    "adaptive_microstructure_trust_threshold",
+    "enable_b_grade",
+)
 PAPER_RISK_CONTROLLER_EXPLORATION_TIER = "PAPER_RISK_CONTROLLER_EXPLORATION"
 CONSERVATIVE_LOSS_PROBABILITY_THRESHOLD = 0.80
 
@@ -178,7 +186,36 @@ def _snapshot_tuning_state(
         return {}, "INVALID_CONSERVATIVE_DEFAULTS"
     if not snapshot:
         return {}, "EMPTY_CONSERVATIVE_DEFAULTS"
-    return snapshot, "VALID_EXPLICIT_SNAPSHOT"
+
+    # The canonical adaptive-tuning record contains source manifests and full
+    # historical outcome material.  The preemptive evaluator consumes only the
+    # three fields below; retaining the entire multi-megabyte record in every
+    # candidate receipt duplicates unrelated evidence thousands of times and
+    # can force Redis to evict current safety state.  Bind the exact source by
+    # SHA while retaining every value actually consumed by this decision.  A
+    # replay receives this same self-contained projection and therefore remains
+    # deterministic and I/O-free.
+    source_payload_sha256 = _tuning_state_source_hash(snapshot)
+    if source_payload_sha256 is None:
+        return {}, "INVALID_CONSERVATIVE_DEFAULTS"
+    compact_snapshot: dict[str, Any] = {
+        "schema_version": ADAPTIVE_TUNING_INPUT_SNAPSHOT_SCHEMA_VERSION,
+        "source_payload_sha256": source_payload_sha256,
+        "source_schema_version": snapshot.get("source_schema_version")
+        or snapshot.get("schema_version"),
+        "source_generated_at": snapshot.get("source_generated_at")
+        or snapshot.get("generated_at")
+        or snapshot.get("generated_utc"),
+        "source_available_at": snapshot.get("source_available_at")
+        or snapshot.get("available_at"),
+        "source_expires_at": snapshot.get("source_expires_at") or snapshot.get("expires_at"),
+        "source_canonical_key": snapshot.get("source_canonical_key")
+        or snapshot.get("canonical_key"),
+    }
+    for field in ADAPTIVE_TUNING_CONSUMED_FIELDS:
+        if field in snapshot:
+            compact_snapshot[field] = snapshot[field]
+    return compact_snapshot, "VALID_EXPLICIT_SNAPSHOT"
 
 
 def _snapshot_optional_mapping(
@@ -249,6 +286,18 @@ def _source_payload_sha256(payload: Mapping[str, Any]) -> str | None:
         default=str,
     )
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _tuning_state_source_hash(tuning_state: Mapping[str, Any]) -> str | None:
+    embedded = tuning_state.get("source_payload_sha256")
+    if isinstance(embedded, str) and len(embedded) == 64:
+        try:
+            int(embedded, 16)
+        except ValueError:
+            pass
+        else:
+            return embedded.lower()
+    return _source_payload_sha256(tuning_state)
 
 
 def _resolve_preemptive_decision_time(
@@ -394,7 +443,7 @@ def _preemptive_input_receipt(
         "preemptive_decision_time_source": decision_time_source,
         "preemptive_decision_time_input_valid": decision_time_input_valid,
         "adaptive_tuning_state_status": tuning_state_status,
-        "adaptive_tuning_state_hash": _source_payload_sha256(tuning_state),
+        "adaptive_tuning_state_hash": _tuning_state_source_hash(tuning_state),
         "adaptive_loss_probability_threshold_used": (
             adaptive_loss_probability_threshold(tuning_state)
         ),
