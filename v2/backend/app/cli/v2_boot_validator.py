@@ -26,6 +26,7 @@ KLINE_STATUS = REPO_ROOT / "v2/frontend/public/operator_runtime/v2_binance_kline
 PUBLISHER_STATUS = Path("/home/wali/ai_bot_local_data/v2_native_trainer/profiled_base_publisher_v1/profiled_base_publisher_status_v1.json")
 COMMISSION_CAS = Path("/home/wali/ai_bot_local_data/v2_authenticated_evidence/binance_usdm_commission_broker_v1/commission-evidence-cas")
 UNIT_DIR = Path.home() / ".config/systemd/user"
+REPAIR_HOLDS_PATH = REPO_ROOT / "goal_state/PERMANENT_SYSTEM_RECOVERY/repair_holds.json"
 PLANE_TARGETS = [
     "ai-bot-v2-data-plane.target",
     "ai-bot-v2-evidence-plane.target",
@@ -67,6 +68,58 @@ def get_json_key(key: str):
         return None
 
 
+def publish_repair_holds() -> tuple[dict, list[dict]]:
+    """Restore the durable RepairHoldV1 inventory to Redis on every validation.
+
+    Redis is runtime state, not the authority for an intentional repair hold.  A
+    reboot or key eviction must not silently turn a held unit into OPTIONAL.
+    """
+    failures: list[dict] = []
+    try:
+        payload = json.loads(REPAIR_HOLDS_PATH.read_text())
+    except Exception as error:
+        payload = {}
+        failures.append({
+            "unit": "v2:operations:repair_holds",
+            "expected_state": "durable RepairHoldV1 inventory readable",
+            "actual_state": f"unreadable: {type(error).__name__}",
+            "reason": "repair-hold authority missing",
+            "owner": "operations",
+            "recovery_action": f"restore {REPAIR_HOLDS_PATH}",
+        })
+        return payload, failures
+    holds = payload.get("holds") if isinstance(payload, dict) else None
+    required = {
+        "unit", "owner", "reason", "opened_at", "expires_at",
+        "replacement_unit", "required_exit_evidence", "live_authority",
+    }
+    if not isinstance(holds, list) or any(
+        not isinstance(hold, dict)
+        or hold.get("schema_version") != "RepairHoldV1"
+        or not required.issubset(hold)
+        for hold in (holds or [])
+    ):
+        failures.append({
+            "unit": "v2:operations:repair_holds",
+            "expected_state": "valid RepairHoldV1 records",
+            "actual_state": "schema invalid",
+            "reason": "repair-hold inventory cannot be trusted",
+            "owner": "operations",
+            "recovery_action": f"repair {REPAIR_HOLDS_PATH}",
+        })
+        return payload, failures
+    if redis_cli("SET", "v2:operations:repair_holds", json.dumps(payload)) != "OK":
+        failures.append({
+            "unit": "v2:operations:repair_holds",
+            "expected_state": "published",
+            "actual_state": "Redis write not acknowledged",
+            "reason": "repair-hold runtime publication failed",
+            "owner": "operations",
+            "recovery_action": "restore Redis and rerun boot validator",
+        })
+    return payload, failures
+
+
 def unit_state(unit: str) -> tuple[str, str, str]:
     out = sh(["systemctl", "--user", "show", unit,
               "-p", "ActiveState", "-p", "SubState", "-p", "ConditionResult"])
@@ -84,8 +137,8 @@ def expected_active_units() -> dict[str, str]:
     return expected
 
 
-def repair_holds() -> dict[str, dict]:
-    payload = get_json_key("v2:operations:repair_holds") or {}
+def repair_holds(payload: dict | None = None) -> dict[str, dict]:
+    payload = payload or get_json_key("v2:operations:repair_holds") or {}
     return {h.get("unit"): h for h in payload.get("holds", []) if h.get("unit")}
 
 
@@ -101,9 +154,9 @@ def credentialed_units() -> list[str]:
     return units
 
 
-def classify_units() -> tuple[list[dict], list[dict]]:
+def classify_units(holds_payload: dict | None = None) -> tuple[list[dict], list[dict]]:
     expected = expected_active_units()
-    holds = repair_holds()
+    holds = repair_holds(holds_payload)
     now = utc_now()
     rows: list[dict] = []
     failures: list[dict] = []
@@ -118,7 +171,16 @@ def classify_units() -> tuple[list[dict], list[dict]]:
         hold = holds.get(unit)
         if hold:
             classification = "INACTIVE_REPAIR_HELD"
-            if str(hold.get("expires_at", "9999")) < now:
+            if active == "active":
+                classification = "FAILED_UNEXPECTED"
+                failures.append({
+                    "unit": unit, "expected_state": "inactive (repair held)",
+                    "actual_state": f"{active}/{sub}",
+                    "reason": "repair-held service became authoritative",
+                    "owner": hold.get("owner"),
+                    "recovery_action": "stop the held unit and verify its replacement",
+                })
+            elif str(hold.get("expires_at", "9999")) < now:
                 classification = "FAILED_UNEXPECTED"
                 failures.append({
                     "unit": unit, "expected_state": "hold renewed or released with receipt",
@@ -218,8 +280,27 @@ def check_serving() -> dict:
             fresh = age < 900
         except ValueError:
             fresh = False
-    return {"ok": fresh, "detail": {"status_present": bool(status), "generated": gen,
-            "records_published": status.get("records_published")}}
+    records = int(status.get("records_published") or 0)
+    directional = int(status.get("directional_records") or 0)
+    return {"ok": fresh and records > 0 and directional > 0, "detail": {
+            "status_present": bool(status), "generated": gen,
+            "records_published": records, "directional_records": directional,
+            "cost_evidence_valid_count": status.get("cost_evidence_valid_count"),
+            "microstructure_evidence_valid_count": status.get("microstructure_evidence_valid_count")}}
+
+
+def check_systemd_units() -> dict:
+    cmd = ["systemd-analyze", "--user", "verify", "ai-bot-v2-stack.target", "default.target", "timers.target"]
+    try:
+        run = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+    except Exception as error:
+        return {"ok": False, "detail": f"verify failed to run: {type(error).__name__}: {error}"}
+    diagnostics = "\n".join(part.strip() for part in (run.stdout, run.stderr) if part.strip())
+    invalid_markers = ("Invalid ", "Ignoring unknown", "Failed to resolve", "ordering cycle")
+    invalid = [line for line in diagnostics.splitlines() if any(marker in line for marker in invalid_markers)]
+    return {"ok": run.returncode == 0 and not invalid, "detail": {
+        "returncode": run.returncode, "invalid_units": len(invalid), "diagnostics": invalid[:20],
+    }}
 
 
 def check_paper_loop() -> dict:
@@ -247,6 +328,7 @@ def credentialed_status(rows: list[dict]) -> dict:
                       for seg in [line.split("=", 1)[1]]]
         cred_files += [line.split("=", 1)[1] for line in text.splitlines()
                        if line.startswith("ConditionPathExists=") and ".cred" in line]
+        cred_files = list(dict.fromkeys(cred_files))
         present = all(os.path.exists(os.path.expanduser(f.replace("%h", str(Path.home()))))
                       for f in cred_files) if cred_files else None
         row = by_unit.get(unit, {})
@@ -257,14 +339,19 @@ def credentialed_status(rows: list[dict]) -> dict:
             "preflight_status": "CREDENTIALS_PRESENT" if present else "CREDENTIALS_REQUIRED",
             "active_state": row.get("active_state", "unknown"),
             "classification": row.get("classification"),
+            "last_successful_publication": None,
+            "evidence_age_seconds": None,
         })
     return {"schema_version": "v2_credentialed_services_status_v1",
             "generated_utc": utc_now(), "services": services}
 
 
 def main() -> int:
-    rows, failures = classify_units()
+    holds_payload, hold_failures = publish_repair_holds()
+    rows, failures = classify_units(holds_payload)
+    failures = hold_failures + failures
     checks = {
+        "systemd_units": check_systemd_units(),
         "gpu": check_gpu(),
         "redis": check_redis(),
         "data_plane_freshness": check_data_plane(),

@@ -2689,7 +2689,22 @@ def symbol_cost_estimate_and_publish(
     on any failure the caller falls back to the trainer's flat value.
     """
     try:
-        estimate = estimate_round_trip_cost_bps(symbol, get_json=store.get_json)
+        funding_snapshot_key = feature_latest_key(symbol, "5m")
+        funding_snapshot = store.get_json(funding_snapshot_key)
+        funding_bps = None
+        funding_source = None
+        if isinstance(funding_snapshot, Mapping):
+            funding_features = funding_snapshot.get("features")
+            if isinstance(funding_features, Mapping):
+                funding_bps = to_float(funding_features.get("expected_funding_bps"))
+                if funding_bps is not None:
+                    funding_source = funding_snapshot_key
+        estimate = estimate_round_trip_cost_bps(
+            symbol,
+            get_json=store.get_json,
+            funding_bps_at_decision_time=funding_bps,
+            funding_source=funding_source,
+        )
         publish_cost_estimate(
             estimate, client=store.client, set_json=store.set_json
         )

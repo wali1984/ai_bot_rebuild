@@ -20,6 +20,7 @@ runtime surfaces health so an activator/supervisor can trigger it.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import sys
@@ -42,6 +43,12 @@ from v2.backend.app.cli.v2_paper_provisional_prediction_publisher import (  # no
 )
 from v2.backend.app.services.prediction_serving.checkpoint_registry import (  # noqa: E402
     read_active,
+)
+from v2.backend.app.contracts.runtime_v2.contracts import canonical_sha256  # noqa: E402
+from v2.backend.app.services.prediction_serving.serving_feature_abi_v2 import (  # noqa: E402
+    ORDERED_FEATURE_NAMES,
+    feature_abi_sha256,
+    feature_builder_sha256,
 )
 
 STATUS_KEY = "v2:prediction_serving:status"
@@ -82,6 +89,25 @@ def load_active_model(client: Any) -> ActiveModel | None:
     weight_path = bundle.get("weight_file_path") or record.get("checkpoint_bundle_path")
     if not weight_path or not Path(weight_path).exists():
         return None
+    bundle_material = dict(bundle)
+    claimed_content_sha256 = bundle_material.pop("content_sha256", None)
+    for policy_field in ("paper_eligible", "strict_eligible", "checkpoint_promotable", "live_eligible"):
+        bundle_material.pop(policy_field, None)
+    if claimed_content_sha256 != canonical_sha256(bundle_material):
+        return None
+    if record.get("checkpoint_bundle_sha256") != claimed_content_sha256:
+        return None
+    if bundle.get("feature_abi_sha256") == feature_abi_sha256():
+        actual_weight_sha256 = hashlib.sha256(Path(weight_path).read_bytes()).hexdigest()
+        if (
+            actual_weight_sha256 != bundle.get("weight_sha256")
+            or
+            bundle.get("serving_feature_builder_sha") != feature_builder_sha256()
+            or bundle.get("training_feature_builder_sha") != feature_builder_sha256()
+            or tuple(bundle.get("ordered_feature_names") or ()) != ORDERED_FEATURE_NAMES
+            or (bundle.get("calibration_state") or {}).get("probability_semantics_valid") is not True
+        ):
+            return None
     ckpt = ProvisionalCheckpoint(Path(weight_path))
     generation = int(record.get("registry_generation", 0))
     return ActiveModel(ckpt, generation, record)
@@ -120,6 +146,10 @@ def run_cycle(
                 serving_context=serving_context,
             )
             observations.append(res)
+            if res.get("cost_evidence_valid") is True:
+                cost_valid += 1
+            if res.get("microstructure_evidence_valid") is True:
+                micro_valid += 1
             if res.get("status") == "PUBLISHED":
                 published += 1
                 feat_valid += 1
@@ -140,6 +170,13 @@ def run_cycle(
         "registry_generation": active.generation,
         "active_checkpoint_id": active.ckpt.checkpoint_id,
         "active_checkpoint_classification": active.classification,
+        "feature_abi_sha256": active.ckpt.feature_abi_sha256,
+        "feature_builder_sha256": active.ckpt.feature_builder_sha256,
+        "serving_feature_abi_v2": active.ckpt.serving_feature_abi_v2,
+        "feature_abi_match": (
+            active.ckpt.feature_abi_sha256 == feature_abi_sha256()
+            and active.ckpt.feature_builder_sha256 == feature_builder_sha256()
+        ),
         "serving_runtime_release_sha": serving_release_sha(),
         "records_evaluated": len(observations),
         "records_published": published,

@@ -101,6 +101,18 @@ def test_microstructure_monitor_writes_only_microstructure_keys(tmp_path) -> Non
     assert trust["source_availability"]["binance_direct_orderbook"] is True
     assert "microstructure_action" in trust
     assert isinstance(trust["sweep_direction_uncertain"], bool)
+    source_available = datetime.fromisoformat(
+        trust["source_available_at"].replace("Z", "+00:00")
+    )
+    producer_generated = datetime.fromisoformat(
+        trust["producer_generated_at"].replace("Z", "+00:00")
+    )
+    record_available = datetime.fromisoformat(
+        trust["record_available_at"].replace("Z", "+00:00")
+    )
+    assert record_available == max(source_available, producer_generated)
+    assert trust["available_at"] == trust["record_available_at"]
+    assert trust["decision_time"] == trust["record_available_at"]
 
 
 def test_microstructure_monitor_consumes_generic_v2_market_orderbook_without_overstating_direct_feed(tmp_path) -> None:
@@ -494,7 +506,7 @@ def test_microstructure_monitor_decision_time_is_after_book_read(monkeypatch, tm
     )
 
     trust = result["trust_rows"][0]
-    assert trust["decision_time"] == "2026-07-02T12:00:00.003Z"
+    assert trust["decision_time"] == "2026-07-02T12:00:00.004Z"
     assert "AVAILABLE_AT_AFTER_DECISION_TIME" not in (trust.get("feed_quality_fail_reasons") or [])
 
 

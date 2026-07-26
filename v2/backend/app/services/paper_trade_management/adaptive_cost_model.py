@@ -236,7 +236,11 @@ def _adaptive_source_cadence(
 
 
 def _utc_iso(now: datetime) -> str:
-    return now.astimezone(timezone.utc).isoformat(timespec="milliseconds").replace(
+    # Preserve the same precision used to calculate spread_age_seconds.  Truncating
+    # this clock to milliseconds while retaining a microsecond-precision age makes
+    # the published envelope internally inconsistent and causes the strict exact-
+    # cost consumer to reject genuine live evidence.
+    return now.astimezone(timezone.utc).isoformat(timespec="microseconds").replace(
         "+00:00", "Z"
     )
 
@@ -279,6 +283,8 @@ class CostEstimate:
     adaptive_freshness_method: str
     adaptive_freshness_proven: bool
     expires_at: str | None
+    funding_bps_at_decision_time: float | None = None
+    funding_source: str | None = None
     estimator_version: str = ESTIMATOR_VERSION
     notes: tuple[str, ...] = field(default_factory=tuple)
 
@@ -288,7 +294,17 @@ class CostEstimate:
 
     def to_payload(self) -> dict[str, Any]:
         def _round(value: Optional[float]) -> Optional[float]:
-            return None if value is None else round(float(value), 8)
+            # Exact-cost consumers recompute the estimate from the embedded
+            # orderbook readback.  Decimal truncation breaks that identity for
+            # real spreads/impacts, so publish the native finite float.
+            return None if value is None else float(value)
+
+        source_payload_sha256 = self.orderbook_source_payload_sha256
+        source_readback_sha256 = (
+            _canonical_sha256(self.orderbook_source_payload)
+            if isinstance(self.orderbook_source_payload, Mapping)
+            else None
+        )
 
         return {
             "symbol": self.symbol,
@@ -316,6 +332,22 @@ class CostEstimate:
             "orderbook_key": self.orderbook_key,
             "computed_utc": self.computed_utc,
             "available_at": self.computed_utc,
+            "source_event_time": self.orderbook_observed_at,
+            "producer_generated_at": self.computed_utc,
+            "record_available_at": self.computed_utc,
+            "fee_bps_per_side": _round(self.taker_fee_bps_per_side),
+            "slippage_bps_per_side": _round(self.impact_per_side_bps),
+            "funding_bps_at_decision_time": _round(
+                self.funding_bps_at_decision_time
+            ),
+            "funding_source": self.funding_source,
+            "source_payload_sha256": source_payload_sha256,
+            "source_readback_sha256": source_readback_sha256,
+            "source_readback_verified": bool(
+                source_payload_sha256
+                and source_readback_sha256
+                and source_payload_sha256 == source_readback_sha256
+            ),
             "orderbook_schema_version": self.orderbook_schema_version,
             "orderbook_source_payload_sha256": (
                 self.orderbook_source_payload_sha256
@@ -490,6 +522,8 @@ def estimate_round_trip_cost_bps(
     notional_usd: Optional[float] = None,
     max_orderbook_age_seconds: Optional[float] = None,
     observed_spread_proxy_bps: Optional[float] = None,
+    funding_bps_at_decision_time: Optional[float] = None,
+    funding_source: Optional[str] = None,
     flat_baseline_bps: float = FLAT_BASELINE_ROUND_TRIP_BPS,
     now_utc: Optional[datetime] = None,
 ) -> CostEstimate:
@@ -624,6 +658,12 @@ def estimate_round_trip_cost_bps(
             flat_baseline_round_trip_bps=flat_baseline_bps,
             orderbook_key=orderbook_key,
             computed_utc=_utc_iso(now),
+            funding_bps_at_decision_time=_finite(
+                funding_bps_at_decision_time
+            ),
+            funding_source=(
+                str(funding_source).strip() if funding_source else None
+            ),
             **source_fields,
             notes=tuple(notes),
         )
@@ -675,6 +715,8 @@ def estimate_round_trip_cost_bps(
         flat_baseline_round_trip_bps=flat_baseline_bps,
         orderbook_key=orderbook_key,
         computed_utc=_utc_iso(now),
+        funding_bps_at_decision_time=_finite(funding_bps_at_decision_time),
+        funding_source=str(funding_source).strip() if funding_source else None,
         **source_fields,
         notes=tuple(notes),
     )

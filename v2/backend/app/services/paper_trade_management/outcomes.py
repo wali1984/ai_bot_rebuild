@@ -759,6 +759,7 @@ def build_close_event(
         "source_hashes": position.source_hashes,
         "strategy_supply_hypothesis": position.strategy_supply_hypothesis,
     }
+    is_final_close = entry_cost_allocation.get("entry_cost_is_final_close") is True
     missing_score_fields = [
         field
         for field, value in (
@@ -892,6 +893,18 @@ def build_close_event(
         "symbol": position.symbol,
         "side": position.side,
         "closed_quantity": close_quantity,
+        # Every lifecycle close consumes existing paper exposure only.  Bind that
+        # state-machine fact explicitly so canaries and reconstruction checks do
+        # not have to infer reduce-only semantics from a quantity delta.
+        "reduce_only": True,
+        "close_position": bool(is_final_close),
+        "position_transition": f"{str(position.side).upper()}_TO_FLAT"
+        if is_final_close
+        else f"{str(position.side).upper()}_REDUCE",
+        "remaining_quantity_after_close": max(
+            0.0, float(position.net_quantity) - float(close_quantity)
+        ),
+        "margin_release_required": bool(is_final_close),
         "entry_price": position.avg_entry_price,
         "exit_price": exit_price,
         "exit_price_source": exit_price_source,

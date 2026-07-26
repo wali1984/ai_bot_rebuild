@@ -14,7 +14,7 @@ Environment="LIVE_GATE=blocked_human_only"
 Environment="V2_BACKEND_HOST=127.0.0.1"
 Environment="V2_BACKEND_PORT=5173"
 Environment="V2_BACKEND_WORKERS=1"
-ExecStart=/usr/bin/env bash -lc 'exec /home/wali/Desktop/AI\ BOT\ REBUILD/v2/backend/scripts/start_v2_backend_uvicorn.sh'
+ExecStart=/usr/bin/env bash -lc 'exec "/home/wali/Desktop/AI BOT REBUILD/v2/backend/scripts/start_v2_backend_uvicorn.sh"'
 Restart=on-failure
 RestartSec=10s
 StandardOutput=append:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/v2_public_website_backend.log

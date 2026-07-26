@@ -7,7 +7,7 @@ Type=oneshot
 WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
 Environment="PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD"
 Environment="LIVE_GATE=blocked_human_only"
-ExecStart=/usr/bin/env bash -lc 'exec /home/wali/Desktop/AI\ BOT\ REBUILD/.venv/bin/python3 -m v2.backend.app.cli.v2_paper_shadow_outcome_metrics --once'
+ExecStart=/usr/bin/env bash -lc 'exec "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3" -m v2.backend.app.cli.v2_paper_shadow_outcome_metrics --once'
 StandardOutput=append:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/v2_paper_shadow_outcome_metrics.log
 StandardError=append:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/v2_paper_shadow_outcome_metrics.err
 

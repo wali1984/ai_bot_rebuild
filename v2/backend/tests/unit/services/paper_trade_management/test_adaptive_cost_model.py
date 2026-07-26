@@ -397,6 +397,48 @@ def test_published_adaptive_cost_is_directly_consumable_by_exact_ppo() -> None:
     )
 
 
+def test_published_exact_cost_preserves_submillisecond_age_identity() -> None:
+    adaptive_cost_module._ORDERBOOK_AVAILABILITY_STATE.clear()  # noqa: SLF001
+    estimate = None
+    base = NOW.replace(microsecond=987654)
+    for offset in (0, 10, 20, 30):
+        now = base + timedelta(seconds=offset)
+        available = now - timedelta(seconds=1, microseconds=123456)
+        book = _book(age_seconds=1.0)
+        book.update(
+            {
+                "event_time": (available - timedelta(milliseconds=100))
+                .isoformat(timespec="microseconds")
+                .replace("+00:00", "Z"),
+                "available_at": available.isoformat(timespec="microseconds").replace(
+                    "+00:00", "Z"
+                ),
+                "generated_at": now.isoformat(timespec="microseconds").replace(
+                    "+00:00", "Z"
+                ),
+            }
+        )
+        estimate = estimate_round_trip_cost_bps(
+            "BTCUSDT",
+            get_json=_getter(book),
+            notional_usd=250.0,
+            now_utc=now,
+        )
+
+    assert estimate is not None
+    payload = estimate.to_payload()
+    payload["publication_ttl_seconds"] = 9
+    provenance = build_exact_cost_provenance(
+        source_key="v2:costs:round_trip_bps:BTCUSDT",
+        source_payload=payload,
+        consumer_observed_at=(base + timedelta(seconds=30, milliseconds=100))
+        .isoformat(timespec="microseconds")
+        .replace("+00:00", "Z"),
+    )
+    assert provenance["schema_version"] == EXACT_COST_PROVENANCE_SCHEMA_VERSION
+    assert payload["spread_age_seconds"] == 1.123456
+
+
 def test_publish_cost_estimate_never_raises() -> None:
     class _Broken:
         def set(self, key, value, ex=None):

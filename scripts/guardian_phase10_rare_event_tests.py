@@ -342,16 +342,31 @@ else:
 
 # --- S13: Max hold time breach ---
 print("[S13] Max hold time enforcement")
-if isinstance(closed_trades_raw, list):
-    max_hold_trades = [t for t in closed_trades_raw if t.get("close_reason") == "TIER_4_MAX_HOLD_TIME"]
+_s13_path = Path(__file__).resolve().parents[1] / \
+    "goal_state/PERMANENT_SYSTEM_RECOVERY/s13_max_hold_transport_canary_result.json"
+try:
+    _s13 = json.loads(_s13_path.read_text())
+    _s13_run = datetime.fromisoformat(str(_s13.get("run_utc")))
+    _s13_age_h = (datetime.now(timezone.utc) - _s13_run).total_seconds() / 3600
+    if _s13.get("all_pass") and _s13_age_h < 24:
+        result(
+            "S13", "Max hold time exit mechanism", "PASS",
+            f"Bounded production-lifecycle transport canary all-pass {_s13_age_h:.1f}h ago",
+            {"result_path": str(_s13_path), "checks": _s13.get("checks")},
+        )
+    elif _s13.get("all_pass"):
+        result("S13", "Max hold time exit mechanism", "WARNING",
+               f"Last passing canary is {_s13_age_h:.1f}h old (>24h); re-run it.",
+               {"run_utc": _s13.get("run_utc")})
+    else:
+        result("S13", "Max hold time exit mechanism", "FAIL",
+               "Bounded max-hold transport canary failed.", {"checks": _s13.get("checks")})
+except Exception as _s13_error:
     result(
-        "S13", "Max hold time exit mechanism",
-        "PASS" if len(max_hold_trades) >= 1 else "WARNING",
-        f"{len(max_hold_trades)} trades closed via TIER_4_MAX_HOLD_TIME — mechanism exists in production",
-        {"max_hold_exit_count": len(max_hold_trades)}
+        "S13", "Max hold time exit", "WARNING",
+        f"No bounded canary result ({_s13_error}). Run scripts/s13_max_hold_transport_canary.py",
+        {},
     )
-else:
-    result("S13", "Max hold time exit", "WARNING", "No closed trades to check", {})
 
 # --- S14: Correlated position pile-up (many correlated SHORTs) ---
 print("[S14] Correlated position concentration")

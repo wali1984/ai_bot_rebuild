@@ -1489,7 +1489,13 @@ def test_time_based_exit_closes_stale_position() -> None:
     )
 
     assert result["open_positions"] == []
-    assert result["closed_trades"][0]["close_reason"] == "TIER_4_MAX_HOLD_TIME"
+    close = result["closed_trades"][0]
+    assert close["close_reason"] == "TIER_4_MAX_HOLD_TIME"
+    assert close["reduce_only"] is True
+    assert close["close_position"] is True
+    assert close["position_transition"] == "LONG_TO_FLAT"
+    assert close["remaining_quantity_after_close"] == 0.0
+    assert close["margin_release_required"] is True
 
 
 def test_take_profit_closes_profitable_position_and_writes_outcome() -> None:

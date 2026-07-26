@@ -23,7 +23,7 @@ Environment="V2_LIVE_CANARY_DRY_RUN=true"
 # BLOCKED state.
 EnvironmentFile=-/home/wali/Desktop/AI BOT REBUILD/.local_secrets/live_canary.env
 EnvironmentFile=-/home/wali/Desktop/AI BOT REBUILD/.local_secrets/live_canary_credentials.env
-ExecStart=/usr/bin/env bash -lc 'exec /home/wali/Desktop/AI\ BOT\ REBUILD/.venv/bin/python3 -m v2.backend.app.cli.v2_live_canary_executor --once --dry-run'
+ExecStart=/usr/bin/env bash -lc 'exec "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3" -m v2.backend.app.cli.v2_live_canary_executor --once --dry-run'
 StandardOutput=append:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/v2_live_canary_dry_run.log
 StandardError=append:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/v2_live_canary_dry_run.err
 

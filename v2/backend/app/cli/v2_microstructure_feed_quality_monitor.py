@@ -11,6 +11,7 @@ import os
 import sys
 import time
 from collections.abc import Mapping
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -81,6 +82,32 @@ def _first_present(*values: Any) -> Any:
         if value not in (None, "", [], {}):
             return value
     return None
+
+
+def _ordered_evidence_clocks(
+    source_available_at: Any,
+    producer_generated_at: Any,
+) -> tuple[str | None, str, str]:
+    """Return source, producer, and record-availability clocks.
+
+    The source may have been available before scoring completed.  The trust
+    record itself cannot be available until both are true, so its canonical
+    available_at is the later clock.
+    """
+    producer_text = str(producer_generated_at or iso_now())
+    try:
+        producer = datetime.fromisoformat(producer_text.replace("Z", "+00:00")).astimezone(UTC)
+    except (TypeError, ValueError):
+        producer = datetime.now(UTC)
+        producer_text = producer.isoformat(timespec="milliseconds").replace("+00:00", "Z")
+    source_text = str(source_available_at) if source_available_at not in (None, "") else None
+    try:
+        source = datetime.fromisoformat(str(source_text).replace("Z", "+00:00")).astimezone(UTC)
+    except (TypeError, ValueError):
+        source = None
+    record = max(clock for clock in (source, producer) if clock is not None)
+    record_text = record.isoformat(timespec="milliseconds").replace("+00:00", "Z")
+    return source_text, producer_text, record_text
 
 
 def _load_provider_symbol_support() -> dict[str, Any]:
@@ -669,6 +696,12 @@ def _build_symbol_rows(
         cross_venue=cross,
         sweep_risk=sweep,
     )
+    source_available_at, producer_generated_at, record_available_at = (
+        _ordered_evidence_clocks(
+            combined_feed.get("available_at"),
+            iso_now(),
+        )
+    )
     trust.update(
         {
             "orderbook_latency_ms": trust.get("feed_latency_ms"),
@@ -688,8 +721,12 @@ def _build_symbol_rows(
             # magnitude.  Ordinary PAPER may continuously down-size high sweep
             # risk, but an uncertain sweep direction still fails closed.
             "sweep_direction_uncertain": bool(sweep.get("direction_uncertain")),
-            "available_at": combined_feed.get("available_at"),
-            "decision_time": decision_time,
+            "source_available_at": source_available_at,
+            "producer_generated_at": producer_generated_at,
+            "record_available_at": record_available_at,
+            "generated_at": producer_generated_at,
+            "available_at": record_available_at,
+            "decision_time": record_available_at,
             "orderbook_sources": active_orderbook_sources,
             "direct_orderbook_sources": direct_orderbook_sources,
             "direct_binance_kucoin_active": bool(direct_orderbook_sources),

@@ -14,6 +14,8 @@ Registry keys (per lane in {paper, strict}):
 from __future__ import annotations
 
 import json
+import hashlib
+from pathlib import Path
 from typing import Any
 
 from v2.backend.app.contracts.runtime_v2.contracts import (
@@ -26,7 +28,82 @@ ACTIVE_KEY = "v2:model_registry:{lane}:active"
 CANDIDATE_KEY = "v2:model_registry:{lane}:candidate"
 HISTORY_KEY = "v2:model_registry:{lane}:history"
 RECEIPT_KEY = "v2:model_registry:activation_receipts:{receipt_id}"
+RECEIPTS_KEY = "v2:model_registry:activation_receipts"
 HISTORY_MAX = 50
+
+
+def _serving_abi_v2_static_reasons(bundle: CheckpointBundleV2) -> list[str]:
+    from v2.backend.app.services.prediction_serving.serving_feature_abi_v2 import (
+        ORDERED_FEATURE_NAMES,
+        feature_abi_sha256,
+        feature_builder_sha256,
+    )
+
+    if bundle.feature_abi_sha256 != feature_abi_sha256():
+        return []
+    reasons: list[str] = []
+    path = Path(bundle.weight_file_path)
+    if not path.is_file():
+        reasons.append("CHECKPOINT_FILE_MISSING")
+    elif hashlib.sha256(path.read_bytes()).hexdigest() != bundle.weight_sha256:
+        reasons.append("CHECKPOINT_FILE_SHA256_MISMATCH")
+    if bundle.ordered_feature_names != ORDERED_FEATURE_NAMES:
+        reasons.append("SERVING_FEATURE_ORDER_MISMATCH")
+    if bundle.training_feature_builder_sha != feature_builder_sha256():
+        reasons.append("TRAINING_FEATURE_BUILDER_SHA_MISMATCH")
+    if bundle.serving_feature_builder_sha != feature_builder_sha256():
+        reasons.append("SERVING_FEATURE_BUILDER_SHA_MISMATCH")
+    calibration = bundle.calibration_state
+    if calibration.get("fitted") is not True:
+        reasons.append("CALIBRATION_NOT_FITTED")
+    if calibration.get("probability_semantics_valid") is not True:
+        reasons.append("CALIBRATION_PROBABILITY_SEMANTICS_INVALID")
+    if not calibration.get("row_digest"):
+        reasons.append("CALIBRATION_ROW_DIGEST_MISSING")
+    if calibration.get("model_parameter_fingerprint") != bundle.model_parameter_fingerprint:
+        reasons.append("CALIBRATION_MODEL_FINGERPRINT_MISMATCH")
+    if bundle.live_eligible or bundle.checkpoint_promotable:
+        reasons.append("PAPER_CHECKPOINT_GAINED_FORBIDDEN_AUTHORITY")
+    return reasons
+
+
+def _serving_abi_v2_activation_reasons(
+    bundle: CheckpointBundleV2,
+    smoke: dict[str, Any],
+) -> list[str]:
+    from v2.backend.app.services.prediction_serving.serving_feature_abi_v2 import (
+        feature_abi_sha256,
+    )
+
+    if bundle.feature_abi_sha256 != feature_abi_sha256():
+        return []
+    reasons = _serving_abi_v2_static_reasons(bundle)
+    required_true = (
+        "checkpoint_hash_valid",
+        "manifest_hash_valid",
+        "feature_abi_valid",
+        "calibration_valid",
+        "train_serve_parity_valid",
+        "shadow_prediction_valid",
+        "no_live_authority",
+        "rollback_ready",
+    )
+    for field in required_true:
+        if smoke.get(field) is not True:
+            reasons.append(f"ACTIVATION_{field.upper()}_NOT_PROVEN")
+    try:
+        directional_rate = float(smoke.get("serving_smoke_directional_rate"))
+    except (TypeError, ValueError):
+        directional_rate = 0.0
+    if directional_rate <= 0.0:
+        reasons.append("SERVING_SMOKE_DIRECTIONAL_RATE_ZERO")
+    if smoke.get("all_predictions_one_action") is True:
+        reasons.append("SERVING_SMOKE_ALL_PREDICTIONS_ONE_ACTION")
+    if int(smoke.get("nonfinite_probabilities") or 0) > 0:
+        reasons.append("SERVING_SMOKE_NONFINITE_PROBABILITIES")
+    if smoke.get("feature_distribution_drift_above_limit") is not False:
+        reasons.append("SERVING_FEATURE_DISTRIBUTION_DRIFT_ABOVE_LIMIT")
+    return sorted(set(reasons))
 
 
 def _get_json(client: Any, key: str) -> dict[str, Any] | None:
@@ -58,6 +135,7 @@ def register_candidate(
 ) -> dict[str, Any]:
     """Publish a validated candidate bundle. Does NOT activate."""
     reasons = bundle.validate()
+    reasons.extend(_serving_abi_v2_static_reasons(bundle))
     if reasons:
         raise ValueError(f"candidate_bundle_invalid:{','.join(reasons)}")
     record = {
@@ -93,6 +171,7 @@ def activate(
     activator. Always records rollback pointer + immutable receipt.
     """
     reasons = bundle.validate()
+    reasons.extend(_serving_abi_v2_activation_reasons(bundle, serving_smoke_result))
     if reasons:
         raise ValueError(f"activation_bundle_invalid:{','.join(reasons)}")
     if not bundle.paper_eligible:
@@ -192,6 +271,20 @@ def activate(
     client.set(
         RECEIPT_KEY.format(receipt_id=receipt_id),
         json.dumps(receipt.to_dict(), default=str),
+    )
+    existing_receipts = _get_json(client, RECEIPTS_KEY) or {}
+    receipt_rows = existing_receipts.get("rows")
+    receipt_rows = list(receipt_rows) if isinstance(receipt_rows, list) else []
+    receipt_rows.append(receipt.to_dict())
+    client.set(
+        RECEIPTS_KEY,
+        json.dumps(
+            {
+                "schema_version": "model_activation_receipt_history_v2",
+                "rows": receipt_rows[-HISTORY_MAX:],
+            },
+            default=str,
+        ),
     )
     return receipt
 
