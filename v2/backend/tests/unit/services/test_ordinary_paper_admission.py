@@ -299,7 +299,7 @@ def ordinary_source(
         "live_symbols": [],
         "exchange_mutation": False,
         "trainer_direct_trading": False,
-        "source_redis_key": f"v2:prediction:{symbol}:1m",
+        "source_redis_key": f"v2:prediction_by_id:{prediction_id}",
         "source_prediction_observed_ttl_seconds": 300,
     }
     _bind_microstructure_evidence(

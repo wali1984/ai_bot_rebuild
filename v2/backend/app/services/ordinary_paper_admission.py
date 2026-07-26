@@ -1056,8 +1056,10 @@ def _assess_evidence(
         reasons.append("ordinary_paper_live_gate_not_blocked")
     if evidence.get("live_symbols") != []:
         reasons.append("ordinary_paper_live_symbols_not_empty")
-    canonical_prediction_key = f"v2:prediction:{evidence.get('symbol')}:{evidence.get('timeframe')}"
-    if evidence.get("source_redis_key") != canonical_prediction_key:
+    immutable_prediction_key = (
+        f"v2:prediction_by_id:{evidence.get('prediction_id')}"
+    )
+    if evidence.get("source_redis_key") != immutable_prediction_key:
         reasons.append("ordinary_paper_prediction_source_redis_key_invalid")
     prediction_ttl = _finite(evidence.get("source_prediction_observed_ttl_seconds"))
     if prediction_ttl is None or prediction_ttl <= 0.0 or not prediction_ttl.is_integer():

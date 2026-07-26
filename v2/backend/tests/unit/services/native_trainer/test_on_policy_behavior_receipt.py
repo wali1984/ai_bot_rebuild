@@ -1995,9 +1995,72 @@ def test_behavior_receipt_is_persisted_without_fixed_expiry(
     }
 
     assert publisher.publish_prediction(payload) is True
-    assert io.immutable_expiries == [None]
+    assert io.immutable_expiries == [
+        None,
+        publisher_module.PREDICTION_BY_ID_TTL_SECONDS,
+    ]
     assert payload["behavior_policy_receipt_write_success"] is True
     assert payload["behavior_policy_receipt_archive_write_success"] is True
+
+
+def test_prediction_publication_writes_exact_immutable_per_id_record(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(publisher_module, "is_publishable", lambda _payload: True)
+    monkeypatch.setattr(
+        publisher_module,
+        "build_archive_record_from_prediction_payload",
+        lambda _payload: None,
+    )
+    redis = _ExpiringStatusRedis()
+    publisher = V2HybridPredictionPublisher(
+        io=V2OnlyJsonIO(client=redis),
+        current_cycle_publication_ttl_seconds=60,
+    )
+    payload = {
+        "prediction_id": "prediction_immutable_source_test",
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
+        "selected_action": "hold",
+        "routes_to_orchestrator": False,
+    }
+
+    assert publisher.publish_prediction(payload) is True
+    immutable_key = "v2:prediction_by_id:prediction_immutable_source_test"
+    current_key = "v2:prediction:BTCUSDT:1m"
+    assert json.loads(redis.store[immutable_key]) == json.loads(
+        redis.store[current_key]
+    )
+    assert redis.ttls[immutable_key] == publisher_module.PREDICTION_BY_ID_TTL_SECONDS
+    assert redis.ttls[current_key] == 60
+
+
+def test_prediction_publication_fails_closed_on_immutable_id_conflict(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(publisher_module, "is_publishable", lambda _payload: True)
+    monkeypatch.setattr(
+        publisher_module,
+        "build_archive_record_from_prediction_payload",
+        lambda _payload: None,
+    )
+    redis = _ExpiringStatusRedis()
+    immutable_key = "v2:prediction_by_id:prediction_conflict_test"
+    redis.store[immutable_key] = json.dumps({"prediction_id": "forged"})
+    publisher = V2HybridPredictionPublisher(
+        io=V2OnlyJsonIO(client=redis),
+        current_cycle_publication_ttl_seconds=60,
+    )
+    payload = {
+        "prediction_id": "prediction_conflict_test",
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
+        "selected_action": "hold",
+        "routes_to_orchestrator": False,
+    }
+
+    assert publisher.publish_prediction(payload) is False
+    assert "v2:prediction:BTCUSDT:1m" not in redis.store
 
 
 def test_model_parameter_fingerprint_changes_with_exact_in_memory_weights(

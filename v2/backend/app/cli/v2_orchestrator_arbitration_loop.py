@@ -27,6 +27,7 @@ from v2.backend.app.services.live_gate.runtime_execution_state import (
 from v2.backend.app.services.market_state_integrity.scoring import score_market_state
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.on_policy_behavior import (
     BEHAVIOR_POLICY_LINEAGE_FIELDS,
+    canonical_sha256,
 )
 from v2.backend.app.services.ordinary_paper_admission import (
     OrdinaryPaperAdmissionResult,
@@ -39,6 +40,7 @@ DEFAULT_PAYLOAD_PATH = Path(
     "v2/frontend/public/operator_runtime/v2_orchestrator_arbitration/live/latest/v2_orchestrator_arbitration_live_status.json"
 )
 MAX_PREDICTION_AGE_SECONDS = 300
+PREDICTION_BY_ID_KEY_TEMPLATE = "v2:prediction_by_id:{prediction_id}"
 
 
 def _runtime_default_symbol() -> str:
@@ -265,18 +267,40 @@ def _scan_predictions(r) -> list[dict]:
             # the main gate below re-evaluates with market-state integrity.
             if data.get("routes_to_orchestrator") is False:
                 continue
+            immutable_key = PREDICTION_BY_ID_KEY_TEMPLATE.format(
+                prediction_id=prediction_id
+            )
+            try:
+                immutable_raw = r.get(immutable_key)
+                immutable_data = (
+                    json.loads(immutable_raw) if immutable_raw else None
+                )
+                immutable_ttl = _finite_float(r.ttl(immutable_key), -1.0)
+                immutable_matches_discovery = bool(
+                    isinstance(immutable_data, dict)
+                    and canonical_sha256(immutable_data) == canonical_sha256(data)
+                )
+            except (TypeError, ValueError):
+                immutable_data = None
+                immutable_ttl = -1.0
+                immutable_matches_discovery = False
+            if (
+                not immutable_matches_discovery
+                or not isinstance(immutable_data, dict)
+                or immutable_ttl <= 0
+            ):
+                continue
+            data = immutable_data
             age = _prediction_age_seconds(data)
-            ttl = _finite_float(r.ttl(key), -1.0)
             if age is None or age > MAX_PREDICTION_AGE_SECONDS:
                 continue
-            if ttl == 0:
-                continue
             data = dict(data)
-            data["source_redis_key"] = str(key)
-            data["source_prediction_observed_ttl_seconds"] = int(ttl)
+            data["source_redis_key"] = immutable_key
+            data["source_prediction_current_key"] = str(key)
+            data["source_prediction_observed_ttl_seconds"] = int(immutable_ttl)
             existing = by_prediction_id.get(prediction_id)
             if existing is None or _prediction_source_rank(key) > _prediction_source_rank(
-                str(existing.get("source_redis_key") or "")
+                str(existing.get("source_prediction_current_key") or "")
             ):
                 by_prediction_id[prediction_id] = data
     return list(by_prediction_id.values()) + out_without_id

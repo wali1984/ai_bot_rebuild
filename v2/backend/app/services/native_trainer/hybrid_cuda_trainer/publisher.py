@@ -148,6 +148,9 @@ REQUIRED_PREDICTION_FIELDS = (
     "valid_for_paper",
 )
 
+PREDICTION_BY_ID_KEY_TEMPLATE = "v2:prediction_by_id:{prediction_id}"
+PREDICTION_BY_ID_TTL_SECONDS = 7200
+
 PREMIUM_CONTEXT_SOURCE = "V2_HYBRID_CUDA_TRAINER_ENTRY_FEATURES"
 BEHAVIOR_POLICY_SAMPLING_MODE = "DETERMINISTIC_ARGMAX_ALIGNMENT"
 BEHAVIOR_POLICY_DISTRIBUTION_CONTRACT = "EXPECTED_MOVE_ALIGNED_POLICY_V1"
@@ -2593,6 +2596,56 @@ class V2HybridPredictionPublisher:
             "publication_complete": bool(acknowledged and readback_verified),
         }
 
+    def _publish_canonical_prediction(
+        self,
+        *,
+        key: str,
+        payload: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        """Bind a current-cycle key to one immutable, expiring prediction.
+
+        The symbol/timeframe key is intentionally last-write-wins so discovery
+        can advance every serving cycle.  Downstream admission, however, must
+        re-read the exact prediction ID it assessed; otherwise a later cycle
+        can replace the discovery key before risk performs its readback.
+        """
+
+        prediction_id = str(payload.get("prediction_id") or "").strip()
+        if not prediction_id:
+            return {
+                "key": key,
+                "immutable_key": None,
+                "immutable_write_verified": False,
+                "publication_complete": False,
+                "rejection_reason": "PREDICTION_ID_REQUIRED",
+            }
+        immutable_key = PREDICTION_BY_ID_KEY_TEMPLATE.format(
+            prediction_id=prediction_id
+        )
+        immutable_write_verified = self.io.set_json_immutable(
+            immutable_key,
+            dict(payload),
+            ex=PREDICTION_BY_ID_TTL_SECONDS,
+        )
+        if not immutable_write_verified:
+            return {
+                "key": key,
+                "immutable_key": immutable_key,
+                "immutable_write_verified": False,
+                "immutable_ttl_seconds": PREDICTION_BY_ID_TTL_SECONDS,
+                "publication_complete": False,
+                "rejection_reason": "IMMUTABLE_PREDICTION_WRITE_FAILED",
+            }
+        receipt = self._publish_current_cycle_json(key=key, payload=payload)
+        receipt.update(
+            {
+                "immutable_key": immutable_key,
+                "immutable_write_verified": True,
+                "immutable_ttl_seconds": PREDICTION_BY_ID_TTL_SECONDS,
+            }
+        )
+        return receipt
+
     def publish_prediction(self, payload: dict[str, Any]) -> bool:
         if not is_publishable(payload):
             return False
@@ -2768,7 +2821,7 @@ class V2HybridPredictionPublisher:
                     symbol=payload["symbol"],
                     timeframe=payload["timeframe"],
                 )
-                prediction_receipt = self._publish_current_cycle_json(
+                prediction_receipt = self._publish_canonical_prediction(
                     key=key,
                     payload=payload,
                 )
@@ -2835,7 +2888,7 @@ class V2HybridPredictionPublisher:
             symbol=payload["symbol"],
             timeframe=payload["timeframe"],
         )
-        prediction_receipt = self._publish_current_cycle_json(
+        prediction_receipt = self._publish_canonical_prediction(
             key=key,
             payload=payload,
         )

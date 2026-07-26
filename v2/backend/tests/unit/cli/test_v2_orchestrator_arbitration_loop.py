@@ -17,7 +17,10 @@ class _FakeRedis:
         self.store: dict[str, str] = {
             f"v2:prediction:{prediction['symbol']}:{prediction['timeframe']}": json.dumps(
                 prediction
-            )
+            ),
+            f"v2:prediction_by_id:{prediction['prediction_id']}": json.dumps(
+                prediction
+            ),
         }
 
     def get(self, key: str) -> str | None:
@@ -156,6 +159,9 @@ def _run_many(
         fake.store[
             f"v2:prediction:{prediction['symbol']}:{prediction['timeframe']}"
         ] = json.dumps(prediction)
+        fake.store[
+            f"v2:prediction_by_id:{prediction['prediction_id']}"
+        ] = json.dumps(prediction)
     for key, value in (extra_store or {}).items():
         fake.store[key] = json.dumps(value)
     monkeypatch.setattr(loop, "_connect_redis", lambda: fake)
@@ -177,6 +183,42 @@ def _run_many(
         },
     )
     return loop.run_once(), fake
+
+
+def test_scan_binds_admission_to_immutable_prediction_after_current_key_advances(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original = _prediction(action="long")
+    advanced = _prediction(action="short")
+    fake = _FakeRedis(original)
+    current_key = "v2:prediction:BTCUSDT:1m"
+    fake.store[current_key] = json.dumps(advanced)
+    fake.store[
+        f"v2:prediction_by_id:{advanced['prediction_id']}"
+    ] = json.dumps(advanced)
+    monkeypatch.setattr(loop, "_prediction_age_seconds", lambda _prediction: 5.0)
+
+    scanned = loop._scan_predictions(fake)  # noqa: SLF001
+
+    assert [row["prediction_id"] for row in scanned] == [advanced["prediction_id"]]
+    assert scanned[0]["source_redis_key"] == (
+        f"v2:prediction_by_id:{advanced['prediction_id']}"
+    )
+    assert scanned[0]["source_prediction_current_key"] == current_key
+
+
+def test_scan_fails_closed_when_immutable_prediction_differs_from_discovery(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    prediction = _prediction()
+    fake = _FakeRedis(prediction)
+    immutable_key = f"v2:prediction_by_id:{prediction['prediction_id']}"
+    conflicting = dict(prediction)
+    conflicting["expected_move_after_cost_bps"] = 999.0
+    fake.store[immutable_key] = json.dumps(conflicting)
+    monkeypatch.setattr(loop, "_prediction_age_seconds", lambda _prediction: 5.0)
+
+    assert loop._scan_predictions(fake) == []  # noqa: SLF001
 
 
 @pytest.mark.parametrize("action", ["hold", "flat", "close"])

@@ -17,6 +17,7 @@ def assert_prediction_or_trainer_key(key: str) -> None:
     assert_v2_key(key)
     allowed = (
         "v2:prediction:",
+        "v2:prediction_by_id:",
         "v2:trainer:feature_schema_status",
         "v2:trainer:hybrid_cuda:",
         "v2:replay:",
