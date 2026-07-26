@@ -9037,10 +9037,10 @@ def _validated_v2_feature_snapshot_payload(
             "available_at": available_at,
             "redis_key": redis_key,
         }
-    if available_dt > generated_dt:
+    if generated_dt > available_dt:
         return {
             "features": {},
-            "unavailable_reason": "FEATURE_AVAILABLE_AT_AFTER_GENERATED_AT",
+            "unavailable_reason": "FEATURE_GENERATED_AT_AFTER_AVAILABLE_AT",
             "available_at": available_at,
             "generated_at": generated_at,
             "redis_key": redis_key,
@@ -44153,6 +44153,15 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             "model_version": trust_envelope.get("model_version"),
             "checkpoint_id": trust_checkpoint_id,
             "checkpoint_id_source": trust_checkpoint_id_source,
+            "paper_strategy_cohort_id": _first_present(
+                s.get("paper_strategy_cohort_id"),
+                prediction.get("paper_strategy_cohort_id"),
+            ),
+            "paper_cohort_checkpoint_id": _first_present(
+                s.get("paper_cohort_checkpoint_id"),
+                prediction.get("paper_cohort_checkpoint_id"),
+                trust_checkpoint_id,
+            ),
             "source_hashes": _first_present(
                 trust_envelope.get("source_hashes"),
                 s.get("source_hashes"),
@@ -44364,13 +44373,32 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                 started,
             )
         )
-        entry_feature_snapshot = _read_v2_feature_snapshot_for_signal(
-            r,
-            paper_feature_snapshot_id,
-            decision_time=entry_feature_decision_time,
-            symbol=symbol,
-            timeframe=paper_thesis_timeframe,
-        )
+        embedded_entry_snapshot = s.get("entry_feature_snapshot")
+        if isinstance(embedded_entry_snapshot, Mapping):
+            entry_feature_snapshot = _validated_v2_feature_snapshot_payload(
+                json.dumps(dict(embedded_entry_snapshot)),
+                redis_key=str(s.get("entry_feature_source") or "CANONICAL_PREDICTION"),
+                decision_time=entry_feature_decision_time,
+                expected_feature_snapshot_id=str(paper_feature_snapshot_id or ""),
+                expected_symbol=symbol,
+                expected_timeframe=paper_thesis_timeframe,
+            )
+            if entry_feature_snapshot.get("features"):
+                entry_feature_snapshot["feature_snapshot_resolution_status"] = (
+                    "CANONICAL_PREDICTION_EMBEDDED_SERVING_ABI_PIT_VALID"
+                )
+                entry_feature_snapshot["feature_snapshot_fallback_used"] = False
+                entry_feature_snapshot["requested_feature_snapshot_id"] = (
+                    paper_feature_snapshot_id
+                )
+        else:
+            entry_feature_snapshot = _read_v2_feature_snapshot_for_signal(
+                r,
+                paper_feature_snapshot_id,
+                decision_time=entry_feature_decision_time,
+                symbol=symbol,
+                timeframe=paper_thesis_timeframe,
+            )
         entry_features = (
             entry_feature_snapshot.get("features")
             if isinstance(entry_feature_snapshot.get("features"), dict)

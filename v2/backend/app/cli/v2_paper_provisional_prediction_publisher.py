@@ -289,8 +289,22 @@ def read_active_cohort(client: Any) -> dict[str, Any]:
 # --------------------------------------------------------------------------- #
 def read_current_feature_snapshot(client: Any, symbol: str, timeframe: str) -> dict[str, Any] | None:
     """Prefer the mutable latest projection; require a non-empty features map and
-    proven latest-unclosed-kline exclusion (finality)."""
-    snap = read_json_key(client, f"v2:features:latest:{symbol}:{timeframe}")
+    proven latest-unclosed-kline exclusion (finality).
+
+    The immutable feature payload deliberately contains ``available_at=null``:
+    availability is only knowable after Redis commits it.  Bind the exact
+    payload bytes to its post-commit publication receipt and expose that receipt
+    clock as ``record_available_at`` for the shared serving builder.
+    """
+    key = f"v2:features:latest:{symbol}:{timeframe}"
+    raw = client.get(key)
+    if raw is None:
+        return None
+    raw_bytes = raw if isinstance(raw, bytes) else str(raw).encode("utf-8")
+    try:
+        snap = json.loads(raw_bytes)
+    except (TypeError, ValueError):
+        return None
     if not isinstance(snap, dict):
         return None
     if str(snap.get("symbol") or "").upper() != symbol or str(snap.get("timeframe") or "") != timeframe:
@@ -298,7 +312,39 @@ def read_current_feature_snapshot(client: Any, symbol: str, timeframe: str) -> d
     feats = snap.get("features")
     if not isinstance(feats, Mapping) or not feats:
         return None
-    return snap
+    snapshot_id = str(snap.get("feature_snapshot_id") or "")
+    receipt = read_json_key(
+        client, f"v2:features:publication_receipt:{snapshot_id}"
+    )
+    if not isinstance(receipt, Mapping):
+        return None
+    receipt_valid = (
+        receipt.get("schema_version")
+        == "native_feature_publication_postcommit_receipt_v1"
+        and receipt.get("publication_binding_authenticated") is True
+        and receipt.get("publication_binding_complete") is True
+        and receipt.get("temporal_invariants_valid") is True
+        and str(receipt.get("feature_snapshot_id") or "") == snapshot_id
+        and str(receipt.get("symbol") or "").upper() == symbol
+        and str(receipt.get("timeframe") or "") == timeframe
+        and str(receipt.get("feature_cutoff") or "")
+        == str(snap.get("feature_cutoff") or "")
+        and str(receipt.get("snapshot_archive_key") or "")
+        == f"v2:features:snapshot:{snapshot_id}"
+        and str(receipt.get("snapshot_payload_sha256") or "")
+        == hashlib.sha256(raw_bytes).hexdigest()
+        and len(str(receipt.get("receipt_sha256") or "")) == 64
+    )
+    if not receipt_valid:
+        return None
+    enriched = dict(snap)
+    enriched["record_available_at"] = receipt.get("available_at")
+    enriched["feature_publication_receipt_sha256"] = receipt.get("receipt_sha256")
+    enriched["feature_publication_receipt_verified"] = True
+    enriched["feature_publication_receipt_key"] = (
+        f"v2:features:publication_receipt:{snapshot_id}"
+    )
+    return enriched
 
 
 def build_tensor(
@@ -398,7 +444,21 @@ def build_trust_row(
     generated_at: str,
 ) -> dict[str, Any]:
     feature_cutoff = snapshot.get("feature_cutoff") or mtf.get("feature_cutoff")
-    available_at = snapshot.get("available_at") or candle.get("available_at")
+    available_at = (
+        snapshot.get("record_available_at")
+        or snapshot.get("available_at")
+        or candle.get("available_at")
+    )
+    source_available_at = (
+        snapshot.get("source_available_at")
+        or snapshot.get("source_available_time")
+        or candle.get("available_at")
+    )
+    source_received_at = (
+        snapshot.get("ingested_at")
+        or snapshot.get("source_received_time_est")
+        or source_available_at
+    )
     close_time = candle.get("candle_close_time") or candle.get("close_time")
     open_time = candle.get("candle_open_time") or candle.get("open_time")
     event_time = candle.get("event_time") or close_time
@@ -420,8 +480,9 @@ def build_trust_row(
         "candle_open_time": iso_ms(open_time),
         "candle_close_time": iso_ms(close_time),
         "source_event_time_est": iso_ms(event_time),
-        "source_received_time_est": iso_ms(available_at),
-        "source_available_time": iso_ms(available_at),
+        "source_received_time_est": iso_ms(source_received_at),
+        "source_available_time": iso_ms(source_available_at),
+        "record_available_at": iso_ms(available_at),
         "available_at": iso_ms(available_at),
         "feature_cutoff": iso_ms(feature_cutoff),
         "decision_time_est": decision_time_iso,
@@ -868,6 +929,61 @@ def publish_one(
                         tensor.source_availability_vector,
                         strict=True,
                     )
+                },
+                "entry_feature_snapshot_id": tensor.feature_snapshot_id,
+                "entry_feature_available_at": trust_row.get("available_at"),
+                "entry_feature_generated_at": snapshot.get("generated_at"),
+                "entry_feature_cutoff": trust_row.get("feature_cutoff"),
+                "entry_feature_decision_time": decision_iso,
+                "entry_feature_candle_closed_confirmed": True,
+                "entry_feature_source": snapshot.get(
+                    "feature_publication_receipt_key"
+                ),
+                "funding_bps_at_decision_time": exact_cost_record.get(
+                    "funding_bps_at_decision_time"
+                ),
+                "expected_funding_bps": exact_cost_record.get(
+                    "funding_bps_at_decision_time"
+                ),
+                "expected_funding_bps_source": (
+                    "exact_cost_provenance.source_payload."
+                    "funding_bps_at_decision_time"
+                ),
+                "entry_feature_snapshot": {
+                    "schema_version": "serving_feature_abi_v2_entry_snapshot_v1",
+                    "feature_snapshot_id": tensor.feature_snapshot_id,
+                    "feature_tensor_id": tensor.tensor_id,
+                    "symbol": symbol,
+                    "timeframe": timeframe,
+                    "feature_freshness_state": "CURRENT",
+                    "available_at": trust_row.get("available_at"),
+                    "record_available_at": trust_row.get("available_at"),
+                    "generated_at": snapshot.get("generated_at"),
+                    "feature_cutoff": trust_row.get("feature_cutoff"),
+                    "candle_close_time": trust_row.get("candle_close_time"),
+                    "candle_closed_confirmed": True,
+                    "latest_unclosed_kline_excluded": True,
+                    "latest_unclosed_exclusion_method": snapshot.get(
+                        "latest_unclosed_exclusion_method"
+                    ),
+                    "latest_unclosed_exclusion_decision_time_ms": snapshot.get(
+                        "latest_unclosed_exclusion_decision_time_ms"
+                    ),
+                    "latest_closed_kline_close_time_ms": snapshot.get(
+                        "latest_closed_kline_close_time_ms"
+                    ),
+                    "feature_abi_sha256": ckpt.feature_abi_sha256,
+                    "feature_builder_sha256": ckpt.feature_builder_sha256,
+                    "feature_publication_receipt_sha256": snapshot.get(
+                        "feature_publication_receipt_sha256"
+                    ),
+                    "feature_publication_receipt_verified": snapshot.get(
+                        "feature_publication_receipt_verified"
+                    ),
+                    "feature_vector_hash": tensor.tensor_id,
+                    "features": dict(
+                        zip(tensor.feature_names, tensor.values, strict=True)
+                    ),
                 },
             }
         )

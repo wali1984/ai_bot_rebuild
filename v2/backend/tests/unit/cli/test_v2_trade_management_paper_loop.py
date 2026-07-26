@@ -11883,6 +11883,33 @@ def test_read_v2_feature_snapshot_for_signal_falls_back_to_pit_valid_latest() ->
     )
 
 
+def test_feature_snapshot_accepts_producer_then_record_availability_clock_order() -> None:
+    payload = {
+        "feature_snapshot_id": "v2_fsnap_clock_order",
+        "symbol": "BTCUSDT",
+        "timeframe": "15m",
+        "feature_freshness_state": "CURRENT",
+        "generated_at": "2026-07-10T03:27:57.000Z",
+        "available_at": "2026-07-10T03:27:58.000Z",
+        "feature_cutoff": "2026-07-10T03:14:59.999Z",
+        "candle_close_time": "2026-07-10T03:14:59.999Z",
+        "candle_closed_confirmed": True,
+        "latest_unclosed_kline_excluded": True,
+        "features": {"close": 1.0},
+    }
+
+    snapshot = paper_loop._validated_v2_feature_snapshot_payload(  # noqa: SLF001
+        json.dumps(payload),
+        redis_key="canonical_prediction",
+        decision_time="2026-07-10T03:28:00.000Z",
+        expected_feature_snapshot_id="v2_fsnap_clock_order",
+        expected_symbol="BTCUSDT",
+        expected_timeframe="15m",
+    )
+
+    assert snapshot["features"] == {"close": 1.0}
+
+
 def test_read_v2_feature_snapshot_for_signal_future_latest_does_not_bypass_pit() -> None:
     redis = _FakeRedis(
         {

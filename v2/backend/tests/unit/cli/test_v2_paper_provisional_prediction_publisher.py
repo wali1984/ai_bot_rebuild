@@ -1,8 +1,84 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from types import SimpleNamespace
 
 from v2.backend.app.cli import v2_paper_provisional_prediction_publisher as publisher
+
+
+def test_current_feature_snapshot_binds_postcommit_availability_receipt() -> None:
+    snapshot = {
+        "feature_snapshot_id": "snapshot-1",
+        "symbol": "BTCUSDT",
+        "timeframe": "5m",
+        "feature_cutoff": "2026-07-26T19:39:59.999Z",
+        "features": {"close": 1.0},
+    }
+    raw = json.dumps(snapshot, separators=(",", ":"))
+    receipt = {
+        "schema_version": "native_feature_publication_postcommit_receipt_v1",
+        "publication_binding_authenticated": True,
+        "publication_binding_complete": True,
+        "temporal_invariants_valid": True,
+        "feature_snapshot_id": "snapshot-1",
+        "symbol": "BTCUSDT",
+        "timeframe": "5m",
+        "feature_cutoff": snapshot["feature_cutoff"],
+        "snapshot_archive_key": "v2:features:snapshot:snapshot-1",
+        "snapshot_payload_sha256": hashlib.sha256(raw.encode()).hexdigest(),
+        "receipt_sha256": "a" * 64,
+        "available_at": "2026-07-26T19:40:00.123456Z",
+    }
+
+    class Client:
+        def get(self, key: str) -> str | None:
+            if key == "v2:features:latest:BTCUSDT:5m":
+                return raw
+            if key == "v2:features:publication_receipt:snapshot-1":
+                return json.dumps(receipt)
+            return None
+
+    result = publisher.read_current_feature_snapshot(Client(), "BTCUSDT", "5m")
+
+    assert result is not None
+    assert result["record_available_at"] == receipt["available_at"]
+    assert result["feature_publication_receipt_verified"] is True
+
+
+def test_current_feature_snapshot_rejects_receipt_payload_hash_mismatch() -> None:
+    snapshot = {
+        "feature_snapshot_id": "snapshot-1",
+        "symbol": "BTCUSDT",
+        "timeframe": "5m",
+        "feature_cutoff": "2026-07-26T19:39:59.999Z",
+        "features": {"close": 1.0},
+    }
+    raw = json.dumps(snapshot)
+    receipt = {
+        "schema_version": "native_feature_publication_postcommit_receipt_v1",
+        "publication_binding_authenticated": True,
+        "publication_binding_complete": True,
+        "temporal_invariants_valid": True,
+        "feature_snapshot_id": "snapshot-1",
+        "symbol": "BTCUSDT",
+        "timeframe": "5m",
+        "feature_cutoff": snapshot["feature_cutoff"],
+        "snapshot_archive_key": "v2:features:snapshot:snapshot-1",
+        "snapshot_payload_sha256": "b" * 64,
+        "receipt_sha256": "a" * 64,
+        "available_at": "2026-07-26T19:40:00.123456Z",
+    }
+
+    class Client:
+        def get(self, key: str) -> str | None:
+            if key == "v2:features:latest:BTCUSDT:5m":
+                return raw
+            if key == "v2:features:publication_receipt:snapshot-1":
+                return json.dumps(receipt)
+            return None
+
+    assert publisher.read_current_feature_snapshot(Client(), "BTCUSDT", "5m") is None
 
 
 def test_build_trust_row_transports_mtf_clocks_as_strict_utc() -> None:
