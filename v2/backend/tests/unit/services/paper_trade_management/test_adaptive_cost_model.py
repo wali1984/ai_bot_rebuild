@@ -9,7 +9,7 @@ the flat baseline). Paper-only.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.on_policy_behavior import (
     EXACT_COST_PROVENANCE_SCHEMA_VERSION,
@@ -32,7 +32,7 @@ from v2.backend.app.services.paper_trade_management.adaptive_cost_model import (
     publish_cost_estimate,
 )
 
-NOW = datetime(2026, 7, 17, 6, 0, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 7, 17, 6, 0, 0, tzinfo=UTC)
 
 
 def test_default_cost_fee_schedule_identity_matches_paper_entry_contract(
@@ -361,6 +361,8 @@ def test_published_adaptive_cost_is_directly_consumable_by_exact_ppo() -> None:
             "BTCUSDT",
             get_json=_getter(book),
             notional_usd=250.0,
+            funding_bps_at_decision_time=0.25,
+            funding_source="v2:features:latest:BTCUSDT:5m",
             now_utc=now,
         )
 
@@ -395,6 +397,16 @@ def test_published_adaptive_cost_is_directly_consumable_by_exact_ppo() -> None:
     assert provenance["orderbook_source_payload_sha256"] == (
         estimate.orderbook_source_payload_sha256
     )
+    payload = published["payload"]
+    assert isinstance(payload, dict)
+    assert payload["source_event_time"] <= payload["producer_generated_at"]
+    assert payload["producer_generated_at"] == payload["record_available_at"]
+    assert payload["record_available_at"] < payload["expires_at"]
+    assert payload["fee_bps_per_side"] == estimate.taker_fee_bps_per_side
+    assert payload["slippage_bps_per_side"] == estimate.impact_per_side_bps
+    assert payload["funding_bps_at_decision_time"] == 0.25
+    assert payload["source_payload_sha256"] == payload["source_readback_sha256"]
+    assert payload["source_readback_verified"] is True
 
 
 def test_published_exact_cost_preserves_submillisecond_age_identity() -> None:
