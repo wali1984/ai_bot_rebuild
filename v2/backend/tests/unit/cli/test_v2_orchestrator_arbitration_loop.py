@@ -490,6 +490,39 @@ def test_latest_feature_enrichment_requires_exact_snapshot_identity() -> None:
     assert "integrity_feature_snapshot_exact_match" not in merged
 
 
+def test_serving_abi_lineage_is_not_replaced_by_legacy_feature_catalogue() -> None:
+    prediction = _prediction()
+    prediction.update(
+        {
+            "serving_feature_abi_v2": True,
+            "features": {"open": 0.0, "high": 0.01, "low": -0.01, "close": 1.0},
+            "missing_feature_count": 0,
+            "missing_feature_flags": [],
+            "missing_mask": {"open": False, "high": False, "low": False, "close": False},
+        }
+    )
+    fake = _FakeRedis(prediction)
+    fake.store["v2:features:latest:BTCUSDT:1m"] = json.dumps(
+        {
+            "feature_snapshot_id": prediction["feature_snapshot_id"],
+            "symbol": "BTCUSDT",
+            "timeframe": "1m",
+            "features": {"close": 999.0},
+            "missing_feature_count": 263,
+            "missing_feature_flags": ["legacy_optional_feature"],
+            "feature_cutoff": "2026-07-17T11:58:00Z",
+            "available_at": "2026-07-17T11:58:05Z",
+        }
+    )
+
+    merged = loop._prediction_integrity_input(fake, prediction)
+
+    assert merged["features"] == prediction["features"]
+    assert merged["missing_feature_count"] == 0
+    assert merged["missing_feature_flags"] == []
+    assert merged["integrity_feature_snapshot_exact_match"] is True
+
+
 def test_proposal_uses_measured_prediction_age(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -838,6 +838,39 @@ def publish_one(
             "candidate_policy_fingerprint"
         ),
     )
+    if ckpt.serving_feature_abi_v2:
+        # Carry the exact model input and its ABI-scoped lineage into the
+        # canonical prediction.  The mutable upstream feature snapshot has a
+        # much broader legacy catalogue whose absent optional fields must not
+        # replace this checkpoint's complete, admitted 29-feature contract at
+        # downstream revalidation.
+        payload.update(
+            {
+                "features": dict(
+                    zip(tensor.feature_names, tensor.values, strict=True)
+                ),
+                "missing_mask": {
+                    name: bool(flag)
+                    for name, flag in zip(
+                        tensor.feature_names, tensor.missing_mask, strict=True
+                    )
+                },
+                "stale_mask": {
+                    name: bool(flag)
+                    for name, flag in zip(
+                        tensor.feature_names, tensor.stale_mask, strict=True
+                    )
+                },
+                "source_availability": {
+                    name: bool(flag)
+                    for name, flag in zip(
+                        tensor.feature_names,
+                        tensor.source_availability_vector,
+                        strict=True,
+                    )
+                },
+            }
+        )
     stamp_provisional_tags(payload, cohort, ckpt)
     if serving_context:
         # PredictionRecordV2 policy/lineage fields stamped by the canonical serving

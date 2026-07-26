@@ -344,11 +344,17 @@ def _prediction_integrity_input(r, prediction: dict[str, Any]) -> dict[str, Any]
     if feature is None:
         return dict(prediction)
     merged = dict(prediction)
-    for key in (
-        "features",
-        "feature_freshness_state",
-        "missing_feature_count",
-        "missing_feature_flags",
+    feature_contract_keys = (
+        ()
+        if prediction.get("serving_feature_abi_v2") is True
+        else (
+            "features",
+            "feature_freshness_state",
+            "missing_feature_count",
+            "missing_feature_flags",
+        )
+    )
+    for key in (*feature_contract_keys,
         "ohlcv_history_present",
         "orderbook_present",
         "placeholder_feature_count",
