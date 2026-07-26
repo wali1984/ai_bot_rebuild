@@ -225,6 +225,9 @@ def test_ordinary_paper_provenance_and_contracted_weight_flow_end_to_end(
     prediction.update(
         {
             "confidence_raw": prediction["confidence_calibrated"],
+            "active_model_registry_generation": 3,
+            "paper_strategy_cohort_id": "paper_serving_abi_v2:test",
+            "feature_abi_sha256": "a" * 64,
         }
     )
     client = _RedisLike({"bucket_winners": []})
@@ -291,6 +294,11 @@ def test_ordinary_paper_provenance_and_contracted_weight_flow_end_to_end(
     assert risk_row["ordinary_paper_effective_microstructure_action"] == (
         "REDUCE_SIZE"
     )
+    assert risk_row["expected_move_after_cost_bps_signed"] == 0.1
+    assert risk_row["expected_move_after_cost_bps_directional"] == 0.1
+    assert risk_row["active_model_registry_generation"] == 3
+    assert risk_row["paper_strategy_cohort_id"] == "paper_serving_abi_v2:test"
+    assert risk_row["feature_abi_sha256"] == "a" * 64
     assert 0.0 < risk_row["ordinary_paper_effective_sizing_weight"] < risk_row[
         "paper_quality_sizing_weight"
     ]
@@ -302,5 +310,8 @@ def test_ordinary_paper_provenance_and_contracted_weight_flow_end_to_end(
     assert canonical["ordinary_paper_effective_sizing_weight"] == risk_row[
         "ordinary_paper_effective_sizing_weight"
     ]
+    assert canonical["expected_move_after_cost_bps_signed"] == 0.1
+    assert canonical["active_model_registry_generation"] == 3
+    assert canonical["paper_strategy_cohort_id"] == "paper_serving_abi_v2:test"
     assert canonical["routes_to_live"] is False
     assert canonical["places_real_order"] is False

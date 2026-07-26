@@ -101,6 +101,19 @@ _TRUST_ENVELOPE_FIELDS = (
     "selected_action",
     "model_version",
     "checkpoint_id",
+    "serving_feature_abi_v2",
+    "feature_abi_sha256",
+    "feature_builder_sha256",
+    "serving_runtime_release_sha",
+    "active_model_registry_generation",
+    "paper_strategy_cohort_id",
+    "paper_cohort_checkpoint_id",
+    "expected_move_after_cost_bps",
+    "expected_move_after_cost_bps_signed",
+    "expected_move_after_cost_bps_directional",
+    "predicted_directional_net_edge_bps",
+    "directional_net_edge_semantics",
+    "directional_net_edge_model_architecture",
     "source_hashes",
     "microstructure_trust_evidence",
     "microstructure_trust_evidence_sha256",
@@ -422,6 +435,31 @@ def _copy_trust_envelope_fields(source: dict[str, Any]) -> dict[str, Any]:
     if isinstance(source_hashes, dict) and source_hashes:
         out["source_hashes"] = dict(source_hashes)
     return out
+
+
+def _normalized_winner_edge_fields(winner: Mapping[str, Any]) -> dict[str, float]:
+    """Translate arbitrator winner edge names back to prediction semantics."""
+
+    signed = _finite_or_none(
+        winner.get("winner_expected_move_after_cost_bps_signed")
+        if winner.get("winner_expected_move_after_cost_bps_signed") is not None
+        else winner.get("winner_expected_move_after_cost_bps")
+    )
+    directional = _finite_or_none(
+        winner.get("winner_expected_move_after_cost_bps_directional")
+    )
+    side = str(winner.get("side") or "").lower()
+    if signed is None and directional is not None:
+        signed = directional if side == "long" else -directional
+    if directional is None and signed is not None:
+        directional = signed if side == "long" else -signed
+    if signed is None or directional is None:
+        return {}
+    return {
+        "expected_move_after_cost_bps": signed,
+        "expected_move_after_cost_bps_signed": signed,
+        "expected_move_after_cost_bps_directional": directional,
+    }
 
 
 def _ordinary_paper_risk_assessment(
@@ -826,6 +864,11 @@ def _write_per_id_risk_decision_record(
             "ordinary_paper_admission_evidence_sha256",
             "ordinary_paper_effective_sizing_weight",
             "ordinary_scale_free_paper_admission_revalidated",
+            "expected_move_after_cost_bps_signed",
+            "expected_move_after_cost_bps_directional",
+            "active_model_registry_generation",
+            "paper_strategy_cohort_id",
+            "feature_abi_sha256",
             "producer",
             "paper_only",
             "routes_to_live",
@@ -895,6 +938,7 @@ def run_once(*, ttl_seconds: int = 300) -> dict[str, Any]:
         if not isinstance(winner, dict):
             continue
         winner_for_payload = dict(winner)
+        winner_for_payload.update(_normalized_winner_edge_fields(winner_for_payload))
         ordinary_assessment = _ordinary_paper_risk_assessment(
             client, winner_for_payload
         )
