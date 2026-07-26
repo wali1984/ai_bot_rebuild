@@ -49,7 +49,16 @@ V2_REDIS_PREFIX = "v2:"
 LIVE_GATE_STATUS = LIVE_GATE_BLOCKED
 PUBLIC_WORKER_ID = "v2_risk_gateway_runtime_worker"
 LOOP_WORKER_ID = "v2_risk_gateway_live_loop"
-REPO_ROOT = Path(__file__).resolve().parents[4]
+
+
+def _runtime_root() -> Path:
+    configured = str(os.environ.get("AI_BOT_RUNTIME_ROOT") or "").strip()
+    if configured:
+        return Path(configured).expanduser().resolve()
+    return Path(__file__).resolve().parents[4]
+
+
+REPO_ROOT = _runtime_root()
 _MICROSTRUCTURE_SHADOW_BLOCK_THRESHOLD = 0.45
 _MICROSTRUCTURE_SWEEP_BLOCK_THRESHOLD = 0.75
 _MICROSTRUCTURE_BLOCK_ACTIONS = {"NO_TRADE", "SHADOW_ONLY", "CLOSE_OR_REDUCE_ONLY"}

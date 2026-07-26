@@ -61,6 +61,17 @@ class _RedisLike:
         return self.ttls.get(key, 300 if key in self.store or key in self.writes else -2)
 
 
+def test_risk_runtime_root_can_be_separate_from_immutable_code(
+    monkeypatch,
+    tmp_path,
+):
+    from v2.backend.app.cli import v2_risk_gateway_live_loop as worker
+
+    monkeypatch.setenv("AI_BOT_RUNTIME_ROOT", str(tmp_path))
+
+    assert worker._runtime_root() == tmp_path.resolve()  # noqa: SLF001
+
+
 def test_risk_gateway_live_loop_stamps_v2_risk_decisions(monkeypatch, tmp_path):
     from v2.backend.app.cli import v2_risk_gateway_live_loop as worker
 
@@ -218,10 +229,15 @@ def test_ordinary_paper_provenance_and_contracted_weight_flow_end_to_end(
     )
     client = _RedisLike({"bucket_winners": []})
     prediction_key = "v2:prediction:SOLUSDT:1m"
+    immutable_prediction_key = (
+        f"v2:prediction_by_id:{prediction['prediction_id']}"
+    )
     replay_key = str(prediction["replay_snapshot_key"])
     client.store[prediction_key] = prediction
+    client.store[immutable_prediction_key] = prediction
     client.store[replay_key] = replay
     client.ttls[prediction_key] = 300
+    client.ttls[immutable_prediction_key] = 300
     client.ttls[replay_key] = 300
 
     class _DegradedIntegrity:
