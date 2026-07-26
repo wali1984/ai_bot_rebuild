@@ -169,3 +169,144 @@ date -u +%Y-%m-%dT%H:%M:%S.%6NZ
 ```
 
 Small inline Python diagnostics were also run read-only to inspect exact-cost timestamp deltas, canonical feature distributions, prediction actions, checkpoint statistics, and paper outcome aggregates. No diagnostic submitted an order or modified exchange state. All file edits were performed with patch application, not shell redirection.
+
+## Continuous recovery continuation — 21:15 UTC
+
+This section supersedes the earlier zero-directional-supply runtime snapshot.
+
+**LIVE NO-GO remains correct.** The controllable ABI, dataset, checkpoint,
+registry, immutable-serving, exact-lineage, trainer-independence, systemd, boot
+validator, and G12 work is complete. The mission cannot honestly emit
+`V2_PERMANENT_RECOVERY_COMPLETE` because the frozen generation-3 cohort has
+`0/5` required natural directional closes.
+
+Runtime acceptance now proves:
+
+- checkpoint generation 3 is active through the atomic registry;
+- canonical serving publishes fresh directional predictions with valid ABI,
+  exact-cost, microstructure, and finality evidence;
+- prediction, orchestrator, risk, signal, intent, cohort, ABI, generation, and
+  learned edge survive through the paper preemptive-decision matrix;
+- five trainer-down serving cycles published respectively `157/80`, `185/94`,
+  `177/91`, `193/86`, and `194/86` total/directional records;
+- the first post-trainer-restart cycle published `174/71` records without a
+  serving restart, and canonical writer count remained exactly one;
+- boot validator passes all eight checks and systemd verification emits no
+  diagnostics;
+- G12 remains `17/17 PASS`;
+- all four canonical paper-only services are active from immutable release
+  `9672f28c33d61c10cb40d7af39b72f8103b87d8a`.
+
+The latest completed paper cycle evaluated 119 candidates. Thirty-nine carry
+the governed generation-3 cohort/ABI lineage. No candidate passed unchanged
+safety controls: 80 were blocked for excessive loss probability and 39 for
+unsafe microstructure. There are no open positions, no new closes, no used
+margin, no newly reserved margin, and no exchange action.
+
+The exact remaining predicates are:
+
+```text
+natural_paper_lifecycle_complete=false
+restart_reconstruction_match=false
+generation_3_natural_directional_closes=0/5
+G03=FAIL (F049-F054 open)
+G11=FAIL (0/5 counterfactual scenarios pass)
+G13=FAIL (-18.12637793535448 bps notional-weighted expectancy)
+G14=FAIL (profit factor 0.6580123165026963)
+clean_reboot_proof=NOT_RUN_REQUIRES_OPERATOR_AUTHORIZATION
+LIVE_NO_GO=true
+live_gate=blocked_human_only
+exchange_action_taken=false
+places_real_order=false
+```
+
+Authoritative runtime receipts:
+
+- `goal_state/PERMANENT_SYSTEM_RECOVERY/RECOVERY_STATUS.json`
+- `goal_state/PERMANENT_SYSTEM_RECOVERY/serving_independence_evidence.json`
+
+These two continuously updated runtime files remain intentionally ignored and
+untracked; the repository safety hook rejected staging them as source.
+
+### Continuation commits
+
+```text
+a0d584850b bind risk admission to immutable predictions
+48c0c7b53f give serving cycles unique prediction ids
+9bd8ad45bc separate serving release from evidence archive
+7ab8982fdc separate risk release from runtime status
+85d2d5972c preserve model edge through risk lineage
+9672f28c33 preserve checkpoint lineage through paper decisions
+```
+
+### Continuation files changed
+
+Repository source/tests:
+
+- `v2/backend/app/cli/v2_canonical_prediction_serving_runtime.py`
+- `v2/backend/app/cli/v2_orchestrator_arbitration_loop.py`
+- `v2/backend/app/cli/v2_paper_provisional_prediction_publisher.py`
+- `v2/backend/app/cli/v2_risk_gateway_live_loop.py`
+- `v2/backend/app/cli/v2_trade_management_paper_loop.py`
+- `v2/backend/app/services/preemptive_edge_control/schema.py`
+- `v2/backend/tests/integration/cli/test_v2_risk_gateway_live_loop.py`
+- `v2/backend/tests/unit/cli/test_v2_canonical_prediction_serving_runtime.py`
+- `v2/backend/tests/unit/cli/test_v2_orchestrator_arbitration_loop.py`
+- `v2/backend/tests/unit/services/preemptive_edge_control/test_decision.py`
+
+Runtime unit files:
+
+- `~/.config/systemd/user/ai-bot-v2-canonical-prediction-serving.service.d/90-immutable-recovery-release.conf`
+- `~/.config/systemd/user/ai-bot-v2-orchestrator-arbitration-loop.service.d/90-immutable-recovery-release.conf`
+- `~/.config/systemd/user/ai-bot-v2-risk-gateway-live-loop.service.d/90-immutable-recovery-release.conf`
+- `~/.config/systemd/user/ai-bot-v2-trade-management-paper-loop.service.d/90-immutable-release.conf`
+
+Runtime receipts:
+
+- `goal_state/PERMANENT_SYSTEM_RECOVERY/RECOVERY_STATUS.json`
+- `goal_state/PERMANENT_SYSTEM_RECOVERY/serving_independence_evidence.json`
+- `goal_state/V2_CLAUDE_CONTINUOUS_ADVERSARIAL_VALIDATION_AND_CAPITAL_PRODUCTIVITY_GUARDIAN/PHASE10_RARE_EVENT_TEST_RESULTS.json`
+- `goal_state/V2_CLAUDE_CONTINUOUS_ADVERSARIAL_VALIDATION_AND_CAPITAL_PRODUCTIVITY_GUARDIAN/COUNTERFACTUAL_CAPITAL_SWEEP_RESULTS.json`
+
+The pre-existing `.claude/hooks/block_dangerous.sh` modification remains
+untouched.
+
+### Continuation verification and command ledger
+
+```text
+.venv/bin/python -m py_compile <six changed runtime modules>
+.venv/bin/ruff check --select F,E9 <changed modules except the legacy paper-loop monolith and changed tests>
+.venv/bin/pytest -q v2/backend/tests/unit/services/preemptive_edge_control/test_decision.py v2/backend/tests/unit/cli/test_v2_canonical_prediction_serving_runtime.py v2/backend/tests/unit/cli/test_v2_orchestrator_arbitration_loop.py v2/backend/tests/integration/cli/test_v2_risk_gateway_live_loop.py
+# 40 passed
+.venv/bin/pytest -q v2/backend/tests/unit/cli/test_v2_trade_management_paper_loop.py
+# 582 passed; 13 pre-existing failures and 31 pre-existing setup errors in unrelated legacy fixtures
+.venv/bin/python scripts/guardian_phase10_rare_event_tests.py
+# 17 PASS / 0 WARNING / 0 FAIL
+.venv/bin/python scripts/run_counterfactual_sweep.py
+# 0/5 pass
+.venv/bin/python scripts/verify_claude_guardian_completion.py
+# 10/16 gates pass; G03/G04/G06/G11/G13/G14 fail
+.venv/bin/python -m v2.backend.app.cli.v2_boot_validator
+# PASS: systemd, GPU, Redis, data plane, evidence plane, prediction serving, paper loop, single writers
+systemd-analyze --user verify ai-bot-v2-stack.target default.target timers.target
+# no output
+git diff --check
+# no output
+git worktree add --detach /home/wali/ai_bot_local_data/deployments/ai_bot_rebuild/9672f28c33d61c10cb40d7af39b72f8103b87d8a 9672f28c33d61c10cb40d7af39b72f8103b87d8a
+systemctl --user daemon-reload
+systemctl --user restart ai-bot-v2-canonical-prediction-serving.service ai-bot-v2-orchestrator-arbitration-loop.service ai-bot-v2-risk-gateway-live-loop.service ai-bot-v2-trade-management-paper-loop.service
+systemctl --user stop ai-bot-v2-native-cuda-trainer-persistent.service ai-bot-v2-profiled-training-observation-coordinator.service ai-bot-v2-trainer-checkpoint-evidence.service ai-bot-v2-trainer-training-live-loop.service
+# observe five distinct v2:prediction_serving:status cycles
+systemctl --user start ai-bot-v2-native-cuda-trainer-persistent.service ai-bot-v2-profiled-training-observation-coordinator.service ai-bot-v2-trainer-checkpoint-evidence.service ai-bot-v2-trainer-training-live-loop.service
+# observe one uninterrupted post-restart cycle; prediction_writer_count=1
+systemctl --user reset-failed ai-bot-v2-orchestrator-arbitration-loop.service
+systemctl --user start ai-bot-v2-orchestrator-arbitration-loop.service
+systemctl --user --failed --no-legend
+redis-cli GET <audited runtime keys>
+redis-cli --scan --pattern <audited key patterns>
+jq <bounded projections> <runtime JSON>
+rg -n <lineage and service patterns> <scoped source/tests>
+sed -n <scoped ranges> <scoped source/tests/unit files>
+git status --short --branch
+git diff --check
+```
