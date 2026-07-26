@@ -121,6 +121,9 @@ from v2.backend.app.services.adaptive_capital_allocator.allocator import (
 from v2.backend.app.services.market_structure.decision_context import (
     ADVANCED_CONTEXT_FIELDS,
 )
+from v2.backend.app.services.market_structure.common import (
+    parse_time as _parse_market_structure_time,
+)
 from v2.backend.app.services.market_structure import (
     compute_cvd_features,
     compute_fvg,
@@ -8179,9 +8182,12 @@ def _load_closed_candle_dict_rows_for_advanced_indicators(
             # A candle close/event clock is not evidence of consumer
             # availability.  Rows without an explicit, aware availability
             # clock cannot participate in an on-demand decision feature.
-            if _strict_aware_utc_time(item.get("available_at")) is None:
+            available_dt = _parse_market_structure_time(item.get("available_at"))
+            if available_dt is None:
                 continue
-            rows.append(item)
+            normalized = dict(item)
+            normalized["available_at"] = available_dt.isoformat().replace("+00:00", "Z")
+            rows.append(normalized)
         if rows:
             break
     return rows

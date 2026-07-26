@@ -1669,6 +1669,7 @@ def _merge_external_v2_features(
     *,
     selected_closed_klines: list,
     ohlcv_selection_lineage: dict,
+    decision_time: datetime,
 ) -> dict:
     """Merge real V2 feature surfaces into the live feature mirror."""
     sources_present: list[str] = []
@@ -1809,6 +1810,7 @@ def _merge_external_v2_features(
             trade_tape=_read_json_key(
                 r, f"v2:microstructure:trade_tape_confirmation:{symbol}"
             ),
+            decision_time=decision_time,
         )
         zones["ohlcv_selection_binding"] = dict(structure_ohlcv_binding)
         r.set(
@@ -1831,6 +1833,7 @@ def _merge_external_v2_features(
             timeframe=timeframe,
             candles=structure_candles,
             price=reference_price,
+            decision_time=decision_time,
         )
         structure["ohlcv_selection_binding"] = dict(structure_ohlcv_binding)
         r.set(
@@ -1877,6 +1880,7 @@ def _merge_external_v2_features(
             trade_tape=_read_json_key(
                 r, f"v2:microstructure:trade_tape_confirmation:{symbol}"
             ),
+            decision_time=decision_time,
         )
         fvg["ohlcv_selection_binding"] = dict(structure_ohlcv_binding)
         r.set(
@@ -1904,6 +1908,7 @@ def _merge_external_v2_features(
                     timeframe=timeframe,
                     candles=structure_candles,
                     price=reference_price,
+                    decision_time=decision_time,
                 ),
             ),
             (
@@ -1913,6 +1918,7 @@ def _merge_external_v2_features(
                     timeframe=timeframe,
                     candles=structure_candles,
                     price=reference_price,
+                    decision_time=decision_time,
                 ),
             ),
             (
@@ -1922,6 +1928,7 @@ def _merge_external_v2_features(
                     timeframe=timeframe,
                     candles=structure_candles,
                     price=reference_price,
+                    decision_time=decision_time,
                 ),
             ),
             # The paper loop published the liquidity-zone payload under
@@ -2617,6 +2624,10 @@ def run_once(symbols: tuple[str, ...], timeframe: str, *, write_trainer_snapshot
             feats,
             selected_closed_klines=closed_klines,
             ohlcv_selection_lineage=ohlcv_selection_lineage,
+            decision_time=datetime.fromtimestamp(
+                decision_ms / 1000.0,
+                tz=timezone.utc,
+            ),
         )
         market_cost_sources = {
             "fee_bps": feats.pop("_fee_bps_source", None),

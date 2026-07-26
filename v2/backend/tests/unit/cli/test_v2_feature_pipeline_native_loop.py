@@ -1208,6 +1208,10 @@ def test_external_enrichment_cannot_manufacture_reserved_feature_or_cost_evidenc
         features,
         selected_closed_klines=[],
         ohlcv_selection_lineage={},
+        decision_time=mod.datetime.fromtimestamp(
+            _TEST_NOW_MS / 1000.0,
+            tz=mod.timezone.utc,
+        ),
     )
 
     assert all(
@@ -1277,6 +1281,10 @@ def test_obsolete_coinapi_namespace_is_not_read_or_merged_even_with_claimed_rece
         features,
         selected_closed_klines=[],
         ohlcv_selection_lineage={},
+        decision_time=mod.datetime.fromtimestamp(
+            _TEST_NOW_MS / 1000.0,
+            tz=mod.timezone.utc,
+        ),
     )
 
     assert legacy_key not in fake.get_calls
@@ -1329,6 +1337,10 @@ def test_live_ta_full_is_not_read_or_merged() -> None:
         features,
         selected_closed_klines=[],
         ohlcv_selection_lineage={},
+        decision_time=mod.datetime.fromtimestamp(
+            _TEST_NOW_MS / 1000.0,
+            tz=mod.timezone.utc,
+        ),
     )
 
     assert ta_key not in fake.get_calls
@@ -1361,6 +1373,10 @@ def test_unified_enrichment_cannot_backfill_missing_canonical_open_interest(
         features,
         selected_closed_klines=[],
         ohlcv_selection_lineage={},
+        decision_time=mod.datetime.fromtimestamp(
+            _TEST_NOW_MS / 1000.0,
+            tz=mod.timezone.utc,
+        ),
     )
 
     assert "open_interest" in mod.CANONICAL_MARKET_INPUT_FIELDS

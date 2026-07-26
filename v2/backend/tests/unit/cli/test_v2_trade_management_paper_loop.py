@@ -11877,6 +11877,31 @@ def test_fresh_checkpoint_cohort_does_not_inherit_historical_performance_halt() 
     assert cohort_status["bucket_quarantine_status"]["blocked_bucket_keys"] == []
 
 
+def test_advanced_indicator_loader_normalizes_explicit_epoch_ms_availability() -> None:
+    class FakeRedis:
+        def get(self, _key: str):
+            return json.dumps(
+                [
+                    {
+                        "candle_closed_confirmed": True,
+                        "closed_candle": True,
+                        "available_at": 1_785_096_001_059,
+                        "event_time": 1_785_095_999_999,
+                        "close": 1.0,
+                    }
+                ]
+            )
+
+    rows = paper_loop._load_closed_candle_dict_rows_for_advanced_indicators(  # noqa: SLF001
+        FakeRedis(),
+        "BTCUSDT",
+        "1h",
+    )
+
+    assert len(rows) == 1
+    assert rows[0]["available_at"] == "2026-07-26T20:00:01.059000Z"
+
+
 def test_read_v2_feature_snapshot_missing_timeframe_does_not_default_to_1m() -> None:
     class FakeRedis:
         def __init__(self) -> None:
