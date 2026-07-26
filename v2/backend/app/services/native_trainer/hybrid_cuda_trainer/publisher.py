@@ -2511,10 +2511,12 @@ class V2HybridPredictionPublisher:
         *,
         io: V2OnlyJsonIO | None = None,
         behavior_receipt_archive_root: Path | None = None,
+        feature_snapshot_archive_root: Path | None = None,
         current_cycle_publication_ttl_seconds: int | None = None,
     ) -> None:
         self.io = io or V2OnlyJsonIO(client=None)
         self.behavior_receipt_archive_root = behavior_receipt_archive_root
+        self.feature_snapshot_archive_root = feature_snapshot_archive_root
         if (
             current_cycle_publication_ttl_seconds is not None
             and (
@@ -2795,7 +2797,12 @@ class V2HybridPredictionPublisher:
         archive_record = build_archive_record_from_prediction_payload(payload)
         if archive_record is not None:
             try:
-                archived = append_snapshot(archive_record, update_checksum_manifest=False)
+                archive_kwargs: dict[str, Any] = {
+                    "update_checksum_manifest": False
+                }
+                if self.feature_snapshot_archive_root is not None:
+                    archive_kwargs["root"] = self.feature_snapshot_archive_root
+                archived = append_snapshot(archive_record, **archive_kwargs)
                 payload["durable_feature_snapshot_archive_write_success"] = True
                 payload["durable_feature_snapshot_archive_snapshot_id"] = archived.snapshot_id
                 payload["durable_feature_snapshot_archive_content_sha256"] = archived.content_sha256

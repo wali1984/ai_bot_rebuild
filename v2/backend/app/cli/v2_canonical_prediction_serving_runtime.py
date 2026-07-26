@@ -129,6 +129,10 @@ def run_cycle(
     io = V2OnlyJsonIO(client=client)
     publisher = V2HybridPredictionPublisher(
         io=io, behavior_receipt_archive_root=None,
+        feature_snapshot_archive_root=(
+            Path.cwd()
+            / ".local_data/v2_native_trainer/durable_feature_snapshot_archive"
+        ),
         current_cycle_publication_ttl_seconds=SERVING_TTL_SECONDS,
     )
     cohort = read_active_cohort(client)
