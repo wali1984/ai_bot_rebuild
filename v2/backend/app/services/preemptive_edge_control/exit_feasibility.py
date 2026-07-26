@@ -53,9 +53,11 @@ def assess_exit_feasibility(candidate: dict[str, Any], cost_edge: dict[str, Any]
     if expected_edge is None:
         score = min(score, 0.35)
         reasons.append("EXPECTED_EDGE_MISSING_FOR_EXIT_PLAN")
-    elif cost_bps is not None and expected_edge <= cost_bps:
-        score = min(score, 0.25)
-        reasons.append("EXPECTED_EDGE_LESS_THAN_COST_TO_EXIT")
+    # ``expected_edge_after_cost_bps`` is already net of the complete observed
+    # cost contract.  Comparing it with ``cost_bps`` here would charge those
+    # costs a second time.  Gross-edge cost coverage is enforced upstream by
+    # ``assess_cost_edge`` when a gross move is supplied; an explicit net edge
+    # is required only to remain positive.
     if expected_edge is not None and stop_distance is not None and expected_edge <= stop_distance * 0.5:
         score = min(score, 0.4)
         reasons.append("MFE_REQUIRED_UNREALISTIC_FOR_STOP_RISK")
@@ -65,6 +67,9 @@ def assess_exit_feasibility(candidate: dict[str, Any], cost_edge: dict[str, Any]
 
     mfe_required = None
     if cost_bps is not None and stop_distance is not None:
+        # Gross MFE needed to cover observed costs and retain the existing
+        # half-stop reward/risk margin.  This is reported for audit; the
+        # corresponding admission comparison above is performed in net units.
         mfe_required = cost_bps + max(stop_distance * 0.5, 0.0)
 
     return {
