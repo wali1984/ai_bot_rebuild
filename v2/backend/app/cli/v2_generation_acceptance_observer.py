@@ -560,6 +560,23 @@ def observe_once(
     status_ttl_seconds: int = DEFAULT_STATUS_TTL_SECONDS,
 ) -> dict[str, Any]:
     cycles = _load_archive(archive_path)
+    known = {str(row.get("cycle_generated_utc")) for row in cycles}
+    current_matrix = _mapping(_json_value(client, MATRIX_KEY, {}))
+    current_cycle_time = str(current_matrix.get("generated_utc") or "")
+    if current_cycle_time in known:
+        status = build_status(
+            cycles,
+            minimum_cycles=minimum_cycles,
+            minimum_observation_seconds=minimum_observation_seconds,
+        )
+        _write_status(status_path, status)
+        client.set(
+            STATUS_KEY,
+            json.dumps(status, sort_keys=True, separators=(",", ":")),
+            ex=status_ttl_seconds,
+        )
+        return status
+
     cycle = capture_cycle(client)
     if any(
         int(row.get("checkpoint_generation") or 0)
@@ -568,7 +585,6 @@ def observe_once(
         for row in cycles
     ):
         raise RuntimeError("OBSERVATION_GENERATION_OR_COHORT_CHANGED")
-    known = {str(row.get("cycle_generated_utc")) for row in cycles}
     if str(cycle["cycle_generated_utc"]) not in known:
         _append_cycle(archive_path, cycle)
         cycles.append(cycle)

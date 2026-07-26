@@ -15,8 +15,10 @@ class FakeRedis:
             for key, value in values.items()
         }
         self.writes = {}
+        self.get_counts = {}
 
     def get(self, key):
+        self.get_counts[key] = self.get_counts.get(key, 0) + 1
         return self.values.get(key)
 
     def set(self, key, value, ex=None):
@@ -160,7 +162,7 @@ def test_status_classifies_only_after_both_bounds() -> None:
 
 
 def test_observe_once_deduplicates_matrix_cycle(tmp_path) -> None:
-    client = FakeRedis(_values(admitted=True))
+    client = FakeRedis(_values(admitted=False))
     archive = tmp_path / "cycles.jsonl"
     status = tmp_path / "status.json"
 
@@ -181,10 +183,11 @@ def test_observe_once_deduplicates_matrix_cycle(tmp_path) -> None:
 
     assert first["completed_cycles"] == 1
     assert second["completed_cycles"] == 1
-    assert second["classification"] == "NATURAL_ADMISSION_OBSERVED"
+    assert second["classification"] == "OBSERVING_BOUNDED_NATURAL_OPPORTUNITY_WINDOW"
     assert len(archive.read_text().splitlines()) == 1
     assert client.writes[observer.STATUS_KEY][1] == 900
     assert json.loads(status.read_text())["completed_cycles"] == 1
+    assert client.get_counts["v2:preemptive:decision:pec-1"] == 1
 
 
 def test_observe_once_fails_closed_when_generation_archive_changes(tmp_path) -> None:
