@@ -11,6 +11,7 @@ import argparse
 import json
 import math
 import os
+import re
 import time
 from collections import Counter
 from collections.abc import Mapping
@@ -30,6 +31,7 @@ OPEN_POSITIONS_KEY = "v2:paper:open_positions"
 CLOSED_TRADES_KEY = "v2:paper:closed_trades"
 ACCOUNT_STATUS_KEY = "v2:paper:account_margin_status"
 PAPER_SIGNALS_KEY = "v2:signals:paper"
+ADAPTIVE_TUNING_KEY = "v2:orchestrator:adaptive_gate_tuning_state"
 
 DEFAULT_MINIMUM_CYCLES = 50
 # Binance USD-M is continuous rather than session-gapped.  The governed
@@ -156,29 +158,40 @@ def _reservation_leak_count(
     return int((reserved or 0.0) > 1e-9 or (used or 0.0) > 1e-9)
 
 
-def _required_loss_probability(
-    client: Any, row: Mapping[str, Any]
-) -> tuple[float | None, float | None, float | None, dict[str, Any]]:
-    decision_id = str(row.get("preemptive_decision_id") or "")
-    full = (
-        _mapping(_json_value(client, f"v2:preemptive:decision:{decision_id}", {}))
-        if decision_id
-        else {}
+def _adaptive_loss_probability_threshold(client: Any) -> float | None:
+    try:
+        prefix = client.getrange(ADAPTIVE_TUNING_KEY, 0, 65_535)
+    except Exception:  # noqa: BLE001
+        return None
+    if isinstance(prefix, bytes):
+        prefix = prefix.decode("utf-8", errors="strict")
+    if not isinstance(prefix, str):
+        return None
+    match = re.search(
+        r'"adaptive_loss_probability_threshold"\s*:\s*'
+        r"(-?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)",
+        prefix,
     )
-    required_max_loss = _finite(full.get("adaptive_loss_probability_threshold_used"))
-    required_profit = None if required_max_loss is None else 1.0 - required_max_loss
-    input_material = _mapping(full.get("preemptive_input_material"))
-    clocks = _mapping(input_material.get("clocks")) or _mapping(full.get("clocks"))
-    candidate_available = _parse_time(clocks.get("candidate_available_at"))
-    decision_time = _parse_time(
-        clocks.get("preemptive_decision_time")
-        or full.get("preemptive_decision_time")
-        or row.get("preemptive_decision_time")
+    return _finite(match.group(1)) if match else None
+
+
+def _evidence_age_seconds(
+    row: Mapping[str, Any], signal: Mapping[str, Any]
+) -> float | None:
+    candidate_available = _parse_time(
+        signal.get("available_at")
+        or signal.get("source_available_time")
+        or _mapping(
+            _mapping(signal.get("microstructure_trust_evidence")).get(
+                "source_payload"
+            )
+        ).get("record_available_at")
     )
+    decision_time = _parse_time(row.get("preemptive_decision_time"))
     evidence_age = None
     if candidate_available is not None and decision_time is not None:
         evidence_age = max(0.0, (decision_time - candidate_available).total_seconds())
-    return required_max_loss, required_profit, evidence_age, full
+    return evidence_age
 
 
 def _candidate_attribution(
@@ -186,15 +199,12 @@ def _candidate_attribution(
     row: Mapping[str, Any],
     *,
     signal_by_prediction: Mapping[str, Mapping[str, Any]],
+    required_max_loss: float | None,
 ) -> dict[str, Any]:
     prediction_id = str(row.get("prediction_id") or "")
     signal = signal_by_prediction.get(prediction_id, {})
-    required_max_loss, required_profit, evidence_age, full = (
-        _required_loss_probability(client, row)
-    )
-    input_candidate = _mapping(
-        _mapping(full.get("preemptive_input_material")).get("candidate")
-    )
+    required_profit = None if required_max_loss is None else 1.0 - required_max_loss
+    evidence_age = _evidence_age_seconds(row, signal)
     model_loss = _finite(row.get("pre_trade_loss_probability"))
     return {
         "prediction_id": prediction_id or None,
@@ -208,31 +218,32 @@ def _candidate_attribution(
         "model_profit_probability": None if model_loss is None else 1.0 - model_loss,
         "required_max_loss_probability": required_max_loss,
         "required_min_profit_probability": required_profit,
-        "microstructure_action": input_candidate.get("microstructure_action")
-        or signal.get("microstructure_action"),
+        "microstructure_action": signal.get(
+            "ordinary_paper_effective_microstructure_action"
+        )
+        or signal.get("microstructure_action")
+        or _mapping(
+            _mapping(signal.get("microstructure_trust_evidence")).get(
+                "source_payload"
+            )
+        ).get("microstructure_action"),
         "microstructure_trust_score": row.get("microstructure_trust_score"),
         "microstructure_trust_state": row.get("microstructure_trust_state"),
         "evidence_age_seconds": evidence_age,
         "expected_edge_after_cost_bps": _finite(
-            full.get("expected_edge_after_cost_bps")
+            row.get("expected_edge_after_cost_bps")
         ),
-        "exit_feasibility_score": _finite(full.get("exit_feasibility_score")),
+        "exit_feasibility_score": _finite(row.get("exit_feasibility_score")),
         "confidence_overstatement_risk": _finite(
-            full.get("confidence_overstatement_risk")
+            row.get("confidence_overstatement_risk")
         ),
-        "advanced_indicator_block": full.get("advanced_indicator_block"),
-        "advanced_indicator_shadow": full.get("advanced_indicator_shadow"),
+        "advanced_indicator_block_reasons": list(
+            row.get("advanced_indicator_block_reasons") or []
+        ),
         "matched_quarantined_bucket_keys": list(
-            full.get("matched_quarantined_bucket_keys") or []
+            row.get("matched_quarantined_bucket_keys") or []
         ),
-        "atr_stop_cluster_active": full.get("atr_stop_cluster_active"),
-        "cohort_breaker_state": input_candidate.get("paper_cohort_breaker_state"),
-        "cohort_breaker_new_entries_allowed": input_candidate.get(
-            "paper_cohort_breaker_new_entries_allowed"
-        ),
-        "cohort_preemptive_controls_scoped": input_candidate.get(
-            "paper_cohort_preemptive_controls_scoped"
-        ),
+        "atr_stop_cluster_active": row.get("atr_stop_cluster_active"),
         "guardian_state": row.get("continuous_edge_guardian_status"),
         "guardian_new_entries_allowed": row.get("guardian_new_entries_allowed"),
     }
@@ -254,7 +265,6 @@ def capture_cycle(client: Any, *, observed_at: datetime | None = None) -> dict[s
     fills = _rows(_json_value(client, ACCEPTED_FILLS_KEY, []))
     open_positions = _rows(_json_value(client, OPEN_POSITIONS_KEY, []))
     closes = _rows(_json_value(client, CLOSED_TRADES_KEY, []))
-    signals = _rows(_json_value(client, PAPER_SIGNALS_KEY, []))
     matrix_rows = _rows(matrix.get("rows"))
 
     cycle_time = str(matrix.get("generated_utc") or "")
@@ -285,11 +295,22 @@ def capture_cycle(client: Any, *, observed_at: datetime | None = None) -> dict[s
         if _matches_generation(row, generation=generation, cohort_id=cohort_id)
         and _is_natural(row)
     ]
-    signal_by_prediction = {
-        str(row.get("prediction_id") or row.get("source_prediction_id")): row
-        for row in signals
-        if row.get("prediction_id") or row.get("source_prediction_id")
-    }
+    signal_by_prediction: dict[str, dict[str, Any]] = {}
+    for row in generation_rows:
+        prediction_id = str(row.get("prediction_id") or "")
+        symbol = str(row.get("symbol") or "").upper()
+        timeframe = str(row.get("timeframe") or "")
+        if not prediction_id or not symbol or not timeframe:
+            continue
+        signal = _mapping(
+            _json_value(client, f"{PAPER_SIGNALS_KEY}:{symbol}:{timeframe}", {})
+        )
+        signal_prediction_id = str(
+            signal.get("prediction_id") or signal.get("source_prediction_id") or ""
+        )
+        if signal_prediction_id == prediction_id:
+            signal_by_prediction[prediction_id] = signal
+    required_max_loss = _adaptive_loss_probability_threshold(client)
 
     reason_counts: Counter[str] = Counter()
     action_counts: Counter[str] = Counter()
@@ -314,6 +335,7 @@ def capture_cycle(client: Any, *, observed_at: datetime | None = None) -> dict[s
             client,
             row,
             signal_by_prediction=signal_by_prediction,
+            required_max_loss=required_max_loss,
         )
         for row in generation_rows
         if row.get("preemptive_allowed") is not True

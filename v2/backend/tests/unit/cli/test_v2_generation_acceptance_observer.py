@@ -21,6 +21,10 @@ class FakeRedis:
         self.get_counts[key] = self.get_counts.get(key, 0) + 1
         return self.values.get(key)
 
+    def getrange(self, key, start, end):
+        value = self.values.get(key, "")
+        return value[start : end + 1]
+
     def set(self, key, value, ex=None):
         self.writes[key] = (json.loads(value), ex)
         return True
@@ -41,6 +45,10 @@ def _values(*, admitted=False):
         "preemptive_allowed": admitted,
         "preemptive_block_reasons": [] if admitted else ["LOSS_PROBABILITY_TOO_HIGH"],
         "pre_trade_loss_probability": 0.7,
+        "preemptive_decision_time": "2026-07-26T22:00:02Z",
+        "expected_edge_after_cost_bps": 18.0,
+        "exit_feasibility_score": 0.7,
+        "confidence_overstatement_risk": 0.1,
         "continuous_edge_guardian_status": "ACTIVE",
     }
     return {
@@ -67,31 +75,13 @@ def _values(*, admitted=False):
             "used_margin_usd": 0.0,
             "newly_reserved_margin_usd": 0.0,
         },
-        observer.PAPER_SIGNALS_KEY: [
-            {
-                "prediction_id": "prediction-1",
-                "microstructure_action": "REDUCE_SIZE",
-            }
-        ],
-        "v2:preemptive:decision:pec-1": {
-            "adaptive_loss_probability_threshold_used": 0.65,
-            "expected_edge_after_cost_bps": 18.0,
-            "exit_feasibility_score": 0.7,
-            "confidence_overstatement_risk": 0.1,
-            "advanced_indicator_block": False,
-            "advanced_indicator_shadow": False,
-            "preemptive_decision_time": "2026-07-26T22:00:02Z",
-            "clocks": {"candidate_available_at": "2026-07-26T22:00:00Z"},
-            "preemptive_input_material": {
-                "candidate": {
-                    "microstructure_action": "ALLOW",
-                    "paper_cohort_breaker_state": (
-                        "ACTIVE_INSUFFICIENT_COHORT_SAMPLE"
-                    ),
-                    "paper_cohort_breaker_new_entries_allowed": True,
-                    "paper_cohort_preemptive_controls_scoped": True,
-                }
-            },
+        f"{observer.PAPER_SIGNALS_KEY}:BTCUSDT:5m": {
+            "prediction_id": "prediction-1",
+            "available_at": "2026-07-26T22:00:00Z",
+            "ordinary_paper_effective_microstructure_action": "ALLOW",
+        },
+        observer.ADAPTIVE_TUNING_KEY: {
+            "adaptive_loss_probability_threshold": 0.65,
         },
     }
 
@@ -115,8 +105,6 @@ def test_capture_cycle_preserves_generation_attribution() -> None:
     assert attribution["evidence_age_seconds"] == 2.0
     assert attribution["expected_edge_after_cost_bps"] == 18.0
     assert attribution["exit_feasibility_score"] == 0.7
-    assert attribution["advanced_indicator_block"] is False
-    assert attribution["cohort_breaker_new_entries_allowed"] is True
     assert cycle["reservation_leak_count"] == 0
 
 
@@ -206,7 +194,7 @@ def test_observe_once_deduplicates_matrix_cycle(tmp_path) -> None:
     assert len(archive.read_text().splitlines()) == 1
     assert client.writes[observer.STATUS_KEY][1] == 900
     assert json.loads(status.read_text())["completed_cycles"] == 1
-    assert client.get_counts["v2:preemptive:decision:pec-1"] == 1
+    assert client.get_counts[f"{observer.PAPER_SIGNALS_KEY}:BTCUSDT:5m"] == 1
 
 
 def test_observe_once_fails_closed_when_generation_archive_changes(tmp_path) -> None:
