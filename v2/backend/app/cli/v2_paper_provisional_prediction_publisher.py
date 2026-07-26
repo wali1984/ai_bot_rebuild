@@ -31,7 +31,6 @@ from v2.backend.app.services.market_state_integrity.canonical_candles import (  
     build_multi_timeframe_decision_snapshot,
     closed_candle_key,
     latest_closed_candle_at_or_before,
-    now_ms,
     parse_ms,
 )
 from v2.backend.app.services.market_state_integrity.sample_rejection import (  # noqa: E402
@@ -426,8 +425,12 @@ def build_trust_row(
         "ppo_feature_cutoff": iso_ms(feature_cutoff),
         "masa_prediction_timestamp": decision_time_iso,
         "ppo_observation_timestamp": decision_time_iso,
-        "all_tf_candle_timestamps": list(mtf.get("all_tf_candle_timestamps") or []),
-        "all_source_event_times": list(mtf.get("all_source_event_times") or []),
+        "all_tf_candle_timestamps": [
+            iso_ms(value) for value in (mtf.get("all_tf_candle_timestamps") or [])
+        ],
+        "all_source_event_times": [
+            iso_ms(value) for value in (mtf.get("all_source_event_times") or [])
+        ],
         "decision_id": mtf.get("decision_id"),
         "mtf_snapshot_id": mtf.get("mtf_snapshot_id"),
         "mtf_snapshot_valid": mtf.get("valid"),
@@ -668,16 +671,32 @@ def publish_one(
     if snapshot.get("latest_unclosed_kline_excluded") is not True:
         return {"symbol": symbol, "timeframe": timeframe, "status": "FINALITY_UNPROVEN"}
 
+    # Observe exact cost before stamping the prediction decision.  The canonical
+    # receipt contract requires consumer_observed_at <= decision_time; choosing
+    # decision_time first made a genuine post-read clock impossible by a few
+    # microseconds and correctly failed ordinary paper admission.
+    round_trip_cost_bps, cost_provenance, exact_cost_record = build_cost_provenance(
+        client, symbol
+    )
+    if round_trip_cost_bps is None:
+        return {"symbol": symbol, "timeframe": timeframe, "status": "NO_ADAPTIVE_COST_SOURCE"}
+
     candles_by_tf = {
         tf: read_json_key(client, closed_candle_key(exchange, symbol, tf))
         for tf in REQUIRED_DECISION_TIMEFRAMES
     }
-    decision_ms = now_ms()
-    decision_dt = datetime.fromtimestamp(decision_ms / 1000.0, tz=UTC)
-    decision_iso = decision_dt.isoformat(timespec="milliseconds").replace("+00:00", "Z")
+    decision_dt = datetime.now(UTC)
+    decision_ms = int(decision_dt.timestamp() * 1000)
+    decision_iso = decision_dt.isoformat(timespec="microseconds").replace("+00:00", "Z")
+    feature_cutoff_ms = parse_ms(snapshot.get("feature_cutoff"))
+    if feature_cutoff_ms is None:
+        return {"symbol": symbol, "timeframe": timeframe, "status": "FEATURE_CUTOFF_INVALID"}
     mtf = build_multi_timeframe_decision_snapshot(
         symbol=symbol,
-        decision_time=decision_ms,
+        # The model tensor is cut at the primary feature snapshot's cutoff.
+        # Select every supporting timeframe at that same cutoff so no faster
+        # candle or source event can appear after the tensor's feature_cutoff.
+        decision_time=feature_cutoff_ms,
         candles_by_timeframe=candles_by_tf,
         required_timeframes=REQUIRED_DECISION_TIMEFRAMES,
     )
@@ -690,13 +709,7 @@ def publish_one(
     if candle is None:
         return {"symbol": symbol, "timeframe": timeframe, "status": "PRIMARY_CANDLE_MISSING"}
 
-    # Canonical cost provenance is read before the shared ABI builder because
     # ServingFeatureABIV2 binds its four cost slots to this exact source record.
-    round_trip_cost_bps, cost_provenance, exact_cost_record = build_cost_provenance(
-        client, symbol
-    )
-    if round_trip_cost_bps is None:
-        return {"symbol": symbol, "timeframe": timeframe, "status": "NO_ADAPTIVE_COST_SOURCE"}
     try:
         tensor = build_tensor(
             ckpt,
