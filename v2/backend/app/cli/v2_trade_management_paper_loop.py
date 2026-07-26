@@ -45128,14 +45128,32 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         # id) keep the unchanged global breaker. No per-trade economic exception.
         _intent_cohort_id = str(intent.get("paper_strategy_cohort_id") or "") or None
         _breaker_for_intent = pre_cycle_paper_performance_circuit_breaker_status
+        _bucket_quarantine_for_intent = pre_cycle_bucket_quarantine_status
+        _preemptive_bucket_health_for_intent = pre_cycle_preemptive_bucket_health
+        _high_confidence_cluster_for_intent = pre_cycle_high_confidence_loss_cluster_gate
         if _intent_cohort_id is not None:
             _breaker_for_intent = _paper_performance_circuit_breaker_status(
                 existing_closed_rows, cohort_id=_intent_cohort_id
+            )
+            _cohort_source_rows = _paper_performance_source_rows(
+                existing_closed_rows,
+                cohort_id=_intent_cohort_id,
+            )
+            _bucket_quarantine_for_intent = _breaker_for_intent[
+                "bucket_quarantine_status"
+            ]
+            _preemptive_bucket_health_for_intent = build_preemptive_bucket_health(
+                _cohort_source_rows
+            )
+            _high_confidence_cluster_for_intent = _high_confidence_loss_cluster_gate(
+                _breaker_for_intent
             )
             intent["paper_cohort_breaker_state"] = _breaker_for_intent.get("state")
             intent["paper_cohort_breaker_new_entries_allowed"] = _breaker_for_intent.get(
                 "new_entries_allowed"
             )
+            intent["paper_cohort_governed_closed_rows"] = len(_cohort_source_rows)
+            intent["paper_cohort_preemptive_controls_scoped"] = True
         performance_circuit_rejection = _paper_block_new_entry_by_performance_circuit(
             intent=intent,
             allocation=allocation_payload,
@@ -45269,13 +45287,13 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                 intent,
                 churn_equity_bleed_rejection_reasons,
             )
-        intent["bucket_quarantine_status"] = pre_cycle_bucket_quarantine_status.get("status")
+        intent["bucket_quarantine_status"] = _bucket_quarantine_for_intent.get("status")
         # The exploration bucket-policy split must be stamped BEFORE any
         # exploration-eligibility evaluation reads the intent, so the
         # immature-regime advisory scoping (operator policy 2026-07-10) is
         # visible to the evaluator, not only to the entry gate below.
         exploration_bucket_policy = _paper_exploration_bucket_policy_split(
-            intent, pre_cycle_bucket_quarantine_status
+            intent, _bucket_quarantine_for_intent
         )
         for _target in (intent, allocation_payload):
             _target["paper_exploration_exact_blocked_bucket_keys"] = list(
@@ -45290,9 +45308,9 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         preemptive_runtime_decision_time = _utc_iso()
         preemptive_decision = evaluate_preemptive_candidate(
             intent,
-            bucket_health=pre_cycle_preemptive_bucket_health,
+            bucket_health=_preemptive_bucket_health_for_intent,
             continuous_edge_guardian_gate=continuous_edge_guardian_gate,
-            bucket_quarantine_status=pre_cycle_bucket_quarantine_status,
+            bucket_quarantine_status=_bucket_quarantine_for_intent,
             allow_positive_edge_probation=True,
             allow_paper_risk_controller_exploration=True,
             altdata_confluence=_altdata_confluence_cache[_conf_cache_key] or None,
@@ -45941,8 +45959,8 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             paper_fill_allowed_upstream=paper_fill_allowed_upstream,
             portfolio_drawdown_bps=portfolio_context["drawdown_bps"],
             continuous_edge_guardian_gate=continuous_edge_guardian_gate,
-            bucket_quarantine_status=pre_cycle_bucket_quarantine_status,
-            high_confidence_loss_cluster_gate=(pre_cycle_high_confidence_loss_cluster_gate),
+            bucket_quarantine_status=_bucket_quarantine_for_intent,
+            high_confidence_loss_cluster_gate=(_high_confidence_cluster_for_intent),
             preemptive_decision=preemptive_decision,
         )
         _apply_paper_tier_classification(

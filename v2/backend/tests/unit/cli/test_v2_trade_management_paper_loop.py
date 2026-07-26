@@ -11846,6 +11846,37 @@ def test_paper_directional_after_cost_edge_preserves_short_position_return() -> 
     assert value == pytest.approx(12.5)
 
 
+def test_fresh_checkpoint_cohort_does_not_inherit_historical_performance_halt() -> None:
+    historical = [
+        {
+            "paper_only": True,
+            "paper_strategy_cohort_id": "historical_generation",
+            "realized_pnl_bps": -25.0,
+            "realized_net_pnl_bps": -25.0,
+            "realized_net_pnl_usd": -1.0,
+            "gross_notional": 100.0,
+            "side": "short",
+            "symbol": "BTCUSDT",
+            "timeframe": "1h",
+        }
+        for _ in range(5)
+    ]
+
+    global_status = paper_loop._paper_performance_circuit_breaker_status(  # noqa: SLF001
+        historical
+    )
+    cohort_status = paper_loop._paper_performance_circuit_breaker_status(  # noqa: SLF001
+        historical,
+        cohort_id="new_governed_checkpoint_generation",
+    )
+
+    assert global_status["new_entries_allowed"] is False
+    assert cohort_status["state"] == "ACTIVE_INSUFFICIENT_COHORT_SAMPLE"
+    assert cohort_status["new_entries_allowed"] is True
+    assert cohort_status["governed_closed_rows"] == 0
+    assert cohort_status["bucket_quarantine_status"]["blocked_bucket_keys"] == []
+
+
 def test_read_v2_feature_snapshot_missing_timeframe_does_not_default_to_1m() -> None:
     class FakeRedis:
         def __init__(self) -> None:
