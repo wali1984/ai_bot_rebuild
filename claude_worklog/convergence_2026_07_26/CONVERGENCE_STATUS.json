@@ -1,0 +1,57 @@
+{
+  "schema_version": "v2_convergence_status_v1",
+  "generated_utc": "2026-07-26T00:22:44.849222Z",
+  "commit": "630ffbf121",
+  "SPINE_DELIVERED": {
+    "PHASE_0_INVENTORY": true,
+    "PHASE_1_CORE_CONTRACTS": true,
+    "PHASE_5_ATOMIC_MODEL_REGISTRY": true,
+    "PHASE_6_INDEPENDENT_SERVING_RUNTIME": true,
+    "PHASE_7_TRAINING_SERVING_DECOUPLED": true
+  },
+  "registry": {
+    "active_generation": 1,
+    "active_checkpoint_id": "PAPER_PROVISIONAL_100_ROW_CHECKPOINT_7be428c23d4c602b",
+    "classification": "PAPER_PROVISIONAL",
+    "cas_activation": true,
+    "rollback_supported": true,
+    "receipts": true
+  },
+  "serving_runtime": {
+    "one_canonical_prediction_schema": true,
+    "one_prediction_serving_authority": true,
+    "trainer_dependency": false,
+    "loads_from_registry_only": true,
+    "hot_reload_on_generation_change": true,
+    "records_published_smoke": 12,
+    "prediction_record_v2_policy_fields_stamped": true
+  },
+  "PENDING_PHASES": {
+    "PHASE_2_4_producer_contract_fixes": "cost strict-UTC lineage (unblocks exact-cost), microstructure clock semantics, feature finality counters, kline WSS decouple (WQ-R35), ServingFeatureABIV2, serving-compatible directional retrain",
+    "PHASE_8_16": "classifications policy, formal transport canary, full paper lifecycle through the new serving path, pipeline supervisor + SLOs, canonical readiness computation, immutable deploy + shadow parity + decommission temporary lanes, acceptance + failure-injection tests"
+  },
+  "residual_operational_blockers": [
+    "provisional model predicts hold at serving (train/serve distribution mismatch) -> no directional routable record yet (Phase 4 directional retrain + ServingFeatureABIV2)",
+    "exact_cost_provenance needs strict-UTC orderbook clock lineage the adaptive cost producer lacks (Phase 2 cost producer fix)"
+  ],
+  "readiness": {
+    "one_canonical_prediction_writer": true,
+    "training_and_serving_decoupled": true,
+    "active_checkpoint_loaded_from_registry": true,
+    "checkpoint_activation_atomic": true,
+    "checkpoint_rollback_proven": true,
+    "current_prediction_supply": true,
+    "directional_capability_validated": false,
+    "paper_autonomous_operational": false,
+    "operational_ready": false,
+    "live_submission_ready": false,
+    "temporary_recovery_paths_decommissioned": false
+  },
+  "safety": {
+    "live_gate": "blocked_human_only",
+    "places_real_order": false,
+    "exchange_action_taken": false,
+    "strict_trainer_unit_unchanged": true,
+    "global_breaker": "HALTED_PERFORMANCE"
+  }
+}
