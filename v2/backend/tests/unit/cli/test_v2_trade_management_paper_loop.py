@@ -11834,6 +11834,18 @@ def test_paper_after_cost_edge_preserves_market_signed_short_value() -> None:
     assert value == pytest.approx(-12.5)
 
 
+def test_paper_directional_after_cost_edge_preserves_short_position_return() -> None:
+    value = paper_loop._paper_directional_expected_move_after_cost_value(  # noqa: SLF001
+        {
+            "side": "short",
+            "expected_move_after_cost_bps": -12.5,
+            "expected_move_after_cost_bps_directional": 12.5,
+        }
+    )
+
+    assert value == pytest.approx(12.5)
+
+
 def test_read_v2_feature_snapshot_missing_timeframe_does_not_default_to_1m() -> None:
     class FakeRedis:
         def __init__(self) -> None:

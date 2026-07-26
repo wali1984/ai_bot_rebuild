@@ -13315,6 +13315,19 @@ def _paper_expected_move_after_cost_value(*sources: Mapping[str, Any]) -> Any:
     return None
 
 
+def _paper_directional_expected_move_after_cost_value(
+    *sources: Mapping[str, Any],
+) -> Any:
+    """Return an explicitly published position-return edge when available."""
+    for source in sources:
+        if not isinstance(source, Mapping):
+            continue
+        value = source.get("expected_move_after_cost_bps_directional")
+        if value is not None and value != "":
+            return value
+    return None
+
+
 def _paper_truthy_flag(value: Any) -> bool:
     if isinstance(value, bool):
         return value
@@ -33690,6 +33703,9 @@ def _build_market_state_envelope(
             signal,
             prediction,
         ),
+        "expected_move_after_cost_bps_directional": (
+            _paper_directional_expected_move_after_cost_value(signal, prediction)
+        ),
         "ppo_confidence": _first_present(
             signal.get("confidence_calibrated"),
             prediction.get("confidence_calibrated"),
@@ -43994,6 +44010,9 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             "side": side,
             "signal_id": s.get("signal_id"),
             "expected_move_after_cost_bps": em_after,
+            "expected_move_after_cost_bps_directional": (
+                _paper_directional_expected_move_after_cost_value(s, prediction)
+            ),
             "expected_move_bps": expected_move_bps,
             "confidence_raw": confidence_raw,
             "confidence_calibrated": confidence_calibrated,
