@@ -345,7 +345,7 @@ def build_tensor(
             separators=(",", ":"),
         ).encode("utf-8")
     ).hexdigest()
-    tensor_id = "paper_provisional_tensor_" + hashlib.sha256(
+    tensor_digest = hashlib.sha256(
         json.dumps(
             {
                 "schema": "serving_feature_abi_v2" if ckpt.serving_feature_abi_v2 else "paper_provisional_v1",
@@ -358,7 +358,12 @@ def build_tensor(
             sort_keys=True,
             separators=(",", ":"),
         ).encode("utf-8")
-    ).hexdigest()[:24]
+    ).hexdigest()
+    tensor_id = (
+        tensor_digest
+        if ckpt.serving_feature_abi_v2
+        else "paper_provisional_tensor_" + tensor_digest[:24]
+    )
     return FeatureTensorRecord(
         tensor_id=tensor_id,
         symbol=str(snapshot.get("symbol")),
@@ -827,6 +832,11 @@ def publish_one(
         checkpoint_identity_verified=True,
         cost_provenance=cost_provenance,
         decision_time_utc=decision_iso,
+        cycle_id=(serving_context or {}).get("cycle_id"),
+        process_instance_id=(serving_context or {}).get("process_instance_id"),
+        candidate_policy_fingerprint=(serving_context or {}).get(
+            "candidate_policy_fingerprint"
+        ),
     )
     stamp_provisional_tags(payload, cohort, ckpt)
     if serving_context:

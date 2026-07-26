@@ -42,6 +42,7 @@ def test_run_cycle_reports_real_evidence_validity_counts(monkeypatch) -> None:
             feature_abi_sha256=serving.feature_abi_sha256(),
             feature_builder_sha256=serving.feature_builder_sha256(),
             serving_feature_abi_v2=True,
+            model_parameter_fingerprint="f" * 64,
         ),
         generation=2,
         classification="PAPER_ONLY",

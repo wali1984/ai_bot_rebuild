@@ -45,6 +45,9 @@ from v2.backend.app.services.prediction_serving.checkpoint_registry import (  # 
     read_active,
 )
 from v2.backend.app.contracts.runtime_v2.contracts import canonical_sha256  # noqa: E402
+from v2.backend.app.services.native_trainer.current_cycle_evidence import (  # noqa: E402
+    capture_cycle_identity,
+)
 from v2.backend.app.services.prediction_serving.serving_feature_abi_v2 import (  # noqa: E402
     ORDERED_FEATURE_NAMES,
     feature_abi_sha256,
@@ -129,10 +132,14 @@ def run_cycle(
         current_cycle_publication_ttl_seconds=SERVING_TTL_SECONDS,
     )
     cohort = read_active_cohort(client)
+    cycle_identity = capture_cycle_identity()
     serving_context = {
         "serving_runtime_release_sha": serving_release_sha(),
         "active_model_registry_generation": active.generation,
         "checkpoint_classification": active.classification,
+        "cycle_id": cycle_identity["cycle_id"],
+        "process_instance_id": cycle_identity["process_instance_id"],
+        "candidate_policy_fingerprint": active.ckpt.model_parameter_fingerprint,
     }
     observations: list[dict[str, Any]] = []
     published = directional = 0
