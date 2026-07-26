@@ -158,7 +158,7 @@ def _reservation_leak_count(
 
 def _required_loss_probability(
     client: Any, row: Mapping[str, Any]
-) -> tuple[float | None, float | None, float | None]:
+) -> tuple[float | None, float | None, float | None, dict[str, Any]]:
     decision_id = str(row.get("preemptive_decision_id") or "")
     full = (
         _mapping(_json_value(client, f"v2:preemptive:decision:{decision_id}", {}))
@@ -178,7 +178,7 @@ def _required_loss_probability(
     evidence_age = None
     if candidate_available is not None and decision_time is not None:
         evidence_age = max(0.0, (decision_time - candidate_available).total_seconds())
-    return required_max_loss, required_profit, evidence_age
+    return required_max_loss, required_profit, evidence_age, full
 
 
 def _candidate_attribution(
@@ -189,8 +189,11 @@ def _candidate_attribution(
 ) -> dict[str, Any]:
     prediction_id = str(row.get("prediction_id") or "")
     signal = signal_by_prediction.get(prediction_id, {})
-    required_max_loss, required_profit, evidence_age = _required_loss_probability(
-        client, row
+    required_max_loss, required_profit, evidence_age, full = (
+        _required_loss_probability(client, row)
+    )
+    input_candidate = _mapping(
+        _mapping(full.get("preemptive_input_material")).get("candidate")
     )
     model_loss = _finite(row.get("pre_trade_loss_probability"))
     return {
@@ -205,10 +208,31 @@ def _candidate_attribution(
         "model_profit_probability": None if model_loss is None else 1.0 - model_loss,
         "required_max_loss_probability": required_max_loss,
         "required_min_profit_probability": required_profit,
-        "microstructure_action": signal.get("microstructure_action"),
+        "microstructure_action": input_candidate.get("microstructure_action")
+        or signal.get("microstructure_action"),
         "microstructure_trust_score": row.get("microstructure_trust_score"),
         "microstructure_trust_state": row.get("microstructure_trust_state"),
         "evidence_age_seconds": evidence_age,
+        "expected_edge_after_cost_bps": _finite(
+            full.get("expected_edge_after_cost_bps")
+        ),
+        "exit_feasibility_score": _finite(full.get("exit_feasibility_score")),
+        "confidence_overstatement_risk": _finite(
+            full.get("confidence_overstatement_risk")
+        ),
+        "advanced_indicator_block": full.get("advanced_indicator_block"),
+        "advanced_indicator_shadow": full.get("advanced_indicator_shadow"),
+        "matched_quarantined_bucket_keys": list(
+            full.get("matched_quarantined_bucket_keys") or []
+        ),
+        "atr_stop_cluster_active": full.get("atr_stop_cluster_active"),
+        "cohort_breaker_state": input_candidate.get("paper_cohort_breaker_state"),
+        "cohort_breaker_new_entries_allowed": input_candidate.get(
+            "paper_cohort_breaker_new_entries_allowed"
+        ),
+        "cohort_preemptive_controls_scoped": input_candidate.get(
+            "paper_cohort_preemptive_controls_scoped"
+        ),
         "guardian_state": row.get("continuous_edge_guardian_status"),
         "guardian_new_entries_allowed": row.get("guardian_new_entries_allowed"),
     }

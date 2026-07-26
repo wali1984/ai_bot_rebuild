@@ -75,8 +75,23 @@ def _values(*, admitted=False):
         ],
         "v2:preemptive:decision:pec-1": {
             "adaptive_loss_probability_threshold_used": 0.65,
+            "expected_edge_after_cost_bps": 18.0,
+            "exit_feasibility_score": 0.7,
+            "confidence_overstatement_risk": 0.1,
+            "advanced_indicator_block": False,
+            "advanced_indicator_shadow": False,
             "preemptive_decision_time": "2026-07-26T22:00:02Z",
             "clocks": {"candidate_available_at": "2026-07-26T22:00:00Z"},
+            "preemptive_input_material": {
+                "candidate": {
+                    "microstructure_action": "ALLOW",
+                    "paper_cohort_breaker_state": (
+                        "ACTIVE_INSUFFICIENT_COHORT_SAMPLE"
+                    ),
+                    "paper_cohort_breaker_new_entries_allowed": True,
+                    "paper_cohort_preemptive_controls_scoped": True,
+                }
+            },
         },
     }
 
@@ -96,8 +111,12 @@ def test_capture_cycle_preserves_generation_attribution() -> None:
     assert attribution["model_loss_probability"] == 0.7
     assert attribution["required_max_loss_probability"] == 0.65
     assert attribution["required_min_profit_probability"] == 0.35
-    assert attribution["microstructure_action"] == "REDUCE_SIZE"
+    assert attribution["microstructure_action"] == "ALLOW"
     assert attribution["evidence_age_seconds"] == 2.0
+    assert attribution["expected_edge_after_cost_bps"] == 18.0
+    assert attribution["exit_feasibility_score"] == 0.7
+    assert attribution["advanced_indicator_block"] is False
+    assert attribution["cohort_breaker_new_entries_allowed"] is True
     assert cycle["reservation_leak_count"] == 0
 
 
