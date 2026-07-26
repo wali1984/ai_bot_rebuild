@@ -13292,6 +13292,16 @@ def _paper_expected_move_after_cost_value(*sources: Mapping[str, Any]) -> Any:
     v2:signals:paper rows) is preferred over flat trainer values regardless
     of source order; flat 12bps trainer values remain the fallback.
     """
+    # Canonical orchestrator signals preserve both market-signed edge and
+    # position-directional edge.  Paper admission reasons about trade return,
+    # so a favourable SHORT must consume the positive directional value rather
+    # than misclassifying its negative market-return sign as non-positive edge.
+    for source in sources:
+        if not isinstance(source, Mapping):
+            continue
+        value = source.get("expected_move_after_cost_bps_directional")
+        if value is not None and value != "":
+            return value
     for source in sources:
         if not isinstance(source, Mapping):
             continue

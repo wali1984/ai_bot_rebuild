@@ -11821,6 +11821,19 @@ def test_pre_trade_fee_context_prefers_explicit_signal_fee() -> None:
     assert context["fee_bps_configured_schedule"] is False
 
 
+def test_paper_after_cost_edge_prefers_position_directional_short_value() -> None:
+    value = paper_loop._paper_expected_move_after_cost_value(  # noqa: SLF001
+        {
+            "side": "short",
+            "expected_move_after_cost_bps": -12.5,
+            "expected_move_after_cost_bps_signed": -12.5,
+            "expected_move_after_cost_bps_directional": 12.5,
+        }
+    )
+
+    assert value == pytest.approx(12.5)
+
+
 def test_read_v2_feature_snapshot_missing_timeframe_does_not_default_to_1m() -> None:
     class FakeRedis:
         def __init__(self) -> None:
