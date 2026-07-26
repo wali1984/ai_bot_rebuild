@@ -616,6 +616,27 @@ def _connect_redis() -> Any:
     return client
 
 
+def _log_projection(status: Mapping[str, Any]) -> dict[str, Any]:
+    """Keep resident stdout bounded; full evidence remains in JSON/Redis."""
+    fields = (
+        "generated_utc",
+        "classification",
+        "checkpoint_generation",
+        "cohort_id",
+        "completed_cycles",
+        "observation_elapsed_seconds",
+        "candidates_evaluated",
+        "candidates_admitted",
+        "paper_fills_created",
+        "generation_open_positions",
+        "generation_natural_closes",
+        "live_no_go",
+        "places_real_order",
+        "exchange_action_taken",
+    )
+    return {field: status.get(field) for field in fields if field in status}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--loop", action="store_true")
@@ -654,7 +675,7 @@ def main() -> int:
             minimum_cycles=args.minimum_cycles,
             minimum_observation_seconds=args.minimum_observation_seconds,
         )
-        print(json.dumps(status, sort_keys=True), flush=True)
+        print(json.dumps(_log_projection(status), sort_keys=True), flush=True)
         if not args.loop:
             return 0
         time.sleep(max(1.0, args.interval_seconds))

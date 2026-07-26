@@ -216,3 +216,21 @@ def test_observe_once_fails_closed_when_generation_archive_changes(tmp_path) -> 
             minimum_cycles=50,
             minimum_observation_seconds=14_400,
         )
+
+
+def test_log_projection_excludes_large_attribution_payload() -> None:
+    projected = observer._log_projection(  # noqa: SLF001
+        {
+            "classification": "OBSERVING_BOUNDED_NATURAL_OPPORTUNITY_WINDOW",
+            "completed_cycles": 3,
+            "candidate_attribution": [{"large": "payload"}],
+            "blocker_attribution": {"large": "payload"},
+            "places_real_order": False,
+        }
+    )
+
+    assert projected == {
+        "classification": "OBSERVING_BOUNDED_NATURAL_OPPORTUNITY_WINDOW",
+        "completed_cycles": 3,
+        "places_real_order": False,
+    }
