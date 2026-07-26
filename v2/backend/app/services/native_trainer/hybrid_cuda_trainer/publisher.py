@@ -1616,6 +1616,7 @@ def build_prediction_payload(
     cycle_id: str | None = None,
     process_instance_id: str | None = None,
     candidate_policy_fingerprint: str | None = None,
+    prediction_nonce: str | None = None,
 ) -> dict[str, Any]:
     tensor = example.tensor
     generated_utc = decision_time_utc or datetime.now(timezone.utc).isoformat(
@@ -1653,7 +1654,7 @@ def build_prediction_payload(
         example.timeframe,
         tensor.tensor_id,
         model_output.model_id,
-        behavior_nonce=behavior_nonce,
+        behavior_nonce=behavior_nonce or prediction_nonce,
     )
     signal_id = "sig_" + prediction_id
     cycle_identity_values = (

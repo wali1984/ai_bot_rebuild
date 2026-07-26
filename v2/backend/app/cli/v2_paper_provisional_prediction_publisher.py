@@ -969,6 +969,11 @@ def publish_one(
         candidate_policy_fingerprint=(serving_context or {}).get(
             "candidate_policy_fingerprint"
         ),
+        # A serving cycle can legitimately re-evaluate the same feature tensor
+        # at a later decision time. Bind that new decision to a new prediction
+        # ID so the immutable per-ID source record never collides with a prior
+        # cycle's different clock/evidence payload.
+        prediction_nonce=(serving_context or {}).get("cycle_id"),
     )
     if ckpt.serving_feature_abi_v2:
         # Carry the exact model input and its ABI-scoped lineage into the

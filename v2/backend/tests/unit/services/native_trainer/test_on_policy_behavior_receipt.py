@@ -961,6 +961,7 @@ def _ordinary_scale_free_payload(
     model_output: ModelForwardResult | None = None,
     cost_provenance: dict[str, object] | None | object = ...,
     cycle_identity: bool = False,
+    prediction_nonce: str | None = None,
 ) -> dict[str, Any]:
     provenance = _cost_provenance() if cost_provenance is ... else cost_provenance
     return build_prediction_payload(
@@ -976,7 +977,16 @@ def _ordinary_scale_free_payload(
         cycle_id="v2_cycle_ordinary_scale_free" if cycle_identity else None,
         process_instance_id=process_instance_id() if cycle_identity else None,
         candidate_policy_fingerprint="d" * 64 if cycle_identity else None,
+        prediction_nonce=prediction_nonce,
     )
+
+
+def test_prediction_nonce_makes_repeated_tensor_decisions_distinct() -> None:
+    first = _ordinary_scale_free_payload(prediction_nonce="serving_cycle_1")
+    second = _ordinary_scale_free_payload(prediction_nonce="serving_cycle_2")
+
+    assert first["feature_tensor_id"] == second["feature_tensor_id"]
+    assert first["prediction_id"] != second["prediction_id"]
 
 
 class _ExactMicrostructurePipeline:
