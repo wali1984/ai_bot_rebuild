@@ -74,6 +74,9 @@ def _serving_abi_v2_activation_reasons(
     from v2.backend.app.services.prediction_serving.serving_feature_abi_v2 import (
         feature_abi_sha256,
     )
+    from v2.backend.app.services.prediction_serving.serving_model_v3 import (
+        MODEL_ARCHITECTURE,
+    )
 
     if bundle.feature_abi_sha256 != feature_abi_sha256():
         return []
@@ -97,6 +100,17 @@ def _serving_abi_v2_activation_reasons(
         directional_rate = 0.0
     if directional_rate <= 0.0:
         reasons.append("SERVING_SMOKE_DIRECTIONAL_RATE_ZERO")
+    if bundle.model_architecture == MODEL_ARCHITECTURE:
+        try:
+            positive_edge_rate = float(
+                smoke.get("serving_smoke_positive_directional_edge_rate")
+            )
+        except (TypeError, ValueError):
+            positive_edge_rate = 0.0
+        if positive_edge_rate <= 0.0:
+            reasons.append("SERVING_SMOKE_POSITIVE_DIRECTIONAL_EDGE_RATE_ZERO")
+        if smoke.get("directional_net_edge_model_valid") is not True:
+            reasons.append("SERVING_DIRECTIONAL_NET_EDGE_MODEL_INVALID")
     if smoke.get("all_predictions_one_action") is True:
         reasons.append("SERVING_SMOKE_ALL_PREDICTIONS_ONE_ACTION")
     if int(smoke.get("nonfinite_probabilities") or 0) > 0:

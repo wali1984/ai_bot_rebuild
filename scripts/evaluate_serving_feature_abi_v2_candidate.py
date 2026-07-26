@@ -67,6 +67,7 @@ def main() -> int:
                     "accepted_current_rows",
                     "prediction_distribution",
                     "serving_smoke_directional_rate",
+                    "serving_smoke_positive_directional_edge_rate",
                     "excessive_drift_features",
                     "feature_distribution_drift_above_limit",
                     "activation_eligible",

@@ -26,11 +26,18 @@ from v2.backend.app.services.prediction_serving.serving_feature_abi_v2 import (
     feature_abi_sha256,
     feature_builder_sha256,
 )
+from v2.backend.app.services.prediction_serving.serving_model_v3 import (
+    EDGE_HEAD_ACTIONS,
+    MODEL_ARCHITECTURE,
+    build_serving_model_v3,
+)
 
 SCHEMA_VERSION = "serving_checkpoint_training_report_v2"
 FIXED_RANDOM_SEED = 20260726
 OPTIMIZER_STEPS = 400
 MIN_STANDARDIZATION_SCALE = 0.01
+MIN_EDGE_TARGET_SCALE_BPS = 1.0
+EDGE_REGRESSION_LOSS_WEIGHT = 0.25
 
 
 def _utc_now() -> str:
@@ -48,15 +55,32 @@ def _parameter_fingerprint(state_dict: dict[str, Any]) -> str:
     return digest.hexdigest()
 
 
-def _evaluate(model: Any, x: Any, y: Any) -> dict[str, Any]:
+def _evaluate(
+    model: Any,
+    x: Any,
+    y: Any,
+    edge_targets_bps: Any,
+    edge_mean_bps: Any,
+    edge_scale_bps: Any,
+) -> dict[str, Any]:
     import torch
 
     with torch.no_grad():
-        logits = model(x)
+        logits, edge_standardized = model(x)
         probabilities = torch.softmax(logits, dim=1)
+        edge_predictions_bps = edge_standardized * edge_scale_bps + edge_mean_bps
     prediction = probabilities.argmax(dim=1)
     counts = Counter(ACTION_LABELS[int(index)] for index in prediction.tolist())
     nonfinite = int((~torch.isfinite(probabilities)).sum().item())
+    edge_nonfinite = int((~torch.isfinite(edge_predictions_bps)).sum().item())
+    edge_error = edge_predictions_bps - edge_targets_bps
+    selected_directional_edges: list[float] = []
+    for prediction_index, edge_row in zip(
+        prediction.tolist(), edge_predictions_bps.tolist(), strict=True
+    ):
+        action = ACTION_LABELS[int(prediction_index)]
+        if action in EDGE_HEAD_ACTIONS:
+            selected_directional_edges.append(float(edge_row[EDGE_HEAD_ACTIONS.index(action)]))
     return {
         "rows": int(y.numel()),
         "accuracy": float((prediction == y).float().mean().item()),
@@ -66,6 +90,18 @@ def _evaluate(model: Any, x: Any, y: Any) -> dict[str, Any]:
         "prediction_distribution": {action: int(counts[action]) for action in ACTION_LABELS},
         "all_predictions_one_action": len([count for count in counts.values() if count > 0]) == 1,
         "nonfinite_probabilities": nonfinite,
+        "nonfinite_directional_net_edges": edge_nonfinite,
+        "directional_net_edge_mae_bps": float(edge_error.abs().mean().item()),
+        "directional_net_edge_rmse_bps": float(
+            torch.sqrt((edge_error * edge_error).mean()).item()
+        ),
+        "selected_directional_positive_edge_rate": (
+            sum(value > 0.0 for value in selected_directional_edges)
+            / len(selected_directional_edges)
+            if selected_directional_edges
+            else 0.0
+        ),
+        "selected_directional_net_edges_bps": selected_directional_edges,
         "prediction_indices": [int(value) for value in prediction.tolist()],
         "probabilities": [[float(item) for item in row] for row in probabilities.tolist()],
     }
@@ -114,18 +150,23 @@ def train_serving_checkpoint_v2(
     holdout_rows = _partition(dataset, "holdout")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    def tensors(rows: list[dict[str, Any]]) -> tuple[Any, Any]:
+    def tensors(rows: list[dict[str, Any]]) -> tuple[Any, Any, Any]:
         x = torch.tensor(
             [row["feature_values"] for row in rows], dtype=torch.float32, device=device
         )
         y = torch.tensor(
             [row["target_action_index"] for row in rows], dtype=torch.long, device=device
         )
-        return x, y
+        edge = torch.tensor(
+            [[row["long_net_bps"], row["short_net_bps"]] for row in rows],
+            dtype=torch.float32,
+            device=device,
+        )
+        return x, y, edge
 
-    x_train_raw, y_train = tensors(train_rows)
-    x_validation_raw, y_validation = tensors(validation_rows)
-    x_holdout_raw, y_holdout = tensors(holdout_rows)
+    x_train_raw, y_train, edge_train = tensors(train_rows)
+    x_validation_raw, y_validation, edge_validation = tensors(validation_rows)
+    x_holdout_raw, y_holdout, edge_holdout = tensors(holdout_rows)
     mean = x_train_raw.mean(dim=0)
     observed_std = x_train_raw.std(dim=0, unbiased=False)
     training_min = x_train_raw.min(dim=0).values
@@ -134,11 +175,15 @@ def train_serving_checkpoint_v2(
     x_train = (x_train_raw - mean) / scale
     x_validation = (x_validation_raw - mean) / scale
     x_holdout = (x_holdout_raw - mean) / scale
+    edge_mean_bps = edge_train.mean(dim=0)
+    edge_observed_std_bps = edge_train.std(dim=0, unbiased=False)
+    edge_scale_bps = torch.clamp(
+        edge_observed_std_bps, min=MIN_EDGE_TARGET_SCALE_BPS
+    )
+    edge_train_standardized = (edge_train - edge_mean_bps) / edge_scale_bps
 
-    model = torch.nn.Sequential(
-        torch.nn.Linear(len(ORDERED_FEATURE_NAMES), 32),
-        torch.nn.ReLU(),
-        torch.nn.Linear(32, len(ACTION_LABELS)),
+    model = build_serving_model_v3(
+        input_dim=len(ORDERED_FEATURE_NAMES), action_count=len(ACTION_LABELS)
     ).to(device)
     action_counts = torch.bincount(y_train, minlength=len(ACTION_LABELS)).float()
     class_weights = torch.sqrt(action_counts.sum() / torch.clamp(action_counts, min=1.0))
@@ -149,15 +194,30 @@ def train_serving_checkpoint_v2(
     model.train()
     for _ in range(OPTIMIZER_STEPS):
         optimizer.zero_grad(set_to_none=True)
-        loss = loss_fn(model(x_train), y_train)
+        logits, predicted_edge_standardized = model(x_train)
+        action_loss = loss_fn(logits, y_train)
+        edge_loss = torch.nn.functional.smooth_l1_loss(
+            predicted_edge_standardized,
+            edge_train_standardized,
+        )
+        loss = action_loss + EDGE_REGRESSION_LOSS_WEIGHT * edge_loss
         if not torch.isfinite(loss):
             raise ValueError("TRAINING_LOSS_NONFINITE")
         loss.backward()
         optimizer.step()
         final_loss = float(loss.detach().cpu().item())
     model.eval()
-    training_evaluation = _evaluate(model, x_train, y_train)
-    validation_evaluation = _evaluate(model, x_validation, y_validation)
+    training_evaluation = _evaluate(
+        model, x_train, y_train, edge_train, edge_mean_bps, edge_scale_bps
+    )
+    validation_evaluation = _evaluate(
+        model,
+        x_validation,
+        y_validation,
+        edge_validation,
+        edge_mean_bps,
+        edge_scale_bps,
+    )
 
     # Fit confidence using the purged training partition only.  The calibration
     # target is profitability of the model-selected directional action.
@@ -198,7 +258,9 @@ def train_serving_checkpoint_v2(
 
     # The checkpoint and calibration are now frozen.  Holdout is read exactly
     # once for reporting; no parameter or threshold changes follow it.
-    holdout_evaluation = _evaluate(model, x_holdout, y_holdout)
+    holdout_evaluation = _evaluate(
+        model, x_holdout, y_holdout, edge_holdout, edge_mean_bps, edge_scale_bps
+    )
     rejection_reasons: list[str] = []
     if validation_evaluation["directional_rate"] == 0.0:
         rejection_reasons.append("VALIDATION_DIRECTIONAL_RATE_ZERO")
@@ -206,8 +268,14 @@ def train_serving_checkpoint_v2(
         rejection_reasons.append("VALIDATION_ALL_PREDICTIONS_ONE_ACTION")
     if validation_evaluation["nonfinite_probabilities"] > 0:
         rejection_reasons.append("VALIDATION_NONFINITE_PROBABILITIES")
+    if validation_evaluation["nonfinite_directional_net_edges"] > 0:
+        rejection_reasons.append("VALIDATION_NONFINITE_DIRECTIONAL_NET_EDGES")
+    if validation_evaluation["selected_directional_positive_edge_rate"] == 0.0:
+        rejection_reasons.append("VALIDATION_DIRECTIONAL_NET_EDGE_RATE_ZERO")
     if holdout_evaluation["nonfinite_probabilities"] > 0:
         rejection_reasons.append("HOLDOUT_NONFINITE_PROBABILITIES")
+    if holdout_evaluation["nonfinite_directional_net_edges"] > 0:
+        rejection_reasons.append("HOLDOUT_NONFINITE_DIRECTIONAL_NET_EDGES")
     if rejection_reasons:
         raise ValueError("CHECKPOINT_REJECTED:" + ",".join(rejection_reasons))
 
@@ -227,12 +295,26 @@ def train_serving_checkpoint_v2(
         "feature_abi_sha256": feature_abi_sha256(),
         "feature_builder_sha256": feature_builder_sha256(),
         "feature_names": list(ORDERED_FEATURE_NAMES),
+        "model_architecture": MODEL_ARCHITECTURE,
         "standardize_mean": [float(value) for value in mean.detach().cpu().tolist()],
         "standardize_std": [float(value) for value in scale.detach().cpu().tolist()],
         "observed_training_std": [float(value) for value in observed_std.detach().cpu().tolist()],
         "training_feature_min": [float(value) for value in training_min.detach().cpu().tolist()],
         "training_feature_max": [float(value) for value in training_max.detach().cpu().tolist()],
         "minimum_standardization_scale": MIN_STANDARDIZATION_SCALE,
+        "directional_net_edge_actions": list(EDGE_HEAD_ACTIONS),
+        "directional_net_edge_mean_bps": [
+            float(value) for value in edge_mean_bps.detach().cpu().tolist()
+        ],
+        "directional_net_edge_scale_bps": [
+            float(value) for value in edge_scale_bps.detach().cpu().tolist()
+        ],
+        "directional_net_edge_observed_training_std_bps": [
+            float(value) for value in edge_observed_std_bps.detach().cpu().tolist()
+        ],
+        "directional_net_edge_semantics": (
+            "predicted_position_return_bps_after_complete_round_trip_cost"
+        ),
         "actions": list(ACTION_LABELS),
         "input_dim": len(ORDERED_FEATURE_NAMES),
         "checkpoint_weight_sha256": parameter_fingerprint,
@@ -292,7 +374,7 @@ def train_serving_checkpoint_v2(
     bundle = CheckpointBundleV2(
         checkpoint_id=checkpoint_id,
         checkpoint_classification="PAPER_PROVISIONAL",
-        model_architecture="mlp_29x32x3_softmax_v2",
+        model_architecture=MODEL_ARCHITECTURE,
         model_source=meta["model_id"],
         training_manifest_id=manifest["manifest_id"],
         training_manifest_sha256=manifest["manifest_sha256"],

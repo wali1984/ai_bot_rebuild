@@ -81,6 +81,11 @@ from v2.backend.app.services.prediction_serving.serving_feature_abi_v2 import ( 
     feature_abi_sha256 as serving_feature_abi_sha256,
     feature_builder_sha256 as serving_feature_builder_sha256,
 )
+from v2.backend.app.services.prediction_serving.serving_model_v3 import (  # noqa: E402
+    EDGE_HEAD_ACTIONS,
+    MODEL_ARCHITECTURE,
+    build_serving_model_v3,
+)
 
 STATUS_KEY = "v2:trainer:paper_provisional_prediction_publisher:status"
 ADAPTIVE_COST_KEY_TEMPLATE = "v2:costs:round_trip_bps:{symbol}"
@@ -120,6 +125,20 @@ def _finite_float(value: Any) -> float | None:
     except (TypeError, ValueError):
         return None
     return parsed if parsed == parsed and parsed not in (float("inf"), float("-inf")) else None
+
+
+def _gross_expected_move_from_directional_net_edge(
+    *, action: str, directional_net_edge_bps: Any, round_trip_cost_bps: float
+) -> float | None:
+    """Convert a position-return net edge to the publisher's signed gross move."""
+    normalized_action = str(action).strip().lower()
+    if normalized_action == "hold":
+        return 0.0
+    net_edge = _finite_float(directional_net_edge_bps)
+    if normalized_action not in {"long", "short"} or net_edge is None:
+        return None
+    gross_directional = net_edge + abs(float(round_trip_cost_bps))
+    return gross_directional if normalized_action == "long" else -gross_directional
 
 
 def read_json_key(client: Any, key: str) -> Any:
@@ -176,12 +195,34 @@ class ProvisionalCheckpoint:
             and self.feature_builder_sha256 == serving_feature_builder_sha256()
         )
         self.generated_utc: str = str(meta.get("generated_utc") or utc_now())
-        self._torch = torch
-        model = torch.nn.Sequential(
-            torch.nn.Linear(len(self.feature_names), 32),
-            torch.nn.ReLU(),
-            torch.nn.Linear(32, len(self.actions)),
+        self.model_architecture: str = str(meta.get("model_architecture") or "")
+        self.directional_net_edge_actions: tuple[str, ...] = tuple(
+            meta.get("directional_net_edge_actions") or ()
         )
+        self.directional_net_edge_mean_bps = torch.tensor(
+            meta.get("directional_net_edge_mean_bps") or []
+        )
+        self.directional_net_edge_scale_bps = torch.tensor(
+            meta.get("directional_net_edge_scale_bps") or []
+        )
+        self._torch = torch
+        if self.model_architecture == MODEL_ARCHITECTURE:
+            if self.directional_net_edge_actions != EDGE_HEAD_ACTIONS:
+                raise ValueError("CHECKPOINT_DIRECTIONAL_EDGE_ACTIONS_MISMATCH")
+            if self.directional_net_edge_mean_bps.numel() != len(EDGE_HEAD_ACTIONS):
+                raise ValueError("CHECKPOINT_DIRECTIONAL_EDGE_MEAN_INVALID")
+            if self.directional_net_edge_scale_bps.numel() != len(EDGE_HEAD_ACTIONS):
+                raise ValueError("CHECKPOINT_DIRECTIONAL_EDGE_SCALE_INVALID")
+            model = build_serving_model_v3(
+                input_dim=len(self.feature_names), action_count=len(self.actions)
+            )
+        else:
+            # Rollback compatibility for the previous action-only paper model.
+            model = torch.nn.Sequential(
+                torch.nn.Linear(len(self.feature_names), 32),
+                torch.nn.ReLU(),
+                torch.nn.Linear(32, len(self.actions)),
+            )
         model.load_state_dict(blob["state_dict"])
         model.eval()
         self.model = model
@@ -192,18 +233,37 @@ class ProvisionalCheckpoint:
         x = torch.tensor([feature_values], dtype=torch.float32)
         xn = (x - self.mean) / self.std
         with torch.no_grad():
-            logits = self.model(xn)[0]
+            output = self.model(xn)
+            if self.model_architecture == MODEL_ARCHITECTURE:
+                logits_batch, edge_standardized_batch = output
+                logits = logits_batch[0]
+                directional_edges = (
+                    edge_standardized_batch[0] * self.directional_net_edge_scale_bps
+                    + self.directional_net_edge_mean_bps
+                )
+            else:
+                logits = output[0]
+                directional_edges = None
             probs = torch.softmax(logits, dim=0)
         idx = int(torch.argmax(probs))
         action = self.actions[idx]
         raw_prob = float(probs[idx])
-        return {
+        result = {
             "action": action,
             "action_index": idx,
             "logits": [float(v) for v in logits.tolist()],
             "probabilities": [float(v) for v in probs.tolist()],
             "confidence_raw": raw_prob,
         }
+        if directional_edges is not None:
+            edge_values = [float(value) for value in directional_edges.tolist()]
+            result["directional_net_edge_bps"] = dict(
+                zip(EDGE_HEAD_ACTIONS, edge_values, strict=True)
+            )
+            result["selected_directional_net_edge_bps"] = (
+                result["directional_net_edge_bps"].get(action)
+            )
+        return result
 
     def build_calibration(
         self, *, raw_prob: float, action: str, data_coverage_percent: float,
@@ -851,15 +911,26 @@ def publish_one(
         total_feature_count=len(tensor.feature_names),
     )
     confidence_calibrated = float(calibration["confidence_calibrated"])
-    # Provisional expected-move proxy: directional, cost-aware, from calibrated edge.
-    edge = 2.0 * confidence_calibrated - 1.0
-    magnitude = abs(edge) * (abs(round_trip_cost_bps) + 10.0)
-    if action == "long":
-        expected_move_bps = abs(magnitude)
-    elif action == "short":
-        expected_move_bps = -abs(magnitude)
+    predicted_net_edge = _finite_float(fwd.get("selected_directional_net_edge_bps"))
+    if ckpt.model_architecture == MODEL_ARCHITECTURE:
+        expected_move_bps = _gross_expected_move_from_directional_net_edge(
+            action=action,
+            directional_net_edge_bps=predicted_net_edge,
+            round_trip_cost_bps=round_trip_cost_bps,
+        )
+        if expected_move_bps is None:
+            expected_move_bps = 0.0
     else:
-        expected_move_bps = 0.0
+        # Rollback compatibility only. New governed activations use the trained
+        # directional net-edge head above.
+        edge = 2.0 * confidence_calibrated - 1.0
+        magnitude = abs(edge) * (abs(round_trip_cost_bps) + 10.0)
+        if action == "long":
+            expected_move_bps = abs(magnitude)
+        elif action == "short":
+            expected_move_bps = -abs(magnitude)
+        else:
+            expected_move_bps = 0.0
 
     model_output = ModelForwardResult(
         model_id=ckpt.model_id,
@@ -988,6 +1059,16 @@ def publish_one(
             }
         )
     stamp_provisional_tags(payload, cohort, ckpt)
+    payload["directional_net_edge_model_architecture"] = ckpt.model_architecture
+    payload["directional_net_edge_semantics"] = (
+        "predicted_position_return_bps_after_complete_round_trip_cost"
+        if ckpt.model_architecture == MODEL_ARCHITECTURE
+        else "legacy_confidence_cost_proxy_rollback_only"
+    )
+    payload["predicted_directional_net_edge_bps"] = predicted_net_edge
+    payload["counterfactual_directional_net_edge_bps"] = fwd.get(
+        "directional_net_edge_bps"
+    )
     if serving_context:
         # PredictionRecordV2 policy/lineage fields stamped by the canonical serving
         # runtime (registry generation, serving release sha, evidence hashes).

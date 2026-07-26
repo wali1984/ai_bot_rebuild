@@ -26,6 +26,9 @@ from v2.backend.app.services.prediction_serving.serving_feature_abi_v2 import (
     feature_abi_sha256,
     feature_builder_sha256,
 )
+from v2.backend.app.services.prediction_serving.serving_model_v3 import (
+    MODEL_ARCHITECTURE,
+)
 
 SCHEMA_VERSION = "train_serve_feature_parity_report_v2"
 MEAN_Z_LIMIT = 8.0
@@ -78,6 +81,9 @@ def evaluate_current_universe(
     rejections: Counter[str] = Counter()
     actions: Counter[str] = Counter()
     nonfinite_probabilities = 0
+    nonfinite_directional_net_edges = 0
+    positive_directional_net_edges = 0
+    directional_net_edge_observations = 0
 
     symbol_list = [str(symbol).upper() for symbol in symbols]
     timeframe_list = [str(timeframe) for timeframe in timeframes]
@@ -105,6 +111,18 @@ def evaluate_current_universe(
             probabilities = [float(value) for value in forward["probabilities"]]
             nonfinite_probabilities += sum(not math.isfinite(value) for value in probabilities)
             action = str(forward["action"])
+            selected_edge = forward.get("selected_directional_net_edge_bps")
+            if action in {"long", "short"}:
+                directional_net_edge_observations += 1
+                try:
+                    parsed_edge = float(selected_edge)
+                except (TypeError, ValueError):
+                    nonfinite_directional_net_edges += 1
+                else:
+                    if not math.isfinite(parsed_edge):
+                        nonfinite_directional_net_edges += 1
+                    elif parsed_edge > 0.0:
+                        positive_directional_net_edges += 1
             actions[action] += 1
             vectors.append(vector.values)
             observations.append(
@@ -115,6 +133,7 @@ def evaluate_current_universe(
                     "source_record_sha256": vector.source_record_sha256,
                     "action": action,
                     "probabilities": probabilities,
+                    "selected_directional_net_edge_bps": selected_edge,
                 }
             )
 
@@ -182,11 +201,28 @@ def evaluate_current_universe(
     )
     all_predictions_one_action = accepted > 0 and represented_actions == 1
     serving_smoke_directional_rate = directional / accepted if accepted else 0.0
+    serving_smoke_positive_directional_edge_rate = (
+        positive_directional_net_edges / directional_net_edge_observations
+        if directional_net_edge_observations
+        else 0.0
+    )
+    directional_edge_model_required = (
+        getattr(bundle, "model_architecture", None) == MODEL_ARCHITECTURE
+    )
+    directional_edge_model_valid = (
+        not directional_edge_model_required
+        or (
+            directional_net_edge_observations > 0
+            and nonfinite_directional_net_edges == 0
+            and positive_directional_net_edges > 0
+        )
+    )
     shadow_prediction_valid = (
         accepted > 0
         and directional > 0
         and not all_predictions_one_action
         and nonfinite_probabilities == 0
+        and directional_edge_model_valid
     )
     no_live_authority = (
         not bundle.live_eligible
@@ -213,6 +249,14 @@ def evaluate_current_universe(
         "rejections_by_reason": dict(sorted(rejections.items())),
         "prediction_distribution": {name: int(actions[name]) for name in ("long", "short", "hold")},
         "serving_smoke_directional_rate": serving_smoke_directional_rate,
+        "serving_smoke_positive_directional_edge_rate": (
+            serving_smoke_positive_directional_edge_rate
+        ),
+        "directional_net_edge_model_required": directional_edge_model_required,
+        "directional_net_edge_model_valid": directional_edge_model_valid,
+        "directional_net_edge_observations": directional_net_edge_observations,
+        "positive_directional_net_edge_observations": positive_directional_net_edges,
+        "nonfinite_directional_net_edges": nonfinite_directional_net_edges,
         "all_predictions_one_action": all_predictions_one_action,
         "nonfinite_probabilities": nonfinite_probabilities,
         "required_feature_missing_rate": 0.0 if accepted else 1.0,
