@@ -31,9 +31,16 @@ ACCOUNT_STATUS_KEY = "v2:paper:account_margin_status"
 PAPER_SIGNALS_KEY = "v2:signals:paper"
 
 DEFAULT_MINIMUM_CYCLES = 50
-DEFAULT_MINIMUM_OBSERVATION_SECONDS = 4 * 60 * 60
+# Binance USD-M is continuous rather than session-gapped.  The governed
+# candidate matrix currently spans 5m, 15m, and 1h, so one fully elapsed 1h
+# opportunity window is the smallest explicit window that covers every active
+# decision timeframe without inventing an exchange session boundary.
+DEFAULT_MINIMUM_OBSERVATION_SECONDS = 60 * 60
 DEFAULT_STATUS_TTL_SECONDS = 900
 SCHEMA_VERSION = "generation_natural_acceptance_observer_v1"
+MARKET_SESSION_DEFINITION = (
+    "ONE_FULL_MAXIMUM_ELIGIBLE_TIMEFRAME_WINDOW_1H_CONTINUOUS_CRYPTO_MARKET"
+)
 
 
 def _utc_now() -> datetime:
@@ -366,6 +373,7 @@ def build_status(
             "completed_cycles": 0,
             "minimum_completed_cycles": minimum_cycles,
             "minimum_observation_seconds": minimum_observation_seconds,
+            "market_session_definition": MARKET_SESSION_DEFINITION,
             "paper_only": True,
             "routes_to_live": False,
             "places_real_order": False,
@@ -492,6 +500,7 @@ def build_status(
         "minimum_completed_cycles": minimum_cycles,
         "observation_elapsed_seconds": elapsed,
         "minimum_observation_seconds": minimum_observation_seconds,
+        "market_session_definition": MARKET_SESSION_DEFINITION,
         "cycle_requirement_satisfied": len(cycles) >= minimum_cycles,
         "market_session_requirement_satisfied": elapsed
         >= minimum_observation_seconds,

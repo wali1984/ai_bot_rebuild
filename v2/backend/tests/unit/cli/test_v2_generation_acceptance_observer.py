@@ -149,6 +149,9 @@ def test_status_classifies_only_after_both_bounds() -> None:
         "OBSERVING_BOUNDED_NATURAL_OPPORTUNITY_WINDOW"
     )
     assert complete["classification"] == "GENERATION_3_ADMISSION_STARVATION"
+    assert complete["market_session_definition"] == (
+        "ONE_FULL_MAXIMUM_ELIGIBLE_TIMEFRAME_WINDOW_1H_CONTINUOUS_CRYPTO_MARKET"
+    )
     blocker = complete["blocker_attribution"]["BLOCK_LOSS_PROBABILITY_TOO_HIGH"]
     assert blocker["count"] == 50
     assert blocker["percentage_of_evaluated"] == 50.0

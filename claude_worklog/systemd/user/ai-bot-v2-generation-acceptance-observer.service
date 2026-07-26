@@ -10,7 +10,7 @@ Environment="PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD"
 Environment="PYTHONDONTWRITEBYTECODE=1"
 Environment="LIVE_GATE=blocked_human_only"
 ExecStartPre="/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3" -P -B -m v2.backend.app.cli.v2_economic_cohort_binding_republisher
-ExecStart="/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3" -P -B -m v2.backend.app.cli.v2_generation_acceptance_observer --loop --interval-seconds 10 --minimum-cycles 50 --minimum-observation-seconds 14400
+ExecStart="/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3" -P -B -m v2.backend.app.cli.v2_generation_acceptance_observer --loop --interval-seconds 10 --minimum-cycles 50 --minimum-observation-seconds 3600
 StandardOutput=append:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/v2_generation_acceptance_observer.log
 StandardError=append:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/v2_generation_acceptance_observer.err
 Restart=on-failure
