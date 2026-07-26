@@ -179,7 +179,8 @@ def _evidence_age_seconds(
     row: Mapping[str, Any], signal: Mapping[str, Any]
 ) -> float | None:
     candidate_available = _parse_time(
-        signal.get("available_at")
+        row.get("candidate_available_at")
+        or signal.get("available_at")
         or signal.get("source_available_time")
         or _mapping(
             _mapping(signal.get("microstructure_trust_evidence")).get(
@@ -203,6 +204,11 @@ def _candidate_attribution(
 ) -> dict[str, Any]:
     prediction_id = str(row.get("prediction_id") or "")
     signal = signal_by_prediction.get(prediction_id, {})
+    row_required_max_loss = _finite(
+        row.get("adaptive_loss_probability_threshold_used")
+    )
+    if row_required_max_loss is not None:
+        required_max_loss = row_required_max_loss
     required_profit = None if required_max_loss is None else 1.0 - required_max_loss
     evidence_age = _evidence_age_seconds(row, signal)
     model_loss = _finite(row.get("pre_trade_loss_probability"))
@@ -218,7 +224,8 @@ def _candidate_attribution(
         "model_profit_probability": None if model_loss is None else 1.0 - model_loss,
         "required_max_loss_probability": required_max_loss,
         "required_min_profit_probability": required_profit,
-        "microstructure_action": signal.get(
+        "microstructure_action": row.get("microstructure_action")
+        or signal.get(
             "ordinary_paper_effective_microstructure_action"
         )
         or signal.get("microstructure_action")
@@ -240,10 +247,19 @@ def _candidate_attribution(
         "advanced_indicator_block_reasons": list(
             row.get("advanced_indicator_block_reasons") or []
         ),
+        "advanced_indicator_block": row.get("advanced_indicator_block"),
+        "advanced_indicator_shadow": row.get("advanced_indicator_shadow"),
         "matched_quarantined_bucket_keys": list(
             row.get("matched_quarantined_bucket_keys") or []
         ),
         "atr_stop_cluster_active": row.get("atr_stop_cluster_active"),
+        "cohort_breaker_state": row.get("paper_cohort_breaker_state"),
+        "cohort_breaker_new_entries_allowed": row.get(
+            "paper_cohort_breaker_new_entries_allowed"
+        ),
+        "cohort_preemptive_controls_scoped": row.get(
+            "paper_cohort_preemptive_controls_scoped"
+        ),
         "guardian_state": row.get("continuous_edge_guardian_status"),
         "guardian_new_entries_allowed": row.get("guardian_new_entries_allowed"),
     }

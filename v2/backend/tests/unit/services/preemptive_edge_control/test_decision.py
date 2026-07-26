@@ -91,6 +91,11 @@ def test_preemptive_decision_preserves_governed_checkpoint_lineage() -> None:
             feature_builder_sha256="b" * 64,
             expected_move_after_cost_bps_signed=18.0,
             expected_move_after_cost_bps_directional=18.0,
+            available_at="2026-07-26T22:00:00Z",
+            microstructure_action="REDUCE_SIZE",
+            paper_cohort_breaker_state="ACTIVE_INSUFFICIENT_COHORT_SAMPLE",
+            paper_cohort_breaker_new_entries_allowed=True,
+            paper_cohort_preemptive_controls_scoped=True,
         )
     )
 
@@ -106,6 +111,13 @@ def test_preemptive_decision_preserves_governed_checkpoint_lineage() -> None:
     assert decision["feature_builder_sha256"] == "b" * 64
     assert decision["expected_move_after_cost_bps_signed"] == 18.0
     assert decision["expected_move_after_cost_bps_directional"] == 18.0
+    assert decision["candidate_available_at"] == "2026-07-26T22:00:00Z"
+    assert decision["microstructure_action"] == "REDUCE_SIZE"
+    assert decision["paper_cohort_breaker_state"] == (
+        "ACTIVE_INSUFFICIENT_COHORT_SAMPLE"
+    )
+    assert decision["paper_cohort_breaker_new_entries_allowed"] is True
+    assert decision["paper_cohort_preemptive_controls_scoped"] is True
     assert decision["routes_to_live"] is False
     assert decision["places_real_order"] is False
 

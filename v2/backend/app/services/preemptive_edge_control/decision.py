@@ -912,6 +912,17 @@ def evaluate_candidate(
             "recent_ATR_stop_risk": bucket.get("recent_ATR_stop_risk"),
             "regime_compatibility_score": regime.get("regime_compatibility_score"),
             "microstructure_trust_score": trust,
+            "microstructure_action": candidate.get("microstructure_action"),
+            "candidate_available_at": candidate.get("available_at"),
+            "paper_cohort_breaker_state": candidate.get(
+                "paper_cohort_breaker_state"
+            ),
+            "paper_cohort_breaker_new_entries_allowed": candidate.get(
+                "paper_cohort_breaker_new_entries_allowed"
+            ),
+            "paper_cohort_preemptive_controls_scoped": candidate.get(
+                "paper_cohort_preemptive_controls_scoped"
+            ),
             "trade_tape_confirmation_score": regime.get("trade_tape_confirmation_score"),
             "cross_venue_confirmation_score": regime.get("cross_venue_confirmation_score"),
             "liquidity_sweep_risk": regime.get("liquidity_sweep_risk"),
