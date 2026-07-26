@@ -20,6 +20,7 @@ from statistics import median
 from typing import Any
 
 STATUS_KEY = "v2:operations:generation_acceptance"
+RESTART_PENDING_KEY = "v2:operations:restart_reconstruction_pending"
 COHORT_KEY = "v2:paper:economic_evaluation_cohort"
 PREDICTION_STATUS_KEY = "v2:prediction_serving:status"
 MATRIX_KEY = "v2:paper:preemptive_decision_matrix"
@@ -41,6 +42,7 @@ SCHEMA_VERSION = "generation_natural_acceptance_observer_v1"
 MARKET_SESSION_DEFINITION = (
     "ONE_FULL_MAXIMUM_ELIGIBLE_TIMEFRAME_WINDOW_1H_CONTINUOUS_CRYPTO_MARKET"
 )
+RESTART_CAPTURE_SCHEMA_VERSION = "generation_restart_reconstruction_capture_v1"
 
 
 def _utc_now() -> datetime:
@@ -357,6 +359,101 @@ def _append_cycle(path: Path, cycle: Mapping[str, Any]) -> None:
         os.fsync(handle.fileno())
 
 
+def _restart_position_id(row: Mapping[str, Any]) -> str:
+    return _identity(
+        row,
+        (
+            "position_id",
+            "paper_position_id",
+            "fill_id",
+            "paper_fill_id",
+            "intent_id",
+        ),
+    )
+
+
+def _captured_restart_position_ids(path: Path) -> set[str]:
+    if not path.exists():
+        return set()
+    identities: set[str] = set()
+    for line in path.read_text(encoding="utf-8").splitlines():
+        try:
+            row = json.loads(line)
+        except (TypeError, ValueError):
+            continue
+        if not isinstance(row, Mapping):
+            continue
+        for position in row.get("open_positions") or []:
+            if isinstance(position, Mapping):
+                identity = _restart_position_id(position)
+                if identity:
+                    identities.add(identity)
+    return identities
+
+
+def capture_restart_pending_if_needed(
+    client: Any,
+    *,
+    archive_path: Path,
+    status_ttl_seconds: int = DEFAULT_STATUS_TTL_SECONDS,
+) -> dict[str, Any] | None:
+    """Durably snapshot the first sight of each natural governed open position."""
+    cohort = _mapping(_json_value(client, COHORT_KEY, {}))
+    generation = int(cohort.get("checkpoint_generation") or 0)
+    cohort_id = str(cohort.get("cohort_id") or "")
+    checkpoint_id = str(cohort.get("checkpoint_id") or "")
+    if generation <= 0 or not cohort_id or not checkpoint_id:
+        return None
+    open_positions = [
+        row
+        for row in _rows(_json_value(client, OPEN_POSITIONS_KEY, []))
+        if _matches_generation(row, generation=generation, cohort_id=cohort_id)
+        and _is_natural(row)
+    ]
+    if not open_positions:
+        return None
+    captured = _captured_restart_position_ids(archive_path)
+    new_positions = [
+        row
+        for row in open_positions
+        if _restart_position_id(row) and _restart_position_id(row) not in captured
+    ]
+    if not new_positions:
+        return None
+    fills = [
+        row
+        for row in _rows(_json_value(client, ACCEPTED_FILLS_KEY, []))
+        if _matches_generation(row, generation=generation, cohort_id=cohort_id)
+        and _is_natural(row)
+    ]
+    event = {
+        "schema_version": RESTART_CAPTURE_SCHEMA_VERSION,
+        "captured_utc": _iso(_utc_now()),
+        "status": "PENDING_CANONICAL_SERVING_AND_PAPER_LOOP_RESTART",
+        "checkpoint_generation": generation,
+        "checkpoint_id": checkpoint_id,
+        "cohort_id": cohort_id,
+        "position_ids": [_restart_position_id(row) for row in new_positions],
+        "open_positions": new_positions,
+        "generation_fills": fills,
+        "accounting_snapshot": _mapping(
+            _json_value(client, ACCOUNT_STATUS_KEY, {})
+        ),
+        "restart_reconstruction_match": False,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "exchange_action_taken": False,
+    }
+    _append_cycle(archive_path, event)
+    client.set(
+        RESTART_PENDING_KEY,
+        json.dumps(event, sort_keys=True, separators=(",", ":")),
+        ex=status_ttl_seconds,
+    )
+    return event
+
+
 def build_status(
     cycles: list[dict[str, Any]],
     *,
@@ -558,7 +655,14 @@ def observe_once(
     minimum_cycles: int,
     minimum_observation_seconds: int,
     status_ttl_seconds: int = DEFAULT_STATUS_TTL_SECONDS,
+    restart_capture_path: Path | None = None,
 ) -> dict[str, Any]:
+    if restart_capture_path is not None:
+        capture_restart_pending_if_needed(
+            client,
+            archive_path=restart_capture_path,
+            status_ttl_seconds=status_ttl_seconds,
+        )
     cycles = _load_archive(archive_path)
     known = {str(row.get("cycle_generated_utc")) for row in cycles}
     current_matrix = _mapping(_json_value(client, MATRIX_KEY, {}))
@@ -648,6 +752,14 @@ def main() -> int:
         default=DEFAULT_MINIMUM_OBSERVATION_SECONDS,
     )
     parser.add_argument(
+        "--restart-capture-path",
+        type=Path,
+        default=Path(
+            ".local_data/permanent_system_recovery/"
+            "restart_reconstruction_captures_v1.jsonl"
+        ),
+    )
+    parser.add_argument(
         "--archive-path",
         type=Path,
         default=Path(
@@ -674,6 +786,7 @@ def main() -> int:
             status_path=args.status_path,
             minimum_cycles=args.minimum_cycles,
             minimum_observation_seconds=args.minimum_observation_seconds,
+            restart_capture_path=args.restart_capture_path,
         )
         print(json.dumps(_log_projection(status), sort_keys=True), flush=True)
         if not args.loop:

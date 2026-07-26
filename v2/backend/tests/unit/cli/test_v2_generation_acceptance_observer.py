@@ -234,3 +234,50 @@ def test_log_projection_excludes_large_attribution_payload() -> None:
         "completed_cycles": 3,
         "places_real_order": False,
     }
+
+
+def test_restart_capture_persists_first_natural_governed_position(tmp_path) -> None:
+    values = _values()
+    cohort = "paper_serving_abi_v2:test"
+    values[observer.OPEN_POSITIONS_KEY] = [
+        {
+            "position_id": "position-3",
+            "checkpoint_generation": 3,
+            "paper_strategy_cohort_id": cohort,
+            "prediction_id": "prediction-3",
+            "intent_id": "intent-3",
+            "fill_id": "fill-3",
+            "paper_only": True,
+            "symbol": "BTCUSDT",
+            "side": "long",
+            "quantity": 0.01,
+            "entry_price": 100_000.0,
+            "mandatory_stop": 99_000.0,
+        }
+    ]
+    values[observer.ACCEPTED_FILLS_KEY] = [
+        {
+            "fill_id": "fill-3",
+            "checkpoint_generation": 3,
+            "paper_strategy_cohort_id": cohort,
+            "paper_only": True,
+        }
+    ]
+    client = FakeRedis(values)
+    capture_path = tmp_path / "restart.jsonl"
+
+    first = observer.capture_restart_pending_if_needed(
+        client, archive_path=capture_path
+    )
+    second = observer.capture_restart_pending_if_needed(
+        client, archive_path=capture_path
+    )
+
+    assert first is not None
+    assert first["position_ids"] == ["position-3"]
+    assert first["generation_fills"][0]["fill_id"] == "fill-3"
+    assert first["accounting_snapshot"]["used_margin_usd"] == 0.0
+    assert first["places_real_order"] is False
+    assert second is None
+    assert len(capture_path.read_text().splitlines()) == 1
+    assert client.writes[observer.RESTART_PENDING_KEY][1] == 900
