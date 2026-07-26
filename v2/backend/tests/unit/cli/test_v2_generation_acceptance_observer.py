@@ -121,7 +121,11 @@ def test_status_classifies_only_after_both_bounds() -> None:
                     "BLOCK_LOSS_PROBABILITY_TOO_HIGH": 2
                 },
                 "candidate_attribution": [
-                    {"symbol": "BTCUSDT", "timeframe": "5m"}
+                    {
+                        "symbol": "BTCUSDT",
+                        "timeframe": "5m",
+                        "blocker": "BLOCK_LOSS_PROBABILITY_TOO_HIGH",
+                    }
                 ],
             }
         )
@@ -145,6 +149,11 @@ def test_status_classifies_only_after_both_bounds() -> None:
         "OBSERVING_BOUNDED_NATURAL_OPPORTUNITY_WINDOW"
     )
     assert complete["classification"] == "GENERATION_3_ADMISSION_STARVATION"
+    blocker = complete["blocker_attribution"]["BLOCK_LOSS_PROBABILITY_TOO_HIGH"]
+    assert blocker["count"] == 50
+    assert blocker["percentage_of_evaluated"] == 50.0
+    assert blocker["symbols"] == {"BTCUSDT": 50}
+    assert blocker["timeframes"] == {"5m": 50}
 
 
 def test_observe_once_deduplicates_matrix_cycle(tmp_path) -> None:

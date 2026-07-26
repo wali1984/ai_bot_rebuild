@@ -16,6 +16,7 @@ from collections import Counter
 from collections.abc import Mapping
 from datetime import UTC, datetime
 from pathlib import Path
+from statistics import median
 from typing import Any
 
 STATUS_KEY = "v2:operations:generation_acceptance"
@@ -148,7 +149,7 @@ def _reservation_leak_count(
 
 def _required_loss_probability(
     client: Any, row: Mapping[str, Any]
-) -> tuple[float | None, float | None, str | None]:
+) -> tuple[float | None, float | None, float | None]:
     decision_id = str(row.get("preemptive_decision_id") or "")
     full = (
         _mapping(_json_value(client, f"v2:preemptive:decision:{decision_id}", {}))
@@ -157,18 +158,18 @@ def _required_loss_probability(
     )
     required_max_loss = _finite(full.get("adaptive_loss_probability_threshold_used"))
     required_profit = None if required_max_loss is None else 1.0 - required_max_loss
-    candidate_available = _parse_time(
-        _mapping(full.get("clocks")).get("candidate_available_at")
-    )
+    input_material = _mapping(full.get("preemptive_input_material"))
+    clocks = _mapping(input_material.get("clocks")) or _mapping(full.get("clocks"))
+    candidate_available = _parse_time(clocks.get("candidate_available_at"))
     decision_time = _parse_time(
-        full.get("preemptive_decision_time") or row.get("preemptive_decision_time")
+        clocks.get("preemptive_decision_time")
+        or full.get("preemptive_decision_time")
+        or row.get("preemptive_decision_time")
     )
     evidence_age = None
     if candidate_available is not None and decision_time is not None:
         evidence_age = max(0.0, (decision_time - candidate_available).total_seconds())
-    return required_max_loss, required_profit, (
-        None if evidence_age is None else f"{evidence_age:.6f}"
-    )
+    return required_max_loss, required_profit, evidence_age
 
 
 def _candidate_attribution(
@@ -198,9 +199,7 @@ def _candidate_attribution(
         "microstructure_action": signal.get("microstructure_action"),
         "microstructure_trust_score": row.get("microstructure_trust_score"),
         "microstructure_trust_state": row.get("microstructure_trust_state"),
-        "evidence_age_seconds": (
-            None if evidence_age is None else float(evidence_age)
-        ),
+        "evidence_age_seconds": evidence_age,
         "guardian_state": row.get("continuous_edge_guardian_status"),
         "guardian_new_entries_allowed": row.get("guardian_new_entries_allowed"),
     }
@@ -384,14 +383,91 @@ def build_status(
     action_counts: Counter[str] = Counter()
     symbols: Counter[str] = Counter()
     timeframes: Counter[str] = Counter()
+    blocker_rows: dict[str, list[dict[str, Any]]] = {}
     for cycle in cycles:
         reason_counts.update(cycle.get("rejections_by_reason") or {})
         action_counts.update(cycle.get("rejections_by_primary_action") or {})
         for row in cycle.get("candidate_attribution") or []:
+            blocker = str(row.get("blocker") or "UNSPECIFIED")
+            blocker_rows.setdefault(blocker, []).append(row)
             if row.get("symbol"):
                 symbols[str(row["symbol"])] += 1
             if row.get("timeframe"):
                 timeframes[str(row["timeframe"])] += 1
+
+    blocker_attribution: dict[str, dict[str, Any]] = {}
+    for blocker, rows in sorted(blocker_rows.items()):
+        model_loss = [
+            value
+            for value in (_finite(row.get("model_loss_probability")) for row in rows)
+            if value is not None
+        ]
+        required_loss = [
+            value
+            for value in (
+                _finite(row.get("required_max_loss_probability")) for row in rows
+            )
+            if value is not None
+        ]
+        evidence_ages = [
+            value
+            for value in (_finite(row.get("evidence_age_seconds")) for row in rows)
+            if value is not None
+        ]
+        blocker_attribution[blocker] = {
+            "count": len(rows),
+            "percentage_of_evaluated": (
+                100.0 * len(rows) / evaluated_total if evaluated_total else 0.0
+            ),
+            "symbols": dict(
+                sorted(
+                    Counter(
+                        str(row["symbol"])
+                        for row in rows
+                        if row.get("symbol") not in (None, "")
+                    ).items()
+                )
+            ),
+            "timeframes": dict(
+                sorted(
+                    Counter(
+                        str(row["timeframe"])
+                        for row in rows
+                        if row.get("timeframe") not in (None, "")
+                    ).items()
+                )
+            ),
+            "model_loss_probability": {
+                "minimum": min(model_loss) if model_loss else None,
+                "median": median(model_loss) if model_loss else None,
+                "maximum": max(model_loss) if model_loss else None,
+            },
+            "required_max_loss_probability": {
+                "minimum": min(required_loss) if required_loss else None,
+                "median": median(required_loss) if required_loss else None,
+                "maximum": max(required_loss) if required_loss else None,
+            },
+            "microstructure_actions": dict(
+                sorted(
+                    Counter(
+                        str(row.get("microstructure_action") or "MISSING")
+                        for row in rows
+                    ).items()
+                )
+            ),
+            "evidence_age_seconds": {
+                "minimum": min(evidence_ages) if evidence_ages else None,
+                "median": median(evidence_ages) if evidence_ages else None,
+                "maximum": max(evidence_ages) if evidence_ages else None,
+            },
+            "guardian_states": dict(
+                sorted(
+                    Counter(
+                        str(row.get("guardian_state") or "MISSING") for row in rows
+                    ).items()
+                )
+            ),
+        }
 
     window_complete = (
         len(cycles) >= minimum_cycles and elapsed >= minimum_observation_seconds
@@ -427,6 +503,7 @@ def build_status(
         "admission_rate": admitted_total / evaluated_total if evaluated_total else 0.0,
         "rejections_by_primary_action": dict(sorted(action_counts.items())),
         "rejections_by_reason": dict(sorted(reason_counts.items())),
+        "blocker_attribution": blocker_attribution,
         "symbols": dict(sorted(symbols.items())),
         "timeframes": dict(sorted(timeframes.items())),
         "paper_intents_created": sum(
