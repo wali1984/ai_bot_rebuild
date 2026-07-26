@@ -145,6 +145,27 @@ def test_fvg_confluence_uses_computed_exit_feasibility_score() -> None:
     assert result["advanced_indicator_shadow"] is False
 
 
+def test_short_fvg_confluence_consumes_directional_position_return() -> None:
+    result = evaluate_candidate(
+        _candidate(
+            side="short",
+            expected_move_after_cost_bps=-50.0,
+            expected_move_after_cost_bps_directional=50.0,
+            advanced_indicator_context={
+                "bearish_fvg_present": True,
+                "fvg_trade_tape_confirmation": 0.9,
+                "fvg_orderbook_trust_confluence": 0.9,
+            },
+        ),
+        closed_rows=_winning_history(),
+        continuous_edge_guardian_gate=GUARDIAN_ALLOW,
+    )
+
+    assert "FVG_CONFLUENCE_WITHOUT_POSITIVE_AFTER_COST_EDGE" not in result[
+        "preemptive_decision_reasons"
+    ]
+
+
 def test_fvg_confluence_accepts_market_state_integrity_score_as_trust_alias() -> None:
     result = evaluate_candidate(
         _candidate(

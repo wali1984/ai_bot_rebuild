@@ -160,6 +160,7 @@ def evaluate_advanced_indicator_context(candidate: dict[str, Any]) -> dict[str, 
     )
     expected_edge = _f(
         context.get("fvg_expected_edge_after_cost")
+        or candidate.get("expected_move_after_cost_bps_directional")
         or candidate.get("expected_move_after_cost_bps")
     )
     exit_score = _f(candidate.get("exit_feasibility_score"))
