@@ -2184,6 +2184,28 @@ async def run_loop(args: argparse.Namespace) -> int:
         redis_ok = redis_holder.ensure() is not None
         snapshot = dict(stats)
         snapshot["redis_reconnects"] = redis_holder.reconnects
+        # Section-9 durability identity: every received close event increments
+        # exactly one of written/failures, so received == written + failures
+        # must hold (duplicates are row-level inside successful writes;
+        # parse_errors happen before received++ and are reported separately).
+        received_total = sum(
+            int(v or 0) for k, v in snapshot.items()
+            if isinstance(k, str) and k.startswith("close_events_received_")
+        )
+        written_total = int(snapshot.get("ohlcv_closed_keys_written") or 0)
+        failure_total = int(snapshot.get("ohlcv_closed_write_failures") or 0)
+        snapshot["close_event_durability"] = {
+            "close_events_received": received_total,
+            "closed_candles_written": written_total,
+            "write_failures": failure_total,
+            "duplicate_events": int(
+                snapshot.get("ohlcv_closed_rows_deduplicated_or_trimmed_for_row_limit") or 0
+            ),
+            "rejected_events": int(snapshot.get("parse_errors") or 0),
+            "identity": "close_events_received == closed_candles_written + write_failures",
+            "identity_residual": received_total - written_total - failure_total,
+            "identity_holds": received_total == written_total + failure_total,
+        }
         label_status = (
             label_pipeline.status_snapshot()
             if label_pipeline is not None

@@ -164,9 +164,15 @@ def run_cycle(
         "sample_published": [o for o in observations if o.get("status") == "PUBLISHED"][:5],
     }
     try:
-        io.set_json_expiring(STATUS_KEY, status, ex=SERVING_TTL_SECONDS * 4)
-    except Exception:
-        pass
+        # publish_one observations can carry non-JSON-native objects; the console
+        # print survives via default=str while a raw dump raises — sanitize first.
+        io.set_json_expiring(
+            STATUS_KEY,
+            json.loads(json.dumps(status, default=str)),
+            ex=SERVING_TTL_SECONDS * 4,
+        )
+    except Exception as error:
+        print(json.dumps({"status_key_write_failed": f"{type(error).__name__}: {error}"}), flush=True)
     if status_path is not None:
         status_path.parent.mkdir(parents=True, exist_ok=True)
         status_path.write_text(json.dumps(status, indent=2, default=str))

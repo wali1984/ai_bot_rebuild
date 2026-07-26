@@ -30,6 +30,9 @@ def assert_prediction_or_trainer_key(key: str) -> None:
         "v2:orchestrator:decisions",
         "v2:signals:paper:",
         "v2:paper:",
+        # Canonical prediction serving runtime status (PERMANENT_SYSTEM_RECOVERY
+        # Section 5) — same guarded IO class, its own namespace.
+        "v2:prediction_serving:",
     )
     if not key.startswith(allowed):
         raise ValueError(f"v2_key_not_allowed_for_hybrid_trainer_write:{key}")
