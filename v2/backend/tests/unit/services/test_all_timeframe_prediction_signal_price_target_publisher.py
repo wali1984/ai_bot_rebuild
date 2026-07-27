@@ -243,6 +243,56 @@ def test_ordinary_derived_signal_requires_exact_transport_and_current_ttls(
     assert audit["ordinary_signal_publish_suppressed"] == 0
 
 
+def test_runtime_ordinary_signal_replaces_only_superseded_risk_pending_state() -> None:
+    prediction, replay, risk, assessment = _ordinary_derived_fixture()
+    source_key = str((assessment.evidence or {})["source_redis_key"])
+    replay_key = str((assessment.evidence or {})["replay_snapshot_key"])
+    aggregate = {
+        **prediction,
+        "side": prediction["selected_action"],
+        "upstream_paper_fill_allowed": True,
+        "paper_fill_allowed": False,
+        "paper_fill_gate_status": "RISK_PENDING",
+        "paper_fill_gate_block_reasons": [
+            "RISK_GATEWAY_DECISION_PENDING",
+            "UNCHANGED_SAFETY_BLOCK",
+        ],
+    }
+    store = publisher.V2KeyValueStore(
+        FakeRedis(
+            {
+                source_key: prediction,
+                replay_key: replay,
+                "v2:signals:paper": [aggregate],
+                "v2:risk:gateway:decisions": [risk],
+                "v2:risk:decisions": [],
+                "v2:paper:intents": [],
+                "v2:paper:ledger": {
+                    "generated_at": "2026-06-22T13:00:00Z",
+                    "accepted": [],
+                    "shadow_observations": [],
+                },
+                "v2:orchestrator:decisions": {
+                    "generated_at": "2026-06-22T13:00:00Z"
+                },
+                "v2:market:prices:BTCUSDT": {"last_price": 100.0},
+            },
+            ttls={source_key: 250, replay_key: 240},
+        )
+    )
+
+    runtime_signal = publisher.build_runtime_paper_signal_rows(store)[0]
+
+    assert runtime_signal["paper_fill_allowed"] is True
+    assert runtime_signal["paper_fill_gate_status"] == "RISK_GATEWAY_ALLOW"
+    assert "RISK_GATEWAY_DECISION_PENDING" not in runtime_signal[
+        "paper_fill_gate_block_reasons"
+    ]
+    assert runtime_signal["paper_fill_gate_block_reasons"] == ["UNCHANGED_SAFETY_BLOCK"]
+    assert runtime_signal["risk_decision_id"] == risk["risk_decision_id"]
+    assert runtime_signal["orchestrator_decision_id"] == risk["orchestrator_decision_id"]
+
+
 def test_ordinary_derived_signal_fails_closed_on_tamper_expiry_and_pit() -> None:
     prediction, replay, risk, assessment = _ordinary_derived_fixture()
     source_key = str((assessment.evidence or {})["source_redis_key"])

@@ -11876,6 +11876,21 @@ def test_fresh_checkpoint_cohort_does_not_inherit_historical_performance_halt() 
     assert cohort_status["governed_closed_rows"] == 0
     assert cohort_status["bucket_quarantine_status"]["blocked_bucket_keys"] == []
 
+    controls = paper_loop._paper_candidate_performance_controls(  # noqa: SLF001
+        closed_rows=historical,
+        cohort_id="new_governed_checkpoint_generation",
+        global_breaker=global_status,
+        global_bucket_quarantine=global_status["bucket_quarantine_status"],
+        global_preemptive_bucket_health={"scope": "global"},
+        global_high_confidence_cluster={"scope": "global"},
+    )
+
+    assert controls["scope"] == "EXACT_PAPER_STRATEGY_COHORT"
+    assert controls["cohort_id"] == "new_governed_checkpoint_generation"
+    assert controls["breaker"]["state"] == "ACTIVE_INSUFFICIENT_COHORT_SAMPLE"
+    assert controls["bucket_quarantine"]["blocked_bucket_keys"] == []
+    assert controls["source_rows"] == []
+
 
 def test_advanced_indicator_loader_normalizes_explicit_epoch_ms_availability() -> None:
     class FakeRedis:
@@ -11922,6 +11937,50 @@ def test_read_v2_feature_snapshot_missing_timeframe_does_not_default_to_1m() -> 
 
     assert snapshot["features"] == {}
     assert snapshot["unavailable_reason"] == paper_loop.MISSING_THESIS_TIMEFRAME_BLOCK_REASON
+    assert fake.keys == []
+
+
+def test_embedded_entry_feature_snapshot_is_used_without_redis_fallback() -> None:
+    class FakeRedis:
+        def __init__(self) -> None:
+            self.keys: list[str] = []
+
+        def get(self, key: str):
+            self.keys.append(key)
+            return None
+
+    fake = FakeRedis()
+    embedded = {
+        "feature_snapshot_id": "fs-embedded",
+        "symbol": "BTCUSDT",
+        "timeframe": "1h",
+        "feature_freshness_state": "CURRENT",
+        "generated_at": "2026-07-10T03:15:00.000100Z",
+        "available_at": "2026-07-10T03:15:00.000200Z",
+        "feature_cutoff": "2026-07-10T03:14:59.999Z",
+        "candle_close_time": "2026-07-10T03:14:59.999Z",
+        "candle_closed_confirmed": True,
+        "latest_unclosed_kline_excluded": True,
+        "latest_unclosed_exclusion_method": "CLOSED_KLINE_FILTER_DECISION_TIME_BOUNDED_V1",
+        "latest_unclosed_exclusion_decision_time_ms": 1783654080000,
+        "latest_closed_kline_close_time_ms": 1783653299999,
+        "features": {"close": 1.0},
+    }
+
+    resolved = paper_loop._validated_entry_feature_snapshot_for_signal(  # noqa: SLF001
+        {"entry_feature_snapshot": embedded},
+        fake,
+        "fs-embedded",
+        decision_time="2026-07-10T03:15:00.000300Z",
+        symbol="BTCUSDT",
+        timeframe="1h",
+    )
+
+    assert resolved["features"] == {"close": 1.0}
+    assert resolved["feature_snapshot_resolution_status"] == (
+        "CANONICAL_PREDICTION_EMBEDDED_SERVING_ABI_PIT_VALID"
+    )
+    assert resolved["feature_snapshot_fallback_used"] is False
     assert fake.keys == []
 
 
@@ -11976,6 +12035,9 @@ def test_feature_snapshot_accepts_producer_then_record_availability_clock_order(
         "candle_close_time": "2026-07-10T03:14:59.999Z",
         "candle_closed_confirmed": True,
         "latest_unclosed_kline_excluded": True,
+        "latest_unclosed_exclusion_method": "CLOSED_KLINE_FILTER_DECISION_TIME_BOUNDED_V1",
+        "latest_unclosed_exclusion_decision_time_ms": 1783654080000,
+        "latest_closed_kline_close_time_ms": 1783653299999,
         "features": {"close": 1.0},
     }
 
@@ -11989,6 +12051,18 @@ def test_feature_snapshot_accepts_producer_then_record_availability_clock_order(
     )
 
     assert snapshot["features"] == {"close": 1.0}
+    assert snapshot["latest_unclosed_kline_excluded"] is True
+    assert snapshot["latest_unclosed_exclusion_method"] == (
+        "CLOSED_KLINE_FILTER_DECISION_TIME_BOUNDED_V1"
+    )
+    assert snapshot["latest_unclosed_exclusion_decision_time_ms"] == 1783654080000
+    assert snapshot["latest_closed_kline_close_time_ms"] == 1783653299999
+    evidence = paper_loop._entry_feature_snapshot_evidence(snapshot)  # noqa: SLF001
+    assert evidence["latest_unclosed_exclusion_method"] == (
+        "CLOSED_KLINE_FILTER_DECISION_TIME_BOUNDED_V1"
+    )
+    assert evidence["latest_unclosed_exclusion_decision_time_ms"] == 1783654080000
+    assert evidence["latest_closed_kline_close_time_ms"] == 1783653299999
 
 
 def test_read_v2_feature_snapshot_for_signal_future_latest_does_not_bypass_pit() -> None:
@@ -12816,6 +12890,55 @@ def test_controlled_one_shot_cutover_marker_rejects_incomplete_canary_contract(
         in marker["cutover_marker_write_rejection_reasons"]
     )
     assert not marker_path.exists()
+
+
+def test_runtime_intent_projection_is_hash_bound_bounded_and_preserves_gate_lineage() -> None:
+    heavy = {"duplicated_payload": "x" * 1_000_000}
+    row = {
+        "intent_id": "intent-1",
+        "prediction_id": "pred-1",
+        "signal_id": "signal-1",
+        "orchestrator_decision_id": "orchestrator-1",
+        "risk_decision_id": "risk-1",
+        "paper_strategy_cohort_id": "cohort-3",
+        "checkpoint_generation": 3,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "paper_fill_allowed": False,
+        "paper_fill_gate_block_reasons": ["UNCHANGED_SAFETY_BLOCK"],
+        "preemptive_action": "ADMIT_POSITIVE_EDGE_PROBATION",
+        "preemptive_allowed": True,
+        "scoped_paper_lane_authorized": True,
+        "entry_feature_snapshot_resolution_status": (
+            "CANONICAL_PREDICTION_EMBEDDED_SERVING_ABI_PIT_VALID"
+        ),
+        "adaptive_allocation": {
+            "allocation_id": "allocation-1",
+            "allocator_decision": "BLOCK",
+            "model_inputs": heavy,
+            "preemptive_edge_control": heavy,
+            "preemptive_input_material": heavy,
+        },
+        "preemptive_edge_control": heavy,
+        "preemptive_input_material": heavy,
+        "entry_feature_snapshot": {"features": heavy},
+    }
+
+    projected = paper_loop._compact_runtime_intent_for_redis(row)  # noqa: SLF001
+
+    assert projected["schema_version"] == "v2_paper_runtime_intent_projection_v1"
+    assert projected["source_row_canonical_sha256"] == paper_loop._paper_canonical_sha256(  # noqa: SLF001
+        row
+    )
+    assert projected["prediction_id"] == "pred-1"
+    assert projected["risk_decision_id"] == "risk-1"
+    assert projected["paper_strategy_cohort_id"] == "cohort-3"
+    assert projected["preemptive_action"] == "ADMIT_POSITIVE_EDGE_PROBATION"
+    assert projected["paper_fill_gate_block_reasons"] == ["UNCHANGED_SAFETY_BLOCK"]
+    assert "preemptive_input_material" not in projected
+    assert "entry_feature_snapshot" not in projected
+    assert len(json.dumps(projected)) < 50_000
 
 
 def test_compact_accepted_fill_state_omits_snapshot_but_keeps_trust_and_execution() -> None:
@@ -18783,6 +18906,7 @@ def test_strategy_router_feature_snapshot_context_maps_pit_regime_inputs() -> No
     assert volatility_liquidity["bid_ask_spread_bps"] == 1.29
     assert volatility_liquidity["orderbook_depth_usd"] == 270466.33
     assert volatility_liquidity["expected_slippage_bps"] == 0.44
+    assert volatility_liquidity["volatility"] is None
 
 
 def test_strategy_router_feature_snapshot_context_marks_unavailable_snapshot() -> None:

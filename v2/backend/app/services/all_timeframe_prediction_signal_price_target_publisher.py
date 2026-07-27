@@ -3920,6 +3920,30 @@ def build_runtime_paper_signal_rows(store: V2KeyValueStore, live_context: Mappin
         risk_state = "VISIBLE" if risk else "RISK_DECISION_MISSING"
         blocked_reason = None
         paper_fill_gate_block_reasons = as_list(signal.get("paper_fill_gate_block_reasons"))
+        exact_ordinary_risk_allow = bool(
+            ordinary_paper_claimed
+            and ordinary_assessment is not None
+            and ordinary_assessment.accepted
+            and risk_decision_id
+            and orchestrator_decision_id
+            and str(risk.get("risk_action") or "").lower() in {"allow", "approved"}
+        )
+        if exact_ordinary_risk_allow:
+            # The aggregate orchestrator row is necessarily stamped RISK_PENDING
+            # before the gateway runs.  Once this exact prediction has a
+            # factory-revalidated ordinary transport and a canonical risk ALLOW,
+            # retaining that transient producer state creates a permanent false
+            # block in the downstream PAPER signal.  Remove only superseded
+            # transport-state reasons; every economic/safety rejection remains.
+            paper_fill_gate_block_reasons = [
+                reason
+                for reason in paper_fill_gate_block_reasons
+                if str(reason)
+                not in {
+                    "RISK_GATEWAY_DECISION_PENDING",
+                    "ORDINARY_PAPER_RISK_ACTION_NOT_ALLOW",
+                }
+            ]
         ordinary_provenance = copy_ordinary_paper_provenance(signal)
         ordinary_provenance.update(copy_ordinary_paper_provenance(risk))
         if ordinary_assessment is not None and ordinary_assessment.claimed:
@@ -4027,7 +4051,11 @@ def build_runtime_paper_signal_rows(store: V2KeyValueStore, live_context: Mappin
                 "ledger_status_label": "VISIBLE" if paper_ledger_id else "PAPER_LEDGER_MISSING",
                 "paper_fill_status": paper_state,
                 "paper_fill_allowed": paper_fill_allowed,
-                "paper_fill_gate_status": signal.get("paper_fill_gate_status"),
+                "paper_fill_gate_status": (
+                    "RISK_GATEWAY_ALLOW"
+                    if exact_ordinary_risk_allow and paper_fill_allowed
+                    else signal.get("paper_fill_gate_status")
+                ),
                 "paper_fill_gate_block_reasons": paper_fill_gate_block_reasons,
                 "market_state_id": signal.get("market_state_id"),
                 "market_state_integrity_score": signal.get("market_state_integrity_score"),

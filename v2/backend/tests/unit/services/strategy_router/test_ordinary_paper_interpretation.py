@@ -22,6 +22,7 @@ from v2.backend.app.services.ordinary_paper_admission import (
 from v2.backend.app.services.strategy_router import ordinary_paper_interpretation as subject
 from v2.backend.app.services.strategy_router.ordinary_paper_interpretation import (
     ORDINARY_PAPER_ROUTER_CONTINUOUS_FORMULA,
+    bind_ordinary_paper_router_envelope,
     interpret_ordinary_paper_router_result,
 )
 from v2.backend.app.services.strategy_router.service import route_strategy
@@ -186,6 +187,39 @@ def test_fabricated_admission_mapping_cannot_authorize_interpretation() -> None:
     assert "ORDINARY_PAPER_ADMISSION_RESULT_EXACT_TYPE_REQUIRED" in result["hard_reasons"]
 
 
+def test_exact_admission_binds_sparse_router_envelope_without_mutating_source() -> None:
+    admission = _admission()
+    sparse = {"symbol": "WRONG", "unrelated": "preserved"}
+
+    bound = bind_ordinary_paper_router_envelope(
+        market_state_envelope=sparse,
+        ordinary_admission=admission,
+    )
+
+    assert sparse == {"symbol": "WRONG", "unrelated": "preserved"}
+    assert bound["symbol"] == admission.evidence["symbol"]
+    assert bound["prediction_id"] == admission.evidence["prediction_id"]
+    assert bound["decision_time"] == admission.evidence["decision_time"]
+    assert bound["ordinary_paper_router_envelope_binding_status"] == (
+        "BOUND_EXACT_ADMISSION"
+    )
+    assert bound["routes_to_live"] is False
+    assert bound["places_real_order"] is False
+
+
+def test_fabricated_admission_cannot_bind_router_envelope() -> None:
+    source = {"symbol": "BTCUSDT", "decision_time": "2026-01-01T00:00:00Z"}
+
+    bound = bind_ordinary_paper_router_envelope(
+        market_state_envelope=source,
+        ordinary_admission={"claimed": True, "accepted": True},  # type: ignore[arg-type]
+    )
+
+    assert bound["symbol"] == "BTCUSDT"
+    assert bound["ordinary_paper_router_envelope_binding_status"] == "REJECTED"
+    assert "prediction_id" not in bound
+
+
 @pytest.mark.parametrize(
     ("position", "action", "expected_reason"),
     [
@@ -244,6 +278,32 @@ def test_negative_performance_bucket_remains_hard() -> None:
 
     assert result["strategy_trade_allowed"] is False
     assert "NEGATIVE_BUCKET_PERFORMANCE_QUARANTINE" in result["hard_reasons"]
+
+
+def test_absent_optional_magnitudes_are_explicit_and_not_promoted_to_hard_inputs() -> None:
+    def mutate(material: dict[str, Any]) -> None:
+        material["recent_execution_success_metrics"]["execution_success_probability"] = None
+        material["volatility_liquidity_state"].pop("volatility")
+        material["volatility_liquidity_state"].pop("liquidity_score")
+
+    result, _, _ = _run(mutate_input=mutate)
+
+    assert result["strategy_trade_allowed"] is True
+    assert result["missing_optional_factors"] == [
+        "execution_success_probability",
+        "liquidity_score",
+        "volatility_fraction",
+    ]
+    assert "execution_success_probability" not in result["continuous_factors"]
+    assert "volatility_headroom" not in result["continuous_factors"]
+    assert "liquidity_score" not in result["continuous_factors"]
+
+
+def test_supplied_out_of_domain_optional_magnitude_remains_hard() -> None:
+    result, _, _ = _run(liquidity=1.1)
+
+    assert result["strategy_trade_allowed"] is False
+    assert "ORDINARY_ROUTER_LIQUIDITY_SCORE_OUTSIDE_UNIT_INTERVAL" in result["hard_reasons"]
 
 
 def test_timeframe_conflict_is_soft_only_with_directional_edge_proof() -> None:
@@ -415,10 +475,7 @@ def test_epsilon_around_legacy_threshold_has_no_sizing_cliff(
     assert abs(below["continuous_weight"] - above["continuous_weight"]) < 1e-7
 
 
-@pytest.mark.parametrize(
-    ("field", "value"),
-    [("liquidity", None), ("masa_confidence", float("nan"))],
-)
+@pytest.mark.parametrize(("field", "value"), [("masa_confidence", float("nan"))])
 def test_missing_or_nonfinite_router_input_magnitude_fails_closed(
     field: str,
     value: Any,

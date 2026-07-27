@@ -34,10 +34,8 @@ ORDINARY_PAPER_ROUTER_INTERPRETATION_SCHEMA_VERSION = (
     "v2_ordinary_paper_strategy_router_interpretation_v2"
 )
 ORDINARY_PAPER_ROUTER_CONTINUOUS_FORMULA = (
-    "base_weight*geometric_mean(data_quality_fraction,masa_confidence,"
-    "ppo_confidence,execution_success_probability,drawdown_headroom,"
-    "volatility_headroom,liquidity_score,microstructure_trust_score,"
-    "sweep_safety,timeframe_direction_alignment)"
+    "base_weight*geometric_mean(required_safety_factors,"
+    "available_optional_magnitude_factors)"
 )
 
 # These are classifications of the existing router's telemetry, not tuning
@@ -276,10 +274,31 @@ def _bounded_unit_factor(
     return numeric
 
 
+def _optional_bounded_unit_factor(
+    *,
+    name: str,
+    value: Any,
+    hard_reasons: list[str],
+    missing_optional_factors: list[str],
+) -> float | None:
+    """Validate an optional magnitude without inventing a value for absence.
+
+    An absent optional signal is omitted from the continuous geometric mean and
+    remains explicit telemetry.  A supplied but non-finite or out-of-domain
+    value is still a hard contract failure.
+    """
+
+    if value in (None, ""):
+        missing_optional_factors.append(name)
+        return None
+    return _bounded_unit_factor(name=name, value=value, hard_reasons=hard_reasons)
+
+
 def _router_magnitudes(
     router_result: Mapping[str, Any],
     ordinary_evidence: Mapping[str, Any],
     hard_reasons: list[str],
+    missing_optional_factors: list[str],
 ) -> dict[str, float]:
     explanation = _mapping(router_result.get("explanation"))
 
@@ -313,10 +332,11 @@ def _router_magnitudes(
         value=explanation.get("ppo_confidence"),
         hard_reasons=hard_reasons,
     )
-    execution_success_probability = _bounded_unit_factor(
+    execution_success_probability = _optional_bounded_unit_factor(
         name="execution_success_probability",
         value=explanation.get("execution_success_probability"),
         hard_reasons=hard_reasons,
+        missing_optional_factors=missing_optional_factors,
     )
 
     drawdown_bps = _finite(explanation.get("current_drawdown_bps"))
@@ -333,16 +353,18 @@ def _router_magnitudes(
         else:
             drawdown_headroom = 1.0 - drawdown_fraction
 
-    volatility_fraction = _bounded_unit_factor(
+    volatility_fraction = _optional_bounded_unit_factor(
         name="volatility_fraction",
         value=explanation.get("volatility"),
         hard_reasons=hard_reasons,
+        missing_optional_factors=missing_optional_factors,
     )
     volatility_headroom = None if volatility_fraction is None else 1.0 - volatility_fraction
-    liquidity_score = _bounded_unit_factor(
+    liquidity_score = _optional_bounded_unit_factor(
         name="liquidity_score",
         value=explanation.get("liquidity_score"),
         hard_reasons=hard_reasons,
+        missing_optional_factors=missing_optional_factors,
     )
     microstructure_trust_score = _bounded_unit_factor(
         name="microstructure_trust_score",
@@ -387,6 +409,72 @@ def _router_magnitudes(
         "timeframe_direction_alignment": timeframe_alignment,
     }
     return {name: value for name, value in values.items() if value is not None}
+
+
+def bind_ordinary_paper_router_envelope(
+    *,
+    market_state_envelope: Mapping[str, Any],
+    ordinary_admission: OrdinaryPaperAdmissionResult,
+) -> dict[str, Any]:
+    """Bind a router envelope to an exact factory-authenticated admission.
+
+    The producer envelope is deliberately sparse.  The ordinary admission
+    result already contains the authenticated source identities and PIT clocks
+    used to accept that same candidate.  Copying only those immutable fields
+    prevents false identity mismatches while preserving exact replay.  A
+    fabricated, rejected, or tampered result cannot bind anything.
+    """
+
+    bound = copy.deepcopy(dict(market_state_envelope))
+    rejection_reasons = ordinary_paper_admission_result_rejection_reasons(
+        ordinary_admission,
+        require_accepted=True,
+    )
+    if rejection_reasons or type(ordinary_admission) is not OrdinaryPaperAdmissionResult:
+        bound["ordinary_paper_router_envelope_binding_status"] = "REJECTED"
+        bound["ordinary_paper_router_envelope_binding_rejection_reasons"] = list(
+            rejection_reasons
+        )
+        return bound
+    evidence = ordinary_admission.evidence
+    if not isinstance(evidence, Mapping):
+        bound["ordinary_paper_router_envelope_binding_status"] = "REJECTED"
+        bound["ordinary_paper_router_envelope_binding_rejection_reasons"] = [
+            "ORDINARY_PAPER_ADMISSION_EVIDENCE_MISSING"
+        ]
+        return bound
+    for field in (*_ADMISSION_SOURCE_IDENTITY_FIELDS, *_ADMISSION_PIT_FIELDS):
+        if evidence.get(field) not in (None, ""):
+            bound[field] = copy.deepcopy(evidence[field])
+    for target, source in (
+        ("confidence_calibrated", "confidence_calibrated"),
+        ("ppo_confidence", "confidence_calibrated"),
+        ("market_state_integrity_score", "orchestrator_market_state_integrity_score"),
+        ("data_quality_score", "orchestrator_market_state_integrity_score"),
+        ("microstructure_trust_score", "orchestrator_microstructure_trust_score"),
+        ("sweep_risk", "orchestrator_sweep_risk_score"),
+        ("sweep_risk_score", "orchestrator_sweep_risk_score"),
+    ):
+        if evidence.get(source) not in (None, ""):
+            bound[target] = copy.deepcopy(evidence[source])
+    effective_microstructure_action = _first_present(
+        evidence.get("ordinary_paper_effective_microstructure_action"),
+        evidence.get("orchestrator_microstructure_action"),
+    )
+    if effective_microstructure_action not in (None, ""):
+        bound["microstructure_action"] = effective_microstructure_action
+    bound.update(
+        {
+            "ordinary_paper_router_envelope_binding_status": "BOUND_EXACT_ADMISSION",
+            "ordinary_paper_router_envelope_admission_evidence_sha256": (
+                ordinary_admission.evidence_sha256
+            ),
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+        }
+    )
+    return bound
 
 
 def _router_input_rejection_reasons(
@@ -569,6 +657,7 @@ def interpret_ordinary_paper_router_result(
     hard_reasons: list[str] = list(admission_reasons)
     softened_reasons: list[str] = []
     telemetry_reasons: list[str] = []
+    missing_optional_factors: list[str] = []
 
     input_reasons, exact_input, replayed_router = _router_input_rejection_reasons(
         router_result=router,
@@ -643,23 +732,25 @@ def interpret_ordinary_paper_router_result(
     if _reason_list(verified_router.get("paper_loss_quarantine_matched_bucket_keys")):
         hard_reasons.append("PAPER_LOSS_BUCKET_QUARANTINE")
 
-    factors = _router_magnitudes(verified_router, evidence, hard_reasons)
+    factors = _router_magnitudes(
+        verified_router,
+        evidence,
+        hard_reasons,
+        missing_optional_factors,
+    )
     required_factor_names = {
         "base_weight",
         "data_quality_fraction",
         "masa_confidence",
         "ppo_confidence",
-        "execution_success_probability",
         "drawdown_headroom",
-        "volatility_headroom",
-        "liquidity_score",
         "microstructure_trust_score",
         "sweep_safety",
         "timeframe_direction_alignment",
     }
     continuous_weight = (
         _continuous_weight(factors)
-        if not hard_reasons and set(factors) == required_factor_names
+        if not hard_reasons and required_factor_names <= set(factors)
         else 0.0
     )
     if continuous_weight == 0.0 and not hard_reasons:
@@ -724,6 +815,7 @@ def interpret_ordinary_paper_router_result(
         "continuous_weight": continuous_weight,
         "continuous_formula": ORDINARY_PAPER_ROUTER_CONTINUOUS_FORMULA,
         "continuous_factors": factors,
+        "missing_optional_factors": sorted(set(missing_optional_factors)),
         "hard_reasons": hard_reasons,
         "softened_reasons": softened_reasons,
         "telemetry_reasons": telemetry_reasons,
@@ -751,5 +843,6 @@ def interpret_ordinary_paper_router_result(
 __all__ = (
     "ORDINARY_PAPER_ROUTER_CONTINUOUS_FORMULA",
     "ORDINARY_PAPER_ROUTER_INTERPRETATION_SCHEMA_VERSION",
+    "bind_ordinary_paper_router_envelope",
     "interpret_ordinary_paper_router_result",
 )

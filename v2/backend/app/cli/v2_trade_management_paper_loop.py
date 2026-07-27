@@ -74,6 +74,7 @@ from v2.backend.app.services.strategy_router import (
     summarize_strategy_router_performance,
 )
 from v2.backend.app.services.strategy_router.ordinary_paper_interpretation import (
+    bind_ordinary_paper_router_envelope,
     interpret_ordinary_paper_router_result,
 )
 from v2.backend.app.services.paper_trade_management.entry_gate import (
@@ -9082,6 +9083,15 @@ def _validated_v2_feature_snapshot_payload(
         "candle_close_time": payload.get("candle_close_time"),
         "candle_closed_confirmed": payload.get("candle_closed_confirmed"),
         "latest_unclosed_kline_excluded": payload.get("latest_unclosed_kline_excluded"),
+        "latest_unclosed_exclusion_method": payload.get(
+            "latest_unclosed_exclusion_method"
+        ),
+        "latest_unclosed_exclusion_decision_time_ms": payload.get(
+            "latest_unclosed_exclusion_decision_time_ms"
+        ),
+        "latest_closed_kline_close_time_ms": payload.get(
+            "latest_closed_kline_close_time_ms"
+        ),
         "source_hashes": payload.get("source_hashes"),
     }
 
@@ -9133,6 +9143,15 @@ def _entry_feature_snapshot_evidence(snapshot: dict[str, Any]) -> dict[str, Any]
         "candle_close_time": snapshot.get("candle_close_time"),
         "candle_closed_confirmed": snapshot.get("candle_closed_confirmed"),
         "latest_unclosed_kline_excluded": snapshot.get("latest_unclosed_kline_excluded"),
+        "latest_unclosed_exclusion_method": snapshot.get(
+            "latest_unclosed_exclusion_method"
+        ),
+        "latest_unclosed_exclusion_decision_time_ms": snapshot.get(
+            "latest_unclosed_exclusion_decision_time_ms"
+        ),
+        "latest_closed_kline_close_time_ms": snapshot.get(
+            "latest_closed_kline_close_time_ms"
+        ),
         "feature_freshness_state": snapshot.get("feature_freshness_state"),
         "source_hashes": snapshot.get("source_hashes"),
         "features": dict(features),
@@ -9241,6 +9260,53 @@ def _read_v2_feature_snapshot_for_signal(
             "FEATURE_SNAPSHOT_MISSING_ID_AND_LATEST_FALLBACK_UNAVAILABLE"
         )
     return resolved
+
+
+def _validated_entry_feature_snapshot_for_signal(
+    signal: Mapping[str, Any],
+    r: Any,
+    feature_snapshot_id: Any,
+    *,
+    decision_time: str,
+    symbol: str | None = None,
+    timeframe: str | None = None,
+) -> dict[str, Any]:
+    """Resolve the exact embedded serving snapshot before any Redis fallback.
+
+    Canonical serving carries its decision-time snapshot on the signal.  That
+    embedded record is the only source guaranteed to be the same historical
+    observation used by the decision.  If it is present but invalid, fail
+    closed; a newer ``features:latest`` value must never replace it.
+    """
+
+    embedded = signal.get("entry_feature_snapshot")
+    if isinstance(embedded, Mapping):
+        validated = _validated_v2_feature_snapshot_payload(
+            dict(embedded),
+            redis_key=str(signal.get("entry_feature_source") or "CANONICAL_PREDICTION"),
+            decision_time=decision_time,
+            expected_feature_snapshot_id=str(feature_snapshot_id or ""),
+            expected_symbol=symbol,
+            expected_timeframe=timeframe,
+        )
+        validated["requested_feature_snapshot_id"] = feature_snapshot_id
+        validated["feature_snapshot_fallback_used"] = False
+        if validated.get("features"):
+            validated["feature_snapshot_resolution_status"] = (
+                "CANONICAL_PREDICTION_EMBEDDED_SERVING_ABI_PIT_VALID"
+            )
+        else:
+            validated["feature_snapshot_resolution_status"] = (
+                "CANONICAL_PREDICTION_EMBEDDED_SERVING_ABI_REJECTED_NO_FALLBACK"
+            )
+        return validated
+    return _read_v2_feature_snapshot_for_signal(
+        r,
+        feature_snapshot_id,
+        decision_time=decision_time,
+        symbol=symbol,
+        timeframe=timeframe,
+    )
 
 
 def _attach_entry_price_provenance(
@@ -11665,6 +11731,8 @@ COMPACT_ACCEPTED_FILL_OMITTED_FIELDS = frozenset(
         "partial_fill_estimate",
         "partial_fill_plan",
         "partial_fills",
+        "preemptive_edge_control",
+        "preemptive_input_material",
         "pre_entry_stress_tests",
         "production_grade_cost_evidence",
         "public_intel_context",
@@ -11975,6 +12043,89 @@ def _compact_accepted_fill_for_state(row: dict[str, Any]) -> dict[str, Any]:
 
 def _compact_rows_for_state(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [_compact_accepted_fill_for_state(row) for row in rows if isinstance(row, dict)]
+
+
+PAPER_RUNTIME_INTENT_PROJECTION_FIELDS = (
+    "active_model_registry_generation",
+    "checkpoint_generation",
+    "feature_abi_sha256",
+    "feature_builder_sha256",
+    "paper_strategy_cohort_id",
+    "paper_cohort_checkpoint_id",
+    "paper_cohort_breaker_state",
+    "paper_cohort_breaker_new_entries_allowed",
+    "paper_cohort_governed_closed_rows",
+    "paper_cohort_preemptive_controls_scoped",
+    "paper_performance_control_scope",
+    "preemptive_action",
+    "preemptive_allowed",
+    "preemptive_block_reasons",
+    "preemptive_predicate_details",
+    "scoped_paper_lane_authorized",
+    "adaptive_loss_probability_threshold_applied",
+    "adaptive_loss_probability_threshold_breached",
+    "adaptive_loss_probability_threshold_used",
+    "adaptive_loss_probability_threshold_source",
+    "ordinary_paper_strategy_router_interpretation_applied",
+    "ordinary_paper_strategy_router_trade_allowed",
+    "ordinary_paper_strategy_router_effective_mode",
+    "ordinary_paper_strategy_router_continuous_weight",
+    "ordinary_paper_strategy_router_continuous_formula",
+    "ordinary_paper_strategy_router_continuous_factors",
+    "ordinary_paper_strategy_router_hard_reasons",
+    "ordinary_paper_strategy_router_softened_reasons",
+    "ordinary_paper_strategy_router_telemetry_reasons",
+    "ordinary_paper_strategy_router_interpretation_proof_sha256",
+    "paper_allocator_ordinary_paper_strategy_router_interpretation_sha256",
+    "entry_feature_snapshot_resolution_status",
+    "entry_feature_snapshot_fallback_used",
+    "entry_feature_latest_unclosed_kline_excluded",
+    "entry_feature_latest_unclosed_exclusion_method",
+    "entry_feature_latest_unclosed_exclusion_decision_time_ms",
+    "entry_feature_latest_closed_kline_close_time_ms",
+    "risk_action",
+    "risk_controller_decision",
+    "paper_fill_risk_state",
+)
+
+
+def _compact_runtime_intent_for_redis(row: dict[str, Any]) -> dict[str, Any]:
+    """Hash-bind a bounded transient projection of a full in-memory intent."""
+
+    compact = _compact_accepted_fill_for_state(row)
+    for field in PAPER_RUNTIME_INTENT_PROJECTION_FIELDS:
+        if row.get(field) not in (None, "", {}, []):
+            compact[field] = deepcopy(row[field])
+    omitted_fields = sorted(set(row) - set(compact))
+    compact.update(
+        {
+            "schema_version": "v2_paper_runtime_intent_projection_v1",
+            "runtime_intent_projection_only": True,
+            "source_row_canonical_sha256": _paper_canonical_sha256(row),
+            "source_row_field_count": len(row),
+            "omitted_field_count": len(omitted_fields),
+            "omitted_nested_sections": sorted(
+                field
+                for field in omitted_fields
+                if isinstance(row.get(field), (dict, list))
+            ),
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+        }
+    )
+    compact["projection_field_count"] = len(compact) + 1
+    return compact
+
+
+def _compact_runtime_intents_for_redis(
+    rows: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    return [
+        _compact_runtime_intent_for_redis(row)
+        for row in rows
+        if isinstance(row, dict)
+    ]
 
 
 def _sample_rows(
@@ -25843,6 +25994,47 @@ def _paper_performance_circuit_breaker_status(
     }
 
 
+def _paper_candidate_performance_controls(
+    *,
+    closed_rows: list[dict[str, Any]],
+    cohort_id: str | None,
+    global_breaker: dict[str, Any],
+    global_bucket_quarantine: dict[str, Any],
+    global_preemptive_bucket_health: dict[str, Any],
+    global_high_confidence_cluster: dict[str, Any],
+) -> dict[str, Any]:
+    """Select the exact performance-control scope before strategy routing."""
+
+    normalized_cohort_id = str(cohort_id or "").strip() or None
+    if normalized_cohort_id is None:
+        return {
+            "cohort_id": None,
+            "scope": "HISTORICAL_GLOBAL",
+            "breaker": global_breaker,
+            "bucket_quarantine": global_bucket_quarantine,
+            "preemptive_bucket_health": global_preemptive_bucket_health,
+            "high_confidence_cluster": global_high_confidence_cluster,
+            "source_rows": _paper_performance_source_rows(closed_rows),
+        }
+    source_rows = _paper_performance_source_rows(
+        closed_rows,
+        cohort_id=normalized_cohort_id,
+    )
+    breaker = _paper_performance_circuit_breaker_status(
+        closed_rows,
+        cohort_id=normalized_cohort_id,
+    )
+    return {
+        "cohort_id": normalized_cohort_id,
+        "scope": "EXACT_PAPER_STRATEGY_COHORT",
+        "breaker": breaker,
+        "bucket_quarantine": breaker["bucket_quarantine_status"],
+        "preemptive_bucket_health": build_preemptive_bucket_health(source_rows),
+        "high_confidence_cluster": _high_confidence_loss_cluster_gate(breaker),
+        "source_rows": source_rows,
+    }
+
+
 def _paper_bleed_halt_status(
     performance_circuit_breaker_status: dict[str, Any],
     *,
@@ -39638,10 +39830,8 @@ def _build_volatility_liquidity_state(
             prediction.get("volatility_pct"),
             features.get("volatility"),
             features.get("volatility_pct"),
-            features.get("true_range_pct"),
             snapshot_features.get("volatility"),
             snapshot_features.get("volatility_pct"),
-            snapshot_features.get("true_range_pct"),
         ),
         "volatility_expansion": _first_present(
             prediction.get("volatility_expansion"),
@@ -39651,7 +39841,6 @@ def _build_volatility_liquidity_state(
             snapshot_features.get("volatility_expansion"),
             snapshot_features.get("bb_width_pct"),
             snapshot_features.get("ta_BB_width_pct"),
-            snapshot_features.get("true_range_pct"),
         ),
         "atr_percentile": _first_present(
             prediction.get("atr_percentile"),
@@ -43590,8 +43779,38 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             trust_feature_snapshot_id,
             s.get("entry_feature_snapshot_id"),
         )
+        integrity_gate = _paper_signal_integrity_gate(s, r)
+        ordinary_admission_result = integrity_gate.get("_ordinary_paper_admission_result")
+        candidate_cohort_id = str(
+            _first_present(
+                s.get("paper_strategy_cohort_id"),
+                prediction.get("paper_strategy_cohort_id"),
+            )
+            or ""
+        ).strip() or None
+        candidate_performance_controls = _paper_candidate_performance_controls(
+            closed_rows=existing_closed_rows,
+            cohort_id=candidate_cohort_id,
+            global_breaker=pre_cycle_paper_performance_circuit_breaker_status,
+            global_bucket_quarantine=pre_cycle_bucket_quarantine_status,
+            global_preemptive_bucket_health=pre_cycle_preemptive_bucket_health,
+            global_high_confidence_cluster=pre_cycle_high_confidence_loss_cluster_gate,
+        )
+        candidate_bucket_quarantine = candidate_performance_controls[
+            "bucket_quarantine"
+        ]
         market_state_envelope = _build_market_state_envelope(signal=s, prediction=prediction)
-        strategy_feature_snapshot = _read_v2_feature_snapshot_for_signal(
+        if (
+            integrity_gate.get("ordinary_paper_claimed") is True
+            and integrity_gate.get("ordinary_paper_revalidated") is True
+            and type(ordinary_admission_result) is OrdinaryPaperAdmissionResult
+        ):
+            market_state_envelope = bind_ordinary_paper_router_envelope(
+                market_state_envelope=market_state_envelope,
+                ordinary_admission=ordinary_admission_result,
+            )
+        strategy_feature_snapshot = _validated_entry_feature_snapshot_for_signal(
+            s,
             r,
             paper_feature_snapshot_id,
             decision_time=str(market_state_envelope.get("decision_time") or ""),
@@ -43633,13 +43852,22 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         if validated_cascade_ctx is not None:
             market_state_envelope["cascade_context"] = validated_cascade_ctx
         market_state_envelope["paper_loss_quarantine_status"] = (
-            pre_cycle_bucket_quarantine_status.get("status")
+            candidate_bucket_quarantine.get("status")
         )
         market_state_envelope["paper_loss_quarantine_generated_utc"] = (
-            pre_cycle_bucket_quarantine_status.get("generated_utc")
+            candidate_bucket_quarantine.get("generated_utc")
         )
         market_state_envelope["paper_loss_quarantine_blocked_bucket_keys"] = list(
-            pre_cycle_bucket_quarantine_status.get("blocked_bucket_keys") or []
+            candidate_bucket_quarantine.get("blocked_bucket_keys") or []
+        )
+        market_state_envelope["paper_performance_control_scope"] = (
+            candidate_performance_controls["scope"]
+        )
+        market_state_envelope["paper_performance_control_cohort_id"] = (
+            candidate_performance_controls["cohort_id"]
+        )
+        market_state_envelope["paper_performance_control_breaker_state"] = (
+            candidate_performance_controls["breaker"].get("state")
         )
         symbol_predictions = predictions_by_symbol.get(symbol, [])
         strategy_timeframe_rows = _point_in_time_timeframe_rows(
@@ -43682,9 +43910,7 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             data_quality_score=router_data_quality_score,
             current_drawdown_risk_state=current_risk_state,
         )
-        integrity_gate = _paper_signal_integrity_gate(s, r)
         ordinary_router_proof: dict[str, Any] | None = None
-        ordinary_admission_result = integrity_gate.get("_ordinary_paper_admission_result")
         if (
             integrity_gate.get("ordinary_paper_claimed") is True
             and integrity_gate.get("ordinary_paper_revalidated") is True
@@ -44430,32 +44656,7 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                 started,
             )
         )
-        embedded_entry_snapshot = s.get("entry_feature_snapshot")
-        if isinstance(embedded_entry_snapshot, Mapping):
-            entry_feature_snapshot = _validated_v2_feature_snapshot_payload(
-                json.dumps(dict(embedded_entry_snapshot)),
-                redis_key=str(s.get("entry_feature_source") or "CANONICAL_PREDICTION"),
-                decision_time=entry_feature_decision_time,
-                expected_feature_snapshot_id=str(paper_feature_snapshot_id or ""),
-                expected_symbol=symbol,
-                expected_timeframe=paper_thesis_timeframe,
-            )
-            if entry_feature_snapshot.get("features"):
-                entry_feature_snapshot["feature_snapshot_resolution_status"] = (
-                    "CANONICAL_PREDICTION_EMBEDDED_SERVING_ABI_PIT_VALID"
-                )
-                entry_feature_snapshot["feature_snapshot_fallback_used"] = False
-                entry_feature_snapshot["requested_feature_snapshot_id"] = (
-                    paper_feature_snapshot_id
-                )
-        else:
-            entry_feature_snapshot = _read_v2_feature_snapshot_for_signal(
-                r,
-                paper_feature_snapshot_id,
-                decision_time=entry_feature_decision_time,
-                symbol=symbol,
-                timeframe=paper_thesis_timeframe,
-            )
+        entry_feature_snapshot = strategy_feature_snapshot
         entry_features = (
             entry_feature_snapshot.get("features")
             if isinstance(entry_feature_snapshot.get("features"), dict)
@@ -44479,6 +44680,18 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             )
             intent["entry_feature_candle_closed_confirmed"] = entry_feature_snapshot.get(
                 "candle_closed_confirmed"
+            )
+            intent["entry_feature_latest_unclosed_kline_excluded"] = (
+                entry_feature_snapshot.get("latest_unclosed_kline_excluded")
+            )
+            intent["entry_feature_latest_unclosed_exclusion_method"] = (
+                entry_feature_snapshot.get("latest_unclosed_exclusion_method")
+            )
+            intent["entry_feature_latest_unclosed_exclusion_decision_time_ms"] = (
+                entry_feature_snapshot.get("latest_unclosed_exclusion_decision_time_ms")
+            )
+            intent["entry_feature_latest_closed_kline_close_time_ms"] = (
+                entry_feature_snapshot.get("latest_closed_kline_close_time_ms")
             )
             snapshot_evidence = _entry_feature_snapshot_evidence(entry_feature_snapshot)
             if snapshot_evidence is not None:
@@ -45162,33 +45375,35 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         # never the historical global HALTED breaker. Ordinary intents (no cohort
         # id) keep the unchanged global breaker. No per-trade economic exception.
         _intent_cohort_id = str(intent.get("paper_strategy_cohort_id") or "") or None
-        _breaker_for_intent = pre_cycle_paper_performance_circuit_breaker_status
-        _bucket_quarantine_for_intent = pre_cycle_bucket_quarantine_status
-        _preemptive_bucket_health_for_intent = pre_cycle_preemptive_bucket_health
-        _high_confidence_cluster_for_intent = pre_cycle_high_confidence_loss_cluster_gate
-        if _intent_cohort_id is not None:
-            _breaker_for_intent = _paper_performance_circuit_breaker_status(
-                existing_closed_rows, cohort_id=_intent_cohort_id
-            )
-            _cohort_source_rows = _paper_performance_source_rows(
-                existing_closed_rows,
+        _intent_performance_controls = candidate_performance_controls
+        if _intent_cohort_id != candidate_performance_controls.get("cohort_id"):
+            _intent_performance_controls = _paper_candidate_performance_controls(
+                closed_rows=existing_closed_rows,
                 cohort_id=_intent_cohort_id,
+                global_breaker=pre_cycle_paper_performance_circuit_breaker_status,
+                global_bucket_quarantine=pre_cycle_bucket_quarantine_status,
+                global_preemptive_bucket_health=pre_cycle_preemptive_bucket_health,
+                global_high_confidence_cluster=pre_cycle_high_confidence_loss_cluster_gate,
             )
-            _bucket_quarantine_for_intent = _breaker_for_intent[
-                "bucket_quarantine_status"
-            ]
-            _preemptive_bucket_health_for_intent = build_preemptive_bucket_health(
-                _cohort_source_rows
-            )
-            _high_confidence_cluster_for_intent = _high_confidence_loss_cluster_gate(
-                _breaker_for_intent
-            )
+        _breaker_for_intent = _intent_performance_controls["breaker"]
+        _bucket_quarantine_for_intent = _intent_performance_controls[
+            "bucket_quarantine"
+        ]
+        _preemptive_bucket_health_for_intent = _intent_performance_controls[
+            "preemptive_bucket_health"
+        ]
+        _high_confidence_cluster_for_intent = _intent_performance_controls[
+            "high_confidence_cluster"
+        ]
+        if _intent_cohort_id is not None:
+            _cohort_source_rows = _intent_performance_controls["source_rows"]
             intent["paper_cohort_breaker_state"] = _breaker_for_intent.get("state")
             intent["paper_cohort_breaker_new_entries_allowed"] = _breaker_for_intent.get(
                 "new_entries_allowed"
             )
             intent["paper_cohort_governed_closed_rows"] = len(_cohort_source_rows)
             intent["paper_cohort_preemptive_controls_scoped"] = True
+        intent["paper_performance_control_scope"] = _intent_performance_controls["scope"]
         performance_circuit_rejection = _paper_block_new_entry_by_performance_circuit(
             intent=intent,
             allocation=allocation_payload,
@@ -47580,6 +47795,10 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                     "preemptive_counts_as_live_ready",
                     "adaptive_loss_probability_threshold_used",
                     "adaptive_loss_probability_threshold_source",
+                    "scoped_paper_lane_authorized",
+                    "adaptive_loss_probability_threshold_applied",
+                    "adaptive_loss_probability_threshold_breached",
+                    "preemptive_predicate_details",
                     "altdata_confluence_present",
                     "altdata_trade_block_score",
                     "altdata_reduce_size_score",
@@ -49500,6 +49719,10 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
     feedback_quarantine_state_sample = _sample_rows(
         _compact_rows_for_state(trainer_feedback_quarantine_rows)
     )
+    runtime_intent_state_rows = _compact_runtime_intents_for_redis(intents)
+    runtime_held_intent_state_rows = _compact_runtime_intents_for_redis(
+        held_by_gate_intents
+    )
     if r is not None:
         # A+ goal Phase 13: publish the zero-tolerance gate verdicts so the
         # candidate matrix / rejection-reason matrix are operator-visible.
@@ -49552,14 +49775,14 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         if _safe_write(
             r,
             f"{V2_REDIS_PREFIX}paper:intents",
-            json.dumps(intents),
+            json.dumps(runtime_intent_state_rows),
             ex=PAPER_RUNTIME_TRANSIENT_TTL_SECONDS,
         ):
             keys_written.append(f"{V2_REDIS_PREFIX}paper:intents")
         if _safe_write(
             r,
             f"{V2_REDIS_PREFIX}paper:intents_held_by_paper_fill_gate",
-            json.dumps(held_by_gate_intents),
+            json.dumps(runtime_held_intent_state_rows),
             ex=PAPER_RUNTIME_TRANSIENT_TTL_SECONDS,
         ):
             keys_written.append(f"{V2_REDIS_PREFIX}paper:intents_held_by_paper_fill_gate")
