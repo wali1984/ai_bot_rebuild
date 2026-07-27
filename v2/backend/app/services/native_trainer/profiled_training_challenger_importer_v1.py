@@ -1192,6 +1192,29 @@ def import_profiled_training_ledger_shards_to_challenger_archive_v1(
             or checkpoint["completed_shards"] < 0
             or type(checkpoint.get("completed")) is not bool
             or type(checkpoint.get("last_minimums_met")) is not bool
+            or any(
+                type(checkpoint.get(field, 0)) is not int
+                or checkpoint.get(field, 0) < 0
+                for field in (
+                    "cumulative_imported_rows",
+                    "cumulative_duplicate_rows",
+                    "cumulative_rejected_rows",
+                )
+            )
+            or not isinstance(
+                checkpoint.get("cumulative_rejections_by_reason", {}), dict
+            )
+            or any(
+                type(reason) is not str
+                or not reason
+                or type(count) is not int
+                or count < 0
+                for reason, count in checkpoint.get(
+                    "cumulative_rejections_by_reason", {}
+                ).items()
+            )
+            or checkpoint.get("last_candidate_id") is not None
+            and type(checkpoint.get("last_candidate_id")) is not str
         ):
             raise ProfiledTrainingChallengerImportError(
                 "PROFILED_TRAINING_CHALLENGER_CHECKPOINT_CONTEXT_INVALID"
@@ -1202,6 +1225,19 @@ def import_profiled_training_ledger_shards_to_challenger_archive_v1(
         completed_shards = checkpoint["completed_shards"]
         completed = checkpoint["completed"]
         halted_at_minimums = checkpoint["last_minimums_met"]
+    cumulative_imported_rows = int(
+        checkpoint.get("cumulative_imported_rows", 0) if checkpoint else 0
+    )
+    cumulative_duplicate_rows = int(
+        checkpoint.get("cumulative_duplicate_rows", 0) if checkpoint else 0
+    )
+    cumulative_rejected_rows = int(
+        checkpoint.get("cumulative_rejected_rows", 0) if checkpoint else 0
+    )
+    cumulative_rejections: Counter[str] = Counter(
+        checkpoint.get("cumulative_rejections_by_reason", {}) if checkpoint else {}
+    )
+    last_candidate_id = checkpoint.get("last_candidate_id") if checkpoint else None
     if completed or halted_at_minimums:
         saved_counts = checkpoint.get("last_post_purge_counts") if checkpoint else None
         return {
@@ -1213,6 +1249,14 @@ def import_profiled_training_ledger_shards_to_challenger_archive_v1(
             "completed": completed,
             "minimums_met": halted_at_minimums,
             "halted_at_minimums": halted_at_minimums,
+            "cumulative_imported_rows": cumulative_imported_rows,
+            "cumulative_duplicate_rows": cumulative_duplicate_rows,
+            "cumulative_rejected_rows": cumulative_rejected_rows,
+            "cumulative_rejections_by_reason": dict(
+                sorted(cumulative_rejections.items())
+            ),
+            "last_candidate_id": last_candidate_id,
+            "last_completed_sequence": after_sequence,
             "post_purge_counts": (
                 saved_counts
                 if isinstance(saved_counts, dict)
@@ -1283,6 +1327,7 @@ def import_profiled_training_ledger_shards_to_challenger_archive_v1(
             str(exclusion.reason) for exclusion in batch.exclusions
         )
         for sample in batch.samples:
+            last_candidate_id = sample.durable_snapshot_id
             # Defect B, hot-archive execution path: the label archive is
             # continuously appended, so the shared proof can go stale between
             # rows.  A cheap currency check (no scan) refreshes the shared proof
@@ -1352,6 +1397,10 @@ def import_profiled_training_ledger_shards_to_challenger_archive_v1(
         after_sequence = batch.next_after_sequence
         page_cursor = batch.next_cursor
         completed = batch.next_cursor is None
+        cumulative_imported_rows += imported
+        cumulative_duplicate_rows += duplicates
+        cumulative_rejected_rows += sum(rejections.values())
+        cumulative_rejections.update(rejections)
         # Materializing the complete challenger view is intentionally deferred
         # until this fixed observation is exhausted.  Repeating its 60k-row
         # bounded scan after every one-row source page starves the checkpoint
@@ -1385,6 +1434,14 @@ def import_profiled_training_ledger_shards_to_challenger_archive_v1(
             "completed": completed,
             "last_post_purge_counts": post_purge_counts,
             "last_minimums_met": minimums_met,
+            "cumulative_imported_rows": cumulative_imported_rows,
+            "cumulative_duplicate_rows": cumulative_duplicate_rows,
+            "cumulative_rejected_rows": cumulative_rejected_rows,
+            "cumulative_rejections_by_reason": dict(
+                sorted(cumulative_rejections.items())
+            ),
+            "last_candidate_id": last_candidate_id,
+            "last_completed_sequence": after_sequence,
         }
         _write_checkpoint_atomic(path, checkpoint_payload)
         elapsed_seconds = (datetime.now(UTC) - shard_started).total_seconds()
@@ -1396,6 +1453,14 @@ def import_profiled_training_ledger_shards_to_challenger_archive_v1(
             "source_exclusion_count": len(batch.exclusions),
             "imported_rows": imported,
             "duplicate_rows": duplicates,
+            "cumulative_imported_rows": cumulative_imported_rows,
+            "cumulative_duplicate_rows": cumulative_duplicate_rows,
+            "cumulative_rejected_rows": cumulative_rejected_rows,
+            "cumulative_rejections_by_reason": dict(
+                sorted(cumulative_rejections.items())
+            ),
+            "last_candidate_id": last_candidate_id,
+            "last_completed_sequence": after_sequence,
             "label_paths_verified": label_paths,
             "rejections_by_reason": dict(sorted(rejections.items())),
             "shards_remaining": (
@@ -1443,6 +1508,14 @@ def import_profiled_training_ledger_shards_to_challenger_archive_v1(
         "total_source_exclusions": total_excluded,
         "total_label_paths_verified": total_label_paths,
         "total_rejections_by_reason": dict(sorted(total_rejections.items())),
+        "cumulative_imported_rows": cumulative_imported_rows,
+        "cumulative_duplicate_rows": cumulative_duplicate_rows,
+        "cumulative_rejected_rows": cumulative_rejected_rows,
+        "cumulative_rejections_by_reason": dict(
+            sorted(cumulative_rejections.items())
+        ),
+        "last_candidate_id": last_candidate_id,
+        "last_completed_sequence": after_sequence,
         "post_purge_counts": post_purge_counts,
         "shards": shard_reports,
         "paper_only": True,

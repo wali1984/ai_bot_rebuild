@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sqlite3
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -85,9 +86,7 @@ def test_importer_reconstructs_idempotent_pit_challenger_row(
     assert all(not name.startswith("future_") for name in snapshot["features"])
     assert all(not name.startswith("label_") for name in snapshot["features"])
     available_at = datetime.fromisoformat(snapshot["available_at"].replace("Z", "+00:00"))
-    feature_cutoff = datetime.fromisoformat(
-        snapshot["feature_cutoff"].replace("Z", "+00:00")
-    )
+    feature_cutoff = datetime.fromisoformat(snapshot["feature_cutoff"].replace("Z", "+00:00"))
     decision_time = datetime.fromisoformat(snapshot["decision_time"].replace("Z", "+00:00"))
     assert feature_cutoff.astimezone(UTC) <= available_at.astimezone(UTC)
     assert available_at.astimezone(UTC) <= decision_time.astimezone(UTC)
@@ -320,6 +319,13 @@ def test_sharded_importer_checkpoints_completed_cursor_without_reprocessing(
     assert progress[0]["checkpoint_path"] == first["checkpoint_path"]
     assert progress[0]["label_integrity_checkpoint_reused"] is True
     assert progress[0]["shards_remaining"] == 0
+    checkpoint = json.loads(Path(first["checkpoint_path"]).read_text(encoding="utf-8"))
+    assert checkpoint["cumulative_imported_rows"] == 1
+    assert checkpoint["cumulative_duplicate_rows"] == 0
+    assert checkpoint["cumulative_rejected_rows"] == 0
+    assert checkpoint["cumulative_rejections_by_reason"] == {}
+    assert checkpoint["last_candidate_id"] is not None
+    assert checkpoint["last_completed_sequence"] == checkpoint["next_after_sequence"]
 
     resumed = import_profiled_training_ledger_shards_to_challenger_archive_v1(
         ledger=ledger,
