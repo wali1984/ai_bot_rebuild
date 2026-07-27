@@ -19737,6 +19737,21 @@ def _paper_preemptive_admission_rejection_reasons(
     ):
         reasons.append(tier_rejection)
     loss_probability = _coerce_float(intent.get("pre_trade_loss_probability"))
+    scoped_exploration_loss_authority = bool(
+        paper_tier == PAPER_TIER_RISK_CONTROLLER_EXPLORATION
+        and str(intent.get("preemptive_decision") or "").strip().upper()
+        == "PAPER_RISK_CONTROLLER_EXPLORATION"
+        and intent.get("paper_risk_controller_exploration") is True
+        and intent.get("allow_paper_risk_controller_exploration") is True
+        and intent.get("paper_risk_controller_exploration_eligible") is True
+        and intent.get("paper_exploration_paper_fill_allowed") is True
+        and intent.get("scoped_paper_lane_authorized") is True
+        and intent.get("adaptive_loss_probability_threshold_applied") is False
+        and intent.get("adaptive_loss_probability_threshold_breached") is False
+        and intent.get("paper_only") is True
+        and intent.get("routes_to_live") is False
+        and intent.get("places_real_order") is False
+    )
     if loss_probability is None:
         reasons.append("PRE_TRADE_LOSS_PROBABILITY_MISSING")
     else:
@@ -19749,7 +19764,9 @@ def _paper_preemptive_admission_rejection_reasons(
             or adaptive_tuning_validation_status != "PASS"
         ):
             reasons.append("ADAPTIVE_LOSS_PROBABILITY_THRESHOLD_AUTHORITY_INVALID")
-        elif loss_probability >= adaptive_loss_prob_threshold:
+        elif not scoped_exploration_loss_authority and (
+            loss_probability >= adaptive_loss_prob_threshold
+        ):
             reasons.append("PRE_TRADE_LOSS_PROBABILITY_ABOVE_ALLOWED_BOUND")
     if (
         paper_tier == PAPER_TIER_RISK_CONTROLLER_EXPLORATION
@@ -20900,12 +20917,25 @@ def _paper_lifecycle_or_no_trade_strategy_reasons(
     return sorted(set(reasons))
 
 
-def _non_relaxable_entry_gate_reasons(intent: dict[str, Any]) -> list[str]:
+def _strict_confidence_entry_gate_reason(reason: Any) -> bool:
+    normalized = str(reason or "").strip().upper()
+    return normalized.startswith("CONFIDENCE_BELOW_ENTRY_GATE:") or normalized.startswith(
+        "SIDE_GATE_BLOCK:SIDE_CONFIDENCE_BELOW_FLOOR:"
+    )
+
+
+def _non_relaxable_entry_gate_reasons(
+    intent: dict[str, Any],
+    *,
+    exploration_confidence_authority: bool = False,
+) -> list[str]:
     reasons = [
         str(reason)
         for reason in intent.get("entry_gate_block_reasons") or []
         if str(reason).strip()
     ]
+    if exploration_confidence_authority:
+        reasons = [reason for reason in reasons if not _strict_confidence_entry_gate_reason(reason)]
     lifecycle_or_no_trade_strategy_reasons = _paper_lifecycle_or_no_trade_strategy_reasons(
         signal={}, intent=intent
     )
@@ -21318,7 +21348,39 @@ def _classify_paper_opportunity_tier(
     lifecycle_or_no_trade_strategy_reasons = _paper_lifecycle_or_no_trade_strategy_reasons(
         signal=signal, intent=intent
     )
-    non_relaxable_entry_gate_reasons = _non_relaxable_entry_gate_reasons(intent)
+    exploration_confidence_authority = bool(
+        risk_controller_exploration_policy.get("eligible")
+        and risk_controller_exploration_fill_gate.get("paper_fill_allowed")
+        and exploration_trade_gates_allowed
+        and _paper_forward_canary_production_cost_pass(intent)
+        and not (cluster_active and cluster_bucket_match_reasons)
+    )
+    superseded_strict_confidence_reasons = (
+        sorted(
+            {
+                str(reason)
+                for reason in intent.get("entry_gate_block_reasons") or []
+                if _strict_confidence_entry_gate_reason(reason)
+            }
+        )
+        if exploration_confidence_authority
+        else []
+    )
+    if superseded_strict_confidence_reasons:
+        base.update(
+            {
+                "paper_risk_controller_exploration_confidence_authority": (
+                    "DYNAMIC_EXPLORATION_FLOOR"
+                ),
+                "paper_risk_controller_exploration_superseded_strict_confidence_reasons": (
+                    superseded_strict_confidence_reasons
+                ),
+            }
+        )
+    non_relaxable_entry_gate_reasons = _non_relaxable_entry_gate_reasons(
+        intent,
+        exploration_confidence_authority=exploration_confidence_authority,
+    )
     if integrity_gate.get("allowed") is not True:
         return {
             **base,
@@ -21905,6 +21967,8 @@ def _apply_paper_tier_classification(
         "paper_risk_controller_exploration_above_floor",
         "paper_risk_controller_exploration_reasons",
         "paper_risk_controller_exploration_block_reasons",
+        "paper_risk_controller_exploration_confidence_authority",
+        "paper_risk_controller_exploration_superseded_strict_confidence_reasons",
         "paper_exploration_paper_fill_allowed",
         "paper_exploration_paper_fill_block_reasons",
         "paper_exploration_sizing",
@@ -22025,6 +22089,8 @@ def _apply_paper_tier_classification(
         "paper_risk_controller_exploration_above_floor",
         "paper_risk_controller_exploration_reasons",
         "paper_risk_controller_exploration_block_reasons",
+        "paper_risk_controller_exploration_confidence_authority",
+        "paper_risk_controller_exploration_superseded_strict_confidence_reasons",
         "paper_exploration_paper_fill_allowed",
         "paper_exploration_paper_fill_block_reasons",
         "paper_exploration_sizing",

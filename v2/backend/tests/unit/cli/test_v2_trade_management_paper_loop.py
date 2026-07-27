@@ -7449,6 +7449,10 @@ def test_paper_risk_controller_exploration_classifies_no_trade_guardian_override
     }
     intent = {
         **signal,
+        "entry_gate_block_reasons": [
+            "CONFIDENCE_BELOW_ENTRY_GATE:0.840<1.000",
+            "SIDE_GATE_BLOCK:SIDE_CONFIDENCE_BELOW_FLOOR:long:0.840<1.000",
+        ],
         "preemptive_decision_id": "pec-loop-explore",
         "preemptive_decision": "NO_TRADE",
         "preemptive_action": "GUARDIAN_HALTED_AFTER_PIT_THRESHOLD_MET",
@@ -7532,10 +7536,47 @@ def test_paper_risk_controller_exploration_classifies_no_trade_guardian_override
         paper_loop.PAPER_RISK_CONTROLLER_EXPLORATION_MAX_RISK_FRACTION_OF_NORMAL
     )
     assert classification["paper_risk_controller_exploration_budget_cap_applied"] is True
+    assert classification["paper_risk_controller_exploration_confidence_authority"] == (
+        "DYNAMIC_EXPLORATION_FLOOR"
+    )
+    assert classification[
+        "paper_risk_controller_exploration_superseded_strict_confidence_reasons"
+    ] == [
+        "CONFIDENCE_BELOW_ENTRY_GATE:0.840<1.000",
+        "SIDE_GATE_BLOCK:SIDE_CONFIDENCE_BELOW_FLOOR:long:0.840<1.000",
+    ]
     assert classification["paper_risk_controller_exploration_loss_probability_bound"] == (
         paper_loop.PAPER_RISK_CONTROLLER_EXPLORATION_LOSS_PROBABILITY_BOUND
     )
     assert _validated_admission_reasons(intent) == []
+
+    unresolved_risk = paper_loop._classify_paper_opportunity_tier(  # noqa: SLF001
+        signal=signal,
+        intent=intent,
+        allocation={**allocation, "risk_decision": "PENDING"},
+        integrity_gate={"allowed": True},
+        local_trade_gates_pass=False,
+        exploration_trade_gates_pass=True,
+        positive_edge_probation_trade_gates_pass=False,
+        paper_fill_allowed_upstream=False,
+        portfolio_drawdown_bps=0.0,
+        continuous_edge_guardian_gate={
+            "status": "HALTED_AFTER_PIT_THRESHOLD_MET",
+            "new_entries_allowed": False,
+            "failure_reasons": ["GUARDIAN_HALTED_AFTER_PIT_THRESHOLD_MET"],
+        },
+        bucket_quarantine_status={},
+        high_confidence_loss_cluster_gate={"cluster_detected": False},
+        preemptive_decision=preemptive,
+    )
+    assert unresolved_risk["paper_opportunity_tier"] == paper_loop.PAPER_TIER_NO_TRADE
+    assert unresolved_risk["paper_opportunity_tier_reason"] == (
+        paper_loop.P0_ENTRY_GATE_NOT_EXPLORATION_RELAXABLE_REASON
+    )
+    assert unresolved_risk["paper_exploration_paper_fill_allowed"] is False
+    assert "RISK_CONTROLLER_DECISION_NOT_FILL_ELIGIBLE:PENDING" in (
+        unresolved_risk["paper_exploration_paper_fill_block_reasons"]
+    )
 
 
 def test_final_a_plus_false_rows_do_not_enter_a_plus_governance() -> None:
@@ -8480,6 +8521,70 @@ def test_high_pretrade_loss_probability_blocks_paper_admission() -> None:
     )
 
     assert "PRE_TRADE_LOSS_PROBABILITY_ABOVE_ALLOWED_BOUND" in reasons
+
+
+def test_scoped_exploration_uses_its_frozen_loss_bound_at_final_admission() -> None:
+    intent = {
+        "paper_opportunity_tier": paper_loop.PAPER_TIER_RISK_CONTROLLER_EXPLORATION,
+        "preemptive_edge_control": {
+            "preemptive_decision_id": "pec_scoped_exploration",
+            "preemptive_decision": "PAPER_RISK_CONTROLLER_EXPLORATION",
+        },
+        "preemptive_decision": "PAPER_RISK_CONTROLLER_EXPLORATION",
+        "pre_trade_loss_probability": 0.20,
+        "paper_risk_controller_exploration": True,
+        "allow_paper_risk_controller_exploration": True,
+        "paper_risk_controller_exploration_eligible": True,
+        "paper_exploration_paper_fill_allowed": True,
+        "scoped_paper_lane_authorized": True,
+        "adaptive_loss_probability_threshold_applied": False,
+        "adaptive_loss_probability_threshold_breached": False,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+
+    reasons = paper_loop._paper_preemptive_admission_rejection_reasons(  # noqa: SLF001
+        intent,
+        adaptive_loss_probability_threshold=0.0,
+        adaptive_loss_probability_threshold_source="EXPLICIT_ADAPTIVE_TUNING_SNAPSHOT",
+        adaptive_tuning_validation_status="PASS",
+    )
+
+    assert "PRE_TRADE_LOSS_PROBABILITY_ABOVE_ALLOWED_BOUND" not in reasons
+    assert "PAPER_RISK_CONTROLLER_EXPLORATION_LOSS_PROBABILITY_ABOVE_BOUND" not in reasons
+    assert reasons == []
+
+    for changed_field, changed_value in (
+        ("adaptive_loss_probability_threshold_applied", True),
+        ("scoped_paper_lane_authorized", False),
+        ("routes_to_live", True),
+    ):
+        unsafe = {**intent, changed_field: changed_value}
+        unsafe_reasons = paper_loop._paper_preemptive_admission_rejection_reasons(  # noqa: SLF001
+            unsafe,
+            adaptive_loss_probability_threshold=0.0,
+            adaptive_loss_probability_threshold_source="EXPLICIT_ADAPTIVE_TUNING_SNAPSHOT",
+            adaptive_tuning_validation_status="PASS",
+        )
+        assert "PRE_TRADE_LOSS_PROBABILITY_ABOVE_ALLOWED_BOUND" in unsafe_reasons
+
+    above_exploration_bound = {
+        **intent,
+        "pre_trade_loss_probability": (
+            paper_loop.PAPER_RISK_CONTROLLER_EXPLORATION_LOSS_PROBABILITY_BOUND
+        ),
+    }
+    above_bound_reasons = paper_loop._paper_preemptive_admission_rejection_reasons(  # noqa: SLF001
+        above_exploration_bound,
+        adaptive_loss_probability_threshold=0.0,
+        adaptive_loss_probability_threshold_source="EXPLICIT_ADAPTIVE_TUNING_SNAPSHOT",
+        adaptive_tuning_validation_status="PASS",
+    )
+    assert "PRE_TRADE_LOSS_PROBABILITY_ABOVE_ALLOWED_BOUND" not in above_bound_reasons
+    assert "PAPER_RISK_CONTROLLER_EXPLORATION_LOSS_PROBABILITY_ABOVE_BOUND" in (
+        above_bound_reasons
+    )
 
 
 def test_materialization_queue_preserves_calibrated_loss_probability_on_revalidation() -> None:
