@@ -1346,6 +1346,157 @@ def validate_archive_successor(
         _raise("only_decision_to_matured_transition_allowed", "current")
 
 
+def _strict_mapping(value: object, expected_type: type[object], field: str) -> dict[str, Any]:
+    """Require the exact JSON object shape declared by a contract dataclass."""
+
+    if type(value) is not dict:
+        _raise("must_be_object", field)
+    expected_keys = {item.name for item in fields(expected_type)}
+    actual_keys = set(value)
+    if actual_keys != expected_keys:
+        missing = ",".join(sorted(expected_keys - actual_keys)) or "none"
+        unexpected = ",".join(sorted(actual_keys - expected_keys)) or "none"
+        _raise(
+            f"exact_keys_required:missing={missing}:unexpected={unexpected}",
+            field,
+        )
+    return dict(value)
+
+
+def _strict_tuple(value: object, field: str) -> tuple[Any, ...]:
+    if type(value) not in {list, tuple}:
+        _raise("must_be_array", field)
+    return tuple(value)
+
+
+def candidate_decision_outcome_from_dict(value: object) -> CandidateDecisionOutcomeV2:
+    """Reconstruct and fully validate one archive record from JSON primitives.
+
+    Archive hashes and signatures prove provenance, but callers also need the
+    complete nested contract validation before using a record for labels or
+    learning.  This decoder accepts no unknown or omitted fields and restores
+    every JSON array to the immutable tuple required by the contracts.
+    """
+
+    def evidence(raw: object, field: str) -> CandidateDecisionEvidenceV2:
+        values = _strict_mapping(raw, CandidateDecisionEvidenceV2, field)
+        values["source_receipt_sha256s"] = _strict_tuple(
+            values["source_receipt_sha256s"],
+            f"{field}.source_receipt_sha256s",
+        )
+        return CandidateDecisionEvidenceV2(**values)
+
+    def scenario_plan(raw: object, field: str) -> CounterfactualScenarioPlanV2:
+        return CounterfactualScenarioPlanV2(
+            **_strict_mapping(raw, CounterfactualScenarioPlanV2, field)
+        )
+
+    def arm_plan(raw: object, field: str) -> CounterfactualArmPlanV2:
+        values = _strict_mapping(raw, CounterfactualArmPlanV2, field)
+        values["scenarios"] = tuple(
+            scenario_plan(item, f"{field}.scenarios[{index}]")
+            for index, item in enumerate(_strict_tuple(values["scenarios"], f"{field}.scenarios"))
+        )
+        return CounterfactualArmPlanV2(**values)
+
+    def evaluation_plan(raw: object, field: str) -> CounterfactualEvaluationPlanV2:
+        values = _strict_mapping(raw, CounterfactualEvaluationPlanV2, field)
+        values["supported_horizon_seconds"] = _strict_tuple(
+            values["supported_horizon_seconds"],
+            f"{field}.supported_horizon_seconds",
+        )
+        values["arms"] = tuple(
+            arm_plan(item, f"{field}.arms[{index}]")
+            for index, item in enumerate(_strict_tuple(values["arms"], f"{field}.arms"))
+        )
+        values["source_receipt_sha256s"] = _strict_tuple(
+            values["source_receipt_sha256s"],
+            f"{field}.source_receipt_sha256s",
+        )
+        return CounterfactualEvaluationPlanV2(**values)
+
+    def decision(raw: object, field: str) -> CandidateDecisionSnapshotV2:
+        values = _strict_mapping(raw, CandidateDecisionSnapshotV2, field)
+        values["supported_horizon_seconds"] = _strict_tuple(
+            values["supported_horizon_seconds"],
+            f"{field}.supported_horizon_seconds",
+        )
+        for evidence_kind in DECISION_EVIDENCE_KINDS:
+            values[evidence_kind] = evidence(values[evidence_kind], f"{field}.{evidence_kind}")
+        values["counterfactual_evaluation_plan"] = evaluation_plan(
+            values["counterfactual_evaluation_plan"],
+            f"{field}.counterfactual_evaluation_plan",
+        )
+        return CandidateDecisionSnapshotV2(**values)
+
+    def horizon_label(raw: object, field: str) -> CandidateHorizonLabelV2:
+        return CandidateHorizonLabelV2(
+            **_strict_mapping(raw, CandidateHorizonLabelV2, field)
+        )
+
+    def scenario(raw: object, field: str) -> CounterfactualScenarioV2:
+        values = _strict_mapping(raw, CounterfactualScenarioV2, field)
+        values["source_receipt_sha256s"] = _strict_tuple(
+            values["source_receipt_sha256s"],
+            f"{field}.source_receipt_sha256s",
+        )
+        return CounterfactualScenarioV2(**values)
+
+    def arm_outcome(raw: object, field: str) -> CounterfactualArmOutcomeV2:
+        values = _strict_mapping(raw, CounterfactualArmOutcomeV2, field)
+        values["scenarios"] = tuple(
+            scenario(item, f"{field}.scenarios[{index}]")
+            for index, item in enumerate(_strict_tuple(values["scenarios"], f"{field}.scenarios"))
+        )
+        return CounterfactualArmOutcomeV2(**values)
+
+    def actual_outcome(raw: object, field: str) -> ActualPaperExecutionOutcomeV2:
+        return ActualPaperExecutionOutcomeV2(
+            **_strict_mapping(raw, ActualPaperExecutionOutcomeV2, field)
+        )
+
+    def matured_labels(raw: object, field: str) -> MaturedLabelsV2:
+        values = _strict_mapping(raw, MaturedLabelsV2, field)
+        values["supported_horizon_seconds"] = _strict_tuple(
+            values["supported_horizon_seconds"],
+            f"{field}.supported_horizon_seconds",
+        )
+        values["horizon_labels"] = tuple(
+            horizon_label(item, f"{field}.horizon_labels[{index}]")
+            for index, item in enumerate(
+                _strict_tuple(values["horizon_labels"], f"{field}.horizon_labels")
+            )
+        )
+        values["counterfactual_outcomes"] = tuple(
+            arm_outcome(item, f"{field}.counterfactual_outcomes[{index}]")
+            for index, item in enumerate(
+                _strict_tuple(
+                    values["counterfactual_outcomes"],
+                    f"{field}.counterfactual_outcomes",
+                )
+            )
+        )
+        if values["actual_paper_outcome"] is not None:
+            values["actual_paper_outcome"] = actual_outcome(
+                values["actual_paper_outcome"],
+                f"{field}.actual_paper_outcome",
+            )
+        values["label_source_receipt_sha256s"] = _strict_tuple(
+            values["label_source_receipt_sha256s"],
+            f"{field}.label_source_receipt_sha256s",
+        )
+        return MaturedLabelsV2(**values)
+
+    values = _strict_mapping(value, CandidateDecisionOutcomeV2, "record")
+    values["decision"] = decision(values["decision"], "record.decision")
+    if values["matured_labels"] is not None:
+        values["matured_labels"] = matured_labels(
+            values["matured_labels"],
+            "record.matured_labels",
+        )
+    return CandidateDecisionOutcomeV2(**values)
+
+
 __all__ = [
     "SCHEMA_VERSION",
     "DECISION_SCHEMA_VERSION",
@@ -1380,4 +1531,5 @@ __all__ = [
     "counterfactual_universe_sha256",
     "horizon_contract_sha256",
     "validate_archive_successor",
+    "candidate_decision_outcome_from_dict",
 ]

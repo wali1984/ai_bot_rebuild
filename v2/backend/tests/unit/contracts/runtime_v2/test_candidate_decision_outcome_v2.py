@@ -32,6 +32,7 @@ from v2.backend.app.contracts.runtime_v2.candidate_decision_outcome_v2 import (
     CounterfactualScenarioPlanV2,
     CounterfactualScenarioV2,
     MaturedLabelsV2,
+    candidate_decision_outcome_from_dict,
     canonical_payload_json,
     canonical_payload_sha256,
     counterfactual_universe_sha256,
@@ -412,6 +413,40 @@ def test_content_hash_is_deterministic_and_sensitive() -> None:
         _archive().content_sha256()
         != _archive(_decision(candidate_id="candidate-2")).content_sha256()
     )
+
+
+def test_strict_decoder_round_trips_decision_and_matured_records() -> None:
+    first = _archive()
+    assert candidate_decision_outcome_from_dict(first.to_dict()) == first
+    second = _archive(
+        first.decision,
+        _labels(first.decision),
+        previous_archive_record_sha256=first.content_sha256(),
+    )
+    decoded = candidate_decision_outcome_from_dict(second.to_dict())
+    assert decoded == second
+    assert type(decoded.decision.supported_horizon_seconds) is tuple
+    assert type(decoded.matured_labels.horizon_labels) is tuple  # type: ignore[union-attr]
+
+
+def test_strict_decoder_rejects_missing_unknown_and_malformed_nested_fields() -> None:
+    missing = _archive().to_dict()
+    del missing["paper_only"]
+    with pytest.raises(CandidateOutcomeContractError, match="exact_keys_required:missing=paper_only"):
+        candidate_decision_outcome_from_dict(missing)
+
+    unknown = _archive().to_dict()
+    unknown["untrusted_extension"] = True
+    with pytest.raises(
+        CandidateOutcomeContractError,
+        match="unexpected=untrusted_extension",
+    ):
+        candidate_decision_outcome_from_dict(unknown)
+
+    malformed = _archive().to_dict()
+    malformed["decision"]["model_distributions"]["source_receipt_sha256s"] = "not-an-array"
+    with pytest.raises(CandidateOutcomeContractError, match="must_be_array"):
+        candidate_decision_outcome_from_dict(malformed)
 
 
 @pytest.mark.parametrize(

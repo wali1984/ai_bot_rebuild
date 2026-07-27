@@ -27,6 +27,8 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
 from v2.backend.app.contracts.runtime_v2.candidate_decision_outcome_v2 import (
     CandidateDecisionOutcomeV2,
+    CandidateOutcomeContractError,
+    candidate_decision_outcome_from_dict,
 )
 
 ARCHIVE_ROW_SCHEMA_VERSION = "candidate_outcome_archive_row_v2"
@@ -480,6 +482,34 @@ class CandidateOutcomeArchiveV2:
     def verify(self) -> ArchiveVerificationV2:
         with self._locked():
             return self._verify_rows(self._parse_rows())
+
+    def read_verified_records(
+        self,
+        *,
+        latest_only: bool = False,
+    ) -> tuple[CandidateDecisionOutcomeV2, ...]:
+        """Return records only after signature, chain, and nested contract checks."""
+
+        if type(latest_only) is not bool:
+            _raise("must_be_exact_bool", "latest_only")
+        with self._locked():
+            rows = self._parse_rows()
+            self._verify_rows(rows)
+            try:
+                records = tuple(
+                    candidate_decision_outcome_from_dict(row["record"])
+                    for row in rows
+                )
+            except CandidateOutcomeContractError as exc:
+                raise CandidateOutcomeArchiveError(
+                    f"record:nested_contract_invalid:{exc}"
+                ) from exc
+        if not latest_only:
+            return records
+        latest: dict[str, CandidateDecisionOutcomeV2] = {}
+        for record in records:
+            latest[record.decision.candidate_id] = record
+        return tuple(latest[candidate_id] for candidate_id in sorted(latest))
 
     def append(
         self,

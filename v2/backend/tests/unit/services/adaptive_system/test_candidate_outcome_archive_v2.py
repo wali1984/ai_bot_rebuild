@@ -167,6 +167,11 @@ def test_matured_revision_uses_exact_candidate_compare_and_swap(tmp_path: Path) 
     assert status.candidate_count == 1
     assert status.matured_revision_count == 1
 
+    records = archive.read_verified_records()
+    assert records == (first, second)
+    latest = archive.read_verified_records(latest_only=True)
+    assert latest == (second,)
+
 
 def test_matured_revision_without_predecessor_fails_closed(tmp_path: Path) -> None:
     archive, _, _ = _writer(tmp_path / "candidate-outcomes.jsonl")
