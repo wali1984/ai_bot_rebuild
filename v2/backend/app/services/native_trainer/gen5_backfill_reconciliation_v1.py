@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sqlite3
 from collections import Counter
@@ -23,6 +24,18 @@ from v2.backend.app.services.prediction_serving.serving_dataset_v2 import _build
 RECONCILIATION_SCHEMA_VERSION = "gen5_backfill_reconciliation_v1"
 IDENTITY_MANIFEST_SCHEMA_VERSION = "gen5_reconciled_identity_manifest_v1"
 _GENERIC_REJECTION_MARKERS = ("UNVERIFIED", "UNKNOWN", "UNEXPLAINED", "OTHER")
+REJECTION_SEQUENCE_EVIDENCE_FILENAME = "gen5_rejection_sequence_evidence.json"
+
+
+def _canonical_sha256(value: object) -> str:
+    encoded = json.dumps(
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+        allow_nan=False,
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 class Gen5BackfillReconciliationError(RuntimeError):
@@ -245,7 +258,57 @@ def _reconcile_verified_snapshot(
         if any(marker in reason.upper() for marker in _GENERIC_REJECTION_MARKERS)
     )
     sequence_reasons = status.get("rejected_sequence_reasons")
-    if rejected_rows == 0:
+    sequence_evidence_path = config.state_root / REJECTION_SEQUENCE_EVIDENCE_FILENAME
+    sequence_evidence: dict[str, Any] | None = None
+    sequence_evidence_valid = False
+    primary_rejections: dict[str, int] = {}
+    if sequence_evidence_path.exists():
+        sequence_evidence = _read_object(sequence_evidence_path)
+        evidence_sha256 = sequence_evidence.get("evidence_sha256")
+        evidence_material = dict(sequence_evidence)
+        evidence_material.pop("evidence_sha256", None)
+        evidence_rows = sequence_evidence.get("rejected_sequence_reasons")
+        evidence_mapping = (
+            {
+                str(row.get("sequence")): row.get("primary_reason")
+                for row in evidence_rows
+                if isinstance(row, dict)
+            }
+            if isinstance(evidence_rows, list)
+            else {}
+        )
+        sequence_evidence_valid = (
+            sequence_evidence.get("schema_version") == "gen5_rejection_sequence_evidence_v1"
+            and sequence_evidence.get("snapshot_id") == snapshot_id
+            and sequence_evidence.get("snapshot_manifest_sha256") == manifest.get("manifest_sha256")
+            and evidence_sha256 == _canonical_sha256(evidence_material)
+            and sequence_evidence.get("imported_sequence_count") == len(imported_sequences)
+            and sequence_evidence.get("rejected_sequence_count") == len(missing_sequences)
+            and isinstance(evidence_rows, list)
+            and len(evidence_rows) == len(missing_sequences)
+            and sequence_evidence.get("imported_sequences_sha256")
+            == _canonical_sha256(tuple(sorted(imported_sequences)))
+            and sequence_evidence.get("rejected_sequences_sha256")
+            == _canonical_sha256(missing_sequences)
+            and set(evidence_mapping) == {str(value) for value in missing_sequences}
+            and all(
+                isinstance(reason, str)
+                and reason
+                and not any(marker in reason.upper() for marker in _GENERIC_REJECTION_MARKERS)
+                for reason in evidence_mapping.values()
+            )
+            and sequence_evidence.get("all_source_sequences_accounted") is True
+            and sequence_evidence.get("one_primary_reason_per_rejected_sequence") is True
+            and sequence_evidence.get("paper_only") is True
+            and sequence_evidence.get("live_gate") == "blocked_human_only"
+            and sequence_evidence.get("routes_to_live") is False
+            and sequence_evidence.get("places_real_order") is False
+            and sequence_evidence.get("exchange_action_taken") is False
+        )
+        if sequence_evidence_valid:
+            sequence_reasons = evidence_mapping
+    reconciled_rejected_rows = len(missing_sequences)
+    if reconciled_rejected_rows == 0:
         exact_rejection_sequence_mapping = not missing_sequences
     else:
         exact_rejection_sequence_mapping = (
@@ -256,9 +319,13 @@ def _reconcile_verified_snapshot(
                 for reason in sequence_reasons.values()
             )
         )
+    if exact_rejection_sequence_mapping and isinstance(sequence_reasons, dict):
+        primary_rejections = dict(
+            sorted(Counter(str(reason) for reason in sequence_reasons.values()).items())
+        )
     source_reconciled = (
-        len(source_sequences) == len(identities) + rejected_rows
-        and len(missing_sequences) == rejected_rows
+        len(source_sequences) == len(identities) + reconciled_rejected_rows
+        and len(missing_sequences) == reconciled_rejected_rows
         and not unexpected_sequences
     )
     checkpoint_complete = (
@@ -279,6 +346,7 @@ def _reconcile_verified_snapshot(
         "progress_ledger_complete_and_monotonic": progress_complete,
         "source_strict_rows_reconciled": source_reconciled,
         "exact_rejection_sequence_mapping": exact_rejection_sequence_mapping,
+        "legacy_aggregate_rejection_count_is_non_authoritative": True,
         "no_generic_rejection_bucket": not generic_rejections,
         "no_duplicate_content_conflicts": duplicate_conflicts == 0,
         "no_unexpected_source_sequences": not unexpected_sequences,
@@ -304,8 +372,16 @@ def _reconcile_verified_snapshot(
         "source_strict_eligible_rows": len(source_sequences),
         "imported_rich_binding_rows": len(identities),
         "verified_and_serving_buildable_rows": len(identity_rows),
-        "rejected_rows": rejected_rows,
-        "rejections_by_reason": dict(sorted(rejections.items())),
+        "rejected_rows": reconciled_rejected_rows,
+        "rejections_by_reason": primary_rejections if missing_sequences else {},
+        "legacy_aggregate_rejection_reason_count": rejected_rows,
+        "legacy_aggregate_rejections_by_reason": dict(sorted(rejections.items())),
+        "rejected_sequence_reasons": dict(sorted((sequence_reasons or {}).items())),
+        "rejection_sequence_evidence_sha256": (
+            sequence_evidence.get("evidence_sha256")
+            if sequence_evidence_valid and sequence_evidence
+            else None
+        ),
         "missing_source_sequences": list(missing_sequences),
         "unexpected_source_sequences": list(unexpected_sequences),
         "duplicate_manifest_rows": duplicate_rows,

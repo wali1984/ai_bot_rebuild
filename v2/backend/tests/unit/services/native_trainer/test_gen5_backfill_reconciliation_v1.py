@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import sqlite3
 from pathlib import Path
@@ -16,6 +17,12 @@ from v2.backend.app.services.native_trainer.gen5_snapshot_backfill_v1 import (
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload) + "\n", encoding="utf-8")
+
+
+def _sha(value: object) -> str:
+    return hashlib.sha256(
+        json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
 
 
 def _fixture(tmp_path: Path) -> tuple[Gen5BackfillConfig, dict[str, Any], dict[str, Any]]:
@@ -164,3 +171,75 @@ def test_reconciliation_rejects_missing_row_without_exact_sequence_reason(
     assert report["missing_source_sequences"] == [2]
     assert report["acceptance_checks"]["source_strict_rows_reconciled"] is True
     assert report["acceptance_checks"]["exact_rejection_sequence_mapping"] is False
+
+
+def test_reconciliation_accepts_independently_rebuilt_sequence_reason(
+    tmp_path: Path,
+) -> None:
+    config, manifest, records = _fixture(tmp_path)
+    records.pop("snapshot-2")
+    first_line = (
+        config.challenger_archive_root.joinpath("manifest.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()[0]
+    )
+    config.challenger_archive_root.joinpath("manifest.jsonl").write_text(
+        first_line + "\n", encoding="utf-8"
+    )
+    status = json.loads(config.status_path.read_text(encoding="utf-8"))
+    status["rejected_rows"] = 2
+    status["rejections_by_reason"] = {
+        "LABEL_ARCHIVE_RANGE_END_MISSING": 1,
+        "LABEL_ARCHIVE_RANGE_ROW_COUNT_MISMATCH": 1,
+    }
+    _write_json(config.status_path, status)
+    evidence = {
+        "schema_version": "gen5_rejection_sequence_evidence_v1",
+        "generated_at": "2026-07-27T20:00:00.000000Z",
+        "snapshot_id": manifest["snapshot_id"],
+        "snapshot_manifest_sha256": manifest["manifest_sha256"],
+        "training_observed_at": manifest["training_observed_at"],
+        "source_high_water_sha256": "a" * 64,
+        "source_scan_high_water_sha256": "a" * 64,
+        "label_archive_chain_sha256": "b" * 64,
+        "label_archive_receipt_sha256": "c" * 64,
+        "source_strict_eligible_count": 2,
+        "imported_sequence_count": 1,
+        "rejected_sequence_count": 1,
+        "imported_sequences_sha256": _sha((1,)),
+        "rejected_sequences_sha256": _sha((2,)),
+        "rejected_sequence_reasons": [
+            {
+                "sequence": 2,
+                "durable_snapshot_id": "source-2",
+                "primary_reason": "LABEL_ARCHIVE_RANGE_END_MISSING",
+                "supporting_reasons": [
+                    "LABEL_ARCHIVE_RANGE_END_MISSING",
+                    "LABEL_ARCHIVE_RANGE_ROW_COUNT_MISMATCH",
+                ],
+            }
+        ],
+        "rejections_by_primary_reason": {"LABEL_ARCHIVE_RANGE_END_MISSING": 1},
+        "unexpected_imported_sequences": [],
+        "all_source_sequences_accounted": True,
+        "one_primary_reason_per_rejected_sequence": True,
+        "paper_only": True,
+        "live_gate": "blocked_human_only",
+        "routes_to_live": False,
+        "places_real_order": False,
+        "exchange_action_taken": False,
+    }
+    evidence["evidence_sha256"] = _sha(evidence)
+    _write_json(config.state_root / "gen5_rejection_sequence_evidence.json", evidence)
+
+    report, _ = _reconcile_verified_snapshot(
+        config,
+        manifest,
+        snapshot_loader=lambda snapshot_id, **_kwargs: records[snapshot_id],
+        row_builder=lambda _identity, record: dict(record),
+    )
+
+    assert report["accepted"] is True
+    assert report["rejected_rows"] == 1
+    assert report["legacy_aggregate_rejection_reason_count"] == 2
+    assert report["rejected_sequence_reasons"] == {"2": "LABEL_ARCHIVE_RANGE_END_MISSING"}

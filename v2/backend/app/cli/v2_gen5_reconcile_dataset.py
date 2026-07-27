@@ -15,7 +15,11 @@ from v2.backend.app.services.native_trainer.durable_feature_snapshot_ledger impo
     default_ledger_path,
 )
 from v2.backend.app.services.native_trainer.gen5_backfill_reconciliation_v1 import (
+    REJECTION_SEQUENCE_EVIDENCE_FILENAME,
     reconcile_gen5_backfill,
+)
+from v2.backend.app.services.native_trainer.gen5_rejection_reconciliation_v1 import (
+    build_gen5_rejection_sequence_evidence,
 )
 from v2.backend.app.services.native_trainer.gen5_snapshot_backfill_v1 import (
     DEFAULT_COST_STORE_ROOT,
@@ -206,6 +210,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         state_root=arguments.state_root,
     )
     output_root = arguments.output_root or config.state_root / "evidence"
+    rejection_evidence = build_gen5_rejection_sequence_evidence(config)
+    _write_json_atomic(
+        config.state_root / REJECTION_SEQUENCE_EVIDENCE_FILENAME,
+        rejection_evidence,
+    )
     reconciliation, identity = reconcile_gen5_backfill(config)
     _write_json_atomic(output_root / "gen5_backfill_reconciliation.json", reconciliation)
     if reconciliation.get("accepted") is not True:
