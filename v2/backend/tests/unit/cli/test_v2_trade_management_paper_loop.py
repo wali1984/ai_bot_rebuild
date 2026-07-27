@@ -2843,6 +2843,52 @@ def test_candidate_dynamic_envelope_missing_checkpoint_is_replayable_1x_block() 
     )
 
 
+def test_utc_iso_preserves_microseconds_for_causal_ordering() -> None:
+    value = paper_loop._utc_iso()  # noqa: SLF001
+
+    assert value.endswith("Z")
+    assert len(value.rsplit(".", 1)[1].removesuffix("Z")) == 6
+
+
+def test_preliminary_candidate_pit_excludes_recursive_dynamic_envelope() -> None:
+    decision = datetime(2026, 7, 19, 12, 0, 1, 123456, tzinfo=timezone.utc)
+    intent = {
+        "dynamic_envelope_max_effective_leverage": 3.0,
+        "dynamic_envelope_edge_available_at": "2026-07-19T11:59:00Z",
+        "dynamic_envelope_market_context_available_at": None,
+        "dynamic_envelope_decision_time": "2026-07-19T12:00:01.123456Z",
+        "dynamic_envelope_computed_at": "2026-07-19T12:00:01.123000Z",
+        "paper_exchange_filter_status": "READY",
+        "paper_exchange_filter_available_at": "2026-07-19T11:59:00Z",
+        "paper_exchange_filter_observed_at": "2026-07-19T12:00:01Z",
+    }
+
+    preliminary = paper_loop._paper_allocation_point_in_time_contract(  # noqa: SLF001
+        intent,
+        allocation_decision_time=decision,
+        include_dynamic_envelope=False,
+    )
+    complete = paper_loop._paper_allocation_point_in_time_contract(  # noqa: SLF001
+        intent,
+        allocation_decision_time=decision,
+    )
+
+    assert preliminary["status"] == "PASS"
+    assert preliminary["dynamic_envelope_included"] is False
+    assert not any(
+        field.startswith("dynamic_envelope_")
+        for field in preliminary["component_time_fields_checked"]
+    )
+    assert complete["status"] == "BLOCKED"
+    assert "ALLOCATION_INPUT_TIME_MISSING:dynamic_envelope_market_context_available_at" in (
+        complete["rejection_reasons"]
+    )
+    assert (
+        "ALLOCATION_INPUT_TIME_ORDER_INVALID:"
+        "dynamic_envelope_decision_time>dynamic_envelope_computed_at"
+    ) in complete["rejection_reasons"]
+
+
 def test_candidate_dynamic_envelope_rejects_coherently_resealed_promotion_flag() -> None:
     checkpoint_id = "checkpoint-promoted"
     _envelope, receipt = _candidate_growth_bundle(_promoted_growth_trainer_status(checkpoint_id))
@@ -22501,7 +22547,13 @@ class _PerIdDecisionRedisStub:
 
 
 def test_risk_and_orchestrator_per_id_records_resolved_from_store() -> None:
-    intent = _dereference_intent()
+    intent = _dereference_intent(
+        paper_fill_gate_status="RISK_PENDING",
+        paper_fill_gate_block_reasons=[
+            "RISK_GATEWAY_DECISION_PENDING",
+            "INDEPENDENT_MARKET_BLOCK",
+        ],
+    )
     records = _canonical_decision_records()
     out = paper_loop._paper_policy_intent_decision_dereference(  # noqa: SLF001
         _PerIdDecisionRedisStub(records), **_dereference_kwargs(intent)
@@ -22510,6 +22562,8 @@ def test_risk_and_orchestrator_per_id_records_resolved_from_store() -> None:
     assert out["risk_decision_record_key"] == "v2:decision:risk:rd_dec_x1"
     assert out["risk_decision_record_hash"]
     assert out["risk_controller_decision"] == "PASS"
+    assert out["paper_fill_gate_status"] == "CANONICAL_RISK_ALLOW_RESOLVED"
+    assert out["paper_fill_gate_block_reasons"] == ["INDEPENDENT_MARKET_BLOCK"]
     assert out["orchestrator_decision_source"] == "PER_ID_DECISION_RECORD"
     assert out["orchestrator_decision"] == "PASS"
 
@@ -23034,6 +23088,9 @@ def test_allocator_upstream_regime_labels_and_score_are_diagnostic_only() -> Non
     assert allocation_input.market_regime is None
     assert allocation_input.risk_veto is True
     assert "FAIL_CLOSED_NO_REGIME_SCORE" in str(allocation_input.risk_veto_reason)
+    assert paper_loop._paper_allocator_regime_source_rejection_reasons(  # noqa: SLF001
+        intent["allocator_regime_source_material"]
+    ) == []
 
 
 def test_allocator_router_no_trade_regime_sets_explicit_risk_veto() -> None:

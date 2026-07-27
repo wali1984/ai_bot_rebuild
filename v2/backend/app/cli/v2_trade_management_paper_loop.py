@@ -905,7 +905,11 @@ def _runtime_default_symbol() -> str:
 
 
 def _utc_iso() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+    # Point-in-time contracts compare independently captured decision and
+    # producer clocks.  Millisecond truncation can make a later ``computed_at``
+    # sort before an earlier microsecond-precision decision timestamp.  Keep
+    # the full runtime precision so causal ordering is preserved exactly.
+    return datetime.now(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")
 
 
 _OPERATOR_ET_ZONE = ZoneInfo("America/New_York")
@@ -26802,6 +26806,27 @@ def _paper_policy_intent_decision_dereference(
             "PASS" if action in {"allow", "pass", "approve"} else f"DENY:{action or 'UNSPECIFIED'}"
         )
         out["risk_decision"] = out["risk_controller_decision"]
+        if out["risk_controller_decision"] == "PASS":
+            # Signal publication can race the canonical risk writer and carry
+            # a temporary PENDING marker.  Once the exact per-ID record has
+            # been hash-bound and resolved above, that marker is stale
+            # telemetry rather than a second authority.  Remove only the
+            # superseded pending reason; every independent blocker remains.
+            pending_reasons = {
+                "RISK_GATEWAY_DECISION_PENDING",
+                "RISK_DECISION_PENDING",
+            }
+            retained_reasons = [
+                str(reason)
+                for reason in (
+                    intent.get("paper_fill_gate_block_reasons")
+                    or signal.get("paper_fill_gate_block_reasons")
+                    or []
+                )
+                if str(reason) not in pending_reasons
+            ]
+            out["paper_fill_gate_block_reasons"] = sorted(set(retained_reasons))
+            out["paper_fill_gate_status"] = "CANONICAL_RISK_ALLOW_RESOLVED"
     else:
         if blocker:
             dereference_blockers.append(blocker)
@@ -34942,6 +34967,7 @@ def _paper_allocation_point_in_time_contract(
     intent: Mapping[str, Any],
     *,
     allocation_decision_time: datetime,
+    include_dynamic_envelope: bool = True,
 ) -> dict[str, Any]:
     """Validate every attached component clock against one immutable decision.
 
@@ -34958,6 +34984,8 @@ def _paper_allocation_point_in_time_contract(
         rejection_reasons.append("ALLOCATION_DECISION_TIME_NOT_TIMEZONE_AWARE")
     else:
         for field in PAPER_ALLOCATION_COMPONENT_TIME_FIELDS:
+            if not include_dynamic_envelope and field.startswith("dynamic_envelope_"):
+                continue
             raw = intent.get(field)
             if raw in (None, ""):
                 continue
@@ -35107,7 +35135,7 @@ def _paper_allocation_point_in_time_contract(
             character not in "0123456789abcdef" for character in correlation_hash
         ):
             rejection_reasons.append("CORRELATION_SOURCE_HASH_INVALID")
-    if any(
+    if include_dynamic_envelope and any(
         intent.get(field) not in (None, "")
         for field in (
             "dynamic_envelope_decision_time",
@@ -35175,6 +35203,10 @@ def _paper_allocation_point_in_time_contract(
             rejection_reasons.append(f"ALLOCATION_INPUT_TIME_MISSING:{field}")
 
     def require_order(left: str, right: str) -> None:
+        if not include_dynamic_envelope and (
+            left.startswith("dynamic_envelope_") or right.startswith("dynamic_envelope_")
+        ):
+            return
         left_time = parsed_times.get(left)
         right_time = parsed_times.get(right)
         if left_time is not None and right_time is not None and left_time > right_time:
@@ -35245,7 +35277,12 @@ def _paper_allocation_point_in_time_contract(
         "decision_time_semantics": (
             "IMMUTABLE_CAPTURE_AFTER_ALL_CANDIDATE_ALLOCATION_INPUTS_BEFORE_FIRST_ALLOCATION"
         ),
-        "component_time_fields_checked": list(PAPER_ALLOCATION_COMPONENT_TIME_FIELDS),
+        "component_time_fields_checked": [
+            field
+            for field in PAPER_ALLOCATION_COMPONENT_TIME_FIELDS
+            if include_dynamic_envelope or not field.startswith("dynamic_envelope_")
+        ],
+        "dynamic_envelope_included": include_dynamic_envelope,
         "required_component_time_fields": sorted(required_fields),
         "observed_component_times": observed,
         "rejection_reasons": unique_reasons,
@@ -42409,8 +42446,6 @@ def _build_allocation_input(
     intent["allocator_regime_score"] = round(regime_score, 8)
     intent["allocator_regime_score_source"] = regime_score_source
     intent["allocator_regime_score_reason"] = regime_score_reason
-    if intent.get("regime_score") in (None, ""):
-        intent["regime_score"] = round(regime_score, 8)
     (
         allocator_liquidity_source_material,
         allocator_regime_source_material,
@@ -42432,6 +42467,12 @@ def _build_allocation_input(
         regime_source=regime_score_source,
         regime_reason=regime_score_reason,
     )
+    # Seal the derivation source before publishing the derived convenience
+    # alias.  Otherwise a missing raw regime becomes ``regime_score=0`` in its
+    # own source material and replay takes the explicit-score branch instead
+    # of reproducing the original label/missing-evidence branch.
+    if intent.get("regime_score") in (None, ""):
+        intent["regime_score"] = round(regime_score, 8)
     allocator_liquidity_source_hash = _paper_canonical_sha256(allocator_liquidity_source_material)
     allocator_regime_source_hash = _paper_canonical_sha256(allocator_regime_source_material)
     intent["allocator_liquidity_source_material"] = deepcopy(allocator_liquidity_source_material)
@@ -45270,6 +45311,12 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         preliminary_allocation_pit = _paper_allocation_point_in_time_contract(
             intent,
             allocation_decision_time=candidate_envelope_decision_time,
+            # The candidate envelope is the output of this proof.  Including
+            # the pre-cycle portfolio envelope here creates a recursive
+            # dependency and can require candidate growth clocks before they
+            # exist.  The complete allocation PIT below validates the newly
+            # sealed candidate envelope before any allocation is executable.
+            include_dynamic_envelope=False,
         )
         (
             candidate_dynamic_paper_envelope,
