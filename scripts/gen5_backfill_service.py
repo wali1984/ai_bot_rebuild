@@ -42,7 +42,10 @@ SNAP_LABELS = SNAP_DIR / "labels_snapshot.sqlite3"
 SNAP_META = SNAP_DIR / "snapshot_manifest.json"
 OBSERVED_AT_FILE = SNAP_DIR / "training_observed_at.txt"
 
-CHALLENGER_ROOT = Path("/home/wali/ai_bot_local_data/gen5_challenger_archive")
+# Fresh archive dedicated to the immutable-snapshot import (the prior live-archive
+# archive holds a checkpoint bound to a different observation context; the
+# context-guard correctly refuses to resume it across contexts).
+CHALLENGER_ROOT = Path("/home/wali/ai_bot_local_data/gen5_snapshot_challenger_archive")
 RECEIPT = CHALLENGER_ROOT / "backfill_terminal_receipt.json"
 HEARTBEAT = CHALLENGER_ROOT / "backfill_heartbeat.json"
 CHECKPOINT = CHALLENGER_ROOT / "profiled_training_challenger_import_checkpoint_v1.json"
