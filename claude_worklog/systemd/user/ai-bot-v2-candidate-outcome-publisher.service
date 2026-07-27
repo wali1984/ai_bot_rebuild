@@ -17,7 +17,7 @@ RuntimeDirectory=ai-bot-v2-candidate-outcome-publisher
 RuntimeDirectoryMode=0700
 LoadCredential=candidate_outcome_ed25519_seed:%h/.config/ai-bot-v2/credentials/candidate-outcome-writer/seed.cred
 ExecStartPre=/usr/bin/git -C /home/wali/ai_bot_local_data/deployments/ai_bot_rebuild/7bafe70fa30375bf3148143f14aa18d9b232abd4 diff --quiet --exit-code 7bafe70fa30375bf3148143f14aa18d9b232abd4 --
-ExecStart=/home/wali/ai_bot_local_data/deployments/ai_bot_rebuild/7bafe70fa30375bf3148143f14aa18d9b232abd4/.venv/bin/python3 -P -B -m v2.backend.app.cli.v2_candidate_outcome_publisher --loop --interval-seconds 3
+ExecStart=/home/wali/ai_bot_local_data/deployments/ai_bot_rebuild/7bafe70fa30375bf3148143f14aa18d9b232abd4/.venv/bin/python3 -P -B -m v2.backend.app.cli.v2_candidate_outcome_publisher --loop --interval-seconds 3 --feature-archive-root="/home/wali/Desktop/AI BOT REBUILD/.local_data/v2_native_trainer/durable_feature_snapshot_archive"
 Restart=on-failure
 RestartSec=10
 TimeoutStopSec=30
@@ -28,7 +28,7 @@ ProtectSystem=strict
 ProtectHome=read-only
 ReadOnlyPaths=/home/wali/ai_bot_local_data/deployments/ai_bot_rebuild/7bafe70fa30375bf3148143f14aa18d9b232abd4
 ReadOnlyPaths=/home/wali/ai_bot_local_data/deployments/python_envs/6360ea33fcfb9f9a81724989bbd32ace2b02bf7eaa7a8771d64d282f423173f0
-ReadOnlyPaths=/home/wali/Desktop/AI BOT REBUILD/.local_data/v2_native_trainer/durable_feature_snapshot_archive
+ReadOnlyPaths="/home/wali/Desktop/AI BOT REBUILD/.local_data/v2_native_trainer/durable_feature_snapshot_archive"
 ReadWritePaths=/home/wali/ai_bot_local_data/candidate_outcomes_v2
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 MemoryHigh=1G

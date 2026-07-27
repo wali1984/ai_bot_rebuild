@@ -217,6 +217,27 @@ def test_rehashed_contradictory_finality_and_future_availability_fail_closed() -
         _build(status, intents, snapshots)
 
 
+def test_snapshot_producer_decision_may_precede_later_candidate_decision() -> None:
+    status, intents, snapshots = _inputs(1)
+    snapshot = snapshots["snapshot-0"]
+    snapshot["decision_time"] = "2026-07-27T20:00:05.000Z"
+    snapshot["content_sha256"] = content_sha256(snapshot)
+    cycle = _build(status, intents, snapshots)
+    assert cycle.candidate_recording_coverage == 1.0
+
+
+def test_snapshot_producer_decision_after_candidate_fails_closed() -> None:
+    status, intents, snapshots = _inputs(1)
+    snapshot = snapshots["snapshot-0"]
+    snapshot["decision_time"] = "2026-07-27T20:00:11.000Z"
+    snapshot["content_sha256"] = content_sha256(snapshot)
+    with pytest.raises(
+        CandidateOutcomePublisherError,
+        match="source_decision_after_candidate_decision",
+    ):
+        _build(status, intents, snapshots)
+
+
 def test_registry_and_live_authority_mismatches_fail_closed() -> None:
     status, intents, snapshots = _inputs(1)
     intents[0]["feature_abi_sha256"] = "9" * 64

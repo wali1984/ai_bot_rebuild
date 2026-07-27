@@ -339,8 +339,10 @@ def _bind_durable_feature_snapshot(
     archive_decision_ms = _parse_utc_ms(
         feature_snapshot.get("decision_time"), "feature_snapshot.decision_time"
     )
-    if len({original_decision_ms, prediction_decision_ms, archive_decision_ms}) != 1:
-        _fail("millisecond_identity_mismatch", "feature_snapshot.decision_time")
+    if original_decision_ms != prediction_decision_ms:
+        _fail("millisecond_identity_mismatch", "prediction.decision_time")
+    if archive_decision_ms > original_decision_ms:
+        _fail("source_decision_after_candidate_decision", "feature_snapshot.decision_time")
     if original_decision_ms > cycle_generated_at_ms:
         _fail("paper_decision_after_cycle_record", "intent.decision_time")
 
@@ -364,7 +366,7 @@ def _bind_durable_feature_snapshot(
     )
     if available_at_ms != prediction_available_at_ms:
         _fail("millisecond_identity_mismatch", "feature_snapshot.available_at")
-    if not feature_cutoff_ms <= available_at_ms <= original_decision_ms:
+    if not feature_cutoff_ms <= available_at_ms <= archive_decision_ms <= original_decision_ms:
         _fail("clock_order_invalid", "feature_snapshot.available_at")
 
     if feature_snapshot.get("candle_closed_confirmed") is not True:
@@ -386,7 +388,7 @@ def _bind_durable_feature_snapshot(
         feature_snapshot.get("latest_unclosed_exclusion_method"),
         "feature_snapshot.latest_unclosed_exclusion_method",
     )
-    if not latest_closed <= feature_cutoff_ms <= exclusion_decision <= original_decision_ms:
+    if not latest_closed <= feature_cutoff_ms <= exclusion_decision <= archive_decision_ms:
         _fail("clock_order_invalid", "feature_snapshot.finality")
 
     finality_crosschecks = (
