@@ -404,6 +404,32 @@ def test_adaptive_policy_exit_plan_is_restart_hashed_and_validated() -> None:
     assert restored_payload["adaptive_policy_action_sha256"] == "a" * 64
 
 
+def test_position_generation_and_opened_time_share_exact_fill_timestamp() -> None:
+    fill = _fill(fill_id="exact-entry-clock")
+    fill.update(
+        {
+            "fill_time_utc": "2026-06-11T10:00:00.180648Z",
+            "fill_time_est": "2026-06-11T06:00:00-04:00",
+        }
+    )
+
+    position = position_from_fill(
+        fill,
+        fill_id="exact-entry-clock",
+        side="long",
+        quantity=1.0,
+        price=100.0,
+    )
+    payload = position.to_payload(generated_utc="2026-06-11T10:01:00Z")
+
+    assert payload["entry_generation_time_utc"] == "2026-06-11T10:00:00.180648Z"
+    assert payload["opened_est"] == "2026-06-11T06:00:00.180648-04:00"
+    assert validate_paper_position_reconstruction(
+        payload,
+        observed_at="2026-06-11T10:01:00Z",
+    ) == []
+
+
 def test_adaptive_policy_mandatory_stop_preempts_min_hold() -> None:
     position = _adaptive_policy_position("adaptive-stop")
 

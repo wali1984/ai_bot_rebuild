@@ -1754,6 +1754,56 @@ def test_current_mark_drift_does_not_conflict_with_sealed_execution_notional() -
     )
 
 
+def test_current_open_mark_drift_does_not_conflict_with_execution_notional() -> None:
+    requirement = canonical_margin_requirement(
+        {
+            "position_id": "paper_pos_AAVEUSDT_generation",
+            "symbol": "AAVEUSDT",
+            "net_quantity": 0.8,
+            "avg_entry_price": 97.9,
+            "quantity": 0.8,
+            "entry_price": 97.9,
+            "mark_price": 97.55,
+            "gross_notional_usd": 78.32,
+            "effective_leverage": 1.0,
+            "maintenance_margin_rate": 0.005,
+        },
+        accounting_scope="OPEN_EXECUTED_POSITION",
+    )
+
+    assert requirement["valid"] is True
+    assert requirement["canonical_notional_usd"] == pytest.approx(78.32)
+    assert requirement["canonical_margin_usd"] == pytest.approx(78.32)
+    assert all(
+        item["source"] != "ABS_NET_QUANTITY_TIMES_MARK_PRICE"
+        for item in requirement["notional_evidence"]
+    )
+
+
+def test_invalid_open_mark_price_at_fill_still_fails_closed() -> None:
+    requirement = canonical_margin_requirement(
+        {
+            "position_id": "paper_pos_invalid_mark_at_fill",
+            "symbol": "BTCUSDT",
+            "net_quantity": 1.0,
+            "avg_entry_price": 100.0,
+            "quantity": 1.0,
+            "fill_price": 100.0,
+            "mark_price_at_fill": -99.0,
+            "effective_leverage": 1.0,
+            "maintenance_margin_rate": 0.005,
+        },
+        accounting_scope="OPEN_EXECUTED_POSITION",
+    )
+
+    assert requirement["valid"] is False
+    assert (
+        "OPEN_EXECUTED_PRICE_EVIDENCE_INVALID:mark_price_at_fill"
+        in requirement["notional_evidence_invalid_reasons"]
+    )
+    assert requirement["canonical_margin_usd"] is None
+
+
 def test_every_valid_quantity_and_price_alias_participates_in_conservative_reconciliation() -> None:
     requirement = canonical_margin_requirement(
         {

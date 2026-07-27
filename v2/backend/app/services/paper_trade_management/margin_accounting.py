@@ -654,9 +654,9 @@ def _open_position_executed_notional(
             ("net_quantity", ("avg_entry_price", "entry_price")),
             (
                 "quantity",
-                ("fill_price", "entry_price", "mark_price_at_fill", "mark_price"),
+                ("fill_price", "entry_price", "mark_price_at_fill"),
             ),
-            ("qty", ("fill_price", "entry_price", "mark_price_at_fill", "mark_price")),
+            ("qty", ("fill_price", "entry_price", "mark_price_at_fill")),
         ),
     )
     evidence: list[dict[str, Any]] = [

@@ -1014,7 +1014,9 @@ def utc_to_est_iso(value: Any) -> str | None:
             from backports.zoneinfo import ZoneInfo  # type: ignore[no-redef]
         except ImportError:
             return None
-    return dt.astimezone(ZoneInfo("America/New_York")).isoformat(timespec="seconds")
+    return dt.astimezone(ZoneInfo("America/New_York")).isoformat(
+        timespec="microseconds"
+    )
 
 
 def seconds_between(start_iso: Any, end_iso: str) -> int:
@@ -3417,6 +3419,10 @@ def maintenance_bracket_evidence_from_payload(
 
 def position_from_fill(fill: dict[str, Any], *, fill_id: str, side: str, quantity: float, price: float) -> PaperNetPosition:
     symbol = str(fill.get("symbol") or "").upper()
+    generation = entry_generation_identity(
+        fill,
+        source_identity_override=fill_id,
+    )
     entry_time_utc = (
         utc_iso_from_any(fill.get("entry_time"))
         or utc_iso_from_any(fill.get("execution_time"))
@@ -3429,10 +3435,12 @@ def position_from_fill(fill: dict[str, Any], *, fill_id: str, side: str, quantit
         or utc_iso_from_any(fill.get("opened_est"))
         or utc_now_iso()
     )
-    # Convert all candidate timestamp sources to Eastern Time before storing in _est field.
-    # fill_time_est may already carry an EST offset — utc_to_est_iso is idempotent for those.
+    # Bind the display-time projection to the exact timestamp that defines the
+    # position generation.  Using a separately rounded ``fill_time_est`` can
+    # make the same entry appear to occur after it opened during restart.
     opened = (
-        utc_to_est_iso(fill.get("fill_time_est"))
+        utc_to_est_iso(generation.entry_time_utc)
+        or utc_to_est_iso(fill.get("fill_time_est"))
         or utc_to_est_iso(entry_time_utc)
         or entry_time_utc
     )
@@ -3984,10 +3992,6 @@ def position_from_fill(fill: dict[str, Any], *, fill_id: str, side: str, quantit
         else "MISSING_ENTRY_PREDICTION_SCORE_FIELDS:" + ",".join(missing_score_fields)
     )
     is_hedge_child = bool(fill.get("hedge_intent") is True and fill.get("hedge_parent_id"))
-    generation = entry_generation_identity(
-        fill,
-        source_identity_override=fill_id,
-    )
     legacy_position_id = (
         f"paper_pos_{symbol}_hedge" if is_hedge_child else f"paper_pos_{symbol}"
     )
