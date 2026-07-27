@@ -93,3 +93,24 @@ def test_rejects_catastrophic_loss_without_policy_override() -> None:
     assert result.decision == DECISION_BLOCK
     assert "catastrophic_loss" in result.failed_checks
     assert result.execution_authority is False
+
+
+def test_repeating_real_price_loss_keeps_deterministic_validator_precision() -> None:
+    request = replace(
+        _request(),
+        selected_entry_price=Decimal("0.11587"),
+        selected_stop_price=Decimal("0.11469"),
+        selected_notional_usd=Decimal("5.098280"),
+        selected_leverage=Decimal("2"),
+        selected_margin_usd=Decimal("2.549140"),
+        venue_price_tick=Decimal("0.00001"),
+        venue_min_qty=Decimal("1"),
+        venue_max_qty=Decimal("100000000"),
+        venue_qty_step=Decimal("1"),
+    )
+
+    result = attest_selected_action_venue_feasibility(request)
+
+    assert result.exact_selected_quantity == Decimal("44")
+    assert result.exact_selected_bounded_loss_usd > Decimal("0")
+    assert result.exact_selected_bounded_loss_usd.as_tuple().exponent >= -256

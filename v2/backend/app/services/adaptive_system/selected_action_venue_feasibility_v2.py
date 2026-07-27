@@ -49,7 +49,10 @@ def _positive(value: object, field: str, *, allow_zero: bool = False) -> None:
         _fail("finite_Decimal_required", field)
     if value < _ZERO or (not allow_zero and value == _ZERO):
         _fail("nonnegative_required" if allow_zero else "positive_required", field)
-    if value.as_tuple().exponent < -24 or value.adjusted() > 24:
+    # A real tick-aligned stop divided by its entry price can be recurring.
+    # The evaluator uses a fixed 120-digit context, so retain that deterministic
+    # precision instead of rounding the bounded-loss proof before validation.
+    if value.as_tuple().exponent < -256 or value.adjusted() > 24:
         _fail("precision_or_magnitude_out_of_bounds", field)
 
 

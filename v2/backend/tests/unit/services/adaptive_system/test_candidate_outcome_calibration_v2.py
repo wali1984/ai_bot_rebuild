@@ -77,6 +77,23 @@ def test_fits_chronological_calibration_without_holdout_leakage() -> None:
     assert artifact["validation"]["parameters_changed_after_validation"] is False
     assert artifact["mode_allocation"]["permanent_percentage"] is False
     assert artifact["counterfactual_counts_as_realized_paper_profit"] is False
+    assert artifact["objective_weight_optimizer"]["optimizer_steps"] >= 100
+    assert artifact["objective_weight_optimizer"]["finite_loss"] is True
+    assert artifact["objective_weight_optimizer"]["validation_rows_used"] == 0
+    assert artifact["objective_weight_optimizer"]["holdout_used"] is False
+    assert all(
+        artifact["learned_objective_weights"][name] > 0.0
+        for name in (
+            "drawdown_penalty",
+            "tail_loss_penalty",
+            "liquidation_risk_penalty",
+            "market_impact_penalty",
+            "funding_cost_penalty",
+            "turnover_penalty",
+            "concentration_penalty",
+            "information_gain_reward",
+        )
+    )
     validate_candidate_outcome_calibration_v2(artifact)
 
 
@@ -102,6 +119,7 @@ def test_validation_suffix_cannot_change_fitted_parameters() -> None:
 
     assert first["fit_row_digest"] == second["fit_row_digest"]
     assert first["learned_objective_weights"] == second["learned_objective_weights"]
+    assert first["objective_weight_optimizer"] == second["objective_weight_optimizer"]
     assert first["global_statistics"] == second["global_statistics"]
     assert first["validation"] != second["validation"]
 

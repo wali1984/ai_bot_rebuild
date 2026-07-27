@@ -386,36 +386,125 @@ def _calibration_bins(
     return bins
 
 
-def _learned_weights(rows: Sequence[CandidateCalibrationObservationV2]) -> dict[str, Any]:
-    mean_abs_return = max(
+def _learned_weights(
+    rows: Sequence[CandidateCalibrationObservationV2],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Fit positive risk prices on the chronological training partition only.
+
+    The former implementation inferred coefficients from ratios of marginal
+    means.  Those ratios were deterministic but were not an optimizer and
+    systematically charged costs already included in after-cost return.  This
+    constrained logistic fit learns the incremental risk prices that best
+    separate profitable from unprofitable matured outcomes while keeping the
+    declared portfolio objective and every coefficient strictly positive.
+    """
+
+    if not rows:
+        _fail("nonempty_rows_required", "learned_objective_weights")
+    feature_names = (
+        "drawdown_penalty",
+        "tail_loss_penalty",
+        "liquidation_risk_penalty",
+        "market_impact_penalty",
+        "funding_cost_penalty",
+        "turnover_penalty",
+    )
+    feature_rows = [
+        (
+            abs(row.max_adverse_excursion_bps),
+            max(0.0, -row.final_after_cost_return_bps),
+            float(row.stop_hit),
+            row.market_impact_bps,
+            abs(row.funding_bps),
+            row.transaction_cost_bps,
+        )
+        for row in rows
+    ]
+    return_scale = max(
         0.01,
         statistics.fmean(abs(row.final_after_cost_return_bps) for row in rows),
     )
-    mean_drawdown = max(
-        0.01,
-        statistics.fmean(abs(row.max_adverse_excursion_bps) for row in rows),
+    feature_scales = tuple(
+        max(0.01, statistics.fmean(values))
+        for values in zip(*feature_rows, strict=True)
     )
-    mean_tail = max(
-        0.01,
-        statistics.fmean(max(0.0, -row.final_after_cost_return_bps) for row in rows),
+    normalized = [
+        tuple(value / scale for value, scale in zip(values, feature_scales, strict=True))
+        for values in feature_rows
+    ]
+    beta = [1.0 / math.sqrt(len(rows)) for _ in feature_names]
+    regularization = 1.0 / len(rows)
+    optimizer_steps = 400
+    final_loss = math.inf
+    for step in range(1, optimizer_steps + 1):
+        gradients = [0.0 for _ in feature_names]
+        losses: list[float] = []
+        for row, features in zip(rows, normalized, strict=True):
+            logit = row.final_after_cost_return_bps / return_scale - math.fsum(
+                coefficient * value for coefficient, value in zip(beta, features, strict=True)
+            )
+            if logit >= 0.0:
+                probability = 1.0 / (1.0 + math.exp(-logit))
+            else:
+                exp_logit = math.exp(logit)
+                probability = exp_logit / (1.0 + exp_logit)
+            target = float(row.profitable)
+            clipped = min(1.0 - 1e-15, max(1e-15, probability))
+            losses.append(
+                -(target * math.log(clipped) + (1.0 - target) * math.log1p(-clipped))
+            )
+            residual = probability - target
+            for index, value in enumerate(features):
+                gradients[index] += residual * -value
+        learning_rate = 0.2 / math.sqrt(step)
+        for index in range(len(beta)):
+            gradient = gradients[index] / len(rows) + regularization * beta[index]
+            beta[index] = max(1e-6, beta[index] - learning_rate * gradient)
+        final_loss = statistics.fmean(losses) + 0.5 * regularization * math.fsum(
+            value * value for value in beta
+        )
+    learned = {
+        name: max(1e-6, coefficient * return_scale / scale)
+        for name, coefficient, scale in zip(feature_names, beta, feature_scales, strict=True)
+    }
+    rejected_profitable = [
+        row.final_after_cost_return_bps
+        for row in rows
+        if row.decision_disposition in {"REJECTED", "INFEASIBLE"}
+        and row.final_after_cost_return_bps > 0.0
+    ]
+    information_reward = max(
+        1e-6,
+        statistics.fmean(rejected_profitable) if rejected_profitable else return_scale,
     )
-    mean_impact = max(0.01, statistics.fmean(row.market_impact_bps for row in rows))
-    mean_funding = max(0.01, statistics.fmean(abs(row.funding_bps) for row in rows))
-    mean_cost = max(0.01, statistics.fmean(row.transaction_cost_bps for row in rows))
+    concentration_penalty = max(
+        1e-6,
+        statistics.median(learned.values()) / max(1.0, return_scale),
+    )
     parameters = {
         "schema_version": WEIGHTS_SCHEMA_VERSION,
         "expected_after_cost_return": 1.0,
-        "drawdown_penalty": max(0.01, mean_tail / mean_drawdown),
-        "tail_loss_penalty": max(0.01, mean_tail / mean_abs_return),
-        "liquidation_risk_penalty": mean_tail,
-        "market_impact_penalty": max(0.01, mean_cost / mean_impact),
-        "funding_cost_penalty": max(0.01, mean_cost / mean_funding),
-        "turnover_penalty": max(0.01, mean_cost / mean_abs_return),
-        "concentration_penalty": max(0.01, mean_tail / (10.0 * mean_abs_return)),
-        "information_gain_reward": max(0.01, mean_abs_return * 0.1),
+        **learned,
+        "concentration_penalty": concentration_penalty,
+        "information_gain_reward": information_reward,
         "unit_contract": UNIT_CONTRACT,
     }
-    return {**parameters, "objective_parameter_fingerprint": _canonical_sha256(parameters)}
+    weights = {
+        **parameters,
+        "objective_parameter_fingerprint": _canonical_sha256(parameters),
+    }
+    optimizer = {
+        "schema_version": "candidate_outcome_objective_weight_optimizer_v2",
+        "optimizer_family": "positive_projected_logistic_risk_price_fit",
+        "optimizer_steps": optimizer_steps,
+        "finite_loss": math.isfinite(final_loss),
+        "final_loss": final_loss,
+        "fit_sample_count": len(rows),
+        "fit_row_time_ordered": True,
+        "validation_rows_used": 0,
+        "holdout_used": False,
+    }
+    return weights, optimizer
 
 
 def fit_candidate_outcome_calibration_v2(
@@ -498,7 +587,7 @@ def fit_candidate_outcome_calibration_v2(
         0.5,
         max(0.01, missed_profitable_rate),
     )
-    weights = _learned_weights(fit_rows)
+    weights, objective_optimizer = _learned_weights(fit_rows)
     checkpoint_generation, checkpoint_id, checkpoint_sha256 = next(iter(lineage))
     fit_row_digest = _canonical_sha256([asdict(row) for row in fit_rows])
     validation_row_digest = _canonical_sha256([asdict(row) for row in validation_rows])
@@ -543,6 +632,7 @@ def fit_candidate_outcome_calibration_v2(
             "parameters_changed_after_validation": False,
         },
         "learned_objective_weights": weights,
+        "objective_weight_optimizer": objective_optimizer,
         "mode_allocation": {
             "champion_exploitation_probability": 1.0 - bounded_exploration_probability,
             "bounded_exploration_probability": bounded_exploration_probability,
@@ -587,6 +677,23 @@ def validate_candidate_outcome_calibration_v2(artifact: Mapping[str, Any]) -> No
     fingerprint = parameter_material.pop("objective_parameter_fingerprint", None)
     if fingerprint != _canonical_sha256(parameter_material):
         _fail("parameter_fingerprint_mismatch", "learned_objective_weights")
+    optimizer = artifact.get("objective_weight_optimizer")
+    if not isinstance(optimizer, Mapping):
+        _fail("optimizer_evidence_required", "objective_weight_optimizer")
+    if (
+        optimizer.get("schema_version")
+        != "candidate_outcome_objective_weight_optimizer_v2"
+        or type(optimizer.get("optimizer_steps")) is not int
+        or int(optimizer["optimizer_steps"]) < 100
+        or optimizer.get("finite_loss") is not True
+        or type(optimizer.get("final_loss")) is not float
+        or not math.isfinite(float(optimizer["final_loss"]))
+        or optimizer.get("fit_sample_count") != artifact.get("fit_sample_count")
+        or optimizer.get("fit_row_time_ordered") is not True
+        or optimizer.get("validation_rows_used") != 0
+        or optimizer.get("holdout_used") is not False
+    ):
+        _fail("optimizer_evidence_invalid", "objective_weight_optimizer")
     if artifact.get("paper_only") is not True or artifact.get("live_gate") != (
         "blocked_human_only"
     ):
