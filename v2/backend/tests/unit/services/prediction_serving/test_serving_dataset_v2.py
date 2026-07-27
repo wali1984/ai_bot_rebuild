@@ -4,8 +4,37 @@ import json
 from pathlib import Path
 
 from v2.backend.app.services.prediction_serving.serving_dataset_v2 import (
+    _chronological_split,
     build_serving_dataset_v2,
 )
+
+
+def test_chronological_split_never_divides_a_decision_time_group() -> None:
+    rows = [
+        {
+            "row_id": f"row-{group:03d}-{member}",
+            "decision_time": f"2026-07-01T{group // 60:02d}:{group % 60:02d}:00Z",
+        }
+        for group in range(60)
+        for member in range(2)
+    ]
+
+    admitted, embargo_ids = _chronological_split(rows)
+
+    groups_by_split = {
+        split: {
+            row["decision_time"] for row in admitted if row["split"] == split
+        }
+        for split in ("train", "validation", "holdout")
+    }
+    assert groups_by_split["train"].isdisjoint(groups_by_split["validation"])
+    assert groups_by_split["train"].isdisjoint(groups_by_split["holdout"])
+    assert groups_by_split["validation"].isdisjoint(groups_by_split["holdout"])
+    assert len(embargo_ids) == 8
+    assert len(admitted) + len(embargo_ids) == len(rows)
+    assert sum(row["split"] == "train" for row in admitted) >= 80
+    assert sum(row["split"] == "validation" for row in admitted) >= 10
+    assert sum(row["split"] == "holdout" for row in admitted) >= 10
 
 
 def test_real_authenticated_dataset_is_reproducible_and_pit_clean() -> None:

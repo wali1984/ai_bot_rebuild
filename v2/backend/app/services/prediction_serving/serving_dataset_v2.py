@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from bisect import bisect_left, bisect_right
 from collections import Counter
 from collections.abc import Mapping
 from datetime import UTC, datetime
@@ -183,26 +184,87 @@ def _build_row(identity: Mapping[str, Any], record: Mapping[str, Any]) -> dict[s
 
 
 def _chronological_split(
-    rows: list[dict[str, Any]], embargo_rows: int = 2
+    rows: list[dict[str, Any]], embargo_groups: int = 2
 ) -> tuple[list[dict[str, Any]], list[str]]:
     if len(rows) < 104:
         raise ValueError("DATASET_BELOW_MINIMUM_FOR_PURGED_SPLITS")
     rows = sorted(rows, key=lambda row: (row["decision_time"], row["row_id"]))
-    train_count = max(80, int(len(rows) * 0.75))
-    validation_count = max(10, int(len(rows) * 0.12))
-    holdout_count = len(rows) - train_count - validation_count - embargo_rows * 2
-    if holdout_count < 10:
-        raise ValueError("HOLDOUT_BELOW_MINIMUM_AFTER_EMBARGO")
-    train = rows[:train_count]
-    embargo_one = rows[train_count : train_count + embargo_rows]
-    validation_start = train_count + embargo_rows
-    validation = rows[validation_start : validation_start + validation_count]
-    embargo_two_start = validation_start + validation_count
-    embargo_two = rows[embargo_two_start : embargo_two_start + embargo_rows]
-    holdout = rows[embargo_two_start + embargo_rows :]
+    grouped: list[list[dict[str, Any]]] = []
+    for row in rows:
+        if not grouped or grouped[-1][0]["decision_time"] != row["decision_time"]:
+            grouped.append([])
+        grouped[-1].append(row)
+    if type(embargo_groups) is not int or embargo_groups < 1:
+        raise ValueError("EMBARGO_GROUPS_INVALID")
+    train_target = max(80, int(len(rows) * 0.75))
+    validation_target = max(10, int(len(rows) * 0.12))
+    prefix_counts = [0]
+    for group in grouped:
+        prefix_counts.append(prefix_counts[-1] + len(group))
+    max_holdout_start = (
+        bisect_right(prefix_counts, prefix_counts[-1] - 10) - 1
+    )
+    max_validation_end = max_holdout_start - embargo_groups
+    candidates: list[tuple[int, int, int]] = []
+    for train_end in range(1, len(grouped)):
+        train_rows = prefix_counts[train_end]
+        validation_start = train_end + embargo_groups
+        if train_rows < 80 or validation_start >= len(grouped):
+            continue
+        target_end_count = prefix_counts[validation_start] + validation_target
+        nearest_end = bisect_left(
+            prefix_counts,
+            target_end_count,
+            lo=validation_start + 1,
+        )
+        bounded_end = min(nearest_end, max_validation_end)
+        for validation_end in (bounded_end - 1, bounded_end):
+            if not validation_start < validation_end < len(grouped):
+                continue
+            validation_rows = (
+                prefix_counts[validation_end] - prefix_counts[validation_start]
+            )
+            holdout_start = validation_end + embargo_groups
+            if holdout_start >= len(grouped):
+                continue
+            holdout_rows = prefix_counts[-1] - prefix_counts[holdout_start]
+            if validation_rows < 10 or holdout_rows < 10:
+                continue
+            score = abs(train_rows - train_target) + abs(
+                validation_rows - validation_target
+            )
+            candidates.append((score, train_end, validation_end))
+    if not candidates:
+        raise ValueError("GROUP_SAFE_PURGED_SPLIT_UNAVAILABLE")
+    _, train_end, validation_end = min(candidates)
+    validation_start = train_end + embargo_groups
+    holdout_start = validation_end + embargo_groups
+
+    def flatten(groups: list[list[dict[str, Any]]]) -> list[dict[str, Any]]:
+        return [row for group in groups for row in group]
+
+    train = flatten(grouped[:train_end])
+    embargo_one = flatten(grouped[train_end:validation_start])
+    validation = flatten(grouped[validation_start:validation_end])
+    embargo_two = flatten(grouped[validation_end:holdout_start])
+    holdout = flatten(grouped[holdout_start:])
     for split, split_rows in (("train", train), ("validation", validation), ("holdout", holdout)):
         for row in split_rows:
             row["split"] = split
+    split_groups = {
+        split: {row["decision_time"] for row in split_rows}
+        for split, split_rows in (
+            ("train", train),
+            ("validation", validation),
+            ("holdout", holdout),
+        )
+    }
+    if (
+        split_groups["train"] & split_groups["validation"]
+        or split_groups["train"] & split_groups["holdout"]
+        or split_groups["validation"] & split_groups["holdout"]
+    ):
+        raise ValueError("DECISION_TIME_GROUP_SPLIT_OVERLAP")
     return train + validation + holdout, [row["row_id"] for row in embargo_one + embargo_two]
 
 
@@ -279,7 +341,10 @@ def build_serving_dataset_v2(
         "source_identity_manifest": str(identity_manifest_path),
         "source_identity_manifest_sha256": source_manifest_sha256,
         "purge_policy": "DECISION_TIME_CHRONOLOGICAL_NO_GROUP_OVERLAP",
-        "embargo_policy": "TWO_SOURCE_ROWS_BETWEEN_TRAIN_VALIDATION_AND_VALIDATION_HOLDOUT",
+        "embargo_policy": (
+            "TWO_COMPLETE_DECISION_TIME_GROUPS_BETWEEN_TRAIN_VALIDATION_"
+            "AND_VALIDATION_HOLDOUT"
+        ),
         "embargo_row_ids": embargo_row_ids,
         "duplicate_rows": 0,
         "future_time_rejections": 0,
