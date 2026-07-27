@@ -34,6 +34,8 @@ AllocationDecision = Literal[
     "BLOCK_DRAWDOWN_GUARD",
     "BLOCK_EXCHANGE_MIN_ORDER",
     "BLOCK_EXCHANGE_MAX_ORDER",
+    "BLOCK_RISK_BUDGET_BELOW_EXECUTABLE_MINIMUM",
+    "BLOCK_EXECUTION_FEASIBILITY_CONTRACT_MISMATCH",
     "BLOCK_INSUFFICIENT_MARGIN",
     "BLOCK_LIQUIDATION_RISK",
 ]
@@ -120,6 +122,10 @@ class AllocationInput:
     # funded and filled hedge, so the allocator always sizes against the full
     # unhedged stop until such proof exists.
     adaptive_hedge_sizing_enabled: bool = False
+    # PAPER venue MIN_NOTIONAL is evaluated against authenticated mark price.
+    # Execution/accounting price remains the independently observed fill price.
+    # LIVE ignores this paper-only field.
+    execution_mark_price: float | None = None
 
 
 @dataclass(frozen=True)
@@ -301,13 +307,9 @@ class AllocationResult:
         if self.model_inputs.get("mode") == "paper":
             payload.update(
                 {
-                    "allocation_input_schema_version": (
-                        self.allocation_input_schema_version
-                    ),
+                    "allocation_input_schema_version": (self.allocation_input_schema_version),
                     "allocation_input_hash": self.allocation_input_hash,
-                    "allocation_input_hash_algorithm": (
-                        self.allocation_input_hash_algorithm
-                    ),
+                    "allocation_input_hash_algorithm": (self.allocation_input_hash_algorithm),
                     "allocation_input_material": self.allocation_input_material,
                 }
             )

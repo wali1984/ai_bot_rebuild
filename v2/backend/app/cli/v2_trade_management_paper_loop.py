@@ -232,8 +232,7 @@ def _configured_paper_loop_lock_path(
     path = (
         Path(configured).expanduser()
         if configured
-        else Path(__file__).resolve().parents[4]
-        / "logs/v2_trade_management_paper_loop.lock"
+        else Path(__file__).resolve().parents[4] / "logs/v2_trade_management_paper_loop.lock"
     )
     if not path.is_absolute():
         raise RuntimeError("PAPER_LOOP_LOCK_PATH_MUST_BE_ABSOLUTE")
@@ -2362,6 +2361,18 @@ _FEEDBACK_ENTRY_CONTEXT_FIELDS: tuple[str, ...] = (
     "pre_trade_fee_bps_configured_schedule",
     "b_grade_exploration_budget_cap_applied",
     "risk_budget_fraction_of_normal_adaptive",
+    "paper_execution_minimum_predicate",
+    "paper_execution_minimum_feasible",
+    "paper_final_governed_authorization",
+    "preflight_allocator_execution_values_match",
+    "paper_execution_mark_price",
+    "paper_execution_final_target_notional",
+    "paper_execution_minimum_executable_quantity",
+    "paper_execution_minimum_executable_notional",
+    "paper_execution_headroom_usd",
+    "paper_execution_minimum_feasibility",
+    "paper_execution_preflight_allocator_contract",
+    "paper_execution_feasibility_publication",
     "b_grade_exploration_static_confidence_floor",
     "b_grade_exploration_adaptive_confidence_floor",
     "b_grade_exploration_floor_mode",
@@ -4064,6 +4075,7 @@ def _paper_exchange_filter_snapshot(r, symbol: str) -> dict[str, Any]:
 
     lot_size_filter = filter_by_type("LOT_SIZE")
     market_lot_size_filter = filter_by_type("MARKET_LOT_SIZE")
+    price_filter = filter_by_type("PRICE_FILTER")
 
     def positive_filter_number(filter_payload: Mapping[str, Any], field: str) -> float | None:
         value = _coerce_float(filter_payload.get(field))
@@ -4089,6 +4101,7 @@ def _paper_exchange_filter_snapshot(r, symbol: str) -> dict[str, Any]:
     min_qty = effective_min_qty
     step_size = effective_step_size
     max_qty = effective_max_qty
+    tick_size = positive_filter_number(price_filter, "tickSize")
     min_notional = _coerce_float(notional_filter.get("notional"))
     payload_hash = _paper_canonical_sha256(payload) if payload else None
     source_material = {
@@ -4116,6 +4129,7 @@ def _paper_exchange_filter_snapshot(r, symbol: str) -> dict[str, Any]:
         (("min_qty", "minQty"), min_qty, "MIN_QTY"),
         (("step_size", "stepSize"), step_size, "STEP_SIZE"),
         (("max_qty", "maxQty"), max_qty, "MAX_QTY"),
+        (("tick_size", "tickSize"), tick_size, "TICK_SIZE"),
         (
             ("min_notional", "minNotional", "min_notional_usdt"),
             min_notional,
@@ -4184,6 +4198,8 @@ def _paper_exchange_filter_snapshot(r, symbol: str) -> dict[str, Any]:
         rejection_reasons.append("SYMBOL_FILTER_LOT_SIZE_FILTER_MISSING")
     if filter_types.count("MARKET_LOT_SIZE") != 1:
         rejection_reasons.append("SYMBOL_FILTER_MARKET_LOT_SIZE_FILTER_MISSING")
+    if filter_types.count("PRICE_FILTER") != 1:
+        rejection_reasons.append("SYMBOL_FILTER_PRICE_FILTER_MISSING")
     if filter_types.count("MIN_NOTIONAL") != 1 or filter_types.count("NOTIONAL") != 0:
         rejection_reasons.append("SYMBOL_FILTER_NOTIONAL_FILTER_CONTRACT_INVALID")
     # USD-M MIN_NOTIONAL contains only ``filterType`` and ``notional`` and
@@ -4194,6 +4210,7 @@ def _paper_exchange_filter_snapshot(r, symbol: str) -> dict[str, Any]:
     for field, value in (
         ("min_qty", min_qty),
         ("step_size", step_size),
+        ("tick_size", tick_size),
         ("min_notional", min_notional),
     ):
         if value is None or not math.isfinite(value) or value <= 0.0:
@@ -4250,7 +4267,9 @@ def _paper_exchange_filter_snapshot(r, symbol: str) -> dict[str, Any]:
         "min_qty": min_qty,
         "step_size": step_size,
         "max_qty": max_qty,
+        "tick_size": tick_size,
         "min_notional": min_notional,
+        "price_filter": dict(price_filter),
         "lot_size_filter": dict(lot_size_filter),
         "market_lot_size_filter": dict(market_lot_size_filter),
         "notional_filter": dict(notional_filter),
@@ -9200,15 +9219,11 @@ def _validated_v2_feature_snapshot_payload(
         "candle_close_time": payload.get("candle_close_time"),
         "candle_closed_confirmed": payload.get("candle_closed_confirmed"),
         "latest_unclosed_kline_excluded": payload.get("latest_unclosed_kline_excluded"),
-        "latest_unclosed_exclusion_method": payload.get(
-            "latest_unclosed_exclusion_method"
-        ),
+        "latest_unclosed_exclusion_method": payload.get("latest_unclosed_exclusion_method"),
         "latest_unclosed_exclusion_decision_time_ms": payload.get(
             "latest_unclosed_exclusion_decision_time_ms"
         ),
-        "latest_closed_kline_close_time_ms": payload.get(
-            "latest_closed_kline_close_time_ms"
-        ),
+        "latest_closed_kline_close_time_ms": payload.get("latest_closed_kline_close_time_ms"),
         "source_hashes": payload.get("source_hashes"),
     }
 
@@ -9260,15 +9275,11 @@ def _entry_feature_snapshot_evidence(snapshot: dict[str, Any]) -> dict[str, Any]
         "candle_close_time": snapshot.get("candle_close_time"),
         "candle_closed_confirmed": snapshot.get("candle_closed_confirmed"),
         "latest_unclosed_kline_excluded": snapshot.get("latest_unclosed_kline_excluded"),
-        "latest_unclosed_exclusion_method": snapshot.get(
-            "latest_unclosed_exclusion_method"
-        ),
+        "latest_unclosed_exclusion_method": snapshot.get("latest_unclosed_exclusion_method"),
         "latest_unclosed_exclusion_decision_time_ms": snapshot.get(
             "latest_unclosed_exclusion_decision_time_ms"
         ),
-        "latest_closed_kline_close_time_ms": snapshot.get(
-            "latest_closed_kline_close_time_ms"
-        ),
+        "latest_closed_kline_close_time_ms": snapshot.get("latest_closed_kline_close_time_ms"),
         "feature_freshness_state": snapshot.get("feature_freshness_state"),
         "source_hashes": snapshot.get("source_hashes"),
         "features": dict(features),
@@ -11094,6 +11105,18 @@ PERSISTENT_ACCEPTED_FILL_METADATA_FIELDS = (
     "strict_paper_fill_allowed_upstream",
     "b_grade_exploration_budget_cap_applied",
     "risk_budget_fraction_of_normal_adaptive",
+    "paper_execution_minimum_predicate",
+    "paper_execution_minimum_feasible",
+    "paper_final_governed_authorization",
+    "preflight_allocator_execution_values_match",
+    "paper_execution_mark_price",
+    "paper_execution_final_target_notional",
+    "paper_execution_minimum_executable_quantity",
+    "paper_execution_minimum_executable_notional",
+    "paper_execution_headroom_usd",
+    "paper_execution_minimum_feasibility",
+    "paper_execution_preflight_allocator_contract",
+    "paper_execution_feasibility_publication",
     "normal_adaptive_risk_budget_usd",
     "normal_adaptive_gross_notional_usd",
     "normal_adaptive_allocated_margin_usd",
@@ -12228,9 +12251,7 @@ def _compact_runtime_intent_for_redis(row: dict[str, Any]) -> dict[str, Any]:
             "source_row_field_count": len(row),
             "omitted_field_count": len(omitted_fields),
             "omitted_nested_sections": sorted(
-                field
-                for field in omitted_fields
-                if isinstance(row.get(field), (dict, list))
+                field for field in omitted_fields if isinstance(row.get(field), (dict, list))
             ),
             "paper_only": True,
             "routes_to_live": False,
@@ -12244,11 +12265,7 @@ def _compact_runtime_intent_for_redis(row: dict[str, Any]) -> dict[str, Any]:
 def _compact_runtime_intents_for_redis(
     rows: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    return [
-        _compact_runtime_intent_for_redis(row)
-        for row in rows
-        if isinstance(row, dict)
-    ]
+    return [_compact_runtime_intent_for_redis(row) for row in rows if isinstance(row, dict)]
 
 
 def _sample_rows(
@@ -17734,6 +17751,14 @@ ADAPTIVE_SIZING_OPERATOR_PROJECTION_FIELDS = (
     "strategy_supply_trainer_feedback_blockers",
     "loss_probability_reasons",
     "paper_fill_allowed",
+    "paper_execution_minimum_feasible",
+    "paper_final_governed_authorization",
+    "preflight_allocator_execution_values_match",
+    "paper_execution_mark_price",
+    "paper_execution_final_target_notional",
+    "paper_execution_minimum_executable_quantity",
+    "paper_execution_minimum_executable_notional",
+    "paper_execution_headroom_usd",
     "guardian_new_entries_allowed",
     "continuous_edge_guardian_new_entries_allowed",
     "continuous_edge_guardian_forced_shadow_only",
@@ -22586,13 +22611,115 @@ def _paper_reallocate_for_reduced_risk_budget(
                 paper_risk_budget_fraction=base_fraction * fraction,
             )
 
-    allocation_result, _, bracket_context = _paper_allocate_with_bracket_evidence(
-        allocation_input=reduced_input,
-        envelope=envelope,
-        redis_client=redis_client,
-        security_context=security_context,
-        allocation_decision_time=allocation_decision_time,
-        allocate_fn=allocate_fn,
+    preflight_result, resolved_reduced_input, bracket_context = (
+        _paper_allocate_with_bracket_evidence(
+            allocation_input=reduced_input,
+            envelope=envelope,
+            redis_client=redis_client,
+            security_context=security_context,
+            allocation_decision_time=allocation_decision_time,
+            allocate_fn=allocate_fn,
+        )
+    )
+    # The preflight and allocator independently execute the same frozen input.
+    # This is deliberately a second allocator call, not a copied verdict.
+    allocator_result = allocate_fn(resolved_reduced_input, envelope=envelope)
+    preflight_model_inputs = (
+        preflight_result.model_inputs
+        if isinstance(getattr(preflight_result, "model_inputs", None), Mapping)
+        else {}
+    )
+    allocator_model_inputs = (
+        allocator_result.model_inputs
+        if isinstance(getattr(allocator_result, "model_inputs", None), Mapping)
+        else {}
+    )
+    preflight_minimum = preflight_model_inputs.get("paper_execution_minimum")
+    allocator_minimum = allocator_model_inputs.get("paper_execution_minimum")
+    comparison_fields = (
+        "status",
+        "mark_price",
+        "min_notional",
+        "min_quantity",
+        "quantity_step_size",
+        "maximum_quantity",
+        "quantity_for_min_notional",
+        "minimum_executable_quantity",
+        "minimum_executable_notional",
+        "final_target_notional",
+        "execution_headroom_usd",
+        "feasible",
+    )
+    if isinstance(preflight_minimum, Mapping) and isinstance(allocator_minimum, Mapping):
+        changed_fields = [
+            field
+            for field in comparison_fields
+            if preflight_minimum.get(field) != allocator_minimum.get(field)
+        ]
+        if preflight_result.allocation_input_hash != allocator_result.allocation_input_hash:
+            changed_fields.append("allocation_input_hash")
+        values_match = not changed_fields
+        comparison_status = "MATCH" if values_match else "CONTRACT_MISMATCH"
+    elif preflight_minimum is None and allocator_minimum is None:
+        changed_fields = []
+        values_match = True
+        comparison_status = "EXECUTION_MINIMUM_NOT_REACHED_IDENTICALLY"
+    else:
+        changed_fields = ["paper_execution_minimum_presence"]
+        values_match = False
+        comparison_status = "CONTRACT_MISMATCH"
+    execution_feasibility_contract = {
+        "schema_version": "paper_execution_preflight_allocator_contract_v1",
+        "status": comparison_status,
+        "preflight_allocation_input_hash": getattr(
+            preflight_result,
+            "allocation_input_hash",
+            None,
+        ),
+        "allocator_allocation_input_hash": getattr(
+            allocator_result,
+            "allocation_input_hash",
+            None,
+        ),
+        "preflight_minimum_executable_notional": (
+            preflight_minimum.get("minimum_executable_notional")
+            if isinstance(preflight_minimum, Mapping)
+            else None
+        ),
+        "allocator_minimum_executable_notional": (
+            allocator_minimum.get("minimum_executable_notional")
+            if isinstance(allocator_minimum, Mapping)
+            else None
+        ),
+        "preflight_feasible": (
+            preflight_minimum.get("feasible") if isinstance(preflight_minimum, Mapping) else None
+        ),
+        "allocator_feasible": (
+            allocator_minimum.get("feasible") if isinstance(allocator_minimum, Mapping) else None
+        ),
+        "changed_fields": changed_fields,
+        "values_match": values_match,
+    }
+    if not values_match:
+        blocked_input = replace(
+            resolved_reduced_input,
+            risk_veto=True,
+            risk_veto_reason="PAPER_EXECUTION_PREFLIGHT_ALLOCATOR_CONTRACT_MISMATCH",
+        )
+        allocation_result = allocate_fn(blocked_input, envelope=envelope)
+        allocation_result = replace(
+            allocation_result,
+            decision="BLOCK_EXECUTION_FEASIBILITY_CONTRACT_MISMATCH",
+            final_size_reason="paper_execution_preflight_allocator_contract_mismatch",
+        )
+    else:
+        allocation_result = allocator_result
+    allocation_result = replace(
+        allocation_result,
+        model_inputs={
+            **dict(allocation_result.model_inputs),
+            "paper_execution_preflight_allocator_contract": execution_feasibility_contract,
+        },
     )
     allocation = allocation_result.to_payload()
     fraction_rounded = round(fraction, 8)
@@ -22605,6 +22732,67 @@ def _paper_reallocate_for_reduced_risk_budget(
         allocation.get("model_inputs") if isinstance(allocation.get("model_inputs"), dict) else {}
     )
     allocation["model_inputs"] = model_inputs
+    allocation["paper_execution_preflight_allocator_contract"] = execution_feasibility_contract
+    intent["paper_execution_preflight_allocator_contract"] = execution_feasibility_contract
+    intent["preflight_allocator_execution_values_match"] = values_match
+    allocation["preflight_allocator_execution_values_match"] = values_match
+    if isinstance(preflight_minimum, Mapping):
+        exchange_filter_snapshot = intent.get("paper_exchange_filter_snapshot")
+        exchange_filter_snapshot = (
+            exchange_filter_snapshot if isinstance(exchange_filter_snapshot, Mapping) else {}
+        )
+        execution_evidence = {
+            **dict(preflight_minimum),
+            "symbol": intent.get("symbol"),
+            "timeframe": intent.get("thesis_timeframe") or intent.get("timeframe"),
+            "base_adaptive_notional": normal_allocation.get("gross_notional_usd"),
+            "exploration_factor": fraction_rounded,
+            "liquidity_multiplier": getattr(
+                resolved_reduced_input,
+                "paper_quality_sizing_weight",
+                None,
+            ),
+            "price_tick_size": exchange_filter_snapshot.get("tick_size"),
+            "symbol_trading_status": exchange_filter_snapshot.get("symbol_status"),
+            "mark_price_source": intent.get("paper_execution_mark_price_source"),
+            "mark_price_source_hash": intent.get("paper_execution_mark_price_source_hash"),
+            "mark_price_event_time": intent.get("paper_execution_mark_price_event_time"),
+            "mark_price_available_at": intent.get("paper_execution_mark_price_available_at"),
+            "mark_price_observed_at": intent.get("paper_execution_mark_price_observed_at"),
+            "mark_price_authenticated": intent.get("paper_execution_mark_price_authenticated"),
+            "exchange_filter_source": exchange_filter_snapshot.get("source"),
+            "exchange_filter_observed_at": exchange_filter_snapshot.get("observed_at"),
+            "exchange_filter_snapshot_hash": exchange_filter_snapshot.get("snapshot_hash"),
+            "preflight_minimum_executable_notional": (
+                execution_feasibility_contract.get("preflight_minimum_executable_notional")
+            ),
+            "allocator_minimum_executable_notional": (
+                execution_feasibility_contract.get("allocator_minimum_executable_notional")
+            ),
+            "values_match": values_match,
+        }
+        execution_evidence["evidence_sha256"] = _paper_canonical_sha256(execution_evidence)
+        for target in (intent, allocation, model_inputs):
+            target["paper_execution_minimum_feasibility"] = execution_evidence
+            target["paper_execution_minimum_feasible"] = bool(
+                execution_evidence.get("feasible") is True
+                and execution_evidence.get("mark_price_authenticated") is True
+                and execution_evidence.get("symbol_trading_status") == "TRADING"
+                and values_match
+            )
+            target["paper_execution_mark_price"] = execution_evidence.get("mark_price")
+            target["paper_execution_final_target_notional"] = execution_evidence.get(
+                "final_target_notional"
+            )
+            target["paper_execution_minimum_executable_quantity"] = execution_evidence.get(
+                "minimum_executable_quantity"
+            )
+            target["paper_execution_minimum_executable_notional"] = execution_evidence.get(
+                "minimum_executable_notional"
+            )
+            target["paper_execution_headroom_usd"] = execution_evidence.get(
+                "execution_headroom_usd"
+            )
     for field in B_GRADE_EXPLORATION_SCALABLE_ALLOCATION_FIELDS:
         value = normal_allocation.get(field)
         if value not in (None, ""):
@@ -22638,6 +22826,106 @@ def _paper_reallocate_for_reduced_risk_budget(
     model_inputs["normal_adaptive_risk_budget_usd"] = normal_allocation.get("risk_budget_usd")
     model_inputs["normal_adaptive_gross_notional_usd"] = normal_allocation.get("gross_notional_usd")
     return allocation, bracket_context
+
+
+def _publish_paper_execution_feasibility(
+    redis_client: Any,
+    *,
+    intent: Mapping[str, Any],
+    normal_allocation: Mapping[str, Any],
+    reduced_allocation: Mapping[str, Any],
+    ttl_seconds: int = 180,
+) -> dict[str, Any]:
+    """Publish one bounded, paper-only executability projection."""
+
+    symbol = str(intent.get("symbol") or "").upper()
+    evidence = reduced_allocation.get("paper_execution_minimum_feasibility")
+    evidence = evidence if isinstance(evidence, Mapping) else {}
+    model_inputs = reduced_allocation.get("model_inputs")
+    model_inputs = model_inputs if isinstance(model_inputs, Mapping) else {}
+    base_notional = _coerce_float(normal_allocation.get("gross_notional_usd"))
+    final_target = _coerce_float(evidence.get("final_target_notional"))
+    minimum_notional = _coerce_float(evidence.get("minimum_executable_notional"))
+    effective_reduction_factor = (
+        final_target / base_notional
+        if final_target is not None
+        and base_notional is not None
+        and final_target >= 0.0
+        and base_notional > 0.0
+        else None
+    )
+    minimum_base_notional = (
+        minimum_notional / effective_reduction_factor
+        if minimum_notional is not None
+        and effective_reduction_factor is not None
+        and effective_reduction_factor > 0.0
+        else None
+    )
+    observed_at = datetime.now(timezone.utc)
+    bounded_ttl = max(1, min(int(ttl_seconds), 600))
+    payload = {
+        "schema_version": "paper_symbol_execution_feasibility_v1",
+        "symbol": symbol or None,
+        "timeframe": intent.get("thesis_timeframe") or intent.get("timeframe"),
+        "action": intent.get("side") or intent.get("selected_action"),
+        "prediction_id": intent.get("prediction_id"),
+        "intent_id": intent.get("intent_id"),
+        "mark_price": evidence.get("mark_price"),
+        "minimum_executable_quantity": evidence.get("minimum_executable_quantity"),
+        "minimum_executable_notional": minimum_notional,
+        "minimum_base_notional_before_reductions": (
+            round(minimum_base_notional, 8) if minimum_base_notional is not None else None
+        ),
+        "base_adaptive_notional": base_notional,
+        "final_target_notional": final_target,
+        "effective_reduction_factor": (
+            round(effective_reduction_factor, 12)
+            if effective_reduction_factor is not None
+            else None
+        ),
+        "exploration_factor": evidence.get("exploration_factor"),
+        "liquidity_multiplier": evidence.get("liquidity_multiplier"),
+        "current_available_risk_budget": _first_present(
+            model_inputs.get("risk_budget_after_paper_quality_weight_usd"),
+            reduced_allocation.get("risk_budget_usd"),
+        ),
+        "execution_headroom_usd": evidence.get("execution_headroom_usd"),
+        "currently_executable": bool(
+            evidence.get("feasible") is True
+            and evidence.get("values_match") is True
+            and evidence.get("mark_price_authenticated") is True
+            and evidence.get("symbol_trading_status") == "TRADING"
+            and reduced_allocation.get("paper_execution_minimum_feasible") is True
+            and reduced_allocation.get("allocator_decision") in {"ALLOW_WITH_SIZE", "REDUCE_SIZE"}
+        ),
+        "preflight_allocator_values_match": evidence.get("values_match"),
+        "exchange_filter_source": evidence.get("exchange_filter_source"),
+        "exchange_filter_observed_at": evidence.get("exchange_filter_observed_at"),
+        "exchange_filter_snapshot_hash": evidence.get("exchange_filter_snapshot_hash"),
+        "observed_at": observed_at.isoformat().replace("+00:00", "Z"),
+        "expires_at": (observed_at + timedelta(seconds=bounded_ttl))
+        .isoformat()
+        .replace("+00:00", "Z"),
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "exchange_action_taken": False,
+    }
+    payload["payload_sha256"] = _paper_canonical_sha256(payload)
+    if redis_client is not None and symbol:
+        try:
+            redis_client.set(
+                f"{V2_REDIS_PREFIX}paper:execution_feasibility:{symbol}",
+                json.dumps(payload, sort_keys=True, separators=(",", ":")),
+                ex=bounded_ttl,
+            )
+        except Exception:
+            payload["publication_status"] = "FAILED"
+        else:
+            payload["publication_status"] = "PUBLISHED"
+    else:
+        payload["publication_status"] = "NOT_PUBLISHED_NO_REDIS_OR_SYMBOL"
+    return payload
 
 
 def _paper_exploration_tier_status(
@@ -22701,10 +22989,114 @@ def _paper_exploration_tier_status(
         source_collection="paper_exploration_tier_status.blocked",
         authoritative_source="paper_loop:current_cycle_blocked_rows",
     )
+    directional_rows = [
+        row
+        for row in rows
+        if _normalized_directional_side(
+            _first_present(row.get("side"), row.get("selected_action"), row.get("action"))
+        )
+        in {"long", "short"}
+    ]
+    execution_evidence_rows = [
+        row
+        for row in directional_rows
+        if isinstance(row.get("paper_execution_minimum_feasibility"), Mapping)
+    ]
+    execution_feasible_rows = [
+        row
+        for row in execution_evidence_rows
+        if row.get("paper_execution_minimum_feasible") is True
+    ]
+    final_authorization_rows = [
+        row for row in directional_rows if row.get("paper_final_governed_authorization") is True
+    ]
+    execution_minimum_blocked_rows = [
+        row
+        for row in blocked_rows
+        if _first_present(
+            row.get("paper_fill_block_reason"),
+            row.get("paper_allocation_block_reason"),
+            row.get("allocator_decision"),
+        )
+        == "BLOCK_RISK_BUDGET_BELOW_EXECUTABLE_MINIMUM"
+    ]
+    preflight_disagreement_rows = [
+        row
+        for row in directional_rows
+        if (row.get("paper_execution_preflight_allocator_contract") or {}).get("values_match")
+        is False
+    ]
+    generic_exchange_min_rows = [
+        row
+        for row in directional_rows
+        if row.get("allocator_decision") == "BLOCK_EXCHANGE_MIN_ORDER"
+    ]
     return {
         "status": "ACTIVE",
         "paper_only": True,
         "live_path_changed": False,
+        "execution_feasibility": {
+            "schema_version": "paper_execution_feasibility_cycle_status_v1",
+            "directional_candidates": len(directional_rows),
+            "policy_safe_candidates": sum(
+                1
+                for row in directional_rows
+                if row.get("paper_opportunity_tier")
+                in {
+                    PAPER_TIER_A_GRADE_EXECUTION,
+                    PAPER_TIER_A_PLUS_BOOTSTRAP_REDUCED_SIZE,
+                    PAPER_TIER_B_GRADE_EXPLORATION,
+                    PAPER_TIER_POSITIVE_EDGE_PROBATION,
+                    PAPER_TIER_RISK_CONTROLLER_EXPLORATION,
+                }
+            ),
+            "risk_safe_candidates": sum(
+                1
+                for row in directional_rows
+                if row.get("allocator_decision")
+                in {
+                    "ALLOW_WITH_SIZE",
+                    "REDUCE_SIZE",
+                    "BLOCK_RISK_BUDGET_BELOW_EXECUTABLE_MINIMUM",
+                }
+            ),
+            "execution_feasible_candidates": len(execution_feasible_rows),
+            "final_authorizations": len(final_authorization_rows),
+            "model_blocked": sum(
+                1
+                for row in blocked_rows
+                if "LOSS_PROBABILITY" in str(row.get("preemptive_action") or "")
+            ),
+            "microstructure_blocked": sum(
+                1
+                for row in blocked_rows
+                if "MICROSTRUCTURE" in json.dumps(row.get("paper_fill_gate_block_reasons") or [])
+            ),
+            "guardian_blocked": sum(
+                1
+                for row in blocked_rows
+                if "GUARDIAN" in json.dumps(row.get("paper_fill_gate_block_reasons") or [])
+            ),
+            "risk_blocked": sum(
+                1
+                for row in blocked_rows
+                if str(row.get("allocator_decision") or "").startswith("BLOCK_")
+                and row.get("allocator_decision")
+                not in {
+                    "BLOCK_EXCHANGE_MIN_ORDER",
+                    "BLOCK_RISK_BUDGET_BELOW_EXECUTABLE_MINIMUM",
+                }
+            ),
+            "execution_minimum_blocked": len(execution_minimum_blocked_rows),
+            "fully_admissible_and_executable": len(final_authorization_rows),
+            "preflight_allocator_disagreements": len(preflight_disagreement_rows),
+            "generic_exchange_min_blocks": len(generic_exchange_min_rows),
+            "exact_execution_feasibility_evidence_present": bool(execution_evidence_rows),
+            "exact_execution_feasibility_evidence_count": len(execution_evidence_rows),
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+        },
         "tiers": list(PAPER_OPPORTUNITY_TIERS),
         "tier_counts": _count_paper_opportunity_tiers(rows),
         "accepted_tier_counts": _count_paper_opportunity_tiers(current_accepted_rows),
@@ -24220,9 +24612,7 @@ def _paper_performance_source_rows(
         # COHORT_SAMPLE) and NEVER falls back to the historical global trade sample,
         # so the July losing cohort can never halt the new cohort.
         return [
-            row
-            for row in paper_rows
-            if str(row.get("paper_strategy_cohort_id") or "") == cohort_id
+            row for row in paper_rows if str(row.get("paper_strategy_cohort_id") or "") == cohort_id
         ]
     if paper_rows:
         return paper_rows
@@ -38632,6 +39022,7 @@ def _paper_final_admission_point_in_time_contract(
     exchange_filter_min_qty: float | None = None
     exchange_filter_step_size: float | None = None
     exchange_filter_max_qty: float | None = None
+    exchange_filter_tick_size: float | None = None
     exchange_filter_min_notional: float | None = None
     exchange_filter_revalidation: dict[str, Any] = {}
     if not isinstance(exchange_filter_snapshot, Mapping):
@@ -38719,11 +39110,13 @@ def _paper_final_admission_point_in_time_contract(
         exchange_filter_min_qty = _coerce_float(exchange_filter_snapshot.get("min_qty"))
         exchange_filter_step_size = _coerce_float(exchange_filter_snapshot.get("step_size"))
         exchange_filter_max_qty = _coerce_float(exchange_filter_snapshot.get("max_qty"))
+        exchange_filter_tick_size = _coerce_float(exchange_filter_snapshot.get("tick_size"))
         exchange_filter_min_notional = _coerce_float(exchange_filter_snapshot.get("min_notional"))
         for field, value in (
             ("min_qty", exchange_filter_min_qty),
             ("step_size", exchange_filter_step_size),
             ("max_qty", exchange_filter_max_qty),
+            ("tick_size", exchange_filter_tick_size),
             ("min_notional", exchange_filter_min_notional),
         ):
             if value is None or not math.isfinite(value) or value <= 0.0:
@@ -38747,7 +39140,9 @@ def _paper_final_admission_point_in_time_contract(
             "min_qty",
             "step_size",
             "max_qty",
+            "tick_size",
             "min_notional",
+            "price_filter",
             "lot_size_filter",
             "market_lot_size_filter",
             "notional_filter",
@@ -38868,6 +39263,85 @@ def _paper_final_admission_point_in_time_contract(
         != "sha256(canonical-json-v1)"
     ):
         reject("FINAL_ADMISSION_ALLOCATION_INPUT_IDENTITY_INVALID")
+    execution_minimum_required = intent.get("paper_opportunity_tier") in {
+        PAPER_TIER_A_PLUS_BOOTSTRAP_REDUCED_SIZE,
+        PAPER_TIER_B_GRADE_EXPLORATION,
+        PAPER_TIER_POSITIVE_EDGE_PROBATION,
+        PAPER_TIER_RISK_CONTROLLER_EXPLORATION,
+    }
+    execution_contract = intent.get("paper_execution_preflight_allocator_contract")
+    allocation_execution_contract = allocation.get("paper_execution_preflight_allocator_contract")
+    model_execution_contract = allocation_model_inputs.get(
+        "paper_execution_preflight_allocator_contract"
+    )
+    if execution_minimum_required and (
+        not isinstance(execution_contract, Mapping)
+        or dict(execution_contract) != dict(allocation_execution_contract or {})
+        or dict(execution_contract) != dict(model_execution_contract or {})
+        or execution_contract.get("schema_version")
+        != "paper_execution_preflight_allocator_contract_v1"
+        or execution_contract.get("status") != "MATCH"
+        or execution_contract.get("values_match") is not True
+        or execution_contract.get("changed_fields") != []
+        or execution_contract.get("preflight_allocation_input_hash") != allocation_input_hash
+        or execution_contract.get("allocator_allocation_input_hash") != allocation_input_hash
+    ):
+        reject("FINAL_ADMISSION_EXECUTION_PREFLIGHT_ALLOCATOR_CONTRACT_INVALID")
+    execution_evidence = intent.get("paper_execution_minimum_feasibility")
+    allocation_execution_evidence = allocation.get("paper_execution_minimum_feasibility")
+    model_execution_evidence = allocation_model_inputs.get("paper_execution_minimum_feasibility")
+    if execution_minimum_required and not isinstance(execution_evidence, Mapping):
+        reject("FINAL_ADMISSION_EXECUTION_MINIMUM_EVIDENCE_MISSING")
+    elif execution_minimum_required:
+        evidence_material = dict(execution_evidence)
+        evidence_sha256 = evidence_material.pop("evidence_sha256", None)
+        minimum_executable_notional = _coerce_float(
+            execution_evidence.get("minimum_executable_notional")
+        )
+        final_target_notional = _coerce_float(execution_evidence.get("final_target_notional"))
+        execution_headroom_usd = _coerce_float(execution_evidence.get("execution_headroom_usd"))
+        if (
+            dict(execution_evidence) != dict(allocation_execution_evidence or {})
+            or dict(execution_evidence) != dict(model_execution_evidence or {})
+            or not _paper_valid_sha256(evidence_sha256)
+            or evidence_sha256 != _paper_canonical_sha256(evidence_material)
+            or execution_evidence.get("schema_version") != "paper_execution_minimum_v1"
+            or execution_evidence.get("status") != "PASS"
+            or execution_evidence.get("predicate") != "PAPER_EXECUTION_MINIMUM_FEASIBLE"
+            or execution_evidence.get("feasible") is not True
+            or execution_evidence.get("values_match") is not True
+            or intent.get("paper_execution_minimum_feasible") is not True
+            or intent.get("paper_final_governed_authorization") is not True
+            or minimum_executable_notional is None
+            or final_target_notional is None
+            or execution_headroom_usd is None
+            or final_target_notional < minimum_executable_notional
+            or not math.isclose(
+                execution_headroom_usd,
+                final_target_notional - minimum_executable_notional,
+                rel_tol=1e-12,
+                abs_tol=1e-8,
+            )
+            or execution_evidence.get("preflight_minimum_executable_notional")
+            != execution_evidence.get("allocator_minimum_executable_notional")
+            or execution_evidence.get("preflight_minimum_executable_notional")
+            != execution_evidence.get("minimum_executable_notional")
+            or execution_evidence.get("exchange_filter_snapshot_hash")
+            != intent.get("paper_exchange_filter_snapshot_hash")
+            or execution_evidence.get("exchange_filter_source")
+            != exchange_filter_snapshot.get("source")
+            or execution_evidence.get("exchange_filter_observed_at")
+            != exchange_filter_snapshot.get("observed_at")
+            or execution_evidence.get("price_tick_size")
+            != exchange_filter_snapshot.get("tick_size")
+            or execution_evidence.get("symbol_trading_status") != "TRADING"
+            or execution_evidence.get("mark_price") != intent.get("mark_price")
+            or execution_evidence.get("mark_price_authenticated") is not True
+            or not _paper_valid_sha256(execution_evidence.get("mark_price_source_hash"))
+            or execution_evidence.get("mark_price_source_hash")
+            != intent.get("mark_index_source_hash")
+        ):
+            reject("FINAL_ADMISSION_EXECUTION_MINIMUM_EVIDENCE_INVALID")
     expected_allocation_identity = {
         "symbol": str(intent.get("symbol") or "").upper(),
         "timeframe": str(
@@ -38917,6 +39391,7 @@ def _paper_final_admission_point_in_time_contract(
         "min_notional",
         "paper_risk_budget_fraction",
         "paper_quality_sizing_weight",
+        "execution_mark_price",
     ):
         if material_allocation_input.get(field) != allocation_model_inputs.get(field):
             reject(f"FINAL_ADMISSION_ALLOCATION_INPUT_MODEL_MISMATCH:{field}")
@@ -39770,6 +40245,7 @@ def _paper_final_admission_point_in_time_contract(
             "min_qty": exchange_filter_min_qty,
             "step_size": exchange_filter_step_size,
             "max_qty": exchange_filter_max_qty,
+            "tick_size": exchange_filter_tick_size,
             "min_notional": exchange_filter_min_notional,
             "final_reread": exchange_filter_revalidation,
         },
@@ -41948,6 +42424,7 @@ def _build_allocation_input(
     symbol_exposures: dict[str, float],
     total_exposure: float,
     market_microstructure: dict[str, Any] | None = None,
+    mark_index_evidence: Mapping[str, Any] | None = None,
     correlation_contexts_by_symbol: dict[str, dict[str, Any]] | None = None,
     fee_schedule_context: dict[str, Any] | None = None,
     redis_client: Any = None,
@@ -42006,6 +42483,30 @@ def _build_allocation_input(
     )
     features = prediction.get("features") if isinstance(prediction.get("features"), dict) else {}
     market_microstructure = market_microstructure if isinstance(market_microstructure, dict) else {}
+    mark_index_evidence = mark_index_evidence if isinstance(mark_index_evidence, Mapping) else {}
+    execution_mark_price = _coerce_float(mark_index_evidence.get("mark_price"))
+    execution_mark_source_hash = mark_index_evidence.get("mark_index_source_hash")
+    execution_mark_authenticated = bool(
+        execution_mark_price is not None
+        and execution_mark_price > 0.0
+        and _paper_valid_sha256(execution_mark_source_hash)
+        and mark_index_evidence.get("mark_index_event_time") not in (None, "")
+        and mark_index_evidence.get("mark_index_available_at") not in (None, "")
+        and mark_index_evidence.get("mark_index_observed_at") not in (None, "")
+    )
+    intent["paper_execution_mark_price"] = execution_mark_price
+    intent["paper_execution_mark_price_source"] = mark_index_evidence.get("mark_index_source")
+    intent["paper_execution_mark_price_source_hash"] = execution_mark_source_hash
+    intent["paper_execution_mark_price_event_time"] = mark_index_evidence.get(
+        "mark_index_event_time"
+    )
+    intent["paper_execution_mark_price_available_at"] = mark_index_evidence.get(
+        "mark_index_available_at"
+    )
+    intent["paper_execution_mark_price_observed_at"] = mark_index_evidence.get(
+        "mark_index_observed_at"
+    )
+    intent["paper_execution_mark_price_authenticated"] = execution_mark_authenticated
     atr_bps = atr_bps_from_payloads(
         intent,
         prediction,
@@ -42827,6 +43328,7 @@ def _build_allocation_input(
         "step_size": _coerce_float(exchange_filter_snapshot.get("step_size")),
         "max_qty": _coerce_float(exchange_filter_snapshot.get("max_qty")),
         "min_notional": _coerce_float(exchange_filter_snapshot.get("min_notional")),
+        "execution_mark_price": execution_mark_price,
         "ppo_action_probability": _coerce_float(signal.get("ppo_action_probability")),
         "masa_confidence": _coerce_float(signal.get("masa_confidence")),
         "lineage_ids": allocation_lineage,
@@ -44119,13 +44621,16 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         )
         integrity_gate = _paper_signal_integrity_gate(s, r)
         ordinary_admission_result = integrity_gate.get("_ordinary_paper_admission_result")
-        candidate_cohort_id = str(
-            _first_present(
-                s.get("paper_strategy_cohort_id"),
-                prediction.get("paper_strategy_cohort_id"),
-            )
-            or ""
-        ).strip() or None
+        candidate_cohort_id = (
+            str(
+                _first_present(
+                    s.get("paper_strategy_cohort_id"),
+                    prediction.get("paper_strategy_cohort_id"),
+                )
+                or ""
+            ).strip()
+            or None
+        )
         candidate_performance_controls = _paper_candidate_performance_controls(
             closed_rows=existing_closed_rows,
             cohort_id=candidate_cohort_id,
@@ -44134,9 +44639,7 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             global_preemptive_bucket_health=pre_cycle_preemptive_bucket_health,
             global_high_confidence_cluster=pre_cycle_high_confidence_loss_cluster_gate,
         )
-        candidate_bucket_quarantine = candidate_performance_controls[
-            "bucket_quarantine"
-        ]
+        candidate_bucket_quarantine = candidate_performance_controls["bucket_quarantine"]
         market_state_envelope = _build_market_state_envelope(signal=s, prediction=prediction)
         if (
             integrity_gate.get("ordinary_paper_claimed") is True
@@ -44189,8 +44692,8 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         market_state_envelope.update(cascade_temporal_status)
         if validated_cascade_ctx is not None:
             market_state_envelope["cascade_context"] = validated_cascade_ctx
-        market_state_envelope["paper_loss_quarantine_status"] = (
-            candidate_bucket_quarantine.get("status")
+        market_state_envelope["paper_loss_quarantine_status"] = candidate_bucket_quarantine.get(
+            "status"
         )
         market_state_envelope["paper_loss_quarantine_generated_utc"] = (
             candidate_bucket_quarantine.get("generated_utc")
@@ -44198,9 +44701,9 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         market_state_envelope["paper_loss_quarantine_blocked_bucket_keys"] = list(
             candidate_bucket_quarantine.get("blocked_bucket_keys") or []
         )
-        market_state_envelope["paper_performance_control_scope"] = (
-            candidate_performance_controls["scope"]
-        )
+        market_state_envelope["paper_performance_control_scope"] = candidate_performance_controls[
+            "scope"
+        ]
         market_state_envelope["paper_performance_control_cohort_id"] = (
             candidate_performance_controls["cohort_id"]
         )
@@ -45033,17 +45536,17 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             intent["entry_feature_candle_closed_confirmed"] = entry_feature_snapshot.get(
                 "candle_closed_confirmed"
             )
-            intent["entry_feature_latest_unclosed_kline_excluded"] = (
-                entry_feature_snapshot.get("latest_unclosed_kline_excluded")
+            intent["entry_feature_latest_unclosed_kline_excluded"] = entry_feature_snapshot.get(
+                "latest_unclosed_kline_excluded"
             )
-            intent["entry_feature_latest_unclosed_exclusion_method"] = (
-                entry_feature_snapshot.get("latest_unclosed_exclusion_method")
+            intent["entry_feature_latest_unclosed_exclusion_method"] = entry_feature_snapshot.get(
+                "latest_unclosed_exclusion_method"
             )
             intent["entry_feature_latest_unclosed_exclusion_decision_time_ms"] = (
                 entry_feature_snapshot.get("latest_unclosed_exclusion_decision_time_ms")
             )
-            intent["entry_feature_latest_closed_kline_close_time_ms"] = (
-                entry_feature_snapshot.get("latest_closed_kline_close_time_ms")
+            intent["entry_feature_latest_closed_kline_close_time_ms"] = entry_feature_snapshot.get(
+                "latest_closed_kline_close_time_ms"
             )
             snapshot_evidence = _entry_feature_snapshot_evidence(entry_feature_snapshot)
             if snapshot_evidence is not None:
@@ -45387,6 +45890,7 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             symbol_exposures=symbol_exposures,
             total_exposure=total_exposure,
             market_microstructure=market_microstructure,
+            mark_index_evidence=mark_index_evidence,
             correlation_contexts_by_symbol=candidate_correlation_contexts,
             fee_schedule_context=fee_schedule_context,
             redis_client=r,
@@ -45562,9 +46066,7 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                         "available_margin": allocation_input.available_margin,
                         "symbol_exposure_usdt": allocation_input.symbol_exposure_usdt,
                         "total_exposure_usdt": allocation_input.total_exposure_usdt,
-                        "paper_risk_budget_fraction": (
-                            allocation_input.paper_risk_budget_fraction
-                        ),
+                        "paper_risk_budget_fraction": (allocation_input.paper_risk_budget_fraction),
                         "snapshot_hash": candidate_reservation_hash,
                     }
                 )
@@ -45676,17 +46178,13 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         if _canary_pid and intent.get("engineering_canary") is not True:
             _canary_arm_raw = None
             try:
-                _canary_arm_raw = r.get(
-                    f"{V2_REDIS_PREFIX}paper:recovery:canary_arm:{_canary_pid}"
-                )
+                _canary_arm_raw = r.get(f"{V2_REDIS_PREFIX}paper:recovery:canary_arm:{_canary_pid}")
             except Exception:  # noqa: BLE001
                 _canary_arm_raw = None
             if _canary_arm_raw:
                 _canary_canon: dict[str, Any] = {}
                 try:
-                    _canary_canon_raw = r.get(
-                        f"{V2_REDIS_PREFIX}prediction:{symbol}:{_canary_tf}"
-                    )
+                    _canary_canon_raw = r.get(f"{V2_REDIS_PREFIX}prediction:{symbol}:{_canary_tf}")
                     if _canary_canon_raw:
                         _canary_canon = json.loads(_canary_canon_raw)
                 except Exception:  # noqa: BLE001
@@ -45697,9 +46195,7 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                     and str(_canary_canon.get("prediction_id") or "") == _canary_pid
                 ):
                     intent["engineering_canary"] = True
-                    intent["paper_recovery_only"] = bool(
-                        _canary_canon.get("paper_recovery_only")
-                    )
+                    intent["paper_recovery_only"] = bool(_canary_canon.get("paper_recovery_only"))
                     # A sealed engineering-canary IS a historical replay; scope the
                     # staleness exception (consumed at ~44910) to this intent only.
                     intent["engineering_replay"] = True
@@ -45769,9 +46265,7 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                 # are still enforced downstream.
                 if intent.get("engineering_replay") is True:
                     intent["feature_staleness_exception_applied"] = True
-                    intent["feature_staleness_exception_scope"] = (
-                        "ENGINEERING_REPLAY_CANARY_ONLY"
-                    )
+                    intent["feature_staleness_exception_scope"] = "ENGINEERING_REPLAY_CANARY_ONLY"
                 intent["valid_for_paper"] = True
                 intent["paper_eligible"] = True
                 intent["strict_valid_for_paper"] = False
@@ -45792,9 +46286,7 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                 global_high_confidence_cluster=pre_cycle_high_confidence_loss_cluster_gate,
             )
         _breaker_for_intent = _intent_performance_controls["breaker"]
-        _bucket_quarantine_for_intent = _intent_performance_controls[
-            "bucket_quarantine"
-        ]
+        _bucket_quarantine_for_intent = _intent_performance_controls["bucket_quarantine"]
         _preemptive_bucket_health_for_intent = _intent_performance_controls[
             "preemptive_bucket_health"
         ]
@@ -46740,6 +47232,82 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                 allocation=allocation_payload,
                 classification=tier_classification,
             )
+            execution_feasibility_publication = _publish_paper_execution_feasibility(
+                r,
+                intent=intent,
+                normal_allocation=normal_allocation_payload,
+                reduced_allocation=allocation_payload,
+            )
+            intent["paper_execution_feasibility_publication"] = execution_feasibility_publication
+            allocation_payload["paper_execution_feasibility_publication"] = (
+                execution_feasibility_publication
+            )
+            execution_contract = allocation_payload.get(
+                "paper_execution_preflight_allocator_contract"
+            )
+            execution_evidence = allocation_payload.get("paper_execution_minimum_feasibility")
+            execution_contract_matches = bool(
+                isinstance(execution_contract, Mapping)
+                and execution_contract.get("values_match") is True
+            )
+            execution_minimum_feasible = bool(
+                isinstance(execution_evidence, Mapping)
+                and execution_evidence.get("feasible") is True
+                and execution_evidence.get("values_match") is True
+                and execution_evidence.get("mark_price_authenticated") is True
+                and execution_evidence.get("symbol_trading_status") == "TRADING"
+                and allocation_payload.get("paper_execution_minimum_feasible") is True
+            )
+            execution_allocator_sizable = allocation_payload.get("allocator_decision") in {
+                "ALLOW_WITH_SIZE",
+                "REDUCE_SIZE",
+            }
+            if (
+                not execution_contract_matches
+                or not execution_minimum_feasible
+                or not execution_allocator_sizable
+            ):
+                if not execution_contract_matches:
+                    execution_block_reason = "BLOCK_EXECUTION_FEASIBILITY_CONTRACT_MISMATCH"
+                elif not execution_minimum_feasible:
+                    execution_block_reason = "BLOCK_RISK_BUDGET_BELOW_EXECUTABLE_MINIMUM"
+                else:
+                    execution_block_reason = str(
+                        allocation_payload.get("allocator_decision")
+                        or "ADAPTIVE_ALLOCATOR_BLOCKED_AFTER_EXECUTION_PREFLIGHT"
+                    )
+                for target in (intent, allocation_payload):
+                    target["paper_execution_minimum_predicate"] = "PAPER_EXECUTION_MINIMUM_FEASIBLE"
+                    target["paper_execution_minimum_feasible"] = False
+                    target["paper_final_governed_authorization"] = False
+                    target["paper_fill_allowed"] = False
+                    target["paper_fill_block_reason"] = execution_block_reason
+                    target["paper_allocation_block_reason"] = execution_block_reason
+                    target["places_real_order"] = False
+                    target["routes_to_live"] = False
+                intent["paper_fill_gate_block_reasons"] = sorted(
+                    set(
+                        list(intent.get("paper_fill_gate_block_reasons") or [])
+                        + [execution_block_reason]
+                    )
+                )
+                intent["local_block_reasons"] = sorted(
+                    set(
+                        list(intent.get("local_block_reasons") or [])
+                        + [f"paper_execution_minimum:{execution_block_reason}"]
+                    )
+                )
+                _attach_paper_sizing(intent, allocation_payload)
+                _attach_paper_allocation_decision_context(
+                    intent,
+                    allocation_payload,
+                )
+                blocked.append(intent)
+                continue
+            for target in (intent, allocation_payload):
+                target["paper_execution_minimum_predicate"] = "PAPER_EXECUTION_MINIMUM_FEASIBLE"
+                target["paper_execution_minimum_feasible"] = True
+                target["paper_final_governed_authorization"] = True
             for key, value in intent.items():
                 if (
                     key.startswith("paper_halted_")
@@ -47110,9 +47678,7 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         # the global (historical HALTED) breaker; history is never relabeled.
         if cycle_provisional_cohort is not None:
             _prov_ck = str(cycle_provisional_cohort.get("checkpoint_id") or "")
-            _prov_cohort_id = str(
-                cycle_provisional_cohort.get("paper_strategy_cohort_id") or ""
-            )
+            _prov_cohort_id = str(cycle_provisional_cohort.get("paper_strategy_cohort_id") or "")
             _intent_ck = str(
                 accepted_intent.get("paper_provisional_checkpoint_id")
                 or accepted_intent.get("paper_cohort_checkpoint_id")
@@ -50126,9 +50692,7 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         _compact_rows_for_state(trainer_feedback_quarantine_rows)
     )
     runtime_intent_state_rows = _compact_runtime_intents_for_redis(intents)
-    runtime_held_intent_state_rows = _compact_runtime_intents_for_redis(
-        held_by_gate_intents
-    )
+    runtime_held_intent_state_rows = _compact_runtime_intents_for_redis(held_by_gate_intents)
     if r is not None:
         # A+ goal Phase 13: publish the zero-tolerance gate verdicts so the
         # candidate matrix / rejection-reason matrix are operator-visible.
@@ -50834,8 +51398,7 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                 cohort_id=_active_cohort_id,
             )
             _cohort_breaker_key = (
-                f"{V2_REDIS_PREFIX}paper:performance_circuit_breaker_status:"
-                f"{_active_cohort_id}"
+                f"{V2_REDIS_PREFIX}paper:performance_circuit_breaker_status:" f"{_active_cohort_id}"
             )
             if _safe_write(
                 r,

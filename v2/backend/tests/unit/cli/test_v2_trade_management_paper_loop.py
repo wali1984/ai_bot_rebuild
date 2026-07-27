@@ -109,6 +109,12 @@ def _binance_usdm_market_filter_row() -> dict[str, object]:
         "quoteAsset": "USDT",
         "filters": [
             {
+                "filterType": "PRICE_FILTER",
+                "minPrice": "0.10",
+                "maxPrice": "1000000",
+                "tickSize": "0.10",
+            },
+            {
                 "filterType": "LOT_SIZE",
                 "minQty": "0.001",
                 "maxQty": "1000",
@@ -167,6 +173,7 @@ def test_paper_exchange_filter_accepts_actual_usdm_market_shape(monkeypatch) -> 
     assert snapshot["min_qty"] == pytest.approx(0.001)
     assert snapshot["step_size"] == pytest.approx(0.001)
     assert snapshot["max_qty"] == pytest.approx(120.0)
+    assert snapshot["tick_size"] == pytest.approx(0.1)
     assert snapshot["min_notional"] == pytest.approx(5.0)
     assert "applyToMarket" not in snapshot["notional_filter"]
 
@@ -2880,8 +2887,9 @@ def test_preliminary_candidate_pit_excludes_recursive_dynamic_envelope() -> None
         for field in preliminary["component_time_fields_checked"]
     )
     assert complete["status"] == "BLOCKED"
-    assert "ALLOCATION_INPUT_TIME_MISSING:dynamic_envelope_market_context_available_at" in (
-        complete["rejection_reasons"]
+    assert (
+        "ALLOCATION_INPUT_TIME_MISSING:dynamic_envelope_market_context_available_at"
+        in (complete["rejection_reasons"])
     )
     assert (
         "ALLOCATION_INPUT_TIME_ORDER_INVALID:"
@@ -3005,8 +3013,7 @@ def test_candidate_cycle_reservation_rebuilds_changed_dynamic_limits() -> None:
     assert rebuilt["evidence_bindings"]["base_resource_evidence_hash"] == "1" * 64
     assert rebuilt["evidence_bindings"]["precycle_exposure_snapshot_hash"] == "2" * 64
     assert (
-        rebuilt["evidence_bindings"]["dynamic_envelope_evidence_hash"]
-        == receipt["evidence_hash"]
+        rebuilt["evidence_bindings"]["dynamic_envelope_evidence_hash"] == receipt["evidence_hash"]
     )
     assert rebuilt["inputs"]["base_equity_usd"] == snapshot["inputs"]["base_equity_usd"]
     assert rebuilt["inputs"]["dynamic_envelope_limits"]["max_total_portfolio_risk_pct"] == (
@@ -7574,8 +7581,9 @@ def test_paper_risk_controller_exploration_classifies_no_trade_guardian_override
         paper_loop.P0_ENTRY_GATE_NOT_EXPLORATION_RELAXABLE_REASON
     )
     assert unresolved_risk["paper_exploration_paper_fill_allowed"] is False
-    assert "RISK_CONTROLLER_DECISION_NOT_FILL_ELIGIBLE:PENDING" in (
-        unresolved_risk["paper_exploration_paper_fill_block_reasons"]
+    assert (
+        "RISK_CONTROLLER_DECISION_NOT_FILL_ELIGIBLE:PENDING"
+        in (unresolved_risk["paper_exploration_paper_fill_block_reasons"])
     )
 
 
@@ -8582,9 +8590,7 @@ def test_scoped_exploration_uses_its_frozen_loss_bound_at_final_admission() -> N
         adaptive_tuning_validation_status="PASS",
     )
     assert "PRE_TRADE_LOSS_PROBABILITY_ABOVE_ALLOWED_BOUND" not in above_bound_reasons
-    assert "PAPER_RISK_CONTROLLER_EXPLORATION_LOSS_PROBABILITY_ABOVE_BOUND" in (
-        above_bound_reasons
-    )
+    assert "PAPER_RISK_CONTROLLER_EXPLORATION_LOSS_PROBABILITY_ABOVE_BOUND" in (above_bound_reasons)
 
 
 def test_materialization_queue_preserves_calibrated_loss_probability_on_revalidation() -> None:
@@ -9979,8 +9985,7 @@ def test_rejected_future_cascade_clocks_remain_audit_only() -> None:
     )
     assert allocation_contract["status"] == "PASS"
     assert not any(
-        "strategy_cascade" in reason
-        for reason in allocation_contract["rejection_reasons"]
+        "strategy_cascade" in reason for reason in allocation_contract["rejection_reasons"]
     )
 
 
@@ -10033,9 +10038,10 @@ def test_exact_strategy_microstructure_evidence_binds_hash_and_clocks() -> None:
     assert intent["microstructure_trust_status"] == (
         "REJECTED_MICROSTRUCTURE_TRUST_ALLOCATION_CONTRACT_INVALID"
     )
-    assert "MICROSTRUCTURE_SOURCE_HASH_INVALID" in intent[
-        "microstructure_trust_allocation_rejection_reasons"
-    ]
+    assert (
+        "MICROSTRUCTURE_SOURCE_HASH_INVALID"
+        in intent["microstructure_trust_allocation_rejection_reasons"]
+    )
 
 
 def _liquidation_atr_test_allocation_input():
@@ -15029,9 +15035,9 @@ def test_direct_orderbook_features_feed_production_grade_cost_contract() -> None
     assert intent["top_book_ask_depth_usd"] == pytest.approx(7525.206321)
     assert intent["market_depth_usd"] == pytest.approx(89967.454721)
     assert intent["depth_derived_price_impact_bps"] == pytest.approx(1.60588456)
-    assert intent["microstructure_source_hash"] == market_microstructure[
-        "microstructure_source_hash"
-    ]
+    assert (
+        intent["microstructure_source_hash"] == market_microstructure["microstructure_source_hash"]
+    )
     assert intent["microstructure_generated_at"] == "2026-06-22T12:59:59.250Z"
     assert intent["runtime_cost_capture_missing_fields"] == []
     assert intent["runtime_cost_capture_temporal_reject_reasons"] == []
@@ -18131,6 +18137,134 @@ def test_confidence_trial_positive_edge_becomes_b_grade_paper_only_exploration()
     assert "paper_reduced_budget_allocator_recomputed" not in allocation
 
 
+def test_reduced_execution_preflight_allocator_disagreement_fails_closed(
+    monkeypatch,
+) -> None:
+    from v2.backend.app.services.adaptive_capital_allocator import (
+        AllocationInput,
+        RiskEnvelope,
+        allocate_paper_candidate,
+    )
+
+    base_input = AllocationInput(
+        symbol="BTCUSDT",
+        timeframe="5m",
+        action="long",
+        price=100.0,
+        equity=10_000.0,
+        available_margin=5_000.0,
+        wallet_balance=10_000.0,
+        confidence_calibrated=0.8,
+        expected_move_after_cost_bps=80.0,
+        market_state_integrity_score=95.0,
+        liquidity_score=1.0,
+        maintenance_margin_rate=0.005,
+        stop_distance_bps=100.0,
+        min_qty=0.01,
+        step_size=0.01,
+        max_qty=100.0,
+        min_notional=5.0,
+    )
+    reduced_input = replace(base_input, paper_risk_budget_fraction=0.5)
+    preflight = allocate_paper_candidate(reduced_input, envelope=RiskEnvelope())
+    assert preflight.decision in {"ALLOW_WITH_SIZE", "REDUCE_SIZE"}
+
+    monkeypatch.setattr(
+        paper_loop,
+        "_paper_allocate_with_bracket_evidence",
+        lambda **_kwargs: (preflight, reduced_input, {"status": "TEST"}),
+    )
+    call_count = 0
+
+    def disagreeing_allocator(row, envelope=None):
+        nonlocal call_count
+        call_count += 1
+        result = allocate_paper_candidate(row, envelope=envelope)
+        if call_count == 1:
+            model_inputs = dict(result.model_inputs)
+            minimum = dict(model_inputs["paper_execution_minimum"])
+            minimum["minimum_executable_notional"] += 1.0
+            model_inputs["paper_execution_minimum"] = minimum
+            return replace(result, model_inputs=model_inputs)
+        return result
+
+    intent = {
+        "symbol": "BTCUSDT",
+        "timeframe": "5m",
+        "paper_exchange_filter_snapshot": {
+            "tick_size": 0.1,
+            "symbol_status": "TRADING",
+            "source": "TEST",
+            "observed_at": "2026-07-27T00:00:00Z",
+            "snapshot_hash": "a" * 64,
+        },
+    }
+    allocation, _ = paper_loop._paper_reallocate_for_reduced_risk_budget(  # noqa: SLF001
+        intent=intent,
+        allocation_input=base_input,
+        normal_allocation=allocate_paper_candidate(base_input).to_payload(),
+        envelope=RiskEnvelope(),
+        redis_client=None,
+        security_context=None,
+        allocation_decision_time=datetime(2026, 7, 27, tzinfo=timezone.utc),
+        allocate_fn=disagreeing_allocator,
+        risk_budget_fraction_of_normal_adaptive=0.5,
+    )
+
+    assert allocation["allocator_decision"] == ("BLOCK_EXECUTION_FEASIBILITY_CONTRACT_MISMATCH")
+    contract = allocation["paper_execution_preflight_allocator_contract"]
+    assert contract["values_match"] is False
+    assert contract["changed_fields"] == ["minimum_executable_notional"]
+    assert intent["paper_execution_minimum_feasible"] is False
+
+
+def test_symbol_execution_feasibility_publication_is_bounded_and_paper_only() -> None:
+    redis = _FakeRedis({})
+    evidence = {
+        "mark_price": 100.0,
+        "minimum_executable_quantity": 0.05,
+        "minimum_executable_notional": 5.0,
+        "final_target_notional": 20.0,
+        "execution_headroom_usd": 15.0,
+        "exploration_factor": 0.05,
+        "liquidity_multiplier": 0.8,
+        "feasible": True,
+        "values_match": True,
+        "mark_price_authenticated": True,
+        "symbol_trading_status": "TRADING",
+        "exchange_filter_source": "TEST_AUTHENTICATED_FILTER",
+        "exchange_filter_observed_at": "2026-07-27T00:00:00Z",
+        "exchange_filter_snapshot_hash": "a" * 64,
+    }
+    payload = paper_loop._publish_paper_execution_feasibility(  # noqa: SLF001
+        redis,
+        intent={
+            "symbol": "BTCUSDT",
+            "timeframe": "5m",
+            "side": "long",
+            "prediction_id": "prediction-1",
+            "intent_id": "intent-1",
+        },
+        normal_allocation={"gross_notional_usd": 400.0},
+        reduced_allocation={
+            "allocator_decision": "ALLOW_WITH_SIZE",
+            "risk_budget_usd": 1.0,
+            "paper_execution_minimum_feasible": True,
+            "paper_execution_minimum_feasibility": evidence,
+            "model_inputs": {"risk_budget_after_paper_quality_weight_usd": 1.0},
+        },
+        ttl_seconds=180,
+    )
+
+    assert payload["currently_executable"] is True
+    assert payload["minimum_base_notional_before_reductions"] == pytest.approx(100.0)
+    assert payload["paper_only"] is True
+    assert payload["routes_to_live"] is False
+    assert payload["places_real_order"] is False
+    stored = json.loads(redis.get("v2:paper:execution_feasibility:BTCUSDT"))
+    assert stored["payload_sha256"] == payload["payload_sha256"]
+
+
 def test_reduced_size_microstructure_becomes_a_plus_bootstrap_paper_only() -> None:
     signal = {
         "confidence_calibrated": 0.70,
@@ -19331,9 +19465,7 @@ def test_microstructure_trust_reader_prefers_exact_one_hour_timeframe() -> None:
         timeframe="1h",
     )
 
-    assert trust["microstructure_trust_source"] == (
-        "v2:microstructure:trust_score:ETCUSDT:1h"
-    )
+    assert trust["microstructure_trust_source"] == ("v2:microstructure:trust_score:ETCUSDT:1h")
     assert trust["microstructure_trust_score"] == 0.81
     assert trust["microstructure_action"] == "ALLOW"
 
@@ -23286,9 +23418,12 @@ def test_allocator_upstream_regime_labels_and_score_are_diagnostic_only() -> Non
     assert allocation_input.market_regime is None
     assert allocation_input.risk_veto is True
     assert "FAIL_CLOSED_NO_REGIME_SCORE" in str(allocation_input.risk_veto_reason)
-    assert paper_loop._paper_allocator_regime_source_rejection_reasons(  # noqa: SLF001
-        intent["allocator_regime_source_material"]
-    ) == []
+    assert (
+        paper_loop._paper_allocator_regime_source_rejection_reasons(  # noqa: SLF001
+            intent["allocator_regime_source_material"]
+        )
+        == []
+    )
 
 
 def test_allocator_router_no_trade_regime_sets_explicit_risk_veto() -> None:

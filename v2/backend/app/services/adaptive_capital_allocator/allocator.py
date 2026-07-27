@@ -22,7 +22,12 @@ from .contracts import (
     AllocationResult,
     RiskEnvelope,
 )
-from .exchange_filters import min_order_notional, round_down_to_step
+from .exchange_filters import (
+    min_order_notional,
+    paper_execution_minimum,
+    round_down_to_step,
+    round_down_to_step_exact,
+)
 from .explanation import explain_allocation
 from .risk_budget import available_margin_budget_usdt, risk_envelope_gross_notional_ceiling
 from .sizing_model import (
@@ -561,6 +566,7 @@ def _paper_input_rejection_reasons(row: AllocationInput, envelope: RiskEnvelope)
         "masa_confidence",
         "entry_atr_bps",
         "exit_overshoot_premium_bps",
+        "execution_mark_price",
     )
     for field in required_fields:
         if _finite_float(getattr(row, field)) is None:
@@ -722,6 +728,7 @@ def allocation_input_material(
         # This paper-only input is intentionally absent from the live material
         # so adding it cannot change a live allocation hash or payload.
         allocation_input.pop("paper_quality_sizing_weight", None)
+        allocation_input.pop("execution_mark_price", None)
     return {
         "schema_version": ALLOCATION_INPUT_SCHEMA_VERSION,
         "mode": str(mode),
@@ -2349,6 +2356,7 @@ def _result(
                 "allocation_input_hash_algorithm": ALLOCATION_INPUT_HASH_ALGORITHM,
                 "paper_risk_budget_fraction": row.paper_risk_budget_fraction,
                 "max_qty": row.max_qty,
+                "execution_mark_price": row.execution_mark_price,
                 **maintenance_diagnostics,
             }
         )
@@ -3065,20 +3073,46 @@ def _allocate(row: AllocationInput, *, mode: str, envelope: RiskEnvelope) -> All
     min_notional = min_order_notional(
         min_qty=row.min_qty, min_notional=row.min_notional, price=row.price
     )
-    if min_notional > 0 and target_notional < min_notional:
-        # Every paper allocation is an upper-bounded risk experiment. Raising
-        # any continuous target to a venue minimum can violate that budget,
-        # even when the explicit recovery fraction is exactly one.
-        if mode == "paper":
+    paper_execution_minimum_evidence: dict[str, Any] | None = None
+    if mode == "paper":
+        execution_mark_price = _finite_float(row.execution_mark_price) or row.price
+        paper_execution_minimum_evidence = paper_execution_minimum(
+            mark_price=execution_mark_price,
+            min_qty=row.min_qty,
+            min_notional=row.min_notional,
+            step_size=row.step_size,
+            max_qty=row.max_qty,
+        )
+        exact_minimum_notional = _finite_float(
+            paper_execution_minimum_evidence.get("minimum_executable_notional")
+        )
+        if exact_minimum_notional is not None:
+            min_notional = exact_minimum_notional
+        execution_headroom = (
+            target_notional - exact_minimum_notional if exact_minimum_notional is not None else None
+        )
+        paper_execution_minimum_evidence.update(
+            {
+                "predicate": "PAPER_EXECUTION_MINIMUM_FEASIBLE",
+                "final_target_notional": round(target_notional, 8),
+                "execution_headroom_usd": (
+                    round(execution_headroom, 8) if execution_headroom is not None else None
+                ),
+                "feasible": bool(
+                    paper_execution_minimum_evidence.get("status") == "PASS"
+                    and execution_headroom is not None
+                    and execution_headroom >= 0.0
+                ),
+            }
+        )
+        if paper_execution_minimum_evidence["feasible"] is not True:
+            # Every paper allocation is an upper-bounded risk experiment.
+            # Never round a reduced target up to the venue minimum.
             return _block(
                 row,
                 mode=mode,
-                decision="BLOCK_EXCHANGE_MIN_ORDER",
-                reason=(
-                    "paper_reduced_risk_budget_below_exchange_min_order"
-                    if paper_risk_budget_fraction < 1.0
-                    else "paper_continuous_target_below_exchange_min_order"
-                ),
+                decision="BLOCK_RISK_BUDGET_BELOW_EXECUTABLE_MINIMUM",
+                reason="paper_risk_budget_below_exact_executable_minimum",
                 envelope=envelope,
                 extra_diagnostics={
                     "paper_risk_budget_fraction": round(
@@ -3107,8 +3141,10 @@ def _allocate(row: AllocationInput, *, mode: str, envelope: RiskEnvelope) -> All
                         8,
                     ),
                     "exchange_min_order_notional_usd": round(min_notional, 8),
+                    "paper_execution_minimum": paper_execution_minimum_evidence,
                 },
             )
+    elif min_notional > 0 and target_notional < min_notional:
         if ceiling >= min_notional:
             target_notional = min_notional
         else:
@@ -3131,7 +3167,7 @@ def _allocate(row: AllocationInput, *, mode: str, envelope: RiskEnvelope) -> All
         if paper_exchange_max_qty_reduction_applied:
             assert row.max_qty is not None
             paper_raw_quantity = float(row.max_qty)
-        paper_quantized_quantity = round_down_to_step(
+        paper_quantized_quantity = round_down_to_step_exact(
             paper_raw_quantity,
             row.step_size,
         )
@@ -3139,8 +3175,8 @@ def _allocate(row: AllocationInput, *, mode: str, envelope: RiskEnvelope) -> All
             return _block(
                 row,
                 mode=mode,
-                decision="BLOCK_EXCHANGE_MIN_ORDER",
-                reason="quantity_rounds_to_zero",
+                decision="BLOCK_RISK_BUDGET_BELOW_EXECUTABLE_MINIMUM",
+                reason="paper_exact_quantity_rounds_to_zero",
                 envelope=envelope,
                 extra_diagnostics={
                     "paper_post_quantization_exchange_filter_status": "FAIL_CLOSED",
@@ -3169,12 +3205,14 @@ def _allocate(row: AllocationInput, *, mode: str, envelope: RiskEnvelope) -> All
                 row,
                 mode=mode,
                 decision=(
-                    "BLOCK_EXCHANGE_MAX_ORDER" if above_max_qty else "BLOCK_EXCHANGE_MIN_ORDER"
+                    "BLOCK_EXCHANGE_MAX_ORDER"
+                    if above_max_qty
+                    else "BLOCK_RISK_BUDGET_BELOW_EXECUTABLE_MINIMUM"
                 ),
                 reason=(
                     "paper_step_quantization_above_exchange_max_order"
                     if above_max_qty
-                    else "paper_step_quantization_below_exchange_min_order"
+                    else "paper_step_quantization_below_exact_executable_minimum"
                 ),
                 envelope=envelope,
                 extra_diagnostics={
@@ -3287,6 +3325,7 @@ def _allocate(row: AllocationInput, *, mode: str, envelope: RiskEnvelope) -> All
                     8,
                 ),
                 "paper_margin_configuration_uses_post_quantization_notional": True,
+                "paper_execution_minimum": paper_execution_minimum_evidence,
             }
         )
     if hedge_sizing_diag is not None:

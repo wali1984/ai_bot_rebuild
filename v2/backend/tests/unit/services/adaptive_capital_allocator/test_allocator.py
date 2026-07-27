@@ -2144,9 +2144,10 @@ def test_paper_probe_fraction_never_rounds_up_to_exchange_minimum() -> None:
         )
     )
 
-    assert result.decision == "BLOCK_EXCHANGE_MIN_ORDER"
+    assert result.decision == "BLOCK_RISK_BUDGET_BELOW_EXECUTABLE_MINIMUM"
     assert result.target_notional_usdt == 0.0
-    assert result.final_size_reason == ("paper_reduced_risk_budget_below_exchange_min_order")
+    assert result.final_size_reason == "paper_risk_budget_below_exact_executable_minimum"
+    assert result.model_inputs["paper_execution_minimum"]["feasible"] is False
     assert result.model_inputs["paper_risk_budget_fraction"] == 0.25
 
 
@@ -2171,16 +2172,16 @@ def test_paper_coarse_step_fails_closed_when_final_size_is_below_exchange_minimu
     # The adaptive target is $800 (8 units), but a 3-unit step can emit only
     # 6 units / $600.  The allocator may not round that result up to satisfy a
     # venue minimum and may not carry the pre-step PASS into the final result.
-    assert result.decision == "BLOCK_EXCHANGE_MIN_ORDER"
+    assert result.decision == "BLOCK_RISK_BUDGET_BELOW_EXECUTABLE_MINIMUM"
     assert result.target_quantity == 0.0
     assert result.target_notional_usdt == 0.0
     assert result.allocated_margin_usd == 0.0
-    assert result.final_size_reason == ("paper_step_quantization_below_exchange_min_order")
-    assert result.model_inputs["paper_post_quantization_exchange_filter_status"] == ("FAIL_CLOSED")
-    assert result.model_inputs[failed_filter_field] is True
-    assert result.model_inputs["paper_target_notional_before_step_quantization_usd"] == 800.0
-    assert result.model_inputs["paper_target_quantity_after_step_quantization"] == 6.0
-    assert result.model_inputs["paper_target_notional_after_step_quantization_usd"] == 600.0
+    assert result.final_size_reason == "paper_risk_budget_below_exact_executable_minimum"
+    minimum = result.model_inputs["paper_execution_minimum"]
+    assert minimum["feasible"] is False
+    assert minimum["final_target_notional"] == 800.0
+    assert minimum["minimum_executable_notional"] == 900.0
+    assert minimum["execution_headroom_usd"] == -100.0
 
 
 def test_paper_post_quantization_notional_drives_margin_and_liquidation_stress() -> None:
