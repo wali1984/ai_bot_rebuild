@@ -1600,7 +1600,7 @@ hard and fail closed.
 | FP-000 | Coordination | Create goal, in-document checklist, evidence rules, and status ledger | Codex | COMPLETE | Goal record plus this tracker and validated coordination artifacts |
 | FP-001 | Coordination | Initialize work queue, ownership, progress, review, decision, and acceptance artifacts | Codex | COMPLETE | Six valid artifacts under `goal_state/ADAPTIVE_SYSTEM_FINAL_PASS/` |
 | FP-010 | 0 | Freeze current repository, deployment, checkpoint, process, Redis, lineage, and gate truth | Codex | COMPLETE | `PHASE0_CURRENT_TRUTH.json`, SHA-256 `53f3d562035d98753818515d124c7730af4162a421a16815ae76ced935421a74` |
-| FP-020 | 1 | Classify every trading-affecting value and remove manual Category-E final authority | Claude/Codex | IN_PROGRESS | Inventory complete; unclassified values 0; static final authorities 0 |
+| FP-020 | 1 | Classify every trading-affecting value and remove manual Category-E final authority | Claude/Codex | IN_PROGRESS | Scanner v2 `3f138f17e8` deterministically finds 25,416 worktree candidates across seven source kinds with 0 duplicates; all remain unclassified, runtime reachability and authority removal remain |
 | FP-030 | 2 | Define and verify `AdaptivePolicyActionV2` | Claude/Codex | COMPLETE | Canonical contract `0980e69210`, duplicate removed `658d6fc760`; 45 tests and independent SHA review PASS |
 | FP-040 | 3 | Convert component vetoes into calibrated continuous estimates | Claude/Codex | IN_PROGRESS | Shadow schema/projector accepted at `2934dcff31` + `5ce083874d`; calibrated producers and authority cutover remain |
 | FP-050 | 4 | Implement portfolio after-cost objective and adaptive exploration allocation | Claude/Codex | IN_PROGRESS | Independently accepted shadow foundation `d12f418d3d`; authenticated hard-validation evidence, exact PIT/lineage/units, self-recomputing scores, nonterminal flat-collapse signals, and bounded positive-utility information seeking; runtime fitting and policy integration remain |
@@ -1645,6 +1645,7 @@ Machine-readable task state is maintained in
 | 2026-07-27T18:43:23.998309Z | FP-050 adaptive objective | CODE COMPLETE / REVIEW PENDING | Commit `79681b8a98`; learned-weight evidence, after-cost utility, adaptive concurrent exploit/explore allocation, flat-collapse escalation signals, hard-invalid exclusion, and no-authority boundary; 19 focused tests pass |
 | 2026-07-27T18:43:23.998309Z | FP-130 venue-minimum primitive | PRELIMINARY PRIMITIVE PASS / FULL CONTROLLER IN PROGRESS | Commit `2b7442e61a`; exact arithmetic, policy budgets, capital/reservations, catastrophic headroom, and required hard-validator handoff independently pass 27 tests; no runtime consumer or execution authority; this is not the full exploration controller |
 | 2026-07-27T19:10:02.282419Z | FP-050 adaptive objective adversarial co-fix | PASS SHADOW FOUNDATION / RUNTIME FITTING IN PROGRESS | Commit `d12f418d3d`; source SHA `0d99d75223f6ae4b736c98271b468f44c5e0eea96d7b1d92a9c43b7cae24dbf1`; tests SHA `67f60ef1c35c5f1c1a4f9fd49c06596c29f56f8bf9c0550ce0866d756b64d0dc`; 47 focused and 171 combined adaptive-foundation tests pass; independent adversarial PASS; no runtime authority changed |
+| 2026-07-27T19:14:20.452873Z | FP-020 scanner v2 | COVERAGE INFRASTRUCTURE PASS / CLASSIFICATION OPEN | Commit `3f138f17e8`; path-only false relevance removed; function defaults, local policy values, and policy-named fields added; nested set literals normalized deterministically; 11 tests pass; current worktree scan finds 25,416 candidates, 0 classified, 25,416 unclassified, 0 duplicates, so Phase 1 remains fail-closed |
 
 ## Current final status
 
@@ -1682,8 +1683,8 @@ places_real_order=false
 exchange_action_taken=false
 
 OPERATOR_ACTION_REQUIRED=NONE_WHILE_CONTROLLABLE_ENGINEERING_WORK_REMAINS
-LATEST_REPOSITORY_CHECKPOINT=d12f418d3d
-LATEST_FOCUSED_FOUNDATION_TESTS=171_PASS
+LATEST_REPOSITORY_CHECKPOINT=3f138f17e8
+LATEST_FOCUSED_FOUNDATION_TESTS=171_ADAPTIVE_PLUS_11_SCANNER_PASS
 ```
 
 ---
