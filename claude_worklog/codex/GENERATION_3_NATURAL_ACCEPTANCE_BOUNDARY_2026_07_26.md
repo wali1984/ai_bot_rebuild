@@ -411,3 +411,28 @@ The unchanged 13 failures and 31 setup errors remain the documented legacy
 final-admission fixture family. No threshold, checkpoint, cohort, model, risk
 budget, exchange filter, historical outcome, live authority, or exchange state
 was changed.
+
+Execution-feasibility command ledger, run from the repository root:
+
+```text
+wc -l; sed -n; rg -n/--files; tail -n; sha256sum; jq/jq -e
+git status/diff/diff --check/add/commit/rev-parse/show/log/check-ignore/ls-files
+git worktree add --detach <release-path> <exact-commit>
+git -C <release-path> diff --quiet --exit-code <exact-commit> --
+.venv/bin/python -m py_compile <changed Python files>
+.venv/bin/ruff check --select E902,F821,F822,F823 <changed files>
+.venv/bin/pytest -q v2/backend/tests/unit/services/adaptive_capital_allocator
+.venv/bin/pytest -q v2/backend/tests/unit/services/preemptive_edge_control
+.venv/bin/pytest -q/--tb=no v2/backend/tests/unit/cli/test_v2_trade_management_paper_loop.py
+.venv/bin/python scripts/s15_stale_feature_injection_test.py
+.venv/bin/python scripts/s16_redis_resilience_test.py
+.venv/bin/python scripts/guardian_phase10_rare_event_tests.py
+redis-cli GET/MGET/SCAN --pattern <paper execution/status/position keys>
+systemctl --user cat/show/is-active/list-units/daemon-reload/restart <scoped units>
+systemd-analyze --user verify ai-bot-v2-stack.target default.target timers.target ai-bot-v2-trade-management-paper-loop.service
+journalctl --user -u ai-bot-v2-trade-management-paper-loop.service <scoped window>
+three-second jq -e generation-bound monitor with flock armed only for persisted fill plus open position
+```
+
+The three scoped systemd restarts changed only the paper loop and occurred only
+after read-only Redis checks proved both position collections were empty.
