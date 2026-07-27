@@ -1283,6 +1283,22 @@ def import_profiled_training_ledger_shards_to_challenger_archive_v1(
             str(exclusion.reason) for exclusion in batch.exclusions
         )
         for sample in batch.samples:
+            # Defect B, hot-archive execution path: the label archive is
+            # continuously appended, so the shared proof can go stale between
+            # rows.  A cheap currency check (no scan) refreshes the shared proof
+            # at most once per append instead of re-verifying per row;
+            # build_finalized_label_binding_v1 still re-proofs internally if the
+            # archive advances within the row itself.
+            if not label_archive.integrity_proof_is_current(integrity):
+                fresh_integrity, fresh_high_water = (
+                    derive_label_archive_fixed_observation_proof_v1(
+                        archive=label_archive,
+                        observation=observed_clock,
+                    )
+                )
+                if fresh_integrity is not None and fresh_high_water is not None:
+                    integrity = fresh_integrity
+                    label_high_water = fresh_high_water
             try:
                 label_binding, label_reasons = build_finalized_label_binding_v1(
                     sample=sample,
