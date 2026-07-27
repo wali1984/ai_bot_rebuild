@@ -74,8 +74,56 @@ additional cycles, five-close economic cohort, G03, G11, G13, and G14 remain
 open. G12 remains 17/17 PASS. Do not emit `V2_PERMANENT_RECOVERY_COMPLETE`.
 
 Safe next action: leave the paper-only services and unchanged gates running;
-resume lifecycle/restart acceptance only after a natural governed admission is
-observed. A new model generation is not authorized by this evidence.
+resume lifecycle/restart acceptance only after the fresh, generation-bound
+predicate below succeeds. A new model generation is not authorized by this
+evidence.
+
+## Fresh generation-bound resume predicate
+
+The observer artifact is a 10-second heartbeat over a roughly one-minute paper
+cycle. The resume check therefore requires the status heartbeat to be no more
+than 60 seconds old and the latest completed cycle observation to be no more
+than 180 seconds old. Invalid JSON, missing timestamps, malformed timestamps,
+the wrong generation/checkpoint/cohort, a closed position, or any unsafe
+authority flag makes `jq -e` exit nonzero.
+
+```bash
+jq -e '
+  def epoch:
+    if type == "string" then
+      (sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601)
+    else
+      error("timestamp_not_string")
+    end;
+  . as $s
+  | ($s.generated_utc | epoch) as $status_epoch
+  | ($s.latest_cycle.observed_utc | epoch) as $cycle_epoch
+  | $s.schema_version == "generation_natural_acceptance_observer_v1"
+    and (now >= $status_epoch and (now - $status_epoch) <= 60)
+    and (now >= $cycle_epoch and (now - $cycle_epoch) <= 180)
+    and $s.classification == "NATURAL_ADMISSION_OBSERVED"
+    and $s.checkpoint_generation == 3
+    and $s.checkpoint_id == "SERVING_ABI_V2_PAPER_f2f6e3b4c67a42b6c13880a4"
+    and $s.cohort_id == "paper_serving_abi_v2:541f38b82f5261b5176bbf5f"
+    and $s.latest_cycle.checkpoint_generation == $s.checkpoint_generation
+    and $s.latest_cycle.checkpoint_id == $s.checkpoint_id
+    and $s.latest_cycle.cohort_id == $s.cohort_id
+    and (($s.candidates_admitted // 0) > 0)
+    and (($s.paper_fills_created // 0) > 0)
+    and (($s.generation_open_positions // 0) > 0)
+    and $s.paper_only == true
+    and $s.live_gate == "blocked_human_only"
+    and $s.routes_to_live == false
+    and $s.places_real_order == false
+    and $s.exchange_action_taken == false
+' goal_state/PERMANENT_SYSTEM_RECOVERY/generation_acceptance_status.json
+```
+
+Requiring a current open position is intentional: the first resume action is
+the restart-reconstruction capture, which cannot be proved after the position
+has already closed. Once the predicate succeeds, freeze the admitted lineage
+and accounting snapshot before restarting canonical serving and then the paper
+loop.
 
 ## Post-boundary confirmation
 
