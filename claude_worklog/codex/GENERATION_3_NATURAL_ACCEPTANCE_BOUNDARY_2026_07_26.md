@@ -164,3 +164,99 @@ stale-source condition.
 The resumed evidence again selects remediation condition A:
 `action=CONTINUE_OBSERVATION`. It does not authorize generation-4 retraining,
 consumer-threshold changes, or weakening the historical global guardian.
+
+## Active deadlock repair and immutable deployment
+
+The later active-repair directive replaced passive observation. The frozen
+decision contract and independent production/reference matrix are preserved in:
+
+- `goal_state/PERMANENT_SYSTEM_RECOVERY/generation3_admission_contract_baseline.json`
+- `goal_state/PERMANENT_SYSTEM_RECOVERY/generation3_admission_deadlock_report.json`
+- `.local_data/permanent_system_recovery/generation3_admission_deadlock_matrix_v1.jsonl`
+
+No threshold, strategy parameter, model generation, checkpoint, cohort, live
+authority, or immutable historical outcome was changed.
+
+Three deterministic paper-admission defects were repaired in sequence:
+
+1. Commit `5354ef10c3547fcb74c65d4eefd05294f3c47d0c` made preliminary allocation
+   replay use non-recursive point-in-time inputs and retain exact canonical risk
+   authority.
+2. Commit `91a659ff594af34591c9f0624c8d22cb7e1c1171` rebuilt a candidate reservation
+   snapshot from frozen resources when the candidate's governed dynamic
+   envelope legitimately differed from the preliminary envelope. It did not
+   copy limits across envelopes or turn a blocked receipt into a pass.
+3. Commit `556bdb9fc65a7f6e9919e0772de9bb31ae8755b5` removed two duplicated authority
+   applications. The strict A+ confidence floor no longer preempts an otherwise
+   fill-ready paper risk-controller exploration candidate that already passes
+   its unchanged dynamic confidence floor. Final admission now honors the
+   preemptive controller's explicit `adaptive_loss_probability_threshold_applied=false`
+   only for the exact cohort-scoped, paper-only exploration decision, while the
+   unchanged `<0.72` exploration loss bound remains mandatory. Missing risk,
+   malformed adaptive authority, live-route flags, any other P0 entry reason,
+   or loss probability at/above `0.72` still blocks.
+
+The paper loop alone was deployed immutably at
+`556bdb9fc65a7f6e9919e0772de9bb31ae8755b5`. The pre-deployment book was empty;
+systemd verification emitted no diagnostics; the service is active with
+`NRestarts=0`. Canonical serving and the observer were not restarted.
+
+## Post-repair ten-cycle proof
+
+Cycles 263 through 272 form the required first ten completed paper cycles after
+the immutable deployment. They ran from 2026-07-27 04:36:04.776 UTC through
+04:50:09.903 UTC.
+
+| Predicate | Actual |
+|---|---:|
+| completed cycles | 10 |
+| canonical predictions | 1,317 |
+| directional predictions | 540 |
+| candidates evaluated | 195 |
+| preemptive exploration authorizations | 9 |
+| paper intents | 195 |
+| persisted paper fills | 0 |
+| open positions | 0 |
+| natural closes | 0 |
+| generic microstructure blocks | 0 |
+| cycles with exact predicate details | 10/10 |
+| duplicate fills | 0 |
+| duplicate closes | 0 |
+| reservation leaks | 0 |
+| routes to live | false |
+| places real order | false |
+
+The key runtime proof is OPUSDT 1h prediction
+`v2h_6e3ae77ba27f2ba70fa2ff376c1e3c53`: it passed canonical risk and
+orchestrator, passed the unchanged exploration dynamic confidence policy, and
+naturally classified as `PAPER_RISK_CONTROLLER_EXPLORATION`. This proves the
+duplicate strict-confidence deadlock is removed. Its normal adaptive notional
+was `$69.52135`; the unchanged exploration factor was `0.03177578`, so the
+reduced target was below the venue minimum. The allocator correctly returned
+`BLOCK_EXCHANGE_MIN_ORDER` instead of rounding upward beyond the frozen risk
+budget. Other inspected authorizations retained independent outcome-memory,
+risk-record, or exposure-budget failures.
+
+The status artifact's cumulative `classification=NATURAL_ADMISSION_OBSERVED`
+means a preemptive exploration authorization exists; it is not accepted as a
+natural lifecycle trigger. The fail-closed resume predicate above still exits
+nonzero because `paper_fills_created=0` and `generation_open_positions=0`.
+Therefore the single-run restart lock was not acquired and restart
+reconstruction was not attempted.
+
+Current truthful state remains:
+
+```text
+ENGINEERING_RECOVERY_COMPLETE=false
+RUNTIME_ACCEPTANCE_PENDING=true
+ECONOMIC_ACCEPTANCE_PENDING=true
+V2_PERMANENT_RECOVERY_COMPLETE=false
+LIVE_NO_GO=true
+```
+
+The exact deterministic defect is fixed, immutably deployed, and observed for
+the required ten cycles. Leave the governed paper stack running unchanged. At
+the first persisted natural fill with an open generation-3 position, use the
+fresh generation-bound predicate above, acquire the single-run lock, freeze the
+observer's restart capture, and immediately perform canonical-serving followed
+by paper-loop restart reconstruction before ordinary close.
