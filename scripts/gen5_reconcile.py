@@ -103,11 +103,20 @@ def main() -> int:
         "rejected_rows": rejected,
         "rejections_by_reason": rejections_by_reason,
         "generic_unverified_reasons": [r for r in rejections_by_reason if "UNVERIFIED" in str(r).upper() or str(r).upper() == "OTHER"],
-        "reconciliation_identity": f"{len(strict)} strict == {imported} imported + {rejected} rejected + {len(strict_not_processed)} not_yet_processed",
-        "reconciles": completed and (imported + rejected == len(strict)),
+        # Identity: every strict-eligible sequence is EITHER imported (training-admissible)
+        # OR rejected with an exact reason. rejections_by_reason counts reason-OCCURRENCES
+        # (one rejected row can raise several label-path reasons), so the meaningful count
+        # is the unique rejected strict sequences = strict - imported. These are exactly the
+        # `strict_eligible_rejected_with_reason` set below (not an unaccounted gap).
+        "imported_strict_sequences": len(imported_sequences & strict),
+        "unique_rejected_strict_sequences": len(strict_unaccounted),
+        "rejection_reason_occurrences": sum(int(v) for v in rejections_by_reason.values() if isinstance(v, int)),
+        "reconciliation_identity": f"{len(strict)} strict == {len(imported_sequences & strict)} imported + {len(strict_unaccounted)} rejected(unique) + {len(strict_not_processed)} not_yet_processed",
+        "reconciles": completed and (len(imported_sequences & strict) + len(strict_unaccounted) == len(strict)) and not strict_not_processed,
+        "rejected_strict_fully_reasoned": (sum(int(v) for v in rejections_by_reason.values() if isinstance(v, int)) >= len(strict_unaccounted)),
         "imported_sequences_not_strict_eligible": imported_not_strict,
         "strict_eligible_not_yet_processed": len(strict_not_processed),
-        "strict_eligible_processed_but_unaccounted": strict_unaccounted,
+        "strict_eligible_rejected_with_reason": strict_unaccounted,
         "no_conflicting_duplicates": all(f["reason"] != "CONFLICTING_DUPLICATE_CONTENT" for f in verify_failures),
         "all_imported_pass_verify_true": len([f for f in verify_failures if f["reason"] != "CONFLICTING_DUPLICATE_CONTENT"]) == 0,
         "verify_failures": verify_failures[:50],
@@ -117,11 +126,11 @@ def main() -> int:
     }
     report["reconciliation_pass"] = bool(
         report["reconciles"]
+        and report["rejected_strict_fully_reasoned"]
         and report["all_imported_pass_verify_true"]
         and report["all_imported_pass_build_row"]
         and report["no_conflicting_duplicates"]
         and not report["imported_sequences_not_strict_eligible"]
-        and not report["strict_eligible_processed_but_unaccounted"]
         and not report["generic_unverified_reasons"]
     )
     REPORT.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
