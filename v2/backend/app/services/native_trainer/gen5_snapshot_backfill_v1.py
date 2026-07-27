@@ -438,6 +438,15 @@ def load_or_create_fixed_snapshot(config: Gen5BackfillConfig) -> dict[str, Any]:
     return _validate_snapshot_manifest(config, manifest)
 
 
+def validate_existing_fixed_snapshot(config: Gen5BackfillConfig) -> dict[str, Any]:
+    """Load and fully revalidate an existing snapshot without creating one."""
+
+    manifest = _read_json_object(config.snapshot_manifest_path)
+    if manifest is None:
+        raise Gen5SnapshotBackfillError("GEN5_SNAPSHOT_MANIFEST_MISSING")
+    return _validate_snapshot_manifest(config, manifest)
+
+
 def _process_resources() -> dict[str, Any]:
     usage = resource.getrusage(resource.RUSAGE_SELF)
     descriptor_count: int | None
@@ -799,4 +808,5 @@ __all__ = [
     "load_or_create_fixed_snapshot",
     "run_snapshot_backfill",
     "sqlite_snapshot",
+    "validate_existing_fixed_snapshot",
 ]
