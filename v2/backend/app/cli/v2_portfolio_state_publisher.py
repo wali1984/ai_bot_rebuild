@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 from datetime import datetime, timezone, timedelta
@@ -26,7 +27,21 @@ from v2.backend.app.services.paper_trade_management.margin_accounting import (
 )
 
 V2_REDIS_PREFIX = "v2:"
-REPO_ROOT = Path(__file__).resolve().parents[4]
+PORTFOLIO_RUNTIME_REPO_ROOT_ENV = "V2_PORTFOLIO_RUNTIME_REPO_ROOT"
+
+
+def _configured_repo_root(
+    environ: dict[str, str] | None = None,
+    *,
+    code_root: Path | None = None,
+) -> Path:
+    source = os.environ if environ is None else environ
+    immutable_code_root = code_root or Path(__file__).resolve().parents[4]
+    configured = str(source.get(PORTFOLIO_RUNTIME_REPO_ROOT_ENV) or "").strip()
+    return Path(configured).expanduser().resolve() if configured else immutable_code_root
+
+
+REPO_ROOT = _configured_repo_root()
 PORTFOLIO_TTL_S = 900
 PAYLOAD_PATH = REPO_ROOT / (
     "v2/frontend/public/operator_runtime/v2_portfolio_state/latest/"
@@ -48,6 +63,24 @@ def _utc_iso() -> str:
 
 def _est_iso() -> str:
     return datetime.now(EST).isoformat(timespec="seconds")
+
+
+def _parse_aware_utc(value: Any) -> datetime | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return None
+    return parsed.astimezone(timezone.utc)
+
+
+def _iso_utc(value: datetime) -> str:
+    return value.astimezone(timezone.utc).isoformat(timespec="milliseconds").replace(
+        "+00:00", "Z"
+    )
 
 
 def _connect_redis():
@@ -454,6 +487,7 @@ def _path_label(path: Path) -> str:
 
 
 def run_once(write_redis: bool = True) -> dict:
+    producer_started_at = datetime.now(timezone.utc)
     r = _connect_redis()
     now_utc = _utc_iso()
     now_est = _est_iso()
@@ -892,10 +926,35 @@ def run_once(write_redis: bool = True) -> dict:
         + len(invalid_admission_closed_rows)
     )
     contains_quarantined_positions = bool(pnl_blockers or quarantined_invalid_row_count)
+    producer_generated_time = datetime.now(timezone.utc)
+    producer_generated_at = _iso_utc(producer_generated_time)
+    ledger_event_time = _parse_aware_utc(ledger_generated_utc)
+    source_time_rejection_reasons: list[str] = []
+    if current_ledger_payload:
+        if ledger_event_time is None:
+            source_time_rejection_reasons.append("PAPER_LEDGER_GENERATED_AT_INVALID")
+        elif ledger_event_time > producer_generated_time:
+            source_time_rejection_reasons.append("PAPER_LEDGER_GENERATED_AFTER_PORTFOLIO_STATE")
+        source_event_time = _iso_utc(ledger_event_time) if not source_time_rejection_reasons else None
+        source_event_time_source = "v2:paper:ledger.generated_utc"
+    else:
+        source_event_time = _iso_utc(producer_started_at)
+        source_event_time_source = "PORTFOLIO_PUBLISHER_OBSERVATION_NO_LEDGER"
+    paper_account_margin_status["generated_utc"] = producer_generated_at
     portfolio_state = {
         "schema_version": "v2_native_portfolio_state_v2",
         "classification": classification,
-        "generated_utc": now_utc,
+        "source_event_time": source_event_time,
+        "event_time": source_event_time,
+        "source_event_time_source": source_event_time_source,
+        "source_event_time_raw": ledger_generated_utc,
+        "producer_generated_at": producer_generated_at,
+        "generated_at": producer_generated_at,
+        "generated_utc": producer_generated_at,
+        "portfolio_state_time_contract_status": (
+            "PASS" if not source_time_rejection_reasons else "BLOCKED"
+        ),
+        "portfolio_state_time_contract_rejection_reasons": source_time_rejection_reasons,
         "generated_est": now_est,
         "account_mode": "paper_shadow_only",
         "account_scope": "PAPER_SIM_ACCOUNT",
@@ -1088,6 +1147,10 @@ def run_once(write_redis: bool = True) -> dict:
             "writes_legacy_redis": False,
         },
     }
+
+    record_available_at = _iso_utc(datetime.now(timezone.utc))
+    portfolio_state["record_available_at"] = record_available_at
+    portfolio_state["available_at"] = record_available_at
 
     if write_redis and r:
         try:

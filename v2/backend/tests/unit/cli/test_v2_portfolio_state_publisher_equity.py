@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -17,6 +18,22 @@ class FakeRedis:
 
     def scan_iter(self, match: str, count: int = 500):  # noqa: ARG002
         return iter([])
+
+
+def _parse_utc(value: str):
+    from datetime import datetime
+
+    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
+def test_runtime_repo_root_can_be_separate_from_immutable_code(tmp_path) -> None:
+    code_root = Path("/immutable/release")
+
+    assert publisher._configured_repo_root(  # noqa: SLF001
+        {publisher.PORTFOLIO_RUNTIME_REPO_ROOT_ENV: str(tmp_path)},
+        code_root=code_root,
+    ) == tmp_path.resolve()
+    assert publisher._configured_repo_root({}, code_root=code_root) == code_root  # noqa: SLF001
 
 
 def test_accepted_fill_recomputes_equity_from_current_market_price(monkeypatch, tmp_path):
@@ -118,6 +135,59 @@ def test_accepted_fill_recomputes_equity_from_current_market_price(monkeypatch, 
     assert result["live_gate_status"] == "enabled_operator_approved"
     assert result["positions"][0]["position_state"] == "accepted_paper_fill_open"
     assert all(row.get("open_position") is not True for row in result["positions"][1:])
+
+
+def test_future_ledger_clock_blocks_portfolio_time_contract(monkeypatch, tmp_path) -> None:
+    fake = FakeRedis(
+        {
+            "v2:paper:ledger": {
+                "generated_utc": "2099-01-01T00:00:00Z",
+                "accepted": [],
+                "open_positions": [],
+                "accepted_count": 0,
+            }
+        }
+    )
+    monkeypatch.setattr(publisher, "_connect_redis", lambda: fake)
+    monkeypatch.setattr(publisher, "PAYLOAD_PATH", tmp_path / "v2_portfolio_state.json")
+
+    result = publisher.run_once(write_redis=False)
+
+    assert result["portfolio_state_time_contract_status"] == "BLOCKED"
+    assert result["source_event_time"] is None
+    assert result["event_time"] is None
+    assert result["portfolio_state_time_contract_rejection_reasons"] == [
+        "PAPER_LEDGER_GENERATED_AFTER_PORTFOLIO_STATE"
+    ]
+
+
+def test_portfolio_clock_contract_orders_source_generated_and_available(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    fake = FakeRedis(
+        {
+            "v2:paper:ledger": {
+                "generated_utc": "2026-06-08T21:00:00Z",
+                "accepted": [],
+                "open_positions": [],
+                "accepted_count": 0,
+            }
+        }
+    )
+    monkeypatch.setattr(publisher, "_connect_redis", lambda: fake)
+    monkeypatch.setattr(publisher, "PAYLOAD_PATH", tmp_path / "v2_portfolio_state.json")
+
+    result = publisher.run_once(write_redis=False)
+
+    assert result["portfolio_state_time_contract_status"] == "PASS"
+    assert result["source_event_time"] == "2026-06-08T21:00:00.000Z"
+    assert result["source_event_time"] == result["event_time"]
+    assert result["producer_generated_at"] == result["generated_at"]
+    assert result["record_available_at"] == result["available_at"]
+    assert _parse_utc(result["source_event_time"]) <= _parse_utc(
+        result["producer_generated_at"]
+    ) <= _parse_utc(result["record_available_at"])
 
 
 def test_missing_mark_price_marks_portfolio_untrusted_and_preserves_session(

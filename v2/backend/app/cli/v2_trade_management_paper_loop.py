@@ -7916,6 +7916,119 @@ def _read_v2_microstructure_trust(
     }
 
 
+_MICROSTRUCTURE_ALLOCATION_ACTIVE_FIELDS = (
+    "microstructure_trust_source",
+    "public_orderbook_trust_score",
+    "composite_microstructure_trust_score",
+    "microstructure_trust_score",
+    "microstructure_adaptive_minimum",
+    "orderbook_trust_score",
+    "orderbook_trust_tier",
+    "microstructure_action",
+    "final_a_plus_min_composite_trust",
+    "final_a_plus_eligible",
+    "final_a_plus_requires_composite_trust",
+    "non_book_confirmation_pass",
+    "composite_confirmation_passes",
+    "composite_confirmation_missing_fields",
+    "feed_integrity_pass",
+    "sequence_gap_free",
+    "latency_within_bound",
+    "trade_tape_confirmation_pass",
+    "cross_venue_confirmation_pass",
+    "liquidation_sweep_risk_acceptable",
+    "oi_funding_long_short_confirmation_pass",
+    "real_spread_depth_cost_evidence_pass",
+    "reduced_size_bootstrap_tier",
+    "reduced_size_counts_as_final_a_plus",
+    "reduced_size_routes_to_live",
+    "reduced_size_paper_only",
+    "bootstrap_reduced_size_paper_only",
+    "orderbook_latency_ms",
+    "book_sequence_gap",
+    "book_depth_persistence_score",
+    "book_cancel_pressure_score",
+    "trade_tape_confirmation_score",
+    "cross_venue_confirmation_score",
+    "liquidation_zone_risk_score",
+    "sweep_risk_score",
+    "microstructure_missing_components",
+    "microstructure_source_decision_time",
+    "microstructure_decision_time",
+    "microstructure_available_at",
+    "microstructure_generated_at",
+    "microstructure_source_hash",
+    "microstructure_source_hash_contract",
+)
+
+
+def _attach_validated_strategy_microstructure_evidence(
+    intent: dict[str, Any],
+    evidence: Mapping[str, Any] | None,
+) -> None:
+    """Bind one exact PIT-valid trust record to allocation, or attach audit only."""
+
+    for field in _MICROSTRUCTURE_ALLOCATION_ACTIVE_FIELDS:
+        intent.pop(field, None)
+    if not isinstance(evidence, Mapping):
+        intent["microstructure_trust_status"] = "MISSING_MICROSTRUCTURE_TRUST_SCORE"
+        intent["microstructure_trust_allocation_rejection_reasons"] = [
+            "MICROSTRUCTURE_TRUST_EVIDENCE_NOT_MAPPING"
+        ]
+        return
+
+    intent["microstructure_trust_status"] = evidence.get("microstructure_trust_status")
+    intent["microstructure_trust_lookup_keys"] = list(
+        evidence.get("microstructure_trust_lookup_keys") or []
+    )
+    if evidence.get("microstructure_trust_status") != "MICROSTRUCTURE_TRUST_SCORE_FOUND":
+        intent["microstructure_trust_allocation_rejection_reasons"] = [
+            str(evidence.get("microstructure_trust_status") or "MICROSTRUCTURE_TRUST_NOT_FOUND")
+        ]
+        return
+
+    reasons: list[str] = []
+    source_hash = str(evidence.get("microstructure_source_hash") or "")
+    if len(source_hash) != 64 or any(
+        character not in "0123456789abcdef" for character in source_hash
+    ):
+        reasons.append("MICROSTRUCTURE_SOURCE_HASH_INVALID")
+    if (
+        evidence.get("microstructure_source_hash_contract")
+        != "REDIS_KEY_AND_FULL_CANONICAL_SOURCE_PAYLOAD_SHA256_V1"
+    ):
+        reasons.append("MICROSTRUCTURE_SOURCE_HASH_CONTRACT_INVALID")
+    generated_at = _strict_aware_utc_time(evidence.get("microstructure_generated_at"))
+    available_at = _strict_aware_utc_time(evidence.get("microstructure_available_at"))
+    decision_time = _strict_aware_utc_time(evidence.get("microstructure_decision_time"))
+    if generated_at is None:
+        reasons.append("MICROSTRUCTURE_GENERATED_AT_INVALID")
+    if available_at is None:
+        reasons.append("MICROSTRUCTURE_AVAILABLE_AT_INVALID")
+    if decision_time is None:
+        reasons.append("MICROSTRUCTURE_DECISION_TIME_INVALID")
+    if generated_at is not None and available_at is not None and generated_at > available_at:
+        reasons.append("MICROSTRUCTURE_GENERATED_AFTER_AVAILABLE")
+    if available_at is not None and decision_time is not None and available_at > decision_time:
+        reasons.append("MICROSTRUCTURE_AVAILABLE_AFTER_DECISION")
+
+    if reasons:
+        intent["microstructure_trust_status"] = (
+            "REJECTED_MICROSTRUCTURE_TRUST_ALLOCATION_CONTRACT_INVALID"
+        )
+        intent["microstructure_trust_allocation_rejection_reasons"] = sorted(set(reasons))
+        return
+
+    for field in _MICROSTRUCTURE_ALLOCATION_ACTIVE_FIELDS:
+        value = evidence.get(field)
+        if value not in (None, ""):
+            intent[field] = deepcopy(value)
+    intent["microstructure_trust_allocation_rejection_reasons"] = []
+    intent["microstructure_trust_allocation_binding"] = (
+        "EXACT_PIT_VALID_REDIS_KEY_AND_FULL_CANONICAL_SOURCE_PAYLOAD_SHA256_V1"
+    )
+
+
 def _read_v2_advanced_indicator_context(
     r,
     symbol: str,
@@ -9930,8 +10043,14 @@ def _attach_runtime_cost_capture_contract(
         "liquidation_zone_risk_score",
         "sweep_risk_score",
         "microstructure_missing_components",
+        "microstructure_trust_status",
+        "microstructure_trust_lookup_keys",
+        "microstructure_source_decision_time",
         "microstructure_decision_time",
         "microstructure_available_at",
+        "microstructure_generated_at",
+        "microstructure_source_hash",
+        "microstructure_source_hash_contract",
     ):
         value = _first_present(intent.get(field), market_microstructure.get(field))
         if value not in (None, ""):
@@ -30891,14 +31010,22 @@ def _portfolio_equity_context(
         "paper_account_margin_status": margin_status,
         "paper_ledger_open_position_count": len(open_positions),
         "portfolio_state_present": bool(portfolio),
-        "portfolio_state_event_time": portfolio.get("event_time"),
+        "portfolio_state_event_time": _first_present(
+            portfolio.get("source_event_time"),
+            portfolio.get("event_time"),
+        ),
         "portfolio_state_generated_at": _first_present(
+            portfolio.get("producer_generated_at"),
             portfolio.get("generated_at"),
             portfolio.get("generated_utc"),
         ),
         "portfolio_state_available_at": _first_present(
+            portfolio.get("record_available_at"),
             portfolio.get("available_at"),
             portfolio.get("source_available_at"),
+        ),
+        "portfolio_state_time_contract_status": portfolio.get(
+            "portfolio_state_time_contract_status"
         ),
         "portfolio_context_observed_at": _utc_iso(),
     }
@@ -31937,6 +32064,9 @@ def _paper_cycle_base_resource_evidence(
         "portfolio_state_event_time": portfolio_context.get("portfolio_state_event_time"),
         "portfolio_state_generated_at": portfolio_context.get("portfolio_state_generated_at"),
         "portfolio_state_available_at": portfolio_context.get("portfolio_state_available_at"),
+        "portfolio_state_time_contract_status": portfolio_context.get(
+            "portfolio_state_time_contract_status"
+        ),
         "portfolio_context_observed_at": portfolio_context.get("portfolio_context_observed_at"),
         "paper_ledger_generated_at": portfolio_context.get("paper_ledger_generated_at"),
         "paper_ledger_observed_at": portfolio_context.get("paper_ledger_observed_at"),
@@ -34012,6 +34142,11 @@ def _validated_strategy_cascade_context(
         "strategy_cascade_generated_at": None,
         "strategy_cascade_decision_time": None,
         "strategy_cascade_feature_cutoff": None,
+        "rejected_strategy_cascade_event_time": None,
+        "rejected_strategy_cascade_available_at": None,
+        "rejected_strategy_cascade_generated_at": None,
+        "rejected_strategy_cascade_decision_time": None,
+        "rejected_strategy_cascade_feature_cutoff": None,
     }
     if not isinstance(payload, Mapping) or not payload:
         return None, base
@@ -34061,12 +34196,10 @@ def _validated_strategy_cascade_context(
             "ATTACHED_PIT_VALID" if not reasons else "REJECTED_PIT_INVALID"
         ),
         "strategy_cascade_context_rejection_reasons": sorted(set(reasons)),
-        "strategy_cascade_event_time": raw_times["event_time"],
-        "strategy_cascade_available_at": raw_times["available_at"],
-        "strategy_cascade_generated_at": raw_times["generated_at"],
-        "strategy_cascade_decision_time": raw_times["decision_time"],
-        "strategy_cascade_feature_cutoff": raw_times["feature_cutoff"],
     }
+    field_prefix = "rejected_strategy_cascade" if reasons else "strategy_cascade"
+    for field in ("event_time", "available_at", "generated_at", "decision_time", "feature_cutoff"):
+        status[f"{field_prefix}_{field}"] = raw_times[field]
     return (context if not reasons else None), status
 
 
@@ -35006,11 +35139,14 @@ def _paper_allocation_point_in_time_contract(
     if intent.get("portfolio_state_present") is True:
         required_fields.update(
             {
+                "portfolio_state_event_time",
                 "portfolio_state_available_at",
                 "portfolio_state_generated_at",
                 "portfolio_context_observed_at",
             }
         )
+        if intent.get("portfolio_state_time_contract_status") != "PASS":
+            rejection_reasons.append("PORTFOLIO_STATE_TIME_CONTRACT_NOT_PASS")
     if (_coerce_float(intent.get("paper_ledger_open_position_count")) or 0.0) > 0:
         required_fields.update(
             {
@@ -41914,6 +42050,9 @@ def _build_allocation_input(
         "liquidation_zone_risk_score",
         "sweep_risk_score",
         "microstructure_missing_components",
+        "microstructure_source_decision_time",
+        "microstructure_source_hash",
+        "microstructure_source_hash_contract",
     ):
         value = _first_present(intent.get(field), market_microstructure.get(field))
         if value not in (None, ""):
@@ -42329,6 +42468,7 @@ def _build_allocation_input(
         "portfolio_state_event_time",
         "portfolio_state_generated_at",
         "portfolio_state_available_at",
+        "portfolio_state_time_contract_status",
         "portfolio_context_observed_at",
         "paper_ledger_generated_at",
         "paper_ledger_observed_at",
@@ -44216,6 +44356,11 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                         "strategy_cascade_generated_at",
                         "strategy_cascade_decision_time",
                         "strategy_cascade_feature_cutoff",
+                        "rejected_strategy_cascade_event_time",
+                        "rejected_strategy_cascade_available_at",
+                        "rejected_strategy_cascade_generated_at",
+                        "rejected_strategy_cascade_decision_time",
+                        "rejected_strategy_cascade_feature_cutoff",
                     )
                 },
                 "strategy_future_cutoff_offender_count": len(future_cutoff_offenders),
@@ -44340,6 +44485,11 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                     "strategy_cascade_generated_at",
                     "strategy_cascade_decision_time",
                     "strategy_cascade_feature_cutoff",
+                    "rejected_strategy_cascade_event_time",
+                    "rejected_strategy_cascade_available_at",
+                    "rejected_strategy_cascade_generated_at",
+                    "rejected_strategy_cascade_decision_time",
+                    "rejected_strategy_cascade_feature_cutoff",
                 )
             },
             "strategy_future_cutoff_offender_count": len(future_cutoff_offenders),
@@ -44577,6 +44727,10 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             intent.update(ordinary_router_proof_fields)
             if risk_decisions:
                 risk_decisions[-1].update(deepcopy(ordinary_router_proof_fields))
+        _attach_validated_strategy_microstructure_evidence(
+            intent,
+            strategy_microstructure_trust,
+        )
         _preserve_materialization_queue_strategy_identity(intent=intent, signal=s)
         # Decision-record dereference for CUDA-policy intents (operator
         # mission 2026-07-10): fills the risk/orchestrator decision fields the

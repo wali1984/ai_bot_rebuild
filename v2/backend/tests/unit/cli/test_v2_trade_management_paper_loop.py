@@ -9701,6 +9701,99 @@ def test_paper_allocation_point_in_time_contract_is_per_candidate_and_fail_close
     )
 
 
+def test_rejected_future_cascade_clocks_remain_audit_only() -> None:
+    payload = {
+        "event_time": "2026-07-17T12:00:00Z",
+        "generated_at": "2026-07-17T12:01:01Z",
+        "available_at": "2026-07-17T12:01:02Z",
+        "decision_time": "2026-07-17T12:01:03Z",
+        "feature_cutoff": "2026-07-17T12:00:00Z",
+    }
+
+    context, status = paper_loop._validated_strategy_cascade_context(  # noqa: SLF001
+        payload,
+        strategy_decision_time="2026-07-17T12:01:00Z",
+    )
+
+    assert context is None
+    assert status["strategy_cascade_context_status"] == "REJECTED_PIT_INVALID"
+    assert status["strategy_cascade_available_at"] is None
+    assert status["strategy_cascade_generated_at"] is None
+    assert status["strategy_cascade_decision_time"] is None
+    assert status["rejected_strategy_cascade_available_at"] == payload["available_at"]
+    assert status["rejected_strategy_cascade_generated_at"] == payload["generated_at"]
+    assert status["rejected_strategy_cascade_decision_time"] == payload["decision_time"]
+
+    allocation_contract = paper_loop._paper_allocation_point_in_time_contract(  # noqa: SLF001
+        {
+            **status,
+            "paper_exchange_filter_status": "READY",
+            "paper_exchange_filter_available_at": "2026-07-17T12:01:04Z",
+            "paper_exchange_filter_observed_at": "2026-07-17T12:01:04Z",
+        },
+        allocation_decision_time=datetime(2026, 7, 17, 12, 1, 5, tzinfo=timezone.utc),
+    )
+    assert allocation_contract["status"] == "PASS"
+    assert not any(
+        "strategy_cascade" in reason
+        for reason in allocation_contract["rejection_reasons"]
+    )
+
+
+def test_exact_strategy_microstructure_evidence_binds_hash_and_clocks() -> None:
+    evidence = {
+        "microstructure_trust_status": "MICROSTRUCTURE_TRUST_SCORE_FOUND",
+        "microstructure_trust_lookup_keys": ["v2:microstructure:trust_score:BTCUSDT:1m"],
+        "microstructure_trust_source": "v2:microstructure:trust_score:BTCUSDT:1m",
+        "microstructure_trust_score": 0.82,
+        "microstructure_adaptive_minimum": 0.65,
+        "microstructure_action": "ALLOW",
+        "microstructure_generated_at": "2026-07-17T12:00:44Z",
+        "microstructure_available_at": "2026-07-17T12:00:45Z",
+        "microstructure_decision_time": "2026-07-17T12:00:50Z",
+        "microstructure_source_hash": "b" * 64,
+        "microstructure_source_hash_contract": (
+            "REDIS_KEY_AND_FULL_CANONICAL_SOURCE_PAYLOAD_SHA256_V1"
+        ),
+    }
+    intent: dict[str, object] = {
+        "paper_exchange_filter_status": "READY",
+        "paper_exchange_filter_available_at": "2026-07-17T12:00:55Z",
+        "paper_exchange_filter_observed_at": "2026-07-17T12:00:56Z",
+    }
+
+    paper_loop._attach_validated_strategy_microstructure_evidence(  # noqa: SLF001
+        intent,
+        evidence,
+    )
+
+    assert intent["microstructure_source_hash"] == "b" * 64
+    assert intent["microstructure_generated_at"] == "2026-07-17T12:00:44Z"
+    assert intent["microstructure_trust_allocation_rejection_reasons"] == []
+    assert (
+        paper_loop._paper_allocation_point_in_time_contract(  # noqa: SLF001
+            intent,
+            allocation_decision_time=datetime(2026, 7, 17, 12, 1, tzinfo=timezone.utc),
+        )["status"]
+        == "PASS"
+    )
+
+    invalid = dict(evidence)
+    invalid["microstructure_source_hash"] = "not-a-sha"
+    paper_loop._attach_validated_strategy_microstructure_evidence(  # noqa: SLF001
+        intent,
+        invalid,
+    )
+    assert "microstructure_source_hash" not in intent
+    assert "microstructure_trust_score" not in intent
+    assert intent["microstructure_trust_status"] == (
+        "REJECTED_MICROSTRUCTURE_TRUST_ALLOCATION_CONTRACT_INVALID"
+    )
+    assert "MICROSTRUCTURE_SOURCE_HASH_INVALID" in intent[
+        "microstructure_trust_allocation_rejection_reasons"
+    ]
+
+
 def _liquidation_atr_test_allocation_input():
     from v2.backend.app.services.adaptive_capital_allocator import AllocationInput
 
@@ -14692,6 +14785,10 @@ def test_direct_orderbook_features_feed_production_grade_cost_contract() -> None
     assert intent["top_book_ask_depth_usd"] == pytest.approx(7525.206321)
     assert intent["market_depth_usd"] == pytest.approx(89967.454721)
     assert intent["depth_derived_price_impact_bps"] == pytest.approx(1.60588456)
+    assert intent["microstructure_source_hash"] == market_microstructure[
+        "microstructure_source_hash"
+    ]
+    assert intent["microstructure_generated_at"] == "2026-06-22T12:59:59.250Z"
     assert intent["runtime_cost_capture_missing_fields"] == []
     assert intent["runtime_cost_capture_temporal_reject_reasons"] == []
     assert intent["production_grade_cost_flag"] is True
