@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any, Sequence
 
 SCHEMA_VERSION = "adaptive_system_final_pass_trading_configuration_inventory_v2"
-SCANNER_VERSION = "trading_configuration_inventory_scanner_v1"
+SCANNER_VERSION = "trading_configuration_inventory_scanner_v2"
 CLASSIFICATION_SCHEMA_VERSION = (
     "adaptive_system_final_pass_trading_configuration_classifications_v1"
 )
@@ -43,8 +43,11 @@ _TRADING_TERMS = (
     "allocation",
     "capital",
     "confidence",
+    "cooldown",
+    "correlation",
     "cost",
     "drawdown",
+    "duration",
     "edge",
     "entry",
     "execution",
@@ -53,14 +56,18 @@ _TRADING_TERMS = (
     "fee",
     "fill",
     "funding",
+    "fvg",
     "hedge",
     "hold",
+    "horizon",
     "leverage",
     "liquidation",
     "liquidity",
     "loss",
+    "mae",
     "margin",
     "market",
+    "mfe",
     "microstructure",
     "notional",
     "order",
@@ -69,12 +76,16 @@ _TRADING_TERMS = (
     "portfolio",
     "position",
     "prediction",
+    "profit",
     "regime",
     "reward",
     "risk",
     "side",
     "signal",
+    "size",
     "slippage",
+    "spread",
+    "score",
     "stop",
     "strategy",
     "symbol",
@@ -82,6 +93,7 @@ _TRADING_TERMS = (
     "timeframe",
     "trade",
     "turnover",
+    "volatility",
 )
 
 
@@ -123,10 +135,24 @@ def _literal_value(node: ast.AST | None) -> Any:
         value = ast.literal_eval(node)
     except (ValueError, TypeError):
         return None
-    if isinstance(value, tuple):
-        return list(value)
-    if isinstance(value, (str, int, float, bool, list, dict)) or value is None:
+    return _json_safe_literal(value)
+
+
+def _json_safe_literal(value: Any) -> Any:
+    if value is None or type(value) in {str, int, float, bool}:
         return value
+    if isinstance(value, tuple | list):
+        return [_json_safe_literal(item) for item in value]
+    if isinstance(value, set | frozenset):
+        return [
+            _json_safe_literal(item)
+            for item in sorted(value, key=lambda item: repr(item))
+        ]
+    if isinstance(value, dict):
+        return {
+            key if type(key) is str else repr(key): _json_safe_literal(item)
+            for key, item in value.items()
+        }
     return repr(value)
 
 
@@ -210,7 +236,8 @@ def _infer_decision_stage(path: str, text: str) -> str:
 
 
 def _is_trading_relevant(path: str, name: str, symbol: str, expression: str) -> bool:
-    haystack = f"{path} {name} {symbol} {expression}".lower()
+    del path
+    haystack = f"{name} {symbol} {expression}".lower()
     return any(term in haystack for term in _TRADING_TERMS)
 
 
@@ -221,6 +248,7 @@ class _CandidateVisitor(ast.NodeVisitor):
         self.source_sha256 = source_sha256
         self.scope: list[str] = []
         self.class_modes: list[tuple[bool, bool]] = []
+        self.class_scope_depths: list[int] = []
         self._occurrences: Counter[tuple[str, str, str, str]] = Counter()
         self.candidates: list[SourceCandidate] = []
 
@@ -292,12 +320,39 @@ class _CandidateVisitor(ast.NodeVisitor):
         )
         self.scope.append(node.name)
         self.class_modes.append((config_class, enum_class))
+        self.class_scope_depths.append(len(self.scope))
         self.generic_visit(node)
+        self.class_scope_depths.pop()
         self.class_modes.pop()
         self.scope.pop()
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
         self.scope.append(node.name)
+        positional = [*node.args.posonlyargs, *node.args.args]
+        positional_defaults = zip(
+            positional[-len(node.args.defaults) :] if node.args.defaults else (),
+            node.args.defaults,
+            strict=True,
+        )
+        for argument, default in positional_defaults:
+            self._record(
+                node=default,
+                name=argument.arg,
+                kind="function_default",
+                value_node=default,
+            )
+        for argument, default in zip(
+            node.args.kwonlyargs,
+            node.args.kw_defaults,
+            strict=True,
+        ):
+            if default is not None:
+                self._record(
+                    node=default,
+                    name=argument.arg,
+                    kind="function_default",
+                    value_node=default,
+                )
         self.generic_visit(node)
         self.scope.pop()
 
@@ -308,11 +363,18 @@ class _CandidateVisitor(ast.NodeVisitor):
             name = node.targets[0].id
             if not self.scope and name.isupper():
                 self._record(node=node, name=name, kind="constant", value_node=node.value)
-            elif self.class_modes:
+            elif self.class_modes and len(self.scope) == self.class_scope_depths[-1]:
                 config_class, enum_class = self.class_modes[-1]
-                if enum_class or config_class:
+                if enum_class or config_class or _literal_value(node.value) is not None:
                     kind = "enum" if enum_class else "config_field"
                     self._record(node=node, name=name, kind=kind, value_node=node.value)
+            elif _literal_value(node.value) is not None:
+                self._record(
+                    node=node,
+                    name=name,
+                    kind="local_policy_value",
+                    value_node=node.value,
+                )
         self.generic_visit(node)
 
     def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
@@ -320,11 +382,18 @@ class _CandidateVisitor(ast.NodeVisitor):
             name = node.target.id
             if not self.scope and name.isupper():
                 self._record(node=node, name=name, kind="constant", value_node=node.value)
-            elif self.class_modes and self.class_modes[-1][0]:
+            elif self.class_modes and len(self.scope) == self.class_scope_depths[-1]:
                 self._record(
                     node=node,
                     name=name,
                     kind="config_field",
+                    value_node=node.value,
+                )
+            elif _literal_value(node.value) is not None:
+                self._record(
+                    node=node,
+                    name=name,
+                    kind="local_policy_value",
                     value_node=node.value,
                 )
         self.generic_visit(node)
@@ -523,10 +592,12 @@ def build_inventory(
                 "environment",
                 "config_field",
                 "enum",
+                "function_default",
                 "inline_comparison",
+                "local_policy_value",
             ],
             "files_with_candidates": len(source_paths),
-            "candidate_relevance_rule": "path/name/symbol/expression contains a declared trading term",
+            "candidate_relevance_rule": "name/symbol/expression contains a declared trading term; path alone is never sufficient",
         },
         "values": values,
         "coverage": coverage,

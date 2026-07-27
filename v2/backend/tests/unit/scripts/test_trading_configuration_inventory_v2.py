@@ -75,6 +75,60 @@ def test_unreviewed_candidate_keeps_phase_one_fail_closed(tmp_path: Path) -> Non
     assert inventory["acceptance_status"]["phase1_complete"] is False
 
 
+def test_path_name_alone_does_not_mark_unrelated_literals_as_trading_policy(
+    tmp_path: Path,
+) -> None:
+    _write_source(
+        tmp_path / "v2/backend/app/services/trade_management/formatting.py",
+        "def render_version(value: int) -> bool:\n"
+        "    retry_count = 3\n"
+        "    return value == 7\n",
+    )
+    assert discover_candidates(tmp_path, (Path("v2/backend/app"),)) == ()
+
+
+def test_function_defaults_and_local_policy_values_are_discovered(tmp_path: Path) -> None:
+    _write_source(
+        tmp_path / "v2/backend/app/services/policy.py",
+        "def choose_entry(confidence_floor: float = 0.65, *, max_leverage: float = 2.0):\n"
+        "    entry_score = 0.75\n"
+        "    return confidence_floor, max_leverage, entry_score\n",
+    )
+    candidates = discover_candidates(tmp_path, (Path("v2/backend/app"),))
+    by_name = {item.name: item for item in candidates}
+    assert by_name["confidence_floor"].kind == "function_default"
+    assert by_name["max_leverage"].kind == "function_default"
+    assert by_name["entry_score"].kind == "local_policy_value"
+
+
+def test_policy_named_field_is_discovered_outside_config_named_class(tmp_path: Path) -> None:
+    _write_source(
+        tmp_path / "v2/backend/app/services/policy.py",
+        "class Candidate:\n"
+        "    loss_probability_threshold: float = 0.40\n",
+    )
+    candidates = discover_candidates(tmp_path, (Path("v2/backend/app"),))
+    assert len(candidates) == 1
+    assert candidates[0].name == "loss_probability_threshold"
+    assert candidates[0].kind == "config_field"
+
+
+def test_nested_literal_sets_are_normalized_to_deterministic_json(tmp_path: Path) -> None:
+    _write_source(
+        tmp_path / "v2/backend/app/services/policy.py",
+        'ENTRY_POLICY = {"allowed": {"READY", "MISSING"}}\n',
+    )
+    inventory = build_inventory(
+        repo_root=tmp_path,
+        scan_roots=(Path("v2/backend/app"),),
+        classifications={},
+    )
+    assert inventory["values"][0]["declared_default"] == {
+        "allowed": ["MISSING", "READY"]
+    }
+    json.dumps(inventory, sort_keys=True)
+
+
 def test_exact_classification_counters_and_manual_authority(tmp_path: Path) -> None:
     _write_source(
         tmp_path / "v2/backend/app/services/execution/policy.py",
