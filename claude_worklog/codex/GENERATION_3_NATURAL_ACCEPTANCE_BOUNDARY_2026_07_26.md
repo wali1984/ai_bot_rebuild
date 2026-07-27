@@ -317,3 +317,97 @@ at three-second intervals from cycle 263 through cycle 272. It was configured to
 acquire `/run/user/1000/ai-bot-v2-generation3-restart-acceptance.lock` only after
 the persisted-fill and open-position conditions succeeded. They did not, so the
 lock file was not created.
+
+## Execution-feasibility repair and final acceptance
+
+The execution-feasibility directive identified a second deterministic defect:
+an exploration candidate could be classified as authorized before its final
+reduced target was known to satisfy the venue minimum. The deployed repair now:
+
+- computes the exact decimal executable quantity from authenticated mark price,
+  minimum notional, minimum quantity, step size, maximum quantity, price tick,
+  and trading status;
+- applies `PAPER_EXECUTION_MINIMUM_FEASIBLE` only after the actual reduced
+  allocation is recomputed and never rounds a frozen target upward;
+- emits `BLOCK_RISK_BUDGET_BELOW_EXECUTABLE_MINIMUM` with exact headroom evidence;
+- independently reruns the allocator and hard-blocks any preflight/allocator
+  disagreement;
+- publishes bounded `v2:paper:execution_feasibility:<symbol>` receipts; and
+- distinguishes execution-preflight authority from final governed admission.
+  The latter is now true only after the final point-in-time contract passes.
+
+Three immutable paper-loop releases were deployed in sequence, always with an
+empty book and without restarting canonical serving or the acceptance observer:
+
+```text
+720b9b8372024e8cb99fa18f0177e9b343f5bf9f exact executable minimum
+10ae7fe039c605336b1cdea7aea47dfbcf48a571 final-authority binding
+dd3c4455d9183e87c84726adbc16a53c6fd69e8e unique-candidate census
+```
+
+The final release's frozen ten-cycle window is lines 318 through 327 of the
+generation acceptance JSONL, from 2026-07-27 06:02:42.204 UTC through
+06:15:58.757 UTC:
+
+| Predicate | Actual |
+|---|---:|
+| completed cycles | 10 |
+| canonical predictions | 1,024 |
+| directional predictions | 401 |
+| candidates evaluated | 112 |
+| upstream preemptive authorizations | 6 |
+| unique execution-census candidates | 186 |
+| policy-safe candidates | 20 |
+| risk-safe candidates | 63 |
+| exact execution-feasibility receipts | 20 |
+| execution-feasible candidates | 2 |
+| final governed authorizations | 0 |
+| preflight/allocator disagreements | 0 |
+| generic exchange-minimum blocks | 0 |
+| paper fills / open positions / natural closes | 0 / 0 / 0 |
+| duplicate fills / closes / reservation leaks | 0 / 0 / 0 |
+
+Every per-cycle blocker count is now deduplicated by exact candidate identity
+and bounded by that cycle's unique directional-candidate count. Nine cycles had
+at least one candidate reach the exact execution preflight; the remaining cycle
+had no policy-safe candidate requiring a reduced execution preflight.
+
+The current risk configuration is not contradictory. Authenticated receipts
+proved executable candidates for ASTERUSDT, CAKEUSDT, METUSDT, NEARUSDT,
+OPUSDT, and WIFUSDT with positive execution headroom and no budget increase.
+No current candidate aligned executability with every unchanged model, safety,
+risk, and final-admission predicate. The truthful classification is therefore:
+
+```text
+EXTERNAL_MARKET_OPPORTUNITY_PENDING
+```
+
+Evidence is frozen in:
+
+- `goal_state/PERMANENT_SYSTEM_RECOVERY/generation3_execution_feasibility_policy_baseline.json`
+- `goal_state/PERMANENT_SYSTEM_RECOVERY/generation3_execution_feasibility_acceptance.json`
+
+The first persisted natural fill/open-position predicate never succeeded, so
+the single-run restart lock was not acquired and no restart was attempted.
+Runtime and economic acceptance remain pending; G12 remains 17/17 PASS; live
+authority remains blocked. Do not emit `V2_PERMANENT_RECOVERY_COMPLETE`.
+
+Execution-feasibility verification:
+
+```text
+exact calculator and allocator tests: 170 passed
+targeted paper execution/final-authority tests: PASS
+preemptive edge-control suite: 88 passed
+full paper-loop module: 556 passed, 13 failed, 31 errors
+recorded legacy baseline: 547 passed, 13 failed, 31 errors
+G12 rare-event suite: 17 PASS, 0 WARNING, 0 FAIL
+focused Ruff (E902/F821/F822/F823): PASS
+Python compilation: PASS
+git diff --check: PASS
+systemd-analyze --user verify: diagnostics=0
+```
+
+The unchanged 13 failures and 31 setup errors remain the documented legacy
+final-admission fixture family. No threshold, checkpoint, cohort, model, risk
+budget, exchange filter, historical outcome, live authority, or exchange state
+was changed.
