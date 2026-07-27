@@ -17,12 +17,19 @@ from v2.backend.app.cli.v2_candidate_outcome_publisher import (
     _acquire_single_writer_lock,
     _load_signing_key,
     process_cycle,
+    process_maturation,
 )
 from v2.backend.app.services.adaptive_system.candidate_outcome_archive_v2 import (
     CandidateOutcomeArchiveV2,
 )
 from v2.backend.app.services.native_trainer.durable_feature_snapshot_archive import (
     append_snapshot,
+)
+from v2.backend.tests.unit.services.adaptive_system.test_candidate_outcome_maturer_v2 import (
+    _record as _maturation_record,
+)
+from v2.backend.tests.unit.services.adaptive_system.test_candidate_outcome_maturer_v2 import (
+    _rows_and_proof,
 )
 from v2.backend.tests.unit.services.adaptive_system.test_candidate_outcome_publisher_v2 import (
     _inputs,
@@ -99,6 +106,7 @@ def test_runtime_batch_archives_exact_cycle_and_is_idempotent(tmp_path: Path) ->
     assert first["cycle_idempotent_replay"] is False
     assert first["paper_only"] is True
     assert first["routes_to_live"] is False
+    assert first["candidate_outcome_maturer_runtime_integrated"] is False
     assert archive.verify().row_count == 2
     assert json.loads(client.values[RUNTIME_STATUS_KEY])["status"] == "PASS"
 
@@ -198,3 +206,43 @@ def test_single_writer_lock_fails_closed(tmp_path: Path) -> None:
         os.close(first)
     second = _acquire_single_writer_lock(lock_path)
     os.close(second)
+
+
+class _FakeLabelArchive:
+    def __init__(self, rows, proof) -> None:
+        self.rows = rows
+        self.proof = proof
+
+    def verify_integrity(self):
+        return {
+            "archive_integrity_verified": True,
+            "archive_chain_sha256": "d" * 64,
+            "rejection_reasons": [],
+        }
+
+    def verified_range(self, **kwargs):
+        assert kwargs["symbol"] == self.proof["symbol"]
+        assert kwargs["start_close_time_ms"] == self.proof["start_close_time_ms"]
+        assert kwargs["end_close_time_ms"] == self.proof["end_close_time_ms"]
+        assert kwargs["archive_integrity_proof"]["archive_integrity_verified"] is True
+        return self.rows, self.proof
+
+
+def test_runtime_matures_due_candidate_with_same_authenticated_writer(tmp_path: Path) -> None:
+    record = _maturation_record()
+    rows, proof = _rows_and_proof(record)
+    archive = _archive(tmp_path / "state" / "candidate_decision_outcomes_v2.jsonl")
+    archive.append(record, signed_at_ms=record.record_available_at_ms)
+    signed_at_ms = proof["training_observed_at_ms"] + 1
+    status = process_maturation(
+        archive=archive,
+        label_archive=_FakeLabelArchive(rows, proof),  # type: ignore[arg-type]
+        signed_at_ms=signed_at_ms,
+        max_candidates=10,
+    )
+    assert status["status"] == "PASS"
+    assert status["horizon_due_candidate_count"] == 1
+    assert status["newly_matured_candidate_count"] == 1
+    assert status["eligible_matured_label_coverage_100_percent"] is True
+    assert status["counterfactual_counts_as_paper_profit"] is False
+    assert archive.verify().matured_revision_count == 1

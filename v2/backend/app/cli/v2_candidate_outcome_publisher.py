@@ -31,9 +31,18 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from v2.backend.app.services.adaptive_system.candidate_outcome_archive_v2 import (
     CandidateOutcomeArchiveV2,
 )
+from v2.backend.app.services.adaptive_system.candidate_outcome_maturer_v2 import (
+    CandidateOutcomeMaturationError,
+    CandidateOutcomeMaturationPending,
+    mature_candidate,
+    required_label_range,
+)
 from v2.backend.app.services.adaptive_system.candidate_outcome_publisher_v2 import (
     PublisherCycleV2,
     build_publisher_cycle,
+)
+from v2.backend.app.services.native_trainer.durable_canonical_5m_label_archive import (
+    DurableCanonical5mLabelArchive,
 )
 from v2.backend.app.services.native_trainer.durable_feature_snapshot_archive import (
     load_snapshot,
@@ -42,6 +51,7 @@ from v2.backend.app.services.native_trainer.durable_feature_snapshot_archive imp
 RUNTIME_SCHEMA_VERSION = "candidate_outcome_publisher_runtime_v2"
 CYCLE_RECEIPT_SCHEMA_VERSION = "candidate_outcome_publisher_cycle_receipt_v2"
 TERMINAL_RECEIPT_SCHEMA_VERSION = "candidate_outcome_publisher_terminal_receipt_v2"
+MATURATION_STATUS_SCHEMA_VERSION = "candidate_outcome_maturation_runtime_v2"
 WRITER_ID = "candidate-outcome-writer-v2"
 SIGNING_CREDENTIAL_NAME = "candidate_outcome_ed25519_seed"
 PAPER_STATUS_KEY = "v2:paper:trade_management:status"
@@ -216,6 +226,173 @@ def _existing_cycle_receipt(path: Path, cycle: PublisherCycleV2, cycle_id: str) 
     return True
 
 
+def process_maturation(
+    *,
+    archive: CandidateOutcomeArchiveV2,
+    label_archive: DurableCanonical5mLabelArchive,
+    signed_at_ms: int,
+    max_candidates: int,
+) -> dict[str, Any]:
+    """Mature one bounded oldest-first batch under the publisher's writer key."""
+
+    if type(max_candidates) is not int or max_candidates < 1:
+        raise CandidateOutcomeRuntimeError("max_candidates:positive_int_required")
+    records = archive.read_verified_records()
+    first_revisions = {
+        record.decision.candidate_id: record
+        for record in records
+        if record.archive_sequence == 1
+    }
+    matured_ids = {
+        record.decision.candidate_id
+        for record in records
+        if record.archive_sequence == 2
+    }
+    due = sorted(
+        (
+            record
+            for candidate_id, record in first_revisions.items()
+            if candidate_id not in matured_ids
+            and signed_at_ms
+            >= record.decision.decision_time_ms
+            + max(record.decision.supported_horizon_seconds) * 1_000
+        ),
+        key=lambda item: (item.decision.decision_time_ms, item.decision.candidate_id),
+    )
+    selected_actual_pending = [
+        record
+        for record in due
+        if record.decision.decision_disposition
+        in {"SELECTED_TRADE", "SELECTED_RISK_REDUCED", "SELECTED_HEDGED"}
+    ]
+    label_candidates = [
+        record
+        for record in due
+        if record.decision.decision_disposition
+        not in {"SELECTED_TRADE", "SELECTED_RISK_REDUCED", "SELECTED_HEDGED"}
+    ]
+    batch = label_candidates[:max_candidates]
+    pending_reason_counts: dict[str, int] = {}
+
+    def count_pending(reason: str, amount: int = 1) -> None:
+        pending_reason_counts[reason] = pending_reason_counts.get(reason, 0) + amount
+
+    if selected_actual_pending:
+        count_pending(
+            "RECONCILED_ACTUAL_PAPER_CLOSE_REQUIRED",
+            len(selected_actual_pending),
+        )
+    if len(label_candidates) > len(batch):
+        count_pending("MATURATION_BATCH_LIMIT", len(label_candidates) - len(batch))
+
+    integrity: Mapping[str, Any] | None = None
+    integrity_rejection_reasons: list[str] = []
+    candidates_to_append = []
+    source_eligible_ids: list[str] = []
+    transaction_cache: set[tuple[str, str, str, str, int, str]] = set()
+    if batch:
+        integrity = label_archive.verify_integrity()
+        if integrity.get("archive_integrity_verified") is not True:
+            integrity_rejection_reasons = [
+                str(reason)
+                for reason in integrity.get("rejection_reasons") or [integrity.get("status")]
+            ]
+            count_pending(
+                "CANONICAL_LABEL_ARCHIVE_INTEGRITY_UNPROVEN",
+                len(batch),
+            )
+        else:
+            for record in batch:
+                start_ms, end_ms, expected_rows = required_label_range(record)
+                rows, proof = label_archive.verified_range(
+                    symbol=record.decision.symbol,
+                    start_close_time_ms=start_ms,
+                    end_close_time_ms=end_ms,
+                    training_observed_at=signed_at_ms,
+                    limit=expected_rows,
+                    archive_integrity_proof=integrity,
+                    _verified_transaction_cache=transaction_cache,
+                )
+                if rows is None:
+                    reasons = proof.get("rejection_reasons") or [proof.get("status")]
+                    for reason in sorted({str(item) for item in reasons}):
+                        count_pending(reason)
+                    continue
+                try:
+                    matured = mature_candidate(
+                        record,
+                        rows=rows,
+                        proof=proof,
+                        label_generated_at_ms=signed_at_ms,
+                    )
+                except CandidateOutcomeMaturationPending as exc:
+                    count_pending(str(exc))
+                    continue
+                except CandidateOutcomeMaturationError as exc:
+                    count_pending(f"INVALID_LABEL_INPUT:{exc}")
+                    continue
+                candidates_to_append.append(matured)
+                source_eligible_ids.append(record.decision.candidate_id)
+
+    append_receipts = (
+        archive.append_many(tuple(candidates_to_append), signed_at_ms=signed_at_ms)
+        if candidates_to_append
+        else ()
+    )
+    verification = archive.verify()
+    total_matured = verification.matured_revision_count
+    proven_eligible_total = len(matured_ids | set(source_eligible_ids))
+    unexplained_drops = max(0, proven_eligible_total - total_matured)
+    status_name = (
+        "BLOCKED"
+        if integrity_rejection_reasons
+        or any(reason.startswith("INVALID_LABEL_INPUT:") for reason in pending_reason_counts)
+        or unexplained_drops
+        else "PASS"
+    )
+    return {
+        "schema_version": MATURATION_STATUS_SCHEMA_VERSION,
+        "generated_at": _utc_now(),
+        "status": status_name,
+        "decision_revision_count": verification.decision_revision_count,
+        "matured_revision_count": total_matured,
+        "unmatured_candidate_count": (
+            verification.decision_revision_count - verification.matured_revision_count
+        ),
+        "horizon_due_candidate_count": len(due),
+        "selected_candidate_awaiting_actual_close_count": len(selected_actual_pending),
+        "label_candidate_count": len(label_candidates),
+        "batch_candidate_count": len(batch),
+        "source_eligible_candidate_count": len(source_eligible_ids),
+        "newly_matured_candidate_count": len(append_receipts),
+        "idempotent_matured_append_count": sum(
+            receipt.idempotent_replay for receipt in append_receipts
+        ),
+        "proven_eligible_matured_candidate_count": proven_eligible_total,
+        "eligible_matured_label_coverage": (
+            total_matured / proven_eligible_total if proven_eligible_total else 1.0
+        ),
+        "eligible_matured_label_coverage_100_percent": unexplained_drops == 0,
+        "unexplained_maturation_drops": unexplained_drops,
+        "pending_reason_counts": dict(sorted(pending_reason_counts.items())),
+        "canonical_label_archive_integrity_verified": (
+            integrity.get("archive_integrity_verified") is True if integrity is not None else None
+        ),
+        "canonical_label_archive_chain_sha256": (
+            integrity.get("archive_chain_sha256") if integrity is not None else None
+        ),
+        "canonical_label_archive_rejection_reasons": integrity_rejection_reasons,
+        "transaction_identity_cache_entry_count": len(transaction_cache),
+        "counterfactual_counts_as_paper_profit": False,
+        "execution_authority": False,
+        "paper_only": True,
+        "live_gate": "blocked_human_only",
+        "routes_to_live": False,
+        "places_real_order": False,
+        "exchange_action_taken": False,
+    }
+
+
 def process_cycle(
     *,
     client: Any,
@@ -223,6 +400,8 @@ def process_cycle(
     state_root: Path,
     feature_archive_root: Path,
     signed_at_ms: int,
+    label_archive: DurableCanonical5mLabelArchive | None = None,
+    max_maturation_candidates: int = 256,
 ) -> dict[str, Any]:
     paper_status, intents, registry = _read_cycle_projection(client)
     snapshots = _load_feature_snapshots(intents, feature_archive_root)
@@ -272,6 +451,26 @@ def process_cycle(
         }
         _write_json_atomic(receipt_path, cycle_receipt)
 
+    maturation = (
+        process_maturation(
+            archive=archive,
+            label_archive=label_archive,
+            signed_at_ms=signed_at_ms,
+            max_candidates=max_maturation_candidates,
+        )
+        if label_archive is not None
+        else {
+            "schema_version": MATURATION_STATUS_SCHEMA_VERSION,
+            "status": "NOT_CONFIGURED",
+            "runtime_integrated": False,
+            "paper_only": True,
+            "live_gate": "blocked_human_only",
+            "routes_to_live": False,
+            "places_real_order": False,
+            "exchange_action_taken": False,
+        }
+    )
+    verification = archive.verify()
     status = {
         "schema_version": RUNTIME_SCHEMA_VERSION,
         "generated_at": _utc_now(),
@@ -295,6 +494,8 @@ def process_cycle(
             receipt.idempotent_replay for receipt in append_receipts
         ),
         "archive": asdict(verification),
+        "maturation": maturation,
+        "candidate_outcome_maturer_runtime_integrated": label_archive is not None,
         "feature_snapshot_archive_root": str(feature_archive_root),
         "writer_id": archive.writer_id,
         "writer_public_key_hex": archive.writer_public_key_hex,
@@ -397,6 +598,15 @@ def _parser() -> argparse.ArgumentParser:
         default=repo_root / ".local_data/v2_native_trainer/durable_feature_snapshot_archive",
     )
     parser.add_argument(
+        "--label-archive-path",
+        type=Path,
+        default=(
+            local_data_root
+            / "v2_native_trainer/canonical_finalized_5m_label_archive.sqlite3"
+        ),
+    )
+    parser.add_argument("--max-maturation-candidates", type=int, default=256)
+    parser.add_argument(
         "--lock-path",
         type=Path,
         default=Path(
@@ -413,6 +623,8 @@ def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     if args.interval_seconds <= 0:
         raise SystemExit("--interval-seconds must be positive")
+    if args.max_maturation_candidates < 1:
+        raise SystemExit("--max-maturation-candidates must be positive")
     args.state_root.mkdir(parents=True, exist_ok=True, mode=0o700)
     lock_descriptor = _acquire_single_writer_lock(args.lock_path)
     private_key, public_key_hex = _load_signing_key()
@@ -422,6 +634,7 @@ def main(argv: list[str] | None = None) -> int:
         writer_public_key_hex=public_key_hex,
         signer=private_key.sign,
     )
+    label_archive = DurableCanonical5mLabelArchive(args.label_archive_path)
     client = redis.Redis.from_url(
         args.redis_url,
         decode_responses=True,
@@ -450,6 +663,8 @@ def main(argv: list[str] | None = None) -> int:
                     state_root=args.state_root,
                     feature_archive_root=args.feature_archive_root,
                     signed_at_ms=_now_ms(),
+                    label_archive=label_archive,
+                    max_maturation_candidates=args.max_maturation_candidates,
                 )
                 last_status_marker = status["source_paper_status_sha256"]
             if args.once:
