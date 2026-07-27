@@ -59,7 +59,10 @@ def _fixture(tmp_path: Path) -> tuple[Gen5BackfillConfig, dict[str, Any], dict[s
         "snapshot_id": "fixed-snapshot-1",
         "manifest_sha256": "a" * 64,
         "training_observed_at": observed,
-        "databases": {"feature": {"snapshot_high_water": {"high_water_sequence": 2}}},
+        "databases": {
+            "feature": {"snapshot_high_water": {"high_water_sequence": 2}},
+            "label": {"snapshot_high_water": {"receipt_sha256": "c" * 64}},
+        },
     }
     records = {
         "snapshot-1": {"content_sha256": "1" * 64, "profiled_ledger_sequence": 1},
@@ -203,6 +206,7 @@ def test_reconciliation_accepts_independently_rebuilt_sequence_reason(
         "source_scan_high_water_sha256": "a" * 64,
         "label_archive_chain_sha256": "b" * 64,
         "label_archive_receipt_sha256": "c" * 64,
+        "label_fixed_observation_high_water_sha256": "d" * 64,
         "source_strict_eligible_count": 2,
         "imported_sequence_count": 1,
         "rejected_sequence_count": 1,
@@ -243,3 +247,68 @@ def test_reconciliation_accepts_independently_rebuilt_sequence_reason(
     assert report["rejected_rows"] == 1
     assert report["legacy_aggregate_rejection_reason_count"] == 2
     assert report["rejected_sequence_reasons"] == {"2": "LABEL_ARCHIVE_RANGE_END_MISSING"}
+
+
+def test_reconciliation_rejects_mismatched_label_snapshot_receipt(
+    tmp_path: Path,
+) -> None:
+    config, manifest, records = _fixture(tmp_path)
+    records.pop("snapshot-2")
+    first_line = (
+        config.challenger_archive_root.joinpath("manifest.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()[0]
+    )
+    config.challenger_archive_root.joinpath("manifest.jsonl").write_text(
+        first_line + "\n", encoding="utf-8"
+    )
+    status = json.loads(config.status_path.read_text(encoding="utf-8"))
+    status["rejected_rows"] = 1
+    status["rejections_by_reason"] = {"LABEL_ARCHIVE_RANGE_END_MISSING": 1}
+    _write_json(config.status_path, status)
+    evidence = {
+        "schema_version": "gen5_rejection_sequence_evidence_v1",
+        "generated_at": "2026-07-27T20:00:00.000000Z",
+        "snapshot_id": manifest["snapshot_id"],
+        "snapshot_manifest_sha256": manifest["manifest_sha256"],
+        "training_observed_at": manifest["training_observed_at"],
+        "source_high_water_sha256": "a" * 64,
+        "source_scan_high_water_sha256": "a" * 64,
+        "label_archive_chain_sha256": "b" * 64,
+        "label_archive_receipt_sha256": "f" * 64,
+        "label_fixed_observation_high_water_sha256": "d" * 64,
+        "source_strict_eligible_count": 2,
+        "imported_sequence_count": 1,
+        "rejected_sequence_count": 1,
+        "imported_sequences_sha256": _sha((1,)),
+        "rejected_sequences_sha256": _sha((2,)),
+        "rejected_sequence_reasons": [
+            {
+                "sequence": 2,
+                "durable_snapshot_id": "source-2",
+                "primary_reason": "LABEL_ARCHIVE_RANGE_END_MISSING",
+                "supporting_reasons": ["LABEL_ARCHIVE_RANGE_END_MISSING"],
+            }
+        ],
+        "rejections_by_primary_reason": {"LABEL_ARCHIVE_RANGE_END_MISSING": 1},
+        "unexpected_imported_sequences": [],
+        "all_source_sequences_accounted": True,
+        "one_primary_reason_per_rejected_sequence": True,
+        "paper_only": True,
+        "live_gate": "blocked_human_only",
+        "routes_to_live": False,
+        "places_real_order": False,
+        "exchange_action_taken": False,
+    }
+    evidence["evidence_sha256"] = _sha(evidence)
+    _write_json(config.state_root / "gen5_rejection_sequence_evidence.json", evidence)
+
+    report, _ = _reconcile_verified_snapshot(
+        config,
+        manifest,
+        snapshot_loader=lambda snapshot_id, **_kwargs: records[snapshot_id],
+        row_builder=lambda _identity, record: dict(record),
+    )
+
+    assert report["accepted"] is False
+    assert report["acceptance_checks"]["exact_rejection_sequence_mapping"] is False

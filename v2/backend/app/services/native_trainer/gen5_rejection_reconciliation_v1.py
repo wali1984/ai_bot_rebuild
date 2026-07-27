@@ -126,6 +126,16 @@ def _primary_reason(reasons: tuple[str, ...]) -> str:
     return normalized[0]
 
 
+def _required_sha256(value: object, *, reason: str) -> str:
+    if (
+        not isinstance(value, str)
+        or len(value) != 64
+        or any(character not in "0123456789abcdef" for character in value)
+    ):
+        raise Gen5RejectionReconciliationError(reason)
+    return value
+
+
 def build_gen5_rejection_sequence_evidence(
     config: Gen5BackfillConfig,
 ) -> dict[str, Any]:
@@ -143,6 +153,19 @@ def build_gen5_rejection_sequence_evidence(
     )
     if label_integrity is None or label_high_water is None:
         raise Gen5RejectionReconciliationError("LABEL_ARCHIVE_FIXED_PROOF_UNAVAILABLE")
+    label_snapshot_high_water = (
+        manifest.get("databases", {}).get("label", {}).get("snapshot_high_water", {})
+    )
+    if not isinstance(label_snapshot_high_water, Mapping):
+        raise Gen5RejectionReconciliationError("LABEL_SNAPSHOT_HIGH_WATER_MISSING")
+    label_snapshot_receipt_sha256 = _required_sha256(
+        label_snapshot_high_water.get("receipt_sha256"),
+        reason="LABEL_SNAPSHOT_RECEIPT_SHA256_INVALID",
+    )
+    label_fixed_observation_high_water_sha256 = _required_sha256(
+        label_high_water.get("high_water_sha256"),
+        reason="LABEL_FIXED_OBSERVATION_HIGH_WATER_SHA256_INVALID",
+    )
 
     source_sequences: set[int] = set()
     rejected: dict[int, dict[str, Any]] = {}
@@ -251,7 +274,8 @@ def build_gen5_rejection_sequence_evidence(
         "source_high_water_sha256": source_high_water.get("high_water_sha256"),
         "source_scan_high_water_sha256": scan.high_water_sha256,
         "label_archive_chain_sha256": label_integrity.get("archive_chain_sha256"),
-        "label_archive_receipt_sha256": label_high_water.get("receipt_sha256"),
+        "label_archive_receipt_sha256": label_snapshot_receipt_sha256,
+        "label_fixed_observation_high_water_sha256": (label_fixed_observation_high_water_sha256),
         "source_strict_eligible_count": len(source_sequences),
         "imported_sequence_count": len(imported_sequences),
         "rejected_sequence_count": len(missing_sequences),

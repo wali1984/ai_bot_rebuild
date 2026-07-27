@@ -38,6 +38,14 @@ def _canonical_sha256(value: object) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+def _valid_sha256(value: object) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(character in "0123456789abcdef" for character in value)
+    )
+
+
 class Gen5BackfillReconciliationError(RuntimeError):
     """Raised when reconciliation evidence is malformed rather than merely red."""
 
@@ -262,6 +270,14 @@ def _reconcile_verified_snapshot(
     sequence_evidence: dict[str, Any] | None = None
     sequence_evidence_valid = False
     primary_rejections: dict[str, int] = {}
+    label_snapshot_high_water = (
+        manifest.get("databases", {}).get("label", {}).get("snapshot_high_water", {})
+    )
+    expected_label_snapshot_receipt = (
+        label_snapshot_high_water.get("receipt_sha256")
+        if isinstance(label_snapshot_high_water, Mapping)
+        else None
+    )
     if sequence_evidence_path.exists():
         sequence_evidence = _read_object(sequence_evidence_path)
         evidence_sha256 = sequence_evidence.get("evidence_sha256")
@@ -290,6 +306,10 @@ def _reconcile_verified_snapshot(
             == _canonical_sha256(tuple(sorted(imported_sequences)))
             and sequence_evidence.get("rejected_sequences_sha256")
             == _canonical_sha256(missing_sequences)
+            and _valid_sha256(sequence_evidence.get("label_archive_receipt_sha256"))
+            and sequence_evidence.get("label_archive_receipt_sha256")
+            == expected_label_snapshot_receipt
+            and _valid_sha256(sequence_evidence.get("label_fixed_observation_high_water_sha256"))
             and set(evidence_mapping) == {str(value) for value in missing_sequences}
             and all(
                 isinstance(reason, str)

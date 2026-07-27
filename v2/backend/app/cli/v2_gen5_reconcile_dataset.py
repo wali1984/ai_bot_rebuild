@@ -18,6 +18,9 @@ from v2.backend.app.services.native_trainer.gen5_backfill_reconciliation_v1 impo
     REJECTION_SEQUENCE_EVIDENCE_FILENAME,
     reconcile_gen5_backfill,
 )
+from v2.backend.app.services.native_trainer.gen5_pit_regime_coverage_v1 import (
+    build_pit_regime_coverage_v1,
+)
 from v2.backend.app.services.native_trainer.gen5_rejection_reconciliation_v1 import (
     build_gen5_rejection_sequence_evidence,
 )
@@ -99,8 +102,8 @@ def _coverage_report(
         }
         for name, count in missing_counts.items()
     }
-    regime_features = sorted(str(name) for name in ordered_names if "regime" in str(name).lower())
-    regime_coverage_proven = len(regime_features) > 0
+    regime_coverage = build_pit_regime_coverage_v1(dataset)
+    regime_coverage_proven = regime_coverage.get("regime_coverage_proven") is True
     materially_wider_time_coverage = (
         int(reconciliation["imported_rich_binding_rows"]) >= MINIMUM_MATERIAL_ROWS
         and len(dates) >= MINIMUM_DISTINCT_UTC_DATES
@@ -151,12 +154,13 @@ def _coverage_report(
         "feature_missingness": missingness,
         "cost_complete_rows": cost_complete_rows,
         "cost_completeness_rate": cost_complete_rows / len(rows),
-        "predeclared_regime_feature_names": regime_features,
+        "regime_coverage_evidence_sha256": regime_coverage["evidence_sha256"],
+        "regime_coverage": regime_coverage,
         "regime_coverage_proven": regime_coverage_proven,
         "regime_coverage_status": (
-            "PROVEN_PREDECLARED_REGIME_FEATURE_PRESENT"
+            "PROVEN_PIT_TRAIN_FIT_COVERAGE_EVALUATION"
             if regime_coverage_proven
-            else "UNPROVEN_NO_PREDECLARED_REGIME_LABEL"
+            else "UNPROVEN_PIT_REGIME_COVERAGE_INSUFFICIENT"
         ),
         "decision_time_group_overlap_across_splits": split_group_overlap,
         "dataset_reproducible": reproducible,
@@ -246,6 +250,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         dataset_manifest,
     )
     _write_json_atomic(output_root / "train_serve_feature_parity_report_gen5.json", parity)
+    _write_json_atomic(
+        output_root / "gen5_pit_regime_coverage_report.json",
+        coverage["regime_coverage"],
+    )
     _write_json_atomic(output_root / "gen5_dataset_coverage_report.json", coverage)
     print(json.dumps(coverage, indent=2, sort_keys=True), flush=True)
     return 0

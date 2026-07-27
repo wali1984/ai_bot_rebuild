@@ -15,7 +15,13 @@ def _row(
         "timeframe": "5m",
         "target_action": "long",
         "split": split,
-        "missing_mask": [False],
+        "feature_values": [0.0, 1.0, 1.0],
+        "missing_mask": [False, False, False],
+        "feature_cutoff": decision_time,
+        "record_available_at": decision_time,
+        "latest_unclosed_kline_excluded": True,
+        "latest_unclosed_exclusion_decision_time_ms": 0,
+        "latest_closed_kline_close_time_ms": 0,
         "cost_evidence_sha256": "a" * 64,
     }
 
@@ -24,7 +30,7 @@ def test_coverage_blocks_champion_when_regime_labels_are_unproven() -> None:
     dataset = {
         "dataset_id": "dataset-1",
         "dataset_sha256": "b" * 64,
-        "ordered_feature_names": ["close"],
+        "ordered_feature_names": ["ema_12", "ema_26", "true_range_pct"],
         "rows": [
             _row("row-1", "2026-07-22T00:00:00Z", "train"),
             _row("row-2", "2026-07-24T00:00:00Z", "validation"),
@@ -52,7 +58,7 @@ def test_coverage_detects_decision_time_group_split_overlap() -> None:
     dataset = {
         "dataset_id": "dataset-1",
         "dataset_sha256": "b" * 64,
-        "ordered_feature_names": ["market_regime_code"],
+        "ordered_feature_names": ["ema_12", "ema_26", "true_range_pct"],
         "rows": [
             _row("row-1", "2026-07-22T00:00:00Z", "train"),
             _row("row-2", "2026-07-22T00:00:00Z", "validation"),

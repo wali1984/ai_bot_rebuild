@@ -31,6 +31,7 @@ def fixed_sources(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Gen5Backfi
             "snapshot_id": "fixed-snapshot",
             "manifest_sha256": "a" * 64,
             "training_observed_at": "2026-07-27T20:00:00.000000Z",
+            "databases": {"label": {"snapshot_high_water": {"receipt_sha256": "c" * 64}}},
         },
     )
     monkeypatch.setattr(subject, "_imported_sequences", lambda _config: (1,))
@@ -41,7 +42,7 @@ def fixed_sources(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Gen5Backfi
         "derive_label_archive_fixed_observation_proof_v1",
         lambda **_kwargs: (
             {"archive_chain_sha256": "b" * 64},
-            {"receipt_sha256": "c" * 64},
+            {"high_water_sha256": "e" * 64},
         ),
     )
     return config
@@ -92,6 +93,8 @@ def test_rebuild_assigns_one_deterministic_primary_reason_per_sequence(
         }
     ]
     assert evidence["one_primary_reason_per_rejected_sequence"] is True
+    assert evidence["label_archive_receipt_sha256"] == "c" * 64
+    assert evidence["label_fixed_observation_high_water_sha256"] == "e" * 64
     assert evidence["exchange_action_taken"] is False
 
 
