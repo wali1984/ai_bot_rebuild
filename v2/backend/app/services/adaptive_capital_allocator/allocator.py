@@ -2295,6 +2295,7 @@ def _result(
     leverage_selection: dict[str, Any] | None = None,
     margin_mode: str | None = None,
     margin_mode_selection: dict[str, Any] | None = None,
+    hedge_plan_override: dict[str, Any] | None = None,
 ) -> AllocationResult:
     sizing_row = sizing_row or row
     input_material = allocation_input_material(row, envelope, mode=mode)
@@ -2454,7 +2455,7 @@ def _result(
         if liquidation_buffer_bps is None
         else gross_notional * max(0.0, liquidation_buffer_bps) / 10000.0
     )
-    hedge_plan = evaluate_hedge_intent(
+    legacy_hedge_plan = evaluate_hedge_intent(
         candidate={
             "symbol": row.symbol,
             "action": row.action,
@@ -2476,6 +2477,16 @@ def _result(
         liquidation_buffer_usd=liquidation_distance_usd,
         edge_remains=expected_net_pnl_usd > 0.0 and gross_notional > 0.0,
     )
+    hedge_plan = (
+        {**legacy_hedge_plan, **hedge_plan_override}
+        if hedge_plan_override is not None
+        else legacy_hedge_plan
+    )
+    if hedge_plan_override is not None:
+        # The exact adaptive policy owns the hedge decision.  Retain the
+        # legacy hedge engine output as comparator evidence, but do not let it
+        # become a second policy after the signed action was authorized.
+        model_inputs["legacy_hedge_comparator"] = legacy_hedge_plan
     if mode == "paper" and maintenance_margin_rate is None:
         cross_margin: dict[str, Any] = {
             "recommended_margin_mode": margin_mode
@@ -3531,6 +3542,20 @@ def allocate_authorized_adaptive_paper_action(
     if type(policy_result) is not AdaptivePolicyShadowCandidateV2:
         reasons.append("ADAPTIVE_POLICY_RESULT_TYPE_INVALID")
     elif type(authorization) is AdaptivePaperPolicyAuthorizationV2:
+        selected_policy_action = policy_result.selected_adaptive_action
+        if (
+            selected_policy_action.hedge_enabled
+            or selected_policy_action.hedge_legs
+            or selected_policy_action.hedge_ratios
+        ):
+            # This initial-entry allocator currently has a one-position
+            # reservation/accounting contract.  A future adaptive hedged action
+            # must bring its own exact multi-leg venue and accounting receipt;
+            # neither the legacy hedge engine nor this feasibility helper may
+            # invent, resize, or silently remove those policy-selected legs.
+            reasons.append(
+                "ADAPTIVE_POLICY_EXACT_HEDGE_PHYSICAL_CONTRACT_UNIMPLEMENTED"
+            )
         try:
             independently_rebuilt_authorization = (
                 authorize_adaptive_paper_policy_action(
@@ -3688,6 +3713,45 @@ def allocate_authorized_adaptive_paper_action(
     if reasons:
         return blocked()
 
+    # The authorization seals decimal action values.  The paper reservation
+    # ABI additionally seals the exact binary64 multiplication operands used
+    # by runtime accounting.  Use the binary64 product as the unrounded
+    # arithmetic receipt input; publication still rounds back to the exact
+    # authorized decimal aliases and is therefore not a resize.
+    binary64_target_notional = expected_notional
+    modeled_loss_bps = bounded_loss / binary64_target_notional * 10_000.0
+    # Authorization replay above proves that the selected AdaptivePolicyActionV2
+    # is the exact unhedged directional action.  Suppress the legacy hedge
+    # chooser so physical validation cannot become a second trading policy.
+    adaptive_no_hedge_plan = {
+        "hedge_required": False,
+        "hedge_action": "NO_HEDGE",
+        "hedge_reason": "adaptive_policy_action_selected_no_hedge",
+        "hedge_state": "NO_HEDGE",
+        "hedge_symbol": None,
+        "hedge_side": None,
+        "hedge_notional_usd": 0.0,
+        "hedge_margin_usd": 0.0,
+        "hedge_leverage": 1.0,
+        "hedge_cost_usd": 0.0,
+        "hedge_expected_risk_reduction_usd": 0.0,
+        "hedge_net_benefit_usd": 0.0,
+        "hedge_allowed": False,
+        "hedge_reject_reasons": [],
+        "hedge_exit_plan": {
+            "status": "NO_HEDGE_EXIT_PLAN",
+            "reason": "adaptive_policy_action_selected_no_hedge",
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+        },
+        "hedge_increases_liquidation_risk": False,
+        "hedge_averaging_down_rejected": False,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+
     exact_lineage = {
         **dict(row.lineage_ids),
         "adaptive_policy_authorization_id": authorization.authorization_id,
@@ -3729,7 +3793,7 @@ def allocate_authorized_adaptive_paper_action(
             expected_move_after_cost_bps=authorization.expected_after_cost_return_bps,
         ),
         decision="ALLOW_WITH_SIZE",
-        target_notional=target_notional,
+        target_notional=binary64_target_notional,
         target_quantity=target_quantity,
         risk_budget_usd=bounded_loss,
         allocated_margin=allocated_margin,
@@ -3751,6 +3815,7 @@ def allocate_authorized_adaptive_paper_action(
             "selected_margin_mode": "isolated_paper_simulated",
             "margin_mode_selection_reason": "adaptive_policy_exact_isolated_paper_action",
         },
+        hedge_plan_override=adaptive_no_hedge_plan,
     )
     exact_model_inputs = {
         **dict(result.model_inputs),
@@ -3786,6 +3851,23 @@ def allocate_authorized_adaptive_paper_action(
         "adaptive_policy_exact_round_trip_cost_bps_decimal": str(
             authorization.exact_round_trip_cost_bps
         ),
+        "paper_post_quantization_exchange_filter_status": "PASS",
+        "paper_margin_configuration_uses_post_quantization_notional": True,
+        "paper_target_quantity_after_step_quantization": round(
+            target_quantity,
+            12,
+        ),
+        "paper_target_notional_after_step_quantization_usd": round(
+            binary64_target_notional,
+            8,
+        ),
+        "max_loss_usd": round(bounded_loss, 8),
+        "paper_modeled_loss_bps": round(modeled_loss_bps, 8),
+        "paper_modeled_loss_formula": (
+            "exact_adaptive_bounded_loss_usd/gross_notional_usd*10000"
+        ),
+        "adaptive_policy_hedge_selected": False,
+        "adaptive_policy_hedge_authoritative": True,
         "policy_action_resized": False,
         "static_category_e_final_authority": False,
         "paper_only": True,
@@ -3806,6 +3888,19 @@ def allocate_authorized_adaptive_paper_action(
         final_size_reason="adaptive_policy_exact_action_physically_validated_unchanged",
         model_inputs=exact_model_inputs,
         lineage_ids=exact_lineage,
+        hedge_budget_usd=0.0,
+        hedge_required=False,
+        hedge_action="NO_HEDGE",
+        hedge_reason="adaptive_policy_action_selected_no_hedge",
+        hedge_symbol=None,
+        hedge_side=None,
+        hedge_notional_usd=0.0,
+        hedge_margin_usd=0.0,
+        hedge_leverage=1.0,
+        hedge_cost_usd=0.0,
+        hedge_expected_risk_reduction_usd=0.0,
+        hedge_net_benefit_usd=0.0,
+        hedge_exit_plan=dict(adaptive_no_hedge_plan["hedge_exit_plan"]),
     )
 
 

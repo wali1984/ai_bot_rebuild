@@ -10,6 +10,9 @@ from v2.backend.app.services.adaptive_capital_allocator import (
 from v2.backend.app.services.adaptive_capital_allocator.allocator import (
     ADAPTIVE_POLICY_EXACT_PAPER_ALLOCATION_VERSION,
 )
+from v2.backend.app.services.paper_trade_management.cycle_reservation import (
+    _allocation_economics,
+)
 from v2.backend.app.services.adaptive_system import adaptive_hard_validator_v2
 from v2.backend.app.services.adaptive_system import adaptive_objective_v2
 from v2.backend.app.services.adaptive_system.adaptive_paper_policy_authorization_v2 import (
@@ -126,6 +129,46 @@ def test_returns_exact_policy_action_without_reapplying_category_e_vetoes() -> N
     ] == "PASS"
     assert allocation.model_inputs["policy_action_resized"] is False
     assert allocation.model_inputs["static_category_e_final_authority"] is False
+    assert allocation.model_inputs[
+        "paper_target_quantity_after_step_quantization"
+    ] == allocation.target_quantity
+    assert allocation.model_inputs[
+        "paper_target_notional_after_step_quantization_usd"
+    ] == allocation.gross_notional_usd
+    assert allocation.model_inputs["max_loss_usd"] == allocation.max_loss_if_stop_hit
+    assert allocation.model_inputs["paper_modeled_loss_bps"] > 0.0
+    assert allocation.model_inputs[
+        "paper_post_quantization_exchange_filter_status"
+    ] == "PASS"
+    assert allocation.model_inputs[
+        "paper_margin_configuration_uses_post_quantization_notional"
+    ] is True
+    assert allocation.hedge_required is False
+    assert allocation.hedge_action == "NO_HEDGE"
+    assert allocation.hedge_notional_usd == 0.0
+    assert allocation.model_inputs["hedge_engine"]["hedge_required"] is False
+    assert allocation.model_inputs["legacy_hedge_comparator"]
+
+    payload = allocation.to_payload()
+    payload.update(
+        {
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+            "live_order": False,
+            "test_order": False,
+            "leverage_mutation": False,
+            "margin_mode_mutation": False,
+        }
+    )
+    snapshot_hash = authorization.operator_catastrophic_envelope_sha256
+    economics = _allocation_economics(
+        payload,
+        expected_symbol=authorization.primary_symbol,
+        required_snapshot_hash=snapshot_hash,
+    )
+    assert economics["gross_notional_usd"] == allocation.gross_notional_usd
+    assert economics["max_loss_if_stop_hit_usd"] == allocation.max_loss_if_stop_hit
 
 
 @pytest.mark.parametrize(
@@ -200,3 +243,25 @@ def test_forged_authorization_fields_fail_independent_replay() -> None:
     assert "ADAPTIVE_POLICY_AUTHORIZATION_REPLAY_MISMATCH" in allocation.model_inputs[
         "adaptive_policy_exact_physical_rejection_reasons"
     ]
+
+
+def test_hedged_policy_action_requires_exact_multileg_physical_contract() -> None:
+    authorization, policy_result = _authorization_and_result()
+    action = policy_result.selected_adaptive_action
+    object.__setattr__(action, "hedge_enabled", True)
+    try:
+        allocation = allocate_authorized_adaptive_paper_action(
+            _row(authorization),
+            authorization=authorization,
+            policy_result=policy_result,
+        )
+    finally:
+        object.__setattr__(action, "hedge_enabled", False)
+
+    assert allocation.decision == "BLOCK_EXECUTION_FEASIBILITY_CONTRACT_MISMATCH"
+    assert (
+        "ADAPTIVE_POLICY_EXACT_HEDGE_PHYSICAL_CONTRACT_UNIMPLEMENTED"
+        in allocation.model_inputs[
+            "adaptive_policy_exact_physical_rejection_reasons"
+        ]
+    )

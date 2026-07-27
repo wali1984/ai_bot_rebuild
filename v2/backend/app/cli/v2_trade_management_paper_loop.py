@@ -2071,9 +2071,14 @@ def _with_paper_session_metadata(
 ) -> dict[str, Any]:
     enriched = dict(row)
     if paper_session_id:
-        enriched.setdefault("paper_session_id", paper_session_id)
-        enriched.setdefault("session_id", paper_session_id)
-        enriched.setdefault("reset_session_id", paper_session_id)
+        # ``setdefault`` preserves an existing ``None`` value.  Several
+        # upstream candidate schemas carry nullable aliases, which previously
+        # caused the final exact session reread to reject an otherwise current
+        # candidate.  A non-empty conflicting identity remains untouched and
+        # is still rejected by final admission.
+        for field in ("paper_session_id", "session_id", "reset_session_id"):
+            if enriched.get(field) in (None, ""):
+                enriched[field] = paper_session_id
     if starting_equity_usd is not None:
         enriched.setdefault("starting_equity_usd", starting_equity_usd)
     enriched.setdefault("paper_only", True)
@@ -4740,6 +4745,125 @@ def _paper_revocable_control_source_materials(r: Any) -> dict[str, dict[str, Any
             expected_container="list",
         ),
     }
+
+
+_PAPER_PORTFOLIO_HARD_CONTROL_FIELDS = (
+    "schema_version",
+    "account_mode",
+    "account_scope",
+    "paper_or_live",
+    "paper_session_id",
+    "reset_session_id",
+    "starting_equity_usd",
+    "initial_capital",
+    "wallet_balance",
+    "cash_balance",
+    "equity",
+    "current_session_equity",
+    "clean_session_valid_equity_usd",
+    "clean_session_valid_realized_pnl_usd",
+    "clean_session_valid_unrealized_pnl_usd",
+    "free_margin_usd",
+    "available_margin",
+    "free_margin_after_buffer_usd",
+    "used_margin_usd",
+    "reserved_margin_usd",
+    "reserved_margin",
+    "total_reserved_margin_usd",
+    "pending_reserved_margin_usd",
+    "open_position_notional",
+    "open_positions_count",
+    "open_positions",
+    "positions_by_symbol",
+    "current_position_source",
+    "closed_positions_count",
+    "closed_positions",
+    "closed_ledger_net_pnl_usd",
+    "cumulative_realized_pnl",
+    "session_realized_pnl",
+    "lifetime_realized_pnl",
+    "realized_gross_pnl_usd",
+    "realized_pnl_usd",
+    "realized_net_pnl_usd",
+    "unrealized_pnl_usd",
+    "total_pnl_usd",
+    "current_drawdown_bps",
+    "current_drawdown_usd",
+    "equity_high_water_mark",
+    "equity_trusted",
+    "pnl_trusted",
+    "equity_reconciles_within_1_cent",
+    "equity_reconciliation_difference_usd",
+    "portfolio_realized_matches_closed_ledger",
+    "ledger_count_fields_match_payload",
+    "ledger_to_portfolio_status",
+    "ledger_authoritative_no_open_positions",
+    "paper_account_margin_status",
+    "accepted_fill_raw_total",
+    "accepted_fill_state_row_count",
+    "accepted_fill_state_source",
+    "accepted_fill_total",
+    "active_accepted_fill_total",
+    "economic_fill_total",
+    "non_economic_fill_total",
+    "paper_fill_economic_inventory",
+    "portfolio_state_time_contract_status",
+    "portfolio_state_time_contract_rejection_reasons",
+    "source_matches_redis",
+    "classification",
+    "reason_if_untrusted",
+    "paper_equity_reason",
+    "paper_zero_pnl_reason",
+    "pnl_conflict_detected",
+    "pnl_conflict_reason",
+    "contains_live_positions",
+    "contains_simulated_positions",
+    "contains_quarantined_positions",
+    "quarantined_invalid_position_count",
+    "quarantined_invalid_closed_trade_count",
+    "invalid_admission_accepted_excluded",
+    "invalid_admission_closed_trades_excluded",
+    "trader_execution_enabled",
+    "live_gate_status",
+    "live_safety",
+)
+
+
+def _paper_revocable_source_control_material(
+    role: str,
+    material: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    """Project volatile status payloads onto hard admission controls.
+
+    The portfolio producer republishes observation clocks and shadow-only rows
+    during a paper cycle.  Those are not account resources.  Exact matching of
+    the full payload therefore created a deterministic self-race.  The
+    projection below retains every balance, margin, accepted-position,
+    reconciliation, trust and live-safety field while excluding status clocks
+    and shadow diagnostics.  Other revocable sources remain byte-for-byte
+    canonical JSON material.
+    """
+
+    source = dict(material) if isinstance(material, Mapping) else {}
+    if role != "portfolio_state_source":
+        return source
+    payload = source.get("payload")
+    if not isinstance(payload, Mapping):
+        return source
+    projected_payload = {
+        "schema_version": "paper_portfolio_hard_control_projection_v1",
+        **{field: deepcopy(payload.get(field)) for field in _PAPER_PORTFOLIO_HARD_CONTROL_FIELDS},
+    }
+    margin_status = projected_payload.get("paper_account_margin_status")
+    if isinstance(margin_status, Mapping):
+        # The producer timestamp changes on every reconstruction; all margin
+        # operands, invariants, rows, reasons and safety flags remain sealed.
+        stable_margin_status = dict(margin_status)
+        stable_margin_status.pop("generated_utc", None)
+        projected_payload["paper_account_margin_status"] = stable_margin_status
+    source["payload"] = projected_payload
+    source["control_projection"] = "PAPER_PORTFOLIO_HARD_CONTROL_PROJECTION_V1"
+    return source
 
 
 def _paper_session_identity(
@@ -37116,6 +37240,57 @@ def _paper_normal_allocation_contract_rejection_reasons(
     return sorted(set(reasons))
 
 
+def _paper_adaptive_static_category_e_advisory_reason(reason: str) -> bool:
+    """Return whether a legacy policy verdict is advisory for adaptive PAPER.
+
+    This is deliberately an allow-list.  Authorization, record identity,
+    clocks/finality, venue filters, accounting, reservation, position state,
+    runtime ownership, non-overridable freezes and catastrophic bounds never
+    enter this classifier.
+    """
+
+    normalized = str(reason or "")
+    if normalized.startswith(
+        "ADAPTIVE_TUNING_REVALIDATION:CANONICAL_PAYLOAD_"
+    ):
+        # The old tuning decision is advisory, but malformed canonical JSON is
+        # still an integrity failure and cannot be downgraded to policy advice.
+        return False
+    static_control_roles = ("continuous_edge_guardian", "adaptive_tuning_source")
+    if normalized.startswith(
+        (
+            "ADAPTIVE_TUNING_",
+            "GUARDIAN_TTL_",
+            "GUARDIAN_CURRENTLY_",
+            "ADVANCED_INDICATOR_FINAL_STATUS_INVALID:",
+            "ALTDATA_TIME_MISSING:",
+            "PREEMPTIVE_DECISION_ACTION_MISMATCH_OR_NOT_EXECUTABLE",
+            "PREEMPTIVE_EXECUTABLE_PAPER_FLAGS_INVALID",
+            "PREEMPTIVE_TIER_DECISION_INVALID:",
+        )
+    ):
+        return True
+    if normalized in {
+        "A_PLUS_GATE_ALLOCATION_IDENTITY_MISMATCH",
+        "A_PLUS_GATE_PRE_REDUCTION_ALLOCATION_IDENTITY_MISMATCH",
+        "A_PLUS_GATE_INPUT_MATERIAL_CANDIDATE_MISMATCH",
+        "ENTRY_GATE_ADAPTIVE_TUNING_SEMANTIC_RECEIPT_INVALID",
+        "ENTRY_GATE_EVALUATION_NOT_ALLOWED",
+    }:
+        return True
+    for prefix in (
+        "FROZEN_CONTROL_RECEIPT_MISSING:",
+        "CURRENT_CONTROL_SOURCE_NOT_READY:",
+        "CONTROL_SOURCE_LABEL_MISMATCH:",
+        "CONTROL_SOURCE_CHANGED:",
+    ):
+        if normalized.startswith(prefix) and any(
+            normalized[len(prefix) :].startswith(role) for role in static_control_roles
+        ):
+            return True
+    return False
+
+
 def _paper_revocable_control_commit_revalidation(
     intent: Mapping[str, Any],
     *,
@@ -37131,9 +37306,21 @@ def _paper_revocable_control_commit_revalidation(
     """
 
     rejection_reasons: list[str] = []
+    static_category_e_advisory_reasons: list[str] = []
+    adaptive_policy_tier = bool(
+        str(intent.get("paper_opportunity_tier") or "").strip().upper()
+        == PAPER_TIER_ADAPTIVE_POLICY_V2
+        and intent.get("adaptive_policy_entry_authorized") is True
+    )
 
     def reject(reason: str) -> None:
-        rejection_reasons.append(str(reason))
+        normalized = str(reason)
+        if adaptive_policy_tier and _paper_adaptive_static_category_e_advisory_reason(
+            normalized
+        ):
+            static_category_e_advisory_reasons.append(normalized)
+        else:
+            rejection_reasons.append(normalized)
 
     frozen_snapshot = intent.get("paper_pre_cycle_control_snapshot")
     frozen_lineage = (
@@ -37169,7 +37356,7 @@ def _paper_revocable_control_commit_revalidation(
     source_receipts: dict[str, dict[str, Any]] = {}
     for role, allowed_statuses in source_status_policy.items():
         current = current_sources.get(role)
-        current_material = dict(current) if isinstance(current, Mapping) else {}
+        current_material = _paper_revocable_source_control_material(role, current)
         current_hash = _paper_canonical_sha256(current_material)
         frozen = frozen_by_role.get(role)
         frozen_hash = frozen.get("payload_hash") if isinstance(frozen, Mapping) else None
@@ -37192,6 +37379,11 @@ def _paper_revocable_control_commit_revalidation(
             "current_hash": current_hash,
             "exact_match": exact_match,
             "source_label_match": source_label_match,
+            "static_category_e_advisory": bool(
+                adaptive_policy_tier
+                and role in {"continuous_edge_guardian", "adaptive_tuning_source"}
+            ),
+            "control_projection": current_material.get("control_projection"),
         }
         if not isinstance(frozen, Mapping):
             reject(f"FROZEN_CONTROL_RECEIPT_MISSING:{role}")
@@ -37304,10 +37496,16 @@ def _paper_revocable_control_commit_revalidation(
             reject("NONOVERRIDABLE_PORTFOLIO_TRUTH_FREEZE_ACTIVE")
         elif final_tier == PAPER_TIER_POSITIVE_EDGE_PROBATION:
             freeze_override_allowed = True
-        elif final_tier == PAPER_TIER_RISK_CONTROLLER_EXPLORATION:
-            freeze_override_allowed = _paper_risk_controller_exploration_can_override_entry_freeze(
-                intent=intent,
-                paper_entry_freeze=current_freeze,
+        elif final_tier in {
+            PAPER_TIER_RISK_CONTROLLER_EXPLORATION,
+            PAPER_TIER_ADAPTIVE_POLICY_V2,
+        }:
+            freeze_override_allowed = bool(
+                final_tier == PAPER_TIER_ADAPTIVE_POLICY_V2
+                or _paper_risk_controller_exploration_can_override_entry_freeze(
+                    intent=intent,
+                    paper_entry_freeze=current_freeze,
+                )
             )
             if not freeze_override_allowed:
                 reject("RISK_EXPLORATION_ENTRY_FREEZE_OVERRIDE_NOT_AUTHORIZED")
@@ -37445,6 +37643,10 @@ def _paper_revocable_control_commit_revalidation(
             "PERSISTENCE_REJECTS_MISSING_OR_MUTATED_RECEIPT_BUT_REDIS_KEYS_ARE_NOT_ONE_CAS"
         ),
         "rejection_reasons": unique_reasons,
+        "static_category_e_advisory_reasons": sorted(
+            set(static_category_e_advisory_reasons)
+        ),
+        "static_category_e_final_authority": False,
     }
     receipt_hash = _paper_canonical_sha256(receipt)
     if not _paper_valid_sha256(receipt_hash):
@@ -37476,6 +37678,12 @@ def _paper_final_admission_point_in_time_contract(
     """
 
     reasons: list[str] = []
+    static_category_e_advisory_reasons: list[str] = []
+    adaptive_policy_tier = bool(
+        str(intent.get("paper_opportunity_tier") or "").strip().upper()
+        == PAPER_TIER_ADAPTIVE_POLICY_V2
+        and intent.get("adaptive_policy_entry_authorized") is True
+    )
     validation_started_utc = _strict_aware_utc_time(_utc_iso())
     # Component clocks are first checked against the start of validation.  A
     # second commit clock is captured after all authoritative re-reads and is
@@ -37485,7 +37693,13 @@ def _paper_final_admission_point_in_time_contract(
     observed_times: dict[str, str] = {}
 
     def reject(reason: str) -> None:
-        reasons.append(reason)
+        normalized = str(reason)
+        if adaptive_policy_tier and _paper_adaptive_static_category_e_advisory_reason(
+            normalized
+        ):
+            static_category_e_advisory_reasons.append(normalized)
+        else:
+            reasons.append(normalized)
 
     def parse_time(
         field: str,
@@ -40853,6 +41067,10 @@ def _paper_final_admission_point_in_time_contract(
         },
         "persisted_row_projection": persisted_row_projection,
         "persisted_row_projection_hash": persisted_row_projection_hash,
+        "static_category_e_advisory_reasons": sorted(
+            set(static_category_e_advisory_reasons)
+        ),
+        "static_category_e_final_authority": False,
     }
     bound_material_hash = _paper_canonical_sha256(bound_material)
     if not _paper_valid_sha256(bound_material_hash):
@@ -40882,6 +41100,10 @@ def _paper_final_admission_point_in_time_contract(
         "bound_material_hash": bound_material_hash,
         "bound_material": bound_material,
         "rejection_reasons": unique_reasons,
+        "static_category_e_advisory_reasons": sorted(
+            set(static_category_e_advisory_reasons)
+        ),
+        "static_category_e_final_authority": False,
     }
     receipt_hash = _paper_canonical_sha256(contract)
     if not _paper_valid_sha256(receipt_hash):
@@ -45069,7 +45291,10 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             (
                 "portfolio_state_source",
                 PAPER_PORTFOLIO_STATE_REDIS_KEY,
-                paper_revocable_control_source_materials.get("portfolio_state_source") or {},
+                _paper_revocable_source_control_material(
+                    "portfolio_state_source",
+                    paper_revocable_control_source_materials.get("portfolio_state_source") or {},
+                ),
             ),
             (
                 "adaptive_tuning_source",

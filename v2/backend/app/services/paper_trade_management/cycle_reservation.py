@@ -91,6 +91,7 @@ _MAX_CANONICAL_BINARY64_HEX_BYTES = 32
 _BASIS_POINTS_PER_UNIT = Decimal(10_000)
 _EXECUTABLE_PAPER_TIERS = frozenset(
     {
+        "ADAPTIVE_POLICY_V2",
         "A_GRADE_EXECUTION_PAPER",
         "A_PLUS_BOOTSTRAP_REDUCED_SIZE_PAPER_ONLY",
         "B_GRADE_EXPLORATION_PAPER",
@@ -106,6 +107,7 @@ _GUARDIAN_REQUIRED_PAPER_TIERS = frozenset(
 )
 _FREEZE_OVERRIDE_PAPER_TIERS = frozenset(
     {
+        "ADAPTIVE_POLICY_V2",
         "POSITIVE_EDGE_PROBATION_PAPER",
         "PAPER_RISK_CONTROLLER_EXPLORATION",
     }
@@ -1510,10 +1512,21 @@ def _revocable_control_receipt_rejection_reasons(
         material = dict(receipt)
         receipt_hash = material.pop("receipt_hash", None)
         reasons: list[str] = []
+        adaptive_policy_tier = paper_opportunity_tier == "ADAPTIVE_POLICY_V2"
+        advisory_reasons_value = receipt.get("static_category_e_advisory_reasons")
+        advisory_reasons = (
+            advisory_reasons_value if type(advisory_reasons_value) is list else []
+        )
         if receipt.get("schema_version") != _REVOCABLE_CONTROL_COMMIT_SCHEMA_VERSION:
             reasons.append("CYCLE_RESERVATION_PRIOR_REVOCABLE_SCHEMA_INVALID")
         if receipt.get("status") != "PASS" or receipt.get("rejection_reasons") != []:
             reasons.append("CYCLE_RESERVATION_PRIOR_REVOCABLE_STATUS_INVALID")
+        if adaptive_policy_tier and (
+            receipt.get("static_category_e_final_authority") is not False
+            or type(advisory_reasons_value) is not list
+            or any(type(reason) is not str or not reason for reason in advisory_reasons)
+        ):
+            reasons.append("CYCLE_RESERVATION_PRIOR_REVOCABLE_STATIC_ADVISORY_INVALID")
         if (
             receipt.get("paper_only") is not True
             or receipt.get("routes_to_live") is not False
@@ -1576,24 +1589,50 @@ def _revocable_control_receipt_rejection_reasons(
             read_status = source.get("read_status")
             source_key = source.get("source_key")
             present_expected = read_status == "READY"
+            static_advisory_source = bool(
+                adaptive_policy_tier
+                and role in {"continuous_edge_guardian", "adaptive_tuning_source"}
+            )
+            effective_allowed_statuses = (
+                frozenset({"READY", "MISSING", "MALFORMED", "READ_ERROR"})
+                if static_advisory_source
+                else allowed_statuses
+            )
             if (
                 type(read_status) is not str
-                or read_status not in allowed_statuses
+                or read_status not in effective_allowed_statuses
                 or source.get("source_kind") != "REDIS_EXACT_KEY"
                 or type(source_key) is not str
                 or source_key not in _REVOCABLE_SOURCE_KEYS_BY_ROLE[role]
                 or source.get("present") is not present_expected
+                or (
+                    static_advisory_source
+                    and source.get("static_category_e_advisory") is not True
+                )
             ):
                 reasons.append(f"CYCLE_RESERVATION_PRIOR_REVOCABLE_SOURCE_STATUS_INVALID:{role}")
-            if (
-                source.get("exact_match") is not True
-                or source.get("source_label_match") is not True
-                or not _valid_sha256(source.get("frozen_hash"))
-                or source.get("frozen_hash") != source.get("current_hash")
-            ):
+            exact_source_match = bool(
+                source.get("exact_match") is True
+                and source.get("source_label_match") is True
+                and _valid_sha256(source.get("frozen_hash"))
+                and source.get("frozen_hash") == source.get("current_hash")
+            )
+            if not exact_source_match and not static_advisory_source:
                 reasons.append(
                     f"CYCLE_RESERVATION_PRIOR_REVOCABLE_SOURCE_EXACT_MATCH_INVALID:{role}"
                 )
+            if static_advisory_source and not exact_source_match:
+                expected_markers = {
+                    f"FROZEN_CONTROL_RECEIPT_MISSING:{role}",
+                    f"CURRENT_CONTROL_SOURCE_NOT_READY:{role}:{read_status}",
+                    f"CONTROL_SOURCE_LABEL_MISMATCH:{role}",
+                    f"CONTROL_SOURCE_CHANGED:{role}",
+                }
+                if not any(marker in advisory_reasons for marker in expected_markers):
+                    reasons.append(
+                        "CYCLE_RESERVATION_PRIOR_REVOCABLE_STATIC_SOURCE_MISMATCH_UNRECORDED:"
+                        f"{role}"
+                    )
 
         session_source = sources.get("paper_session_source")
         session = session_source if type(session_source) is dict else {}
@@ -1621,28 +1660,49 @@ def _revocable_control_receipt_rejection_reasons(
             semantic = semantic_value if type(semantic_value) is dict else {}
             semantic_material = dict(semantic)
             semantic_hash = semantic_material.pop("receipt_hash", None)
-            if (
+            semantic_integrity_invalid = bool(
                 not semantic
                 or semantic.get("schema_version") != "paper_adaptive_tuning_semantic_validation_v1"
-                or semantic.get("status") != "PASS"
-                or semantic.get("rejection_reasons") != []
-                or tuning_source.get(status_field) != "PASS"
                 or not _valid_sha256(semantic_hash)
                 or semantic_hash != _canonical_sha256(semantic_material)
                 or semantic_hash != tuning_source.get(hash_field)
                 or semantic.get("canonical_redis_key")
                 != "v2:orchestrator:adaptive_gate_tuning_state"
-                or not _valid_sha256(semantic.get("state_payload_hash"))
                 or semantic.get("current_paper_session_id") != resolved_session_id
+                or type(semantic.get("rejection_reasons")) is not list
+                or semantic.get("status") not in {"PASS", "BLOCKED"}
+                or tuning_source.get(status_field) != semantic.get("status")
+            )
+            semantic_authority_invalid = bool(
+                semantic.get("status") != "PASS"
+                or semantic.get("rejection_reasons") != []
                 or semantic.get("state_paper_session_id") != resolved_session_id
-                or type(semantic.get("policy_id")) is not str
-                or not semantic.get("policy_id")
-                or type(semantic.get("producer")) is not str
-                or not semantic.get("producer")
+            )
+            present_tuning_record_integrity_invalid = bool(
+                tuning_source.get("read_status") == "READY"
+                and (
+                    not _valid_sha256(semantic.get("state_payload_hash"))
+                    or type(semantic.get("policy_id")) is not str
+                    or not semantic.get("policy_id")
+                    or type(semantic.get("producer")) is not str
+                    or not semantic.get("producer")
+                )
+            )
+            if (
+                semantic_integrity_invalid
+                or present_tuning_record_integrity_invalid
+                or (
+                semantic_authority_invalid and not adaptive_policy_tier
+                )
             ):
                 reasons.append(f"CYCLE_RESERVATION_PRIOR_REVOCABLE_TUNING_SEMANTIC_INVALID:{field}")
             semantic_times: dict[str, datetime | None] = {}
-            for time_field in ("available_at", "observed_at", "expires_at"):
+            time_fields = (
+                ("observed_at",)
+                if adaptive_policy_tier
+                else ("available_at", "observed_at", "expires_at")
+            )
+            for time_field in time_fields:
                 try:
                     semantic_times[time_field] = _aware_datetime(
                         semantic.get(time_field),
@@ -1651,9 +1711,9 @@ def _revocable_control_receipt_rejection_reasons(
                 except CycleReservationError as exc:
                     reasons.extend(exc.reasons)
                     semantic_times[time_field] = None
-            available = semantic_times["available_at"]
-            observed = semantic_times["observed_at"]
-            expires = semantic_times["expires_at"]
+            available = semantic_times.get("available_at")
+            observed = semantic_times.get("observed_at")
+            expires = semantic_times.get("expires_at")
             if (
                 available is not None
                 and observed is not None
@@ -1672,7 +1732,12 @@ def _revocable_control_receipt_rejection_reasons(
                 reasons.append(
                     f"CYCLE_RESERVATION_PRIOR_REVOCABLE_TUNING_REREAD_CLOCK_INVALID:{field}"
                 )
-            if expires is not None and decision is not None and expires <= decision:
+            if (
+                not adaptive_policy_tier
+                and expires is not None
+                and decision is not None
+                and expires <= decision
+            ):
                 reasons.append(f"CYCLE_RESERVATION_PRIOR_REVOCABLE_TUNING_EXPIRED:{field}")
             return semantic, available, observed, expires
 
@@ -1687,7 +1752,11 @@ def _revocable_control_receipt_rejection_reasons(
             hash_field="commit_clock_semantic_validation_receipt_hash",
         )
         if (
-            tuning_initial.get("state_payload_hash") != tuning_commit.get("state_payload_hash")
+            (
+                not adaptive_policy_tier
+                and tuning_initial.get("state_payload_hash")
+                != tuning_commit.get("state_payload_hash")
+            )
             or (
                 tuning_initial_observed is not None
                 and tuning_commit_observed is not None
@@ -1706,7 +1775,7 @@ def _revocable_control_receipt_rejection_reasons(
             tier in _GUARDIAN_REQUIRED_PAPER_TIERS and guardian_allows is not True
         ):
             reasons.append("CYCLE_RESERVATION_PRIOR_REVOCABLE_GUARDIAN_BLOCKED")
-        if (
+        if not adaptive_policy_tier and (
             not isinstance(ttl, int)
             or isinstance(ttl, bool)
             or type(ttl_range) is not list
@@ -1715,13 +1784,13 @@ def _revocable_control_receipt_rejection_reasons(
             or tuple(ttl_range) != _GUARDIAN_TTL_REQUIRED_RANGE_SECONDS
         ):
             reasons.append("CYCLE_RESERVATION_PRIOR_REVOCABLE_GUARDIAN_TTL_INVALID")
-        elif not (
+        elif not adaptive_policy_tier and not (
             _GUARDIAN_TTL_REQUIRED_RANGE_SECONDS[0]
             <= ttl
             <= _GUARDIAN_TTL_REQUIRED_RANGE_SECONDS[1]
         ):
             reasons.append("CYCLE_RESERVATION_PRIOR_REVOCABLE_GUARDIAN_TTL_INVALID")
-        if guardian.get("ttl_valid") is not True:
+        if not adaptive_policy_tier and guardian.get("ttl_valid") is not True:
             reasons.append("CYCLE_RESERVATION_PRIOR_REVOCABLE_GUARDIAN_TTL_INVALID")
 
         freeze_value = receipt.get("effective_entry_freeze")
