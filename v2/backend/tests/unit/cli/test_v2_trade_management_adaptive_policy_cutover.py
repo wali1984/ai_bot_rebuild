@@ -78,6 +78,28 @@ def _authorized_intent() -> dict:
     }
 
 
+def _durable_feature_snapshot() -> dict:
+    return {
+        "schema_version": "durable_feature_snapshot_archive_record_v1",
+        "feature_snapshot_id": "snapshot_1",
+        "snapshot_id": "snapshot_1",
+        "symbol": "BTCUSDT",
+        "timeframe": "15m",
+        "available_at": "2026-07-27T23:06:00Z",
+        "created_at": "2026-07-27T23:07:00Z",
+        "decision_time": "2026-07-27T23:07:00Z",
+        "feature_cutoff": "2026-07-27T22:59:59.999Z",
+        "candle_closed_confirmed": True,
+        "latest_unclosed_kline_excluded": True,
+        "latest_unclosed_exclusion_method": "CLOSED_KLINE_FILTER_DECISION_TIME_BOUNDED_V1",
+        "latest_unclosed_exclusion_decision_time_ms": 1785193500000,
+        "latest_closed_kline_close_time_ms": 1785193199999,
+        "trainer_consumable": True,
+        "content_sha256": "a" * 64,
+        "features": {"close": 100.0},
+    }
+
+
 def test_adaptive_authority_is_the_only_category_e_owner() -> None:
     intent = _authorized_intent()
 
@@ -240,6 +262,68 @@ def test_runtime_intent_projection_retains_adaptive_authority_evidence() -> None
     assert compact["adaptive_allocation"]["model_inputs"][
         "adaptive_policy_exact_physical_validation_status"
     ] == "PASS"
+
+
+def test_verified_durable_snapshot_binds_exact_finality_and_clocks() -> None:
+    intent = {
+        "feature_snapshot_id": "snapshot_1",
+        "entry_feature_snapshot_id": "snapshot_1",
+        "symbol": "BTCUSDT",
+        "timeframe": "15m",
+        "decision_time": "2026-07-27T23:10:00Z",
+    }
+
+    reasons = paper_loop._paper_bind_verified_durable_feature_snapshot(
+        intent=intent,
+        snapshot=_durable_feature_snapshot(),
+    )
+
+    assert reasons == []
+    assert intent["entry_feature_available_at"] == "2026-07-27T23:06:00Z"
+    assert intent["entry_feature_generated_at"] == "2026-07-27T23:07:00Z"
+    assert intent["entry_feature_cutoff"] == "2026-07-27T22:59:59.999Z"
+    assert intent["entry_feature_decision_time"] == "2026-07-27T23:10:00Z"
+    assert intent["entry_feature_candle_closed_confirmed"] is True
+    assert intent["entry_feature_latest_unclosed_kline_excluded"] is True
+    assert intent["entry_feature_snapshot_archive_verified"] is True
+    assert intent["entry_feature_snapshot_content_sha256"] == "a" * 64
+    market_reasons = paper_loop._paper_runtime_market_evidence_rejection_reasons(
+        {
+            **intent,
+            "entry_price_provenance_present": True,
+            "actual_observed_spread_entry_bps": 1.0,
+            "expected_slippage_bps": 0.1,
+            "expected_slippage_source": "VERIFIED_MODEL",
+            "partial_fill_count": 1,
+            "partial_fills": [{"quantity": 0.25, "price": 100.0}],
+        },
+        require_fill_ledger=True,
+    )
+    assert "MISSING_ENTRY_FEATURE_AVAILABLE_AT" not in market_reasons
+    assert "MISSING_ENTRY_FEATURE_GENERATED_AT" not in market_reasons
+    assert "MISSING_ENTRY_FEATURE_CUTOFF" not in market_reasons
+    assert "ENTRY_FEATURE_CANDLE_NOT_CONFIRMED_CLOSED" not in market_reasons
+
+
+def test_durable_snapshot_future_generation_blocks_without_binding() -> None:
+    intent = {
+        "feature_snapshot_id": "snapshot_1",
+        "entry_feature_snapshot_id": "snapshot_1",
+        "symbol": "BTCUSDT",
+        "timeframe": "15m",
+        "decision_time": "2026-07-27T23:10:00Z",
+    }
+    snapshot = _durable_feature_snapshot()
+    snapshot["created_at"] = "2026-07-27T23:11:00Z"
+
+    reasons = paper_loop._paper_bind_verified_durable_feature_snapshot(
+        intent=intent,
+        snapshot=snapshot,
+    )
+
+    assert reasons == ["DURABLE_FEATURE_SNAPSHOT_GENERATED_AFTER_DECISION"]
+    assert "entry_feature_available_at" not in intent
+    assert "entry_feature_snapshot" not in intent
 
 
 def test_validator_seed_requires_protected_exact_file(tmp_path) -> None:

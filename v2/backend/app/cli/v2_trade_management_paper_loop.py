@@ -11120,6 +11120,116 @@ def _paper_refresh_adaptive_policy_execution_evidence(
     intent["adaptive_allocation"] = allocation
 
 
+def _paper_bind_verified_durable_feature_snapshot(
+    *,
+    intent: dict[str, Any],
+    snapshot: Mapping[str, Any],
+) -> list[str]:
+    """Bind one verify=true durable snapshot to the paper evidence contract."""
+
+    reasons: list[str] = []
+    expected_id = str(
+        _first_present(
+            intent.get("entry_feature_snapshot_id"),
+            intent.get("feature_snapshot_id"),
+        )
+        or ""
+    )
+    snapshot_id = str(snapshot.get("feature_snapshot_id") or "")
+    if not expected_id or snapshot_id != expected_id:
+        reasons.append("DURABLE_FEATURE_SNAPSHOT_ID_MISMATCH")
+    if str(snapshot.get("symbol") or "").upper() != str(intent.get("symbol") or "").upper():
+        reasons.append("DURABLE_FEATURE_SNAPSHOT_SYMBOL_MISMATCH")
+    if str(snapshot.get("timeframe") or "") != str(intent.get("timeframe") or ""):
+        reasons.append("DURABLE_FEATURE_SNAPSHOT_TIMEFRAME_MISMATCH")
+    if snapshot.get("trainer_consumable") is not True:
+        reasons.append("DURABLE_FEATURE_SNAPSHOT_NOT_TRAINER_CONSUMABLE")
+    if snapshot.get("candle_closed_confirmed") is not True:
+        reasons.append("DURABLE_FEATURE_SNAPSHOT_CANDLE_NOT_CLOSED")
+    if snapshot.get("latest_unclosed_kline_excluded") is not True:
+        reasons.append("DURABLE_FEATURE_SNAPSHOT_UNCLOSED_KLINE_NOT_EXCLUDED")
+    if not _paper_valid_sha256(snapshot.get("content_sha256")):
+        reasons.append("DURABLE_FEATURE_SNAPSHOT_CONTENT_SHA256_INVALID")
+    features = snapshot.get("features")
+    if not isinstance(features, Mapping) or not features:
+        reasons.append("DURABLE_FEATURE_SNAPSHOT_FEATURES_MISSING")
+
+    available_at = _parse_strategy_time(snapshot.get("available_at"))
+    generated_at_value = _first_present(snapshot.get("generated_at"), snapshot.get("created_at"))
+    generated_at = _parse_strategy_time(generated_at_value)
+    feature_cutoff = _parse_strategy_time(snapshot.get("feature_cutoff"))
+    decision_time_value = _first_present(
+        intent.get("decision_time"),
+        intent.get("generated_utc"),
+    )
+    decision_time = _parse_strategy_time(decision_time_value)
+    for parsed, reason in (
+        (available_at, "DURABLE_FEATURE_SNAPSHOT_AVAILABLE_AT_INVALID"),
+        (generated_at, "DURABLE_FEATURE_SNAPSHOT_GENERATED_AT_INVALID"),
+        (feature_cutoff, "DURABLE_FEATURE_SNAPSHOT_FEATURE_CUTOFF_INVALID"),
+        (decision_time, "PAPER_ADAPTIVE_DECISION_TIME_INVALID"),
+    ):
+        if parsed is None:
+            reasons.append(reason)
+    if available_at is not None and generated_at is not None and feature_cutoff is not None:
+        if feature_cutoff > available_at:
+            reasons.append("DURABLE_FEATURE_SNAPSHOT_CUTOFF_AFTER_AVAILABLE_AT")
+    if decision_time is not None:
+        if available_at is not None and available_at > decision_time:
+            reasons.append("DURABLE_FEATURE_SNAPSHOT_AVAILABLE_AFTER_DECISION")
+        if generated_at is not None and generated_at > decision_time:
+            reasons.append("DURABLE_FEATURE_SNAPSHOT_GENERATED_AFTER_DECISION")
+    latest_closed_ms = snapshot.get("latest_closed_kline_close_time_ms")
+    exclusion_decision_ms = snapshot.get("latest_unclosed_exclusion_decision_time_ms")
+    if type(latest_closed_ms) is not int or latest_closed_ms < 0:
+        reasons.append("DURABLE_FEATURE_SNAPSHOT_LATEST_CLOSED_TIME_INVALID")
+    if type(exclusion_decision_ms) is not int or exclusion_decision_ms < 0:
+        reasons.append("DURABLE_FEATURE_SNAPSHOT_EXCLUSION_DECISION_TIME_INVALID")
+    if feature_cutoff is not None and type(latest_closed_ms) is int:
+        if latest_closed_ms > int(feature_cutoff.timestamp() * 1_000):
+            reasons.append("DURABLE_FEATURE_SNAPSHOT_LATEST_CLOSED_AFTER_CUTOFF")
+    if decision_time is not None and type(exclusion_decision_ms) is int:
+        if exclusion_decision_ms > int(decision_time.timestamp() * 1_000):
+            reasons.append("DURABLE_FEATURE_SNAPSHOT_EXCLUSION_AFTER_DECISION")
+    if reasons:
+        return sorted(set(reasons))
+
+    bound_snapshot = deepcopy(dict(snapshot))
+    bound_snapshot["generated_at"] = generated_at_value
+    bound_snapshot["redis_key"] = (
+        "DURABLE_FEATURE_SNAPSHOT_ARCHIVE_VERIFY_TRUE:" + str(snapshot.get("content_sha256"))
+    )
+    bound_snapshot["requested_feature_snapshot_id"] = expected_id
+    bound_snapshot["feature_snapshot_fallback_used"] = False
+    bound_snapshot["feature_snapshot_resolution_status"] = (
+        "RESOLVED_DURABLE_ARCHIVE_VERIFY_TRUE"
+    )
+    intent["entry_feature_snapshot_id"] = snapshot_id
+    intent["entry_feature_available_at"] = snapshot.get("available_at")
+    intent["entry_feature_generated_at"] = generated_at_value
+    intent["entry_feature_cutoff"] = snapshot.get("feature_cutoff")
+    intent["entry_feature_decision_time"] = decision_time_value
+    intent["entry_feature_source"] = bound_snapshot["redis_key"]
+    intent["entry_feature_snapshot_requested_id"] = expected_id
+    intent["entry_feature_snapshot_fallback_used"] = False
+    intent["entry_feature_snapshot_resolution_status"] = bound_snapshot[
+        "feature_snapshot_resolution_status"
+    ]
+    intent["entry_feature_candle_closed_confirmed"] = True
+    intent["entry_feature_latest_unclosed_kline_excluded"] = True
+    intent["entry_feature_latest_unclosed_exclusion_method"] = snapshot.get(
+        "latest_unclosed_exclusion_method"
+    )
+    intent["entry_feature_latest_unclosed_exclusion_decision_time_ms"] = exclusion_decision_ms
+    intent["entry_feature_latest_closed_kline_close_time_ms"] = latest_closed_ms
+    intent["entry_feature_snapshot_archive_verified"] = True
+    intent["entry_feature_snapshot_content_sha256"] = snapshot.get("content_sha256")
+    snapshot_evidence = _entry_feature_snapshot_evidence(bound_snapshot)
+    if snapshot_evidence is not None:
+        intent["entry_feature_snapshot"] = snapshot_evidence
+    return []
+
+
 def _paper_policy_owner_open_rejection_reasons(intent: dict[str, Any]) -> list[str]:
     if (
         str(intent.get("paper_opportunity_tier") or "").strip().upper()
@@ -47636,6 +47746,17 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             )
             if not isinstance(adaptive_feature_snapshot, Mapping):
                 raise RuntimeError("ADAPTIVE_POLICY_FEATURE_SNAPSHOT_MISSING")
+            durable_snapshot_binding_reasons = (
+                _paper_bind_verified_durable_feature_snapshot(
+                    intent=intent,
+                    snapshot=adaptive_feature_snapshot,
+                )
+            )
+            if durable_snapshot_binding_reasons:
+                raise RuntimeError(
+                    "ADAPTIVE_POLICY_DURABLE_FEATURE_SNAPSHOT_BINDING_BLOCKED:"
+                    + ",".join(durable_snapshot_binding_reasons)
+                )
             adaptive_paper_status = {
                 "schema_version": "adaptive_paper_policy_runtime_state_v2",
                 "open_position_count": len(
