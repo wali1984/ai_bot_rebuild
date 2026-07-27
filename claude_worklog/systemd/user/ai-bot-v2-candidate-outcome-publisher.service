@@ -1,23 +1,23 @@
 [Unit]
 Description=AI Bot V2 authenticated candidate outcome publisher (paper evidence only)
 After=ai-bot-v2-trade-management-paper-loop.service
-ConditionFileIsExecutable=/home/wali/ai_bot_local_data/deployments/ai_bot_rebuild/35cf783aa71b905e6f112b6316c823c2a444e0e2/.venv/bin/python3
+ConditionFileIsExecutable=/home/wali/ai_bot_local_data/deployments/ai_bot_rebuild/6a828966578c9406c0fa7175bfe2185a62f48957/.venv/bin/python3
 
 [Service]
 Type=simple
 WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
-Environment="PYTHONPATH=/home/wali/ai_bot_local_data/deployments/ai_bot_rebuild/35cf783aa71b905e6f112b6316c823c2a444e0e2"
+Environment="PYTHONPATH=/home/wali/ai_bot_local_data/deployments/ai_bot_rebuild/6a828966578c9406c0fa7175bfe2185a62f48957"
 Environment="PYTHONDONTWRITEBYTECODE=1"
 Environment="PYTHONPYCACHEPREFIX=%t/ai-bot-v2-candidate-outcome-publisher/pycache"
-Environment="AI_BOT_CODE_SHA=35cf783aa71b905e6f112b6316c823c2a444e0e2"
+Environment="AI_BOT_CODE_SHA=6a828966578c9406c0fa7175bfe2185a62f48957"
 Environment="REDIS_URL=redis://127.0.0.1:6379/0"
 Environment="LIVE_GATE=blocked_human_only"
 Environment="V2_CANDIDATE_OUTCOME_PUBLISHER_LOCK_PATH=%t/ai-bot-v2-candidate-outcome-publisher/writer.lock"
 RuntimeDirectory=ai-bot-v2-candidate-outcome-publisher
 RuntimeDirectoryMode=0700
 LoadCredential=candidate_outcome_ed25519_seed:%h/.config/ai-bot-v2/credentials/candidate-outcome-writer/seed.cred
-ExecStartPre=/usr/bin/git -C /home/wali/ai_bot_local_data/deployments/ai_bot_rebuild/35cf783aa71b905e6f112b6316c823c2a444e0e2 diff --quiet --exit-code 35cf783aa71b905e6f112b6316c823c2a444e0e2 --
-ExecStart=/home/wali/ai_bot_local_data/deployments/ai_bot_rebuild/35cf783aa71b905e6f112b6316c823c2a444e0e2/.venv/bin/python3 -P -B -m v2.backend.app.cli.v2_candidate_outcome_publisher --loop --interval-seconds 3 --feature-archive-root="/home/wali/Desktop/AI BOT REBUILD/.local_data/v2_native_trainer/durable_feature_snapshot_archive"
+ExecStartPre=/usr/bin/git -C /home/wali/ai_bot_local_data/deployments/ai_bot_rebuild/6a828966578c9406c0fa7175bfe2185a62f48957 diff --quiet --exit-code 6a828966578c9406c0fa7175bfe2185a62f48957 --
+ExecStart=/home/wali/ai_bot_local_data/deployments/ai_bot_rebuild/6a828966578c9406c0fa7175bfe2185a62f48957/.venv/bin/python3 -P -B -m v2.backend.app.cli.v2_candidate_outcome_publisher --loop --interval-seconds 3 --feature-archive-root="/home/wali/Desktop/AI BOT REBUILD/.local_data/v2_native_trainer/durable_feature_snapshot_archive"
 Restart=on-failure
 RestartSec=10
 TimeoutStopSec=30
@@ -26,7 +26,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=read-only
-ReadOnlyPaths=/home/wali/ai_bot_local_data/deployments/ai_bot_rebuild/35cf783aa71b905e6f112b6316c823c2a444e0e2
+ReadOnlyPaths=/home/wali/ai_bot_local_data/deployments/ai_bot_rebuild/6a828966578c9406c0fa7175bfe2185a62f48957
 ReadOnlyPaths=/home/wali/ai_bot_local_data/deployments/python_envs/6360ea33fcfb9f9a81724989bbd32ace2b02bf7eaa7a8771d64d282f423173f0
 ReadOnlyPaths="/home/wali/Desktop/AI BOT REBUILD/.local_data/v2_native_trainer/durable_feature_snapshot_archive"
 ReadWritePaths=/home/wali/ai_bot_local_data/candidate_outcomes_v2
