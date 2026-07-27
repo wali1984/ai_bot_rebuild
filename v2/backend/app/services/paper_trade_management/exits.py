@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any, Mapping
 
 from .accounting import coerce_float
-from .position_state import PaperNetPosition, seconds_between
+from .position_state import PaperNetPosition, parse_aware_utc, seconds_between
 
 
 PAPER_EXIT_POLICY_VERSION = "PAPER_EXIT_AFTER_COST_TRAILING_FLOOR_V1"
@@ -406,9 +406,10 @@ def evaluate_exit(
         return {"should_close": False, "close_reason": None, "tier": None, "blocker": "MARK_PRICE_MISSING"}
     position.update_mark(mark_price=mark_price, mark_time=generated_utc)
     hold_seconds = seconds_between(position.opened_est, generated_utc)
-    if hold_seconds < config.min_hold_seconds:
-        return {"should_close": False, "close_reason": None, "tier": None, "blocker": "MIN_HOLD_ACTIVE"}
     pnl_bps_value = position.unrealized_pnl_bps()
+    adaptive_policy_authoritative = position.adaptive_policy_authoritative is True
+    if not adaptive_policy_authoritative and hold_seconds < config.min_hold_seconds:
+        return {"should_close": False, "close_reason": None, "tier": None, "blocker": "MIN_HOLD_ACTIVE"}
     if ob_spread_bps is None:
         ob_spread_bps = coerce_float(
             (alpha_context or {}).get("bid_ask_spread_bps")
@@ -439,6 +440,109 @@ def evaluate_exit(
             "tier": 0,
             "pnl_bps": pnl_bps_value,
             "drawdown_bps": account_drawdown_bps,
+        }
+    # For adaptive positions the operator's catastrophic envelope always
+    # precedes the policy-owned exit. Legacy positions retain their historical
+    # tier ordering below.
+    if adaptive_policy_authoritative and (
+        config.catastrophic_floor_stop_bps > 0
+        and pnl_bps_value <= -abs(config.catastrophic_floor_stop_bps)
+    ):
+        return {
+            "should_close": True,
+            "close_reason": "TIER_0_CATASTROPHIC_FLOOR_STOP",
+            "tier": 0,
+            "pnl_bps": pnl_bps_value,
+            "catastrophic_floor_stop_bps": config.catastrophic_floor_stop_bps,
+        }
+    if adaptive_policy_authoritative:
+        stop_price = coerce_float(position.adaptive_policy_stop_price)
+        target_price = coerce_float(position.adaptive_policy_profit_target_price)
+        max_hold_seconds = coerce_float(position.adaptive_policy_max_hold_seconds)
+        time_exit_at = parse_aware_utc(position.adaptive_policy_time_exit_at)
+        generated_at = parse_aware_utc(generated_utc)
+        exit_plan = position.adaptive_policy_exit_plan
+        invalid_reasons: list[str] = []
+        if (
+            not isinstance(exit_plan, dict)
+            or exit_plan.get("status") != "ADAPTIVE_POLICY_EXIT_PLAN_ACTIVE"
+            or exit_plan.get("paper_only") is not True
+            or exit_plan.get("routes_to_live") is not False
+            or exit_plan.get("places_real_order") is not False
+        ):
+            invalid_reasons.append("ADAPTIVE_POLICY_EXIT_PLAN_INVALID")
+        if stop_price is None or stop_price <= 0.0 or not math.isfinite(stop_price):
+            invalid_reasons.append("ADAPTIVE_POLICY_STOP_PRICE_INVALID")
+        if (
+            max_hold_seconds is None
+            or max_hold_seconds <= 0.0
+            or not math.isfinite(max_hold_seconds)
+        ):
+            invalid_reasons.append("ADAPTIVE_POLICY_MAX_HOLD_INVALID")
+        if time_exit_at is None or generated_at is None:
+            invalid_reasons.append("ADAPTIVE_POLICY_TIME_EXIT_INVALID")
+        if invalid_reasons:
+            return {
+                "should_close": True,
+                "close_reason": "TIER_0_ADAPTIVE_POLICY_EXIT_PLAN_INVALID",
+                "tier": 0,
+                "pnl_bps": pnl_bps_value,
+                "adaptive_policy_exit_plan_rejection_reasons": invalid_reasons,
+            }
+        assert stop_price is not None
+        stop_hit = (
+            mark_price <= stop_price
+            if position.side == "long"
+            else mark_price >= stop_price
+        )
+        if stop_hit:
+            return {
+                "should_close": True,
+                "close_reason": "TIER_1_ADAPTIVE_POLICY_MANDATORY_STOP",
+                "tier": 1,
+                "pnl_bps": pnl_bps_value,
+                "adaptive_policy_stop_price": stop_price,
+                "adaptive_policy_action_id": position.adaptive_policy_action_id,
+            }
+        target_hit = bool(
+            target_price is not None
+            and target_price > 0.0
+            and (
+                mark_price >= target_price
+                if position.side == "long"
+                else mark_price <= target_price
+            )
+        )
+        if target_hit:
+            return {
+                "should_close": True,
+                "close_reason": "TIER_2_ADAPTIVE_POLICY_PROFIT_EXIT",
+                "tier": 2,
+                "pnl_bps": pnl_bps_value,
+                "adaptive_policy_profit_target_price": target_price,
+                "adaptive_policy_action_id": position.adaptive_policy_action_id,
+            }
+        assert max_hold_seconds is not None
+        assert time_exit_at is not None
+        assert generated_at is not None
+        if hold_seconds >= max_hold_seconds or generated_at >= time_exit_at:
+            return {
+                "should_close": True,
+                "close_reason": "TIER_3_ADAPTIVE_POLICY_TIME_EXIT",
+                "tier": 3,
+                "pnl_bps": pnl_bps_value,
+                "adaptive_policy_max_hold_seconds": max_hold_seconds,
+                "adaptive_policy_time_exit_at": position.adaptive_policy_time_exit_at,
+                "adaptive_policy_action_id": position.adaptive_policy_action_id,
+            }
+        return {
+            "should_close": False,
+            "close_reason": None,
+            "tier": None,
+            "pnl_bps": pnl_bps_value,
+            "blocker": "ADAPTIVE_POLICY_EXIT_PLAN_HOLD",
+            "adaptive_policy_action_id": position.adaptive_policy_action_id,
+            "adaptive_policy_exit_authoritative": True,
         }
     micro_reversal = coerce_float((alpha_context or {}).get("microstructure_reversal_score"))
     if micro_reversal is not None and micro_reversal >= abs(config.microstructure_reversal_score):
@@ -707,10 +811,12 @@ def evaluate_exit(
             "atr_stop_ceiling_bps": config.atr_stop_ceiling_bps,
             "atr_bps": atr_bps,
         }
-    # A+ goal Phase 8: unconditional catastrophic floor — the backstop when no
-    # tighter stop fired above (LITUSDT regression: entry_atr_bps=None with
-    # static stops disabled left no working stop; MAE reached 610bps).
-    if config.catastrophic_floor_stop_bps > 0 and pnl_bps_value <= -abs(config.catastrophic_floor_stop_bps):
+    # Legacy position ordering is preserved: the catastrophic backstop follows
+    # its existing dynamic/static stop tiers. Adaptive positions return above.
+    if (
+        config.catastrophic_floor_stop_bps > 0
+        and pnl_bps_value <= -abs(config.catastrophic_floor_stop_bps)
+    ):
         return {
             "should_close": True,
             "close_reason": "TIER_0_CATASTROPHIC_FLOOR_STOP",

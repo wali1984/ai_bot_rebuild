@@ -55,6 +55,10 @@ from v2.backend.app.services.native_trainer.durable_behavior_receipt_archive imp
     receipt_lifecycle_status,
     verify_archived_behavior_receipt,
 )
+from v2.backend.app.services.native_trainer.durable_feature_snapshot_archive import (
+    SnapshotArchiveError,
+    load_snapshot as load_durable_feature_snapshot,
+)
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.on_policy_behavior import (
     BEHAVIOR_POLICY_LINEAGE_FIELDS,
     ON_POLICY_DISTRIBUTION_CONTRACT,
@@ -114,10 +118,19 @@ from v2.backend.app.services.adaptive_capital_allocator.allocator import (
     PAPER_GROWTH_ENVELOPE_AUTHORIZATION_LINEAGE_KEY,
     PAPER_LIQUIDATION_ATR_EVIDENCE_HASH_LINEAGE_KEY,
     PAPER_LIQUIDATION_ATR_EVIDENCE_LINEAGE_KEY,
+    allocate_authorized_adaptive_paper_action,
     build_paper_liquidation_atr_evidence,
     canonical_allocation_input_hash,
     paper_isolated_liquidation_geometry,
     validate_paper_liquidation_atr_evidence,
+)
+from v2.backend.app.services.adaptive_system.adaptive_paper_policy_authorization_v2 import (
+    AdaptivePaperPolicyAuthorizationError,
+    authorize_adaptive_paper_policy_action,
+)
+from v2.backend.app.services.adaptive_system.adaptive_policy_shadow_v2 import (
+    AdaptivePolicyShadowError,
+    build_adaptive_policy_shadow_candidate,
 )
 from v2.backend.app.services.market_structure.decision_context import (
     ADVANCED_CONTEXT_FIELDS,
@@ -217,6 +230,41 @@ DEFAULT_PAYLOAD_PATH = Path(
     "v2/frontend/public/operator_runtime/v2_trade_management_paper/live/latest/v2_trade_management_paper_live_status.json"
 )
 PAPER_LOOP_LOCK_PATH_ENV = "V2_TRADE_MANAGEMENT_PAPER_LOOP_LOCK_PATH"
+
+
+def _paper_adaptive_validator_seed(
+    environ: Mapping[str, str] | None = None,
+) -> bytes:
+    """Read the canonical hard-validator seed from a protected absolute file."""
+
+    source = os.environ if environ is None else environ
+    configured = str(source.get(ADAPTIVE_POLICY_VALIDATOR_SEED_PATH_ENV) or "").strip()
+    if not configured:
+        raise RuntimeError("ADAPTIVE_POLICY_VALIDATOR_SEED_PATH_MISSING")
+    path = Path(configured)
+    if not path.is_absolute() or path.is_symlink() or not path.is_file():
+        raise RuntimeError("ADAPTIVE_POLICY_VALIDATOR_SEED_NOT_PROTECTED_REGULAR_FILE")
+    if path.stat().st_mode & 0o077:
+        raise RuntimeError("ADAPTIVE_POLICY_VALIDATOR_SEED_PERMISSIONS_TOO_BROAD")
+    seed = path.read_bytes()
+    if len(seed) != 32:
+        raise RuntimeError("ADAPTIVE_POLICY_VALIDATOR_SEED_LENGTH_INVALID")
+    return seed
+
+
+def _paper_adaptive_feature_archive_root(
+    environ: Mapping[str, str] | None = None,
+) -> Path:
+    source = os.environ if environ is None else environ
+    configured = str(source.get(ADAPTIVE_POLICY_FEATURE_ARCHIVE_ROOT_ENV) or "").strip()
+    path = (
+        Path(configured)
+        if configured
+        else PAPER_REPO_ROOT / ".local_data/v2_native_trainer/durable_feature_snapshot_archive"
+    )
+    if not path.is_absolute() or not path.is_dir():
+        raise RuntimeError("ADAPTIVE_POLICY_FEATURE_ARCHIVE_ROOT_INVALID")
+    return path
 
 
 def _configured_paper_loop_lock_path(
@@ -481,6 +529,12 @@ PAPER_TIER_A_PLUS_BOOTSTRAP_REDUCED_SIZE = REDUCED_SIZE_BOOTSTRAP_TIER
 PAPER_TIER_B_GRADE_EXPLORATION = "B_GRADE_EXPLORATION_PAPER"
 PAPER_TIER_POSITIVE_EDGE_PROBATION = "POSITIVE_EDGE_PROBATION_PAPER"
 PAPER_TIER_RISK_CONTROLLER_EXPLORATION = PAPER_RISK_CONTROLLER_EXPLORATION_TIER
+PAPER_TIER_ADAPTIVE_POLICY_V2 = "ADAPTIVE_POLICY_V2"
+ADAPTIVE_POLICY_CALIBRATION_REDIS_KEY = "v2:adaptive_system:candidate_calibration:v2"
+ADAPTIVE_POLICY_REGISTRY_REDIS_KEY = "v2:model_registry:paper:active"
+ADAPTIVE_POLICY_VALIDATOR_SEED_PATH_ENV = "V2_ADAPTIVE_HARD_VALIDATOR_SEED_PATH"
+ADAPTIVE_POLICY_FEATURE_ARCHIVE_ROOT_ENV = "V2_ADAPTIVE_FEATURE_ARCHIVE_ROOT"
+ADAPTIVE_POLICY_AUTHORITY_ID = "canonical_adaptive_paper_policy_authority_v2"
 B_GRADE_EXPLORATION_OUTCOME_LABEL = "B_GRADE_EXPLORATION_OUTCOME_LABEL"
 POSITIVE_EDGE_PROBATION_OUTCOME_LABEL = "POSITIVE_EDGE_PROBATION_OUTCOME_LABEL"
 PAPER_RISK_CONTROLLER_EXPLORATION_OUTCOME_LABEL = "PAPER_RISK_CONTROLLER_EXPLORATION_OUTCOME_LABEL"
@@ -766,6 +820,7 @@ DEPTH_PRICE_IMPACT_EVIDENCE_FIELDS = (
     "depth_utilization_pct",
 )
 PAPER_OPPORTUNITY_TIERS = (
+    PAPER_TIER_ADAPTIVE_POLICY_V2,
     PAPER_TIER_A_GRADE_EXECUTION,
     PAPER_TIER_A_PLUS_BOOTSTRAP_REDUCED_SIZE,
     PAPER_TIER_B_GRADE_EXPLORATION,
@@ -10880,7 +10935,124 @@ def _restore_materialization_queue_expected_economics(
     )
 
 
+def _paper_adaptive_policy_authority_rejection_reasons(
+    intent: Mapping[str, Any],
+) -> list[str]:
+    """Revalidate the sole adaptive PAPER policy authority from persisted fields."""
+
+    reasons: list[str] = []
+    authorization = intent.get("adaptive_paper_policy_authorization")
+    allocation = intent.get("adaptive_allocation")
+    if not isinstance(authorization, Mapping):
+        return ["ADAPTIVE_POLICY_AUTHORIZATION_MISSING"]
+    if not isinstance(allocation, Mapping):
+        reasons.append("ADAPTIVE_POLICY_EXACT_ALLOCATION_MISSING")
+        allocation = {}
+    authorization_hash = _paper_canonical_sha256(dict(authorization))
+    if (
+        not _paper_valid_sha256(authorization_hash)
+        or authorization_hash != intent.get("adaptive_paper_policy_authorization_sha256")
+        or authorization_hash != allocation.get("adaptive_policy_authorization_sha256")
+    ):
+        reasons.append("ADAPTIVE_POLICY_AUTHORIZATION_HASH_MISMATCH")
+    expected_values = {
+        "schema_version": "adaptive_paper_policy_authorization_v2",
+        "authority_id": ADAPTIVE_POLICY_AUTHORITY_ID,
+        "selected_action": "directional_trade",
+        "policy_trading_action_authority": True,
+        "paper_entry_authority": True,
+        "hard_validator_passed": True,
+        "exact_action_venue_executable": True,
+        "mandatory_stop_present": True,
+        "paper_only": True,
+        "live_gate": LIVE_GATE_BLOCKED,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "exchange_action_taken": False,
+        "live_eligible": False,
+        "live_submission_ready": False,
+    }
+    for field, expected in expected_values.items():
+        if authorization.get(field) != expected:
+            reasons.append(f"ADAPTIVE_POLICY_AUTHORIZATION_FIELD_INVALID:{field}")
+    for field in (
+        "static_confidence_final_authority",
+        "static_loss_final_authority",
+        "static_microstructure_final_authority",
+        "static_exit_feasibility_final_authority",
+        "static_exploration_tier_final_authority",
+    ):
+        if authorization.get(field) is not False or intent.get(field) is not False:
+            reasons.append(f"STATIC_CATEGORY_E_AUTHORITY_REINTRODUCED:{field}")
+    if (
+        intent.get("adaptive_policy_authoritative") is not True
+        or intent.get("adaptive_policy_entry_authorized") is not True
+        or intent.get("static_category_e_final_authority") is not False
+    ):
+        reasons.append("ADAPTIVE_POLICY_TOP_LEVEL_AUTHORITY_INVALID")
+    if (
+        allocation.get("adaptive_capital_policy_version")
+        != "ADAPTIVE_POLICY_EXACT_PAPER_ALLOCATION_V2"
+        or allocation.get("allocator_decision") != "ALLOW_WITH_SIZE"
+    ):
+        reasons.append("ADAPTIVE_POLICY_EXACT_PHYSICAL_ALLOCATION_NOT_PASS")
+    model_inputs = (
+        allocation.get("model_inputs")
+        if isinstance(allocation.get("model_inputs"), Mapping)
+        else {}
+    )
+    if (
+        model_inputs.get("adaptive_policy_exact_physical_validation_status") != "PASS"
+        or list(
+            model_inputs.get("adaptive_policy_exact_physical_rejection_reasons") or []
+        )
+    ):
+        reasons.append("ADAPTIVE_POLICY_EXACT_PHYSICAL_ALLOCATION_NOT_PASS")
+    if (
+        model_inputs.get("adaptive_policy_authorization") != dict(authorization)
+        or model_inputs.get("adaptive_policy_authorization_sha256") != authorization_hash
+    ):
+        reasons.append("ADAPTIVE_POLICY_ALLOCATION_AUTHORIZATION_BINDING_MISMATCH")
+    for field in (
+        "adaptive_policy_action_id",
+        "adaptive_policy_action_sha256",
+        "objective_evaluation_id",
+        "hard_validation_receipt_sha256",
+        "venue_attestation_id",
+        "venue_attestation_sha256",
+        "operator_catastrophic_envelope_sha256",
+    ):
+        if authorization.get(field) in (None, ""):
+            reasons.append(f"ADAPTIVE_POLICY_AUTHORIZATION_LINEAGE_MISSING:{field}")
+    if str(authorization.get("primary_side") or "").lower() != str(
+        intent.get("side") or ""
+    ).lower():
+        reasons.append("ADAPTIVE_POLICY_AUTHORIZED_SIDE_MISMATCH")
+    if any(
+        intent.get(field) is not expected
+        for field, expected in (
+            ("paper_only", True),
+            ("routes_to_live", False),
+            ("places_real_order", False),
+            ("exchange_action_taken", False),
+        )
+    ):
+        reasons.append("ADAPTIVE_POLICY_TOP_LEVEL_SAFETY_INVALID")
+    return sorted(set(reasons))
+
+
 def _paper_policy_owner_open_rejection_reasons(intent: dict[str, Any]) -> list[str]:
+    if (
+        str(intent.get("paper_opportunity_tier") or "").strip().upper()
+        == PAPER_TIER_ADAPTIVE_POLICY_V2
+    ):
+        adaptive_reasons = _paper_adaptive_policy_authority_rejection_reasons(intent)
+        intent["paper_runtime_owner_rejection_reasons"] = adaptive_reasons
+        intent["paper_policy_owner_open_allowed"] = not adaptive_reasons
+        intent["paper_policy_owner_open_block_reason"] = (
+            adaptive_reasons[0] if adaptive_reasons else None
+        )
+        return adaptive_reasons
     owner = str(intent.get("paper_policy_owner") or "")
     if owner == PAPER_POLICY_OWNER_OLD_POLICY:
         intent["paper_policy_owner_open_allowed"] = False
@@ -11080,6 +11252,27 @@ PERSISTENT_ACCEPTED_FILL_METADATA_FIELDS = (
     *MAINTENANCE_BRACKET_LINEAGE_FIELDS,
     "adaptive_capital_policy_version",
     "policy_activated_at",
+    "adaptive_policy_authoritative",
+    "adaptive_policy_entry_authorized",
+    "adaptive_policy_authority_id",
+    "adaptive_policy_authority_status",
+    "adaptive_policy_action_id",
+    "adaptive_policy_action_sha256",
+    "adaptive_policy_result_sha256",
+    "adaptive_policy_reference_parity_status",
+    "adaptive_policy_reference_disagreement_count",
+    "adaptive_paper_policy_authorization_sha256",
+    "adaptive_policy_decision_time",
+    "adaptive_policy_hard_validation_available_at",
+    "adaptive_policy_authorized_at",
+    "static_category_e_final_authority",
+    "static_confidence_final_authority",
+    "static_loss_final_authority",
+    "static_microstructure_final_authority",
+    "static_exit_feasibility_final_authority",
+    "static_exploration_tier_final_authority",
+    "expected_holding_horizon_seconds",
+    "exit_plan",
     "paper_opportunity_tier",
     "paper_opportunity_tier_reason",
     "pre_guardian_paper_opportunity_tier",
@@ -35956,6 +36149,9 @@ PAPER_FINAL_ADMISSION_COMPONENT_TIME_FIELDS = (
     "paper_entry_gate_evaluated_at",
     "paper_pre_cycle_control_snapshot_observed_at",
     "runtime_cost_capture_decision_time",
+    "adaptive_policy_decision_time",
+    "adaptive_policy_hard_validation_available_at",
+    "adaptive_policy_authorized_at",
     "cost_source_timestamp",
     "source_timestamp",
     "preemptive_decision_time",
@@ -37244,6 +37440,7 @@ def _paper_final_admission_point_in_time_contract(
             reject(f"FINAL_{router_reason}")
 
     executable_tiers = {
+        PAPER_TIER_ADAPTIVE_POLICY_V2,
         PAPER_TIER_A_GRADE_EXECUTION,
         PAPER_TIER_A_PLUS_BOOTSTRAP_REDUCED_SIZE,
         PAPER_TIER_B_GRADE_EXPLORATION,
@@ -37261,13 +37458,27 @@ def _paper_final_admission_point_in_time_contract(
         reject("FINAL_ADMISSION_VALID_FOR_PAPER_NOT_TRUE")
     if str(intent.get("decision") or "").strip().upper() != ("ACCEPTED_PAPER_FILL"):
         reject("FINAL_ADMISSION_EXECUTABLE_DECISION_INVALID")
-    for blocker in _non_relaxable_entry_gate_reasons(dict(intent)):
+    for blocker in _non_relaxable_entry_gate_reasons(
+        dict(intent),
+        exploration_confidence_authority=(
+            final_tier == PAPER_TIER_ADAPTIVE_POLICY_V2
+        ),
+    ):
         reject(f"FINAL_ADMISSION_NON_RELAXABLE_ENTRY_GATE:{blocker}")
 
     tier_source_contracts: dict[
         str,
         tuple[set[tuple[str, str]], str | None],
     ] = {
+        PAPER_TIER_ADAPTIVE_POLICY_V2: (
+            {
+                (
+                    "ADAPTIVE_POLICY_V2_HARD_VALIDATED_EXACT_ACTION",
+                    "SIGNED_ADAPTIVE_POLICY_HARD_VALIDATED_EXACT_ACTION",
+                )
+            },
+            None,
+        ),
         PAPER_TIER_A_GRADE_EXECUTION: (
             {
                 (
@@ -37336,7 +37547,23 @@ def _paper_final_admission_point_in_time_contract(
             reject("FINAL_ADMISSION_TIER_SOURCE_REASON_PAIR_INVALID")
         if required_label is not None and intent.get("calibration_label_purpose") != required_label:
             reject("FINAL_ADMISSION_TIER_CALIBRATION_LABEL_INVALID")
-    if final_tier == PAPER_TIER_A_GRADE_EXECUTION:
+    if final_tier == PAPER_TIER_ADAPTIVE_POLICY_V2:
+        for reason in _paper_adaptive_policy_authority_rejection_reasons(intent):
+            reject(f"FINAL_ADMISSION_{reason}")
+        if intent.get("mandatory_size_haircut") is not False:
+            reject("FINAL_ADMISSION_ADAPTIVE_ACTION_MUST_NOT_USE_STATIC_SIZE_HAIRCUT")
+        if intent.get("paper_reduced_budget_allocator_recomputed") is not False:
+            reject("FINAL_ADMISSION_ADAPTIVE_ACTION_MUST_NOT_USE_STATIC_REDUCED_TIER")
+        exit_plan = intent.get("exit_plan")
+        if (
+            not isinstance(exit_plan, Mapping)
+            or exit_plan.get("status") != "ADAPTIVE_POLICY_EXIT_PLAN_ACTIVE"
+            or _coerce_float(exit_plan.get("stop_loss_price")) is None
+            or _coerce_float(exit_plan.get("max_loss_usd")) is None
+            or int(exit_plan.get("max_hold_seconds") or 0) <= 0
+        ):
+            reject("FINAL_ADMISSION_ADAPTIVE_EXIT_PLAN_INVALID")
+    elif final_tier == PAPER_TIER_A_GRADE_EXECUTION:
         if intent.get("continuous_edge_guardian_new_entries_allowed") is not True:
             reject("FINAL_ADMISSION_A_GRADE_GUARDIAN_NOT_ALLOWING_ENTRIES")
         if intent.get("paper_reduced_budget_allocator_recomputed") is True:
@@ -37396,6 +37623,14 @@ def _paper_final_admission_point_in_time_contract(
         "paper_exchange_filter_available_at",
         "paper_exchange_filter_observed_at",
     }
+    if final_tier == PAPER_TIER_ADAPTIVE_POLICY_V2:
+        required_common_times.update(
+            {
+                "adaptive_policy_decision_time",
+                "adaptive_policy_hard_validation_available_at",
+                "adaptive_policy_authorized_at",
+            }
+        )
     if intent.get("paper_reduced_budget_allocator_recomputed") is True:
         required_common_times.update(
             {
@@ -37468,7 +37703,19 @@ def _paper_final_admission_point_in_time_contract(
         ("paper_exchange_filter_observed_at", "paper_allocation_decision_time"),
     ):
         require_order(left, right)
-    if intent.get("paper_reduced_budget_allocator_recomputed") is True:
+    if final_tier == PAPER_TIER_ADAPTIVE_POLICY_V2:
+        require_order("runtime_cost_capture_decision_time", "adaptive_policy_decision_time")
+        require_order(
+            "adaptive_policy_decision_time",
+            "adaptive_policy_hard_validation_available_at",
+        )
+        require_order(
+            "adaptive_policy_hard_validation_available_at",
+            "adaptive_policy_authorized_at",
+        )
+        require_order("adaptive_policy_authorized_at", "paper_allocation_decision_time")
+        require_order("preemptive_decision_time", "adaptive_policy_decision_time")
+    elif intent.get("paper_reduced_budget_allocator_recomputed") is True:
         require_order(
             "normal_adaptive_allocation_decision_time",
             "normal_adaptive_allocator_economic_contract_sealed_at",
@@ -44125,6 +44372,57 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         existing_ledger,
         paper_revocable_control_source_materials,
     )
+    adaptive_policy_cycle_context: dict[str, Any] = {
+        "status": "BLOCKED",
+        "rejection_reasons": [],
+        "paper_only": True,
+        "live_gate": LIVE_GATE_BLOCKED,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "exchange_action_taken": False,
+    }
+    try:
+        adaptive_policy_calibration = _read_json_key(
+            r,
+            ADAPTIVE_POLICY_CALIBRATION_REDIS_KEY,
+        )
+        adaptive_policy_registry = _read_json_key(
+            r,
+            ADAPTIVE_POLICY_REGISTRY_REDIS_KEY,
+        )
+        if not isinstance(adaptive_policy_calibration, Mapping) or not adaptive_policy_calibration:
+            raise RuntimeError("ADAPTIVE_POLICY_CALIBRATION_MISSING")
+        if not isinstance(adaptive_policy_registry, Mapping) or not adaptive_policy_registry:
+            raise RuntimeError("ADAPTIVE_POLICY_REGISTRY_MISSING")
+        if (
+            adaptive_policy_registry.get("paper_only") is not True
+            or adaptive_policy_registry.get("live_eligible") is not False
+        ):
+            raise RuntimeError("ADAPTIVE_POLICY_REGISTRY_PAPER_ONLY_CONTRACT_INVALID")
+        adaptive_policy_validator_seed = _paper_adaptive_validator_seed()
+        adaptive_policy_feature_archive_root = _paper_adaptive_feature_archive_root()
+    except (OSError, RuntimeError, ValueError, TypeError) as exc:
+        adaptive_policy_calibration = {}
+        adaptive_policy_registry = {}
+        adaptive_policy_validator_seed = b""
+        adaptive_policy_feature_archive_root = None
+        adaptive_policy_cycle_context["rejection_reasons"] = [
+            f"{type(exc).__name__}:{exc}"
+        ]
+    else:
+        adaptive_policy_cycle_context.update(
+            {
+                "status": "READY",
+                "calibration_sha256": adaptive_policy_calibration.get(
+                    "calibration_sha256"
+                ),
+                "checkpoint_generation": adaptive_policy_registry.get(
+                    "registry_generation"
+                ),
+                "checkpoint_id": adaptive_policy_registry.get("checkpoint_id"),
+                "feature_archive_root": str(adaptive_policy_feature_archive_root),
+            }
+        )
     existing_ledger_observed_at = _utc_iso()
     _set_symbol_tf_closed_evidence_counts(_closed_trade_rows(existing_ledger))
     _set_session_performance_sizing_evidence(_closed_trade_rows(existing_ledger))
@@ -47200,6 +47498,348 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             allocation=allocation_payload,
             classification=tier_classification,
         )
+        # FINAL PASS: the legacy Category-E result remains immutable comparator
+        # evidence, but it is no longer trading authority.  One independently
+        # parity-checked AdaptivePolicyActionV2 now selects the PAPER action;
+        # the signed hard validator and exact venue/allocation bridge may only
+        # authorize that action unchanged or block it.
+        intent["legacy_category_e_comparator"] = {
+            "paper_opportunity_tier": intent.get("paper_opportunity_tier"),
+            "paper_opportunity_tier_reason": intent.get("paper_opportunity_tier_reason"),
+            "paper_fill_allowed": intent.get("paper_fill_allowed"),
+            "paper_fill_allowed_source": intent.get("paper_fill_allowed_source"),
+            "paper_fill_gate_block_reasons": list(
+                intent.get("paper_fill_gate_block_reasons") or []
+            ),
+            "local_block_reasons": list(intent.get("local_block_reasons") or []),
+            "preemptive_decision": intent.get("preemptive_decision"),
+            "microstructure_action": intent.get("microstructure_action"),
+            "directional_guard_allowed": directional_guard.get("allowed"),
+            "static_comparator_only": True,
+        }
+        adaptive_policy_generated_at_ms = int(time.time() * 1_000)
+        adaptive_policy_result = None
+        adaptive_policy_authorization = None
+        try:
+            if adaptive_policy_cycle_context.get("status") != "READY":
+                raise RuntimeError(
+                    "ADAPTIVE_POLICY_CYCLE_CONTEXT_NOT_READY:"
+                    + ",".join(
+                        str(reason)
+                        for reason in adaptive_policy_cycle_context.get(
+                            "rejection_reasons", []
+                        )
+                    )
+                )
+            entry_prediction = intent.get("entry_prediction_snapshot")
+            if not isinstance(entry_prediction, Mapping):
+                raise RuntimeError("ADAPTIVE_POLICY_ENTRY_PREDICTION_MISSING")
+            feature_snapshot_id = entry_prediction.get("feature_snapshot_id")
+            if not feature_snapshot_id:
+                raise RuntimeError("ADAPTIVE_POLICY_FEATURE_SNAPSHOT_ID_MISSING")
+            assert adaptive_policy_feature_archive_root is not None
+            adaptive_feature_snapshot = load_durable_feature_snapshot(
+                feature_snapshot_id,
+                root=adaptive_policy_feature_archive_root,
+                verify=True,
+            )
+            if not isinstance(adaptive_feature_snapshot, Mapping):
+                raise RuntimeError("ADAPTIVE_POLICY_FEATURE_SNAPSHOT_MISSING")
+            adaptive_paper_status = {
+                "schema_version": "adaptive_paper_policy_runtime_state_v2",
+                "open_position_count": len(
+                    _paper_existing_open_position_rows(existing_ledger)
+                )
+                + len(accepted),
+                "paper_only": True,
+                "live_gate": LIVE_GATE_BLOCKED,
+                "routes_to_live": False,
+                "places_real_order": False,
+                "exchange_action_taken": False,
+            }
+            adaptive_policy_result = build_adaptive_policy_shadow_candidate(
+                intent=intent,
+                feature_snapshot=adaptive_feature_snapshot,
+                paper_status=adaptive_paper_status,
+                calibration=adaptive_policy_calibration,
+                registry=adaptive_policy_registry,
+                validator_seed=adaptive_policy_validator_seed,
+                generated_at_ms=adaptive_policy_generated_at_ms,
+            )
+            adaptive_policy_authorization = authorize_adaptive_paper_policy_action(
+                adaptive_policy_result,
+                authorized_at_ms=int(time.time() * 1_000),
+            )
+        except (
+            AdaptivePaperPolicyAuthorizationError,
+            AdaptivePolicyShadowError,
+            SnapshotArchiveError,
+            OSError,
+            RuntimeError,
+            TypeError,
+            ValueError,
+        ) as exc:
+            adaptive_reason = f"{type(exc).__name__}:{exc}"
+            intent["decision"] = "BLOCKED_ADAPTIVE_POLICY_AUTHORITY"
+            intent["paper_fill_allowed"] = False
+            intent["paper_fill_block_reason"] = "ADAPTIVE_POLICY_AUTHORITY_BLOCKED"
+            intent["adaptive_policy_authoritative"] = True
+            intent["adaptive_policy_entry_authorized"] = False
+            intent["adaptive_policy_authority_status"] = "BLOCKED"
+            intent["adaptive_policy_authority_rejection_reasons"] = [adaptive_reason]
+            intent["static_category_e_final_authority"] = False
+            intent["paper_fill_gate_block_reasons"] = sorted(
+                set(
+                    list(intent.get("paper_fill_gate_block_reasons") or [])
+                    + ["ADAPTIVE_POLICY_AUTHORITY_BLOCKED", adaptive_reason]
+                )
+            )
+            blocked.append(intent)
+            continue
+
+        assert adaptive_policy_result is not None
+        assert adaptive_policy_authorization is not None
+        adaptive_action = adaptive_policy_result.selected_adaptive_action
+        adaptive_authorization_payload = adaptive_policy_authorization.to_payload()
+        intent["adaptive_policy_action"] = adaptive_action.to_payload()
+        intent["adaptive_policy_action_id"] = adaptive_action.decision_id
+        intent["adaptive_policy_action_sha256"] = adaptive_action.content_sha256
+        intent["adaptive_policy_result_sha256"] = adaptive_policy_result.content_sha256
+        intent["adaptive_policy_reference_parity_status"] = (
+            adaptive_policy_result.parity_status
+        )
+        intent["adaptive_policy_reference_disagreement_count"] = (
+            adaptive_policy_result.parity_disagreement_count
+        )
+        intent["adaptive_paper_policy_authorization"] = adaptive_authorization_payload
+        intent["adaptive_paper_policy_authorization_sha256"] = (
+            adaptive_policy_authorization.content_sha256
+        )
+        intent["adaptive_policy_decision_time"] = datetime.fromtimestamp(
+            adaptive_action.decision_time_ms / 1_000.0,
+            timezone.utc,
+        ).isoformat().replace("+00:00", "Z")
+        intent["adaptive_policy_authorized_at"] = datetime.fromtimestamp(
+            adaptive_policy_authorization.authorized_at_ms / 1_000.0,
+            timezone.utc,
+        ).isoformat().replace("+00:00", "Z")
+        intent["adaptive_policy_hard_validation_available_at"] = datetime.fromtimestamp(
+            adaptive_policy_authorization.hard_validation_available_at_ms / 1_000.0,
+            timezone.utc,
+        ).isoformat().replace("+00:00", "Z")
+        intent["adaptive_policy_authoritative"] = True
+        intent["adaptive_policy_authority_id"] = ADAPTIVE_POLICY_AUTHORITY_ID
+        intent["static_category_e_final_authority"] = False
+        for static_authority_field in (
+            "static_confidence_final_authority",
+            "static_loss_final_authority",
+            "static_microstructure_final_authority",
+            "static_exit_feasibility_final_authority",
+            "static_exploration_tier_final_authority",
+        ):
+            intent[static_authority_field] = False
+        intent["paper_only"] = True
+        intent["live_gate"] = LIVE_GATE_BLOCKED
+        intent["routes_to_live"] = False
+        intent["places_real_order"] = False
+        intent["exchange_action_taken"] = False
+
+        if adaptive_policy_authorization.paper_entry_authority is not True:
+            intent["decision"] = "ADAPTIVE_POLICY_REMAIN_FLAT"
+            intent["paper_fill_allowed"] = False
+            intent["paper_fill_block_reason"] = "ADAPTIVE_POLICY_SELECTED_REMAIN_FLAT"
+            intent["adaptive_policy_entry_authorized"] = False
+            intent["adaptive_policy_authority_status"] = "AUTHORIZED_FLAT"
+            intent["adaptive_learning_continuation_action"] = (
+                adaptive_action.learning_continuation_action
+            )
+            adaptive_flat_observation = dict(intent)
+            adaptive_flat_observation["counted_as_accepted_position"] = False
+            adaptive_flat_observation["counted_as_fill"] = False
+            adaptive_flat_observation["counted_as_open_position"] = False
+            shadow_observations.append(adaptive_flat_observation)
+            continue
+
+        adaptive_allocation_decision_time = datetime.now(timezone.utc)
+        adaptive_allocation_pit = _paper_allocation_point_in_time_contract(
+            intent,
+            allocation_decision_time=adaptive_allocation_decision_time,
+        )
+        intent["paper_allocation_decision_time"] = adaptive_allocation_pit["decision_time"]
+        intent["paper_allocation_decision_time_semantics"] = (
+            "IMMUTABLE_CAPTURE_AFTER_ADAPTIVE_POLICY_AUTHORIZATION_BEFORE_EXACT_PHYSICAL_VALIDATION"
+        )
+        intent["paper_allocation_point_in_time_status"] = adaptive_allocation_pit["status"]
+        intent["paper_allocation_point_in_time_rejection_reasons"] = list(
+            adaptive_allocation_pit["rejection_reasons"]
+        )
+        intent["paper_allocation_point_in_time_evidence"] = adaptive_allocation_pit
+        adaptive_allocation_input = _paper_bind_liquidation_atr_evidence(
+            intent=intent,
+            allocation_input=allocation_input,
+            allocation_decision_time=adaptive_allocation_decision_time,
+            point_in_time_status=str(adaptive_allocation_pit["status"]),
+        )
+        if adaptive_allocation_pit["status"] != "PASS":
+            adaptive_allocation_input = replace(
+                adaptive_allocation_input,
+                risk_veto=True,
+                risk_veto_reason="ADAPTIVE_POLICY_ALLOCATION_POINT_IN_TIME_BLOCKED",
+            )
+
+        def _allocate_exact_adaptive_action(
+            exact_input: Any,
+            *,
+            envelope: Any,
+        ) -> Any:
+            return allocate_authorized_adaptive_paper_action(
+                exact_input,
+                authorization=adaptive_policy_authorization,
+                policy_result=adaptive_policy_result,
+                envelope=envelope,
+            )
+
+        adaptive_allocation, _, bracket_evidence_context = (
+            _paper_allocate_with_bracket_evidence(
+                allocation_input=adaptive_allocation_input,
+                envelope=candidate_dynamic_paper_envelope,
+                redis_client=r,
+                security_context=paper_maintenance_bracket_security_context,
+                allocation_decision_time=adaptive_allocation_decision_time,
+                allocate_fn=_allocate_exact_adaptive_action,
+            )
+        )
+        allocation_payload = adaptive_allocation.to_payload()
+        for target in (intent, allocation_payload):
+            _attach_paper_maintenance_bracket_context(
+                target,
+                bracket_evidence_context,
+            )
+        adaptive_model_inputs = (
+            allocation_payload.get("model_inputs")
+            if isinstance(allocation_payload.get("model_inputs"), Mapping)
+            else {}
+        )
+        adaptive_physical_status = adaptive_model_inputs.get(
+            "adaptive_policy_exact_physical_validation_status"
+        )
+        adaptive_physical_reasons = list(
+            adaptive_model_inputs.get(
+                "adaptive_policy_exact_physical_rejection_reasons"
+            )
+            or []
+        )
+        if (
+            allocation_payload.get("allocator_decision") != "ALLOW_WITH_SIZE"
+            or adaptive_physical_status != "PASS"
+            or adaptive_physical_reasons
+        ):
+            intent["decision"] = "BLOCKED_ADAPTIVE_POLICY_PHYSICAL_FEASIBILITY"
+            intent["paper_fill_allowed"] = False
+            intent["paper_fill_block_reason"] = (
+                "ADAPTIVE_POLICY_EXACT_PHYSICAL_VALIDATION_BLOCKED"
+            )
+            intent["adaptive_policy_entry_authorized"] = False
+            intent["adaptive_policy_authority_status"] = "BLOCKED_PHYSICAL_FEASIBILITY"
+            intent["adaptive_policy_authority_rejection_reasons"] = (
+                adaptive_physical_reasons
+                or [str(allocation_payload.get("allocator_decision") or "UNKNOWN")]
+            )
+            intent["adaptive_allocation"] = allocation_payload
+            blocked.append(intent)
+            continue
+
+        exact_entry_price = float(adaptive_policy_authorization.exact_entry_price)
+        exact_stop_price = float(adaptive_policy_authorization.exact_stop_price)
+        exact_target_notional = float(
+            adaptive_policy_authorization.exact_target_notional_usd
+        )
+        exact_bounded_loss = float(adaptive_policy_authorization.exact_bounded_loss_usd)
+        profit_target_price = adaptive_action.exit_policy.profit_target_price
+        time_exit_at = datetime.fromtimestamp(
+            adaptive_policy_authorization.authorized_at_ms / 1_000.0,
+            timezone.utc,
+        ) + timedelta(
+            seconds=adaptive_policy_authorization.expected_holding_horizon_seconds
+        )
+        intent.update(
+            {
+                "decision": "ADAPTIVE_POLICY_DIRECTIONAL_AUTHORIZED",
+                "paper_opportunity_tier": PAPER_TIER_ADAPTIVE_POLICY_V2,
+                "paper_opportunity_tier_reason": (
+                    "SIGNED_ADAPTIVE_POLICY_HARD_VALIDATED_EXACT_ACTION"
+                ),
+                "paper_fill_allowed": True,
+                "paper_fill_allowed_source": (
+                    "ADAPTIVE_POLICY_V2_HARD_VALIDATED_EXACT_ACTION"
+                ),
+                "paper_tier_local_fill_allowed": True,
+                "paper_tier_local_fill_source": (
+                    "ADAPTIVE_POLICY_V2_HARD_VALIDATED_EXACT_ACTION"
+                ),
+                "strict_paper_fill_allowed_upstream": False,
+                "adaptive_policy_entry_authorized": True,
+                "adaptive_policy_authority_status": "AUTHORIZED_DIRECTIONAL",
+                "adaptive_policy_authority_rejection_reasons": [],
+                "entry_price": exact_entry_price,
+                "fill_price": exact_entry_price,
+                "stop_price": exact_stop_price,
+                "stop_loss_price": exact_stop_price,
+                "protective_stop_price": exact_stop_price,
+                "target_notional_usd": exact_target_notional,
+                "expected_max_loss_usd": exact_bounded_loss,
+                "max_loss_usd": exact_bounded_loss,
+                "expected_holding_horizon_seconds": (
+                    adaptive_policy_authorization.expected_holding_horizon_seconds
+                ),
+                "counts_as_a_grade_evidence": False,
+                "counts_as_A_plus": False,
+                "counts_as_final_a_plus": False,
+                "counts_as_live_ready": False,
+                "mandatory_size_haircut": False,
+                "no_static_dollar_notional": True,
+                "no_leverage_increase_to_compensate_for_lower_trust": True,
+                "paper_reduced_budget_allocator_recomputed": False,
+                "exit_plan": {
+                    "status": "ADAPTIVE_POLICY_EXIT_PLAN_ACTIVE",
+                    "source": "ADAPTIVE_POLICY_ACTION_V2_EXACT_EXIT_POLICY",
+                    "paper_only": True,
+                    "routes_to_live": False,
+                    "places_real_order": False,
+                    "side": adaptive_policy_authorization.primary_side,
+                    "current_price": exact_entry_price,
+                    "gross_notional_usd": exact_target_notional,
+                    "expected_max_loss_usd": exact_bounded_loss,
+                    "max_loss_usd": exact_bounded_loss,
+                    "stop_loss_price": exact_stop_price,
+                    "take_profit_price": profit_target_price,
+                    "max_hold_seconds": (
+                        adaptive_policy_authorization.expected_holding_horizon_seconds
+                    ),
+                    "time_exit_at": time_exit_at.isoformat().replace("+00:00", "Z"),
+                    "exit_triggers": [
+                        "stop_loss_price",
+                        "take_profit_price",
+                        "max_hold_seconds",
+                        "risk_or_thesis_invalidated",
+                    ],
+                    "order_path": "paper_internal_lifecycle_only",
+                    "adaptive_policy_action_id": adaptive_action.decision_id,
+                },
+            }
+        )
+        allocation_payload["adaptive_policy_exact_physical_validation_status"] = "PASS"
+        allocation_payload["adaptive_policy_exact_physical_rejection_reasons"] = []
+        allocation_payload["adaptive_policy_authorization_sha256"] = (
+            adaptive_policy_authorization.content_sha256
+        )
+        allocation_payload["exit_plan"] = deepcopy(intent["exit_plan"])
+        _attach_paper_sizing(intent, allocation_payload)
+        _attach_paper_allocation_decision_context(intent, allocation_payload)
+        _seal_paper_allocator_economic_contract(
+            intent=intent,
+            allocation=allocation_payload,
+        )
         non_executable_shadow = _shadow_observation_from_blocked_directional_candidate(
             intent=intent,
             signal=s,
@@ -47541,7 +48181,8 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             blocked.append(intent)
             continue
         paper_tier_local_fill_allowed = (
-            intent.get("paper_opportunity_tier") == PAPER_TIER_B_GRADE_EXPLORATION
+            intent.get("paper_opportunity_tier") == PAPER_TIER_ADAPTIVE_POLICY_V2
+            or intent.get("paper_opportunity_tier") == PAPER_TIER_B_GRADE_EXPLORATION
             or intent.get("paper_opportunity_tier") == PAPER_TIER_A_PLUS_BOOTSTRAP_REDUCED_SIZE
             or intent.get("paper_opportunity_tier") == PAPER_TIER_POSITIVE_EDGE_PROBATION
             or intent.get("paper_opportunity_tier") == PAPER_TIER_RISK_CONTROLLER_EXPLORATION
@@ -47574,6 +48215,10 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             and not local_trade_gates_pass
             and exploration_trade_gates_pass
         )
+        adaptive_policy_relaxed_static_category_e = bool(
+            intent.get("adaptive_policy_entry_authorized") is True
+            and intent.get("paper_opportunity_tier") == PAPER_TIER_ADAPTIVE_POLICY_V2
+        )
         if (
             b_grade_relaxed_strict_local_gate
             or bootstrap_relaxed_strict_local_gate
@@ -47599,6 +48244,7 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             and not bootstrap_relaxed_strict_local_gate
             and not probation_relaxed_strict_local_gate
             and not risk_controller_exploration_relaxed_strict_local_gate
+            and not adaptive_policy_relaxed_static_category_e
         ):
             # Failed local pre-trade / fee / churn gates — not a fill,
             # not a fill. Clean directional candidates are also mirrored
@@ -47644,7 +48290,10 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             shadow_observations.append(shadow_intent)
             continue
         conf = _coerce_float(confidence_calibrated)
-        if directional_guard.get("allowed") is not True:
+        if (
+            directional_guard.get("allowed") is not True
+            and not adaptive_policy_relaxed_static_category_e
+        ):
             reason = str(directional_guard.get("block_reason") or DIRECTIONAL_COLLAPSE_BLOCK_REASON)
             intent["paper_fill_block_reason"] = reason
             intent["paper_fill_gate_block_reasons"] = sorted(
@@ -47677,7 +48326,7 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             intent,
             accepted,
         )
-        if current_cycle_churn_rejection_reasons:
+        if current_cycle_churn_rejection_reasons and not adaptive_policy_relaxed_static_category_e:
             _paper_apply_churn_equity_bleed_rejection(
                 intent,
                 current_cycle_churn_rejection_reasons,
@@ -47691,6 +48340,11 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             )
         )
         entry_freeze_nonoverridable = _paper_entry_freeze_nonoverridable(paper_entry_freeze)
+        adaptive_policy_entry_freeze_override = bool(
+            adaptive_policy_relaxed_static_category_e
+            and paper_entry_freeze.get("paper_new_entries_halted") is True
+            and not entry_freeze_nonoverridable
+        )
         positive_edge_probation_entry_freeze_override = bool(
             paper_entry_freeze.get("paper_new_entries_halted") is True
             and intent.get("paper_opportunity_tier") == PAPER_TIER_POSITIVE_EDGE_PROBATION
@@ -47704,6 +48358,7 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                 not positive_edge_probation_entry_freeze_override
                 and not risk_controller_entry_freeze_override
                 and not adaptive_high_confidence_entry_freeze_override
+                and not adaptive_policy_entry_freeze_override
             )
         ):
             intent["paper_fill_block_reason"] = "PAPER_NEW_ENTRIES_HALTED_BY_PORTFOLIO_TRUTH_FREEZE"
@@ -47738,6 +48393,12 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         if positive_edge_probation_entry_freeze_override:
             intent["paper_entry_freeze"] = paper_entry_freeze
             intent["probation_overrode_global_entry_freeze"] = True
+        if adaptive_policy_entry_freeze_override:
+            intent["paper_entry_freeze"] = paper_entry_freeze
+            intent["adaptive_policy_overrode_static_performance_entry_freeze"] = True
+            intent["adaptive_policy_entry_freeze_override_reason"] = (
+                "SIGNED_ADAPTIVE_OBJECTIVE_SUPERSEDES_STATIC_CATEGORY_E_PERFORMANCE_FREEZE"
+            )
         preemptive_admission_reasons = _paper_preemptive_admission_rejection_reasons(
             intent,
             adaptive_loss_probability_threshold=preemptive_decision.get(
@@ -47748,7 +48409,7 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             ),
             adaptive_tuning_validation_status=(_adaptive_tuning_validation_receipt.get("status")),
         )
-        if preemptive_admission_reasons:
+        if preemptive_admission_reasons and not adaptive_policy_relaxed_static_category_e:
             _apply_preemptive_admission_block(intent, preemptive_admission_reasons)
             blocked.append(intent)
             continue
@@ -48968,6 +49629,49 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         "routes_to_live": False,
         "places_real_order": False,
     }
+    adaptive_policy_authority_rows = [
+        row for row in intents if row.get("adaptive_policy_authoritative") is True
+    ]
+    adaptive_policy_cycle_context.update(
+        {
+            "schema_version": "adaptive_paper_policy_runtime_status_v2",
+            "generated_utc": _utc_iso(),
+            "status": (
+                "PASS_AUTHORITATIVE_PAPER_POLICY"
+                if adaptive_policy_cycle_context.get("status") == "READY"
+                and len(adaptive_policy_authority_rows) == len(intents)
+                else "BLOCKED_ADAPTIVE_POLICY_RUNTIME"
+            ),
+            "source_candidate_count": len(intents),
+            "adaptive_decision_count": len(adaptive_policy_authority_rows),
+            "directional_authorized_count": sum(
+                row.get("adaptive_policy_entry_authorized") is True
+                for row in adaptive_policy_authority_rows
+            ),
+            "flat_authorized_count": sum(
+                row.get("adaptive_policy_authority_status") == "AUTHORIZED_FLAT"
+                for row in adaptive_policy_authority_rows
+            ),
+            "authority_blocked_count": sum(
+                str(row.get("adaptive_policy_authority_status") or "").startswith(
+                    "BLOCKED"
+                )
+                for row in adaptive_policy_authority_rows
+            ),
+            "reference_parity_disagreement_count": sum(
+                int(row.get("adaptive_policy_reference_disagreement_count") or 0)
+                for row in adaptive_policy_authority_rows
+            ),
+            "adaptive_policy_authoritative": True,
+            "static_category_e_authority_removed": True,
+            "physical_feasibility_is_policy": False,
+            "paper_only": True,
+            "live_gate": LIVE_GATE_BLOCKED,
+            "routes_to_live": False,
+            "places_real_order": False,
+            "exchange_action_taken": False,
+        }
+    )
     paper_preemptive_admission_status = {
         "schema_version": "paper_preemptive_admission_status_v1",
         "generated_utc": _utc_iso(),
@@ -51338,6 +52042,7 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                         "live_ready": False,
                         "live_submit_allowed": False,
                         "paper_adaptive_threshold_runtime_status": paper_adaptive_threshold_runtime_status,
+                        "adaptive_paper_policy_runtime_status": adaptive_policy_cycle_context,
                         "paper_churn_equity_bleed_governor_status": (
                             paper_churn_equity_bleed_governor_status
                         ),
@@ -51389,6 +52094,15 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             ex=PAPER_RUNTIME_HEARTBEAT_TTL_SECONDS,
         ):
             keys_written.append(f"{V2_REDIS_PREFIX}paper:trade_management:status")
+        if _safe_write(
+            r,
+            f"{V2_REDIS_PREFIX}adaptive_system:paper_policy_authority:status",
+            json.dumps(adaptive_policy_cycle_context),
+            ex=PAPER_RUNTIME_HEARTBEAT_TTL_SECONDS,
+        ):
+            keys_written.append(
+                f"{V2_REDIS_PREFIX}adaptive_system:paper_policy_authority:status"
+            )
         if _safe_write(
             r,
             PAPER_ADAPTIVE_SIZING_RUNTIME_STATUS_REDIS_KEY,
@@ -51803,6 +52517,7 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         "a_plus_5_trade_gate_runtime_status": a_plus_5_trade_gate_runtime_status,
         "b_grade_calibration_safety_status": b_grade_calibration_safety_status,
         "paper_adaptive_threshold_runtime_status": paper_adaptive_threshold_runtime_status,
+        "adaptive_paper_policy_runtime_status": adaptive_policy_cycle_context,
         "paper_churn_equity_bleed_governor_status": paper_churn_equity_bleed_governor_status,
         "paper_performance_circuit_breaker_status": (paper_performance_circuit_breaker_status),
         "paper_bleed_halt_status": paper_bleed_halt_status,

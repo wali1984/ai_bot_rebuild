@@ -13,7 +13,7 @@ from .generation_identity import POSITION_ID_VERSION, entry_generation_identity
 ADAPTIVE_CAPITAL_POLICY_VERSION = "ADAPTIVE_CAPITAL_ALLOCATOR_V1"
 PAPER_ENTRY_COST_ACCOUNTING_VERSION = "PAPER_ENTRY_COST_BASIS_V1"
 PAPER_POSITION_RECONSTRUCTION_SCHEMA_VERSION = (
-    "PAPER_OPEN_POSITION_RECONSTRUCTION_V2"
+    "PAPER_OPEN_POSITION_RECONSTRUCTION_V3"
 )
 EXACT_ON_POLICY_POSITION_LINEAGE_SCHEMA_VERSION = (
     "PAPER_EXACT_ON_POLICY_POSITION_LINEAGE_V1"
@@ -44,6 +44,15 @@ _PAPER_POSITION_RECONSTRUCTION_FIELDS = (
     "recommended_margin_mode",
     "margin_mode_simulated",
     "adaptive_allocation",
+    "adaptive_policy_authoritative",
+    "adaptive_policy_action_id",
+    "adaptive_policy_action_sha256",
+    "adaptive_paper_policy_authorization_sha256",
+    "adaptive_policy_exit_plan",
+    "adaptive_policy_stop_price",
+    "adaptive_policy_profit_target_price",
+    "adaptive_policy_max_hold_seconds",
+    "adaptive_policy_time_exit_at",
     "maintenance_margin_rate",
     "maintenance_margin_cum",
     "maintenance_margin_notional_usd",
@@ -136,6 +145,9 @@ def _paper_position_reconstruction_material(row: dict[str, Any]) -> dict[str, An
         "maintenance_margin_rate",
         "maintenance_margin_cum",
         "maintenance_margin_notional_usd",
+        "adaptive_policy_stop_price",
+        "adaptive_policy_profit_target_price",
+        "adaptive_policy_max_hold_seconds",
         "maintenance_bracket_id",
         "maintenance_bracket_maint_margin_ratio",
         "maintenance_bracket_cum",
@@ -751,6 +763,79 @@ def validate_paper_position_reconstruction(
             )
     if str(row.get("entry_cost_basis_status") or "").strip() == "":
         reasons.append("POSITION_RECONSTRUCTION_ENTRY_COST_BASIS_STATUS_MISSING")
+    if row.get("adaptive_policy_authoritative") is True:
+        exit_plan = row.get("adaptive_policy_exit_plan")
+        stop_price = coerce_float(row.get("adaptive_policy_stop_price"))
+        target_price = coerce_float(
+            row.get("adaptive_policy_profit_target_price")
+        )
+        max_hold_seconds = coerce_float(
+            row.get("adaptive_policy_max_hold_seconds")
+        )
+        time_exit = parse_aware_utc(row.get("adaptive_policy_time_exit_at"))
+        if not str(row.get("adaptive_policy_action_id") or "").strip():
+            reasons.append("POSITION_RECONSTRUCTION_ADAPTIVE_ACTION_ID_MISSING")
+        for field_name in (
+            "adaptive_policy_action_sha256",
+            "adaptive_paper_policy_authorization_sha256",
+        ):
+            if not _is_lower_sha256_hex(row.get(field_name)):
+                reasons.append(
+                    "POSITION_RECONSTRUCTION_"
+                    f"{field_name.upper()}_INVALID"
+                )
+        if (
+            not isinstance(exit_plan, dict)
+            or exit_plan.get("status") != "ADAPTIVE_POLICY_EXIT_PLAN_ACTIVE"
+            or exit_plan.get("paper_only") is not True
+            or exit_plan.get("routes_to_live") is not False
+            or exit_plan.get("places_real_order") is not False
+        ):
+            reasons.append("POSITION_RECONSTRUCTION_ADAPTIVE_EXIT_PLAN_INVALID")
+        elif (
+            not _accounting_values_match(
+                coerce_float(exit_plan.get("stop_loss_price")),
+                stop_price,
+            )
+            or not _accounting_values_match(
+                coerce_float(exit_plan.get("take_profit_price")),
+                target_price,
+            )
+            or not _accounting_values_match(
+                coerce_float(exit_plan.get("max_hold_seconds")),
+                max_hold_seconds,
+            )
+            or str(exit_plan.get("time_exit_at") or "")
+            != str(row.get("adaptive_policy_time_exit_at") or "")
+            or str(exit_plan.get("adaptive_policy_action_id") or "")
+            != str(row.get("adaptive_policy_action_id") or "")
+        ):
+            reasons.append(
+                "POSITION_RECONSTRUCTION_ADAPTIVE_EXIT_PLAN_BINDING_MISMATCH"
+            )
+        if stop_price is None or not math.isfinite(stop_price) or stop_price <= 0.0:
+            reasons.append("POSITION_RECONSTRUCTION_ADAPTIVE_STOP_PRICE_INVALID")
+        if (
+            max_hold_seconds is None
+            or not math.isfinite(max_hold_seconds)
+            or max_hold_seconds <= 0.0
+        ):
+            reasons.append("POSITION_RECONSTRUCTION_ADAPTIVE_MAX_HOLD_INVALID")
+        if time_exit is None:
+            reasons.append("POSITION_RECONSTRUCTION_ADAPTIVE_TIME_EXIT_INVALID")
+        elif opened_time is not None and time_exit <= opened_time:
+            reasons.append("POSITION_RECONSTRUCTION_ADAPTIVE_TIME_EXIT_NOT_AFTER_OPEN")
+        normalized_side = str(row.get("side") or "").strip().lower()
+        if stop_price is not None and entry_price is not None:
+            if normalized_side in {"long", "buy"} and stop_price >= entry_price:
+                reasons.append("POSITION_RECONSTRUCTION_ADAPTIVE_LONG_STOP_INVALID")
+            if normalized_side in {"short", "sell"} and stop_price <= entry_price:
+                reasons.append("POSITION_RECONSTRUCTION_ADAPTIVE_SHORT_STOP_INVALID")
+        if target_price is not None and entry_price is not None:
+            if normalized_side in {"long", "buy"} and target_price <= entry_price:
+                reasons.append("POSITION_RECONSTRUCTION_ADAPTIVE_LONG_TARGET_INVALID")
+            if normalized_side in {"short", "sell"} and target_price >= entry_price:
+                reasons.append("POSITION_RECONSTRUCTION_ADAPTIVE_SHORT_TARGET_INVALID")
     exact_claimed = bool(
         row.get("ppo_on_policy_entry_fields_present") is True
         or row.get("behavior_policy_receipt_entry_event_pending") is True
@@ -1206,6 +1291,15 @@ class PaperNetPosition:
     squeeze_evidence_unavailable_reason: str | None = None
     future_window_label_source: str | None = None
     adaptive_allocation: dict[str, Any] | None = None
+    adaptive_policy_authoritative: bool = False
+    adaptive_policy_action_id: str | None = None
+    adaptive_policy_action_sha256: str | None = None
+    adaptive_paper_policy_authorization_sha256: str | None = None
+    adaptive_policy_exit_plan: dict[str, Any] | None = None
+    adaptive_policy_stop_price: float | None = None
+    adaptive_policy_profit_target_price: float | None = None
+    adaptive_policy_max_hold_seconds: float | None = None
+    adaptive_policy_time_exit_at: str | None = None
     adaptive_capital_policy_version: str | None = None
     policy_activated_at: str | None = None
     gross_notional_usd: float | None = None
@@ -2427,6 +2521,19 @@ class PaperNetPosition:
             "recommended_margin_mode": self.recommended_margin_mode,
             "margin_mode_simulated": self.margin_mode_simulated,
             "adaptive_allocation": self.adaptive_allocation,
+            "adaptive_policy_authoritative": self.adaptive_policy_authoritative,
+            "adaptive_policy_action_id": self.adaptive_policy_action_id,
+            "adaptive_policy_action_sha256": self.adaptive_policy_action_sha256,
+            "adaptive_paper_policy_authorization_sha256": (
+                self.adaptive_paper_policy_authorization_sha256
+            ),
+            "adaptive_policy_exit_plan": self.adaptive_policy_exit_plan,
+            "adaptive_policy_stop_price": self.adaptive_policy_stop_price,
+            "adaptive_policy_profit_target_price": (
+                self.adaptive_policy_profit_target_price
+            ),
+            "adaptive_policy_max_hold_seconds": self.adaptive_policy_max_hold_seconds,
+            "adaptive_policy_time_exit_at": self.adaptive_policy_time_exit_at,
             "maintenance_margin_rate": self.maintenance_margin_rate,
             "maintenance_margin_cum": self.maintenance_margin_cum,
             "maintenance_margin_notional_usd": (
@@ -2673,6 +2780,19 @@ class PaperNetPosition:
             "notional": self.notional,
             "gross_notional": self.notional,
             "adaptive_allocation": self.adaptive_allocation,
+            "adaptive_policy_authoritative": self.adaptive_policy_authoritative,
+            "adaptive_policy_action_id": self.adaptive_policy_action_id,
+            "adaptive_policy_action_sha256": self.adaptive_policy_action_sha256,
+            "adaptive_paper_policy_authorization_sha256": (
+                self.adaptive_paper_policy_authorization_sha256
+            ),
+            "adaptive_policy_exit_plan": self.adaptive_policy_exit_plan,
+            "adaptive_policy_stop_price": self.adaptive_policy_stop_price,
+            "adaptive_policy_profit_target_price": (
+                self.adaptive_policy_profit_target_price
+            ),
+            "adaptive_policy_max_hold_seconds": self.adaptive_policy_max_hold_seconds,
+            "adaptive_policy_time_exit_at": self.adaptive_policy_time_exit_at,
             "adaptive_allocation_accounting_scope": (
                 "UPSTREAM_ENTRY_ALLOCATION_PROVENANCE"
                 if isinstance(self.adaptive_allocation, dict)
@@ -4320,6 +4440,70 @@ def position_from_fill(fill: dict[str, Any], *, fill_id: str, side: str, quantit
         ),
         future_window_label_source=fill.get("future_window_label_source"),
         adaptive_allocation=dict(allocation) if allocation else None,
+        adaptive_policy_authoritative=(
+            fill.get("adaptive_policy_authoritative") is True
+        ),
+        adaptive_policy_action_id=(
+            str(fill.get("adaptive_policy_action_id"))
+            if fill.get("adaptive_policy_action_id") not in (None, "")
+            else None
+        ),
+        adaptive_policy_action_sha256=(
+            str(fill.get("adaptive_policy_action_sha256"))
+            if fill.get("adaptive_policy_action_sha256") not in (None, "")
+            else None
+        ),
+        adaptive_paper_policy_authorization_sha256=(
+            str(fill.get("adaptive_paper_policy_authorization_sha256"))
+            if fill.get("adaptive_paper_policy_authorization_sha256")
+            not in (None, "")
+            else None
+        ),
+        adaptive_policy_exit_plan=(
+            dict(
+                fill.get("exit_plan")
+                if isinstance(fill.get("exit_plan"), dict)
+                else fill.get("adaptive_policy_exit_plan")
+            )
+            if isinstance(
+                fill.get("exit_plan")
+                if isinstance(fill.get("exit_plan"), dict)
+                else fill.get("adaptive_policy_exit_plan"),
+                dict,
+            )
+            else None
+        ),
+        adaptive_policy_stop_price=first_number(
+            (fill.get("exit_plan") or {}).get("stop_loss_price")
+            if isinstance(fill.get("exit_plan"), dict)
+            else None,
+            fill.get("adaptive_policy_stop_price"),
+            fill.get("stop_loss_price"),
+            fill.get("stop_price"),
+        ),
+        adaptive_policy_profit_target_price=first_number(
+            (fill.get("exit_plan") or {}).get("take_profit_price")
+            if isinstance(fill.get("exit_plan"), dict)
+            else None,
+            fill.get("adaptive_policy_profit_target_price"),
+        ),
+        adaptive_policy_max_hold_seconds=first_number(
+            (fill.get("exit_plan") or {}).get("max_hold_seconds")
+            if isinstance(fill.get("exit_plan"), dict)
+            else None,
+            fill.get("adaptive_policy_max_hold_seconds"),
+            fill.get("expected_holding_horizon_seconds"),
+        ),
+        adaptive_policy_time_exit_at=(
+            str((fill.get("exit_plan") or {}).get("time_exit_at"))
+            if isinstance(fill.get("exit_plan"), dict)
+            and (fill.get("exit_plan") or {}).get("time_exit_at") not in (None, "")
+            else (
+                str(fill.get("adaptive_policy_time_exit_at"))
+                if fill.get("adaptive_policy_time_exit_at") not in (None, "")
+                else None
+            )
+        ),
         adaptive_capital_policy_version=adaptive_capital_policy_version,
         policy_activated_at=policy_activated_at,
         gross_notional_usd=gross_notional,

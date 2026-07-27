@@ -511,6 +511,21 @@ def build_close_event(
     }
     telemetry = {
         "adaptive_allocation": adaptive_allocation,
+        "adaptive_policy_authoritative": position.adaptive_policy_authoritative,
+        "adaptive_policy_action_id": position.adaptive_policy_action_id,
+        "adaptive_policy_action_sha256": position.adaptive_policy_action_sha256,
+        "adaptive_paper_policy_authorization_sha256": (
+            position.adaptive_paper_policy_authorization_sha256
+        ),
+        "adaptive_policy_exit_plan": position.adaptive_policy_exit_plan,
+        "adaptive_policy_stop_price": position.adaptive_policy_stop_price,
+        "adaptive_policy_profit_target_price": (
+            position.adaptive_policy_profit_target_price
+        ),
+        "adaptive_policy_max_hold_seconds": (
+            position.adaptive_policy_max_hold_seconds
+        ),
+        "adaptive_policy_time_exit_at": position.adaptive_policy_time_exit_at,
         "adaptive_capital_policy_version": adaptive_capital_policy_version,
         "policy_activated_at": policy_activated_at,
         "gross_notional_usd": position.gross_notional_usd if position.gross_notional_usd is not None else exit_notional,

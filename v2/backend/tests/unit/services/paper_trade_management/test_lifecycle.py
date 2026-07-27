@@ -35,6 +35,7 @@ from v2.backend.app.services.paper_trade_management.position_state import (
     maintenance_bracket_evidence_from_payload,
     parse_aware_utc,
     position_from_fill,
+    validate_paper_position_reconstruction,
 )
 from v2.backend.app.services.trade_lifecycle_guard import (
     TradeLifecycleGuardInput,
@@ -328,6 +329,172 @@ def _position(fill_id: str, *, price: float = 100.0):
         quantity=float(fill["quantity"]),
         price=price,
     )
+
+
+def _adaptive_policy_position(
+    fill_id: str,
+    *,
+    side: str = "long",
+    stop_price: float = 99.0,
+    target_price: float | None = 102.0,
+    max_hold_seconds: float = 600.0,
+):
+    action_id = f"adaptive-action-{fill_id}"
+    fill = _fill(fill_id=fill_id, side=side)
+    fill.update(
+        {
+            "adaptive_policy_authoritative": True,
+            "adaptive_policy_action_id": action_id,
+            "adaptive_policy_action_sha256": "a" * 64,
+            "adaptive_paper_policy_authorization_sha256": "b" * 64,
+            "effective_leverage": 1.0,
+            "recommended_leverage": 1.0,
+            "recommended_margin_mode": "isolated_paper_simulated",
+            "margin_mode_simulated": "isolated_paper_simulated",
+            "maintenance_bracket_evidence": _maintenance_bracket_evidence(),
+            "exit_plan": {
+                "status": "ADAPTIVE_POLICY_EXIT_PLAN_ACTIVE",
+                "source": "ADAPTIVE_POLICY_ACTION_V2_EXACT_EXIT_POLICY",
+                "paper_only": True,
+                "routes_to_live": False,
+                "places_real_order": False,
+                "side": side,
+                "stop_loss_price": stop_price,
+                "take_profit_price": target_price,
+                "max_hold_seconds": max_hold_seconds,
+                "time_exit_at": "2026-06-11T10:10:00Z",
+                "adaptive_policy_action_id": action_id,
+            },
+        }
+    )
+    return position_from_fill(
+        fill,
+        fill_id=fill_id,
+        side=side,
+        quantity=1.0,
+        price=100.0,
+    )
+
+
+def test_adaptive_policy_exit_plan_is_restart_hashed_and_validated() -> None:
+    position = _adaptive_policy_position("adaptive-restart")
+
+    payload = position.to_payload(generated_utc="2026-06-11T10:01:00Z")
+
+    assert payload["adaptive_policy_authoritative"] is True
+    assert payload["adaptive_policy_stop_price"] == pytest.approx(99.0)
+    assert payload["adaptive_policy_profit_target_price"] == pytest.approx(102.0)
+    assert payload["adaptive_policy_max_hold_seconds"] == pytest.approx(600.0)
+    assert validate_paper_position_reconstruction(
+        payload,
+        observed_at="2026-06-11T10:01:00Z",
+    ) == []
+
+    restored = position_from_fill(
+        payload,
+        fill_id="adaptive-restart",
+        side="long",
+        quantity=1.0,
+        price=100.0,
+    )
+    restored_payload = restored.to_payload(generated_utc="2026-06-11T10:02:00Z")
+    assert restored_payload["adaptive_policy_exit_plan"] == payload[
+        "adaptive_policy_exit_plan"
+    ]
+    assert restored_payload["adaptive_policy_action_sha256"] == "a" * 64
+
+
+def test_adaptive_policy_mandatory_stop_preempts_min_hold() -> None:
+    position = _adaptive_policy_position("adaptive-stop")
+
+    result = evaluate_exit(
+        position=position,
+        mark_price=98.5,
+        generated_utc="2026-06-11T10:00:10Z",
+        config=PaperExitConfig(
+            min_hold_seconds=300.0,
+            catastrophic_floor_stop_bps=500.0,
+        ),
+        model_context={"model_reversal": True, "confidence": 0.0},
+        alpha_context={"microstructure_reversal_score": 1.0},
+    )
+
+    assert result["should_close"] is True
+    assert result["close_reason"] == "TIER_1_ADAPTIVE_POLICY_MANDATORY_STOP"
+
+
+def test_adaptive_policy_exit_ignores_static_category_e_and_honors_target() -> None:
+    position = _adaptive_policy_position("adaptive-target")
+
+    hold = evaluate_exit(
+        position=position,
+        mark_price=100.5,
+        generated_utc="2026-06-11T10:05:00Z",
+        config=PaperExitConfig(min_hold_seconds=0.0),
+        model_context={"model_reversal": True, "confidence": 0.0},
+        alpha_context={"microstructure_reversal_score": 1.0},
+    )
+    target = evaluate_exit(
+        position=position,
+        mark_price=102.1,
+        generated_utc="2026-06-11T10:06:00Z",
+        config=PaperExitConfig(min_hold_seconds=0.0),
+        model_context={"model_reversal": True, "confidence": 0.0},
+        alpha_context={"microstructure_reversal_score": 1.0},
+    )
+
+    assert hold["should_close"] is False
+    assert hold["blocker"] == "ADAPTIVE_POLICY_EXIT_PLAN_HOLD"
+    assert target["should_close"] is True
+    assert target["close_reason"] == "TIER_2_ADAPTIVE_POLICY_PROFIT_EXIT"
+
+
+def test_adaptive_policy_time_exit_and_catastrophic_priority() -> None:
+    position = _adaptive_policy_position("adaptive-time")
+    time_exit = evaluate_exit(
+        position=position,
+        mark_price=100.0,
+        generated_utc="2026-06-11T10:10:00Z",
+        config=PaperExitConfig(min_hold_seconds=0.0),
+    )
+    assert time_exit["close_reason"] == "TIER_3_ADAPTIVE_POLICY_TIME_EXIT"
+
+    catastrophic_position = _adaptive_policy_position("adaptive-catastrophic")
+    catastrophic = evaluate_exit(
+        position=catastrophic_position,
+        mark_price=90.0,
+        generated_utc="2026-06-11T10:00:10Z",
+        config=PaperExitConfig(
+            min_hold_seconds=300.0,
+            catastrophic_floor_stop_bps=500.0,
+        ),
+    )
+    assert catastrophic["close_reason"] == "TIER_0_CATASTROPHIC_FLOOR_STOP"
+
+
+def test_adaptive_policy_close_preserves_action_and_exit_lineage() -> None:
+    position = _adaptive_policy_position("adaptive-close-lineage")
+
+    close, outcome = build_close_event(
+        position=position,
+        close_quantity=1.0,
+        exit_price=102.1,
+        exit_time="2026-06-11T10:06:00Z",
+        close_reason="TIER_2_ADAPTIVE_POLICY_PROFIT_EXIT",
+        fee_bps=0.0,
+        slippage_bps=0.0,
+    )
+
+    for row in (close, outcome):
+        assert row["adaptive_policy_authoritative"] is True
+        assert row["adaptive_policy_action_id"] == (
+            "adaptive-action-adaptive-close-lineage"
+        )
+        assert row["adaptive_policy_action_sha256"] == "a" * 64
+        assert row["adaptive_paper_policy_authorization_sha256"] == "b" * 64
+        assert row["adaptive_policy_exit_plan"]["status"] == (
+            "ADAPTIVE_POLICY_EXIT_PLAN_ACTIVE"
+        )
 
 
 def test_close_builder_keeps_entry_and_pending_outcome_availability_distinct() -> None:
