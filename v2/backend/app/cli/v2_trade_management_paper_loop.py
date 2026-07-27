@@ -2363,7 +2363,9 @@ _FEEDBACK_ENTRY_CONTEXT_FIELDS: tuple[str, ...] = (
     "risk_budget_fraction_of_normal_adaptive",
     "paper_execution_minimum_predicate",
     "paper_execution_minimum_feasible",
+    "paper_execution_preflight_authorized",
     "paper_final_governed_authorization",
+    "paper_final_governed_authorization_source",
     "preflight_allocator_execution_values_match",
     "paper_execution_mark_price",
     "paper_execution_final_target_notional",
@@ -11107,7 +11109,9 @@ PERSISTENT_ACCEPTED_FILL_METADATA_FIELDS = (
     "risk_budget_fraction_of_normal_adaptive",
     "paper_execution_minimum_predicate",
     "paper_execution_minimum_feasible",
+    "paper_execution_preflight_authorized",
     "paper_final_governed_authorization",
+    "paper_final_governed_authorization_source",
     "preflight_allocator_execution_values_match",
     "paper_execution_mark_price",
     "paper_execution_final_target_notional",
@@ -17752,7 +17756,9 @@ ADAPTIVE_SIZING_OPERATOR_PROJECTION_FIELDS = (
     "loss_probability_reasons",
     "paper_fill_allowed",
     "paper_execution_minimum_feasible",
+    "paper_execution_preflight_authorized",
     "paper_final_governed_authorization",
+    "paper_final_governed_authorization_source",
     "preflight_allocator_execution_values_match",
     "paper_execution_mark_price",
     "paper_execution_final_target_notional",
@@ -23008,7 +23014,16 @@ def _paper_exploration_tier_status(
         if row.get("paper_execution_minimum_feasible") is True
     ]
     final_authorization_rows = [
-        row for row in directional_rows if row.get("paper_final_governed_authorization") is True
+        row
+        for row in directional_rows
+        if row.get("paper_final_governed_authorization") is True
+        and row.get("paper_final_admission_status") == "PASS"
+    ]
+    fully_admissible_and_executable_rows = [
+        row
+        for row in final_authorization_rows
+        if row.get("paper_execution_minimum_feasible") is True
+        and isinstance(row.get("paper_execution_minimum_feasibility"), Mapping)
     ]
     execution_minimum_blocked_rows = [
         row
@@ -23088,7 +23103,7 @@ def _paper_exploration_tier_status(
                 }
             ),
             "execution_minimum_blocked": len(execution_minimum_blocked_rows),
-            "fully_admissible_and_executable": len(final_authorization_rows),
+            "fully_admissible_and_executable": len(fully_admissible_and_executable_rows),
             "preflight_allocator_disagreements": len(preflight_disagreement_rows),
             "generic_exchange_min_blocks": len(generic_exchange_min_rows),
             "exact_execution_feasibility_evidence_present": bool(execution_evidence_rows),
@@ -27849,8 +27864,13 @@ def _paper_append_accepted_with_halted_probe_finalization(
             revocable_receipt.get("status") if isinstance(revocable_receipt, Mapping) else "BLOCKED"
         )
         if final_contract.get("status") == "PASS":
+            accepted_intent["paper_final_governed_authorization"] = True
+            accepted_intent["paper_final_governed_authorization_source"] = (
+                "PAPER_FINAL_ADMISSION_POINT_IN_TIME_CONTRACT_PASS"
+            )
             return True
         failure_reason = "PAPER_FINAL_ADMISSION_CONTRACT_BLOCKED"
+        accepted_intent["paper_final_governed_authorization"] = False
         accepted_intent["decision"] = "BLOCKED_FINAL_ADMISSION_CONTRACT"
         accepted_intent["paper_fill_allowed"] = False
         accepted_intent["paper_fill_block_reason"] = failure_reason
@@ -39311,7 +39331,8 @@ def _paper_final_admission_point_in_time_contract(
             or execution_evidence.get("feasible") is not True
             or execution_evidence.get("values_match") is not True
             or intent.get("paper_execution_minimum_feasible") is not True
-            or intent.get("paper_final_governed_authorization") is not True
+            or intent.get("paper_execution_preflight_authorized") is not True
+            or intent.get("paper_final_governed_authorization") is not False
             or minimum_executable_notional is None
             or final_target_notional is None
             or execution_headroom_usd is None
@@ -47279,6 +47300,7 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                 for target in (intent, allocation_payload):
                     target["paper_execution_minimum_predicate"] = "PAPER_EXECUTION_MINIMUM_FEASIBLE"
                     target["paper_execution_minimum_feasible"] = False
+                    target["paper_execution_preflight_authorized"] = False
                     target["paper_final_governed_authorization"] = False
                     target["paper_fill_allowed"] = False
                     target["paper_fill_block_reason"] = execution_block_reason
@@ -47307,7 +47329,10 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             for target in (intent, allocation_payload):
                 target["paper_execution_minimum_predicate"] = "PAPER_EXECUTION_MINIMUM_FEASIBLE"
                 target["paper_execution_minimum_feasible"] = True
-                target["paper_final_governed_authorization"] = True
+                target["paper_execution_preflight_authorized"] = True
+                # Final authority is emitted only after every downstream gate
+                # and the final point-in-time admission contract pass.
+                target["paper_final_governed_authorization"] = False
             for key, value in intent.items():
                 if (
                     key.startswith("paper_halted_")

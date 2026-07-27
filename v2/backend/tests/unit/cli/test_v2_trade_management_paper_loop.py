@@ -1488,6 +1488,11 @@ def test_golden_a_grade_passes_real_append_and_persistence_boundaries(
     assert appended is True
     assert accepted == [intent]
     assert intent["paper_final_admission_status"] == "PASS"
+    assert intent["paper_final_governed_authorization"] is True
+    assert (
+        intent["paper_final_governed_authorization_source"]
+        == "PAPER_FINAL_ADMISSION_POINT_IN_TIME_CONTRACT_PASS"
+    )
     cycle_commit = intent["paper_cycle_reservation_commit_receipt"]
     assert isinstance(cycle_commit, dict)
     assert cycle_commit["status"] == "PASS"
@@ -18263,6 +18268,113 @@ def test_symbol_execution_feasibility_publication_is_bounded_and_paper_only() ->
     assert payload["places_real_order"] is False
     stored = json.loads(redis.get("v2:paper:execution_feasibility:BTCUSDT"))
     assert stored["payload_sha256"] == payload["payload_sha256"]
+
+
+def test_execution_preflight_is_not_reported_as_final_governed_authorization() -> None:
+    preflight_only = {
+        "symbol": "BTCUSDT",
+        "timeframe": "5m",
+        "side": "long",
+        "paper_opportunity_tier": paper_loop.PAPER_TIER_B_GRADE_EXPLORATION,
+        "paper_execution_minimum_feasible": True,
+        "paper_execution_preflight_authorized": True,
+        "paper_final_governed_authorization": False,
+        "paper_fill_allowed": False,
+        "paper_fill_block_reason": "PREEMPTIVE_DECISION_DENIES_ENTRY:NO_TRADE",
+        "paper_execution_minimum_feasibility": {"feasible": True},
+    }
+
+    preflight_status = paper_loop._paper_exploration_tier_status(  # noqa: SLF001
+        accepted_rows=[],
+        current_accepted_rows=[],
+        blocked_rows=[preflight_only],
+        shadow_rows=[],
+        held_rows=[],
+    )["execution_feasibility"]
+
+    assert preflight_status["execution_feasible_candidates"] == 1
+    assert preflight_status["final_authorizations"] == 0
+    assert preflight_status["fully_admissible_and_executable"] == 0
+
+    final = {
+        **preflight_only,
+        "paper_final_governed_authorization": True,
+        "paper_final_admission_status": "PASS",
+        "paper_fill_allowed": True,
+    }
+    final_status = paper_loop._paper_exploration_tier_status(  # noqa: SLF001
+        accepted_rows=[final],
+        current_accepted_rows=[final],
+        blocked_rows=[],
+        shadow_rows=[],
+        held_rows=[],
+    )["execution_feasibility"]
+
+    assert final_status["execution_feasible_candidates"] == 1
+    assert final_status["final_authorizations"] == 1
+    assert final_status["fully_admissible_and_executable"] == 1
+
+
+def test_final_governed_authorization_is_emitted_only_after_final_contract_pass(
+    monkeypatch,
+) -> None:
+    receipt = {
+        "schema_version": "paper_cycle_reservation_commit_v1",
+        "status": "PASS",
+        "receipt_hash": "a" * 64,
+    }
+    monkeypatch.setattr(
+        paper_loop,
+        "build_candidate_commit_receipt",
+        lambda **_kwargs: receipt,
+    )
+    monkeypatch.setattr(
+        paper_loop,
+        "candidate_commit_receipt_rejection_reasons",
+        lambda **_kwargs: [],
+    )
+    monkeypatch.setattr(
+        paper_loop,
+        "validate_candidate_commit_receipt",
+        lambda **_kwargs: True,
+    )
+    monkeypatch.setattr(
+        paper_loop,
+        "_paper_final_admission_point_in_time_contract",
+        lambda *_args, **_kwargs: {
+            "status": "PASS",
+            "final_decision_time": "2026-07-27T05:40:00Z",
+            "bound_material_hash": "b" * 64,
+            "receipt_hash": "c" * 64,
+            "revocable_control_commit_revalidation": {
+                "status": "PASS",
+                "receipt_hash": "d" * 64,
+            },
+        },
+    )
+    intent = {
+        "symbol": "BTCUSDT",
+        "paper_cycle_reservation_snapshot": {"cycle_identity": "cycle-1"},
+        "adaptive_allocation": {"allocation_id": "allocation-1"},
+        "paper_execution_preflight_authorized": True,
+        "paper_final_governed_authorization": False,
+    }
+    accepted: list[dict[str, object]] = []
+
+    appended = paper_loop._paper_append_accepted_with_halted_probe_finalization(  # noqa: SLF001
+        accepted,
+        intent,
+        None,
+    )
+
+    assert appended is True
+    assert accepted == [intent]
+    assert intent["paper_final_admission_status"] == "PASS"
+    assert intent["paper_final_governed_authorization"] is True
+    assert (
+        intent["paper_final_governed_authorization_source"]
+        == "PAPER_FINAL_ADMISSION_POINT_IN_TIME_CONTRACT_PASS"
+    )
 
 
 def test_reduced_size_microstructure_becomes_a_plus_bootstrap_paper_only() -> None:
