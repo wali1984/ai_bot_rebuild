@@ -114,6 +114,7 @@ class AdaptivePaperPolicyAuthorizationV2:
     venue_attestation_sha256: str | None
     state_id: str
     state_sha256: str
+    operator_catastrophic_envelope_sha256: str
     checkpoint_generation: int
     checkpoint_id: str
     checkpoint_sha256: str
@@ -131,6 +132,8 @@ class AdaptivePaperPolicyAuthorizationV2:
     exact_leverage: Decimal
     exact_margin_allocation_usd: Decimal
     exact_bounded_loss_usd: Decimal
+    exact_round_trip_cost_bps: Decimal
+    expected_after_cost_return_bps: float
     expected_holding_horizon_seconds: int
     policy_decision_time_ms: int
     hard_validation_available_at_ms: int
@@ -184,6 +187,7 @@ class AdaptivePaperPolicyAuthorizationV2:
             "selected_objective_input_fingerprint_sha256",
             "hard_validation_receipt_sha256",
             "state_sha256",
+            "operator_catastrophic_envelope_sha256",
             "checkpoint_sha256",
         ):
             _sha(getattr(self, field), field)
@@ -221,8 +225,17 @@ class AdaptivePaperPolicyAuthorizationV2:
             "exact_leverage",
             "exact_margin_allocation_usd",
             "exact_bounded_loss_usd",
+            "exact_round_trip_cost_bps",
         ):
             _decimal(getattr(self, field), field)
+        if type(self.expected_after_cost_return_bps) not in {int, float}:
+            _fail("finite_number_required", "expected_after_cost_return_bps")
+        try:
+            expected_return = Decimal(str(self.expected_after_cost_return_bps))
+        except Exception:
+            expected_return = Decimal("NaN")
+        if not expected_return.is_finite():
+            _fail("finite_number_required", "expected_after_cost_return_bps")
         for field in (
             "policy_trading_action_authority",
             "paper_entry_authority",
@@ -310,6 +323,7 @@ class AdaptivePaperPolicyAuthorizationV2:
                     "exact_leverage",
                     "exact_margin_allocation_usd",
                     "exact_bounded_loss_usd",
+                    "exact_round_trip_cost_bps",
                 )
             ):
                 _fail("exact_zero_required_for_flat", "exact_action")
@@ -447,11 +461,12 @@ def authorize_adaptive_paper_policy_action(
         leverage = request.selected_leverage
         margin = venue.exact_selected_margin_usd
         bounded_loss = venue.exact_selected_bounded_loss_usd
+        round_trip_cost = request.selected_round_trip_cost_bps
     elif action.selected_action == ACTION_REMAIN_FLAT:
         if selected_venues:
             _fail("flat_action_forbids_venue_execution", "venue_attestations")
         entry_price = stop_price = target_notional = target_quantity = Decimal("0")
-        leverage = margin = bounded_loss = Decimal("0")
+        leverage = margin = bounded_loss = round_trip_cost = Decimal("0")
     else:
         _fail("unsupported_initial_entry_action", "selected_adaptive_action")
 
@@ -475,6 +490,9 @@ def authorize_adaptive_paper_policy_action(
         ),
         "state_id": action.state_id,
         "state_sha256": action.state_sha256,
+        "operator_catastrophic_envelope_sha256": (
+            action.operator_catastrophic_envelope_sha256
+        ),
         "checkpoint_generation": action.checkpoint_generation,
         "checkpoint_id": action.checkpoint_id,
         "checkpoint_sha256": action.checkpoint_sha256,
@@ -492,6 +510,8 @@ def authorize_adaptive_paper_policy_action(
         "exact_leverage": leverage,
         "exact_margin_allocation_usd": margin,
         "exact_bounded_loss_usd": bounded_loss,
+        "exact_round_trip_cost_bps": round_trip_cost,
+        "expected_after_cost_return_bps": action.expected_after_cost_return,
         "expected_holding_horizon_seconds": action.expected_holding_horizon,
         "policy_decision_time_ms": action.decision_time_ms,
         "hard_validation_available_at_ms": receipt.record_available_at_ms,

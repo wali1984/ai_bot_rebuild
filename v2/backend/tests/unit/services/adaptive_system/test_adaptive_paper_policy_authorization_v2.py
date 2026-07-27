@@ -120,6 +120,7 @@ def test_authorizes_exact_directional_action_without_static_or_live_authority() 
     assert authorization.exact_margin_allocation_usd == (
         authorization.exact_target_notional_usd / authorization.exact_leverage
     )
+    assert authorization.exact_round_trip_cost_bps > 0
     assert authorization.static_confidence_final_authority is False
     assert authorization.static_loss_final_authority is False
     assert authorization.static_microstructure_final_authority is False
@@ -141,6 +142,7 @@ def test_flat_is_authoritative_learning_action_without_entry_authority() -> None
     assert authorization.paper_entry_authority is False
     assert authorization.selected_action == "remain_flat"
     assert authorization.exact_target_notional_usd == 0
+    assert authorization.exact_round_trip_cost_bps == 0
     assert authorization.venue_attestation_id is None
     assert authorization.mandatory_stop_present is False
 

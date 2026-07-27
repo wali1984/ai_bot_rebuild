@@ -14,6 +14,13 @@ from v2.backend.app.services.paper_trade_management.exits import (
     effective_atr_stop_bps,
 )
 from v2.backend.app.services.paper_trade_management.hedging import hedge_arm_fraction
+from v2.backend.app.services.adaptive_system.adaptive_paper_policy_authorization_v2 import (
+    AdaptivePaperPolicyAuthorizationV2,
+    authorize_adaptive_paper_policy_action,
+)
+from v2.backend.app.services.adaptive_system.adaptive_policy_shadow_v2 import (
+    AdaptivePolicyShadowCandidateV2,
+)
 
 from .contracts import (
     ADAPTIVE_CAPITAL_POLICY_VERSION,
@@ -68,6 +75,9 @@ PAPER_ALLOCATOR_ARITHMETIC_FORMULA = (
     "binary64(input_price));raw_allocated_margin=raw_post_step_notional/"
     "binary64(selected_leverage);publish=round(quantity,12),round(notional,8),"
     "round(leverage,8),round(margin,8)"
+)
+ADAPTIVE_POLICY_EXACT_PAPER_ALLOCATION_VERSION = (
+    "ADAPTIVE_POLICY_EXACT_PAPER_ALLOCATION_V2"
 )
 _PAPER_LIQUIDATION_ATR_BPS_FIELDS = (
     "entry_atr_bps",
@@ -3465,6 +3475,340 @@ def allocate_paper_candidate(
     return _allocate(row, mode="paper", envelope=envelope or RiskEnvelope())
 
 
+def allocate_authorized_adaptive_paper_action(
+    row: AllocationInput,
+    *,
+    authorization: AdaptivePaperPolicyAuthorizationV2,
+    policy_result: AdaptivePolicyShadowCandidateV2,
+    envelope: RiskEnvelope | None = None,
+) -> AllocationResult:
+    """Validate physical feasibility for one exact adaptive PAPER action.
+
+    The adaptive policy has already selected side, entry, stop, notional,
+    leverage and margin.  This function is not a second trading policy: it may
+    return the exact action or block it.  It never resizes, rounds upward,
+    changes side, chooses leverage, or reapplies confidence/loss/market-state
+    preferences.
+    """
+
+    active_envelope = envelope or RiskEnvelope()
+    reasons: list[str] = []
+    if type(authorization) is not AdaptivePaperPolicyAuthorizationV2:
+        reasons.append("ADAPTIVE_POLICY_AUTHORIZATION_TYPE_INVALID")
+    else:
+        if authorization.authorization_id != authorization.expected_authorization_id:
+            reasons.append("ADAPTIVE_POLICY_AUTHORIZATION_ID_INVALID")
+        if (
+            authorization.policy_trading_action_authority is not True
+            or authorization.paper_entry_authority is not True
+            or authorization.hard_validator_passed is not True
+            or authorization.exact_action_venue_executable is not True
+            or authorization.mandatory_stop_present is not True
+        ):
+            reasons.append("ADAPTIVE_POLICY_PAPER_ENTRY_AUTHORITY_INCOMPLETE")
+        if authorization.selected_action != "directional_trade":
+            reasons.append("ADAPTIVE_POLICY_DIRECTIONAL_ACTION_REQUIRED")
+        if (
+            authorization.paper_only is not True
+            or authorization.live_gate != "blocked_human_only"
+            or authorization.routes_to_live is not False
+            or authorization.places_real_order is not False
+            or authorization.exchange_action_taken is not False
+            or authorization.live_eligible is not False
+            or authorization.live_submission_ready is not False
+        ):
+            reasons.append("ADAPTIVE_POLICY_NO_LIVE_AUTHORITY_CONTRACT_INVALID")
+        if any(
+            (
+                authorization.static_confidence_final_authority,
+                authorization.static_loss_final_authority,
+                authorization.static_microstructure_final_authority,
+                authorization.static_exit_feasibility_final_authority,
+                authorization.static_exploration_tier_final_authority,
+            )
+        ):
+            reasons.append("STATIC_CATEGORY_E_AUTHORITY_REINTRODUCED")
+    if type(policy_result) is not AdaptivePolicyShadowCandidateV2:
+        reasons.append("ADAPTIVE_POLICY_RESULT_TYPE_INVALID")
+    elif type(authorization) is AdaptivePaperPolicyAuthorizationV2:
+        try:
+            independently_rebuilt_authorization = (
+                authorize_adaptive_paper_policy_action(
+                    policy_result,
+                    authorized_at_ms=authorization.authorized_at_ms,
+                )
+            )
+        except Exception as exc:
+            reasons.append(
+                "ADAPTIVE_POLICY_AUTHORIZATION_REPLAY_FAILED:"
+                f"{type(exc).__name__}"
+            )
+        else:
+            if (
+                independently_rebuilt_authorization.content_sha256
+                != authorization.content_sha256
+            ):
+                reasons.append("ADAPTIVE_POLICY_AUTHORIZATION_REPLAY_MISMATCH")
+    invalid_inputs = _paper_input_rejection_reasons(row, active_envelope)
+    reasons.extend(f"ALLOCATION_INPUT:{item}" for item in invalid_inputs)
+
+    def blocked() -> AllocationResult:
+        safe_row = _safe_block_row(row) if invalid_inputs else row
+        result = _block(
+            safe_row,
+            mode="paper",
+            decision="BLOCK_EXECUTION_FEASIBILITY_CONTRACT_MISMATCH",
+            reason="adaptive_policy_exact_physical_validation_blocked",
+            envelope=(
+                _safe_block_envelope(active_envelope)
+                if invalid_inputs
+                else active_envelope
+            ),
+            extra_diagnostics={
+                "adaptive_policy_exact_physical_validator_version": (
+                    ADAPTIVE_POLICY_EXACT_PAPER_ALLOCATION_VERSION
+                ),
+                "adaptive_policy_exact_physical_validation_status": "BLOCK",
+                "adaptive_policy_exact_physical_rejection_reasons": sorted(
+                    set(reasons)
+                ),
+                "adaptive_policy_authorization_id": getattr(
+                    authorization,
+                    "authorization_id",
+                    None,
+                ),
+                "static_category_e_final_authority": False,
+                "policy_action_resized": False,
+                "paper_only": True,
+                "routes_to_live": False,
+                "places_real_order": False,
+                "exchange_action_taken": False,
+            },
+        )
+        return replace(
+            result,
+            adaptive_capital_policy_version=(
+                ADAPTIVE_POLICY_EXACT_PAPER_ALLOCATION_VERSION
+            ),
+        )
+
+    if reasons:
+        return blocked()
+
+    # Type narrowing follows the fail-closed branch above.
+    assert type(authorization) is AdaptivePaperPolicyAuthorizationV2
+    maintenance_margin_rate, maintenance_diagnostics = _maintenance_margin_contract(
+        row,
+        mode="paper",
+    )
+    if maintenance_margin_rate is None:
+        reasons.append("MAINTENANCE_MARGIN_EVIDENCE_MISSING_OR_INVALID")
+    reservation_hash = row.lineage_ids.get("paper_cycle_reservation_snapshot_hash")
+    if reservation_hash != authorization.operator_catastrophic_envelope_sha256:
+        reasons.append("CURRENT_RESERVATION_SNAPSHOT_AUTHORIZATION_MISMATCH")
+    if row.symbol.upper() != authorization.primary_symbol:
+        reasons.append("ALLOCATION_SYMBOL_AUTHORIZATION_MISMATCH")
+    if row.timeframe != authorization.primary_timeframe:
+        reasons.append("ALLOCATION_TIMEFRAME_AUTHORIZATION_MISMATCH")
+    entry_price = float(authorization.exact_entry_price)
+    stop_price = float(authorization.exact_stop_price)
+    target_notional = float(authorization.exact_target_notional_usd)
+    target_quantity = float(authorization.exact_target_quantity)
+    leverage = float(authorization.exact_leverage)
+    allocated_margin = float(authorization.exact_margin_allocation_usd)
+    bounded_loss = float(authorization.exact_bounded_loss_usd)
+    round_trip_cost_bps = float(authorization.exact_round_trip_cost_bps)
+    if not math.isclose(row.price, entry_price, rel_tol=0.0, abs_tol=1e-12):
+        reasons.append("ALLOCATION_ENTRY_PRICE_AUTHORIZATION_MISMATCH")
+    expected_notional = target_quantity * entry_price
+    if not math.isclose(
+        expected_notional,
+        target_notional,
+        rel_tol=0.0,
+        abs_tol=max(1e-12, target_notional * 1e-12),
+    ):
+        reasons.append("EXACT_NOTIONAL_QUANTITY_PRICE_ARITHMETIC_MISMATCH")
+    if not math.isclose(
+        target_notional / leverage,
+        allocated_margin,
+        rel_tol=0.0,
+        abs_tol=max(1e-12, allocated_margin * 1e-12),
+    ):
+        reasons.append("EXACT_MARGIN_ARITHMETIC_MISMATCH")
+    if authorization.primary_side == "long" and stop_price >= entry_price:
+        reasons.append("LONG_MANDATORY_STOP_NOT_BELOW_ENTRY")
+    if authorization.primary_side == "short" and stop_price <= entry_price:
+        reasons.append("SHORT_MANDATORY_STOP_NOT_ABOVE_ENTRY")
+    stop_distance_bps = abs(entry_price - stop_price) / entry_price * 10_000.0
+    if target_notional > risk_envelope_gross_notional_ceiling(row, active_envelope):
+        reasons.append("CATASTROPHIC_NOTIONAL_ENVELOPE_EXCEEDED")
+    if allocated_margin > available_margin_budget_usdt(row, active_envelope):
+        reasons.append("AVAILABLE_MARGIN_BUFFER_EXCEEDED")
+    permitted_leverage = {
+        float(value)
+        for value in row.permitted_leverage_values
+        if _finite_float(value) is not None
+    }
+    if (
+        leverage > active_envelope.max_effective_leverage
+        or leverage not in permitted_leverage
+    ):
+        reasons.append("CATASTROPHIC_OR_VENUE_LEVERAGE_LIMIT_EXCEEDED")
+    if bounded_loss > row.equity * active_envelope.max_loss_per_trade_pct:
+        reasons.append("CATASTROPHIC_PER_TRADE_LOSS_LIMIT_EXCEEDED")
+    if row.drawdown_bps >= active_envelope.max_daily_drawdown_pct * 10_000.0:
+        reasons.append("CATASTROPHIC_DRAWDOWN_LIMIT_REACHED")
+    projected_correlation = (
+        row.correlation_exposure_pct
+        + (target_notional / row.equity if row.equity > 0.0 else 1.0)
+    )
+    if projected_correlation > active_envelope.max_correlation_exposure_pct:
+        reasons.append("CATASTROPHIC_CORRELATION_EXPOSURE_LIMIT_EXCEEDED")
+    liquidation_geometry = (
+        paper_isolated_liquidation_geometry(
+            side=authorization.primary_side,
+            entry_price=entry_price,
+            leverage=leverage,
+            maintenance_margin_rate=float(maintenance_margin_rate),
+        )
+        if maintenance_margin_rate is not None
+        else None
+    )
+    liquidation_price: float | None = None
+    liquidation_buffer_bps: float | None = None
+    if liquidation_geometry is None:
+        reasons.append("PAPER_ISOLATED_LIQUIDATION_GEOMETRY_UNAVAILABLE")
+    else:
+        liquidation_distance_bps, liquidation_price = liquidation_geometry
+        liquidation_buffer_bps = (
+            liquidation_distance_bps - stop_distance_bps - round_trip_cost_bps
+        )
+        if liquidation_buffer_bps < active_envelope.min_liquidation_buffer_bps:
+            reasons.append("CATASTROPHIC_LIQUIDATION_BUFFER_BELOW_LIMIT")
+    if reasons:
+        return blocked()
+
+    exact_lineage = {
+        **dict(row.lineage_ids),
+        "adaptive_policy_authorization_id": authorization.authorization_id,
+        "adaptive_policy_authorization_sha256": authorization.content_sha256,
+        "adaptive_policy_action_id": authorization.adaptive_policy_action_id,
+        "adaptive_policy_action_sha256": authorization.adaptive_policy_action_sha256,
+        "adaptive_policy_objective_evaluation_id": authorization.objective_evaluation_id,
+        "adaptive_policy_hard_validation_receipt_sha256": (
+            authorization.hard_validation_receipt_sha256
+        ),
+        "adaptive_policy_venue_attestation_id": authorization.venue_attestation_id,
+        "adaptive_policy_venue_attestation_sha256": (
+            authorization.venue_attestation_sha256
+        ),
+    }
+    signed_expected_move = (
+        authorization.expected_after_cost_return_bps
+        if authorization.primary_side == "long"
+        else -authorization.expected_after_cost_return_bps
+    )
+    exact_row = replace(
+        row,
+        action=authorization.primary_side,
+        price=entry_price,
+        expected_move_after_cost_bps=signed_expected_move,
+        stop_distance_bps=stop_distance_bps,
+        hedge_budget_pct_of_risk=0.0,
+        adaptive_hedge_sizing_enabled=False,
+        risk_veto=False,
+        risk_veto_reason=None,
+        lineage_ids=exact_lineage,
+    )
+    result = _result(
+        exact_row,
+        mode="paper",
+        envelope=active_envelope,
+        sizing_row=replace(
+            exact_row,
+            expected_move_after_cost_bps=authorization.expected_after_cost_return_bps,
+        ),
+        decision="ALLOW_WITH_SIZE",
+        target_notional=target_notional,
+        target_quantity=target_quantity,
+        risk_budget_usd=bounded_loss,
+        allocated_margin=allocated_margin,
+        leverage=leverage,
+        stop_distance_bps=stop_distance_bps,
+        liquidation_price=liquidation_price,
+        liquidation_buffer_bps=liquidation_buffer_bps,
+        final_size_reason="adaptive_policy_exact_action_physically_validated_unchanged",
+        leverage_selection={
+            "leverage_selection_mode": "ADAPTIVE_POLICY_SELECTED_PHYSICAL_VALIDATION_ONLY",
+            "selected_leverage": leverage,
+            "selected_allocated_margin_usd": allocated_margin,
+            "adaptive_policy_selected_leverage_unchanged": True,
+        },
+        margin_mode="isolated_paper_simulated",
+        margin_mode_selection={
+            "margin_mode_selection_mode": "ADAPTIVE_POLICY_SELECTED_PHYSICAL_VALIDATION_ONLY",
+            "margin_mode_live_mutation_allowed": False,
+            "selected_margin_mode": "isolated_paper_simulated",
+            "margin_mode_selection_reason": "adaptive_policy_exact_isolated_paper_action",
+        },
+    )
+    exact_model_inputs = {
+        **dict(result.model_inputs),
+        **maintenance_diagnostics,
+        "adaptive_policy_exact_physical_validator_version": (
+            ADAPTIVE_POLICY_EXACT_PAPER_ALLOCATION_VERSION
+        ),
+        "adaptive_policy_exact_physical_validation_status": "PASS",
+        "adaptive_policy_exact_physical_rejection_reasons": [],
+        "adaptive_policy_authorization": authorization.to_payload(),
+        "adaptive_policy_authorization_sha256": authorization.content_sha256,
+        "adaptive_policy_exact_entry_price_decimal": str(
+            authorization.exact_entry_price
+        ),
+        "adaptive_policy_exact_stop_price_decimal": str(
+            authorization.exact_stop_price
+        ),
+        "adaptive_policy_exact_target_notional_decimal": str(
+            authorization.exact_target_notional_usd
+        ),
+        "adaptive_policy_exact_target_quantity_decimal": str(
+            authorization.exact_target_quantity
+        ),
+        "adaptive_policy_exact_leverage_decimal": str(
+            authorization.exact_leverage
+        ),
+        "adaptive_policy_exact_margin_decimal": str(
+            authorization.exact_margin_allocation_usd
+        ),
+        "adaptive_policy_exact_bounded_loss_decimal": str(
+            authorization.exact_bounded_loss_usd
+        ),
+        "adaptive_policy_exact_round_trip_cost_bps_decimal": str(
+            authorization.exact_round_trip_cost_bps
+        ),
+        "policy_action_resized": False,
+        "static_category_e_final_authority": False,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "exchange_action_taken": False,
+    }
+    return replace(
+        result,
+        adaptive_capital_policy_version=(
+            ADAPTIVE_POLICY_EXACT_PAPER_ALLOCATION_VERSION
+        ),
+        max_loss_if_stop_hit=round(bounded_loss, 8),
+        max_loss_usd=round(bounded_loss, 8),
+        capital_allocation_reason=(
+            "adaptive_policy_exact_action_physically_validated_unchanged"
+        ),
+        final_size_reason="adaptive_policy_exact_action_physically_validated_unchanged",
+        model_inputs=exact_model_inputs,
+        lineage_ids=exact_lineage,
+    )
+
+
 def allocate_live_candidate(
     row: AllocationInput, envelope: RiskEnvelope | None = None
 ) -> AllocationResult:
@@ -3476,6 +3820,7 @@ __all__ = [
     "PAPER_ALLOCATOR_ARITHMETIC_RECEIPT_MODEL_INPUT_KEY",
     "PAPER_ALLOCATOR_ARITHMETIC_RECEIPT_SCHEMA_VERSION",
     "PAPER_ALLOCATOR_ARITHMETIC_VERSION",
+    "ADAPTIVE_POLICY_EXACT_PAPER_ALLOCATION_VERSION",
     "PAPER_ALLOCATOR_LIQUIDITY_SOURCE_HASH_LINEAGE_KEY",
     "PAPER_ALLOCATOR_LIQUIDITY_SOURCE_MATERIAL_LINEAGE_KEY",
     "PAPER_ALLOCATOR_REGIME_SOURCE_HASH_LINEAGE_KEY",
@@ -3486,6 +3831,7 @@ __all__ = [
     "PAPER_LIQUIDATION_ATR_EVIDENCE_LINEAGE_KEY",
     "PAPER_LIQUIDATION_ATR_EVIDENCE_SCHEMA_VERSION",
     "allocate_paper_candidate",
+    "allocate_authorized_adaptive_paper_action",
     "allocate_live_candidate",
     "build_paper_liquidation_atr_evidence",
     "explain_allocation",
