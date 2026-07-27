@@ -15,6 +15,8 @@ SELECT_ANOTHER = "SELECT_ANOTHER_OPPORTUNITY"
 
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 _ZERO = Decimal("0")
+_USD_QUANTUM = Decimal("0.000000000000000001")
+_DECIMAL_CONTEXT_PRECISION = 120
 
 
 class ExplorationSizingContractError(ValueError):
@@ -221,21 +223,27 @@ def _validate_proposed_values(proposal: ExplorationSizeProposal) -> None:
         (bounded_loss, "bounded_loss_with_cost_usd"),
     ):
         _require_decimal(value, field, minimum_exponent=-50)
-    if quantity < request.venue_min_qty:
-        _raise("below_venue_minimum", "final_quantity")
-    if quantity % request.venue_qty_step != _ZERO:
-        _raise("not_on_venue_step", "final_quantity")
-    if notional != quantity * request.executable_entry_price:
-        _raise("arithmetic_mismatch", "final_notional_usd")
-    if notional < request.venue_min_notional_usd:
-        _raise("below_venue_minimum", "final_notional_usd")
     with localcontext() as context:
-        context.prec = 50
-        expected_margin = notional / request.effective_leverage
+        context.prec = _DECIMAL_CONTEXT_PRECISION
+        quantity_step_remainder = quantity % request.venue_qty_step
+        expected_notional = quantity * request.executable_entry_price
+        expected_margin = (notional / request.effective_leverage).quantize(
+            _USD_QUANTUM,
+            rounding=ROUND_CEILING,
+        )
         expected_loss = (
             notional * request.stop_distance_fraction
             + request.fees_slippage_funding_gap_allowance_usd
-        )
+        ).quantize(_USD_QUANTUM, rounding=ROUND_CEILING)
+        free_collateral = request.available_collateral_usd - request.reserved_margin_usd
+    if quantity < request.venue_min_qty:
+        _raise("below_venue_minimum", "final_quantity")
+    if quantity_step_remainder != _ZERO:
+        _raise("not_on_venue_step", "final_quantity")
+    if notional != expected_notional:
+        _raise("arithmetic_mismatch", "final_notional_usd")
+    if notional < request.venue_min_notional_usd:
+        _raise("below_venue_minimum", "final_notional_usd")
     if margin != expected_margin:
         _raise("arithmetic_mismatch", "required_margin_usd")
     if bounded_loss != expected_loss:
@@ -250,7 +258,6 @@ def _validate_proposed_values(proposal: ExplorationSizeProposal) -> None:
         request.remaining_catastrophic_loss_headroom_usd,
     ):
         _raise("loss_budget_exceeded", "bounded_loss_with_cost_usd")
-    free_collateral = request.available_collateral_usd - request.reserved_margin_usd
     if margin > min(request.policy_authorized_max_margin_usd, free_collateral):
         _raise("margin_budget_exceeded", "required_margin_usd")
     if request.effective_leverage > request.catastrophic_max_leverage:
@@ -295,7 +302,7 @@ def propose_exploration_size(
         raise TypeError("request must be ExplorationSizingRequestV2")
     try:
         with localcontext() as context:
-            context.prec = 50
+            context.prec = _DECIMAL_CONTEXT_PRECISION
             if request.executable_entry_price % request.venue_price_tick != _ZERO:
                 return _failure(request, "EXECUTABLE_PRICE_NOT_ON_VENUE_TICK")
             quantity_for_notional = request.venue_min_notional_usd / request.executable_entry_price
@@ -305,11 +312,14 @@ def propose_exploration_size(
             )
             final_quantity = lot_count * request.venue_qty_step
             final_notional = final_quantity * request.executable_entry_price
-            required_margin = final_notional / request.effective_leverage
+            required_margin = (final_notional / request.effective_leverage).quantize(
+                _USD_QUANTUM,
+                rounding=ROUND_CEILING,
+            )
             bounded_loss = (
                 final_notional * request.stop_distance_fraction
                 + request.fees_slippage_funding_gap_allowance_usd
-            )
+            ).quantize(_USD_QUANTUM, rounding=ROUND_CEILING)
     except (DecimalException, OverflowError, ValueError):
         return _failure(request, "VENUE_ARITHMETIC_INVALID")
 

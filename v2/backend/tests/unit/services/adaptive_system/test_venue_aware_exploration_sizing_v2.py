@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
-from decimal import Decimal
+from decimal import Decimal, localcontext
 
 import pytest
 
@@ -192,6 +192,41 @@ def test_proposal_identity_is_deterministic_and_context_bound() -> None:
     assert first == second
     assert first.proposal_id == second.proposal_id
     assert first.proposal_id != changed.proposal_id
+
+
+def test_proposal_is_independent_of_ambient_decimal_precision() -> None:
+    request = _request(
+        executable_entry_price=_d("0.631234567890123456"),
+        venue_price_tick=_d("0.000000000000000001"),
+    )
+    proposals = []
+    for precision in (10, 28, 50):
+        with localcontext() as context:
+            context.prec = precision
+            proposals.append(propose_exploration_size(request))
+    assert proposals[0] == proposals[1] == proposals[2]
+
+
+def test_maximum_accepted_input_precision_is_total_and_fail_closed() -> None:
+    request = _request(
+        executable_entry_price=_d("9999999999999999999999999.999999999999999999"),
+        venue_price_tick=_d("0.000000000000000001"),
+        venue_min_notional_usd=_d("1"),
+        venue_min_qty=_d("1"),
+        venue_qty_step=_d("1"),
+        policy_authorized_max_notional_usd=_d("9999999999999999999999999.999999999999999999"),
+        remaining_catastrophic_notional_headroom_usd=_d(
+            "9999999999999999999999999.999999999999999999"
+        ),
+        policy_authorized_max_loss_usd=_d("9999999999999999999999999.999999999999999999"),
+        remaining_catastrophic_loss_headroom_usd=_d("9999999999999999999999999.999999999999999999"),
+        policy_authorized_max_margin_usd=_d("9999999999999999999999999.999999999999999999"),
+        available_collateral_usd=_d("9999999999999999999999999.999999999999999999"),
+        stop_distance_fraction=_d("0.000000000000000001"),
+    )
+    proposal = propose_exploration_size(request)
+    assert proposal.decision == PROPOSE_TO_HARD_VALIDATOR
+    assert proposal.final_quantity == _d("1")
 
 
 def test_forged_authority_or_arithmetic_is_rejected() -> None:
