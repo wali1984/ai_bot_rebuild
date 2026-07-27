@@ -33181,6 +33181,97 @@ def _paper_rebind_cycle_reservation_dynamic_envelope(
     return rebound, []
 
 
+def _paper_candidate_cycle_reservation_snapshot(
+    snapshot_value: Any,
+    *,
+    envelope: Any,
+    envelope_receipt: Mapping[str, Any],
+    prior_accepted_rows: list[dict[str, Any]],
+) -> tuple[dict[str, Any], list[str]]:
+    """Bind candidate limits by replaying the frozen resource snapshot.
+
+    The preliminary snapshot exists so allocator market evidence can be
+    assembled before the candidate envelope is computed.  A candidate
+    envelope is allowed to contract or expand within the unchanged dynamic
+    policy, so a hash-only rebind is valid only when every consumed limit is
+    identical.  When a limit differs, rebuild the pure reservation contract
+    from the original exact resources and the already-finalized accepted
+    prefix.  This changes no policy input or threshold; it merely prevents the
+    two-phase dependency from turning every legitimate candidate-specific
+    envelope into a permanent risk veto.
+    """
+
+    rebound, rebind_reasons = _paper_rebind_cycle_reservation_dynamic_envelope(
+        snapshot_value,
+        envelope=envelope,
+        envelope_receipt=envelope_receipt,
+    )
+    if rebound:
+        return rebound, []
+    limit_change_prefix = "CANDIDATE_DYNAMIC_ENVELOPE_RESERVATION_LIMIT_CHANGED:"
+    non_limit_reasons = [
+        reason for reason in rebind_reasons if not str(reason).startswith(limit_change_prefix)
+    ]
+    if non_limit_reasons or not rebind_reasons:
+        return {}, sorted(set(rebind_reasons))
+    if not isinstance(snapshot_value, Mapping):
+        return {}, ["CANDIDATE_CYCLE_RESERVATION_SNAPSHOT_MISSING"]
+    snapshot = dict(snapshot_value)
+    snapshot_reasons = list(cycle_reservation_snapshot_rejection_reasons(snapshot))
+    if snapshot_reasons:
+        return {}, sorted(set(snapshot_reasons))
+    inputs_value = snapshot.get("inputs")
+    inputs = dict(inputs_value) if isinstance(inputs_value, Mapping) else {}
+    exact_value = inputs.get("exact_decimal_material")
+    exact_inputs = dict(exact_value) if isinstance(exact_value, Mapping) else {}
+    bindings_value = snapshot.get("evidence_bindings")
+    bindings = dict(bindings_value) if isinstance(bindings_value, Mapping) else {}
+    required_exact_fields = (
+        "base_equity_usd",
+        "base_available_margin_usd",
+        "realized_drawdown_fraction_of_equity",
+        "precycle_total_notional_usd",
+        "precycle_symbol_current_mark_notional_usd",
+        "precycle_open_projected_max_loss_usd",
+    )
+    if any(exact_inputs.get(field) in (None, "") for field in required_exact_fields):
+        return {}, ["CANDIDATE_CYCLE_RESERVATION_EXACT_RESOURCE_INPUT_MISSING"]
+    try:
+        rebuilt = build_cycle_reservation_snapshot(
+            cycle_identity=str(snapshot.get("cycle_identity") or ""),
+            candidate_symbol=str(snapshot.get("candidate_symbol") or ""),
+            base_resource_evidence_hash=bindings.get("base_resource_evidence_hash"),
+            precycle_exposure_snapshot_hash=bindings.get("precycle_exposure_snapshot_hash"),
+            dynamic_envelope_evidence_hash=envelope_receipt.get("evidence_hash"),
+            base_equity_usd=exact_inputs["base_equity_usd"],
+            base_available_margin_usd=exact_inputs["base_available_margin_usd"],
+            realized_drawdown_fraction_of_equity=exact_inputs[
+                "realized_drawdown_fraction_of_equity"
+            ],
+            precycle_total_notional_usd=exact_inputs["precycle_total_notional_usd"],
+            precycle_symbol_current_mark_notional_usd=exact_inputs[
+                "precycle_symbol_current_mark_notional_usd"
+            ],
+            precycle_open_projected_max_loss_usd=exact_inputs[
+                "precycle_open_projected_max_loss_usd"
+            ],
+            max_total_portfolio_risk_pct=envelope.max_total_portfolio_risk_pct,
+            max_single_symbol_exposure_pct=envelope.max_single_symbol_exposure_pct,
+            min_available_margin_buffer_pct=envelope.min_available_margin_buffer_pct,
+            max_daily_drawdown_pct=envelope.max_daily_drawdown_pct,
+            max_loss_per_trade_pct=envelope.max_loss_per_trade_pct,
+            emergency_absolute_cap_usdt=envelope.emergency_absolute_cap_usdt,
+            prior_accepted_rows=prior_accepted_rows,
+        )
+    except (AttributeError, CycleReservationError) as exc:
+        reasons = list(exc.reasons) if isinstance(exc, CycleReservationError) else [str(exc)]
+        return {}, sorted(set(reasons or ["CANDIDATE_CYCLE_RESERVATION_REBUILD_FAILED"]))
+    rebuilt_reasons = list(cycle_reservation_snapshot_rejection_reasons(rebuilt))
+    if rebuilt_reasons:
+        return {}, sorted(set(rebuilt_reasons))
+    return rebuilt, []
+
+
 def _paper_lifecycle_exposure_caps_from_dynamic_envelope(
     envelope: Any,
 ) -> PaperExposureCaps:
@@ -45351,19 +45442,43 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         (
             candidate_cycle_reservation_snapshot,
             candidate_cycle_reservation_rebind_reasons,
-        ) = _paper_rebind_cycle_reservation_dynamic_envelope(
+        ) = _paper_candidate_cycle_reservation_snapshot(
             cycle_reservation_snapshot,
             envelope=candidate_dynamic_paper_envelope,
             envelope_receipt=(candidate_dynamic_envelope_reservation_evidence),
+            prior_accepted_rows=accepted,
         )
         if candidate_cycle_reservation_snapshot:
             cycle_reservation_snapshot = candidate_cycle_reservation_snapshot
             candidate_reservation_hash = cycle_reservation_snapshot.get("snapshot_hash")
+            candidate_reservation_derived = (
+                cycle_reservation_snapshot.get("derived")
+                if isinstance(cycle_reservation_snapshot.get("derived"), Mapping)
+                else {}
+            )
             allocation_lineage = dict(allocation_input.lineage_ids)
             allocation_lineage[CYCLE_RESERVATION_LINEAGE_KEY] = candidate_reservation_hash
             allocation_input = replace(
                 allocation_input,
                 lineage_ids=allocation_lineage,
+                available_margin=float(
+                    candidate_reservation_derived.get("allocator_available_margin_input_usd")
+                ),
+                symbol_exposure_usdt=float(
+                    candidate_reservation_derived.get(
+                        "effective_symbol_notional_before_candidate_usd"
+                    )
+                ),
+                total_exposure_usdt=float(
+                    candidate_reservation_derived.get(
+                        "effective_total_notional_before_candidate_usd"
+                    )
+                ),
+                paper_risk_budget_fraction=float(
+                    candidate_reservation_derived.get(
+                        "remaining_candidate_risk_fraction_of_per_trade_limit"
+                    )
+                ),
             )
             intent["paper_cycle_reservation_snapshot"] = deepcopy(cycle_reservation_snapshot)
             intent["paper_cycle_reservation_snapshot_hash"] = candidate_reservation_hash
@@ -45376,7 +45491,31 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                 symbol_mark_context["cycle_reservation_snapshot_hash"] = candidate_reservation_hash
             reservation_allocator_inputs = intent.get("paper_cycle_reservation_allocator_inputs")
             if isinstance(reservation_allocator_inputs, dict):
-                reservation_allocator_inputs["snapshot_hash"] = candidate_reservation_hash
+                reservation_allocator_inputs.update(
+                    {
+                        "available_margin": allocation_input.available_margin,
+                        "symbol_exposure_usdt": allocation_input.symbol_exposure_usdt,
+                        "total_exposure_usdt": allocation_input.total_exposure_usdt,
+                        "paper_risk_budget_fraction": (
+                            allocation_input.paper_risk_budget_fraction
+                        ),
+                        "snapshot_hash": candidate_reservation_hash,
+                    }
+                )
+            if isinstance(symbol_mark_context, dict):
+                symbol_mark_context["effective_symbol_notional_before_candidate_usd"] = (
+                    candidate_reservation_derived.get(
+                        "effective_symbol_notional_before_candidate_usd"
+                    )
+                )
+            intent["paper_symbol_exposure_governing_value_usd"] = round(
+                float(allocation_input.symbol_exposure_usdt),
+                8,
+            )
+            intent["paper_total_exposure_governing_value_usd"] = round(
+                float(allocation_input.total_exposure_usdt),
+                8,
+            )
         else:
             cycle_reservation_build_reasons.extend(candidate_cycle_reservation_rebind_reasons)
             intent["paper_cycle_reservation_build_rejection_reasons"] = sorted(

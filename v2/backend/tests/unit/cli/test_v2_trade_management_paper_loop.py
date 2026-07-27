@@ -2964,6 +2964,99 @@ def test_candidate_cycle_reservation_rebind_changes_only_envelope_lineage() -> N
     assert paper_loop.cycle_reservation_snapshot_rejection_reasons(rebound) == ()
 
 
+def test_candidate_cycle_reservation_rebuilds_changed_dynamic_limits() -> None:
+    checkpoint_id = "checkpoint-promoted"
+    envelope, receipt = _candidate_growth_bundle(_promoted_growth_trainer_status(checkpoint_id))
+    preliminary_envelope = replace(
+        envelope,
+        max_total_portfolio_risk_pct=envelope.max_total_portfolio_risk_pct * 0.9,
+        max_single_symbol_exposure_pct=envelope.max_single_symbol_exposure_pct * 0.9,
+        max_loss_per_trade_pct=envelope.max_loss_per_trade_pct * 0.9,
+    )
+    snapshot = paper_loop.build_cycle_reservation_snapshot(
+        cycle_identity="candidate-envelope-rebuild",
+        candidate_symbol="BTCUSDT",
+        base_resource_evidence_hash="1" * 64,
+        precycle_exposure_snapshot_hash="2" * 64,
+        dynamic_envelope_evidence_hash="3" * 64,
+        base_equity_usd=10_000.0,
+        base_available_margin_usd=5_000.0,
+        realized_drawdown_fraction_of_equity=0.0,
+        precycle_total_notional_usd=0.0,
+        precycle_symbol_current_mark_notional_usd=0.0,
+        precycle_open_projected_max_loss_usd=0.0,
+        max_total_portfolio_risk_pct=preliminary_envelope.max_total_portfolio_risk_pct,
+        max_single_symbol_exposure_pct=preliminary_envelope.max_single_symbol_exposure_pct,
+        min_available_margin_buffer_pct=preliminary_envelope.min_available_margin_buffer_pct,
+        max_daily_drawdown_pct=preliminary_envelope.max_daily_drawdown_pct,
+        max_loss_per_trade_pct=preliminary_envelope.max_loss_per_trade_pct,
+        emergency_absolute_cap_usdt=preliminary_envelope.emergency_absolute_cap_usdt,
+        prior_accepted_rows=[],
+    )
+
+    rebuilt, reasons = paper_loop._paper_candidate_cycle_reservation_snapshot(  # noqa: SLF001
+        snapshot,
+        envelope=envelope,
+        envelope_receipt=receipt,
+        prior_accepted_rows=[],
+    )
+
+    assert reasons == []
+    assert rebuilt["evidence_bindings"]["base_resource_evidence_hash"] == "1" * 64
+    assert rebuilt["evidence_bindings"]["precycle_exposure_snapshot_hash"] == "2" * 64
+    assert (
+        rebuilt["evidence_bindings"]["dynamic_envelope_evidence_hash"]
+        == receipt["evidence_hash"]
+    )
+    assert rebuilt["inputs"]["base_equity_usd"] == snapshot["inputs"]["base_equity_usd"]
+    assert rebuilt["inputs"]["dynamic_envelope_limits"]["max_total_portfolio_risk_pct"] == (
+        envelope.max_total_portfolio_risk_pct
+    )
+    assert rebuilt["derived"] != snapshot["derived"]
+    assert paper_loop.cycle_reservation_snapshot_rejection_reasons(rebuilt) == ()
+
+
+def test_candidate_cycle_reservation_does_not_rebuild_blocked_envelope_receipt() -> None:
+    checkpoint_id = "checkpoint-promoted"
+    envelope, receipt = _candidate_growth_bundle(_promoted_growth_trainer_status(checkpoint_id))
+    preliminary_envelope = replace(
+        envelope,
+        max_total_portfolio_risk_pct=envelope.max_total_portfolio_risk_pct * 0.9,
+    )
+    snapshot = paper_loop.build_cycle_reservation_snapshot(
+        cycle_identity="candidate-envelope-blocked",
+        candidate_symbol="BTCUSDT",
+        base_resource_evidence_hash="1" * 64,
+        precycle_exposure_snapshot_hash="2" * 64,
+        dynamic_envelope_evidence_hash="3" * 64,
+        base_equity_usd=10_000.0,
+        base_available_margin_usd=5_000.0,
+        realized_drawdown_fraction_of_equity=0.0,
+        precycle_total_notional_usd=0.0,
+        precycle_symbol_current_mark_notional_usd=0.0,
+        precycle_open_projected_max_loss_usd=0.0,
+        max_total_portfolio_risk_pct=preliminary_envelope.max_total_portfolio_risk_pct,
+        max_single_symbol_exposure_pct=preliminary_envelope.max_single_symbol_exposure_pct,
+        min_available_margin_buffer_pct=preliminary_envelope.min_available_margin_buffer_pct,
+        max_daily_drawdown_pct=preliminary_envelope.max_daily_drawdown_pct,
+        max_loss_per_trade_pct=preliminary_envelope.max_loss_per_trade_pct,
+        emergency_absolute_cap_usdt=preliminary_envelope.emergency_absolute_cap_usdt,
+        prior_accepted_rows=[],
+    )
+    blocked_receipt = deepcopy(receipt)
+    blocked_receipt["status"] = "BLOCKED"
+
+    rebuilt, reasons = paper_loop._paper_candidate_cycle_reservation_snapshot(  # noqa: SLF001
+        snapshot,
+        envelope=envelope,
+        envelope_receipt=blocked_receipt,
+        prior_accepted_rows=[],
+    )
+
+    assert rebuilt == {}
+    assert "CANDIDATE_DYNAMIC_ENVELOPE_RECEIPT_BLOCKED" in reasons
+
+
 def test_persistence_rejects_coherently_resealed_final_contract_v2() -> None:
     row = _synthetic_final_admission_sealed_row()
     contract = row["paper_final_admission_contract"]
