@@ -1604,7 +1604,7 @@ hard and fail closed.
 | FP-030 | 2 | Define and verify `AdaptivePolicyActionV2` | Claude/Codex | COMPLETE | Canonical contract `0980e69210`, duplicate removed `658d6fc760`; 45 tests and independent SHA review PASS |
 | FP-040 | 3 | Convert component vetoes into calibrated continuous estimates | Claude/Codex | IN_PROGRESS | Shadow schema/projector accepted at `2934dcff31` + `5ce083874d`; calibrated producers and authority cutover remain |
 | FP-050 | 4 | Implement portfolio after-cost objective and adaptive exploration allocation | Claude/Codex | IN_PROGRESS | Independently accepted shadow foundation `d12f418d3d`; authenticated hard-validation evidence, exact PIT/lineage/units, self-recomputing scores, nonterminal flat-collapse signals, and bounded positive-utility information seeking; runtime fitting and policy integration remain |
-| FP-060 | 5 | Build `CandidateDecisionOutcomeV2` and point-in-time matured labels | Claude/Codex | PENDING | Candidate coverage 100%; eligible matured-label coverage 100%; drops 0 |
+| FP-060 | 5 | Build `CandidateDecisionOutcomeV2` and point-in-time matured labels | Claude/Codex | IN_PROGRESS | Independently accepted contract foundation `289bb9911f`; runtime archive/maturation writers, CAS/idempotency, authenticity, and 100% coverage remain |
 | FP-070 | 6 | Attribute gate performance and missed opportunity cost | Claude/Codex | PENDING | Exact segmented false-positive/negative, avoided-loss, and opportunity-cost evidence |
 | FP-080 | 7 | Build complete eligible-data funnel and repair corpus utilization | Claude/Codex | PENDING | Funnel published; every exclusion exact; all eligible data used |
 | FP-090 | 8 | Verify one shared, point-in-time-safe train/serve representation | Claude/Codex | PENDING | ABI/builder hashes and per-feature parity pass; leakage rejections pass |
@@ -1646,6 +1646,7 @@ Machine-readable task state is maintained in
 | 2026-07-27T18:43:23.998309Z | FP-130 venue-minimum primitive | PRELIMINARY PRIMITIVE PASS / FULL CONTROLLER IN PROGRESS | Commit `2b7442e61a`; exact arithmetic, policy budgets, capital/reservations, catastrophic headroom, and required hard-validator handoff independently pass 27 tests; no runtime consumer or execution authority; this is not the full exploration controller |
 | 2026-07-27T19:10:02.282419Z | FP-050 adaptive objective adversarial co-fix | PASS SHADOW FOUNDATION / RUNTIME FITTING IN PROGRESS | Commit `d12f418d3d`; source SHA `0d99d75223f6ae4b736c98271b468f44c5e0eea96d7b1d92a9c43b7cae24dbf1`; tests SHA `67f60ef1c35c5f1c1a4f9fd49c06596c29f56f8bf9c0550ce0866d756b64d0dc`; 47 focused and 171 combined adaptive-foundation tests pass; independent adversarial PASS; no runtime authority changed |
 | 2026-07-27T19:14:20.452873Z | FP-020 scanner v2 | COVERAGE INFRASTRUCTURE PASS / CLASSIFICATION OPEN | Commit `3f138f17e8`; path-only false relevance removed; function defaults, local policy values, and policy-named fields added; nested set literals normalized deterministically; 11 tests pass; current worktree scan finds 25,416 candidates, 0 classified, 25,416 unclassified, 0 duplicates, so Phase 1 remains fail-closed |
+| 2026-07-27T19:37:19.284578Z | FP-060 candidate-outcome contract | PASS CONTRACT FOUNDATION / RUNTIME ARCHIVE IN PROGRESS | Commit `289bb9911f`; source SHA `c2464e81efc85eef8a8a0298c4a05b86519835b80f9fb27c8f1ab756553aa819`; tests SHA `4d565b0970682e8ff15fcc29c138bc569692c4299f4f9a06fd4cd3d06679c7bb`; 44 focused and 208 combined adaptive-foundation tests pass; independent adversarial PASS; runtime writers, maturation, CAS/idempotency, receipt authenticity, and coverage predicates remain open |
 
 ## Current final status
 
@@ -1683,8 +1684,8 @@ places_real_order=false
 exchange_action_taken=false
 
 OPERATOR_ACTION_REQUIRED=NONE_WHILE_CONTROLLABLE_ENGINEERING_WORK_REMAINS
-LATEST_REPOSITORY_CHECKPOINT=3f138f17e8
-LATEST_FOCUSED_FOUNDATION_TESTS=171_ADAPTIVE_PLUS_11_SCANNER_PASS
+LATEST_REPOSITORY_CHECKPOINT=289bb9911f
+LATEST_FOCUSED_FOUNDATION_TESTS=208_ADAPTIVE_FOUNDATIONS_PLUS_11_SCANNER_PASS
 ```
 
 ---
@@ -1717,7 +1718,8 @@ shadow foundations exist for FP-040, FP-050, and the arithmetic portion of FP-13
 | 12/19 | **Fill deadlock root-caused to an exact predicate** | DIAGNOSED | `final_target_notional $0.65–1.59 < minimum_executable_notional $5.0–5.62` on 13/13 live symbols; cause = gen-3 confidence too low → every admissible candidate lands in the 5%-risk-cap exploration lane, and 5% × a $20–60 normal notional is below the venue minimum. This is exactly the Phase-12 prohibition (exploration must not authorize sub-venue-minimum actions). `final_pass_terminal_blockers.json` |
 | 7/9/11/20 | **Generation-4 serving challenger** | REJECTED / GEN-3 RETAINED | The challenger completed evaluation but did not prove superiority, so governed activation did not occur. Corpus growth/repair continues; no cohort rotation or lifecycle/economic completion is claimed. |
 | 2 | `AdaptivePolicyActionV2` | DONE | Canonical commit `0980e69210`; 45 tests and independent review PASS; weaker duplicate removed in `658d6fc760` |
-| 3/4 | Component-estimate and objective contracts | SHADOW FOUNDATIONS | Component schema/projector independently accepted through `5ce083874d`; objective foundation `79681b8a98` awaits independent review; neither controls runtime |
+| 3/4 | Component-estimate and objective contracts | SHADOW FOUNDATIONS | Component schema/projector independently accepted through `5ce083874d`; objective foundation independently accepted at `d12f418d3d`; neither controls runtime |
+| 5 | `CandidateDecisionOutcomeV2` | CONTRACT FOUNDATION PASS | Commit `289bb9911f`; immutable decision/label revisions, exact PIT/finality, planned counterfactuals, accounting and no-live boundaries independently pass; runtime archive and coverage remain open |
 | 12 | Exact venue-minimum proposal | PRELIMINARY PRIMITIVE PASS | Commit `2b7442e61a`; independent adversarial review PASS at 27 tests; explicitly non-authoritative and not the complete exploration controller |
 
 ## Static Category-E final authorities still in force (FP-020 target list)
