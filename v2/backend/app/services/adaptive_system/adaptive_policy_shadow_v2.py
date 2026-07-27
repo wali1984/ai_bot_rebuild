@@ -1002,6 +1002,8 @@ def _hard_check_inputs(
     action_sha256: str,
     state_sha256: str,
     venue_sha256: str,
+    generated_at_ms: int,
+    requires_execution_cost: bool,
 ) -> tuple[bool, dict[str, tuple[str, ...]], tuple[str, ...]]:
     intent_sha = _canonical_sha256(intent)
     status_sha = _canonical_sha256(paper_status)
@@ -1032,6 +1034,42 @@ def _hard_check_inputs(
         or not prediction.get("feature_cutoff")
         or not prediction.get("available_at")
     ):
+        failures.append("data_integrity_and_point_in_time")
+    cost_numeric_fields = (
+        "fee_bps",
+        "observed_spread_bps",
+        "expected_slippage_bps",
+        "expected_funding_bps",
+        "depth_derived_price_impact_bps",
+    )
+    cost_values_valid = True
+    for field in cost_numeric_fields:
+        try:
+            value = _finite(intent.get(field), field)
+        except AdaptivePolicyShadowError:
+            cost_values_valid = False
+            continue
+        if field != "expected_funding_bps" and value < 0.0:
+            cost_values_valid = False
+    try:
+        cost_source_time_ms = _iso_ms(
+            intent.get("cost_source_timestamp"), "cost_source_timestamp"
+        )
+    except AdaptivePolicyShadowError:
+        cost_source_time_ms = generated_at_ms + 1
+    cost_contract_valid = (
+        intent.get("runtime_cost_capture_status") == "PRODUCTION_GRADE_COST_CAPTURE"
+        and intent.get("runtime_cost_capture_source")
+        == "V2_PAPER_RUNTIME_DECISION_TIME_COST_CAPTURE"
+        and intent.get("production_grade_cost_flag") is True
+        and intent.get("fallback_cost_flag") is False
+        and list(intent.get("runtime_cost_capture_missing_fields") or []) == []
+        and list(intent.get("runtime_cost_capture_unexplained_missing_fields") or []) == []
+        and list(intent.get("runtime_cost_capture_temporal_reject_reasons") or []) == []
+        and cost_values_valid
+        and cost_source_time_ms <= generated_at_ms
+    )
+    if requires_execution_cost and not cost_contract_valid:
         failures.append("data_integrity_and_point_in_time")
     receipts = tuple(
         sorted(
@@ -1566,6 +1604,8 @@ def build_adaptive_policy_shadow_candidate(
                 action_sha256=proposal_sha,
                 state_sha256=state_sha,
                 venue_sha256=venue_sha,
+                generated_at_ms=generated_at_ms,
+                requires_execution_cost=True,
             )
             hard_pass = hard_pass and venue.decision == DECISION_EXECUTABLE
             receipt = (
@@ -1644,6 +1684,8 @@ def build_adaptive_policy_shadow_candidate(
         action_sha256=flat_sha,
         state_sha256=state_sha,
         venue_sha256=flat_fact_sha,
+        generated_at_ms=generated_at_ms,
+        requires_execution_cost=False,
     )
     flat_receipt = (
         sign_hard_constraint_validation_receipt(

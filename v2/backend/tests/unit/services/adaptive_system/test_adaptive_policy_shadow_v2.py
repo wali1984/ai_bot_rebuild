@@ -103,6 +103,17 @@ def _intent() -> dict:
         "entry_price": 100.0,
         "fee_bps": 1.0,
         "observed_spread_bps": 1.0,
+        "expected_slippage_bps": 1.0,
+        "expected_funding_bps": 0.0,
+        "depth_derived_price_impact_bps": 1.0,
+        "cost_source_timestamp": "1970-01-01T00:18:20.000Z",
+        "runtime_cost_capture_status": "PRODUCTION_GRADE_COST_CAPTURE",
+        "runtime_cost_capture_source": "V2_PAPER_RUNTIME_DECISION_TIME_COST_CAPTURE",
+        "runtime_cost_capture_missing_fields": [],
+        "runtime_cost_capture_unexplained_missing_fields": [],
+        "runtime_cost_capture_temporal_reject_reasons": [],
+        "production_grade_cost_flag": True,
+        "fallback_cost_flag": False,
         "paper_fill_allowed": False,
         "allocator_decision": "BLOCK_STATIC_CATEGORY_E",
         "paper_fill_block_reason": "STATIC_COMPARATOR_ONLY",
@@ -223,6 +234,59 @@ def test_live_authority_flag_prevents_hard_valid_adaptive_trade() -> None:
     intent = _intent()
     intent["routes_to_live"] = True
     with pytest.raises(AdaptivePolicyShadowError, match="no_hard_valid_selection"):
+        build_adaptive_policy_shadow_candidate(
+            intent=intent,
+            feature_snapshot=_feature_snapshot(),
+            paper_status={"paper_only": True, "open_position_count": 0},
+            calibration=_calibration(),
+            registry=_registry(),
+            validator_seed=_SEED,
+            generated_at_ms=4_000_000,
+        )
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (
+        ("runtime_cost_capture_status", "FALLBACK_COST_CAPTURE"),
+        ("production_grade_cost_flag", False),
+        ("fallback_cost_flag", True),
+        ("runtime_cost_capture_missing_fields", ["fee_bps"]),
+        ("runtime_cost_capture_temporal_reject_reasons", ["FUTURE_COST"]),
+        ("expected_slippage_bps", "not-a-number"),
+        ("cost_source_timestamp", "1970-01-01T01:23:20.000Z"),
+    ),
+)
+def test_invalid_exact_cost_contract_cannot_produce_directional_action(
+    field: str,
+    value: object,
+) -> None:
+    intent = _intent()
+    intent[field] = value
+
+    result = build_adaptive_policy_shadow_candidate(
+        intent=intent,
+        feature_snapshot=_feature_snapshot(),
+        paper_status={"paper_only": True, "open_position_count": 0},
+        calibration=_calibration(),
+        registry=_registry(),
+        validator_seed=_SEED,
+        generated_at_ms=4_000_000,
+    )
+
+    assert result.selected_adaptive_action.selected_action == "remain_flat"
+    assert all(
+        item.hard_constraints_satisfied is False
+        for item in result.objective_inputs
+        if item.selected_action == "directional_trade"
+    )
+
+
+def test_nonfinite_cost_payload_fails_before_any_policy_decision() -> None:
+    intent = _intent()
+    intent["expected_slippage_bps"] = float("nan")
+
+    with pytest.raises(ValueError, match="Out of range float values"):
         build_adaptive_policy_shadow_candidate(
             intent=intent,
             feature_snapshot=_feature_snapshot(),
