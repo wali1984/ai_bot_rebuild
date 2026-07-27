@@ -89,3 +89,30 @@ microstructure. Ten candidates satisfied the model-loss probation bound.
 
 This confirms the same external market/evidence alignment blocker without
 creating a governed basis for retraining or changing an admission threshold.
+
+## Resumed observation through cycle 84
+
+After the operator resumed the same acceptance directive, cycles 61 through 84
+were frozen as a second independent confirmation slice. They added 3,431
+canonical predictions, including 1,063 directional predictions, and evaluated
+389 candidates. The interval produced zero admissions, fills, positions, or
+natural closes.
+
+Primary attribution for this slice was:
+
+- `BLOCK_MICROSTRUCTURE_UNSAFE`: 360 (92.545%)
+- `BLOCK_GUARDIAN_HALTED`: 25 (6.427%)
+- `BLOCK_FVG_STRUCTURE_INVALID`: 4 (1.028%)
+
+Twelve candidates satisfied the model-loss probation bound, 17 satisfied exit
+feasibility, 26 passed the advanced-indicator predicate, and 4 had
+microstructure action `ALLOW`. These predicates did not align on any candidate.
+No candidate was otherwise valid except for the model, and no candidate was
+otherwise valid except for microstructure. All 389 candidates carried the
+generation-scoped cohort state permitting new entries. Evidence age was 21.070
+to 187.902 seconds with a 91.537-second median, so this is not a systematic
+stale-source condition.
+
+The resumed evidence again selects remediation condition A:
+`action=CONTINUE_OBSERVATION`. It does not authorize generation-4 retraining,
+consumer-threshold changes, or weakening the historical global guardian.
