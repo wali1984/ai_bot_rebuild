@@ -2,22 +2,22 @@
 Description=AI Bot V2 adaptive policy shadow evaluator (paper evidence only)
 After=ai-bot-v2-candidate-outcome-calibration.service ai-bot-v2-trade-management-paper-loop.service
 Requires=ai-bot-v2-candidate-outcome-calibration.service
-ConditionFileIsExecutable=/home/wali/ai_bot_local_data/deployments/ai_bot_rebuild/8085986ad7a357d83ec54aacc77cdaa344faafaf/.venv/bin/python3
+ConditionFileIsExecutable=/home/wali/ai_bot_local_data/deployments/ai_bot_rebuild/d03ca51749706351bc6f58576a49fc827c6cd651/.venv/bin/python3
 
 [Service]
 Type=simple
-WorkingDirectory=/home/wali/ai_bot_local_data/deployments/ai_bot_rebuild/8085986ad7a357d83ec54aacc77cdaa344faafaf
-Environment="PYTHONPATH=/home/wali/ai_bot_local_data/deployments/ai_bot_rebuild/8085986ad7a357d83ec54aacc77cdaa344faafaf"
+WorkingDirectory=/home/wali/ai_bot_local_data/deployments/ai_bot_rebuild/d03ca51749706351bc6f58576a49fc827c6cd651
+Environment="PYTHONPATH=/home/wali/ai_bot_local_data/deployments/ai_bot_rebuild/d03ca51749706351bc6f58576a49fc827c6cd651"
 Environment="PYTHONDONTWRITEBYTECODE=1"
 Environment="PYTHONPYCACHEPREFIX=%t/ai-bot-v2-adaptive-policy-shadow/pycache"
-Environment="AI_BOT_CODE_SHA=8085986ad7a357d83ec54aacc77cdaa344faafaf"
+Environment="AI_BOT_CODE_SHA=d03ca51749706351bc6f58576a49fc827c6cd651"
 Environment="REDIS_URL=redis://127.0.0.1:6379/0"
 Environment="LIVE_GATE=blocked_human_only"
 RuntimeDirectory=ai-bot-v2-adaptive-policy-shadow
 RuntimeDirectoryMode=0700
 LoadCredential=adaptive_hard_validator_seed:%h/.config/ai-bot-v2/credentials/adaptive-hard-validator/seed.cred
-ExecStartPre=/usr/bin/git -C /home/wali/ai_bot_local_data/deployments/ai_bot_rebuild/8085986ad7a357d83ec54aacc77cdaa344faafaf diff --quiet --exit-code 8085986ad7a357d83ec54aacc77cdaa344faafaf --
-ExecStart=/home/wali/ai_bot_local_data/deployments/ai_bot_rebuild/8085986ad7a357d83ec54aacc77cdaa344faafaf/.venv/bin/python3 -P -B -m v2.backend.app.cli.v2_adaptive_policy_shadow_runtime --loop --interval-seconds 3 --state-root=/home/wali/ai_bot_local_data/adaptive_policy_v2/shadow --feature-archive-root="/home/wali/Desktop/AI BOT REBUILD/.local_data/v2_native_trainer/durable_feature_snapshot_archive" --validator-seed-path=%d/adaptive_hard_validator_seed --lock-path=%t/ai-bot-v2-adaptive-policy-shadow/writer.lock
+ExecStartPre=/usr/bin/git -C /home/wali/ai_bot_local_data/deployments/ai_bot_rebuild/d03ca51749706351bc6f58576a49fc827c6cd651 diff --quiet --exit-code d03ca51749706351bc6f58576a49fc827c6cd651 --
+ExecStart=/home/wali/ai_bot_local_data/deployments/ai_bot_rebuild/d03ca51749706351bc6f58576a49fc827c6cd651/.venv/bin/python3 -P -B -m v2.backend.app.cli.v2_adaptive_policy_shadow_runtime --loop --interval-seconds 3 --state-root=/home/wali/ai_bot_local_data/adaptive_policy_v2/shadow --feature-archive-root="/home/wali/Desktop/AI BOT REBUILD/.local_data/v2_native_trainer/durable_feature_snapshot_archive" --validator-seed-path=%d/adaptive_hard_validator_seed --lock-path=%t/ai-bot-v2-adaptive-policy-shadow/writer.lock
 Restart=on-failure
 RestartSec=10
 TimeoutStopSec=30
@@ -26,7 +26,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=read-only
-ReadOnlyPaths=/home/wali/ai_bot_local_data/deployments/ai_bot_rebuild/8085986ad7a357d83ec54aacc77cdaa344faafaf
+ReadOnlyPaths=/home/wali/ai_bot_local_data/deployments/ai_bot_rebuild/d03ca51749706351bc6f58576a49fc827c6cd651
 ReadOnlyPaths=/home/wali/ai_bot_local_data/deployments/python_envs/6360ea33fcfb9f9a81724989bbd32ace2b02bf7eaa7a8771d64d282f423173f0
 ReadOnlyPaths="/home/wali/Desktop/AI BOT REBUILD/.local_data/v2_native_trainer/durable_feature_snapshot_archive"
 ReadWritePaths=/home/wali/ai_bot_local_data/adaptive_policy_v2/shadow
