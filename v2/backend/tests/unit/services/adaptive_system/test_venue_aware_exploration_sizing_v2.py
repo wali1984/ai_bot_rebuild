@@ -229,6 +229,45 @@ def test_maximum_accepted_input_precision_is_total_and_fail_closed() -> None:
     assert proposal.final_quantity == _d("1")
 
 
+def test_large_quantity_step_modulo_is_ambient_context_independent() -> None:
+    maximum = _d("9999999999999999999999999.999999999999999999")
+    request = _request(
+        executable_entry_price=_d("1"),
+        venue_price_tick=_d("1"),
+        venue_min_notional_usd=_d("1"),
+        venue_min_qty=maximum,
+        venue_qty_step=_d("0.000000000000000001"),
+        policy_authorized_max_notional_usd=maximum,
+        remaining_catastrophic_notional_headroom_usd=maximum,
+        policy_authorized_max_loss_usd=maximum,
+        remaining_catastrophic_loss_headroom_usd=maximum,
+        policy_authorized_max_margin_usd=maximum,
+        available_collateral_usd=maximum,
+        stop_distance_fraction=_d("0.000000000000000001"),
+    )
+    proposals = []
+    for precision in (10, 28, 50, 120):
+        with localcontext() as context:
+            context.prec = precision
+            proposals.append(propose_exploration_size(request))
+    assert proposals[0] == proposals[1] == proposals[2] == proposals[3]
+    assert proposals[0].decision == PROPOSE_TO_HARD_VALIDATOR
+
+
+def test_near_cancellation_collateral_is_ambient_context_independent() -> None:
+    available = _d("9999999999999999999999999.999999999999999999")
+    reserved = _d("9999999999999999999999999.999999999999999998")
+    request = _request(available_collateral_usd=available, reserved_margin_usd=reserved)
+    proposals = []
+    for precision in (10, 28, 50, 120):
+        with localcontext() as context:
+            context.prec = precision
+            proposals.append(propose_exploration_size(request))
+    assert proposals[0] == proposals[1] == proposals[2] == proposals[3]
+    assert proposals[0].decision == SELECT_ANOTHER
+    assert proposals[0].reason == "VENUE_MINIMUM_EXCEEDS_FREE_COLLATERAL"
+
+
 def test_forged_authority_or_arithmetic_is_rejected() -> None:
     valid = propose_exploration_size(_request())
     with pytest.raises(ExplorationSizingContractError, match="must_be_false"):

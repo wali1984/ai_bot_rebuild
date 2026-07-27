@@ -320,15 +320,17 @@ def propose_exploration_size(
                 final_notional * request.stop_distance_fraction
                 + request.fees_slippage_funding_gap_allowance_usd
             ).quantize(_USD_QUANTUM, rounding=ROUND_CEILING)
+            venue_postconditions_valid = (
+                final_quantity > _ZERO
+                and final_quantity >= request.venue_min_qty
+                and final_quantity % request.venue_qty_step == _ZERO
+                and final_notional >= request.venue_min_notional_usd
+            )
+            free_collateral = request.available_collateral_usd - request.reserved_margin_usd
     except (DecimalException, OverflowError, ValueError):
         return _failure(request, "VENUE_ARITHMETIC_INVALID")
 
-    if (
-        final_quantity <= _ZERO
-        or final_quantity < request.venue_min_qty
-        or final_quantity % request.venue_qty_step != _ZERO
-        or final_notional < request.venue_min_notional_usd
-    ):
+    if not venue_postconditions_valid:
         return _failure(request, "VENUE_MINIMUM_POSTCONDITION_FAILED")
     if final_notional > request.policy_authorized_max_notional_usd:
         return _failure(request, "VENUE_MINIMUM_EXCEEDS_POLICY_NOTIONAL_BUDGET")
@@ -342,7 +344,6 @@ def propose_exploration_size(
         return _failure(request, "LEVERAGE_EXCEEDS_CATASTROPHIC_CEILING")
     if required_margin > request.policy_authorized_max_margin_usd:
         return _failure(request, "VENUE_MINIMUM_EXCEEDS_POLICY_MARGIN_BUDGET")
-    free_collateral = request.available_collateral_usd - request.reserved_margin_usd
     if required_margin > free_collateral:
         return _failure(request, "VENUE_MINIMUM_EXCEEDS_FREE_COLLATERAL")
 
