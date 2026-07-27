@@ -260,3 +260,60 @@ the first persisted natural fill with an open generation-3 position, use the
 fresh generation-bound predicate above, acquire the single-run lock, freeze the
 observer's restart capture, and immediately perform canonical-serving followed
 by paper-loop restart reconstruction before ordinary close.
+
+## Active-repair verification
+
+```text
+targeted paper-loop repair tests: 5 passed
+preemptive edge-control suite: 88 passed
+full paper-loop module: 552 passed, 13 failed, 31 errors
+recorded unmodified baseline: 547 passed, 13 failed, 31 errors
+G12 rare-event suite: 17 PASS, 0 WARNING, 0 FAIL
+focused Ruff (E902/F821/F822/F823): PASS
+Python compilation: PASS
+git diff --check: PASS
+systemd-analyze --user verify: diagnostics=0
+```
+
+The unchanged 13 failures and 31 setup errors are the pre-existing legacy
+cycle-reservation/final-admission fixture family. The five additional passing
+tests cover the two allocation replay repairs and the exploration authority
+repair. An unrestricted Ruff run still reports 42 pre-existing findings in the
+51,000-line paper loop and its legacy test module; the focused undefined-name,
+syntax, and import-resolution selection is clean. Those unrelated lint findings
+were not rewritten during this scoped runtime repair.
+
+Command families used for this active repair, all from the repository root:
+
+```text
+git status --short --branch
+git log -3 --oneline
+git diff --check
+git diff -- <changed-files>
+git add <scoped-files>
+git commit -m <scoped-message>
+git rev-parse HEAD
+git worktree add --detach <immutable-release-path> <commit-sha>
+git -C <immutable-release-path> diff --quiet --exit-code <commit-sha> --
+rg -n <admission-and-exploration-patterns> v2/backend scripts goal_state claude_worklog
+sed -n <ranges> <paper-loop/policy/test/status/directive-files>
+jq <scoped-projections> goal_state/PERMANENT_SYSTEM_RECOVERY/*.json
+tail -n 10 .local_data/permanent_system_recovery/generation_acceptance_cycles_v1.jsonl | jq -s <post-deploy-summary>
+redis-cli --raw GET <paper-status/intents/fills/positions/closes/restart-keys> | jq <scoped-projection>
+.venv/bin/python -m py_compile <changed-python-files>
+.venv/bin/pytest -q <targeted-paper-loop-selection>
+.venv/bin/pytest -q v2/backend/tests/unit/services/preemptive_edge_control
+.venv/bin/pytest -q --tb=no v2/backend/tests/unit/cli/test_v2_trade_management_paper_loop.py
+.venv/bin/python scripts/guardian_phase10_rare_event_tests.py
+.venv/bin/ruff check --select E902,F821,F822,F823 <changed-python-files>
+.venv/bin/ruff check --ignore E501,UP017,UP038 <changed-python-files>
+systemctl --user cat/show/list-units/list-unit-files/daemon-reload/restart <scoped-units>
+systemd-analyze --user verify ai-bot-v2-stack.target default.target timers.target ai-bot-v2-trade-management-paper-loop.service
+journalctl --user -u ai-bot-v2-trade-management-paper-loop.service <scoped-window>
+```
+
+The post-deployment monitor polled the fresh generation-bound `jq -e` predicate
+at three-second intervals from cycle 263 through cycle 272. It was configured to
+acquire `/run/user/1000/ai-bot-v2-generation3-restart-acceptance.lock` only after
+the persisted-fill and open-position conditions succeeded. They did not, so the
+lock file was not created.
