@@ -1707,14 +1707,14 @@ def test_corrupt_populated_entry_price_alias_fails_closed() -> None:
     )
 
 
-def test_negative_populated_mark_price_alias_fails_closed() -> None:
+def test_negative_populated_mark_price_at_fill_alias_fails_closed() -> None:
     requirement = canonical_margin_requirement(
         {
-            "fill_id": "fill-negative-mark-price-alias",
+            "fill_id": "fill-negative-mark-price-at-fill-alias",
             "symbol": "BTCUSDT",
             "quantity": 1.0,
             "fill_price": 100.0,
-            "mark_price": -99.0,
+            "mark_price_at_fill": -99.0,
             "maintenance_margin_rate": 0.005,
         }
     )
@@ -1722,8 +1722,35 @@ def test_negative_populated_mark_price_alias_fails_closed() -> None:
     assert requirement["canonical_notional_usd"] == pytest.approx(100.0)
     assert requirement["valid"] is False
     assert (
-        "CANDIDATE_EXECUTED_PRICE_EVIDENCE_INVALID:mark_price"
+        "CANDIDATE_EXECUTED_PRICE_EVIDENCE_INVALID:mark_price_at_fill"
         in requirement["notional_evidence_invalid_reasons"]
+    )
+
+
+def test_current_mark_drift_does_not_conflict_with_sealed_execution_notional() -> None:
+    requirement = canonical_margin_requirement(
+        {
+            "fill_id": "fill-current-mark-drift",
+            "symbol": "AAVEUSDT",
+            "quantity": 0.8,
+            "fill_price": 97.96,
+            "entry_price": 97.96,
+            "mark_price": 97.91,
+            "gross_notional_usd": 78.368,
+            "effective_leverage": 1.0,
+            "maintenance_margin_rate": 0.005,
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+        }
+    )
+
+    assert requirement["valid"] is True
+    assert requirement["canonical_notional_usd"] == pytest.approx(78.368)
+    assert requirement["canonical_margin_usd"] == pytest.approx(78.368)
+    assert all(
+        item["source"] != "ABS_QUANTITY_TIMES_MARK_PRICE"
+        for item in requirement["notional_evidence"]
     )
 
 

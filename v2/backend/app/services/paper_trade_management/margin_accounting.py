@@ -768,9 +768,9 @@ def _candidate_estimated_notional(
             ("net_quantity", ("avg_entry_price", "entry_price")),
             (
                 "quantity",
-                ("fill_price", "entry_price", "mark_price_at_fill", "mark_price", "price"),
+                ("fill_price", "entry_price", "mark_price_at_fill", "price"),
             ),
-            ("qty", ("fill_price", "entry_price", "mark_price", "price")),
+            ("qty", ("fill_price", "entry_price", "mark_price_at_fill", "price")),
         ),
     )
     invalid_reasons: list[str] = [f"CANDIDATE_{reason}" for reason in executed_invalid_reasons]
