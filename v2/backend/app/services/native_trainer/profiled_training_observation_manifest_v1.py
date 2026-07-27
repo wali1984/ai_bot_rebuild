@@ -735,6 +735,123 @@ def _label_binding(
     }, ()
 
 
+def label_archive_high_water_for_integrity_v1(
+    *,
+    archive: DurableCanonical5mLabelArchive,
+    integrity: Mapping[str, Any],
+    observation: datetime,
+) -> dict[str, Any]:
+    """Derive the bounded fixed-observation high water for a verified integrity
+    proof.
+
+    This performs the same bounded keyset scan the manifest factory uses; it is
+    never a full re-verification.  It is exposed so downstream importers can
+    reuse the canonical high-water derivation instead of duplicating the
+    ``scan_limit`` policy.
+    """
+
+    return label_archive_fixed_observation_high_water(
+        archive=archive,
+        integrity=integrity,
+        observation_cutoff=observation,
+        scan_limit=max(
+            int(integrity.get("verified_rows") or 0),
+            int(integrity.get("verified_append_receipts") or 0),
+            1,
+        ),
+    )
+
+
+def derive_label_archive_fixed_observation_proof_v1(
+    *,
+    archive: DurableCanonical5mLabelArchive,
+    observation: datetime,
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    """Re-derive a CURRENT integrity proof and its bounded high water.
+
+    Returns ``(None, None)`` when the archive cannot be verified.  This is the
+    per-read fresh-proof primitive: it lets a continuously-appended archive be
+    re-proofed at read time so a genuine, immutable label path is not
+    fail-closed against a proof captured before the latest append.  It never
+    reads, mutates, or re-derives any label, cost, or feature evidence.
+    """
+
+    try:
+        integrity = archive.verify_integrity()
+    except (Canonical5mArchiveError, OSError, sqlite3.Error):
+        return None, None
+    if integrity.get("archive_integrity_verified") is not True:
+        return None, None
+    try:
+        high_water = label_archive_high_water_for_integrity_v1(
+            archive=archive,
+            integrity=integrity,
+            observation=observation,
+        )
+    except (Canonical5mArchiveError, OSError, sqlite3.Error, KeyError, TypeError, ValueError):
+        return None, None
+    return integrity, high_water
+
+
+def build_finalized_label_binding_v1(
+    *,
+    sample: ProfiledTrainingLedgerSampleV1,
+    archive: DurableCanonical5mLabelArchive,
+    observation: datetime,
+    archive_integrity: Mapping[str, Any] | None = None,
+    archive_high_water: Mapping[str, Any] | None = None,
+    allow_fresh_reproof: bool = True,
+) -> tuple[dict[str, Any] | None, tuple[str, ...]]:
+    """Build the RICH finalized label binding for one authenticated sample.
+
+    The binding copies already-authenticated directional cost evidence and the
+    verified canonical-5m label path into ``profiled_training_finalized_label_
+    binding_v1`` -- the exact schema ``build_serving_dataset_v2`` consumes.  It
+    never synthesizes a feature, cost, or label: every hash, receipt, and price
+    is the sample's own enrichment or the verified label path's own evidence,
+    re-authenticated inside :func:`_label_binding`.
+
+    When ``archive_integrity``/``archive_high_water`` are omitted -- or when a
+    supplied proof went stale because the live archive advanced beneath it -- a
+    FRESH proof is re-derived at read time and the still-immutable label path is
+    re-verified against it rather than fail-closing.  This resolves the
+    continuously-appended-archive staleness failure without weakening any PIT or
+    receipt-commitment rule: the label path itself is fully re-verified against
+    the current, consistent archive snapshot on every attempt.
+    """
+
+    if type(observation) is not datetime or observation.tzinfo is None:
+        _fail("PROFILED_OBSERVATION_BUILD_BINDING_OBSERVATION_INVALID")
+    integrity: Mapping[str, Any] | None = archive_integrity
+    high_water: Mapping[str, Any] | None = archive_high_water
+    for attempt in range(2):
+        if integrity is None or high_water is None:
+            integrity, high_water = derive_label_archive_fixed_observation_proof_v1(
+                archive=archive,
+                observation=observation,
+            )
+            if integrity is None or high_water is None:
+                return None, ("PROFILED_OBSERVATION_LABEL_ARCHIVE_INTEGRITY_UNVERIFIED",)
+        try:
+            return _label_binding(
+                sample=sample,
+                archive=archive,
+                archive_integrity=integrity,
+                archive_high_water=high_water,
+                observation=observation,
+            )
+        except ProfiledTrainingObservationManifestV1Error as exc:
+            moved = (
+                "PROFILED_OBSERVATION_LABEL_INTEGRITY_PROOF_MOVED_DURING_BUILD" in str(exc)
+            )
+            if attempt == 0 and allow_fresh_reproof and moved:
+                integrity = None
+                high_water = None
+                continue
+            raise
+    return None, ("PROFILED_OBSERVATION_LABEL_INTEGRITY_PROOF_MOVED_DURING_BUILD",)
+
+
 def _tensor_binding(
     *,
     sample: ProfiledTrainingLedgerSampleV1,
@@ -2858,6 +2975,9 @@ __all__ = [
     "ProfiledTrainingObservationPageV1",
     "authenticate_profiled_training_observation_inventory_page_v1",
     "authenticate_profiled_training_observation_manifest_v1",
+    "build_finalized_label_binding_v1",
     "build_profiled_training_observation_manifest_v1",
+    "derive_label_archive_fixed_observation_proof_v1",
+    "label_archive_high_water_for_integrity_v1",
     "read_profiled_training_observation_page_v1",
 ]

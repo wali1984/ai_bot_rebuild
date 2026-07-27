@@ -18,9 +18,9 @@ from v2.backend.app.services.native_trainer.model_edge_recovery_challenger impor
 )
 from v2.backend.app.services.native_trainer.profiled_training_challenger_importer_v1 import (
     LABEL_SOURCE,
-    import_profiled_training_observation_manifest_shard_to_challenger_archive_v1,
     import_profiled_training_ledger_shards_to_challenger_archive_v1,
     import_profiled_training_ledger_to_challenger_archive_v1,
+    import_profiled_training_observation_manifest_shard_to_challenger_archive_v1,
 )
 from v2.backend.tests.unit.services.native_trainer import (
     test_profiled_model_feature_snapshot_record_v1 as base_support,
@@ -62,7 +62,14 @@ def test_importer_reconstructs_idempotent_pit_challenger_row(
     snapshot = next(iter_snapshots(challenger_archive, limit=1))
     assert _row_reject_reasons(snapshot) == []
     assert snapshot["label_source"] == LABEL_SOURCE
-    assert snapshot["label_binding"]["source"] == LABEL_SOURCE
+    # The importer now emits the RICH finalized binding so the row also reaches
+    # build_serving_dataset_v2 (not only freeze_dataset_from_archive).
+    assert (
+        snapshot["label_binding"]["schema_version"]
+        == "profiled_training_finalized_label_binding_v1"
+    )
+    assert isinstance(snapshot["label_binding"]["directional_cost_evidence"], dict)
+    assert snapshot["label_binding"]["label_target_action"] in {"long", "short", "hold"}
     assert snapshot["label_binding"]["label_binding_sha256"]
     assert snapshot["mtf_snapshot_id"].startswith("profiled-mtf:")
     assert snapshot["source_hashes"]["mtf_binding_sha256"]

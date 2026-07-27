@@ -12,7 +12,6 @@ It has no prediction, paper, live, or exchange authority.
 """
 from __future__ import annotations
 
-import hashlib
 import json
 import math
 import os
@@ -54,6 +53,9 @@ from v2.backend.app.services.native_trainer.profiled_training_ledger_loader_v1 i
 from v2.backend.app.services.native_trainer.profiled_training_observation_manifest_v1 import (
     ProfiledTrainingObservationManifestV1Error,
     authenticate_profiled_training_observation_manifest_v1,
+    build_finalized_label_binding_v1,
+    derive_label_archive_fixed_observation_proof_v1,
+    label_archive_high_water_for_integrity_v1,
     read_profiled_training_observation_page_v1,
 )
 from v2.backend.app.services.native_trainer.source_provenance_ledger_v4 import (
@@ -248,38 +250,6 @@ def _append_or_reuse_label_observation_record(
     return None, True
 
 
-def _label_binding(
-    *,
-    sample: ProfiledTrainingLedgerSampleV1,
-    label_rows: list[dict[str, Any]],
-    label_proof: Mapping[str, Any],
-) -> dict[str, Any]:
-    identities = [
-        {
-            "candle_id": row.get("candle_id"),
-            "candle_close_time": row.get("candle_close_time"),
-            "content_sha256": hashlib.sha256(
-                str(row.get("raw_payload_hash")).encode("utf-8")
-            ).hexdigest(),
-            "raw_payload_hash": row.get("raw_payload_hash"),
-        }
-        for row in label_rows
-    ]
-    material = {
-        "schema_version": LABEL_BINDING_SCHEMA_VERSION,
-        "source": LABEL_SOURCE,
-        "symbol": sample.symbol,
-        "decision_time": sample.decision_time,
-        "horizon_seconds": sample.expected_holding_horizon_seconds,
-        "label_available_at_ms": label_proof.get("label_available_at_ms"),
-        "path_identities": identities,
-    }
-    return {
-        **material,
-        "label_binding_sha256": canonical_label_stable_sha256(material),
-    }
-
-
 def _selected_logical_feature_names(
     sample: ProfiledTrainingLedgerSampleV1,
 ) -> tuple[str, ...]:
@@ -378,23 +348,6 @@ def _selected_mask_mapping(
             f"PROFILED_TRAINING_CHALLENGER_{field}_MASK_PROJECTION_INVALID"
         )
     return projected
-
-
-def _reconstructed_record(
-    *,
-    sample: ProfiledTrainingLedgerSampleV1,
-    label_rows: list[dict[str, Any]],
-    label_proof: Mapping[str, Any],
-) -> dict[str, Any]:
-    label_binding = _label_binding(
-        sample=sample,
-        label_rows=label_rows,
-        label_proof=label_proof,
-    )
-    return _reconstructed_record_from_verified_label_binding(
-        sample=sample,
-        label_binding=label_binding,
-    )
 
 
 def _reconstructed_record_from_verified_label_binding(
@@ -550,9 +503,13 @@ def import_profiled_training_ledger_to_challenger_archive_v1(
         raise ProfiledTrainingChallengerImportError(
             "PROFILED_TRAINING_CHALLENGER_LABEL_ARCHIVE_INTEGRITY_UNVERIFIED"
         )
+    label_high_water = label_archive_high_water_for_integrity_v1(
+        archive=label_archive,
+        integrity=integrity,
+        observation=observed,
+    )
 
     imported_ids: list[str] = []
-    verified_label_transactions: set[tuple[str, str, str, str, int, str]] = set()
     rejection_reasons: Counter[str] = Counter()
     imported_rows = 0
     duplicate_rows = 0
@@ -572,29 +529,20 @@ def import_profiled_training_ledger_to_challenger_archive_v1(
             rejection_reasons[str(exclusion.reason)] += 1
         for sample in samples:
             try:
-                label_rows, label_proof = label_archive.verified_label_path(
-                    symbol=sample.symbol,
-                    decision_time=sample.decision_time,
-                    training_observed_at=observed_text,
-                    horizon_seconds=sample.expected_holding_horizon_seconds,
-                    archive_integrity_proof=integrity,
-                    require_receipt_committed_by_observation=True,
-                    _verified_transaction_cache=verified_label_transactions,
+                label_binding, label_reasons = build_finalized_label_binding_v1(
+                    sample=sample,
+                    archive=label_archive,
+                    observation=observed,
+                    archive_integrity=integrity,
+                    archive_high_water=label_high_water,
                 )
-                if (
-                    label_rows is None
-                    or label_proof.get("status")
-                    != "VERIFIED_CANONICAL_5M_TRAINER_LABEL_PATH"
-                ):
-                    for reason in label_proof.get("rejection_reasons") or [
-                        "CANONICAL_LABEL_PATH_UNVERIFIED"
-                    ]:
+                if label_binding is None:
+                    for reason in label_reasons or ("CANONICAL_LABEL_PATH_UNVERIFIED",):
                         rejection_reasons[str(reason)] += 1
                     continue
-                record = _reconstructed_record(
+                record = _reconstructed_record_from_verified_label_binding(
                     sample=sample,
-                    label_rows=label_rows,
-                    label_proof=label_proof,
+                    label_binding=label_binding,
                 )
                 result, reused_label_observation = (
                     _append_or_reuse_label_observation_record(
@@ -602,7 +550,12 @@ def import_profiled_training_ledger_to_challenger_archive_v1(
                         challenger_archive_root=archive_root,
                     )
                 )
-            except (OSError, ValueError, ProfiledTrainingChallengerImportError) as exc:
+            except (
+                OSError,
+                ValueError,
+                ProfiledTrainingChallengerImportError,
+                ProfiledTrainingObservationManifestV1Error,
+            ) as exc:
                 rejection_reasons[str(exc) or type(exc).__name__] += 1
                 continue
             label_paths_verified += 1
@@ -1278,6 +1231,28 @@ def import_profiled_training_ledger_shards_to_challenger_archive_v1(
             label_archive=label_archive,
         )
     )
+    observed_clock = _aware_utc(observed, field="OBSERVATION_TIME")
+    # Defect B: the reused full integrity proof can go stale against a
+    # continuously appended label archive. Cheaply confirm it is still current;
+    # only when it is not do we re-derive a fresh proof. A quiescent archive
+    # (e.g. the completed-resume path) never pays a full re-verification.
+    if not label_archive.integrity_proof_is_current(integrity):
+        fresh_integrity, _fresh_high_water = (
+            derive_label_archive_fixed_observation_proof_v1(
+                archive=label_archive,
+                observation=observed_clock,
+            )
+        )
+        if fresh_integrity is None:
+            raise ProfiledTrainingChallengerImportError(
+                "PROFILED_TRAINING_CHALLENGER_LABEL_ARCHIVE_INTEGRITY_UNVERIFIED"
+            )
+        integrity = fresh_integrity
+    label_high_water = label_archive_high_water_for_integrity_v1(
+        archive=label_archive,
+        integrity=integrity,
+        observation=observed_clock,
+    )
 
     last_post_purge_counts = checkpoint.get("last_post_purge_counts") if checkpoint else None
     if not isinstance(last_post_purge_counts, dict):
@@ -1285,7 +1260,6 @@ def import_profiled_training_ledger_shards_to_challenger_archive_v1(
     total_imported = total_duplicates = total_excluded = 0
     total_label_paths = 0
     total_rejections: Counter[str] = Counter()
-    verified_label_transactions: set[tuple[str, str, str, str, int, str]] = set()
     verified_source_entries: dict[
         str, dict[int, TrainerSourceProvenanceLedgerEntryV4]
     ] = {}
@@ -1310,41 +1284,41 @@ def import_profiled_training_ledger_shards_to_challenger_archive_v1(
         )
         for sample in batch.samples:
             try:
-                label_rows, label_proof = label_archive.verified_label_path(
-                    symbol=sample.symbol,
-                    decision_time=sample.decision_time,
-                    training_observed_at=observed,
-                    horizon_seconds=sample.expected_holding_horizon_seconds,
-                    archive_integrity_proof=integrity,
-                    require_receipt_committed_by_observation=True,
-                    _verified_transaction_cache=verified_label_transactions,
+                label_binding, label_reasons = build_finalized_label_binding_v1(
+                    sample=sample,
+                    archive=label_archive,
+                    observation=observed_clock,
+                    archive_integrity=integrity,
+                    archive_high_water=label_high_water,
                 )
-                if (
-                    label_rows is None
-                    or label_proof.get("status")
-                    != "VERIFIED_CANONICAL_5M_TRAINER_LABEL_PATH"
-                ):
-                    for reason in label_proof.get("rejection_reasons") or [
-                        "CANONICAL_LABEL_PATH_UNVERIFIED"
-                    ]:
+                if label_binding is None:
+                    for reason in label_reasons or ("CANONICAL_LABEL_PATH_UNVERIFIED",):
                         rejections[str(reason)] += 1
                     continue
-                record = _reconstructed_record(
+                record = _reconstructed_record_from_verified_label_binding(
                     sample=sample,
-                    label_rows=label_rows,
-                    label_proof=label_proof,
+                    label_binding=label_binding,
                 )
-                write_result = append_snapshot(
-                    record,
-                    root=archive_root,
-                    update_checksum_manifest=False,
+                write_result, reused_label_observation = (
+                    _append_or_reuse_label_observation_record(
+                        record=record,
+                        challenger_archive_root=archive_root,
+                    )
                 )
-            except (OSError, ValueError, ProfiledTrainingChallengerImportError) as exc:
+            except (
+                OSError,
+                ValueError,
+                ProfiledTrainingChallengerImportError,
+                ProfiledTrainingObservationManifestV1Error,
+            ) as exc:
                 rejections[str(exc) or type(exc).__name__] += 1
                 continue
             label_paths += 1
-            write_paths.append((write_result.blob_path, write_result.index_path))
-            if write_result.already_present:
+            if write_result is not None and not write_result.already_present:
+                write_paths.append((write_result.blob_path, write_result.index_path))
+            if reused_label_observation or (
+                write_result is not None and write_result.already_present
+            ):
                 duplicates += 1
             else:
                 imported += 1
