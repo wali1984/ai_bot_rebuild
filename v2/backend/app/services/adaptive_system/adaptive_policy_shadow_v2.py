@@ -1101,10 +1101,16 @@ def _objective_action(
         policy_mode=mode,
         expected_after_cost_return_bps=(0.0 if flat else float(stats["after_cost_expectancy_bps"])),
         expected_drawdown_contribution_bps=(
-            0.0 if flat else abs(float(stats["mae_bps_quantiles"]["0.5"]))
+            0.0
+            if flat
+            else abs(float(stats["mae_bps_quantiles"]["0.5"]))
+            * float(stats["loss_probability"])
         ),
         expected_tail_loss_bps=(
-            0.0 if flat else float(stats["tail_loss_bps_quantiles"]["0.9"])
+            0.0
+            if flat
+            else float(stats["tail_loss_bps_quantiles"]["0.9"])
+            * float(stats["loss_probability"])
         ),
         liquidation_risk_probability=(0.0 if flat else float(stats["stop_out_probability"])),
         expected_market_impact_bps=(
@@ -1224,8 +1230,12 @@ def _policy_action(
         target_margin = float(plan["selected_margin_usd"])
         leverage = float(plan["selected_leverage"])
         exposure = target_notional if side == "long" else -target_notional
-        expected_drawdown = abs(float(statistics["mae_bps_quantiles"]["0.5"]))
-        expected_tail = float(statistics["tail_loss_bps_quantiles"]["0.9"])
+        expected_drawdown = abs(float(statistics["mae_bps_quantiles"]["0.5"])) * float(
+            statistics["loss_probability"]
+        )
+        expected_tail = float(statistics["tail_loss_bps_quantiles"]["0.9"]) * float(
+            statistics["loss_probability"]
+        )
         expected_slippage = slippage
         expected_impact = impact
         fill_probability = 1.0 - float(statistics["venue_infeasible_probability"])

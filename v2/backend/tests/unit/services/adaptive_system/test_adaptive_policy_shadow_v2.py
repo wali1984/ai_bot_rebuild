@@ -185,6 +185,20 @@ def test_builds_complete_shadow_chain_with_zero_reference_disagreements() -> Non
     assert result.production_decision[
         "static_category_e_authority_consumed_by_adaptive_shadow"
     ] is False
+    short_stats = _calibration()["side_timeframe_statistics"]["SHORT:15m"]
+    short_input = next(
+        item
+        for item in result.objective_inputs
+        if item.action_id.endswith(":champion_exploitation:short")
+    )
+    assert short_input.expected_tail_loss_bps == pytest.approx(
+        short_stats["tail_loss_bps_quantiles"]["0.9"]
+        * short_stats["loss_probability"]
+    )
+    assert short_input.expected_drawdown_contribution_bps == pytest.approx(
+        abs(short_stats["mae_bps_quantiles"]["0.5"])
+        * short_stats["loss_probability"]
+    )
     assert result.routes_to_live is False
     assert result.places_real_order is False
     assert result.exchange_action_taken is False
