@@ -46,6 +46,18 @@ def _values(*, admitted=False):
         "preemptive_block_reasons": [] if admitted else ["LOSS_PROBABILITY_TOO_HIGH"],
         "pre_trade_loss_probability": 0.7,
         "preemptive_decision_time": "2026-07-26T22:00:02Z",
+        "preemptive_predicate_details": [
+            {
+                "predicate": "adaptive_model_loss_probability",
+                "actual": 0.7,
+                "required": "<0.65000000",
+                "passed": False,
+                "source_key": observer.ADAPTIVE_TUNING_KEY,
+                "source_schema": "v2_adaptive_gate_tuning_state_v4",
+                "source_timestamp": "2026-07-26T22:00:01Z",
+                "decision_timestamp": "2026-07-26T22:00:02Z",
+            }
+        ],
         "expected_edge_after_cost_bps": 18.0,
         "exit_feasibility_score": 0.7,
         "confidence_overstatement_risk": 0.1,
@@ -105,7 +117,38 @@ def test_capture_cycle_preserves_generation_attribution() -> None:
     assert attribution["evidence_age_seconds"] == 2.0
     assert attribution["expected_edge_after_cost_bps"] == 18.0
     assert attribution["exit_feasibility_score"] == 0.7
+    assert attribution["preemptive_predicate_details"][0]["actual"] == 0.7
+    assert cycle["generic_microstructure_blocks"] == 0
+    assert cycle["exact_predicate_details_present"] is True
     assert cycle["reservation_leak_count"] == 0
+
+
+def test_capture_cycle_counts_only_unstructured_microstructure_blocks_as_generic() -> None:
+    values = _values()
+    row = values[observer.MATRIX_KEY]["rows"][0]
+    row["preemptive_action"] = "BLOCK_MICROSTRUCTURE_UNSAFE"
+    row["preemptive_predicate_details"] = [
+        {
+            "predicate": "microstructure_action",
+            "actual": "SHADOW_ONLY",
+            "required": "ALLOW_OR_REDUCE_SIZE",
+            "passed": False,
+            "source_key": "v2:microstructure:trust_score:BTCUSDT:5m",
+            "source_schema": "microstructure_trust_score_v2",
+            "source_timestamp": "2026-07-26T22:00:01Z",
+            "decision_timestamp": "2026-07-26T22:00:02Z",
+        }
+    ]
+
+    cycle = observer.capture_cycle(
+        FakeRedis(values),
+        observed_at=datetime(2026, 7, 26, 22, 0, 3, tzinfo=UTC),
+    )
+
+    assert cycle["generic_microstructure_blocks"] == 0
+    attribution = cycle["candidate_attribution"][0]
+    assert attribution["exact_microstructure_predicate_detail_present"] is True
+    assert attribution["generic_microstructure_block"] is False
 
 
 def test_status_classifies_only_after_both_bounds() -> None:

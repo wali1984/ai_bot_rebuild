@@ -212,6 +212,29 @@ def _candidate_attribution(
     required_profit = None if required_max_loss is None else 1.0 - required_max_loss
     evidence_age = _evidence_age_seconds(row, signal)
     model_loss = _finite(row.get("pre_trade_loss_probability"))
+    predicate_details = [
+        dict(detail)
+        for detail in row.get("preemptive_predicate_details") or []
+        if isinstance(detail, Mapping)
+    ]
+    microstructure_details = [
+        detail
+        for detail in predicate_details
+        if detail.get("predicate") == "microstructure_action"
+    ]
+    exact_microstructure_detail = bool(microstructure_details) and all(
+        "actual" in detail
+        and detail.get("required") not in (None, "")
+        and detail.get("source_key") not in (None, "")
+        and detail.get("source_schema") not in (None, "")
+        and detail.get("source_timestamp") not in (None, "")
+        and detail.get("decision_timestamp") not in (None, "")
+        for detail in microstructure_details
+    )
+    generic_microstructure_block = (
+        row.get("preemptive_action") == "BLOCK_MICROSTRUCTURE_UNSAFE"
+        and not exact_microstructure_detail
+    )
     return {
         "prediction_id": prediction_id or None,
         "intent_id": row.get("intent_id"),
@@ -262,6 +285,18 @@ def _candidate_attribution(
         ),
         "guardian_state": row.get("continuous_edge_guardian_status"),
         "guardian_new_entries_allowed": row.get("guardian_new_entries_allowed"),
+        "scoped_paper_lane_authorized": row.get("scoped_paper_lane_authorized"),
+        "adaptive_loss_probability_threshold_applied": row.get(
+            "adaptive_loss_probability_threshold_applied"
+        ),
+        "adaptive_loss_probability_threshold_breached": row.get(
+            "adaptive_loss_probability_threshold_breached"
+        ),
+        "preemptive_predicate_details": predicate_details,
+        "exact_microstructure_predicate_detail_present": (
+            exact_microstructure_detail
+        ),
+        "generic_microstructure_block": generic_microstructure_block,
     }
 
 
@@ -356,6 +391,12 @@ def capture_cycle(client: Any, *, observed_at: datetime | None = None) -> dict[s
         for row in generation_rows
         if row.get("preemptive_allowed") is not True
     ]
+    generic_microstructure_blocks = sum(
+        1 for row in attributions if row.get("generic_microstructure_block") is True
+    )
+    exact_predicate_details_present = bool(attributions) and all(
+        bool(row.get("preemptive_predicate_details")) for row in attributions
+    )
 
     return {
         "schema_version": "generation_natural_acceptance_cycle_v1",
@@ -374,6 +415,8 @@ def capture_cycle(client: Any, *, observed_at: datetime | None = None) -> dict[s
         ),
         "rejections_by_primary_action": dict(sorted(action_counts.items())),
         "rejections_by_reason": dict(sorted(reason_counts.items())),
+        "generic_microstructure_blocks": generic_microstructure_blocks,
+        "exact_predicate_details_present": exact_predicate_details_present,
         "paper_intents_created": sum(
             1 for row in generation_rows if row.get("intent_id") not in (None, "")
         ),

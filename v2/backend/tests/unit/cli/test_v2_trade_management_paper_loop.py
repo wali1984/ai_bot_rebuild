@@ -18835,6 +18835,44 @@ def test_strategy_router_microstructure_context_uses_pit_fakeout_probability() -
     }
 
 
+def test_microstructure_trust_reader_prefers_exact_one_hour_timeframe() -> None:
+    redis_client = _FakeRedis(
+        {
+            "v2:microstructure:trust_score:ETCUSDT:1h": {
+                "schema_version": "microstructure_trust_score_v2",
+                "symbol": "ETCUSDT",
+                "timeframe": "1h",
+                "available_at": "2026-07-27T01:59:58Z",
+                "generated_at": "2026-07-27T01:59:57Z",
+                "microstructure_trust_score": 0.81,
+                "microstructure_action": "ALLOW",
+            },
+            "v2:microstructure:trust_score:ETCUSDT:1m": {
+                "schema_version": "microstructure_trust_score_v2",
+                "symbol": "ETCUSDT",
+                "timeframe": "1m",
+                "available_at": "2026-07-27T01:59:58Z",
+                "generated_at": "2026-07-27T01:59:57Z",
+                "microstructure_trust_score": 0.42,
+                "microstructure_action": "REDUCE_SIZE",
+            },
+        }
+    )
+
+    trust = paper_loop._read_v2_microstructure_trust(  # noqa: SLF001
+        redis_client,
+        "ETCUSDT",
+        decision_time="2026-07-27T02:00:00Z",
+        timeframe="1h",
+    )
+
+    assert trust["microstructure_trust_source"] == (
+        "v2:microstructure:trust_score:ETCUSDT:1h"
+    )
+    assert trust["microstructure_trust_score"] == 0.81
+    assert trust["microstructure_action"] == "ALLOW"
+
+
 def test_strategy_router_microstructure_context_rejects_future_fakeout_probability() -> None:
     redis_client = _FakeRedis(
         {

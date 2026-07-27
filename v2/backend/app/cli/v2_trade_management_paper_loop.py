@@ -7751,7 +7751,9 @@ def _read_v2_microstructure_trust(
         "15m",
     ]
     lookup_timeframes = [
-        item for item in dict.fromkeys(timeframe_candidates) if item in {"1m", "5m", "15m"}
+        item
+        for item in dict.fromkeys(timeframe_candidates)
+        if item in {"1m", "5m", "15m", "1h", "4h"}
     ]
     lookup_keys = [
         f"{V2_REDIS_PREFIX}microstructure:trust_score:{normalized}:{timeframe}"
@@ -19244,6 +19246,10 @@ PREEMPTIVE_DECISION_CONTEXT_FIELDS = (
     "allow_positive_edge_probation_paper",
     "allow_reduced_size_paper_only",
     "allow_live_dry_run",
+    "scoped_paper_lane_authorized",
+    "adaptive_loss_probability_threshold_applied",
+    "adaptive_loss_probability_threshold_breached",
+    "preemptive_predicate_details",
     "advanced_indicator_consumed",
     "advanced_indicator_status",
     "advanced_indicator_block",

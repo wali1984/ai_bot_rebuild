@@ -28,6 +28,11 @@ def _candidate(**overrides):
         "funding_bps": 0.2,
         "gross_notional_usd": 1000.0,
         "risk_budget_usd": 8.0,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "paper_cohort_preemptive_controls_scoped": True,
+        "paper_cohort_breaker_new_entries_allowed": True,
         "advanced_indicator_context": {
             "bullish_fvg_present": False,
             "bearish_fvg_present": False,
@@ -369,6 +374,147 @@ def test_paper_exploration_treats_broad_quarantine_as_advisory_only() -> None:
     assert decision["bucket_quarantine_active"] is False
     assert decision["matched_quarantined_bucket_keys"] == []
     assert decision["advisory_quarantined_bucket_keys"] == ["side:long"]
+    assert decision["routes_to_live"] is False
+    assert decision["places_real_order"] is False
+
+
+def test_fail_closed_global_tuner_does_not_shadow_scoped_paper_exploration() -> None:
+    """The historical fail-closed tuner is not the cohort learning-lane limit."""
+
+    decision = evaluate_candidate(
+        _candidate(
+            tier="PAPER_RISK_CONTROLLER_EXPLORATION",
+            paper_only=True,
+            routes_to_live=False,
+            places_real_order=False,
+            paper_risk_controller_exploration=True,
+            confidence_raw=0.65,
+            confidence_calibrated=0.65,
+            microstructure_action="REDUCE_SIZE",
+            composite_microstructure_trust_score=0.59,
+            expected_move_after_cost_bps=60.0,
+            stop_distance_bps=24.0,
+            ATR_bps=12.0,
+        ),
+        closed_rows=[],
+        continuous_edge_guardian_gate=_guardian(
+            status="HALTED_PERFORMANCE",
+            a_grade_new_entries_allowed=False,
+            new_entries_allowed=False,
+        ),
+        allow_paper_risk_controller_exploration=True,
+        adaptive_tuning_state={
+            "adaptive_loss_probability_threshold": 0.0,
+            "enable_b_grade": False,
+        },
+    )
+
+    assert decision["pre_trade_loss_probability"] < 0.72
+    assert decision["adaptive_loss_probability_threshold_used"] == 0.0
+    assert decision["preemptive_decision"] == "PAPER_RISK_CONTROLLER_EXPLORATION"
+    assert decision["preemptive_action"] == "ALLOW_PAPER_RISK_CONTROLLER_EXPLORATION"
+    assert decision["allow_paper_fill"] is True
+    assert decision["routes_to_live"] is False
+    assert decision["places_real_order"] is False
+
+
+def test_fail_closed_global_tuner_remains_binding_outside_scoped_paper_lane() -> None:
+    decision = evaluate_candidate(
+        _candidate(
+            confidence_raw=0.65,
+            confidence_calibrated=0.65,
+            microstructure_action="ALLOW",
+            composite_microstructure_trust_score=0.82,
+            expected_move_after_cost_bps=60.0,
+            stop_distance_bps=24.0,
+            ATR_bps=12.0,
+        ),
+        closed_rows=[],
+        continuous_edge_guardian_gate=_guardian(),
+        adaptive_tuning_state={
+            "adaptive_loss_probability_threshold": 0.0,
+            "enable_b_grade": False,
+        },
+    )
+
+    assert decision["preemptive_decision"] == "NO_TRADE"
+    assert decision["preemptive_allowed"] is False
+    assert decision["adaptive_loss_probability_threshold_used"] == 0.0
+    assert decision["routes_to_live"] is False
+    assert decision["places_real_order"] is False
+
+
+def test_scoped_paper_exploration_requires_cohort_breaker_allow_proof() -> None:
+    decision = evaluate_candidate(
+        _candidate(
+            paper_cohort_breaker_new_entries_allowed=False,
+            confidence_raw=0.65,
+            confidence_calibrated=0.65,
+            microstructure_action="ALLOW",
+            composite_microstructure_trust_score=0.82,
+            expected_move_after_cost_bps=60.0,
+            stop_distance_bps=24.0,
+            ATR_bps=12.0,
+        ),
+        closed_rows=[],
+        continuous_edge_guardian_gate=_guardian(
+            status="HALTED_PERFORMANCE",
+            a_grade_new_entries_allowed=False,
+            new_entries_allowed=False,
+        ),
+        allow_paper_risk_controller_exploration=True,
+        adaptive_tuning_state={
+            "adaptive_loss_probability_threshold": 0.0,
+            "enable_b_grade": False,
+        },
+    )
+
+    assert decision["scoped_paper_lane_authorized"] is False
+    assert decision["preemptive_decision"] == "NO_TRADE"
+    assert decision["preemptive_allowed"] is False
+    assert decision["routes_to_live"] is False
+    assert decision["places_real_order"] is False
+
+
+def test_untradeable_microstructure_action_remains_fail_closed_with_exact_detail() -> None:
+    decision = evaluate_candidate(
+        _candidate(
+            microstructure_action="SHADOW_ONLY",
+            composite_microstructure_trust_score=0.99,
+            microstructure_trust_source=(
+                "v2:microstructure:trust_score:BTCUSDT:5m"
+            ),
+            microstructure_available_at="2026-07-27T02:00:00Z",
+            microstructure_trust_evidence={
+                "schema_version": "v2_native_trainer_microstructure_trust_evidence_v1",
+                "source_payload": {
+                    "schema_version": "microstructure_trust_score_v2",
+                    "record_available_at": "2026-07-27T02:00:00Z",
+                },
+            },
+        ),
+        closed_rows=[],
+        continuous_edge_guardian_gate=_guardian(),
+        decision_time="2026-07-27T02:00:01Z",
+    )
+
+    assert decision["preemptive_decision"] == "NO_TRADE"
+    assert decision["preemptive_action"] == "BLOCK_MICROSTRUCTURE_UNSAFE"
+    detail = next(
+        row
+        for row in decision["preemptive_predicate_details"]
+        if row["predicate"] == "microstructure_action"
+    )
+    assert detail == {
+        "predicate": "microstructure_action",
+        "actual": "SHADOW_ONLY",
+        "required": "ALLOW_OR_REDUCE_SIZE",
+        "passed": False,
+        "source_key": "v2:microstructure:trust_score:BTCUSDT:5m",
+        "source_schema": "microstructure_trust_score_v2",
+        "source_timestamp": "2026-07-27T02:00:00Z",
+        "decision_timestamp": "2026-07-27T02:00:01.000000Z",
+    }
     assert decision["routes_to_live"] is False
     assert decision["places_real_order"] is False
 

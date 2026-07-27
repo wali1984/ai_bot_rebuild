@@ -218,6 +218,11 @@ def test_guardian_halted_executable_candidate_routes_to_paper_risk_controller_ex
         _candidate(
             expected_move_after_cost_bps=60.0,
             exit_feasibility_score=0.82,
+            paper_only=True,
+            routes_to_live=False,
+            places_real_order=False,
+            paper_cohort_preemptive_controls_scoped=True,
+            paper_cohort_breaker_new_entries_allowed=True,
             advanced_indicator_context={
                 "bullish_fvg_present": True,
                 "fvg_trade_tape_confirmation": 0.9,

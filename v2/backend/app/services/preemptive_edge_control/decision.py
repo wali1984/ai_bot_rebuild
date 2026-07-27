@@ -814,7 +814,10 @@ def evaluate_candidate(
         or (altdata_present and altdata_euphoria is not None and altdata_euphoria >= 0.70)
     )
 
-    loss_probability = _f(loss.get("pre_trade_loss_probability")) or 1.0
+    parsed_loss_probability = _f(loss.get("pre_trade_loss_probability"))
+    loss_probability = (
+        parsed_loss_probability if parsed_loss_probability is not None else 1.0
+    )
     confidence_risk = _f(confidence.get("confidence_overstatement_risk")) or 0.0
     exit_score = _f(exit_plan.get("exit_feasibility_score")) or 0.0
     expected_edge = _f(cost.get("expected_edge_after_cost_bps"))
@@ -827,11 +830,50 @@ def evaluate_candidate(
         micro_action not in {"NO_TRADE", "SHADOW_ONLY", "CLOSE_OR_REDUCE_ONLY"}
         and trust is not None
     )
+    microstructure_evidence = (
+        candidate.get("microstructure_trust_evidence")
+        if isinstance(candidate.get("microstructure_trust_evidence"), Mapping)
+        else {}
+    )
+    microstructure_source_payload = (
+        microstructure_evidence.get("source_payload")
+        if isinstance(microstructure_evidence.get("source_payload"), Mapping)
+        else {}
+    )
+    microstructure_source_key = (
+        candidate.get("microstructure_trust_source")
+        or microstructure_source_payload.get("source_key")
+    )
+    microstructure_source_schema = (
+        microstructure_source_payload.get("schema_version")
+        or microstructure_evidence.get("schema_version")
+    )
+    microstructure_source_timestamp = (
+        microstructure_source_payload.get("record_available_at")
+        or candidate.get("microstructure_available_at")
+        or candidate.get("candidate_available_at")
+        or candidate.get("available_at")
+    )
+    if not trust_not_no_trade:
+        reasons.append(
+            "MICROSTRUCTURE_ACTION_NOT_TRADEABLE:"
+            f"actual={micro_action or 'MISSING'}:"
+            "required=ALLOW_OR_REDUCE_SIZE:"
+            f"source={microstructure_source_key or 'MISSING'}"
+        )
+    scoped_paper_lane_authorized = (
+        candidate.get("paper_only") is True
+        and candidate.get("routes_to_live") is False
+        and candidate.get("places_real_order") is False
+        and candidate.get("paper_cohort_preemptive_controls_scoped") is True
+        and candidate.get("paper_cohort_breaker_new_entries_allowed") is True
+    )
 
     adaptive_loss_prob_threshold = adaptive_loss_probability_threshold(tuning_state)
 
     positive_edge_probation_eligible = (
         allow_positive_edge_probation
+        and scoped_paper_lane_authorized
         and guardian_halted
         and not bucket.get("bucket_negative")
         and not matched_quarantine
@@ -846,6 +888,7 @@ def evaluate_candidate(
     )
     paper_risk_controller_exploration_eligible = (
         allow_paper_risk_controller_exploration
+        and scoped_paper_lane_authorized
         and guardian_halted
         and not bucket.get("bucket_negative")
         and not matched_quarantine
@@ -860,14 +903,30 @@ def evaluate_candidate(
         and not altdata_high_risk_conflict
     )
 
-    if (
+    hard_safety_block = (
         bucket.get("bucket_negative")
         or matched_quarantine
         or atr_stop_cluster
-        or loss_probability >= adaptive_loss_prob_threshold
         or advanced_block
         or not decision_time_input_valid
-    ):
+    )
+    scoped_paper_lane_eligible = (
+        positive_edge_probation_eligible or paper_risk_controller_exploration_eligible
+    )
+    adaptive_loss_threshold_applies = not scoped_paper_lane_eligible
+    adaptive_loss_threshold_breached = (
+        adaptive_loss_threshold_applies
+        and loss_probability >= adaptive_loss_prob_threshold
+    )
+    if adaptive_loss_threshold_breached:
+        reasons.append(
+            "PRE_TRADE_LOSS_PROBABILITY_AT_OR_ABOVE_ADAPTIVE_THRESHOLD:"
+            f"actual={loss_probability:.8f}:"
+            f"required_lt={adaptive_loss_prob_threshold:.8f}:"
+            "source=adaptive_tuning_state"
+        )
+
+    if hard_safety_block:
         decision = "NO_TRADE"
     elif positive_edge_probation_eligible:
         decision = "POSITIVE_EDGE_PROBATION_PAPER"
@@ -875,9 +934,13 @@ def evaluate_candidate(
     elif paper_risk_controller_exploration_eligible:
         decision = "PAPER_RISK_CONTROLLER_EXPLORATION"
         reasons.append("GLOBAL_GUARDIAN_HALT_SCOPED_TO_PAPER_RISK_CONTROLLER_EXPLORATION")
+    elif adaptive_loss_threshold_breached:
+        decision = "NO_TRADE"
     elif expected_edge is None or expected_edge <= 0:
         decision = "NO_TRADE"
     elif exit_score < 0.35:
+        decision = "NO_TRADE"
+    elif not trust_not_no_trade:
         decision = "NO_TRADE"
     elif guardian_halted:
         decision = "NO_TRADE"
@@ -1033,6 +1096,84 @@ def evaluate_candidate(
             "paper_risk_controller_exploration": (decision == "PAPER_RISK_CONTROLLER_EXPLORATION"),
             "allow_reduced_size_paper_only": decision == "REDUCE_SIZE_PAPER_ONLY",
             "allow_live_dry_run": decision == "ALLOW",
+            "scoped_paper_lane_authorized": scoped_paper_lane_authorized,
+            "adaptive_loss_probability_threshold_applied": (
+                adaptive_loss_threshold_applies
+            ),
+            "adaptive_loss_probability_threshold_breached": (
+                adaptive_loss_threshold_breached
+            ),
+            "preemptive_predicate_details": [
+                {
+                    "predicate": "microstructure_action",
+                    "actual": micro_action or None,
+                    "required": "ALLOW_OR_REDUCE_SIZE",
+                    "passed": trust_not_no_trade,
+                    "source_key": microstructure_source_key,
+                    "source_schema": microstructure_source_schema,
+                    "source_timestamp": microstructure_source_timestamp,
+                    "decision_timestamp": resolved_decision_time,
+                },
+                {
+                    "predicate": "adaptive_model_loss_probability",
+                    "actual": loss_probability,
+                    "required": f"<{adaptive_loss_prob_threshold:.8f}",
+                    "passed": (
+                        not adaptive_loss_threshold_applies
+                        or loss_probability < adaptive_loss_prob_threshold
+                    ),
+                    "applies": adaptive_loss_threshold_applies,
+                    "source_key": (
+                        tuning_state.get("canonical_key")
+                        or "v2:orchestrator:adaptive_gate_tuning_state"
+                    ),
+                    "source_schema": tuning_state.get("schema_version"),
+                    "source_timestamp": (
+                        tuning_state.get("available_at")
+                        or tuning_state.get("generated_at")
+                    ),
+                    "decision_timestamp": resolved_decision_time,
+                },
+                {
+                    "predicate": "paper_exploration_model_loss_probability",
+                    "actual": loss_probability,
+                    "required": (
+                        f"<{PAPER_RISK_CONTROLLER_EXPLORATION_LOSS_PROBABILITY_BOUND:.8f}"
+                    ),
+                    "passed": (
+                        loss_probability
+                        < PAPER_RISK_CONTROLLER_EXPLORATION_LOSS_PROBABILITY_BOUND
+                    ),
+                    "applies": (
+                        allow_paper_risk_controller_exploration
+                        and scoped_paper_lane_authorized
+                    ),
+                    "source_key": "pre_trade_loss_probability",
+                    "source_schema": SCHEMA_VERSION,
+                    "source_timestamp": resolved_decision_time,
+                    "decision_timestamp": resolved_decision_time,
+                },
+                {
+                    "predicate": "paper_cohort_scope",
+                    "actual": {
+                        "paper_only": candidate.get("paper_only"),
+                        "routes_to_live": candidate.get("routes_to_live"),
+                        "places_real_order": candidate.get("places_real_order"),
+                        "controls_scoped": candidate.get(
+                            "paper_cohort_preemptive_controls_scoped"
+                        ),
+                        "cohort_breaker_new_entries_allowed": candidate.get(
+                            "paper_cohort_breaker_new_entries_allowed"
+                        ),
+                    },
+                    "required": "GENERATION_COHORT_SCOPED_PAPER_ONLY_ALLOW",
+                    "passed": scoped_paper_lane_authorized,
+                    "source_key": "paper_cohort_breaker_state",
+                    "source_schema": "paper_performance_circuit_breaker_status_v1",
+                    "source_timestamp": candidate.get("paper_admission_decision_time"),
+                    "decision_timestamp": resolved_decision_time,
+                },
+            ],
             "paper_only": True,
             "routes_to_live": False,
             "places_real_order": False,
