@@ -487,109 +487,155 @@ class CandidateOutcomeArchiveV2:
         *,
         signed_at_ms: int,
     ) -> ArchiveAppendReceiptV2:
-        if type(record) is not CandidateDecisionOutcomeV2:
-            _raise("CandidateDecisionOutcomeV2_required", "record")
+        return self.append_many((record,), signed_at_ms=signed_at_ms)[0]
+
+    def append_many(
+        self,
+        records: tuple[CandidateDecisionOutcomeV2, ...],
+        *,
+        signed_at_ms: int,
+    ) -> tuple[ArchiveAppendReceiptV2, ...]:
+        """Append one complete cycle under one lock and one archive verification.
+
+        Candidate coverage cycles can contain hundreds of records.  Verifying
+        the full authenticated chain once per record would make runtime cost
+        quadratic as the archive grows.  This batch method preserves the same
+        per-record signatures, chain links, CAS rules, idempotency and fsync
+        durability while parsing/verifying the existing prefix only once.
+        """
+
+        if type(records) is not tuple or not records:
+            _raise("nonempty_tuple_required", "records")
         _require_positive_int(signed_at_ms, "signed_at_ms")
-        if signed_at_ms < record.record_available_at_ms:
-            _raise("cannot_sign_before_record_available", "signed_at_ms")
+        for index, record in enumerate(records):
+            if type(record) is not CandidateDecisionOutcomeV2:
+                _raise("CandidateDecisionOutcomeV2_required", f"records[{index}]")
+            if signed_at_ms < record.record_available_at_ms:
+                _raise("cannot_sign_before_record_available", f"records[{index}].signed_at_ms")
         if self._signer is None:
             _raise("external_signer_required", "signer")
+
         with self._locked():
             try:
                 rows = self._parse_rows()
                 verification = self._verify_rows(rows)
-                record_content_sha256 = record.content_sha256()
-                for existing in rows:
-                    if existing["archive_record_id"] == record.archive_record_id:
+                rows_by_archive_id = {row["archive_record_id"]: row for row in rows}
+                candidate_rows: dict[str, list[dict[str, Any]]] = {}
+                for row in rows:
+                    candidate_rows.setdefault(row["candidate_id"], []).append(row)
+                previous_chain_sha256 = verification.terminal_chain_sha256
+                pending_rows: list[dict[str, Any]] = []
+                receipts: list[ArchiveAppendReceiptV2] = []
+
+                for record in records:
+                    record_content_sha256 = record.content_sha256()
+                    existing = rows_by_archive_id.get(record.archive_record_id)
+                    if existing is not None:
                         if existing["record_content_sha256"] != record_content_sha256:
                             _raise("idempotency_key_content_collision", "archive_record_id")
-                        return self._receipt(existing, idempotent_replay=True)
-                candidate_rows = [
-                    row for row in rows if row["candidate_id"] == record.decision.candidate_id
-                ]
-                if record.archive_sequence != len(candidate_rows) + 1:
-                    _raise("candidate_compare_and_swap_sequence_mismatch", "archive_sequence")
-                if not candidate_rows:
-                    if record.archive_sequence != 1:
-                        _raise("first_revision_must_be_one", "archive_sequence")
-                else:
-                    previous = candidate_rows[-1]
-                    if record.previous_archive_record_sha256 != previous["record_content_sha256"]:
-                        _raise(
-                            "candidate_compare_and_swap_hash_mismatch",
-                            "previous_archive_record_sha256",
-                        )
-                    if record.decision.content_sha256() != previous["decision_snapshot_sha256"]:
-                        _raise("decision_snapshot_changed", "record")
-                    if record.record_generated_at_ms < previous["record"]["record_available_at_ms"]:
-                        _raise("successor_generated_before_previous_available", "record")
-                previous_chain_sha256 = verification.terminal_chain_sha256
-                row_index = len(rows) + 1
-                chain_sha256 = _chain_sha256(
-                    previous_chain_sha256=previous_chain_sha256,
-                    row_index=row_index,
-                    archive_record_id=record.archive_record_id,
-                    candidate_id=record.decision.candidate_id,
-                    archive_sequence=record.archive_sequence,
-                    record_content_sha256=record_content_sha256,
-                )
-                receipt_material = {
-                    "writer_id": self.writer_id,
-                    "row_index": row_index,
-                    "archive_record_id": record.archive_record_id,
-                    "candidate_id": record.decision.candidate_id,
-                    "archive_sequence": record.archive_sequence,
-                    "record_content_sha256": record_content_sha256,
-                    "chain_sha256": chain_sha256,
-                    "signed_at_ms": signed_at_ms,
-                }
-                row: dict[str, Any] = {
-                    "schema_version": ARCHIVE_ROW_SCHEMA_VERSION,
-                    "receipt_id": _receipt_id(receipt_material),
-                    "writer_id": self.writer_id,
-                    "writer_public_key_hex": self.writer_public_key_hex,
-                    "signature_algorithm": SIGNATURE_ALGORITHM,
-                    "signature_hex": "",
-                    "row_index": row_index,
-                    "archive_record_id": record.archive_record_id,
-                    "candidate_id": record.decision.candidate_id,
-                    "archive_sequence": record.archive_sequence,
-                    "decision_snapshot_sha256": record.decision.content_sha256(),
-                    "record_content_sha256": record_content_sha256,
-                    "previous_candidate_record_sha256": (record.previous_archive_record_sha256),
-                    "previous_chain_sha256": previous_chain_sha256,
-                    "chain_sha256": chain_sha256,
-                    "signed_at_ms": signed_at_ms,
-                    "record": record.to_dict(),
-                    "paper_only": True,
-                    "live_gate": "blocked_human_only",
-                    "routes_to_live": False,
-                    "places_real_order": False,
-                    "exchange_action_taken": False,
-                }
-                signature = self._signer(_signature_material(row))
-                if type(signature) is not bytes or len(signature) != 64:
-                    _raise("signer_must_return_64_bytes", "signer")
-                try:
-                    self._public_key.verify(signature, _signature_material(row))
-                except InvalidSignature as exc:
-                    raise CandidateOutcomeArchiveError(
-                        "signer:signature_does_not_match_pinned_public_key"
-                    ) from exc
-                row["signature_hex"] = signature.hex()
-                encoded = _canonical_json(row)
-                descriptor = _open_regular_file(
-                    self.archive_path,
-                    os.O_WRONLY | os.O_APPEND | os.O_CREAT,
-                )
-                with os.fdopen(descriptor, "a", encoding="utf-8") as archive_handle:
-                    archive_handle.write(encoded)
-                    archive_handle.write("\n")
-                    archive_handle.flush()
-                    os.fsync(archive_handle.fileno())
-                _fsync_directory(self.archive_path.parent)
-                self._verify_rows([*rows, row])
-                return self._receipt(row, idempotent_replay=False)
+                        receipts.append(self._receipt(existing, idempotent_replay=True))
+                        continue
+
+                    history = candidate_rows.setdefault(record.decision.candidate_id, [])
+                    if record.archive_sequence != len(history) + 1:
+                        _raise("candidate_compare_and_swap_sequence_mismatch", "archive_sequence")
+                    if not history:
+                        if record.archive_sequence != 1:
+                            _raise("first_revision_must_be_one", "archive_sequence")
+                    else:
+                        previous = history[-1]
+                        if (
+                            record.previous_archive_record_sha256
+                            != previous["record_content_sha256"]
+                        ):
+                            _raise(
+                                "candidate_compare_and_swap_hash_mismatch",
+                                "previous_archive_record_sha256",
+                            )
+                        if record.decision.content_sha256() != previous[
+                            "decision_snapshot_sha256"
+                        ]:
+                            _raise("decision_snapshot_changed", "record")
+                        if record.record_generated_at_ms < previous["record"][
+                            "record_available_at_ms"
+                        ]:
+                            _raise("successor_generated_before_previous_available", "record")
+
+                    row_index = len(rows) + len(pending_rows) + 1
+                    chain_sha256 = _chain_sha256(
+                        previous_chain_sha256=previous_chain_sha256,
+                        row_index=row_index,
+                        archive_record_id=record.archive_record_id,
+                        candidate_id=record.decision.candidate_id,
+                        archive_sequence=record.archive_sequence,
+                        record_content_sha256=record_content_sha256,
+                    )
+                    receipt_material = {
+                        "writer_id": self.writer_id,
+                        "row_index": row_index,
+                        "archive_record_id": record.archive_record_id,
+                        "candidate_id": record.decision.candidate_id,
+                        "archive_sequence": record.archive_sequence,
+                        "record_content_sha256": record_content_sha256,
+                        "chain_sha256": chain_sha256,
+                        "signed_at_ms": signed_at_ms,
+                    }
+                    row: dict[str, Any] = {
+                        "schema_version": ARCHIVE_ROW_SCHEMA_VERSION,
+                        "receipt_id": _receipt_id(receipt_material),
+                        "writer_id": self.writer_id,
+                        "writer_public_key_hex": self.writer_public_key_hex,
+                        "signature_algorithm": SIGNATURE_ALGORITHM,
+                        "signature_hex": "",
+                        "row_index": row_index,
+                        "archive_record_id": record.archive_record_id,
+                        "candidate_id": record.decision.candidate_id,
+                        "archive_sequence": record.archive_sequence,
+                        "decision_snapshot_sha256": record.decision.content_sha256(),
+                        "record_content_sha256": record_content_sha256,
+                        "previous_candidate_record_sha256": (
+                            record.previous_archive_record_sha256
+                        ),
+                        "previous_chain_sha256": previous_chain_sha256,
+                        "chain_sha256": chain_sha256,
+                        "signed_at_ms": signed_at_ms,
+                        "record": record.to_dict(),
+                        "paper_only": True,
+                        "live_gate": "blocked_human_only",
+                        "routes_to_live": False,
+                        "places_real_order": False,
+                        "exchange_action_taken": False,
+                    }
+                    signature = self._signer(_signature_material(row))
+                    if type(signature) is not bytes or len(signature) != 64:
+                        _raise("signer_must_return_64_bytes", "signer")
+                    try:
+                        self._public_key.verify(signature, _signature_material(row))
+                    except InvalidSignature as exc:
+                        raise CandidateOutcomeArchiveError(
+                            "signer:signature_does_not_match_pinned_public_key"
+                        ) from exc
+                    row["signature_hex"] = signature.hex()
+                    pending_rows.append(row)
+                    rows_by_archive_id[record.archive_record_id] = row
+                    history.append(row)
+                    previous_chain_sha256 = chain_sha256
+                    receipts.append(self._receipt(row, idempotent_replay=False))
+
+                if pending_rows:
+                    descriptor = _open_regular_file(
+                        self.archive_path,
+                        os.O_WRONLY | os.O_APPEND | os.O_CREAT,
+                    )
+                    with os.fdopen(descriptor, "a", encoding="utf-8") as archive_handle:
+                        for row in pending_rows:
+                            archive_handle.write(_canonical_json(row))
+                            archive_handle.write("\n")
+                        archive_handle.flush()
+                        os.fsync(archive_handle.fileno())
+                    _fsync_directory(self.archive_path.parent)
+                    self._verify_rows([*rows, *pending_rows])
+                return tuple(receipts)
             except OSError as exc:
                 raise CandidateOutcomeArchiveError(
                     f"archive_path:secure_append_failed:{type(exc).__name__}"

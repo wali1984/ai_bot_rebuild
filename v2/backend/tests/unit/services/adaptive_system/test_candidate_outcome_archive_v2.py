@@ -105,6 +105,45 @@ def test_idempotent_retry_returns_original_receipt_without_duplicate(tmp_path: P
     assert archive.verify().row_count == 1
 
 
+def test_append_many_verifies_prefix_once_and_preserves_per_record_chain(tmp_path: Path) -> None:
+    archive, _, _ = _writer(tmp_path / "candidate-outcomes.jsonl")
+    first = _archive()
+    second = _archive(
+        _decision(candidate_id="candidate-2"),
+        archive_record_id="candidate-2-decision",
+    )
+    receipts = archive.append_many((first, second), signed_at_ms=1_100_000)
+    assert len(receipts) == 2
+    assert receipts[0].idempotent_replay is False
+    assert receipts[1].idempotent_replay is False
+    assert receipts[0].chain_sha256 != receipts[1].chain_sha256
+    status = archive.verify()
+    assert status.row_count == 2
+    assert status.candidate_count == 2
+
+    replay = archive.append_many((first, second), signed_at_ms=1_200_000)
+    assert all(receipt.idempotent_replay is True for receipt in replay)
+    assert archive.verify().row_count == 2
+
+
+def test_append_many_validation_failure_writes_no_partial_batch(tmp_path: Path) -> None:
+    path = tmp_path / "candidate-outcomes.jsonl"
+    archive, _, _ = _writer(path)
+    first = _archive()
+    invalid_second = _archive(
+        _decision(candidate_id="candidate-2"),
+        _labels(_decision(candidate_id="candidate-2")),
+        archive_record_id="candidate-2-matured",
+        previous_archive_record_sha256=_sha("missing-predecessor"),
+    )
+    with pytest.raises(
+        CandidateOutcomeArchiveError,
+        match="candidate_compare_and_swap_sequence_mismatch",
+    ):
+        archive.append_many((first, invalid_second), signed_at_ms=2_000_000)
+    assert archive.verify().row_count == 0
+
+
 def test_idempotency_key_collision_fails_closed(tmp_path: Path) -> None:
     archive, _, _ = _writer(tmp_path / "candidate-outcomes.jsonl")
     first = _archive()
