@@ -18272,6 +18272,7 @@ def test_symbol_execution_feasibility_publication_is_bounded_and_paper_only() ->
 
 def test_execution_preflight_is_not_reported_as_final_governed_authorization() -> None:
     preflight_only = {
+        "intent_id": "intent-execution-preflight-only",
         "symbol": "BTCUSDT",
         "timeframe": "5m",
         "side": "long",
@@ -18288,10 +18289,12 @@ def test_execution_preflight_is_not_reported_as_final_governed_authorization() -
         accepted_rows=[],
         current_accepted_rows=[],
         blocked_rows=[preflight_only],
-        shadow_rows=[],
+        shadow_rows=[dict(preflight_only)],
         held_rows=[],
     )["execution_feasibility"]
 
+    assert preflight_status["directional_candidates"] == 1
+    assert preflight_status["exact_execution_feasibility_evidence_count"] == 1
     assert preflight_status["execution_feasible_candidates"] == 1
     assert preflight_status["final_authorizations"] == 0
     assert preflight_status["fully_admissible_and_executable"] == 0

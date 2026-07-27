@@ -22995,56 +22995,93 @@ def _paper_exploration_tier_status(
         source_collection="paper_exploration_tier_status.blocked",
         authoritative_source="paper_loop:current_cycle_blocked_rows",
     )
-    directional_rows = [
-        row
-        for row in rows
-        if _normalized_directional_side(
+    directional_candidate_groups: dict[tuple[str, str, str, str], list[dict[str, Any]]] = {}
+    for row_index, row in enumerate(rows):
+        side = _normalized_directional_side(
             _first_present(row.get("side"), row.get("selected_action"), row.get("action"))
         )
-        in {"long", "short"}
-    ]
-    execution_evidence_rows = [
-        row
-        for row in directional_rows
-        if isinstance(row.get("paper_execution_minimum_feasibility"), Mapping)
-    ]
-    execution_feasible_rows = [
-        row
-        for row in execution_evidence_rows
-        if row.get("paper_execution_minimum_feasible") is True
-    ]
-    final_authorization_rows = [
-        row
-        for row in directional_rows
-        if row.get("paper_final_governed_authorization") is True
-        and row.get("paper_final_admission_status") == "PASS"
-    ]
-    fully_admissible_and_executable_rows = [
-        row
-        for row in final_authorization_rows
-        if row.get("paper_execution_minimum_feasible") is True
-        and isinstance(row.get("paper_execution_minimum_feasibility"), Mapping)
-    ]
-    execution_minimum_blocked_rows = [
-        row
-        for row in blocked_rows
-        if _first_present(
-            row.get("paper_fill_block_reason"),
-            row.get("paper_allocation_block_reason"),
-            row.get("allocator_decision"),
+        if side not in {"long", "short"}:
+            continue
+        candidate_id = str(
+            _first_present(
+                row.get("intent_id"),
+                row.get("paper_intent_id"),
+                row.get("signal_id"),
+                row.get("prediction_id"),
+            )
+            or f"row:{row_index}"
         )
-        == "BLOCK_RISK_BUDGET_BELOW_EXECUTABLE_MINIMUM"
+        identity = (
+            candidate_id,
+            str(row.get("symbol") or "").upper(),
+            str(_first_present(row.get("thesis_timeframe"), row.get("timeframe")) or ""),
+            side,
+        )
+        directional_candidate_groups.setdefault(identity, []).append(row)
+    candidate_groups = list(directional_candidate_groups.values())
+
+    def group_has(group: list[dict[str, Any]], predicate: Any) -> bool:
+        return any(predicate(row) for row in group)
+
+    execution_evidence_groups = [
+        group
+        for group in candidate_groups
+        if group_has(
+            group,
+            lambda row: isinstance(row.get("paper_execution_minimum_feasibility"), Mapping),
+        )
     ]
-    preflight_disagreement_rows = [
-        row
-        for row in directional_rows
-        if (row.get("paper_execution_preflight_allocator_contract") or {}).get("values_match")
-        is False
+    execution_feasible_groups = [
+        group
+        for group in execution_evidence_groups
+        if group_has(group, lambda row: row.get("paper_execution_minimum_feasible") is True)
     ]
-    generic_exchange_min_rows = [
-        row
-        for row in directional_rows
-        if row.get("allocator_decision") == "BLOCK_EXCHANGE_MIN_ORDER"
+    final_authorization_groups = [
+        group
+        for group in candidate_groups
+        if group_has(
+            group,
+            lambda row: row.get("paper_final_governed_authorization") is True
+            and row.get("paper_final_admission_status") == "PASS",
+        )
+    ]
+    fully_admissible_and_executable_groups = [
+        group
+        for group in final_authorization_groups
+        if group_has(
+            group,
+            lambda row: row.get("paper_execution_minimum_feasible") is True
+            and isinstance(row.get("paper_execution_minimum_feasibility"), Mapping),
+        )
+    ]
+    execution_minimum_blocked_groups = [
+        group
+        for group in candidate_groups
+        if group_has(
+            group,
+            lambda row: _first_present(
+                row.get("paper_fill_block_reason"),
+                row.get("paper_allocation_block_reason"),
+                row.get("allocator_decision"),
+            )
+            == "BLOCK_RISK_BUDGET_BELOW_EXECUTABLE_MINIMUM",
+        )
+    ]
+    preflight_disagreement_groups = [
+        group
+        for group in candidate_groups
+        if group_has(
+            group,
+            lambda row: (
+                row.get("paper_execution_preflight_allocator_contract") or {}
+            ).get("values_match")
+            is False,
+        )
+    ]
+    generic_exchange_min_groups = [
+        group
+        for group in candidate_groups
+        if group_has(group, lambda row: row.get("allocator_decision") == "BLOCK_EXCHANGE_MIN_ORDER")
     ]
     return {
         "status": "ACTIVE",
@@ -23052,62 +23089,88 @@ def _paper_exploration_tier_status(
         "live_path_changed": False,
         "execution_feasibility": {
             "schema_version": "paper_execution_feasibility_cycle_status_v1",
-            "directional_candidates": len(directional_rows),
+            "candidate_identity_semantics": (
+                "UNIQUE_INTENT_OR_SIGNAL_OR_PREDICTION_ID_SYMBOL_TIMEFRAME_SIDE"
+            ),
+            "directional_candidates": len(candidate_groups),
             "policy_safe_candidates": sum(
                 1
-                for row in directional_rows
-                if row.get("paper_opportunity_tier")
-                in {
-                    PAPER_TIER_A_GRADE_EXECUTION,
-                    PAPER_TIER_A_PLUS_BOOTSTRAP_REDUCED_SIZE,
-                    PAPER_TIER_B_GRADE_EXPLORATION,
-                    PAPER_TIER_POSITIVE_EDGE_PROBATION,
-                    PAPER_TIER_RISK_CONTROLLER_EXPLORATION,
-                }
+                for group in candidate_groups
+                if group_has(
+                    group,
+                    lambda row: row.get("paper_opportunity_tier")
+                    in {
+                        PAPER_TIER_A_GRADE_EXECUTION,
+                        PAPER_TIER_A_PLUS_BOOTSTRAP_REDUCED_SIZE,
+                        PAPER_TIER_B_GRADE_EXPLORATION,
+                        PAPER_TIER_POSITIVE_EDGE_PROBATION,
+                        PAPER_TIER_RISK_CONTROLLER_EXPLORATION,
+                    },
+                )
             ),
             "risk_safe_candidates": sum(
                 1
-                for row in directional_rows
-                if row.get("allocator_decision")
-                in {
-                    "ALLOW_WITH_SIZE",
-                    "REDUCE_SIZE",
-                    "BLOCK_RISK_BUDGET_BELOW_EXECUTABLE_MINIMUM",
-                }
+                for group in candidate_groups
+                if group_has(
+                    group,
+                    lambda row: row.get("allocator_decision")
+                    in {
+                        "ALLOW_WITH_SIZE",
+                        "REDUCE_SIZE",
+                        "BLOCK_RISK_BUDGET_BELOW_EXECUTABLE_MINIMUM",
+                    },
+                )
             ),
-            "execution_feasible_candidates": len(execution_feasible_rows),
-            "final_authorizations": len(final_authorization_rows),
+            "execution_feasible_candidates": len(execution_feasible_groups),
+            "final_authorizations": len(final_authorization_groups),
             "model_blocked": sum(
                 1
-                for row in blocked_rows
-                if "LOSS_PROBABILITY" in str(row.get("preemptive_action") or "")
+                for group in candidate_groups
+                if group_has(
+                    group,
+                    lambda row: "LOSS_PROBABILITY"
+                    in str(row.get("preemptive_action") or ""),
+                )
             ),
             "microstructure_blocked": sum(
                 1
-                for row in blocked_rows
-                if "MICROSTRUCTURE" in json.dumps(row.get("paper_fill_gate_block_reasons") or [])
+                for group in candidate_groups
+                if group_has(
+                    group,
+                    lambda row: "MICROSTRUCTURE"
+                    in json.dumps(row.get("paper_fill_gate_block_reasons") or []),
+                )
             ),
             "guardian_blocked": sum(
                 1
-                for row in blocked_rows
-                if "GUARDIAN" in json.dumps(row.get("paper_fill_gate_block_reasons") or [])
+                for group in candidate_groups
+                if group_has(
+                    group,
+                    lambda row: "GUARDIAN"
+                    in json.dumps(row.get("paper_fill_gate_block_reasons") or []),
+                )
             ),
             "risk_blocked": sum(
                 1
-                for row in blocked_rows
-                if str(row.get("allocator_decision") or "").startswith("BLOCK_")
-                and row.get("allocator_decision")
-                not in {
-                    "BLOCK_EXCHANGE_MIN_ORDER",
-                    "BLOCK_RISK_BUDGET_BELOW_EXECUTABLE_MINIMUM",
-                }
+                for group in candidate_groups
+                if group_has(
+                    group,
+                    lambda row: str(row.get("allocator_decision") or "").startswith("BLOCK_")
+                    and row.get("allocator_decision")
+                    not in {
+                        "BLOCK_EXCHANGE_MIN_ORDER",
+                        "BLOCK_RISK_BUDGET_BELOW_EXECUTABLE_MINIMUM",
+                    },
+                )
             ),
-            "execution_minimum_blocked": len(execution_minimum_blocked_rows),
-            "fully_admissible_and_executable": len(fully_admissible_and_executable_rows),
-            "preflight_allocator_disagreements": len(preflight_disagreement_rows),
-            "generic_exchange_min_blocks": len(generic_exchange_min_rows),
-            "exact_execution_feasibility_evidence_present": bool(execution_evidence_rows),
-            "exact_execution_feasibility_evidence_count": len(execution_evidence_rows),
+            "execution_minimum_blocked": len(execution_minimum_blocked_groups),
+            "fully_admissible_and_executable": len(
+                fully_admissible_and_executable_groups
+            ),
+            "preflight_allocator_disagreements": len(preflight_disagreement_groups),
+            "generic_exchange_min_blocks": len(generic_exchange_min_groups),
+            "exact_execution_feasibility_evidence_present": bool(execution_evidence_groups),
+            "exact_execution_feasibility_evidence_count": len(execution_evidence_groups),
             "paper_only": True,
             "routes_to_live": False,
             "places_real_order": False,
