@@ -203,6 +203,88 @@ def test_metric_semantics_are_exact(field: str, value: object, message: str) -> 
         dataclasses.replace(_calibrated_probability("loss_probability"), **{field: value})
 
 
+@pytest.mark.parametrize(
+    ("group_index", "metric_name", "bad_value"),
+    [
+        (1, "minimum_executable_capital_usd", -5.0),
+        (1, "rounded_valid_quantity", -1.0),
+        (1, "estimated_delay_ms", -10.0),
+        (5, "available_liquidity_capacity_usd", -100.0),
+        (3, "correlation_contribution", 2.5),
+    ],
+)
+def test_physical_metric_domains_fail_closed(
+    group_index: int,
+    metric_name: str,
+    bad_value: float,
+) -> None:
+    unavailable = next(
+        item for item in _groups()[group_index].scalar_estimates if item.name == metric_name
+    )
+    changes: dict[str, object]
+    if metric_name in {"minimum_executable_capital_usd", "rounded_valid_quantity"}:
+        changes = {
+            "availability": AVAILABLE,
+            "semantic_kind": FACT,
+            "value": bad_value,
+            "unit": (
+                "USD" if metric_name == "minimum_executable_capital_usd" else "base_asset_quantity"
+            ),
+            "producer_id": "physical_fact_producer_v1",
+            "source_field": metric_name,
+            "source_schema": "physical_fact_v1",
+            "source_receipt_sha256s": (_sha("1"),),
+            "unavailable_reason": None,
+        }
+    else:
+        units = {
+            "estimated_delay_ms": "milliseconds",
+            "available_liquidity_capacity_usd": "USD",
+            "correlation_contribution": "correlation",
+        }
+        changes = {
+            "availability": AVAILABLE,
+            "semantic_kind": "POINT_ESTIMATE",
+            "value": bad_value,
+            "unit": units[metric_name],
+            "horizon_seconds": 300,
+            "producer_id": "point_estimate_producer_v1",
+            "source_field": metric_name,
+            "source_schema": "point_estimate_v1",
+            "model_id": "point_estimate_model_v1",
+            "source_receipt_sha256s": (_sha("1"),),
+            "unavailable_reason": None,
+        }
+    with pytest.raises(AdaptiveComponentEstimateDomainError, match="metric_minimum|metric_maximum"):
+        dataclasses.replace(unavailable, **changes)
+
+
+def test_fill_delay_distribution_rejects_negative_quantiles() -> None:
+    with pytest.raises(AdaptiveComponentEstimateDomainError, match="metric_minimum"):
+        DistributionEstimateV1(
+            name="fill_delay_ms_distribution",
+            availability=AVAILABLE,
+            semantic_kind=EMPIRICAL_DISTRIBUTION,
+            unit="milliseconds",
+            horizon_seconds=300,
+            quantiles=(QuantileV1(0.1, -10.0), QuantileV1(0.5, -5.0), QuantileV1(0.9, -1.0)),
+            sample_count=200,
+            producer_id="fill_delay_empirical_v1",
+            source_field="fill_delay_ms",
+            source_schema="paper_fill_outcomes_v1",
+            model_id="fill_delay_empirical_v1",
+            calibration_evidence=None,
+            source_receipt_sha256s=(_sha("1"),),
+            unavailable_reason=None,
+        )
+
+
+@pytest.mark.parametrize("symbol", ["BTC USDT", "btcusdt", "BTC-USDT", "B"])
+def test_symbol_requires_strict_venue_format(symbol: str) -> None:
+    with pytest.raises(AdaptiveComponentEstimateDomainError, match="venue_symbol"):
+        _valid_bundle(symbol=symbol)
+
+
 def test_heuristic_is_namespaced_and_kept_out_of_required_probability_slot() -> None:
     with pytest.raises(AdaptiveComponentEstimateDomainError, match="FACT_boolean|semantic_kind"):
         dataclasses.replace(

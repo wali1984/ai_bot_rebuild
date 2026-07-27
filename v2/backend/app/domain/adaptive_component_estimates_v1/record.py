@@ -72,6 +72,8 @@ class _ScalarMetricSpec:
     value_type: str
     horizon_required: bool
     sample_required: bool
+    minimum_value: float | None = None
+    maximum_value: float | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -79,6 +81,8 @@ class _DistributionMetricSpec:
     semantic_kinds: frozenset[str]
     unit: str
     quantile_probabilities: tuple[float, ...]
+    minimum_value: float | None = None
+    maximum_value: float | None = None
 
 
 _REQUIRED_SCALARS = {
@@ -160,22 +164,37 @@ _SCALAR_METRIC_SPECS = {
         frozenset({POINT_ESTIMATE}), "probability_0_1", "float", True, False
     ),
     "estimated_delay_ms": _ScalarMetricSpec(
-        frozenset({POINT_ESTIMATE}), "milliseconds", "float", True, False
+        frozenset({POINT_ESTIMATE}),
+        "milliseconds",
+        "float",
+        True,
+        False,
+        minimum_value=0.0,
     ),
     "expected_transaction_cost_bps": _ScalarMetricSpec(
-        frozenset({POINT_ESTIMATE}), "bps", "float", True, False
+        frozenset({POINT_ESTIMATE}),
+        "bps",
+        "float",
+        True,
+        False,
+        minimum_value=0.0,
     ),
     "fill_probability": _ScalarMetricSpec(
         frozenset({CALIBRATED_PROBABILITY}), "probability_0_1", "float", True, True
     ),
     "minimum_executable_capital_usd": _ScalarMetricSpec(
-        frozenset({FACT}), "USD", "float", False, False
+        frozenset({FACT}), "USD", "float", False, False, minimum_value=0.0
     ),
     "partial_fill_probability": _ScalarMetricSpec(
         frozenset({CALIBRATED_PROBABILITY}), "probability_0_1", "float", True, True
     ),
     "rounded_valid_quantity": _ScalarMetricSpec(
-        frozenset({FACT}), "base_asset_quantity", "float", False, False
+        frozenset({FACT}),
+        "base_asset_quantity",
+        "float",
+        False,
+        False,
+        minimum_value=0.0,
     ),
     "venue_feasible": _ScalarMetricSpec(frozenset({FACT}), "boolean", "bool", False, False),
     "exit_fill_probability": _ScalarMetricSpec(
@@ -191,7 +210,13 @@ _SCALAR_METRIC_SPECS = {
         frozenset({CALIBRATED_PROBABILITY}), "probability_0_1", "float", True, True
     ),
     "correlation_contribution": _ScalarMetricSpec(
-        frozenset({POINT_ESTIMATE}), "correlation", "float", True, False
+        frozenset({POINT_ESTIMATE}),
+        "correlation",
+        "float",
+        True,
+        False,
+        minimum_value=-1.0,
+        maximum_value=1.0,
     ),
     "drawdown_contribution_bps": _ScalarMetricSpec(
         frozenset({POINT_ESTIMATE}), "bps", "float", True, False
@@ -209,7 +234,12 @@ _SCALAR_METRIC_SPECS = {
         frozenset({CALIBRATED_PROBABILITY}), "probability_0_1", "float", True, True
     ),
     "available_liquidity_capacity_usd": _ScalarMetricSpec(
-        frozenset({POINT_ESTIMATE}), "USD", "float", True, False
+        frozenset({POINT_ESTIMATE}),
+        "USD",
+        "float",
+        True,
+        False,
+        minimum_value=0.0,
     ),
     "execution_uncertainty": _ScalarMetricSpec(
         frozenset({POINT_ESTIMATE}), "probability_0_1", "float", True, False
@@ -242,6 +272,7 @@ _DISTRIBUTION_METRIC_SPECS = {
         frozenset({CALIBRATED_DISTRIBUTION, EMPIRICAL_DISTRIBUTION}),
         "milliseconds",
         (0.1, 0.5, 0.9),
+        minimum_value=0.0,
     ),
     "transaction_cost_bps_distribution": _DistributionMetricSpec(
         frozenset({CALIBRATED_DISTRIBUTION, EMPIRICAL_DISTRIBUTION}),
@@ -527,6 +558,11 @@ class ScalarEstimateV1:
                 _raise("horizon_required_for_metric", f"scalar.{self.name}")
             if spec.sample_required and (self.sample_count is None or self.sample_count < 1):
                 _raise("positive_sample_required_for_metric", f"scalar.{self.name}")
+            if isinstance(self.value, float):
+                if spec.minimum_value is not None and self.value < spec.minimum_value:
+                    _raise("value_below_metric_minimum", f"scalar.{self.name}")
+                if spec.maximum_value is not None and self.value > spec.maximum_value:
+                    _raise("value_above_metric_maximum", f"scalar.{self.name}")
         elif self.semantic_kind != HEURISTIC_SCORE or "heuristic" not in self.name:
             _raise("unknown_metric_requires_namespaced_heuristic", f"scalar.{self.name}")
         if self.semantic_kind in _CALIBRATED_KINDS:
@@ -617,6 +653,10 @@ class DistributionEstimateV1:
             _raise("unit_does_not_match_metric", f"distribution.{self.name}")
         if probabilities != spec.quantile_probabilities:
             _raise("quantile_grid_does_not_match_metric", f"distribution.{self.name}")
+        if spec.minimum_value is not None and any(value < spec.minimum_value for value in values):
+            _raise("value_below_metric_minimum", f"distribution.{self.name}")
+        if spec.maximum_value is not None and any(value > spec.maximum_value for value in values):
+            _raise("value_above_metric_maximum", f"distribution.{self.name}")
         if self.unavailable_reason is not None:
             _raise("available_forbids_unavailable_reason", f"distribution.{self.name}")
         if self.sample_count is not None:
@@ -961,12 +1001,8 @@ class AdaptiveComponentEstimatesV1:
             "latest_unclosed_exclusion_method",
         ):
             _require_identifier(getattr(self, field), field)
-        if (
-            not isinstance(self.symbol, str)
-            or not self.symbol
-            or self.symbol != self.symbol.upper()
-        ):
-            _raise("must_be_non_empty_uppercase_symbol", "symbol")
+        if not isinstance(self.symbol, str) or re.fullmatch(r"[A-Z0-9]{2,32}", self.symbol) is None:
+            _raise("must_be_uppercase_alphanumeric_venue_symbol", "symbol")
         if self.side not in {"LONG", "SHORT"}:
             _raise("must_be_LONG_or_SHORT", "side")
         for field in (
