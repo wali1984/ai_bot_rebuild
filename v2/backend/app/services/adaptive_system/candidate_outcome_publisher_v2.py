@@ -139,6 +139,7 @@ def _source_receipts(
     intent: Mapping[str, Any],
     registry: PaperRegistryBindingV2,
     feature_snapshot: Mapping[str, Any],
+    extra_receipts: tuple[str, ...] = (),
 ) -> tuple[str, ...]:
     prediction = intent.get("entry_prediction_snapshot")
     prediction = prediction if isinstance(prediction, Mapping) else {}
@@ -161,6 +162,7 @@ def _source_receipts(
             if isinstance(feature_snapshot.get("source_hashes"), Mapping)
             else ()
         ),
+        *extra_receipts,
     ]
     receipts = tuple(
         sorted(
@@ -490,11 +492,8 @@ _COMPONENT_FIELDS = (
     "preemptive_predicate_details",
 )
 _PORTFOLIO_FIELDS = (
-    "paper_cycle_base_resource_evidence",
     "paper_cycle_base_resource_evidence_hash",
-    "paper_cycle_reservation_snapshot",
     "paper_cycle_reservation_snapshot_hash",
-    "paper_dynamic_envelope_reservation_evidence",
     "paper_dynamic_envelope_reservation_evidence_hash",
     "portfolio_exposure_after_trade",
     "correlation_exposure_after_trade",
@@ -564,6 +563,151 @@ def _decision_disposition(intent: Mapping[str, Any]) -> tuple[str, str, str]:
         reason[:512],
         "REMAIN_FLAT",
     )
+
+
+def _verified_embedded_hash(
+    intent: Mapping[str, Any],
+    *,
+    source_field: str,
+    top_level_hash_field: str,
+    embedded_hash_field: str,
+) -> tuple[dict[str, Any], str, str]:
+    source = _clean_mapping(intent.get(source_field))
+    if not source:
+        _fail("mapping_required", f"intent.{source_field}")
+    producer_digest = _require_sha256(
+        source.get(embedded_hash_field), f"intent.{source_field}.{embedded_hash_field}"
+    )
+    if intent.get(top_level_hash_field) != producer_digest:
+        _fail("top_level_hash_mismatch", f"intent.{top_level_hash_field}")
+    producer_material = dict(source)
+    producer_material.pop(embedded_hash_field, None)
+    if _sha256(producer_material) != producer_digest:
+        _fail("producer_hash_mismatch", f"intent.{source_field}")
+    return source, producer_digest, _sha256(source)
+
+
+def _sequence_digest(value: object) -> tuple[int, str]:
+    sequence = value if isinstance(value, list | tuple) else []
+    return len(sequence), _sha256(sequence)
+
+
+def _portfolio_state_payload(
+    intent: Mapping[str, Any],
+) -> tuple[dict[str, Any], tuple[str, ...]]:
+    base, base_producer_sha, base_payload_sha = _verified_embedded_hash(
+        intent,
+        source_field="paper_cycle_base_resource_evidence",
+        top_level_hash_field="paper_cycle_base_resource_evidence_hash",
+        embedded_hash_field="evidence_hash",
+    )
+    reservation, reservation_producer_sha, reservation_payload_sha = (
+        _verified_embedded_hash(
+            intent,
+            source_field="paper_cycle_reservation_snapshot",
+            top_level_hash_field="paper_cycle_reservation_snapshot_hash",
+            embedded_hash_field="snapshot_hash",
+        )
+    )
+    dynamic, dynamic_producer_sha, dynamic_payload_sha = _verified_embedded_hash(
+        intent,
+        source_field="paper_dynamic_envelope_reservation_evidence",
+        top_level_hash_field="paper_dynamic_envelope_reservation_evidence_hash",
+        embedded_hash_field="evidence_hash",
+    )
+
+    prior_count, prior_sha = _sequence_digest(reservation.get("prior_reservations"))
+    accounting_count, accounting_sha = _sequence_digest(
+        reservation.get("accounting_semantics")
+    )
+    source_evidence = _clean_mapping(dynamic.get("source_evidence"))
+    growth_receipt = _clean_mapping(source_evidence.pop("growth_authorization_receipt", {}))
+    growth_rejections = source_evidence.pop("growth_authorization_rejection_reasons", [])
+    growth_rejection_count, growth_rejection_sha = _sequence_digest(growth_rejections)
+    calculation_input = _clean_mapping(dynamic.get("calculation_input_material"))
+    calculation_projection = {
+        field: calculation_input.get(field)
+        for field in (
+            "schema_version",
+            "arguments",
+            "base_envelope",
+            "growth_authorization_receipt_hash",
+        )
+    }
+    dynamic_rejection_count, dynamic_rejection_sha = _sequence_digest(
+        dynamic.get("rejection_reasons")
+    )
+    payload = {
+        "schema_version": "candidate_portfolio_state_projection_v2",
+        **_project(intent, _PORTFOLIO_FIELDS),
+        "base_resource": {
+            **{
+                key: value
+                for key, value in base.items()
+                if key != "evidence_hash"
+            },
+            "producer_evidence_sha256": base_producer_sha,
+            "source_payload_sha256": base_payload_sha,
+        },
+        "reservation": {
+            "schema_version": reservation.get("schema_version"),
+            "status": reservation.get("status"),
+            "candidate_symbol": reservation.get("candidate_symbol"),
+            "cycle_identity": reservation.get("cycle_identity"),
+            "prior_accepted_count": reservation.get("prior_accepted_count"),
+            "inputs": reservation.get("inputs"),
+            "derived": reservation.get("derived"),
+            "evidence_bindings": reservation.get("evidence_bindings"),
+            "rejection_reasons": reservation.get("rejection_reasons"),
+            "prior_reservation_count": prior_count,
+            "prior_reservations_sha256": prior_sha,
+            "accounting_semantics_count": accounting_count,
+            "accounting_semantics_sha256": accounting_sha,
+            "producer_snapshot_sha256": reservation_producer_sha,
+            "source_payload_sha256": reservation_payload_sha,
+            **_SAFE_ACTION_AUTHORITY,
+        },
+        "dynamic_envelope": {
+            "schema_version": dynamic.get("schema_version"),
+            "status": dynamic.get("status"),
+            "limits": dynamic.get("limits"),
+            "source_evidence": source_evidence,
+            "calculation_input": calculation_projection,
+            "calculation_input_hash": dynamic.get("calculation_input_hash"),
+            "growth_authorization_receipt_sha256": (
+                _sha256(growth_receipt) if growth_receipt else None
+            ),
+            "growth_authorization_rejection_count": growth_rejection_count,
+            "growth_authorization_rejections_sha256": growth_rejection_sha,
+            "rejection_count": dynamic_rejection_count,
+            "rejections_sha256": dynamic_rejection_sha,
+            "producer_evidence_sha256": dynamic_producer_sha,
+            "source_payload_sha256": dynamic_payload_sha,
+            **_SAFE_ACTION_AUTHORITY,
+        },
+    }
+    receipts = tuple(
+        sorted(
+            {
+                base_producer_sha,
+                base_payload_sha,
+                reservation_producer_sha,
+                reservation_payload_sha,
+                dynamic_producer_sha,
+                dynamic_payload_sha,
+                prior_sha,
+                accounting_sha,
+                growth_rejection_sha,
+                dynamic_rejection_sha,
+                *(
+                    (_sha256(growth_receipt),)
+                    if growth_receipt
+                    else ()
+                ),
+            }
+        )
+    )
+    return payload, receipts
 
 
 def _evidence(
@@ -738,13 +882,28 @@ def build_decision_revision(
     exclusion_method = feature_binding.latest_unclosed_exclusion_method
     original_decision_ms = feature_binding.original_decision_time_ms
 
-    source_receipts = _source_receipts(intent, registry, feature_snapshot)
+    portfolio_payload, portfolio_receipts = _portfolio_state_payload(intent)
+    source_receipts = _source_receipts(
+        intent,
+        registry,
+        feature_snapshot,
+        extra_receipts=portfolio_receipts,
+    )
+    source_receipt_bundle_sha256 = _sha256(
+        {
+            "schema_version": "candidate_source_receipt_bundle_v2",
+            "source_receipt_sha256s": source_receipts,
+        }
+    )
+    evidence_source_receipts = (source_receipt_bundle_sha256,)
     disposition, disposition_reason, final_action = _decision_disposition(intent)
     model_payload = {
         "schema_version": "candidate_model_distributions_projection_v2",
         **_project(prediction, _MODEL_FIELDS),
         "feature_abi_sha256": feature_abi,
         "durable_feature_snapshot_content_sha256": feature_binding.content_sha256,
+        "candidate_source_receipt_bundle_sha256": source_receipt_bundle_sha256,
+        "candidate_source_receipt_sha256s": source_receipts,
         "original_policy_decision_time_ms": original_decision_ms,
     }
     proposed_payload = {
@@ -774,10 +933,6 @@ def build_decision_revision(
             if intent.get(field) is None
         ),
     }
-    portfolio_payload = {
-        "schema_version": "candidate_portfolio_state_projection_v2",
-        **_project(intent, _PORTFOLIO_FIELDS),
-    }
     execution_payload = {
         "schema_version": "candidate_execution_state_projection_v2",
         **_project(intent, _EXECUTION_FIELDS),
@@ -788,7 +943,7 @@ def build_decision_revision(
             kind=kind,
             candidate_id=candidate_id,
             payload=payload,
-            source_receipts=source_receipts,
+            source_receipts=evidence_source_receipts,
             feature_cutoff_ms=feature_cutoff_ms,
             latest_closed_ms=latest_closed,
             exclusion_method=exclusion_method,
@@ -831,14 +986,14 @@ def build_decision_revision(
         selected_action_payload=selected_payload,
         horizon_contract_digest=horizon_digest,
         decision_time_ms=cycle_generated_at_ms,
-        source_receipts=source_receipts,
+        source_receipts=evidence_source_receipts,
     )
     horizon_receipt = _sha256(
         {
             "schema_version": "candidate_horizon_contract_receipt_v2",
             "horizon_contract_id": HORIZON_CONTRACT_ID,
             "horizon_contract_sha256": horizon_digest,
-            "source_receipt_sha256s": source_receipts,
+            "source_receipt_bundle_sha256": source_receipt_bundle_sha256,
             "available_at_ms": cycle_generated_at_ms,
         }
     )

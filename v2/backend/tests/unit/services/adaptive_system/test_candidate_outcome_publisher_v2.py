@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from copy import deepcopy
 
 import pytest
@@ -20,6 +22,23 @@ _MODEL_FINGERPRINT = "3" * 64
 _FEATURE_ABI_SHA = "4" * 64
 _POLICY_SHA = "5" * 64
 _SOURCE_SHA = "6" * 64
+
+
+def _digest(value: object) -> str:
+    encoded = json.dumps(
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+        allow_nan=False,
+    )
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def _sealed(material: dict[str, object], hash_field: str) -> dict[str, object]:
+    result = deepcopy(material)
+    result[hash_field] = _digest(material)
+    return result
 
 
 def _registry() -> dict[str, object]:
@@ -67,6 +86,69 @@ def _snapshot(index: int) -> dict[str, object]:
 def _intent(index: int) -> dict[str, object]:
     prediction_id = f"prediction-{index}"
     snapshot_id = f"snapshot-{index}"
+    base_resource = _sealed(
+        {
+            "schema_version": "paper_cycle_base_resource_evidence_v1",
+            "status": "READY",
+            "equity_usd": 3_000.0,
+            "available_margin_usd": 3_000.0,
+            "drawdown_bps": 0.0,
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+            "rejection_reasons": [],
+        },
+        "evidence_hash",
+    )
+    dynamic = _sealed(
+        {
+            "schema_version": "paper_dynamic_envelope_reservation_evidence_v1",
+            "status": "READY",
+            "limits": {"max_effective_leverage": 1.0},
+            "source_evidence": {
+                "candidate_symbol": "BTCUSDT",
+                "decision_time": "2026-07-27T20:00:10.000Z",
+                "growth_authorization_status": "BLOCKED",
+                "growth_authorization_receipt_hash": _SOURCE_SHA,
+                "growth_authorization_receipt": {"receipt_id": "growth-fixture"},
+                "growth_authorization_rejection_reasons": ["INSUFFICIENT_EVIDENCE"],
+            },
+            "calculation_input_material": {
+                "schema_version": "paper_dynamic_envelope_calculation_input_v2",
+                "arguments": {"paper_mode": True, "symbol": "BTCUSDT"},
+                "base_envelope": {"max_effective_leverage": 1.0},
+                "growth_authorization_receipt_hash": _SOURCE_SHA,
+            },
+            "calculation_input_hash": _SOURCE_SHA,
+            "rejection_reasons": [],
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+        },
+        "evidence_hash",
+    )
+    reservation = _sealed(
+        {
+            "schema_version": "paper_cycle_reservation_snapshot_v1",
+            "status": "PASS",
+            "candidate_symbol": "BTCUSDT",
+            "cycle_identity": f"cycle-{index}",
+            "prior_accepted_count": 0,
+            "prior_reservations": [],
+            "accounting_semantics": {"resource_arithmetic_authority": "EXACT_DECIMAL"},
+            "inputs": {"base_equity_usd": 3_000.0},
+            "derived": {"remaining_margin_after_buffer_usd": 2_500.0},
+            "evidence_bindings": {
+                "base_resource_evidence_hash": base_resource["evidence_hash"],
+                "dynamic_envelope_evidence_hash": dynamic["evidence_hash"],
+            },
+            "rejection_reasons": [],
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+        },
+        "snapshot_hash",
+    )
     return {
         "candidate_id": "legacy-model-candidate-id-shared-by-every-row",
         "policy_id": "paper-policy-v2",
@@ -90,6 +172,12 @@ def _intent(index: int) -> dict[str, object]:
         "paper_fill_allowed": False,
         "allocator_decision": "BLOCK_EXCHANGE_MIN_ORDER",
         "source_row_canonical_sha256": _SOURCE_SHA,
+        "paper_cycle_base_resource_evidence": base_resource,
+        "paper_cycle_base_resource_evidence_hash": base_resource["evidence_hash"],
+        "paper_dynamic_envelope_reservation_evidence": dynamic,
+        "paper_dynamic_envelope_reservation_evidence_hash": dynamic["evidence_hash"],
+        "paper_cycle_reservation_snapshot": reservation,
+        "paper_cycle_reservation_snapshot_hash": reservation["snapshot_hash"],
         "entry_prediction_snapshot": {
             "prediction_id": prediction_id,
             "symbol": "BTCUSDT",
@@ -170,10 +258,12 @@ def test_compact_intent_may_omit_finality_and_abi_when_durable_sources_prove_the
     record = _build(status, intents, snapshots).decision_records[0]
     assert record.decision.latest_unclosed_kline_excluded is True
     assert record.decision.latest_closed_kline_close_time_ms == 1_785_182_400_000
-    assert _FEATURE_ABI_SHA in record.decision.model_distributions.source_receipt_sha256s
-    assert snapshots["snapshot-0"]["content_sha256"] in (
-        record.decision.model_distributions.source_receipt_sha256s
-    )
+    model_payload = json.loads(record.decision.model_distributions.payload_json)
+    assert _FEATURE_ABI_SHA in model_payload["candidate_source_receipt_sha256s"]
+    assert snapshots["snapshot-0"]["content_sha256"] in model_payload[
+        "candidate_source_receipt_sha256s"
+    ]
+    assert len(record.decision.model_distributions.source_receipt_sha256s) == 1
 
 
 def test_truncated_matrix_and_mismatched_universe_fail_closed() -> None:
@@ -254,6 +344,29 @@ def test_optional_compact_finality_cannot_contradict_durable_archive() -> None:
     status, intents, snapshots = _inputs(1)
     intents[0]["entry_feature_latest_closed_kline_close_time_ms"] = 1
     with pytest.raises(CandidateOutcomePublisherError, match="durable_feature_snapshot_mismatch"):
+        _build(status, intents, snapshots)
+
+
+def test_portfolio_sources_are_hash_verified_and_projected_without_nested_receipt_copy() -> None:
+    status, intents, snapshots = _inputs(1)
+    record = _build(status, intents, snapshots).decision_records[0]
+    payload = json.loads(record.decision.portfolio_state.payload_json)
+    assert payload["base_resource"]["equity_usd"] == 3_000.0
+    assert payload["reservation"]["derived"]["remaining_margin_after_buffer_usd"] == (
+        2_500.0
+    )
+    assert payload["dynamic_envelope"]["source_evidence"][
+        "growth_authorization_status"
+    ] == "BLOCKED"
+    assert "growth_authorization_receipt" not in payload["dynamic_envelope"][
+        "source_evidence"
+    ]
+    assert len(record.decision.portfolio_state.payload_json) < 10_000
+
+    intents[0]["paper_dynamic_envelope_reservation_evidence"]["limits"][
+        "max_effective_leverage"
+    ] = 2.0
+    with pytest.raises(CandidateOutcomePublisherError, match="producer_hash_mismatch"):
         _build(status, intents, snapshots)
 
 
