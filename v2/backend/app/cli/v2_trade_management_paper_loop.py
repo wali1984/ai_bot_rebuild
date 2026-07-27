@@ -11041,6 +11041,85 @@ def _paper_adaptive_policy_authority_rejection_reasons(
     return sorted(set(reasons))
 
 
+def _paper_bind_adaptive_policy_directional_identity(
+    *,
+    intent: dict[str, Any],
+    allocation: dict[str, Any],
+    authorization: Mapping[str, Any],
+) -> list[str]:
+    """Bind the paper intent to the exact signed adaptive directional action.
+
+    The adaptive authority owns the trading action while the allocator owns
+    physical feasibility only.  This bridge may copy the already-authorized
+    identity into the intent; it may not select, flip, resize, or repair an
+    inconsistent action.
+    """
+
+    primary_side = str(authorization.get("primary_side") or "").strip().lower()
+    allocation_action = str(allocation.get("action") or "").strip().lower()
+    reasons: list[str] = []
+    if authorization.get("selected_action") != "directional_trade":
+        reasons.append("ADAPTIVE_POLICY_DIRECTIONAL_ACTION_REQUIRED")
+    if primary_side not in {"long", "short"}:
+        reasons.append("ADAPTIVE_POLICY_AUTHORIZED_SIDE_INVALID")
+    if allocation_action != primary_side:
+        reasons.append("ADAPTIVE_POLICY_ALLOCATION_SIDE_MISMATCH")
+    if str(authorization.get("primary_symbol") or "").upper() != str(
+        allocation.get("symbol") or ""
+    ).upper():
+        reasons.append("ADAPTIVE_POLICY_ALLOCATION_SYMBOL_MISMATCH")
+    if str(authorization.get("primary_timeframe") or "") != str(
+        allocation.get("timeframe") or ""
+    ):
+        reasons.append("ADAPTIVE_POLICY_ALLOCATION_TIMEFRAME_MISMATCH")
+    if reasons:
+        return sorted(set(reasons))
+
+    intent["adaptive_policy_source_action_comparator"] = {
+        "side": intent.get("side"),
+        "action": intent.get("action"),
+        "selected_action": intent.get("selected_action"),
+        "predicted_direction": intent.get("predicted_direction"),
+        "static_comparator_only": True,
+    }
+    intent["side"] = primary_side
+    intent["action"] = primary_side
+    intent["selected_action"] = primary_side
+    intent["predicted_direction"] = primary_side
+    allocation.setdefault("side", primary_side)
+    allocation.setdefault("selected_action", primary_side)
+    return []
+
+
+def _paper_refresh_adaptive_policy_execution_evidence(
+    *,
+    intent: dict[str, Any],
+    allocation: dict[str, Any],
+    market_microstructure: dict[str, Any] | None,
+    mark_index_evidence: dict[str, Any] | None,
+    signal: dict[str, Any] | None,
+    prediction: dict[str, Any] | None,
+) -> None:
+    """Rebuild paper execution evidence from the exact adaptive allocation."""
+
+    intent["adaptive_allocation"] = allocation
+    _attach_paper_sizing(intent, allocation)
+    for field in DEPTH_PRICE_IMPACT_EVIDENCE_FIELDS:
+        intent.pop(field, None)
+    _attach_depth_price_impact_evidence(intent, market_microstructure or {})
+    _attach_paper_execution_evidence(intent, mark_index_evidence or {})
+    _attach_runtime_cost_capture_contract(
+        intent,
+        market_microstructure or {},
+        signal=signal or {},
+        prediction=prediction or {},
+    )
+    _attach_paper_allocation_decision_context(intent, allocation)
+    # Cost capture reads the allocation from the intent.  Retain the exact
+    # object after all additive evidence fields have been attached.
+    intent["adaptive_allocation"] = allocation
+
+
 def _paper_policy_owner_open_rejection_reasons(intent: dict[str, Any]) -> list[str]:
     if (
         str(intent.get("paper_opportunity_tier") or "").strip().upper()
@@ -11463,6 +11542,10 @@ PERSISTENT_ACCEPTED_FILL_MODEL_INPUT_FIELDS = (
     "funding_rate_bps",
     "funding_rate",
     "funding_interval_seconds",
+    "adaptive_policy_exact_physical_validation_status",
+    "adaptive_policy_exact_physical_rejection_reasons",
+    "adaptive_policy_authorization",
+    "adaptive_policy_authorization_sha256",
     "paper_opportunity_tier",
     "risk_budget_fraction_of_normal_adaptive",
     "normal_adaptive_risk_budget_usd",
@@ -11923,6 +12006,7 @@ COMPACT_ACCEPTED_FILL_ALLOCATION_FIELDS = tuple(
             "allocator_decision",
             "allocator_reason",
             "adaptive_capital_policy_version",
+            "adaptive_policy_authorization_sha256",
             "policy_activated_at",
             "paper_only",
             "routes_to_live",
@@ -12429,6 +12513,10 @@ PAPER_RUNTIME_INTENT_PROJECTION_FIELDS = (
     "risk_action",
     "risk_controller_decision",
     "paper_fill_risk_state",
+    "adaptive_policy_action",
+    "adaptive_paper_policy_authorization",
+    "legacy_category_e_comparator",
+    "adaptive_policy_source_action_comparator",
 )
 
 
@@ -47504,6 +47592,9 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         # the signed hard validator and exact venue/allocation bridge may only
         # authorize that action unchanged or block it.
         intent["legacy_category_e_comparator"] = {
+            "side": intent.get("side"),
+            "action": intent.get("action"),
+            "selected_action": intent.get("selected_action"),
             "paper_opportunity_tier": intent.get("paper_opportunity_tier"),
             "paper_opportunity_tier_reason": intent.get("paper_opportunity_tier_reason"),
             "paper_fill_allowed": intent.get("paper_fill_allowed"),
@@ -47749,6 +47840,26 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             blocked.append(intent)
             continue
 
+        adaptive_identity_reasons = _paper_bind_adaptive_policy_directional_identity(
+            intent=intent,
+            allocation=allocation_payload,
+            authorization=adaptive_authorization_payload,
+        )
+        if adaptive_identity_reasons:
+            intent["decision"] = "BLOCKED_ADAPTIVE_POLICY_IDENTITY_BINDING"
+            intent["paper_fill_allowed"] = False
+            intent["paper_fill_block_reason"] = (
+                "ADAPTIVE_POLICY_DIRECTIONAL_IDENTITY_BINDING_BLOCKED"
+            )
+            intent["adaptive_policy_entry_authorized"] = False
+            intent["adaptive_policy_authority_status"] = "BLOCKED_IDENTITY_BINDING"
+            intent["adaptive_policy_authority_rejection_reasons"] = (
+                adaptive_identity_reasons
+            )
+            intent["adaptive_allocation"] = allocation_payload
+            blocked.append(intent)
+            continue
+
         exact_entry_price = float(adaptive_policy_authorization.exact_entry_price)
         exact_stop_price = float(adaptive_policy_authorization.exact_stop_price)
         exact_target_notional = float(
@@ -47781,6 +47892,7 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                 "adaptive_policy_entry_authorized": True,
                 "adaptive_policy_authority_status": "AUTHORIZED_DIRECTIONAL",
                 "adaptive_policy_authority_rejection_reasons": [],
+                "paper_policy_owner": ADAPTIVE_POLICY_AUTHORITY_ID,
                 "entry_price": exact_entry_price,
                 "fill_price": exact_entry_price,
                 "stop_price": exact_stop_price,
@@ -47834,8 +47946,14 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             adaptive_policy_authorization.content_sha256
         )
         allocation_payload["exit_plan"] = deepcopy(intent["exit_plan"])
-        _attach_paper_sizing(intent, allocation_payload)
-        _attach_paper_allocation_decision_context(intent, allocation_payload)
+        _paper_refresh_adaptive_policy_execution_evidence(
+            intent=intent,
+            allocation=allocation_payload,
+            market_microstructure=market_microstructure,
+            mark_index_evidence=mark_index_evidence,
+            signal=s,
+            prediction=prediction_for_entry,
+        )
         _seal_paper_allocator_economic_contract(
             intent=intent,
             allocation=allocation_payload,
