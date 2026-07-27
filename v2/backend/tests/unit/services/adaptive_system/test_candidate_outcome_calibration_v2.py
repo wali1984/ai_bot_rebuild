@@ -16,6 +16,7 @@ from v2.backend.app.services.adaptive_system.candidate_outcome_maturer_v2 import
     mature_candidate,
 )
 from v2.backend.tests.unit.services.adaptive_system.test_candidate_outcome_maturer_v2 import (
+    _hold_record,
     _record,
     _rows_and_proof,
 )
@@ -144,3 +145,22 @@ def test_extracts_only_complete_point_in_time_matured_revision() -> None:
     assert observation.final_after_cost_return_bps == (
         matured.matured_labels.counterfactual_outcomes[0].scenarios[0].after_cost_pnl_bps
     )
+
+
+def test_hold_observation_uses_predeclared_reference_side_missed_edge() -> None:
+    decision_record = _hold_record()
+    rows, proof = _rows_and_proof(decision_record)
+    matured = mature_candidate(
+        decision_record,
+        rows=rows,
+        proof=proof,
+        label_generated_at_ms=proof["training_observed_at_ms"] + 1,
+    )
+
+    observation = extract_calibration_observation(matured)
+
+    assert observation.side in {"LONG", "SHORT"}
+    assert observation.decision_disposition == "REJECTED"
+    assert observation.final_gross_return_bps != 0.0
+    assert matured.matured_labels is not None
+    assert matured.matured_labels.counts_as_paper_profit is False

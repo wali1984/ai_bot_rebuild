@@ -245,6 +245,26 @@ def test_exact_cycle_records_every_candidate_with_unique_decision_identity() -> 
     assert all(row.routes_to_live is False for row in cycle.decision_records)
 
 
+def test_hold_candidate_predeclares_both_directional_missed_edge_scenarios() -> None:
+    status, intents, snapshots = _inputs(1)
+    intents[0]["side"] = "HOLD"
+    intents[0]["selected_action"] = "HOLD"
+    record = _build(status, intents, snapshots).decision_records[0]
+    alternative_side = next(
+        arm
+        for arm in record.decision.counterfactual_evaluation_plan.arms
+        if arm.arm_name == "alternative_side"
+    )
+
+    assert tuple(
+        scenario.scenario_id.rsplit("-", 1)[-1]
+        for scenario in alternative_side.scenarios
+    ) == ("LONG", "SHORT")
+    assert len(
+        {scenario.action_sha256 for scenario in alternative_side.scenarios}
+    ) == 2
+
+
 def test_compact_intent_may_omit_finality_and_abi_when_durable_sources_prove_them() -> None:
     status, intents, snapshots = _inputs(1)
     for field in (

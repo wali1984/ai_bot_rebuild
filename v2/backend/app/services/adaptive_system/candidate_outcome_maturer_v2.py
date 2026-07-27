@@ -51,6 +51,10 @@ LABELER_SEMANTICS = {
     "counterfactual_alternative_entry": "decision_mark_entry",
     "counterfactual_alternative_exit": "maximum_favorable_finalized_5m_extreme",
     "counterfactual_accounting": "never_realized_paper_profit",
+    "flat_candidate_learning": (
+        "hold_is_zero_realized_exposure;horizon_mfe_mae_use_sha256_balanced_"
+        "pre_outcome_reference_side;alternative_side_records_missed_edge"
+    ),
 }
 
 
@@ -146,6 +150,20 @@ def required_label_range(record: CandidateDecisionOutcomeV2) -> tuple[int, int, 
     end = first_label_close_at_or_after(final_horizon_end)
     expected_rows = (end - start) // LABEL_SLOT_MILLISECONDS + 1
     return start, end, expected_rows
+
+
+def counterfactual_reference_side(candidate_id: str) -> str:
+    """Choose a balanced reference side without using any future outcome."""
+
+    if type(candidate_id) is not str or not candidate_id:
+        _fail("nonempty_string_required", "candidate_id")
+    digest = _sha256(
+        {
+            "schema_version": "candidate_flat_reference_side_v2",
+            "candidate_id": candidate_id,
+        }
+    )
+    return "LONG" if int(digest[0], 16) % 2 == 0 else "SHORT"
 
 
 @dataclass(frozen=True, slots=True)
@@ -254,16 +272,30 @@ def _verified_label_path(
 
 def _side_and_prices(
     record: CandidateDecisionOutcomeV2,
-) -> tuple[str, float, float, dict[str, Any], dict[str, Any], dict[str, Any]]:
+) -> tuple[
+    str,
+    bool,
+    float,
+    float,
+    dict[str, Any],
+    dict[str, Any],
+    dict[str, Any],
+]:
     proposed = _payload(record, "proposed_action")
     execution = _payload(record, "execution_state")
     components = _payload(record, "component_estimates")
-    side = str(
+    proposed_action = str(
         proposed.get("proposed_action")
         or proposed.get("side")
         or proposed.get("selected_action")
         or ""
     ).upper()
+    flat_candidate = proposed_action == "HOLD"
+    side = (
+        counterfactual_reference_side(record.decision.candidate_id)
+        if flat_candidate
+        else proposed_action
+    )
     if side not in {"LONG", "SHORT"}:
         _fail("directional_proposed_action_required", "decision.proposed_action")
     mark = _positive(
@@ -275,7 +307,7 @@ def _side_and_prices(
         execution.get(touch_field) or proposed.get("entry_price") or mark,
         f"decision.execution_state.{touch_field}",
     )
-    return side, entry, mark, proposed, execution, components
+    return side, flat_candidate, entry, mark, proposed, execution, components
 
 
 def _side_return_bps(side: str, entry: float, exit_price: float) -> float:
@@ -360,7 +392,15 @@ def mature_candidate(
     ):
         _fail("ActualPaperExecutionOutcomeV2_required", "actual_paper_outcome")
 
-    side, entry, mark, proposed, execution, components = _side_and_prices(record)
+    (
+        side,
+        flat_candidate,
+        entry,
+        mark,
+        proposed,
+        execution,
+        components,
+    ) = _side_and_prices(record)
     fee_bps, spread_bps, slippage_bps, funding_bps, impact_bps = _costs(
         execution,
         components,
@@ -422,7 +462,7 @@ def mature_candidate(
     source_receipts = path.receipt_sha256s
     scenario_by_arm: dict[str, tuple[float, float, float, float, float, float]] = {
         "unhedged": (
-            gross_final_bps,
+            0.0 if flat_candidate else gross_final_bps,
             fee_bps,
             spread_bps,
             slippage_bps,
@@ -438,7 +478,7 @@ def mature_candidate(
             2.0 * impact_bps,
         ),
         "alternative_side": (
-            -gross_final_bps,
+            gross_final_bps if flat_candidate else -gross_final_bps,
             fee_bps,
             spread_bps,
             slippage_bps,
@@ -480,9 +520,25 @@ def mature_candidate(
     }
     counterfactual_outcomes: list[CounterfactualArmOutcomeV2] = []
     for plan_arm in decision.counterfactual_evaluation_plan.arms:
-        gross, fees, spread, slippage, funding, impact = scenario_by_arm[plan_arm.arm_name]
-        scenarios = tuple(
-            CounterfactualScenarioV2(
+        base_gross, fees, spread, slippage, funding, impact = scenario_by_arm[
+            plan_arm.arm_name
+        ]
+        scenarios_list: list[CounterfactualScenarioV2] = []
+        for planned in plan_arm.scenarios:
+            gross = base_gross
+            scenario_funding = funding
+            if flat_candidate and plan_arm.arm_name == "alternative_side":
+                planned_side = (
+                    "LONG"
+                    if planned.scenario_id.endswith("-LONG")
+                    else "SHORT"
+                    if planned.scenario_id.endswith("-SHORT")
+                    else side
+                )
+                gross = _side_return_bps(planned_side, entry, final_close)
+                scenario_funding = funding if planned_side == side else -funding
+            scenarios_list.append(
+                CounterfactualScenarioV2(
                 schema_version=COUNTERFACTUAL_SCENARIO_SCHEMA_VERSION,
                 scenario_id=planned.scenario_id,
                 action_sha256=planned.action_sha256,
@@ -490,10 +546,15 @@ def mature_candidate(
                 fees_bps=float(fees),
                 spread_bps=float(spread),
                 slippage_bps=float(slippage),
-                funding_bps=float(funding),
+                funding_bps=float(scenario_funding),
                 market_impact_bps=float(impact),
                 after_cost_pnl_bps=float(
-                    gross - fees - spread - slippage - funding - impact
+                    gross
+                    - fees
+                    - spread
+                    - slippage
+                    - scenario_funding
+                    - impact
                 ),
                 source_event_time_ms=final_close_ms,
                 producer_generated_at_ms=final_event_ms,
@@ -503,8 +564,8 @@ def mature_candidate(
                 counts_as_paper_profit=False,
                 actual_accounting_effect=False,
             )
-            for planned in plan_arm.scenarios
-        )
+            )
+        scenarios = tuple(scenarios_list)
         universe = counterfactual_universe_sha256(
             arm_name=plan_arm.arm_name,
             scenarios=scenarios,
@@ -560,6 +621,8 @@ def mature_candidate(
         "mae_bps": mae_bps,
         "volatility_bps": volatility_bps,
         "final_close_time_ms": final_close_ms,
+        "proposed_action": proposed.get("proposed_action"),
+        "counterfactual_reference_side": side if flat_candidate else None,
     }
     summary_receipt = _sha256(summary_material)
     label_source_receipts = tuple(sorted({*source_receipts, summary_receipt}))

@@ -232,6 +232,7 @@ def process_maturation(
     label_archive: DurableCanonical5mLabelArchive,
     signed_at_ms: int,
     max_candidates: int,
+    integrity_proof_cache: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Mature one bounded oldest-first batch under the publisher's writer key."""
 
@@ -291,7 +292,15 @@ def process_maturation(
     source_eligible_ids: list[str] = []
     transaction_cache: set[tuple[str, str, str, str, int, str]] = set()
     if batch:
-        integrity = label_archive.verify_integrity()
+        if (
+            integrity_proof_cache
+            and integrity_proof_cache.get("archive_integrity_verified") is True
+        ):
+            integrity = label_archive.extend_integrity_proof(
+                integrity_proof_cache
+            )
+        else:
+            integrity = label_archive.verify_integrity()
         if integrity.get("archive_integrity_verified") is not True:
             integrity_rejection_reasons = [
                 str(reason)
@@ -302,6 +311,9 @@ def process_maturation(
                 len(batch),
             )
         else:
+            if integrity_proof_cache is not None:
+                integrity_proof_cache.clear()
+                integrity_proof_cache.update(integrity)
             for record in batch:
                 start_ms, end_ms, expected_rows = required_label_range(record)
                 rows, proof = label_archive.verified_range(
@@ -381,6 +393,11 @@ def process_maturation(
         "canonical_label_archive_chain_sha256": (
             integrity.get("archive_chain_sha256") if integrity is not None else None
         ),
+        "canonical_label_archive_verification_mode": (
+            integrity.get("verification_mode", "FULL_ARCHIVE_VERIFICATION")
+            if integrity is not None
+            else None
+        ),
         "canonical_label_archive_rejection_reasons": integrity_rejection_reasons,
         "transaction_identity_cache_entry_count": len(transaction_cache),
         "counterfactual_counts_as_paper_profit": False,
@@ -402,6 +419,7 @@ def process_cycle(
     signed_at_ms: int,
     label_archive: DurableCanonical5mLabelArchive | None = None,
     max_maturation_candidates: int = 256,
+    label_integrity_proof_cache: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     paper_status, intents, registry = _read_cycle_projection(client)
     snapshots = _load_feature_snapshots(intents, feature_archive_root)
@@ -457,6 +475,7 @@ def process_cycle(
             label_archive=label_archive,
             signed_at_ms=signed_at_ms,
             max_candidates=max_maturation_candidates,
+            integrity_proof_cache=label_integrity_proof_cache,
         )
         if label_archive is not None
         else {
@@ -653,6 +672,7 @@ def main(argv: list[str] | None = None) -> int:
     signal.signal(signal.SIGINT, handle_signal)
     failure: BaseException | None = None
     last_status_marker: str | None = None
+    label_integrity_proof_cache: dict[str, Any] = {}
     try:
         while not stopping:
             current_marker = _paper_status_marker(client)
@@ -665,6 +685,7 @@ def main(argv: list[str] | None = None) -> int:
                     signed_at_ms=_now_ms(),
                     label_archive=label_archive,
                     max_maturation_candidates=args.max_maturation_candidates,
+                    label_integrity_proof_cache=label_integrity_proof_cache,
                 )
                 last_status_marker = status["source_paper_status_sha256"]
             if args.once:

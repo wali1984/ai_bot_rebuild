@@ -37,6 +37,9 @@ from v2.backend.app.contracts.runtime_v2.candidate_decision_outcome_v2 import (
     canonical_payload_sha256,
     horizon_contract_sha256,
 )
+from v2.backend.app.services.adaptive_system.candidate_outcome_maturer_v2 import (
+    counterfactual_reference_side,
+)
 
 PUBLISHER_SCHEMA_VERSION = "candidate_outcome_publisher_v2"
 CYCLE_SCHEMA_VERSION = "candidate_outcome_publisher_cycle_v2"
@@ -750,31 +753,51 @@ def _counterfactual_plan(
     *,
     candidate_id: str,
     selected_action_payload: Mapping[str, Any],
+    proposed_action: str,
     horizon_contract_digest: str,
     decision_time_ms: int,
     source_receipts: tuple[str, ...],
 ) -> CounterfactualEvaluationPlanV2:
     arms: list[CounterfactualArmPlanV2] = []
     for arm in COUNTERFACTUAL_ARMS:
-        action_material = {
-            "schema_version": "candidate_counterfactual_action_template_v2",
-            "candidate_id": candidate_id,
-            "arm_name": arm,
-            "selected_action": dict(selected_action_payload),
-            "paper_only": True,
-            "counts_as_paper_profit": False,
-            "actual_accounting_effect": False,
-        }
-        scenario = CounterfactualScenarioPlanV2(
-            schema_version=COUNTERFACTUAL_SCENARIO_PLAN_SCHEMA_VERSION,
-            scenario_id=f"{candidate_id}-{arm}",
-            action_sha256=_sha256(action_material),
+        evaluated_actions: tuple[str | None, ...] = (
+            ("LONG", "SHORT")
+            if proposed_action == "HOLD" and arm == "alternative_side"
+            else (None,)
         )
+        scenarios: list[CounterfactualScenarioPlanV2] = []
+        for evaluated_action in evaluated_actions:
+            action_material = {
+                "schema_version": "candidate_counterfactual_action_template_v2",
+                "candidate_id": candidate_id,
+                "arm_name": arm,
+                "selected_action": dict(selected_action_payload),
+                "proposed_action": proposed_action,
+                "evaluated_action": evaluated_action,
+                "flat_reference_side": (
+                    counterfactual_reference_side(candidate_id)
+                    if proposed_action == "HOLD"
+                    else None
+                ),
+                "paper_only": True,
+                "counts_as_paper_profit": False,
+                "actual_accounting_effect": False,
+            }
+            scenario_id = f"{candidate_id}-{arm}"
+            if evaluated_action is not None:
+                scenario_id = f"{scenario_id}-{evaluated_action}"
+            scenarios.append(
+                CounterfactualScenarioPlanV2(
+                    schema_version=COUNTERFACTUAL_SCENARIO_PLAN_SCHEMA_VERSION,
+                    scenario_id=scenario_id,
+                    action_sha256=_sha256(action_material),
+                )
+            )
         arms.append(
             CounterfactualArmPlanV2(
                 schema_version=COUNTERFACTUAL_ARM_PLAN_SCHEMA_VERSION,
                 arm_name=arm,
-                scenarios=(scenario,),
+                scenarios=tuple(scenarios),
             )
         )
     plan_material = {
@@ -984,6 +1007,7 @@ def build_decision_revision(
     plan = _counterfactual_plan(
         candidate_id=candidate_id,
         selected_action_payload=selected_payload,
+        proposed_action=str(proposed_payload["proposed_action"]),
         horizon_contract_digest=horizon_digest,
         decision_time_ms=cycle_generated_at_ms,
         source_receipts=evidence_source_receipts,

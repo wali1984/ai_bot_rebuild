@@ -8,6 +8,7 @@ from v2.backend.app.services.adaptive_system.candidate_outcome_maturer_v2 import
     LABELER_VERSION_SHA256,
     CandidateOutcomeMaturationError,
     CandidateOutcomeMaturationPending,
+    counterfactual_reference_side,
     first_label_close_at_or_after,
     mature_candidate,
     required_label_range,
@@ -34,6 +35,30 @@ def _record():
             "depth_derived_price_impact_bps": 3.0,
             "stop_distance_bps": 100.0,
             "expected_move_after_cost_bps": 80.0,
+        }
+    )
+    return _build(status, intents, snapshots).decision_records[0]
+
+
+def _hold_record():
+    status, intents, snapshots = _inputs(1)
+    intent = intents[0]
+    intent.update(
+        {
+            "side": "HOLD",
+            "selected_action": "HOLD",
+            "allocator_decision": "BLOCK_POLICY_SELECTED_FLAT",
+            "entry_price": 100.0,
+            "paper_execution_mark_price": 100.0,
+            "observed_bid": 99.9,
+            "observed_ask": 100.1,
+            "observed_spread_bps": 20.0,
+            "fee_bps": 1.0,
+            "expected_slippage_bps": 2.0,
+            "expected_funding_bps": 0.5,
+            "depth_derived_price_impact_bps": 3.0,
+            "stop_distance_bps": 100.0,
+            "expected_move_after_cost_bps": 0.0,
         }
     )
     return _build(status, intents, snapshots).decision_records[0]
@@ -129,6 +154,43 @@ def test_rejected_candidate_matures_complete_labels_without_paper_profit() -> No
     assert labels.fees_bps == 2.0
     assert labels.slippage_bps == 4.0
     assert labels.market_impact_bps == 6.0
+
+
+def test_hold_candidate_matures_balanced_missed_edge_without_realized_profit() -> None:
+    record = _hold_record()
+    rows, proof = _rows_and_proof(record)
+    matured = mature_candidate(
+        record,
+        rows=rows,
+        proof=proof,
+        label_generated_at_ms=proof["training_observed_at_ms"] + 1,
+    )
+    labels = matured.matured_labels
+    assert labels is not None
+    unhedged = next(
+        arm for arm in labels.counterfactual_outcomes if arm.arm_name == "unhedged"
+    )
+    alternative_side = next(
+        arm
+        for arm in labels.counterfactual_outcomes
+        if arm.arm_name == "alternative_side"
+    )
+    scenario_by_side = {
+        scenario.scenario_id.rsplit("-", 1)[-1]: scenario
+        for scenario in alternative_side.scenarios
+    }
+
+    assert all(scenario.gross_pnl_bps == 0.0 for scenario in unhedged.scenarios)
+    assert set(scenario_by_side) == {"LONG", "SHORT"}
+    assert scenario_by_side["LONG"].gross_pnl_bps == pytest.approx(
+        -scenario_by_side["SHORT"].gross_pnl_bps
+    )
+    assert labels.counts_as_paper_profit is False
+    assert labels.actual_paper_outcome is None
+    assert counterfactual_reference_side(record.decision.candidate_id) in {
+        "LONG",
+        "SHORT",
+    }
 
 
 def test_maturation_is_deterministic_for_identical_evidence_and_time() -> None:

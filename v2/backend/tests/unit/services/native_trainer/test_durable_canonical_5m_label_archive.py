@@ -323,6 +323,78 @@ def test_verified_range_memoizes_only_receipt_identities_bound_to_current_chain(
     assert second_proof["postcommit_readback_receipts_verified"] is True
 
 
+def test_integrity_proof_extends_append_only_suffix_and_bounds_prefix_reads(
+    tmp_path: Path,
+) -> None:
+    archive = DurableCanonical5mLabelArchive(tmp_path / "labels.sqlite3")
+    first = _candle(0)
+    second = _candle(1)
+    archive.append_candles([first])
+    original = archive.verify_integrity()
+    archive.append_candles([second])
+
+    old_rows, old_range = archive.verified_range(
+        symbol="BTCUSDT",
+        start_close_time_ms=int(first["candle_close_time"]),
+        end_close_time_ms=int(first["candle_close_time"]),
+        training_observed_at=OBSERVED,
+        limit=1,
+        archive_integrity_proof=original,
+    )
+    new_rows_with_old_proof, blocked_range = archive.verified_range(
+        symbol="BTCUSDT",
+        start_close_time_ms=int(second["candle_close_time"]),
+        end_close_time_ms=int(second["candle_close_time"]),
+        training_observed_at=OBSERVED,
+        limit=1,
+        archive_integrity_proof=original,
+    )
+    extended = archive.extend_integrity_proof(original)
+    new_rows, new_range = archive.verified_range(
+        symbol="BTCUSDT",
+        start_close_time_ms=int(second["candle_close_time"]),
+        end_close_time_ms=int(second["candle_close_time"]),
+        training_observed_at=OBSERVED,
+        limit=1,
+        archive_integrity_proof=extended,
+    )
+
+    assert old_rows == [first]
+    assert old_range["archive_integrity_proof_current"] is False
+    assert old_range["archive_integrity_prefix_proof_verified"] is True
+    assert new_rows_with_old_proof is None
+    assert "LABEL_ARCHIVE_RANGE_EXCEEDS_VERIFIED_PREFIX_FRONTIER" in blocked_range[
+        "rejection_reasons"
+    ]
+    assert extended["archive_integrity_verified"] is True
+    assert extended["verification_mode"] == (
+        "VERIFIED_APPEND_ONLY_SUFFIX_EXTENSION"
+    )
+    assert extended["proof_extended_rows"] == 1
+    assert extended["proof_extended_receipts"] == 1
+    assert new_rows == [second]
+    assert new_range["archive_integrity_proof_current"] is True
+
+
+def test_integrity_proof_extension_fails_when_immutability_guard_is_removed(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "labels.sqlite3"
+    archive = DurableCanonical5mLabelArchive(path)
+    archive.append_candles([_candle(0)])
+    original = archive.verify_integrity()
+    with sqlite3.connect(path) as connection:
+        connection.execute("DROP TRIGGER canonical_5m_candles_no_update")
+        connection.commit()
+
+    extended = archive.extend_integrity_proof(original)
+
+    assert extended["archive_integrity_verified"] is False
+    assert "LABEL_ARCHIVE_IMMUTABILITY_OR_INDEX_SCHEMA_MISSING" in extended[
+        "rejection_reasons"
+    ]
+
+
 def test_same_wall_clock_appends_use_strict_causal_receipt_frontier(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

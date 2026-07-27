@@ -228,6 +228,27 @@ class _FakeLabelArchive:
         return self.rows, self.proof
 
 
+class _FakeExtendingLabelArchive(_FakeLabelArchive):
+    def __init__(self, rows, proof) -> None:
+        super().__init__(rows, proof)
+        self.full_verifications = 0
+        self.extensions = 0
+
+    def verify_integrity(self):
+        self.full_verifications += 1
+        return super().verify_integrity()
+
+    def extend_integrity_proof(self, proof):
+        assert proof["archive_integrity_verified"] is True
+        self.extensions += 1
+        return {
+            **proof,
+            "archive_chain_sha256": "e" * 64,
+            "verification_mode": "VERIFIED_APPEND_ONLY_SUFFIX_EXTENSION",
+            "rejection_reasons": [],
+        }
+
+
 def test_runtime_matures_due_candidate_with_same_authenticated_writer(tmp_path: Path) -> None:
     record = _maturation_record()
     rows, proof = _rows_and_proof(record)
@@ -246,3 +267,32 @@ def test_runtime_matures_due_candidate_with_same_authenticated_writer(tmp_path: 
     assert status["eligible_matured_label_coverage_100_percent"] is True
     assert status["counterfactual_counts_as_paper_profit"] is False
     assert archive.verify().matured_revision_count == 1
+
+
+def test_runtime_uses_and_refreshes_incremental_label_integrity_cache(
+    tmp_path: Path,
+) -> None:
+    record = _maturation_record()
+    rows, proof = _rows_and_proof(record)
+    archive = _archive(tmp_path / "state" / "candidate_decision_outcomes_v2.jsonl")
+    archive.append(record, signed_at_ms=record.record_available_at_ms)
+    label_archive = _FakeExtendingLabelArchive(rows, proof)
+    cache = {
+        "archive_integrity_verified": True,
+        "archive_chain_sha256": "d" * 64,
+    }
+
+    status = process_maturation(
+        archive=archive,
+        label_archive=label_archive,  # type: ignore[arg-type]
+        signed_at_ms=proof["training_observed_at_ms"] + 1,
+        max_candidates=10,
+        integrity_proof_cache=cache,
+    )
+
+    assert label_archive.full_verifications == 0
+    assert label_archive.extensions == 1
+    assert cache["archive_chain_sha256"] == "e" * 64
+    assert status["canonical_label_archive_verification_mode"] == (
+        "VERIFIED_APPEND_ONLY_SUFFIX_EXTENSION"
+    )

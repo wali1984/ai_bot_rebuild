@@ -1241,6 +1241,27 @@ class DurableCanonical5mLabelArchive:
             reasons.append("LABEL_ARCHIVE_RETENTION_POLICY_MISMATCH")
         if metadata.get("automatic_pruning_enabled") != "false":
             reasons.append("LABEL_ARCHIVE_AUTOMATIC_PRUNING_ENABLED")
+        required_schema_objects = {
+            "canonical_5m_symbol_close_time": "index",
+            "canonical_5m_append_transaction": "index",
+            "canonical_5m_candles_no_update": "trigger",
+            "canonical_5m_candles_no_delete": "trigger",
+            "canonical_5m_receipts_no_update": "trigger",
+            "canonical_5m_receipts_no_delete": "trigger",
+            "canonical_5m_postcommit_receipts_no_update": "trigger",
+            "canonical_5m_postcommit_receipts_no_delete": "trigger",
+            "canonical_5m_payload_bytes_bounded": "trigger",
+        }
+        schema_objects = {
+            str(row["name"]): str(row["type"])
+            for row in connection.execute(
+                "SELECT name, type FROM sqlite_master "
+                "WHERE name IN (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                tuple(required_schema_objects),
+            )
+        }
+        if schema_objects != required_schema_objects:
+            reasons.append("LABEL_ARCHIVE_IMMUTABILITY_OR_INDEX_SCHEMA_MISSING")
         latest = connection.execute(
             """
             SELECT sequence, record_chain_sha256
@@ -1288,6 +1309,573 @@ class DurableCanonical5mLabelArchive:
             return False
         finally:
             connection.close()
+
+    def _integrity_prefix_proof_rejection_reasons(
+        self,
+        connection: sqlite3.Connection,
+        proof: Mapping[str, Any],
+    ) -> list[str]:
+        """Validate a prior full proof as an immutable archive prefix.
+
+        A sanctioned append makes ``integrity_proof_is_current`` false even
+        though every row covered by the prior proof remains immutable.  This
+        narrower check binds the old terminal row, append receipt, postcommit
+        receipt, schema guards, and cumulative counts inside the caller's
+        read transaction.  It never authorizes rows beyond the old verified
+        sequence; ``verified_range`` enforces that boundary explicitly.
+        """
+
+        reasons: list[str] = []
+        if proof.get("archive_integrity_verified") is not True:
+            reasons.append("LABEL_ARCHIVE_PREFIX_PROOF_NOT_VERIFIED")
+        if proof.get("schema_version") != ARCHIVE_SCHEMA_VERSION:
+            reasons.append("LABEL_ARCHIVE_PREFIX_PROOF_SCHEMA_MISMATCH")
+        if str(proof.get("archive_path") or "") != str(self.path):
+            reasons.append("LABEL_ARCHIVE_PREFIX_PROOF_PATH_MISMATCH")
+        if proof.get("retention_policy") != RETENTION_POLICY:
+            reasons.append("LABEL_ARCHIVE_PREFIX_PROOF_RETENTION_MISMATCH")
+        if proof.get("automatic_pruning_enabled") is not False:
+            reasons.append("LABEL_ARCHIVE_PREFIX_PROOF_PRUNING_MISMATCH")
+        if (
+            proof.get("append_receipt_ordering_verified") is not True
+            or proof.get("append_receipt_order") != _APPEND_RECEIPT_ORDER
+            or proof.get("append_receipt_cumulative_state_verified") is not True
+            or proof.get("postcommit_clock_causality_verified") is not True
+        ):
+            reasons.append("LABEL_ARCHIVE_PREFIX_PROOF_RECEIPTS_UNVERIFIED")
+
+        verified_rows = proof.get("verified_rows")
+        verified_sequence = proof.get("verified_max_sequence")
+        verified_receipts = proof.get("verified_append_receipts")
+        verified_postcommit = proof.get("verified_postcommit_readback_receipts")
+        if (
+            isinstance(verified_rows, bool)
+            or not isinstance(verified_rows, int)
+            or verified_rows < 0
+            or isinstance(verified_sequence, bool)
+            or not isinstance(verified_sequence, int)
+            or verified_sequence != verified_rows
+            or isinstance(verified_receipts, bool)
+            or not isinstance(verified_receipts, int)
+            or verified_receipts < 0
+            or isinstance(verified_postcommit, bool)
+            or not isinstance(verified_postcommit, int)
+            or verified_postcommit != verified_receipts
+        ):
+            reasons.append("LABEL_ARCHIVE_PREFIX_PROOF_FRONTIER_INVALID")
+            return sorted(set(reasons))
+
+        required_schema_objects = {
+            "canonical_5m_symbol_close_time": "index",
+            "canonical_5m_append_transaction": "index",
+            "canonical_5m_candles_no_update": "trigger",
+            "canonical_5m_candles_no_delete": "trigger",
+            "canonical_5m_receipts_no_update": "trigger",
+            "canonical_5m_receipts_no_delete": "trigger",
+            "canonical_5m_postcommit_receipts_no_update": "trigger",
+            "canonical_5m_postcommit_receipts_no_delete": "trigger",
+            "canonical_5m_payload_bytes_bounded": "trigger",
+        }
+        schema_objects = {
+            str(row["name"]): str(row["type"])
+            for row in connection.execute(
+                "SELECT name, type FROM sqlite_master "
+                "WHERE name IN (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                tuple(required_schema_objects),
+            )
+        }
+        if schema_objects != required_schema_objects:
+            reasons.append("LABEL_ARCHIVE_IMMUTABILITY_OR_INDEX_SCHEMA_MISSING")
+
+        metadata = self._metadata(connection)
+        try:
+            current_rows = int(metadata.get("total_unique_rows") or "")
+        except ValueError:
+            current_rows = -1
+        if current_rows < verified_rows:
+            reasons.append("LABEL_ARCHIVE_PREFIX_ROW_COUNT_REGRESSED")
+        if metadata.get("archive_schema_version") != ARCHIVE_SCHEMA_VERSION:
+            reasons.append("LABEL_ARCHIVE_SCHEMA_VERSION_MISMATCH")
+        if metadata.get("retention_policy") != RETENTION_POLICY:
+            reasons.append("LABEL_ARCHIVE_RETENTION_POLICY_MISMATCH")
+        if metadata.get("automatic_pruning_enabled") != "false":
+            reasons.append("LABEL_ARCHIVE_AUTOMATIC_PRUNING_ENABLED")
+
+        expected_chain = str(proof.get("archive_chain_sha256") or "")
+        if verified_rows == 0:
+            if expected_chain != _GENESIS_CHAIN_SHA256:
+                reasons.append("LABEL_ARCHIVE_PREFIX_GENESIS_CHAIN_MISMATCH")
+        else:
+            anchor = connection.execute(
+                """
+                SELECT sequence, record_chain_sha256
+                FROM canonical_5m_candles
+                WHERE sequence = ?
+                """,
+                (verified_sequence,),
+            ).fetchone()
+            if (
+                anchor is None
+                or int(anchor["sequence"]) != verified_sequence
+                or str(anchor["record_chain_sha256"]) != expected_chain
+            ):
+                reasons.append("LABEL_ARCHIVE_PREFIX_TERMINAL_ROW_MISMATCH")
+
+        last_append_at = proof.get("verified_last_commit_prepared_at")
+        last_postcommit_at = proof.get("verified_last_postcommit_readback_at")
+        if verified_receipts == 0:
+            if last_append_at is not None or last_postcommit_at is not None:
+                reasons.append("LABEL_ARCHIVE_PREFIX_EMPTY_RECEIPT_CLOCK_INVALID")
+        elif type(last_append_at) is not str or type(last_postcommit_at) is not str:
+            reasons.append("LABEL_ARCHIVE_PREFIX_RECEIPT_CLOCK_MISSING")
+        else:
+            prefix_receipt_count = int(
+                connection.execute(
+                    "SELECT COUNT(*) FROM canonical_5m_append_receipts "
+                    "WHERE commit_prepared_at <= ?",
+                    (last_append_at,),
+                ).fetchone()[0]
+            )
+            prefix_postcommit_count = int(
+                connection.execute(
+                    "SELECT COUNT(*) FROM canonical_5m_postcommit_readback_receipts "
+                    "WHERE postcommit_readback_at <= ?",
+                    (last_postcommit_at,),
+                ).fetchone()[0]
+            )
+            if prefix_receipt_count != verified_receipts:
+                reasons.append("LABEL_ARCHIVE_PREFIX_APPEND_RECEIPT_COUNT_MISMATCH")
+            if prefix_postcommit_count != verified_postcommit:
+                reasons.append("LABEL_ARCHIVE_PREFIX_POSTCOMMIT_RECEIPT_COUNT_MISMATCH")
+            anchor_receipt = connection.execute(
+                """
+                SELECT transaction_id, receipt_schema_version, batch_sha256,
+                       attempted_rows, inserted_rows, duplicate_rows,
+                       total_unique_rows, archive_chain_sha256, receipt_sha256,
+                       receipt_json, commit_prepared_at,
+                       precommit_readback_verified
+                FROM canonical_5m_append_receipts
+                WHERE commit_prepared_at = ?
+                """,
+                (last_append_at,),
+            ).fetchone()
+            if anchor_receipt is None:
+                reasons.append("LABEL_ARCHIVE_PREFIX_APPEND_RECEIPT_MISSING")
+            else:
+                reasons.extend(self._append_receipt_rejection_reasons(anchor_receipt))
+                if (
+                    int(anchor_receipt["total_unique_rows"]) != verified_rows
+                    or str(anchor_receipt["archive_chain_sha256"]) != expected_chain
+                ):
+                    reasons.append("LABEL_ARCHIVE_PREFIX_APPEND_RECEIPT_STATE_MISMATCH")
+                anchor_postcommit = connection.execute(
+                    """
+                    SELECT transaction_id, readback_schema_version,
+                           append_receipt_sha256, inserted_rows,
+                           inserted_identities_sha256,
+                           readback_receipt_sha256, readback_receipt_json,
+                           postcommit_readback_at
+                    FROM canonical_5m_postcommit_readback_receipts
+                    WHERE transaction_id = ?
+                    """,
+                    (str(anchor_receipt["transaction_id"]),),
+                ).fetchone()
+                if anchor_postcommit is None:
+                    reasons.append("LABEL_ARCHIVE_PREFIX_POSTCOMMIT_RECEIPT_MISSING")
+                else:
+                    reasons.extend(
+                        self._postcommit_receipt_rejection_reasons(anchor_postcommit)
+                    )
+                    if (
+                        str(anchor_postcommit["postcommit_readback_at"])
+                        != last_postcommit_at
+                        or str(anchor_postcommit["append_receipt_sha256"])
+                        != str(anchor_receipt["receipt_sha256"])
+                    ):
+                        reasons.append(
+                            "LABEL_ARCHIVE_PREFIX_POSTCOMMIT_RECEIPT_STATE_MISMATCH"
+                        )
+        return sorted(set(reasons))
+
+    def extend_integrity_proof(
+        self,
+        proof: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        """Extend one full proof across sanctioned append-only suffixes.
+
+        The first proof must still come from ``verify_integrity``.  Every
+        extension rebinds its immutable prefix, streams and validates each new
+        canonical row, and verifies every new append/postcommit receipt in one
+        SQLite snapshot.  It performs no trust-by-row-count shortcut.
+        """
+
+        if not isinstance(proof, Mapping):
+            raise Canonical5mArchiveError(
+                "label_archive_integrity_proof_mapping_required"
+            )
+        try:
+            connection = self._connect_readonly()
+        except (OSError, sqlite3.Error, Canonical5mArchiveError) as exc:
+            return {
+                **dict(proof),
+                "status": "BLOCKED_CANONICAL_5M_LABEL_ARCHIVE_PROOF_EXTENSION_FAILED",
+                "archive_integrity_verified": False,
+                "verification_mode": "BLOCKED_PREFIX_EXTENSION",
+                "rejection_reasons": [
+                    f"LABEL_ARCHIVE_OPEN_FAILED:{type(exc).__name__}"
+                ],
+            }
+
+        reasons: list[str] = []
+        prior_rows = int(proof.get("verified_rows") or 0)
+        prior_receipts = int(proof.get("verified_append_receipts") or 0)
+        prior_chain = str(proof.get("archive_chain_sha256") or "")
+        prior_commit_at = proof.get("verified_last_commit_prepared_at")
+        prior_postcommit_at = proof.get("verified_last_postcommit_readback_at")
+        verified_rows = prior_rows
+        verified_receipts = prior_receipts
+        verified_postcommit_receipts = int(
+            proof.get("verified_postcommit_readback_receipts") or 0
+        )
+        verified_max_sequence = int(proof.get("verified_max_sequence") or 0)
+        verified_receipt_clocks = prior_receipts
+        verified_receipt_states = prior_receipts
+        previous_chain = prior_chain
+        expected_receipt_chain = prior_chain
+        expected_receipt_total = prior_rows
+        previous_receipt_clock = (
+            _canonical_utc_millisecond(prior_commit_at)
+            if prior_commit_at is not None
+            else None
+        )
+        previous_postcommit_clock = (
+            _canonical_utc_millisecond(prior_postcommit_at)
+            if prior_postcommit_at is not None
+            else None
+        )
+        last_commit_prepared_at = prior_commit_at
+        last_postcommit_readback_at = prior_postcommit_at
+        total_append_receipts = prior_receipts
+        metadata: dict[str, str] = {}
+        try:
+            connection.execute("PRAGMA query_only=ON")
+            connection.execute("BEGIN")
+            reasons.extend(
+                self._integrity_prefix_proof_rejection_reasons(connection, proof)
+            )
+            metadata = self._metadata(connection)
+            suffix_cursor = connection.execute(
+                """
+                SELECT sequence, symbol, candle_close_time_ms,
+                       candle_open_time_ms, available_at_ms, candle_id,
+                       raw_payload_hash, market_fact_sha256, content_sha256,
+                       payload_json, previous_chain_sha256,
+                       record_chain_sha256, append_transaction_id
+                FROM canonical_5m_candles
+                WHERE sequence > ?
+                ORDER BY sequence ASC
+                """,
+                (verified_max_sequence,),
+            )
+            while not reasons:
+                stored = suffix_cursor.fetchone()
+                if stored is None:
+                    break
+                if int(stored["sequence"]) != verified_max_sequence + 1:
+                    reasons.append("LABEL_ARCHIVE_SUFFIX_SEQUENCE_GAP")
+                    break
+                payload_json = str(stored["payload_json"])
+                if len(payload_json.encode()) > MAX_CANONICAL_CANDLE_PAYLOAD_BYTES:
+                    reasons.append("LABEL_ARCHIVE_ROW_PAYLOAD_BYTES_EXCEEDED")
+                    break
+                try:
+                    payload = json.loads(payload_json)
+                    canonical_payload_json = canonical_json(payload)
+                    validated = validate_canonical_finalized_5m_candle(payload)
+                except (
+                    TypeError,
+                    ValueError,
+                    Canonical5mValidationError,
+                ):
+                    reasons.append("LABEL_ARCHIVE_STORED_CANONICAL_PAYLOAD_INVALID")
+                    break
+                content_hash = hashlib.sha256(
+                    canonical_payload_json.encode()
+                ).hexdigest()
+                if canonical_payload_json != payload_json:
+                    reasons.append("LABEL_ARCHIVE_PAYLOAD_NOT_CANONICAL_JSON")
+                    break
+                if content_hash != str(stored["content_sha256"]):
+                    reasons.append("LABEL_ARCHIVE_CONTENT_SHA256_MISMATCH")
+                    break
+                if (
+                    str(stored["symbol"]) != validated["symbol"]
+                    or int(stored["candle_close_time_ms"])
+                    != validated["close_time_ms"]
+                    or int(stored["candle_open_time_ms"])
+                    != validated["open_time_ms"]
+                    or int(stored["available_at_ms"])
+                    != validated["available_at_ms"]
+                    or str(stored["candle_id"]) != validated["candle_id"]
+                    or str(stored["raw_payload_hash"])
+                    != validated["raw_payload_hash"]
+                    or str(stored["market_fact_sha256"])
+                    != validated["market_fact_sha256"]
+                ):
+                    reasons.append("LABEL_ARCHIVE_INDEX_PAYLOAD_IDENTITY_MISMATCH")
+                    break
+                if str(stored["previous_chain_sha256"]) != previous_chain:
+                    reasons.append("LABEL_ARCHIVE_CHAIN_PREDECESSOR_MISMATCH")
+                    break
+                expected_chain = self._record_chain_sha256(
+                    previous_chain_sha256=previous_chain,
+                    validated=validated,
+                    append_transaction_id=str(stored["append_transaction_id"]),
+                )
+                if expected_chain != str(stored["record_chain_sha256"]):
+                    reasons.append("LABEL_ARCHIVE_RECORD_CHAIN_SHA256_MISMATCH")
+                    break
+                previous_chain = expected_chain
+                verified_rows += 1
+                verified_max_sequence = int(stored["sequence"])
+
+            missing_suffix_receipts = int(
+                connection.execute(
+                    """
+                    SELECT COUNT(*)
+                    FROM canonical_5m_candles AS candle
+                    LEFT JOIN canonical_5m_append_receipts AS receipt
+                      ON receipt.transaction_id = candle.append_transaction_id
+                    WHERE candle.sequence > ? AND receipt.transaction_id IS NULL
+                    """,
+                    (prior_rows,),
+                ).fetchone()[0]
+            )
+            if missing_suffix_receipts:
+                reasons.append("LABEL_ARCHIVE_APPEND_RECEIPT_MISSING")
+            total_append_receipts = int(
+                connection.execute(
+                    "SELECT COUNT(*) FROM canonical_5m_append_receipts"
+                ).fetchone()[0]
+            )
+            receipt_cursor = connection.execute(
+                """
+                SELECT transaction_id, receipt_schema_version, batch_sha256,
+                       attempted_rows, inserted_rows, duplicate_rows,
+                       total_unique_rows, archive_chain_sha256, receipt_sha256,
+                       receipt_json, commit_prepared_at,
+                       precommit_readback_verified
+                FROM canonical_5m_append_receipts
+                WHERE (? IS NULL OR commit_prepared_at > ?)
+                ORDER BY commit_prepared_at ASC
+                """,
+                (prior_commit_at, prior_commit_at),
+            )
+            while not reasons:
+                receipt = receipt_cursor.fetchone()
+                if receipt is None:
+                    break
+                receipt_reasons = self._append_receipt_rejection_reasons(receipt)
+                if receipt_reasons:
+                    reasons.extend(receipt_reasons)
+                    break
+                receipt_clock = _canonical_utc_millisecond(
+                    receipt["commit_prepared_at"]
+                )
+                if (
+                    receipt_clock is None
+                    or (
+                        previous_receipt_clock is not None
+                        and receipt_clock <= previous_receipt_clock
+                    )
+                    or (
+                        previous_postcommit_clock is not None
+                        and receipt_clock <= previous_postcommit_clock
+                    )
+                ):
+                    reasons.append("LABEL_ARCHIVE_SUFFIX_RECEIPT_CLOCK_INVALID")
+                    break
+                transaction_rows = connection.execute(
+                    """
+                    SELECT sequence, symbol, candle_close_time_ms,
+                           content_sha256, previous_chain_sha256,
+                           record_chain_sha256
+                    FROM canonical_5m_candles
+                    WHERE append_transaction_id = ?
+                    ORDER BY sequence ASC
+                    LIMIT ?
+                    """,
+                    (str(receipt["transaction_id"]), MAX_APPEND_ROWS + 1),
+                ).fetchall()
+                inserted_rows = int(receipt["inserted_rows"])
+                if len(transaction_rows) != inserted_rows:
+                    reasons.append(
+                        "LABEL_ARCHIVE_APPEND_RECEIPT_INSERTED_ROWS_MISMATCH"
+                    )
+                    break
+                prior_expected_total = expected_receipt_total
+                expected_receipt_total += inserted_rows
+                if int(receipt["total_unique_rows"]) != expected_receipt_total:
+                    reasons.append(
+                        "LABEL_ARCHIVE_APPEND_RECEIPT_CUMULATIVE_TOTAL_MISMATCH"
+                    )
+                    break
+                receipt_chain = str(receipt["archive_chain_sha256"])
+                if transaction_rows:
+                    if (
+                        int(transaction_rows[0]["sequence"])
+                        != prior_expected_total + 1
+                        or int(transaction_rows[-1]["sequence"])
+                        != expected_receipt_total
+                        or str(transaction_rows[0]["previous_chain_sha256"])
+                        != expected_receipt_chain
+                        or str(transaction_rows[-1]["record_chain_sha256"])
+                        != receipt_chain
+                    ):
+                        reasons.append(
+                            "LABEL_ARCHIVE_APPEND_RECEIPT_CHAIN_TRANSITION_MISMATCH"
+                        )
+                        break
+                elif receipt_chain != expected_receipt_chain:
+                    reasons.append(
+                        "LABEL_ARCHIVE_DUPLICATE_ONLY_RECEIPT_CHAIN_CHANGED"
+                    )
+                    break
+                identities = [
+                    (
+                        str(row["symbol"]),
+                        int(row["candle_close_time_ms"]),
+                        str(row["content_sha256"]),
+                    )
+                    for row in transaction_rows
+                ]
+                postcommit = connection.execute(
+                    """
+                    SELECT transaction_id, readback_schema_version,
+                           append_receipt_sha256, inserted_rows,
+                           inserted_identities_sha256,
+                           readback_receipt_sha256, readback_receipt_json,
+                           postcommit_readback_at
+                    FROM canonical_5m_postcommit_readback_receipts
+                    WHERE transaction_id = ?
+                    """,
+                    (str(receipt["transaction_id"]),),
+                ).fetchone()
+                if postcommit is None:
+                    reasons.append(
+                        "LABEL_ARCHIVE_POSTCOMMIT_READBACK_RECEIPT_MISSING"
+                    )
+                    break
+                reasons.extend(self._postcommit_receipt_rejection_reasons(postcommit))
+                postcommit_clock = _canonical_utc_millisecond(
+                    postcommit["postcommit_readback_at"]
+                )
+                if (
+                    postcommit_clock is None
+                    or postcommit_clock < receipt_clock
+                    or (
+                        previous_postcommit_clock is not None
+                        and postcommit_clock <= previous_postcommit_clock
+                    )
+                    or str(postcommit["append_receipt_sha256"])
+                    != str(receipt["receipt_sha256"])
+                    or int(postcommit["inserted_rows"]) != len(identities)
+                    or str(postcommit["inserted_identities_sha256"])
+                    != self._inserted_identities_sha256(identities)
+                ):
+                    reasons.append(
+                        "LABEL_ARCHIVE_SUFFIX_POSTCOMMIT_BINDING_MISMATCH"
+                    )
+                    break
+                expected_receipt_chain = receipt_chain
+                previous_receipt_clock = receipt_clock
+                previous_postcommit_clock = postcommit_clock
+                last_commit_prepared_at = str(receipt["commit_prepared_at"])
+                last_postcommit_readback_at = str(
+                    postcommit["postcommit_readback_at"]
+                )
+                verified_receipts += 1
+                verified_postcommit_receipts += 1
+                verified_receipt_clocks += 1
+                verified_receipt_states += 1
+
+            if verified_receipts != total_append_receipts:
+                reasons.append("LABEL_ARCHIVE_SUFFIX_RECEIPT_COUNT_MISMATCH")
+            if verified_postcommit_receipts != total_append_receipts:
+                reasons.append(
+                    "LABEL_ARCHIVE_POSTCOMMIT_READBACK_RECEIPT_COUNT_MISMATCH"
+                )
+            if expected_receipt_total != verified_rows:
+                reasons.append(
+                    "LABEL_ARCHIVE_APPEND_RECEIPT_CUMULATIVE_FINAL_TOTAL_MISMATCH"
+                )
+            if expected_receipt_chain != previous_chain:
+                reasons.append("LABEL_ARCHIVE_APPEND_RECEIPT_FINAL_CHAIN_MISMATCH")
+            if int(metadata.get("total_unique_rows") or 0) != verified_rows:
+                reasons.append("LABEL_ARCHIVE_TOTAL_UNIQUE_ROWS_MISMATCH")
+            if metadata.get("archive_chain_sha256") != previous_chain:
+                reasons.append("LABEL_ARCHIVE_FINAL_CHAIN_SHA256_MISMATCH")
+            connection.commit()
+        except (
+            OSError,
+            sqlite3.Error,
+            Canonical5mArchiveError,
+            TypeError,
+            ValueError,
+            KeyError,
+        ) as exc:
+            try:
+                connection.rollback()
+            except sqlite3.Error:
+                pass
+            reasons.append(
+                "LABEL_ARCHIVE_PROOF_EXTENSION_FAILED:"
+                f"{type(exc).__name__}"
+            )
+        finally:
+            connection.close()
+
+        return {
+            "schema_version": ARCHIVE_SCHEMA_VERSION,
+            "archive_path": str(self.path),
+            "status": (
+                "VERIFIED_CANONICAL_5M_LABEL_ARCHIVE"
+                if not reasons
+                else "BLOCKED_CANONICAL_5M_LABEL_ARCHIVE_PROOF_EXTENSION_FAILED"
+            ),
+            "archive_integrity_verified": not reasons,
+            "verified_rows": verified_rows,
+            "verified_max_sequence": verified_max_sequence,
+            "verified_append_receipts": verified_receipts,
+            "verified_postcommit_readback_receipts": verified_postcommit_receipts,
+            "append_receipt_ordering_verified": (
+                verified_receipt_clocks == total_append_receipts
+            ),
+            "append_receipt_order": _APPEND_RECEIPT_ORDER,
+            "append_receipt_cumulative_state_verified": (
+                verified_receipt_states == total_append_receipts
+                and expected_receipt_total == verified_rows
+                and expected_receipt_chain == previous_chain
+            ),
+            "postcommit_clock_causality_verified": (
+                verified_postcommit_receipts == total_append_receipts
+            ),
+            "verified_last_commit_prepared_at": last_commit_prepared_at,
+            "verified_last_postcommit_readback_at": last_postcommit_readback_at,
+            "archive_chain_sha256": previous_chain,
+            "retention_policy": metadata.get("retention_policy"),
+            "automatic_pruning_enabled": (
+                metadata.get("automatic_pruning_enabled") != "false"
+            ),
+            "verification_memory_bound": (
+                "STREAMING_ONE_SUFFIX_CANDLE_OR_RECEIPT_PLUS_JSON_PAYLOAD"
+            ),
+            "verification_mode": "VERIFIED_APPEND_ONLY_SUFFIX_EXTENSION",
+            "proof_extended_from_rows": prior_rows,
+            "proof_extended_rows": verified_rows - prior_rows,
+            "proof_extended_receipts": verified_receipts - prior_receipts,
+            "rejection_reasons": sorted(set(reasons)),
+        }
 
     @staticmethod
     def _set_metadata(
@@ -2989,6 +3577,7 @@ class DurableCanonical5mLabelArchive:
         preflight_payload_bytes = 0
         maximum_row_payload_bytes = 0
         integrity_proof_current = False
+        integrity_prefix_proof_verified = False
         quick_check_verified = False
         validated_payload_rows = 0
         pit_verified_rows = 0
@@ -3019,8 +3608,18 @@ class DurableCanonical5mLabelArchive:
                     connection,
                     archive_integrity_proof,
                 )
-                reasons.extend(proof_reasons)
                 integrity_proof_current = not proof_reasons
+                if proof_reasons and not _allow_sparse_coverage:
+                    prefix_reasons = self._integrity_prefix_proof_rejection_reasons(
+                        connection,
+                        archive_integrity_proof,
+                    )
+                    if prefix_reasons:
+                        reasons.extend(prefix_reasons)
+                    else:
+                        integrity_prefix_proof_verified = True
+                else:
+                    reasons.extend(proof_reasons)
             metadata = self._metadata(connection)
             if metadata.get("archive_schema_version") != ARCHIVE_SCHEMA_VERSION:
                 reasons.append("LABEL_ARCHIVE_SCHEMA_VERSION_MISMATCH")
@@ -3112,6 +3711,16 @@ class DurableCanonical5mLabelArchive:
                 streamed_rows += 1
                 if streamed_rows > bounded_limit:
                     reasons.append("LABEL_ARCHIVE_QUERY_LIMIT_EXCEEDED")
+                    break
+                if (
+                    integrity_prefix_proof_verified
+                    and archive_integrity_proof is not None
+                    and int(stored["sequence"])
+                    > int(archive_integrity_proof["verified_max_sequence"])
+                ):
+                    reasons.append(
+                        "LABEL_ARCHIVE_RANGE_EXCEEDS_VERIFIED_PREFIX_FRONTIER"
+                    )
                     break
                 payload_json = str(stored["payload_json"])
                 payload_bytes += len(payload_json.encode())
@@ -3400,6 +4009,11 @@ class DurableCanonical5mLabelArchive:
                 ),
                 "archive_integrity_proof_current": (
                     integrity_proof_current
+                    if archive_integrity_proof is not None
+                    else None
+                ),
+                "archive_integrity_prefix_proof_verified": (
+                    integrity_prefix_proof_verified
                     if archive_integrity_proof is not None
                     else None
                 ),

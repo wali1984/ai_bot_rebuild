@@ -18,6 +18,9 @@ from v2.backend.app.services.adaptive_system.adaptive_objective_v2 import (
     UNIT_CONTRACT,
     WEIGHTS_SCHEMA_VERSION,
 )
+from v2.backend.app.services.adaptive_system.candidate_outcome_maturer_v2 import (
+    counterfactual_reference_side,
+)
 
 SCHEMA_VERSION = "candidate_outcome_calibration_v2"
 OBSERVATION_SCHEMA_VERSION = "candidate_calibration_observation_v2"
@@ -197,15 +200,53 @@ def extract_calibration_observation(
     proposed = _payload(record, "proposed_action")
     components = _payload(record, "component_estimates")
     model = _payload(record, "model_distributions")
-    side = str(proposed.get("proposed_action") or proposed.get("side") or "").upper()
+    proposed_action = str(
+        proposed.get("proposed_action") or proposed.get("side") or ""
+    ).upper()
+    side = (
+        counterfactual_reference_side(record.decision.candidate_id)
+        if proposed_action == "HOLD"
+        else proposed_action
+    )
     unhedged = next(
         (arm for arm in labels.counterfactual_outcomes if arm.arm_name == "unhedged"),
         None,
     )
     if unhedged is None or not unhedged.scenarios:
         _fail("unhedged_counterfactual_required", "matured_labels")
-    after_cost = statistics.fmean(scenario.after_cost_pnl_bps for scenario in unhedged.scenarios)
-    gross = statistics.fmean(scenario.gross_pnl_bps for scenario in unhedged.scenarios)
+    calibration_arm = unhedged
+    if proposed_action == "HOLD":
+        calibration_arm = next(
+            (
+                arm
+                for arm in labels.counterfactual_outcomes
+                if arm.arm_name == "alternative_side"
+            ),
+            None,
+        )
+        if calibration_arm is None or not calibration_arm.scenarios:
+            _fail(
+                "flat_alternative_side_counterfactual_required",
+                "matured_labels",
+            )
+    selected_scenarios = tuple(calibration_arm.scenarios)
+    if proposed_action == "HOLD" and len(selected_scenarios) > 1:
+        selected_scenarios = tuple(
+            scenario
+            for scenario in selected_scenarios
+            if scenario.scenario_id.endswith(f"-{side}")
+        )
+        if len(selected_scenarios) != 1:
+            _fail(
+                "flat_reference_side_scenario_required",
+                "matured_labels",
+            )
+    after_cost = statistics.fmean(
+        scenario.after_cost_pnl_bps for scenario in selected_scenarios
+    )
+    gross = statistics.fmean(
+        scenario.gross_pnl_bps for scenario in selected_scenarios
+    )
     first_return = labels.horizon_labels[0].future_return_bps
     final_return = labels.horizon_labels[-1].future_return_bps
     expected_move_raw = proposed.get("expected_move_after_cost_bps")
