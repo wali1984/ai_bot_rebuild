@@ -14752,6 +14752,404 @@ def test_compact_accepted_fill_state_omits_snapshot_but_keeps_trust_and_executio
     assert "all_partial_fills" not in compact["adaptive_allocation"]
 
 
+def _reseal_typed_adaptive_final_admission_fixture(
+    row: dict[str, object],
+) -> dict[str, object]:
+    """Re-seal a finalized fixture after adding exact typed policy lineage."""
+
+    sealed = deepcopy(row)
+    old_contract = sealed.get("paper_final_admission_contract")
+    assert isinstance(old_contract, dict)
+    revocable_receipt = sealed.get("paper_revocable_control_commit_revalidation")
+    cycle_snapshot = sealed.get("paper_cycle_reservation_snapshot")
+    allocation = sealed.get("adaptive_allocation")
+    assert isinstance(revocable_receipt, dict)
+    assert isinstance(cycle_snapshot, dict)
+    assert isinstance(allocation, dict)
+
+    cycle_commit = paper_loop.build_candidate_commit_receipt(
+        snapshot=cycle_snapshot,
+        adaptive_allocation=allocation,
+        prior_accepted_rows=[],
+    )
+    assert cycle_commit["status"] == "PASS"
+    sealed["paper_cycle_reservation_commit_receipt"] = cycle_commit
+    sealed["paper_cycle_reservation_commit_receipt_hash"] = cycle_commit["receipt_hash"]
+    sealed["paper_cycle_reservation_commit_status"] = "PASS"
+
+    final_decision_time = sealed["paper_final_admission_decision_time"]
+    for field in (
+        "paper_final_admission_contract",
+        "paper_final_admission_receipt_hash",
+        "paper_final_admission_bound_material_hash",
+    ):
+        sealed.pop(field, None)
+    projection = paper_loop._paper_persisted_admission_projection(sealed)  # noqa: SLF001
+    projection_hash = paper_loop._paper_canonical_sha256(projection)  # noqa: SLF001
+    allocation_hash = paper_loop._paper_canonical_sha256(allocation)  # noqa: SLF001
+    bound_material = {
+        "persisted_row_projection": projection,
+        "persisted_row_projection_hash": projection_hash,
+        "revocable_control_commit_revalidation": revocable_receipt,
+        "cycle_reservation_contract": {
+            "paper_cycle_reservation_snapshot": cycle_snapshot,
+            "paper_cycle_reservation_snapshot_hash": cycle_snapshot["snapshot_hash"],
+            "paper_cycle_reservation_commit_receipt": cycle_commit,
+            "paper_cycle_reservation_commit_receipt_hash": cycle_commit["receipt_hash"],
+            "paper_cycle_reservation_commit_status": "PASS",
+            "cycle_identity": cycle_snapshot["cycle_identity"],
+        },
+        "identity": {
+            "intent_id": sealed["intent_id"],
+            "symbol": sealed["symbol"],
+            "allocation_id": allocation["allocation_id"],
+        },
+        "adaptive_allocation_hash": allocation_hash,
+        "allocator_contract": {
+            "allocation_hash": allocation_hash,
+            "allocation_id": allocation["allocation_id"],
+            "allocation_input_hash": allocation["allocation_input_hash"],
+        },
+        "sizing": {
+            "notional": sealed["notional"],
+            "allocated_margin_usd": sealed["allocated_margin_usd"],
+        },
+    }
+    bound_hash = paper_loop._paper_canonical_sha256(bound_material)  # noqa: SLF001
+    contract: dict[str, object] = {
+        "schema_version": "paper_final_admission_contract_v3",
+        "status": "PASS",
+        "final_decision_time": final_decision_time,
+        "revocable_control_commit_revalidation": revocable_receipt,
+        "bound_material_hash": bound_hash,
+        "bound_material": bound_material,
+        "rejection_reasons": [],
+    }
+    contract["receipt_hash"] = paper_loop._paper_canonical_sha256(contract)  # noqa: SLF001
+    sealed["paper_final_admission_contract"] = contract
+    sealed["paper_final_admission_receipt_hash"] = contract["receipt_hash"]
+    sealed["paper_final_admission_bound_material_hash"] = bound_hash
+    return sealed
+
+
+def _typed_adaptive_final_admission_fixture() -> dict[str, object]:
+    original_build_commit = paper_loop.build_candidate_commit_receipt
+
+    def build_commit_with_current_allocation_contract(
+        *,
+        snapshot,
+        adaptive_allocation,
+        prior_accepted_rows,
+    ):
+        notional = float(adaptive_allocation["gross_notional_usd"])
+        margin = float(adaptive_allocation["allocated_margin_usd"])
+        max_loss = float(adaptive_allocation["max_loss_if_stop_hit"])
+        price = 50_000.0
+        quantity = notional / price
+        leverage = notional / margin
+        lineage = {
+            "intent_id": "intent_persist_1",
+            "signal_id": "signal_persist_1",
+            "prediction_id": "prediction_persist_1",
+            "risk_decision_id": "risk-synthetic",
+            "orchestrator_decision_id": "orchestrator-synthetic",
+            paper_loop.CYCLE_RESERVATION_LINEAGE_KEY: snapshot["snapshot_hash"],
+        }
+        allocation_input = {
+            "symbol": "BTCUSDT",
+            "timeframe": "1m",
+            "action": "long",
+            "price": price,
+            "permitted_leverage_values": (leverage,),
+            "lineage_ids": lineage,
+        }
+        input_material = {
+            "schema_version": "adaptive_capital_allocation_input_v1",
+            "mode": "paper",
+            "allocation_input": allocation_input,
+            "risk_envelope": {"fixture": "typed-adaptive-compaction"},
+        }
+        input_hash = paper_loop._paper_canonical_sha256(input_material)  # noqa: SLF001
+        arithmetic_material = {
+            "schema_version": "paper_allocator_arithmetic_receipt_v1",
+            "arithmetic_version": "adaptive_capital_allocator_binary64_arithmetic_v1",
+            "formula": (
+                "raw_post_step_notional=abs(binary64(raw_post_step_quantity)*"
+                "binary64(input_price));raw_allocated_margin=raw_post_step_notional/"
+                "binary64(selected_leverage);publish=round(quantity,12),"
+                "round(notional,8),round(leverage,8),round(margin,8)"
+            ),
+            "raw_post_step_quantity_binary64_hex": quantity.hex(),
+            "input_price_binary64_hex": price.hex(),
+            "raw_post_step_notional_binary64_hex": abs(quantity * price).hex(),
+            "selected_leverage_binary64_hex": leverage.hex(),
+        }
+        arithmetic_receipt = {
+            **arithmetic_material,
+            "receipt_sha256": paper_loop._paper_canonical_sha256(arithmetic_material),  # noqa: SLF001
+        }
+        adaptive_allocation.clear()
+        adaptive_allocation.update(
+            {
+                "allocation_id": f"alloc_{str(input_hash)[:24]}",
+                "allocation_input_schema_version": "adaptive_capital_allocation_input_v1",
+                "allocation_input_hash_algorithm": "sha256(canonical-json-v1)",
+                "allocation_input_hash": input_hash,
+                "allocation_input_material": input_material,
+                "allocator_decision": "ALLOW_WITH_SIZE",
+                "symbol": "BTCUSDT",
+                "timeframe": "1m",
+                "action": "long",
+                "target_quantity": quantity,
+                "target_notional_usdt": notional,
+                "target_notional_usd": notional,
+                "gross_notional_usd": notional,
+                "recommended_leverage": leverage,
+                "effective_leverage": leverage,
+                "allocated_margin_usd": margin,
+                "margin_mode": "isolated_paper_simulated",
+                "recommended_margin_mode": "isolated_paper_simulated",
+                "max_loss_if_stop_hit": max_loss,
+                "max_loss_usd": max_loss,
+                "lineage_ids": lineage,
+                "model_inputs": {
+                    "allocation_input_schema_version": (
+                        "adaptive_capital_allocation_input_v1"
+                    ),
+                    "allocation_input_hash": input_hash,
+                    "allocation_input_hash_algorithm": "sha256(canonical-json-v1)",
+                    "paper_post_quantization_exchange_filter_status": "PASS",
+                    "paper_margin_configuration_uses_post_quantization_notional": True,
+                    "paper_target_quantity_after_step_quantization": quantity,
+                    "paper_target_notional_after_step_quantization_usd": notional,
+                    "max_loss_usd": max_loss,
+                    "paper_modeled_loss_bps": max_loss / notional * 10_000.0,
+                    "selected_leverage": leverage,
+                    "selected_allocated_margin_usd": margin,
+                    "paper_allocator_arithmetic_receipt": arithmetic_receipt,
+                },
+                "paper_only": True,
+                "routes_to_live": False,
+                "places_real_order": False,
+                "live_order": False,
+                "test_order": False,
+                "leverage_mutation": False,
+                "margin_mode_mutation": False,
+            }
+        )
+        return original_build_commit(
+            snapshot=snapshot,
+            adaptive_allocation=adaptive_allocation,
+            prior_accepted_rows=prior_accepted_rows,
+        )
+
+    with pytest.MonkeyPatch.context() as monkeypatch:
+        monkeypatch.setattr(
+            paper_loop,
+            "build_candidate_commit_receipt",
+            build_commit_with_current_allocation_contract,
+        )
+        row = _synthetic_final_admission_sealed_row(
+            risk_decision_id="risk-synthetic",
+            orchestrator_decision_id="orchestrator-synthetic",
+        )
+    row["entry_feature_snapshot_id"] = "feature-compaction-fixture"
+    row["entry_feature_snapshot"] = {
+        "schema_version": "durable_feature_snapshot_archive_record_v1",
+        "feature_snapshot_id": row["entry_feature_snapshot_id"],
+        "content_sha256": "9" * 64,
+        "features": {
+            "fixture_large_feature_vector": [float(index) for index in range(4_096)]
+        },
+    }
+    action: dict[str, object] = {
+        "schema_version": "AdaptivePolicyActionV2",
+        "decision_id": "apa2_compacted_accepted_fill",
+        "action_fingerprint_sha256": "a" * 64,
+        "selected_action": "directional_trade",
+        "primary_side": row["side"],
+        "paper_only": True,
+        "live_gate": paper_loop.LIVE_GATE_BLOCKED,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "exchange_action_taken": False,
+    }
+    action_sha256 = paper_loop._paper_canonical_sha256(action)  # noqa: SLF001
+    authorization: dict[str, object] = {
+        "schema_version": "adaptive_paper_policy_authorization_v2",
+        "authorization_id": "appa2_compacted_accepted_fill",
+        "authority_id": paper_loop.ADAPTIVE_POLICY_AUTHORITY_ID,
+        "adaptive_policy_action_id": action["decision_id"],
+        "adaptive_policy_action_sha256": action_sha256,
+        "objective_evaluation_id": "aoe2_compacted_accepted_fill",
+        "objective_evaluation_sha256": "d" * 64,
+        "hard_validation_receipt_sha256": "b" * 64,
+        "venue_attestation_id": "venue_compacted_accepted_fill",
+        "venue_attestation_sha256": "e" * 64,
+        "operator_catastrophic_envelope_sha256": "f" * 64,
+        "selected_action": "directional_trade",
+        "primary_symbol": row["symbol"],
+        "primary_timeframe": row["timeframe"],
+        "primary_side": row["side"],
+        "policy_trading_action_authority": True,
+        "paper_entry_authority": True,
+        "hard_validator_passed": True,
+        "exact_action_venue_executable": True,
+        "mandatory_stop_present": True,
+        "static_confidence_final_authority": False,
+        "static_loss_final_authority": False,
+        "static_microstructure_final_authority": False,
+        "static_exit_feasibility_final_authority": False,
+        "static_exploration_tier_final_authority": False,
+        "paper_only": True,
+        "live_gate": paper_loop.LIVE_GATE_BLOCKED,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "exchange_action_taken": False,
+        "live_eligible": False,
+        "live_submission_ready": False,
+    }
+    authorization_sha256 = paper_loop._paper_canonical_sha256(authorization)  # noqa: SLF001
+    row.update(
+        {
+            "adaptive_capital_policy_version": "ADAPTIVE_POLICY_EXACT_PAPER_ALLOCATION_V2",
+            "adaptive_policy_action": action,
+            "adaptive_policy_action_id": action["decision_id"],
+            "adaptive_policy_action_sha256": action_sha256,
+            "adaptive_paper_policy_authorization": authorization,
+            "adaptive_paper_policy_authorization_sha256": authorization_sha256,
+            "adaptive_policy_authoritative": True,
+            "adaptive_policy_entry_authorized": True,
+            "adaptive_policy_authority_id": paper_loop.ADAPTIVE_POLICY_AUTHORITY_ID,
+            "adaptive_policy_authority_status": "AUTHORIZED",
+            "adaptive_policy_reference_parity_status": "PASS",
+            "adaptive_policy_reference_disagreement_count": 0,
+            "adaptive_policy_decision_time": "2026-07-17T12:00:06Z",
+            "adaptive_policy_hard_validation_available_at": "2026-07-17T12:00:07Z",
+            "adaptive_policy_authorized_at": "2026-07-17T12:00:08Z",
+            "static_category_e_final_authority": False,
+            "static_confidence_final_authority": False,
+            "static_loss_final_authority": False,
+            "static_microstructure_final_authority": False,
+            "static_exit_feasibility_final_authority": False,
+            "static_exploration_tier_final_authority": False,
+            "paper_performance_circuit_breaker_authority_classification": (
+                "CATEGORY_E_POLICY_PERFORMANCE"
+            ),
+            "paper_performance_circuit_breaker_adaptive_policy_role": (
+                "CONTINUOUS_OBJECTIVE_RISK_INPUT"
+            ),
+            "paper_performance_circuit_breaker_hard_trading_authority": False,
+            "live_gate": paper_loop.LIVE_GATE_BLOCKED,
+            "exchange_action_taken": False,
+        }
+    )
+    allocation = row["adaptive_allocation"]
+    assert isinstance(allocation, dict)
+    allocation["adaptive_capital_policy_version"] = "ADAPTIVE_POLICY_EXACT_PAPER_ALLOCATION_V2"
+    allocation["adaptive_policy_authorization_sha256"] = authorization_sha256
+    model_inputs = allocation.setdefault("model_inputs", {})
+    assert isinstance(model_inputs, dict)
+    model_inputs.update(
+        {
+            "adaptive_policy_exact_physical_validation_status": "PASS",
+            "adaptive_policy_exact_physical_rejection_reasons": [],
+            "adaptive_policy_authorization": authorization,
+            "adaptive_policy_authorization_sha256": authorization_sha256,
+        }
+    )
+    cycle_receipt, cycle_reasons = paper_loop._paper_adaptive_policy_cycle_receipt(  # noqa: SLF001
+        row,
+        cycle_control_snapshot_sha256="c" * 64,
+    )
+    assert cycle_reasons == []
+    assert cycle_receipt is not None
+    row["adaptive_policy_paper_cycle_receipt"] = cycle_receipt
+    row["adaptive_policy_paper_cycle_receipt_id"] = cycle_receipt["receipt_id"]
+    row["adaptive_policy_paper_cycle_receipt_sha256"] = cycle_receipt["receipt_sha256"]
+    return _reseal_typed_adaptive_final_admission_fixture(row)
+
+
+def test_compacted_typed_adaptive_final_admission_remains_replayable_without_snapshot(
+) -> None:
+    source = _typed_adaptive_final_admission_fixture()
+    assert paper_loop._paper_persisted_admission_rejection_reasons(source) == []  # noqa: SLF001
+    assert paper_loop._paper_adaptive_policy_authority_rejection_reasons(source) == []  # noqa: SLF001
+    assert paper_loop._paper_adaptive_policy_cycle_receipt_valid(source) is True  # noqa: SLF001
+    source = paper_loop._seal_paper_persisted_ledger_contract(source)  # noqa: SLF001
+
+    compact = paper_loop._compact_accepted_fill_for_state(source)  # noqa: SLF001
+
+    assert paper_loop._paper_persisted_admission_rejection_reasons(compact) == []  # noqa: SLF001
+    assert paper_loop._paper_adaptive_policy_authority_rejection_reasons(compact) == []  # noqa: SLF001
+    assert paper_loop._paper_adaptive_policy_cycle_receipt_valid(compact) is True  # noqa: SLF001
+    assert compact["adaptive_policy_action"]["decision_id"] == source[
+        "adaptive_policy_action_id"
+    ]
+    assert paper_loop._paper_canonical_sha256(compact["adaptive_policy_action"]) == source[  # noqa: SLF001
+        "adaptive_policy_action_sha256"
+    ]
+    assert compact["adaptive_paper_policy_authorization"] == source[
+        "adaptive_paper_policy_authorization"
+    ]
+    assert compact["adaptive_policy_paper_cycle_receipt_id"] == source[
+        "adaptive_policy_paper_cycle_receipt_id"
+    ]
+    assert "paper_cycle_reservation_snapshot" in compact
+    assert "paper_cycle_reservation_commit_receipt" in compact
+    assert "entry_feature_snapshot" not in compact
+    assert compact["entry_feature_snapshot_omitted_from_state"] is True
+    assert len(json.dumps(compact, sort_keys=True)) < len(json.dumps(source, sort_keys=True))
+
+
+def test_compacted_final_admission_without_persisted_ledger_fails_closed() -> None:
+    source = _typed_adaptive_final_admission_fixture()
+
+    compact = paper_loop._compact_accepted_fill_for_state(source)  # noqa: SLF001
+    reasons = paper_loop._paper_persisted_admission_rejection_reasons(compact)  # noqa: SLF001
+
+    assert "PERSISTED_ADMISSION_LEDGER_CONTRACT_MISSING" in reasons
+
+
+@pytest.mark.parametrize(
+    "tamper_case",
+    (
+        "typed_action",
+        "typed_action_hash",
+        "authorization_receipt",
+        "cycle_reservation_snapshot",
+        "cycle_commit_receipt",
+        "final_seal",
+    ),
+)
+def test_compacted_typed_adaptive_final_admission_tampering_fails_closed(
+    tamper_case: str,
+) -> None:
+    source = _typed_adaptive_final_admission_fixture()
+    source = paper_loop._seal_paper_persisted_ledger_contract(source)  # noqa: SLF001
+    compact = paper_loop._compact_accepted_fill_for_state(source)  # noqa: SLF001
+    tampered = deepcopy(compact)
+
+    if tamper_case == "typed_action":
+        tampered["adaptive_policy_action"]["decision_id"] = "apa2_tampered"
+    elif tamper_case == "typed_action_hash":
+        tampered["adaptive_policy_action_sha256"] = "0" * 64
+    elif tamper_case == "authorization_receipt":
+        tampered["adaptive_paper_policy_authorization"]["paper_entry_authority"] = False
+    elif tamper_case == "cycle_reservation_snapshot":
+        tampered["paper_cycle_reservation_snapshot"]["snapshot_hash"] = "0" * 64
+    elif tamper_case == "cycle_commit_receipt":
+        tampered["paper_cycle_reservation_commit_receipt"]["status"] = "BLOCKED"
+    elif tamper_case == "final_seal":
+        tampered["paper_final_admission_contract"]["receipt_hash"] = "0" * 64
+    else:  # pragma: no cover - parameter list is exhaustive.
+        raise AssertionError(f"unknown tamper case: {tamper_case}")
+
+    reasons = paper_loop._paper_persisted_admission_rejection_reasons(tampered)  # noqa: SLF001
+
+    assert reasons, tamper_case
+
+
 def test_compact_accepted_fill_backfills_adaptive_allocation_contract() -> None:
     compact = paper_loop._compact_accepted_fill_for_state(  # noqa: SLF001
         {
@@ -19616,6 +20014,391 @@ def _open_position_fill_proof_store_payload(
         "v2:paper:open_position_fill_proofs": proofs,
         "v2:paper:open_position_fill_proofs:manifest": manifest,
     }
+
+
+def _legacy_compacted_accepted_fill_fixture() -> tuple[
+    dict[str, object],
+    dict[str, object],
+    dict[str, object],
+    dict[str, object],
+]:
+    full = _typed_adaptive_final_admission_fixture()
+    full.update(
+        {
+            "fill_id": "fill-legacy-compacted-proof-backed",
+            "ledger_row_id": "fill-legacy-compacted-proof-backed",
+            "position_id": "paper-pos-legacy-compacted-proof-backed",
+            "position_generation_id": "8" * 64,
+            "checkpoint_id": "SERVING_ABI_V2_PAPER_legacy_compaction_fixture",
+            "checkpoint_generation": 3,
+            "cohort_id": "paper-serving-v2-legacy-compaction-fixture",
+        }
+    )
+    full = _reseal_typed_adaptive_final_admission_fixture(full)
+    first_ledger_seal = paper_loop._seal_paper_persisted_ledger_contract(full)  # noqa: SLF001
+    second_ledger_seal = paper_loop._seal_paper_persisted_ledger_contract(  # noqa: SLF001
+        first_ledger_seal
+    )
+    assert second_ledger_seal["paper_persisted_ledger_contract_hash"] == (
+        first_ledger_seal["paper_persisted_ledger_contract_hash"]
+    )
+    assert second_ledger_seal["paper_persisted_ledger_contract"] == (
+        first_ledger_seal["paper_persisted_ledger_contract"]
+    )
+    full = second_ledger_seal
+
+    position: dict[str, object] = {
+        "position_id": full["position_id"],
+        "position_generation_id": full["position_generation_id"],
+        "checkpoint_id": full["checkpoint_id"],
+        "checkpoint_generation": full["checkpoint_generation"],
+        "cohort_id": full["cohort_id"],
+        "entry_fill_id": full["fill_id"],
+        "source_fill_ids": [full["fill_id"]],
+        "prediction_id": full["prediction_id"],
+        "signal_id": full["signal_id"],
+        "symbol": full["symbol"],
+        "timeframe": full["timeframe"],
+        "side": full["side"],
+        "net_quantity": full["quantity"],
+        "avg_entry_price": full["fill_price"],
+        "gross_notional_usd": full["gross_notional_usd"],
+        "effective_leverage": full["effective_leverage"],
+        "allocated_margin_usd": full["allocated_margin_usd"],
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+    proof, proof_reasons = paper_loop._paper_build_open_position_fill_proof(  # noqa: SLF001
+        full,
+        position,
+        generated_utc="2026-07-28T12:00:00Z",
+    )
+    assert proof_reasons == []
+    assert proof is not None
+    proof_source = paper_loop._paper_accepted_fill_proof_source(  # noqa: SLF001
+        _FakeRedis(
+            _open_position_fill_proof_store_payload(
+                [proof],
+                positions=[position],
+            )
+        )
+    )
+    assert proof_source["status"] == "READY"
+
+    legacy = paper_loop._compact_accepted_fill_for_state(full)  # noqa: SLF001
+    for field in paper_loop.PAPER_ACCEPTED_FILL_STATE_COMPACTION_ENVELOPE_FIELDS:
+        legacy.pop(field, None)
+    for field in (
+        "target_quantity",
+        "target_notional_usd",
+        "target_notional_usdt",
+    ):
+        legacy.pop(field, None)
+    for field in (
+        "adaptive_policy_action",
+        "adaptive_paper_policy_authorization",
+        "adaptive_policy_paper_cycle_receipt",
+        "exchange_action_taken",
+    ):
+        legacy.pop(field, None)
+    legacy["adaptive_allocation"] = paper_loop._compact_adaptive_allocation_for_state(  # noqa: SLF001
+        full["adaptive_allocation"],
+        row_context=full,
+    )
+    return legacy, proof, position, proof_source
+
+
+def _attest_legacy_compacted_fixture(
+    legacy: dict[str, object],
+    proof_source: dict[str, object],
+    current_open_positions: list[dict[str, object]],
+) -> tuple[dict[str, object], dict[str, object]]:
+    attested, status = paper_loop._paper_attest_legacy_compacted_accepted_fills(  # noqa: SLF001
+        {str(legacy["fill_id"]): legacy},
+        proof_source,
+        current_open_positions=current_open_positions,
+        generated_utc="2026-07-28T12:01:00Z",
+    )
+    return attested[str(legacy["fill_id"])], status
+
+
+def _rehash_open_position_fill_proof(proof: dict[str, object]) -> None:
+    proof["proof_id"] = paper_loop._paper_canonical_sha256(  # noqa: SLF001
+        paper_loop._paper_open_position_fill_proof_material(proof)  # noqa: SLF001
+    )
+
+
+def test_persisted_ledger_seal_is_hash_idempotent() -> None:
+    source = _typed_adaptive_final_admission_fixture()
+
+    first = paper_loop._seal_paper_persisted_ledger_contract(source)  # noqa: SLF001
+    second = paper_loop._seal_paper_persisted_ledger_contract(first)  # noqa: SLF001
+
+    assert second["paper_persisted_ledger_contract_hash"] == first[
+        "paper_persisted_ledger_contract_hash"
+    ]
+    assert second["paper_persisted_ledger_contract"] == first[
+        "paper_persisted_ledger_contract"
+    ]
+    assert paper_loop._paper_persisted_admission_rejection_reasons(first) == []  # noqa: SLF001
+    assert paper_loop._paper_persisted_admission_rejection_reasons(second) == []  # noqa: SLF001
+
+
+def test_legacy_compacted_fill_attestation_is_proof_backed_and_idempotent() -> None:
+    legacy, _proof, position, proof_source = _legacy_compacted_accepted_fill_fixture()
+
+    carried, status = _attest_legacy_compacted_fixture(
+        legacy,
+        proof_source,
+        [position],
+    )
+    attestation = carried[paper_loop.PAPER_LEGACY_COMPACTED_FILL_CARRY_FIELD]
+
+    assert status["attested_row_count"] == 1
+    assert status["blocked_row_count"] == 0
+    assert status["authorizes_new_fill"] is False
+    assert status["absence_is_invalidity"] is False
+    assert attestation["status"] == "PASS"
+    assert attestation["authorizes_new_fill"] is False
+    assert attestation["absence_is_invalidity"] is False
+    assert paper_loop._paper_persisted_admission_rejection_reasons(carried) == []  # noqa: SLF001
+
+    repeated, repeated_status = _attest_legacy_compacted_fixture(
+        carried,
+        proof_source,
+        [position],
+    )
+    assert repeated == carried
+    assert repeated_status == status
+
+    recompacted = paper_loop._compact_accepted_fill_for_state(carried)  # noqa: SLF001
+
+    assert recompacted == carried
+    assert paper_loop._paper_persisted_admission_rejection_reasons(recompacted) == []  # noqa: SLF001
+    kept, dropped = paper_loop._paper_filter_open_positions_to_accepted_rows(  # noqa: SLF001
+        [position],
+        [recompacted],
+    )
+    assert kept == [position]
+    assert dropped == []
+
+    once, first_receipt = paper_loop._paper_reconcile_ledger_to_accepted_fill_proofs(  # noqa: SLF001
+        {"open_positions": [position]},
+        proof_source,
+        generated_utc="2026-07-28T12:02:00Z",
+    )
+    twice, second_receipt = paper_loop._paper_reconcile_ledger_to_accepted_fill_proofs(  # noqa: SLF001
+        once,
+        proof_source,
+        generated_utc="2026-07-28T12:02:00Z",
+    )
+    assert first_receipt["status"] == "PASS"
+    assert second_receipt["status"] == "PASS"
+    assert twice["open_positions"] == once["open_positions"]
+    assert len(twice["open_positions"]) == 1
+
+
+def test_legacy_compacted_fill_cannot_use_stale_proof_to_reopen_closed_position() -> None:
+    legacy, _proof, _position, proof_source = _legacy_compacted_accepted_fill_fixture()
+    reconciled, reconciliation = paper_loop._paper_reconcile_ledger_to_accepted_fill_proofs(  # noqa: SLF001
+        {"open_positions": []},
+        proof_source,
+        generated_utc="2026-07-28T12:02:00Z",
+    )
+    assert reconciled["open_positions"] == []
+    assert reconciliation["retained_position_count"] == 0
+
+    carried, status = _attest_legacy_compacted_fixture(legacy, proof_source, [])
+
+    assert status["attested_row_count"] == 0
+    assert status["blocked_row_count"] == 1
+    assert paper_loop.PAPER_LEGACY_COMPACTED_FILL_CARRY_FIELD not in carried
+
+
+def test_previously_attested_legacy_fill_loses_carry_when_position_closes() -> None:
+    legacy, _proof, position, proof_source = _legacy_compacted_accepted_fill_fixture()
+    carried, first_status = _attest_legacy_compacted_fixture(
+        legacy,
+        proof_source,
+        [position],
+    )
+
+    after_close, closed_status = _attest_legacy_compacted_fixture(
+        carried,
+        proof_source,
+        [],
+    )
+
+    assert first_status["attested_row_count"] == 1
+    assert closed_status["attested_row_count"] == 0
+    assert closed_status["blocked_row_count"] == 1
+    assert closed_status["rejection_histogram"] == {
+        "LEGACY_COMPACTED_FILL_CURRENT_OPEN_POSITION_NOT_FOUND": 1,
+    }
+    assert paper_loop.PAPER_LEGACY_COMPACTED_FILL_CARRY_FIELD not in after_close
+    assert paper_loop.PAPER_LEGACY_COMPACTED_FILL_CARRY_HASH_FIELD not in after_close
+
+
+@pytest.mark.parametrize(
+    ("tamper_case", "expected_reason"),
+    (
+        (
+            "identity",
+            "LEGACY_COMPACTED_FILL_CURRENT_OPEN_POSITION_NOT_FOUND",
+        ),
+        (
+            "accounting",
+            "LEGACY_COMPACTED_FILL_OPEN_POSITION_QUANTITY_PROOF_MISMATCH",
+        ),
+    ),
+)
+def test_legacy_compacted_fill_attestation_rejects_current_position_mismatch(
+    tamper_case: str,
+    expected_reason: str,
+) -> None:
+    legacy, _proof, position, proof_source = _legacy_compacted_accepted_fill_fixture()
+    mismatched_position = deepcopy(position)
+    if tamper_case == "identity":
+        mismatched_position["position_id"] = "paper-pos-different"
+    else:
+        mismatched_position["net_quantity"] = 0.02
+
+    carried, status = _attest_legacy_compacted_fixture(
+        legacy,
+        proof_source,
+        [mismatched_position],
+    )
+
+    assert status["attested_row_count"] == 0
+    assert status["blocked_row_count"] == 1
+    assert expected_reason in status["rejection_histogram"]
+    assert paper_loop.PAPER_LEGACY_COMPACTED_FILL_CARRY_FIELD not in carried
+
+
+@pytest.mark.parametrize("source_case", ("missing", "invalid"))
+def test_legacy_compacted_fill_attestation_rejects_unusable_proof_source(
+    source_case: str,
+) -> None:
+    legacy, proof, position, _proof_source = _legacy_compacted_accepted_fill_fixture()
+    if source_case == "missing":
+        proof_source = paper_loop._paper_accepted_fill_proof_source(  # noqa: SLF001
+            _FakeRedis({})
+        )
+    else:
+        invalid_proof = deepcopy(proof)
+        invalid_proof["proof_id"] = "0" * 64
+        proof_source = paper_loop._paper_accepted_fill_proof_source(  # noqa: SLF001
+            _FakeRedis(
+                _open_position_fill_proof_store_payload(
+                    [invalid_proof],
+                    positions=[position],
+                )
+            )
+        )
+
+    carried, status = _attest_legacy_compacted_fixture(
+        legacy,
+        proof_source,
+        [position],
+    )
+
+    assert status["attested_row_count"] == 0
+    assert status["blocked_row_count"] == 1
+    assert paper_loop.PAPER_LEGACY_COMPACTED_FILL_CARRY_FIELD not in carried
+    assert paper_loop._paper_persisted_admission_rejection_reasons(carried)  # noqa: SLF001
+
+
+@pytest.mark.parametrize("tamper_case", ("identity", "economics"))
+def test_legacy_compacted_fill_attestation_rejects_proof_tamper(
+    tamper_case: str,
+) -> None:
+    legacy, proof, position, _proof_source = _legacy_compacted_accepted_fill_fixture()
+    tampered_proof = deepcopy(proof)
+    if tamper_case == "identity":
+        tampered_proof["symbol"] = "ETHUSDT"
+    else:
+        tampered_proof["fill_price"] = 51_000.0
+        tampered_proof["gross_notional_usd"] = 510.0
+        tampered_proof["allocated_margin_usd"] = 255.0
+    _rehash_open_position_fill_proof(tampered_proof)
+    proof_source = paper_loop._paper_accepted_fill_proof_source(  # noqa: SLF001
+        _FakeRedis(
+            _open_position_fill_proof_store_payload(
+                [tampered_proof],
+                positions=[position],
+            )
+        )
+    )
+
+    carried, status = _attest_legacy_compacted_fixture(
+        legacy,
+        proof_source,
+        [position],
+    )
+
+    assert status["attested_row_count"] == 0
+    assert status["blocked_row_count"] == 1
+    assert paper_loop.PAPER_LEGACY_COMPACTED_FILL_CARRY_FIELD not in carried
+
+
+@pytest.mark.parametrize(
+    ("tamper_case", "expected_reason"),
+    (
+        (
+            "exchange_action",
+            "LEGACY_COMPACTED_FILL_AUTHORITY_INVALID:exchange_action_taken",
+        ),
+        (
+            "critical_omission",
+            "LEGACY_COMPACTED_FILL_CRITICAL_OMISSION_SET_INVALID",
+        ),
+        (
+            "nested_mismatch",
+            "LEGACY_COMPACTED_FILL_NESTED_OMISSION_SET_INVALID",
+        ),
+    ),
+)
+def test_legacy_compacted_fill_attestation_rejects_unauthorized_legacy_surface(
+    tamper_case: str,
+    expected_reason: str,
+) -> None:
+    legacy, _proof, position, proof_source = _legacy_compacted_accepted_fill_fixture()
+    if tamper_case == "exchange_action":
+        legacy["exchange_action_taken"] = True
+    elif tamper_case == "critical_omission":
+        legacy.pop("symbol")
+    elif tamper_case == "nested_mismatch":
+        legacy.pop("paper_cycle_base_resource_evidence")
+    else:  # pragma: no cover - parameter list is exhaustive.
+        raise AssertionError(f"unknown tamper case: {tamper_case}")
+
+    carried, status = _attest_legacy_compacted_fixture(
+        legacy,
+        proof_source,
+        [position],
+    )
+
+    assert status["attested_row_count"] == 0
+    assert status["blocked_row_count"] == 1
+    assert expected_reason in status["rejection_histogram"]
+    assert paper_loop.PAPER_LEGACY_COMPACTED_FILL_CARRY_FIELD not in carried
+
+
+def test_legacy_compacted_fill_carry_attestation_tamper_fails_closed() -> None:
+    legacy, _proof, position, proof_source = _legacy_compacted_accepted_fill_fixture()
+    carried, _status = _attest_legacy_compacted_fixture(
+        legacy,
+        proof_source,
+        [position],
+    )
+    carried[paper_loop.PAPER_LEGACY_COMPACTED_FILL_CARRY_FIELD][
+        "authorizes_new_fill"
+    ] = True
+
+    reasons = paper_loop._paper_persisted_admission_rejection_reasons(carried)  # noqa: SLF001
+
+    assert "PERSISTED_ADMISSION_LEGACY_COMPACTED_CARRY_RECEIPT_INVALID" in reasons
 
 
 @pytest.mark.parametrize("side", ["long", "short"])

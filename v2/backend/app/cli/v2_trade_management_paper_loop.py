@@ -13415,6 +13415,100 @@ COMPACT_ACCEPTED_FILL_OMITTED_FIELDS = frozenset(
     }
 )
 
+PAPER_ACCEPTED_FILL_STATE_COMPACTION_SCHEMA_VERSION = (
+    "paper_accepted_fill_state_compaction_contract_v1"
+)
+PAPER_ACCEPTED_FILL_STATE_COMPACTION_CONTRACT_FIELD = (
+    "paper_accepted_fill_state_compaction_contract"
+)
+PAPER_ACCEPTED_FILL_STATE_COMPACTION_RECEIPT_HASH_FIELD = (
+    "paper_accepted_fill_state_compaction_receipt_hash"
+)
+PAPER_ACCEPTED_FILL_STATE_COMPACTION_STATUS_FIELD = (
+    "paper_accepted_fill_state_compaction_status"
+)
+PAPER_ACCEPTED_FILL_STATE_ALLOWED_OMITTED_SEALED_NESTED_FIELDS = frozenset(
+    {
+        # The immutable final-admission contract already binds the exact hashes
+        # of these two large, archived payloads.  Their durable identities,
+        # point-in-time clocks, and content hashes remain in the compact row.
+        "entry_feature_snapshot",
+        "preemptive_edge_control",
+    }
+)
+PAPER_ACCEPTED_FILL_TYPED_POLICY_EVIDENCE_FIELDS = (
+    "adaptive_policy_action",
+    "adaptive_policy_action_id",
+    "adaptive_policy_action_sha256",
+    "adaptive_paper_policy_authorization",
+    "adaptive_paper_policy_authorization_sha256",
+    "adaptive_policy_paper_cycle_receipt",
+    "adaptive_policy_paper_cycle_receipt_id",
+    "adaptive_policy_paper_cycle_receipt_sha256",
+    "exchange_action_taken",
+)
+PAPER_ACCEPTED_FILL_STATE_COMPACTION_ENVELOPE_FIELDS = frozenset(
+    {
+        PAPER_ACCEPTED_FILL_STATE_COMPACTION_CONTRACT_FIELD,
+        PAPER_ACCEPTED_FILL_STATE_COMPACTION_RECEIPT_HASH_FIELD,
+        PAPER_ACCEPTED_FILL_STATE_COMPACTION_STATUS_FIELD,
+    }
+)
+PAPER_LEGACY_COMPACTED_FILL_CARRY_SCHEMA_VERSION = (
+    "paper_legacy_compacted_fill_carry_attestation_v2"
+)
+PAPER_LEGACY_COMPACTED_FILL_CARRY_FIELD = (
+    "paper_legacy_compacted_fill_carry_attestation"
+)
+PAPER_LEGACY_COMPACTED_FILL_CARRY_HASH_FIELD = (
+    "paper_legacy_compacted_fill_carry_attestation_sha256"
+)
+PAPER_LEGACY_COMPACTED_FILL_ALLOWED_MISSING_CRITICAL_FIELDS = frozenset(
+    {
+        "raw_paper_fill_allowed_upstream",
+        "ordinary_paper_fill_allowed_at_boundary",
+        "paper_reduced_budget_allocator_recomputed",
+        "target_quantity",
+        "target_notional_usd",
+        "target_notional_usdt",
+        "mandatory_size_haircut",
+        "no_static_dollar_notional",
+        "no_leverage_increase_to_compensate_for_lower_trust",
+        "advanced_indicator_event_time",
+        "advanced_indicator_available_at",
+        "advanced_indicator_source_decision_time",
+        "advanced_indicator_generated_at",
+        "advanced_indicator_input_cutoff",
+        "advanced_indicator_decision_time",
+        "advanced_indicator_lookup_observed_at",
+        "altdata_generated_at",
+        "altdata_available_at",
+        "altdata_lookup_observed_at",
+        "mark_index_event_time",
+        "mark_index_generated_at",
+        "mark_index_observed_at",
+        "a_plus_context_snapshot_observed_at",
+        "a_plus_gate_evaluated_at",
+        "paper_entry_gate_snapshot_observed_at",
+        "paper_entry_gate_evaluated_at",
+        "paper_pre_cycle_control_snapshot_observed_at",
+        "runtime_cost_capture_decision_time",
+        "preemptive_decision_time",
+    }
+)
+PAPER_LEGACY_COMPACTED_FILL_ALLOWED_NESTED_PROJECTION_MISMATCHES = frozenset(
+    {
+        "adaptive_allocation",
+        "paper_pre_cycle_control_snapshot",
+        "paper_entry_gate_snapshot",
+        "preemptive_edge_control",
+        "mark_index_source_material",
+        "microstructure_trust_evidence",
+        "entry_feature_snapshot",
+        "adaptive_policy_paper_cycle_receipt",
+    }
+)
+
 
 def _copy_present_fields(source: dict[str, Any], fields: tuple[str, ...]) -> dict[str, Any]:
     return {
@@ -13702,14 +13796,130 @@ def _compact_adaptive_allocation_for_state(
 
 def _compact_accepted_fill_for_state(row: dict[str, Any]) -> dict[str, Any]:
     compact = _copy_present_fields(row, COMPACT_ACCEPTED_FILL_FIELDS)
-    allocation = _compact_adaptive_allocation_for_state(
-        row.get("adaptive_allocation"),
-        row_context=row,
+    final_contract = row.get("paper_final_admission_contract")
+    bound_material = (
+        final_contract.get("bound_material")
+        if isinstance(final_contract, Mapping)
+        and isinstance(final_contract.get("bound_material"), Mapping)
+        else {}
     )
-    if allocation:
-        compact["adaptive_allocation"] = allocation
+    sealed_projection = (
+        bound_material.get("persisted_row_projection")
+        if isinstance(bound_material.get("persisted_row_projection"), Mapping)
+        else {}
+    )
+    sealed_projection_hash = bound_material.get("persisted_row_projection_hash")
+    sealed_projection_valid = bool(
+        sealed_projection
+        and _paper_valid_sha256(sealed_projection_hash)
+        and sealed_projection_hash == _paper_canonical_sha256(sealed_projection)
+    )
+
+    # A final-admission PASS commits to the exact allocator payload.  Reducing
+    # that payload after sealing made the next cycle's intrinsic reservation
+    # replay fail and falsely quarantined legitimate fills.  Persist it exactly;
+    # bounded state still omits the large archived feature/preemptive payloads.
+    allocation = row.get("adaptive_allocation")
+    if sealed_projection_valid and isinstance(allocation, Mapping):
+        compact["adaptive_allocation"] = deepcopy(dict(allocation))
+    else:
+        legacy_allocation = _compact_adaptive_allocation_for_state(
+            allocation,
+            row_context=row,
+        )
+        if legacy_allocation:
+            compact["adaptive_allocation"] = legacy_allocation
+
+    for field in PAPER_ACCEPTED_FILL_TYPED_POLICY_EVIDENCE_FIELDS:
+        if field in row:
+            compact[field] = deepcopy(row[field])
+    for field in (
+        PAPER_LEGACY_COMPACTED_FILL_CARRY_FIELD,
+        PAPER_LEGACY_COMPACTED_FILL_CARRY_HASH_FIELD,
+    ):
+        if field in row:
+            compact[field] = deepcopy(row[field])
+
+    sealed_critical_fields = (
+        sealed_projection.get("critical_fields")
+        if isinstance(sealed_projection.get("critical_fields"), Mapping)
+        else {}
+    )
+    sealed_nested_hashes = (
+        sealed_projection.get("nested_payload_hashes")
+        if isinstance(sealed_projection.get("nested_payload_hashes"), Mapping)
+        else {}
+    )
+
+    # Copy every field the final seal declares critical, including explicit
+    # false/zero values and all point-in-time clocks.  This is driven by the
+    # immutable seal rather than a second hand-maintained field list.
+    for field in sealed_critical_fields:
+        if field in row:
+            compact[str(field)] = deepcopy(row[field])
+    for field in sealed_nested_hashes:
+        field_name = str(field)
+        if field_name in PAPER_ACCEPTED_FILL_STATE_ALLOWED_OMITTED_SEALED_NESTED_FIELDS:
+            compact.pop(field_name, None)
+        elif field_name in row:
+            compact[field_name] = deepcopy(row[field_name])
+
     compact["accepted_fill_state_compacted"] = True
-    compact["entry_feature_snapshot_omitted_from_state"] = bool(row.get("entry_feature_snapshot"))
+    compact["entry_feature_snapshot_omitted_from_state"] = bool(
+        row.get("entry_feature_snapshot")
+        or row.get("entry_feature_snapshot_omitted_from_state") is True
+    )
+
+    # Bind the bounded representation itself.  The source final-admission seal
+    # authenticates the original projection; this envelope proves which two
+    # payloads were intentionally omitted and detects any later mutation of
+    # every retained field.
+    if sealed_projection_valid and not isinstance(
+        row.get(PAPER_LEGACY_COMPACTED_FILL_CARRY_FIELD), Mapping
+    ):
+        null_hash = _paper_canonical_sha256(None)
+        omitted_nested_fields = sorted(
+            field
+            for field, expected_hash in sealed_nested_hashes.items()
+            if str(field) in PAPER_ACCEPTED_FILL_STATE_ALLOWED_OMITTED_SEALED_NESTED_FIELDS
+            and expected_hash != null_hash
+            and str(field) not in compact
+        )
+        compact_payload_hash = _paper_canonical_sha256(compact)
+        compaction_material = {
+            "schema_version": PAPER_ACCEPTED_FILL_STATE_COMPACTION_SCHEMA_VERSION,
+            "source_final_admission_receipt_hash": row.get(
+                "paper_final_admission_receipt_hash"
+            ),
+            "source_final_admission_bound_material_hash": row.get(
+                "paper_final_admission_bound_material_hash"
+            ),
+            "source_persisted_row_projection_hash": sealed_projection_hash,
+            "source_persisted_ledger_contract_hash": row.get(
+                "paper_persisted_ledger_contract_hash"
+            ),
+            "retained_critical_fields_sha256": _paper_canonical_sha256(
+                {field: compact.get(field) for field in sealed_critical_fields}
+            ),
+            "omitted_sealed_nested_fields": omitted_nested_fields,
+            "omitted_sealed_nested_payload_hashes": {
+                field: sealed_nested_hashes.get(field) for field in omitted_nested_fields
+            },
+            "compacted_payload_sha256": compact_payload_hash,
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+            "status": "PASS",
+        }
+        compaction_receipt_hash = _paper_canonical_sha256(compaction_material)
+        compact[PAPER_ACCEPTED_FILL_STATE_COMPACTION_CONTRACT_FIELD] = {
+            **compaction_material,
+            "receipt_hash": compaction_receipt_hash,
+        }
+        compact[PAPER_ACCEPTED_FILL_STATE_COMPACTION_RECEIPT_HASH_FIELD] = (
+            compaction_receipt_hash
+        )
+        compact[PAPER_ACCEPTED_FILL_STATE_COMPACTION_STATUS_FIELD] = "PASS"
     return compact
 
 
@@ -41661,6 +41871,697 @@ def _paper_persisted_admission_projection(
     }
 
 
+def _paper_persisted_typed_policy_rejection_reasons(
+    row: Mapping[str, Any],
+) -> list[str]:
+    """Replay the typed action, authorization, and cycle receipt bindings."""
+
+    typed_fields_present = any(
+        row.get(field) not in (None, "", {}, [])
+        for field in PAPER_ACCEPTED_FILL_TYPED_POLICY_EVIDENCE_FIELDS
+    )
+    if row.get("adaptive_policy_authoritative") is not True and not typed_fields_present:
+        # Historical pre-cutover rows retain their original evidence contract;
+        # absence of a newly introduced typed record is not retroactive fraud.
+        return []
+
+    reasons: list[str] = []
+    action = row.get("adaptive_policy_action")
+    authorization = row.get("adaptive_paper_policy_authorization")
+    cycle_receipt = row.get("adaptive_policy_paper_cycle_receipt")
+    if not isinstance(action, Mapping):
+        reasons.append("PERSISTED_ADMISSION_ADAPTIVE_POLICY_ACTION_MISSING")
+        action = {}
+    action_sha256 = _paper_canonical_sha256(dict(action)) if action else None
+    if (
+        action.get("schema_version") != "AdaptivePolicyActionV2"
+        or not _paper_valid_sha256(action_sha256)
+        or action_sha256 != row.get("adaptive_policy_action_sha256")
+        or action.get("decision_id") != row.get("adaptive_policy_action_id")
+    ):
+        reasons.append("PERSISTED_ADMISSION_ADAPTIVE_POLICY_ACTION_INVALID")
+
+    if not isinstance(authorization, Mapping):
+        reasons.append("PERSISTED_ADMISSION_ADAPTIVE_POLICY_AUTHORIZATION_MISSING")
+        authorization = {}
+    authorization_sha256 = (
+        _paper_canonical_sha256(dict(authorization)) if authorization else None
+    )
+    if (
+        authorization.get("schema_version")
+        != "adaptive_paper_policy_authorization_v2"
+        or not _paper_valid_sha256(authorization_sha256)
+        or authorization_sha256
+        != row.get("adaptive_paper_policy_authorization_sha256")
+        or authorization.get("adaptive_policy_action_id")
+        != row.get("adaptive_policy_action_id")
+        or authorization.get("adaptive_policy_action_sha256") != action_sha256
+    ):
+        reasons.append("PERSISTED_ADMISSION_ADAPTIVE_POLICY_AUTHORIZATION_INVALID")
+
+    if not isinstance(cycle_receipt, Mapping):
+        reasons.append("PERSISTED_ADMISSION_ADAPTIVE_POLICY_CYCLE_RECEIPT_MISSING")
+    elif not _paper_adaptive_policy_cycle_receipt_valid(row):
+        reasons.append("PERSISTED_ADMISSION_ADAPTIVE_POLICY_CYCLE_RECEIPT_INVALID")
+    return sorted(set(reasons))
+
+
+def _paper_persisted_ledger_contract_rejection_reasons(
+    row: Mapping[str, Any],
+    *,
+    sealed_projection: Mapping[str, Any],
+) -> list[str]:
+    """Verify the stable full-row persistence receipt carried by compact state."""
+
+    contract = row.get("paper_persisted_ledger_contract")
+    if not isinstance(contract, Mapping):
+        return ["PERSISTED_ADMISSION_LEDGER_CONTRACT_MISSING"]
+    material = dict(contract)
+    receipt_hash = material.pop("receipt_hash", None)
+    projection = contract.get("projection")
+    projection_hash = contract.get("projection_hash")
+    reasons: list[str] = []
+    if (
+        contract.get("schema_version") != "paper_persisted_ledger_contract_v1"
+        or contract.get("status") != "PASS"
+        or contract.get("paper_only") is not True
+        or contract.get("routes_to_live") is not False
+        or contract.get("places_real_order") is not False
+        or not _paper_valid_sha256(receipt_hash)
+        or receipt_hash != _paper_canonical_sha256(material)
+        or receipt_hash != row.get("paper_persisted_ledger_contract_hash")
+        or row.get("paper_persisted_ledger_status") != "PASS"
+    ):
+        reasons.append("PERSISTED_ADMISSION_LEDGER_CONTRACT_INVALID")
+    if (
+        not isinstance(projection, Mapping)
+        or not _paper_valid_sha256(projection_hash)
+        or projection_hash != _paper_canonical_sha256(projection)
+        or dict(projection) != dict(sealed_projection)
+    ):
+        reasons.append("PERSISTED_ADMISSION_LEDGER_PROJECTION_INVALID")
+    if (
+        contract.get("final_admission_receipt_hash")
+        != row.get("paper_final_admission_receipt_hash")
+        or contract.get("final_admission_bound_material_hash")
+        != row.get("paper_final_admission_bound_material_hash")
+    ):
+        reasons.append("PERSISTED_ADMISSION_LEDGER_FINAL_RECEIPT_MISMATCH")
+    return sorted(set(reasons))
+
+
+def _paper_accepted_fill_state_compaction_rejection_reasons(
+    row: Mapping[str, Any],
+    *,
+    sealed_projection: Mapping[str, Any],
+    sealed_projection_hash: Any,
+) -> list[str]:
+    """Validate an intentional bounded projection without treating absence as fraud."""
+
+    contract = row.get(PAPER_ACCEPTED_FILL_STATE_COMPACTION_CONTRACT_FIELD)
+    if not isinstance(contract, Mapping):
+        return ["PERSISTED_ADMISSION_COMPACTION_CONTRACT_MISSING"]
+    material = dict(contract)
+    receipt_hash = material.pop("receipt_hash", None)
+    reasons: list[str] = []
+    if (
+        contract.get("schema_version")
+        != PAPER_ACCEPTED_FILL_STATE_COMPACTION_SCHEMA_VERSION
+        or contract.get("status") != "PASS"
+        or contract.get("paper_only") is not True
+        or contract.get("routes_to_live") is not False
+        or contract.get("places_real_order") is not False
+        or not _paper_valid_sha256(receipt_hash)
+        or receipt_hash != _paper_canonical_sha256(material)
+        or receipt_hash
+        != row.get(PAPER_ACCEPTED_FILL_STATE_COMPACTION_RECEIPT_HASH_FIELD)
+        or row.get(PAPER_ACCEPTED_FILL_STATE_COMPACTION_STATUS_FIELD) != "PASS"
+    ):
+        reasons.append("PERSISTED_ADMISSION_COMPACTION_RECEIPT_INVALID")
+
+    bound_material = (
+        row.get("paper_final_admission_contract", {}).get("bound_material")
+        if isinstance(row.get("paper_final_admission_contract"), Mapping)
+        else {}
+    )
+    if (
+        contract.get("source_final_admission_receipt_hash")
+        != row.get("paper_final_admission_receipt_hash")
+        or contract.get("source_final_admission_bound_material_hash")
+        != row.get("paper_final_admission_bound_material_hash")
+        or contract.get("source_persisted_row_projection_hash")
+        != sealed_projection_hash
+        or contract.get("source_persisted_ledger_contract_hash")
+        != row.get("paper_persisted_ledger_contract_hash")
+        or bound_material.get("persisted_row_projection_hash")
+        != sealed_projection_hash
+    ):
+        reasons.append("PERSISTED_ADMISSION_COMPACTION_SOURCE_BINDING_INVALID")
+
+    compact_payload = {
+        field: deepcopy(value)
+        for field, value in row.items()
+        if field not in PAPER_ACCEPTED_FILL_STATE_COMPACTION_ENVELOPE_FIELDS
+    }
+    if contract.get("compacted_payload_sha256") != _paper_canonical_sha256(
+        compact_payload
+    ):
+        reasons.append("PERSISTED_ADMISSION_COMPACTED_PAYLOAD_MUTATED")
+
+    sealed_critical_fields = (
+        sealed_projection.get("critical_fields")
+        if isinstance(sealed_projection.get("critical_fields"), Mapping)
+        else {}
+    )
+    current_critical_fields = {
+        field: row.get(field) for field in sealed_critical_fields
+    }
+    if (
+        current_critical_fields != dict(sealed_critical_fields)
+        or contract.get("retained_critical_fields_sha256")
+        != _paper_canonical_sha256(current_critical_fields)
+    ):
+        reasons.append("PERSISTED_ADMISSION_COMPACTED_CRITICAL_FIELDS_MISMATCH")
+
+    sealed_nested_hashes = (
+        sealed_projection.get("nested_payload_hashes")
+        if isinstance(sealed_projection.get("nested_payload_hashes"), Mapping)
+        else {}
+    )
+    null_hash = _paper_canonical_sha256(None)
+    actual_omitted = sorted(
+        str(field)
+        for field, expected_hash in sealed_nested_hashes.items()
+        if expected_hash != null_hash
+        and _paper_canonical_sha256(row.get(str(field))) != expected_hash
+    )
+    declared_omitted = contract.get("omitted_sealed_nested_fields")
+    if (
+        not isinstance(declared_omitted, list)
+        or actual_omitted != declared_omitted
+        or not set(actual_omitted).issubset(
+            PAPER_ACCEPTED_FILL_STATE_ALLOWED_OMITTED_SEALED_NESTED_FIELDS
+        )
+        or contract.get("omitted_sealed_nested_payload_hashes")
+        != {field: sealed_nested_hashes.get(field) for field in actual_omitted}
+    ):
+        reasons.append("PERSISTED_ADMISSION_COMPACTED_OMISSION_SET_INVALID")
+    return sorted(set(reasons))
+
+
+def _paper_legacy_compacted_fill_evidence_rejection_reasons(
+    row: Mapping[str, Any],
+    proof: Mapping[str, Any],
+) -> tuple[list[str], list[str], list[str]]:
+    """Validate one pre-contract compact row from its immutable seal and proof.
+
+    This migration path is deliberately narrow.  It recognizes only the exact
+    fields omitted by the previous compactor and requires a valid, independently
+    hashed open-position fill proof.  It never reconstructs or invents missing
+    typed payloads and cannot authorize a new fill.
+    """
+
+    reasons: list[str] = []
+    final_contract = row.get("paper_final_admission_contract")
+    if not isinstance(final_contract, Mapping):
+        return ["LEGACY_COMPACTED_FILL_FINAL_CONTRACT_MISSING"], [], []
+    final_material = dict(final_contract)
+    final_receipt_hash = final_material.pop("receipt_hash", None)
+    bound_material = final_contract.get("bound_material")
+    bound_material_hash = final_contract.get("bound_material_hash")
+    if (
+        final_contract.get("schema_version") != "paper_final_admission_contract_v3"
+        or final_contract.get("status") != "PASS"
+        or not _paper_valid_sha256(final_receipt_hash)
+        or final_receipt_hash != _paper_canonical_sha256(final_material)
+        or final_receipt_hash != row.get("paper_final_admission_receipt_hash")
+        or not isinstance(bound_material, Mapping)
+        or not _paper_valid_sha256(bound_material_hash)
+        or bound_material_hash != _paper_canonical_sha256(bound_material)
+        or bound_material_hash != row.get("paper_final_admission_bound_material_hash")
+    ):
+        reasons.append("LEGACY_COMPACTED_FILL_FINAL_CONTRACT_INVALID")
+        return sorted(set(reasons)), [], []
+    assert isinstance(bound_material, Mapping)
+    sealed_projection = bound_material.get("persisted_row_projection")
+    sealed_projection_hash = bound_material.get("persisted_row_projection_hash")
+    if (
+        not isinstance(sealed_projection, Mapping)
+        or not _paper_valid_sha256(sealed_projection_hash)
+        or sealed_projection_hash != _paper_canonical_sha256(sealed_projection)
+    ):
+        reasons.append("LEGACY_COMPACTED_FILL_SEALED_PROJECTION_INVALID")
+        return sorted(set(reasons)), [], []
+    assert isinstance(sealed_projection, Mapping)
+    reasons.extend(
+        reason.replace("PERSISTED_ADMISSION_", "LEGACY_COMPACTED_FILL_", 1)
+        for reason in _paper_persisted_ledger_contract_rejection_reasons(
+            row,
+            sealed_projection=sealed_projection,
+        )
+    )
+
+    sealed_critical = (
+        sealed_projection.get("critical_fields")
+        if isinstance(sealed_projection.get("critical_fields"), Mapping)
+        else {}
+    )
+    omitted_critical: list[str] = []
+    for field, expected in sealed_critical.items():
+        field_name = str(field)
+        if field_name not in row:
+            if expected is not None:
+                omitted_critical.append(field_name)
+            continue
+        if row.get(field_name) != expected:
+            reasons.append(
+                f"LEGACY_COMPACTED_FILL_RETAINED_CRITICAL_FIELD_MISMATCH:{field_name}"
+            )
+    if not set(omitted_critical).issubset(
+        PAPER_LEGACY_COMPACTED_FILL_ALLOWED_MISSING_CRITICAL_FIELDS
+    ):
+        reasons.append("LEGACY_COMPACTED_FILL_CRITICAL_OMISSION_SET_INVALID")
+
+    sealed_nested = (
+        sealed_projection.get("nested_payload_hashes")
+        if isinstance(sealed_projection.get("nested_payload_hashes"), Mapping)
+        else {}
+    )
+    mismatched_nested = sorted(
+        str(field)
+        for field, expected_hash in sealed_nested.items()
+        if _paper_canonical_sha256(row.get(str(field))) != expected_hash
+    )
+    if not set(mismatched_nested).issubset(
+        PAPER_LEGACY_COMPACTED_FILL_ALLOWED_NESTED_PROJECTION_MISMATCHES
+    ):
+        reasons.append("LEGACY_COMPACTED_FILL_NESTED_OMISSION_SET_INVALID")
+
+    cycle_contract = bound_material.get("cycle_reservation_contract")
+    snapshot = row.get("paper_cycle_reservation_snapshot")
+    commit = row.get("paper_cycle_reservation_commit_receipt")
+    if not isinstance(cycle_contract, Mapping):
+        reasons.append("LEGACY_COMPACTED_FILL_BOUND_CYCLE_CONTRACT_MISSING")
+        cycle_contract = {}
+    expected_cycle_contract = {
+        "paper_cycle_reservation_snapshot": snapshot,
+        "paper_cycle_reservation_snapshot_hash": row.get(
+            "paper_cycle_reservation_snapshot_hash"
+        ),
+        "paper_cycle_reservation_commit_receipt": commit,
+        "paper_cycle_reservation_commit_receipt_hash": row.get(
+            "paper_cycle_reservation_commit_receipt_hash"
+        ),
+        "paper_cycle_reservation_commit_status": row.get(
+            "paper_cycle_reservation_commit_status"
+        ),
+        "cycle_identity": (
+            snapshot.get("cycle_identity") if isinstance(snapshot, Mapping) else None
+        ),
+    }
+    if dict(cycle_contract) != expected_cycle_contract:
+        reasons.append("LEGACY_COMPACTED_FILL_BOUND_CYCLE_CONTRACT_MISMATCH")
+    if not isinstance(commit, Mapping):
+        reasons.append("LEGACY_COMPACTED_FILL_CYCLE_COMMIT_MISSING")
+    else:
+        commit_material = dict(commit)
+        commit_hash = commit_material.pop("receipt_hash", None)
+        if (
+            commit.get("schema_version") != "paper_cycle_reservation_commit_v1"
+            or commit.get("status") != "PASS"
+            or commit.get("rejection_reasons") not in ([], ())
+            or commit.get("paper_only") is not True
+            or commit.get("routes_to_live") is not False
+            or commit.get("places_real_order") is not False
+            or not _paper_valid_sha256(commit_hash)
+            or commit_hash != _paper_canonical_sha256(commit_material)
+            or commit_hash != row.get("paper_cycle_reservation_commit_receipt_hash")
+            or commit.get("adaptive_allocation_hash")
+            != bound_material.get("adaptive_allocation_hash")
+        ):
+            reasons.append("LEGACY_COMPACTED_FILL_CYCLE_COMMIT_INVALID")
+
+    reasons.extend(
+        f"LEGACY_COMPACTED_FILL_{reason}"
+        for reason in _paper_open_position_fill_proof_reasons(proof)
+    )
+    proof_string_bindings = {
+        "fill_id": _accepted_fill_identity(row),
+        "ledger_row_id": _first_present(row.get("ledger_row_id"), _accepted_fill_identity(row)),
+        "position_id": row.get("position_id"),
+        "checkpoint_id": _first_present(row.get("checkpoint_id"), row.get("model_checkpoint_id")),
+        "prediction_id": _first_present(row.get("prediction_id"), row.get("source_prediction_id")),
+        "signal_id": _first_present(row.get("signal_id"), row.get("source_signal_id")),
+        "intent_id": _first_present(row.get("intent_id"), row.get("source_intent_id")),
+        "orchestrator_decision_id": row.get("orchestrator_decision_id"),
+        "risk_decision_id": row.get("risk_decision_id"),
+        "allocation_id": _first_present(row.get("allocation_id"), row.get("allocator_decision_id")),
+        "adaptive_policy_action_id": row.get("adaptive_policy_action_id"),
+        "symbol": str(row.get("symbol") or "").upper(),
+        "timeframe": row.get("timeframe"),
+        "side": _normalized_directional_side(row.get("side")),
+        "paper_final_admission_receipt_hash": row.get(
+            "paper_final_admission_receipt_hash"
+        ),
+        "paper_final_admission_bound_material_hash": row.get(
+            "paper_final_admission_bound_material_hash"
+        ),
+        "paper_cycle_reservation_commit_receipt_hash": row.get(
+            "paper_cycle_reservation_commit_receipt_hash"
+        ),
+        "adaptive_policy_action_sha256": row.get("adaptive_policy_action_sha256"),
+        "adaptive_paper_policy_authorization_sha256": row.get(
+            "adaptive_paper_policy_authorization_sha256"
+        ),
+        "adaptive_policy_paper_cycle_receipt_id": row.get(
+            "adaptive_policy_paper_cycle_receipt_id"
+        ),
+        "adaptive_policy_paper_cycle_receipt_sha256": row.get(
+            "adaptive_policy_paper_cycle_receipt_sha256"
+        ),
+    }
+    for field, expected in proof_string_bindings.items():
+        if proof.get(field) != expected:
+            reasons.append(f"LEGACY_COMPACTED_FILL_PROOF_BINDING_MISMATCH:{field}")
+    for field, expected in (
+        ("quantity", _coerce_float(row.get("quantity"))),
+        (
+            "fill_price",
+            _coerce_float(_first_present(row.get("fill_price"), row.get("entry_price"))),
+        ),
+        (
+            "gross_notional_usd",
+            _coerce_float(_first_present(row.get("gross_notional_usd"), row.get("notional"))),
+        ),
+        ("effective_leverage", _coerce_float(row.get("effective_leverage"))),
+        ("allocated_margin_usd", _coerce_float(row.get("allocated_margin_usd"))),
+    ):
+        actual = _coerce_float(proof.get(field))
+        if (
+            actual is None
+            or expected is None
+            or not math.isclose(actual, expected, rel_tol=1e-9, abs_tol=1e-12)
+        ):
+            reasons.append(f"LEGACY_COMPACTED_FILL_PROOF_ACCOUNTING_MISMATCH:{field}")
+    for field, expected in (
+        ("paper_only", True),
+        ("routes_to_live", False),
+        ("places_real_order", False),
+    ):
+        if row.get(field) is not expected or proof.get(field) is not expected:
+            reasons.append(f"LEGACY_COMPACTED_FILL_AUTHORITY_INVALID:{field}")
+    if row.get("exchange_action_taken") not in (None, False) or proof.get(
+        "exchange_action_taken"
+    ) is not False:
+        # The legacy compactor omitted this newly durable top-level alias.  Its
+        # exact false value remains bound by the accepted-fill proof and final
+        # safety contract; any explicit true value still fails closed.
+        reasons.append("LEGACY_COMPACTED_FILL_AUTHORITY_INVALID:exchange_action_taken")
+    return sorted(set(reasons)), sorted(omitted_critical), mismatched_nested
+
+
+def _paper_legacy_compacted_fill_carry_rejection_reasons(
+    row: Mapping[str, Any],
+) -> list[str]:
+    attestation = row.get(PAPER_LEGACY_COMPACTED_FILL_CARRY_FIELD)
+    if not isinstance(attestation, Mapping):
+        return ["PERSISTED_ADMISSION_LEGACY_COMPACTED_CARRY_ATTESTATION_MISSING"]
+    material = dict(attestation)
+    receipt_hash = material.pop("receipt_hash", None)
+    proof = attestation.get("open_position_fill_proof")
+    current_position_projection = attestation.get("current_open_position_projection")
+    current_position_projection_sha256 = attestation.get(
+        "current_open_position_projection_sha256"
+    )
+    reasons: list[str] = []
+    if (
+        attestation.get("schema_version")
+        != PAPER_LEGACY_COMPACTED_FILL_CARRY_SCHEMA_VERSION
+        or attestation.get("status") != "PASS"
+        or attestation.get("paper_only") is not True
+        or attestation.get("routes_to_live") is not False
+        or attestation.get("places_real_order") is not False
+        or attestation.get("exchange_action_taken") is not False
+        or attestation.get("migration_only") is not True
+        or attestation.get("authorizes_new_fill") is not False
+        or attestation.get("absence_is_invalidity") is not False
+        or attestation.get("current_open_position_required") is not True
+        or row.get("accepted_fill_state_compacted") is not True
+        or not _paper_valid_sha256(receipt_hash)
+        or receipt_hash != _paper_canonical_sha256(material)
+        or receipt_hash != row.get(PAPER_LEGACY_COMPACTED_FILL_CARRY_HASH_FIELD)
+    ):
+        reasons.append("PERSISTED_ADMISSION_LEGACY_COMPACTED_CARRY_RECEIPT_INVALID")
+    if not isinstance(proof, Mapping):
+        reasons.append("PERSISTED_ADMISSION_LEGACY_COMPACTED_CARRY_PROOF_MISSING")
+        return sorted(set(reasons))
+    if (
+        not isinstance(current_position_projection, Mapping)
+        or not _paper_valid_sha256(current_position_projection_sha256)
+        or current_position_projection_sha256
+        != _paper_canonical_sha256(current_position_projection)
+        or _paper_position_proof_binding_reasons(
+            current_position_projection,
+            proof,
+        )
+    ):
+        reasons.append(
+            "PERSISTED_ADMISSION_LEGACY_COMPACTED_CARRY_CURRENT_POSITION_BINDING_INVALID"
+        )
+    evidence_reasons, omitted_critical, mismatched_nested = (
+        _paper_legacy_compacted_fill_evidence_rejection_reasons(row, proof)
+    )
+    reasons.extend(f"PERSISTED_ADMISSION_{reason}" for reason in evidence_reasons)
+    if (
+        attestation.get("legacy_omitted_critical_fields") != omitted_critical
+        or attestation.get("legacy_mismatched_nested_fields") != mismatched_nested
+        or attestation.get("source_final_admission_receipt_hash")
+        != row.get("paper_final_admission_receipt_hash")
+        or attestation.get("source_final_admission_bound_material_hash")
+        != row.get("paper_final_admission_bound_material_hash")
+        or attestation.get("source_persisted_ledger_contract_hash")
+        != row.get("paper_persisted_ledger_contract_hash")
+        or attestation.get("proof_id") != proof.get("proof_id")
+    ):
+        reasons.append("PERSISTED_ADMISSION_LEGACY_COMPACTED_CARRY_BINDING_INVALID")
+    return sorted(set(reasons))
+
+
+def _paper_legacy_carry_open_position_projection(
+    position: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Return stable current-ledger fields needed to bind migration carry."""
+
+    return {
+        "position_id": position.get("position_id"),
+        "position_generation_id": position.get("position_generation_id"),
+        "checkpoint_id": _first_present(
+            position.get("checkpoint_id"), position.get("model_checkpoint_id")
+        ),
+        "checkpoint_generation": position.get("checkpoint_generation"),
+        "cohort_id": position.get("cohort_id"),
+        "entry_fill_id": position.get("entry_fill_id"),
+        "source_fill_ids": list(position.get("source_fill_ids") or []),
+        "fill_ids": list(position.get("fill_ids") or []),
+        "prediction_id": _first_present(
+            position.get("prediction_id"), position.get("source_prediction_id")
+        ),
+        "signal_id": _first_present(
+            position.get("signal_id"), position.get("source_signal_id")
+        ),
+        "intent_id": _first_present(
+            position.get("intent_id"), position.get("source_intent_id")
+        ),
+        "orchestrator_decision_id": position.get("orchestrator_decision_id"),
+        "risk_decision_id": position.get("risk_decision_id"),
+        "allocation_id": _first_present(
+            position.get("allocation_id"), position.get("allocator_decision_id")
+        ),
+        "adaptive_policy_action_id": position.get("adaptive_policy_action_id"),
+        "symbol": str(position.get("symbol") or "").upper(),
+        "timeframe": position.get("timeframe"),
+        "side": _normalized_directional_side(position.get("side")),
+        "net_quantity": _coerce_float(
+            _first_present(position.get("net_quantity"), position.get("quantity"))
+        ),
+        "avg_entry_price": _coerce_float(
+            _first_present(position.get("avg_entry_price"), position.get("entry_price"))
+        ),
+        "gross_notional_usd": _coerce_float(
+            _first_present(
+                position.get("gross_notional_usd"), position.get("notional")
+            )
+        ),
+        "effective_leverage": _coerce_float(position.get("effective_leverage")),
+        "allocated_margin_usd": _coerce_float(
+            _first_present(
+                position.get("allocated_margin_usd"),
+                position.get("margin_used_usd"),
+            )
+        ),
+        "paper_only": position.get("paper_only"),
+        "routes_to_live": position.get("routes_to_live"),
+        "places_real_order": position.get("places_real_order"),
+    }
+
+
+def _paper_attest_legacy_compacted_accepted_fills(
+    rows: Mapping[str, Mapping[str, Any]],
+    accepted_fill_proof_source: Mapping[str, Any],
+    *,
+    current_open_positions: Sequence[Mapping[str, Any]],
+    generated_utc: str,
+) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
+    """Carry pre-contract rows only while their exact position remains open."""
+
+    proof_rows_value = accepted_fill_proof_source.get("rows")
+    proof_rows = (
+        [dict(proof) for proof in proof_rows_value if isinstance(proof, Mapping)]
+        if isinstance(proof_rows_value, list)
+        else []
+    )
+    output: dict[str, dict[str, Any]] = {}
+    attested = 0
+    blocked = 0
+    rejection_histogram: Counter[str] = Counter()
+    for identity, source_row in rows.items():
+        row = dict(source_row)
+        # A carry receipt is a per-cycle observation of current open-position
+        # truth.  Never trust a previously persisted receipt after a close.
+        row.pop(PAPER_LEGACY_COMPACTED_FILL_CARRY_FIELD, None)
+        row.pop(PAPER_LEGACY_COMPACTED_FILL_CARRY_HASH_FIELD, None)
+        if (
+            row.get("accepted_fill_state_compacted") is not True
+            or isinstance(row.get(PAPER_ACCEPTED_FILL_STATE_COMPACTION_CONTRACT_FIELD), Mapping)
+        ):
+            output[str(identity)] = row
+            continue
+        row_aliases = _paper_fill_proof_aliases(row)
+        matches = [
+            proof
+            for proof in proof_rows
+            if row_aliases
+            and row_aliases.intersection(_paper_fill_proof_aliases(proof))
+            and proof.get("fill_id") == _accepted_fill_identity(row)
+        ]
+        if accepted_fill_proof_source.get("status") != "READY" or len(matches) != 1:
+            blocked += 1
+            reason = (
+                "LEGACY_COMPACTED_FILL_PROOF_SOURCE_NOT_READY"
+                if accepted_fill_proof_source.get("status") != "READY"
+                else "LEGACY_COMPACTED_FILL_UNIQUE_PROOF_NOT_FOUND"
+            )
+            rejection_histogram[reason] += 1
+            output[str(identity)] = row
+            continue
+        proof = matches[0]
+        current_position_matches = [
+            dict(position)
+            for position in current_open_positions
+            if isinstance(position, Mapping)
+            and str(position.get("position_id") or "")
+            == str(proof.get("position_id") or "")
+            and _paper_fill_proof_aliases(position).intersection(
+                _paper_fill_proof_aliases(proof)
+            )
+        ]
+        if len(current_position_matches) != 1:
+            blocked += 1
+            reason = (
+                "LEGACY_COMPACTED_FILL_CURRENT_OPEN_POSITION_NOT_FOUND"
+                if not current_position_matches
+                else "LEGACY_COMPACTED_FILL_CURRENT_OPEN_POSITION_AMBIGUOUS"
+            )
+            rejection_histogram[reason] += 1
+            output[str(identity)] = row
+            continue
+        current_position = current_position_matches[0]
+        current_position_binding_reasons = _paper_position_proof_binding_reasons(
+            current_position,
+            proof,
+        )
+        if current_position_binding_reasons:
+            blocked += 1
+            rejection_histogram.update(
+                f"LEGACY_COMPACTED_FILL_{reason}"
+                for reason in current_position_binding_reasons
+            )
+            output[str(identity)] = row
+            continue
+        evidence_reasons, omitted_critical, mismatched_nested = (
+            _paper_legacy_compacted_fill_evidence_rejection_reasons(row, proof)
+        )
+        if evidence_reasons:
+            blocked += 1
+            rejection_histogram.update(evidence_reasons)
+            output[str(identity)] = row
+            continue
+        current_position_projection = _paper_legacy_carry_open_position_projection(
+            current_position
+        )
+        material = {
+            "schema_version": PAPER_LEGACY_COMPACTED_FILL_CARRY_SCHEMA_VERSION,
+            "generated_utc": generated_utc,
+            "fill_id": _accepted_fill_identity(row),
+            "proof_id": proof.get("proof_id"),
+            "open_position_fill_proof": deepcopy(proof),
+            "current_open_position_projection": current_position_projection,
+            "current_open_position_projection_sha256": _paper_canonical_sha256(
+                current_position_projection
+            ),
+            "source_final_admission_receipt_hash": row.get(
+                "paper_final_admission_receipt_hash"
+            ),
+            "source_final_admission_bound_material_hash": row.get(
+                "paper_final_admission_bound_material_hash"
+            ),
+            "source_persisted_ledger_contract_hash": row.get(
+                "paper_persisted_ledger_contract_hash"
+            ),
+            "proof_persisted_ledger_contract_hash": proof.get(
+                "paper_persisted_ledger_contract_hash"
+            ),
+            "legacy_omitted_critical_fields": omitted_critical,
+            "legacy_mismatched_nested_fields": mismatched_nested,
+            "migration_only": True,
+            "authorizes_new_fill": False,
+            "absence_is_invalidity": False,
+            "current_open_position_required": True,
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+            "exchange_action_taken": False,
+            "status": "PASS",
+        }
+        receipt_hash = _paper_canonical_sha256(material)
+        row[PAPER_LEGACY_COMPACTED_FILL_CARRY_FIELD] = {
+            **material,
+            "receipt_hash": receipt_hash,
+        }
+        row[PAPER_LEGACY_COMPACTED_FILL_CARRY_HASH_FIELD] = receipt_hash
+        output[str(identity)] = row
+        attested += 1
+    status = {
+        "schema_version": "paper_legacy_compacted_fill_carry_status_v1",
+        "generated_utc": generated_utc,
+        "input_row_count": len(rows),
+        "attested_row_count": attested,
+        "blocked_row_count": blocked,
+        "rejection_histogram": dict(sorted(rejection_histogram.items())),
+        "proof_source_status": accepted_fill_proof_source.get("status"),
+        "current_open_position_count": len(current_open_positions),
+        "migration_only": True,
+        "authorizes_new_fill": False,
+        "absence_is_invalidity": False,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "exchange_action_taken": False,
+    }
+    status["status_sha256"] = _paper_canonical_sha256(status)
+    return output, status
+
+
 def _paper_persisted_admission_rejection_reasons(
     row: Mapping[str, Any],
 ) -> list[str]:
@@ -41718,17 +42619,29 @@ def _paper_persisted_admission_rejection_reasons(
         "revocable_control_commit_revalidation"
     ) != dict(revocable_receipt):
         reasons.append("PERSISTED_ADMISSION_REVOCABLE_CONTROL_BOUND_MATERIAL_MISMATCH")
-    allocation = row.get("adaptive_allocation")
-    if not isinstance(allocation, Mapping):
-        reasons.append("PERSISTED_ADMISSION_CYCLE_ALLOCATION_MISSING")
-        allocation = {}
-    reasons.extend(
-        f"PERSISTED_ADMISSION_{reason}"
-        for reason in _paper_cycle_reservation_contract_rejection_reasons(
-            row,
-            allocation,
-        )
+    legacy_carry_present = isinstance(
+        row.get(PAPER_LEGACY_COMPACTED_FILL_CARRY_FIELD), Mapping
     )
+    legacy_carry_reasons = (
+        _paper_legacy_compacted_fill_carry_rejection_reasons(row)
+        if legacy_carry_present
+        else []
+    )
+    reasons.extend(legacy_carry_reasons)
+    legacy_carry_valid = bool(legacy_carry_present and not legacy_carry_reasons)
+    if not legacy_carry_valid:
+        reasons.extend(_paper_persisted_typed_policy_rejection_reasons(row))
+        allocation = row.get("adaptive_allocation")
+        if not isinstance(allocation, Mapping):
+            reasons.append("PERSISTED_ADMISSION_CYCLE_ALLOCATION_MISSING")
+            allocation = {}
+        reasons.extend(
+            f"PERSISTED_ADMISSION_{reason}"
+            for reason in _paper_cycle_reservation_contract_rejection_reasons(
+                row,
+                allocation,
+            )
+        )
     cycle_snapshot = row.get("paper_cycle_reservation_snapshot")
     expected_cycle_contract = {
         "paper_cycle_reservation_snapshot": cycle_snapshot,
@@ -41747,11 +42660,36 @@ def _paper_persisted_admission_rejection_reasons(
     sealed_projection = bound_material.get("persisted_row_projection")
     sealed_projection_hash = bound_material.get("persisted_row_projection_hash")
     current_projection = _paper_persisted_admission_projection(row)
-    if (
-        not isinstance(sealed_projection, Mapping)
-        or not _paper_valid_sha256(sealed_projection_hash)
-        or sealed_projection_hash != _paper_canonical_sha256(sealed_projection)
-        or sealed_projection_hash != _paper_canonical_sha256(current_projection)
+    sealed_projection_valid = bool(
+        isinstance(sealed_projection, Mapping)
+        and _paper_valid_sha256(sealed_projection_hash)
+        and sealed_projection_hash == _paper_canonical_sha256(sealed_projection)
+    )
+    if not sealed_projection_valid:
+        reasons.append("PERSISTED_ADMISSION_ROW_MUTATED_AFTER_FINAL_SEAL")
+    elif row.get("accepted_fill_state_compacted") is True and legacy_carry_valid:
+        # A proof-backed, migration-only receipt authenticates the exact legacy
+        # omission surface.  It can carry an existing position to close but can
+        # never authorize a new fill.
+        pass
+    elif row.get("accepted_fill_state_compacted") is True:
+        assert isinstance(sealed_projection, Mapping)
+        compaction_reasons = _paper_accepted_fill_state_compaction_rejection_reasons(
+            row,
+            sealed_projection=sealed_projection,
+            sealed_projection_hash=sealed_projection_hash,
+        )
+        reasons.extend(compaction_reasons)
+        reasons.extend(
+            _paper_persisted_ledger_contract_rejection_reasons(
+                row,
+                sealed_projection=sealed_projection,
+            )
+        )
+        if compaction_reasons:
+            reasons.append("PERSISTED_ADMISSION_ROW_MUTATED_AFTER_FINAL_SEAL")
+    elif (
+        sealed_projection_hash != _paper_canonical_sha256(current_projection)
         or dict(sealed_projection) != current_projection
     ):
         reasons.append("PERSISTED_ADMISSION_ROW_MUTATED_AFTER_FINAL_SEAL")
@@ -41766,6 +42704,21 @@ def _seal_paper_persisted_ledger_contract(
     row: Mapping[str, Any],
 ) -> dict[str, Any]:
     sealed = dict(row)
+    final_contract = sealed.get("paper_final_admission_contract")
+    bound_material = (
+        final_contract.get("bound_material")
+        if isinstance(final_contract, Mapping)
+        and isinstance(final_contract.get("bound_material"), Mapping)
+        else {}
+    )
+    sealed_projection = bound_material.get("persisted_row_projection")
+    if isinstance(sealed_projection, Mapping) and not (
+        _paper_persisted_ledger_contract_rejection_reasons(
+            sealed,
+            sealed_projection=sealed_projection,
+        )
+    ):
+        return sealed
     projection = _paper_persisted_admission_projection(sealed)
     material = {
         "schema_version": "paper_persisted_ledger_contract_v1",
@@ -54838,6 +55791,22 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
     if post_backfill_churn_blocked:
         blocked.extend(post_backfill_churn_blocked)
 
+    accepted_for_ledger_by_identity = {
+        _accepted_fill_identity(row): row
+        for row in accepted_for_ledger
+        if isinstance(row, Mapping) and _accepted_fill_identity(row)
+    }
+    (
+        accepted_for_ledger_by_identity,
+        legacy_compacted_fill_carry_status,
+    ) = _paper_attest_legacy_compacted_accepted_fills(
+        accepted_for_ledger_by_identity,
+        accepted_fill_proof_source,
+        current_open_positions=_paper_open_position_rows(existing_ledger),
+        generated_utc=_utc_iso(),
+    )
+    accepted_for_ledger = list(accepted_for_ledger_by_identity.values())
+
     # CG-F056: quarantine is a pre-lifecycle decision.  An invalid fill must
     # never be allowed to create a position that is removed one cycle later.
     # This split occurs after all lineage/seal backfills, but before margin
@@ -57473,15 +58442,20 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                 )
         except Exception:
             pass
-    accepted_state_rows = _compact_rows_for_state(valid_accepted_for_ledger)
-    current_accepted_state_rows = _compact_rows_for_state(valid_current_accepted)
-    accepted_state_rows = _repair_paper_exploration_public_lineage_rows(
-        accepted_state_rows,
-        open_positions=open_positions,
+    # Public-lineage repair is an additive normalization step and must happen
+    # before the compact-state envelope is sealed.  Nothing may mutate a
+    # compacted accepted fill after its bounded payload hash is emitted.
+    accepted_state_rows = _compact_rows_for_state(
+        _repair_paper_exploration_public_lineage_rows(
+            valid_accepted_for_ledger,
+            open_positions=open_positions,
+        )
     )
-    current_accepted_state_rows = _repair_paper_exploration_public_lineage_rows(
-        current_accepted_state_rows,
-        open_positions=open_positions,
+    current_accepted_state_rows = _compact_rows_for_state(
+        _repair_paper_exploration_public_lineage_rows(
+            valid_current_accepted,
+            open_positions=open_positions,
+        )
     )
     invalid_admission_accepted_quarantine_state_rows = _compact_rows_for_state(
         invalid_admission_accepted_rows
@@ -57989,6 +58963,9 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                         "paper_position_fill_reconciliation_status": (
                             paper_position_fill_reconciliation_status
                         ),
+                        "paper_legacy_compacted_fill_carry_status": (
+                            legacy_compacted_fill_carry_status
+                        ),
                         "open_position_fill_proof_count": len(
                             open_position_fill_proofs
                         ),
@@ -58416,6 +59393,9 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         "persistent_accepted_fill_count": len(valid_accepted_for_ledger),
         "persistent_accepted_fill_count_raw_before_invalid_admission_filter": len(
             accepted_for_ledger
+        ),
+        "paper_legacy_compacted_fill_carry_status": (
+            legacy_compacted_fill_carry_status
         ),
         "accepted_invalid_admission_quarantine_count": len(invalid_admission_accepted_rows),
         "invalid_admission_accepted_quarantine_status": (
