@@ -4,6 +4,8 @@ import hashlib
 import json
 from types import SimpleNamespace
 
+import pytest
+
 from v2.backend.app.cli import v2_paper_provisional_prediction_publisher as publisher
 
 
@@ -37,6 +39,41 @@ def _microstructure_tensor() -> SimpleNamespace:
         source_lineage_hash="a" * 64,
         timeframe="5m",
     )
+
+
+def test_opening_distribution_is_projected_to_runtime_action_abi() -> None:
+    logits, probabilities, selected_index = publisher._project_opening_action_distribution(
+        source_labels=["long", "short", "hold"],
+        source_logits=[-2.0, 8.0, -9.0],
+        source_probabilities=[0.000045, 0.999955, 0.0],
+        selected_action="short",
+    )
+
+    assert probabilities[:3] == [0.0, 0.000045, 0.999955]
+    assert probabilities[3:] == [0.0] * 4
+    assert logits[:3] == [-9.0, -2.0, 8.0]
+    assert selected_index == 2
+    assert probabilities[selected_index] == pytest.approx(0.999955)
+
+
+@pytest.mark.parametrize(
+    "source_labels",
+    [
+        ["long", "short"],
+        ["long", "short", "short"],
+        ["long", "short", "close_long"],
+    ],
+)
+def test_opening_distribution_rejects_checkpoint_action_abi_mismatch(
+    source_labels: list[str],
+) -> None:
+    with pytest.raises(ValueError, match="CHECKPOINT_OPENING_ACTION_ABI_MISMATCH"):
+        publisher._project_opening_action_distribution(
+            source_labels=source_labels,
+            source_logits=[0.0] * len(source_labels),
+            source_probabilities=[1.0 / len(source_labels)] * len(source_labels),
+            selected_action=source_labels[0],
+        )
 
 
 def test_current_feature_snapshot_binds_postcommit_availability_receipt() -> None:

@@ -50,6 +50,7 @@ from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.confidence impor
     normalize_calibration_state,
 )
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.config import (  # noqa: E402
+    ACTION_LABELS,
     CHECKPOINT_SOURCE,
     MODEL_SOURCE,
     PREDICTION_KEY_TEMPLATE,
@@ -105,6 +106,7 @@ DEFAULT_MANIFEST = (
     Path(REPO_ROOT) / ".local_models/paper_provisional/provisional_100_row_manifest.json"
 )
 PROVISIONAL_TTL_SECONDS = 180
+OPENING_ACTION_LABELS = ("hold", "long", "short")
 
 
 # --------------------------------------------------------------------------- #
@@ -145,6 +147,51 @@ def _gross_expected_move_from_directional_net_edge(
         return None
     gross_directional = net_edge + abs(float(round_trip_cost_bps))
     return gross_directional if normalized_action == "long" else -gross_directional
+
+
+def _project_opening_action_distribution(
+    *,
+    source_labels: list[str],
+    source_logits: list[float],
+    source_probabilities: list[float],
+    selected_action: str,
+) -> tuple[list[float], list[float], int]:
+    """Project a three-action serving checkpoint onto the runtime action ABI.
+
+    Generation-3 checkpoints store ``(long, short, hold)`` while the shared
+    publisher contract uses ``(hold, long, short, close_long, ...)``.  Relabeling
+    the unprojected vector makes the selected-action probability describe a
+    different action.  Non-opening actions are unsupported by this checkpoint
+    and therefore receive exactly zero probability.
+    """
+
+    normalized_labels = [str(label).strip().lower() for label in source_labels]
+    if (
+        len(normalized_labels) != len(source_logits)
+        or len(normalized_labels) != len(source_probabilities)
+        or len(set(normalized_labels)) != len(normalized_labels)
+        or set(normalized_labels) != set(OPENING_ACTION_LABELS)
+    ):
+        raise ValueError("CHECKPOINT_OPENING_ACTION_ABI_MISMATCH")
+    normalized_selected = str(selected_action).strip().lower()
+    if normalized_selected not in normalized_labels:
+        raise ValueError("CHECKPOINT_SELECTED_ACTION_ABI_MISMATCH")
+
+    logits_by_action = dict(zip(normalized_labels, source_logits, strict=True))
+    probabilities_by_action = dict(
+        zip(normalized_labels, source_probabilities, strict=True)
+    )
+    projected_logits = [
+        float(logits_by_action.get(label, -1.0e9)) for label in ACTION_LABELS
+    ]
+    projected_probabilities = [
+        float(probabilities_by_action.get(label, 0.0)) for label in ACTION_LABELS
+    ]
+    return (
+        projected_logits,
+        projected_probabilities,
+        ACTION_LABELS.index(normalized_selected),
+    )
 
 
 def read_json_key(client: Any, key: str) -> Any:
@@ -254,11 +301,19 @@ class ProvisionalCheckpoint:
         idx = int(torch.argmax(probs))
         action = self.actions[idx]
         raw_prob = float(probs[idx])
+        projected_logits, projected_probabilities, projected_index = (
+            _project_opening_action_distribution(
+                source_labels=self.actions,
+                source_logits=[float(v) for v in logits.tolist()],
+                source_probabilities=[float(v) for v in probs.tolist()],
+                selected_action=action,
+            )
+        )
         result = {
             "action": action,
-            "action_index": idx,
-            "logits": [float(v) for v in logits.tolist()],
-            "probabilities": [float(v) for v in probs.tolist()],
+            "action_index": projected_index,
+            "logits": projected_logits,
+            "probabilities": projected_probabilities,
             "confidence_raw": raw_prob,
         }
         if directional_edges is not None:
