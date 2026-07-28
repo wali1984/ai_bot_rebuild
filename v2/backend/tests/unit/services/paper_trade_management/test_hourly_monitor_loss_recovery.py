@@ -649,6 +649,108 @@ class TestUpdateOutcomeMemory:
 
 # ── loss_recovery tests ────────────────────────────────────────────────────────
 
+def test_rebuild_tombstones_bucket_whose_only_close_was_newly_quarantined():
+    quarantined = _closed_event(
+        symbol="MORPHOUSDT",
+        timeframe="15m",
+        pnl=10.0,
+        return_bps=20.0,
+    )
+    quarantined.update(
+        {
+            "close_id": "paper-close-quarantined",
+            "unproved_fill_close_quarantined": True,
+            "unproved_fill_close_quarantine_reasons": [
+                "ENTRY_FILL_PERSISTED_ADMISSION_FINAL_CONTRACT_MISSING",
+                "UNPROVED_ADAPTIVE_POLICY_CLOSE_ENTRY_FILL",
+            ],
+            "counts_as_economic_evidence": False,
+            "economic_evidence_eligible": False,
+            "counts_as_realized_paper_profit": False,
+            "trainer_consumable": False,
+        }
+    )
+    valid = _closed_event(
+        symbol="SOLUSDT",
+        timeframe="15m",
+        pnl=5.0,
+        return_bps=8.0,
+    )
+    valid["close_id"] = "paper-close-valid"
+    stale_bucket = build_outcome_memory_buckets_from_closed_trades([quarantined])[
+        _bucket_key("MORPHOUSDT", "15m")
+    ]
+    r = _fake_redis()
+    r.set(
+        _bucket_key("MORPHOUSDT", "15m"),
+        json.dumps(stale_bucket),
+    )
+
+    result = rebuild_outcome_memory_from_closed_trades(
+        closed_trade_rows=[valid],
+        invalidated_rows=[quarantined],
+        redis_client=r,
+        write=True,
+    )
+
+    tombstone = json.loads(r.get(_bucket_key("MORPHOUSDT", "15m")))
+    valid_bucket = json.loads(r.get(_bucket_key("SOLUSDT", "15m")))
+    aggregate = json.loads(r.get(_bucket_key("__ALL__", "15m")))
+    assert tombstone["trade_count"] == 0
+    assert tombstone["total_trades"] == 0
+    assert tombstone["trusted_trade_count"] == 0
+    assert tombstone["untrusted_trade_count"] == 0
+    assert tombstone["win_count"] == 0
+    assert tombstone["recent_pnl_usd"] == []
+    assert tombstone["recent_bps"] == []
+    assert tombstone["trust_evidence_status"] != "TRUSTED_OUTCOME_MEMORY"
+    assert tombstone["outcome_memory_can_block_entries"] is False
+    assert tombstone["degraded"] is False
+    assert tombstone["block_reason"] is None
+    assert valid_bucket["trade_count"] == 1
+    assert valid_bucket["recent_pnl_usd"] == [5.0]
+    assert aggregate["trade_count"] == 1
+    assert aggregate["recent_pnl_usd"] == [5.0]
+    assert result["events_processed"] == 1
+    assert result["invalidated_rows_seen"] == 1
+    assert result["tombstone_bucket_count"] == 1
+    assert result["buckets_updated"] == 3
+
+
+def test_rebuild_does_not_tombstone_bucket_with_other_valid_outcomes():
+    quarantined = _closed_event(
+        symbol="MORPHOUSDT",
+        timeframe="15m",
+        pnl=10.0,
+        return_bps=20.0,
+    )
+    quarantined["close_id"] = "paper-close-quarantined"
+    valid = _closed_event(
+        symbol="MORPHOUSDT",
+        timeframe="15m",
+        pnl=-2.0,
+        return_bps=-4.0,
+    )
+    valid["close_id"] = "paper-close-valid"
+    r = _fake_redis()
+
+    result = rebuild_outcome_memory_from_closed_trades(
+        closed_trade_rows=[valid],
+        invalidated_rows=[quarantined],
+        redis_client=r,
+        write=True,
+    )
+
+    symbol_bucket = json.loads(r.get(_bucket_key("MORPHOUSDT", "15m")))
+    aggregate = json.loads(r.get(_bucket_key("__ALL__", "15m")))
+    assert symbol_bucket["trade_count"] == 1
+    assert symbol_bucket["recent_pnl_usd"] == [-2.0]
+    assert aggregate["trade_count"] == 1
+    assert aggregate["recent_pnl_usd"] == [-2.0]
+    assert result["invalidated_rows_seen"] == 1
+    assert result["tombstone_bucket_count"] == 0
+
+
 def _pnl_window(*, closed: int = 5, pnl: float = 10.0, win_rate: float = 0.6, pf: float = 1.5) -> dict:
     return {
         "closed_trade_count": closed,

@@ -2517,6 +2517,17 @@ _FEEDBACK_ENTRY_CONTEXT_FIELDS: tuple[str, ...] = (
     *AUDIT_QUALITY_FEEDBACK_FIELDS,
 )
 
+_AUTHENTICATED_ENTRY_ADMISSION_CARRY_FIELDS_KEY = (
+    "__authenticated_entry_admission_carry_fields__"
+)
+_AUTHENTICATED_ENTRY_ADMISSION_ENVELOPE_CONTEXT_KEY = (
+    "__authenticated_entry_admission_envelope__"
+)
+PAPER_CLOSE_ENTRY_ADMISSION_ENVELOPE_FIELD = "paper_entry_admission_envelope"
+PAPER_CLOSE_ENTRY_ADMISSION_ENVELOPE_SHA256_FIELD = (
+    "paper_entry_admission_envelope_sha256"
+)
+
 
 def _entry_feedback_context_by_fill_id(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     indexed: dict[str, dict[str, Any]] = {}
@@ -2536,12 +2547,95 @@ def _entry_feedback_context_by_fill_id(rows: list[dict[str, Any]]) -> dict[str, 
             for field in _FEEDBACK_ENTRY_CONTEXT_FIELDS
             if row.get(field) not in (None, "")
         }
+        authenticated_carry_fields = _paper_authenticated_entry_admission_carry_fields(
+            row
+        )
+        if authenticated_carry_fields:
+            for field in authenticated_carry_fields:
+                context[field] = deepcopy(row[field])
+            context[_AUTHENTICATED_ENTRY_ADMISSION_CARRY_FIELDS_KEY] = list(
+                authenticated_carry_fields
+            )
+            authenticated_envelope = (
+                deepcopy(row)
+                if row.get("accepted_fill_state_compacted") is True
+                else _compact_accepted_fill_for_state(deepcopy(row))
+            )
+            if not _paper_persisted_admission_rejection_reasons(
+                authenticated_envelope
+            ):
+                context[_AUTHENTICATED_ENTRY_ADMISSION_ENVELOPE_CONTEXT_KEY] = (
+                    authenticated_envelope
+                )
         if not context:
             continue
         for fill_id in fill_ids:
             if fill_id:
                 indexed.setdefault(str(fill_id), context)
     return indexed
+
+
+def _paper_authenticated_entry_admission_carry_fields(
+    row: Mapping[str, Any],
+) -> tuple[str, ...]:
+    """Return the bounded fields authenticated by an accepted fill's seal."""
+
+    if _paper_persisted_admission_rejection_reasons(row):
+        return ()
+    contract = row.get("paper_final_admission_contract")
+    bound_material = (
+        contract.get("bound_material") if isinstance(contract, Mapping) else None
+    )
+    sealed_projection = (
+        bound_material.get("persisted_row_projection")
+        if isinstance(bound_material, Mapping)
+        else None
+    )
+    if not isinstance(sealed_projection, Mapping):
+        return ()
+    critical_fields = sealed_projection.get("critical_fields")
+    nested_payload_hashes = sealed_projection.get("nested_payload_hashes")
+    if not isinstance(critical_fields, Mapping) or not isinstance(
+        nested_payload_hashes, Mapping
+    ):
+        return ()
+    fields = {
+        *PAPER_FINAL_ADMISSION_DURABLE_FIELDS,
+        *PAPER_ACCEPTED_FILL_TYPED_POLICY_EVIDENCE_FIELDS,
+        *PAPER_ACCEPTED_FILL_STATE_COMPACTION_ENVELOPE_FIELDS,
+        PAPER_LEGACY_COMPACTED_FILL_CARRY_FIELD,
+        PAPER_LEGACY_COMPACTED_FILL_CARRY_HASH_FIELD,
+        "accepted_fill_state_compacted",
+        "entry_feature_snapshot_omitted_from_state",
+        *map(str, critical_fields),
+        *map(str, nested_payload_hashes),
+    }
+    return tuple(sorted(field for field in fields if field in row))
+
+
+def _paper_authenticated_entry_context_rows_for_close(
+    pre_lifecycle_rows: Sequence[Mapping[str, Any]],
+    post_lifecycle_rows: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    """Retain only authenticated accepted-fill context across a full close.
+
+    ``accepted_open_fills`` correctly drops a fill after its position reaches
+    flat.  Close and outcome rows still need the byte-exact final-admission
+    contract from that accepted fill, however.  Preserve the already-validated
+    pre-lifecycle row for this one-way handoff; absence or invalidity never
+    becomes a permissive fallback.
+    """
+
+    authenticated: dict[str, dict[str, Any]] = {}
+    for raw_row in (*pre_lifecycle_rows, *post_lifecycle_rows):
+        if not isinstance(raw_row, Mapping):
+            continue
+        row = dict(raw_row)
+        identity = _accepted_fill_identity(row)
+        if not identity or _paper_persisted_admission_rejection_reasons(row):
+            continue
+        authenticated.setdefault(identity, deepcopy(row))
+    return list(authenticated.values())
 
 
 def _bounded_entry_prediction_snapshot(
@@ -3069,9 +3163,32 @@ def _with_feedback_context_fallback(
     row: dict[str, Any], source_context: dict[str, Any]
 ) -> dict[str, Any]:
     enriched = dict(row)
-    for field in _FEEDBACK_ENTRY_CONTEXT_FIELDS:
+    authenticated_carry_fields = source_context.get(
+        _AUTHENTICATED_ENTRY_ADMISSION_CARRY_FIELDS_KEY
+    )
+    if not isinstance(authenticated_carry_fields, list):
+        authenticated_carry_fields = []
+    for field in dict.fromkeys(
+        (*_FEEDBACK_ENTRY_CONTEXT_FIELDS, *authenticated_carry_fields)
+    ):
         if enriched.get(field) in (None, "") and source_context.get(field) not in (None, ""):
-            enriched[field] = source_context[field]
+            enriched[field] = deepcopy(source_context[field])
+    authenticated_envelope = source_context.get(
+        _AUTHENTICATED_ENTRY_ADMISSION_ENVELOPE_CONTEXT_KEY
+    )
+    if isinstance(authenticated_envelope, Mapping):
+        enriched.setdefault(
+            PAPER_CLOSE_ENTRY_ADMISSION_ENVELOPE_FIELD,
+            deepcopy(dict(authenticated_envelope)),
+        )
+        enriched.setdefault(
+            PAPER_CLOSE_ENTRY_ADMISSION_ENVELOPE_SHA256_FIELD,
+            _paper_canonical_sha256(authenticated_envelope),
+        )
+        enriched.setdefault(
+            "paper_entry_admission_envelope_source",
+            "AUTHENTICATED_ACCEPTED_FILL_PRE_LIFECYCLE",
+        )
     if enriched.get("market_regime_at_exit") in (None, "") and enriched.get(
         "market_regime_at_entry"
     ) not in (None, ""):
@@ -42610,9 +42727,164 @@ def _paper_attest_legacy_compacted_accepted_fills(
     return output, status
 
 
+def _paper_close_entry_admission_envelope_rejection_reasons(
+    row: Mapping[str, Any],
+    envelope: Mapping[str, Any],
+) -> list[str]:
+    """Bind a closed lifecycle row to one exact authenticated accepted fill."""
+
+    reasons: list[str] = []
+    envelope_hash = _paper_canonical_sha256(envelope)
+    if (
+        not _paper_valid_sha256(envelope_hash)
+        or envelope_hash
+        != row.get(PAPER_CLOSE_ENTRY_ADMISSION_ENVELOPE_SHA256_FIELD)
+    ):
+        reasons.append("PERSISTED_ADMISSION_CLOSE_ENTRY_ENVELOPE_HASH_INVALID")
+    if not (
+        row.get("close_id")
+        or row.get("outcome_label_id")
+        or row.get("close_position") is True
+    ):
+        reasons.append("PERSISTED_ADMISSION_CLOSE_ENTRY_ENVELOPE_NOT_CLOSE_ROW")
+
+    accepted_identity = _accepted_fill_identity(dict(envelope))
+    source_fill_ids = row.get("source_fill_ids")
+    row_source_identities = {
+        str(value)
+        for value in (
+            *(source_fill_ids if isinstance(source_fill_ids, list) else []),
+            row.get("entry_fill_id"),
+            row.get("entry_prediction_id"),
+            row.get("prediction_id"),
+        )
+        if value not in (None, "")
+    }
+    if not accepted_identity or accepted_identity not in row_source_identities:
+        reasons.append("PERSISTED_ADMISSION_CLOSE_ENTRY_FILL_IDENTITY_MISMATCH")
+
+    for field in ("symbol", "timeframe", "side", "checkpoint_id"):
+        expected = str(envelope.get(field) or "").strip()
+        actual = str(row.get(field) or "").strip()
+        if field in {"symbol", "side"}:
+            expected = expected.upper()
+            actual = actual.upper()
+        elif field == "timeframe":
+            expected = expected.lower()
+            actual = actual.lower()
+        if not expected or actual != expected:
+            reasons.append(
+                f"PERSISTED_ADMISSION_CLOSE_ENTRY_{field.upper()}_MISMATCH"
+            )
+
+    envelope_prediction_id = str(envelope.get("prediction_id") or "")
+    row_prediction_id = str(
+        _first_present(row.get("entry_prediction_id"), row.get("prediction_id"))
+        or ""
+    )
+    if not envelope_prediction_id or row_prediction_id != envelope_prediction_id:
+        reasons.append("PERSISTED_ADMISSION_CLOSE_ENTRY_PREDICTION_ID_MISMATCH")
+
+    envelope_entry_price = _coerce_float(
+        _first_present(envelope.get("entry_price"), envelope.get("fill_price"))
+    )
+    row_entry_price = _coerce_float(
+        _first_present(row.get("entry_price"), row.get("avg_entry_price"))
+    )
+    if (
+        envelope_entry_price is None
+        or row_entry_price is None
+        or not math.isclose(
+            row_entry_price,
+            envelope_entry_price,
+            rel_tol=1e-12,
+            abs_tol=1e-12,
+        )
+    ):
+        reasons.append("PERSISTED_ADMISSION_CLOSE_ENTRY_PRICE_MISMATCH")
+
+    envelope_quantity = _coerce_float(
+        _first_present(envelope.get("quantity"), envelope.get("target_quantity"))
+    )
+    closed_quantity = _coerce_float(row.get("closed_quantity"))
+    remaining_quantity = _coerce_float(row.get("remaining_quantity_after_close"))
+    if (
+        envelope_quantity is None
+        or envelope_quantity <= 0.0
+        or closed_quantity is None
+        or closed_quantity <= 0.0
+        or closed_quantity > envelope_quantity + 1e-12
+        or (
+            remaining_quantity is not None
+            and (
+                remaining_quantity < -1e-12
+                or not math.isclose(
+                    closed_quantity + remaining_quantity,
+                    envelope_quantity,
+                    rel_tol=1e-12,
+                    abs_tol=1e-12,
+                )
+            )
+        )
+    ):
+        reasons.append("PERSISTED_ADMISSION_CLOSE_ENTRY_QUANTITY_MISMATCH")
+
+    for field, row_fields in (
+        ("gross_notional_usd", ("gross_notional_usd", "gross_notional")),
+        (
+            "allocated_margin_usd",
+            ("allocated_margin_usd", "allocated_margin_usd_at_entry"),
+        ),
+    ):
+        expected = _coerce_float(envelope.get(field))
+        actual = _coerce_float(
+            _first_present(*(row.get(row_field) for row_field in row_fields))
+        )
+        if (
+            expected is None
+            or expected <= 0.0
+            or actual is None
+            or not math.isclose(
+                actual,
+                expected,
+                rel_tol=1e-12,
+                abs_tol=1e-12,
+            )
+        ):
+            reasons.append(
+                f"PERSISTED_ADMISSION_CLOSE_ENTRY_{field.upper()}_MISMATCH"
+            )
+
+    if (
+        envelope.get("paper_only") is not True
+        or envelope.get("routes_to_live") is not False
+        or envelope.get("places_real_order") is not False
+        or row.get("paper_only") is not True
+        or row.get("routes_to_live") is not False
+        or row.get("places_real_order") is not False
+    ):
+        reasons.append("PERSISTED_ADMISSION_CLOSE_ENTRY_SAFETY_FLAGS_INVALID")
+    return sorted(set(reasons))
+
+
 def _paper_persisted_admission_rejection_reasons(
     row: Mapping[str, Any],
 ) -> list[str]:
+    entry_envelope = row.get(PAPER_CLOSE_ENTRY_ADMISSION_ENVELOPE_FIELD)
+    entry_envelope_hash = row.get(
+        PAPER_CLOSE_ENTRY_ADMISSION_ENVELOPE_SHA256_FIELD
+    )
+    if isinstance(entry_envelope, Mapping):
+        envelope_reasons = _paper_close_entry_admission_envelope_rejection_reasons(
+            row,
+            entry_envelope,
+        )
+        if envelope_reasons:
+            return envelope_reasons
+        return _paper_persisted_admission_rejection_reasons(entry_envelope)
+    if entry_envelope_hash not in (None, ""):
+        return ["PERSISTED_ADMISSION_CLOSE_ENTRY_ENVELOPE_MISSING"]
+
     reasons: list[str] = []
     contract = row.get("paper_final_admission_contract")
     if not isinstance(contract, Mapping):
@@ -56100,6 +56372,15 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             }
         )
 
+    # A fully closed fill is intentionally absent from accepted_open_fills.
+    # Freeze its authenticated entry contract before lifecycle reconciliation
+    # so the resulting close and outcome can carry the same durable authority.
+    authenticated_entry_context_rows_for_lifecycle = (
+        _paper_authenticated_entry_context_rows_for_close(
+            accepted_for_ledger,
+            (),
+        )
+    )
     lifecycle_result = reconcile_paper_lifecycle(
         existing_ledger=existing_ledger,
         accepted_fills=accepted_for_ledger,
@@ -58020,7 +58301,13 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             ex=PAPER_RUNTIME_HEARTBEAT_TTL_SECONDS,
         )
     outcome_labels: list[dict] = list(lifecycle_result["outcome_labels"])
-    entry_context_by_fill_id = _entry_feedback_context_by_fill_id(accepted_for_ledger)
+    close_entry_context_rows = _paper_authenticated_entry_context_rows_for_close(
+        authenticated_entry_context_rows_for_lifecycle,
+        accepted_for_ledger,
+    )
+    entry_context_by_fill_id = _entry_feedback_context_by_fill_id(
+        close_entry_context_rows
+    )
     closes, paper_closed_outcome_entry_context_backfill_status = (
         _paper_backfill_closed_outcome_entry_context_rows(
             closes,
@@ -58905,12 +59192,18 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         # 2026-07-16: outcome-memory buckets are the designed adaptive
         # per-bucket win-rate feedback into sizing/entry gating, but the
         # updater was never invoked from the close path (zero
-        # v2:paper:outcome_memory:* keys at runtime). Rebuild from the freshly
-        # written closed trades whenever this cycle produced new closes.
-        if lifecycle_result.get("new_close_events") or newly_quarantined_unproved_close_rows:
+        # v2:paper:outcome_memory:* keys at runtime). Rebuild from canonical
+        # closes after a new close, and keep quarantine tombstones authoritative
+        # while invalidated close rows remain durably present.
+        if lifecycle_result.get("new_close_events") or unproved_close_quarantine_rows:
             try:
                 _om_summary = rebuild_outcome_memory_from_closed_trades(
                     closed_trade_rows=[row for row in closes if isinstance(row, dict)],
+                    invalidated_rows=[
+                        row
+                        for row in unproved_close_quarantine_rows
+                        if isinstance(row, dict)
+                    ],
                     redis_client=r,
                     write=True,
                 )

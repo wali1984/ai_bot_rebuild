@@ -15405,6 +15405,255 @@ def test_verified_compact_restore_does_not_readd_absent_or_closed_rows() -> None
     ) == [unrelated]
 
 
+def _closed_adaptive_position_fixture(
+    position: dict[str, object],
+    compact_fill: dict[str, object],
+) -> dict[str, object]:
+    """Model the lifecycle close after its accepted-open row is consumed."""
+
+    return {
+        **deepcopy(position),
+        "close_id": "paper-close-after-restart",
+        "entry_fill_id": compact_fill["fill_id"],
+        "source_fill_ids": [compact_fill["fill_id"]],
+        "prediction_id": compact_fill["prediction_id"],
+        "signal_id": compact_fill["signal_id"],
+        "paper_opportunity_tier": "ADAPTIVE_POLICY_V2",
+        "paper_fill_allowed_source": (
+            "ADAPTIVE_POLICY_V2_HARD_VALIDATED_EXACT_ACTION"
+        ),
+        "closed_quantity": compact_fill["quantity"],
+        "remaining_quantity_after_close": 0.0,
+        "reduce_only": True,
+        "close_position": True,
+        "position_transition": "LONG_TO_FLAT",
+        "close_event_time": "2026-07-28T12:20:00Z",
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+
+
+def test_restart_close_carries_exact_authenticated_pre_lifecycle_admission_contract() -> None:
+    compact, position = _verified_v1_compacted_second_cycle_fixture()
+    close = _closed_adaptive_position_fixture(position, compact)
+    outcome = {
+        **deepcopy(close),
+        "outcome_label_id": "paper-outcome-after-restart",
+    }
+
+    authenticated_rows = (
+        paper_loop._paper_authenticated_entry_context_rows_for_close(  # noqa: SLF001
+            pre_lifecycle_rows=[compact],
+            post_lifecycle_rows=[],
+        )
+    )
+    context = paper_loop._entry_feedback_context_by_fill_id(authenticated_rows)  # noqa: SLF001
+    repaired_closes, close_status = (
+        paper_loop._paper_backfill_closed_outcome_entry_context_rows(  # noqa: SLF001
+            [close],
+            entry_context_by_fill_id=context,
+            row_kind="closed_trades",
+        )
+    )
+    repaired_outcomes, outcome_status = (
+        paper_loop._paper_backfill_closed_outcome_entry_context_rows(  # noqa: SLF001
+            [outcome],
+            entry_context_by_fill_id=context,
+            row_kind="outcome_labels",
+        )
+    )
+
+    assert authenticated_rows == [compact]
+    assert close_status["matched_entry_context_rows"] == 1
+    assert outcome_status["matched_entry_context_rows"] == 1
+    for repaired in (repaired_closes[0], repaired_outcomes[0]):
+        assert repaired["paper_final_admission_contract"] == compact[
+            "paper_final_admission_contract"
+        ]
+        assert repaired["paper_final_admission_receipt_hash"] == compact[
+            "paper_final_admission_receipt_hash"
+        ]
+        assert repaired["paper_persisted_ledger_contract"] == compact[
+            "paper_persisted_ledger_contract"
+        ]
+        assert repaired["paper_persisted_ledger_contract_hash"] == compact[
+            "paper_persisted_ledger_contract_hash"
+        ]
+        assert paper_loop._paper_persisted_admission_rejection_reasons(repaired) == []  # noqa: SLF001
+
+    valid, quarantined = paper_loop._paper_split_unproved_adaptive_policy_closes(  # noqa: SLF001
+        repaired_closes
+    )
+    assert valid == repaired_closes
+    assert quarantined == []
+
+
+@pytest.mark.parametrize(
+    ("tamper_case", "expected_reason"),
+    (
+        (
+            "envelope_hash",
+            "PERSISTED_ADMISSION_CLOSE_ENTRY_ENVELOPE_HASH_INVALID",
+        ),
+        (
+            "fill_identity",
+            "PERSISTED_ADMISSION_CLOSE_ENTRY_FILL_IDENTITY_MISMATCH",
+        ),
+        ("symbol", "PERSISTED_ADMISSION_CLOSE_ENTRY_SYMBOL_MISMATCH"),
+        ("side", "PERSISTED_ADMISSION_CLOSE_ENTRY_SIDE_MISMATCH"),
+        (
+            "checkpoint_id",
+            "PERSISTED_ADMISSION_CLOSE_ENTRY_CHECKPOINT_ID_MISMATCH",
+        ),
+        (
+            "prediction_id",
+            "PERSISTED_ADMISSION_CLOSE_ENTRY_PREDICTION_ID_MISMATCH",
+        ),
+        ("entry_price", "PERSISTED_ADMISSION_CLOSE_ENTRY_PRICE_MISMATCH"),
+        ("quantity", "PERSISTED_ADMISSION_CLOSE_ENTRY_QUANTITY_MISMATCH"),
+    ),
+)
+def test_restart_close_rejects_entry_admission_envelope_tampering(
+    tamper_case: str,
+    expected_reason: str,
+) -> None:
+    compact, position = _verified_v1_compacted_second_cycle_fixture()
+    close = _closed_adaptive_position_fixture(position, compact)
+    authenticated_rows = (
+        paper_loop._paper_authenticated_entry_context_rows_for_close(  # noqa: SLF001
+            pre_lifecycle_rows=[compact],
+            post_lifecycle_rows=[],
+        )
+    )
+    context = paper_loop._entry_feedback_context_by_fill_id(authenticated_rows)  # noqa: SLF001
+    repaired, _status = paper_loop._paper_backfill_closed_outcome_entry_context_rows(  # noqa: SLF001
+        [close],
+        entry_context_by_fill_id=context,
+        row_kind="closed_trades",
+    )
+    tampered = deepcopy(repaired[0])
+    assert paper_loop._paper_persisted_admission_rejection_reasons(tampered) == []  # noqa: SLF001
+
+    if tamper_case == "envelope_hash":
+        tampered[paper_loop.PAPER_CLOSE_ENTRY_ADMISSION_ENVELOPE_SHA256_FIELD] = (
+            "0" * 64
+        )
+    else:
+        envelope = tampered[paper_loop.PAPER_CLOSE_ENTRY_ADMISSION_ENVELOPE_FIELD]
+        assert isinstance(envelope, dict)
+        if tamper_case == "fill_identity":
+            envelope["fill_id"] = "tampered-fill-id"
+        elif tamper_case == "symbol":
+            envelope["symbol"] = "ETHUSDT"
+        elif tamper_case == "side":
+            envelope["side"] = "SHORT"
+        elif tamper_case == "checkpoint_id":
+            envelope["checkpoint_id"] = "tampered-checkpoint"
+        elif tamper_case == "prediction_id":
+            envelope["prediction_id"] = "tampered-prediction"
+        elif tamper_case == "entry_price":
+            envelope["entry_price"] = float(compact["fill_price"]) * 1.1
+            envelope["fill_price"] = float(compact["fill_price"]) * 1.1
+        elif tamper_case == "quantity":
+            envelope["quantity"] = float(compact["quantity"]) * 2.0
+        else:  # pragma: no cover - parametrization is deliberately exhaustive
+            raise AssertionError(f"unknown tamper case: {tamper_case}")
+        # Prove the close binding is independently authoritative even when a
+        # tamperer recomputes the outer envelope digest.
+        tampered[paper_loop.PAPER_CLOSE_ENTRY_ADMISSION_ENVELOPE_SHA256_FIELD] = (
+            paper_loop._paper_canonical_sha256(envelope)  # noqa: SLF001
+        )
+
+    reasons = paper_loop._paper_persisted_admission_rejection_reasons(tampered)  # noqa: SLF001
+    valid, quarantined = paper_loop._paper_split_unproved_adaptive_policy_closes(  # noqa: SLF001
+        [tampered]
+    )
+
+    assert expected_reason in reasons
+    assert valid == []
+    assert len(quarantined) == 1
+    assert quarantined[0]["counts_as_economic_evidence"] is False
+    assert quarantined[0]["trainer_consumable"] is False
+
+
+def test_restart_close_rejects_rebound_envelope_and_close_pair() -> None:
+    compact, position = _verified_v1_compacted_second_cycle_fixture()
+    close = _closed_adaptive_position_fixture(position, compact)
+    authenticated_rows = (
+        paper_loop._paper_authenticated_entry_context_rows_for_close(  # noqa: SLF001
+            pre_lifecycle_rows=[compact],
+            post_lifecycle_rows=[],
+        )
+    )
+    context = paper_loop._entry_feedback_context_by_fill_id(authenticated_rows)  # noqa: SLF001
+    repaired, _status = paper_loop._paper_backfill_closed_outcome_entry_context_rows(  # noqa: SLF001
+        [close],
+        entry_context_by_fill_id=context,
+        row_kind="closed_trades",
+    )
+    tampered = deepcopy(repaired[0])
+    envelope = tampered[paper_loop.PAPER_CLOSE_ENTRY_ADMISSION_ENVELOPE_FIELD]
+    assert isinstance(envelope, dict)
+
+    # Matching the close to a mutated envelope and recomputing its outer hash
+    # must still fail the accepted fill's original immutable admission seal.
+    envelope["symbol"] = "ETHUSDT"
+    tampered["symbol"] = "ETHUSDT"
+    tampered[paper_loop.PAPER_CLOSE_ENTRY_ADMISSION_ENVELOPE_SHA256_FIELD] = (
+        paper_loop._paper_canonical_sha256(envelope)  # noqa: SLF001
+    )
+
+    reasons = paper_loop._paper_persisted_admission_rejection_reasons(tampered)  # noqa: SLF001
+    valid, quarantined = paper_loop._paper_split_unproved_adaptive_policy_closes(  # noqa: SLF001
+        [tampered]
+    )
+
+    assert "PERSISTED_ADMISSION_COMPACTED_PAYLOAD_MUTATED" in reasons
+    assert valid == []
+    assert len(quarantined) == 1
+    assert quarantined[0]["counts_as_economic_evidence"] is False
+    assert quarantined[0]["trainer_consumable"] is False
+
+
+@pytest.mark.parametrize("source_case", ("missing", "tampered"))
+def test_restart_close_rejects_missing_or_tampered_admission_source(
+    source_case: str,
+) -> None:
+    compact, position = _verified_v1_compacted_second_cycle_fixture()
+    close = _closed_adaptive_position_fixture(position, compact)
+    if source_case == "missing":
+        pre_lifecycle_rows: list[dict[str, object]] = []
+    else:
+        tampered = deepcopy(compact)
+        tampered["quantity"] = float(compact["quantity"]) * 2.0
+        pre_lifecycle_rows = [tampered]
+
+    authenticated_rows = (
+        paper_loop._paper_authenticated_entry_context_rows_for_close(  # noqa: SLF001
+            pre_lifecycle_rows=pre_lifecycle_rows,
+            post_lifecycle_rows=[],
+        )
+    )
+    context = paper_loop._entry_feedback_context_by_fill_id(authenticated_rows)  # noqa: SLF001
+    repaired, _status = paper_loop._paper_backfill_closed_outcome_entry_context_rows(  # noqa: SLF001
+        [close],
+        entry_context_by_fill_id=context,
+        row_kind="closed_trades",
+    )
+    reasons = paper_loop._paper_persisted_admission_rejection_reasons(repaired[0])  # noqa: SLF001
+    valid, quarantined = paper_loop._paper_split_unproved_adaptive_policy_closes(  # noqa: SLF001
+        repaired
+    )
+
+    assert authenticated_rows == []
+    assert "PERSISTED_ADMISSION_FINAL_CONTRACT_MISSING" in reasons
+    assert valid == []
+    assert len(quarantined) == 1
+    assert quarantined[0]["counts_as_economic_evidence"] is False
+    assert quarantined[0]["trainer_consumable"] is False
+
+
 def test_compacted_final_admission_without_persisted_ledger_fails_closed() -> None:
     source = _typed_adaptive_final_admission_fixture()
 

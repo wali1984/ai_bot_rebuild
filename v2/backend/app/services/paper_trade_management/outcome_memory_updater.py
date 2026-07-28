@@ -805,6 +805,7 @@ def build_outcome_memory_buckets_from_closed_trades(
 def rebuild_outcome_memory_from_closed_trades(
     *,
     closed_trade_rows: list[dict[str, Any]],
+    invalidated_rows: list[dict[str, Any]] | None = None,
     redis_client: Any | None = None,
     write: bool = False,
 ) -> dict[str, Any]:
@@ -815,6 +816,71 @@ def rebuild_outcome_memory_from_closed_trades(
     paths or legacy Redis prefixes.
     """
     buckets = build_outcome_memory_buckets_from_closed_trades(closed_trade_rows)
+    invalidated_source_rows = [
+        dict(row) for row in (invalidated_rows or []) if isinstance(row, Mapping)
+    ]
+    invalidated_counts_by_key: Counter[str] = Counter()
+    invalidated_close_ids_by_key: dict[str, set[str]] = {}
+    invalidated_rows_without_bucket_identity = 0
+    for row in invalidated_source_rows:
+        symbol = str(row.get("symbol") or "").upper().strip()
+        timeframe = str(row.get("timeframe") or "").lower().strip()
+        if not symbol or not timeframe:
+            invalidated_rows_without_bucket_identity += 1
+            continue
+        close_identity = str(
+            _first_present(
+                row.get("close_id"),
+                row.get("paper_close_id"),
+                row.get("position_id"),
+                row.get("outcome_label_id"),
+                "",
+            )
+        )
+        for bucket_symbol in (symbol, "__ALL__"):
+            key = _bucket_key(bucket_symbol, timeframe)
+            invalidated_counts_by_key[key] += 1
+            if close_identity:
+                invalidated_close_ids_by_key.setdefault(key, set()).add(close_identity)
+
+    # Rebuilding from the canonical closed-trade set must also invalidate
+    # derived memory that was produced before a close was quarantined.  Write
+    # a fail-open-for-entry, zero-outcome tombstone only when no remaining
+    # valid event owns that exact bucket; valid buckets always win.
+    tombstone_buckets: dict[str, dict[str, Any]] = {}
+    for key, invalidated_count in sorted(invalidated_counts_by_key.items()):
+        if key in buckets:
+            continue
+        suffix = key.removeprefix(OUTCOME_MEMORY_PREFIX)
+        bucket_symbol, separator, timeframe = suffix.rpartition(":")
+        if not separator or not bucket_symbol or not timeframe:
+            continue
+        tombstone = _empty_bucket()
+        tombstone.update(
+            {
+                "symbol": bucket_symbol,
+                "timeframe": timeframe,
+                "bucket_scope": (
+                    "timeframe_aggregate"
+                    if bucket_symbol == "__ALL__"
+                    else "symbol_timeframe"
+                ),
+                "last_updated": _now_iso(),
+                "data_source": "REDIS_REBUILD_TOMBSTONE",
+                "trust_evidence_status": (
+                    "NO_CANONICAL_OUTCOME_ROWS_AFTER_RECONCILIATION"
+                ),
+                "outcome_memory_can_block_entries": False,
+                "rebuild_tombstone": True,
+                "invalidated_close_count": invalidated_count,
+                "invalidated_close_ids": sorted(
+                    invalidated_close_ids_by_key.get(key, set())
+                ),
+            }
+        )
+        tombstone_buckets[key] = tombstone
+
+    writable_buckets = {**buckets, **tombstone_buckets}
     errors: list[str] = []
     rejection_reason_counts: Counter[str] = Counter()
     events_processed = 0
@@ -828,7 +894,7 @@ def rebuild_outcome_memory_from_closed_trades(
         if redis_client is None:
             errors.append("WRITE_REQUESTED_WITHOUT_REDIS_CLIENT")
         else:
-            for key, bucket in buckets.items():
+            for key, bucket in writable_buckets.items():
                 try:
                     redis_client.set(key, json.dumps(bucket))
                 except Exception as exc:  # noqa: BLE001
@@ -839,8 +905,12 @@ def rebuild_outcome_memory_from_closed_trades(
         for bucket in buckets.values()
         if bucket.get("degraded") or bucket.get("block_reason")
     ]
-    trade_counts = {key: int(bucket.get("trade_count") or 0) for key, bucket in buckets.items()}
+    trade_counts = {
+        key: int(bucket.get("trade_count") or 0)
+        for key, bucket in writable_buckets.items()
+    }
     quarantined_rows = max(0, len(closed_trade_rows) - events_processed)
+    total_quarantined_rows = quarantined_rows + len(invalidated_source_rows)
     return {
         "schema_version": SCHEMA_VERSION,
         "generated_at": _now_iso(),
@@ -848,15 +918,22 @@ def rebuild_outcome_memory_from_closed_trades(
         "closed_trade_rows_seen": len(closed_trade_rows),
         "events_processed": events_processed,
         "skipped_rows": quarantined_rows,
-        "quarantined_rows": quarantined_rows,
-        "trust_coverage_complete": quarantined_rows == 0,
+        "quarantined_rows": total_quarantined_rows,
+        "invalidated_rows_seen": len(invalidated_source_rows),
+        "invalidated_rows_without_bucket_identity": (
+            invalidated_rows_without_bucket_identity
+        ),
+        "trust_coverage_complete": total_quarantined_rows == 0,
         "governance_evidence_policy": "STRICT_PIT_VALID_ROWS_ONLY",
         "rejection_reason_counts": dict(sorted(rejection_reason_counts.items())),
         "trust_validation_version": TRUST_VALIDATION_VERSION,
-        "buckets_updated": len(buckets) if write and not errors else 0,
-        "bucket_count": len(buckets),
+        "buckets_updated": len(writable_buckets) if write and not errors else 0,
+        "bucket_count": len(writable_buckets),
+        "canonical_bucket_count": len(buckets),
+        "tombstone_bucket_count": len(tombstone_buckets),
         "degraded_bucket_count": len(degraded),
-        "bucket_keys": list(buckets.keys()),
+        "bucket_keys": list(writable_buckets.keys()),
+        "tombstone_bucket_keys": list(tombstone_buckets.keys()),
         "trade_counts_per_bucket": trade_counts,
         "sample_degraded_buckets": degraded[:10],
         "dry_run": not write,
