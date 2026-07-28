@@ -36,6 +36,8 @@ def _runtime_values(now: datetime) -> dict[str, dict]:
             "directional_authorized_count": 5,
             "flat_authorized_count": 2,
             "source_candidate_count": 7,
+            "checkpoint_generation": 3,
+            "checkpoint_id": "checkpoint-3",
             "paper_only": True,
             "live_gate": "blocked_human_only",
             "routes_to_live": False,
@@ -92,12 +94,22 @@ def _runtime_values(now: datetime) -> dict[str, dict]:
             "places_real_order": False,
             "exchange_action_taken": False,
         },
+        runtime.ACTIVE_REGISTRY_KEY: {
+            "schema_version": "model_registry_active_v2",
+            "lane": "paper",
+            "registry_generation": 3,
+            "checkpoint_id": "checkpoint-3",
+            "checkpoint_bundle_sha256": "a" * 64,
+            "activated_at": "2026-07-27T12:00:00Z",
+            "paper_only": True,
+            "live_eligible": False,
+        },
     }
 
 
 def test_authenticate_runtime_inputs_binds_negative_edge() -> None:
     now = datetime(2026, 7, 28, 15, 40, tzinfo=UTC)
-    authority, outcomes, performance = runtime.authenticate_runtime_inputs(
+    authority, outcomes, performance, registry = runtime.authenticate_runtime_inputs(
         _Redis(_runtime_values(now)),
         now=now,
         max_age_seconds=60,
@@ -107,6 +119,7 @@ def test_authenticate_runtime_inputs_binds_negative_edge() -> None:
     assert outcomes["archive"]["matured_revision_count"] == 500
     assert performance["notional_weighted_expectancy_bps"] == -7.25
     assert len(performance["source_payload_sha256"]) == 64
+    assert registry["registry_generation"] == 3
 
 
 @pytest.mark.parametrize(
@@ -133,6 +146,11 @@ def test_authenticate_runtime_inputs_binds_negative_edge() -> None:
             "UNSAFE_AUTHORITY",
         ),
         (
+            supervisor.CANDIDATE_OUTCOMES_STATUS_KEY,
+            lambda row: row["archive"].update(live_gate="live_enabled"),
+            "UNSAFE_AUTHORITY",
+        ),
+        (
             runtime.PERFORMANCE_STATUS_KEY,
             lambda row: row.update(closed_outcome_count=23),
             "COHERENT_CLOSED_COUNT_REQUIRED",
@@ -141,6 +159,23 @@ def test_authenticate_runtime_inputs_binds_negative_edge() -> None:
             runtime.PERFORMANCE_STATUS_KEY,
             lambda row: row.update(notional_weighted_expectancy_bps=float("nan")),
             "FINITE_EDGE_REQUIRED",
+        ),
+        (
+            runtime.PERFORMANCE_STATUS_KEY,
+            lambda row: row.update(live_gate="live_enabled"),
+            "UNSAFE_AUTHORITY",
+        ),
+        (
+            runtime.PERFORMANCE_STATUS_KEY,
+            lambda row: row.update(
+                notional_weighted_expectancy_bps=1.0,
+                status="FAILED_INTERNAL",
+                state="FAILED_INTERNAL",
+                enabled=False,
+                new_entries_allowed=True,
+                allow_feedback_recording=False,
+            ),
+            "STATE_INCOHERENT",
         ),
     ],
 )
@@ -182,6 +217,48 @@ def test_runtime_configuration_rejects_nan_freshness_limit() -> None:
             build_timeout_seconds=900,
             dispatch_timeout_seconds=3600,
         )
+
+
+def test_failure_cycle_rejects_old_or_unrelated_legacy_receipts(tmp_path: Path) -> None:
+    authority = {"checkpoint_generation": 4, "checkpoint_id": "checkpoint-4"}
+    registry = {
+        "registry_generation": 4,
+        "checkpoint_id": "checkpoint-4",
+        "checkpoint_bundle_sha256": "f" * 64,
+        "activated_at": "2026-07-28T16:30:00Z",
+    }
+    cycle = runtime._failure_cycle(  # noqa: SLF001
+        authority,
+        registry,
+        edge_bps=-1.0,
+        performance_sha256="9" * 64,
+    )
+    release = _release(tmp_path)
+    unrelated = runtime.CompletedDispatch(
+        runtime.INCREMENTAL_STEP,
+        release,
+        {
+            "trigger": ["admission_starved"],
+            "completed_utc": "2026-07-28T16:31:00Z",
+        },
+    )
+    old_negative = runtime.CompletedDispatch(
+        runtime.INCREMENTAL_STEP,
+        release,
+        {
+            "trigger": ["negative_after_cost_edge"],
+            "completed_utc": "2026-07-27T12:00:00Z",
+        },
+    )
+    bound = runtime.CompletedDispatch(
+        runtime.INCREMENTAL_STEP,
+        release,
+        {"failure_cycle_id": cycle["failure_cycle_id"]},
+    )
+
+    assert runtime._dispatch_matches_failure_cycle(unrelated, cycle) is False  # noqa: SLF001
+    assert runtime._dispatch_matches_failure_cycle(old_negative, cycle) is False  # noqa: SLF001
+    assert runtime._dispatch_matches_failure_cycle(bound, cycle) is True  # noqa: SLF001
 
 
 def test_prior_state_requires_self_hash_and_no_live_authority(tmp_path: Path) -> None:
@@ -385,6 +462,10 @@ def test_run_once_advances_from_incremental_receipt_to_representation_rebuild(
                 **_runtime_values(now)[runtime.PERFORMANCE_STATUS_KEY],
                 "source_payload_sha256": "9" * 64,
             },
+            {
+                **_runtime_values(now)[runtime.ACTIVE_REGISTRY_KEY],
+                "source_payload_sha256": "8" * 64,
+            },
         ),
     )
     monkeypatch.setattr(
@@ -402,6 +483,7 @@ def test_run_once_advances_from_incremental_receipt_to_representation_rebuild(
                 {
                     "dispatch_id": "adaptive_dispatch_incremental",
                     "completed_utc": "2026-07-28T15:00:00Z",
+                    "trigger": ["negative_after_cost_edge"],
                 },
             ),
         ),
@@ -459,6 +541,10 @@ def _patch_run_inputs(
                 **values[runtime.PERFORMANCE_STATUS_KEY],
                 "source_payload_sha256": "9" * 64,
             },
+            {
+                **values[runtime.ACTIVE_REGISTRY_KEY],
+                "source_payload_sha256": "8" * 64,
+            },
         ),
     )
     monkeypatch.setattr(
@@ -476,6 +562,7 @@ def _patch_run_inputs(
                 {
                     "dispatch_id": f"adaptive_dispatch_{index}",
                     "completed_utc": "2026-07-28T15:00:00Z",
+                    "trigger": ["negative_after_cost_edge"],
                 },
             )
             for index, (step, step_release) in enumerate(historical_steps)

@@ -494,6 +494,7 @@ class EscalationWorkPlan:
     external_blocker: str | None
     rationale: str
     decision: EscalationDecision
+    failure_cycle_id: str | None = None
     schema_version: str = SCHEMA_VERSION
 
     # ------------------------------------------------------------------ #
@@ -562,6 +563,7 @@ class EscalationWorkPlan:
             "input_manifest_sha": self.input_manifest_sha,
             "is_operator_gated": self.is_operator_gated,
             "external_blocker": self.external_blocker,
+            "failure_cycle_id": self.failure_cycle_id,
             "rationale": self.rationale,
             "ladder_decision": {
                 "next_action": self.decision.next_action,
@@ -1096,6 +1098,14 @@ def dispatch_worker(
         "worker_argv_template": list(worker.get("argv") or []),
         "dataset_release": release,
     }
+    if plan.failure_cycle_id is not None:
+        if (
+            type(plan.failure_cycle_id) is not str
+            or not plan.failure_cycle_id.startswith("adaptive_failure_cycle_")
+            or len(plan.failure_cycle_id) != len("adaptive_failure_cycle_") + 32
+        ):
+            raise ValueError("failure_cycle_id:INVALID")
+        dispatch_material["failure_cycle_id"] = plan.failure_cycle_id
     dispatch_id = "adaptive_dispatch_" + _sha256_bytes(
         _canonical_bytes(dispatch_material)
     )[:32]

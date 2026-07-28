@@ -38,6 +38,7 @@ from v2.backend.app.services.adaptive_system.escalation_ladder_v2 import (
 
 SCHEMA_VERSION = "adaptive_escalation_runtime_v1"
 PERFORMANCE_STATUS_KEY = "v2:paper:performance_governor_status"
+ACTIVE_REGISTRY_KEY = "v2:model_registry:paper:active"
 DEFAULT_RELEASE_PARENT = Path(
     "/home/wali/ai_bot_local_data/adaptive_candidate_dataset_v3"
 )
@@ -52,6 +53,14 @@ DEFAULT_FEATURE_ARCHIVE_ROOT = Path(
 DEFAULT_MAX_STATUS_AGE_SECONDS = 600.0
 DEFAULT_MIN_NEW_MATURED_OUTCOMES = 250
 DEFAULT_MIN_NEW_EFFECTIVE_N = 25.0
+LEGACY_FAILURE_RECEIPT_MIGRATION_CUTOFF = datetime(
+    2026,
+    7,
+    28,
+    16,
+    15,
+    tzinfo=UTC,
+)
 
 INCREMENTAL_STEP = "TRAIN_INCREMENTAL_ON_NEW_MATURED_OUTCOMES"
 RECALIBRATION_STEP = "RECALIBRATE_CURRENT_MODELS"
@@ -195,6 +204,10 @@ def _safe_paper_authority(payload: Mapping[str, Any], field: str) -> None:
         or payload.get("routes_to_live") is not False
         or payload.get("places_real_order") is not False
         or payload.get("exchange_action_taken") is not False
+        or (
+            "live_gate" in payload
+            and payload.get("live_gate") != "blocked_human_only"
+        )
     ):
         raise AdaptiveEscalationRuntimeError(f"{field}:UNSAFE_AUTHORITY")
 
@@ -222,10 +235,11 @@ def authenticate_runtime_inputs(
     *,
     now: datetime,
     max_age_seconds: float,
-) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]:
     authority = _get_required_json(client, supervisor.POLICY_AUTHORITY_STATUS_KEY)
     outcomes = _get_required_json(client, supervisor.CANDIDATE_OUTCOMES_STATUS_KEY)
     performance = _get_required_json(client, PERFORMANCE_STATUS_KEY)
+    registry = _get_required_json(client, ACTIVE_REGISTRY_KEY)
 
     if authority.get("schema_version") != "adaptive_paper_policy_runtime_status_v2":
         raise AdaptiveEscalationRuntimeError("policy_authority:SCHEMA_INVALID")
@@ -292,19 +306,47 @@ def authenticate_runtime_inputs(
     governed = performance.get("governed_closed_rows")
     if type(closed) is not int or closed <= 0 or closed != governed:
         raise AdaptiveEscalationRuntimeError("performance_status:COHERENT_CLOSED_COUNT_REQUIRED")
-    if edge < 0.0 and (
-        performance.get("status") != "HALTED_PERFORMANCE"
-        or performance.get("state") != "HALTED_PERFORMANCE"
+    state = performance.get("state")
+    status = performance.get("status")
+    if (
+        status != state
+        or status not in {"HALTED_PERFORMANCE", "ACTIVE", "ACTIVE_CALIBRATION"}
         or performance.get("enabled") is not True
-        or performance.get("new_entries_allowed") is not False
         or performance.get("allow_feedback_recording") is not True
+        or (
+            status == "HALTED_PERFORMANCE"
+            and performance.get("new_entries_allowed") is not False
+        )
+        or (
+            status in {"ACTIVE", "ACTIVE_CALIBRATION"}
+            and performance.get("new_entries_allowed") is not True
+        )
     ):
         raise AdaptiveEscalationRuntimeError(
-            "performance_status:NEGATIVE_EDGE_STATE_INCOHERENT"
+            "performance_status:STATE_INCOHERENT"
         )
+    if registry.get("schema_version") != "model_registry_active_v2":
+        raise AdaptiveEscalationRuntimeError("active_registry:SCHEMA_INVALID")
+    if (
+        registry.get("lane") != "paper"
+        or registry.get("paper_only") is not True
+        or registry.get("live_eligible") is not False
+        or registry.get("registry_generation")
+        != authority.get("checkpoint_generation")
+        or registry.get("checkpoint_id") != authority.get("checkpoint_id")
+    ):
+        raise AdaptiveEscalationRuntimeError("active_registry:AUTHORITY_MISMATCH")
+    activated_at = _parse_utc(registry.get("activated_at"), "active_registry.activated_at")
+    if activated_at > now:
+        raise AdaptiveEscalationRuntimeError("active_registry:FUTURE_ACTIVATION")
+    bundle_sha = registry.get("checkpoint_bundle_sha256")
+    if type(bundle_sha) is not str or len(bundle_sha) != 64:
+        raise AdaptiveEscalationRuntimeError("active_registry:BUNDLE_SHA_INVALID")
     performance = dict(performance)
     performance["source_payload_sha256"] = _sha256_bytes(_canonical_bytes(performance))
-    return dict(authority), dict(outcomes), performance
+    registry = dict(registry)
+    registry["source_payload_sha256"] = _sha256_bytes(_canonical_bytes(registry))
+    return dict(authority), dict(outcomes), performance, registry
 
 
 def _validated_release(root: Path) -> ReleaseEvidence:
@@ -485,6 +527,18 @@ def discover_completed_dispatches(
                 "worker_argv_template": worker["argv"],
                 "dataset_release": release.projection,
             }
+            receipt_failure_cycle_id = receipt.get("failure_cycle_id")
+            if receipt_failure_cycle_id is not None:
+                if (
+                    type(receipt_failure_cycle_id) is not str
+                    or not receipt_failure_cycle_id.startswith(
+                        "adaptive_failure_cycle_"
+                    )
+                    or len(receipt_failure_cycle_id)
+                    != len("adaptive_failure_cycle_") + 32
+                ):
+                    continue
+                material["failure_cycle_id"] = receipt_failure_cycle_id
             dispatch_id = "adaptive_dispatch_" + _sha256_bytes(
                 _canonical_bytes(material)
             )[:32]
@@ -608,51 +662,69 @@ def _authenticated_training_baseline(
 
 
 def _failure_cycle(
-    prior: Mapping[str, Any],
+    authority: Mapping[str, Any],
+    registry: Mapping[str, Any],
     *,
     edge_bps: float,
-    now: datetime,
     performance_sha256: str,
-) -> tuple[dict[str, Any], bool]:
-    prior_cycle = prior.get("failure_cycle")
-    if edge_bps >= 0.0:
-        return (
-            {
-                "active": False,
-                "classification": "AFTER_COST_EDGE_NONNEGATIVE",
-                "failure_cycle_id": None,
-                "started_utc": None,
-            },
-            False,
-        )
+) -> dict[str, Any]:
+    material = {
+        "checkpoint_generation": registry["registry_generation"],
+        "checkpoint_id": registry["checkpoint_id"],
+        "checkpoint_bundle_sha256": registry["checkpoint_bundle_sha256"],
+        "activated_at": registry["activated_at"],
+    }
     if (
-        isinstance(prior_cycle, dict)
-        and prior_cycle.get("active") is True
-        and type(prior_cycle.get("failure_cycle_id")) is str
-        and type(prior_cycle.get("started_utc")) is str
+        authority.get("checkpoint_generation") != material["checkpoint_generation"]
+        or authority.get("checkpoint_id") != material["checkpoint_id"]
     ):
-        cycle = dict(prior_cycle)
-        cycle["last_negative_edge_bps"] = edge_bps
-        return cycle, False
-    started = now.isoformat().replace("+00:00", "Z")
+        raise AdaptiveEscalationRuntimeError("failure_cycle:AUTHORITY_MISMATCH")
     cycle_id = "adaptive_failure_cycle_" + _sha256_bytes(
-        _canonical_bytes(
-            {
-                "started_utc": started,
-                "performance_status_sha256": performance_sha256,
-            }
-        )
+        _canonical_bytes(material)
     )[:32]
-    return (
-        {
+    if edge_bps >= 0.0:
+        return {
+            "active": False,
+            "classification": "AFTER_COST_EDGE_NONNEGATIVE",
+            "failure_cycle_id": cycle_id,
+            "started_utc": registry["activated_at"],
+            "checkpoint_binding": material,
+            "performance_status_sha256": performance_sha256,
+        }
+    return {
             "active": True,
             "classification": "UNRESOLVED_NEGATIVE_AFTER_COST_EDGE",
             "failure_cycle_id": cycle_id,
-            "started_utc": started,
+            "started_utc": registry["activated_at"],
             "last_negative_edge_bps": edge_bps,
-        },
-        True,
-    )
+            "checkpoint_binding": material,
+            "performance_status_sha256": performance_sha256,
+        }
+
+
+def _dispatch_matches_failure_cycle(
+    evidence: CompletedDispatch,
+    failure_cycle: Mapping[str, Any],
+) -> bool:
+    receipt = evidence.receipt
+    receipt_cycle = receipt.get("failure_cycle_id")
+    if receipt_cycle is not None:
+        return receipt_cycle == failure_cycle.get("failure_cycle_id")
+    trigger = receipt.get("trigger")
+    if not isinstance(trigger, list) or "negative_after_cost_edge" not in trigger:
+        return False
+    try:
+        completed = _parse_utc(
+            receipt.get("completed_utc"),
+            "dispatch_terminal.completed_utc",
+        )
+        started = _parse_utc(
+            failure_cycle.get("started_utc"),
+            "failure_cycle.started_utc",
+        )
+    except AdaptiveEscalationRuntimeError:
+        return False
+    return started <= completed <= LEGACY_FAILURE_RECEIPT_MIGRATION_CUTOFF
 
 
 def _load_prior_state(client: Any, state_path: Path) -> dict[str, Any]:
@@ -746,7 +818,7 @@ def run_once(
         build_timeout_seconds=build_timeout_seconds,
         dispatch_timeout_seconds=dispatch_timeout_seconds,
     )
-    authority, outcomes, performance = authenticate_runtime_inputs(
+    authority, outcomes, performance, registry = authenticate_runtime_inputs(
         client,
         now=now,
         max_age_seconds=max_status_age_seconds,
@@ -770,19 +842,24 @@ def run_once(
     )
     effective_n = supervisor.load_gen5_corpus_effective_n(dataset_path)[0]
     edge_bps = float(performance["notional_weighted_expectancy_bps"])
-    failure_cycle, _new_failure_cycle = _failure_cycle(
-        prior,
+    failure_cycle = _failure_cycle(
+        authority,
+        registry,
         edge_bps=edge_bps,
-        now=now,
         performance_sha256=str(performance["source_payload_sha256"]),
     )
     historical_dispatches = discover_historical_completed_dispatches(
         release_parent,
         dispatch_root=dispatch_root,
     )
+    cycle_dispatches = tuple(
+        evidence
+        for evidence in historical_dispatches
+        if _dispatch_matches_failure_cycle(evidence, failure_cycle)
+    )
     exact_release_steps = {
         evidence.step
-        for evidence in historical_dispatches
+        for evidence in cycle_dispatches
         if evidence.release.projection == release.projection
     }
     completed: set[str] = set()
@@ -790,7 +867,7 @@ def run_once(
         # Runtime state is advisory only. A rung is complete solely when a full
         # canonical terminal-receipt replay succeeds against its exact signed
         # release, so a recomputed plain state hash cannot claim work.
-        completed.update(evidence.step for evidence in historical_dispatches)
+        completed.update(evidence.step for evidence in cycle_dispatches)
         if INCREMENTAL_STEP in completed:
             completed.add(RECALIBRATION_STEP)
     if rebuilt and INCREMENTAL_STEP not in exact_release_steps:
@@ -835,6 +912,10 @@ def run_once(
         input_manifest_sha=str(release.projection["dataset_sha256"]),
     )
     plan = supervisor.plan_escalation(inputs)
+    plan = replace(
+        plan,
+        failure_cycle_id=str(failure_cycle["failure_cycle_id"]),
+    )
     dispatch_result: dict[str, Any] | None = None
     if execute_worker and plan.action == supervisor.ACTION_LAUNCH:
         dispatch_result = supervisor.dispatch_worker(
@@ -894,6 +975,8 @@ def run_once(
                 ),
                 "performance_status_key": PERFORMANCE_STATUS_KEY,
                 "performance_status_sha256": performance["source_payload_sha256"],
+                "active_registry_key": ACTIVE_REGISTRY_KEY,
+                "active_registry_sha256": registry["source_payload_sha256"],
                 "after_cost_edge_bps": performance[
                     "notional_weighted_expectancy_bps"
                 ],
