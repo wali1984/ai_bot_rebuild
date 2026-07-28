@@ -17733,40 +17733,87 @@ def test_open_position_filter_joins_position_to_fill_through_source_fill_id() ->
     assert dropped == []
 
 
+def _open_position_fill_proof_fixture(
+    *,
+    side: str,
+    fill_id: str | None = None,
+    prediction_id: str | None = None,
+) -> tuple[dict, dict]:
+    fill_id = fill_id or f"fill-{side}"
+    prediction_id = prediction_id or f"pred-{side}"
+    position_id = f"paper-pos-{fill_id}"
+    position_generation_id = ("a" if side == "long" else "b") * 64
+    fill = {
+        "fill_id": fill_id,
+        "ledger_row_id": fill_id,
+        "position_id": position_id,
+        "position_generation_id": position_generation_id,
+        "prediction_id": prediction_id,
+        "signal_id": f"sig-{fill_id}",
+        "intent_id": f"intent-{fill_id}",
+        "orchestrator_decision_id": f"orch-{fill_id}",
+        "risk_decision_id": f"risk-{fill_id}",
+        "allocation_id": f"alloc-{fill_id}",
+        "adaptive_policy_action_id": f"action-{fill_id}",
+        "symbol": "BTCUSDT",
+        "timeframe": "5m",
+        "side": side,
+        "quantity": 0.5,
+        "fill_price": 100.0,
+        "gross_notional_usd": 50.0,
+        "effective_leverage": 1.0,
+        "allocated_margin_usd": 50.0,
+        "paper_final_admission_status": "PASS",
+        "paper_final_admission_contract": {"status": "PASS"},
+        "paper_final_admission_receipt_hash": "1" * 64,
+        "paper_final_admission_bound_material_hash": "2" * 64,
+        "paper_persisted_ledger_contract_hash": "3" * 64,
+        "paper_cycle_reservation_commit_receipt_hash": "4" * 64,
+        "adaptive_policy_action_sha256": "5" * 64,
+        "adaptive_paper_policy_authorization_sha256": "6" * 64,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+    position = {
+        "position_id": position_id,
+        "position_generation_id": position_generation_id,
+        "entry_fill_id": fill_id,
+        "source_fill_ids": [fill_id],
+        "prediction_id": prediction_id,
+        "signal_id": f"sig-{fill_id}",
+        "symbol": "BTCUSDT",
+        "timeframe": "5m",
+        "side": side,
+        "net_quantity": 0.5,
+        "avg_entry_price": 100.0,
+        "gross_notional_usd": 50.0,
+        "effective_leverage": 1.0,
+        "allocated_margin_usd": 50.0,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+    proof, reasons = paper_loop._paper_build_open_position_fill_proof(  # noqa: SLF001
+        fill,
+        position,
+        generated_utc="2026-07-28T01:00:00Z",
+    )
+    assert reasons == []
+    assert proof is not None
+    return proof, position
+
+
 @pytest.mark.parametrize("side", ["long", "short"])
 def test_position_fill_reconciliation_retains_exactly_proven_position(side: str) -> None:
-    prediction_id = f"pred-{side}"
+    proof, position = _open_position_fill_proof_fixture(side=side)
     redis_client = _FakeRedis(
         {
-            "v2:paper:accepted_fills": [
-                {
-                    "fill_id": prediction_id,
-                    "prediction_id": prediction_id,
-                    "signal_id": f"sig-{side}",
-                    "symbol": "BTCUSDT",
-                    "side": side,
-                    "paper_only": True,
-                    "routes_to_live": False,
-                    "places_real_order": False,
-                }
-            ]
+            "v2:paper:open_position_fill_proofs": [proof]
         }
     )
     proof_source = paper_loop._paper_accepted_fill_proof_source(redis_client)  # noqa: SLF001
-    ledger = {
-        "open_positions": [
-            {
-                "position_id": f"paper-pos-{side}",
-                "entry_fill_id": prediction_id,
-                "source_fill_ids": [prediction_id],
-                "prediction_id": prediction_id,
-                "signal_id": f"sig-{side}",
-                "symbol": "BTCUSDT",
-                "side": side,
-                "allocated_margin_usd": 10.0,
-            }
-        ]
-    }
+    ledger = {"open_positions": [position]}
 
     reconciled, receipt = paper_loop._paper_reconcile_ledger_to_accepted_fill_proofs(  # noqa: SLF001
         ledger,
@@ -17782,8 +17829,95 @@ def test_position_fill_reconciliation_retains_exactly_proven_position(side: str)
     assert len(receipt["proof_bindings"]) == 1
 
 
+def test_missing_dedicated_proof_key_is_authoritative_empty_not_position_fallback() -> None:
+    source = paper_loop._paper_accepted_fill_proof_source(_FakeRedis({}))  # noqa: SLF001
+
+    assert source["status"] == "READY"
+    assert source["rows"] == []
+    assert source["row_count"] == 0
+    assert source["redis_key"] == "v2:paper:open_position_fill_proofs"
+    assert source["rejection_reasons"] == []
+
+
+def test_mutated_open_position_fill_proof_blocks_source() -> None:
+    proof, _ = _open_position_fill_proof_fixture(side="short")
+    proof["quantity"] = 0.6
+    source = paper_loop._paper_accepted_fill_proof_source(  # noqa: SLF001
+        _FakeRedis({"v2:paper:open_position_fill_proofs": [proof]})
+    )
+
+    assert source["status"] == "BLOCKED"
+    assert any("OPEN_POSITION_FILL_PROOF_HASH_INVALID" in reason for reason in source["rejection_reasons"])
+
+
+@pytest.mark.parametrize("side", ["long", "short"])
+def test_durable_proof_survives_operational_accepted_fill_compaction(side: str) -> None:
+    proof, position = _open_position_fill_proof_fixture(side=side)
+    redis_client = _FakeRedis(
+        {
+            "v2:paper:open_position_fill_proofs": [proof],
+            "v2:paper:accepted_fills": [],
+        }
+    )
+
+    source = paper_loop._paper_accepted_fill_proof_source(redis_client)  # noqa: SLF001
+    reconciled, receipt = paper_loop._paper_reconcile_ledger_to_accepted_fill_proofs(  # noqa: SLF001
+        {"open_positions": [position], "positions_by_symbol": {"BTCUSDT": position}},
+        source,
+        generated_utc="2026-07-28T01:01:00Z",
+    )
+    carried, rejected, status = paper_loop._paper_build_open_position_fill_proofs(  # noqa: SLF001
+        reconciled["open_positions"],
+        [],
+        source,
+        generated_utc="2026-07-28T01:01:01Z",
+    )
+
+    assert receipt["status"] == "PASS"
+    assert rejected == []
+    assert carried == [proof]
+    assert status["one_proof_per_open_position"] is True
+    assert status["position_payload_used_as_proof"] is False
+
+
+def test_new_proof_requires_current_final_admission_pass() -> None:
+    _, position = _open_position_fill_proof_fixture(side="long")
+    invalid_fill = {
+        "fill_id": position["entry_fill_id"],
+        "position_id": position["position_id"],
+        "position_generation_id": position["position_generation_id"],
+        "prediction_id": position["prediction_id"],
+        "signal_id": position["signal_id"],
+        "symbol": position["symbol"],
+        "timeframe": position["timeframe"],
+        "side": position["side"],
+        "quantity": position["net_quantity"],
+        "fill_price": position["avg_entry_price"],
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+
+    proofs, rejected, status = paper_loop._paper_build_open_position_fill_proofs(  # noqa: SLF001
+        [position],
+        [invalid_fill],
+        paper_loop._paper_accepted_fill_proof_source(  # noqa: SLF001
+            _FakeRedis({"v2:paper:open_position_fill_proofs": []})
+        ),
+        generated_utc="2026-07-28T01:00:00Z",
+    )
+
+    assert proofs == []
+    assert len(rejected) == 1
+    assert status["status"] == "BLOCKED"
+    assert "OPEN_POSITION_FILL_PROOF_FINAL_ADMISSION_NOT_PASS" in status[
+        "rejection_reasons"
+    ]
+    assert rejected[0]["accepted_fill_quarantine_reasons"]
+
+
 def test_position_fill_reconciliation_repairs_phantom_idempotently() -> None:
-    redis_client = _FakeRedis({"v2:paper:accepted_fills": []})
+    redis_client = _FakeRedis({"v2:paper:open_position_fill_proofs": []})
     proof_source = paper_loop._paper_accepted_fill_proof_source(redis_client)  # noqa: SLF001
     ledger = {
         "open_positions": [
@@ -17828,7 +17962,9 @@ def test_position_fill_reconciliation_repairs_phantom_idempotently() -> None:
 
 
 def test_position_fill_reconciliation_keeps_inventory_when_proof_source_malformed() -> None:
-    redis_client = _FakeRedis({"v2:paper:accepted_fills": {"not": "a-list"}})
+    redis_client = _FakeRedis(
+        {"v2:paper:open_position_fill_proofs": {"not": "a-list"}}
+    )
     proof_source = paper_loop._paper_accepted_fill_proof_source(redis_client)  # noqa: SLF001
     ledger = {
         "open_positions": [
@@ -17857,11 +17993,21 @@ def test_position_fill_reconciliation_keeps_inventory_when_proof_source_malforme
 
 
 def test_position_fill_reconciliation_blocks_conflicting_duplicate_proofs() -> None:
+    first_proof, _ = _open_position_fill_proof_fixture(
+        side="long",
+        fill_id="fill-1",
+        prediction_id="pred-shared",
+    )
+    second_proof, _ = _open_position_fill_proof_fixture(
+        side="long",
+        fill_id="fill-2",
+        prediction_id="pred-shared",
+    )
     redis_client = _FakeRedis(
         {
-            "v2:paper:accepted_fills": [
-                {"fill_id": "fill-1", "prediction_id": "pred-shared"},
-                {"fill_id": "fill-2", "prediction_id": "pred-shared"},
+            "v2:paper:open_position_fill_proofs": [
+                first_proof,
+                second_proof,
             ]
         }
     )
@@ -17893,7 +18039,7 @@ def test_position_fill_reconciliation_blocks_conflicting_duplicate_proofs() -> N
 
 def test_position_fill_repair_receipt_archive_is_idempotent(tmp_path: Path) -> None:
     proof_source = paper_loop._paper_accepted_fill_proof_source(  # noqa: SLF001
-        _FakeRedis({"v2:paper:accepted_fills": []})
+        _FakeRedis({"v2:paper:open_position_fill_proofs": []})
     )
     _, receipt = paper_loop._paper_reconcile_ledger_to_accepted_fill_proofs(  # noqa: SLF001
         {
@@ -17979,7 +18125,7 @@ def test_unproved_close_quarantine_does_not_relabel_legacy_cohorts() -> None:
 
 def test_unproved_close_is_bound_into_immutable_reconciliation_receipt(tmp_path: Path) -> None:
     proof_source = paper_loop._paper_accepted_fill_proof_source(  # noqa: SLF001
-        _FakeRedis({"v2:paper:accepted_fills": []})
+        _FakeRedis({"v2:paper:open_position_fill_proofs": []})
     )
     _, base_receipt = paper_loop._paper_reconcile_ledger_to_accepted_fill_proofs(  # noqa: SLF001
         {"open_positions": []},
@@ -18071,6 +18217,7 @@ def test_critical_paper_state_uses_one_redis_transaction() -> None:
     keys = paper_loop._write_paper_critical_state_atomically(  # noqa: SLF001
         redis_client,
         open_positions=[],
+        open_position_fill_proofs=[],
         accepted_fills=[],
         quarantined_fills=[{"prediction_id": "pred-q"}],
         closed_trades=[],
@@ -18085,6 +18232,7 @@ def test_critical_paper_state_uses_one_redis_transaction() -> None:
 
     assert redis_client.execute_count == 1
     assert "v2:paper:positions" in keys
+    assert "v2:paper:open_position_fill_proofs" in keys
     assert "v2:paper:accepted_fills" in keys
     assert "v2:paper:closed_trades" in keys
     assert "v2:paper:closed_trades:unproved_fill_quarantine" in keys

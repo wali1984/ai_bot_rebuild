@@ -226,6 +226,9 @@ PAPER_ADAPTIVE_SIZING_RUNTIME_STATUS_REDIS_KEY = (
     f"{V2_REDIS_PREFIX}paper:adaptive_sizing_runtime_status"
 )
 PAPER_ACCOUNT_MARGIN_STATUS_REDIS_KEY = f"{V2_REDIS_PREFIX}paper:account_margin_status"
+PAPER_OPEN_POSITION_FILL_PROOFS_REDIS_KEY = (
+    f"{V2_REDIS_PREFIX}paper:open_position_fill_proofs"
+)
 DEFAULT_PAYLOAD_PATH = Path(
     "v2/frontend/public/operator_runtime/v2_trade_management_paper/live/latest/v2_trade_management_paper_live_status.json"
 )
@@ -295,6 +298,9 @@ TRADE_MANAGEMENT_PUBLIC_DIR = Path(
 PAPER_ACCEPTED_FILLS_STATE_PATH = TRADE_MANAGEMENT_PUBLIC_DIR / "paper_accepted_fills_state.json"
 PAPER_ACCEPTED_FILLS_QUARANTINE_STATE_PATH = (
     TRADE_MANAGEMENT_PUBLIC_DIR / "paper_accepted_fills_quarantine_state.json"
+)
+PAPER_OPEN_POSITION_FILL_PROOFS_STATE_PATH = (
+    TRADE_MANAGEMENT_PUBLIC_DIR / "paper_open_position_fill_proofs_state.json"
 )
 PAPER_LIFECYCLE_STATE_PATH = TRADE_MANAGEMENT_PUBLIC_DIR / "paper_lifecycle_state.json"
 PAPER_ACCOUNT_MARGIN_STATUS_PATH = TRADE_MANAGEMENT_PUBLIC_DIR / "paper_account_margin_status.json"
@@ -3779,6 +3785,7 @@ def _write_paper_critical_state_atomically(
     r: Any,
     *,
     open_positions: list[dict[str, Any]],
+    open_position_fill_proofs: list[dict[str, Any]],
     accepted_fills: list[dict[str, Any]],
     quarantined_fills: list[dict[str, Any]],
     closed_trades: list[dict[str, Any]],
@@ -3804,6 +3811,11 @@ def _write_paper_critical_state_atomically(
         (
             f"{V2_REDIS_PREFIX}paper:open_positions",
             json.dumps(open_positions, default=str),
+            training_ttl,
+        ),
+        (
+            PAPER_OPEN_POSITION_FILL_PROOFS_REDIS_KEY,
+            json.dumps(open_position_fill_proofs, default=str),
             training_ttl,
         ),
         (
@@ -13774,14 +13786,16 @@ def _read_lifecycle_state_file(path: Path | None = None) -> dict[str, Any]:
 def _read_existing_accepted_fills(r) -> dict[str, dict]:
     # CG-F056: an open position is a consumer of accepted-fill proof; it can
     # never manufacture that proof for itself.  Runtime reads therefore use
-    # only the canonical durable accepted-fill key.  The state file remains a
-    # disconnected/local-test fallback when Redis is intentionally absent.
+    # only the canonical operational accepted-fill key.  Durable open-position
+    # proofs are read independently by ``_paper_accepted_fill_proof_source``;
+    # neither reader ever falls back to position inventory.  The state file
+    # remains a disconnected/local-test fallback when Redis is absent.
     if r is not None:
-        proof_source = _paper_accepted_fill_proof_source(r)
-        if proof_source.get("status") != "READY":
-            return {}
-        rows = proof_source.get("rows")
-        return _index_accepted_fill_rows(rows if isinstance(rows, list) else [])
+        rows = _read_json_list_redis_key_if_small(
+            r,
+            f"{V2_REDIS_PREFIX}paper:accepted_fills",
+        )
+        return _index_accepted_fill_rows(rows)
     return _read_accepted_fill_state_file()
 
 
@@ -32802,18 +32816,323 @@ def _paper_open_position_rows(ledger: Mapping[str, Any]) -> list[Mapping[str, An
     return []
 
 
-def _paper_accepted_fill_proof_source(r: Any) -> dict[str, Any]:
-    """Read the canonical durable fill proofs used by open-position joins.
+PAPER_OPEN_POSITION_FILL_PROOF_SCHEMA_VERSION = (
+    "paper_open_position_fill_proof_v1"
+)
 
-    Open-position payloads intentionally contain compact lifecycle state, not
-    the complete final-admission seal.  The accepted-fill key is therefore a
-    separate required proof source whenever an open position exists.  This
-    reader never falls back to reconstructed position rows because doing so
-    would turn missing proof into apparently valid proof.
+
+def _paper_open_position_fill_proof_material(
+    row: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Return the immutable, hash-bound proof material for one open position."""
+
+    return {
+        "schema_version": row.get("schema_version"),
+        "proof_origin": row.get("proof_origin"),
+        "proof_created_at": row.get("proof_created_at"),
+        "fill_id": row.get("fill_id"),
+        "ledger_row_id": row.get("ledger_row_id"),
+        "position_id": row.get("position_id"),
+        "position_generation_id": row.get("position_generation_id"),
+        "prediction_id": row.get("prediction_id"),
+        "signal_id": row.get("signal_id"),
+        "intent_id": row.get("intent_id"),
+        "orchestrator_decision_id": row.get("orchestrator_decision_id"),
+        "risk_decision_id": row.get("risk_decision_id"),
+        "allocation_id": row.get("allocation_id"),
+        "adaptive_policy_action_id": row.get("adaptive_policy_action_id"),
+        "symbol": row.get("symbol"),
+        "timeframe": row.get("timeframe"),
+        "side": row.get("side"),
+        "quantity": row.get("quantity"),
+        "fill_price": row.get("fill_price"),
+        "gross_notional_usd": row.get("gross_notional_usd"),
+        "effective_leverage": row.get("effective_leverage"),
+        "allocated_margin_usd": row.get("allocated_margin_usd"),
+        "paper_final_admission_status": row.get(
+            "paper_final_admission_status"
+        ),
+        "paper_final_admission_receipt_hash": row.get(
+            "paper_final_admission_receipt_hash"
+        ),
+        "paper_final_admission_bound_material_hash": row.get(
+            "paper_final_admission_bound_material_hash"
+        ),
+        "paper_persisted_ledger_contract_hash": row.get(
+            "paper_persisted_ledger_contract_hash"
+        ),
+        "paper_cycle_reservation_commit_receipt_hash": row.get(
+            "paper_cycle_reservation_commit_receipt_hash"
+        ),
+        "adaptive_policy_action_sha256": row.get(
+            "adaptive_policy_action_sha256"
+        ),
+        "adaptive_paper_policy_authorization_sha256": row.get(
+            "adaptive_paper_policy_authorization_sha256"
+        ),
+        "paper_only": row.get("paper_only"),
+        "routes_to_live": row.get("routes_to_live"),
+        "places_real_order": row.get("places_real_order"),
+        "exchange_action_taken": row.get("exchange_action_taken"),
+    }
+
+
+def _paper_open_position_fill_proof_reasons(
+    row: Mapping[str, Any],
+) -> list[str]:
+    reasons: list[str] = []
+    material = _paper_open_position_fill_proof_material(row)
+    if material["schema_version"] != PAPER_OPEN_POSITION_FILL_PROOF_SCHEMA_VERSION:
+        reasons.append("OPEN_POSITION_FILL_PROOF_SCHEMA_INVALID")
+    for field in (
+        "proof_created_at",
+        "fill_id",
+        "ledger_row_id",
+        "position_id",
+        "position_generation_id",
+        "prediction_id",
+        "signal_id",
+        "intent_id",
+        "orchestrator_decision_id",
+        "risk_decision_id",
+        "allocation_id",
+        "symbol",
+        "timeframe",
+        "side",
+    ):
+        if material.get(field) in (None, ""):
+            reasons.append(f"OPEN_POSITION_FILL_PROOF_{field.upper()}_MISSING")
+    if material.get("proof_origin") != "CURRENT_CYCLE_FINAL_ADMISSION_PASS":
+        reasons.append("OPEN_POSITION_FILL_PROOF_ORIGIN_INVALID")
+    if _normalized_directional_side(material.get("side")) is None:
+        reasons.append("OPEN_POSITION_FILL_PROOF_SIDE_INVALID")
+    if material.get("paper_final_admission_status") != "PASS":
+        reasons.append("OPEN_POSITION_FILL_PROOF_FINAL_ADMISSION_NOT_PASS")
+    for field in (
+        "paper_final_admission_receipt_hash",
+        "paper_final_admission_bound_material_hash",
+        "paper_persisted_ledger_contract_hash",
+        "paper_cycle_reservation_commit_receipt_hash",
+        "adaptive_policy_action_sha256",
+        "adaptive_paper_policy_authorization_sha256",
+    ):
+        if not _paper_valid_sha256(material.get(field)):
+            reasons.append(f"OPEN_POSITION_FILL_PROOF_{field.upper()}_INVALID")
+    if material.get("adaptive_policy_action_id") in (None, ""):
+        reasons.append("OPEN_POSITION_FILL_PROOF_ADAPTIVE_POLICY_ACTION_ID_MISSING")
+    if material.get("paper_only") is not True:
+        reasons.append("OPEN_POSITION_FILL_PROOF_PAPER_ONLY_INVALID")
+    if material.get("routes_to_live") is not False:
+        reasons.append("OPEN_POSITION_FILL_PROOF_ROUTES_TO_LIVE_INVALID")
+    if material.get("places_real_order") is not False:
+        reasons.append("OPEN_POSITION_FILL_PROOF_PLACES_REAL_ORDER_INVALID")
+    if material.get("exchange_action_taken") is not False:
+        reasons.append("OPEN_POSITION_FILL_PROOF_EXCHANGE_ACTION_INVALID")
+
+    quantity = _coerce_float(material.get("quantity"))
+    fill_price = _coerce_float(material.get("fill_price"))
+    gross_notional = _coerce_float(material.get("gross_notional_usd"))
+    leverage = _coerce_float(material.get("effective_leverage"))
+    allocated_margin = _coerce_float(material.get("allocated_margin_usd"))
+    for field, value in (
+        ("QUANTITY", quantity),
+        ("FILL_PRICE", fill_price),
+        ("GROSS_NOTIONAL_USD", gross_notional),
+        ("EFFECTIVE_LEVERAGE", leverage),
+        ("ALLOCATED_MARGIN_USD", allocated_margin),
+    ):
+        if value is None or not math.isfinite(value) or value <= 0.0:
+            reasons.append(f"OPEN_POSITION_FILL_PROOF_{field}_INVALID")
+    if (
+        quantity is not None
+        and fill_price is not None
+        and gross_notional is not None
+        and not math.isclose(
+            gross_notional,
+            quantity * fill_price,
+            rel_tol=1e-9,
+            abs_tol=1e-8,
+        )
+    ):
+        reasons.append("OPEN_POSITION_FILL_PROOF_GROSS_NOTIONAL_MISMATCH")
+    if (
+        gross_notional is not None
+        and leverage is not None
+        and leverage > 0.0
+        and allocated_margin is not None
+        and not math.isclose(
+            allocated_margin,
+            gross_notional / leverage,
+            rel_tol=1e-9,
+            abs_tol=1e-8,
+        )
+    ):
+        reasons.append("OPEN_POSITION_FILL_PROOF_ALLOCATED_MARGIN_MISMATCH")
+    proof_id = row.get("proof_id")
+    expected_proof_id = _paper_canonical_sha256(material)
+    if not _paper_valid_sha256(proof_id) or proof_id != expected_proof_id:
+        reasons.append("OPEN_POSITION_FILL_PROOF_HASH_INVALID")
+    return sorted(set(reasons))
+
+
+def _paper_build_open_position_fill_proof(
+    fill: Mapping[str, Any],
+    position: Mapping[str, Any],
+    *,
+    generated_utc: str,
+) -> tuple[dict[str, Any] | None, list[str]]:
+    """Seal a proof only from a current fill that already passed final admission."""
+
+    reasons: list[str] = []
+    fill_id = _accepted_fill_identity(fill)
+    final_contract = fill.get("paper_final_admission_contract")
+    final_contract_status = (
+        final_contract.get("status")
+        if isinstance(final_contract, Mapping)
+        else None
+    )
+    final_status = _first_present(
+        fill.get("paper_final_admission_status"),
+        final_contract_status,
+    )
+    position_aliases = _paper_fill_proof_aliases(position)
+    fill_aliases = _paper_fill_proof_aliases(fill)
+    if not position_aliases.intersection(fill_aliases):
+        reasons.append("OPEN_POSITION_FILL_PROOF_LINEAGE_MISMATCH")
+    for field in ("position_id", "position_generation_id"):
+        if fill.get(field) in (None, "") or position.get(field) in (None, ""):
+            reasons.append(f"OPEN_POSITION_FILL_PROOF_{field.upper()}_MISSING")
+        elif str(fill.get(field)) != str(position.get(field)):
+            reasons.append(f"OPEN_POSITION_FILL_PROOF_{field.upper()}_MISMATCH")
+    fill_side = _normalized_directional_side(fill.get("side"))
+    position_side = _normalized_directional_side(position.get("side"))
+    if fill_side is None or fill_side != position_side:
+        reasons.append("OPEN_POSITION_FILL_PROOF_SIDE_MISMATCH")
+    if str(fill.get("symbol") or "").upper() != str(
+        position.get("symbol") or ""
+    ).upper():
+        reasons.append("OPEN_POSITION_FILL_PROOF_SYMBOL_MISMATCH")
+    if str(fill.get("timeframe") or "") != str(position.get("timeframe") or ""):
+        reasons.append("OPEN_POSITION_FILL_PROOF_TIMEFRAME_MISMATCH")
+    fill_quantity = _coerce_float(fill.get("quantity"))
+    position_quantity = _coerce_float(position.get("net_quantity"))
+    if (
+        fill_quantity is None
+        or position_quantity is None
+        or not math.isclose(
+            fill_quantity,
+            position_quantity,
+            rel_tol=1e-9,
+            abs_tol=1e-12,
+        )
+    ):
+        reasons.append("OPEN_POSITION_FILL_PROOF_QUANTITY_MISMATCH")
+    fill_price = _coerce_float(
+        _first_present(fill.get("fill_price"), fill.get("entry_price"))
+    )
+    position_price = _coerce_float(
+        _first_present(position.get("avg_entry_price"), position.get("entry_price"))
+    )
+    if (
+        fill_price is None
+        or position_price is None
+        or not math.isclose(
+            fill_price,
+            position_price,
+            rel_tol=1e-9,
+            abs_tol=1e-12,
+        )
+    ):
+        reasons.append("OPEN_POSITION_FILL_PROOF_PRICE_MISMATCH")
+    if final_status != "PASS":
+        reasons.append("OPEN_POSITION_FILL_PROOF_FINAL_ADMISSION_NOT_PASS")
+
+    gross_notional = _coerce_float(
+        _first_present(
+            fill.get("gross_notional_usd"),
+            fill.get("notional"),
+            position.get("gross_notional_usd"),
+            position.get("notional"),
+        )
+    )
+    leverage = _coerce_float(
+        _first_present(fill.get("effective_leverage"), position.get("effective_leverage"))
+    )
+    allocated_margin = _coerce_float(
+        _first_present(
+            fill.get("allocated_margin_usd"),
+            position.get("allocated_margin_usd"),
+        )
+    )
+    material = {
+        "schema_version": PAPER_OPEN_POSITION_FILL_PROOF_SCHEMA_VERSION,
+        "proof_origin": "CURRENT_CYCLE_FINAL_ADMISSION_PASS",
+        "proof_created_at": generated_utc,
+        "fill_id": fill_id,
+        "ledger_row_id": _first_present(fill.get("ledger_row_id"), fill_id),
+        "position_id": fill.get("position_id"),
+        "position_generation_id": fill.get("position_generation_id"),
+        "prediction_id": _first_present(
+            fill.get("prediction_id"), fill.get("source_prediction_id")
+        ),
+        "signal_id": _first_present(fill.get("signal_id"), fill.get("source_signal_id")),
+        "intent_id": _first_present(fill.get("intent_id"), fill.get("source_intent_id")),
+        "orchestrator_decision_id": fill.get("orchestrator_decision_id"),
+        "risk_decision_id": fill.get("risk_decision_id"),
+        "allocation_id": _first_present(
+            fill.get("allocation_id"), fill.get("allocator_decision_id")
+        ),
+        "adaptive_policy_action_id": fill.get("adaptive_policy_action_id"),
+        "symbol": str(fill.get("symbol") or "").upper(),
+        "timeframe": fill.get("timeframe"),
+        "side": fill_side,
+        "quantity": fill_quantity,
+        "fill_price": fill_price,
+        "gross_notional_usd": gross_notional,
+        "effective_leverage": leverage,
+        "allocated_margin_usd": allocated_margin,
+        "paper_final_admission_status": final_status,
+        "paper_final_admission_receipt_hash": fill.get(
+            "paper_final_admission_receipt_hash"
+        ),
+        "paper_final_admission_bound_material_hash": fill.get(
+            "paper_final_admission_bound_material_hash"
+        ),
+        "paper_persisted_ledger_contract_hash": fill.get(
+            "paper_persisted_ledger_contract_hash"
+        ),
+        "paper_cycle_reservation_commit_receipt_hash": fill.get(
+            "paper_cycle_reservation_commit_receipt_hash"
+        ),
+        "adaptive_policy_action_sha256": fill.get("adaptive_policy_action_sha256"),
+        "adaptive_paper_policy_authorization_sha256": fill.get(
+            "adaptive_paper_policy_authorization_sha256"
+        ),
+        "paper_only": fill.get("paper_only"),
+        "routes_to_live": fill.get("routes_to_live"),
+        "places_real_order": fill.get("places_real_order"),
+        "exchange_action_taken": False,
+    }
+    proof = {**material, "proof_id": _paper_canonical_sha256(material)}
+    reasons.extend(_paper_open_position_fill_proof_reasons(proof))
+    if reasons:
+        return None, sorted(set(reasons))
+    return proof, []
+
+
+def _paper_accepted_fill_proof_source(r: Any) -> dict[str, Any]:
+    """Read the dedicated durable proof rail used by open-position joins.
+
+    The operational accepted-fill rows are deliberately compacted and may be
+    revalidated or quarantined later.  They cannot safely serve as the durable
+    proof for an already-open position.  This source contains one immutable,
+    hash-validated receipt per open position and never falls back to position
+    payloads.  A reachable but absent key means there are exactly zero proofs;
+    malformed or unreadable proof state remains fail-closed.
     """
 
     observed_at = _utc_iso()
-    redis_key = f"{V2_REDIS_PREFIX}paper:accepted_fills"
+    redis_key = PAPER_OPEN_POSITION_FILL_PROOFS_REDIS_KEY
     base = {
         "schema_version": "paper_accepted_fill_proof_source_v1",
         "redis_key": redis_key,
@@ -32860,11 +33179,11 @@ def _paper_accepted_fill_proof_source(r: Any) -> dict[str, Any]:
     if raw in (None, b"", ""):
         material = {
             **base,
-            "status": "MISSING",
+            "status": "READY",
             "raw_size_bytes": 0 if raw_size is None else raw_size,
             "row_count": 0,
             "payload_hash": _paper_canonical_sha256([]),
-            "rejection_reasons": ["ACCEPTED_FILL_PROOF_PAYLOAD_MISSING"],
+            "rejection_reasons": [],
         }
         return {**material, "source_hash": _paper_canonical_sha256(material), "rows": []}
     try:
@@ -32882,13 +33201,29 @@ def _paper_accepted_fill_proof_source(r: Any) -> dict[str, Any]:
         }
         return {**material, "source_hash": _paper_canonical_sha256(material), "rows": []}
     rows = [dict(row) for row in payload]
+    row_reasons = [
+        f"OPEN_POSITION_FILL_PROOF_ROW_{index}:{reason}"
+        for index, row in enumerate(rows)
+        for reason in _paper_open_position_fill_proof_reasons(row)
+    ]
+    duplicate_proof_ids = sorted(
+        proof_id
+        for proof_id, count in Counter(
+            str(row.get("proof_id") or "") for row in rows
+        ).items()
+        if proof_id and count > 1
+    )
+    row_reasons.extend(
+        f"OPEN_POSITION_FILL_PROOF_DUPLICATE_PROOF_ID:{proof_id}"
+        for proof_id in duplicate_proof_ids
+    )
     material = {
         **base,
-        "status": "READY",
+        "status": "BLOCKED" if row_reasons else "READY",
         "raw_size_bytes": raw_size,
         "row_count": len(rows),
         "payload_hash": _paper_canonical_sha256(rows),
-        "rejection_reasons": [],
+        "rejection_reasons": sorted(set(row_reasons)),
     }
     return {**material, "source_hash": _paper_canonical_sha256(material), "rows": rows}
 
@@ -32920,6 +33255,135 @@ def _paper_fill_proof_aliases(row: Mapping[str, Any]) -> set[str]:
                 str(value).strip() for value in values if value not in (None, "")
             )
     return {alias for alias in aliases if alias}
+
+
+def _paper_build_open_position_fill_proofs(
+    open_positions: list[dict[str, Any]],
+    current_valid_accepted_fills: list[dict[str, Any]],
+    accepted_fill_proof_source: Mapping[str, Any],
+    *,
+    generated_utc: str,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
+    """Carry existing proofs or seal new proofs from same-cycle valid fills.
+
+    A position payload is never sufficient proof.  Existing positions must
+    match exactly one already-validated durable receipt; a newly opened
+    position may create exactly one receipt only from a same-cycle fill that
+    already passed the final-admission integrity split.
+    """
+
+    source_rows_value = accepted_fill_proof_source.get("rows")
+    source_rows = (
+        [dict(row) for row in source_rows_value if isinstance(row, Mapping)]
+        if isinstance(source_rows_value, list)
+        else []
+    )
+    source_ready = accepted_fill_proof_source.get("status") == "READY"
+    current_rows = [
+        dict(row) for row in current_valid_accepted_fills if isinstance(row, Mapping)
+    ]
+    proofs: list[dict[str, Any]] = []
+    rejected_positions: list[dict[str, Any]] = []
+    bindings: list[dict[str, Any]] = []
+    for position in open_positions:
+        position_aliases = _paper_fill_proof_aliases(position)
+        existing_matches = [
+            row
+            for row in source_rows
+            if position_aliases.intersection(_paper_fill_proof_aliases(row))
+        ]
+        current_matches = [
+            row
+            for row in current_rows
+            if position_aliases.intersection(_paper_fill_proof_aliases(row))
+        ]
+        reasons: list[str] = []
+        proof: dict[str, Any] | None = None
+        source = None
+        if not source_ready:
+            reasons.extend(
+                str(reason)
+                for reason in accepted_fill_proof_source.get("rejection_reasons") or []
+            )
+            reasons.append("OPEN_POSITION_FILL_PROOF_SOURCE_NOT_READY")
+        elif len(existing_matches) == 1:
+            proof = dict(existing_matches[0])
+            reasons.extend(_paper_open_position_fill_proof_reasons(proof))
+            source = "EXISTING_DURABLE_PROOF"
+        elif len(existing_matches) > 1:
+            reasons.append("OPEN_POSITION_MULTIPLE_DURABLE_FILL_PROOFS")
+        elif len(current_matches) == 1:
+            proof, build_reasons = _paper_build_open_position_fill_proof(
+                current_matches[0],
+                position,
+                generated_utc=generated_utc,
+            )
+            reasons.extend(build_reasons)
+            source = "CURRENT_CYCLE_FINAL_ADMISSION_PASS"
+        elif len(current_matches) > 1:
+            reasons.append("OPEN_POSITION_MULTIPLE_CURRENT_ACCEPTED_FILLS")
+        else:
+            reasons.append("OPEN_POSITION_DURABLE_ACCEPTED_FILL_PROOF_MISSING")
+        if reasons or proof is None:
+            rejected_positions.append(
+                {
+                    **dict(position),
+                    "accepted_fill_quarantined": True,
+                    "accepted_fill_quarantine_reason": (
+                        "OPEN_POSITION_ACCEPTED_FILL_PROOF_CREATION_BLOCKED"
+                    ),
+                    "accepted_fill_quarantine_reasons": sorted(set(reasons)),
+                    "invalid_admission_integrity_block_reasons": sorted(set(reasons)),
+                    "paper_only": True,
+                    "routes_to_live": False,
+                    "places_real_order": False,
+                    "exchange_action_taken": False,
+                }
+            )
+            continue
+        proofs.append(proof)
+        bindings.append(
+            {
+                "position_id": position.get("position_id"),
+                "position_generation_id": position.get("position_generation_id"),
+                "proof_id": proof.get("proof_id"),
+                "fill_id": proof.get("fill_id"),
+                "source": source,
+            }
+        )
+    proof_ids = [str(row.get("proof_id") or "") for row in proofs]
+    duplicate_count = len(proof_ids) - len(set(proof_ids))
+    status = {
+        "schema_version": "paper_open_position_fill_proof_status_v1",
+        "status": "BLOCKED" if rejected_positions or duplicate_count else "PASS",
+        "generated_utc": generated_utc,
+        "input_open_position_count": len(open_positions),
+        "current_valid_accepted_fill_count": len(current_rows),
+        "existing_durable_proof_count": len(source_rows),
+        "proof_count": len(proofs),
+        "rejected_position_count": len(rejected_positions),
+        "duplicate_proof_count": duplicate_count,
+        "bindings": bindings,
+        "rejection_reasons": sorted(
+            {
+                str(reason)
+                for row in rejected_positions
+                for reason in row.get("accepted_fill_quarantine_reasons") or []
+            }
+        ),
+        "proofs_sha256": _paper_canonical_sha256(proofs),
+        "one_proof_per_open_position": bool(
+            len(proofs) == len(open_positions)
+            and not rejected_positions
+            and duplicate_count == 0
+        ),
+        "position_payload_used_as_proof": False,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "exchange_action_taken": False,
+    }
+    return proofs, rejected_positions, status
 
 
 def _paper_position_has_single_accepted_fill_proof(
@@ -50374,6 +50838,45 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
     ]
     if pre_lifecycle_invalid_admission_accepted_rows:
         blocked.extend(pre_lifecycle_invalid_admission_accepted_rows)
+    if accepted_fill_proof_source.get("status") != "READY":
+        proof_rail_reasons = sorted(
+            {
+                "ACCEPTED_FILL_PROOF_RAIL_NOT_READY",
+                *(
+                    str(reason)
+                    for reason in accepted_fill_proof_source.get("rejection_reasons") or []
+                ),
+            }
+        )
+        proof_rail_quarantined = [
+            _paper_quarantine_row_with_exact_reasons(
+                {
+                    **dict(row),
+                    "accepted_fill_quarantined": True,
+                    "accepted_fill_quarantine_reason": (
+                        "ACCEPTED_FILL_PROOF_RAIL_NOT_READY"
+                    ),
+                    "accepted_fill_quarantine_reasons": proof_rail_reasons,
+                    "invalid_admission_integrity_block_reasons": proof_rail_reasons,
+                }
+            )
+            for row in accepted_for_ledger
+            if isinstance(row, Mapping)
+        ]
+        proof_rail_current_ids = {
+            _accepted_fill_identity(row) for row in accepted if isinstance(row, Mapping)
+        }
+        pre_lifecycle_invalid_admission_accepted_rows.extend(
+            proof_rail_quarantined
+        )
+        pre_lifecycle_current_invalid_admission_rows.extend(
+            row
+            for row in proof_rail_quarantined
+            if _accepted_fill_identity(row) in proof_rail_current_ids
+        )
+        blocked.extend(proof_rail_quarantined)
+        accepted_for_ledger = []
+        accepted = []
 
     # Account-wide paper margin reservation is deliberately the final entry
     # gate before lifecycle reconciliation.  Every candidate was sized against
@@ -51801,10 +52304,19 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             _deduped.append(_ct)
     closes: list[dict] = _deduped
     open_positions: list[dict] = list(lifecycle_result["open_positions"])
+    _durable_open_position_fill_proof_rows = [
+        dict(row)
+        for row in accepted_fill_proof_source.get("rows") or []
+        if isinstance(row, Mapping)
+    ]
+    _position_admission_proof_rows = [
+        *valid_accepted_for_ledger,
+        *_durable_open_position_fill_proof_rows,
+    ]
     filtered_open_positions, admission_dropped_positions = (
         _paper_filter_open_positions_to_accepted_rows(
             open_positions,
-            valid_accepted_for_ledger,
+            _position_admission_proof_rows,
         )
     )
     retained_invalidated_positions: list[dict] = []
@@ -51896,7 +52408,10 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         late_valid_open_positions, late_integrity_invalid_open_positions = (
             _paper_filter_open_positions_to_accepted_rows(
                 open_positions,
-                valid_accepted_for_ledger,
+                [
+                    *valid_accepted_for_ledger,
+                    *_durable_open_position_fill_proof_rows,
+                ],
             )
         )
         late_proof_backed_invalid_positions = [
@@ -51939,6 +52454,71 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
     invalid_admission_accepted_quarantine_status["post_lifecycle_persistence_integrity"] = (
         late_persistence_integrity_status
     )
+    (
+        open_position_fill_proofs,
+        proof_rejected_open_positions,
+        open_position_fill_proof_status,
+    ) = _paper_build_open_position_fill_proofs(
+        open_positions,
+        valid_current_accepted,
+        accepted_fill_proof_source,
+        generated_utc=_utc_iso(),
+    )
+    if proof_rejected_open_positions:
+        rejected_aliases = set().union(
+            *(
+                _paper_fill_proof_aliases(row)
+                for row in proof_rejected_open_positions
+            )
+        )
+        open_positions = [
+            row
+            for row in open_positions
+            if not _paper_fill_proof_aliases(row).intersection(rejected_aliases)
+        ]
+        rejected_accepted_rows = [
+            _paper_quarantine_row_with_exact_reasons(
+                {
+                    **dict(row),
+                    "accepted_fill_quarantined": True,
+                    "accepted_fill_quarantine_reason": (
+                        "OPEN_POSITION_ACCEPTED_FILL_PROOF_CREATION_BLOCKED"
+                    ),
+                    "accepted_fill_quarantine_reasons": sorted(
+                        {
+                            str(reason)
+                            for rejected in proof_rejected_open_positions
+                            if _paper_fill_proof_aliases(rejected).intersection(
+                                _paper_fill_proof_aliases(row)
+                            )
+                            for reason in rejected.get(
+                                "accepted_fill_quarantine_reasons"
+                            )
+                            or []
+                        }
+                    ),
+                }
+            )
+            for row in valid_accepted_for_ledger
+            if _paper_fill_proof_aliases(row).intersection(rejected_aliases)
+        ]
+        invalid_admission_accepted_rows.extend(rejected_accepted_rows)
+        blocked.extend([*proof_rejected_open_positions, *rejected_accepted_rows])
+        valid_accepted_for_ledger = [
+            row
+            for row in valid_accepted_for_ledger
+            if not _paper_fill_proof_aliases(row).intersection(rejected_aliases)
+        ]
+        valid_current_accepted = [
+            row
+            for row in valid_current_accepted
+            if not _paper_fill_proof_aliases(row).intersection(rejected_aliases)
+        ]
+        valid_open_positions_for_materialization = [
+            row
+            for row in open_positions
+            if not (isinstance(row, dict) and row.get("accepted_fill_quarantined") is True)
+        ]
     _sync_lifecycle_open_position_views(lifecycle_result, open_positions)
     lifecycle_result["accepted_open_fills"] = valid_accepted_for_ledger
     paper_account_margin_status = build_paper_margin_status(
@@ -52980,6 +53560,11 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             ),
             "open_positions": open_positions,
             "positions_by_symbol": lifecycle_result["positions_by_symbol"],
+            "open_position_fill_proofs": open_position_fill_proofs,
+            "open_position_fill_proof_count": len(open_position_fill_proofs),
+            "paper_open_position_fill_proof_status": (
+                open_position_fill_proof_status
+            ),
             "close_event_count": len(closes),
             "new_close_event_count": len(lifecycle_result["new_close_events"]),
             "realized_exit_blocker": None if closes else "NO_CLOSE_TRIGGERED_THIS_CYCLE",
@@ -53152,6 +53737,7 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             _write_paper_critical_state_atomically(
                 r,
                 open_positions=open_positions,
+                open_position_fill_proofs=open_position_fill_proofs,
                 accepted_fills=accepted_state_rows,
                 quarantined_fills=invalid_admission_accepted_quarantine_state_rows,
                 closed_trades=closes,
@@ -53250,6 +53836,12 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                         "paper_account_margin_status": paper_account_margin_status,
                         "paper_position_fill_reconciliation_status": (
                             paper_position_fill_reconciliation_status
+                        ),
+                        "open_position_fill_proof_count": len(
+                            open_position_fill_proofs
+                        ),
+                        "paper_open_position_fill_proof_status": (
+                            open_position_fill_proof_status
                         ),
                         "paper_margin_reservation_status": paper_margin_reservation_status,
                         "paper_maintenance_bracket_security_status": (
@@ -53744,6 +54336,10 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         "paper_position_fill_reconciliation_status": (
             paper_position_fill_reconciliation_status
         ),
+        "open_position_fill_proof_count": len(open_position_fill_proofs),
+        "paper_open_position_fill_proof_status": (
+            open_position_fill_proof_status
+        ),
         "paper_margin_reservation_status": paper_margin_reservation_status,
         "paper_closed_trade_outcome_label_status": paper_closed_trade_outcome_label_status,
         "paper_directional_collapse_guard_status": directional_collapse_guard_status,
@@ -53932,6 +54528,31 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         write_payload(probation_50_trade_gate, PROBATION_50_TRADE_GATE_PATH)
         write_payload(
             {
+                "schema_version": "paper_open_position_fill_proof_state_v1",
+                "generated_utc": _utc_iso(),
+                "proof_count": len(open_position_fill_proofs),
+                "proofs_sha256": _paper_canonical_sha256(
+                    open_position_fill_proofs
+                ),
+                "proofs": open_position_fill_proofs,
+                "status": open_position_fill_proof_status,
+                "one_proof_per_open_position": (
+                    len(open_position_fill_proofs) == len(open_positions)
+                    and open_position_fill_proof_status.get(
+                        "one_proof_per_open_position"
+                    )
+                    is True
+                ),
+                "position_payload_used_as_proof": False,
+                "paper_only": True,
+                "routes_to_live": False,
+                "places_real_order": False,
+                "exchange_action_taken": False,
+            },
+            PAPER_OPEN_POSITION_FILL_PROOFS_STATE_PATH,
+        )
+        write_payload(
+            {
                 "accepted_fill_state_schema_version": "v2_compact_accepted_fill_state_v1",
                 "accepted_fill_state_compacted": True,
                 "accepted_fill_state_row_count": len(accepted_state_rows),
@@ -54013,6 +54634,13 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                 ),
                 "open_positions": open_positions,
                 "positions_by_symbol": lifecycle_result["positions_by_symbol"],
+                "open_position_fill_proofs": open_position_fill_proofs,
+                "open_position_fill_proof_count": len(
+                    open_position_fill_proofs
+                ),
+                "paper_open_position_fill_proof_status": (
+                    open_position_fill_proof_status
+                ),
                 "closed_trades": closes,
                 "closes": closes,
                 "outcome_labels": outcome_labels,
