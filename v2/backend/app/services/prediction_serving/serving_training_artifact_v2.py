@@ -651,6 +651,39 @@ def _validate_row(
                     f"{field}.directional_label_derivation.{scenario_field}"
                     f"[{scenario_index}]",
                 )
+        derivation_semantics = (
+            derivation["proposed_action"],
+            derivation["derivation_method"],
+            len(derivation["unhedged_scenario_sha256s"]),
+            len(derivation["alternative_side_scenario_sha256s"]),
+        )
+        if derivation_semantics not in {
+            (
+                "LONG",
+                "SELECTED_UNHEDGED_PLUS_PREDECLARED_ALTERNATIVE_SIDE",
+                1,
+                1,
+            ),
+            (
+                "SHORT",
+                "SELECTED_UNHEDGED_PLUS_PREDECLARED_ALTERNATIVE_SIDE",
+                1,
+                1,
+            ),
+            (
+                "HOLD",
+                "PREDECLARED_BALANCED_LONG_SHORT_ALTERNATIVE_SIDE",
+                1,
+                2,
+            ),
+            (
+                "HOLD",
+                "LEGACY_PREDECLARED_REFERENCE_SIDE_ACCOUNTING_INVERSION",
+                1,
+                1,
+            ),
+        }:
+            _fail("DIRECTIONAL_LABEL_DERIVATION_SEMANTICS_MISMATCH", field)
         label_material = {
             "schema_version": "candidate_outcome_training_label_binding_v2",
             "candidate_id": row["candidate_id"],

@@ -5,7 +5,7 @@ import json
 import os
 from collections.abc import Callable
 from copy import deepcopy
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -430,6 +430,32 @@ def _gen5_row(artifacts: ArtifactFixture) -> dict[str, Any]:
     )
 
 
+def _rehash_candidate_lineage(row: dict[str, Any]) -> None:
+    derivation = row["directional_label_derivation"]
+    derivation_material = {
+        key: value for key, value in derivation.items() if key != "derivation_sha256"
+    }
+    derivation_sha = canonical_sha256(derivation_material)
+    derivation["derivation_sha256"] = derivation_sha
+    row["cost_evidence_sha256"] = derivation_sha
+    label_at = datetime.fromisoformat(row["label_available_at"].replace("Z", "+00:00"))
+    source_hashes = row["source_hashes"]
+    label_material = {
+        "schema_version": "candidate_outcome_training_label_binding_v2",
+        "candidate_id": row["candidate_id"],
+        "decision_snapshot_sha256": source_hashes["decision_snapshot_sha256"],
+        "matured_labels_sha256": source_hashes["matured_labels_sha256"],
+        "label_record_available_at_ms": int(label_at.timestamp() * 1_000),
+        "directional_label_derivation_sha256": derivation_sha,
+        "label_source_receipt_sha256s": row["source_receipt_sha256s"],
+        "future_labels_not_in_feature_tensor": True,
+        "counterfactual_counts_as_realized_paper_profit": False,
+    }
+    label_sha = canonical_sha256(label_material)
+    row["label_binding_sha256"] = label_sha
+    source_hashes["label_binding_sha256"] = label_sha
+
+
 @pytest.mark.parametrize(
     "mutate",
     [
@@ -457,6 +483,27 @@ def test_rotated_receipt_cannot_authenticate_forged_candidate_lineage(
     artifacts.write(repin_receipt=True)
 
     with pytest.raises(ServingTrainingArtifactError):
+        artifacts.load()
+
+
+@pytest.mark.parametrize("mutation", ["action_method_mismatch", "scenario_cardinality"])
+def test_rotated_receipt_cannot_authenticate_derivation_semantic_mismatch(
+    artifacts: ArtifactFixture,
+    mutation: str,
+) -> None:
+    row = _candidate_row(artifacts)
+    derivation = row["directional_label_derivation"]
+    if mutation == "action_method_mismatch":
+        derivation["proposed_action"] = "HOLD"
+    else:
+        derivation["unhedged_scenario_sha256s"].append("c" * 64)
+    _rehash_candidate_lineage(row)
+    artifacts.write(repin_receipt=True)
+
+    with pytest.raises(
+        ServingTrainingArtifactError,
+        match="DIRECTIONAL_LABEL_DERIVATION_SEMANTICS_MISMATCH",
+    ):
         artifacts.load()
 
 
