@@ -132,6 +132,28 @@ def scope_rows(rows: list, current_session_id: str | None, scope: str) -> list:
     return out
 
 
+def scope_payload(redis, payload: dict, list_fields: tuple[str, ...], scope: str = DEFAULT_SCOPE) -> dict:
+    """Turn an API payload session-aware in one call: filter the named row-list fields to the
+    requested scope (default current_session) and merge in the required response fields
+    (paper_session_id, paper_account_epoch, scope, starting_equity_usd,
+    historical_rows_excluded_from_current_view, historical_evidence_preserved). Returns a new dict;
+    does not mutate the input. Pre-rotation this is a no-op (all rows are current-session)."""
+    session = current_session(redis)
+    sid = session.get("paper_session_id")
+    scope = normalize_scope(scope)
+    out = dict(payload)
+    total = shown = 0
+    for field in list_fields:
+        rows = payload.get(field)
+        if isinstance(rows, list):
+            total += len(rows)
+            scoped = scope_rows(rows, sid, scope)
+            out[field] = scoped
+            shown += len(scoped)
+    out.update(scope_response_fields(session, scope, total, shown))
+    return out
+
+
 def scope_response_fields(
     session: dict, scope: str, total_rows: int, shown_rows: int, historical_preserved: bool = True
 ) -> dict:

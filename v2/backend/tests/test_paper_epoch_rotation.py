@@ -179,6 +179,22 @@ def test_12_no_stale_current_rows(r):
     assert E.scope_rows([old_row, untagged], res["new_session_id"], "current_session") == []
 
 
+# 14 — scope_payload makes a reader payload session-aware in one call (backend wiring foundation)
+def test_14_scope_payload(r):
+    old = _seed_clean(r)
+    res = E.rotate(r, execute=True)
+    new_id = res["new_session_id"]
+    payload = {"closed_trades": old, "positions": [], "equity_usd": 3000.0}
+    scoped = E.scope_payload(r, payload, ("closed_trades", "positions"), scope="current_session")
+    assert scoped["closed_trades"] == []  # old rows hidden in the clean current view
+    assert scoped["paper_session_id"] == new_id and scoped["scope"] == "current_session"
+    assert scoped["historical_rows_excluded_from_current_view"] == len(old)
+    assert scoped["historical_evidence_preserved"] is True
+    assert scoped["equity_usd"] == 3000.0  # non-list fields pass through untouched
+    arch = E.scope_payload(r, payload, ("closed_trades",), scope="archived")
+    assert arch["closed_trades"] == old  # archived scope still returns history
+
+
 # Bonus — dry-run never mutates
 def test_13_dry_run_no_mutation(r):
     _seed_clean(r)
