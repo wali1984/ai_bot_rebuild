@@ -830,14 +830,16 @@ def _load_json_if_present(path: Path) -> dict[str, Any] | None:
     return value
 
 
-def _authenticated_dataset_release_evidence(
+def _authenticated_dataset_release_snapshot(
     root: Path,
-) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Load one signed release snapshot and return projection + source counts.
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+    """Load one signed release snapshot and retain its authenticated dataset.
 
     The source counts are taken from the receipt object returned by the signed
     artifact loader.  The receipt is never reopened later for authoritative
-    fields, closing an auth-then-reread substitution window.
+    fields.  Callers that consume dataset rows must use the returned in-memory
+    object instead of reopening the release path, closing an auth-then-reread
+    substitution window.
     """
 
     from v2.backend.app.services.prediction_serving.serving_training_artifact_v2 import (
@@ -905,7 +907,16 @@ def _authenticated_dataset_release_evidence(
         "matured_revision_count": matured,
         "decision_revision_count": decisions,
         "terminal_chain_sha256": terminal,
-    }
+    }, dataset
+
+
+def _authenticated_dataset_release_evidence(
+    root: Path,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Return signed release evidence for callers that do not consume rows."""
+
+    projection, source, _dataset = _authenticated_dataset_release_snapshot(root)
+    return projection, source
 
 
 def _authenticated_dataset_release(root: Path) -> dict[str, Any]:

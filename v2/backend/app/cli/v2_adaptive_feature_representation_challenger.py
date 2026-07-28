@@ -23,6 +23,9 @@ from typing import Any
 import numpy as np
 
 from v2.backend.app.services.adaptive_system import escalation_supervisor_v2 as supervisor
+from v2.backend.app.services.native_trainer.trusted_replay.dataset import (
+    target_action_from_net_edges,
+)
 
 SCHEMA_VERSION = "adaptive_feature_representation_challenger_v2"
 OUTPUT_NAME = "adaptive_feature_representation_challenger_v2.json"
@@ -59,47 +62,6 @@ def _canonical_bytes(value: object) -> bytes:
 
 def _sha256(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
-
-
-def _strict_object(path: Path, field: str) -> dict[str, Any]:
-    try:
-        descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
-    except OSError as exc:
-        raise AdaptiveFeatureRepresentationError(
-            f"{field}:REGULAR_FILE_REQUIRED"
-        ) from exc
-    try:
-        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
-            raise AdaptiveFeatureRepresentationError(
-                f"{field}:REGULAR_FILE_REQUIRED"
-            )
-        with os.fdopen(descriptor, "r", encoding="utf-8", closefd=False) as handle:
-            try:
-                value = json.load(
-                    handle,
-                    parse_constant=lambda token: (_ for _ in ()).throw(
-                        ValueError(f"nonfinite:{token}")
-                    ),
-                    object_pairs_hook=_reject_duplicate_keys,
-                )
-            except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
-                raise AdaptiveFeatureRepresentationError(
-                    f"{field}:STRICT_JSON_REQUIRED"
-                ) from exc
-    finally:
-        os.close(descriptor)
-    if type(value) is not dict:
-        raise AdaptiveFeatureRepresentationError(f"{field}:OBJECT_REQUIRED")
-    return value
-
-
-def _reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
-    result: dict[str, Any] = {}
-    for key, value in pairs:
-        if key in result:
-            raise ValueError(f"duplicate_key:{key}")
-        result[key] = value
-    return result
 
 
 def _safe_output_directory(path: Path) -> Path:
@@ -140,7 +102,9 @@ def _write_immutable(path: Path, payload: Mapping[str, Any]) -> str:
                 "output:IMMUTABLE_COLLISION"
             ) from exc
         if existing != data:
-            raise AdaptiveFeatureRepresentationError("output:IMMUTABLE_COLLISION")
+            raise AdaptiveFeatureRepresentationError(
+                "output:IMMUTABLE_COLLISION"
+            ) from None
         return _sha256(existing)
     try:
         remaining = memoryview(data)
@@ -219,6 +183,14 @@ def _matrix_by_split(
         if action not in {"long", "short", "hold"}:
             raise AdaptiveFeatureRepresentationError(
                 f"dataset.rows[{index}].target_action:INVALID"
+            )
+        expected_action = target_action_from_net_edges(
+            long_net_bps=targets[0],
+            short_net_bps=targets[1],
+        )
+        if action != expected_action:
+            raise AdaptiveFeatureRepresentationError(
+                f"dataset.rows[{index}].target_action:NET_EDGE_MISMATCH"
             )
         collected[str(split)].append((vector, targets, str(action)))
     result: dict[str, tuple[np.ndarray, np.ndarray, tuple[str, ...]]] = {}
@@ -302,7 +274,7 @@ def _select_features(
             ),
             None,
         )
-        if redundant_with is not None and len(selected) >= MIN_SELECTED_FEATURES:
+        if redundant_with is not None:
             reasons[position] = f"REDUNDANT_WITH:{ordered_features[redundant_with]}"
             continue
         if len(selected) >= MAX_SELECTED_FEATURES:
@@ -310,13 +282,6 @@ def _select_features(
             continue
         selected.append(position)
         reasons[position] = "TRAIN_ONLY_RELEVANCE_SELECTED"
-    if len(selected) < MIN_SELECTED_FEATURES:
-        for position in ranked:
-            if position not in selected:
-                selected.append(position)
-                reasons[position] = "MINIMUM_REPRESENTATION_FLOOR"
-            if len(selected) >= MIN_SELECTED_FEATURES:
-                break
     selected_tuple = tuple(sorted(selected))
     evidence = [
         {
@@ -398,16 +363,29 @@ def build_representation_candidate(
     full_positions = tuple(range(len(ordered_features)))
     full_metrics = _ridge_metrics(matrices, full_positions)
     selected_metrics = _ridge_metrics(matrices, selected_positions)
+    full_validation_mse = full_metrics["validation"][
+        "net_bps_mean_squared_error"
+    ]
+    if full_validation_mse <= LOW_VARIANCE_EPSILON:
+        raise AdaptiveFeatureRepresentationError(
+            "validation:BASELINE_MSE_DEGENERATE"
+        )
     validation_ratio = (
         selected_metrics["validation"]["net_bps_mean_squared_error"]
-        / full_metrics["validation"]["net_bps_mean_squared_error"]
+        / full_validation_mse
     )
     validation_noninferior = validation_ratio <= VALIDATION_NONINFERIOR_RATIO
     compact = len(selected_positions) < len(full_positions)
+    sufficient_admissible_features = len(selected_positions) >= MIN_SELECTED_FEATURES
+    representation_superior = (
+        validation_noninferior and compact and sufficient_admissible_features
+    )
     candidate = {
         "schema_version": SCHEMA_VERSION,
         "status": (
-            "PASS_COMPACT_VALIDATION_NONINFERIOR"
+            "PASS_EVALUATED_INSUFFICIENT_ADMISSIBLE_FEATURES"
+            if not sufficient_admissible_features
+            else "PASS_COMPACT_VALIDATION_NONINFERIOR"
             if validation_noninferior and compact
             else "PASS_EVALUATED_NOT_NONINFERIOR"
         ),
@@ -435,7 +413,9 @@ def build_representation_candidate(
         "validation_noninferior_ratio_limit": VALIDATION_NONINFERIOR_RATIO,
         "validation_noninferior": validation_noninferior,
         "compact_representation": compact,
-        "representation_superior": validation_noninferior and compact,
+        "minimum_selected_features": MIN_SELECTED_FEATURES,
+        "sufficient_admissible_features": sufficient_admissible_features,
+        "representation_superior": representation_superior,
         "serving_abi_changed": False,
         "activation_eligible": False,
         "checkpoint_promotable": False,
@@ -456,10 +436,9 @@ def build_representation_candidate(
 
 
 def run_once(*, dataset_release_root: Path, output_dir: Path) -> dict[str, Any]:
-    projection, source = supervisor._authenticated_dataset_release_evidence(  # noqa: SLF001
+    projection, source, dataset = supervisor._authenticated_dataset_release_snapshot(  # noqa: SLF001
         dataset_release_root
     )
-    dataset = _strict_object(Path(projection["paths"]["dataset"]), "dataset")
     candidate = build_representation_candidate(
         dataset=dataset,
         release_projection=projection,

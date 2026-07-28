@@ -5,8 +5,9 @@ from pathlib import Path
 
 import pytest
 
-from v2.backend.app.cli import v2_adaptive_feature_representation_challenger as worker
-
+from v2.backend.app.cli import (
+    v2_adaptive_feature_representation_challenger as worker,
+)
 
 FEATURES = (
     "expected_funding_bps",
@@ -134,6 +135,80 @@ def test_validation_and_holdout_labels_cannot_change_selected_representation() -
     assert changed_future_partitions["feature_evidence"] == baseline[
         "feature_evidence"
     ]
+
+
+def test_target_action_must_match_net_edge_identity() -> None:
+    dataset = _dataset()
+    dataset["rows"][0]["target_action"] = (
+        "short" if dataset["rows"][0]["target_action"] != "short" else "long"
+    )
+
+    with pytest.raises(
+        worker.AdaptiveFeatureRepresentationError,
+        match="NET_EDGE_MISMATCH",
+    ):
+        _build(dataset)
+
+
+def test_constant_non_cost_features_cannot_create_false_superiority() -> None:
+    dataset = _dataset()
+    for row in dataset["rows"]:
+        row["feature_values"] = [0.0] * len(FEATURES)
+
+    result = _build(dataset)
+
+    assert result["selected_feature_names"] == list(worker.REQUIRED_COST_FEATURES)
+    assert result["sufficient_admissible_features"] is False
+    assert result["representation_superior"] is False
+    assert result["status"] == "PASS_EVALUATED_INSUFFICIENT_ADMISSIBLE_FEATURES"
+    non_cost = [
+        evidence
+        for evidence in result["feature_evidence"]
+        if evidence["name"] not in worker.REQUIRED_COST_FEATURES
+    ]
+    assert all(evidence["selected"] is False for evidence in non_cost)
+    assert all(
+        evidence["exact_reason"] == "LOW_VARIANCE_TRAIN_ONLY"
+        for evidence in non_cost
+    )
+
+
+def test_run_once_consumes_authenticated_in_memory_dataset(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    authenticated = _dataset()
+    release_projection = {
+        "dataset_sha256": "d" * 64,
+        "root": str(tmp_path / "release"),
+        "paths": {"dataset": str(tmp_path / "release" / "dataset.json")},
+    }
+    release_source = {
+        "matured_revision_count": 72,
+        "terminal_chain_sha256": "c" * 64,
+    }
+
+    def authenticated_snapshot(_root: Path) -> tuple[dict, dict, dict]:
+        # A path consumer would fail or consume substituted bytes; the worker
+        # must use only the exact object returned by signed authentication.
+        release_path = Path(release_projection["paths"]["dataset"])
+        release_path.parent.mkdir(parents=True)
+        release_path.write_text('{"substituted":true}\n', encoding="utf-8")
+        return release_projection, release_source, authenticated
+
+    monkeypatch.setattr(
+        worker.supervisor,
+        "_authenticated_dataset_release_snapshot",
+        authenticated_snapshot,
+    )
+
+    result = worker.run_once(
+        dataset_release_root=tmp_path / "release",
+        output_dir=tmp_path / "output",
+    )
+
+    assert result["dataset_release"]["dataset_sha256"] == "d" * 64
+    assert result["selected_feature_names"]
 
 
 @pytest.mark.parametrize("mutation", ["missing", "nonfinite", "release_mismatch"])
