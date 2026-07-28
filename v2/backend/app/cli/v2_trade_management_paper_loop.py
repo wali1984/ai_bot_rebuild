@@ -8939,6 +8939,30 @@ def _attach_validated_execution_microstructure_evidence(
     )
 
 
+def _read_execution_microstructure_trust(
+    r: Any,
+    *,
+    symbol: str,
+    timeframe: str,
+) -> dict[str, Any]:
+    """Read the authenticated trust contract at the paper execution cutoff.
+
+    A generic orderbook snapshot is useful for prices and depth, but it is not
+    the ``microstructure_trust_score_v2`` evidence contract and cannot prove
+    feed integrity or carry the calibrated continuous policy estimates.  The
+    consumer decision clock is captured immediately after the Redis read so the
+    returned record is point-in-time valid for this execution-stage decision.
+    """
+
+    return _read_v2_microstructure_trust(
+        r,
+        symbol,
+        decision_time=None,
+        timeframe=timeframe,
+        capture_consumer_decision_after_read=True,
+    )
+
+
 def _read_v2_advanced_indicator_context(
     r,
     symbol: str,
@@ -53110,9 +53134,14 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         )
         intent.update(candidate_altdata_lineage)
         market_microstructure = _read_v2_orderbook_microstructure(r, symbol)
+        execution_microstructure_trust = _read_execution_microstructure_trust(
+            r,
+            symbol=symbol,
+            timeframe=_conf_timeframe,
+        )
         _attach_validated_execution_microstructure_evidence(
             intent,
-            market_microstructure,
+            execution_microstructure_trust,
         )
         long_short_evidence = _read_v2_long_short_ratio_evidence(r, symbol)
         intent["long_short_lookup_observed_at"] = _utc_iso()

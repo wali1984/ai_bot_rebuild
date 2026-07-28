@@ -17315,6 +17315,54 @@ def _assert_microstructure_receipt_hash(receipt: dict[str, object]) -> None:
     )
 
 
+def test_execution_microstructure_reader_uses_authenticated_trust_contract(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict[str, object]] = []
+    expected = _execution_microstructure_test_evidence()
+
+    def fake_read(
+        redis_client: object,
+        symbol: str,
+        *,
+        decision_time: object,
+        timeframe: str,
+        capture_consumer_decision_after_read: bool,
+    ) -> dict[str, object]:
+        calls.append(
+            {
+                "redis_client": redis_client,
+                "symbol": symbol,
+                "decision_time": decision_time,
+                "timeframe": timeframe,
+                "capture_consumer_decision_after_read": (
+                    capture_consumer_decision_after_read
+                ),
+            }
+        )
+        return expected
+
+    monkeypatch.setattr(paper_loop, "_read_v2_microstructure_trust", fake_read)
+    redis_client = object()
+
+    actual = paper_loop._read_execution_microstructure_trust(  # noqa: SLF001
+        redis_client,
+        symbol="bankusdt",
+        timeframe="15m",
+    )
+
+    assert actual is expected
+    assert calls == [
+        {
+            "redis_client": redis_client,
+            "symbol": "bankusdt",
+            "decision_time": None,
+            "timeframe": "15m",
+            "capture_consumer_decision_after_read": True,
+        }
+    ]
+
+
 def test_execution_microstructure_replaces_rejected_strategy_evidence_for_cost_capture() -> None:
     intent, _unused = _complete_runtime_cost_capture_intent_and_microstructure(
         microstructure_action="ALLOW",
