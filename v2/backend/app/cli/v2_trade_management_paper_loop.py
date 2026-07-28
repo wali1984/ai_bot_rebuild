@@ -8550,6 +8550,11 @@ def _read_v2_microstructure_trust(
 
 _MICROSTRUCTURE_ALLOCATION_ACTIVE_FIELDS = (
     "microstructure_trust_source",
+    "microstructure_trust_status",
+    "microstructure_trust_missing_reason",
+    "microstructure_trust_lookup_keys",
+    "microstructure_trust_invalid_contract_keys",
+    "microstructure_trust_clock_contract_invalid",
     "public_orderbook_trust_score",
     "composite_microstructure_trust_score",
     "microstructure_trust_score",
@@ -8594,6 +8599,21 @@ _MICROSTRUCTURE_ALLOCATION_ACTIVE_FIELDS = (
     "microstructure_generated_at",
     "microstructure_source_hash",
     "microstructure_source_hash_contract",
+    "microstructure_trust_allocation_binding",
+    "microstructure_trust_allocation_rejection_reasons",
+)
+
+_MICROSTRUCTURE_REJECTED_AUDIT_FIELDS = (
+    "microstructure_trust_source",
+    "microstructure_trust_status",
+    "microstructure_trust_missing_reason",
+    "microstructure_trust_lookup_keys",
+    "microstructure_trust_invalid_contract_keys",
+    "microstructure_trust_clock_contract_invalid",
+    "microstructure_source_decision_time",
+    "microstructure_decision_time",
+    "microstructure_available_at",
+    "microstructure_generated_at",
 )
 
 
@@ -8617,6 +8637,10 @@ def _attach_validated_strategy_microstructure_evidence(
         evidence.get("microstructure_trust_lookup_keys") or []
     )
     if evidence.get("microstructure_trust_status") != "MICROSTRUCTURE_TRUST_SCORE_FOUND":
+        for field in _MICROSTRUCTURE_REJECTED_AUDIT_FIELDS:
+            value = evidence.get(field)
+            if value not in (None, ""):
+                intent[field] = deepcopy(value)
         intent["microstructure_trust_allocation_rejection_reasons"] = [
             str(evidence.get("microstructure_trust_status") or "MICROSTRUCTURE_TRUST_NOT_FOUND")
         ]
@@ -8648,6 +8672,10 @@ def _attach_validated_strategy_microstructure_evidence(
         reasons.append("MICROSTRUCTURE_AVAILABLE_AFTER_DECISION")
 
     if reasons:
+        for field in _MICROSTRUCTURE_REJECTED_AUDIT_FIELDS:
+            value = evidence.get(field)
+            if value not in (None, ""):
+                intent[field] = deepcopy(value)
         intent["microstructure_trust_status"] = (
             "REJECTED_MICROSTRUCTURE_TRUST_ALLOCATION_CONTRACT_INVALID"
         )
@@ -8661,6 +8689,73 @@ def _attach_validated_strategy_microstructure_evidence(
     intent["microstructure_trust_allocation_rejection_reasons"] = []
     intent["microstructure_trust_allocation_binding"] = (
         "EXACT_PIT_VALID_REDIS_KEY_AND_FULL_CANONICAL_SOURCE_PAYLOAD_SHA256_V1"
+    )
+
+
+def _attach_validated_execution_microstructure_evidence(
+    intent: dict[str, Any],
+    evidence: Mapping[str, Any] | None,
+) -> None:
+    """Move the active trust contract from model time to paper execution time.
+
+    Strategy routing must retain the record that existed at the immutable model
+    decision.  Physical allocation and fill-cost validation, however, consume
+    the record read immediately before the paper allocation decision.  Keep the
+    former as sealed audit evidence and make only the independently validated
+    execution-time record active.  Absence or invalidity of the new record
+    fails closed and can never inherit an earlier valid binding.
+    """
+
+    strategy_evidence = {
+        field: deepcopy(intent.get(field))
+        for field in _MICROSTRUCTURE_ALLOCATION_ACTIVE_FIELDS
+        if intent.get(field) is not None
+    }
+    if strategy_evidence:
+        strategy_receipt = {
+            "schema_version": "paper_strategy_microstructure_evidence_v1",
+            "evidence_role": "IMMUTABLE_MODEL_DECISION_INPUT",
+            "evidence": strategy_evidence,
+        }
+        strategy_receipt["receipt_sha256"] = _paper_canonical_sha256(
+            strategy_receipt
+        )
+        intent["strategy_microstructure_evidence"] = strategy_receipt
+        intent["strategy_microstructure_evidence_sha256"] = strategy_receipt[
+            "receipt_sha256"
+        ]
+
+    _attach_validated_strategy_microstructure_evidence(intent, evidence)
+    execution_evidence = {
+        field: deepcopy(intent.get(field))
+        for field in _MICROSTRUCTURE_ALLOCATION_ACTIVE_FIELDS
+        if intent.get(field) is not None
+    }
+    execution_status = (
+        "PASS"
+        if intent.get("microstructure_trust_status")
+        == "MICROSTRUCTURE_TRUST_SCORE_FOUND"
+        and intent.get("microstructure_trust_allocation_binding")
+        == "EXACT_PIT_VALID_REDIS_KEY_AND_FULL_CANONICAL_SOURCE_PAYLOAD_SHA256_V1"
+        and not intent.get("microstructure_trust_allocation_rejection_reasons")
+        else "BLOCKED"
+    )
+    execution_receipt = {
+        "schema_version": "paper_execution_microstructure_evidence_v1",
+        "evidence_role": "PAPER_EXECUTION_DECISION_INPUT",
+        "status": execution_status,
+        "evidence": execution_evidence,
+    }
+    execution_receipt["receipt_sha256"] = _paper_canonical_sha256(
+        execution_receipt
+    )
+    intent["execution_microstructure_evidence"] = execution_receipt
+    intent["execution_microstructure_evidence_sha256"] = execution_receipt[
+        "receipt_sha256"
+    ]
+    intent["execution_microstructure_evidence_status"] = execution_status
+    intent["active_microstructure_evidence_role"] = (
+        "PAPER_EXECUTION_DECISION_INPUT"
     )
 
 
@@ -51399,6 +51494,10 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         )
         intent.update(candidate_altdata_lineage)
         market_microstructure = _read_v2_orderbook_microstructure(r, symbol)
+        _attach_validated_execution_microstructure_evidence(
+            intent,
+            market_microstructure,
+        )
         long_short_evidence = _read_v2_long_short_ratio_evidence(r, symbol)
         intent["long_short_lookup_observed_at"] = _utc_iso()
         _attach_long_short_ratio_context(intent, long_short_evidence)

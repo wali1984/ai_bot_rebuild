@@ -15692,6 +15692,352 @@ def _complete_runtime_cost_capture_intent_and_microstructure(
     return intent, market_microstructure
 
 
+def _execution_microstructure_test_evidence(
+    **overrides: object,
+) -> dict[str, object]:
+    evidence: dict[str, object] = {
+        "microstructure_trust_status": "MICROSTRUCTURE_TRUST_SCORE_FOUND",
+        "microstructure_trust_lookup_keys": [
+            "v2:microstructure:trust_score:BANKUSDT:15m"
+        ],
+        "microstructure_trust_source": (
+            "v2:microstructure:trust_score:BANKUSDT:15m"
+        ),
+        "public_orderbook_trust_score": 0.84,
+        "composite_microstructure_trust_score": 0.83,
+        "microstructure_trust_score": 0.82,
+        "microstructure_adaptive_minimum": 0.65,
+        "orderbook_trust_score": 0.84,
+        "orderbook_trust_tier": "HIGH_TRUST",
+        "microstructure_action": "ALLOW",
+        "feed_integrity_pass": True,
+        "sequence_gap_free": True,
+        "book_sequence_gap": False,
+        "orderbook_latency_ms": 25.0,
+        "book_depth_persistence_score": 0.9,
+        "book_cancel_pressure_score": 0.1,
+        "trade_tape_confirmation_score": 0.8,
+        "cross_venue_confirmation_score": 0.8,
+        "sweep_risk_score": 0.1,
+        "microstructure_continuous_estimates": {
+            "expected_fill_probability": 0.91,
+            "expected_slippage_bps": 0.4,
+            "receipt_sha256": "c" * 64,
+        },
+        "microstructure_continuous_estimates_complete": True,
+        "microstructure_continuous_estimates_status": "COMPLETE",
+        "microstructure_generated_at": "2026-06-22T12:59:59.250Z",
+        "microstructure_available_at": "2026-06-22T12:59:59.500Z",
+        "microstructure_decision_time": "2026-06-22T12:59:59.750Z",
+        "microstructure_source_hash": "e" * 64,
+        "microstructure_source_hash_contract": (
+            "REDIS_KEY_AND_FULL_CANONICAL_SOURCE_PAYLOAD_SHA256_V1"
+        ),
+    }
+    evidence.update(overrides)
+    return evidence
+
+
+def _execution_microstructure_test_market(
+    evidence: dict[str, object] | None,
+) -> dict[str, object]:
+    _intent, market = _complete_runtime_cost_capture_intent_and_microstructure(
+        microstructure_action="ALLOW",
+        microstructure_trust_score=0.82,
+    )
+    for field in paper_loop._MICROSTRUCTURE_ALLOCATION_ACTIVE_FIELDS:  # noqa: SLF001
+        market.pop(field, None)
+    if evidence is not None:
+        market.update(deepcopy(evidence))
+    return market
+
+
+def _assert_microstructure_receipt_hash(receipt: dict[str, object]) -> None:
+    receipt_material = deepcopy(receipt)
+    receipt_sha256 = receipt_material.pop("receipt_sha256")
+    assert receipt_sha256 == paper_loop._paper_canonical_sha256(  # noqa: SLF001
+        receipt_material
+    )
+
+
+def test_execution_microstructure_replaces_rejected_strategy_evidence_for_cost_capture() -> None:
+    intent, _unused = _complete_runtime_cost_capture_intent_and_microstructure(
+        microstructure_action="ALLOW",
+        microstructure_trust_score=0.82,
+    )
+    rejected_strategy_evidence = _execution_microstructure_test_evidence(
+        microstructure_trust_lookup_keys=[
+            "v2:microstructure:trust_score:BANKUSDT:15m:model-time"
+        ],
+        microstructure_trust_clock_contract_invalid=False,
+        microstructure_available_at="2026-06-22T13:00:01.000Z",
+        microstructure_decision_time="2026-06-22T13:00:00.000Z",
+        microstructure_source_hash="d" * 64,
+    )
+    paper_loop._attach_validated_strategy_microstructure_evidence(  # noqa: SLF001
+        intent,
+        rejected_strategy_evidence,
+    )
+    assert intent["microstructure_trust_status"] == (
+        "REJECTED_MICROSTRUCTURE_TRUST_ALLOCATION_CONTRACT_INVALID"
+    )
+
+    execution_evidence = _execution_microstructure_test_evidence()
+    execution_market = _execution_microstructure_test_market(execution_evidence)
+    paper_loop._attach_validated_execution_microstructure_evidence(  # noqa: SLF001
+        intent,
+        execution_market,
+    )
+
+    strategy_receipt = intent["strategy_microstructure_evidence"]
+    assert isinstance(strategy_receipt, dict)
+    assert strategy_receipt["evidence_role"] == "IMMUTABLE_MODEL_DECISION_INPUT"
+    assert strategy_receipt["evidence"]["microstructure_trust_status"] == (
+        "REJECTED_MICROSTRUCTURE_TRUST_ALLOCATION_CONTRACT_INVALID"
+    )
+    assert "MICROSTRUCTURE_AVAILABLE_AFTER_DECISION" in strategy_receipt["evidence"][
+        "microstructure_trust_allocation_rejection_reasons"
+    ]
+    assert strategy_receipt["evidence"]["microstructure_trust_source"] == (
+        "v2:microstructure:trust_score:BANKUSDT:15m"
+    )
+    assert strategy_receipt["evidence"]["microstructure_generated_at"] == (
+        "2026-06-22T12:59:59.250Z"
+    )
+    assert strategy_receipt["evidence"]["microstructure_available_at"] == (
+        "2026-06-22T13:00:01.000Z"
+    )
+    assert strategy_receipt["evidence"][
+        "microstructure_trust_clock_contract_invalid"
+    ] is False
+    assert "microstructure_trust_score" not in strategy_receipt["evidence"]
+    assert "microstructure_source_hash" not in strategy_receipt["evidence"]
+    assert "microstructure_trust_allocation_binding" not in strategy_receipt[
+        "evidence"
+    ]
+    _assert_microstructure_receipt_hash(strategy_receipt)
+
+    execution_receipt = intent["execution_microstructure_evidence"]
+    assert isinstance(execution_receipt, dict)
+    assert execution_receipt["evidence_role"] == "PAPER_EXECUTION_DECISION_INPUT"
+    assert execution_receipt["status"] == "PASS"
+    assert intent["execution_microstructure_evidence_status"] == "PASS"
+    assert intent["active_microstructure_evidence_role"] == (
+        "PAPER_EXECUTION_DECISION_INPUT"
+    )
+    assert intent["microstructure_source_hash"] == "e" * 64
+    assert intent["microstructure_continuous_estimates"] == (
+        execution_evidence["microstructure_continuous_estimates"]
+    )
+    assert execution_receipt["evidence"]["microstructure_source_hash"] == "e" * 64
+    assert execution_receipt["evidence"]["microstructure_continuous_estimates"] == (
+        execution_evidence["microstructure_continuous_estimates"]
+    )
+    _assert_microstructure_receipt_hash(execution_receipt)
+    assert intent["strategy_microstructure_evidence_sha256"] == strategy_receipt[
+        "receipt_sha256"
+    ]
+    assert intent["execution_microstructure_evidence_sha256"] == execution_receipt[
+        "receipt_sha256"
+    ]
+
+    generated_at = paper_loop._strict_aware_utc_time(  # noqa: SLF001
+        intent["microstructure_generated_at"]
+    )
+    available_at = paper_loop._strict_aware_utc_time(  # noqa: SLF001
+        intent["microstructure_available_at"]
+    )
+    execution_decision_time = paper_loop._strict_aware_utc_time(  # noqa: SLF001
+        intent["microstructure_decision_time"]
+    )
+    assert generated_at is not None
+    assert available_at is not None
+    assert execution_decision_time is not None
+    assert generated_at <= available_at <= execution_decision_time
+
+    frozen_strategy_receipt = deepcopy(strategy_receipt)
+    frozen_execution_receipt = deepcopy(execution_receipt)
+    paper_loop._attach_runtime_cost_capture_contract(  # noqa: SLF001
+        intent,
+        execution_market,
+        signal={"policy_fingerprint": paper_loop.CHALLENGER_V2_ACTIVE_CUDA_POLICY_FINGERPRINT},
+        prediction={"model_source": "V2_LOCAL_TRAINED_RL_MASA_PPO_CUDA"},
+    )
+    assert intent["runtime_cost_capture_source_reject_reasons"] == []
+    assert intent["production_grade_cost_flag"] is True
+    assert intent["fallback_cost_flag"] is False
+    assert intent["strategy_microstructure_evidence"] == frozen_strategy_receipt
+    assert intent["execution_microstructure_evidence"] == frozen_execution_receipt
+
+
+@pytest.mark.parametrize(
+    ("execution_evidence", "expected_status", "expected_reason"),
+    [
+        (
+            None,
+            "MISSING_MICROSTRUCTURE_TRUST_SCORE",
+            "MICROSTRUCTURE_TRUST_EVIDENCE_NOT_MAPPING",
+        ),
+        (
+            _execution_microstructure_test_evidence(
+                microstructure_source_hash="invalid"
+            ),
+            "REJECTED_MICROSTRUCTURE_TRUST_ALLOCATION_CONTRACT_INVALID",
+            "MICROSTRUCTURE_SOURCE_HASH_INVALID",
+        ),
+        (
+            _execution_microstructure_test_evidence(
+                microstructure_available_at="2026-06-22T13:00:00.001Z",
+                microstructure_decision_time="2026-06-22T13:00:00.000Z",
+            ),
+            "REJECTED_MICROSTRUCTURE_TRUST_ALLOCATION_CONTRACT_INVALID",
+            "MICROSTRUCTURE_AVAILABLE_AFTER_DECISION",
+        ),
+    ],
+)
+def test_execution_microstructure_failure_cannot_inherit_strategy_binding(
+    execution_evidence: dict[str, object] | None,
+    expected_status: str,
+    expected_reason: str,
+) -> None:
+    intent, _unused = _complete_runtime_cost_capture_intent_and_microstructure(
+        microstructure_action="ALLOW",
+        microstructure_trust_score=0.82,
+    )
+    strategy_evidence = _execution_microstructure_test_evidence(
+        microstructure_source_hash="a" * 64,
+    )
+    paper_loop._attach_validated_strategy_microstructure_evidence(  # noqa: SLF001
+        intent,
+        strategy_evidence,
+    )
+    old_binding = intent["microstructure_trust_allocation_binding"]
+    old_source_hash = intent["microstructure_source_hash"]
+
+    execution_market = _execution_microstructure_test_market(execution_evidence)
+    paper_loop._attach_validated_execution_microstructure_evidence(  # noqa: SLF001
+        intent,
+        execution_evidence,
+    )
+
+    assert intent["strategy_microstructure_evidence"]["evidence"][
+        "microstructure_trust_allocation_binding"
+    ] == old_binding
+    assert intent["strategy_microstructure_evidence"]["evidence"][
+        "microstructure_source_hash"
+    ] == old_source_hash
+    assert intent["microstructure_trust_status"] == expected_status
+    assert expected_reason in intent[
+        "microstructure_trust_allocation_rejection_reasons"
+    ]
+    assert "microstructure_trust_allocation_binding" not in intent
+    assert "microstructure_source_hash" not in intent
+    assert "microstructure_trust_score" not in intent
+    assert intent["execution_microstructure_evidence_status"] == "BLOCKED"
+    execution_receipt = intent["execution_microstructure_evidence"]
+    assert execution_receipt["status"] == "BLOCKED"
+    assert expected_reason in execution_receipt["evidence"][
+        "microstructure_trust_allocation_rejection_reasons"
+    ]
+    assert "microstructure_trust_allocation_binding" not in execution_receipt[
+        "evidence"
+    ]
+    assert old_source_hash not in json.dumps(execution_receipt, sort_keys=True)
+    _assert_microstructure_receipt_hash(execution_receipt)
+
+    paper_loop._attach_runtime_cost_capture_contract(  # noqa: SLF001
+        intent,
+        execution_market,
+        signal={"policy_fingerprint": paper_loop.CHALLENGER_V2_ACTIVE_CUDA_POLICY_FINGERPRINT},
+        prediction={"model_source": "V2_LOCAL_TRAINED_RL_MASA_PPO_CUDA"},
+    )
+    assert "MICROSTRUCTURE_TRUST_BINDING_INVALID" in intent[
+        "runtime_cost_capture_source_reject_reasons"
+    ]
+    assert intent["production_grade_cost_flag"] is False
+    assert intent["fallback_cost_flag"] is True
+    assert "microstructure_trust_allocation_binding" not in intent
+
+
+def test_missing_execution_microstructure_preserves_audit_reason_without_authority() -> None:
+    intent, _unused = _complete_runtime_cost_capture_intent_and_microstructure(
+        microstructure_action="ALLOW",
+        microstructure_trust_score=0.82,
+    )
+    paper_loop._attach_validated_strategy_microstructure_evidence(  # noqa: SLF001
+        intent,
+        _execution_microstructure_test_evidence(microstructure_source_hash="a" * 64),
+    )
+    missing_evidence = {
+        "microstructure_trust_status": "MISSING_MICROSTRUCTURE_TRUST_SCORE",
+        "microstructure_trust_missing_reason": (
+            "NO_V2_MICROSTRUCTURE_TRUST_SCORE_REDIS_PAYLOAD"
+        ),
+        "microstructure_trust_lookup_keys": [
+            "v2:microstructure:trust_score:BANKUSDT:15m"
+        ],
+    }
+
+    paper_loop._attach_validated_execution_microstructure_evidence(  # noqa: SLF001
+        intent,
+        missing_evidence,
+    )
+
+    execution_receipt = intent["execution_microstructure_evidence"]
+    assert execution_receipt["status"] == "BLOCKED"
+    assert execution_receipt["evidence"]["microstructure_trust_missing_reason"] == (
+        "NO_V2_MICROSTRUCTURE_TRUST_SCORE_REDIS_PAYLOAD"
+    )
+    assert execution_receipt["evidence"]["microstructure_trust_lookup_keys"] == [
+        "v2:microstructure:trust_score:BANKUSDT:15m"
+    ]
+    assert "microstructure_trust_score" not in execution_receipt["evidence"]
+    assert "microstructure_source_hash" not in execution_receipt["evidence"]
+    assert "microstructure_trust_allocation_binding" not in execution_receipt[
+        "evidence"
+    ]
+    assert intent["execution_microstructure_evidence_status"] == "BLOCKED"
+    assert "microstructure_trust_allocation_binding" not in intent
+    _assert_microstructure_receipt_hash(execution_receipt)
+
+
+def test_execution_microstructure_feed_integrity_false_remains_hard_cost_failure() -> None:
+    intent, _unused = _complete_runtime_cost_capture_intent_and_microstructure(
+        microstructure_action="ALLOW",
+        microstructure_trust_score=0.82,
+    )
+    paper_loop._attach_validated_strategy_microstructure_evidence(  # noqa: SLF001
+        intent,
+        _execution_microstructure_test_evidence(microstructure_source_hash="a" * 64),
+    )
+    execution_evidence = _execution_microstructure_test_evidence(
+        feed_integrity_pass=False
+    )
+    execution_market = _execution_microstructure_test_market(execution_evidence)
+    paper_loop._attach_validated_execution_microstructure_evidence(  # noqa: SLF001
+        intent,
+        execution_evidence,
+    )
+
+    assert intent["execution_microstructure_evidence_status"] == "PASS"
+    assert intent["execution_microstructure_evidence"]["status"] == "PASS"
+    assert intent["feed_integrity_pass"] is False
+    assert intent["execution_microstructure_evidence"]["evidence"][
+        "feed_integrity_pass"
+    ] is False
+    paper_loop._attach_runtime_cost_capture_contract(  # noqa: SLF001
+        intent,
+        execution_market,
+        signal={"policy_fingerprint": paper_loop.CHALLENGER_V2_ACTIVE_CUDA_POLICY_FINGERPRINT},
+        prediction={"model_source": "V2_LOCAL_TRAINED_RL_MASA_PPO_CUDA"},
+    )
+    assert "MICROSTRUCTURE_FEED_INTEGRITY_NOT_PROVEN" in intent[
+        "runtime_cost_capture_source_reject_reasons"
+    ]
+    assert intent["production_grade_cost_flag"] is False
+    assert intent["fallback_cost_flag"] is True
+
+
 def test_runtime_cost_capture_allows_reduce_size_below_microstructure_minimum() -> None:
     intent, market_microstructure = _complete_runtime_cost_capture_intent_and_microstructure(
         microstructure_action="REDUCE_SIZE",
