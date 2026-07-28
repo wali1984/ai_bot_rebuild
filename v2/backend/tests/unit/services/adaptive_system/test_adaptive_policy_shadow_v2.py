@@ -269,16 +269,23 @@ def test_feed_integrity_false_blocks_every_typed_disposition_including_flat() ->
     intent = _intent()
     intent["feed_integrity_pass"] = False
 
-    with pytest.raises(AdaptivePolicyShadowError, match="no_hard_valid_selection"):
-        build_adaptive_policy_shadow_candidate(
-            intent=intent,
-            feature_snapshot=_feature_snapshot(),
-            paper_status={"paper_only": True, "open_position_count": 0},
-            calibration=_calibration(),
-            registry=_registry(),
-            validator_seed=_SEED,
-            generated_at_ms=4_000_000,
-        )
+    result = build_adaptive_policy_shadow_candidate(
+        intent=intent,
+        feature_snapshot=_feature_snapshot(),
+        paper_status={"paper_only": True, "open_position_count": 0},
+        calibration=_calibration(),
+        registry=_registry(),
+        validator_seed=_SEED,
+        generated_at_ms=4_000_000,
+    )
+
+    assert result.selected_adaptive_action.selected_action == "remain_flat"
+    assert result.selected_adaptive_action.target_notional_usd == 0.0
+    assert result.selected_adaptive_action.execution_authority is False
+    assert "HARD_CONSTRAINT_BLOCKED_NONEXECUTING" in (
+        result.selected_adaptive_action.decision_rationale_codes
+    )
+    assert all(reasons for _action_id, reasons in result.action_dispositions)
 
 
 def test_directional_typed_action_consumes_conservative_microstructure_estimates() -> None:
@@ -365,16 +372,22 @@ def test_missing_verified_finality_snapshot_fails_closed() -> None:
 def test_live_authority_flag_prevents_hard_valid_adaptive_trade() -> None:
     intent = _intent()
     intent["routes_to_live"] = True
-    with pytest.raises(AdaptivePolicyShadowError, match="no_hard_valid_selection"):
-        build_adaptive_policy_shadow_candidate(
-            intent=intent,
-            feature_snapshot=_feature_snapshot(),
-            paper_status={"paper_only": True, "open_position_count": 0},
-            calibration=_calibration(),
-            registry=_registry(),
-            validator_seed=_SEED,
-            generated_at_ms=4_000_000,
-        )
+    result = build_adaptive_policy_shadow_candidate(
+        intent=intent,
+        feature_snapshot=_feature_snapshot(),
+        paper_status={"paper_only": True, "open_position_count": 0},
+        calibration=_calibration(),
+        registry=_registry(),
+        validator_seed=_SEED,
+        generated_at_ms=4_000_000,
+    )
+
+    assert result.selected_adaptive_action.selected_action == "remain_flat"
+    assert result.selected_adaptive_action.execution_authority is False
+    assert result.selected_adaptive_action.routes_to_live is False
+    assert "HARD_CONSTRAINT_BLOCKED_NONEXECUTING" in (
+        result.selected_adaptive_action.decision_rationale_codes
+    )
 
 
 @pytest.mark.parametrize(

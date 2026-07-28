@@ -23,6 +23,7 @@ from typing import Any
 
 import redis
 
+from v2.backend.app.domain.adaptive_policy_action_v2 import ACTION_REMAIN_FLAT
 from v2.backend.app.services.adaptive_system.adaptive_policy_shadow_v2 import (
     AdaptivePolicyShadowCandidateV2,
     build_adaptive_policy_shadow_candidate,
@@ -384,9 +385,20 @@ def _compact_record(
         == "bounded_information_seeking_exploration"
         else result.objective_evaluation.champion_action_id
     )
-    selected_input = next(
-        item for item in result.objective_inputs if item.action_id == selected_input_id
-    )
+    if selected_input_id is None:
+        if result.selected_adaptive_action.selected_action != ACTION_REMAIN_FLAT:
+            raise AdaptivePolicyShadowRuntimeError(
+                "selected_objective_input:missing_for_nonflat_action"
+            )
+        selected_input = next(
+            item
+            for item in result.objective_inputs
+            if item.selected_action == ACTION_REMAIN_FLAT
+        )
+    else:
+        selected_input = next(
+            item for item in result.objective_inputs if item.action_id == selected_input_id
+        )
     selected_venue = next(
         (
             item
@@ -570,6 +582,12 @@ def process_once(
         for item in results
         for _action_id, reasons in item.action_dispositions
     )
+    hard_blocked_typed_flat_count = sum(
+        item.selected_adaptive_action.selected_action == ACTION_REMAIN_FLAT
+        and "HARD_CONSTRAINT_BLOCKED_NONEXECUTING"
+        in item.selected_adaptive_action.decision_rationale_codes
+        for item in results
+    )
     status = {
         "schema_version": SCHEMA_VERSION,
         "generated_at": _utc_now(),
@@ -589,6 +607,7 @@ def process_once(
         "directional_action_disposition_count": directional_action_disposition_count,
         "hard_blocked_directional_action_count": hard_blocked_directional_action_count,
         "physical_plan_unavailable_count": physical_plan_unavailable_count,
+        "hard_blocked_typed_flat_count": hard_blocked_typed_flat_count,
         "production_reference_parity_status": "PASS",
         "production_reference_disagreement_count": 0,
         "selected_directional_action_count": directional,

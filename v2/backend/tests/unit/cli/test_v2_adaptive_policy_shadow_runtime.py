@@ -233,6 +233,55 @@ def test_process_once_persists_exact_fail_closed_disposition_during_exposure(
     assert record["exchange_action_taken"] is False
 
 
+def test_process_once_persists_typed_flat_when_every_action_is_hard_blocked(
+    tmp_path: Path,
+) -> None:
+    client = _client()
+    intents = json.loads(client.values[INTENTS_KEY])
+    intents[0]["feed_integrity_pass"] = False
+    client.values[INTENTS_KEY] = json.dumps(intents)
+    state_root = tmp_path / "state"
+    archive = AdaptivePolicyShadowArchiveV2(
+        (state_root / "shadow_decisions_v2.sqlite3").resolve()
+    )
+
+    status = process_once(
+        client=client,
+        archive=archive,
+        state_root=state_root,
+        feature_archive_root=(tmp_path / "features").resolve(),
+        validator_seed=_SEED,
+        generated_at_ms=4_000_000,
+        snapshot_loader=lambda _snapshot_id, _root: _feature_snapshot(),
+    )
+
+    assert status["candidate_coverage"] == 1.0
+    assert status["hard_blocked_typed_flat_count"] == 1
+    assert status["selected_directional_action_count"] == 0
+    assert status["production_reference_disagreement_count"] == 0
+    latest = json.loads(client.values[LATEST_KEY])
+    assert latest["actions"][0]["selected_action"] == "remain_flat"
+    assert latest["actions"][0]["target_notional_usd"] == 0.0
+    assert latest["actions"][0]["execution_authority"] is False
+    with sqlite3.connect(archive.path) as connection:
+        record = json.loads(
+            connection.execute(
+                "SELECT record_json FROM shadow_records WHERE row_index=1"
+            ).fetchone()[0]
+        )
+    assert all(
+        disposition["blocking_reasons"]
+        for disposition in record["action_dispositions"]
+    )
+    assert "HARD_CONSTRAINT_BLOCKED_NONEXECUTING" in record[
+        "selected_adaptive_action"
+    ]["decision_rationale_codes"]
+    assert record["selected_objective_input"]["hard_constraints_satisfied"] is False
+    assert record["routes_to_live"] is False
+    assert record["places_real_order"] is False
+    assert record["exchange_action_taken"] is False
+
+
 def test_archive_tampering_is_detected(tmp_path: Path) -> None:
     state_root = tmp_path / "state"
     archive = AdaptivePolicyShadowArchiveV2(

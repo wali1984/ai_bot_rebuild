@@ -1592,7 +1592,11 @@ def _policy_action(
         policy_uncertainty=(1.0 if statistics is None else float(statistics["posterior_uncertainty"])),
         decision_rationale_codes=(
             "CALIBRATED_ADAPTIVE_OBJECTIVE",
-            "HARD_CONSTRAINT_VALIDATED",
+            (
+                "HARD_CONSTRAINT_VALIDATED"
+                if selected.hard_constraints_satisfied
+                else "HARD_CONSTRAINT_BLOCKED_NONEXECUTING"
+            ),
             "NONTERMINAL_LEARNING_CONTINUES",
             "PERFORMANCE_RISK_CONTINUOUS_OBJECTIVE_INPUT",
             *(() if flat else ("MICROSTRUCTURE_CONTINUOUS_ESTIMATES_CONSUMED",)),
@@ -2020,7 +2024,13 @@ def build_adaptive_policy_shadow_candidate(
         else evaluation.champion_action_id
     )
     if selected_id is None:
-        raise AdaptivePolicyShadowError("objective:no_hard_valid_selection")
+        # A hard-integrity or authorization failure must remain non-executable,
+        # but it is still a typed learning outcome.  Select the zero-notional
+        # FLAT proposal as a blocked policy-stage disposition.  Its objective
+        # input retains ``hard_constraints_satisfied=False`` and no signed hard
+        # validator receipt, so no execution consumer can mistake it for an
+        # authorized action.
+        selected_id = flat_id
     selected_input = next(item for item in ordered_inputs if item.action_id == selected_id)
     selected_action = _policy_action(
         selected=selected_input,
