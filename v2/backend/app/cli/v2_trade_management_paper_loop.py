@@ -34897,6 +34897,7 @@ def _paper_prior_position_close_transition_reasons(
             != transition_side
             or close.get("reduce_only") is not True
             or close.get("position_to_flat") is True
+            or close.get("close_position") is True
             or close.get("paper_only") is not True
             or close.get("routes_to_live") is not False
             or close.get("places_real_order") is not False
