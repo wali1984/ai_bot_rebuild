@@ -1600,9 +1600,9 @@ hard and fail closed.
 | FP-000 | Coordination | Create goal, in-document checklist, evidence rules, and status ledger | Codex | COMPLETE | Goal record plus this tracker and validated coordination artifacts |
 | FP-001 | Coordination | Initialize work queue, ownership, progress, review, decision, and acceptance artifacts | Codex | COMPLETE | Six valid artifacts under `goal_state/ADAPTIVE_SYSTEM_FINAL_PASS/` |
 | FP-010 | 0 | Freeze current repository, deployment, checkpoint, process, Redis, lineage, and gate truth | Codex | COMPLETE | `PHASE0_CURRENT_TRUTH.json`, SHA-256 `53f3d562035d98753818515d124c7730af4162a421a16815ae76ced935421a74` |
-| FP-020 | 1 | Classify every trading-affecting value and remove manual Category-E final authority | Claude/Codex | IN_PROGRESS | Scanner v2 `3f138f17e8` deterministically finds 25,416 worktree candidates across seven source kinds with 0 duplicates; all remain unclassified, runtime reachability and authority removal remain |
+| FP-020 | 1 | Classify every trading-affecting value and remove manual Category-E final authority | Claude/Codex | IN_PROGRESS | Scanner v2 `3f138f17e8` deterministically finds 25,416 worktree candidates across seven source kinds with 0 duplicates; candidate `28aada8c39` prevents the adaptive Category-E bypass from suppressing canonical-risk, integrity, temporal-evidence, reentry-dedup, or current-cycle duplicate failures, but full classification/runtime reachability and authority removal remain open |
 | FP-030 | 2 | Define and verify `AdaptivePolicyActionV2` | Claude/Codex | COMPLETE | Canonical contract `0980e69210`, duplicate removed `658d6fc760`; 45 tests and independent SHA review PASS |
-| FP-040 | 3 | Convert component vetoes into calibrated continuous estimates | Claude/Codex | IN_PROGRESS | Shadow schema/projector accepted at `2934dcff31` + `5ce083874d`; candidate `7d3624d24b` consumes conservative continuous microstructure estimates and converts non-catastrophic performance regression to a bounded objective penalty; remaining component producers and full authority cutover remain |
+| FP-040 | 3 | Convert component vetoes into calibrated continuous estimates | Claude/Codex | IN_PROGRESS | Shadow schema/projector accepted at `2934dcff31` + `5ce083874d`; candidate `28aada8c39` consumes conservative continuous microstructure estimates and converts non-catastrophic performance regression to a bounded objective penalty; remaining component producers and full authority cutover remain |
 | FP-050 | 4 | Implement portfolio after-cost objective and adaptive exploration allocation | Claude/Codex | IN_PROGRESS | Independently accepted shadow foundation `d12f418d3d`; authenticated hard-validation evidence, exact PIT/lineage/units, self-recomputing scores, nonterminal flat-collapse signals, and bounded positive-utility information seeking; runtime fitting and policy integration remain |
 | FP-060 | 5 | Build `CandidateDecisionOutcomeV2` and point-in-time matured labels | Claude/Codex | IN_PROGRESS | Independently accepted contract foundation `289bb9911f`; runtime archive/maturation writers, CAS/idempotency, authenticity, and 100% coverage remain |
 | FP-070 | 6 | Attribute gate performance and missed opportunity cost | Claude/Codex | PENDING | Exact segmented false-positive/negative, avoided-loss, and opportunity-cost evidence |
@@ -1612,16 +1612,16 @@ hard and fail closed.
 | FP-110 | 10 | Implement automatic adaptation-escalation state machine | Claude/Codex | PENDING | Negative edge, starvation, flat collapse, and drift advance the ladder automatically |
 | FP-120 | 11 | Verify champion/challenger promotion, rollback, and serving independence | Claude/Codex | PENDING | Atomic receipts, superior-evidence promotion, rollback, trainer independence |
 | FP-130 | 12 | Implement venue-executable bounded information-seeking exploration | Claude/Codex | IN_PROGRESS | Exact non-authoritative venue-minimum primitive through `2b7442e61a`; opportunity selection and runtime integration remain |
-| FP-140 | 13 | Integrate unified policy with hard-only validator and paper portfolio engine | Claude/Codex | IN_PROGRESS | Candidate `7d3624d24b` adds hard feed-integrity enforcement, durable feature-clock replay, typed BLOCK persistence, and proof-safe position reconstruction; immutable deployment/runtime acceptance pending |
+| FP-140 | 13 | Integrate unified policy with hard-only validator and paper portfolio engine | Claude/Codex | IN_PROGRESS | Candidate `28aada8c39` adds hard feed-integrity enforcement, durable feature-clock replay, typed BLOCK persistence, proof-safe position reconstruction, and an explicit hard local-gate boundary around the Category-E bypass; immutable deployment/runtime acceptance pending |
 | FP-150 | 14 | Remove duplicated policy authority and prove reference parity | Claude/Codex | IN_PROGRESS | Candidate integration exists, but one-authority runtime proof and production/reference disagreements=0 remain unproved |
 | FP-160 | 15 | Implement adaptive self-healing supervisor | Claude/Codex | PENDING | Every declared collapse/failure state produces a bounded repair or learning action |
 | FP-170 | 16 | Record Claude implementation commits and acceptance claims | Claude | PENDING | Each material SHA and claim recorded in `CLAUDE_PROGRESS.jsonl` |
-| FP-180 | 17 | Perform Codex adversarial audit, fixtures, co-fixes, and SHA review | Codex | IN_PROGRESS | Claude-owned CG-F063/CG-F057 fixtures pass 28/28 against exact candidate SHA `7d3624d24b`; independent Claude acceptance record remains required |
+| FP-180 | 17 | Perform independent adversarial audit, fixtures, co-fixes, and SHA review | Claude/Codex | IN_PROGRESS | Claude-owned CG-F063/CG-F057 fixtures and focused adaptive/hard-boundary suites pass from exact candidate SHA `28aada8c39`; independent Claude acceptance record remains required before deployment |
 | FP-190 | 18 | Verify shadow-first immutable deployment and writer uniqueness | Codex | PENDING | Immutable SHAs, heartbeats, rollback, NRestarts, and one authority writer proven |
 | FP-200 | 19 | Complete natural lifecycle, restart reconstruction, and two further cycles | Joint | PENDING | Natural fill/open/stop/restart/close/accounting predicates all pass |
 | FP-210 | 20 | Pass frozen-cohort G03/G11/G12/G13/G14 with automatic challenger escalation | Joint | PENDING | Same cohort passes all gates without deleting, relabeling, or hiding losses |
 | FP-220 | 21 | Decommission obsolete policy authority | Claude/Codex | PENDING | Temporary/static authorities disabled; safety validators and evidence preserved |
-| FP-230 | Tests | Run changed-path, adversarial, G12, systemd, lint, compilation, and release checks | Codex | IN_PROGRESS | Candidate checks pass except the inherited monolithic paper-loop fixture family remains 13 failures/31 errors; no clean-suite claim |
+| FP-230 | Tests | Run changed-path, adversarial, G12, systemd, lint, compilation, and release checks | Codex | IN_PROGRESS | Exact candidate has 222/222 focused adaptive/CG tests and 64/64 scoped hard-boundary tests passing; the monolithic paper-loop result is 595 passed with the unchanged inherited 13 failures/31 errors; G12 is 17/17 and compile/Ruff/diff/systemd checks pass; no clean-suite claim |
 | FP-240 | Telemetry | Verify consolidated adaptive-system status | Codex | PENDING | `v2:adaptive_system:status` is fresh, complete, and downstream-truthful |
 | FP-250 | Acceptance | Record independent signoffs and final PASS or BLOCK | Joint | PENDING | Both signoffs plus every final-acceptance predicate evidenced |
 
@@ -1653,6 +1653,8 @@ Machine-readable task state is maintained in
 | 2026-07-28T04:16:40.037460Z | Candidate verification | PARTIAL PASS / BASELINE DEBT OPEN | 28/28 Claude-owned CG fixtures and 347/347 changed-path tests pass; compilation, focused Ruff, `git diff --check`, systemd verification, and G12 17/17 pass. Full legacy paper-loop module is 592 passed, 13 failed, 31 errors, matching the inherited 13/31 failure/error family |
 | 2026-07-28T04:16:40.037460Z | Runtime safety boundary | STOPPED / NO DEPLOYMENT | Paper loop has `MainPID=0`; repair approval sentinel is absent. The last forced stop recorded `Result=timeout`, `ExecMainStatus=9`, and `MemoryPeak=608399360`; no restart or runtime acceptance is claimed. Pre-stop book was flat: positions=0, accepted fills=0, used margin=0, wallet/equity=`2985.59472051`; proof manifest was absent and therefore uninitialized, not initialized-empty |
 | 2026-07-28T04:20:25.605120Z | PaperAccountEpochV1 SHA `bad88d5409` | BLOCK | Nominal DB-15 tests pass 13/13 and production dry preflight remains blocked without mutation, but adversarial probes prove mutation before the atomic guard, malformed-critical-JSON fail-open behavior, ignored reservations, incomplete archive hash verification, unenforced predecessor identity, and a `v2:paper:session` split brain. Rotation was not executed; see `claude_worklog/codex/PAPER_ACCOUNT_EPOCH_V1_CODEX_REVIEW_2026_07_28.md` |
+| 2026-07-28T04:27:59.841885Z | Static Category-E hard-boundary repair | CODE SEALED / CLAUDE ACCEPTANCE PENDING | Commit `a124df529b` prevents an authorized adaptive economic decision from bypassing canonical risk, market integrity, reentry deduplication, thesis/feature-time evidence, runtime market evidence, or current-cycle duplicate prediction/signal/candle checks. This does not restore economic veto authority and does not claim all Category-E authority is removed. |
+| 2026-07-28T04:27:59.841885Z | Immutable candidate reproducibility | PASS / DEPLOYMENT PROHIBITED | Exact candidate `28aada8c391adcee996035abc834d824d5c70af7` restores the byte-identical pre-existing growth-receipt fixture dependency from audited snapshot `d61c2acdc2`; its detached worktree is clean. Exact-tree checks are 222/222 focused adaptive/CG PASS, 64/64 scoped hard-boundary PASS, compile/Ruff/diff PASS, and the full paper-loop module is 595 passed, 13 failed, 31 errors—the same inherited 13/31 family. Independent Claude acceptance is still absent, so no deployment or restart occurred. |
 
 ## Current final status
 
@@ -1663,7 +1665,7 @@ FINAL_PASS_STATUS=IN_PROGRESS
 FINAL_ACCEPTANCE=NOT_YET_EVALUATED
 FIRST_UNRESOLVED_STAGE=PHASE_1_TRADING_CONFIGURATION_CLASSIFICATION
 CURRENT_SEGMENT=CG_F063_CG_F057_P3_P4_P6
-CURRENT_SEGMENT_IMPLEMENTATION_SHA=7d3624d24b68a4a50e4600f957ce3d9688f903c3
+CURRENT_SEGMENT_IMPLEMENTATION_SHA=28aada8c391adcee996035abc834d824d5c70af7
 CURRENT_SEGMENT_CODE_SEALED=true
 CURRENT_SEGMENT_CLAUDE_EXACT_SHA_ACCEPTANCE=PENDING
 CURRENT_SEGMENT_IMMUTABLE_DEPLOYMENT=false
@@ -1700,19 +1702,20 @@ places_real_order=false
 exchange_action_taken=false
 
 OPERATOR_ACTION_REQUIRED=NONE
-NEXT_OWNER_ACTION=CLAUDE_REVIEW_7D3624_AND_REPAIR_BAD88_EPOCH_BLOCKERS
-LATEST_REPOSITORY_CHECKPOINT=7d3624d24b68a4a50e4600f957ce3d9688f903c3
-LATEST_CANDIDATE_TESTS=28_OF_28_CLAUDE_FIXTURES_AND_347_OF_347_CHANGED_PATH_PASS
-LEGACY_PAPER_LOOP_SUITE=592_PASS_13_FAIL_31_ERROR_INHERITED_FAMILY
+NEXT_OWNER_ACTION=CLAUDE_REVIEW_28AADA8_EXACT_SHA_THEN_REPAIR_BAD88_EPOCH_BLOCKERS
+LATEST_REPOSITORY_CHECKPOINT=28aada8c391adcee996035abc834d824d5c70af7
+LATEST_CANDIDATE_TESTS=222_OF_222_FOCUSED_ADAPTIVE_CG_AND_64_OF_64_SCOPED_HARD_BOUNDARY_PASS
+LEGACY_PAPER_LOOP_SUITE=595_PASS_13_FAIL_31_ERROR_INHERITED_FAMILY
 ```
 
 ## Current-segment handoff and command ledger
 
-Exact blocker: candidate SHA `7d3624d24b68a4a50e4600f957ce3d9688f903c3`
+Exact blocker: candidate SHA `28aada8c391adcee996035abc834d824d5c70af7`
 has not received Claude's independent exact-SHA acceptance or immutable runtime
 verification. Actual paper-loop state is stopped with `MainPID=0`; required
-state before restart is a Claude PASS for CG-F063/CG-F057 and approval of that
-same immutable SHA. No operator credential or reboot blocker exists.
+state before restart is a Claude PASS for CG-F063/CG-F057, the hard local-gate
+boundary, and approval of that same immutable SHA. No operator credential or
+reboot blocker exists.
 
 Separately, paper-account epoch commit `bad88d5409` is blocked from execution by
 the scoped Codex review. It is not a substitute for accepting and restarting the
@@ -1724,7 +1727,7 @@ that SHA and runs the owned runtime acceptance harness. The safe inspection
 command is:
 
 ```bash
-git -C /home/wali/ai_bot_local_data/deployments/ai_bot_rebuild/7d3624d24b68a4a50e4600f957ce3d9688f903c3 rev-parse HEAD
+git -C /home/wali/ai_bot_local_data/deployments/ai_bot_rebuild/28aada8c391adcee996035abc834d824d5c70af7 rev-parse HEAD
 ```
 
 Commands executed for this segment, with no real exchange mutation:
@@ -1742,14 +1745,20 @@ git diff --stat -- <scoped-files>
 git diff --check
 git add -- <eight-scoped-files>
 git commit -m "Fail closed paper proof reconciliation"
+git commit -m "Keep adaptive policy behind hard local gates"
+git commit -m "Restore committed paper growth fixture dependency"
 git rev-parse HEAD
 git worktree add --detach <immutable-candidate-path> 7d3624d24b
+git worktree add --detach <immutable-candidate-path> a124df529b
+git worktree add --detach <immutable-candidate-path> 28aada8c39
 git worktree move <initial-candidate-path> <exact-SHA-candidate-path>
 .venv/bin/python -m py_compile <five-changed-production-files>
 .venv/bin/ruff check --select E902,F821,F822,F823 <changed-files>
 .venv/bin/pytest -q v2/backend/tests/unit/cli/test_cg_f063_proof_store_reconciliation.py v2/backend/tests/unit/services/microstructure_trust/test_cg_f057_completion_acceptance.py
 .venv/bin/pytest -q <changed-path-test-selection>
 .venv/bin/pytest -q --tb=no v2/backend/tests/unit/cli/test_v2_trade_management_paper_loop.py
+.venv/bin/pytest -q <exact-candidate-focused-adaptive-and-CG-selection>
+.venv/bin/pytest -q <exact-candidate-scoped-hard-boundary-selection>
 .venv/bin/python scripts/guardian_phase10_rare_event_tests.py
 .venv/bin/pytest -q v2/backend/tests/test_paper_epoch_rotation.py
 .venv/bin/python tools/paper_epoch_preflight.py
@@ -1766,6 +1775,7 @@ v2/backend/app/services/adaptive_system/adaptive_policy_shadow_v2.py
 v2/backend/app/services/paper_trade_management/outcomes.py
 v2/backend/app/services/paper_trade_management/position_state.py
 v2/backend/tests/unit/cli/test_v2_trade_management_paper_loop.py
+v2/backend/tests/unit/services/adaptive_capital_allocator/growth_receipt_test_utils.py
 v2/backend/tests/unit/services/adaptive_system/test_adaptive_policy_shadow_v2.py
 v2/backend/tests/unit/services/paper_trade_management/test_lifecycle.py
 FINAL PASS.md (status ledger only; separate from the production candidate)
@@ -1776,7 +1786,7 @@ Runtime-only safety boundary (outside the repository):
 ```text
 /run/user/1000/systemd/user/ai-bot-v2-trade-management-paper-loop.service -> /dev/null
 /run/user/1000/systemd/user/ai-bot-v2-trade-management-paper-loop.service.d/00-codex-repair-boundary.conf
-/home/wali/ai_bot_local_data/deployments/ai_bot_rebuild/7d3624d24b68a4a50e4600f957ce3d9688f903c3/ (clean detached candidate worktree)
+/home/wali/ai_bot_local_data/deployments/ai_bot_rebuild/28aada8c391adcee996035abc834d824d5c70af7/ (clean detached candidate worktree)
 ```
 
 The pre-existing `.claude/hooks/block_dangerous.sh` modification was preserved,
