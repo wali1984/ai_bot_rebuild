@@ -323,32 +323,42 @@ struct ProvidersView: View {
                 trailing: "\(vm.degradedProviders.count) of \(vm.activeProviderCount)"
             )
             ForEach(vm.degradedProviders, id: \.provider) { provider in
-                let color = providerColor(provider.providerDashboardTone)
-                Button {
-                    withAnimation(.default) {
-                        expandedProviders.insert(provider.provider)
-                    }
-                } label: {
-                    HStack(spacing: 10) {
-                        Circle().fill(color).frame(width: 8, height: 8)
-                        Text(provider.display_name ?? provider.provider.uppercased())
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(NerVyx.textPrimary)
-                            .lineLimit(1)
-                        Spacer(minLength: 6)
-                        Text(providerRuntimeText(provider.status))
-                            .font(.system(size: 11, weight: .medium, design: .monospaced))
-                            .foregroundStyle(color)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.6)
-                        NerVyxBadge(text: provider.providerDashboardBadgeText, color: color, small: true)
-                    }
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
+                degradedProviderRow(provider)
             }
         }
         .nerVyxGlassCard(accent: NerVyx.warning)
+    }
+
+    // Extracted so the row's leading `let color` lives in a function body rather
+    // than directly inside the ForEach @ViewBuilder closure. Under the Xcode 16.4
+    // SDK a closure that opens with a `let` declaration makes `ForEach.init(_:id:content:)`
+    // ambiguous between SwiftUI (ViewBuilder) and SwiftUICore
+    // (AccessibilityRotorContentBuilder), which broke the iOS-target compile.
+    @ViewBuilder
+    private func degradedProviderRow(_ provider: EnterpriseProviderCard) -> some View {
+        let color = providerColor(provider.providerDashboardTone)
+        Button {
+            withAnimation(.default) {
+                expandedProviders.insert(provider.provider)
+            }
+        } label: {
+            HStack(spacing: 10) {
+                Circle().fill(color).frame(width: 8, height: 8)
+                Text(provider.display_name ?? provider.provider.uppercased())
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(NerVyx.textPrimary)
+                    .lineLimit(1)
+                Spacer(minLength: 6)
+                Text(providerRuntimeText(provider.status))
+                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    .foregroundStyle(color)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+                NerVyxBadge(text: provider.providerDashboardBadgeText, color: color, small: true)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Safety warnings (kept verbatim)
