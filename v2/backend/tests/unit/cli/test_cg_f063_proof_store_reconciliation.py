@@ -1153,6 +1153,93 @@ def test_partial_close_transition_rejects_unsafe_resealed_prior_chain_node() -> 
     assert "POSITION_CLOSE_TRANSITION_PRIOR_TRANSITION_AUTHORITY_INVALID" in reasons
 
 
+def test_partial_close_transition_rejects_prior_receipt_marked_close_position() -> None:
+    """An ancestor receipt cannot claim both a remainder and close-position."""
+
+    fill, proof, remaining_one, receipts_one, transitions_one = (
+        _produced_partial_transition("short")
+    )
+    remaining_two = _reconstructable_partial_position(
+        remaining_one,
+        quantity=0.1,
+        fees_allocated=0.02,
+        slippage_allocated=0.016,
+        generated_utc="2026-07-28T05:45:00Z",
+    )
+    close_two = _partial_close_event(
+        fill,
+        remaining_two,
+        close_id="adversarial-close-short-562",
+        quantity_before=0.3,
+        close_quantity=0.2,
+        remaining_quantity=0.1,
+    )
+    receipts_two, transitions_two, status_two = (
+        paper_loop._paper_build_position_close_transition_state(  # noqa: SLF001
+            {
+                "paper_position_close_receipts": receipts_one,
+                "paper_position_close_transition_proofs": transitions_one,
+            },
+            [remaining_two],
+            [proof],
+            [close_two],
+        )
+    )
+    assert status_two["status"] == "PASS"
+    prior = next(
+        row for row in transitions_two if row["close_id"] != close_two["close_id"]
+    )
+    latest = next(
+        row for row in transitions_two if row["close_id"] == close_two["close_id"]
+    )
+    prior_receipt = next(
+        row for row in receipts_two if row["close_id"] == prior["close_id"]
+    )
+    latest_receipt = next(
+        row for row in receipts_two if row["close_id"] == latest["close_id"]
+    )
+    contradictory_receipt = deepcopy(prior_receipt)
+    contradictory_receipt["close_position"] = True
+    contradictory_receipt["close_receipt_sha256"] = (
+        paper_loop._paper_canonical_sha256(  # noqa: SLF001
+            paper_loop._paper_close_receipt_material(  # noqa: SLF001
+                contradictory_receipt
+            )
+        )
+    )
+    rebound_prior = deepcopy(prior)
+    rebound_prior["close_receipt_sha256"] = contradictory_receipt[
+        "close_receipt_sha256"
+    ]
+    rebound_prior = _reseal_transition(rebound_prior)
+    rebound_latest = deepcopy(latest)
+    rebound_latest["prior_transition_proof_sha256"] = rebound_prior[
+        "transition_proof_sha256"
+    ]
+    rebound_latest = _reseal_transition(rebound_latest)
+
+    validated, reasons = paper_loop._paper_valid_position_close_transition(  # noqa: SLF001
+        {
+            "paper_position_close_receipts": [
+                contradictory_receipt,
+                latest_receipt,
+            ],
+            "paper_position_close_transition_proofs": [
+                rebound_prior,
+                rebound_latest,
+            ],
+        },
+        remaining_two,
+        proof,
+    )
+
+    assert validated is None
+    assert (
+        "POSITION_CLOSE_TRANSITION_PRIOR_TRANSITION_CLOSE_RECEIPT_INVALID"
+        in reasons
+    )
+
+
 def test_atomic_redis_transition_commit_and_readback_carry_both_stores(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
