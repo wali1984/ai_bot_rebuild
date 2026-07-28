@@ -2806,3 +2806,11 @@ baseline. The next frozen trigger is `matured_outcomes >= 28810 OR effective_N
 Current-epoch lifecycle state remains flat and armed; the frozen economic
 cohort remains 1/5. Exact evidence is
 `goal_state/PERMANENT_SYSTEM_RECOVERY/adaptive_incremental_trigger_20260728.json`.
+
+A third natural trigger widened the signed corpus to 20,878 rows and completed
+dispatch `adaptive_dispatch_fc9ff25144052be7c08fe3fdf7d68f49`. Checkpoint
+`SERVING_ABI_V2_PROFITABILITY_PAPER_81c750a78382844ed57c2f6f` was again
+directional and contract-valid but not superior: validation Brier
+`0.2556210252` exceeded the `0.2368807793` baseline. No registry write occurred.
+The next immutable trigger is `matured_outcomes >= 29441 OR effective_N >=
+161.1`; the automatic timer and current-epoch lifecycle observer remain armed.
