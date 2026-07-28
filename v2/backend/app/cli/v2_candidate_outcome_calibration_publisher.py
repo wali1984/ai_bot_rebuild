@@ -216,6 +216,7 @@ def process_once(
         )
     if verification.verified is not True:
         raise CandidateCalibrationPublisherError("candidate_archive:verification_failed")
+    calibration_error: CandidateOutcomeCalibrationError | None = None
     try:
         calibration = fit_candidate_outcome_calibration_v2(
             observations,
@@ -223,11 +224,24 @@ def process_once(
             generated_at_ms=generated_at_ms,
         )
     except CandidateOutcomeCalibrationError as exc:
+        calibration_error = exc
+        calibration = None
+
+    registry_readback = _strict_object(
+        client.get(ACTIVE_REGISTRY_KEY),
+        f"{ACTIVE_REGISTRY_KEY}.readback",
+    )
+    if registry_readback != registry:
+        raise CandidateCalibrationPublisherError(
+            "active_registry:changed_during_calibration"
+        )
+
+    if calibration_error is not None:
         status = {
             "schema_version": SCHEMA_VERSION,
             "generated_at": _utc_now(),
             "status": "BLOCKED_INSUFFICIENT_OR_INVALID_MATURED_EVIDENCE",
-            "exact_blocker": str(exc),
+            "exact_blocker": str(calibration_error),
             "source_archive_chain_sha256": verification.terminal_chain_sha256,
             "source_matured_revision_count": verification.matured_revision_count,
             "source_snapshot": snapshot_receipt,
@@ -241,6 +255,9 @@ def process_once(
         _write_json_atomic(state_root / "status.json", status)
         client.set(STATUS_KEY, json.dumps(status, sort_keys=True, allow_nan=False))
         return status
+
+    if calibration is None:  # pragma: no cover - defensive type narrowing
+        raise CandidateCalibrationPublisherError("calibration:missing_result")
 
     status = {
         "schema_version": SCHEMA_VERSION,
