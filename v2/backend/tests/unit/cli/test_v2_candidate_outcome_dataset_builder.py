@@ -12,6 +12,9 @@ from v2.backend.app.cli.v2_candidate_outcome_dataset_builder import (
     _archive_reader,
     build_once,
 )
+from v2.backend.app.services.adaptive_system import (
+    candidate_outcome_serving_dataset_v2 as serving_dataset,
+)
 from v2.backend.app.services.adaptive_system.candidate_outcome_archive_v2 import (
     CandidateOutcomeArchiveError,
     CandidateOutcomeArchiveV2,
@@ -66,6 +69,11 @@ def test_build_once_verifies_signed_archive_and_durable_snapshot(
     )
     monkeypatch.setattr(
         builder,
+        "PINNED_PRODUCTION_WRITER_PUBLIC_KEY_HEX",
+        public_key_hex,
+    )
+    monkeypatch.setattr(
+        serving_dataset,
         "PINNED_PRODUCTION_WRITER_PUBLIC_KEY_HEX",
         public_key_hex,
     )

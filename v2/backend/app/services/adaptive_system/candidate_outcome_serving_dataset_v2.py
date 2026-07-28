@@ -19,6 +19,7 @@ from collections import Counter, defaultdict
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 from v2.backend.app.contracts.runtime_v2.candidate_decision_outcome_v2 import (
@@ -27,6 +28,8 @@ from v2.backend.app.contracts.runtime_v2.candidate_decision_outcome_v2 import (
 )
 from v2.backend.app.services.adaptive_system.candidate_outcome_archive_v2 import (
     ARCHIVE_VERIFICATION_SCHEMA_VERSION,
+    PINNED_PRODUCTION_WRITER_ID,
+    PINNED_PRODUCTION_WRITER_PUBLIC_KEY_HEX,
 )
 from v2.backend.app.services.adaptive_system.candidate_outcome_maturer_v2 import (
     counterfactual_reference_side,
@@ -834,7 +837,7 @@ def build_adaptive_serving_dataset_v2(
     candidate_records: Sequence[CandidateDecisionOutcomeV2],
     snapshot_loader: Callable[[str], Mapping[str, Any] | None],
     source_archive_chain_sha256: str,
-    source_archive_verification: Mapping[str, Any] | None = None,
+    source_archive_verification: Mapping[str, Any] | None,
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
     """Combine gen-5 and matured candidate evidence, then resplit from scratch."""
 
@@ -890,58 +893,69 @@ def build_adaptive_serving_dataset_v2(
     rejection_contract_counts = _rejection_contract_counts(rejections)
     if set(action_counts) - set(ACTION_LABELS) or sum(action_counts.values()) != len(rows):
         _fail("TARGET_ACTION_COUNT_MISMATCH", "rows")
-    if source_archive_verification is None:
-        archive_candidate_count = len(candidate_records)
-        archive_decision_revision_count = len(candidate_records)
-        archive_matured_revision_count = len(seen_candidates)
-        archive_row_count = len(candidate_records) + len(seen_candidates)
-    else:
-        if set(source_archive_verification) != _SOURCE_ARCHIVE_VERIFICATION_FIELDS:
-            _fail(
-                "SOURCE_ARCHIVE_VERIFICATION_FIELDS_MISMATCH",
-                "source_archive_verification",
-            )
-        archive_candidate_count = _nonnegative_int(
-            source_archive_verification.get("candidate_count"),
-            "source_archive_verification.candidate_count",
+    if not isinstance(source_archive_verification, Mapping):
+        _fail("SOURCE_ARCHIVE_VERIFICATION_REQUIRED", "source_archive_verification")
+    if set(source_archive_verification) != _SOURCE_ARCHIVE_VERIFICATION_FIELDS:
+        _fail(
+            "SOURCE_ARCHIVE_VERIFICATION_FIELDS_MISMATCH",
+            "source_archive_verification",
         )
-        archive_decision_revision_count = _nonnegative_int(
-            source_archive_verification.get("decision_revision_count"),
-            "source_archive_verification.decision_revision_count",
-        )
-        archive_matured_revision_count = _nonnegative_int(
-            source_archive_verification.get("matured_revision_count"),
-            "source_archive_verification.matured_revision_count",
-        )
-        archive_row_count = _nonnegative_int(
-            source_archive_verification.get("row_count"),
-            "source_archive_verification.row_count",
-        )
-        if (
-            archive_candidate_count != archive_decision_revision_count
-            or archive_matured_revision_count > archive_candidate_count
-            or len(candidate_records) != archive_matured_revision_count
-            or archive_matured_revision_count != len(seen_candidates)
-            or archive_row_count
-            != archive_decision_revision_count + archive_matured_revision_count
-        ):
-            _fail("SOURCE_ARCHIVE_COUNT_MISMATCH", "source_archive_verification")
-        if (
-            source_archive_verification.get("schema_version")
-            != ARCHIVE_VERIFICATION_SCHEMA_VERSION
-            or source_archive_verification.get("terminal_chain_sha256")
-            != archive_chain
-            or source_archive_verification.get("verified") is not True
-            or source_archive_verification.get("invalid_row_count") != 0
-            or source_archive_verification.get("duplicate_archive_record_count") != 0
-            or source_archive_verification.get("paper_only") is not True
-            or source_archive_verification.get("live_gate")
-            != "blocked_human_only"
-            or source_archive_verification.get("routes_to_live") is not False
-            or source_archive_verification.get("places_real_order") is not False
-            or source_archive_verification.get("exchange_action_taken") is not False
-        ):
-            _fail("SOURCE_ARCHIVE_RECEIPT_UNSAFE", "source_archive_verification")
+    archive_candidate_count = _nonnegative_int(
+        source_archive_verification.get("candidate_count"),
+        "source_archive_verification.candidate_count",
+    )
+    archive_decision_revision_count = _nonnegative_int(
+        source_archive_verification.get("decision_revision_count"),
+        "source_archive_verification.decision_revision_count",
+    )
+    archive_matured_revision_count = _nonnegative_int(
+        source_archive_verification.get("matured_revision_count"),
+        "source_archive_verification.matured_revision_count",
+    )
+    archive_row_count = _nonnegative_int(
+        source_archive_verification.get("row_count"),
+        "source_archive_verification.row_count",
+    )
+    archive_invalid_count = _nonnegative_int(
+        source_archive_verification.get("invalid_row_count"),
+        "source_archive_verification.invalid_row_count",
+    )
+    archive_duplicate_count = _nonnegative_int(
+        source_archive_verification.get("duplicate_archive_record_count"),
+        "source_archive_verification.duplicate_archive_record_count",
+    )
+    if (
+        archive_candidate_count != archive_decision_revision_count
+        or archive_matured_revision_count > archive_candidate_count
+        or len(candidate_records) != archive_matured_revision_count
+        or archive_matured_revision_count != len(seen_candidates)
+        or archive_row_count
+        != archive_decision_revision_count + archive_matured_revision_count
+    ):
+        _fail("SOURCE_ARCHIVE_COUNT_MISMATCH", "source_archive_verification")
+    archive_path = source_archive_verification.get("archive_path")
+    if (
+        source_archive_verification.get("schema_version")
+        != ARCHIVE_VERIFICATION_SCHEMA_VERSION
+        or type(archive_path) is not str
+        or not archive_path
+        or archive_path.strip() != archive_path
+        or not Path(archive_path).is_absolute()
+        or source_archive_verification.get("writer_id")
+        != PINNED_PRODUCTION_WRITER_ID
+        or source_archive_verification.get("writer_public_key_hex")
+        != PINNED_PRODUCTION_WRITER_PUBLIC_KEY_HEX
+        or source_archive_verification.get("terminal_chain_sha256") != archive_chain
+        or source_archive_verification.get("verified") is not True
+        or archive_invalid_count != 0
+        or archive_duplicate_count != 0
+        or source_archive_verification.get("paper_only") is not True
+        or source_archive_verification.get("live_gate") != "blocked_human_only"
+        or source_archive_verification.get("routes_to_live") is not False
+        or source_archive_verification.get("places_real_order") is not False
+        or source_archive_verification.get("exchange_action_taken") is not False
+    ):
+        _fail("SOURCE_ARCHIVE_RECEIPT_UNSAFE", "source_archive_verification")
     dataset_material = {
         "schema_version": DATASET_SCHEMA_VERSION,
         "feature_abi_sha256": feature_abi_sha256(),
@@ -974,6 +988,11 @@ def build_adaptive_serving_dataset_v2(
             "base_dataset_id": base_dataset.get("dataset_id"),
             "base_dataset_sha256": base_sha,
             "candidate_archive_terminal_chain_sha256": archive_chain,
+            "candidate_archive_path": archive_path,
+            "candidate_archive_writer_id": source_archive_verification["writer_id"],
+            "candidate_archive_writer_public_key_hex": source_archive_verification[
+                "writer_public_key_hex"
+            ],
             "candidate_archive_candidate_count": archive_candidate_count,
             "candidate_archive_decision_revision_count": archive_decision_revision_count,
             "candidate_archive_matured_revision_count": archive_matured_revision_count,

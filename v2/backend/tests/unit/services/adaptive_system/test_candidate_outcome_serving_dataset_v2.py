@@ -60,7 +60,9 @@ def _source_verification(**updates: object) -> dict[str, object]:
         "schema_version": "candidate_outcome_archive_verification_v2",
         "archive_path": "/authenticated/candidate-outcomes.jsonl",
         "writer_id": "candidate-outcome-writer-v2",
-        "writer_public_key_hex": "b" * 64,
+        "writer_public_key_hex": (
+            "bbff6e85cd6954ae5aff4ee2ec5d2078de96bf8f8750aaa889d2ea4712c5b4d9"
+        ),
         "row_count": 2,
         "decision_revision_count": 1,
         "matured_revision_count": 1,
@@ -370,6 +372,7 @@ def test_combined_dataset_resplits_without_label_overlap_and_accounts_every_cand
         candidate_records=(matured,),
         snapshot_loader=lambda snapshot_id: snapshot if snapshot_id == "snapshot-0" else None,
         source_archive_chain_sha256="a" * 64,
+        source_archive_verification=_source_verification(),
     )
 
     assert manifest["candidate_records_fully_accounted"] is True
@@ -420,6 +423,7 @@ def test_tampered_base_dataset_and_missing_snapshot_fail_closed() -> None:
             candidate_records=(matured,),
             snapshot_loader=lambda _snapshot_id: snapshot,
             source_archive_chain_sha256="a" * 64,
+            source_archive_verification=_source_verification(),
         )
 
     with pytest.raises(CandidateOutcomeDatasetError, match="VERIFIED_SNAPSHOT_MISSING"):
@@ -459,6 +463,7 @@ def test_coherently_rehashed_base_dataset_with_invalid_target_fails_closed() -> 
             candidate_records=(matured,),
             snapshot_loader=lambda _snapshot_id: snapshot,
             source_archive_chain_sha256="a" * 64,
+            source_archive_verification=_source_verification(),
         )
 
 
@@ -495,6 +500,7 @@ def test_coherently_rehashed_base_dataset_with_invalid_market_fails_closed(
             candidate_records=(matured,),
             snapshot_loader=lambda _snapshot_id: snapshot,
             source_archive_chain_sha256="a" * 64,
+            source_archive_verification=_source_verification(),
         )
 
 
@@ -582,12 +588,36 @@ def test_source_archive_verification_counts_must_match_loaded_matured_rows() -> 
         )
 
 
+def test_source_archive_verification_is_mandatory() -> None:
+    matured, snapshot = _matured_record()
+    template = build_candidate_outcome_row(
+        matured,
+        snapshot_loader=lambda _snapshot_id: snapshot,
+        source_archive_chain_sha256="a" * 64,
+    )
+
+    with pytest.raises(
+        CandidateOutcomeDatasetError,
+        match="SOURCE_ARCHIVE_VERIFICATION_REQUIRED",
+    ):
+        build_adaptive_serving_dataset_v2(
+            base_dataset=_base_dataset(template),
+            candidate_records=(matured,),
+            snapshot_loader=lambda _snapshot_id: snapshot,
+            source_archive_chain_sha256="a" * 64,
+            source_archive_verification=None,
+        )
+
+
 @pytest.mark.parametrize(
     ("updates", "reason"),
     (
         ({"terminal_chain_sha256": "b" * 64}, "SOURCE_ARCHIVE_RECEIPT_UNSAFE"),
         ({"verified": False}, "SOURCE_ARCHIVE_RECEIPT_UNSAFE"),
         ({"routes_to_live": True}, "SOURCE_ARCHIVE_RECEIPT_UNSAFE"),
+        ({"writer_id": "attacker"}, "SOURCE_ARCHIVE_RECEIPT_UNSAFE"),
+        ({"writer_public_key_hex": "0" * 64}, "SOURCE_ARCHIVE_RECEIPT_UNSAFE"),
+        ({"archive_path": 17}, "SOURCE_ARCHIVE_RECEIPT_UNSAFE"),
         ({"unexpected": "field"}, "SOURCE_ARCHIVE_VERIFICATION_FIELDS_MISMATCH"),
     ),
 )
@@ -609,4 +639,26 @@ def test_source_archive_verification_identity_and_authority_fail_closed(
             snapshot_loader=lambda _snapshot_id: snapshot,
             source_archive_chain_sha256="a" * 64,
             source_archive_verification=_source_verification(**updates),
+        )
+
+
+@pytest.mark.parametrize(
+    "field",
+    ("invalid_row_count", "duplicate_archive_record_count"),
+)
+def test_source_archive_boolean_count_fails_closed(field: str) -> None:
+    matured, snapshot = _matured_record()
+    template = build_candidate_outcome_row(
+        matured,
+        snapshot_loader=lambda _snapshot_id: snapshot,
+        source_archive_chain_sha256="a" * 64,
+    )
+
+    with pytest.raises(CandidateOutcomeDatasetError, match="NONNEGATIVE_INT_REQUIRED"):
+        build_adaptive_serving_dataset_v2(
+            base_dataset=_base_dataset(template),
+            candidate_records=(matured,),
+            snapshot_loader=lambda _snapshot_id: snapshot,
+            source_archive_chain_sha256="a" * 64,
+            source_archive_verification=_source_verification(**{field: False}),
         )
