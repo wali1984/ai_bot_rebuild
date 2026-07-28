@@ -1089,6 +1089,70 @@ def test_partial_close_transition_tampering_is_rejected(
     assert expected_reason in reasons
 
 
+def test_partial_close_transition_rejects_unsafe_resealed_prior_chain_node() -> None:
+    """Every historical chain node must preserve paper-only authority."""
+
+    fill, proof, remaining_one, receipts_one, transitions_one = (
+        _produced_partial_transition("short")
+    )
+    remaining_two = _reconstructable_partial_position(
+        remaining_one,
+        quantity=0.1,
+        fees_allocated=0.02,
+        slippage_allocated=0.016,
+        generated_utc="2026-07-28T05:45:00Z",
+    )
+    close_two = _partial_close_event(
+        fill,
+        remaining_two,
+        close_id="adversarial-close-short-561",
+        quantity_before=0.3,
+        close_quantity=0.2,
+        remaining_quantity=0.1,
+    )
+    receipts_two, transitions_two, status_two = (
+        paper_loop._paper_build_position_close_transition_state(  # noqa: SLF001
+            {
+                "paper_position_close_receipts": receipts_one,
+                "paper_position_close_transition_proofs": transitions_one,
+            },
+            [remaining_two],
+            [proof],
+            [close_two],
+        )
+    )
+    assert status_two["status"] == "PASS"
+    prior = next(
+        row for row in transitions_two if row["close_id"] != close_two["close_id"]
+    )
+    latest = next(
+        row for row in transitions_two if row["close_id"] == close_two["close_id"]
+    )
+    unsafe_prior = deepcopy(prior)
+    unsafe_prior["routes_to_live"] = True
+    unsafe_prior = _reseal_transition(unsafe_prior)
+    rebound_latest = deepcopy(latest)
+    rebound_latest["prior_transition_proof_sha256"] = unsafe_prior[
+        "transition_proof_sha256"
+    ]
+    rebound_latest = _reseal_transition(rebound_latest)
+
+    validated, reasons = paper_loop._paper_valid_position_close_transition(  # noqa: SLF001
+        {
+            "paper_position_close_receipts": receipts_two,
+            "paper_position_close_transition_proofs": [
+                unsafe_prior,
+                rebound_latest,
+            ],
+        },
+        remaining_two,
+        proof,
+    )
+
+    assert validated is None
+    assert "POSITION_CLOSE_TRANSITION_PRIOR_TRANSITION_AUTHORITY_INVALID" in reasons
+
+
 def test_atomic_redis_transition_commit_and_readback_carry_both_stores(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
