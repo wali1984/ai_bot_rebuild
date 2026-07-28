@@ -1098,6 +1098,8 @@ def test_partial_close_transition_tampering_is_rejected(
         ("schema_version", "paper_reduce_only_close_receipt_v0"),
         ("close_id", ""),
         ("entry_fill_id", "fill-attacker"),
+        ("source_fill_ids", []),
+        ("source_fill_ids", ["fill-attacker"]),
         ("position_side", "short"),
         ("close_side", "long"),
         ("quantity_before_close", 0.7),
@@ -1143,6 +1145,63 @@ def test_partial_close_transition_rejects_resealed_current_receipt_contradiction
 
     assert validated is None
     assert "POSITION_CLOSE_TRANSITION_CLOSE_RECEIPT_INVALID" in reasons
+
+
+@pytest.mark.parametrize(
+    ("mutation", "expected_reason"),
+    (
+        (
+            "missing_entry_fee_field",
+            "POSITION_CLOSE_TRANSITION_ENTRY_FEES_CONSERVATION_INVALID",
+        ),
+        (
+            "missing_entry_slippage_field",
+            "POSITION_CLOSE_TRANSITION_ENTRY_SLIPPAGE_CONSERVATION_INVALID",
+        ),
+        (
+            "nullable_cost_basis_flag",
+            "POSITION_CLOSE_TRANSITION_COST_BASIS_INVALID",
+        ),
+        (
+            "conservation_preserving_fee_rewrite",
+            "POSITION_CLOSE_TRANSITION_ENTRY_FEES_BINDING_MISMATCH",
+        ),
+    ),
+)
+def test_partial_close_transition_rejects_incomplete_or_rebound_cost_basis(
+    mutation: str,
+    expected_reason: str,
+) -> None:
+    """Current transition costs must be complete and bound to the position."""
+
+    _fill, proof, remaining, receipts, transitions = _produced_partial_transition(
+        "long"
+    )
+    contradictory_transition = deepcopy(transitions[0])
+    if mutation == "missing_entry_fee_field":
+        contradictory_transition.pop("entry_fees_remaining_usd")
+    elif mutation == "missing_entry_slippage_field":
+        contradictory_transition.pop("entry_slippage_remaining_usd")
+    elif mutation == "nullable_cost_basis_flag":
+        contradictory_transition["cost_basis_conserved"] = None
+    else:
+        contradictory_transition["entry_fees_incurred_usd"] = 1.01
+        contradictory_transition["entry_fees_remaining_usd"] = 1.0
+    contradictory_transition = _reseal_transition(contradictory_transition)
+
+    validated, reasons = paper_loop._paper_valid_position_close_transition(  # noqa: SLF001
+        {
+            "paper_position_close_receipts": receipts,
+            "paper_position_close_transition_proofs": [
+                contradictory_transition
+            ],
+        },
+        remaining,
+        proof,
+    )
+
+    assert validated is None
+    assert expected_reason in reasons
 
 
 def test_partial_close_transition_rejects_unsafe_resealed_prior_chain_node() -> None:
@@ -1214,6 +1273,8 @@ def test_partial_close_transition_rejects_unsafe_resealed_prior_chain_node() -> 
     (
         ("close_position", True),
         ("close_id", ""),
+        ("source_fill_ids", []),
+        ("source_fill_ids", ["fill-attacker"]),
         ("close_side", "short"),
         ("source_close_event_sha256", "not-a-sha256"),
         ("position_to_flat", None),
