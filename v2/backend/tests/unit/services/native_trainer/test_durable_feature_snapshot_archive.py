@@ -16,6 +16,7 @@ from v2.backend.app.services.native_trainer.durable_feature_snapshot_archive imp
     iter_index_records,
     load_snapshot,
     rollover_archive,
+    verify_record,
 )
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.data_loader import (
     V2HybridTrainerDataLoader,
@@ -171,6 +172,138 @@ def test_prediction_payload_archive_record_accepts_flattened_replay_snapshot() -
     assert record["available_at"] == AVAILABLE_AT
     assert record["candle_closed_confirmed"] is True
     assert content_sha256(record) == record["content_sha256"]
+
+
+def test_immutable_v1_record_preserves_distinct_source_and_producer_clocks(
+    tmp_path: Path,
+) -> None:
+    """Legacy v1 blobs use available_at for source availability and
+    created_at for producer/archive generation; they must not be rewritten or
+    rejected merely because production happened after source availability.
+    """
+
+    record = _record("legacy-v1-distinct-clocks")
+    record["created_at"] = "2026-06-22T00:00:45Z"
+    record["content_sha256"] = content_sha256(record)
+
+    assert record["schema_version"] == "durable_feature_snapshot_archive_record_v1"
+    assert record["available_at"] == AVAILABLE_AT
+    assert record["created_at"] == "2026-06-22T00:00:45Z"
+    assert record["available_at"] < record["created_at"] < record["decision_time"]
+    assert verify_record(record) == []
+
+    written = append_snapshot(record, root=tmp_path)
+    loaded = load_snapshot(record["snapshot_id"], root=tmp_path)
+
+    assert loaded == record
+    assert written.content_sha256 == record["content_sha256"]
+
+
+def test_prediction_payload_archive_record_does_not_collapse_source_availability(
+) -> None:
+    payload = {
+        "feature_snapshot_id": "snapshot-distinct-clocks",
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
+        "feature_cutoff": FEATURE_CUTOFF,
+        "available_at": AVAILABLE_AT,
+        "generated_utc": "2026-06-22T00:00:45Z",
+        "decision_time": DECISION_TIME,
+        "mtf_snapshot_id": "mtf-distinct-clocks",
+        "replay_snapshot": {
+            "feature_snapshot": {
+                "features": {"close": 101.0},
+                "available_at": AVAILABLE_AT,
+            },
+        },
+    }
+
+    record = build_archive_record_from_prediction_payload(payload)
+
+    assert record is not None
+    assert record["available_at"] == AVAILABLE_AT
+    assert record["created_at"] == "2026-06-22T00:00:45Z"
+    assert record["decision_time"] == DECISION_TIME
+    assert record["available_at"] < record["created_at"] < record["decision_time"]
+    assert verify_record(record) == []
+
+
+def test_prediction_payload_archive_record_publishes_explicit_clock_contract() -> None:
+    payload = {
+        "feature_snapshot_id": "snapshot-explicit-clock-contract",
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
+        "feature_cutoff": FEATURE_CUTOFF,
+        "available_at": AVAILABLE_AT,
+        "generated_utc": "2026-06-22T00:00:45Z",
+        "decision_time": DECISION_TIME,
+        "mtf_snapshot_id": "mtf-explicit-clocks",
+        "replay_snapshot": {
+            "feature_snapshot": {
+                "features": {"close": 101.0},
+                "generated_at": "2026-06-22T00:00:20Z",
+                "available_at": AVAILABLE_AT,
+            },
+        },
+    }
+
+    record = build_archive_record_from_prediction_payload(payload)
+
+    assert record is not None
+    assert record["clock_contract_version"] == (
+        "durable_feature_snapshot_clock_contract_v2"
+    )
+    assert record["source_generated_at"] == "2026-06-22T00:00:20Z"
+    assert record["source_available_at"] == AVAILABLE_AT
+    assert record["producer_generated_at"] == "2026-06-22T00:00:45Z"
+    assert record["record_available_at"] == "2026-06-22T00:00:45Z"
+    assert record["available_at"] == record["source_available_at"]
+    assert record["created_at"] == record["producer_generated_at"]
+    assert verify_record(record) == []
+
+
+def test_explicit_clock_enrichment_does_not_rewrite_immutable_v1_blob(
+    tmp_path: Path,
+) -> None:
+    legacy = _record("immutable-v1-enrichment")
+    legacy["created_at"] = "2026-06-22T00:00:45Z"
+    legacy["content_sha256"] = content_sha256(legacy)
+    first = append_snapshot(legacy, root=tmp_path)
+
+    enriched = dict(legacy)
+    enriched.update(
+        {
+            "clock_contract_version": "durable_feature_snapshot_clock_contract_v2",
+            "source_generated_at": "2026-06-22T00:00:20Z",
+            "source_available_at": AVAILABLE_AT,
+            "producer_generated_at": "2026-06-22T00:00:45Z",
+            "record_available_at": "2026-06-22T00:00:45Z",
+        }
+    )
+    enriched["content_sha256"] = content_sha256(enriched)
+
+    second = append_snapshot(enriched, root=tmp_path)
+    loaded = load_snapshot(legacy["snapshot_id"], root=tmp_path)
+
+    assert second.already_present is True
+    assert second.content_sha256 == legacy["content_sha256"]
+    assert second.blob_path == first.blob_path
+    assert loaded == legacy
+    assert "clock_contract_version" not in loaded
+
+    conflicting = dict(enriched)
+    conflicting["features"] = {**conflicting["features"], "close": 999.0}
+    conflicting["content_sha256"] = content_sha256(conflicting)
+    with pytest.raises(SnapshotArchiveError, match="SNAPSHOT_ID_CONTENT_HASH_CHANGED"):
+        append_snapshot(conflicting, root=tmp_path)
+
+
+def test_clock_contract_version_without_explicit_clocks_fails_closed() -> None:
+    record = _record("clock-version-only")
+    record["clock_contract_version"] = "durable_feature_snapshot_clock_contract_v2"
+    record["content_sha256"] = content_sha256(record)
+
+    assert "CLOCK_CONTRACT_FIELDS_INCOMPLETE" in verify_record(record)
 
 
 def test_prediction_payload_archive_record_never_derives_producer_admission() -> None:

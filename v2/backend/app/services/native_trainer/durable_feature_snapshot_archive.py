@@ -18,6 +18,7 @@ from typing import Any, Iterable, Iterator, Mapping
 
 SCHEMA_VERSION = "durable_feature_snapshot_archive_record_v1"
 STATUS_SCHEMA_VERSION = "durable_feature_snapshot_archive_status_v1"
+CLOCK_CONTRACT_VERSION = "durable_feature_snapshot_clock_contract_v2"
 DEFAULT_ARCHIVE_REL = Path(".local_data/v2_native_trainer/durable_feature_snapshot_archive")
 DEFAULT_ROLLOVER_LIMIT_BYTES = 300 * 1024 * 1024 * 1024
 
@@ -92,6 +93,80 @@ def _parse_utc(value: Any) -> datetime | None:
     if parsed.tzinfo is None or parsed.utcoffset() is None:
         return None
     return parsed.astimezone(timezone.utc)
+
+
+def _later_clock_value(left: Any, right: Any) -> Any | None:
+    """Return the exact later clock value without changing its precision."""
+
+    left_time = _parse_utc(left)
+    right_time = _parse_utc(right)
+    if left_time is None or right_time is None:
+        return None
+    return left if left_time >= right_time else right
+
+
+def resolve_snapshot_clock_contract(
+    record: Mapping[str, Any],
+    *,
+    legacy_source_generated_at: Any | None = None,
+) -> dict[str, Any]:
+    """Resolve explicit durable clocks without rewriting immutable v1 rows.
+
+    Historical archive-v1 rows used ``available_at`` for the upstream feature
+    record's availability and ``created_at`` for the prediction/archive
+    producer clock.  Those are two different timelines.  New rows publish the
+    names explicitly; old rows are interpreted in place and retain their
+    original content hash.
+    """
+
+    source_generated_at = (
+        record.get("source_generated_at")
+        or record.get("generated_at")
+        or legacy_source_generated_at
+    )
+    source_available_at = record.get("source_available_at") or record.get(
+        "available_at"
+    )
+    producer_generated_at = record.get("producer_generated_at") or record.get(
+        "created_at"
+    )
+    if producer_generated_at in (None, ""):
+        producer_generated_at = source_generated_at
+    record_available_at = record.get("record_available_at")
+    if record_available_at in (None, ""):
+        record_available_at = _later_clock_value(
+            source_available_at,
+            producer_generated_at,
+        )
+    explicit_fields = (
+        "source_generated_at",
+        "source_available_at",
+        "producer_generated_at",
+        "record_available_at",
+    )
+    explicit_field_count = sum(
+        record.get(field) not in (None, "") for field in explicit_fields
+    )
+    clock_contract_version_present = record.get("clock_contract_version") not in (
+        None,
+        "",
+    )
+    explicit = explicit_field_count == len(explicit_fields)
+    return {
+        "clock_contract_version": (
+            record.get("clock_contract_version")
+            if explicit
+            else "durable_feature_snapshot_clock_contract_v1_compat"
+        ),
+        "source_generated_at": source_generated_at,
+        "source_available_at": source_available_at,
+        "producer_generated_at": producer_generated_at,
+        "record_available_at": record_available_at,
+        "explicit_clock_field_count": explicit_field_count,
+        "explicit_clock_fields_complete": explicit,
+        "clock_contract_version_present": clock_contract_version_present,
+        "compatibility_interpretation_used": not explicit,
+    }
 
 
 def _safe_index_name(snapshot_id: str) -> str:
@@ -249,20 +324,70 @@ def build_archive_record_from_prediction_payload(payload: Mapping[str, Any]) -> 
     }
     if type(upstream_trainer_consumable) is bool:
         archive_extra["trainer_consumable"] = upstream_trainer_consumable
+    # The replay snapshot's ``generated_at`` is the replay/prediction producer
+    # clock, not necessarily the upstream feature producer clock.  Canonical
+    # serving carries the exact feature clock on ``entry_feature_snapshot``;
+    # prefer that identity-matched record and keep the replay snapshot only as
+    # a legacy fallback.
+    entry_feature_snapshot = (
+        payload.get("entry_feature_snapshot")
+        if isinstance(payload.get("entry_feature_snapshot"), Mapping)
+        else {}
+    )
+    if entry_feature_snapshot and str(
+        entry_feature_snapshot.get("feature_snapshot_id") or snapshot_id
+    ) != str(snapshot_id):
+        entry_feature_snapshot = {}
+    source_clock_snapshot = entry_feature_snapshot or feature_snapshot
+    source_generated_at = (
+        source_clock_snapshot.get("generated_at")
+        or source_clock_snapshot.get("generated_utc")
+        or payload.get("entry_feature_generated_at")
+        or payload.get("feature_generated_at")
+    )
+    source_available_at = source_clock_snapshot.get("available_at") or payload.get("available_at")
+    producer_generated_at = (
+        payload.get("generated_utc") or payload.get("generated_at") or utc_now()
+    )
+    record_available_at = _later_clock_value(
+        source_available_at,
+        producer_generated_at,
+    )
+    if all(
+        value not in (None, "")
+        for value in (
+            source_generated_at,
+            source_available_at,
+            producer_generated_at,
+            record_available_at,
+        )
+    ):
+        archive_extra.update(
+            {
+                "clock_contract_version": CLOCK_CONTRACT_VERSION,
+                "source_generated_at": source_generated_at,
+                "source_available_at": source_available_at,
+                "producer_generated_at": producer_generated_at,
+                "record_available_at": record_available_at,
+            }
+        )
     return build_archive_record(
         snapshot_id=snapshot_id,
         symbol=payload.get("symbol"),
         timeframe=payload.get("timeframe"),
         feature_cutoff=payload.get("feature_cutoff") or feature_snapshot.get("feature_cutoff"),
         decision_time=payload.get("decision_time"),
-        available_at=payload.get("available_at") or feature_snapshot.get("available_at"),
+        # Archive-v1's legacy field remains the upstream feature record's
+        # availability.  Explicit v2 clock fields above remove the ambiguity
+        # for new consumers without changing the legacy dataset ABI.
+        available_at=source_available_at,
         mtf_snapshot_id=payload.get("mtf_snapshot_id") or feature_snapshot.get("mtf_snapshot_id"),
         features=features,
         missing_mask=missing_mask,
         stale_mask=stale_mask,
         source_availability=payload.get("source_availability_vector") or {},
         source_hashes=payload.get("source_hashes") or feature_snapshot.get("source_hashes") or {},
-        created_at=payload.get("generated_utc") or payload.get("generated_at") or utc_now(),
+        created_at=producer_generated_at,
         extra=archive_extra,
     )
 
@@ -293,6 +418,51 @@ def verify_record(record: Mapping[str, Any]) -> list[str]:
         reasons.append("FEATURE_CUTOFF_AFTER_DECISION_TIME")
     if available_at is not None and decision_time is not None and available_at > decision_time:
         reasons.append("AVAILABLE_AT_AFTER_DECISION_TIME")
+    explicit_clock_fields = (
+        "source_generated_at",
+        "source_available_at",
+        "producer_generated_at",
+        "record_available_at",
+    )
+    explicit_clock_values = [record.get(field) for field in explicit_clock_fields]
+    if record.get("clock_contract_version") not in (None, "") or any(
+        value not in (None, "") for value in explicit_clock_values
+    ):
+        if not all(value not in (None, "") for value in explicit_clock_values):
+            reasons.append("CLOCK_CONTRACT_FIELDS_INCOMPLETE")
+        if record.get("clock_contract_version") != CLOCK_CONTRACT_VERSION:
+            reasons.append("CLOCK_CONTRACT_VERSION_INVALID")
+        clocks = {
+            field: _parse_utc(record.get(field)) for field in explicit_clock_fields
+        }
+        for field, parsed in clocks.items():
+            if parsed is None:
+                reasons.append(f"{field.upper()}_UNPARSEABLE")
+        if all(parsed is not None for parsed in clocks.values()):
+            source_generated = clocks["source_generated_at"]
+            source_available = clocks["source_available_at"]
+            producer_generated = clocks["producer_generated_at"]
+            record_available = clocks["record_available_at"]
+            assert source_generated is not None
+            assert source_available is not None
+            assert producer_generated is not None
+            assert record_available is not None
+            if feature_cutoff is not None and feature_cutoff > source_generated:
+                reasons.append("FEATURE_CUTOFF_AFTER_SOURCE_GENERATED_AT")
+            if source_generated > source_available:
+                reasons.append("SOURCE_GENERATED_AFTER_SOURCE_AVAILABLE_AT")
+            if source_available > producer_generated:
+                reasons.append("SOURCE_AVAILABLE_AFTER_PRODUCER_GENERATED_AT")
+            if record_available != max(source_available, producer_generated):
+                reasons.append("RECORD_AVAILABLE_AT_NOT_EFFECTIVE_MAX")
+            # ``decision_time`` belongs to the originating prediction.  The
+            # durable copy can legitimately be produced afterward; a later
+            # consumer must separately prove record availability before its
+            # own decision.
+        if record.get("source_available_at") != record.get("available_at"):
+            reasons.append("SOURCE_AVAILABLE_AT_LEGACY_ALIAS_MISMATCH")
+        if record.get("producer_generated_at") != record.get("created_at"):
+            reasons.append("PRODUCER_GENERATED_AT_CREATED_AT_MISMATCH")
     return sorted(set(reasons))
 
 
@@ -318,6 +488,58 @@ def append_snapshot(
     if index_path.exists():
         existing = json.loads(index_path.read_text(encoding="utf-8"))
         if existing.get("content_sha256") != digest:
+            # A snapshot archived before the explicit clock contract must not
+            # be rewritten merely because a newer publisher can now name the
+            # clocks.  Accept only a one-way v1 compatibility match whose
+            # entire legacy material is byte-for-byte equivalent; every other
+            # hash change remains a hard identity conflict.
+            existing_blob_path = archive_root / str(existing.get("blob_path") or "")
+            existing_record: dict[str, Any] | None = None
+            if existing_blob_path.exists():
+                try:
+                    loaded = json.loads(existing_blob_path.read_text(encoding="utf-8"))
+                    if isinstance(loaded, dict) and not verify_record(loaded):
+                        existing_record = loaded
+                except (OSError, TypeError, ValueError):
+                    existing_record = None
+            enrichment_fields = {
+                "clock_contract_version",
+                "source_generated_at",
+                "source_available_at",
+                "producer_generated_at",
+                "record_available_at",
+            }
+            existing_has_explicit_clocks = bool(
+                existing_record
+                and any(existing_record.get(field) not in (None, "") for field in enrichment_fields)
+            )
+            candidate_has_explicit_clocks = all(
+                item.get(field) not in (None, "")
+                for field in enrichment_fields
+            )
+            if (
+                existing_record is not None
+                and not existing_has_explicit_clocks
+                and candidate_has_explicit_clocks
+            ):
+                existing_legacy = {
+                    key: value
+                    for key, value in existing_record.items()
+                    if key not in enrichment_fields and key != "content_sha256"
+                }
+                candidate_legacy = {
+                    key: value
+                    for key, value in item.items()
+                    if key not in enrichment_fields and key != "content_sha256"
+                }
+                if existing_legacy == candidate_legacy:
+                    return ArchiveWriteResult(
+                        snapshot_id,
+                        str(existing["content_sha256"]),
+                        existing_blob_path,
+                        index_path,
+                        True,
+                    )
             raise SnapshotArchiveError("SNAPSHOT_ID_CONTENT_HASH_CHANGED")
         return ArchiveWriteResult(snapshot_id, digest, blob_path, index_path, True)
 

@@ -1052,9 +1052,16 @@ def golden_a_grade_final_admission(
         "feature_snapshot_id": feature_snapshot_id,
         "symbol": symbol,
         "timeframe": timeframe,
-        "available_at": "2026-07-17T11:59:31Z",
-        "generated_at": "2026-07-17T11:59:30Z",
+        "schema_version": "durable_feature_snapshot_archive_record_v1",
         "feature_cutoff": "2026-07-17T11:59:00Z",
+        "available_at": "2026-07-17T11:59:31Z",
+        "created_at": "2026-07-17T11:59:32Z",
+        "source_generated_at": "2026-07-17T11:59:30Z",
+        "source_available_at": "2026-07-17T11:59:31Z",
+        "producer_generated_at": "2026-07-17T11:59:32Z",
+        "record_available_at": "2026-07-17T11:59:32Z",
+        "clock_contract_version": "durable_feature_snapshot_clock_contract_v2",
+        "decision_time": "2026-07-17T12:00:00Z",
         "trainer_consumable": True,
         "candle_closed_confirmed": True,
         "latest_unclosed_kline_excluded": True,
@@ -10048,9 +10055,16 @@ def test_durable_feature_binding_is_replayed_and_hash_bound_for_admission() -> N
         "feature_snapshot_id": "feature-p3-binding",
         "symbol": "BTCUSDT",
         "timeframe": "5m",
+        "schema_version": "durable_feature_snapshot_archive_record_v1",
         "feature_cutoff": "2026-07-17T11:55:00Z",
-        "generated_at": "2026-07-17T11:55:01Z",
+        "source_generated_at": "2026-07-17T11:55:01Z",
         "available_at": "2026-07-17T11:55:02Z",
+        "source_available_at": "2026-07-17T11:55:02Z",
+        "created_at": "2026-07-17T11:55:03Z",
+        "producer_generated_at": "2026-07-17T11:55:03Z",
+        "record_available_at": "2026-07-17T11:55:03Z",
+        "clock_contract_version": "durable_feature_snapshot_clock_contract_v2",
+        "decision_time": "2026-07-17T11:55:04Z",
         "trainer_consumable": True,
         "candle_closed_confirmed": True,
         "latest_unclosed_kline_excluded": True,
@@ -10094,20 +10108,25 @@ def test_durable_feature_binding_is_replayed_and_hash_bound_for_admission() -> N
     )
 
 
-def test_durable_feature_binding_rejects_generated_after_available_at() -> None:
+def test_durable_feature_binding_accepts_immutable_v1_source_before_generation() -> None:
     intent = {
         "symbol": "ETHUSDT",
         "timeframe": "15m",
         "feature_snapshot_id": "feature-p3-clock-order",
         "decision_time": "2026-07-17T12:00:00Z",
+        "entry_feature_generated_at": "2026-07-17T11:44:30Z",
+        "entry_feature_available_at": "2026-07-17T11:45:00Z",
+        "entry_feature_cutoff": "2026-07-17T11:44:00Z",
     }
     snapshot = {
         "feature_snapshot_id": "feature-p3-clock-order",
         "symbol": "ETHUSDT",
         "timeframe": "15m",
+        "schema_version": "durable_feature_snapshot_archive_record_v1",
         "feature_cutoff": "2026-07-17T11:44:00Z",
-        "generated_at": "2026-07-17T11:46:00Z",
         "available_at": "2026-07-17T11:45:00Z",
+        "created_at": "2026-07-17T11:46:00Z",
+        "decision_time": "2026-07-17T11:45:30Z",
         "trainer_consumable": True,
         "candle_closed_confirmed": True,
         "latest_unclosed_kline_excluded": True,
@@ -10129,7 +10148,161 @@ def test_durable_feature_binding_rejects_generated_after_available_at() -> None:
         snapshot=snapshot,
     )
 
-    assert "DURABLE_FEATURE_SNAPSHOT_GENERATED_AFTER_AVAILABLE_AT" in reasons
+    assert reasons == []
+    assert intent["entry_feature_available_at"] == "2026-07-17T11:45:00Z"
+    assert intent["entry_feature_generated_at"] == "2026-07-17T11:44:30Z"
+    assert intent["entry_feature_archive_producer_generated_at"] == (
+        "2026-07-17T11:46:00Z"
+    )
+    assert intent["entry_feature_record_available_at"] == "2026-07-17T11:46:00Z"
+    assert intent["entry_feature_clock_compatibility_interpretation_used"] is True
+    assert intent["entry_feature_snapshot_archive_verified"] is True
+
+
+def _explicit_durable_feature_clock_snapshot() -> dict[str, object]:
+    return {
+        "feature_snapshot_id": "feature-explicit-clock-contract",
+        "symbol": "ETHUSDT",
+        "timeframe": "15m",
+        "schema_version": "durable_feature_snapshot_archive_record_v1",
+        "feature_cutoff": "2026-07-17T11:44:00Z",
+        "available_at": "2026-07-17T11:45:00Z",
+        "created_at": "2026-07-17T11:46:00Z",
+        "source_generated_at": "2026-07-17T11:44:30Z",
+        "source_available_at": "2026-07-17T11:45:00Z",
+        "producer_generated_at": "2026-07-17T11:46:00Z",
+        "record_available_at": "2026-07-17T11:46:00Z",
+        "clock_contract_version": "durable_feature_snapshot_clock_contract_v2",
+        "decision_time": "2026-07-17T11:45:30Z",
+        "trainer_consumable": True,
+        "candle_closed_confirmed": True,
+        "latest_unclosed_kline_excluded": True,
+        "latest_unclosed_exclusion_method": "DROP_CLOSE_TIME_AFTER_DECISION",
+        "latest_unclosed_exclusion_decision_time_ms": int(
+            datetime(2026, 7, 17, 11, 45, 20, tzinfo=timezone.utc).timestamp()
+            * 1_000
+        ),
+        "latest_closed_kline_close_time_ms": int(
+            datetime(2026, 7, 17, 11, 44, 0, tzinfo=timezone.utc).timestamp()
+            * 1_000
+        ),
+        "content_sha256": "e" * 64,
+        "features": {"atr_bps": 33.0},
+    }
+
+
+def test_durable_feature_binding_accepts_explicit_four_clock_contract() -> None:
+    intent = {
+        "symbol": "ETHUSDT",
+        "timeframe": "15m",
+        "feature_snapshot_id": "feature-explicit-clock-contract",
+        "decision_time": "2026-07-17T12:00:00Z",
+    }
+
+    reasons = paper_loop._paper_bind_verified_durable_feature_snapshot(  # noqa: SLF001
+        intent=intent,
+        snapshot=_explicit_durable_feature_clock_snapshot(),
+    )
+
+    assert reasons == []
+    assert intent["entry_feature_source_generated_at"] == "2026-07-17T11:44:30Z"
+    assert intent["entry_feature_source_available_at"] == "2026-07-17T11:45:00Z"
+    assert intent["entry_feature_archive_producer_generated_at"] == (
+        "2026-07-17T11:46:00Z"
+    )
+    assert intent["entry_feature_record_available_at"] == "2026-07-17T11:46:00Z"
+    assert paper_loop._paper_durable_feature_admission_rejection_reasons(  # noqa: SLF001
+        intent
+    ) == []
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "expected_reason_fragment"),
+    [
+        (
+            "source_available_at",
+            "2026-07-17T11:46:01Z",
+            "AVAILABLE_AFTER_PRODUCER_GENERATED_AT",
+        ),
+        (
+            "producer_generated_at",
+            "2026-07-17T11:47:01Z",
+            "RECORD_AVAILABLE_AT_NOT_EFFECTIVE_MAX",
+        ),
+        (
+            "record_available_at",
+            "2026-07-17T12:00:01Z",
+            "RECORD_AVAILABLE_AFTER_PAPER_DECISION",
+        ),
+    ],
+)
+def test_durable_feature_binding_rejects_explicit_clock_reversal(
+    field: str,
+    value: str,
+    expected_reason_fragment: str,
+) -> None:
+    intent = {
+        "symbol": "ETHUSDT",
+        "timeframe": "15m",
+        "feature_snapshot_id": "feature-explicit-clock-contract",
+        "decision_time": "2026-07-17T12:00:00Z",
+    }
+    snapshot = _explicit_durable_feature_clock_snapshot()
+    snapshot[field] = value
+
+    reasons = paper_loop._paper_bind_verified_durable_feature_snapshot(  # noqa: SLF001
+        intent=intent,
+        snapshot=snapshot,
+    )
+
+    assert any(expected_reason_fragment in reason for reason in reasons)
+    assert "entry_feature_snapshot_archive_verified" not in intent
+
+
+def test_durable_feature_binding_rejects_partial_explicit_clock_contract() -> None:
+    intent = {
+        "symbol": "ETHUSDT",
+        "timeframe": "15m",
+        "feature_snapshot_id": "feature-explicit-clock-contract",
+        "decision_time": "2026-07-17T12:00:00Z",
+    }
+    snapshot = _explicit_durable_feature_clock_snapshot()
+    snapshot.pop("record_available_at")
+
+    reasons = paper_loop._paper_bind_verified_durable_feature_snapshot(  # noqa: SLF001
+        intent=intent,
+        snapshot=snapshot,
+    )
+
+    assert any("CLOCK_CONTRACT_PARTIAL" in reason for reason in reasons)
+    assert "entry_feature_snapshot_archive_verified" not in intent
+
+
+def test_durable_feature_binding_rejects_clock_version_without_explicit_clocks() -> None:
+    intent = {
+        "symbol": "ETHUSDT",
+        "timeframe": "15m",
+        "feature_snapshot_id": "feature-explicit-clock-contract",
+        "decision_time": "2026-07-17T12:00:00Z",
+        "entry_feature_generated_at": "2026-07-17T11:44:30Z",
+        "entry_feature_available_at": "2026-07-17T11:45:00Z",
+        "entry_feature_cutoff": "2026-07-17T11:44:00Z",
+    }
+    snapshot = _explicit_durable_feature_clock_snapshot()
+    for field in (
+        "source_generated_at",
+        "source_available_at",
+        "producer_generated_at",
+        "record_available_at",
+    ):
+        snapshot.pop(field)
+
+    reasons = paper_loop._paper_bind_verified_durable_feature_snapshot(  # noqa: SLF001
+        intent=intent,
+        snapshot=snapshot,
+    )
+
+    assert any("CLOCK_CONTRACT_PARTIAL" in reason for reason in reasons)
     assert "entry_feature_snapshot_archive_verified" not in intent
 
 
@@ -10231,9 +10404,16 @@ def test_paper_allocation_point_in_time_contract_is_per_candidate_and_fail_close
             "feature_snapshot_id": "feature-1",
             "symbol": "BTCUSDT",
             "timeframe": "5m",
+            "schema_version": "durable_feature_snapshot_archive_record_v1",
             "feature_cutoff": "2026-07-17T12:00:00Z",
-            "generated_at": "2026-07-17T12:00:09Z",
             "available_at": "2026-07-17T12:00:10Z",
+            "created_at": "2026-07-17T12:00:11Z",
+            "source_generated_at": "2026-07-17T12:00:09Z",
+            "source_available_at": "2026-07-17T12:00:10Z",
+            "producer_generated_at": "2026-07-17T12:00:11Z",
+            "record_available_at": "2026-07-17T12:00:11Z",
+            "clock_contract_version": "durable_feature_snapshot_clock_contract_v2",
+            "decision_time": "2026-07-17T12:00:20Z",
             "trainer_consumable": True,
             "candle_closed_confirmed": True,
             "latest_unclosed_kline_excluded": True,

@@ -58,6 +58,7 @@ from v2.backend.app.services.native_trainer.durable_behavior_receipt_archive imp
 from v2.backend.app.services.native_trainer.durable_feature_snapshot_archive import (
     SnapshotArchiveError,
     load_snapshot as load_durable_feature_snapshot,
+    resolve_snapshot_clock_contract,
 )
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.on_policy_behavior import (
     BEHAVIOR_POLICY_LINEAGE_FIELDS,
@@ -6742,6 +6743,13 @@ _PAPER_EXPLORATION_RUNTIME_FEEDBACK_CONTEXT_FIELDS = (
     "entry_feature_snapshot_resolution_status",
     "entry_feature_available_at",
     "entry_feature_generated_at",
+    "entry_feature_source_generated_at",
+    "entry_feature_source_available_at",
+    "entry_feature_archive_producer_generated_at",
+    "entry_feature_record_available_at",
+    "entry_feature_archive_consumer_decision_time",
+    "entry_feature_clock_contract_version",
+    "entry_feature_clock_compatibility_interpretation_used",
     "entry_feature_cutoff",
     "entry_feature_decision_time",
     "entry_feature_source",
@@ -9718,6 +9726,17 @@ def _entry_feature_snapshot_evidence(snapshot: dict[str, Any]) -> dict[str, Any]
         "timeframe": snapshot.get("timeframe"),
         "available_at": snapshot.get("available_at"),
         "generated_at": snapshot.get("generated_at"),
+        "source_generated_at": snapshot.get("source_generated_at"),
+        "source_available_at": snapshot.get("source_available_at"),
+        "producer_generated_at": snapshot.get("producer_generated_at"),
+        "record_available_at": snapshot.get("record_available_at"),
+        "clock_contract_version": snapshot.get("clock_contract_version"),
+        "clock_compatibility_interpretation_used": snapshot.get(
+            "clock_compatibility_interpretation_used"
+        ),
+        "archive_consumer_decision_time": snapshot.get(
+            "archive_consumer_decision_time"
+        ),
         "feature_cutoff": snapshot.get("feature_cutoff"),
         "source_available_time": snapshot.get("source_available_time"),
         "candle_close_time": snapshot.get("candle_close_time"),
@@ -11569,6 +11588,7 @@ def _paper_bind_verified_durable_feature_snapshot(
     *,
     intent: dict[str, Any],
     snapshot: Mapping[str, Any],
+    paper_decision_time: Any | None = None,
 ) -> list[str]:
     """Bind one verify=true durable snapshot to the paper evidence contract."""
 
@@ -11599,33 +11619,147 @@ def _paper_bind_verified_durable_feature_snapshot(
     if not isinstance(features, Mapping) or not features:
         reasons.append("DURABLE_FEATURE_SNAPSHOT_FEATURES_MISSING")
 
-    available_at = _parse_strategy_time(snapshot.get("available_at"))
-    generated_at_value = _first_present(snapshot.get("generated_at"), snapshot.get("created_at"))
-    generated_at = _parse_strategy_time(generated_at_value)
-    feature_cutoff = _parse_strategy_time(snapshot.get("feature_cutoff"))
-    decision_time_value = _first_present(
-        intent.get("decision_time"),
-        intent.get("generated_utc"),
+    prebound_snapshot = (
+        intent.get("entry_feature_snapshot")
+        if isinstance(intent.get("entry_feature_snapshot"), Mapping)
+        else {}
     )
-    decision_time = _parse_strategy_time(decision_time_value)
+    prebound_generated_at = _first_present(
+        intent.get("entry_feature_generated_at"),
+        prebound_snapshot.get("generated_at"),
+    )
+    prebound_available_at = _first_present(
+        intent.get("entry_feature_available_at"),
+        prebound_snapshot.get("available_at"),
+    )
+    prebound_feature_cutoff = _first_present(
+        intent.get("entry_feature_cutoff"),
+        prebound_snapshot.get("feature_cutoff"),
+    )
+    clock_contract = resolve_snapshot_clock_contract(
+        snapshot,
+        legacy_source_generated_at=prebound_generated_at,
+    )
+    explicit_clock_field_count = int(
+        clock_contract.get("explicit_clock_field_count") or 0
+    )
+    clock_contract_version_present = bool(
+        clock_contract.get("clock_contract_version_present")
+    )
+    if explicit_clock_field_count not in {0, 4} or (
+        clock_contract_version_present and explicit_clock_field_count != 4
+    ):
+        reasons.append("DURABLE_FEATURE_SNAPSHOT_CLOCK_CONTRACT_PARTIAL")
+    if (
+        explicit_clock_field_count == 4
+        and clock_contract.get("clock_contract_version")
+        != "durable_feature_snapshot_clock_contract_v2"
+    ):
+        reasons.append("DURABLE_FEATURE_SNAPSHOT_CLOCK_CONTRACT_VERSION_INVALID")
+    if (
+        explicit_clock_field_count == 0
+        and snapshot.get("schema_version")
+        != "durable_feature_snapshot_archive_record_v1"
+    ):
+        reasons.append("DURABLE_FEATURE_SNAPSHOT_CLOCK_COMPATIBILITY_NOT_ALLOWED")
+
+    generated_at_value = clock_contract.get("source_generated_at")
+    available_at_value = clock_contract.get("source_available_at")
+    producer_generated_at_value = clock_contract.get("producer_generated_at")
+    record_available_at_value = clock_contract.get("record_available_at")
+    generated_at = _parse_strategy_time(generated_at_value)
+    available_at = _parse_strategy_time(available_at_value)
+    producer_generated_at = _parse_strategy_time(producer_generated_at_value)
+    record_available_at = _parse_strategy_time(record_available_at_value)
+    feature_cutoff = _parse_strategy_time(snapshot.get("feature_cutoff"))
+    source_decision_time_value = _first_present(
+        snapshot.get("decision_time"),
+        intent.get("entry_feature_decision_time"),
+        intent.get("decision_time"),
+    )
+    source_decision_time = _parse_strategy_time(source_decision_time_value)
+    consumer_decision_time_value = _first_present(
+        paper_decision_time,
+        intent.get("paper_admission_decision_time"),
+        intent.get("generated_utc"),
+        intent.get("decision_time"),
+    )
+    consumer_decision_time = _parse_strategy_time(consumer_decision_time_value)
     for parsed, reason in (
         (available_at, "DURABLE_FEATURE_SNAPSHOT_AVAILABLE_AT_INVALID"),
         (generated_at, "DURABLE_FEATURE_SNAPSHOT_GENERATED_AT_INVALID"),
+        (
+            producer_generated_at,
+            "DURABLE_FEATURE_SNAPSHOT_PRODUCER_GENERATED_AT_INVALID",
+        ),
+        (
+            record_available_at,
+            "DURABLE_FEATURE_SNAPSHOT_RECORD_AVAILABLE_AT_INVALID",
+        ),
         (feature_cutoff, "DURABLE_FEATURE_SNAPSHOT_FEATURE_CUTOFF_INVALID"),
-        (decision_time, "PAPER_ADAPTIVE_DECISION_TIME_INVALID"),
+        (source_decision_time, "DURABLE_FEATURE_SNAPSHOT_SOURCE_DECISION_TIME_INVALID"),
+        (consumer_decision_time, "PAPER_ADAPTIVE_DECISION_TIME_INVALID"),
     ):
         if parsed is None:
             reasons.append(reason)
-    if available_at is not None and generated_at is not None and feature_cutoff is not None:
-        if feature_cutoff > available_at:
-            reasons.append("DURABLE_FEATURE_SNAPSHOT_CUTOFF_AFTER_AVAILABLE_AT")
+    if (
+        available_at is not None
+        and generated_at is not None
+        and producer_generated_at is not None
+        and record_available_at is not None
+        and feature_cutoff is not None
+    ):
+        if feature_cutoff > generated_at:
+            reasons.append("DURABLE_FEATURE_SNAPSHOT_CUTOFF_AFTER_GENERATED_AT")
         if generated_at > available_at:
             reasons.append("DURABLE_FEATURE_SNAPSHOT_GENERATED_AFTER_AVAILABLE_AT")
-    if decision_time is not None:
-        if available_at is not None and available_at > decision_time:
-            reasons.append("DURABLE_FEATURE_SNAPSHOT_AVAILABLE_AFTER_DECISION")
-        if generated_at is not None and generated_at > decision_time:
-            reasons.append("DURABLE_FEATURE_SNAPSHOT_GENERATED_AFTER_DECISION")
+        if available_at > producer_generated_at:
+            reasons.append(
+                "DURABLE_FEATURE_SNAPSHOT_AVAILABLE_AFTER_PRODUCER_GENERATED_AT"
+            )
+        if record_available_at != max(available_at, producer_generated_at):
+            reasons.append(
+                "DURABLE_FEATURE_SNAPSHOT_RECORD_AVAILABLE_AT_NOT_EFFECTIVE_MAX"
+            )
+    if source_decision_time is not None:
+        if available_at is not None and available_at > source_decision_time:
+            reasons.append("DURABLE_FEATURE_SNAPSHOT_AVAILABLE_AFTER_SOURCE_DECISION")
+        if generated_at is not None and generated_at > source_decision_time:
+            reasons.append("DURABLE_FEATURE_SNAPSHOT_GENERATED_AFTER_SOURCE_DECISION")
+    if consumer_decision_time is not None:
+        if record_available_at is not None and record_available_at > consumer_decision_time:
+            reasons.append("DURABLE_FEATURE_SNAPSHOT_RECORD_AVAILABLE_AFTER_PAPER_DECISION")
+
+    for expected, actual, reason in (
+        (
+            prebound_feature_cutoff,
+            snapshot.get("feature_cutoff"),
+            "DURABLE_FEATURE_SNAPSHOT_PREBOUND_CUTOFF_MISMATCH",
+        ),
+        (
+            prebound_available_at,
+            available_at_value,
+            "DURABLE_FEATURE_SNAPSHOT_PREBOUND_AVAILABLE_AT_MISMATCH",
+        ),
+        (
+            prebound_generated_at,
+            generated_at_value,
+            "DURABLE_FEATURE_SNAPSHOT_PREBOUND_GENERATED_AT_MISMATCH",
+        ),
+    ):
+        if expected not in (None, "") and str(expected) != str(actual):
+            reasons.append(reason)
+    prebound_features = prebound_snapshot.get("features")
+    if isinstance(prebound_features, Mapping) and prebound_features:
+        if dict(prebound_features) != dict(features or {}):
+            reasons.append("DURABLE_FEATURE_SNAPSHOT_PREBOUND_FEATURES_MISMATCH")
+    prebound_source_hashes = prebound_snapshot.get("source_hashes")
+    snapshot_source_hashes = snapshot.get("source_hashes")
+    if isinstance(prebound_source_hashes, Mapping) and prebound_source_hashes:
+        if not isinstance(snapshot_source_hashes, Mapping) or dict(
+            prebound_source_hashes
+        ) != dict(snapshot_source_hashes):
+            reasons.append("DURABLE_FEATURE_SNAPSHOT_PREBOUND_SOURCE_HASHES_MISMATCH")
     latest_closed_ms = snapshot.get("latest_closed_kline_close_time_ms")
     exclusion_decision_ms = snapshot.get("latest_unclosed_exclusion_decision_time_ms")
     if type(latest_closed_ms) is not int or latest_closed_ms < 0:
@@ -11635,14 +11769,25 @@ def _paper_bind_verified_durable_feature_snapshot(
     if feature_cutoff is not None and type(latest_closed_ms) is int:
         if latest_closed_ms > int(feature_cutoff.timestamp() * 1_000):
             reasons.append("DURABLE_FEATURE_SNAPSHOT_LATEST_CLOSED_AFTER_CUTOFF")
-    if decision_time is not None and type(exclusion_decision_ms) is int:
-        if exclusion_decision_ms > int(decision_time.timestamp() * 1_000):
+    if source_decision_time is not None and type(exclusion_decision_ms) is int:
+        if exclusion_decision_ms > int(source_decision_time.timestamp() * 1_000):
             reasons.append("DURABLE_FEATURE_SNAPSHOT_EXCLUSION_AFTER_DECISION")
     if reasons:
         return sorted(set(reasons))
 
     bound_snapshot = deepcopy(dict(snapshot))
     bound_snapshot["generated_at"] = generated_at_value
+    bound_snapshot["source_generated_at"] = generated_at_value
+    bound_snapshot["source_available_at"] = available_at_value
+    bound_snapshot["producer_generated_at"] = producer_generated_at_value
+    bound_snapshot["record_available_at"] = record_available_at_value
+    bound_snapshot["clock_contract_version"] = clock_contract.get(
+        "clock_contract_version"
+    )
+    bound_snapshot["clock_compatibility_interpretation_used"] = bool(
+        clock_contract.get("compatibility_interpretation_used")
+    )
+    bound_snapshot["archive_consumer_decision_time"] = consumer_decision_time_value
     bound_snapshot["redis_key"] = (
         "DURABLE_FEATURE_SNAPSHOT_ARCHIVE_VERIFY_TRUE:" + str(snapshot.get("content_sha256"))
     )
@@ -11652,10 +11797,21 @@ def _paper_bind_verified_durable_feature_snapshot(
         "RESOLVED_DURABLE_ARCHIVE_VERIFY_TRUE"
     )
     intent["entry_feature_snapshot_id"] = snapshot_id
-    intent["entry_feature_available_at"] = snapshot.get("available_at")
+    intent["entry_feature_available_at"] = available_at_value
     intent["entry_feature_generated_at"] = generated_at_value
+    intent["entry_feature_source_generated_at"] = generated_at_value
+    intent["entry_feature_source_available_at"] = available_at_value
+    intent["entry_feature_archive_producer_generated_at"] = producer_generated_at_value
+    intent["entry_feature_record_available_at"] = record_available_at_value
+    intent["entry_feature_archive_consumer_decision_time"] = consumer_decision_time_value
+    intent["entry_feature_clock_contract_version"] = clock_contract.get(
+        "clock_contract_version"
+    )
+    intent["entry_feature_clock_compatibility_interpretation_used"] = bool(
+        clock_contract.get("compatibility_interpretation_used")
+    )
     intent["entry_feature_cutoff"] = snapshot.get("feature_cutoff")
-    intent["entry_feature_decision_time"] = decision_time_value
+    intent["entry_feature_decision_time"] = source_decision_time_value
     intent["entry_feature_source"] = bound_snapshot["redis_key"]
     intent["entry_feature_snapshot_requested_id"] = expected_id
     intent["entry_feature_snapshot_fallback_used"] = False
@@ -11715,6 +11871,34 @@ def _paper_durable_feature_admission_rejection_reasons(
         ("timeframe", str(intent.get("timeframe") or "")),
         ("available_at", intent.get("entry_feature_available_at")),
         ("generated_at", intent.get("entry_feature_generated_at")),
+        (
+            "source_generated_at",
+            intent.get("entry_feature_source_generated_at"),
+        ),
+        (
+            "source_available_at",
+            intent.get("entry_feature_source_available_at"),
+        ),
+        (
+            "producer_generated_at",
+            intent.get("entry_feature_archive_producer_generated_at"),
+        ),
+        (
+            "record_available_at",
+            intent.get("entry_feature_record_available_at"),
+        ),
+        (
+            "clock_contract_version",
+            intent.get("entry_feature_clock_contract_version"),
+        ),
+        (
+            "clock_compatibility_interpretation_used",
+            intent.get("entry_feature_clock_compatibility_interpretation_used"),
+        ),
+        (
+            "archive_consumer_decision_time",
+            intent.get("entry_feature_archive_consumer_decision_time"),
+        ),
         ("feature_cutoff", intent.get("entry_feature_cutoff")),
         ("content_sha256", content_sha256),
         ("redis_key", expected_source),
@@ -11743,31 +11927,81 @@ def _paper_durable_feature_admission_rejection_reasons(
         reasons.append("DURABLE_FEATURE_ADMISSION_FEATURES_MISSING")
 
     feature_cutoff = _strict_aware_utc_time(intent.get("entry_feature_cutoff"))
-    generated_at = _strict_aware_utc_time(intent.get("entry_feature_generated_at"))
-    available_at = _strict_aware_utc_time(intent.get("entry_feature_available_at"))
+    generated_at = _strict_aware_utc_time(
+        intent.get("entry_feature_source_generated_at")
+    )
+    available_at = _strict_aware_utc_time(
+        intent.get("entry_feature_source_available_at")
+    )
+    producer_generated_at = _strict_aware_utc_time(
+        intent.get("entry_feature_archive_producer_generated_at")
+    )
+    record_available_at = _strict_aware_utc_time(
+        intent.get("entry_feature_record_available_at")
+    )
     decision_time = _strict_aware_utc_time(intent.get("entry_feature_decision_time"))
+    consumer_decision_time = _strict_aware_utc_time(
+        intent.get("entry_feature_archive_consumer_decision_time")
+    )
     for field, parsed in (
         ("FEATURE_CUTOFF", feature_cutoff),
-        ("GENERATED_AT", generated_at),
-        ("AVAILABLE_AT", available_at),
-        ("DECISION_TIME", decision_time),
+        ("SOURCE_GENERATED_AT", generated_at),
+        ("SOURCE_AVAILABLE_AT", available_at),
+        ("PRODUCER_GENERATED_AT", producer_generated_at),
+        ("RECORD_AVAILABLE_AT", record_available_at),
+        ("SOURCE_DECISION_TIME", decision_time),
+        ("ARCHIVE_CONSUMER_DECISION_TIME", consumer_decision_time),
     ):
         if parsed is None:
             reasons.append(f"DURABLE_FEATURE_ADMISSION_{field}_INVALID")
-    if feature_cutoff is not None and available_at is not None:
-        if feature_cutoff > available_at:
-            reasons.append("DURABLE_FEATURE_ADMISSION_CUTOFF_AFTER_AVAILABLE_AT")
+    if feature_cutoff is not None and generated_at is not None:
+        if feature_cutoff > generated_at:
+            reasons.append("DURABLE_FEATURE_ADMISSION_CUTOFF_AFTER_GENERATED_AT")
     if generated_at is not None and available_at is not None:
         if generated_at > available_at:
             reasons.append("DURABLE_FEATURE_ADMISSION_GENERATED_AFTER_AVAILABLE_AT")
+    if available_at is not None and producer_generated_at is not None:
+        if available_at > producer_generated_at:
+            reasons.append(
+                "DURABLE_FEATURE_ADMISSION_AVAILABLE_AFTER_PRODUCER_GENERATED_AT"
+            )
+    if (
+        available_at is not None
+        and producer_generated_at is not None
+        and record_available_at is not None
+        and record_available_at != max(available_at, producer_generated_at)
+    ):
+        reasons.append(
+            "DURABLE_FEATURE_ADMISSION_RECORD_AVAILABLE_AT_NOT_EFFECTIVE_MAX"
+        )
     if decision_time is not None:
         for field, parsed in (
             ("FEATURE_CUTOFF", feature_cutoff),
-            ("GENERATED_AT", generated_at),
-            ("AVAILABLE_AT", available_at),
+            ("SOURCE_GENERATED_AT", generated_at),
+            ("SOURCE_AVAILABLE_AT", available_at),
         ):
             if parsed is not None and parsed > decision_time:
                 reasons.append(f"DURABLE_FEATURE_ADMISSION_{field}_AFTER_DECISION")
+    if (
+        consumer_decision_time is not None
+        and record_available_at is not None
+        and record_available_at > consumer_decision_time
+    ):
+        reasons.append(
+            "DURABLE_FEATURE_ADMISSION_RECORD_AVAILABLE_AFTER_PAPER_DECISION"
+        )
+    compatibility_used = intent.get(
+        "entry_feature_clock_compatibility_interpretation_used"
+    )
+    contract_version = intent.get("entry_feature_clock_contract_version")
+    if compatibility_used is True:
+        if contract_version != "durable_feature_snapshot_clock_contract_v1_compat":
+            reasons.append("DURABLE_FEATURE_ADMISSION_CLOCK_COMPATIBILITY_INVALID")
+    elif compatibility_used is False:
+        if contract_version != "durable_feature_snapshot_clock_contract_v2":
+            reasons.append("DURABLE_FEATURE_ADMISSION_CLOCK_CONTRACT_VERSION_INVALID")
+    else:
+        reasons.append("DURABLE_FEATURE_ADMISSION_CLOCK_COMPATIBILITY_FLAG_INVALID")
 
     latest_closed_ms = snapshot.get("latest_closed_kline_close_time_ms")
     exclusion_decision_ms = snapshot.get(
@@ -12031,6 +12265,13 @@ PERSISTENT_ACCEPTED_FILL_METADATA_FIELDS = (
     "entry_feature_source",
     "entry_feature_available_at",
     "entry_feature_generated_at",
+    "entry_feature_source_generated_at",
+    "entry_feature_source_available_at",
+    "entry_feature_archive_producer_generated_at",
+    "entry_feature_record_available_at",
+    "entry_feature_archive_consumer_decision_time",
+    "entry_feature_clock_contract_version",
+    "entry_feature_clock_compatibility_interpretation_used",
     "entry_feature_cutoff",
     "entry_feature_decision_time",
     "static_category_e_final_authority",
@@ -39695,6 +39936,11 @@ PAPER_ALLOCATION_COMPONENT_TIME_FIELDS = (
     "entry_feature_cutoff",
     "entry_feature_available_at",
     "entry_feature_generated_at",
+    "entry_feature_source_generated_at",
+    "entry_feature_source_available_at",
+    "entry_feature_archive_producer_generated_at",
+    "entry_feature_record_available_at",
+    "entry_feature_archive_consumer_decision_time",
     "entry_feature_decision_time",
     "strategy_feature_cutoff",
     "strategy_available_at",
@@ -39993,6 +40239,11 @@ def _paper_allocation_point_in_time_contract(
                 "entry_feature_cutoff",
                 "entry_feature_available_at",
                 "entry_feature_generated_at",
+                "entry_feature_source_generated_at",
+                "entry_feature_source_available_at",
+                "entry_feature_archive_producer_generated_at",
+                "entry_feature_record_available_at",
+                "entry_feature_archive_consumer_decision_time",
                 "entry_feature_decision_time",
             }
         )
@@ -40203,6 +40454,20 @@ def _paper_allocation_point_in_time_contract(
         ("entry_price_source_available_at", "entry_price_utc"),
         ("entry_feature_cutoff", "entry_feature_available_at"),
         ("entry_feature_generated_at", "entry_feature_available_at"),
+        ("entry_feature_cutoff", "entry_feature_source_generated_at"),
+        ("entry_feature_source_generated_at", "entry_feature_source_available_at"),
+        (
+            "entry_feature_source_available_at",
+            "entry_feature_archive_producer_generated_at",
+        ),
+        (
+            "entry_feature_archive_producer_generated_at",
+            "entry_feature_record_available_at",
+        ),
+        (
+            "entry_feature_record_available_at",
+            "entry_feature_archive_consumer_decision_time",
+        ),
         ("entry_feature_cutoff", "entry_feature_decision_time"),
         ("entry_feature_generated_at", "entry_feature_decision_time"),
         ("entry_feature_available_at", "entry_feature_decision_time"),
@@ -40287,6 +40552,11 @@ PAPER_FINAL_ADMISSION_COMPONENT_TIME_FIELDS = (
     "entry_feature_cutoff",
     "entry_feature_generated_at",
     "entry_feature_available_at",
+    "entry_feature_source_generated_at",
+    "entry_feature_source_available_at",
+    "entry_feature_archive_producer_generated_at",
+    "entry_feature_record_available_at",
+    "entry_feature_archive_consumer_decision_time",
     "entry_feature_decision_time",
     "paper_allocation_decision_time",
     "paper_precycle_exposure_snapshot_started_at",
@@ -40922,6 +41192,13 @@ PAPER_PERSISTED_ADMISSION_CRITICAL_FIELDS = (
     "entry_feature_cutoff",
     "entry_feature_generated_at",
     "entry_feature_available_at",
+    "entry_feature_source_generated_at",
+    "entry_feature_source_available_at",
+    "entry_feature_archive_producer_generated_at",
+    "entry_feature_record_available_at",
+    "entry_feature_archive_consumer_decision_time",
+    "entry_feature_clock_contract_version",
+    "entry_feature_clock_compatibility_interpretation_used",
     "entry_feature_decision_time",
     "symbol",
     "timeframe",
@@ -42310,6 +42587,11 @@ def _paper_final_admission_point_in_time_contract(
     if final_tier == PAPER_TIER_ADAPTIVE_POLICY_V2:
         required_common_times.update(
             {
+                "entry_feature_source_generated_at",
+                "entry_feature_source_available_at",
+                "entry_feature_archive_producer_generated_at",
+                "entry_feature_record_available_at",
+                "entry_feature_archive_consumer_decision_time",
                 "adaptive_policy_decision_time",
                 "adaptive_policy_hard_validation_available_at",
                 "adaptive_policy_authorized_at",
@@ -42355,6 +42637,20 @@ def _paper_final_admission_point_in_time_contract(
     for left, right in (
         ("entry_feature_cutoff", "entry_feature_available_at"),
         ("entry_feature_generated_at", "entry_feature_available_at"),
+        ("entry_feature_cutoff", "entry_feature_source_generated_at"),
+        ("entry_feature_source_generated_at", "entry_feature_source_available_at"),
+        (
+            "entry_feature_source_available_at",
+            "entry_feature_archive_producer_generated_at",
+        ),
+        (
+            "entry_feature_archive_producer_generated_at",
+            "entry_feature_record_available_at",
+        ),
+        (
+            "entry_feature_record_available_at",
+            "entry_feature_archive_consumer_decision_time",
+        ),
         ("entry_feature_cutoff", "entry_feature_decision_time"),
         ("entry_feature_generated_at", "entry_feature_decision_time"),
         ("entry_feature_available_at", "entry_feature_decision_time"),
@@ -52354,6 +52650,9 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                 _paper_bind_verified_durable_feature_snapshot(
                     intent=intent,
                     snapshot=adaptive_feature_snapshot,
+                    paper_decision_time=_iso_from_epoch_ms(
+                        adaptive_policy_generated_at_ms
+                    ),
                 )
             )
             if durable_snapshot_binding_reasons:
