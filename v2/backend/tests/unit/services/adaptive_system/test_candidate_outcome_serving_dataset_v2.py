@@ -26,6 +26,7 @@ from v2.backend.app.services.adaptive_system.candidate_outcome_serving_dataset_v
 )
 from v2.backend.app.services.native_trainer.durable_feature_snapshot_archive import (
     build_archive_record,
+    content_sha256,
 )
 from v2.backend.app.services.prediction_serving.serving_feature_abi_v2 import (
     ORDERED_FEATURE_NAMES,
@@ -259,6 +260,33 @@ def _legacy_single_side_flat(record):
     return replace(record, decision=new_decision, matured_labels=new_labels)
 
 
+def _bind_modified_snapshot(record, snapshot: dict[str, object]):
+    snapshot["content_sha256"] = content_sha256(snapshot)
+    model_payload = json.loads(record.decision.model_distributions.payload_json)
+    model_payload["durable_feature_snapshot_content_sha256"] = snapshot[
+        "content_sha256"
+    ]
+    model_json = json.dumps(
+        model_payload,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+        allow_nan=False,
+    )
+    model = replace(
+        record.decision.model_distributions,
+        payload_json=model_json,
+        payload_sha256=_digest(model_payload),
+    )
+    decision = replace(record.decision, model_distributions=model)
+    assert record.matured_labels is not None
+    labels = replace(
+        record.matured_labels,
+        decision_snapshot_sha256=decision.content_sha256(),
+    )
+    return replace(record, decision=decision, matured_labels=labels)
+
+
 def test_candidate_row_uses_shared_builder_and_never_counts_counterfactual_profit() -> None:
     matured, snapshot = _matured_record()
 
@@ -321,9 +349,20 @@ def test_combined_dataset_resplits_without_label_overlap_and_accounts_every_cand
 
     assert manifest["candidate_records_fully_accounted"] is True
     assert manifest["candidate_rows_before_split_purge"] == 1
+    assert manifest["candidate_rejection_count"] == 0
     assert manifest["duplicate_rows"] == 0
     assert manifest["future_time_rejections"] == 0
     assert manifest["counterfactual_counts_as_realized_paper_profit"] is False
+    assert manifest["embargo_groups"] == 2
+    assert manifest["embargo_row_count"] > 0
+    assert manifest["symbol_count"] == len(manifest["symbol_counts"])
+    assert manifest["timeframe_count"] == len(manifest["timeframe_counts"])
+    assert sum(manifest["symbol_counts"].values()) == len(dataset["rows"])
+    assert sum(manifest["timeframe_counts"].values()) == len(dataset["rows"])
+    assert manifest["purge_reason_counts"]["PREDECLARED_DECISION_TIME_EMBARGO"] == (
+        manifest["embargo_row_count"]
+    )
+    assert not ({row["row_id"] for row in dataset["rows"]} & set(manifest["embargo_row_ids"]))
     train = [row for row in dataset["rows"] if row["split"] == "train"]
     validation = [row for row in dataset["rows"] if row["split"] == "validation"]
     holdout = [row for row in dataset["rows"] if row["split"] == "holdout"]
@@ -363,4 +402,99 @@ def test_tampered_base_dataset_and_missing_snapshot_fail_closed() -> None:
             matured,
             snapshot_loader=lambda _snapshot_id: None,
             source_archive_chain_sha256="a" * 64,
+        )
+
+
+def test_coherently_rehashed_base_dataset_with_invalid_target_fails_closed() -> None:
+    matured, snapshot = _matured_record()
+    template = build_candidate_outcome_row(
+        matured,
+        snapshot_loader=lambda _snapshot_id: snapshot,
+        source_archive_chain_sha256="a" * 64,
+    )
+    base = _base_dataset(template)
+    base["rows"][0].update(
+        {
+            "target_action": "FORGED_NOT_AN_ACTION",
+            "target_action_index": 999,
+            "long_net_bps": 9_999_999.0,
+            "short_net_bps": 9_999_999.0,
+        }
+    )
+    material = {
+        key: value
+        for key, value in base.items()
+        if key not in {"dataset_id", "dataset_sha256"}
+    }
+    base["dataset_sha256"] = _digest(material)
+
+    with pytest.raises(CandidateOutcomeDatasetError, match="ACTION_LABEL_REQUIRED"):
+        build_adaptive_serving_dataset_v2(
+            base_dataset=base,
+            candidate_records=(matured,),
+            snapshot_loader=lambda _snapshot_id: snapshot,
+            source_archive_chain_sha256="a" * 64,
+        )
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (("symbol", "ETHUSDT"), ("timeframe", "1h")),
+)
+def test_candidate_snapshot_market_identity_mismatch_fails_closed(
+    field: str,
+    value: str,
+) -> None:
+    matured, original = _matured_record()
+    snapshot = deepcopy(original)
+    snapshot[field] = value
+    rebound = _bind_modified_snapshot(matured, snapshot)
+
+    with pytest.raises(CandidateOutcomeDatasetError, match="IDENTITY_MISMATCH"):
+        build_candidate_outcome_row(
+            rebound,
+            snapshot_loader=lambda _snapshot_id: snapshot,
+            source_archive_chain_sha256="a" * 64,
+        )
+
+
+def test_candidate_snapshot_finality_mismatch_fails_closed() -> None:
+    matured, original = _matured_record()
+    snapshot = deepcopy(original)
+    snapshot["latest_closed_kline_close_time_ms"] = (
+        matured.decision.feature_cutoff_ms + 30_000
+    )
+    snapshot["latest_unclosed_exclusion_decision_time_ms"] = (
+        matured.decision.feature_cutoff_ms + 40_000
+    )
+    rebound = _bind_modified_snapshot(matured, snapshot)
+
+    with pytest.raises(CandidateOutcomeDatasetError, match="IDENTITY_MISMATCH"):
+        build_candidate_outcome_row(
+            rebound,
+            snapshot_loader=lambda _snapshot_id: snapshot,
+            source_archive_chain_sha256="a" * 64,
+        )
+
+
+def test_source_archive_verification_counts_must_match_loaded_matured_rows() -> None:
+    matured, snapshot = _matured_record()
+    template = build_candidate_outcome_row(
+        matured,
+        snapshot_loader=lambda _snapshot_id: snapshot,
+        source_archive_chain_sha256="a" * 64,
+    )
+
+    with pytest.raises(CandidateOutcomeDatasetError, match="SOURCE_ARCHIVE_COUNT_MISMATCH"):
+        build_adaptive_serving_dataset_v2(
+            base_dataset=_base_dataset(template),
+            candidate_records=(matured,),
+            snapshot_loader=lambda _snapshot_id: snapshot,
+            source_archive_chain_sha256="a" * 64,
+            source_archive_verification={
+                "candidate_count": 2,
+                "decision_revision_count": 2,
+                "matured_revision_count": 2,
+                "row_count": 4,
+            },
         )

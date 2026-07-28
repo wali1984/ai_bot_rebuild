@@ -39,6 +39,15 @@ SIGNATURE_ALGORITHM = "Ed25519"
 SIGNATURE_DOMAIN = b"v2/adaptive-system/candidate-outcome-archive/v2\0"
 GENESIS_CHAIN_SHA256 = "0" * 64
 
+# Archive rows declare their public key so signatures are self-describing, but
+# that declaration is not an authentication root.  Production consumers pin
+# this paper evidence-writer key; rotation therefore requires an audited code
+# release instead of accepting a key supplied by the archive being verified.
+PINNED_PRODUCTION_WRITER_ID = "candidate-outcome-writer-v2"
+PINNED_PRODUCTION_WRITER_PUBLIC_KEY_HEX = (
+    "bbff6e85cd6954ae5aff4ee2ec5d2078de96bf8f8750aaa889d2ea4712c5b4d9"
+)
+
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 _SIGNATURE_RE = re.compile(r"^[0-9a-f]{128}$")
 
@@ -921,6 +930,8 @@ __all__ = [
     "SIGNATURE_ALGORITHM",
     "SIGNATURE_DOMAIN",
     "GENESIS_CHAIN_SHA256",
+    "PINNED_PRODUCTION_WRITER_ID",
+    "PINNED_PRODUCTION_WRITER_PUBLIC_KEY_HEX",
     "CandidateOutcomeArchiveError",
     "ArchiveAppendReceiptV2",
     "ArchiveVerificationV2",

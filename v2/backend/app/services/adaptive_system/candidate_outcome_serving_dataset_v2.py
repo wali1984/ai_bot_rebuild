@@ -46,8 +46,10 @@ PARITY_SCHEMA_VERSION = "adaptive_train_serve_feature_parity_report_v2"
 SOURCE_SCHEMA_VERSION = "candidate_outcome_training_source_v2"
 PURGE_POLICY = (
     "CHRONOLOGICAL_FEATURE_GROUP_SAFE;TRAIN_LABEL_AVAILABLE_BEFORE_VALIDATION;"
-    "VALIDATION_LABEL_AVAILABLE_BEFORE_HOLDOUT"
+    "VALIDATION_LABEL_AVAILABLE_BEFORE_HOLDOUT;"
+    "TWO_DECISION_TIME_GROUP_EMBARGO_BEFORE_VALIDATION_AND_HOLDOUT"
 )
+EMBARGO_GROUPS = 2
 _SHA256_LENGTH = 64
 
 
@@ -120,6 +122,45 @@ def _finite(value: object, field: str) -> float:
     if not math.isfinite(result):
         _fail("FINITE_NUMBER_REQUIRED", field)
     return result
+
+
+def _nonnegative_int(value: object, field: str) -> int:
+    if type(value) is not int or value < 0:
+        _fail("NONNEGATIVE_INT_REQUIRED", field)
+    return value
+
+
+def _rejection_contract_counts(rejections: Mapping[str, int]) -> dict[str, int]:
+    def count(*markers: str) -> int:
+        return sum(
+            amount
+            for reason, amount in rejections.items()
+            if any(marker in reason.upper() for marker in markers)
+        )
+
+    return {
+        "candidate_rejection_count": sum(rejections.values()),
+        "future_time_rejections": count(
+            "AFTER_DECISION",
+            "FUTURE_TIME",
+            "POINT_IN_TIME_ORDER_INVALID",
+        ),
+        "finality_unproven": count(
+            "FINALITY",
+            "UNCLOSED",
+            "CLOSED_KLINE",
+        ),
+        "missing_cost_evidence": count(
+            "MISSING_COST",
+            "COST_EVIDENCE_REQUIRED",
+        ),
+        "missing_label_evidence": count(
+            "MATURED_LABELS_REQUIRED",
+            "COMPLETE_MATURED_REVISION_TWO_REQUIRED",
+            "MISSING_LABEL",
+            "LABEL_EVIDENCE_REQUIRED",
+        ),
+    }
 
 
 def _payload(record: CandidateDecisionOutcomeV2, name: str) -> dict[str, Any]:
@@ -316,6 +357,43 @@ def build_candidate_outcome_row(
         _fail("IDENTITY_MISMATCH", "feature_snapshot.snapshot_id")
     if model.get("durable_feature_snapshot_content_sha256") != snapshot_content_sha:
         _fail("CONTENT_SHA256_MISMATCH", "feature_snapshot.content_sha256")
+    if snapshot.get("symbol") != record.decision.symbol:
+        _fail("IDENTITY_MISMATCH", "feature_snapshot.symbol")
+    if snapshot.get("timeframe") != record.decision.timeframe:
+        _fail("IDENTITY_MISMATCH", "feature_snapshot.timeframe")
+    snapshot_latest_closed = snapshot.get("latest_closed_kline_close_time_ms")
+    snapshot_exclusion = snapshot.get(
+        "latest_unclosed_exclusion_decision_time_ms"
+    )
+    if snapshot.get("latest_unclosed_kline_excluded") is not True:
+        _fail("MUST_BE_TRUE", "feature_snapshot.latest_unclosed_kline_excluded")
+    if (
+        snapshot_latest_closed
+        != record.decision.latest_closed_kline_close_time_ms
+    ):
+        _fail("IDENTITY_MISMATCH", "feature_snapshot.latest_closed_kline_close_time_ms")
+    if (
+        snapshot.get("latest_unclosed_exclusion_method")
+        != record.decision.latest_unclosed_exclusion_method
+    ):
+        _fail("IDENTITY_MISMATCH", "feature_snapshot.latest_unclosed_exclusion_method")
+    if (
+        snapshot_exclusion
+        != record.decision.latest_unclosed_exclusion_decision_time_ms
+    ):
+        _fail(
+            "IDENTITY_MISMATCH",
+            "feature_snapshot.latest_unclosed_exclusion_decision_time_ms",
+        )
+    if (
+        type(snapshot_latest_closed) is not int
+        or type(snapshot_exclusion) is not int
+        or not snapshot_latest_closed
+        <= record.decision.feature_cutoff_ms
+        <= snapshot_exclusion
+        <= record.decision.decision_time_ms
+    ):
+        _fail("POINT_IN_TIME_ORDER_INVALID", "feature_snapshot.finality")
     decision_time = _utc_from_ms(
         record.decision.decision_time_ms, "decision.decision_time_ms"
     )
@@ -447,6 +525,28 @@ def _validated_base_rows(base_dataset: Mapping[str, Any]) -> list[dict[str, Any]
             row.get("decision_time"), "decision_time"
         ):
             _fail("LABEL_NOT_STRICTLY_AFTER_DECISION", f"base_dataset.rows[{index}]")
+        target_action = row.get("target_action")
+        if target_action not in ACTION_LABELS:
+            _fail("ACTION_LABEL_REQUIRED", f"base_dataset.rows[{index}].target_action")
+        if row.get("target_action_index") != ACTION_LABELS.index(target_action):
+            _fail(
+                "ACTION_INDEX_MISMATCH",
+                f"base_dataset.rows[{index}].target_action_index",
+            )
+        long_net = _finite(
+            row.get("long_net_bps"), f"base_dataset.rows[{index}].long_net_bps"
+        )
+        short_net = _finite(
+            row.get("short_net_bps"), f"base_dataset.rows[{index}].short_net_bps"
+        )
+        if target_action_from_net_edges(
+            long_net_bps=long_net,
+            short_net_bps=short_net,
+        ) != target_action:
+            _fail(
+                "ACTION_NET_EDGE_MISMATCH",
+                f"base_dataset.rows[{index}].target_action",
+            )
         row["feature_group_id"] = snapshot_id
         row["source_kind"] = "GEN5_AUTHENTICATED_PROFILED_OBSERVATION"
         row["counterfactual_counts_as_realized_paper_profit"] = False
@@ -469,7 +569,13 @@ def _time_key(value: object, field: str) -> datetime:
 
 def _purged_split(
     rows: list[dict[str, Any]],
-) -> tuple[list[dict[str, Any]], list[str], dict[str, int], dict[str, Any]]:
+) -> tuple[
+    list[dict[str, Any]],
+    list[str],
+    dict[str, int],
+    dict[str, Any],
+    list[str],
+]:
     if len(rows) < 104:
         _fail("DATASET_BELOW_MINIMUM_FOR_PURGED_SPLITS", "rows")
     ordered = sorted(
@@ -491,13 +597,14 @@ def _purged_split(
     def assign(
         validation_start: str,
         holdout_start: str,
-    ) -> tuple[list[dict[str, Any]], list[str], Counter[str]]:
+    ) -> tuple[list[dict[str, Any]], list[str], Counter[str], list[str]]:
         validation_clock = _time_key(validation_start, "validation_start")
         holdout_clock = _time_key(holdout_start, "holdout_start")
         if validation_clock >= holdout_clock:
-            return [], [], Counter()
+            return [], [], Counter(), []
         admitted: list[dict[str, Any]] = []
         purged_ids: list[str] = []
+        embargo_ids: list[str] = []
         purge_reasons: Counter[str] = Counter()
         for group_id in sorted(grouped):
             group = grouped[group_id]
@@ -541,7 +648,32 @@ def _purged_split(
                 admitted_row = dict(row)
                 admitted_row["split"] = split
                 admitted.append(admitted_row)
-        return admitted, purged_ids, purge_reasons
+        for split in ("validation", "holdout"):
+            split_times = sorted(
+                {
+                    row["decision_time"]
+                    for row in admitted
+                    if row["split"] == split
+                }
+            )
+            embargo_times = set(split_times[:EMBARGO_GROUPS])
+            split_embargo_ids = [
+                row["row_id"]
+                for row in admitted
+                if row["split"] == split
+                and row["decision_time"] in embargo_times
+            ]
+            if split_embargo_ids:
+                embargo_id_set = set(split_embargo_ids)
+                admitted = [
+                    row for row in admitted if row["row_id"] not in embargo_id_set
+                ]
+                embargo_ids.extend(split_embargo_ids)
+                purged_ids.extend(split_embargo_ids)
+                purge_reasons["PREDECLARED_DECISION_TIME_EMBARGO"] += len(
+                    split_embargo_ids
+                )
+        return admitted, purged_ids, purge_reasons, embargo_ids
 
     # Fractions are selected from decision identities only.  Outcomes and
     # target values cannot influence the boundary.  Multiple candidates are
@@ -569,12 +701,13 @@ def _purged_split(
             list[dict[str, Any]],
             list[str],
             Counter[str],
+            list[str],
         ]
     ] = []
     for validation_fraction, holdout_fraction in boundary_candidates:
         validation_start = _boundary_time(ordered, validation_fraction)
         holdout_start = _boundary_time(ordered, holdout_fraction)
-        admitted, purged_ids, purge_reasons = assign(
+        admitted, purged_ids, purge_reasons, embargo_ids = assign(
             validation_start, holdout_start
         )
         counts = Counter(row["split"] for row in admitted)
@@ -597,6 +730,7 @@ def _purged_split(
                     admitted,
                     purged_ids,
                     purge_reasons,
+                    embargo_ids,
                 )
             )
     if not valid:
@@ -610,6 +744,7 @@ def _purged_split(
         admitted,
         purged_ids,
         purge_reasons,
+        embargo_ids,
     ) = max(valid, key=lambda candidate: (candidate[0], -candidate[1], candidate[2]))
     if max(
         _time_key(row["label_available_at"], "label_available_at")
@@ -648,7 +783,9 @@ def _purged_split(
             "holdout_start_row_fraction": selected_holdout_fraction,
             "minimum_validation_rows": minimum_validation,
             "minimum_holdout_rows": minimum_holdout,
+            "embargo_groups_before_each_downstream_split": EMBARGO_GROUPS,
         },
+        sorted(embargo_ids),
     )
 
 
@@ -658,6 +795,7 @@ def build_adaptive_serving_dataset_v2(
     candidate_records: Sequence[CandidateDecisionOutcomeV2],
     snapshot_loader: Callable[[str], Mapping[str, Any] | None],
     source_archive_chain_sha256: str,
+    source_archive_verification: Mapping[str, Any] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
     """Combine gen-5 and matured candidate evidence, then resplit from scratch."""
 
@@ -668,12 +806,10 @@ def build_adaptive_serving_dataset_v2(
     candidate_rows: list[dict[str, Any]] = []
     rejections: Counter[str] = Counter()
     seen_candidates: set[str] = set()
-    decision_revision_count = 0
     for index, record in enumerate(candidate_records):
         if type(record) is not CandidateDecisionOutcomeV2:
             _fail("CANDIDATE_DECISION_OUTCOME_V2_REQUIRED", f"candidate_records[{index}]")
         if record.archive_sequence == 1:
-            decision_revision_count += 1
             continue
         candidate_id = record.decision.candidate_id
         if candidate_id in seen_candidates:
@@ -695,10 +831,12 @@ def build_adaptive_serving_dataset_v2(
     row_ids = [row["row_id"] for row in combined]
     if len(row_ids) != len(set(row_ids)):
         _fail("DUPLICATE_ROW_ID", "rows")
-    rows, purged_ids, purge_reasons, boundaries = _purged_split(combined)
+    rows, purged_ids, purge_reasons, boundaries, embargo_ids = _purged_split(combined)
     split_counts = Counter(row["split"] for row in rows)
     action_counts = Counter(row["target_action"] for row in rows)
     source_counts = Counter(row["source_kind"] for row in rows)
+    symbol_counts = Counter(row["symbol"] for row in rows)
+    timeframe_counts = Counter(row["timeframe"] for row in rows)
     source_split_counts = Counter(
         (row["source_kind"], row["split"]) for row in rows
     )
@@ -710,6 +848,38 @@ def build_adaptive_serving_dataset_v2(
         }
     )
     feature_groups = Counter(row["feature_group_id"] for row in rows)
+    rejection_contract_counts = _rejection_contract_counts(rejections)
+    if set(action_counts) - set(ACTION_LABELS) or sum(action_counts.values()) != len(rows):
+        _fail("TARGET_ACTION_COUNT_MISMATCH", "rows")
+    if source_archive_verification is None:
+        archive_candidate_count = len(candidate_records)
+        archive_decision_revision_count = len(candidate_records)
+        archive_matured_revision_count = len(seen_candidates)
+        archive_row_count = len(candidate_records) + len(seen_candidates)
+    else:
+        archive_candidate_count = _nonnegative_int(
+            source_archive_verification.get("candidate_count"),
+            "source_archive_verification.candidate_count",
+        )
+        archive_decision_revision_count = _nonnegative_int(
+            source_archive_verification.get("decision_revision_count"),
+            "source_archive_verification.decision_revision_count",
+        )
+        archive_matured_revision_count = _nonnegative_int(
+            source_archive_verification.get("matured_revision_count"),
+            "source_archive_verification.matured_revision_count",
+        )
+        archive_row_count = _nonnegative_int(
+            source_archive_verification.get("row_count"),
+            "source_archive_verification.row_count",
+        )
+        if (
+            archive_candidate_count != archive_decision_revision_count
+            or archive_matured_revision_count != len(seen_candidates)
+            or archive_row_count
+            != archive_decision_revision_count + archive_matured_revision_count
+        ):
+            _fail("SOURCE_ARCHIVE_COUNT_MISMATCH", "source_archive_verification")
     dataset_material = {
         "schema_version": DATASET_SCHEMA_VERSION,
         "feature_abi_sha256": feature_abi_sha256(),
@@ -742,14 +912,21 @@ def build_adaptive_serving_dataset_v2(
             "base_dataset_id": base_dataset.get("dataset_id"),
             "base_dataset_sha256": base_sha,
             "candidate_archive_terminal_chain_sha256": archive_chain,
-            "candidate_archive_candidate_count": len(candidate_records),
-            "candidate_archive_decision_revision_count": len(candidate_records),
-            "candidate_archive_matured_revision_count": len(seen_candidates),
-            "candidate_archive_latest_decision_only_count": decision_revision_count,
+            "candidate_archive_candidate_count": archive_candidate_count,
+            "candidate_archive_decision_revision_count": archive_decision_revision_count,
+            "candidate_archive_matured_revision_count": archive_matured_revision_count,
+            "candidate_archive_row_count": archive_row_count,
+            "candidate_archive_latest_decision_only_count": (
+                archive_candidate_count - archive_matured_revision_count
+            ),
         },
         "source_receipt_sha256s": receipts,
         "source_receipt_sha256_count": len(receipts),
         "source_row_counts": dict(sorted(source_counts.items())),
+        "symbol_count": len(symbol_counts),
+        "symbol_counts": dict(sorted(symbol_counts.items())),
+        "timeframe_count": len(timeframe_counts),
+        "timeframe_counts": dict(sorted(timeframe_counts.items())),
         "source_split_counts": {
             source_kind: {
                 split: source_split_counts[(source_kind, split)]
@@ -760,7 +937,8 @@ def build_adaptive_serving_dataset_v2(
         "target_action_counts": {
             action: action_counts[action] for action in ACTION_LABELS
         },
-        "candidate_records_considered": len(candidate_records),
+        "candidate_records_considered": archive_candidate_count,
+        "candidate_records_loaded_for_dataset": len(candidate_records),
         "candidate_matured_records_considered": len(seen_candidates),
         "candidate_rows_before_split_purge": len(candidate_rows),
         "candidate_exclusion_reasons": dict(sorted(rejections.items())),
@@ -771,14 +949,18 @@ def build_adaptive_serving_dataset_v2(
         "split_boundaries": boundaries,
         "purged_row_ids": purged_ids,
         "purge_reason_counts": purge_reasons,
+        "embargo_groups": EMBARGO_GROUPS,
+        "embargo_row_ids": embargo_ids,
+        "embargo_row_count": len(embargo_ids),
         "feature_group_count": len(feature_groups),
         "reused_feature_group_count": sum(count > 1 for count in feature_groups.values()),
         "maximum_rows_per_feature_group": max(feature_groups.values()),
         "duplicate_rows": 0,
-        "future_time_rejections": 0,
-        "finality_unproven": 0,
-        "missing_cost_evidence": 0,
-        "missing_label_evidence": 0,
+        **rejection_contract_counts,
+        "admitted_future_time_violations": 0,
+        "admitted_finality_violations": 0,
+        "admitted_missing_cost_evidence": 0,
+        "admitted_missing_label_evidence": 0,
         "counterfactual_counts_as_realized_paper_profit": False,
         "paper_only": True,
         "live_eligible": False,

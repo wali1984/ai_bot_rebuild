@@ -19,6 +19,8 @@ from v2.backend.app.contracts.runtime_v2.candidate_decision_outcome_v2 import (
     CandidateDecisionOutcomeV2,
 )
 from v2.backend.app.services.adaptive_system.candidate_outcome_archive_v2 import (
+    PINNED_PRODUCTION_WRITER_ID,
+    PINNED_PRODUCTION_WRITER_PUBLIC_KEY_HEX,
     CandidateOutcomeArchiveV2,
 )
 from v2.backend.app.services.adaptive_system.candidate_outcome_calibration_v2 import (
@@ -31,7 +33,7 @@ SCHEMA_VERSION = "candidate_outcome_calibration_publisher_v2"
 CALIBRATION_KEY = "v2:adaptive_system:candidate_calibration:v2"
 STATUS_KEY = "v2:adaptive_system:candidate_calibration:status"
 ACTIVE_REGISTRY_KEY = "v2:model_registry:paper:active"
-DEFAULT_WRITER_ID = "candidate-outcome-writer-v2"
+DEFAULT_WRITER_ID = PINNED_PRODUCTION_WRITER_ID
 
 
 class CandidateCalibrationPublisherError(RuntimeError):
@@ -84,7 +86,9 @@ def _strict_object(raw: object, field: str) -> dict[str, Any]:
     return payload
 
 
-def _archive_reader(path: Path) -> CandidateOutcomeArchiveV2:
+def _archive_reader(
+    path: Path,
+) -> CandidateOutcomeArchiveV2:
     if path.is_symlink() or not path.is_file():
         raise CandidateCalibrationPublisherError("candidate_archive:regular_file_required")
     with path.open("r", encoding="utf-8") as handle:
@@ -92,14 +96,18 @@ def _archive_reader(path: Path) -> CandidateOutcomeArchiveV2:
     first = _strict_object(first_line, "candidate_archive.first_row")
     writer_id = first.get("writer_id")
     public_key = first.get("writer_public_key_hex")
-    if type(writer_id) is not str or writer_id != DEFAULT_WRITER_ID:
+    if (
+        type(writer_id) is not str
+        or writer_id != DEFAULT_WRITER_ID
+        or writer_id != PINNED_PRODUCTION_WRITER_ID
+    ):
         raise CandidateCalibrationPublisherError("candidate_archive:writer_id_untrusted")
-    if type(public_key) is not str:
-        raise CandidateCalibrationPublisherError("candidate_archive:public_key_missing")
+    if public_key != PINNED_PRODUCTION_WRITER_PUBLIC_KEY_HEX:
+        raise CandidateCalibrationPublisherError("candidate_archive:public_key_untrusted")
     return CandidateOutcomeArchiveV2(
         archive_path=path,
-        writer_id=writer_id,
-        writer_public_key_hex=public_key,
+        writer_id=PINNED_PRODUCTION_WRITER_ID,
+        writer_public_key_hex=PINNED_PRODUCTION_WRITER_PUBLIC_KEY_HEX,
         signer=None,
     )
 

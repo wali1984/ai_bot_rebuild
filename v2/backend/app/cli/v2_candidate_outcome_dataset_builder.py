@@ -12,6 +12,7 @@ import argparse
 import hashlib
 import json
 import os
+import stat
 import tempfile
 from dataclasses import asdict
 from datetime import UTC, datetime
@@ -19,6 +20,8 @@ from pathlib import Path
 from typing import Any
 
 from v2.backend.app.services.adaptive_system.candidate_outcome_archive_v2 import (
+    PINNED_PRODUCTION_WRITER_ID,
+    PINNED_PRODUCTION_WRITER_PUBLIC_KEY_HEX,
     CandidateOutcomeArchiveV2,
 )
 from v2.backend.app.services.adaptive_system.candidate_outcome_serving_dataset_v2 import (
@@ -29,7 +32,10 @@ from v2.backend.app.services.native_trainer.durable_feature_snapshot_archive imp
 )
 
 SCHEMA_VERSION = "candidate_outcome_dataset_build_receipt_v2"
-DEFAULT_WRITER_ID = "candidate-outcome-writer-v2"
+DEFAULT_WRITER_ID = PINNED_PRODUCTION_WRITER_ID
+PINNED_BASE_DATASET_FILE_SHA256 = (
+    "416a25c61e147af30b2ab45fb8c8e08d6348467a42045d0944cf6f1a0d785156"
+)
 DEFAULT_BASE_DATASET = Path(
     "/home/wali/ai_bot_local_data/gen5_snapshot_backfill_v1/evidence/"
     "serving_compatible_dataset_gen5.json"
@@ -72,16 +78,40 @@ def _sha256_bytes(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
 
 
-def _read_object(path: Path, field: str) -> dict[str, Any]:
-    if not path.is_file() or path.is_symlink():
-        raise CandidateOutcomeDatasetBuilderError(f"{field}:REGULAR_FILE_REQUIRED")
+def _read_pinned_object(
+    path: Path,
+    field: str,
+    *,
+    trusted_file_sha256: str,
+) -> tuple[dict[str, Any], str]:
     try:
-        value = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        descriptor = os.open(
+            path,
+            os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0),
+        )
+    except OSError as exc:
+        raise CandidateOutcomeDatasetBuilderError(
+            f"{field}:REGULAR_FILE_REQUIRED"
+        ) from exc
+    try:
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            raise CandidateOutcomeDatasetBuilderError(
+                f"{field}:REGULAR_FILE_REQUIRED"
+            )
+        with os.fdopen(descriptor, "rb", closefd=False) as handle:
+            data = handle.read()
+    finally:
+        os.close(descriptor)
+    actual_sha256 = _sha256_bytes(data)
+    if actual_sha256 != trusted_file_sha256:
+        raise CandidateOutcomeDatasetBuilderError(f"{field}:FILE_SHA256_UNTRUSTED")
+    try:
+        value = json.loads(data.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise CandidateOutcomeDatasetBuilderError(f"{field}:INVALID_JSON") from exc
     if type(value) is not dict:
         raise CandidateOutcomeDatasetBuilderError(f"{field}:OBJECT_REQUIRED")
-    return value
+    return value, actual_sha256
 
 
 def _write_atomic(path: Path, value: object) -> str:
@@ -111,7 +141,9 @@ def _write_atomic(path: Path, value: object) -> str:
     return _sha256_bytes(data)
 
 
-def _archive_reader(path: Path) -> CandidateOutcomeArchiveV2:
+def _archive_reader(
+    path: Path,
+) -> CandidateOutcomeArchiveV2:
     path = path.resolve()
     if not path.is_file() or path.is_symlink():
         raise CandidateOutcomeDatasetBuilderError("candidate_archive:REGULAR_FILE_REQUIRED")
@@ -125,14 +157,14 @@ def _archive_reader(path: Path) -> CandidateOutcomeArchiveV2:
         raise CandidateOutcomeDatasetBuilderError("candidate_archive:INVALID_FIRST_ROW")
     writer_id = first.get("writer_id")
     public_key = first.get("writer_public_key_hex")
-    if writer_id != DEFAULT_WRITER_ID:
+    if writer_id != PINNED_PRODUCTION_WRITER_ID or writer_id != DEFAULT_WRITER_ID:
         raise CandidateOutcomeDatasetBuilderError("candidate_archive:WRITER_ID_UNTRUSTED")
-    if type(public_key) is not str:
-        raise CandidateOutcomeDatasetBuilderError("candidate_archive:PUBLIC_KEY_MISSING")
+    if public_key != PINNED_PRODUCTION_WRITER_PUBLIC_KEY_HEX:
+        raise CandidateOutcomeDatasetBuilderError("candidate_archive:PUBLIC_KEY_UNTRUSTED")
     return CandidateOutcomeArchiveV2(
         archive_path=path,
-        writer_id=writer_id,
-        writer_public_key_hex=public_key,
+        writer_id=PINNED_PRODUCTION_WRITER_ID,
+        writer_public_key_hex=PINNED_PRODUCTION_WRITER_PUBLIC_KEY_HEX,
         signer=None,
     )
 
@@ -143,10 +175,16 @@ def build_once(
     candidate_archive_path: Path,
     feature_archive_root: Path,
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]:
-    base_dataset = _read_object(base_dataset_path, "base_dataset")
+    base_dataset, base_dataset_file_sha256 = _read_pinned_object(
+        base_dataset_path,
+        "base_dataset",
+        trusted_file_sha256=PINNED_BASE_DATASET_FILE_SHA256,
+    )
     reader = _archive_reader(candidate_archive_path)
-    verification, records = reader.read_verified_records_with_verification(
-        latest_only=True
+    verification, records = (
+        reader.read_verified_records_by_sequence_with_verification(
+            archive_sequences=(2,),
+        )
     )
     if verification.verified is not True:
         raise CandidateOutcomeDatasetBuilderError("candidate_archive:VERIFICATION_FAILED")
@@ -170,6 +208,7 @@ def build_once(
         candidate_records=records,
         snapshot_loader=snapshot_loader,
         source_archive_chain_sha256=verification.terminal_chain_sha256,
+        source_archive_verification=asdict(verification),
     )
     high_water = manifest["source_high_watermark"]
     expected = {
@@ -187,7 +226,10 @@ def build_once(
         "generated_at": _utc_now(),
         "status": "PASS",
         "base_dataset_path": str(base_dataset_path.resolve()),
-        "base_dataset_file_sha256": _sha256_bytes(base_dataset_path.read_bytes()),
+        "base_dataset_file_sha256": base_dataset_file_sha256,
+        "trusted_base_dataset_file_sha256": PINNED_BASE_DATASET_FILE_SHA256,
+        "trusted_writer_id": PINNED_PRODUCTION_WRITER_ID,
+        "trusted_writer_public_key_hex": PINNED_PRODUCTION_WRITER_PUBLIC_KEY_HEX,
         "candidate_archive_verification": asdict(verification),
         "feature_archive_root": str(feature_root),
         "dataset_id": dataset["dataset_id"],

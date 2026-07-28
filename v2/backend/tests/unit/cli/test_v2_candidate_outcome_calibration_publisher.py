@@ -7,6 +7,10 @@ from types import SimpleNamespace
 import pytest
 
 from v2.backend.app.cli import v2_candidate_outcome_calibration_publisher as publisher
+from v2.backend.tests.unit.services.adaptive_system.test_candidate_outcome_archive_v2 import (
+    _revision_pair,
+    _writer,
+)
 from v2.backend.tests.unit.services.adaptive_system.test_candidate_outcome_calibration_v2 import (
     _observation,
 )
@@ -133,3 +137,19 @@ def test_runtime_streams_only_matured_revisions_after_full_archive_verification(
     assert status["source_matured_revision_count"] == 0
     assert status["paper_only"] is True
     assert status["routes_to_live"] is False
+
+
+def test_archive_reader_rejects_self_signed_alternate_writer_key(
+    tmp_path: Path,
+) -> None:
+    path = (tmp_path / "candidate-outcomes.jsonl").resolve()
+    writer, _, _ = _writer(path)
+    first, second = _revision_pair()
+    writer.append(first, signed_at_ms=first.record_available_at_ms)
+    writer.append(second, signed_at_ms=second.record_available_at_ms)
+
+    with pytest.raises(
+        publisher.CandidateCalibrationPublisherError,
+        match="public_key_untrusted",
+    ):
+        publisher._archive_reader(path)

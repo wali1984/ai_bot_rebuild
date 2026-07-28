@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from v2.backend.app.cli import v2_candidate_outcome_dataset_builder as builder
 from v2.backend.app.cli.v2_candidate_outcome_dataset_builder import (
     CandidateOutcomeDatasetBuilderError,
     _archive_reader,
@@ -30,7 +31,10 @@ from v2.backend.tests.unit.services.adaptive_system.test_candidate_outcome_servi
 )
 
 
-def test_build_once_verifies_signed_archive_and_durable_snapshot(tmp_path: Path) -> None:
+def test_build_once_verifies_signed_archive_and_durable_snapshot(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     matured, snapshot = _matured_record()
     first = replace(
         matured,
@@ -43,7 +47,7 @@ def test_build_once_verifies_signed_archive_and_durable_snapshot(tmp_path: Path)
     )
     assert matured.previous_archive_record_sha256 == first.content_sha256()
     archive_path = (tmp_path / "candidate-outcomes.jsonl").resolve()
-    writer, _, _ = _writer(archive_path)
+    writer, _, public_key_hex = _writer(archive_path)
     writer.append(first, signed_at_ms=first.record_available_at_ms)
     writer.append(matured, signed_at_ms=matured.record_available_at_ms)
     feature_root = (tmp_path / "features").resolve()
@@ -55,6 +59,16 @@ def test_build_once_verifies_signed_archive_and_durable_snapshot(tmp_path: Path)
     )
     base_path = tmp_path / "base.json"
     base_path.write_text(json.dumps(_base_dataset(template)), encoding="utf-8")
+    monkeypatch.setattr(
+        builder,
+        "PINNED_BASE_DATASET_FILE_SHA256",
+        builder._sha256_bytes(base_path.read_bytes()),
+    )
+    monkeypatch.setattr(
+        builder,
+        "PINNED_PRODUCTION_WRITER_PUBLIC_KEY_HEX",
+        public_key_hex,
+    )
 
     dataset, manifest, parity, receipt = build_once(
         base_dataset_path=base_path,
@@ -86,9 +100,12 @@ def test_archive_reader_rejects_untrusted_writer(tmp_path: Path) -> None:
         _archive_reader(path)
 
 
-def test_read_only_archive_has_no_signer_or_append_authority(tmp_path: Path) -> None:
+def test_read_only_archive_has_no_signer_or_append_authority(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     path = (tmp_path / "candidate-outcomes.jsonl").resolve()
-    writer, _, _ = _writer(path)
+    writer, _, public_key_hex = _writer(path)
     matured, _ = _matured_record()
     first = replace(
         matured,
@@ -101,8 +118,36 @@ def test_read_only_archive_has_no_signer_or_append_authority(tmp_path: Path) -> 
     )
     writer.append(first, signed_at_ms=first.record_available_at_ms)
 
+    monkeypatch.setattr(
+        builder,
+        "PINNED_PRODUCTION_WRITER_PUBLIC_KEY_HEX",
+        public_key_hex,
+    )
     reader = _archive_reader(path)
 
     assert isinstance(reader, CandidateOutcomeArchiveV2)
     with pytest.raises(CandidateOutcomeArchiveError, match="signer_required"):
         reader.append(first, signed_at_ms=first.record_available_at_ms + 1)
+
+
+def test_archive_reader_rejects_self_signed_alternate_key(tmp_path: Path) -> None:
+    path = (tmp_path / "candidate-outcomes.jsonl").resolve()
+    writer, _, public_key_hex = _writer(path)
+    matured, _ = _matured_record()
+    first = replace(
+        matured,
+        archive_record_id=f"{matured.decision.candidate_id}-decision",
+        archive_sequence=1,
+        matured_labels=None,
+        previous_archive_record_sha256=None,
+        record_generated_at_ms=matured.decision.record_available_at_ms,
+        record_available_at_ms=matured.decision.record_available_at_ms,
+    )
+    writer.append(first, signed_at_ms=first.record_available_at_ms)
+
+    with pytest.raises(
+        CandidateOutcomeDatasetBuilderError,
+        match="PUBLIC_KEY_UNTRUSTED",
+    ):
+        _archive_reader(path)
+    assert public_key_hex != "bbff6e85cd6954ae5aff4ee2ec5d2078de96bf8f8750aaa889d2ea4712c5b4d9"
