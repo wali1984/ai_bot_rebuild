@@ -15070,6 +15070,135 @@ def _typed_adaptive_final_admission_fixture() -> dict[str, object]:
     return _reseal_typed_adaptive_final_admission_fixture(row)
 
 
+_SECOND_CYCLE_ACCOUNTING_ADDITIONS = {
+    "allocated_margin_source",
+    "current_capital_accounting",
+    "decision_time_max_effective_leverage",
+    "effective_leverage_source",
+    "effective_leverage_validated",
+    "maintenance_margin_estimate",
+    "paper_liquidation_validation_status",
+}
+_SECOND_CYCLE_OWNER_ADDITIONS = {
+    "challenger_credit_allowed",
+    "counts_as_challenger_evidence",
+}
+
+
+def _verified_v1_compacted_second_cycle_fixture() -> tuple[
+    dict[str, object],
+    dict[str, object],
+]:
+    """Build the minimized shape of the v2h_a10c second-cycle incident."""
+
+    row = _typed_adaptive_final_admission_fixture()
+    row.update(
+        {
+            "fill_id": "v2h_a10c_second_cycle_fixture",
+            "ledger_row_id": "v2h_a10c_second_cycle_fixture",
+            "position_id": "paper-pos-v2h-a10c-second-cycle-fixture",
+            "position_generation_id": "8" * 64,
+            "checkpoint_id": "SERVING_ABI_V2_PAPER_compact_second_cycle",
+            "checkpoint_generation": 3,
+            "cohort_id": "paper-serving-v2-compact-second-cycle",
+        }
+    )
+    allocation = row["adaptive_allocation"]
+    assert isinstance(allocation, dict)
+    model_inputs = allocation["model_inputs"]
+    assert isinstance(model_inputs, dict)
+    model_inputs["risk_envelope"] = {"max_effective_leverage": 2.0}
+    model_inputs["maintenance_margin_rate"] = 0.01
+    allocation["maintenance_margin_rate"] = 0.01
+    cycle_receipt, cycle_reasons = paper_loop._paper_adaptive_policy_cycle_receipt(  # noqa: SLF001
+        row,
+        cycle_control_snapshot_sha256="c" * 64,
+    )
+    assert cycle_reasons == []
+    assert cycle_receipt is not None
+    row["adaptive_policy_paper_cycle_receipt"] = cycle_receipt
+    row["adaptive_policy_paper_cycle_receipt_id"] = cycle_receipt["receipt_id"]
+    row["adaptive_policy_paper_cycle_receipt_sha256"] = cycle_receipt[
+        "receipt_sha256"
+    ]
+
+    # Pre-populate every other replay enrichment field, then deliberately omit
+    # only the nine fields observed in the production second-cycle failure.
+    enriched = paper_loop._with_paper_session_metadata_rows(  # noqa: SLF001
+        [row],
+        paper_session_id="paper-session-second-cycle-fixture",
+        starting_equity_usd=3000.0,
+    )
+    enriched = paper_loop._ensure_margin_leverage_consistency_rows(enriched)  # noqa: SLF001
+    enriched = paper_loop._with_operator_et_timestamp_rows(enriched)  # noqa: SLF001
+    enriched = paper_loop._bind_challenger_b_grade_canary_metadata_rows(  # noqa: SLF001
+        paper_loop._normalize_paper_owner_attribution_rows(enriched),  # noqa: SLF001
+        binding_source="POST_LINEAGE_BACKFILL_ACCEPTED_FILL",
+    )
+    row = enriched[0]
+    for field in _SECOND_CYCLE_ACCOUNTING_ADDITIONS | _SECOND_CYCLE_OWNER_ADDITIONS:
+        row.pop(field, None)
+    # These are the stable values produced on the prior pass in the runtime
+    # incident. They ensure the minimized replay mutates only the exact nine
+    # absent fields, without importing a runtime capture into the test.
+    row["maintenance_margin_rate_source"] = "POSITION_MAINTENANCE_MARGIN_RATE"
+    row["paper_owner_attribution_missing_fields"] = [
+        "pre_cutover_owner_attribution"
+    ]
+
+    row = _reseal_typed_adaptive_final_admission_fixture(row)
+    row = paper_loop._seal_paper_persisted_ledger_contract(row)  # noqa: SLF001
+    compact = paper_loop._compact_accepted_fill_for_state(row)  # noqa: SLF001
+    position: dict[str, object] = {
+        "position_id": compact["position_id"],
+        "position_generation_id": compact["position_generation_id"],
+        "checkpoint_id": compact["checkpoint_id"],
+        "checkpoint_generation": compact["checkpoint_generation"],
+        "cohort_id": row["cohort_id"],
+        "entry_fill_id": compact["fill_id"],
+        "source_fill_ids": [compact["fill_id"]],
+        "prediction_id": compact["prediction_id"],
+        "signal_id": compact["signal_id"],
+        "symbol": compact["symbol"],
+        "timeframe": compact["timeframe"],
+        "side": compact["side"],
+        "net_quantity": compact["quantity"],
+        "avg_entry_price": compact["fill_price"],
+        "gross_notional_usd": compact["gross_notional_usd"],
+        "effective_leverage": compact["effective_leverage"],
+        "allocated_margin_usd": compact["allocated_margin_usd"],
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+    assert paper_loop._paper_persisted_admission_rejection_reasons(compact) == []  # noqa: SLF001
+    return compact, position
+
+
+def _second_cycle_enrich_compacted_rows(
+    rows: list[dict[str, object]],
+) -> tuple[list[dict[str, object]], set[str], set[str]]:
+    session_rows = paper_loop._with_paper_session_metadata_rows(  # noqa: SLF001
+        rows,
+        paper_session_id="paper-session-second-cycle-fixture",
+        starting_equity_usd=3000.0,
+    )
+    before_accounting = deepcopy(session_rows[0]) if session_rows else {}
+    accounting_rows = paper_loop._ensure_margin_leverage_consistency_rows(  # noqa: SLF001
+        session_rows
+    )
+    accounting_additions = set(accounting_rows[0]) - set(before_accounting)
+    timestamp_rows = paper_loop._with_operator_et_timestamp_rows(accounting_rows)  # noqa: SLF001
+    before_owner = deepcopy(timestamp_rows[0]) if timestamp_rows else {}
+    owner_rows = paper_loop._normalize_paper_owner_attribution_rows(timestamp_rows)  # noqa: SLF001
+    owner_additions = set(owner_rows[0]) - set(before_owner)
+    enriched = paper_loop._bind_challenger_b_grade_canary_metadata_rows(  # noqa: SLF001
+        owner_rows,
+        binding_source="POST_LINEAGE_BACKFILL_ACCEPTED_FILL",
+    )
+    return enriched, accounting_additions, owner_additions
+
+
 def test_compacted_typed_adaptive_final_admission_remains_replayable_without_snapshot(
 ) -> None:
     source = _typed_adaptive_final_admission_fixture()
@@ -15100,6 +15229,122 @@ def test_compacted_typed_adaptive_final_admission_remains_replayable_without_sna
     assert "entry_feature_snapshot" not in compact
     assert compact["entry_feature_snapshot_omitted_from_state"] is True
     assert len(json.dumps(compact, sort_keys=True)) < len(json.dumps(source, sort_keys=True))
+
+
+def test_verified_v1_compact_row_survives_next_cycle_enrichment_restore_and_split(
+) -> None:
+    compact, _position = _verified_v1_compacted_second_cycle_fixture()
+    identity = str(compact["fill_id"])
+    frozen = paper_loop._paper_verified_compacted_rows_by_identity([compact])  # noqa: SLF001
+
+    enriched, accounting_additions, owner_additions = (
+        _second_cycle_enrich_compacted_rows([deepcopy(compact)])
+    )
+
+    assert accounting_additions == _SECOND_CYCLE_ACCOUNTING_ADDITIONS
+    assert owner_additions == _SECOND_CYCLE_OWNER_ADDITIONS
+    assert set(enriched[0]) - set(compact) == (
+        _SECOND_CYCLE_ACCOUNTING_ADDITIONS | _SECOND_CYCLE_OWNER_ADDITIONS
+    )
+    assert all(enriched[0].get(field) == compact.get(field) for field in compact)
+    assert "PERSISTED_ADMISSION_COMPACTED_PAYLOAD_MUTATED" in (  # noqa: SLF001
+        paper_loop._paper_persisted_admission_rejection_reasons(enriched[0])
+    )
+
+    restored = paper_loop._paper_restore_verified_compacted_rows(enriched, frozen)  # noqa: SLF001
+    valid, quarantined, status = paper_loop._split_invalid_admission_accepted_rows(  # noqa: SLF001
+        restored
+    )
+
+    assert frozen == {identity: compact}
+    assert restored == [compact]
+    assert paper_loop._paper_canonical_sha256(restored[0]) == (  # noqa: SLF001
+        paper_loop._paper_canonical_sha256(compact)  # noqa: SLF001
+    )
+    assert valid == [compact]
+    assert quarantined == []
+    assert status["valid_accepted_rows"] == 1
+    assert status["invalid_admission_accepted_rows_quarantined"] == 0
+
+
+def test_current_proof_uses_final_persisted_accepted_row_ledger_hash() -> None:
+    compact, position = _verified_v1_compacted_second_cycle_fixture()
+    valid_persisted, quarantined, _status = (
+        paper_loop._split_invalid_admission_accepted_rows([compact])  # noqa: SLF001
+    )
+    assert quarantined == []
+    stale_current = deepcopy(compact)
+    stale_current["paper_persisted_ledger_contract_hash"] = "f" * 64
+    final_by_identity = {
+        paper_loop._accepted_fill_identity(row): row  # noqa: SLF001
+        for row in valid_persisted
+    }
+    synchronized_current = [
+        final_by_identity[paper_loop._accepted_fill_identity(stale_current)]  # noqa: SLF001
+    ]
+
+    proofs, rejected, proof_status = paper_loop._paper_build_open_position_fill_proofs(  # noqa: SLF001
+        [position],
+        synchronized_current,
+        {"status": "READY", "rows": []},
+        generated_utc="2026-07-28T12:10:00Z",
+    )
+
+    assert rejected == []
+    assert proof_status["status"] == "PASS"
+    assert proof_status["bindings"][0]["source"] == (
+        "CURRENT_CYCLE_FINAL_ADMISSION_PASS"
+    )
+    assert proofs[0]["paper_persisted_ledger_contract_hash"] == valid_persisted[0][
+        "paper_persisted_ledger_contract_hash"
+    ]
+    assert proofs[0]["paper_persisted_ledger_contract_hash"] != stale_current[
+        "paper_persisted_ledger_contract_hash"
+    ]
+
+
+@pytest.mark.parametrize("tamper_case", ("payload", "compaction_receipt"))
+def test_invalid_v1_compact_row_is_never_frozen_or_restored(
+    tamper_case: str,
+) -> None:
+    compact, _position = _verified_v1_compacted_second_cycle_fixture()
+    tampered = deepcopy(compact)
+    if tamper_case == "payload":
+        tampered["symbol"] = "ETHUSDT"
+    else:
+        tampered[paper_loop.PAPER_ACCEPTED_FILL_STATE_COMPACTION_RECEIPT_HASH_FIELD] = (
+            "0" * 64
+        )
+
+    frozen = paper_loop._paper_verified_compacted_rows_by_identity([tampered])  # noqa: SLF001
+    enriched, _accounting_additions, _owner_additions = (
+        _second_cycle_enrich_compacted_rows([deepcopy(tampered)])
+    )
+    restored = paper_loop._paper_restore_verified_compacted_rows(enriched, frozen)  # noqa: SLF001
+    valid, quarantined, _status = paper_loop._split_invalid_admission_accepted_rows(  # noqa: SLF001
+        restored
+    )
+
+    assert frozen == {}
+    assert restored == enriched
+    assert valid == []
+    assert len(quarantined) == 1
+    assert any(
+        reason.startswith("PERSISTED_ADMISSION_COMPACTED_")
+        for reason in quarantined[0]["invalid_admission_integrity_block_reasons"]
+    )
+
+
+def test_verified_compact_restore_does_not_readd_absent_or_closed_rows() -> None:
+    compact, _position = _verified_v1_compacted_second_cycle_fixture()
+    frozen = paper_loop._paper_verified_compacted_rows_by_identity([compact])  # noqa: SLF001
+    unrelated = {"fill_id": "still-open-unrelated-fill", "marker": "unchanged"}
+
+    assert paper_loop._paper_restore_verified_compacted_rows([], frozen) == []  # noqa: SLF001
+    assert paper_loop._paper_restore_verified_compacted_rows(  # noqa: SLF001
+        [unrelated],
+        frozen,
+    ) == [unrelated]
 
 
 def test_compacted_final_admission_without_persisted_ledger_fails_closed() -> None:

@@ -13927,6 +13927,38 @@ def _compact_rows_for_state(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [_compact_accepted_fill_for_state(row) for row in rows if isinstance(row, dict)]
 
 
+def _paper_verified_compacted_rows_by_identity(
+    rows: Sequence[Mapping[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    """Freeze exact valid compact rows before replay-time enrichment runs."""
+
+    frozen: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        if not isinstance(row, Mapping) or row.get("accepted_fill_state_compacted") is not True:
+            continue
+        identity = _accepted_fill_identity(row)
+        if not identity or _paper_persisted_admission_rejection_reasons(row):
+            continue
+        frozen[identity] = deepcopy(dict(row))
+    return frozen
+
+
+def _paper_restore_verified_compacted_rows(
+    rows: Sequence[Mapping[str, Any]],
+    frozen_by_identity: Mapping[str, Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    """Discard non-authoritative enrichment of an already sealed compact row."""
+
+    restored: list[dict[str, Any]] = []
+    for row in rows:
+        if not isinstance(row, Mapping):
+            continue
+        identity = _accepted_fill_identity(row)
+        frozen = frozen_by_identity.get(identity) if identity else None
+        restored.append(deepcopy(dict(frozen)) if isinstance(frozen, Mapping) else dict(row))
+    return restored
+
+
 PAPER_RUNTIME_INTENT_PROJECTION_FIELDS = (
     "active_model_registry_generation",
     "checkpoint_generation",
@@ -55756,6 +55788,9 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             "reason": "SYNTHESIS_IS_OWNER_ONLY" if adaptive_hedge_enabled else "DISABLED",
         }
     merged_accepted_fills = _merge_persistent_accepted_fills(existing_accepted, accepted)
+    verified_compacted_accepted_by_identity = (
+        _paper_verified_compacted_rows_by_identity(merged_accepted_fills)
+    )
     accepted_lineage_contexts = _lineage_context_by_prediction_id(merged_accepted_fills)
     accepted_replay_predictions = _read_replay_snapshot_predictions(r, accepted_lineage_contexts)
     for prediction_id, replay_prediction in accepted_replay_predictions.items():
@@ -55781,6 +55816,10 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
     accepted_for_ledger = _bind_challenger_b_grade_canary_metadata_rows(
         _normalize_paper_owner_attribution_rows(accepted_for_ledger),
         binding_source="POST_LINEAGE_BACKFILL_ACCEPTED_FILL",
+    )
+    accepted_for_ledger = _paper_restore_verified_compacted_rows(
+        accepted_for_ledger,
+        verified_compacted_accepted_by_identity,
     )
     accepted_for_ledger, accepted, post_backfill_churn_blocked = (
         _paper_filter_post_backfill_current_churn_duplicates(
@@ -56124,6 +56163,10 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         starting_equity_usd=paper_starting_equity_usd,
     )
     accepted_for_ledger = _with_operator_et_timestamp_rows(accepted_for_ledger)
+    accepted_for_ledger = _paper_restore_verified_compacted_rows(
+        accepted_for_ledger,
+        verified_compacted_accepted_by_identity,
+    )
     accepted = [
         row for row in accepted_for_ledger if _accepted_fill_identity(row) in current_accepted_ids
     ]
@@ -57426,6 +57469,10 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         valid_accepted_for_ledger,
         open_positions=open_positions,
     )
+    valid_accepted_for_ledger = _paper_restore_verified_compacted_rows(
+        valid_accepted_for_ledger,
+        verified_compacted_accepted_by_identity,
+    )
     (
         valid_accepted_for_ledger,
         late_persistence_integrity_quarantined_rows,
@@ -57479,6 +57526,21 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
     invalid_admission_accepted_quarantine_status["post_lifecycle_persistence_integrity"] = (
         late_persistence_integrity_status
     )
+    final_persisted_accepted_by_identity = {
+        _accepted_fill_identity(row): row
+        for row in valid_accepted_for_ledger
+        if _accepted_fill_identity(row)
+    }
+    # Proof construction and the current-cycle projection must consume the
+    # exact same final persisted seal.  Building a proof from an earlier
+    # current-row version produces two individually valid but mutually
+    # inconsistent ledger-contract hashes.
+    valid_current_accepted = [
+        final_persisted_accepted_by_identity[identity]
+        for row in valid_current_accepted
+        if (identity := _accepted_fill_identity(row))
+        in final_persisted_accepted_by_identity
+    ]
     (
         open_position_fill_proofs,
         proof_rejected_open_positions,
@@ -58445,18 +58507,8 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
     # Public-lineage repair is an additive normalization step and must happen
     # before the compact-state envelope is sealed.  Nothing may mutate a
     # compacted accepted fill after its bounded payload hash is emitted.
-    accepted_state_rows = _compact_rows_for_state(
-        _repair_paper_exploration_public_lineage_rows(
-            valid_accepted_for_ledger,
-            open_positions=open_positions,
-        )
-    )
-    current_accepted_state_rows = _compact_rows_for_state(
-        _repair_paper_exploration_public_lineage_rows(
-            valid_current_accepted,
-            open_positions=open_positions,
-        )
-    )
+    accepted_state_rows = _compact_rows_for_state(valid_accepted_for_ledger)
+    current_accepted_state_rows = _compact_rows_for_state(valid_current_accepted)
     invalid_admission_accepted_quarantine_state_rows = _compact_rows_for_state(
         invalid_admission_accepted_rows
     )
