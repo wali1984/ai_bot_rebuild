@@ -2735,3 +2735,38 @@ The paper stack is stable and the lifecycle controller remains armed. A current
 epoch natural lifecycle and four additional eligible frozen-cohort closes have
 not occurred. Historical losses are unchanged and the clean $3,000 operational
 epoch is not counted as economic certification.
+
+### Automatic ladder continuation after stabilization
+
+The same pass continued beyond stabilization. The authenticated release widened
+again to 19,986 rows (7,961 train, 5,347 validation, 6,678 holdout), with exact
+dataset SHA-256
+`00c348ca26444c4e19e8ff6f3fd16e1c2928881efdc05956ad10251b31b5ab46`.
+The signed archive verification covers 56,775 revisions, 29,941 candidates and
+26,834 matured revisions with zero duplicate or invalid archive rows.
+
+Three further immutable dispatches completed with return code zero:
+
+- `adaptive_dispatch_96fdf3fd54911be3d1a9797155dbadc5` — incremental
+  training on the enlarged frozen release;
+- `adaptive_dispatch_6ee1cd4e1add11bfd815c8549dd89ad2` — three alternative
+  architecture research challengers;
+- `adaptive_dispatch_69fbd8da720dde8a14674adc6b26f622` — one hedged/relative
+  value research challenger.
+
+No research challenger proved statistical superiority or became activation
+eligible. The hedged/relative-value candidate additionally failed closed because
+the corpus has no synchronized pair/basket label bindings. No registry write was
+attempted; generation 3 remains the active paper checkpoint.
+
+All nine pre-promotion adaptive ladder steps now have replay-verified completion
+evidence for the active negative-edge failure cycle. Promotion remains correctly
+unattempted because no superior challenger exists. The supervisor is
+`AWAITING_TRIGGER`: 178 new matured revisions exist against the predeclared 250
+minimum, and the active timer will invoke the next incremental learning cycle
+when the threshold is met. This is a nonterminal learning state, not a terminal
+market classification.
+
+Exact evidence is
+`goal_state/PERMANENT_SYSTEM_RECOVERY/adaptive_ladder_continuation_20260728.json`
+(SHA-256 `81de47c97a09c891753fbd674e29828b9b583ba7705a02a2b62a1375bdea619d`).
