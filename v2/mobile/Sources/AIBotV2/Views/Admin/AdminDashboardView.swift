@@ -279,19 +279,21 @@ struct AdminDashboardView: View {
             }
             .buttonStyle(.plain)
 
-            Link(destination: URL(string: appState.baseURL + "/admin")!) {
-                HStack {
-                    Image(systemName: "safari").foregroundStyle(NerVyx.signal)
-                    Text("Open Web Admin")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(NerVyx.signal)
-                    Spacer()
-                    Image(systemName: "arrow.up.right").foregroundStyle(NerVyx.signal)
+            if let webAdminURL = URL(string: appState.baseURL + "/admin") {
+                Link(destination: webAdminURL) {
+                    HStack {
+                        Image(systemName: "safari").foregroundStyle(NerVyx.signal)
+                        Text("Open Web Admin")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(NerVyx.signal)
+                        Spacer()
+                        Image(systemName: "arrow.up.right").foregroundStyle(NerVyx.signal)
+                    }
+                    .padding(14)
+                    .background(NerVyx.signal.opacity(0.08))
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(NerVyx.signal.opacity(0.3), lineWidth: 1))
                 }
-                .padding(14)
-                .background(NerVyx.signal.opacity(0.08))
-                .clipShape(RoundedRectangle(cornerRadius: 10))
-                .overlay(RoundedRectangle(cornerRadius: 10).stroke(NerVyx.signal.opacity(0.3), lineWidth: 1))
             }
         }
     }
@@ -360,9 +362,11 @@ struct AuditLedgerView: View {
                     } label: {
                         Image(systemName: "arrow.clockwise").foregroundStyle(NerVyx.signal)
                     }
-                    Link("Web ↗", destination: URL(string: appState.baseURL + "/audit-ledger")!)
-                        .foregroundStyle(NerVyx.signal)
-                        .font(.system(size: 13, weight: .medium))
+                    if let auditWebURL = URL(string: appState.baseURL + "/audit-ledger") {
+                        Link("Web ↗", destination: auditWebURL)
+                            .foregroundStyle(NerVyx.signal)
+                            .font(.system(size: 13, weight: .medium))
+                    }
                 }
             }
         }
