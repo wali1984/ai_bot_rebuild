@@ -2623,3 +2623,115 @@ exchange_action_taken=false
 
 NEXT_CONTROLLABLE_WORK=BIND_TRUSTED_RUNTIME_FAILURE_SIGNALS_AND_ADVANCE_REMAINING_ESCALATION_RUNGS
 ```
+
+## d185 runtime stabilization and adaptive continuation — authoritative update 2026-07-28
+
+This section supersedes the prior failed-oneshot and stale-boot state. It does
+not supersede the incomplete frozen economic cohort or authorize live trading.
+Exact machine-readable evidence is
+`goal_state/PERMANENT_SYSTEM_RECOVERY/d185_runtime_stabilization_acceptance_20260728.json`
+(SHA-256 `3bc771f3c9b16afeff622168ba8113fbc7592a08b4f83570618b158f0af5d56f`).
+
+### Completed task list
+
+- [x] Classify and rerun all three failed units only after their dependencies
+  and evidence heartbeats were fresh.
+- [x] Prove the boot-validator failure was a graceful-switch dependency race,
+  then rerun unchanged validation to exit status 0 with no failures.
+- [x] Prove the adaptive-escalation SIGTERM was the prior requested closeout
+  interruption, then complete its authenticated bounded run with exit status 0.
+- [x] Repair the replay miner's genuine OOM producer defect with bounded
+  streaming projection/pruning and separate immutable-code/runtime-evidence
+  roots; complete both migration and steady-state runs with exit status 0.
+- [x] Restore both enabled evidence/adaptation timers.
+- [x] Observe three new cycles anchored after the `d185c2a70d` paper-loop
+  restart. All passed proof, duplicate, leak, conservation, epoch and safety
+  predicates.
+- [x] Prove 106/106 current intents preserve authenticated execution-trust
+  projections into typed `AdaptivePolicyActionV2`; the independent shadow
+  evaluated the same cycle with zero production/reference disagreements.
+- [x] Re-run the directional conservative microstructure-consumption fixtures:
+  2/2 selected tests pass. FLAT actions intentionally report zero execution
+  cost because they submit nothing; directional actions consume the required
+  conservative min/max estimates.
+- [x] Re-run G12: 17 PASS, 0 FAIL, 0 WARNING.
+- [x] Run user-unit verification over the changed services and timers: zero
+  diagnostics and zero ordering cycles.
+- [x] Confirm the failed-unit set is empty and all changed services have
+  `NRestarts=0` after stabilization.
+- [x] Keep the current-epoch lifecycle controller active and fail-closed while
+  waiting for the first proof-backed natural position.
+
+### Exact failure classification and final state
+
+| Unit | Initial failure | Classification | Final state |
+|---|---|---|---|
+| `ai-bot-v2-boot-validator.service` | exit 1 while the paper loop was `deactivating/stop-sigterm` | transient dependency settling | successful oneshot, exit 0, failures `[]` |
+| `ai-bot-v2-adaptive-escalation-runtime.service` | signal 15 from requested closeout interruption | transient dependency settling | successful oneshot, exit 0, peak 5,442,740,224 bytes, timer active |
+| `ai-bot-v2-post-hoc-replay-outcome-miner.service` | OOM kill, signal 9, 12,884,901,888-byte peak | real producer defect | migration and steady-state runs successful, exit 0, timer active |
+
+The replay defect was a 7,308,006,627-byte pending archive combined with
+unbounded list materialization, duplicated authority matrices and whole-file
+mirroring. Commits `849d44b53c56302a29f085ce3034e6845c5dfb4d` and
+`f5f444bad8b2f283d44fa295ebcbd37801c0c0cd` repair the producer without
+relaxing a validator or changing trading policy.
+
+The adaptive run rebuilt a signed 18,914-row release (8,392 train, 4,061
+validation, 6,461 holdout), with zero duplicate rows, future-time rejections,
+unproven finality, missing cost evidence or missing label evidence. It completed
+the representation, horizon-specific and symbol/regime challenger steps. The
+next automatic rung is `TRAIN_ALTERNATIVE_MODEL_ARCHITECTURES`; no challenger
+was promoted and generation 3 remains active.
+
+### Current paper and safety truth
+
+```text
+paper_session_id=paper_session_140989e198032b94
+paper_account_epoch=1
+starting_equity_usd=3000.00
+wallet_balance_usd=3000.00
+equity_usd=3000.00
+free_margin_usd=3000.00
+used_margin_usd=0.00
+reserved_margin_usd=0.00
+accepted_fills=0
+open_positions=0
+current_session_closed_trades=0
+pending_reservations=0
+proof_store_initialized=true
+proof_store_backfill_complete=true
+unproved_positions=0
+duplicate_fills=0
+duplicate_closes=0
+reservation_leaks=0
+wallet_equity_margin_conservation=true
+
+boot_validator=PASS_EXIT_STATUS_0
+systemd_diagnostics=0
+ordering_cycles=0
+failed_user_units=0
+changed_services_NRestarts=0
+G12=PASS_17_OF_17
+
+lifecycle_observer=ACTIVE_WAITING_FOR_NATURAL_CURRENT_EPOCH_POSITION
+current_epoch_natural_lifecycles=0
+economic_cohort_natural_closes=1
+economic_cohort_required_closes=5
+G03=FAIL
+G11=FAIL
+G13=FAIL
+G14=FAIL
+
+paper_only=true
+live_gate=blocked_human_only
+routes_to_live=false
+places_real_order=false
+exchange_action_taken=false
+V2_PERMANENT_RECOVERY_COMPLETE=false
+LIVE_NO_GO=true
+```
+
+The paper stack is stable and the lifecycle controller remains armed. A current
+epoch natural lifecycle and four additional eligible frozen-cohort closes have
+not occurred. Historical losses are unchanged and the clean $3,000 operational
+epoch is not counted as economic certification.
