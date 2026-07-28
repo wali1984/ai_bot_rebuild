@@ -347,11 +347,18 @@ def capture(label: str) -> int:
     return 0
 
 
+def _initial_cycle_id(r) -> str | None:
+    cycle_id = snapshot(r).get("cycle_generated_utc")
+    return cycle_id if isinstance(cycle_id, str) and cycle_id else None
+
+
 def observe(cycles: int, interval_s: float) -> int:
     r = _r()
     samples = []
     baseline_wipes = None
-    previous_cycle = None
+    # Anchor at invocation so a status left by the pre-restart process cannot
+    # be counted as the first post-deployment acceptance cycle.
+    previous_cycle = _initial_cycle_id(r)
     for i in range(cycles):
         deadline = time.monotonic() + _cycle_observation_timeout(interval_s)
         while True:

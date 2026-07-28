@@ -114,3 +114,9 @@ def test_cycle_observation_timeout_covers_long_production_cycles() -> None:
     assert harness._cycle_observation_timeout(3.0) == 900.0
     assert harness._cycle_observation_timeout(65.0) == 900.0
     assert harness._cycle_observation_timeout(180.0) == 1080.0
+
+
+def test_observer_anchors_to_the_cycle_visible_at_invocation() -> None:
+    redis_client = FakeRedis(base_values())
+
+    assert harness._initial_cycle_id(redis_client) == "2026-07-28T19:00:00.000Z"
