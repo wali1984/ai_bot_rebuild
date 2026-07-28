@@ -1604,16 +1604,16 @@ hard and fail closed.
 | FP-030 | 2 | Define and verify `AdaptivePolicyActionV2` | Claude/Codex | COMPLETE | Canonical contract `0980e69210`, duplicate removed `658d6fc760`; 45 tests and independent SHA review PASS |
 | FP-040 | 3 | Convert component vetoes into calibrated continuous estimates | Claude/Codex | IN_PROGRESS | Shadow schema/projector accepted at `2934dcff31` + `5ce083874d`; candidate `28aada8c39` consumes conservative continuous microstructure estimates and converts non-catastrophic performance regression to a bounded objective penalty; remaining component producers and full authority cutover remain |
 | FP-050 | 4 | Implement portfolio after-cost objective and adaptive exploration allocation | Claude/Codex | IN_PROGRESS | Independently accepted shadow foundation `d12f418d3d`; authenticated hard-validation evidence, exact PIT/lineage/units, self-recomputing scores, nonterminal flat-collapse signals, and bounded positive-utility information seeking; runtime fitting and policy integration remain |
-| FP-060 | 5 | Build `CandidateDecisionOutcomeV2` and point-in-time matured labels | Claude/Codex | IN_PROGRESS | Independently accepted contract foundation `289bb9911f`; runtime archive/maturation writers, CAS/idempotency, authenticity, and 100% coverage remain |
+| FP-060 | 5 | Build `CandidateDecisionOutcomeV2` and point-in-time matured labels | Claude/Codex | COMPLETE | Contract `289bb9911f`; active immutable publisher reports 8,471 decision revisions, 7,854 matured revisions, verified signed archive, zero invalid/duplicate rows, candidate coverage=1.0, eligible matured coverage=1.0, unexplained drops=0, and counterfactuals excluded from paper profit |
 | FP-070 | 6 | Attribute gate performance and missed opportunity cost | Claude/Codex | PENDING | Exact segmented false-positive/negative, avoided-loss, and opportunity-cost evidence |
-| FP-080 | 7 | Build complete eligible-data funnel and repair corpus utilization | Claude/Codex | PENDING | Funnel published; every exclusion exact; all eligible data used |
-| FP-090 | 8 | Verify one shared, point-in-time-safe train/serve representation | Claude/Codex | PENDING | ABI/builder hashes and per-feature parity pass; leakage rejections pass |
+| FP-080 | 7 | Build complete eligible-data funnel and repair corpus utilization | Claude/Codex | IN_PROGRESS | Gen-5 frozen reconciliation accepts 397=386 imported+11 exact rejected, no duplicate conflicts or unexpected sequences, and all imported rows verify/build; 382-row/90-symbol/5.36-day dataset exists, but the required repository data-utilization report remains the stale pre-backfill 215-row inconsistent report and must be refreshed |
+| FP-090 | 8 | Verify one shared, point-in-time-safe train/serve representation | Claude/Codex | IN_PROGRESS | Gen-5 ABI and builder hashes match, feature order matches, required missing rate=0, and PIT manifest counters are zero; activation remains fail-closed because current serving distribution comparison is explicitly `CURRENT_SERVING_DISTRIBUTION_NOT_YET_EVALUATED` |
 | FP-100 | 9 | Train and compare diversified model and strategy challengers | Claude/Codex | PENDING | Evidence-backed comparison across declared algorithms and strategy families |
 | FP-110 | 10 | Implement automatic adaptation-escalation state machine | Claude/Codex | PENDING | Negative edge, starvation, flat collapse, and drift advance the ladder automatically |
 | FP-120 | 11 | Verify champion/challenger promotion, rollback, and serving independence | Claude/Codex | PENDING | Atomic receipts, superior-evidence promotion, rollback, trainer independence |
 | FP-130 | 12 | Implement venue-executable bounded information-seeking exploration | Claude/Codex | IN_PROGRESS | Exact non-authoritative venue-minimum primitive through `2b7442e61a`; opportunity selection and runtime integration remain |
-| FP-140 | 13 | Integrate unified policy with hard-only validator and paper portfolio engine | Claude/Codex | IN_PROGRESS | Candidate `28aada8c39` adds hard feed-integrity enforcement, durable feature-clock replay, typed BLOCK persistence, proof-safe position reconstruction, and an explicit hard local-gate boundary around the Category-E bypass; immutable deployment/runtime acceptance pending |
-| FP-150 | 14 | Remove duplicated policy authority and prove reference parity | Claude/Codex | IN_PROGRESS | Candidate integration exists, but one-authority runtime proof and production/reference disagreements=0 remain unproved |
+| FP-140 | 13 | Integrate unified policy with hard-only validator and paper portfolio engine | Claude/Codex | IN_PROGRESS | Candidate `28aada8c39` adds hard feed-integrity enforcement, durable feature-clock replay, typed BLOCK persistence, proof-safe position reconstruction, and an explicit hard local-gate boundary. Last completed paper runtime published 171 typed decisions (155 directional) with adaptive authority active; current service is intentionally stopped pending exact-SHA acceptance and lifecycle proof |
+| FP-150 | 14 | Remove duplicated policy authority and prove reference parity | Claude/Codex | IN_PROGRESS | Last completed paper runtime reports adaptive authority=true, static Category-E entry authority removed=true, and 0 reference disagreements across 171 decisions; full repository classification and current post-review deployment/writer proof remain open |
 | FP-160 | 15 | Implement adaptive self-healing supervisor | Claude/Codex | PENDING | Every declared collapse/failure state produces a bounded repair or learning action |
 | FP-170 | 16 | Record Claude implementation commits and acceptance claims | Claude | PENDING | Each material SHA and claim recorded in `CLAUDE_PROGRESS.jsonl` |
 | FP-180 | 17 | Perform independent adversarial audit, fixtures, co-fixes, and SHA review | Claude/Codex | IN_PROGRESS | Claude-owned CG-F063/CG-F057 fixtures and focused adaptive/hard-boundary suites pass from exact candidate SHA `28aada8c39`; independent Claude acceptance record remains required before deployment |
@@ -1655,6 +1655,10 @@ Machine-readable task state is maintained in
 | 2026-07-28T04:20:25.605120Z | PaperAccountEpochV1 SHA `bad88d5409` | BLOCK | Nominal DB-15 tests pass 13/13 and production dry preflight remains blocked without mutation, but adversarial probes prove mutation before the atomic guard, malformed-critical-JSON fail-open behavior, ignored reservations, incomplete archive hash verification, unenforced predecessor identity, and a `v2:paper:session` split brain. Rotation was not executed; see `claude_worklog/codex/PAPER_ACCOUNT_EPOCH_V1_CODEX_REVIEW_2026_07_28.md` |
 | 2026-07-28T04:27:59.841885Z | Static Category-E hard-boundary repair | CODE SEALED / CLAUDE ACCEPTANCE PENDING | Commit `a124df529b` prevents an authorized adaptive economic decision from bypassing canonical risk, market integrity, reentry deduplication, thesis/feature-time evidence, runtime market evidence, or current-cycle duplicate prediction/signal/candle checks. This does not restore economic veto authority and does not claim all Category-E authority is removed. |
 | 2026-07-28T04:27:59.841885Z | Immutable candidate reproducibility | PASS / DEPLOYMENT PROHIBITED | Exact candidate `28aada8c391adcee996035abc834d824d5c70af7` restores the byte-identical pre-existing growth-receipt fixture dependency from audited snapshot `d61c2acdc2`; its detached worktree is clean. Exact-tree checks are 222/222 focused adaptive/CG PASS, 64/64 scoped hard-boundary PASS, compile/Ruff/diff PASS, and the full paper-loop module is 595 passed, 13 failed, 31 errors—the same inherited 13/31 family. Independent Claude acceptance is still absent, so no deployment or restart occurred. |
+| 2026-07-28T04:34:58.447203Z | Material SHA `0050eccd78` ledger-clock review | PASS SCOPED | Exact candidate tests are 9/9 for the reconstructed-ledger PIT repair and 85/85 across proof, integrity, router, and adaptive paths. The actual missing `paper_ledger_generated_at` defect is fixed using the producer reconstruction clock. A real non-flat position, missing reservation derivation, zero-size blocked intent, and exhausted exposure remain correct fail-closed rails/consequences and were not weakened. |
+| 2026-07-28T04:34:58.447203Z | Continuous-learning runtime | PASS AT LAST SOURCE CYCLE / SOURCE NOW STOPPED | Candidate-outcome publisher is active; its last complete source cycle records 171/171 candidates, while its verified signed archive contains 8,471 decisions and 7,854 matured revisions with zero invalid/duplicate rows, 100% eligible maturation coverage, zero unexplained drops, and no counterfactual paper profit. The paper source is intentionally stopped, so this is not an end-to-end operational claim. |
+| 2026-07-28T04:34:58.447203Z | Adaptive paper authority | HISTORICAL RUNTIME PASS / CURRENTLY STOPPED | Last paper authority status contains 171 typed decisions, 155 directional authorizations, 16 FLAT decisions, zero authority blocks, zero reference disagreements, `adaptive_policy_authoritative=true`, and `static_category_e_authority_removed=true`. The paper loop and shadow evaluator are currently stopped under the review boundary; lifecycle acceptance remains absent. |
+| 2026-07-28T04:34:58.447203Z | G12 evidence-root distinction | PASS WITH AUTHORITATIVE RUNTIME EVIDENCE | Repository runtime evidence yields 17 PASS / 0 WARNING / 0 FAIL. A bare detached source tree yields 14 PASS plus three missing-external-evidence warnings for S13/S15/S16; runtime evidence was not misrepresented as an immutable source artifact. |
 
 ## Current final status
 
@@ -1664,7 +1668,7 @@ This block must be updated whenever work stops or final acceptance changes.
 FINAL_PASS_STATUS=IN_PROGRESS
 FINAL_ACCEPTANCE=NOT_YET_EVALUATED
 FIRST_UNRESOLVED_STAGE=PHASE_1_TRADING_CONFIGURATION_CLASSIFICATION
-CURRENT_SEGMENT=CG_F063_CG_F057_P3_P4_P6
+CURRENT_SEGMENT=CG_F063_CG_F057_LEDGER_PIT_P3_P4_P6
 CURRENT_SEGMENT_IMPLEMENTATION_SHA=28aada8c391adcee996035abc834d824d5c70af7
 CURRENT_SEGMENT_CODE_SEALED=true
 CURRENT_SEGMENT_CLAUDE_EXACT_SHA_ACCEPTANCE=PENDING
@@ -1679,11 +1683,11 @@ CLAUDE_IMPLEMENTATION_COMPLETE=false
 CODEX_INDEPENDENT_AUDIT_PASS=false
 
 PAPER_SYSTEM_LIVE_END_TO_END=false
-ADAPTIVE_LEARNING_LOOP_ACTIVE=NOT_YET_PROVEN
-ADAPTIVE_POLICY_CONTROLS_TRADING_ACTIONS=NOT_YET_PROVEN
-STATIC_TRADING_ACTION_THRESHOLDS_WITH_FINAL_AUTHORITY=NOT_YET_PROVEN_ZERO
-TRAINING_USES_ALL_ELIGIBLE_DATA=NOT_YET_PROVEN
-REJECTED_CANDIDATES_ARE_LABELED=NOT_YET_PROVEN
+ADAPTIVE_LEARNING_LOOP_ACTIVE=PUBLISHER_ACTIVE_BUT_PAPER_SOURCE_STOPPED
+ADAPTIVE_POLICY_CONTROLS_TRADING_ACTIONS=PROVEN_LAST_RUNTIME_171_TYPED_DECISIONS_CURRENTLY_STOPPED
+STATIC_TRADING_ACTION_THRESHOLDS_WITH_FINAL_AUTHORITY=PAPER_ENTRY_PATH_PROVEN_REMOVED_LAST_RUNTIME_FULL_REPOSITORY_CLASSIFICATION_OPEN
+TRAINING_USES_ALL_ELIGIBLE_DATA=GEN5_FROZEN_397_RECONCILED_382_DATASET_CONTINUOUS_FUNNEL_REPORT_STALE
+REJECTED_CANDIDATES_ARE_LABELED=PROVEN_100_PERCENT_LAST_COMPLETE_SOURCE_CYCLE
 CHAMPION_CHALLENGER_LOOP_ACTIVE=NOT_YET_PROVEN
 RESTART_RECONSTRUCTION_MATCH=false
 NORMAL_PAPER_LIFECYCLE_COMPLETE=false
@@ -1704,7 +1708,7 @@ exchange_action_taken=false
 OPERATOR_ACTION_REQUIRED=NONE
 NEXT_OWNER_ACTION=CLAUDE_REVIEW_28AADA8_EXACT_SHA_THEN_REPAIR_BAD88_EPOCH_BLOCKERS
 LATEST_REPOSITORY_CHECKPOINT=28aada8c391adcee996035abc834d824d5c70af7
-LATEST_CANDIDATE_TESTS=222_OF_222_FOCUSED_ADAPTIVE_CG_AND_64_OF_64_SCOPED_HARD_BOUNDARY_PASS
+LATEST_CANDIDATE_TESTS=222_OF_222_FOCUSED_ADAPTIVE_CG_64_OF_64_SCOPED_HARD_BOUNDARY_9_OF_9_LEDGER_PIT_85_OF_85_COMBINED_PASS
 LEGACY_PAPER_LOOP_SUITE=595_PASS_13_FAIL_31_ERROR_INHERITED_FAMILY
 ```
 
@@ -1720,6 +1724,14 @@ reboot blocker exists.
 Separately, paper-account epoch commit `bad88d5409` is blocked from execution by
 the scoped Codex review. It is not a substitute for accepting and restarting the
 paper loop, and no epoch/session rotation is authorized from this state.
+
+The later four-item allocation diagnosis is now split correctly. Commit
+`0050eccd78` repairs the genuine missing ledger-generation timestamp. The
+ordinary-router non-flat result, missing `reservation.derived`, zero-size
+blocked intent, and `BLOCK_EXPOSURE_BUDGET` were consequences of unproved open
+inventory and remain required hard rails. Current Redis is flat (positions=0,
+proofs=0, used margin=0); the proof manifest is absent, so the next reviewed
+startup must initialize an authenticated empty proof set rather than infer it.
 
 Single next-owner action: Claude reviews the exact SHA, records PASS or a failing
 fixture, and—only on PASS—points the paper-loop immutable release drop-in at
