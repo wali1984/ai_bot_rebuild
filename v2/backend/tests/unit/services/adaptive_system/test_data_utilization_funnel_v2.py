@@ -3,6 +3,7 @@ from __future__ import annotations
 from v2.backend.app.services.adaptive_system.data_utilization_funnel_v2 import (
     STAGES,
     build_funnel,
+    build_path_funnel,
 )
 
 
@@ -62,3 +63,39 @@ def test_to_dict_has_all_stages_and_redis_key():
     d = f.to_dict()
     assert d["redis_key"] == "v2:training:data_utilization_funnel"
     assert set(d["stage_counts"].keys()) == set(STAGES)
+
+
+def test_negative_and_boolean_exclusion_counts_fail_closed():
+    counts = _counts()
+    for stage in STAGES[STAGES.index("cost_complete_snapshots"):]:
+        counts[stage] = 98
+    funnel = build_funnel(
+        counts,
+        {"finality_proven_snapshots": {"NEGATIVE": -1, "BOOLEAN": True}},
+    )
+    assert funnel.consistent is False
+    assert "EXCLUSION_COUNT_INVALID:finality_proven_snapshots:NEGATIVE" in funnel.inconsistencies
+    assert "EXCLUSION_COUNT_INVALID:finality_proven_snapshots:BOOLEAN" in funnel.inconsistencies
+
+
+def test_custom_identity_path_does_not_serialize_unrelated_global_stages():
+    funnel = build_path_funnel(
+        ("candidate_rows", "matured_rows"),
+        {"candidate_rows": 10, "matured_rows": 7},
+        {"candidate_rows": {"HORIZON_NOT_DUE": 3}},
+    )
+    assert funnel.consistent is True
+    assert funnel.to_dict()["stage_counts"] == {
+        "candidate_rows": 10,
+        "matured_rows": 7,
+    }
+
+
+def test_exclusions_without_a_drop_fail_closed():
+    funnel = build_path_funnel(
+        ("one", "two"),
+        {"one": 5, "two": 5},
+        {"one": {"GHOST_EXCLUSION": 1}},
+    )
+    assert funnel.consistent is False
+    assert any(reason.startswith("EXCLUSIONS_WITHOUT_DROP") for reason in funnel.inconsistencies)
