@@ -1606,7 +1606,7 @@ hard and fail closed.
 | FP-050 | 4 | Implement portfolio after-cost objective and adaptive exploration allocation | Claude/Codex | IN_PROGRESS | Independently accepted shadow foundation `d12f418d3d`; authenticated hard-validation evidence, exact PIT/lineage/units, self-recomputing scores, nonterminal flat-collapse signals, and bounded positive-utility information seeking; runtime fitting and policy integration remain |
 | FP-060 | 5 | Build `CandidateDecisionOutcomeV2` and point-in-time matured labels | Claude/Codex | COMPLETE | Contract `289bb9911f`; active immutable publisher reports 8,471 decision revisions, 7,854 matured revisions, verified signed archive, zero invalid/duplicate rows, candidate coverage=1.0, eligible matured coverage=1.0, unexplained drops=0, and counterfactuals excluded from paper profit |
 | FP-070 | 6 | Attribute gate performance and missed opportunity cost | Claude/Codex | PENDING | Exact segmented false-positive/negative, avoided-loss, and opportunity-cost evidence |
-| FP-080 | 7 | Build complete eligible-data funnel and repair corpus utilization | Claude/Codex | IN_PROGRESS | Gen-5 frozen reconciliation accepts 397=386 imported+11 exact rejected, no duplicate conflicts or unexpected sequences, and all imported rows verify/build; 382-row/90-symbol/5.36-day dataset exists, but the required repository data-utilization report remains the stale pre-backfill 215-row inconsistent report and must be refreshed |
+| FP-080 | 7 | Build complete eligible-data funnel and repair corpus utilization | Claude/Codex | IN_PROGRESS | Commit `c956ec46b8` replaces the stale arithmetic-only report with an authenticated identity-scoped collector. The real read-only run proves 302,183 one-to-one frozen canonical/raw-payload records, 810 finality-proven feature snapshots, 397 cost/microstructure-complete snapshots, 386 exact labeled imports, 382 embargoed training rows, 8,471 typed candidates, 7,854 matured outcomes, and exact rows per checkpoint. The paths reconcile, but full paid-source inventory binding and the typed-outcome→gen-5 join remain open (exact overlap 0), so the report truthfully stays `BLOCK` and was not published to Redis before review. |
 | FP-090 | 8 | Verify one shared, point-in-time-safe train/serve representation | Claude/Codex | IN_PROGRESS | Gen-5 ABI and builder hashes match, feature order matches, required missing rate=0, and PIT manifest counters are zero; activation remains fail-closed because current serving distribution comparison is explicitly `CURRENT_SERVING_DISTRIBUTION_NOT_YET_EVALUATED` |
 | FP-100 | 9 | Train and compare diversified model and strategy challengers | Claude/Codex | PENDING | Evidence-backed comparison across declared algorithms and strategy families |
 | FP-110 | 10 | Implement automatic adaptation-escalation state machine | Claude/Codex | PENDING | Negative edge, starvation, flat collapse, and drift advance the ladder automatically |
@@ -1659,6 +1659,7 @@ Machine-readable task state is maintained in
 | 2026-07-28T04:34:58.447203Z | Continuous-learning runtime | PASS AT LAST SOURCE CYCLE / SOURCE NOW STOPPED | Candidate-outcome publisher is active; its last complete source cycle records 171/171 candidates, while its verified signed archive contains 8,471 decisions and 7,854 matured revisions with zero invalid/duplicate rows, 100% eligible maturation coverage, zero unexplained drops, and no counterfactual paper profit. The paper source is intentionally stopped, so this is not an end-to-end operational claim. |
 | 2026-07-28T04:34:58.447203Z | Adaptive paper authority | HISTORICAL RUNTIME PASS / CURRENTLY STOPPED | Last paper authority status contains 171 typed decisions, 155 directional authorizations, 16 FLAT decisions, zero authority blocks, zero reference disagreements, `adaptive_policy_authoritative=true`, and `static_category_e_authority_removed=true`. The paper loop and shadow evaluator are currently stopped under the review boundary; lifecycle acceptance remains absent. |
 | 2026-07-28T04:34:58.447203Z | G12 evidence-root distinction | PASS WITH AUTHORITATIVE RUNTIME EVIDENCE | Repository runtime evidence yields 17 PASS / 0 WARNING / 0 FAIL. A bare detached source tree yields 14 PASS plus three missing-external-evidence warnings for S13/S15/S16; runtime evidence was not misrepresented as an immutable source artifact. |
+| 2026-07-28T04:48:53.029Z | FP-080 identity-scoped utilization collector | CODE SEALED / REVIEW AND INTEGRATION PENDING | Commit `c956ec46b8`; 19/19 focused tests, compile, scoped Ruff, real read-only collection, and `git diff --check` pass. Included source paths are internally consistent and hash/receipt verified. The generated v3 report is correctly `BLOCK`: gen-5 has 382 training rows but zero exact identity overlap with the 7,854 matured typed outcomes, and the wider paid-source inventory is not yet authenticated into the frozen scope. No Redis publication, service deployment, trainer change, paper restart, or exchange action occurred. |
 
 ## Current final status
 
@@ -1668,7 +1669,7 @@ This block must be updated whenever work stops or final acceptance changes.
 FINAL_PASS_STATUS=IN_PROGRESS
 FINAL_ACCEPTANCE=NOT_YET_EVALUATED
 FIRST_UNRESOLVED_STAGE=PHASE_1_TRADING_CONFIGURATION_CLASSIFICATION
-CURRENT_SEGMENT=CG_F063_CG_F057_LEDGER_PIT_P3_P4_P6
+CURRENT_SEGMENT=CG_F063_CG_F057_LEDGER_PIT_P3_P4_P6_AND_PHASE7_DATA_UTILIZATION
 CURRENT_SEGMENT_IMPLEMENTATION_SHA=28aada8c391adcee996035abc834d824d5c70af7
 CURRENT_SEGMENT_CODE_SEALED=true
 CURRENT_SEGMENT_CLAUDE_EXACT_SHA_ACCEPTANCE=PENDING
@@ -1686,7 +1687,15 @@ PAPER_SYSTEM_LIVE_END_TO_END=false
 ADAPTIVE_LEARNING_LOOP_ACTIVE=PUBLISHER_ACTIVE_BUT_PAPER_SOURCE_STOPPED
 ADAPTIVE_POLICY_CONTROLS_TRADING_ACTIONS=PROVEN_LAST_RUNTIME_171_TYPED_DECISIONS_CURRENTLY_STOPPED
 STATIC_TRADING_ACTION_THRESHOLDS_WITH_FINAL_AUTHORITY=PAPER_ENTRY_PATH_PROVEN_REMOVED_LAST_RUNTIME_FULL_REPOSITORY_CLASSIFICATION_OPEN
-TRAINING_USES_ALL_ELIGIBLE_DATA=GEN5_FROZEN_397_RECONCILED_382_DATASET_CONTINUOUS_FUNNEL_REPORT_STALE
+TRAINING_USES_ALL_ELIGIBLE_DATA=false
+DATA_UTILIZATION_COLLECTOR_SHA=c956ec46b8
+DATA_UTILIZATION_PATHS_CONSISTENT=true
+DATA_UTILIZATION_REPORT_STATUS=BLOCK
+GEN5_TRAINING_ELIGIBLE_ROWS=382
+TYPED_MATURED_CANDIDATE_OUTCOMES=7854
+GEN5_TYPED_OUTCOME_EXACT_IDENTITY_OVERLAP_ROWS=0
+FULL_PAID_SOURCE_INVENTORY_BOUND=false
+DATA_UTILIZATION_REDIS_PUBLISHED=false
 REJECTED_CANDIDATES_ARE_LABELED=PROVEN_100_PERCENT_LAST_COMPLETE_SOURCE_CYCLE
 CHAMPION_CHALLENGER_LOOP_ACTIVE=NOT_YET_PROVEN
 RESTART_RECONSTRUCTION_MATCH=false
@@ -1706,9 +1715,10 @@ places_real_order=false
 exchange_action_taken=false
 
 OPERATOR_ACTION_REQUIRED=NONE
-NEXT_OWNER_ACTION=CLAUDE_REVIEW_28AADA8_EXACT_SHA_THEN_REPAIR_BAD88_EPOCH_BLOCKERS
-LATEST_REPOSITORY_CHECKPOINT=28aada8c391adcee996035abc834d824d5c70af7
-LATEST_CANDIDATE_TESTS=222_OF_222_FOCUSED_ADAPTIVE_CG_64_OF_64_SCOPED_HARD_BOUNDARY_9_OF_9_LEDGER_PIT_85_OF_85_COMBINED_PASS
+NEXT_CODEX_ACTION=BIND_BROADER_PAID_SOURCE_INVENTORY_AND_BUILD_TYPED_OUTCOME_TRAINING_JOIN
+NEXT_CLAUDE_ACTION=REVIEW_28AADA8_AND_C956EC4_EXACT_SHAS
+LATEST_REPOSITORY_CHECKPOINT=c956ec46b8
+LATEST_CANDIDATE_TESTS=222_OF_222_FOCUSED_ADAPTIVE_CG_64_OF_64_SCOPED_HARD_BOUNDARY_9_OF_9_LEDGER_PIT_85_OF_85_COMBINED_19_OF_19_DATA_UTILIZATION_PASS
 LEGACY_PAPER_LOOP_SUITE=595_PASS_13_FAIL_31_ERROR_INHERITED_FAMILY
 ```
 
@@ -1733,10 +1743,29 @@ inventory and remain required hard rails. Current Redis is flat (positions=0,
 proofs=0, used margin=0); the proof manifest is absent, so the next reviewed
 startup must initialize an authenticated empty proof set rather than infer it.
 
-Single next-owner action: Claude reviews the exact SHA, records PASS or a failing
-fixture, and—only on PASS—points the paper-loop immutable release drop-in at
-that SHA and runs the owned runtime acceptance harness. The safe inspection
-command is:
+Phase 7 now has a production collector at commit `c956ec46b8`. Its real
+read-only run revalidates the frozen snapshot byte hashes, SQLite integrity,
+backfill reconciliation, serving-dataset reproducibility, signed candidate
+archive counts, checkpoint bundle identities, and paper/live boundaries. It
+does not flatten unlike identity domains. The generated local report is
+internally consistent but remains `BLOCK` for two exact reasons:
+
+```text
+TYPED_CANDIDATE_OUTCOMES_NOT_JOINED_TO_GEN5_TRAINING_ROWS
+FULL_PAID_SOURCE_INVENTORY_NOT_BOUND_TO_FROZEN_GEN5_SCOPE
+```
+
+Actual typed/gen-5 exact identity overlap is `0`; required full join is `382`.
+The broader legacy/paid-source archives exist, but no authenticated one-to-one
+transform into the frozen corpus has been proven. The report was written to the
+required ignored goal-state path for review but was intentionally not published
+to Redis and no runtime unit was deployed.
+
+Claude's next owned action is to review the exact paper-loop SHA, record PASS or
+a failing fixture, and—only on PASS—point the immutable release drop-in at that
+SHA and run the owned runtime acceptance harness. In parallel without touching
+those paper-loop files, Codex continues the paid-source inventory binding and
+typed-outcome training join. The safe Claude inspection command is:
 
 ```bash
 git -C /home/wali/ai_bot_local_data/deployments/ai_bot_rebuild/28aada8c391adcee996035abc834d824d5c70af7 rev-parse HEAD
@@ -1793,6 +1822,16 @@ jq <scoped-projection> /home/wali/ai_bot_local_data/gen5_snapshot_backfill_v1/*r
 .venv/bin/python -m py_compile <paper/adaptive/router-production-files>
 .venv/bin/ruff check --select E902,F821,F822,F823 <paper/adaptive/router-and-ledger-test-files>
 .venv/bin/python scripts/guardian_phase10_rare_event_tests.py
+.venv/bin/python -m py_compile <data-utilization-production-files>
+.venv/bin/pytest -q <data-utilization-focused-selection>
+.venv/bin/ruff check --select E902,F821,F822,F823 <data-utilization-files>
+.venv/bin/ruff check --ignore E501,UP017,UP038 <data-utilization-files>
+.venv/bin/python -B -m v2.backend.app.cli.v2_data_utilization_funnel_publisher --no-publish --no-write-report
+.venv/bin/python -B -m v2.backend.app.cli.v2_data_utilization_funnel_publisher --no-publish
+sqlite3 -readonly <frozen-feature-or-label-store> <scoped-count/finality/source-label-query>
+wc -l <legacy-feature-snapshot-manifest>
+git add -- <six-data-utilization-files>
+git commit -m "Publish identity-scoped data utilization truth"
 ```
 
 Files changed by the sealed production candidate:
@@ -1827,6 +1866,18 @@ Additional evidence-only files updated during the ledger/runtime reconciliation:
 FINAL PASS.md
 goal_state/ADAPTIVE_SYSTEM_FINAL_PASS/CODEX_REVIEWS.jsonl (ignored local coordination ledger)
 goal_state/ADAPTIVE_SYSTEM_FINAL_PASS/WORK_QUEUE.json (ignored local coordination ledger)
+goal_state/ADAPTIVE_SYSTEM_FINAL_PASS/data_utilization_report.json (ignored generated v3 report)
+```
+
+Phase-7 production files added or changed after the sealed paper candidate:
+
+```text
+v2/backend/app/cli/v2_data_utilization_funnel_publisher.py
+v2/backend/app/services/adaptive_system/data_utilization_funnel_v2.py
+v2/backend/app/services/adaptive_system/data_utilization_report_v3.py
+v2/backend/tests/unit/cli/test_v2_data_utilization_funnel_publisher.py
+v2/backend/tests/unit/services/adaptive_system/test_data_utilization_funnel_v2.py
+v2/backend/tests/unit/services/adaptive_system/test_data_utilization_report_v3.py
 ```
 
 ---
