@@ -65,18 +65,42 @@ def decision_group_balance(
     weights = [weight / mean_weight for weight in raw_weights]
     nominal = len(rows)
     sum_group_sizes_squared = math.fsum(count * count for count in counts.values())
-    kish = (
+    unbalanced_group_kish = (
         (nominal * nominal) / sum_group_sizes_squared
         if sum_group_sizes_squared > 0.0
         else 0.0
     )
+    weight_sum = math.fsum(weights)
+    balanced_row_kish = (
+        (weight_sum * weight_sum) / math.fsum(weight * weight for weight in weights)
+        if weights
+        else 0.0
+    )
+    # Independence cannot exceed the number of distinct decision clocks even
+    # when inverse-group weighting gives a larger row-level Kish ESS.  The old
+    # unbalanced metric is retained for drift diagnostics, but it must not gate
+    # a loss that actually consumes the balanced weights above.
+    effective_independent_groups = min(float(len(counts)), balanced_row_kish)
     report = {
-        "schema_version": "decision_group_balance_v1",
+        "schema_version": "decision_group_balance_v2",
         "grouping_semantics": "UTC_DECISION_TIME_MINUTE",
         "nominal_rows": nominal,
         "unique_decision_groups": len(counts),
-        "effective_independent_sample_size_kish": float(kish),
-        "effective_to_nominal_ratio": float(kish / nominal) if nominal else 0.0,
+        "unbalanced_cross_sectional_effective_groups_kish": float(
+            unbalanced_group_kish
+        ),
+        "balanced_row_effective_sample_size_kish": float(balanced_row_kish),
+        "effective_independent_training_groups": float(
+            effective_independent_groups
+        ),
+        # Compatibility projection: the field now names the effective sample
+        # actually consumed by the balanced loss, not a pre-weight diagnostic.
+        "effective_independent_sample_size_kish": float(
+            effective_independent_groups
+        ),
+        "effective_to_nominal_ratio": (
+            float(effective_independent_groups / nominal) if nominal else 0.0
+        ),
         "maximum_rows_per_group": max(counts.values(), default=0),
         "group_aggregate_weight_equalized": True,
         "group_counts_sha256": canonical_sha256(dict(sorted(counts.items()))),
@@ -245,7 +269,7 @@ def train_serving_checkpoint_v3(
     holdout_rows = _partition(dataset, "holdout")
     row_weights, group_report = decision_group_balance(train_rows)
     if (
-        group_report["effective_independent_sample_size_kish"]
+        group_report["effective_independent_training_groups"]
         < MIN_EFFECTIVE_INDEPENDENT_TRAINING_GROUPS
     ):
         raise ValueError("TRAINING_EFFECTIVE_INDEPENDENT_SAMPLE_BELOW_MINIMUM")
