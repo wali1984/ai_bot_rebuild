@@ -367,6 +367,50 @@ def test_sequence_filtered_read_stream_verifies_all_rows_and_retains_only_mature
     assert records == (second,)
 
 
+def test_projected_snapshot_stream_binds_exact_copy_receipt_and_rejects_valid_prefix(
+    tmp_path: Path,
+) -> None:
+    source_path = (tmp_path / "candidate-outcomes.jsonl").resolve()
+    source, _, public_key_hex = _writer(source_path)
+    first, second = _revision_pair()
+    source.append(first, signed_at_ms=1_100_000)
+    source.append(second, signed_at_ms=2_000_000)
+    snapshot_path = (tmp_path / "snapshot.jsonl").resolve()
+    receipt = source.copy_locked_snapshot(snapshot_path)
+    reader = CandidateOutcomeArchiveV2(
+        archive_path=snapshot_path,
+        writer_id="candidate-outcome-writer-v2",
+        writer_public_key_hex=public_key_hex,
+        signer=None,
+    )
+
+    verification, projections = (
+        reader.read_verified_projections_by_sequence_with_verification(
+            archive_sequences=(2,),
+            projector=lambda record: record.decision.candidate_id,
+            expected_snapshot_sha256=receipt["snapshot_sha256"],
+            expected_snapshot_size_bytes=receipt["source_size_bytes"],
+        )
+    )
+    assert verification.matured_revision_count == 1
+    assert projections == (second.decision.candidate_id,)
+
+    first_complete_signed_row = snapshot_path.read_bytes().splitlines(
+        keepends=True
+    )[0]
+    snapshot_path.write_bytes(first_complete_signed_row)
+    with pytest.raises(
+        CandidateOutcomeArchiveError,
+        match="expected_snapshot_binding:content_mismatch",
+    ):
+        reader.read_verified_projections_by_sequence_with_verification(
+            archive_sequences=(2,),
+            projector=lambda record: record.decision.candidate_id,
+            expected_snapshot_sha256=receipt["snapshot_sha256"],
+            expected_snapshot_size_bytes=receipt["source_size_bytes"],
+        )
+
+
 def test_maturation_stream_selects_exact_oldest_due_bounded_symmetric_batch(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

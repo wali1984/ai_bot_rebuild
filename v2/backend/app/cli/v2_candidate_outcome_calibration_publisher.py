@@ -213,6 +213,8 @@ def process_once(
         ) = reader.read_verified_projections_by_sequence_with_verification(
             archive_sequences=(2,),
             projector=active_observation,
+            expected_snapshot_sha256=snapshot_receipt["snapshot_sha256"],
+            expected_snapshot_size_bytes=snapshot_receipt["source_size_bytes"],
         )
     if verification.verified is not True:
         raise CandidateCalibrationPublisherError("candidate_archive:verification_failed")

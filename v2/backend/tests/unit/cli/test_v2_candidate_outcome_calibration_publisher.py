@@ -105,8 +105,12 @@ def test_runtime_streams_only_matured_revisions_after_full_archive_verification(
             *,
             archive_sequences: tuple[int, ...],
             projector,
+            expected_snapshot_sha256: str,
+            expected_snapshot_size_bytes: int,
         ):
             calls.append(archive_sequences)
+            assert expected_snapshot_sha256 == "a" * 64
+            assert expected_snapshot_size_bytes == 8
             return (
                 SimpleNamespace(
                     verified=True,

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import fcntl
 import hashlib
+import hmac
 import json
 import math
 import os
@@ -327,20 +328,28 @@ class CandidateOutcomeArchiveV2:
             finally:
                 fcntl.flock(lock_handle.fileno(), fcntl.LOCK_UN)
 
-    def _iter_rows(self) -> Iterable[dict[str, Any]]:
+    def _iter_rows(
+        self,
+        *,
+        byte_observer: Callable[[bytes], None] | None = None,
+    ) -> Iterable[dict[str, Any]]:
         if not self.archive_path.exists():
             return
         if self.archive_path.is_symlink():
             _raise("symlink_path_forbidden", "archive_path")
         descriptor = _open_regular_file(self.archive_path, os.O_RDONLY)
-        with os.fdopen(descriptor, "r", encoding="utf-8") as handle:
+        with os.fdopen(descriptor, "rb") as handle:
             for line_number, raw_line in enumerate(handle, start=1):
-                line = raw_line.rstrip("\n")
+                if byte_observer is not None:
+                    byte_observer(raw_line)
+                if not raw_line.endswith(b"\n"):
+                    _raise("invalid_or_partial_json", f"line[{line_number}]")
+                line = raw_line.rstrip(b"\n")
                 if not line:
                     _raise("blank_or_partial_row", f"line[{line_number}]")
                 try:
-                    row = json.loads(line)
-                except json.JSONDecodeError as exc:
+                    row = json.loads(line.decode("utf-8"))
+                except (UnicodeDecodeError, json.JSONDecodeError) as exc:
                     raise CandidateOutcomeArchiveError(
                         f"line[{line_number}]:invalid_or_partial_json"
                     ) from exc
@@ -761,8 +770,16 @@ class CandidateOutcomeArchiveV2:
         *,
         archive_sequences: tuple[int, ...],
         projector: Callable[[CandidateDecisionOutcomeV2], Any],
+        expected_snapshot_sha256: str | None = None,
+        expected_snapshot_size_bytes: int | None = None,
     ) -> tuple[ArchiveVerificationV2, tuple[Any, ...]]:
-        """Verify every row but retain only compact projected selected records."""
+        """Verify every row and optionally bind the exact streamed snapshot.
+
+        The digest and byte count are computed over the same file descriptor and
+        byte stream consumed by row verification.  This prevents a shorter,
+        independently valid signed prefix from being substituted after a
+        snapshot-copy receipt was created while retaining constant memory.
+        """
 
         if (
             type(archive_sequences) is not tuple
@@ -776,7 +793,31 @@ class CandidateOutcomeArchiveV2:
             _raise("canonical_nonempty_subset_of_1_2_required", "archive_sequences")
         if not callable(projector):
             _raise("must_be_callable", "projector")
+        if (expected_snapshot_sha256 is None) != (
+            expected_snapshot_size_bytes is None
+        ):
+            _raise("both_or_neither_required", "expected_snapshot_binding")
+        if expected_snapshot_sha256 is not None:
+            _require_sha256(
+                expected_snapshot_sha256,
+                "expected_snapshot_sha256",
+            )
+            if (
+                type(expected_snapshot_size_bytes) is not int
+                or expected_snapshot_size_bytes < 0
+            ):
+                _raise(
+                    "must_be_nonnegative_int",
+                    "expected_snapshot_size_bytes",
+                )
         projections: list[Any] = []
+        streamed_digest = hashlib.sha256()
+        streamed_size_bytes = 0
+
+        def observe(raw: bytes) -> None:
+            nonlocal streamed_size_bytes
+            streamed_digest.update(raw)
+            streamed_size_bytes += len(raw)
 
         def project(record: CandidateDecisionOutcomeV2) -> None:
             value = projector(record)
@@ -785,11 +826,19 @@ class CandidateOutcomeArchiveV2:
 
         with self._locked(exclusive=False):
             verification, _ = self._verify_rows_and_select(
-                self._iter_rows(),
+                self._iter_rows(byte_observer=observe),
                 selected_archive_sequences=frozenset(archive_sequences),
                 validate_nested_contracts=True,
                 selected_record_projector=project,
             )
+        if expected_snapshot_sha256 is not None and (
+            streamed_size_bytes != expected_snapshot_size_bytes
+            or not hmac.compare_digest(
+                streamed_digest.hexdigest(),
+                expected_snapshot_sha256,
+            )
+        ):
+            _raise("content_mismatch", "expected_snapshot_binding")
         return verification, tuple(projections)
 
     def read_verified_maturation_batch_with_verification(
