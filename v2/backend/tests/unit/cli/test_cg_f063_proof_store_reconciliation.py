@@ -741,8 +741,12 @@ def test_coherent_reduce_only_partial_remainder_must_survive_restart_reconciliat
             "gross_notional_usd": 30.0,
             "allocated_margin_usd": 15.0,
             "entry_cost_is_final_close": False,
+            "entry_fees_incurred_usd": 0.025,
             "entry_fees_allocated_to_closes_usd": 0.01,
             "entry_fees_remaining_usd": 0.015,
+            "entry_slippage_incurred_usd": 0.02,
+            "entry_slippage_allocated_to_closes_usd": 0.008,
+            "entry_slippage_remaining_usd": 0.012,
         }
     )
     transition_material = {
@@ -764,7 +768,14 @@ def test_coherent_reduce_only_partial_remainder_must_survive_restart_reconciliat
         "remaining_position_payload_sha256": (
             paper_loop._paper_canonical_sha256(remaining)  # noqa: SLF001
         ),
+        "entry_fees_incurred_usd": 0.025,
+        "entry_fees_allocated_to_closes_usd": 0.01,
+        "entry_fees_remaining_usd": 0.015,
+        "entry_slippage_incurred_usd": 0.02,
+        "entry_slippage_allocated_to_closes_usd": 0.008,
+        "entry_slippage_remaining_usd": 0.012,
         "quantity_conserved": True,
+        "cost_basis_conserved": True,
         "margin_released_by_reconciliation_usd": 0.0,
         "wallet_balance_mutation_usd": 0.0,
         "paper_only": True,
