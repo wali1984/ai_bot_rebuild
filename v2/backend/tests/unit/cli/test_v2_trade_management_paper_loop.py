@@ -24594,6 +24594,18 @@ class _CanonicalRiskHandoffRedisStub:
         return json.dumps(value) if value is not None else None
 
 
+class _PublishingCanonicalRiskHandoffRedisStub(_CanonicalRiskHandoffRedisStub):
+    def __init__(self, records_on_ready: dict[str, dict]) -> None:
+        super().__init__([0, 1])
+        self._records_on_ready = records_on_ready
+
+    def exists(self, *keys: str) -> int:
+        present = super().exists(*keys)
+        if present:
+            self._records.update(self._records_on_ready)
+        return present
+
+
 def _canonical_risk_handoff_clock() -> tuple[object, object]:
     state = {"now": 0.0}
 
@@ -24835,6 +24847,84 @@ def test_canonical_risk_handoff_presence_never_replaces_identity_validation(
     assert status["status"] == "READY_ALL_CANONICAL_RISK_RECORDS_PRESENT"
     assert "risk_controller_decision" not in status
     assert expected_reason in out["decision_record_dereference_blockers"]
+    assert out["risk_decision_record_resolved"] is False
+    assert out["risk_controller_decision"] == "PENDING:RISK_DECISION_RECORD_REQUIRED"
+
+
+def test_risk_record_published_during_wait_requires_post_wait_consumer_clock() -> None:
+    published_at = "2026-07-10T20:00:00.250Z"
+    records = _canonical_decision_records(
+        risk_overrides={"generated_utc": published_at, "created_at": published_at},
+        orchestrator_overrides={
+            "generated_utc": published_at,
+            "created_at": published_at,
+        },
+    )
+    redis_client = _PublishingCanonicalRiskHandoffRedisStub(records)
+    monotonic, sleep = _canonical_risk_handoff_clock()
+
+    status = paper_loop._paper_wait_for_canonical_risk_records(  # noqa: SLF001
+        redis_client,
+        [{"signal_id": "sig_x1", "risk_decision_id": "rd_dec_x1"}],
+        max_wait_seconds=1.0,
+        poll_seconds=0.25,
+        monotonic_clock=monotonic,
+        sleep_fn=sleep,
+    )
+    stale_pre_wait_clock = paper_loop._paper_policy_intent_decision_dereference(  # noqa: SLF001
+        redis_client,
+        **_dereference_kwargs(
+            _dereference_intent(),
+            now=datetime(2026, 7, 10, 20, 0, 0, tzinfo=timezone.utc),
+        ),
+    )
+    post_wait_consumer_clock = paper_loop._paper_policy_intent_decision_dereference(  # noqa: SLF001
+        redis_client,
+        **_dereference_kwargs(
+            _dereference_intent(),
+            now=datetime(2026, 7, 10, 20, 0, 0, 500_000, tzinfo=timezone.utc),
+        ),
+    )
+
+    assert status["status"] == "READY_ALL_CANONICAL_RISK_RECORDS_PRESENT"
+    assert "RISK_DECISION_RECORD_GENERATED_IN_FUTURE" in stale_pre_wait_clock[
+        "decision_record_dereference_blockers"
+    ]
+    assert post_wait_consumer_clock["risk_decision_record_resolved"] is True
+    assert post_wait_consumer_clock["risk_controller_decision"] == "PASS"
+    assert post_wait_consumer_clock["orchestrator_decision_record_resolved"] is True
+    assert post_wait_consumer_clock["orchestrator_decision"] == "PASS"
+
+
+def test_post_wait_consumer_clock_still_rejects_truly_future_risk_record() -> None:
+    future_at = "2026-07-10T20:00:00.750Z"
+    records = _canonical_decision_records(
+        risk_overrides={"generated_utc": future_at, "created_at": future_at},
+        orchestrator_overrides={"generated_utc": future_at, "created_at": future_at},
+    )
+    redis_client = _PublishingCanonicalRiskHandoffRedisStub(records)
+    monotonic, sleep = _canonical_risk_handoff_clock()
+
+    status = paper_loop._paper_wait_for_canonical_risk_records(  # noqa: SLF001
+        redis_client,
+        [{"signal_id": "sig_x1", "risk_decision_id": "rd_dec_x1"}],
+        max_wait_seconds=1.0,
+        poll_seconds=0.25,
+        monotonic_clock=monotonic,
+        sleep_fn=sleep,
+    )
+    out = paper_loop._paper_policy_intent_decision_dereference(  # noqa: SLF001
+        redis_client,
+        **_dereference_kwargs(
+            _dereference_intent(),
+            now=datetime(2026, 7, 10, 20, 0, 0, 500_000, tzinfo=timezone.utc),
+        ),
+    )
+
+    assert status["status"] == "READY_ALL_CANONICAL_RISK_RECORDS_PRESENT"
+    assert "RISK_DECISION_RECORD_GENERATED_IN_FUTURE" in out[
+        "decision_record_dereference_blockers"
+    ]
     assert out["risk_decision_record_resolved"] is False
     assert out["risk_controller_decision"] == "PENDING:RISK_DECISION_RECORD_REQUIRED"
 

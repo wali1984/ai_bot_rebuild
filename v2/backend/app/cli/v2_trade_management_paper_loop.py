@@ -49388,6 +49388,20 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         r,
         orchestrator_signals,
     )
+    # The paper consumer decision happens after the bounded risk-record read
+    # barrier, not at process-cycle entry.  Keeping the pre-wait clock here
+    # makes a legitimately published risk record appear to come from the
+    # future and also understates signal age by the wait duration.  Freeze one
+    # post-read instant and use it for every subsequent temporal admission and
+    # decision-record dereference in this cycle; source feature cutoffs and
+    # originating model decision times remain immutable.
+    runtime_now = datetime.now(timezone.utc)
+    canonical_risk_handoff_status["consumer_decision_time"] = (
+        runtime_now.isoformat(timespec="microseconds").replace("+00:00", "Z")
+    )
+    canonical_risk_handoff_status["consumer_decision_time_semantics"] = (
+        "CAPTURED_AFTER_EXACT_CANONICAL_RISK_RECORD_READ_BARRIER"
+    )
     exploration_signals = list(
         paper_exploration_materialization_queue_status.get(
             "_active_signal_rows",
