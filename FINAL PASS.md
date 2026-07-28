@@ -2822,3 +2822,141 @@ was rejected because validation Brier `0.3007648298` did not improve the
 `0.2724088430` baseline. Generation 3 remains active, the candidate registry is
 absent, and the next frozen trigger is `matured_outcomes >= 29890 OR effective_N
 >= 160.6`.
+
+## Authenticated evidence-novelty supervisor — authoritative update 2026-07-28
+
+The raw-count incremental treadmill is closed. Commits
+`979c42482187c0479e33c812ab0568c42f0df262` and
+`732a15f85de6409aae20c18fb90af7e67d9174d5` replace repeated challenger
+authorization from raw archive growth with a signed-release comparison against
+the latest successfully trained release for the exact active failure cycle.
+
+### Completed task list
+
+- [x] Let the fourth incremental challenger finish and authenticate its terminal
+  receipt; it was finite and contract-valid but not superior or activation
+  eligible.
+- [x] Preserve all nine replay-verified pre-promotion rung receipts for failure
+  cycle `adaptive_failure_cycle_10fc581c3ddc55fdc97fe364dc8f47f8`.
+- [x] Add a content-hashed `adaptive_evidence_novelty_trigger_v1` manifest bound
+  to signed dataset, manifest, terminal-chain, checkpoint and failure-cycle
+  identities.
+- [x] Make raw archive/revision growth explicitly non-authorizing.
+- [x] Authorize a new incremental challenger only for authenticated effective-N
+  growth, at least one day of chronological expansion, or new symbol/timeframe
+  coverage with at least 25 signed rows.
+- [x] Mark regime, policy-action, calibration-drift and counterfactual-cost
+  predicates unavailable when the signed release does not expose their typed
+  evidence; no inference or assertion is substituted.
+- [x] Add fail-closed regression fixtures for raw-only growth and positive
+  effective-N, chronology and coverage predicates.
+- [x] Deploy only the adaptive escalation oneshot immutably at
+  `732a15f85de6409aae20c18fb90af7e67d9174d5`; retain
+  `979c42482187c0479e33c812ab0568c42f0df262` and the prior
+  `85c9bb86591011639b483a88bf25587432ecfaf4` as rollback releases.
+- [x] Run the exact production oneshot to exit 0 with `NRestarts=0`, restore its
+  15-minute timer, and confirm no fifth dispatch or candidate-registry write.
+- [x] Re-run G12 (17/17), boot validation (exit 0), user-unit verification
+  (zero diagnostics/cycles), focused Ruff and `git diff --check`.
+
+### Exact production novelty decision
+
+The final signed candidate release is
+`9a997e244621f3ee47cb42183d9ae34143a06ea5bfa53ec6de7afa3f48f9a6e3`
+with 22,686 rows (7,717 train, 5,813 validation, 9,156 holdout) and a signed
+matured watermark of 31,452. It was compared with the fourth challenger's
+authenticated 29,640-row training watermark and 135.6 effective N.
+
+```text
+action=AWAITING_NOVEL_AUTHENTICATED_EVIDENCE
+active_failure_cycle=adaptive_failure_cycle_10fc581c3ddc55fdc97fe364dc8f47f8
+completed_pre_promotion_rungs=all_9
+active_checkpoint_generation=3
+candidate_registry_write_attempted=false
+
+raw_matured_revision_increase=1812
+raw_revision_growth_alone_authorizes_training=false
+effective_n_increase=8.7
+effective_n_required_increase=25.0
+chronological_expansion_seconds=2663.232
+chronological_expansion_required_seconds=86400.0
+new_qualified_symbols=0
+new_qualified_timeframes=0
+material_novelty_detected=false
+authorizing_predicates=[]
+
+runtime_payload_sha256=a3c8203799692baa82f1a8502b3d40ee428b62a2ca6fa47bdf96d26ff73ba1dd
+novelty_manifest_sha256=df97bf7e3439216ac48bf419cfbd96f4dac02dfd4cd240aa644fd067fa2ec9dd
+runtime_payload_hash_match=true
+novelty_manifest_hash_match=true
+dispatch_count_before=18
+dispatch_count_after=18
+candidate_registry_present=false
+```
+
+The durable timer remains active and will rebuild/check signed evidence without
+another operator prompt. It may start a challenger only after one of the
+manifest's authenticated material predicates passes. A new checkpoint/cohort
+failure cycle or a newly introduced unevaluated challenger family also escapes
+the completed-cycle guard through its own authenticated identity/receipt path.
+
+### Verification
+
+```text
+.venv/bin/pytest -q \
+  v2/backend/tests/unit/services/adaptive_system/test_escalation_supervisor_v2.py \
+  v2/backend/tests/unit/services/adaptive_system/test_escalation_ladder_v2.py \
+  v2/backend/tests/unit/cli/test_v2_adaptive_escalation_runtime.py
+# 103 passed
+
+.venv/bin/python scripts/guardian_phase10_rare_event_tests.py
+# 17 PASS / 0 FAIL / 0 WARNING
+
+systemd-analyze --user verify \
+  ai-bot-v2-adaptive-escalation-runtime.service \
+  ai-bot-v2-adaptive-escalation-runtime.timer \
+  ai-bot-v2-stack.target default.target timers.target
+# no diagnostics
+
+.venv/bin/ruff check --ignore E501,UP017,UP038 \
+  v2/backend/app/cli/v2_adaptive_escalation_runtime.py \
+  v2/backend/tests/unit/cli/test_v2_adaptive_escalation_runtime.py
+# PASS
+
+git diff --check
+# PASS
+```
+
+### Current truthful boundary
+
+```text
+DETERMINISTIC_PAPER_RECOVERY_IS_OPERATIONAL=true
+adaptive_timer_active=true
+lifecycle_controller_active=true
+paper_account_epoch=1
+current_epoch_open_positions=0
+current_epoch_natural_lifecycles=0
+economic_cohort_natural_closes=1
+economic_cohort_required_closes=5
+
+boot_validator=PASS_EXIT_STATUS_0
+systemd_diagnostics=0
+failed_user_units=0
+G03=FAIL
+G11=FAIL
+G12=PASS_17_OF_17
+G13=FAIL
+G14=FAIL
+
+paper_only=true
+live_gate=blocked_human_only
+routes_to_live=false
+places_real_order=false
+exchange_action_taken=false
+V2_PERMANENT_RECOVERY_COMPLETE=false
+LIVE_NO_GO=true
+```
+
+The paper stack is safe and remains autonomously armed. Final acceptance is
+still gated by a genuinely superior governed challenger and current-epoch
+natural outcomes; neither is fabricated by this pass.
