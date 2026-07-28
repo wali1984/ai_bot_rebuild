@@ -2793,7 +2793,16 @@ holdout, but it is not superior: validation profitability Brier was
 remains non-promotable and generation 3 remains active. The candidate registry
 key was not written.
 
-The next governed step is `REBUILD_FEATURE_SELECTION_OR_REPRESENTATION`.
+The authoritative post-dispatch continuation remained `AWAITING_TRIGGER`; all
+nine failure-cycle rungs retained replay-verified completion, while a newly
+widened corpus requires a fresh incremental fit before any promotion decision.
+That next trigger fired during the same continuation and produced a 20,738-row
+release plus checkpoint
+`SERVING_ABI_V2_PROFITABILITY_PAPER_7994f8318a1c94a4a3de3f97`. It was also
+rejected: validation Brier `0.2618005245` did not improve the `0.2443205267`
+baseline. The next frozen trigger is `matured_outcomes >= 28810 OR effective_N
+>= 161.2`; generation 3 remains active and no candidate registry key exists.
+
 Current-epoch lifecycle state remains flat and armed; the frozen economic
 cohort remains 1/5. Exact evidence is
 `goal_state/PERMANENT_SYSTEM_RECOVERY/adaptive_incremental_trigger_20260728.json`.
