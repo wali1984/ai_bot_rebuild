@@ -62,6 +62,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from v2.backend.app.cli import v2_paper_provisional_prediction_publisher as publisher
+from v2.backend.app.cli import v2_trade_management_paper_loop as paper_loop
 from v2.backend.app.services.adaptive_system import (
     adaptive_hard_validator_v2,
     adaptive_objective_v2,
@@ -250,6 +251,74 @@ def test_feed_clean_valid_unfavorable_publishes(action: str) -> None:
     assert reasons == [], (
         f"action={action!r}: an honest, feed-authenticated adverse book must "
         f"still publish (valid_unfavorable_state); got rejection {reasons!r}"
+    )
+
+
+@pytest.mark.parametrize("action", ("SHADOW_ONLY", "NO_TRADE"))
+def test_feed_clean_valid_unfavorable_reaches_allocator_as_continuous_input(
+    action: str,
+) -> None:
+    intent = {
+        "symbol": "BTCUSDT",
+        "timeframe": "5m",
+        "side": "long",
+        "entry_price": 100.0,
+        "confidence_calibrated": 0.8,
+        "expected_move_after_cost_bps": 20.0,
+        "market_state_integrity_score": 92.0,
+        "strategy_regime_labels": ["ORDINARY_PAPER_CONTINUOUS"],
+        "strategy_router_selected_mode": "ordinary_paper_continuous_mode",
+        "strategy_temporal_contract_status": "PASS",
+        "strategy_feature_snapshot_status": "ATTACHED_PIT_VALID_FEATURE_SNAPSHOT",
+        "strategy_feature_snapshot_id": "cg-f057-regime-snapshot",
+        "strategy_feature_snapshot_available_at": "2026-07-27T00:00:00.100Z",
+        "strategy_feature_snapshot_feature_cutoff": "2026-07-26T23:55:00.000Z",
+        "strategy_feature_snapshot_candle_closed_confirmed": True,
+        "strategy_feature_snapshot_latest_unclosed_kline_excluded": True,
+        "strategy_decision_time": "2026-07-27T00:00:01.000Z",
+    }
+    allocation_input = paper_loop._build_allocation_input(  # noqa: SLF001
+        intent=intent,
+        signal={
+            "timeframe": "5m",
+            "price_target": 100.0,
+            "expected_funding_bps": 0.5,
+        },
+        prediction={"features": {}},
+        portfolio_context={
+            "equity": 3_000.0,
+            "available_margin": 3_000.0,
+            "wallet_balance": 3_000.0,
+            "drawdown_bps": 0.0,
+        },
+        symbol_exposures={},
+        total_exposure=0.0,
+        market_microstructure={
+            "liquidity_score": 0.8,
+            "bid_ask_spread_bps": 1.2,
+            "orderbook_depth_usd": 100_000.0,
+            "microstructure_trust_score": 0.24,
+            "microstructure_adaptive_minimum": 0.70,
+            "microstructure_action": action,
+            "feed_integrity_pass": True,
+        },
+        correlation_contexts_by_symbol={
+            "BTCUSDT": {
+                "correlation_exposure_pct": 0.0,
+                "correlation_input_status": "NO_OPEN_POSITIONS",
+                "correlation_input_source": "NO_OPEN_POSITIONS",
+                "correlation_pair_count": 0,
+                "correlation_required_pair_count": 0,
+                "correlation_unresolved_open_symbols": [],
+            }
+        },
+    )
+
+    assert allocation_input.risk_veto is False
+    assert allocation_input.liquidity_score == pytest.approx(0.8)
+    assert intent["allocator_microstructure_continuous_policy_input_required"] is True
+    assert intent["allocator_microstructure_trust_gate_status"] == (
+        "VALID_UNFAVORABLE_CONTINUOUS_ADAPTIVE_POLICY_INPUT"
     )
 
 

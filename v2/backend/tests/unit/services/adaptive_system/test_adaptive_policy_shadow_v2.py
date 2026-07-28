@@ -108,6 +108,21 @@ def test_performance_breaker_state_is_continuous_objective_input_not_veto() -> N
     assert adverse > neutral
 
 
+def test_performance_breaker_consumes_candidate_scoped_risk_penalty() -> None:
+    multiplier = _continuous_performance_risk_multiplier(
+        {
+            "performance_risk_state": {
+                "profit_factor": 1.0,
+                "expectancy_bps": 5.0,
+                "current_drawdown_fraction": 0.0,
+                "candidate_performance_risk_multiplier": 2.25,
+            }
+        }
+    )
+
+    assert multiplier == pytest.approx(2.25)
+
+
 def _intent() -> dict:
     reservation_hash = _sha("3")
     return {

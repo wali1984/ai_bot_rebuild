@@ -1335,13 +1335,18 @@ def _continuous_performance_risk_multiplier(
     profit_factor_deficit = max(0.0, 1.0 - profit_factor)
     expectancy_bps = finite_or_neutral(state.get("expectancy_bps"), 0.0)
     expectancy_deficit_fraction = max(0.0, -expectancy_bps) / 10_000.0
-    return min(
+    aggregate_multiplier = min(
         10.0,
         1.0
         + drawdown_fraction
         + profit_factor_deficit
         + expectancy_deficit_fraction,
     )
+    candidate_multiplier = finite_or_neutral(
+        state.get("candidate_performance_risk_multiplier"),
+        1.0,
+    )
+    return min(10.0, max(aggregate_multiplier, max(1.0, candidate_multiplier)))
 
 
 def _policy_action(

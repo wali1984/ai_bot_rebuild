@@ -9564,6 +9564,80 @@ def test_global_performance_halt_preserves_probation_allocator_evidence() -> Non
     assert allocation["global_halt_preserves_probation_allocator_evidence"] is True
 
 
+def test_category_e_performance_halt_is_bounded_continuous_penalty_not_veto() -> None:
+    intent = {
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "symbol": "BTCUSDT",
+        "timeframe": "15m",
+        "side": "long",
+        "strategy_id": "trend_mode",
+        "market_regime": "TREND",
+        "paper_performance_circuit_breaker_authority_classification": (
+            "CATEGORY_E_POLICY_PERFORMANCE"
+        ),
+        "paper_performance_circuit_breaker_adaptive_policy_role": (
+            "CONTINUOUS_OBJECTIVE_RISK_INPUT"
+        ),
+        "paper_performance_circuit_breaker_hard_trading_authority": False,
+    }
+    allocation = _allowed_allocation()
+
+    blocked = paper_loop._paper_block_new_entry_by_performance_circuit(  # noqa: SLF001
+        intent=intent,
+        allocation=allocation,
+        performance_circuit_breaker_status={
+            "new_entries_allowed": False,
+            "blocked_bucket_keys": ["side:long"],
+            "catastrophic_loss_mandate": False,
+            "aggregate": {
+                "profit_factor": 0.65,
+                "notional_weighted_expectancy_bps": -18.0,
+            },
+        },
+    )
+
+    assert blocked is False
+    assert intent["paper_performance_circuit_breaker_blocked"] is False
+    assert intent["paper_performance_static_veto_removed"] is True
+    assert 1.0 < intent["paper_performance_adaptive_risk_multiplier"] <= 10.0
+    assert allocation["allocator_decision"] == "ALLOW_WITH_SIZE"
+    assert intent.get("paper_fill_allowed") is not False
+
+
+def test_category_e_conversion_does_not_override_explicit_catastrophic_mandate() -> None:
+    intent = {
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "symbol": "BTCUSDT",
+        "timeframe": "15m",
+        "side": "long",
+        "paper_performance_circuit_breaker_authority_classification": (
+            "CATEGORY_E_POLICY_PERFORMANCE"
+        ),
+        "paper_performance_circuit_breaker_adaptive_policy_role": (
+            "CONTINUOUS_OBJECTIVE_RISK_INPUT"
+        ),
+        "paper_performance_circuit_breaker_hard_trading_authority": False,
+    }
+
+    blocked = paper_loop._paper_block_new_entry_by_performance_circuit(  # noqa: SLF001
+        intent=intent,
+        allocation=_allowed_allocation(),
+        performance_circuit_breaker_status={
+            "new_entries_allowed": False,
+            "blocked_bucket_keys": [],
+            "catastrophic_loss_mandate": True,
+        },
+    )
+
+    assert blocked is True
+    assert intent["paper_performance_circuit_breaker_blocked"] is True
+    assert "paper_performance_static_veto_removed" not in intent
+
+
 def test_high_confidence_cannot_bypass_global_performance_halt() -> None:
     intent = {
         "paper_only": True,
@@ -27907,6 +27981,14 @@ def _allocator_market_evidence_input(
         "market_state_integrity_score": 92.0,
         "strategy_regime_labels": ["TREND"],
         "strategy_router_selected_mode": "trend_following",
+        "strategy_temporal_contract_status": "PASS",
+        "strategy_feature_snapshot_status": "ATTACHED_PIT_VALID_FEATURE_SNAPSHOT",
+        "strategy_feature_snapshot_id": "v2_fsnap_allocator_fixture",
+        "strategy_feature_snapshot_available_at": "2026-07-28T11:59:00Z",
+        "strategy_feature_snapshot_feature_cutoff": "2026-07-28T11:55:00Z",
+        "strategy_feature_snapshot_candle_closed_confirmed": True,
+        "strategy_feature_snapshot_latest_unclosed_kline_excluded": True,
+        "strategy_decision_time": "2026-07-28T12:00:00Z",
     }
     intent.update(intent_overrides or {})
     signal = {
@@ -27922,6 +28004,7 @@ def _allocator_market_evidence_input(
         "microstructure_trust_score": 0.82,
         "microstructure_adaptive_minimum": 0.70,
         "microstructure_action": "ALLOW",
+        "feed_integrity_pass": True,
     }
     market_microstructure.update(microstructure_overrides or {})
     contexts = {
@@ -28043,7 +28126,7 @@ def test_allocator_missing_or_invalid_adaptive_microstructure_minimum_blocks(
 
 @pytest.mark.parametrize(
     "action",
-    ["", "UNKNOWN_ACTION", "NO_TRADE", "SHADOW_ONLY", "CLOSE_OR_REDUCE_ONLY"],
+    ["", "UNKNOWN_ACTION", "CLOSE_OR_REDUCE_ONLY"],
 )
 def test_allocator_missing_unknown_or_protective_microstructure_action_blocks(
     action: str,
@@ -28055,6 +28138,45 @@ def test_allocator_missing_unknown_or_protective_microstructure_action_blocks(
     assert allocation_input.liquidity_score == 0.0
     assert allocation_input.risk_veto is True
     assert str(intent["allocator_microstructure_trust_gate_status"]).startswith("BLOCKED_")
+
+
+@pytest.mark.parametrize("action", ["NO_TRADE", "SHADOW_ONLY"])
+def test_allocator_authenticated_unfavorable_microstructure_is_continuous_input(
+    action: str,
+) -> None:
+    intent, allocation_input = _allocator_market_evidence_input(
+        microstructure_overrides={"microstructure_action": action}
+    )
+
+    assert allocation_input.liquidity_score == pytest.approx(0.8)
+    assert allocation_input.risk_veto is False
+    assert intent["allocator_microstructure_unfavorable_state"] is True
+    assert intent["allocator_microstructure_continuous_policy_input_required"] is True
+    assert intent["allocator_microstructure_trust_gate_status"] == (
+        "VALID_UNFAVORABLE_CONTINUOUS_ADAPTIVE_POLICY_INPUT"
+    )
+    assert (
+        paper_loop._paper_allocator_liquidity_source_rejection_reasons(  # noqa: SLF001
+            intent["allocator_liquidity_source_material"]
+        )
+        == []
+    )
+
+
+@pytest.mark.parametrize("action", ["ALLOW", "REDUCE_SIZE", "NO_TRADE", "SHADOW_ONLY"])
+def test_allocator_feed_integrity_failure_is_hard_for_every_action(action: str) -> None:
+    intent, allocation_input = _allocator_market_evidence_input(
+        microstructure_overrides={
+            "microstructure_action": action,
+            "feed_integrity_pass": False,
+        }
+    )
+
+    assert allocation_input.liquidity_score == 0.0
+    assert allocation_input.risk_veto is True
+    assert intent["allocator_microstructure_block_reason"] == (
+        "MICROSTRUCTURE_FEED_INTEGRITY_FAILED_OR_MISSING"
+    )
 
 
 def test_allocator_upstream_regime_labels_and_score_are_diagnostic_only() -> None:
@@ -28090,14 +28212,46 @@ def test_allocator_upstream_regime_labels_and_score_are_diagnostic_only() -> Non
     )
 
 
-def test_allocator_router_no_trade_regime_sets_explicit_risk_veto() -> None:
+def test_allocator_router_no_trade_regime_is_continuous_low_score() -> None:
     intent, allocation_input = _allocator_market_evidence_input(
         intent_overrides={"strategy_regime_labels": ["NO_TRADE"]}
     )
 
-    assert intent["allocator_regime_score_reason"] == ("REGIME_LABEL_NO_TRADE_OR_BLOCKED")
+    assert intent["allocator_regime_score_reason"] == (
+        "REGIME_LABEL_ADVERSE_CONTINUOUS_LOW_SCORE"
+    )
+    assert intent["allocator_regime_score"] == pytest.approx(0.2)
+    assert allocation_input.risk_veto is False
+
+
+def test_allocator_ordinary_continuous_regime_has_authenticated_neutral_score() -> None:
+    intent, allocation_input = _allocator_market_evidence_input(
+        intent_overrides={
+            "strategy_regime_labels": ["ORDINARY_PAPER_CONTINUOUS"],
+            "strategy_router_selected_mode": "ordinary_paper_continuous_mode",
+        }
+    )
+
+    assert intent["allocator_regime_score"] == pytest.approx(0.5)
+    assert intent["allocator_regime_score_reason"] == (
+        "REGIME_AUTHENTICATED_ORDINARY_CONTINUOUS_NEUTRAL"
+    )
+    assert intent["allocator_regime_point_in_time_status"] == "PASS"
+    assert allocation_input.risk_veto is False
+
+
+def test_allocator_regime_binding_fails_closed_on_future_available_at() -> None:
+    intent, allocation_input = _allocator_market_evidence_input(
+        intent_overrides={
+            "strategy_feature_snapshot_available_at": "2026-07-28T12:00:01Z",
+        }
+    )
+
+    assert intent["allocator_regime_point_in_time_status"] == "BLOCKED"
+    assert "REGIME_FEATURE_AVAILABLE_AT_AFTER_DECISION_TIME" in (
+        intent["allocator_regime_point_in_time_rejection_reasons"]
+    )
     assert allocation_input.risk_veto is True
-    assert "REGIME_LABEL_NO_TRADE_OR_BLOCKED" in str(allocation_input.risk_veto_reason)
 
 
 def _correlation_returns(scale: float = 1.0) -> dict[int, float]:

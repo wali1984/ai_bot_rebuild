@@ -30560,6 +30560,65 @@ def _paper_block_new_entry_by_performance_circuit(
     if not reasons:
         return False
 
+    # CG-F061: Category-E historical performance is a bounded adaptive-policy
+    # risk input, never final entry authority. Catastrophic drawdown,
+    # liquidation, margin, exposure, accounting, authorization and kill-switch
+    # controls are separate hard validators and remain untouched.
+    category_e_continuous = bool(
+        intent.get("paper_performance_circuit_breaker_authority_classification")
+        == "CATEGORY_E_POLICY_PERFORMANCE"
+        and intent.get("paper_performance_circuit_breaker_adaptive_policy_role")
+        == "CONTINUOUS_OBJECTIVE_RISK_INPUT"
+        and intent.get("paper_performance_circuit_breaker_hard_trading_authority") is False
+        and performance_circuit_breaker_status.get("catastrophic_loss_mandate") is not True
+    )
+    if category_e_continuous:
+        aggregate_value = performance_circuit_breaker_status.get("aggregate")
+        aggregate = aggregate_value if isinstance(aggregate_value, Mapping) else {}
+        profit_factor = _paper_quality_profit_factor_numeric(aggregate.get("profit_factor"))
+        expectancy_bps = _coerce_float(
+            _first_present(
+                aggregate.get("notional_weighted_expectancy_bps"),
+                aggregate.get("expectancy_bps"),
+            )
+        )
+        risk_multiplier = 1.0
+        if performance_circuit_breaker_status.get("new_entries_allowed") is not True:
+            risk_multiplier += 0.25
+        risk_multiplier += 0.20 * len(hard_matched_blocked_bucket_keys)
+        risk_multiplier += 0.20 * len(hard_matched_loss_cluster_keys)
+        if profit_factor is not None and math.isfinite(profit_factor):
+            risk_multiplier += max(0.0, 1.0 - profit_factor)
+        if expectancy_bps is not None and math.isfinite(expectancy_bps):
+            risk_multiplier += min(2.0, max(0.0, -expectancy_bps) / 100.0)
+        risk_multiplier = round(min(10.0, max(1.0, risk_multiplier)), 8)
+        for target in (intent, allocation):
+            target["paper_performance_circuit_breaker_blocked"] = False
+            target["paper_performance_circuit_breaker_observed_reasons"] = sorted(set(reasons))
+            target["paper_performance_circuit_breaker_candidate_bucket_keys"] = sorted(
+                candidate_bucket_keys
+            )
+            target["paper_performance_circuit_breaker_matched_blocked_bucket_keys"] = list(
+                hard_matched_blocked_bucket_keys
+            )
+            target["paper_performance_circuit_breaker_matched_loss_cluster_keys"] = list(
+                hard_matched_loss_cluster_keys
+            )
+            target["paper_performance_circuit_breaker_authority_classification"] = (
+                "CATEGORY_E_POLICY_PERFORMANCE"
+            )
+            target["paper_performance_circuit_breaker_adaptive_policy_role"] = (
+                "CONTINUOUS_OBJECTIVE_RISK_INPUT"
+            )
+            target["paper_performance_circuit_breaker_hard_trading_authority"] = False
+            target["paper_performance_adaptive_risk_multiplier"] = risk_multiplier
+            target["paper_performance_adaptive_penalty_required"] = risk_multiplier > 1.0
+            target["paper_performance_static_veto_removed"] = True
+            target["places_real_order"] = False
+            target["routes_to_live"] = False
+            target["paper_only"] = True
+        return False
+
     bucket_specific_block = bool(hard_matched_blocked_bucket_keys or hard_matched_loss_cluster_keys)
     global_halt_only = (
         not bucket_specific_block and PAPER_PERFORMANCE_CIRCUIT_BREAKER_BLOCK_REASON in reasons
@@ -48004,8 +48063,10 @@ def _derive_regime_score_from_labels(
 ) -> tuple[float | None, str | None]:
     tokens = {str(label).strip().upper() for label in labels if str(label).strip()}
     mode = str(selected_mode or "").strip().lower()
-    if "NO_TRADE" in tokens or "BLOCKED" in tokens or mode == "no_trade_mode":
-        return 0.2, "REGIME_LABEL_NO_TRADE_OR_BLOCKED"
+    if tokens.intersection({"NO_TRADE", "BLOCKED", "RISK_OFF", "DATA_UNRELIABLE"}) or mode == (
+        "no_trade_mode"
+    ):
+        return 0.2, "REGIME_LABEL_ADVERSE_CONTINUOUS_LOW_SCORE"
     if tokens.intersection({"CHOP", "CHOPPY", "SIDEWAYS", "RANGE_BOUND", "RANGE"}):
         return 0.75, "REGIME_LABEL_CHOP_RANGE"
     if tokens.intersection({"HIGH_VOL", "HIGH_VOLATILITY", "VOLATILE", "LIQUIDATION_RISK"}):
@@ -48015,9 +48076,73 @@ def _derive_regime_score_from_labels(
     if tokens.intersection({"TREND", "MOMENTUM", "BREAKOUT"}) or mode in {
         "trend_following",
         "breakout",
+        "trend_mode",
+        "breakout_mode",
     }:
         return 1.0, "REGIME_LABEL_TREND_MOMENTUM"
+    if "LIQUIDITY_SWEEP" in tokens:
+        return 0.65, "REGIME_LABEL_LIQUIDITY_SWEEP"
+    if "MODEL_DISAGREEMENT" in tokens:
+        return 0.55, "REGIME_LABEL_MODEL_DISAGREEMENT"
+    if "LOW_LIQUIDITY" in tokens or mode in {"scalp_mode", "reduce_size_mode"}:
+        return 0.5, "REGIME_LABEL_REDUCED_QUALITY"
+    if "ORDINARY_PAPER_CONTINUOUS" in tokens or mode == "ordinary_paper_continuous_mode":
+        return 0.5, "REGIME_AUTHENTICATED_ORDINARY_CONTINUOUS_NEUTRAL"
     return None, None
+
+
+_PAPER_REGIME_PIT_BINDING_FIELDS = (
+    "strategy_temporal_contract_status",
+    "strategy_feature_snapshot_status",
+    "strategy_feature_snapshot_id",
+    "strategy_feature_snapshot_available_at",
+    "strategy_feature_snapshot_feature_cutoff",
+    "strategy_feature_snapshot_candle_closed_confirmed",
+    "strategy_feature_snapshot_latest_unclosed_kline_excluded",
+    "strategy_decision_time",
+)
+
+
+def _paper_allocator_regime_point_in_time_binding(
+    intent: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Bind router regime classification to its admitted feature snapshot."""
+
+    material = {
+        "schema_version": "paper_allocator_regime_pit_binding_v1",
+        **{field: deepcopy(intent.get(field)) for field in _PAPER_REGIME_PIT_BINDING_FIELDS},
+    }
+    reasons: list[str] = []
+    if material["strategy_temporal_contract_status"] != "PASS":
+        reasons.append("REGIME_STRATEGY_TEMPORAL_CONTRACT_NOT_PASS")
+    if material["strategy_feature_snapshot_status"] != (
+        "ATTACHED_PIT_VALID_FEATURE_SNAPSHOT"
+    ):
+        reasons.append("REGIME_FEATURE_SNAPSHOT_NOT_PIT_VALID")
+    if material["strategy_feature_snapshot_id"] in (None, ""):
+        reasons.append("REGIME_FEATURE_SNAPSHOT_ID_MISSING")
+    if material["strategy_feature_snapshot_candle_closed_confirmed"] is not True:
+        reasons.append("REGIME_FEATURE_CANDLE_FINALITY_UNPROVEN")
+    if material["strategy_feature_snapshot_latest_unclosed_kline_excluded"] is not True:
+        reasons.append("REGIME_LATEST_UNCLOSED_KLINE_EXCLUSION_UNPROVEN")
+    cutoff = _strict_aware_utc_time(material["strategy_feature_snapshot_feature_cutoff"])
+    available = _strict_aware_utc_time(material["strategy_feature_snapshot_available_at"])
+    decision = _strict_aware_utc_time(material["strategy_decision_time"])
+    if cutoff is None:
+        reasons.append("REGIME_FEATURE_CUTOFF_INVALID")
+    if available is None:
+        reasons.append("REGIME_FEATURE_AVAILABLE_AT_INVALID")
+    if decision is None:
+        reasons.append("REGIME_DECISION_TIME_INVALID")
+    if cutoff is not None and available is not None and cutoff > available:
+        reasons.append("REGIME_FEATURE_CUTOFF_AFTER_AVAILABLE_AT")
+    if available is not None and decision is not None and available > decision:
+        reasons.append("REGIME_FEATURE_AVAILABLE_AT_AFTER_DECISION_TIME")
+    return {
+        **material,
+        "status": "PASS" if not reasons else "BLOCKED",
+        "rejection_reasons": sorted(set(reasons)),
+    }
 
 
 def _derive_allocator_regime_score(
@@ -48142,6 +48267,7 @@ _PAPER_REGIME_SCORE_INPUT_KEYS = (
     "strategy_router_selected_mode",
     "strategy_selected_mode",
     "market_regime",
+    *_PAPER_REGIME_PIT_BINDING_FIELDS,
 )
 
 
@@ -48187,6 +48313,7 @@ def _paper_allocator_market_score_source_materials(
         "base_source": base_liquidity_source,
         "base_reason": base_liquidity_reason,
         "microstructure_gate_inputs": {
+            "feed_integrity_pass": deepcopy(intent.get("feed_integrity_pass")),
             "microstructure_trust_score": deepcopy(intent.get("microstructure_trust_score")),
             "microstructure_adaptive_minimum": deepcopy(
                 intent.get("microstructure_adaptive_minimum")
@@ -48215,6 +48342,7 @@ def _paper_allocator_market_score_source_materials(
         "score": regime_score,
         "source": regime_source,
         "reason": regime_reason,
+        "point_in_time_binding": _paper_allocator_regime_point_in_time_binding(intent),
     }
     return liquidity_material, regime_material
 
@@ -48262,6 +48390,7 @@ def _paper_allocator_liquidity_source_rejection_reasons(
     trust_raw = gate.get("microstructure_trust_score")
     minimum_raw = gate.get("microstructure_adaptive_minimum")
     action = str(gate.get("microstructure_action") or "").strip().upper()
+    feed_integrity_pass = gate.get("feed_integrity_pass")
     trust = _coerce_float(trust_raw)
     minimum = _coerce_float(minimum_raw)
     trust_invalid = trust_raw not in (None, "") and (trust is None or not 0.0 <= trust <= 1.0)
@@ -48269,12 +48398,13 @@ def _paper_allocator_liquidity_source_rejection_reasons(
         minimum is None or not 0.0 < minimum <= 1.0
     )
     if (
-        trust_invalid
+        feed_integrity_pass is not True
+        or trust_invalid
         or trust is None
         or minimum_invalid
         or minimum is None
-        or action in {"NO_TRADE", "SHADOW_ONLY", "CLOSE_OR_REDUCE_ONLY"}
-        or action not in {"ALLOW", "REDUCE_SIZE"}
+        or action == "CLOSE_OR_REDUCE_ONLY"
+        or action not in {"ALLOW", "REDUCE_SIZE", "NO_TRADE", "SHADOW_ONLY"}
     ):
         replayed_final = 0.0
     elif action == "REDUCE_SIZE" or trust < minimum:
@@ -48323,6 +48453,9 @@ def _paper_allocator_regime_source_rejection_reasons(
         or material.get("reason") != reason
     ):
         reasons.append("CANDIDATE_REGIME_DERIVATION_MISMATCH")
+    expected_pit_binding = _paper_allocator_regime_point_in_time_binding(scratch)
+    if material.get("point_in_time_binding") != expected_pit_binding:
+        reasons.append("CANDIDATE_REGIME_POINT_IN_TIME_BINDING_MISMATCH")
     return sorted(set(reasons))
 
 
@@ -49661,6 +49794,7 @@ def _build_allocation_input(
         if value not in (None, ""):
             intent[field] = value
     microstructure_action = str(intent.get("microstructure_action") or "").upper()
+    microstructure_feed_integrity_pass = intent.get("feed_integrity_pass")
     microstructure_trust_score = _coerce_float(intent.get("microstructure_trust_score"))
     microstructure_minimum_value = intent.get("microstructure_adaptive_minimum")
     microstructure_minimum = _coerce_float(microstructure_minimum_value)
@@ -49697,6 +49831,14 @@ def _build_allocation_input(
             "BLOCKED_MISSING_MICROSTRUCTURE_TRUST_SCORE"
         )
         intent["microstructure_trust_payload_present"] = microstructure_trust_payload_present
+    elif microstructure_feed_integrity_pass is not True:
+        liquidity = 0.0
+        intent["allocator_microstructure_block_reason"] = (
+            "MICROSTRUCTURE_FEED_INTEGRITY_FAILED_OR_MISSING"
+        )
+        intent["allocator_microstructure_trust_gate_status"] = (
+            "BLOCKED_MICROSTRUCTURE_FEED_INTEGRITY_FAILED_OR_MISSING"
+        )
     elif microstructure_minimum_invalid:
         liquidity = 0.0
         intent["allocator_microstructure_block_reason"] = "MICROSTRUCTURE_ADAPTIVE_MINIMUM_INVALID"
@@ -49709,7 +49851,7 @@ def _build_allocation_input(
         intent["allocator_microstructure_trust_gate_status"] = (
             "BLOCKED_MISSING_ADAPTIVE_MICROSTRUCTURE_MINIMUM"
         )
-    elif microstructure_action in {"NO_TRADE", "SHADOW_ONLY", "CLOSE_OR_REDUCE_ONLY"}:
+    elif microstructure_action == "CLOSE_OR_REDUCE_ONLY":
         liquidity = 0.0
         intent["allocator_microstructure_block_reason"] = (
             f"MICROSTRUCTURE_ACTION_{microstructure_action}"
@@ -49717,11 +49859,23 @@ def _build_allocation_input(
         intent["allocator_microstructure_trust_gate_status"] = (
             f"BLOCKED_MICROSTRUCTURE_ACTION_{microstructure_action}"
         )
-    elif microstructure_action not in {"ALLOW", "REDUCE_SIZE"}:
+    elif microstructure_action not in {"ALLOW", "REDUCE_SIZE", "NO_TRADE", "SHADOW_ONLY"}:
         liquidity = 0.0
         intent["allocator_microstructure_block_reason"] = "MICROSTRUCTURE_ACTION_MISSING_OR_UNKNOWN"
         intent["allocator_microstructure_trust_gate_status"] = (
             "BLOCKED_MICROSTRUCTURE_ACTION_MISSING_OR_UNKNOWN"
+        )
+    elif microstructure_action in {"NO_TRADE", "SHADOW_ONLY"}:
+        # CG-F057: an authenticated adverse market classification is a
+        # continuous policy input, not an allocator authorization veto.  The
+        # typed AdaptivePolicyActionV2 consumes the conservative fill,
+        # slippage, impact, adverse-selection, capacity and sweep estimates;
+        # this legacy allocator only validates that the evidence is genuine.
+        intent["allocator_microstructure_unfavorable_state"] = True
+        intent["allocator_microstructure_unfavorable_action"] = microstructure_action
+        intent["allocator_microstructure_continuous_policy_input_required"] = True
+        intent["allocator_microstructure_trust_gate_status"] = (
+            "VALID_UNFAVORABLE_CONTINUOUS_ADAPTIVE_POLICY_INPUT"
         )
     elif (
         microstructure_action == "REDUCE_SIZE"
@@ -50012,6 +50166,12 @@ def _build_allocation_input(
     intent["allocator_regime_score"] = round(regime_score, 8)
     intent["allocator_regime_score_source"] = regime_score_source
     intent["allocator_regime_score_reason"] = regime_score_reason
+    allocator_regime_pit_binding = _paper_allocator_regime_point_in_time_binding(intent)
+    intent["allocator_regime_point_in_time_binding"] = allocator_regime_pit_binding
+    intent["allocator_regime_point_in_time_status"] = allocator_regime_pit_binding["status"]
+    intent["allocator_regime_point_in_time_rejection_reasons"] = list(
+        allocator_regime_pit_binding["rejection_reasons"]
+    )
     (
         allocator_liquidity_source_material,
         allocator_regime_source_material,
@@ -50058,10 +50218,13 @@ def _build_allocation_input(
         allocator_market_evidence_rejection_reasons.append(
             "CANONICAL_CORRELATION_EVIDENCE_NOT_EXECUTABLE"
         )
+    if allocator_regime_pit_binding["status"] != "PASS":
+        allocator_market_evidence_rejection_reasons.extend(
+            str(reason) for reason in allocator_regime_pit_binding["rejection_reasons"]
+        )
     if regime_score_reason in {
         "FAIL_CLOSED_NO_REGIME_SCORE",
         "FAIL_CLOSED_INVALID_REGIME_SCORE",
-        "REGIME_LABEL_NO_TRADE_OR_BLOCKED",
     }:
         allocator_market_evidence_rejection_reasons.append(str(regime_score_reason))
     intent["allocator_market_evidence_rejection_reasons"] = sorted(
@@ -54367,6 +54530,9 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                     "profit_factor": _pre_cycle_aggregate.get("profit_factor"),
                     "expectancy_bps": _pre_cycle_aggregate.get("expectancy_bps"),
                     "current_drawdown_fraction": _current_drawdown,
+                    "candidate_performance_risk_multiplier": intent.get(
+                        "paper_performance_adaptive_risk_multiplier"
+                    ),
                     "governed_closed_rows": _pre_cycle_closed_count,
                     "generated_utc": (
                         pre_cycle_paper_performance_circuit_breaker_status.get(

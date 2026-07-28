@@ -1364,15 +1364,18 @@ def _paper_context_source_replay_rejection_reasons(
         gate = dict(gate_value) if isinstance(gate_value, Mapping) else {}
         trust_raw = gate.get("microstructure_trust_score")
         minimum_raw = gate.get("microstructure_adaptive_minimum")
+        feed_integrity_pass = gate.get("feed_integrity_pass")
         trust = _finite_float(trust_raw)
         minimum = _finite_float(minimum_raw)
         action = str(gate.get("microstructure_action") or "").strip().upper()
         invalid = bool(
-            (trust_raw not in (None, "") and (trust is None or not 0.0 <= trust <= 1.0))
+            feed_integrity_pass is not True
+            or (trust_raw not in (None, "") and (trust is None or not 0.0 <= trust <= 1.0))
             or trust is None
             or (minimum_raw not in (None, "") and (minimum is None or not 0.0 < minimum <= 1.0))
             or minimum is None
-            or action not in {"ALLOW", "REDUCE_SIZE"}
+            or action == "CLOSE_OR_REDUCE_ONLY"
+            or action not in {"ALLOW", "REDUCE_SIZE", "NO_TRADE", "SHADOW_ONLY"}
         )
         if invalid:
             final_score = 0.0
@@ -1396,6 +1399,48 @@ def _paper_context_source_replay_rejection_reasons(
     ):
         reasons.append("PAPER_REGIME_SOURCE_MATERIAL_INVALID")
     else:
+        point_in_time_binding_value = regime.get("point_in_time_binding")
+        point_in_time_binding = (
+            dict(point_in_time_binding_value)
+            if isinstance(point_in_time_binding_value, Mapping)
+            else {}
+        )
+        cutoff = _aware_utc(point_in_time_binding.get("strategy_feature_snapshot_feature_cutoff"))
+        available = _aware_utc(point_in_time_binding.get("strategy_feature_snapshot_available_at"))
+        decision = _aware_utc(point_in_time_binding.get("strategy_decision_time"))
+        binding_reasons: list[str] = []
+        if point_in_time_binding.get("strategy_temporal_contract_status") != "PASS":
+            binding_reasons.append("REGIME_STRATEGY_TEMPORAL_CONTRACT_NOT_PASS")
+        if point_in_time_binding.get("strategy_feature_snapshot_status") != (
+            "ATTACHED_PIT_VALID_FEATURE_SNAPSHOT"
+        ):
+            binding_reasons.append("REGIME_FEATURE_SNAPSHOT_NOT_PIT_VALID")
+        if point_in_time_binding.get("strategy_feature_snapshot_id") in (None, ""):
+            binding_reasons.append("REGIME_FEATURE_SNAPSHOT_ID_MISSING")
+        if point_in_time_binding.get("strategy_feature_snapshot_candle_closed_confirmed") is not True:
+            binding_reasons.append("REGIME_FEATURE_CANDLE_FINALITY_UNPROVEN")
+        if point_in_time_binding.get(
+            "strategy_feature_snapshot_latest_unclosed_kline_excluded"
+        ) is not True:
+            binding_reasons.append("REGIME_LATEST_UNCLOSED_KLINE_EXCLUSION_UNPROVEN")
+        if cutoff is None:
+            binding_reasons.append("REGIME_FEATURE_CUTOFF_INVALID")
+        if available is None:
+            binding_reasons.append("REGIME_FEATURE_AVAILABLE_AT_INVALID")
+        if decision is None:
+            binding_reasons.append("REGIME_DECISION_TIME_INVALID")
+        if cutoff is not None and available is not None and cutoff > available:
+            binding_reasons.append("REGIME_FEATURE_CUTOFF_AFTER_AVAILABLE_AT")
+        if available is not None and decision is not None and available > decision:
+            binding_reasons.append("REGIME_FEATURE_AVAILABLE_AT_AFTER_DECISION_TIME")
+        if (
+            point_in_time_binding.get("schema_version")
+            != "paper_allocator_regime_pit_binding_v1"
+            or point_in_time_binding.get("status")
+            != ("PASS" if not binding_reasons else "BLOCKED")
+            or point_in_time_binding.get("rejection_reasons") != sorted(set(binding_reasons))
+        ):
+            reasons.append("PAPER_REGIME_POINT_IN_TIME_BINDING_INVALID")
         explicit, explicit_source = _first_finite_field(
             (
                 ("intent", regime_inputs["intent"]),
@@ -1430,8 +1475,13 @@ def _paper_context_source_replay_rejection_reasons(
                 .strip()
                 .lower()
             )
-            if "NO_TRADE" in tokens or "BLOCKED" in tokens or mode == "no_trade_mode":
-                regime_score, regime_reason = 0.2, "REGIME_LABEL_NO_TRADE_OR_BLOCKED"
+            if tokens & {"NO_TRADE", "BLOCKED", "RISK_OFF", "DATA_UNRELIABLE"} or mode == (
+                "no_trade_mode"
+            ):
+                regime_score, regime_reason = (
+                    0.2,
+                    "REGIME_LABEL_ADVERSE_CONTINUOUS_LOW_SCORE",
+                )
             elif tokens & {"CHOP", "CHOPPY", "SIDEWAYS", "RANGE_BOUND", "RANGE"}:
                 regime_score, regime_reason = 0.75, "REGIME_LABEL_CHOP_RANGE"
             elif tokens & {"HIGH_VOL", "HIGH_VOLATILITY", "VOLATILE", "LIQUIDATION_RISK"}:
@@ -1441,8 +1491,23 @@ def _paper_context_source_replay_rejection_reasons(
             elif tokens & {"TREND", "MOMENTUM", "BREAKOUT"} or mode in {
                 "trend_following",
                 "breakout",
+                "trend_mode",
+                "breakout_mode",
             }:
                 regime_score, regime_reason = 1.0, "REGIME_LABEL_TREND_MOMENTUM"
+            elif "LIQUIDITY_SWEEP" in tokens:
+                regime_score, regime_reason = 0.65, "REGIME_LABEL_LIQUIDITY_SWEEP"
+            elif "MODEL_DISAGREEMENT" in tokens:
+                regime_score, regime_reason = 0.55, "REGIME_LABEL_MODEL_DISAGREEMENT"
+            elif "LOW_LIQUIDITY" in tokens or mode in {"scalp_mode", "reduce_size_mode"}:
+                regime_score, regime_reason = 0.5, "REGIME_LABEL_REDUCED_QUALITY"
+            elif "ORDINARY_PAPER_CONTINUOUS" in tokens or mode == (
+                "ordinary_paper_continuous_mode"
+            ):
+                regime_score, regime_reason = (
+                    0.5,
+                    "REGIME_AUTHENTICATED_ORDINARY_CONTINUOUS_NEUTRAL",
+                )
             else:
                 regime_score, regime_reason = 0.0, "FAIL_CLOSED_NO_REGIME_SCORE"
             regime_source = (

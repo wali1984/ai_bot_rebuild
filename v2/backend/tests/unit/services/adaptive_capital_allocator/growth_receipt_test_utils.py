@@ -136,6 +136,15 @@ def authorize_growth(
         "microstructure_trust_score": 1.0,
         "microstructure_adaptive_minimum": 0.5,
         "microstructure_action": "ALLOW",
+        "feed_integrity_pass": True,
+        "strategy_temporal_contract_status": "PASS",
+        "strategy_feature_snapshot_status": "ATTACHED_PIT_VALID_FEATURE_SNAPSHOT",
+        "strategy_feature_snapshot_id": "allocator-test-final-feature",
+        "strategy_feature_snapshot_available_at": "2026-07-19T11:59:55Z",
+        "strategy_feature_snapshot_feature_cutoff": "2026-07-19T11:55:00Z",
+        "strategy_feature_snapshot_candle_closed_confirmed": True,
+        "strategy_feature_snapshot_latest_unclosed_kline_excluded": True,
+        "strategy_decision_time": DECISION_TIME,
     }
     liquidity, liquidity_source, liquidity_reason = paper_loop._derive_allocator_liquidity_score(  # noqa: SLF001
         intent={},
