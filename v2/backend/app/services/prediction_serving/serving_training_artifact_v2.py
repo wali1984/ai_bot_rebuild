@@ -847,16 +847,31 @@ def load_validated_training_artifacts(
         "candidate_archive_decision_revision_count": "decision_revision_count",
         "candidate_archive_matured_revision_count": "matured_revision_count",
     }
+    high_water_counts = {
+        "candidate_archive_candidate_count": archive_candidate_count,
+        "candidate_archive_decision_revision_count": archive_decision_count,
+        "candidate_archive_matured_revision_count": archive_matured_count,
+        "candidate_archive_row_count": archive_row_count,
+        "candidate_archive_latest_decision_only_count": (
+            archive_candidate_count - archive_matured_count
+        ),
+    }
     if (
         set(high_water) != _HIGH_WATER_KEYS
         or any(
             high_water.get(target) != archive.get(source)
             for target, source in archive_bindings.items()
         )
-        or high_water.get("candidate_archive_latest_decision_only_count")
-        != archive_candidate_count - archive_matured_count
+        or any(
+            _nonnegative_int(high_water.get(field), f"manifest.source_high_watermark.{field}")
+            != expected
+            for field, expected in high_water_counts.items()
+        )
         or high_water.get("base_dataset_id") != base_dataset.get("dataset_id")
-        or high_water.get("base_dataset_sha256")
+        or _sha256(
+            high_water.get("base_dataset_sha256"),
+            "manifest.source_high_watermark.base_dataset_sha256",
+        )
         != base_dataset.get("dataset_sha256")
     ):
         _fail("ARCHIVE_HIGH_WATERMARK_MISMATCH", "artifacts")

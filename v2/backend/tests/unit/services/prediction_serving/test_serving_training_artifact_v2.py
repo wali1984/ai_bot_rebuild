@@ -505,6 +505,18 @@ def test_rotated_receipt_requires_exact_source_high_watermark(
     with pytest.raises(ServingTrainingArtifactError, match="HIGH_WATERMARK"):
         artifacts.load()
 
+
+def test_source_high_watermark_counters_reject_bool(
+    artifacts: ArtifactFixture,
+) -> None:
+    artifacts.manifest["source_high_watermark"][
+        "candidate_archive_latest_decision_only_count"
+    ] = False
+    artifacts.write(repin_receipt=True)
+
+    with pytest.raises(ServingTrainingArtifactError, match="NONNEGATIVE_INT_REQUIRED"):
+        artifacts.load()
+
     artifacts.manifest["source_high_watermark"][
         "candidate_archive_latest_decision_only_count"
     ] = 0
