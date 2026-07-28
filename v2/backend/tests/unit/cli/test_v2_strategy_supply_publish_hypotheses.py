@@ -32,6 +32,8 @@ def _runtime_keys(symbol: str = "BTCUSDT") -> dict[str, object]:
             timespec="microseconds"
         ).replace("+00:00", "Z")
 
+    cutoff = now - timedelta(minutes=1)
+
     return {
         f"v2:orderbook:top:binance:{symbol}": {
             "best_bid": 60000.0,
@@ -52,6 +54,22 @@ def _runtime_keys(symbol: str = "BTCUSDT") -> dict[str, object]:
         f"v2:features:latest:{symbol}:1m": {
             "features": {"atr_bps": 40.0},
             "atr_bps": 40.0,
+        },
+        f"v2:features:ta_closed:{symbol}:1m": {
+            "schema_version": "v2_full_talib_ta_closed_candidate_v1",
+            "symbol": symbol,
+            "timeframe": "1m",
+            "candle_closed_confirmed": True,
+            "feature_cutoff": cutoff.isoformat(timespec="microseconds").replace(
+                "+00:00", "Z"
+            ),
+            "generated_at": _utc(3),
+            "available_at": _utc(2),
+            "last_closed_candle_open_ts_ms": int(
+                (cutoff - timedelta(minutes=1)).timestamp() * 1000
+            ),
+            "last_closed_candle_close_ts_ms": int(cutoff.timestamp() * 1000),
+            "indicators": {"rsi_14": 50.0, "ta_NATR": 0.4},
         },
         f"v2:features:coinglass:{symbol}:1m": {
             "schema_version": "coinglass_aggregated_feature_payload_v2",
@@ -95,6 +113,9 @@ def test_strategy_supply_publish_writes_redis_contract_and_artifacts(tmp_path: P
 
     assert status["places_real_order"] is False
     assert status["test_order_submitted"] is False
+    assert status["paper_only"] is True
+    assert status["live_gate"] == "blocked_human_only"
+    assert status["exchange_action_taken"] is False
     assert status["positive_hypothesis_count"] > 0
     assert status["ttl_seconds"] == 123
     assert status["status"] in {
@@ -107,6 +128,16 @@ def test_strategy_supply_publish_writes_redis_contract_and_artifacts(tmp_path: P
     assert ("v2:strategy_supply:latest_positive_summary", 123) in client.set_calls
     assert ("v2:strategy_supply:latest_error_summary", 123) in client.set_calls
     assert ("v2:strategy_supply:status", 123) in client.set_calls
+    latest_positive = json.loads(
+        client.data["v2:strategy_supply:latest_positive_summary"]
+    )
+    latest_error = json.loads(client.data["v2:strategy_supply:latest_error_summary"])
+    for summary in (latest_positive, latest_error):
+        assert summary["paper_only"] is True
+        assert summary["live_gate"] == "blocked_human_only"
+        assert summary["routes_to_live"] is False
+        assert summary["places_real_order"] is False
+        assert summary["exchange_action_taken"] is False
     payload = json.loads(client.data["v2:strategy_supply:hypotheses:BTCUSDT:1m"])
     directional = [row for row in payload["rows"] if row.get("side")]
     assert directional
@@ -124,6 +155,42 @@ def test_strategy_supply_publish_writes_redis_contract_and_artifacts(tmp_path: P
         encoding="utf-8"
     ).splitlines()
     assert positive_rows
+
+
+def test_strategy_supply_publish_never_gate_cleans_live_only_future_ta() -> None:
+    keys = _runtime_keys()
+    keys.pop("v2:features:ta_closed:BTCUSDT:1m")
+    keys["v2:features:ta:BTCUSDT:1m"] = {
+        "schema_version": "v2_full_talib_ta_candidate_v1",
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
+        "candle_closed_confirmed": False,
+        "feature_cutoff": "2099-01-01T00:00:00Z",
+        "generated_at": "2099-01-01T00:00:01Z",
+        "available_at": "2099-01-01T00:00:02Z",
+        "indicators": {"rsi_14": 20.0, "ta_NATR": 1.0},
+    }
+    client = FakeRedis(keys)
+
+    status = publish_strategy_supply(
+        client=client,
+        symbols=["BTCUSDT"],
+        timeframes=["1m"],
+        ttl_seconds=123,
+    )
+
+    gate_clean = json.loads(
+        client.data[
+            "v2:strategy_supply:gate_clean_positive_hypotheses:BTCUSDT:1m"
+        ]
+    )["rows"]
+    inventory = json.loads(
+        client.data["v2:strategy_supply:hypotheses:BTCUSDT:1m"]
+    )["rows"]
+    assert gate_clean == []
+    assert status["gate_clean_positive_hypothesis_count"] == 0
+    assert inventory[0]["reason_if_rejected"] == "TA_CLOSED_SOURCE_MISSING"
+    assert inventory[0]["feature_point_in_time_evidence_valid"] is False
 
 
 def test_strategy_supply_publish_rejects_inconsistent_selected_side_positive() -> None:

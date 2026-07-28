@@ -248,10 +248,17 @@ def test_run_once_writes_v2_ta_keys_and_status(
     assert payload["calculation_window_first_candle_id"] == source_rows[-89]["candle_id"]
     assert payload["latest_candle_id"] == source_rows[-1]["candle_id"]
     assert payload["latest_candle_raw_payload_hash"] == source_rows[-1]["raw_payload_hash"]
+    assert payload["last_closed_candle_open_ts_ms"] == source_rows[-1]["candle_open_time"]
+    assert payload["last_closed_candle_close_ts_ms"] == source_rows[-1]["candle_close_time"]
+    assert payload["latest_closed_kline_close_time_ms"] == source_rows[-1]["candle_close_time"]
+    assert payload["latest_closed_candle_open_ts_ms"] == source_rows[-1]["candle_open_time"]
+    assert payload["latest_closed_candle_close_ts_ms"] == source_rows[-1]["candle_close_time"]
     assert payload["latest_candle_producer_event_time_ms"] == source_rows[-1]["event_time"]
     assert payload["latest_candle_ingested_at_ms"] == source_rows[-1]["ingested_at"]
     assert payload["latest_candle_available_at_ms"] == source_rows[-1]["available_at"]
     assert payload["source_economic_event_time_ms"] == source_rows[-1]["candle_close_time"]
+    assert payload["last_closed_candle_close_ts_ms"] == payload["source_economic_event_time_ms"]
+    assert payload["latest_closed_candle_close_ts_ms"] == payload["source_economic_event_time_ms"]
     assert payload["source_producer_event_time_ms"] == max(row["event_time"] for row in source_rows)
     assert payload["source_ingested_at_ms"] == max(row["ingested_at"] for row in source_rows)
     assert payload["source_available_at_ms"] == max(row["available_at"] for row in source_rows)
@@ -260,8 +267,15 @@ def test_run_once_writes_v2_ta_keys_and_status(
     assert _utc(payload["source_event_time"]) <= _utc(payload["source_producer_event_time"])
     assert _utc(payload["source_producer_event_time"]) <= _utc(payload["source_ingested_at"])
     assert _utc(payload["source_ingested_at"]) <= _utc(payload["source_available_at"])
-    assert _utc(payload["source_available_at"]) <= _utc(payload["generated_at"])
-    assert payload["available_at"] is None
+    assert _utc(payload["feature_cutoff"]) <= _utc(payload["source_available_at"])
+    assert _utc(payload["source_available_at"]) <= _utc(payload["producer_generated_at"])
+    assert payload["generated_at"] == payload["generated_utc"]
+    assert payload["generated_at"] == payload["producer_generated_at"]
+    assert payload["generated_at"] == payload["record_available_at"]
+    assert payload["generated_at"] == payload["available_at"]
+    assert payload["record_available_at_semantics"] == (
+        "MAX_SOURCE_AVAILABLE_AT_PRODUCER_GENERATED_AT"
+    )
     assert payload["publication_observed_at"] is None
     assert payload["redis_read_receipt_emitted"] is False
     assert payload["immutable_cas_captured"] is False
@@ -271,15 +285,23 @@ def test_run_once_writes_v2_ta_keys_and_status(
     assert payload["trainer_admission_granted"] is False
     assert payload["live_execution_authorized"] is False
 
-    compatibility = json.loads(fake.store["v2:features:ta:BTCUSDT:1m"])
-    assert compatibility["canonical_candidate_key"] == ("v2:features:ta_closed:BTCUSDT:1m")
-    assert compatibility["compatibility_view"] is True
-    assert compatibility["compatibility_unsafe_for_trainer"] is True
-    assert compatibility["trainer_consumable"] is False
-    assert compatibility["available_at"] is None
-    full_compatibility = json.loads(fake.store["v2:features:ta_full:BTCUSDT:1m"])
-    assert full_compatibility["compatibility_unsafe_for_trainer"] is True
-    assert full_compatibility["consumer_eligible"] is False
+    compatibility_views = [
+        json.loads(fake.store["v2:features:ta:BTCUSDT:1m"]),
+        json.loads(fake.store["v2:features:ta_full:BTCUSDT:1m"]),
+    ]
+    for compatibility in compatibility_views:
+        assert compatibility["canonical_candidate_key"] == (
+            "v2:features:ta_closed:BTCUSDT:1m"
+        )
+        assert compatibility["compatibility_view"] is True
+        assert compatibility["compatibility_unsafe_for_trainer"] is True
+        assert compatibility["available_at"] is None
+        assert compatibility["publication_observed_at"] is None
+        assert compatibility["publication_committed"] is False
+        assert compatibility["consumer_eligible"] is False
+        assert compatibility["trainer_consumable"] is False
+        assert compatibility["trainer_admission_granted"] is False
+        assert compatibility["live_execution_authorized"] is False
     assert status["technical_analysis_write_attempted"] is False
     assert status["trainer_consumable"] is False
     assert json.loads((tmp_path / "public.json").read_text())["worker_id"] == worker.WORKER_ID
@@ -483,7 +505,13 @@ def test_run_once_rejects_future_source_availability_anywhere_in_exact_window(
     assert status["results"][0]["rejection_reason"] == (
         "full_talib_closed_candidate_source_available_after_generation"
     )
+    assert status["keys_written_count"] == 0
     assert "v2:features:ta_closed:BTCUSDT:1m" not in fake.store
+    assert "v2:features:ta:BTCUSDT:1m" not in fake.store
+    assert "v2:features:ta_full:BTCUSDT:1m" not in fake.store
+    assert "v2:features:ta_closed:BTCUSDT:1m" not in fake.set_calls
+    assert "v2:features:ta:BTCUSDT:1m" not in fake.set_calls
+    assert "v2:features:ta_full:BTCUSDT:1m" not in fake.set_calls
 
 
 def test_run_once_gracefully_rejects_source_binding_and_unsupported_timeframe(

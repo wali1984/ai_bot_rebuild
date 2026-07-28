@@ -7,17 +7,20 @@ keys; it never places, cancels, tests, or modifies exchange orders.
 from __future__ import annotations
 
 import argparse
-from collections import Counter
 import hashlib
 import json
 import math
 import os
 import sys
 import time
+from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
+from v2.backend.app.services.paper_trade_management.entry_gate import (
+    expected_move_after_cost_favorable_for_side,
+)
 from v2.backend.app.services.strategy_supply.edge_hypothesis_generator import (
     GATE_CLEAN_POSITIVE_HYPOTHESIS_KEY,
     HYPOTHESIS_KEY,
@@ -28,9 +31,6 @@ from v2.backend.app.services.strategy_supply.edge_hypothesis_generator import (
     STATUS_KEY,
     STRATEGY_FAMILIES,
     generate_hypotheses,
-)
-from v2.backend.app.services.paper_trade_management.entry_gate import (
-    expected_move_after_cost_favorable_for_side,
 )
 from v2.backend.app.services.v2_symbol_runtime_universe import resolve_symbols
 
@@ -314,6 +314,9 @@ def publish_strategy_supply(
         ],
         "places_real_order": False,
         "routes_to_live": False,
+        "paper_only": True,
+        "live_gate": "blocked_human_only",
+        "exchange_action_taken": False,
     }
     latest_error_summary = {
         "schema_version": "strategy_supply_latest_error_summary_v1",
@@ -324,6 +327,11 @@ def publish_strategy_supply(
         "rejection_category_counts": status_details["rejection_category_counts"],
         "positive_rejection_reason_counts": status_details["positive_rejection_reason_counts"],
         "generator_failure_count": generator_failure_count,
+        "paper_only": True,
+        "live_gate": "blocked_human_only",
+        "routes_to_live": False,
+        "places_real_order": False,
+        "exchange_action_taken": False,
     }
     client.set(
         LATEST_POSITIVE_SUMMARY_KEY,
@@ -370,6 +378,9 @@ def publish_strategy_supply(
         "margin_mode_mutation": False,
         "transfer_or_withdrawal": False,
         "live_gate_required": "blocked_human_only",
+        "paper_only": True,
+        "live_gate": "blocked_human_only",
+        "exchange_action_taken": False,
     }
     client.set(STATUS_KEY, json.dumps(status, sort_keys=True, default=str), ex=effective_ttl_seconds)
     redis_keys_written.append(STATUS_KEY)

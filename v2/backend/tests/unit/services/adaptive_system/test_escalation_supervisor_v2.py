@@ -338,6 +338,30 @@ def test_no_worker_targets_a_deprecated_noop_command():
         )
 
 
+def test_alternative_strategy_worker_is_read_only_runtime_evaluator() -> None:
+    worker = WORKER_COMMANDS[ALT_STRATEGY]
+
+    assert worker["entrypoint"] == (
+        "v2.backend.app.cli.v2_strategy_supply_runtime_evaluator"
+    )
+    assert worker["entrypoint_kind"] == "module"
+    assert worker["argv"] == [
+        ".venv/bin/python",
+        "-m",
+        "v2.backend.app.cli.v2_strategy_supply_runtime_evaluator",
+        "--max-age-seconds",
+        "180",
+    ]
+    assert "--loop" not in worker["argv"]
+    assert "publish" not in worker["entrypoint"]
+    assert worker["scope"] == "alternative_strategy_family_runtime_evaluation"
+    assert worker["paper_only"] is True
+    assert worker["live_gate"] == "blocked_human_only"
+    assert worker["routes_to_live"] is False
+    assert worker["places_real_order"] is False
+    assert worker["exchange_action_taken"] is False
+
+
 def test_every_worker_entrypoint_is_a_real_resolvable_target():
     for step, wc in WORKER_COMMANDS.items():
         kind = wc["entrypoint_kind"]

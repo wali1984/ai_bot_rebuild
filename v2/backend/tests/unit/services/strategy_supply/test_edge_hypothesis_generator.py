@@ -26,6 +26,37 @@ class FakeRedis:
         self._data[key] = value
 
 
+def _utc(value: datetime) -> str:
+    return value.astimezone(UTC).isoformat(timespec="microseconds").replace(
+        "+00:00", "Z"
+    )
+
+
+def _closed_ta_payload(
+    *,
+    symbol: str = "BTCUSDT",
+    timeframe: str = "1m",
+) -> dict[str, object]:
+    now = datetime.now(UTC)
+    cutoff = now - timedelta(minutes=1)
+    generated = now - timedelta(seconds=3)
+    available = now - timedelta(seconds=2)
+    return {
+        "schema_version": "v2_full_talib_ta_closed_candidate_v1",
+        "symbol": symbol,
+        "timeframe": timeframe,
+        "candle_closed_confirmed": True,
+        "feature_cutoff": _utc(cutoff),
+        "generated_at": _utc(generated),
+        "available_at": _utc(available),
+        "last_closed_candle_open_ts_ms": int(
+            (cutoff - timedelta(minutes=1)).timestamp() * 1000
+        ),
+        "last_closed_candle_close_ts_ms": int(cutoff.timestamp() * 1000),
+        "indicators": {"rsi_14": 50.0, "ta_NATR": 0.4},
+    }
+
+
 def _base_keys(symbol: str = "BTCUSDT") -> dict[str, dict]:
     return {
         f"v2:orderbook:top:binance:{symbol}": {
@@ -33,6 +64,7 @@ def _base_keys(symbol: str = "BTCUSDT") -> dict[str, dict]:
             "event_time": "2026-07-09T05:00:00Z",
         },
         f"v2:features:latest:{symbol}:1m": {"features": {"atr_bps": 40.0}, "atr_bps": 40.0},
+        f"v2:features:ta_closed:{symbol}:1m": _closed_ta_payload(symbol=symbol),
         f"v2:features:coinglass:{symbol}:1m": _coinglass_v2_payload(symbol=symbol),
         f"v2:microstructure:trust_score:{symbol}:1m": {
             "composite_microstructure_trust_score": 0.74,
@@ -60,19 +92,14 @@ def _coinglass_v2_payload(
     generated = available + timedelta(seconds=1)
     cutoff = available - timedelta(seconds=30)
 
-    def utc(value: datetime) -> str:
-        return value.astimezone(UTC).isoformat(timespec="microseconds").replace(
-            "+00:00", "Z"
-        )
-
     return {
         "schema_version": "coinglass_aggregated_feature_payload_v2",
         "provider": "coinglass",
         "symbol": symbol,
         "timeframe": "1m",
-        "feature_cutoff": utc(cutoff),
-        "available_at": utc(available),
-        "generated_at": utc(generated),
+        "feature_cutoff": _utc(cutoff),
+        "available_at": _utc(available),
+        "generated_at": _utc(generated),
         "actual_payload_present": True,
         "provider_ready": True,
         "decision_time_safe": True,
@@ -86,6 +113,30 @@ def _coinglass_v2_payload(
     }
 
 
+def _priced_keys() -> dict[str, dict]:
+    keys = _base_keys()
+    keys["v2:market:prices:BTCUSDT"] = {
+        "ticker_24hr": {
+            "lastPrice": "60000",
+            "bidPrice": "59997",
+            "askPrice": "60003",
+            "closeTime": 4102444800000,
+        },
+    }
+    return keys
+
+
+def _assert_no_gate_clean_positive(rows: list[dict[str, object]]) -> None:
+    assert not [
+        row
+        for row in rows
+        if row.get("side")
+        and row.get("reason_if_rejected") in (None, "")
+        and isinstance(row.get("expected_net_pnl_usd"), int | float)
+        and float(row["expected_net_pnl_usd"]) > 0.0
+    ]
+
+
 def test_price_missing_yields_exact_reason():
     rows = generate_hypotheses(FakeRedis({}), "GHOSTUSDT", "1m")
     assert len(rows) == 1
@@ -97,9 +148,145 @@ def test_price_missing_yields_exact_reason():
     assert rows[0]["places_real_order"] is False
 
 
+def test_price_missing_precedes_missing_closed_ta_evidence() -> None:
+    rows = generate_hypotheses(FakeRedis({}), "GHOSTUSDT", "1m")
+
+    assert rows[0]["reason_if_rejected"].startswith("PRICE_MISSING:")
+    assert rows[0]["reason_if_rejected"] != "TA_CLOSED_SOURCE_MISSING"
+
+
+def test_live_only_future_ta_never_falls_back_into_gate_clean_supply() -> None:
+    keys = _priced_keys()
+    keys.pop("v2:features:ta_closed:BTCUSDT:1m")
+    keys["v2:features:ta:BTCUSDT:1m"] = {
+        "schema_version": "v2_full_talib_ta_candidate_v1",
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
+        "candle_closed_confirmed": False,
+        "feature_cutoff": "2099-01-01T00:00:00Z",
+        "generated_at": "2099-01-01T00:00:01Z",
+        "available_at": "2099-01-01T00:00:02Z",
+        "indicators": {"rsi_14": 20.0},
+    }
+
+    rows = generate_hypotheses(FakeRedis(keys), "BTCUSDT", "1m")
+
+    assert len(rows) == 1
+    assert rows[0]["reason_if_rejected"] == "TA_CLOSED_SOURCE_MISSING"
+    assert rows[0]["feature_point_in_time_evidence_valid"] is False
+    assert rows[0]["candle_closed_confirmed"] is False
+    assert rows[0]["ta_source_key"] == "v2:features:ta_closed:BTCUSDT:1m"
+    _assert_no_gate_clean_positive(rows)
+
+
+@pytest.mark.parametrize(
+    ("mutation", "expected_reason"),
+    [
+        ("future_cutoff", "TA_CLOSED_CLOCK_ORDER_INVALID"),
+        ("future_generated", "TA_CLOSED_CLOCK_ORDER_INVALID"),
+        ("future_available", "TA_CLOSED_CLOCK_ORDER_INVALID"),
+        ("available_before_generated", "TA_CLOSED_CLOCK_ORDER_INVALID"),
+        ("symbol_mismatch", "TA_CLOSED_SYMBOL_MISMATCH"),
+        ("timeframe_mismatch", "TA_CLOSED_TIMEFRAME_MISMATCH"),
+        ("schema_mismatch", "TA_CLOSED_SCHEMA_INVALID"),
+        ("finality_missing", "TA_CLOSED_FINALITY_UNPROVEN"),
+        ("cutoff_missing", "TA_CLOSED_CLOCK_MISSING_OR_INVALID"),
+        ("generated_missing", "TA_CLOSED_CLOCK_MISSING_OR_INVALID"),
+        ("available_missing", "TA_CLOSED_CLOCK_MISSING_OR_INVALID"),
+        ("close_time_missing", "TA_CLOSED_FINALITY_CLOCK_MISSING_OR_INVALID"),
+        ("close_after_cutoff", "TA_CLOSED_CLOSE_AFTER_FEATURE_CUTOFF"),
+    ],
+)
+def test_closed_ta_contract_tampering_never_becomes_gate_clean(
+    mutation: str,
+    expected_reason: str,
+) -> None:
+    keys = _priced_keys()
+    key = "v2:features:ta_closed:BTCUSDT:1m"
+    payload = dict(keys[key])
+    future = _utc(datetime.now(UTC) + timedelta(hours=1))
+    if mutation == "future_cutoff":
+        payload["feature_cutoff"] = future
+    elif mutation == "future_generated":
+        payload["generated_at"] = future
+    elif mutation == "future_available":
+        payload["available_at"] = future
+    elif mutation == "available_before_generated":
+        payload["available_at"] = _utc(
+            datetime.now(UTC) - timedelta(minutes=2)
+        )
+    elif mutation == "symbol_mismatch":
+        payload["symbol"] = "ETHUSDT"
+    elif mutation == "timeframe_mismatch":
+        payload["timeframe"] = "5m"
+    elif mutation == "schema_mismatch":
+        payload["schema_version"] = "v2_full_talib_ta_closed_candidate_v0"
+    elif mutation == "finality_missing":
+        payload.pop("candle_closed_confirmed")
+    elif mutation == "cutoff_missing":
+        payload.pop("feature_cutoff")
+    elif mutation == "generated_missing":
+        payload.pop("generated_at")
+    elif mutation == "available_missing":
+        payload.pop("available_at")
+    elif mutation == "close_time_missing":
+        payload.pop("last_closed_candle_close_ts_ms")
+    elif mutation == "close_after_cutoff":
+        payload["last_closed_candle_close_ts_ms"] = int(
+            (datetime.now(UTC) + timedelta(hours=1)).timestamp() * 1000
+        )
+    else:  # pragma: no cover - parameter table exhaustiveness
+        raise AssertionError(mutation)
+    keys[key] = payload
+
+    rows = generate_hypotheses(FakeRedis(keys), "BTCUSDT", "1m")
+
+    assert len(rows) == 1
+    assert rows[0]["reason_if_rejected"] == expected_reason
+    assert rows[0]["feature_point_in_time_evidence_valid"] is False
+    assert rows[0]["side"] is None
+    _assert_no_gate_clean_positive(rows)
+
+
+def test_valid_closed_ta_preserves_exact_source_clocks_and_finality() -> None:
+    keys = _priced_keys()
+    source = keys["v2:features:ta_closed:BTCUSDT:1m"]
+
+    rows = generate_hypotheses(FakeRedis(keys), "BTCUSDT", "1m")
+    directional = [row for row in rows if row.get("side")]
+
+    assert directional
+    for row in directional:
+        assert row["feature_point_in_time_evidence_valid"] is True
+        assert row["feature_point_in_time_rejection_reason"] is None
+        assert row["latest_unclosed_kline_excluded"] is True
+        assert row["latest_unclosed_exclusion_method"] == "CONFIRMED_CLOSED_TA_SOURCE_KEY"
+        assert row["candle_closed_confirmed"] is True
+        assert row["entry_feature_candle_closed_confirmed"] is True
+        assert datetime.fromisoformat(
+            row["feature_cutoff"].replace("Z", "+00:00")
+        ) == datetime.fromisoformat(
+            str(source["feature_cutoff"]).replace("Z", "+00:00")
+        )
+        assert datetime.fromisoformat(
+            row["source_generated_at"].replace("Z", "+00:00")
+        ) == datetime.fromisoformat(
+            str(source["generated_at"]).replace("Z", "+00:00")
+        )
+        assert datetime.fromisoformat(
+            row["source_available_at"].replace("Z", "+00:00")
+        ) == datetime.fromisoformat(
+            str(source["available_at"]).replace("Z", "+00:00")
+        )
+        assert row["last_closed_candle_close_ts_ms"] == source[
+            "last_closed_candle_close_ts_ms"
+        ]
+
+
 def test_atr_missing_yields_exact_reason():
     keys = _base_keys()
     keys.pop("v2:features:latest:BTCUSDT:1m")
+    del keys["v2:features:ta_closed:BTCUSDT:1m"]["indicators"]["ta_NATR"]
     keys["v2:market:prices:BTCUSDT"] = {
         "ticker_24hr": {"lastPrice": "60000", "closeTime": 4102444800000},
     }

@@ -255,11 +255,18 @@ WORKER_COMMANDS: Mapping[str, dict] = {
     ),
     "ACTIVATE_ALTERNATIVE_STRATEGY_FAMILIES": _worker(
         "ACTIVATE_ALTERNATIVE_STRATEGY_FAMILIES",
-        "v2.backend.app.cli.v2_strategy_supply_publish_hypotheses",
+        "v2.backend.app.cli.v2_strategy_supply_runtime_evaluator",
         "module",
-        (_VENV_PY, "-m", "v2.backend.app.cli.v2_strategy_supply_publish_hypotheses"),
-        "alternative_strategy_family",
-        "Publish/activate alternative strategy-family hypotheses for evaluation.",
+        (
+            _VENV_PY,
+            "-m",
+            "v2.backend.app.cli.v2_strategy_supply_runtime_evaluator",
+            "--max-age-seconds",
+            "180",
+        ),
+        "alternative_strategy_family_runtime_evaluation",
+        "Read and authenticate the existing canonical strategy-family supply; "
+        "never start a duplicate publisher or write its Redis keys.",
     ),
     "TRAIN_HEDGED_AND_RELATIVE_VALUE_POLICIES": _worker(
         "TRAIN_HEDGED_AND_RELATIVE_VALUE_POLICIES",

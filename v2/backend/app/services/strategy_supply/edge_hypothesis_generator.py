@@ -68,7 +68,9 @@ STRATEGY_FAMILIES = (
 
 
 def _utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+    return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace(
+        "+00:00", "Z"
+    )
 
 
 def _float(value: Any) -> float | None:
@@ -79,6 +81,107 @@ def _float(value: Any) -> float | None:
     except (TypeError, ValueError):
         return None
     return number if number == number and abs(number) != float("inf") else None
+
+
+def _utc_epoch(value: Any) -> float | None:
+    if isinstance(value, bool) or value in (None, ""):
+        return None
+    if isinstance(value, int | float):
+        parsed = float(value)
+        if parsed != parsed or abs(parsed) == float("inf"):
+            return None
+        return parsed / 1000.0 if abs(parsed) >= 10_000_000_000 else parsed
+    if not isinstance(value, str):
+        return None
+    try:
+        parsed_dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed_dt.tzinfo is None or parsed_dt.utcoffset() != timezone.utc.utcoffset(parsed_dt):
+        return None
+    return parsed_dt.timestamp()
+
+
+def _utc_iso_from_epoch(value: float) -> str:
+    return datetime.fromtimestamp(value, timezone.utc).isoformat(
+        timespec="milliseconds"
+    ).replace("+00:00", "Z")
+
+
+def _closed_ta_point_in_time_evidence(
+    payload: Any,
+    *,
+    symbol: str,
+    timeframe: str,
+    decision_time: str,
+) -> dict[str, Any]:
+    """Validate the mandatory closed-candle TA source without restamping it."""
+
+    base = {
+        "valid": False,
+        "reason": "TA_CLOSED_POINT_IN_TIME_EVIDENCE_INVALID",
+        "source_key": f"v2:features:ta_closed:{symbol}:{timeframe}",
+        "feature_cutoff": None,
+        "source_generated_at": None,
+        "source_available_at": None,
+        "latest_closed_kline_close_time_ms": None,
+    }
+    if not isinstance(payload, Mapping):
+        return {**base, "reason": "TA_CLOSED_SOURCE_MISSING"}
+    if payload.get("schema_version") != "v2_full_talib_ta_closed_candidate_v1":
+        return {**base, "reason": "TA_CLOSED_SCHEMA_INVALID"}
+    if str(payload.get("symbol") or "").upper() != symbol:
+        return {**base, "reason": "TA_CLOSED_SYMBOL_MISMATCH"}
+    if str(payload.get("timeframe") or "") != timeframe:
+        return {**base, "reason": "TA_CLOSED_TIMEFRAME_MISMATCH"}
+    if payload.get("candle_closed_confirmed") is not True:
+        return {**base, "reason": "TA_CLOSED_FINALITY_UNPROVEN"}
+    if not isinstance(payload.get("indicators"), Mapping) or not payload.get(
+        "indicators"
+    ):
+        return {**base, "reason": "TA_CLOSED_INDICATORS_MISSING"}
+
+    cutoff = payload.get("feature_cutoff")
+    source_generated = payload.get("generated_at")
+    source_available = payload.get("available_at")
+    cutoff_epoch = _utc_epoch(cutoff)
+    generated_epoch = _utc_epoch(source_generated)
+    available_epoch = _utc_epoch(source_available)
+    decision_epoch = _utc_epoch(decision_time)
+    if None in {cutoff_epoch, generated_epoch, available_epoch, decision_epoch}:
+        return {**base, "reason": "TA_CLOSED_CLOCK_MISSING_OR_INVALID"}
+    if not (
+        cutoff_epoch <= generated_epoch
+        and generated_epoch <= available_epoch
+        and available_epoch <= decision_epoch
+    ):
+        return {**base, "reason": "TA_CLOSED_CLOCK_ORDER_INVALID"}
+
+    close_time_ms = payload.get("last_closed_candle_close_ts_ms")
+    close_epoch = _utc_epoch(close_time_ms)
+    if close_epoch is None:
+        return {**base, "reason": "TA_CLOSED_FINALITY_CLOCK_MISSING_OR_INVALID"}
+    if close_epoch > cutoff_epoch:
+        return {**base, "reason": "TA_CLOSED_CLOSE_AFTER_FEATURE_CUTOFF"}
+    return {
+        **base,
+        "valid": True,
+        "reason": None,
+        "feature_cutoff": (
+            cutoff if isinstance(cutoff, str) else _utc_iso_from_epoch(cutoff_epoch)
+        ),
+        "source_generated_at": (
+            source_generated
+            if isinstance(source_generated, str)
+            else _utc_iso_from_epoch(generated_epoch)
+        ),
+        "source_available_at": (
+            source_available
+            if isinstance(source_available, str)
+            else _utc_iso_from_epoch(available_epoch)
+        ),
+        "latest_closed_kline_close_time_ms": int(round(close_epoch * 1000.0)),
+    }
 
 
 def _read_json(client: Any, key: str) -> Any:
@@ -139,18 +242,10 @@ def _context(client: Any, symbol: str, timeframe: str) -> dict[str, Any]:
             f"v2:market:liquidation_levels:{symbol}",
         ],
     )
-    # Prefer the confirmed-closed-candle TA payload so hypothesis decisions
-    # are repaint-free; candle_closed_confirmed is only trusted when the TA
-    # worker stamped it from raw close-boundary proof. Falls back to the live
-    # payload (which includes the in-progress candle) without claiming the
-    # closed-candle confirmation.
+    # Only a confirmed-closed-candle TA payload may create a strategy
+    # hypothesis. A live/in-progress TA candle is diagnostic input, never a
+    # fallback feature source for positive or gate-clean paper supply.
     ta_closed = _read_json(client, f"v2:features:ta_closed:{symbol}:{timeframe}")
-    ta_live = _read_json(client, f"v2:features:ta:{symbol}:{timeframe}")
-    use_closed_ta = (
-        isinstance(ta_closed, Mapping)
-        and ta_closed.get("candle_closed_confirmed") is True
-        and bool(ta_closed.get("indicators"))
-    )
     # Moralis is a receipt-gated optional input.  Reading the raw Redis
     # envelope here previously bypassed the canonical consumer boundary and
     # allowed a legacy or forged ``features`` map to create paper hypotheses.
@@ -208,15 +303,15 @@ def _context(client: Any, symbol: str, timeframe: str) -> dict[str, Any]:
     )
     return {
         "price": resolve_current_price(client, symbol),
-        "ta": ta_closed if use_closed_ta else ta_live,
-        "ta_live": ta_live,
-        "ta_closed": ta_closed if use_closed_ta else None,
-        "ta_source_key": (
-            f"v2:features:ta_closed:{symbol}:{timeframe}"
-            if use_closed_ta
-            else f"v2:features:ta:{symbol}:{timeframe}"
-        ),
-        "latest": _read_json(client, f"v2:features:latest:{symbol}:{timeframe}"),
+        # Preserve the raw closed-lane candidate for exact fail-closed
+        # attribution; generate_hypotheses validates it before consuming any
+        # indicator. The live TA key is never read.
+        "ta": ta_closed if isinstance(ta_closed, Mapping) else None,
+        "ta_closed": ta_closed if isinstance(ta_closed, Mapping) else None,
+        "ta_source_key": f"v2:features:ta_closed:{symbol}:{timeframe}",
+        # The generic latest-feature lane may contain a partially formed
+        # higher-timeframe candle. Closed TA is the only candle/ATR source.
+        "latest": None,
         "fvg": _read_json(client, f"v2:market:fvg:{symbol}:{timeframe}"),
         "liquidity_zones": _read_json(client, f"v2:market:liquidity_zones:{symbol}"),
         "liquidation_levels": liquidation_context,
@@ -347,6 +442,13 @@ def _contract_base(
     )
     ta_ctx = ctx.get("ta") if isinstance(ctx.get("ta"), Mapping) else {}
     candle_closed_confirmed = ta_ctx.get("candle_closed_confirmed") is True
+    ta_evidence = _closed_ta_point_in_time_evidence(
+        ta_ctx,
+        symbol=symbol,
+        timeframe=timeframe,
+        decision_time=generated,
+    )
+    decision_epoch = _utc_epoch(generated)
     return {
         "schema_version": "edge_hypothesis_v1",
         "hypothesis_id": hypothesis_id,
@@ -358,13 +460,33 @@ def _contract_base(
         "side": side,
         "generated_utc": generated,
         "generated_at": generated,
-        "feature_cutoff": generated,
+        "producer_generated_at": generated,
+        "record_available_at": generated,
+        "feature_cutoff": ta_evidence["feature_cutoff"],
         "decision_time": generated,
         "available_at": generated,
+        "source_generated_at": ta_evidence["source_generated_at"],
+        "source_available_at": ta_evidence["source_available_at"],
+        "feature_point_in_time_evidence_valid": ta_evidence["valid"],
+        "feature_point_in_time_rejection_reason": ta_evidence["reason"],
+        "latest_unclosed_kline_excluded": ta_evidence["valid"],
+        "latest_unclosed_exclusion_method": (
+            "CONFIRMED_CLOSED_TA_SOURCE_KEY" if ta_evidence["valid"] else None
+        ),
+        "latest_unclosed_exclusion_decision_time_ms": (
+            int(round(decision_epoch * 1000.0))
+            if decision_epoch is not None
+            else None
+        ),
         "entry_feature_candle_closed_confirmed": candle_closed_confirmed,
         "candle_closed_confirmed": candle_closed_confirmed,
         "last_closed_candle_open_ts_ms": ta_ctx.get("last_closed_candle_open_ts_ms"),
-        "last_closed_candle_close_ts_ms": ta_ctx.get("last_closed_candle_close_ts_ms"),
+        "last_closed_candle_close_ts_ms": ta_evidence[
+            "latest_closed_kline_close_time_ms"
+        ],
+        "latest_closed_kline_close_time_ms": ta_evidence[
+            "latest_closed_kline_close_time_ms"
+        ],
         "ta_source_key": ctx.get("ta_source_key"),
         "current_price": current_price,
         "price_source": (price_payload or {}).get("source"),
@@ -573,20 +695,15 @@ def _ta_indicators(ctx: Mapping[str, Any]) -> Mapping[str, Any]:
 
 
 def _atr_bps(ctx: Mapping[str, Any], price: float | None) -> float | None:
-    direct = _float(_dig(ctx.get("latest"), "atr_bps", "entry_atr_bps", "atr_noise_bps"))
-    if direct is not None and direct > 0:
-        return direct
     indicators = _ta_indicators(ctx)
-    latest_features = ctx.get("latest") if isinstance(ctx.get("latest"), Mapping) else {}
-    latest_map = latest_features.get("features") if isinstance(latest_features.get("features"), Mapping) else {}
     # NATR is percent of price -> bps = pct * 100
-    natr = _float(indicators.get("ta_NATR")) or _float(latest_map.get("ta_NATR"))
+    natr = _float(indicators.get("ta_NATR"))
     if natr is not None and natr > 0:
         return natr * 100.0
     atr_abs = (
         _float(indicators.get("ta_ATR_14"))
         or _float(indicators.get("ta_ATR"))
-        or _float(latest_map.get("atr_14"))
+        or _float(indicators.get("atr_14"))
     )
     if atr_abs is not None and atr_abs > 0 and price and price > 0:
         return atr_abs / price * 10_000.0
@@ -771,7 +888,7 @@ def _level_price_qty(level: Any) -> tuple[float | None, float | None]:
             _float(level.get("price") or level.get("bid") or level.get("ask")),
             _float(level.get("qty") or level.get("quantity") or level.get("size")),
         )
-    if isinstance(level, (list, tuple)) and len(level) >= 2:
+    if isinstance(level, list | tuple) and len(level) >= 2:
         return _float(level[0]), _float(level[1])
     return None, None
 
@@ -920,7 +1037,7 @@ def _microstructure_trust(ctx: Mapping[str, Any]) -> float | None:
 def _truthy(value: Any) -> bool:
     if isinstance(value, bool):
         return value
-    if isinstance(value, (int, float)):
+    if isinstance(value, int | float):
         return value != 0
     if value is None:
         return False
@@ -1147,6 +1264,40 @@ def generate_hypotheses(client: Any, symbol: str, timeframe: str) -> list[dict[s
                 side=None,
                 generated=generated,
                 current_price=None,
+                price_payload=price_payload if isinstance(price_payload, Mapping) else {},
+                reason_if_rejected=reason,
+            ),
+            "expected_gross_pnl_usd": None,
+            "expected_cost_usd": None,
+            "expected_net_pnl_usd": None,
+            "expected_max_loss_usd": None,
+            "reward_to_risk": None,
+            "loss_probability": None,
+            "microstructure_trust": None,
+            "squeeze_risk": None,
+            "liquidation_cluster_distance_usd": None,
+            "hedge_required": False,
+            "exit_plan": {"status": "NO_EXIT_PLAN", "reason": reason},
+        }]
+
+    ta_evidence = _closed_ta_point_in_time_evidence(
+        ctx.get("ta"),
+        symbol=symbol,
+        timeframe=timeframe,
+        decision_time=generated,
+    )
+    if ta_evidence["valid"] is not True:
+        reason = str(ta_evidence["reason"])
+        return [{
+            **_contract_base(
+                ctx=ctx,
+                symbol=symbol,
+                timeframe=timeframe,
+                strategy_family=None,
+                strategy_subtype="degraded_closed_feature_evidence_invalid",
+                side=None,
+                generated=generated,
+                current_price=price,
                 price_payload=price_payload if isinstance(price_payload, Mapping) else {},
                 reason_if_rejected=reason,
             ),

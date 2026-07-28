@@ -562,10 +562,12 @@ def build_full_talib_ta_closed_candidate(
 ) -> dict[str, Any]:
     """Build a nonconsumable TA candidate from one exact validated source read.
 
-    The calculation always uses the exact final 89-row contiguous suffix.  The
-    returned value intentionally has no derived availability clock: a caller's
-    later SET acknowledgement is not a postcommit observation or immutable read
-    receipt.
+    The calculation always uses the exact final 89-row contiguous suffix.
+    ``record_available_at`` is the point at which this in-memory derived record
+    exists and is therefore the conservative maximum of the authenticated
+    source availability and producer generation clocks.  It is deliberately
+    distinct from ``publication_observed_at``: constructing a record does not
+    claim a later Redis readback, immutable capture, or trainer admission.
     """
 
     if type(validated_window) is not ValidatedOHLCVClosedWindow:
@@ -616,6 +618,7 @@ def build_full_talib_ta_closed_candidate(
     if source_available_ms > int(generated.timestamp() * 1000):
         raise ValueError("full_talib_closed_candidate_source_available_after_generation")
     generated_at = generated.isoformat(timespec="microseconds").replace("+00:00", "Z")
+    record_available_at = generated_at
     source_event_ms = validated_window.latest_economic_close_time
     candle_ids = [row.candle_id for row in selected]
     candle_ids_sha256 = hashlib.sha256(
@@ -647,6 +650,13 @@ def build_full_talib_ta_closed_candidate(
             "latest_candle_source_sequence_id": selected[-1].source_sequence_id,
             "latest_closed_candle_open_ts_ms": selected[-1].candle_open_time,
             "latest_closed_candle_close_ts_ms": source_event_ms,
+            # Preserve the established consumer aliases, but bind every name
+            # to the same authenticated final candle.  Consumers can therefore
+            # reject omission or contradiction rather than guessing which
+            # finality field a producer meant.
+            "last_closed_candle_open_ts_ms": selected[-1].candle_open_time,
+            "last_closed_candle_close_ts_ms": source_event_ms,
+            "latest_closed_kline_close_time_ms": source_event_ms,
             "latest_candle_producer_event_time_ms": selected[-1].event_time,
             "latest_candle_ingested_at_ms": selected[-1].ingested_at,
             "latest_candle_available_at_ms": selected[-1].available_at,
@@ -664,7 +674,12 @@ def build_full_talib_ta_closed_candidate(
             "feature_cutoff": _epoch_ms_iso(source_event_ms),
             "generated_at": generated_at,
             "generated_utc": generated_at,
-            "available_at": None,
+            "producer_generated_at": generated_at,
+            "record_available_at": record_available_at,
+            "available_at": record_available_at,
+            "record_available_at_semantics": (
+                "MAX_SOURCE_AVAILABLE_AT_PRODUCER_GENERATED_AT"
+            ),
             "publication_observed_at": None,
             "closed_candles_only": True,
             "candle_closed_confirmed": True,
