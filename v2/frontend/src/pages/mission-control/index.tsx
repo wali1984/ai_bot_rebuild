@@ -208,8 +208,8 @@ function MarketPulseRow({ tickers }: { tickers: Array<{ symbol: string; last_pri
 export default function DashboardPage(): JSX.Element {
   const adaptiveCapital = useAdaptiveCapitalDashboard(30_000);
   const { envelope: portfolioEnv, loading: portfolioLoading } = useRealtimeResource<PortfolioData>({
-    url: '/api/v2/portfolio',
-    source: '/api/v2/portfolio',
+    url: '/api/v2/portfolio?scope=current_session',
+    source: '/api/v2/portfolio?scope=current_session',
     source_type: 'repository',
     pollIntervalMs: 30_000,
     staleThresholdMs: 120_000,

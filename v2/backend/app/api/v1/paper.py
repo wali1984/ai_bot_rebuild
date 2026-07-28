@@ -9,9 +9,10 @@ import json
 from datetime import UTC, datetime
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
 from app.api.v2._common import get_redis
+from app.services.paper_session import epoch as paper_epoch
 
 router = APIRouter(prefix="/paper-trades", tags=["paper-trades"])
 
@@ -94,7 +95,10 @@ def _paper_trade_id(row: dict[str, Any]) -> str | None:
     return None
 
 
-def _paper_payload(endpoint: str) -> dict[str, Any]:
+def _paper_payload(endpoint: str, scope: str = paper_epoch.DEFAULT_SCOPE) -> dict[str, Any]:
+    client = get_redis()
+    normalized_scope = paper_epoch.normalize_scope(scope)
+    session = paper_epoch.current_session(client)
     ledger = _redis_json("v2:paper:ledger") or {}
     portfolio = _redis_json("v2:portfolio:state") or {}
     runtime = _redis_json("v2:paper:trade_management:status") or {}
@@ -110,6 +114,18 @@ def _paper_payload(endpoint: str) -> dict[str, Any]:
     accepted = _rows(ledger.get("accepted") or ledger.get("accepted_fills"))
     current_cycle_accepted = _rows(ledger.get("current_cycle_accepted"))
     closes = _rows(ledger.get("closes") or ledger.get("close_records"))
+    total_rows = sum(map(len, (open_positions, closed_trades, accepted, current_cycle_accepted, closes)))
+    if session.get("paper_account_epoch") is not None or normalized_scope != paper_epoch.DEFAULT_SCOPE:
+        open_positions = paper_epoch.scope_rows(open_positions, session.get("paper_session_id"), normalized_scope)
+        closed_trades = paper_epoch.scope_rows(closed_trades, session.get("paper_session_id"), normalized_scope)
+        accepted = paper_epoch.scope_rows(accepted, session.get("paper_session_id"), normalized_scope)
+        current_cycle_accepted = paper_epoch.scope_rows(
+            current_cycle_accepted,
+            session.get("paper_session_id"),
+            normalized_scope,
+        )
+        closes = paper_epoch.scope_rows(closes, session.get("paper_session_id"), normalized_scope)
+    shown_rows = sum(map(len, (open_positions, closed_trades, accepted, current_cycle_accepted, closes)))
     missing = []
     if not ledger:
         missing.append("v2:paper:ledger")
@@ -127,7 +143,9 @@ def _paper_payload(endpoint: str) -> dict[str, Any]:
     )
     total_pnl = portfolio.get("total_pnl_usd")
     data = {
-        "paper_session_id": ledger.get("paper_session_id") or portfolio.get("paper_session_id"),
+        "paper_session_id": session.get("paper_session_id"),
+        "paper_account_epoch": session.get("paper_account_epoch"),
+        "scope": normalized_scope,
         "paper_session_state_source": ledger.get("paper_session_state_source"),
         "new_entries_allowed": ledger.get("new_entries_allowed"),
         "paper_new_entries_halted": ledger.get("paper_new_entries_halted"),
@@ -169,6 +187,7 @@ def _paper_payload(endpoint: str) -> dict[str, Any]:
         "live_submit_allowed": False,
         "places_real_order": False,
     }
+    data.update(paper_epoch.scope_response_fields(session, normalized_scope, total_rows, shown_rows))
     return {
         "data": data,
         "source": "redis:v2:portfolio:state + redis:v2:paper:ledger + redis:v2:paper:trade_management:status",
@@ -199,13 +218,18 @@ async def _route_metadata() -> dict[str, Any]:
 
 @router.get("")
 @router.get("/")
-async def list_paper_trades() -> dict[str, Any]:
-    return _paper_payload("/api/v1/paper-trades")
+async def list_paper_trades(
+    scope: str = Query(default=paper_epoch.DEFAULT_SCOPE),
+) -> dict[str, Any]:
+    return _paper_payload("/api/v1/paper-trades", scope)
 
 
 @router.get("/{paper_trade_id}")
-async def get_paper_trade(paper_trade_id: str) -> dict[str, Any]:
-    payload = _paper_payload(f"/api/v1/paper-trades/{paper_trade_id}")
+async def get_paper_trade(
+    paper_trade_id: str,
+    scope: str = Query(default=paper_epoch.DEFAULT_SCOPE),
+) -> dict[str, Any]:
+    payload = _paper_payload(f"/api/v1/paper-trades/{paper_trade_id}", scope)
     for row in _all_trade_rows(payload):
         identifiers = {str(value) for value in row.values() if value not in (None, "")}
         row_id = _paper_trade_id(row)
@@ -223,8 +247,11 @@ async def get_paper_trade(paper_trade_id: str) -> dict[str, Any]:
 
 
 @router.get("/{paper_trade_id}/explain")
-async def explain_paper_trade(paper_trade_id: str) -> dict[str, Any]:
-    payload = await get_paper_trade(paper_trade_id)
+async def explain_paper_trade(
+    paper_trade_id: str,
+    scope: str = Query(default=paper_epoch.DEFAULT_SCOPE),
+) -> dict[str, Any]:
+    payload = await get_paper_trade(paper_trade_id, scope)
     trade = payload["data"]["trade"]
     payload["endpoint"] = f"/api/v1/paper-trades/{paper_trade_id}/explain"
     payload["data"] = {

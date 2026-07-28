@@ -28,6 +28,7 @@ export interface RealtimeResourceResult<T> {
 
 const realtimeResourceCache = new Map<string, ValidatedDataEnvelope<unknown>>();
 const RESOURCE_SESSION_CACHE_PREFIX = 'ai_bot_v2.realtime_resource.lkg.v1:';
+const PAPER_SESSION_POINTER_PREFIX = 'ai_bot_v2.paper_session_pointer.v1:';
 const RESOURCE_SESSION_CACHE_MAX_AGE_MS = 10 * 60 * 1000;
 const READONLY_STATIC_JSON_PREFIXES = [
   '/operator_runtime/',
@@ -62,8 +63,39 @@ function unwrapShapeOf(policy: boolean | 'contract' | undefined): UnwrapShape {
   return policy === false ? 'raw' : 'data';
 }
 
-function cacheKey(url: string, mode: ValidatedDataEnvelope<unknown>['mode'], shape: UnwrapShape): string {
-  return `${mode}:${shape}:${url}`;
+function isPaperSessionResource(url: string): boolean {
+  const path = url.split('?')[0] ?? url;
+  return path === '/api/v2/portfolio'
+    || path.startsWith('/api/v2/paper/')
+    || path.startsWith('/api/v1/paper-trades');
+}
+
+function paperSessionIdentity(value: unknown): string | null {
+  if (!value || typeof value !== 'object') return null;
+  const record = value as Record<string, unknown>;
+  if (typeof record.paper_session_id === 'string' && record.paper_session_id) {
+    return record.paper_session_id;
+  }
+  return paperSessionIdentity(record.data);
+}
+
+function paperAccountEpoch(value: unknown): number | null {
+  if (!value || typeof value !== 'object') return null;
+  const record = value as Record<string, unknown>;
+  if (typeof record.paper_account_epoch === 'number' && Number.isFinite(record.paper_account_epoch)) {
+    return record.paper_account_epoch;
+  }
+  return paperAccountEpoch(record.data);
+}
+
+function cacheKey(
+  url: string,
+  mode: ValidatedDataEnvelope<unknown>['mode'],
+  shape: UnwrapShape,
+  paperSessionId: string | null = null,
+): string {
+  const sessionPart = isPaperSessionResource(url) ? `:paper_session=${paperSessionId ?? 'unbound'}` : '';
+  return `${mode}:${shape}${sessionPart}:${url}`;
 }
 
 function sessionStorageOrNull(): Storage | null {
@@ -87,8 +119,18 @@ function hashCacheKey(value: string): string {
   return Math.abs(hash).toString(36);
 }
 
-function sessionCacheKey(url: string, mode: ValidatedDataEnvelope<unknown>['mode'], shape: UnwrapShape): string {
-  return `${RESOURCE_SESSION_CACHE_PREFIX}${mode}:${shape}:${hashCacheKey(url)}:${encodeURIComponent(url).slice(0, 96)}`;
+function paperSessionPointerKey(url: string, mode: ValidatedDataEnvelope<unknown>['mode'], shape: UnwrapShape): string {
+  return `${PAPER_SESSION_POINTER_PREFIX}${mode}:${shape}:${hashCacheKey(url)}`;
+}
+
+function sessionCacheKey(
+  url: string,
+  mode: ValidatedDataEnvelope<unknown>['mode'],
+  shape: UnwrapShape,
+  paperSessionId: string | null = null,
+): string {
+  const sessionPart = isPaperSessionResource(url) ? `:${encodeURIComponent(paperSessionId ?? 'unbound')}` : '';
+  return `${RESOURCE_SESSION_CACHE_PREFIX}${mode}:${shape}${sessionPart}:${hashCacheKey(url)}:${encodeURIComponent(url).slice(0, 96)}`;
 }
 
 function displayableLastKnownEnvelope<T>(envelope: ValidatedDataEnvelope<T>): boolean {
@@ -122,7 +164,10 @@ function restoreLastKnownResourceEnvelope<T>(
 ): ValidatedDataEnvelope<T> | null {
   const storage = sessionStorageOrNull();
   if (!storage) return null;
-  const key = sessionCacheKey(url, mode, shape);
+  const paperSessionId = isPaperSessionResource(url)
+    ? storage.getItem(paperSessionPointerKey(url, mode, shape))
+    : null;
+  const key = sessionCacheKey(url, mode, shape, paperSessionId);
   try {
     const raw = storage.getItem(key);
     if (!raw) return null;
@@ -157,7 +202,17 @@ function persistLastKnownResourceEnvelope<T>(
   const storage = sessionStorageOrNull();
   if (!storage) return;
   try {
-    storage.setItem(sessionCacheKey(url, mode, shape), JSON.stringify({
+    const nextSessionId = paperSessionIdentity(envelope.data);
+    if (isPaperSessionResource(url) && nextSessionId) {
+      const pointerKey = paperSessionPointerKey(url, mode, shape);
+      const previousSessionId = storage.getItem(pointerKey);
+      if (previousSessionId && previousSessionId !== nextSessionId) {
+        storage.removeItem(sessionCacheKey(url, mode, shape, previousSessionId));
+        realtimeResourceCache.delete(cacheKey(url, mode, shape, previousSessionId));
+      }
+      storage.setItem(pointerKey, nextSessionId);
+    }
+    storage.setItem(sessionCacheKey(url, mode, shape, nextSessionId), JSON.stringify({
       schema_version: 'realtime_resource_session_cache_v1',
       stored_at_ms: now,
       envelope,
@@ -172,11 +227,15 @@ function cachedEnvelope<T>(
   mode: ValidatedDataEnvelope<T>['mode'],
   shape: UnwrapShape,
 ): ValidatedDataEnvelope<T> | null {
-  const memory = realtimeResourceCache.get(cacheKey(url, mode, shape)) as ValidatedDataEnvelope<T> | undefined;
+  const storage = sessionStorageOrNull();
+  const paperSessionId = isPaperSessionResource(url)
+    ? storage?.getItem(paperSessionPointerKey(url, mode, shape)) ?? null
+    : null;
+  const memory = realtimeResourceCache.get(cacheKey(url, mode, shape, paperSessionId)) as ValidatedDataEnvelope<T> | undefined;
   if (memory) return memory;
   const restored = restoreLastKnownResourceEnvelope<T>(url, mode, shape);
   if (restored) {
-    realtimeResourceCache.set(cacheKey(url, mode, shape), restored);
+    realtimeResourceCache.set(cacheKey(url, mode, shape, paperSessionIdentity(restored.data)), restored);
   }
   return restored;
 }
@@ -246,6 +305,29 @@ export function mergeRealtimeResourceEnvelope<T>(
   const previousDisplayable = displayableLastKnownEnvelope(previous);
   const previousTimestamp = typeof previous.timestamp === 'number' ? previous.timestamp : null;
   const nextTimestamp = typeof next.timestamp === 'number' ? next.timestamp : null;
+  const previousPaperSession = paperSessionIdentity(previous.data);
+  const nextPaperSession = paperSessionIdentity(next.data);
+  const previousEpoch = paperAccountEpoch(previous.data);
+  const nextEpoch = paperAccountEpoch(next.data);
+
+  if (previousPaperSession && nextPaperSession && previousPaperSession !== nextPaperSession) {
+    if (nextEpoch !== null && previousEpoch !== null && nextEpoch < previousEpoch) {
+      return {
+        envelope: {
+          ...previous,
+          warnings: uniqueResourceWarnings(
+            previous.warnings,
+            ['Rejected a stale payload from an archived paper-account epoch'],
+          ),
+        },
+        shouldCache: false,
+        preservedReason: 'out_of_order',
+      };
+    }
+    // A same/newer epoch is an atomic account boundary. Accept it even if its
+    // content timestamp is slightly behind the old frame and never merge rows.
+    return { envelope: next, shouldCache: shouldCacheEnvelope(next), preservedReason: null };
+  }
 
   if (
     previousUsable
@@ -436,7 +518,10 @@ export function useRealtimeResource<T>(
     setEnvelope(prev => {
       const merged = mergeRealtimeResourceEnvelope(prev, nextEnvelope);
       if (merged.shouldCache) {
-        realtimeResourceCache.set(cacheKey(url, backendMode, unwrapShape), merged.envelope);
+        realtimeResourceCache.set(
+          cacheKey(url, backendMode, unwrapShape, paperSessionIdentity(merged.envelope.data)),
+          merged.envelope,
+        );
         persistLastKnownResourceEnvelope(url, backendMode, unwrapShape, merged.envelope);
       }
       return merged.envelope;

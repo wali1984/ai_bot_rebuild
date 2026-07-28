@@ -1026,8 +1026,8 @@ export default function PaperTradingPage(): JSX.Element {
   const adaptiveCapital = useAdaptiveCapitalDashboard(30_000);
 
   const { envelope, loading, error, refetch } = useRealtimeResource<PaperStatus>({
-    url: '/api/v2/paper/status',
-    source: '/api/v2/paper/status',
+    url: '/api/v2/paper/status?scope=current_session',
+    source: '/api/v2/paper/status?scope=current_session',
     pollIntervalMs: 8_000,
     staleThresholdMs: 20_000,
     mode: 'paper',

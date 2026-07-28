@@ -2106,6 +2106,7 @@ def _with_paper_session_metadata(
     *,
     paper_session_id: str | None,
     starting_equity_usd: float | None,
+    paper_account_epoch: int | None = None,
 ) -> dict[str, Any]:
     enriched = dict(row)
     if paper_session_id:
@@ -2119,6 +2120,8 @@ def _with_paper_session_metadata(
                 enriched[field] = paper_session_id
     if starting_equity_usd is not None:
         enriched.setdefault("starting_equity_usd", starting_equity_usd)
+    if paper_account_epoch is not None:
+        enriched.setdefault("paper_account_epoch", paper_account_epoch)
     enriched.setdefault("paper_only", True)
     enriched.setdefault("routes_to_live", False)
     enriched.setdefault("places_real_order", False)
@@ -2130,12 +2133,14 @@ def _with_paper_session_metadata_rows(
     *,
     paper_session_id: str | None,
     starting_equity_usd: float | None,
+    paper_account_epoch: int | None = None,
 ) -> list[dict[str, Any]]:
     return [
         _with_paper_session_metadata(
             row,
             paper_session_id=paper_session_id,
             starting_equity_usd=starting_equity_usd,
+            paper_account_epoch=paper_account_epoch,
         )
         for row in rows
         if isinstance(row, dict)
@@ -33706,6 +33711,7 @@ def _synthesize_adaptive_hedge_fills(
     accepted: list[dict[str, Any]],
     paper_session_id: str | None,
     starting_equity_usd: float | None,
+    paper_account_epoch: int | None = None,
 ) -> dict[str, Any]:
     """Turn prior-cycle hedge directives into tagged paper hedge fills.
 
@@ -33839,6 +33845,7 @@ def _synthesize_adaptive_hedge_fills(
             hedge_fill,
             paper_session_id=paper_session_id,
             starting_equity_usd=starting_equity_usd,
+            paper_account_epoch=paper_account_epoch,
         )
         accepted.append(hedge_fill)
         status["synthesized"] += 1
@@ -51149,6 +51156,13 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
     paper_starting_equity_usd = _coerce_float(
         paper_session_state.get("starting_equity_usd") or paper_session_state.get("initial_capital")
     )
+    _paper_account_epoch_raw = paper_session_state.get("paper_account_epoch")
+    paper_account_epoch = (
+        int(_paper_account_epoch_raw)
+        if isinstance(_paper_account_epoch_raw, int)
+        and not isinstance(_paper_account_epoch_raw, bool)
+        else None
+    )
     existing_invalid_admission_quarantine_rows = [
         _paper_quarantine_row_with_exact_reasons(row)
         for row in _read_json_list_redis_key_if_small(
@@ -55533,6 +55547,7 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             intent,
             paper_session_id=paper_session_id,
             starting_equity_usd=paper_starting_equity_usd,
+            paper_account_epoch=paper_account_epoch,
         )
         # Phase 5: stamp the fresh provisional cohort id ONLY when this intent
         # originates from the provisional checkpoint (marker match) or already
@@ -56258,6 +56273,7 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             accepted=accepted,
             paper_session_id=paper_session_id,
             starting_equity_usd=paper_starting_equity_usd,
+            paper_account_epoch=paper_account_epoch,
         )
     else:
         hedge_synthesis_status = {
@@ -56288,6 +56304,7 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         accepted_for_ledger,
         paper_session_id=paper_session_id,
         starting_equity_usd=paper_starting_equity_usd,
+        paper_account_epoch=paper_account_epoch,
     )
     accepted_for_ledger = _ensure_margin_leverage_consistency_rows(accepted_for_ledger)
     accepted_for_ledger = _with_operator_et_timestamp_rows(accepted_for_ledger)
@@ -56648,6 +56665,7 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         accepted_for_ledger,
         paper_session_id=paper_session_id,
         starting_equity_usd=paper_starting_equity_usd,
+        paper_account_epoch=paper_account_epoch,
     )
     accepted_for_ledger = _with_operator_et_timestamp_rows(accepted_for_ledger)
     accepted_for_ledger = _paper_restore_verified_compacted_rows(
@@ -57938,6 +57956,7 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         open_positions,
         paper_session_id=paper_session_id,
         starting_equity_usd=paper_starting_equity_usd,
+        paper_account_epoch=paper_account_epoch,
     )
     open_positions = _with_operator_et_timestamp_rows(open_positions)
     open_positions = _repair_paper_exploration_public_lineage_rows(
@@ -58517,6 +58536,7 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         closes,
         paper_session_id=paper_session_id,
         starting_equity_usd=paper_starting_equity_usd,
+        paper_account_epoch=paper_account_epoch,
     )
     closes = _with_operator_et_timestamp_rows(closes)
     closes = _normalize_closed_paper_exploration_economics_rows(closes)
@@ -58535,6 +58555,7 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         outcome_labels,
         paper_session_id=paper_session_id,
         starting_equity_usd=paper_starting_equity_usd,
+        paper_account_epoch=paper_account_epoch,
     )
     outcome_labels = _with_operator_et_timestamp_rows(outcome_labels)
     paper_policy_owner_handoff_runtime_proof = _paper_policy_owner_handoff_runtime_proof(
@@ -58628,6 +58649,7 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         trainer_feedback_rows,
         paper_session_id=paper_session_id,
         starting_equity_usd=paper_starting_equity_usd,
+        paper_account_epoch=paper_account_epoch,
     )
     trainer_feedback_rows = _with_operator_et_timestamp_rows(trainer_feedback_rows)
     # Re-evaluate the canonical field contract now that session metadata is set.
@@ -59055,6 +59077,7 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             "schema_version": "v2_paper_a_plus_gate_status_v1",
             "generated_utc": started,
             "paper_session_id": paper_session_id,
+            "paper_account_epoch": paper_account_epoch,
             "evaluated_candidates": len(a_plus_evaluations),
             "a_plus_candidates": sum(1 for row in a_plus_evaluations if row.get("a_plus")),
             "candidate_matrix": a_plus_rows,
@@ -59113,6 +59136,7 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         aggregate_metrics = paper_performance_circuit_breaker_status.get("aggregate") or {}
         ledger_payload = {
             "paper_session_id": paper_session_id,
+            "paper_account_epoch": paper_account_epoch,
             "reset_session_id": paper_session_state.get("reset_session_id") or paper_session_id,
             "starting_equity_usd": paper_starting_equity_usd,
             "initial_capital": paper_starting_equity_usd,
@@ -60275,6 +60299,7 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                 "accepted_fills": accepted_state_rows,
                 "current_cycle_accepted": current_accepted_state_rows,
                 "paper_session_id": paper_session_id,
+                "paper_account_epoch": paper_account_epoch,
                 "reset_session_id": paper_session_state.get("reset_session_id") or paper_session_id,
                 "starting_equity_usd": paper_starting_equity_usd,
                 "paper_owner_attribution_status": paper_owner_attribution_status,
@@ -60314,6 +60339,7 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                     current_invalid_admission_accepted_quarantine_status
                 ),
                 "paper_session_id": paper_session_id,
+                "paper_account_epoch": paper_account_epoch,
                 "reset_session_id": paper_session_state.get("reset_session_id") or paper_session_id,
                 "starting_equity_usd": paper_starting_equity_usd,
                 "omitted_fields": sorted(COMPACT_ACCEPTED_FILL_OMITTED_FIELDS),
@@ -60385,6 +60411,7 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                 "trainer_feedback_row_count": len(trainer_feedback_consumable_rows),
                 "trainer_feedback_quarantined_row_count": len(trainer_feedback_quarantine_rows),
                 "paper_session_id": paper_session_id,
+                "paper_account_epoch": paper_account_epoch,
                 "reset_session_id": paper_session_state.get("reset_session_id") or paper_session_id,
                 "starting_equity_usd": paper_starting_equity_usd,
                 "paper_owner_attribution_status": paper_owner_attribution_status,

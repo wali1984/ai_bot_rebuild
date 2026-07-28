@@ -55,6 +55,7 @@ from app.services.market_stream_alert_history import (
 )
 from app.services.market_stream_alert_notifier import market_stream_alert_notifier_status
 from app.services.paper_audit_ledger import local_paper_audit_ledger_metadata, read_local_paper_audit_events
+from app.services.paper_session import epoch as paper_epoch
 from app.services.portfolio import build_canonical_pnl
 from app.services.trader_account_repository import TraderPaperAccount, get_trader_account_repository
 from app.services.backend_shutdown import (
@@ -911,9 +912,15 @@ async def _readonly_resource_direct_payload(
     if path == "/api/v2/risk/status":
         return True, await get_risk_status()
     if path == "/api/v2/paper/status":
-        return True, await get_paper_status(actor=None)
+        return True, await get_paper_status(
+            actor=None,
+            scope=_first_query_value(query, "scope", paper_epoch.DEFAULT_SCOPE) or paper_epoch.DEFAULT_SCOPE,
+        )
     if path == "/api/v2/paper/activity":
-        return True, await get_paper_activity(actor=None)
+        return True, await get_paper_activity(
+            actor=None,
+            scope=_first_query_value(query, "scope", paper_epoch.DEFAULT_SCOPE) or paper_epoch.DEFAULT_SCOPE,
+        )
     if path.startswith("/api/v2/mobile/"):
         from app.api.v2 import mobile as mobile_api  # noqa: PLC0415
 
@@ -953,7 +960,10 @@ async def _readonly_resource_direct_payload(
         from app.api.v2.alerts_contracts import get_alerts  # noqa: PLC0415
         return True, get_alerts(None)
     if path == "/api/v2/portfolio":
-        return True, await get_portfolio(None)
+        return True, await get_portfolio(
+            None,
+            scope=_first_query_value(query, "scope", paper_epoch.DEFAULT_SCOPE) or paper_epoch.DEFAULT_SCOPE,
+        )
     if path == "/api/v2/account/readiness":
         return True, await get_account_readiness(None)
     if path == "/api/v2/account/positions":
@@ -6997,11 +7007,143 @@ def _margin_accounting_block(portfolio_state: Any) -> dict[str, Any] | None:
     }
 
 
-@router.get("/portfolio")
-async def get_portfolio(actor: UserRecord | None = Depends(optional_auth)) -> dict[str, Any]:
-    endpoint = "/api/v2/portfolio"
+def _session_scope_metadata(client: Any, scope: str, total: int, shown: int) -> dict[str, Any]:
+    return paper_epoch.scope_response_fields(
+        paper_epoch.current_session(client),
+        paper_epoch.normalize_scope(scope),
+        total,
+        shown,
+    )
+
+
+def _governed_economic_evidence() -> dict[str, Any]:
+    """Historical certification truth, deliberately independent of account scope."""
+    path = _repo_root() / "goal_state" / "PERMANENT_SYSTEM_RECOVERY" / "RECOVERY_STATUS.json"
     try:
-        canonical_pnl_payload = build_canonical_pnl(get_redis())
+        status = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        status = {}
+    economics = status.get("economics") if isinstance(status.get("economics"), dict) else {}
+    gate_status = (
+        status.get("closeout", {}).get("gate_status", {})
+        if isinstance(status.get("closeout"), dict)
+        else {}
+    )
+    return {
+        "schema_version": "governed_economic_evidence_view_v1",
+        "eligible_natural_closes": economics.get("current_generation_3_sample_size"),
+        "required_natural_closes": economics.get("frozen_window_size"),
+        "minimum_sample_satisfied": economics.get("minimum_sample_satisfied") is True,
+        "historical_after_cost_expectancy_bps": economics.get(
+            "historical_notional_weighted_after_cost_expectancy_bps"
+        ),
+        "historical_profit_factor": economics.get("historical_profit_factor"),
+        "historical_max_drawdown_pct": economics.get("historical_max_drawdown_pct"),
+        "counterfactual_sweep": economics.get("counterfactual_sweep"),
+        "G11": (gate_status.get("G11") or {}).get("status"),
+        "G13": (gate_status.get("G13") or {}).get("status"),
+        "G14": (gate_status.get("G14") or {}).get("status"),
+        "historical_evidence_preserved": True,
+        "counts_as_current_session_pnl": False,
+    }
+
+
+def _scope_portfolio_response(
+    response: dict[str, Any],
+    client: Any,
+    scope: str,
+) -> dict[str, Any]:
+    """Bind the portfolio read contract to the active paper epoch.
+
+    The operational account face is always sourced from ``v2:portfolio:state``.
+    Global rows remain immutable and are only projected according to the explicit
+    scope.  In particular, canonical historical PnL is never allowed to replace
+    the zeroed current-session account after an epoch rotation.
+    """
+    normalized_scope = paper_epoch.normalize_scope(scope)
+    session = paper_epoch.current_session(client)
+    data = response.get("data")
+    if not isinstance(data, dict):
+        return response
+
+    positions = data.get("positions") if isinstance(data.get("positions"), list) else []
+    scoped_positions = paper_epoch.scope_rows(
+        positions,
+        session.get("paper_session_id"),
+        normalized_scope,
+    )
+    # Before the first epoch, old projections may not carry a row-level session
+    # identifier. Preserve legacy behavior; post-rotation scoping is strict.
+    if session.get("paper_account_epoch") is None and normalized_scope == paper_epoch.DEFAULT_SCOPE:
+        scoped_positions = positions
+    data["positions"] = scoped_positions
+    data.update(_session_scope_metadata(client, normalized_scope, len(positions), len(scoped_positions)))
+    data["governed_economic_evidence"] = _governed_economic_evidence()
+
+    portfolio = paper_epoch._get_json(client, paper_epoch.PORTFOLIO_STATE_KEY) or {}
+    if normalized_scope == paper_epoch.DEFAULT_SCOPE and isinstance(portfolio, dict):
+        def first_number(*names: str) -> float | None:
+            for name in names:
+                value = _float(portfolio.get(name))
+                if value is not None:
+                    return value
+            return None
+
+        starting = first_number("starting_equity_usd", "initial_capital")
+        equity = first_number("equity_usd", "equity")
+        realized = first_number(
+            "realized_net_pnl_usd",
+            "clean_session_valid_realized_pnl_usd",
+            "realized_pnl_usd",
+        )
+        unrealized = first_number("unrealized_pnl_usd", "net_unrealized_pnl")
+        total = first_number("total_pnl_usd")
+        free = first_number("free_margin_usd", "available_margin")
+        used = first_number("used_margin_usd")
+        reserved = first_number("reserved_margin_usd")
+        if total is None and realized is not None:
+            total = realized + (unrealized or 0.0)
+        if equity is not None:
+            data.update({
+                "equity": equity,
+                "paper_equity": equity,
+                "paper_balance": equity,
+                "paper_equity_usd": equity,
+            })
+        if free is not None:
+            data["free_margin_usd"] = free
+            data["available_balance"] = free
+            data["available_balance_usd"] = free
+        data["used_margin_usd"] = used
+        data["reserved_margin_usd"] = reserved
+        data["realized_pnl"] = realized
+        data["realized_pnl_usd"] = realized
+        data["realized_net_pnl_usd"] = realized
+        data["paper_realized_pnl_usd"] = realized
+        data["unrealized_pnl"] = unrealized
+        data["unrealized_pnl_usd"] = unrealized
+        data["paper_unrealized_pnl_usd"] = unrealized
+        data["total_pnl_usd"] = total
+        data["paper_total_pnl_usd"] = total
+        data["paper_initial_capital"] = starting
+        data["initial_capital"] = starting
+        data["starting_equity_usd"] = starting
+        data["paper_session_id"] = session.get("paper_session_id")
+        data["paper_account_epoch"] = session.get("paper_account_epoch")
+        data["open_position_count"] = len(scoped_positions)
+    response["data"] = data
+    return response
+
+
+@router.get("/portfolio")
+async def get_portfolio(
+    actor: UserRecord | None = Depends(optional_auth),
+    scope: str = Query(default=paper_epoch.DEFAULT_SCOPE),
+) -> dict[str, Any]:
+    endpoint = "/api/v2/portfolio"
+    client = get_redis()
+    try:
+        canonical_pnl_payload = build_canonical_pnl(client)
     except Exception:
         canonical_pnl_payload = {}
     repository_account = _repository_account(actor)
@@ -7247,7 +7389,7 @@ async def get_portfolio(actor: UserRecord | None = Depends(optional_auth)) -> di
         response_source_parts.append("redis:v2:paper:positions")
         if enrich_source:
             response_source_parts.append(enrich_source.lstrip(" + "))
-        return _base_response(
+        response = _base_response(
             endpoint=endpoint,
             data=data,
             source=" + ".join(response_source_parts),
@@ -7261,6 +7403,7 @@ async def get_portfolio(actor: UserRecord | None = Depends(optional_auth)) -> di
             mode="paper",
             trader_context=_trader_context(actor),
         )
+        return _scope_portfolio_response(response, client, scope)
     # Canonical source: v2:portfolio:state Redis (always available, no scoping)
     pub_portfolio_state: dict[str, Any] = {}
     pub_portfolio_state_from_redis = False
@@ -7494,7 +7637,7 @@ async def get_portfolio(actor: UserRecord | None = Depends(optional_auth)) -> di
         _pub_source = f"{paper_source} + {portfolio_source}"
         _pub_source_type = "static_payload"
         _pub_timestamp = _timestamp_from_payload(paper) or _timestamp_from_payload(portfolio)
-    return _base_response(
+    response = _base_response(
         endpoint=endpoint,
         data=data,
         source=_pub_source,
@@ -7505,6 +7648,7 @@ async def get_portfolio(actor: UserRecord | None = Depends(optional_auth)) -> di
         mode="paper",
         trader_context=_trader_context(actor),
     )
+    return _scope_portfolio_response(response, client, scope)
 
 
 @router.get("/account/readiness")
@@ -13111,6 +13255,8 @@ def _enrich_paper_positions(
         positions.append({
             "id": row.get("id") or row.get("position_id"),
             "position_id": row.get("position_id") or row.get("id"),
+            "paper_session_id": row.get("paper_session_id") or row.get("session_id"),
+            "paper_account_epoch": row.get("paper_account_epoch"),
             "trader_id": row.get("trader_id"),
             "paper_account_id": row.get("paper_account_id"),
             "symbol": sym,
@@ -13161,7 +13307,18 @@ def _enrich_paper_positions(
     }
 
 
-def _load_paper_activity_payload() -> tuple[dict[str, Any], list[str]]:
+def _paper_scoped_rows(client: Any, rows: list[Any], scope: str) -> list[Any]:
+    """Strict epoch scoping with a pre-epoch compatibility boundary."""
+    session = paper_epoch.current_session(client)
+    normalized_scope = paper_epoch.normalize_scope(scope)
+    if session.get("paper_account_epoch") is None and normalized_scope == paper_epoch.DEFAULT_SCOPE:
+        return list(rows)
+    return paper_epoch.scope_rows(rows, session.get("paper_session_id"), normalized_scope)
+
+
+def _load_paper_activity_payload(
+    scope: str = paper_epoch.DEFAULT_SCOPE,
+) -> tuple[dict[str, Any], list[str]]:
     client = get_redis()
     warnings: list[str] = []
     if client is None:
@@ -13222,6 +13379,8 @@ def _load_paper_activity_payload() -> tuple[dict[str, Any], list[str]]:
     positions_raw, position_source_status, position_warnings = _paper_positions_with_last_known_fallback(
         positions_raw if isinstance(positions_raw, list) else []
     )
+    total_position_rows = len(positions_raw)
+    positions_raw = _paper_scoped_rows(client, positions_raw, scope)
     warnings.extend(position_warnings)
 
     positions, position_metrics = _enrich_paper_positions(
@@ -13231,6 +13390,8 @@ def _load_paper_activity_payload() -> tuple[dict[str, Any], list[str]]:
     )
 
     intents = _paper_intents_from_redis(client)
+    total_intent_rows = len(intents)
+    intents = _paper_scoped_rows(client, intents, scope)
     fills = _paper_fills_from_intents(intents, limit=120)
     open_orders, order_history = _paper_orders_from_intents(intents, limit=150)
     audit_events = _paper_audit_events_from_intents(intents, limit=80)
@@ -13320,11 +13481,22 @@ def _load_paper_activity_payload() -> tuple[dict[str, Any], list[str]]:
         "a_grade_blocker_truth": readiness_context["a_grade_blocker_truth"],
         "top_blockers": readiness_context["readiness_blockers"][:8],
     }
+    data.update(
+        _session_scope_metadata(
+            client,
+            scope,
+            total_position_rows + total_intent_rows,
+            len(positions_raw) + len(intents),
+        )
+    )
     return data, warnings
 
 
 @router.get("/paper/status")
-async def get_paper_status(actor: UserRecord | None = Depends(optional_auth)) -> dict[str, Any]:
+async def get_paper_status(
+    actor: UserRecord | None = Depends(optional_auth),
+    scope: str = Query(default=paper_epoch.DEFAULT_SCOPE),
+) -> dict[str, Any]:
     endpoint = "/api/v2/paper/status"
 
     def _load() -> dict[str, Any]:
@@ -13345,11 +13517,15 @@ async def get_paper_status(actor: UserRecord | None = Depends(optional_auth)) ->
             positions_raw, position_source_status, position_warnings = _paper_positions_with_last_known_fallback(
                 positions_raw if isinstance(positions_raw, list) else []
             )
+            total_position_rows = len(positions_raw)
+            positions_raw = _paper_scoped_rows(client, positions_raw, scope)
 
             ct_raw = client.get("v2:paper:closed_trades")
             closed_raw: list[Any] = json.loads(ct_raw) if ct_raw else []
             if isinstance(closed_raw, dict):
                 closed_raw = list(closed_raw.values())
+            total_closed_rows = len(closed_raw)
+            closed_raw = _paper_scoped_rows(client, closed_raw, scope)
 
             rp_raw = client.get("v2:risk:active_profile")
             risk_profile: dict[str, Any] = json.loads(rp_raw) if rp_raw else {}
@@ -13423,6 +13599,8 @@ async def get_paper_status(actor: UserRecord | None = Depends(optional_auth)) ->
                 trades.append({
                     "close_id": t.get("close_id"),
                     "position_id": t.get("position_id"),
+                    "paper_session_id": t.get("paper_session_id") or t.get("session_id"),
+                    "paper_account_epoch": t.get("paper_account_epoch"),
                     "symbol": sym or t.get("symbol"),
                     "side": str(t.get("side", "")).upper(),
                     # Quantity/notional existed in the Redis rows (closed_quantity,
@@ -13495,10 +13673,23 @@ async def get_paper_status(actor: UserRecord | None = Depends(optional_auth)) ->
             )
             canonical_unrealized_pnl = _float(portfolio.get("unrealized_pnl_usd"))
             canonical_total_pnl = _float(portfolio.get("total_pnl_usd"))
+            normalized_scope = paper_epoch.normalize_scope(scope)
+            if normalized_scope != paper_epoch.DEFAULT_SCOPE:
+                canonical_realized_pnl = round(sum(
+                    float(
+                        trade.get("realized_net_pnl_usd")
+                        if trade.get("realized_net_pnl_usd") is not None
+                        else trade.get("realized_pnl_usd")
+                        or 0.0
+                    )
+                    for trade in trades
+                ), 8)
+                canonical_unrealized_pnl = position_metrics["unrealized_pnl_usd"]
+                canonical_total_pnl = canonical_realized_pnl + canonical_unrealized_pnl
             if canonical_total_pnl is None and canonical_realized_pnl is not None:
                 canonical_total_pnl = canonical_realized_pnl + (canonical_unrealized_pnl or 0.0)
 
-            return {
+            data = {
                 "positions": positions,
                 "closed_trades": trades[:200],
                 "equity_curve": equity_curve,
@@ -13517,7 +13708,7 @@ async def get_paper_status(actor: UserRecord | None = Depends(optional_auth)) ->
                 },
                 "summary": {
                     "open_position_count": int(heartbeat.get("open_position_count") or len(positions)),
-                    "closed_trade_count": int(heartbeat.get("closed_trade_count") or len(closed_raw)),
+                    "closed_trade_count": len(closed_raw),
                     "realized_pnl_usd": (
                         canonical_realized_pnl
                         if canonical_realized_pnl is not None
@@ -13558,8 +13749,18 @@ async def get_paper_status(actor: UserRecord | None = Depends(optional_auth)) ->
                 "real_trader_readiness": readiness_context,
                 "a_grade_blocker_truth": readiness_context["a_grade_blocker_truth"],
                 "top_blockers": readiness_context["readiness_blockers"][:8],
+                "governed_economic_evidence": _governed_economic_evidence(),
                 "_warnings": position_warnings,
             }
+            data.update(
+                _session_scope_metadata(
+                    client,
+                    scope,
+                    total_position_rows + total_closed_rows,
+                    len(positions_raw) + len(closed_raw),
+                )
+            )
+            return data
         except Exception as exc:
             readiness_context = _paper_a_grade_readiness_context(None)
             return {
@@ -16124,12 +16325,15 @@ async def get_paper_fills(actor: UserRecord | None = Depends(optional_auth)) -> 
 
 
 @router.get("/paper/activity")
-async def get_paper_activity(actor: UserRecord | None = Depends(optional_auth)) -> dict[str, Any]:
+async def get_paper_activity(
+    actor: UserRecord | None = Depends(optional_auth),
+    scope: str = Query(default=paper_epoch.DEFAULT_SCOPE),
+) -> dict[str, Any]:
     endpoint = "/api/v2/paper/activity"
 
     def _load() -> tuple[dict[str, Any], list[str]]:
         try:
-            return _load_paper_activity_payload()
+            return _load_paper_activity_payload(scope)
         except Exception as exc:
             readiness_context = _paper_a_grade_readiness_context(None)
             return {
@@ -16198,6 +16402,7 @@ async def _paper_activity_websocket(websocket: WebSocket) -> None:
             requested_interval = int(websocket.query_params.get("interval_ms", "1000"))
         except ValueError:
             requested_interval = 1000
+        scope = paper_epoch.normalize_scope(websocket.query_params.get("scope"))
         interval_seconds = max(0.5, min(10.0, requested_interval / 1000))
         disconnect_task = create_registered_task(
             _watch_websocket_disconnect(websocket),
@@ -16208,6 +16413,7 @@ async def _paper_activity_websocket(websocket: WebSocket) -> None:
                 try:
                     data, warnings = await _bounded_run_in_threadpool(
                         _load_paper_activity_payload,
+                        scope,
                         timeout=READONLY_RESOURCE_RESOLVE_TIMEOUT_SECONDS,
                     )
                     payload = _base_response(

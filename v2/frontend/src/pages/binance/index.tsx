@@ -702,8 +702,8 @@ export default function BinancePage(): JSX.Element {
   });
 
   const { envelope: portfolioEnv, refetch: refetchPortfolio } = useRealtimeResource<PortfolioData>({
-    url: '/api/v2/portfolio',
-    source: '/api/v2/portfolio',
+    url: '/api/v2/portfolio?scope=current_session',
+    source: '/api/v2/portfolio?scope=current_session',
     source_type: 'websocket',
     pollIntervalMs: 10_000,
     staleThresholdMs: 30_000,

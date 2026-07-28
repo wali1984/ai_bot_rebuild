@@ -53,6 +53,24 @@ def _seed_clean(r, session_id=OLD, trades=None):
     r.set(E.FILL_PERSISTENCE_TRACE_KEY, json.dumps({
         "proof_store_initialized": True, "proof_store_backfill_complete": True,
         "invalid_admission_quarantined": 0}))
+    r.set(E.PAPER_LEDGER_KEY, json.dumps({
+        "paper_session_id": session_id,
+        "paper_margin_reservation_status": {
+            "reservation_rows": [], "reserved_margin_usd": 0.0,
+        },
+    }))
+    proofs = []
+    r.set(E.PROOF_STORE_KEY, json.dumps(proofs))
+    manifest = {
+        "schema_version": "paper_open_position_fill_proof_backfill_manifest_v1",
+        "completed": True,
+        "initialization_state": "EMPTY_INITIALIZED_PROOF_SET",
+        "proof_count": 0,
+        "proofs_sha256": E._canonical_sha256(proofs),
+        "unresolved_position_count": 0,
+    }
+    manifest["manifest_sha256"] = E._canonical_sha256(manifest)
+    r.set(E.PROOF_MANIFEST_KEY, json.dumps(manifest))
     return trades
 
 
@@ -66,6 +84,12 @@ def test_01_clean_start_3000(r):
     assert pf["equity_usd"] == 3000.0 and pf["free_margin_usd"] == 3000.0
     assert pf["used_margin_usd"] == 0.0 and pf["reserved_margin_usd"] == 0.0
     assert pf["realized_pnl_usd"] == 0.0 and pf["paper_account_epoch"] == 1
+    pointer = json.loads(r.get(E.EPOCH_POINTER_KEY))
+    pointer_hash = pointer.pop("content_sha256")
+    assert pointer_hash == E._canonical_sha256(pointer)
+    session = json.loads(r.get(E.LEGACY_SESSION_KEY))
+    assert session["paper_session_id"] == res["new_session_id"]
+    assert session["paper_account_epoch"] == 1
 
 
 # 2 — historical evidence preserved byte/hash-identical

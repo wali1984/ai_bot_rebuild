@@ -308,8 +308,8 @@ export function usePaperAccountTruth(intervalMs = 8_000, options: UsePaperAccoun
   const paperAccountId = user?.paper_account_id ?? null;
   const fallbackPayloadsEnabled = options.requireTraderScope !== true;
   const typedPortfolioResource = useRealtimeResource<PortfolioData>({
-    url: '/api/v2/portfolio',
-    source: '/api/v2/portfolio',
+    url: '/api/v2/portfolio?scope=current_session',
+    source: '/api/v2/portfolio?scope=current_session',
     source_type: 'websocket',
     pollIntervalMs: intervalMs,
     staleThresholdMs: Math.max(30_000, intervalMs * 4),

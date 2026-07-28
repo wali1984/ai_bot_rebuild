@@ -30,15 +30,30 @@ export { default as route } from './route';
 export { sourceText };
 
 type PositionTab = 'open' | 'closed' | 'historical';
-const PORTFOLIO_ENDPOINT = '/api/v2/portfolio';
+const PORTFOLIO_ENDPOINT = '/api/v2/portfolio?scope=current_session';
 
 export interface RuntimePositionEvidence {
+  paper_session_id?: string | null;
+  paper_account_epoch?: number | null;
+  scope?: string;
   positions?: Array<Record<string, unknown>>;
   closed_trades?: Array<Record<string, unknown>>;
   equity_curve?: Array<{ t?: string; pnl?: number; winner?: boolean }>;
   summary?: {
     open_position_count?: number | null;
     closed_trade_count?: number | null;
+  };
+  governed_economic_evidence?: {
+    eligible_natural_closes?: number | null;
+    required_natural_closes?: number | null;
+    historical_after_cost_expectancy_bps?: number | null;
+    historical_profit_factor?: number | null;
+    historical_max_drawdown_pct?: number | null;
+    counterfactual_sweep?: string | null;
+    G11?: string | null;
+    G13?: string | null;
+    G14?: string | null;
+    historical_evidence_preserved?: boolean;
   };
 }
 
@@ -287,8 +302,8 @@ export default function PortfolioPage(): JSX.Element {
   const accountMetric = (fieldId: string) => selectAccountMetric(traderSnapshot, fieldId);
   const riskMetric = selectSectionMetric(traderSnapshot, 'risk', 'position.risk_status', selectRiskStatus(traderSnapshot));
   const { envelope: runtimePositions } = useRealtimeResource<RuntimePositionEvidence>({
-    url: '/api/v2/paper/status',
-    source: '/api/v2/paper/status',
+    url: '/api/v2/paper/status?scope=current_session',
+    source: '/api/v2/paper/status?scope=current_session',
     pollIntervalMs: 8_000,
     staleThresholdMs: 20_000,
     mode: 'paper',

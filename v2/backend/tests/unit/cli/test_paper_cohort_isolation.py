@@ -133,6 +133,18 @@ def test_ordinary_intent_is_not_relabeled_and_keeps_global_breaker():
     assert _paper_performance_source_rows([intent], cohort_id=CID) == []
 
 
+def test_paper_account_epoch_is_stamped_on_every_session_row() -> None:
+    rows = _with_paper_session_metadata_rows(
+        [{"fill_id": "fill-1"}, {"position_id": "position-1"}],
+        paper_session_id="paper_epoch_1",
+        starting_equity_usd=3000.0,
+        paper_account_epoch=1,
+    )
+
+    assert {row["paper_session_id"] for row in rows} == {"paper_epoch_1"}
+    assert {row["paper_account_epoch"] for row in rows} == {1}
+
+
 # ---------------------------------------------------------------------------
 # Phase 5-6: active cohort resolver (env override / shared redis record / None).
 # ---------------------------------------------------------------------------

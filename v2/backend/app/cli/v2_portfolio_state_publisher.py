@@ -737,6 +737,7 @@ def run_once(write_redis: bool = True) -> dict:
     raw_accepted_fill_total = 0
     raw_closed_position_count = 0
     invalid_admission_source_id_count = 0
+    historical_closed_rows_excluded = 0
     session_initial_capital = PAPER_INITIAL_CAPITAL
     authoritative_open_positions_for_margin: list[dict[str, Any]] = []
     open_position_fill_proof_accounting_status: dict[str, Any] = {
@@ -794,6 +795,27 @@ def run_once(write_redis: bool = True) -> dict:
         standalone_closed_rows = [
             dict(row) for row in _as_list(standalone_closed) if isinstance(row, dict)
         ]
+        current_session_id = str(paper_session_state.get("paper_session_id") or "")
+        current_epoch = paper_session_state.get("paper_account_epoch")
+
+        def current_epoch_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+            # Legacy sessions intentionally retain their historical behavior.
+            # Once PaperAccountEpochV1 is active, operational accounting is
+            # strictly session-scoped and untagged/archived rows are excluded.
+            if type(current_epoch) is not int or current_epoch < 1 or not current_session_id:
+                return rows
+            return [
+                row
+                for row in rows
+                if str(row.get("paper_session_id") or row.get("session_id") or "")
+                == current_session_id
+            ]
+
+        unscoped_standalone_closed_count = len(standalone_closed_rows)
+        standalone_closed_rows = current_epoch_rows(standalone_closed_rows)
+        historical_closed_rows_excluded = max(
+            0, unscoped_standalone_closed_count - len(standalone_closed_rows)
+        )
         if isinstance(ledger, dict):
             current_ledger_payload = ledger
             session_initial_capital = _session_initial_capital(
@@ -802,8 +824,8 @@ def run_once(write_redis: bool = True) -> dict:
                 paper_session_state,
             )
             ledger_generated_utc = ledger.get("generated_utc")
-            accepted_rows_raw = _dedupe_rows([dict(row) for row in _as_list(ledger.get("accepted")) if isinstance(row, dict)])
-            accepted_fill_state_rows = _dedupe_rows(_read_accepted_fill_state_rows(ledger))
+            accepted_rows_raw = current_epoch_rows(_dedupe_rows([dict(row) for row in _as_list(ledger.get("accepted")) if isinstance(row, dict)]))
+            accepted_fill_state_rows = current_epoch_rows(_dedupe_rows(_read_accepted_fill_state_rows(ledger)))
             accepted_count_rows = accepted_fill_state_rows or accepted_rows_raw
             invalid_admission_source_ids = _invalid_admission_source_ids(
                 accepted_count_rows + accepted_rows_raw
@@ -813,14 +835,14 @@ def run_once(write_redis: bool = True) -> dict:
                 accepted_count_rows,
                 invalid_admission_source_ids,
             )
-            shadow_rows = [dict(row) for row in _as_list(ledger.get("shadow_observations")) if isinstance(row, dict)]
-            held_rows = [dict(row) for row in _as_list(ledger.get("held_by_paper_fill_gate")) if isinstance(row, dict)]
-            ledger_closed_rows = _dedupe_closed_rows([
+            shadow_rows = current_epoch_rows([dict(row) for row in _as_list(ledger.get("shadow_observations")) if isinstance(row, dict)])
+            held_rows = current_epoch_rows([dict(row) for row in _as_list(ledger.get("held_by_paper_fill_gate")) if isinstance(row, dict)])
+            ledger_closed_rows = current_epoch_rows(_dedupe_closed_rows([
                 dict(row)
                 for source in ("closed", "closed_positions", "closed_trades", "closes", "realized", "realized_fills")
                 for row in _as_list(ledger.get(source))
                 if isinstance(row, dict)
-            ])
+            ]))
             closed_rows_raw = (
                 _dedupe_closed_rows(standalone_closed_rows)
                 if standalone_closed_rows
@@ -856,11 +878,11 @@ def run_once(write_redis: bool = True) -> dict:
                     continue
                 px, source, _generated = _read_v2_market_price(r, sym)
                 mark_prices[sym] = (px, source, None)
-            ledger_open_rows = [
+            ledger_open_rows = current_epoch_rows([
                 dict(row)
                 for row in _as_list(ledger.get("open_positions"))
                 if isinstance(row, dict)
-            ]
+            ])
             authoritative_open_positions_for_margin = ledger_open_rows
             accepted_aliases = set().union(
                 *(_row_lineage_ids(row) for row in accepted_rows)
@@ -1286,6 +1308,10 @@ def run_once(write_redis: bool = True) -> dict:
             or current_ledger_payload.get("paper_session_id")
             or previous_portfolio_state.get("paper_session_id")
         ),
+        "paper_account_epoch": paper_session_state.get("paper_account_epoch"),
+        "scope": "current_session",
+        "historical_rows_excluded_from_current_view": historical_closed_rows_excluded,
+        "historical_evidence_preserved": True,
         "trader_execution_enabled": trader_execution_enabled,
         "live_gate_status": live_gate_status,
         "live_symbols": live_symbols,
@@ -1349,6 +1375,9 @@ def run_once(write_redis: bool = True) -> dict:
         "open_position_notional": round(open_position_notional, 8),
         "equity": round(equity, 8),
         "used_margin_usd": paper_account_margin_status["used_margin_usd"],
+        "reserved_margin_usd": paper_account_margin_status[
+            "newly_reserved_margin_usd"
+        ],
         "available_margin": paper_account_margin_status["free_margin_usd"],
         "free_margin_usd": paper_account_margin_status["free_margin_usd"],
         "free_margin_after_buffer_usd": paper_account_margin_status[

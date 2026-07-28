@@ -192,7 +192,7 @@ export function TraderDashboard(): JSX.Element {
     mode: 'paper',
   });
   const { envelope: portfolio } = useRealtimeResource<PortfolioData>({
-    url: '/api/v2/portfolio',
+    url: '/api/v2/portfolio?scope=current_session',
     source: 'dashboard portfolio stream',
     source_type: 'websocket',
     pollIntervalMs: 2_000,

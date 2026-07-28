@@ -158,4 +158,36 @@ test.describe('realtime resource frame semantics', () => {
       receivedAt,
     )).toBe(receivedAt);
   });
+
+  test('accepts a newer paper-account epoch without retaining the archived account', () => {
+    const previous = envelope({
+      data: { price: 100, frame: 'old', paper_session_id: 'paper_epoch_0', paper_account_epoch: 0 } as unknown as Payload,
+      timestamp: Date.parse('2026-06-23T19:00:10Z'),
+    });
+    const rotated = envelope({
+      data: { price: 100, frame: 'new', paper_session_id: 'paper_epoch_1', paper_account_epoch: 1 } as unknown as Payload,
+      timestamp: Date.parse('2026-06-23T19:00:09Z'),
+    });
+
+    const merged = realtimeResourceTestHooks.mergeRealtimeResourceEnvelope(previous, rotated);
+
+    expect(merged.preservedReason).toBeNull();
+    expect((merged.envelope.data as unknown as Record<string, unknown>).paper_session_id).toBe('paper_epoch_1');
+  });
+
+  test('rejects a delayed frame from an archived paper-account epoch', () => {
+    const current = envelope({
+      data: { price: 100, frame: 'new', paper_session_id: 'paper_epoch_1', paper_account_epoch: 1 } as unknown as Payload,
+    });
+    const archived = envelope({
+      data: { price: 100, frame: 'old', paper_session_id: 'paper_epoch_0', paper_account_epoch: 0 } as unknown as Payload,
+      timestamp: Date.parse('2026-06-23T19:00:30Z'),
+    });
+
+    const merged = realtimeResourceTestHooks.mergeRealtimeResourceEnvelope(current, archived);
+
+    expect(merged.preservedReason).toBe('out_of_order');
+    expect((merged.envelope.data as unknown as Record<string, unknown>).paper_session_id).toBe('paper_epoch_1');
+    expect(merged.envelope.warnings).toContain('Rejected a stale payload from an archived paper-account epoch');
+  });
 });

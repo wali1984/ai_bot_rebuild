@@ -126,6 +126,7 @@ def test_accepted_fill_recomputes_equity_from_current_market_price(monkeypatch, 
     assert result["equity"] == 10020.0
     assert result["wallet_balance"] == 10000.0
     assert result["used_margin_usd"] == pytest.approx(50.0)
+    assert result["reserved_margin_usd"] == 0.0
     assert result["available_margin"] == pytest.approx(9950.0)
     assert result["paper_account_margin_status"]["invariant_holds"] is True
     assert result["paper_account_margin_status"]["source"] == (
@@ -580,6 +581,54 @@ def test_closed_trade_ledger_realized_pnl_is_included_in_equity(monkeypatch, tmp
     assert result["equity_reconciles_within_1_cent"] is True
     assert result["equity_high_water_mark"] == 10100.0
     assert result["current_drawdown_bps"] > 0.0
+
+
+def test_paper_account_epoch_excludes_archived_closes_from_operational_equity(
+    monkeypatch,
+    tmp_path,
+):
+    current = "paper-session-epoch-2"
+    fake = FakeRedis(
+        {
+            "v2:paper:session": {
+                "paper_session_id": current,
+                "paper_account_epoch": 2,
+                "starting_equity_usd": 3000.0,
+            },
+            "v2:portfolio:state": {
+                "paper_session_id": current,
+                "paper_account_epoch": 2,
+                "starting_equity_usd": 3000.0,
+                "equity": 3000.0,
+            },
+            "v2:paper:closed_trades": [
+                {
+                    "close_id": "archived-loss",
+                    "paper_session_id": "paper-session-epoch-1",
+                    "realized_net_pnl_usd": -50.0,
+                },
+                {
+                    "close_id": "current-win",
+                    "paper_session_id": current,
+                    "realized_net_pnl_usd": 2.5,
+                },
+                {"close_id": "untagged-legacy", "realized_net_pnl_usd": 100.0},
+            ],
+        }
+    )
+    monkeypatch.setattr(publisher, "_connect_redis", lambda: fake)
+    monkeypatch.setattr(publisher, "PAYLOAD_PATH", tmp_path / "portfolio.json")
+
+    result = publisher.run_once(write_redis=False)
+
+    assert result["paper_session_id"] == current
+    assert result["paper_account_epoch"] == 2
+    assert result["scope"] == "current_session"
+    assert result["realized_pnl_usd"] == 2.5
+    assert result["equity"] == 3002.5
+    assert result["closed_positions_count"] == 1
+    assert result["historical_rows_excluded_from_current_view"] == 2
+    assert result["historical_evidence_preserved"] is True
 
 
 def test_p0019_portfolio_equity_uses_net_closed_pnl_when_gross_alias_exists(

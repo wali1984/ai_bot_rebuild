@@ -295,7 +295,10 @@ async def test_readonly_resource_direct_payload_routes_adaptive_capital_dashboar
 async def test_readonly_resource_direct_payload_routes_paper_status_and_activity(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    async def fake_paper_status(actor=None) -> dict:
+    seen_scopes: list[str] = []
+
+    async def fake_paper_status(actor=None, scope="current_session") -> dict:
+        seen_scopes.append(scope)
         return {
             "data": {"positions": [{"symbol": "BTCUSDT", "entry_price": 100.0}]},
             "source": "v2:paper:* Redis",
@@ -306,7 +309,8 @@ async def test_readonly_resource_direct_payload_routes_paper_status_and_activity
             "mode": "paper",
         }
 
-    async def fake_paper_activity(actor=None) -> dict:
+    async def fake_paper_activity(actor=None, scope="current_session") -> dict:
+        seen_scopes.append(scope)
         return {
             "data": {"positions": [{"symbol": "ETHUSDT", "mark_price": 200.0}]},
             "source": "v2:paper:* Redis",
@@ -321,7 +325,7 @@ async def test_readonly_resource_direct_payload_routes_paper_status_and_activity
     monkeypatch.setattr(market_contracts, "get_paper_activity", fake_paper_activity)
 
     status_handled, status_payload = await market_contracts._readonly_resource_direct_payload(
-        "/api/v2/paper/status"
+        "/api/v2/paper/status?scope=archived"
     )
     activity_handled, activity_payload = await market_contracts._readonly_resource_direct_payload(
         "/api/v2/paper/activity"
@@ -333,6 +337,7 @@ async def test_readonly_resource_direct_payload_routes_paper_status_and_activity
     assert activity_handled is True
     assert activity_payload["endpoint"] == "/api/v2/paper/activity"
     assert activity_payload["data"]["positions"][0]["mark_price"] == 200.0
+    assert seen_scopes == ["archived", "current_session"]
 
 
 def test_adaptive_capital_compact_payload_keeps_rendered_fields_and_drops_samples(
@@ -1226,6 +1231,54 @@ async def test_portfolio_uses_clean_session_initial_capital_from_redis(
     assert data["open_position_count"] == 0
     assert data["closed_trade_count"] == 0
     assert "10000.0" not in json.dumps(data)
+
+
+@pytest.mark.asyncio
+async def test_portfolio_epoch_scope_never_leaks_archived_pnl(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    values = {
+        "v2:paper:account_epoch:current": {
+            "schema_version": "PaperAccountEpochV1",
+            "paper_session_id": "paper_epoch_1",
+            "paper_account_epoch": 1,
+            "starting_equity_usd": 3000.0,
+        },
+        "v2:portfolio:state": {
+            "paper_session_id": "paper_epoch_1",
+            "paper_account_epoch": 1,
+            "starting_equity_usd": 3000.0,
+            "equity": 3000.0,
+            "free_margin_usd": 3000.0,
+            "used_margin_usd": 0.0,
+            "reserved_margin_usd": 0.0,
+            "realized_net_pnl_usd": 0.0,
+            "unrealized_pnl_usd": 0.0,
+            "total_pnl_usd": 0.0,
+        },
+        "v2:paper:positions": [
+            {"position_id": "archived", "paper_session_id": "paper_epoch_0"},
+        ],
+        "v2:paper:closed_trades": [
+            {"close_id": "old", "paper_session_id": "paper_epoch_0", "realized_net_pnl_usd": -14.0},
+        ],
+    }
+    client = _FakeRedis(values)
+    monkeypatch.setattr(market_contracts, "get_redis", lambda: client)
+    monkeypatch.setattr(market_contracts, "_paper_payload", lambda: ({}, "unit-test-paper"))
+    monkeypatch.setattr(market_contracts, "_portfolio_payload", lambda: ({}, "unit-test-portfolio"))
+
+    payload = await market_contracts.get_portfolio(actor=None, scope="current_session")
+    data = payload["data"]
+
+    assert data["paper_session_id"] == "paper_epoch_1"
+    assert data["paper_account_epoch"] == 1
+    assert data["scope"] == "current_session"
+    assert data["equity"] == data["free_margin_usd"] == 3000.0
+    assert data["used_margin_usd"] == data["reserved_margin_usd"] == 0.0
+    assert data["realized_net_pnl_usd"] == data["paper_total_pnl_usd"] == 0.0
+    assert data["positions"] == []
+    assert data["historical_evidence_preserved"] is True
 
 
 @pytest.mark.asyncio

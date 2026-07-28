@@ -1497,7 +1497,7 @@ export default function DashboardPage(): JSX.Element {
   const riskStream = useDashboardStream<{ active_profile?: RiskProfile; latest_gateway_result?: RiskGatewayResult; heartbeat?: RiskHeartbeat }>('/api/v2/risk/status', 15_000);
   const marketStream = useDashboardStream<{ tickers?: TickerRow[] }>('/api/v2/market/overview', 20_000);
   const healthStream = useDashboardStream<{ overall?: string; surfaces?: HealthSurface[] }>('/api/v2/data-health', 30_000);
-  const paperStatusStream = useDashboardStream<{ equity_curve?: Array<{ t?: string; pnl?: number; winner?: boolean }>; closed_trades?: Array<Record<string, unknown>> }>('/api/v2/paper/status', 15_000);
+  const paperStatusStream = useDashboardStream<{ equity_curve?: Array<{ t?: string; pnl?: number; winner?: boolean }>; closed_trades?: Array<Record<string, unknown>> }>('/api/v2/paper/status?scope=current_session', 15_000);
 
   // Derived
   const portfolioData = portfolioStream.data;

@@ -288,6 +288,13 @@ export interface PortfolioData extends AccountTruthFields {
   paper_unrealized_pnl_usd?: number | null;
   paper_total_pnl_usd?: number | null;
   paper_session_id?: string | null;
+  paper_account_epoch?: number | null;
+  scope?: 'current_session' | 'archived' | 'all' | string;
+  free_margin_usd?: number | null;
+  used_margin_usd?: number | null;
+  reserved_margin_usd?: number | null;
+  historical_rows_excluded_from_current_view?: number;
+  historical_evidence_preserved?: boolean;
   data_source?: string | null;
   source_generated_utc?: string | null;
   generated_at?: string | null;

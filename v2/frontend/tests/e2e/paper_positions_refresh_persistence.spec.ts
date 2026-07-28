@@ -105,6 +105,26 @@ test.describe('paperActivityStreamTestHooks — pure logic', () => {
     expect(merged.positions).toHaveLength(1);
     expect(merged.positions[0]).toMatchObject({ symbol: 'ETHUSDT' });
   });
+
+  test('session rotation never retains archived positions in the current view', () => {
+    const { normalizeActivity, withRetainedRows } = paperActivityStreamTestHooks;
+    const prior = normalizeActivity({
+      ...MOCK_ACTIVITY_ENVELOPE.data,
+      paper_session_id: 'paper_epoch_0',
+      paper_account_epoch: 0,
+    });
+    const next = normalizeActivity({
+      ...MOCK_ACTIVITY_ENVELOPE.data,
+      paper_session_id: 'paper_epoch_1',
+      paper_account_epoch: 1,
+      positions: [],
+    });
+
+    const merged = withRetainedRows(next, prior, Date.now() - 1_000);
+
+    expect(merged.paper_session_id).toBe('paper_epoch_1');
+    expect(merged.positions).toHaveLength(0);
+  });
 });
 
 test.describe('position pricing presentation contract', () => {

@@ -37,6 +37,70 @@ GLOBAL_POSITIONS_KEY = "v2:paper:positions"
 GLOBAL_ACCEPTED_FILLS_KEY = "v2:paper:accepted_fills"
 GLOBAL_CLOSED_TRADES_KEY = "v2:paper:closed_trades"
 FILL_PERSISTENCE_TRACE_KEY = "v2:paper:fill_persistence_trace"
+PAPER_LEDGER_KEY = "v2:paper:ledger"
+PROOF_STORE_KEY = "v2:paper:open_position_fill_proofs"
+PROOF_MANIFEST_KEY = "v2:paper:open_position_fill_proofs:manifest"
+
+# Additional single-key durable historical stores (Commit A gap-fill) — bound under the
+# operator's read-only census in goal_state/PAPER_ACCOUNT_EPOCH_RESET/proposed_archive_manifest.json
+# (mutability_class HISTORICAL_IMMUTABLE) that were not yet in the archive-evidence set.
+ACCEPTED_FILLS_QUARANTINE_KEY = "v2:paper:accepted_fills:quarantine"
+CLOSED_TRADES_UNPROVED_QUARANTINE_KEY = "v2:paper:closed_trades:unproved_fill_quarantine"
+QUARANTINE_INVALID_CLOSED_TRADES_KEY = "v2:paper:quarantine:invalid_closed_trades"
+OUTCOME_LABELS_KEY = "v2:paper:outcome_labels"
+ECONOMIC_EVALUATION_COHORT_KEY = "v2:paper:economic_evaluation_cohort"
+PROVISIONAL_COHORT_ACTIVATION_KEY = "v2:paper:provisional_cohort_activation"
+
+# Exact operational/economic evidence families frozen into the archive manifest.
+# These values are read and hashed; rotation never writes or deletes them.
+ARCHIVE_EVIDENCE_KEYS: tuple[str, ...] = (
+    PORTFOLIO_STATE_KEY,
+    LEGACY_SESSION_KEY,
+    GLOBAL_POSITIONS_KEY,
+    GLOBAL_ACCEPTED_FILLS_KEY,
+    GLOBAL_CLOSED_TRADES_KEY,
+    PAPER_LEDGER_KEY,
+    FILL_PERSISTENCE_TRACE_KEY,
+    PROOF_STORE_KEY,
+    PROOF_MANIFEST_KEY,
+    "v2:paper:account_margin_status",
+    "v2:paper:position_fill_reconciliation:status",
+    "v2:adaptive_system:candidate_outcomes:status",
+    "v2:adaptive_system:candidate_calibration:v2",
+    "v2:model_registry:paper:active",
+    "v2:guardian:pit_prediction_observations",
+    "v2:paper:performance_circuit_breaker_status",
+    ACCEPTED_FILLS_QUARANTINE_KEY,
+    CLOSED_TRADES_UNPROVED_QUARANTINE_KEY,
+    QUARANTINE_INVALID_CLOSED_TRADES_KEY,
+    OUTCOME_LABELS_KEY,
+    ECONOMIC_EVALUATION_COHORT_KEY,
+    PROVISIONAL_COHORT_ACTIVATION_KEY,
+)
+
+# Durable historical evidence stored as a KEY FAMILY (glob) rather than one key — bounded
+# SCAN over a narrow, known prefix (never a generic keyspace scan; see
+# claude_worklog memory "Realtime WS + Redis SCAN trap" on unbounded glob cost). Each family
+# hashes to exactly one evidence source (sorted {key: content_sha256} mapping), so the whole
+# family is one tamper-evident anchor.
+ARCHIVE_GLOB_EVIDENCE_PATTERNS: tuple[str, ...] = (
+    "v2:paper:outcome_memory:*",
+    "v2:paper:position_fill_reconciliation:receipts:*",
+)
+
+# The remaining durable stores in the operator's 22-store census
+# (goal_state/PAPER_ACCOUNT_EPOCH_RESET/proposed_archive_manifest.json) are filesystem-backed
+# (fs:model_registry/paper/candidates/*.pt + 10 goal_state/**/GUARDIAN/*.json|jsonl files).
+# rotate() performs ONLY Redis writes (the atomic Lua below) and never touches the filesystem,
+# so those stores are preserved structurally by construction; this Redis-only engine does not
+# hash them (no false claim of coverage — see CLAUDE.md Evidence Integrity Rule). Independent
+# filesystem verification is the operator's proposed_archive_manifest.json census.
+ARCHIVE_FILESYSTEM_STORES_NOTE = (
+    "11 filesystem-backed durable stores (fs:model_registry/paper/candidates/*.pt + 10 "
+    "goal_state/**/GUARDIAN/*.json|jsonl files) are structurally preserved because rotate() "
+    "performs only Redis writes and never touches the filesystem. They are NOT hashed into "
+    "this manifest; verify independently via the operator's proposed_archive_manifest.json census."
+)
 
 
 def epoch_key(epoch: int, leaf: str) -> str:
@@ -96,10 +160,17 @@ def current_session(redis) -> dict:
             "starting_equity_usd": ptr.get("starting_equity_usd", STARTING_EQUITY_USD),
         }
     legacy = _get_json(redis, LEGACY_SESSION_KEY) or {}
+    portfolio = _get_json(redis, PORTFOLIO_STATE_KEY) or {}
     return {
-        "paper_session_id": legacy.get("paper_session_id"),
-        "paper_account_epoch": legacy.get("paper_account_epoch"),
-        "starting_equity_usd": legacy.get("initial_capital", STARTING_EQUITY_USD),
+        "paper_session_id": legacy.get("paper_session_id") or portfolio.get("paper_session_id"),
+        "paper_account_epoch": legacy.get("paper_account_epoch") or portfolio.get("paper_account_epoch"),
+        "starting_equity_usd": (
+            legacy.get("initial_capital")
+            or legacy.get("starting_equity_usd")
+            or portfolio.get("starting_equity_usd")
+            or portfolio.get("initial_capital")
+            or STARTING_EQUITY_USD
+        ),
     }
 
 
@@ -186,6 +257,9 @@ _REQUIRED = {
     "unresolved_accounting_reconciliation": 0,
     "duplicate_fill_count": 0,
     "duplicate_close_count": 0,
+    "unproved_positions": 0,
+    "proof_store_initialized": True,
+    "proof_store_backfill_complete": True,
 }
 _NET_PNL_FIELDS = ("realized_net_pnl_usd", "realized_net_pnl", "realized_pnl_usd", "realized_pnl", "net_pnl_usd")
 
@@ -203,6 +277,9 @@ def evaluate_preconditions(redis) -> dict:
     accepted = _get_json(redis, GLOBAL_ACCEPTED_FILLS_KEY) or []
     closed = _get_json(redis, GLOBAL_CLOSED_TRADES_KEY) or []
     trace = _get_json(redis, FILL_PERSISTENCE_TRACE_KEY) or {}
+    ledger = _get_json(redis, PAPER_LEDGER_KEY) or {}
+    proofs = _get_json(redis, PROOF_STORE_KEY)
+    proof_manifest = _get_json(redis, PROOF_MANIFEST_KEY)
     session = current_session(redis)
 
     def _num(v):
@@ -212,12 +289,73 @@ def evaluate_preconditions(redis) -> dict:
     # while positions exist, and a proofless phantom is never "solved" by deletion here.
     record("open_positions", len(positions), len(positions) == 0, f"{len(positions)} rows in v2:paper:positions")
     record("pending_fills", len(accepted), len(accepted) == 0)
-    record("pending_reservations", 0, True, "no v2:paper:reservations key")
+    reservation = ledger.get("paper_margin_reservation_status")
+    reservation = reservation if isinstance(reservation, dict) else {}
+    reservation_rows = reservation.get("reservation_rows")
+    pending_reservations = len(reservation_rows) if isinstance(reservation_rows, list) else None
+    record(
+        "pending_reservations",
+        pending_reservations,
+        pending_reservations == 0,
+        "v2:paper:ledger.paper_margin_reservation_status.reservation_rows",
+    )
 
     used = _num(portfolio.get("used_margin_usd"))
     record("used_margin_usd", used, used == 0)
     reserved = _num(portfolio.get("reserved_margin_usd"))
+    if reserved is None:
+        reserved = _num(
+            reservation.get("reserved_margin_usd")
+            if reservation
+            else None
+        )
     record("reserved_margin_usd", reserved, reserved == 0, "null/unset" if reserved is None else "")
+
+    proof_rows = proofs if isinstance(proofs, list) else []
+    manifest_material = (
+        {key: value for key, value in proof_manifest.items() if key != "manifest_sha256"}
+        if isinstance(proof_manifest, dict)
+        else None
+    )
+    manifest_hash_valid = bool(
+        manifest_material is not None
+        and proof_manifest.get("manifest_sha256") == _canonical_sha256(manifest_material)
+    )
+    proof_hash_valid = bool(
+        isinstance(proofs, list)
+        and isinstance(proof_manifest, dict)
+        and proof_manifest.get("proof_count") == len(proof_rows)
+        and proof_manifest.get("proofs_sha256") == _canonical_sha256(proof_rows)
+    )
+    proof_initialized = bool(
+        manifest_hash_valid
+        and proof_hash_valid
+        and proof_manifest.get("initialization_state")
+        in {"EMPTY_INITIALIZED_PROOF_SET", "INITIALIZED_OR_BACKFILLED_PROOF_SET"}
+    )
+    proof_backfill_complete = bool(
+        proof_initialized
+        and proof_manifest.get("completed") is True
+        and proof_manifest.get("unresolved_position_count") == 0
+    )
+    record(
+        "unproved_positions",
+        max(0, len(positions) - len(proof_rows)),
+        len(positions) == 0 or len(proof_rows) == len(positions),
+        PROOF_STORE_KEY,
+    )
+    record(
+        "proof_store_initialized",
+        proof_initialized,
+        proof_initialized,
+        PROOF_MANIFEST_KEY,
+    )
+    record(
+        "proof_store_backfill_complete",
+        proof_backfill_complete,
+        proof_backfill_complete,
+        PROOF_MANIFEST_KEY,
+    )
 
     def _pnl(t):
         for k in _NET_PNL_FIELDS:
@@ -258,8 +396,10 @@ def evaluate_preconditions(redis) -> dict:
         "checks": checks,
         "failing": [k for k, v in checks.items() if not v["pass"]],
         "live_gate": "blocked_human_only",
+        "paper_only": True,
         "places_real_order": False,
         "routes_to_live": False,
+        "exchange_action_taken": False,
     }
 
 
@@ -270,8 +410,134 @@ def _sha256(s: str) -> str:
     return hashlib.sha256(s.encode("utf-8")).hexdigest()
 
 
+def _canonical_sha256(value: Any) -> str:
+    return _sha256(
+        json.dumps(value, sort_keys=True, separators=(",", ":"), default=str)
+    )
+
+
+def _evidence_summary(redis, key: str) -> dict[str, Any]:
+    try:
+        redis_type = redis.type(key)
+        if isinstance(redis_type, bytes):
+            redis_type = redis_type.decode("ascii")
+    except (AttributeError, TypeError):
+        redis_type = "string"
+    if redis_type == "none":
+        return {
+            "key": key,
+            "redis_type": "none",
+            "present": False,
+            "byte_count": 0,
+            "content_sha256": None,
+            "row_count": None,
+            "high_watermarks": {},
+        }
+    if redis_type != "string":
+        dumped = redis.dump(key)
+        if isinstance(dumped, str):
+            dumped = dumped.encode("utf-8")
+        dumped = dumped or b""
+        count_method = {
+            "list": "llen",
+            "hash": "hlen",
+            "set": "scard",
+            "zset": "zcard",
+            "stream": "xlen",
+        }.get(str(redis_type))
+        row_count = (
+            int(getattr(redis, count_method)(key)) if count_method else None
+        )
+        return {
+            "key": key,
+            "redis_type": redis_type,
+            "present": True,
+            "byte_count": len(dumped),
+            "content_sha256": hashlib.sha256(dumped).hexdigest(),
+            "row_count": row_count,
+            "high_watermarks": {},
+        }
+    raw = redis.get(key)
+    if isinstance(raw, bytes):
+        raw = raw.decode("utf-8", errors="strict")
+    present = isinstance(raw, str)
+    try:
+        parsed = json.loads(raw) if present else None
+    except (TypeError, ValueError):
+        parsed = None
+    row_count = len(parsed) if isinstance(parsed, list) else None
+    high_watermarks: dict[str, Any] = {}
+    if isinstance(parsed, dict):
+        for field in (
+            "generated_utc",
+            "generated_at",
+            "cycle_id",
+            "row_count",
+            "candidate_count",
+            "matured_revision_count",
+            "terminal_chain_sha256",
+            "canonical_label_archive_chain_sha256",
+            "registry_generation",
+            "checkpoint_id",
+            "cohort_id",
+            "receipt_id",
+            "receipt_sha256",
+        ):
+            value = parsed.get(field)
+            if value not in (None, ""):
+                high_watermarks[field] = value
+        archive = parsed.get("archive")
+        if isinstance(archive, dict):
+            for field in (
+                "row_count",
+                "candidate_count",
+                "matured_revision_count",
+                "terminal_chain_sha256",
+            ):
+                value = archive.get(field)
+                if value not in (None, ""):
+                    high_watermarks[f"archive.{field}"] = value
+        maturation = parsed.get("maturation")
+        if isinstance(maturation, dict):
+            label_chain = maturation.get("canonical_label_archive_chain_sha256")
+            if label_chain not in (None, ""):
+                high_watermarks["maturation.canonical_label_archive_chain_sha256"] = label_chain
+    return {
+        "key": key,
+        "redis_type": "string",
+        "present": present,
+        "byte_count": len(raw.encode("utf-8")) if present else 0,
+        "content_sha256": _sha256(raw) if present else None,
+        "row_count": row_count,
+        "high_watermarks": high_watermarks,
+    }
+
+
 def _row_hashes(rows: list) -> list[str]:
     return [_sha256(json.dumps(r, sort_keys=True, default=str)) for r in rows]
+
+
+def _glob_evidence_summary(redis, pattern: str) -> dict[str, Any]:
+    """Bounded SCAN over a narrow, known key-family prefix (never a generic keyspace
+    scan) producing one tamper-evident evidence source for the whole family: the sorted
+    {key: content_sha256} mapping, canonically hashed. Missing/empty family -> present=False."""
+    try:
+        keys = sorted(
+            k.decode() if isinstance(k, bytes) else k
+            for k in redis.scan_iter(match=pattern, count=500)
+        )
+    except (AttributeError, TypeError):
+        keys = []
+    member_hashes: dict[str, Any] = {k: _evidence_summary(redis, k).get("content_sha256") for k in keys}
+    return {
+        "key": pattern,
+        "redis_type": "glob_family",
+        "present": bool(keys),
+        "byte_count": None,
+        "content_sha256": _canonical_sha256(member_hashes) if keys else None,
+        "row_count": len(keys),
+        "high_watermarks": {},
+    }
 
 
 def deterministic_session_id(prev_session_id: str | None, epoch: int, started_at: str) -> str:
@@ -313,6 +579,11 @@ def build_archive_manifest(redis, prev_session: dict) -> dict:
     accepted = _get_json(redis, GLOBAL_ACCEPTED_FILLS_KEY) or []
     closed = _get_json(redis, GLOBAL_CLOSED_TRADES_KEY) or []
     session_state = _get_json(redis, LEGACY_SESSION_KEY) or {}
+    evidence_sources = [
+        _evidence_summary(redis, key) for key in ARCHIVE_EVIDENCE_KEYS
+    ] + [
+        _glob_evidence_summary(redis, pattern) for pattern in ARCHIVE_GLOB_EVIDENCE_PATTERNS
+    ]
     manifest = {
         "schema_version": "PaperAccountEpochArchiveV1",
         "previous_paper_session_id": prev_session.get("paper_session_id"),
@@ -330,13 +601,27 @@ def build_archive_manifest(redis, prev_session: dict) -> dict:
         "checkpoint_id": session_state.get("checkpoint_id"),
         "cohort_id": session_state.get("cohort_id"),
         "session_state_sha256": _sha256(json.dumps(session_state, sort_keys=True, default=str)),
+        "evidence_source_count": len(evidence_sources),
+        "evidence_sources": evidence_sources,
+        "filesystem_stores_note": ARCHIVE_FILESYSTEM_STORES_NOTE,
+        "historical_evidence_preserved": True,
+        "paper_only": True,
+        "live_gate": "blocked_human_only",
+        "routes_to_live": False,
+        "places_real_order": False,
+        "exchange_action_taken": False,
     }
-    manifest["manifest_sha256"] = _sha256(json.dumps(manifest, sort_keys=True, default=str))
+    manifest["manifest_sha256"] = _canonical_sha256(manifest)
     return manifest
 
 
 def verify_archive_readback(redis, manifest: dict) -> tuple[bool, str]:
-    """Re-read the global history and confirm counts/hashes match the manifest."""
+    """Re-read the global history and confirm counts/hashes match the manifest.
+
+    Checks the two explicit fields first (backward compatible with the original
+    contract), then re-verifies every evidence source recorded in the manifest —
+    the 22-durable-store single-key + glob-family coverage added for Commit A —
+    so a mismatch anywhere in that set aborts the rotation before any write."""
     closed = _get_json(redis, GLOBAL_CLOSED_TRADES_KEY) or []
     accepted = _get_json(redis, GLOBAL_ACCEPTED_FILLS_KEY) or []
     if len(closed) != manifest["closed_trade_count"]:
@@ -345,6 +630,20 @@ def verify_archive_readback(redis, manifest: dict) -> tuple[bool, str]:
         return False, "closed_trade hash mismatch"
     if len(accepted) != manifest["accepted_fill_count"]:
         return False, "accepted_fill_count changed"
+    if _sha256(json.dumps(accepted, sort_keys=True, default=str)) != manifest["accepted_fill_list_sha256"]:
+        return False, "accepted_fill hash mismatch"
+
+    for recorded in manifest.get("evidence_sources", []):
+        key = recorded.get("key")
+        if not key:
+            continue
+        fresh = (
+            _glob_evidence_summary(redis, key)
+            if key in ARCHIVE_GLOB_EVIDENCE_PATTERNS
+            else _evidence_summary(redis, key)
+        )
+        if fresh.get("content_sha256") != recorded.get("content_sha256"):
+            return False, f"evidence mismatch: {key}"
     return True, "ok"
 
 
@@ -372,6 +671,7 @@ redis.call('SET', KEYS[8], '[]')      -- epoch:{N}:reservations
 redis.call('SET', KEYS[9], ARGV[1])   -- v2:portfolio:state (operational face)
 redis.call('SET', KEYS[10], ARGV[2])  -- account_epoch:current pointer
 redis.call('SET', KEYS[11], ARGV[3])  -- receipt:{N}
+redis.call('SET', KEYS[12], ARGV[4])  -- v2:paper:session writer source
 redis.call('SET', idempo, ARGV[3])    -- idempotency -> receipt
 return ARGV[3]
 """
@@ -433,6 +733,26 @@ def rotate(redis, *, started_at: str | None = None,
         "historical_evidence_preserved": True, "reset_reason": reset_reason,
         "archive_manifest_sha256": manifest["manifest_sha256"], "idempotency_key": idem,
     }
+    pointer["content_sha256"] = _canonical_sha256(pointer)
+    session_state = {
+        "schema_version": "v2_paper_account_epoch_session_v1",
+        "account_scope": "PAPER_SIM_ACCOUNT",
+        "paper_or_live": "paper",
+        "paper_session_id": new_id,
+        "reset_session_id": new_id,
+        "paper_account_epoch": next_epoch,
+        "started_at": started_at,
+        "initial_capital": STARTING_EQUITY_USD,
+        "starting_equity_usd": STARTING_EQUITY_USD,
+        "session_state": "active",
+        "paper_only": True,
+        "live_gate": "blocked_human_only",
+        "routes_to_live": False,
+        "places_real_order": False,
+        "exchange_action_taken": False,
+        "historical_evidence_preserved": True,
+    }
+    session_state["content_sha256"] = _canonical_sha256(session_state)
     receipt = {
         "schema_version": "PaperEpochRotationReceiptV1", "rotated_utc": _now(),
         "previous_session_id": prev.get("paper_session_id"), "new_session_id": new_id,
@@ -452,6 +772,7 @@ def rotate(redis, *, started_at: str | None = None,
             epoch_key(next_epoch, "accepted_fills"), epoch_key(next_epoch, "closed_trades"),
             epoch_key(next_epoch, "reservations"), PORTFOLIO_STATE_KEY, EPOCH_POINTER_KEY,
             EPOCH_RECEIPT_PREFIX + str(next_epoch),
+            LEGACY_SESSION_KEY,
         ],
         "would_NOT_touch_history_keys": [GLOBAL_CLOSED_TRADES_KEY, GLOBAL_ACCEPTED_FILLS_KEY],
     }
@@ -464,6 +785,12 @@ def rotate(redis, *, started_at: str | None = None,
     new_id = deterministic_session_id(prev.get("paper_session_id"), epoch, started_at)
     clean = clean_portfolio_state(new_id, epoch)
     pointer.update({"paper_session_id": new_id, "paper_account_epoch": epoch})
+    pointer.pop("content_sha256", None)
+    pointer["content_sha256"] = _canonical_sha256(pointer)
+    session_state.update({"paper_session_id": new_id, "reset_session_id": new_id,
+                          "paper_account_epoch": epoch})
+    session_state.pop("content_sha256", None)
+    session_state["content_sha256"] = _canonical_sha256(session_state)
     receipt.update({"new_session_id": new_id, "paper_account_epoch": epoch})
     keys = [
         EPOCH_IDEMPO_PREFIX + idem, GLOBAL_POSITIONS_KEY, GLOBAL_ACCEPTED_FILLS_KEY,
@@ -471,10 +798,23 @@ def rotate(redis, *, started_at: str | None = None,
         epoch_key(epoch, "accepted_fills"), epoch_key(epoch, "closed_trades"),
         epoch_key(epoch, "reservations"), PORTFOLIO_STATE_KEY, EPOCH_POINTER_KEY,
         EPOCH_RECEIPT_PREFIX + str(epoch),
+        LEGACY_SESSION_KEY,
     ]
-    argv = [json.dumps(clean), json.dumps(pointer), json.dumps(receipt)]
-    # persist the archive manifest first (immutable), then the atomic rotation
-    redis.set(EPOCH_ARCHIVE_PREFIX + str(prev.get("paper_session_id")), json.dumps(manifest))
+    argv = [json.dumps(clean), json.dumps(pointer), json.dumps(receipt), json.dumps(session_state)]
+    # Persist the archive manifest once, then verify the exact immutable value
+    # before the atomic session-pointer rotation.
+    archive_key = EPOCH_ARCHIVE_PREFIX + str(prev.get("paper_session_id"))
+    archive_value = json.dumps(manifest, sort_keys=True)
+    archive_created = redis.set(archive_key, archive_value, nx=True)
+    existing_archive = redis.get(archive_key)
+    if isinstance(existing_archive, bytes):
+        existing_archive = existing_archive.decode("utf-8")
+    if not archive_created and existing_archive != archive_value:
+        return {"status": "BLOCKED_ARCHIVE_IMMUTABILITY_CONFLICT",
+                "state_mutated": False, "archive_key": archive_key}
+    if existing_archive != archive_value:
+        return {"status": "BLOCKED_ARCHIVE_READBACK_FAILED",
+                "state_mutated": False, "reason": "archive manifest readback mismatch"}
     result_raw = redis.eval(_ROTATION_LUA, len(keys), *keys, *argv)
     result = json.loads(result_raw.decode() if isinstance(result_raw, bytes) else result_raw)
     if isinstance(result, dict) and str(result.get("status", "")).startswith("BLOCKED"):

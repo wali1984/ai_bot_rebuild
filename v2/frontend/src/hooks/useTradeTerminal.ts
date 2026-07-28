@@ -402,8 +402,8 @@ export function useTradeTerminal() {
   const accountStreamsEnabled = !traderContext.loading;
   const activityFallbackStreamsEnabled = accountStreamsEnabled && !paperActivityAvailable;
   const portfolioResource = useRealtimeResource<PortfolioData>({
-    url: '/api/v2/portfolio',
-    source: '/api/v2/portfolio',
+    url: '/api/v2/portfolio?scope=current_session',
+    source: '/api/v2/portfolio?scope=current_session',
     source_type: 'websocket',
     pollIntervalMs: 8_000,
     staleThresholdMs: 24_000,

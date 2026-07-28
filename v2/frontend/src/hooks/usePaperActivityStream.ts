@@ -3,6 +3,12 @@ import { useOptionalEnterpriseRealtime } from '../lib/realtime/RealtimeProvider'
 import type { ApiV2Envelope } from '../types/apiV2';
 
 export interface PaperActivityData {
+  paper_session_id?: string | null;
+  paper_account_epoch?: number | null;
+  scope?: 'current_session' | 'archived' | 'all' | string;
+  starting_equity_usd?: number;
+  historical_rows_excluded_from_current_view?: number;
+  historical_evidence_preserved?: boolean;
   positions: Array<Record<string, unknown>>;
   fills: Array<Record<string, unknown>>;
   executions: Array<Record<string, unknown>>;
@@ -52,6 +58,14 @@ function rows(value: unknown): Array<Record<string, unknown>> {
 function normalizeActivity(value: unknown): PaperActivityData {
   const record = value && typeof value === 'object' ? value as Record<string, unknown> : {};
   return {
+    paper_session_id: typeof record.paper_session_id === 'string' ? record.paper_session_id : null,
+    paper_account_epoch: typeof record.paper_account_epoch === 'number' ? record.paper_account_epoch : null,
+    scope: typeof record.scope === 'string' ? record.scope : 'current_session',
+    starting_equity_usd: typeof record.starting_equity_usd === 'number' ? record.starting_equity_usd : undefined,
+    historical_rows_excluded_from_current_view: typeof record.historical_rows_excluded_from_current_view === 'number'
+      ? record.historical_rows_excluded_from_current_view
+      : 0,
+    historical_evidence_preserved: record.historical_evidence_preserved !== false,
     positions: rows(record.positions),
     fills: rows(record.fills),
     executions: rows(record.executions).length ? rows(record.executions) : rows(record.fills),
@@ -67,6 +81,13 @@ function normalizeActivity(value: unknown): PaperActivityData {
 
 function withRetainedRows(next: PaperActivityData, prior: PaperActivityData | null, priorAt: number | null): PaperActivityData {
   if (!prior || !priorAt || Date.now() - priorAt > 90_000) return next;
+  // A session pointer change is an account boundary. Never carry positions,
+  // fills, PnL activity, or orders from the archived epoch into the new one.
+  if (
+    next.paper_session_id
+    && prior.paper_session_id
+    && next.paper_session_id !== prior.paper_session_id
+  ) return next;
   return {
     ...next,
     positions: next.positions.length ? next.positions : prior.positions,
@@ -95,12 +116,13 @@ function paperActivityUrls(intervalMs: number): string[] {
     const url = new URL(path, origin);
     url.protocol = protocol;
     url.searchParams.set('interval_ms', String(intervalMs));
+    url.searchParams.set('scope', 'current_session');
     return url.toString();
   });
 }
 
 async function fetchPaperActivity(signal?: AbortSignal): Promise<ApiV2Envelope<PaperActivityData>> {
-  const response = await fetch('/api/v2/paper/activity', { credentials: 'include', signal });
+  const response = await fetch('/api/v2/paper/activity?scope=current_session', { credentials: 'include', signal });
   if (!response.ok) throw new Error(await response.text().catch(() => response.statusText));
   const envelope = await response.json() as ApiV2Envelope<unknown>;
   return {
@@ -134,6 +156,18 @@ export function usePaperActivityStream(
 
     const applyEnvelope = (raw: ApiV2Envelope<unknown>, streamSource: PaperActivityStreamState['source']) => {
       const normalized = normalizeActivity(raw.data);
+      const activeSession = lastGoodRef.current?.data.paper_session_id;
+      if (
+        activeSession
+        && normalized.paper_session_id
+        && activeSession !== normalized.paper_session_id
+        && (normalized.paper_account_epoch ?? -1) < (lastGoodRef.current?.data.paper_account_epoch ?? -1)
+      ) {
+        return;
+      }
+      if (activeSession && normalized.paper_session_id && activeSession !== normalized.paper_session_id) {
+        lastGoodRef.current = null;
+      }
       const retained = withRetainedRows(normalized, lastGoodRef.current?.data ?? null, lastGoodRef.current?.at ?? null);
       if (
         retained.positions.length
@@ -182,7 +216,7 @@ export function usePaperActivityStream(
     }
 
     if (subscribeResourcePath) {
-      unsubscribeSharedResource = subscribeResourcePath('/api/v2/paper/activity', (raw) => {
+      unsubscribeSharedResource = subscribeResourcePath('/api/v2/paper/activity?scope=current_session', (raw) => {
         if (cancelled) return;
         receivedSharedFrame = true;
         applyEnvelope(raw as unknown as ApiV2Envelope<unknown>, 'websocket');

@@ -37,8 +37,8 @@ export default function HistoryPage(): JSX.Element {
   const adaptiveCapital = useAdaptiveCapitalDashboard(30_000);
   // Trade journal source: the same closed-trades evidence the Portfolio "Closed" tab renders.
   const { envelope: runtimePositions } = useRealtimeResource<RuntimePositionEvidence>({
-    url: '/api/v2/paper/status',
-    source: '/api/v2/paper/status',
+    url: '/api/v2/paper/status?scope=archived',
+    source: '/api/v2/paper/status?scope=archived',
     pollIntervalMs: 8_000,
     staleThresholdMs: 20_000,
     mode: 'paper',
@@ -46,6 +46,7 @@ export default function HistoryPage(): JSX.Element {
   const closedTrades = [...(runtimePositions.data?.closed_trades ?? [])]
     .sort((a, b) => closedTradeTime(b) - closedTradeTime(a));
   const closedTradeCount = runtimePositions.data?.summary?.closed_trade_count ?? closedTrades.length;
+  const economicEvidence = runtimePositions.data?.governed_economic_evidence;
   const historyCount = state.activity.orderHistory.length;
   const executionCount = state.activity.executions.length;
   const auditEventCount = state.activity.auditEvents.length;
@@ -71,7 +72,7 @@ export default function HistoryPage(): JSX.Element {
           <div>
             <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text-primary)' }}>History</h1>
             <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-muted)' }}>
-              Trade journal · Signal history · Performance stats · {state.trader.accountScopeLabel}
+              Archived trade journal · governed economic evidence · {state.trader.accountScopeLabel}
             </p>
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
@@ -105,13 +106,33 @@ export default function HistoryPage(): JSX.Element {
           ))}
         </div>
 
+        <div className="glass" data-testid="governed-economic-evidence" style={{ padding: '14px 16px', marginBottom: 20 }}>
+          <SectionLabel hint="Preserved across operational account epochs">Governed economic evidence</SectionLabel>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
+            {[
+              { label: 'Eligible closes', value: `${economicEvidence?.eligible_natural_closes ?? '—'}/${economicEvidence?.required_natural_closes ?? 5}` },
+              { label: 'G11', value: economicEvidence?.G11 ?? 'FAIL' },
+              { label: 'G13', value: economicEvidence?.G13 ?? 'FAIL' },
+              { label: 'G14', value: economicEvidence?.G14 ?? 'FAIL' },
+              { label: 'After-cost expectancy', value: economicEvidence?.historical_after_cost_expectancy_bps == null ? '—' : `${economicEvidence.historical_after_cost_expectancy_bps.toFixed(3)} bps` },
+              { label: 'Profit factor', value: economicEvidence?.historical_profit_factor == null ? '—' : economicEvidence.historical_profit_factor.toFixed(3) },
+              { label: 'Counterfactual sweep', value: economicEvidence?.counterfactual_sweep ?? '—' },
+            ].map((item) => (
+              <div key={item.label} style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-elevated)' }}>
+                <span style={{ display: 'block', fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase' }}>{item.label}</span>
+                <span style={{ display: 'block', marginTop: 4, fontSize: 13, fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}>{item.value}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
         {/* Trade journal — the closed-trade evidence rows (same source as Portfolio "Closed" tab) */}
         <div style={{ marginBottom: 20 }}>
           <SectionLabel hint={`${closedTradeCount} closed trades · newest first`}>Trade journal</SectionLabel>
           {closedTrades.length === 0 ? (
             <div className="glass" style={{ padding: '28px', textAlign: 'center' }}>
               <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>
-                No closed trade evidence available for the current account yet.
+                No archived closed-trade evidence is available.
               </p>
             </div>
           ) : (
