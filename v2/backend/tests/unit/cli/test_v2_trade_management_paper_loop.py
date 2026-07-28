@@ -15267,6 +15267,64 @@ def test_verified_v1_compact_row_survives_next_cycle_enrichment_restore_and_spli
     assert status["invalid_admission_accepted_rows_quarantined"] == 0
 
 
+def test_merge_preserves_verified_compact_existing_fill_byte_exact() -> None:
+    compact, _position = _verified_v1_compacted_second_cycle_fixture()
+    identity = str(compact["fill_id"])
+
+    merged = paper_loop._merge_persistent_accepted_fills(  # noqa: SLF001
+        {identity: deepcopy(compact)},
+        [],
+    )
+
+    assert merged == [compact]
+    assert paper_loop._paper_canonical_sha256(merged[0]) == (  # noqa: SLF001
+        paper_loop._paper_canonical_sha256(compact)  # noqa: SLF001
+    )
+    assert paper_loop._paper_persisted_admission_rejection_reasons(merged[0]) == []  # noqa: SLF001
+
+
+def test_merge_preserves_verified_compact_when_current_duplicate_is_present() -> None:
+    compact, _position = _verified_v1_compacted_second_cycle_fixture()
+    identity = str(compact["fill_id"])
+    duplicate_current = deepcopy(compact)
+    duplicate_current["latest_price"] = float(compact["fill_price"]) * 1.01
+    duplicate_current["quantity"] = float(compact["quantity"]) * 2.0
+    duplicate_current["routes_to_live"] = True
+    duplicate_current["places_real_order"] = True
+    duplicate_current["paper_fill_persistence_status"] = "CURRENT_DUPLICATE_FIXTURE"
+
+    merged = paper_loop._merge_persistent_accepted_fills(  # noqa: SLF001
+        {identity: deepcopy(compact)},
+        [duplicate_current],
+    )
+
+    assert merged == [compact]
+    assert paper_loop._paper_persisted_admission_rejection_reasons(merged[0]) == []  # noqa: SLF001
+
+
+def test_merge_never_freezes_or_repairs_tampered_compact_existing_fill() -> None:
+    compact, _position = _verified_v1_compacted_second_cycle_fixture()
+    identity = str(compact["fill_id"])
+    tampered = deepcopy(compact)
+    tampered["quantity"] = float(compact["quantity"]) * 2.0
+
+    merged = paper_loop._merge_persistent_accepted_fills(  # noqa: SLF001
+        {identity: tampered},
+        [],
+    )
+
+    assert len(merged) == 1
+    assert merged[0]["quantity"] == tampered["quantity"]
+    assert merged[0] != compact
+    reasons = paper_loop._paper_persisted_admission_rejection_reasons(merged[0])  # noqa: SLF001
+    assert "PERSISTED_ADMISSION_COMPACTED_PAYLOAD_MUTATED" in reasons
+    assert paper_loop._paper_verified_compacted_rows_by_identity(merged) == {}  # noqa: SLF001
+
+
+def test_merge_does_not_readd_an_absent_compact_fill() -> None:
+    assert paper_loop._merge_persistent_accepted_fills({}, []) == []  # noqa: SLF001
+
+
 def test_current_proof_uses_final_persisted_accepted_row_ledger_hash() -> None:
     compact, position = _verified_v1_compacted_second_cycle_fixture()
     valid_persisted, quarantined, _status = (

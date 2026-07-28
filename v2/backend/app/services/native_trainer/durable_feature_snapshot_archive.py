@@ -180,7 +180,31 @@ def _blob_path(root: Path, digest: str) -> Path:
 
 
 def _index_path(root: Path, snapshot_id: str) -> Path:
+    # The original flat index reached millions of entries in production and
+    # ext4 began returning ENOSPC while the filesystem still had ample blocks
+    # and inodes.  New entries use deterministic hash-prefix shards; reads
+    # continue to resolve the immutable legacy flat path below.
+    digest = hashlib.sha256(snapshot_id.encode("utf-8")).hexdigest()
+    return (
+        root
+        / "index"
+        / "snapshot_id"
+        / digest[:2]
+        / digest[2:4]
+        / _safe_index_name(snapshot_id)
+    )
+
+
+def _legacy_index_path(root: Path, snapshot_id: str) -> Path:
     return root / "index" / "snapshot_id" / _safe_index_name(snapshot_id)
+
+
+def _existing_or_sharded_index_path(root: Path, snapshot_id: str) -> Path:
+    sharded = _index_path(root, snapshot_id)
+    if sharded.exists():
+        return sharded
+    legacy = _legacy_index_path(root, snapshot_id)
+    return legacy if legacy.exists() else sharded
 
 
 def _write_json_atomic(path: Path, payload: Any) -> None:
@@ -484,7 +508,7 @@ def append_snapshot(
     snapshot_id = str(item["snapshot_id"])
     digest = str(item["content_sha256"])
     blob_path = _blob_path(archive_root, digest)
-    index_path = _index_path(archive_root, snapshot_id)
+    index_path = _existing_or_sharded_index_path(archive_root, snapshot_id)
     if index_path.exists():
         existing = json.loads(index_path.read_text(encoding="utf-8"))
         if existing.get("content_sha256") != digest:
@@ -561,7 +585,7 @@ def append_snapshot(
 
 
 def _read_index(root: Path, snapshot_id: str) -> dict[str, Any] | None:
-    path = _index_path(root, snapshot_id)
+    path = _existing_or_sharded_index_path(root, snapshot_id)
     if not path.exists():
         return None
     return json.loads(path.read_text(encoding="utf-8"))
@@ -643,7 +667,9 @@ def _iter_manifest_lines(
             continue
         seen.add(snapshot_id)
         record["_manifest_path"] = str(manifest)
-        record["_index_path"] = str(_index_path(manifest.parent, snapshot_id))
+        record["_index_path"] = str(
+            _existing_or_sharded_index_path(manifest.parent, snapshot_id)
+        )
         count += 1
         yield record
 
@@ -667,11 +693,12 @@ def iter_index_records(
     if not index_dir.exists():
         return
     paths = sorted(
-        index_dir.glob("*.json"),
+        index_dir.rglob("*.json"),
         key=lambda path: (path.stat().st_mtime, path.name),
         reverse=bool(newest_first),
     )
     count = 0
+    seen_snapshot_ids: set[str] = set()
     for path in paths:
         if limit is not None and count >= int(limit):
             return
@@ -679,6 +706,15 @@ def iter_index_records(
             record = json.loads(path.read_text(encoding="utf-8"))
         except Exception:
             continue
+        snapshot_id = str(record.get("snapshot_id") or "")
+        if not snapshot_id or snapshot_id in seen_snapshot_ids:
+            continue
+        # A migration or interrupted operator copy can leave both layouts.
+        # The sharded location is authoritative when present, matching direct
+        # lookup semantics and preventing duplicate rollover candidates.
+        if path != _existing_or_sharded_index_path(archive_root, snapshot_id):
+            continue
+        seen_snapshot_ids.add(snapshot_id)
         record["_index_path"] = str(path)
         count += 1
         yield record

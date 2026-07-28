@@ -14975,8 +14975,21 @@ def _merge_persistent_accepted_fills(existing: dict[str, dict], current: list[di
     otherwise mark-to-market can never move because entry chases the
     latest price. Current signals may update ``latest_price`` only.
     """
+    # A verified compact row is an immutable persistence envelope.  Even
+    # benign replay annotations change its compacted-payload hash, so freeze
+    # these rows before the normal merge adds carry-forward metadata.  The
+    # exact row remains authoritative when the current candidate stream also
+    # contains the same identity; duplicate/churn handling occurs later and
+    # must not rewrite an already accepted fill.
+    verified_compacted_existing = _paper_verified_compacted_rows_by_identity(
+        list(existing.values())
+    )
     merged: dict[str, dict] = {}
     for identity, row in existing.items():
+        verified_compact = verified_compacted_existing.get(identity)
+        if verified_compact is not None:
+            merged[identity] = deepcopy(verified_compact)
+            continue
         persisted = _bind_challenger_b_grade_canary_metadata(
             dict(row),
             binding_source="EXISTING_ACCEPTED_FILL_REPLAY",
@@ -14996,6 +15009,9 @@ def _merge_persistent_accepted_fills(existing: dict[str, dict], current: list[di
         incoming.setdefault("ledger_row_id", identity)
         incoming.setdefault("mark_price_at_fill", incoming.get("fill_price"))
         prior = merged.get(identity)
+        if identity in verified_compacted_existing:
+            merged[identity] = deepcopy(verified_compacted_existing[identity])
+            continue
         if prior and _row_has_economic_fill_fields(prior):
             preserved = dict(incoming)
             for field in IMMUTABLE_ACCEPTED_FILL_FIELDS:

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
+import shutil
 from pathlib import Path
 
 import pytest
@@ -55,6 +57,16 @@ def _record(snapshot_id: str = "snapshot-1", *, payload: str = "small") -> dict[
     )
 
 
+def _move_sharded_index_to_legacy_flat(
+    root: Path,
+    sharded_index_path: Path,
+) -> Path:
+    legacy_path = root / "index" / "snapshot_id" / sharded_index_path.name
+    legacy_path.parent.mkdir(parents=True, exist_ok=True)
+    sharded_index_path.replace(legacy_path)
+    return legacy_path
+
+
 def test_snapshot_archive_roundtrip(tmp_path: Path) -> None:
     record = _record()
     result = append_snapshot(record, root=tmp_path)
@@ -65,6 +77,131 @@ def test_snapshot_archive_roundtrip(tmp_path: Path) -> None:
     assert loaded is not None
     assert loaded["snapshot_id"] == "snapshot-1"
     assert loaded["content_sha256"] == record["content_sha256"]
+
+
+def test_new_snapshot_index_is_deterministically_sharded_and_roundtrips(
+    tmp_path: Path,
+) -> None:
+    snapshot_id = "snapshot/sharded deterministic:1"
+    record = _record(snapshot_id)
+    digest = hashlib.sha256(snapshot_id.encode("utf-8")).hexdigest()
+
+    first = append_snapshot(record, root=tmp_path)
+    second = append_snapshot(record, root=tmp_path)
+    loaded = load_snapshot(snapshot_id, root=tmp_path)
+
+    assert first.index_path.parent.relative_to(tmp_path) == (
+        Path("index") / "snapshot_id" / digest[:2] / digest[2:4]
+    )
+    assert first.index_path.name.endswith(f"_{digest[:16]}.json")
+    assert first.index_path == second.index_path
+    assert first.already_present is False
+    assert second.already_present is True
+    assert loaded == record
+
+
+def test_legacy_flat_index_load_and_duplicate_append_remain_immutable(
+    tmp_path: Path,
+) -> None:
+    record = _record("legacy-flat-immutable")
+    first = append_snapshot(record, root=tmp_path)
+    sharded_path = first.index_path
+    legacy_path = _move_sharded_index_to_legacy_flat(tmp_path, sharded_path)
+
+    loaded_before = load_snapshot(record["snapshot_id"], root=tmp_path)
+    duplicate = append_snapshot(record, root=tmp_path)
+    loaded_after = load_snapshot(record["snapshot_id"], root=tmp_path)
+
+    assert loaded_before == record
+    assert loaded_after == record
+    assert duplicate.already_present is True
+    assert duplicate.index_path == legacy_path
+    assert duplicate.blob_path == first.blob_path
+    assert legacy_path.exists()
+    assert not sharded_path.exists()
+
+
+def test_conflicting_content_against_legacy_flat_index_fails_closed(
+    tmp_path: Path,
+) -> None:
+    original = _record("legacy-flat-conflict")
+    first = append_snapshot(original, root=tmp_path)
+    sharded_path = first.index_path
+    legacy_path = _move_sharded_index_to_legacy_flat(tmp_path, sharded_path)
+    conflicting = _record("legacy-flat-conflict", payload="changed-content")
+
+    with pytest.raises(SnapshotArchiveError, match="SNAPSHOT_ID_CONTENT_HASH_CHANGED"):
+        append_snapshot(conflicting, root=tmp_path)
+
+    assert load_snapshot(original["snapshot_id"], root=tmp_path) == original
+    assert legacy_path.exists()
+    assert not sharded_path.exists()
+
+
+def test_manifest_iteration_covers_mixed_layout_without_duplicates(
+    tmp_path: Path,
+) -> None:
+    sharded = append_snapshot(_record("manifest-sharded"), root=tmp_path)
+    legacy = append_snapshot(_record("manifest-legacy"), root=tmp_path)
+    legacy_path = _move_sharded_index_to_legacy_flat(tmp_path, legacy.index_path)
+    manifest = tmp_path / "manifest.jsonl"
+    manifest_lines = manifest.read_text(encoding="utf-8").splitlines()
+    with manifest.open("a", encoding="utf-8") as handle:
+        handle.write(manifest_lines[-1] + "\n")
+
+    records = list(iter_index_records(root=tmp_path))
+    by_id = {str(record["snapshot_id"]): record for record in records}
+
+    assert [record["snapshot_id"] for record in records] == [
+        "manifest-sharded",
+        "manifest-legacy",
+    ]
+    assert Path(by_id["manifest-sharded"]["_index_path"]) == sharded.index_path
+    assert Path(by_id["manifest-legacy"]["_index_path"]) == legacy_path
+
+
+def test_rglob_fallback_deduplicates_mixed_legacy_and_sharded_layout(
+    tmp_path: Path,
+) -> None:
+    sharded = append_snapshot(_record("rglob-sharded"), root=tmp_path)
+    legacy = append_snapshot(_record("rglob-legacy"), root=tmp_path)
+    _move_sharded_index_to_legacy_flat(tmp_path, legacy.index_path)
+    duplicate_flat_path = (
+        tmp_path / "index" / "snapshot_id" / sharded.index_path.name
+    )
+    shutil.copy2(sharded.index_path, duplicate_flat_path)
+    (tmp_path / "manifest.jsonl").unlink()
+
+    records = list(iter_index_records(root=tmp_path))
+    ids = [str(record["snapshot_id"]) for record in records]
+    by_id = {str(record["snapshot_id"]): record for record in records}
+
+    assert sorted(ids) == ["rglob-legacy", "rglob-sharded"]
+    assert Path(by_id["rglob-sharded"]["_index_path"]) == sharded.index_path
+
+
+@pytest.mark.parametrize("layout", ("sharded", "legacy_flat"))
+def test_rollover_deletes_actual_index_path_for_each_layout(
+    tmp_path: Path,
+    layout: str,
+) -> None:
+    result = append_snapshot(
+        _record(f"rollover-{layout}", payload="x" * 4096),
+        root=tmp_path,
+    )
+    actual_index_path = result.index_path
+    if layout == "legacy_flat":
+        actual_index_path = _move_sharded_index_to_legacy_flat(
+            tmp_path,
+            result.index_path,
+        )
+
+    status = rollover_archive(root=tmp_path, max_bytes=1)
+
+    assert status["removed_snapshot_ids"] == [f"rollover-{layout}"]
+    assert not actual_index_path.exists()
+    assert not result.blob_path.exists()
+    assert load_snapshot(f"rollover-{layout}", root=tmp_path, verify=False) is None
 
 
 def test_snapshot_content_hash_verification(tmp_path: Path) -> None:
