@@ -40,6 +40,9 @@ from v2.backend.app.services.microstructure_trust.trade_tape_confirmation import
     evaluate_trade_tape_confirmation,
 )
 from v2.backend.app.services.microstructure_trust.trust_score import score_microstructure_trust
+from v2.backend.app.services.adaptive_system.candidate_outcome_calibration_v2 import (
+    validate_candidate_outcome_calibration_v2,
+)
 from v2.backend.app.services.v2_symbol_runtime_universe import resolve_symbols
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
@@ -52,6 +55,7 @@ V2_REDIS_PREFIX = "v2:"
 MICROSTRUCTURE_REDIS_PREFIX = f"{V2_REDIS_PREFIX}microstructure:"
 STATUS_WORKER_ID = "v2_microstructure_feed_quality_monitor"
 REDIS_TTL_SECONDS = 60
+CANDIDATE_CALIBRATION_KEY = "v2:adaptive_system:candidate_calibration:v2"
 # Decision timeframes every V2 snapshot/tensor reader keys on. The monitor
 # computes trust from the LIVE book + tape (timeframe-agnostic evidence), but
 # the readers (feature pipeline, trainer data loader, a_plus gate) look up
@@ -243,6 +247,177 @@ def _safe_set_json(redis_client: Any, key: str, payload: Mapping[str, Any], *, t
         raise ValueError(f"refused_non_microstructure_redis_key:{key}")
     redis_client.set(key, json.dumps(dict(payload), sort_keys=True, separators=(",", ":"), default=str), ex=int(ttl_seconds))
     return True
+
+
+def _validated_candidate_calibration(redis_client: Any) -> dict[str, Any] | None:
+    payload = _safe_get_json(redis_client, CANDIDATE_CALIBRATION_KEY)
+    if not isinstance(payload, Mapping):
+        return None
+    try:
+        validate_candidate_outcome_calibration_v2(payload)
+    except Exception:  # noqa: BLE001
+        return None
+    return dict(payload)
+
+
+def _visible_depth_usd(payload: Mapping[str, Any], side: str) -> float | None:
+    explicit = _float(payload.get(f"depth_20_{side}_usd"))
+    if explicit is not None and explicit >= 0.0:
+        return explicit
+    rows = payload.get(f"{side}s") or payload.get(side[:1])
+    if not isinstance(rows, list):
+        return None
+    total = 0.0
+    observed = False
+    for row in rows[:20]:
+        if isinstance(row, Mapping):
+            price = _float(row.get("price") or row.get("p"))
+            quantity = _float(
+                row.get("quantity")
+                or row.get("qty")
+                or row.get("q")
+                or row.get("size")
+            )
+        elif isinstance(row, (list, tuple)) and len(row) >= 2:
+            price = _float(row[0])
+            quantity = _float(row[1])
+        else:
+            continue
+        if price is not None and quantity is not None and price > 0.0 and quantity >= 0.0:
+            total += price * quantity
+            observed = True
+    return total if observed else None
+
+
+def _continuous_microstructure_estimates(
+    *,
+    books: Mapping[str, Any],
+    trust: Mapping[str, Any],
+    calibration: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    """Bind calibrated outcome priors to the current observed book state.
+
+    These estimates are continuous policy inputs only.  They never authorize
+    an entry and never replace the source-integrity or venue validators.
+    """
+
+    if not isinstance(calibration, Mapping):
+        return {
+            "schema_version": "microstructure_continuous_estimates_v1",
+            "status": "BLOCKED_CALIBRATION_MISSING_OR_INVALID",
+            "complete": False,
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+        }
+    statistics = calibration.get("global_statistics")
+    statistics = statistics if isinstance(statistics, Mapping) else {}
+    slippage_quantiles = statistics.get("slippage_bps_quantiles")
+    impact_quantiles = statistics.get("market_impact_bps_quantiles")
+    slippage_quantiles = slippage_quantiles if isinstance(slippage_quantiles, Mapping) else {}
+    impact_quantiles = impact_quantiles if isinstance(impact_quantiles, Mapping) else {}
+    base_fill = _float(statistics.get("venue_infeasible_probability"))
+    base_adverse = _float(statistics.get("slippage_failure_probability"))
+    calibrated_slippage = _float(slippage_quantiles.get("0.5"))
+    calibrated_impact = _float(impact_quantiles.get("0.5"))
+    trust_score = _float(trust.get("microstructure_trust_score"))
+    sweep = _float(trust.get("sweep_risk_score"))
+
+    primary = books.get("binance")
+    if not isinstance(primary, Mapping):
+        primary = next(
+            (row for row in books.values() if isinstance(row, Mapping)),
+            None,
+        )
+    spread = _float(primary.get("spread_bps")) if isinstance(primary, Mapping) else None
+    observed_impact = (
+        _float(primary.get("estimated_price_impact_bps"))
+        if isinstance(primary, Mapping)
+        else None
+    )
+    bid_depth = _visible_depth_usd(primary, "bid") if isinstance(primary, Mapping) else None
+    ask_depth = _visible_depth_usd(primary, "ask") if isinstance(primary, Mapping) else None
+    liquidity_capacity = (
+        min(bid_depth, ask_depth)
+        if bid_depth is not None and ask_depth is not None
+        else None
+    )
+
+    complete_inputs = all(
+        value is not None
+        for value in (
+            base_fill,
+            base_adverse,
+            calibrated_slippage,
+            calibrated_impact,
+            trust_score,
+            sweep,
+            liquidity_capacity,
+        )
+    )
+    if not complete_inputs:
+        return {
+            "schema_version": "microstructure_continuous_estimates_v1",
+            "status": "BLOCKED_CONTINUOUS_INPUT_MISSING",
+            "complete": False,
+            "calibration_sha256": calibration.get("calibration_sha256"),
+            "calibration_sample_count": calibration.get("fit_sample_count"),
+            "liquidity_capacity_observed": liquidity_capacity is not None,
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+        }
+
+    assert base_fill is not None
+    assert base_adverse is not None
+    assert calibrated_slippage is not None
+    assert calibrated_impact is not None
+    assert trust_score is not None
+    assert sweep is not None
+    assert liquidity_capacity is not None
+    fill_probability = (1.0 - base_fill) * trust_score * (1.0 - sweep)
+    adverse_selection = 1.0 - ((1.0 - base_adverse) * (1.0 - sweep))
+    slippage_bps = max(calibrated_slippage, (spread or 0.0) / 2.0)
+    market_impact_bps = max(calibrated_impact, observed_impact or 0.0)
+    return {
+        "schema_version": "microstructure_continuous_estimates_v1",
+        "status": "PASS_CALIBRATED_CONTINUOUS_ESTIMATES",
+        "complete": True,
+        "fill_probability": round(max(0.0, min(1.0, fill_probability)), 8),
+        "slippage_bps": round(max(0.0, slippage_bps), 8),
+        "market_impact_bps": round(max(0.0, market_impact_bps), 8),
+        "adverse_selection_probability": round(
+            max(0.0, min(1.0, adverse_selection)), 8
+        ),
+        "available_liquidity_capacity_usd": round(
+            max(0.0, liquidity_capacity), 8
+        ),
+        "sweep_risk": round(max(0.0, min(1.0, sweep)), 8),
+        "observed_spread_bps": spread,
+        "observed_market_impact_bps": observed_impact,
+        "calibration_sha256": calibration.get("calibration_sha256"),
+        "calibration_fit_row_digest": calibration.get("fit_row_digest"),
+        "calibration_population_sha256": calibration.get(
+            "training_population_sha256"
+        ),
+        "calibration_sample_count": calibration.get("fit_sample_count"),
+        "calibration_window_start_ms": calibration.get("fit_window_start_ms"),
+        "calibration_window_end_ms": calibration.get("fit_window_end_ms"),
+        "calibration_record_available_at_ms": calibration.get(
+            "fit_record_available_at_ms"
+        ),
+        "calibration_holdout_used_for_fitting": False,
+        "live_book_adjustment_formula": (
+            "fill=(1-venue_infeasible_probability)*trust*(1-sweep);"
+            "adverse=1-(1-slippage_failure_probability)*(1-sweep);"
+            "slippage=max(calibrated_p50,spread/2);"
+            "impact=max(calibrated_p50,observed_impact)"
+        ),
+        "policy_authority": False,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
 
 
 def _book_payload(redis_client: Any, exchange: str, symbol: str) -> dict[str, Any] | None:
@@ -562,6 +737,7 @@ def _build_symbol_rows(
     replay_root: Path,
     decision_time: str,
     provider_symbol_support: Mapping[str, Any] | None = None,
+    calibration: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     books = {exchange: _book_payload(redis_client, exchange, symbol) for exchange in exchanges}
     book_for_tape = next((payload for payload in books.values() if isinstance(payload, Mapping)), None)
@@ -753,6 +929,27 @@ def _build_symbol_rows(
             },
         }
     )
+    continuous_estimates = _continuous_microstructure_estimates(
+        books=books,
+        trust=trust,
+        calibration=calibration,
+    )
+    trust["continuous_estimates"] = continuous_estimates
+    for field in (
+        "fill_probability",
+        "slippage_bps",
+        "market_impact_bps",
+        "adverse_selection_probability",
+        "available_liquidity_capacity_usd",
+        "sweep_risk",
+    ):
+        if continuous_estimates.get(field) is not None:
+            trust[field] = continuous_estimates[field]
+    trust["liquidity_capacity_usd"] = continuous_estimates.get(
+        "available_liquidity_capacity_usd"
+    )
+    trust["continuous_estimates_complete"] = continuous_estimates.get("complete") is True
+    trust["continuous_estimates_status"] = continuous_estimates.get("status")
     return {
         "symbol": symbol.upper(),
         "timeframe": timeframe,
@@ -935,6 +1132,7 @@ def run_once(
     started_at = iso_now()
     redis_client = redis_client_override if redis_client_override is not None else _redis_client(enabled=not plan_only or write_redis)
     provider_symbol_support = _load_provider_symbol_support()
+    calibration = _validated_candidate_calibration(redis_client)
     rows = [] if plan_only else [
         _build_symbol_rows(
             redis_client=redis_client,
@@ -944,6 +1142,7 @@ def run_once(
             replay_root=replay_root,
             decision_time="",
             provider_symbol_support=provider_symbol_support,
+            calibration=calibration,
         )
         for symbol in symbols
     ]

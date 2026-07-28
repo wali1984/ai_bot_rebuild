@@ -431,6 +431,7 @@ def _microstructure_trust_evidence_core_rejection_reasons(
         "REDUCE_SIZE",
         "NO_TRADE",
         "SHADOW_ONLY",
+        "CLOSE_OR_REDUCE_ONLY",
     }:
         reasons.append("microstructure_trust_action_invalid")
     for field in (

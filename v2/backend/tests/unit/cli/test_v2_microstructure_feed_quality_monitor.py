@@ -115,6 +115,49 @@ def test_microstructure_monitor_writes_only_microstructure_keys(tmp_path) -> Non
     assert trust["decision_time"] == trust["record_available_at"]
 
 
+def test_continuous_microstructure_estimates_bind_calibration_and_live_book() -> None:
+    estimates = monitor._continuous_microstructure_estimates(  # noqa: SLF001
+        books={
+            "binance": {
+                "spread_bps": 2.0,
+                "estimated_price_impact_bps": 7.0,
+                "depth_20_bid_usd": 1000.0,
+                "depth_20_ask_usd": 800.0,
+            }
+        },
+        trust={
+            "microstructure_trust_score": 0.5,
+            "sweep_risk_score": 0.2,
+        },
+        calibration={
+            "calibration_sha256": "a" * 64,
+            "fit_row_digest": "b" * 64,
+            "training_population_sha256": "c" * 64,
+            "fit_sample_count": 1000,
+            "fit_window_start_ms": 1,
+            "fit_window_end_ms": 2,
+            "fit_record_available_at_ms": 3,
+            "global_statistics": {
+                "venue_infeasible_probability": 0.1,
+                "slippage_failure_probability": 0.25,
+                "slippage_bps_quantiles": {"0.5": 1.5},
+                "market_impact_bps_quantiles": {"0.5": 6.0},
+            },
+        },
+    )
+
+    assert estimates["status"] == "PASS_CALIBRATED_CONTINUOUS_ESTIMATES"
+    assert estimates["complete"] is True
+    assert estimates["fill_probability"] == pytest.approx(0.36)
+    assert estimates["slippage_bps"] == pytest.approx(1.5)
+    assert estimates["market_impact_bps"] == pytest.approx(7.0)
+    assert estimates["adverse_selection_probability"] == pytest.approx(0.4)
+    assert estimates["available_liquidity_capacity_usd"] == pytest.approx(800.0)
+    assert estimates["sweep_risk"] == pytest.approx(0.2)
+    assert estimates["policy_authority"] is False
+    assert estimates["paper_only"] is True
+
+
 def test_microstructure_monitor_consumes_generic_v2_market_orderbook_without_overstating_direct_feed(tmp_path) -> None:
     fake = FakeRedis(
         {

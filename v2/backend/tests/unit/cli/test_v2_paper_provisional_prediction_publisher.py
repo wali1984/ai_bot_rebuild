@@ -7,6 +7,38 @@ from types import SimpleNamespace
 from v2.backend.app.cli import v2_paper_provisional_prediction_publisher as publisher
 
 
+def _microstructure_source(action: str = "SHADOW_ONLY") -> dict[str, object]:
+    return {
+        "schema_version": "microstructure_trust_score_v2",
+        "symbol": "BTCUSDT",
+        "timeframe": "5m",
+        "available_at": "2026-07-26T19:40:00.100Z",
+        "decision_time": "2026-07-26T19:40:00.200Z",
+        "generated_at": "2026-07-26T19:40:00.300Z",
+        "microstructure_trust_score": 0.30,
+        "composite_microstructure_trust_score": 0.30,
+        "microstructure_action": action,
+        "sweep_risk": 0.20,
+        "sweep_risk_score": 0.20,
+        "book_sequence_gap": False,
+        "sequence_gap_flag": 0,
+        "feed_integrity_pass": True,
+        "latency_within_bound": True,
+        "sequence_gap_free": True,
+        "sweep_direction_uncertain": False,
+        "missing_components": [],
+    }
+
+
+def _microstructure_tensor() -> SimpleNamespace:
+    return SimpleNamespace(
+        tensor_id="tensor-1",
+        feature_snapshot_id="snapshot-1",
+        source_lineage_hash="a" * 64,
+        timeframe="5m",
+    )
+
+
 def test_current_feature_snapshot_binds_postcommit_availability_receipt() -> None:
     snapshot = {
         "feature_snapshot_id": "snapshot-1",
@@ -168,3 +200,86 @@ def test_publish_one_bounds_mtf_selection_to_feature_cutoff(monkeypatch) -> None
 
     assert result["status"] == "MTF_SNAPSHOT_INVALID"
     assert captured["decision_time"] == cutoff_ms
+
+
+def test_valid_unfavorable_microstructure_is_not_a_publication_rejection() -> None:
+    source = _microstructure_source("SHADOW_ONLY")
+
+    class Client:
+        def get(self, _key: str) -> str:
+            return json.dumps(source)
+
+        def ttl(self, _key: str) -> int:
+            return 60
+
+    action, evidence = publisher.build_micro_evidence(
+        Client(),
+        symbol="BTCUSDT",
+        timeframe="5m",
+        tensor=_microstructure_tensor(),
+        decision_time_iso="2026-07-26T19:40:01.000000Z",
+    )
+
+    assert action == "SHADOW_ONLY"
+    assert evidence is not None
+    assert evidence["evidence_valid"] is True
+    assert publisher.microstructure_publication_rejection_reasons(
+        action=action,
+        evidence=evidence,
+    ) == []
+
+
+def test_close_or_reduce_only_remains_a_new_entry_restriction() -> None:
+    source = _microstructure_source("CLOSE_OR_REDUCE_ONLY")
+
+    class Client:
+        def get(self, _key: str) -> str:
+            return json.dumps(source)
+
+        def ttl(self, _key: str) -> int:
+            return 60
+
+    action, evidence = publisher.build_micro_evidence(
+        Client(),
+        symbol="BTCUSDT",
+        timeframe="5m",
+        tensor=_microstructure_tensor(),
+        decision_time_iso="2026-07-26T19:40:01.000000Z",
+    )
+
+    assert evidence is not None
+    assert evidence["evidence_valid"] is True
+    assert publisher.microstructure_publication_rejection_reasons(
+        action=action,
+        evidence=evidence,
+    ) == ["MICROSTRUCTURE_CLOSE_OR_REDUCE_ONLY_NEW_ENTRY_RESTRICTED"]
+
+
+def test_changed_microstructure_readback_fails_integrity_closed() -> None:
+    loaded = _microstructure_source("SHADOW_ONLY")
+    changed = {**loaded, "microstructure_trust_score": 0.31}
+    reads = iter((loaded, changed))
+
+    class Client:
+        def get(self, _key: str) -> str:
+            return json.dumps(next(reads))
+
+        def ttl(self, _key: str) -> int:
+            return 60
+
+    action, evidence = publisher.build_micro_evidence(
+        Client(),
+        symbol="BTCUSDT",
+        timeframe="5m",
+        tensor=_microstructure_tensor(),
+        decision_time_iso="2026-07-26T19:40:01.000000Z",
+    )
+
+    assert action == "SHADOW_ONLY"
+    assert evidence is not None
+    assert evidence["evidence_valid"] is False
+    reasons = publisher.microstructure_publication_rejection_reasons(
+        action=action,
+        evidence=evidence,
+    )
+    assert any("source_readback_not_verified" in reason for reason in reasons)

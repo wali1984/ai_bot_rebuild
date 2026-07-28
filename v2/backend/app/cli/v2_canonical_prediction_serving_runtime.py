@@ -149,7 +149,7 @@ def run_cycle(
     observations: list[dict[str, Any]] = []
     published = directional = 0
     rejections: dict[str, int] = {}
-    feat_valid = cost_valid = micro_valid = 0
+    feat_valid = cost_valid = micro_valid = micro_valid_unfavorable = 0
     for symbol in symbols:
         for timeframe in timeframes:
             res = publish_one(
@@ -162,6 +162,8 @@ def run_cycle(
                 cost_valid += 1
             if res.get("microstructure_evidence_valid") is True:
                 micro_valid += 1
+            if res.get("microstructure_valid_unfavorable_state") is True:
+                micro_valid_unfavorable += 1
             if res.get("status") == "PUBLISHED":
                 published += 1
                 feat_valid += 1
@@ -202,6 +204,10 @@ def run_cycle(
         "feature_evidence_valid_count": feat_valid,
         "cost_evidence_valid_count": cost_valid,
         "microstructure_evidence_valid_count": micro_valid,
+        "microstructure_valid_unfavorable_published_count": (
+            micro_valid_unfavorable
+        ),
+        "microstructure_integrity_market_state_authority_split": True,
         "checkpoint_reload_count": reload_count,
         "checkpoint_reload_failures": 0,
         "rollback_count": rollback_count,

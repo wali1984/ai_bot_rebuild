@@ -31,6 +31,7 @@ def test_run_cycle_reports_real_evidence_validity_counts(monkeypatch) -> None:
                 "directional": True,
                 "cost_evidence_valid": True,
                 "microstructure_evidence_valid": True,
+                "microstructure_valid_unfavorable_state": True,
             },
         ]
     )
@@ -72,6 +73,8 @@ def test_run_cycle_reports_real_evidence_validity_counts(monkeypatch) -> None:
     assert status["directional_records"] == 1
     assert status["cost_evidence_valid_count"] == 2
     assert status["microstructure_evidence_valid_count"] == 2
+    assert status["microstructure_valid_unfavorable_published_count"] == 1
+    assert status["microstructure_integrity_market_state_authority_split"] is True
     assert publisher_kwargs["feature_snapshot_archive_root"] == (
         serving.Path.cwd()
         / ".local_data/v2_native_trainer/durable_feature_snapshot_archive"

@@ -91,7 +91,13 @@ STATUS_KEY = "v2:trainer:paper_provisional_prediction_publisher:status"
 ADAPTIVE_COST_KEY_TEMPLATE = "v2:costs:round_trip_bps:{symbol}"
 MICROSTRUCTURE_KEY_TEMPLATE = "v2:microstructure:trust_score:{symbol}:{timeframe}"
 COHORT_ACTIVATION_KEY = "v2:paper:provisional_cohort_activation"
-MICRO_ACTIONS_OK = {"ALLOW", "REDUCE_SIZE"}
+MICRO_ACTIONS_AUTHENTICATED_MARKET_STATE = {
+    "ALLOW",
+    "REDUCE_SIZE",
+    "NO_TRADE",
+    "SHADOW_ONLY",
+}
+MICRO_ACTIONS_NEW_ENTRY_RESTRICTED = {"CLOSE_OR_REDUCE_ONLY"}
 DEFAULT_CHECKPOINT = (
     Path(REPO_ROOT) / ".local_models/paper_provisional/PAPER_PROVISIONAL_100_ROW_CHECKPOINT.pt"
 )
@@ -683,9 +689,15 @@ def build_micro_evidence(
         ttl_int = int(ttl) if isinstance(ttl, int) and ttl > 0 else None
         if ttl_int is None:
             continue
+        # A second GET is mandatory.  Passing the first in-memory object as its
+        # own readback falsely asserted that a mutable Redis record had not
+        # changed between observation and evidence sealing.
+        readback = read_json_key(client, source_key)
         evidence = build_microstructure_trust_evidence(
             source_payload=payload,
-            source_payload_readback=payload,
+            source_payload_readback=(
+                readback if isinstance(readback, Mapping) else None
+            ),
             source_key=source_key,
             source_observed_ttl_seconds=ttl_int,
             tensor_id=tensor.tensor_id,
@@ -695,9 +707,37 @@ def build_micro_evidence(
             symbol=symbol,
             timeframe=tensor.timeframe,
         )
-        action = str(payload.get("microstructure_action") or "").upper()
+        action_source = readback if isinstance(readback, Mapping) else payload
+        action = str(action_source.get("microstructure_action") or "").upper()
         return action, evidence
     return None, None
+
+
+def microstructure_publication_rejection_reasons(
+    *,
+    action: Any,
+    evidence: Mapping[str, Any] | None,
+) -> list[str]:
+    """Separate evidence-integrity failures from valid adverse market state."""
+
+    normalized_action = str(action or "").upper()
+    reasons: list[str] = []
+    if not isinstance(evidence, Mapping):
+        reasons.append("MICROSTRUCTURE_EVIDENCE_MISSING")
+    elif evidence.get("evidence_valid") is not True:
+        producer_reasons = evidence.get("producer_rejection_reasons")
+        if isinstance(producer_reasons, list) and producer_reasons:
+            reasons.extend(
+                f"MICROSTRUCTURE_EVIDENCE_INVALID:{reason}"
+                for reason in producer_reasons
+            )
+        else:
+            reasons.append("MICROSTRUCTURE_EVIDENCE_INVALID")
+    if normalized_action in MICRO_ACTIONS_NEW_ENTRY_RESTRICTED:
+        reasons.append("MICROSTRUCTURE_CLOSE_OR_REDUCE_ONLY_NEW_ENTRY_RESTRICTED")
+    elif normalized_action not in MICRO_ACTIONS_AUTHENTICATED_MARKET_STATE:
+        reasons.append("MICROSTRUCTURE_ACTION_INVALID_OR_MISSING")
+    return sorted(set(reasons))
 
 
 def classify_row(
@@ -877,10 +917,26 @@ def publish_one(
         client, symbol=symbol, timeframe=timeframe, tensor=tensor,
         decision_time_iso=decision_iso,
     )
-    if micro_action not in MICRO_ACTIONS_OK or micro_evidence is None:
+    microstructure_rejection_reasons = microstructure_publication_rejection_reasons(
+        action=micro_action,
+        evidence=micro_evidence,
+    )
+    if microstructure_rejection_reasons:
+        restricted_new_entry = (
+            "MICROSTRUCTURE_CLOSE_OR_REDUCE_ONLY_NEW_ENTRY_RESTRICTED"
+            in microstructure_rejection_reasons
+            and len(microstructure_rejection_reasons) == 1
+        )
         return {
-            "symbol": symbol, "timeframe": timeframe, "status": "MICROSTRUCTURE_BLOCKED",
+            "symbol": symbol,
+            "timeframe": timeframe,
+            "status": (
+                "MICROSTRUCTURE_NEW_ENTRY_RESTRICTED"
+                if restricted_new_entry
+                else "MICROSTRUCTURE_INTEGRITY_REJECTED"
+            ),
             "microstructure_action": micro_action,
+            "reject_reasons": microstructure_rejection_reasons,
             "cost_evidence_valid": cost_provenance is not None,
             "microstructure_evidence_valid": bool(
                 isinstance(micro_evidence, Mapping)
@@ -1090,6 +1146,26 @@ def publish_one(
         )
     payload["microstructure_action"] = micro_action
     payload["microstructure_trust_evidence"] = micro_evidence
+    payload["microstructure_market_state_authority"] = (
+        "CONTINUOUS_ADAPTIVE_POLICY_INPUT"
+    )
+    payload["microstructure_integrity_gate_passed"] = True
+    payload["microstructure_valid_unfavorable_state"] = micro_action in {
+        "NO_TRADE",
+        "SHADOW_ONLY",
+    }
+    microstructure_source = (
+        micro_evidence.get("source_payload")
+        if isinstance(micro_evidence, Mapping)
+        else None
+    )
+    if isinstance(microstructure_source, Mapping):
+        payload["microstructure_continuous_estimates"] = dict(
+            microstructure_source.get("continuous_estimates") or {}
+        )
+        payload["microstructure_continuous_estimates_complete"] = (
+            microstructure_source.get("continuous_estimates_complete") is True
+        )
 
     # Write the MTF snapshot the record references (trust replay dependency).
     mtf_snapshot_payload = attach_runtime_trust_metadata(
@@ -1167,6 +1243,11 @@ def publish_one(
             isinstance(micro_evidence, Mapping)
             and micro_evidence.get("evidence_valid") is True
         ),
+        "microstructure_action": micro_action,
+        "microstructure_valid_unfavorable_state": micro_action in {
+            "NO_TRADE",
+            "SHADOW_ONLY",
+        },
     }
 
 
