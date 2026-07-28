@@ -2814,3 +2814,11 @@ directional and contract-valid but not superior: validation Brier
 `0.2556210252` exceeded the `0.2368807793` baseline. No registry write occurred.
 The next immutable trigger is `matured_outcomes >= 29441 OR effective_N >=
 161.1`; the automatic timer and current-epoch lifecycle observer remain armed.
+
+The fourth trigger completed dispatch
+`adaptive_dispatch_52a2098ca2899849347038c8b355565c` on a 21,039-row signed
+release. Checkpoint `SERVING_ABI_V2_PROFITABILITY_PAPER_707b1390161d9f96ab9246f1`
+was rejected because validation Brier `0.3007648298` did not improve the
+`0.2724088430` baseline. Generation 3 remains active, the candidate registry is
+absent, and the next frozen trigger is `matured_outcomes >= 29890 OR effective_N
+>= 160.6`.
