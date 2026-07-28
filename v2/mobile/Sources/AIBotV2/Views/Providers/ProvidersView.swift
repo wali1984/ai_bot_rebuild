@@ -338,7 +338,7 @@ struct ProvidersView: View {
     private func degradedProviderRow(_ provider: EnterpriseProviderCard) -> some View {
         let color = providerColor(provider.providerDashboardTone)
         Button {
-            withAnimation(.default) {
+            SwiftUI.withAnimation(.default) {
                 expandedProviders.insert(provider.provider)
             }
         } label: {
@@ -398,7 +398,7 @@ struct ProvidersView: View {
         let isExpanded = expandedProviders.contains(provider.provider)
         return VStack(alignment: .leading, spacing: 10) {
             Button {
-                withAnimation(.default) {
+                SwiftUI.withAnimation(.default) {
                     if isExpanded {
                         expandedProviders.remove(provider.provider)
                     } else {

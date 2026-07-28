@@ -505,7 +505,7 @@ struct TrainerPredictionView: View {
     private var flatListHeader: some View {
         if hasGrid {
             Button {
-                withAnimation(.default) { showFlatList.toggle() }
+                SwiftUI.withAnimation(.default) { showFlatList.toggle() }
             } label: {
                 HStack {
                     SectionHeader(title: "All Signals · list", accent: NerVyx.signal)

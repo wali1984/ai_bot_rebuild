@@ -207,7 +207,7 @@ struct AlertsView: View {
         let accent = bucket.map(AlertSeverityStyle.color) ?? NerVyx.primary
         let dim = count == 0 && bucket != nil
         return Button {
-            withAnimation(.default) { filter = bucket }
+            SwiftUI.withAnimation(.default) { filter = bucket }
         } label: {
             HStack(spacing: 6) {
                 if let bucket {
@@ -250,7 +250,7 @@ struct AlertsView: View {
                 .multilineTextAlignment(.center)
             if filter != nil {
                 Button("Show all alerts") {
-                    withAnimation(.default) { filter = nil }
+                    SwiftUI.withAnimation(.default) { filter = nil }
                 }
                 .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(NerVyx.signal)

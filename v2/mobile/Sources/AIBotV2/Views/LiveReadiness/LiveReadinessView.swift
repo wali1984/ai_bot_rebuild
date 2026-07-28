@@ -175,8 +175,8 @@ struct LiveReadinessView: View {
             .background(NerVyx.borderSubtle.opacity(0.4))
             .clipShape(Capsule())
             .overlay(Capsule().stroke(NerVyx.borderSubtle, lineWidth: 1))
-            .animation(.default, value: vm.passedCount)
-            .animation(.default, value: vm.blockedCount)
+            .animation(SwiftUI.Animation.default, value: vm.passedCount)
+            .animation(SwiftUI.Animation.default, value: vm.blockedCount)
 
             HStack(spacing: 12) {
                 legendDot(label: "Passed", count: vm.passedCount, color: NerVyx.validation)
@@ -284,7 +284,7 @@ struct LiveReadinessView: View {
         if !gates.isEmpty {
             VStack(spacing: 8) {
                 Button {
-                    withAnimation(.default) { toggleSection(key) }
+                    SwiftUI.withAnimation(.default) { toggleSection(key) }
                 } label: {
                     HStack(spacing: 10) {
                         Image(systemName: icon)
@@ -314,7 +314,7 @@ struct LiveReadinessView: View {
                                 gate: gate,
                                 isExpanded: expandedGates.contains(gate.id)
                             ) {
-                                withAnimation(.default) { toggleGate(gate.id) }
+                                SwiftUI.withAnimation(.default) { toggleGate(gate.id) }
                             }
                             if gate.id != gates.last?.id {
                                 NerVyxDivider().padding(.leading, 46)

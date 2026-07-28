@@ -186,7 +186,7 @@ struct LivePulse: View {
                 .frame(width: 7, height: 7)
         }
         .onAppear {
-            withAnimation(.default.repeatForever(autoreverses: false)) {
+            SwiftUI.withAnimation(.default.repeatForever(autoreverses: false)) {
                 animating = true
             }
         }

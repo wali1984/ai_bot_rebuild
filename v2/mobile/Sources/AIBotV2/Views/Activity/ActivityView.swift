@@ -230,7 +230,7 @@ struct ActivityView: View {
         HStack(spacing: 8) {
             ForEach(ActivityWindow.allCases) { window in
                 Button {
-                    withAnimation(.default) { selectedWindow = window }
+                    SwiftUI.withAnimation(.default) { selectedWindow = window }
                 } label: {
                     Text(window.rawValue)
                         .font(.system(size: 12, weight: .bold, design: .monospaced))
@@ -352,7 +352,7 @@ struct ActivityView: View {
             HStack(spacing: 8) {
                 ForEach(ActivityFilter.allCases) { filter in
                     Button {
-                        withAnimation(.default) { selectedFilter = filter }
+                        SwiftUI.withAnimation(.default) { selectedFilter = filter }
                     } label: {
                         Text(filter.rawValue)
                             .font(.system(size: 11, weight: .bold))
