@@ -39,6 +39,14 @@ def test_repair_holds_are_republished_from_durable_inventory(tmp_path, monkeypat
     assert writes[0][:2] == ("SET", "v2:operations:repair_holds")
 
 
+def test_runtime_evidence_root_is_independent_from_immutable_code_root(
+    tmp_path, monkeypatch
+) -> None:
+    monkeypatch.setenv("V2_RUNTIME_REPO_ROOT", str(tmp_path))
+
+    assert validator._runtime_repo_root() == tmp_path
+
+
 def test_active_repair_held_unit_fails_closed(monkeypatch) -> None:
     unit = "ai-bot-v2-held.service"
     monkeypatch.setattr(validator, "expected_active_units", lambda: {})

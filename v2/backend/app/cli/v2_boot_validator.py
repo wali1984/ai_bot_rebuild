@@ -21,7 +21,15 @@ import time
 from datetime import UTC, datetime
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[4]
+CODE_ROOT = Path(__file__).resolve().parents[4]
+
+
+def _runtime_repo_root() -> Path:
+    configured = os.environ.get("V2_RUNTIME_REPO_ROOT")
+    return Path(configured).expanduser() if configured else CODE_ROOT
+
+
+REPO_ROOT = _runtime_repo_root()
 KLINE_STATUS = REPO_ROOT / "v2/frontend/public/operator_runtime/v2_binance_kline_wss/latest/v2_binance_kline_wss_status.json"
 PUBLISHER_STATUS = Path("/home/wali/ai_bot_local_data/v2_native_trainer/profiled_base_publisher_v1/profiled_base_publisher_status_v1.json")
 COMMISSION_CAS = Path("/home/wali/ai_bot_local_data/v2_authenticated_evidence/binance_usdm_commission_broker_v1/commission-evidence-cas")
