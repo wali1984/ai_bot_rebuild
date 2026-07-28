@@ -1604,7 +1604,7 @@ hard and fail closed.
 | FP-030 | 2 | Define and verify `AdaptivePolicyActionV2` | Claude/Codex | COMPLETE | Canonical contract `0980e69210`, duplicate removed `658d6fc760`; 45 tests and independent SHA review PASS |
 | FP-040 | 3 | Convert component vetoes into calibrated continuous estimates | Claude/Codex | IN_PROGRESS | Shadow schema/projector accepted at `2934dcff31` + `5ce083874d`; candidate `28aada8c39` consumes conservative continuous microstructure estimates and converts non-catastrophic performance regression to a bounded objective penalty; remaining component producers and full authority cutover remain |
 | FP-050 | 4 | Implement portfolio after-cost objective and adaptive exploration allocation | Claude/Codex | IN_PROGRESS | Independently accepted shadow foundation `d12f418d3d`; authenticated hard-validation evidence, exact PIT/lineage/units, self-recomputing scores, nonterminal flat-collapse signals, and bounded positive-utility information seeking; runtime fitting and policy integration remain |
-| FP-060 | 5 | Build `CandidateDecisionOutcomeV2` and point-in-time matured labels | Claude/Codex | COMPLETE | Contract `289bb9911f`; active immutable publisher reports 8,471 decision revisions, 7,854 matured revisions, verified signed archive, zero invalid/duplicate rows, candidate coverage=1.0, eligible matured coverage=1.0, unexplained drops=0, and counterfactuals excluded from paper profit |
+| FP-060 | 5 | Build `CandidateDecisionOutcomeV2` and point-in-time matured labels | Claude/Codex | COMPLETE | Contract `289bb9911f`; immutable runtime `27635258e8` publishes the complete unsampled candidate universe and now reports 10,335 decision revisions, 8,593 matured revisions and 18,928 verified signed rows, with zero invalid/duplicate rows, candidate and eligible-maturation coverage=1.0, unexplained drops=0, counterfactuals excluded from paper profit, and calibration bound to the identical archive chain |
 | FP-070 | 6 | Attribute gate performance and missed opportunity cost | Claude/Codex | PENDING | Exact segmented false-positive/negative, avoided-loss, and opportunity-cost evidence |
 | FP-080 | 7 | Build complete eligible-data funnel and repair corpus utilization | Claude/Codex | IN_PROGRESS | Commit `c956ec46b8` replaces the stale arithmetic-only report with an authenticated identity-scoped collector. The real read-only run proves 302,183 one-to-one frozen canonical/raw-payload records, 810 finality-proven feature snapshots, 397 cost/microstructure-complete snapshots, 386 exact labeled imports, 382 embargoed training rows, 8,471 typed candidates, 7,854 matured outcomes, and exact rows per checkpoint. The paths reconcile, but full paid-source inventory binding and the typed-outcome→gen-5 join remain open (exact overlap 0), so the report truthfully stays `BLOCK` and was not published to Redis before review. |
 | FP-090 | 8 | Verify one shared, point-in-time-safe train/serve representation | Claude/Codex | IN_PROGRESS | Gen-5 ABI and builder hashes match, feature order matches, required missing rate=0, and PIT manifest counters are zero; activation remains fail-closed because current serving distribution comparison is explicitly `CURRENT_SERVING_DISTRIBUTION_NOT_YET_EVALUATED` |
@@ -1612,16 +1612,16 @@ hard and fail closed.
 | FP-110 | 10 | Implement automatic adaptation-escalation state machine | Claude/Codex | PENDING | Negative edge, starvation, flat collapse, and drift advance the ladder automatically |
 | FP-120 | 11 | Verify champion/challenger promotion, rollback, and serving independence | Claude/Codex | PENDING | Atomic receipts, superior-evidence promotion, rollback, trainer independence |
 | FP-130 | 12 | Implement venue-executable bounded information-seeking exploration | Claude/Codex | IN_PROGRESS | Exact non-authoritative venue-minimum primitive through `2b7442e61a`; opportunity selection and runtime integration remain |
-| FP-140 | 13 | Integrate unified policy with hard-only validator and paper portfolio engine | Claude/Codex | IN_PROGRESS | Candidate `28aada8c39` adds hard feed-integrity enforcement, durable feature-clock replay, typed BLOCK persistence, proof-safe position reconstruction, and an explicit hard local-gate boundary. Last completed paper runtime published 171 typed decisions (155 directional) with adaptive authority active; current service is intentionally stopped pending exact-SHA acceptance and lifecycle proof |
-| FP-150 | 14 | Remove duplicated policy authority and prove reference parity | Claude/Codex | IN_PROGRESS | Last completed paper runtime reports adaptive authority=true, static Category-E entry authority removed=true, and 0 reference disagreements across 171 decisions; full repository classification and current post-review deployment/writer proof remain open |
+| FP-140 | 13 | Integrate unified policy with hard-only validator and paper portfolio engine | Claude/Codex | IN_PROGRESS | Scoped runtime integration is accepted through immutable `27635258e8`: authoritative adaptive policy, hard-only final validation, natural action→fill→position→stop→restart→close, complete candidate capture and runtime calibration all pass; full FP-040/FP-050/FP-130 upstream completion remains required for phase completion |
+| FP-150 | 14 | Remove duplicated policy authority and prove reference parity | Claude/Codex | IN_PROGRESS | Latest completed runtime cycle reports `adaptive_policy_authoritative=true`, `static_category_e_authority_removed=true`, 224 authority attempts and 0 reference disagreements; the repository-wide FP-020 classification/removal proof remains open |
 | FP-160 | 15 | Implement adaptive self-healing supervisor | Claude/Codex | PENDING | Every declared collapse/failure state produces a bounded repair or learning action |
 | FP-170 | 16 | Record Claude implementation commits and acceptance claims | Claude | PENDING | Each material SHA and claim recorded in `CLAUDE_PROGRESS.jsonl` |
-| FP-180 | 17 | Perform independent adversarial audit, fixtures, co-fixes, and SHA review | Claude/Codex | IN_PROGRESS | Claude-owned CG-F063/CG-F057 fixtures and focused adaptive/hard-boundary suites pass from exact candidate SHA `28aada8c39`; independent Claude acceptance record remains required before deployment |
-| FP-190 | 18 | Verify shadow-first immutable deployment and writer uniqueness | Codex | PENDING | Immutable SHAs, heartbeats, rollback, NRestarts, and one authority writer proven |
-| FP-200 | 19 | Complete natural lifecycle, restart reconstruction, and two further cycles | Joint | PENDING | Natural fill/open/stop/restart/close/accounting predicates all pass |
+| FP-180 | 17 | Perform independent adversarial audit, fixtures, co-fixes, and SHA review | Claude/Codex | IN_PROGRESS | Scoped CG-F063/CG-F057, natural-lifecycle, complete-matrix and streaming-calibration audits are independently PASS at deployed SHA `27635258e8`; the calibration review first BLOCKED an invalid unselected-revision case, which was repaired and re-reviewed PASS; remaining FINAL PASS phases still require their own material-SHA reviews |
+| FP-190 | 18 | Verify shadow-first immutable deployment and writer uniqueness | Codex | IN_PROGRESS | Scoped deployment proof passes for clean release `27635258e8`, paper PID `3710798`, outcome PID `3710826`, calibration PID `3710851`, all `NRestarts=0`, one canonical paper writer and three exact post-release cycles; full champion/challenger rollback acceptance remains tied to open FP-120/FP-160 work |
+| FP-200 | 19 | Complete natural lifecycle, restart reconstruction, and two further cycles | Joint | COMPLETE | Natural 1000PEPE short filled, retained through paper-loop restart, closed reduce-only to flat at max hold, reconciled wallet/margin, and remained canonical across two completed cycles; artifact SHA-256 `d1c1177da792fc8a02ca038551416f69a99046b0bb74e562a83063c2cac91c5f` |
 | FP-210 | 20 | Pass frozen-cohort G03/G11/G12/G13/G14 with automatic challenger escalation | Joint | PENDING | Same cohort passes all gates without deleting, relabeling, or hiding losses |
 | FP-220 | 21 | Decommission obsolete policy authority | Claude/Codex | PENDING | Temporary/static authorities disabled; safety validators and evidence preserved |
-| FP-230 | Tests | Run changed-path, adversarial, G12, systemd, lint, compilation, and release checks | Codex | IN_PROGRESS | Exact candidate has 222/222 focused adaptive/CG tests and 64/64 scoped hard-boundary tests passing; the monolithic paper-loop result is 595 passed with the unchanged inherited 13 failures/31 errors; G12 is 17/17 and compile/Ruff/diff/systemd checks pass; no clean-suite claim |
+| FP-230 | Tests | Run changed-path, adversarial, G12, systemd, lint, compilation, and release checks | Codex | IN_PROGRESS | Latest scoped results add 58 archive/publisher/calibration and 27 complete-matrix/paper tests; paper-loop is 691 passed with the unchanged inherited 13 failures/31 errors; G12 17/17, compile, focused Ruff, diff, clean-release and systemd verification pass; remaining phases still require their own verification |
 | FP-240 | Telemetry | Verify consolidated adaptive-system status | Codex | PENDING | `v2:adaptive_system:status` is fresh, complete, and downstream-truthful |
 | FP-250 | Acceptance | Record independent signoffs and final PASS or BLOCK | Joint | PENDING | Both signoffs plus every final-acceptance predicate evidenced |
 
@@ -1660,6 +1660,8 @@ Machine-readable task state is maintained in
 | 2026-07-28T04:34:58.447203Z | Adaptive paper authority | HISTORICAL RUNTIME PASS / CURRENTLY STOPPED | Last paper authority status contains 171 typed decisions, 155 directional authorizations, 16 FLAT decisions, zero authority blocks, zero reference disagreements, `adaptive_policy_authoritative=true`, and `static_category_e_authority_removed=true`. The paper loop and shadow evaluator are currently stopped under the review boundary; lifecycle acceptance remains absent. |
 | 2026-07-28T04:34:58.447203Z | G12 evidence-root distinction | PASS WITH AUTHORITATIVE RUNTIME EVIDENCE | Repository runtime evidence yields 17 PASS / 0 WARNING / 0 FAIL. A bare detached source tree yields 14 PASS plus three missing-external-evidence warnings for S13/S15/S16; runtime evidence was not misrepresented as an immutable source artifact. |
 | 2026-07-28T04:48:53.029Z | FP-080 identity-scoped utilization collector | CODE SEALED / REVIEW AND INTEGRATION PENDING | Commit `c956ec46b8`; 19/19 focused tests, compile, scoped Ruff, real read-only collection, and `git diff --check` pass. Included source paths are internally consistent and hash/receipt verified. The generated v3 report is correctly `BLOCK`: gen-5 has 382 training rows but zero exact identity overlap with the 7,854 matured typed outcomes, and the wider paid-source inventory is not yet authenticated into the frozen scope. No Redis publication, service deployment, trainer change, paper restart, or exchange action occurred. |
+| 2026-07-28T11:13:19.636056Z | FP-140 / FP-190 / FP-200 natural adaptive runtime acceptance | PASS SCOPED | Commit `4eb85c11fb` was independently accepted and immutably deployed with one writer. Natural 1000PEPE short `v2h_9de687c8976c12b33f84a627ab698fd6` retained exact proof/accounting state through restart, closed reduce-only `SHORT_TO_FLAT` at the governed time exit, booked net P&L `$0.05716304487747147`, reconciled wallet/equity/free margin to `$2,985.65188356`, released used/reserved margin to zero, and remained one canonical close with zero target quarantine across two further cycles. Evidence SHA-256 `d1c1177da792fc8a02ca038551416f69a99046b0bb74e562a83063c2cac91c5f`; broader data, challenger, supervisor and economic phases remain open. |
+| 2026-07-28T12:00:17.029Z | FP-060 / FP-180 / FP-190 candidate-outcome runtime acceptance | PASS SCOPED | Commits `f3fd227ad1` and `27635258e8` remove matrix truncation and stream-verify the full signed archive before selecting matured revisions. Independent review first BLOCKED and then PASSed the repaired calibration boundary. Three immutable cycles published 685/685 candidates with no sampling or drops; the final archive has 10,335 decisions, 8,593 matured revisions and 18,928 verified rows, and calibration consumes its exact terminal chain. All three PIDs remain stable with zero restarts; proof/accounting/live boundaries are unchanged. Evidence SHA-256 `b1b699410185482518074bb7183d7731fcdff038b16fc6a6e5656ce77e825e6e`; broader adaptation and economics remain open. |
 
 ## Current final status
 
@@ -1667,42 +1669,55 @@ This block must be updated whenever work stops or final acceptance changes.
 
 ```text
 FINAL_PASS_STATUS=IN_PROGRESS
-FINAL_ACCEPTANCE=NOT_YET_EVALUATED
+FINAL_ACCEPTANCE=BLOCKED_PENDING_REMAINING_ARCHITECTURE_AND_ECONOMIC_PHASES
 FIRST_UNRESOLVED_STAGE=PHASE_1_TRADING_CONFIGURATION_CLASSIFICATION
-CURRENT_SEGMENT=CG_F063_CG_F057_LEDGER_PIT_P3_P4_P6_AND_PHASE7_DATA_UTILIZATION
-CURRENT_SEGMENT_IMPLEMENTATION_SHA=28aada8c391adcee996035abc834d824d5c70af7
+CURRENT_SEGMENT=CANDIDATE_OUTCOME_COMPLETE_MATRIX_STREAMING_CALIBRATION_AND_IMMUTABLE_RUNTIME
+CURRENT_SEGMENT_IMPLEMENTATION_SHA=27635258e87ba434c2c001887337db31972f1969
 CURRENT_SEGMENT_CODE_SEALED=true
-CURRENT_SEGMENT_CLAUDE_EXACT_SHA_ACCEPTANCE=PENDING
-CURRENT_SEGMENT_IMMUTABLE_DEPLOYMENT=false
-PAPER_LOOP_RUNTIME_STATE=STOPPED_REPAIR_BOUNDARY
-PAPER_LOOP_RESTART_AUTHORIZED=false
+CURRENT_SEGMENT_CLAUDE_EXACT_SHA_ACCEPTANCE=PASS
+CURRENT_SEGMENT_IMMUTABLE_DEPLOYMENT=true
+PAPER_LOOP_RUNTIME_STATE=ACTIVE_PAPER_ONLY
+PAPER_LOOP_RESTART_RECONSTRUCTION=PASS
 PAPER_ACCOUNT_EPOCH_ROTATION_SHA=bad88d5409dc33c7d30a191bde235a12fe1e7d7e
 PAPER_ACCOUNT_EPOCH_ROTATION_CODEX_REVIEW=BLOCK
 PAPER_ACCOUNT_EPOCH_ROTATION_EXECUTED=false
 
 CLAUDE_IMPLEMENTATION_COMPLETE=false
-CODEX_INDEPENDENT_AUDIT_PASS=false
+CODEX_PRODUCTION_IMPLEMENTATION_COMPLETE_FOR_SCOPED_SEGMENT=true
+CLAUDE_INDEPENDENT_RUNTIME_AUDIT_PASS=true
 
 PAPER_SYSTEM_LIVE_END_TO_END=false
-ADAPTIVE_LEARNING_LOOP_ACTIVE=PUBLISHER_ACTIVE_BUT_PAPER_SOURCE_STOPPED
-ADAPTIVE_POLICY_CONTROLS_TRADING_ACTIONS=PROVEN_LAST_RUNTIME_171_TYPED_DECISIONS_CURRENTLY_STOPPED
-STATIC_TRADING_ACTION_THRESHOLDS_WITH_FINAL_AUTHORITY=PAPER_ENTRY_PATH_PROVEN_REMOVED_LAST_RUNTIME_FULL_REPOSITORY_CLASSIFICATION_OPEN
+ADAPTIVE_LEARNING_LOOP_ACTIVE=PAPER_SOURCE_PUBLISHER_MATURER_AND_CALIBRATION_RUNTIME_PASS
+ADAPTIVE_POLICY_CONTROLS_TRADING_ACTIONS=PROVEN_LATEST_RUNTIME_224_AUTHORITY_ATTEMPTS_0_REFERENCE_DISAGREEMENTS
+STATIC_TRADING_ACTION_THRESHOLDS_WITH_FINAL_AUTHORITY=PAPER_ENTRY_PATH_REMOVED_FULL_REPOSITORY_CLASSIFICATION_OPEN
 TRAINING_USES_ALL_ELIGIBLE_DATA=false
 DATA_UTILIZATION_COLLECTOR_SHA=c956ec46b8
 DATA_UTILIZATION_PATHS_CONSISTENT=true
 DATA_UTILIZATION_REPORT_STATUS=BLOCK
 GEN5_TRAINING_ELIGIBLE_ROWS=382
-TYPED_MATURED_CANDIDATE_OUTCOMES=7854
+TYPED_CANDIDATE_DECISIONS=10335
+TYPED_MATURED_CANDIDATE_OUTCOMES=8593
+CANDIDATE_OUTCOME_ARCHIVE_ROWS=18928
+CANDIDATE_OUTCOME_ARCHIVE_VERIFIED=true
+CANDIDATE_RECORDING_COVERAGE=1.0
+UNEXPLAINED_CANDIDATE_DROPS=0
+UNEXPLAINED_MATURATION_DROPS=0
+CANDIDATE_OUTCOME_CALIBRATION_RUNTIME=PASS_EXACT_ARCHIVE_CHAIN
 GEN5_TYPED_OUTCOME_EXACT_IDENTITY_OVERLAP_ROWS=0
 FULL_PAID_SOURCE_INVENTORY_BOUND=false
 DATA_UTILIZATION_REDIS_PUBLISHED=false
 REJECTED_CANDIDATES_ARE_LABELED=PROVEN_100_PERCENT_LAST_COMPLETE_SOURCE_CYCLE
 CHAMPION_CHALLENGER_LOOP_ACTIVE=NOT_YET_PROVEN
-RESTART_RECONSTRUCTION_MATCH=false
-NORMAL_PAPER_LIFECYCLE_COMPLETE=false
+RESTART_RECONSTRUCTION_MATCH=true
+NORMAL_PAPER_LIFECYCLE_COMPLETE=true
+NATURAL_PAPER_CLOSE_ID=paper_close_paper_pos_1000PEPEUSDT_a38a3a3e790e11be_1_43703
+NATURAL_PAPER_CLOSE_NET_PNL_USD=0.05716304487747147
+POST_CLOSE_CONFIRMATION_CYCLES=2_OF_2_PASS
+NATURAL_LIFECYCLE_ACCEPTANCE_ARTIFACT_SHA256=d1c1177da792fc8a02ca038551416f69a99046b0bb74e562a83063c2cac91c5f
+CANDIDATE_OUTCOME_RUNTIME_ACCEPTANCE_ARTIFACT_SHA256=b1b699410185482518074bb7183d7731fcdff038b16fc6a6e5656ce77e825e6e
 G03=NOT_EVALUATED_FOR_FINAL_PASS
 G11=NOT_EVALUATED_FOR_FINAL_PASS
-G12=PASS_17_OF_17_REVALIDATED_2026_07_28T04_15_37Z
+G12=PASS_17_OF_17_REVALIDATED_2026_07_28
 G13=NOT_EVALUATED_FOR_FINAL_PASS
 G14=NOT_EVALUATED_FOR_FINAL_PASS
 
@@ -1715,14 +1730,14 @@ places_real_order=false
 exchange_action_taken=false
 
 OPERATOR_ACTION_REQUIRED=NONE
-NEXT_CODEX_ACTION=BIND_BROADER_PAID_SOURCE_INVENTORY_AND_BUILD_TYPED_OUTCOME_TRAINING_JOIN
-NEXT_CLAUDE_ACTION=REVIEW_28AADA8_AND_C956EC4_EXACT_SHAS
-LATEST_REPOSITORY_CHECKPOINT=c956ec46b8
-LATEST_CANDIDATE_TESTS=222_OF_222_FOCUSED_ADAPTIVE_CG_64_OF_64_SCOPED_HARD_BOUNDARY_9_OF_9_LEDGER_PIT_85_OF_85_COMBINED_19_OF_19_DATA_UTILIZATION_PASS
-LEGACY_PAPER_LOOP_SUITE=595_PASS_13_FAIL_31_ERROR_INHERITED_FAMILY
+NEXT_CODEX_ACTION=BIND_TYPED_OUTCOMES_TO_GEN5_AND_CONTINUE_FP020_FP070_FP080_FP100_FP110
+NEXT_CLAUDE_ACTION=REVIEW_NEXT_MATERIAL_SHA_AND_RUNTIME_EVIDENCE
+LATEST_REPOSITORY_CHECKPOINT=27635258e87ba434c2c001887337db31972f1969
+LATEST_CANDIDATE_TESTS=58_ARCHIVE_PUBLISHER_CALIBRATION_27_MATRIX_PAPER_144_CG057_ADAPTIVE_LIFECYCLE_PASS
+LEGACY_PAPER_LOOP_SUITE=691_PASS_13_FAIL_31_ERROR_UNCHANGED_INHERITED_FAMILY
 ```
 
-## Current-segment handoff and command ledger
+## Prior current-segment handoff and command ledger (superseded)
 
 Exact blocker: candidate SHA `28aada8c391adcee996035abc834d824d5c70af7`
 has not received Claude's independent exact-SHA acceptance or immutable runtime
@@ -2073,3 +2088,282 @@ places_real_order=false
 exchange_action_taken=false
 NEXT_TRIGGER=FRESH_GENERATION_3_PERSISTED_NATURAL_FILL_WITH_OPEN_POSITION
 ```
+
+## Natural adaptive lifecycle acceptance — authoritative update 2026-07-28
+
+This section supersedes the restart-pending and natural-fill-pending statements
+in the historical segment immediately above. It closes the controllable
+CG-F063/CG-F057/P3/P4/P6 runtime chain and FP-200; it does not mark the broader
+FINAL PASS or permanent recovery complete.
+
+### Completed in this segment
+
+- [x] Independently accept the scoped CG-F063 and CG-F057 implementation and
+  adversarial fixtures.
+- [x] Deploy one clean immutable paper-loop release at
+  `4eb85c11fb5af467edf6ca4371880c5bb6ef5529`.
+- [x] Prove exactly one canonical paper writer, zero forbidden/duplicate
+  writers, and `NRestarts=0` for paper and canonical serving.
+- [x] Observe a natural generation-3 adaptive short action, accepted fill,
+  proof-bound open position, mandatory stop and governed max-hold exit.
+- [x] Capture accounting and proof state, restart only the paper loop, and
+  retain the exact position/fill/proof lineage with no duplicate or release.
+- [x] Close ordinarily and reduce-only from `SHORT_TO_FLAT`, consume all
+  `26,300` units, release all margin, create one canonical close/outcome, and
+  keep the target out of the unproved-close quarantine.
+- [x] Recompute the nested authenticated admission envelope, typed policy
+  action, authorization and cycle receipt successfully.
+- [x] Reconcile cumulative realized P&L to wallet/equity/free margin and prove
+  used margin, reserved margin and unrealized P&L are zero.
+- [x] Complete two additional paper cycles with the close stable and no new
+  fill, proof, position, quarantine, duplicate or reservation leak.
+- [x] Obtain an independent Claude-role runtime `PASS` on the exact immutable
+  release and both post-close cycles.
+
+### Frozen natural lifecycle evidence
+
+The authoritative artifact is
+`goal_state/PERMANENT_SYSTEM_RECOVERY/4eb85c11_1000pepe_lifecycle_acceptance_20260728.json`
+with SHA-256
+`d1c1177da792fc8a02ca038551416f69a99046b0bb74e562a83063c2cac91c5f`.
+
+The natural lineage is:
+
+```text
+prediction/fill/intent=v2h_9de687c8976c12b33f84a627ab698fd6
+signal=sig_v2h_9de687c8976c12b33f84a627ab698fd6
+orchestrator=dec_v2h_9de687c8976c12b33f84a627ab698fd6
+risk=rd_dec_v2h_9de687c8976c12b33f84a627ab698fd6
+allocation=alloc_6bbbb576c4eb8e5c6a1fed6c
+position=paper_pos_1000PEPEUSDT_a38a3a3e790e11be
+close=paper_close_paper_pos_1000PEPEUSDT_a38a3a3e790e11be_1_43703
+checkpoint_generation=3
+checkpoint_id=SERVING_ABI_V2_PAPER_f2f6e3b4c67a42b6c13880a4
+cohort_id=paper_serving_abi_v2:541f38b82f5261b5176bbf5f
+```
+
+The short entered `26,300 × 0.0028115 = $73.94245` at 1× leverage,
+therefore allocated margin was exactly `$73.94245`. It closed at `0.0028089`
+at `2026-07-28T11:06:38.250082Z` for the governed
+`TIER_3_ADAPTIVE_POLICY_TIME_EXIT`. Gross P&L was `$0.06838`; after
+`$0.007390826` fees, `$0.0013802411974931552` slippage and
+`-$0.002445887925039896` funding P&L, net P&L was
+`$0.05716304487747147`. The close admission envelope declared and recomputed
+SHA-256 is `ec15ba029d6bb2ebf5b229231deb8cf7b92b1e2ee50dd18ccc926835f9e84f4a`;
+the canonical close SHA-256 is
+`43c4aec88d999d3795770f27cc5004c76d30656a09fd353df104356ce7b6ea3d`.
+
+Canonical portfolio accounting after the close is:
+
+```text
+starting_equity_usd=3000.00000000
+cumulative_realized_net_pnl_usd=-14.34811644
+wallet_balance_usd=2985.65188356
+equity_usd=2985.65188356
+free_margin_usd=2985.65188356
+used_margin_usd=0.00000000
+reserved_margin_usd=0.00000000
+unrealized_pnl_usd=0.00000000
+equity_reconciliation_difference_usd=0.00000000
+accounting_invariant=PASS
+```
+
+Post-close cycle 1 ran from `2026-07-28T11:08:15.552085Z` through
+`11:09:13.980510Z`; cycle 2 ran from `11:10:17.845454Z` through
+`11:12:15.002163Z`. Both ended with 93 canonical closes, zero open positions,
+zero accepted fills, zero open fill proofs and the pre-existing quarantine
+count unchanged at two; the target quarantine count remained zero. The final
+proof manifest is completed `EMPTY_INITIALIZED_PROOF_SET`, which is distinct
+from an uninitialized proof store and has `absence_is_invalidity=false`.
+
+### Independent verdict
+
+The Claude-role audit independently recomputed the close, nested admission,
+typed-action, authorization, cycle-receipt and accounting hashes and returned
+`PASS`. It also verified the release is clean, the service remains PID
+`3597757` with `NRestarts=0`, the close is unique globally, both confirmation
+cycles are stable, the MORPH invalidated bucket remains a zero-trade
+nonblocking tombstone, and every runtime authority flag remains paper-only.
+
+### Current truthful status
+
+```text
+CG_F063=PASS
+CG_F057=PASS
+FP_140=SCOPED_RUNTIME_CHAIN_PASS_FULL_PHASE_IN_PROGRESS
+FP_190=SCOPED_IMMUTABLE_DEPLOYMENT_PASS_FULL_PHASE_IN_PROGRESS
+FP_200=COMPLETE
+ADAPTIVE_POLICY_AUTHORITATIVE=true
+STATIC_CATEGORY_E_PAPER_ENTRY_AUTHORITY_REMOVED=true
+REFERENCE_PARITY_DISAGREEMENT_COUNT=0
+NATURAL_PAPER_FILL_OBSERVED=true
+PROOF_BACKED_OPEN_POSITION_OBSERVED=true
+RESTART_RECONSTRUCTION_MATCH=true
+NORMAL_PAPER_LIFECYCLE_COMPLETE=true
+ACCOUNTING_RECONCILED=true
+POST_CLOSE_CONFIRMATION_CYCLES=2_OF_2_PASS
+G12=PASS_17_OF_17
+
+ENGINEERING_RECOVERY_COMPLETE_FOR_SCOPED_SEGMENT=true
+FULL_FINAL_PASS_ENGINEERING_COMPLETE=false
+ECONOMIC_ACCEPTANCE_PENDING=true
+PAPER_SYSTEM_LIVE_END_TO_END=false
+V2_PERMANENT_RECOVERY_COMPLETE=false
+LIVE_NO_GO=true
+paper_only=true
+live_gate=blocked_human_only
+routes_to_live=false
+places_real_order=false
+exchange_action_taken=false
+
+FIRST_UNRESOLVED_STAGE=PHASE_1_TRADING_CONFIGURATION_CLASSIFICATION
+NEXT_CONTROLLABLE_WORK=VERIFY_CANDIDATE_OUTCOME_RUNTIME_HEALTH_THEN_COMPLETE_TYPED_OUTCOME_TO_GEN5_JOIN_AND_REMAINING_ADAPTATION_PHASES
+```
+
+FP-020, FP-040, FP-050, FP-070 through FP-130, FP-150, FP-160, FP-170,
+FP-180, FP-210, FP-220, FP-230, FP-240 and FP-250 remain open according to
+their task predicates. Five generation-scoped eligible natural closes and the
+frozen-window G03/G11/G13/G14 evaluation are still required; this single close
+must not be inflated into economic acceptance.
+
+## Candidate-outcome runtime acceptance — authoritative update 2026-07-28
+
+This section supersedes the candidate-outcome publisher health-recheck language
+above. It completes FP-060 and adds scoped FP-180/FP-190 evidence; it does not
+complete the wider data join, adaptation supervisor, challenger, economic, or
+real-exchange acceptance phases.
+
+### Completed in this segment
+
+- [x] Repair the candidate decision matrix so the authoritative finalized
+  universe is complete and unsampled, including when a cycle exceeds the prior
+  250-row diagnostic limit.
+- [x] Keep the consumer fail closed on malformed/truncated matrices, count or
+  identity drift, duplicate identities, prediction/checkpoint mismatch, and any
+  live-authority flag.
+- [x] Stream-verify every signed archive row, nested contract, content hash,
+  chain link, CAS transition, timestamp and paper-only authority invariant while
+  retaining only the matured revisions used by calibration.
+- [x] Repair the independent-review blocker proving that a coherently rehashed,
+  rechained and resigned invalid unselected revision must still be rejected.
+- [x] Deploy paper loop, outcome publisher and calibration from one clean
+  immutable release at `27635258e87ba434c2c001887337db31972f1969`.
+- [x] Observe three completed post-release paper cycles and require the publisher
+  and calibration receipt to catch up to each signed archive chain.
+- [x] Preserve initialized-empty proof semantics, canonical accounting, one
+  writer, zero restarts, zero duplicates/leaks and all paper-only/no-live flags.
+
+### Runtime proof
+
+The authoritative evidence is
+`goal_state/PERMANENT_SYSTEM_RECOVERY/27635258_candidate_outcome_runtime_acceptance_20260728.json`
+with SHA-256
+`b1b699410185482518074bb7183d7731fcdff038b16fc6a6e5656ce77e825e6e`.
+
+The post-release cycles completed at `11:53:17.180332Z`,
+`11:55:42.589900Z` and `11:59:12.183121Z`. Their matrices were respectively
+359/359, 102/102 and 224/224, for an aggregate 685/685 candidates with
+`matrix_complete=true` and `sampling_applied=false`. Every cycle retained the
+same 93 canonical closes, zero accepted fills, zero open positions, zero open
+fill proofs and the same two historical unproved-close quarantine records.
+
+Wallet, equity and free margin stayed exactly `$2,985.65188356`; used and
+reserved margin, destructive reconciliation releases and wallet mutation stayed
+zero. The proof store remained the valid `EMPTY_INITIALIZED_PROOF_SET`, not an
+uninitialized proof store. Reconciliation was idempotent and reported zero
+phantom, unresolved or rejected positions.
+
+The final publisher receipt records:
+
+```text
+status=PASS
+source_candidate_count=224
+recorded_candidate_count=224
+candidate_recording_coverage=1.0
+unexplained_candidate_drops=0
+archive_decision_revisions=10335
+archive_matured_revisions=8593
+archive_rows=18928
+archive_invalid_rows=0
+archive_duplicate_rows=0
+eligible_matured_label_coverage=1.0
+unexplained_maturation_drops=0
+counterfactual_counts_as_paper_profit=false
+terminal_chain_sha256=60f670cece79fb6a94d083d32afb38ece363444ddc40c8c90f265763b5076df7
+```
+
+The final calibration receipt consumes that exact terminal chain, uses 6,301
+fit and 2,292 validation samples for generation 3, and has calibration SHA-256
+`d15e30fa16df2b29ad744bcea22264e8fdb44ac9a5a09cae61a38e4b6120a617`.
+Counterfactual outcomes remain excluded from realized paper profit.
+
+The services remain active at paper PID `3710798`, publisher PID `3710826` and
+calibration PID `3710851`, all with `NRestarts=0`. Peak memory was bounded at
+1,390,624,768, 1,956,245,504 and 1,113,534,464 bytes respectively. The publisher
+has a 2,500-MiB high/3-GiB max boundary; calibration has a 1,280-MiB high/
+1,536-MiB max boundary. These deployment limits repair deterministic cold-scan
+capacity only; no strategy, threshold, admission, risk or execution authority
+changed.
+
+### Independent verdict and verification
+
+The Claude-role complete-matrix review returned `PASS`: all 302 reference
+identities and the >250 regression universe were retained, while malformed,
+truncated, duplicate, drifted and live-authority fixtures rejected. The
+streaming-calibration review initially returned `BLOCK` for an invalid
+unselected revision that had been coherently re-signed; after every streamed row
+was made subject to nested-contract validation, the adversarial fixture rejected
+with `record:nested_contract_invalid:record_generated_at_ms:must_be_positive_int`
+and the final exact-SHA review returned `PASS`.
+
+Verification on the immutable tree is 58/58 archive/publisher/calibration tests
+and 27/27 matrix/paper focused tests. The previously completed CG-F057/adaptive/
+lifecycle selection remains 144/144. G12 is 17/17 PASS; Python compilation,
+focused Ruff, `git diff --check`, immutable-tree cleanliness and systemd
+verification all pass. The full paper-loop result is 691 passed, 13 failed and
+31 setup errors: the same inherited 13/31 legacy fixture family, plus this
+segment's new passing regression.
+
+### Current truthful status
+
+```text
+FP_060=COMPLETE
+FP_180=SCOPED_REVIEW_PASS_FULL_PHASE_IN_PROGRESS
+FP_190=SCOPED_IMMUTABLE_RUNTIME_PASS_FULL_PHASE_IN_PROGRESS
+FP_200=COMPLETE
+CANDIDATE_OUTCOME_RUNTIME_INTEGRATED=true
+CANDIDATE_OUTCOME_MATURER_RUNTIME_INTEGRATED=true
+CANDIDATE_OUTCOME_CALIBRATION_RUNTIME=PASS
+CANDIDATE_RECORDING_COVERAGE=1.0
+UNEXPLAINED_CANDIDATE_DROPS=0
+UNEXPLAINED_MATURATION_DROPS=0
+ARCHIVE_INVALID_ROWS=0
+ARCHIVE_DUPLICATE_ROWS=0
+COUNTERFACTUAL_COUNTS_AS_PAPER_PROFIT=false
+ADAPTIVE_POLICY_AUTHORITATIVE=true
+REFERENCE_PARITY_DISAGREEMENT_COUNT=0
+NORMAL_PAPER_LIFECYCLE_COMPLETE=true
+RESTART_RECONSTRUCTION_MATCH=true
+ACCOUNTING_RECONCILED=true
+G12=PASS_17_OF_17
+
+FULL_FINAL_PASS_ENGINEERING_COMPLETE=false
+ECONOMIC_ACCEPTANCE_PENDING=true
+PAPER_SYSTEM_LIVE_END_TO_END=false
+V2_PERMANENT_RECOVERY_COMPLETE=false
+LIVE_NO_GO=true
+paper_only=true
+live_gate=blocked_human_only
+routes_to_live=false
+places_real_order=false
+exchange_action_taken=false
+
+FIRST_UNRESOLVED_STAGE=PHASE_1_TRADING_CONFIGURATION_CLASSIFICATION
+NEXT_CONTROLLABLE_WORK=COMPLETE_TYPED_OUTCOME_TO_GEN5_JOIN_AND_REMAINING_ADAPTATION_PHASES
+```
+
+FP-020, FP-040, FP-050, FP-070 through FP-130, FP-150, FP-160, FP-170,
+FP-180, FP-210, FP-220, FP-230, FP-240 and FP-250 remain open under their full
+phase predicates. The typed-outcome→generation-5 exact identity overlap remains
+0/382, and the required five-close economic cohort is still incomplete; those
+facts prohibit a FINAL PASS or live-readiness claim.
