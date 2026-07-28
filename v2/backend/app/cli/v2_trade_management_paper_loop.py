@@ -34718,6 +34718,29 @@ def _paper_position_close_transition_intrinsic_valid(
     )
 
 
+def _paper_close_receipt_source_fill_ids_valid(
+    close: Mapping[str, Any],
+    entry_proof: Mapping[str, Any],
+) -> bool:
+    """Require the sealed close receipt to retain exact entry-fill lineage."""
+
+    raw_source_fill_ids = close.get("source_fill_ids")
+    if not isinstance(raw_source_fill_ids, list) or not raw_source_fill_ids:
+        return False
+    source_fill_ids = [
+        value.strip()
+        for value in raw_source_fill_ids
+        if isinstance(value, str) and value.strip()
+    ]
+    entry_fill_id = str(entry_proof.get("fill_id") or "").strip()
+    return bool(
+        entry_fill_id
+        and len(source_fill_ids) == len(raw_source_fill_ids)
+        and len(source_fill_ids) == len(set(source_fill_ids))
+        and entry_fill_id in source_fill_ids
+    )
+
+
 def _paper_prior_position_close_transition_reasons(
     transition: Mapping[str, Any],
     entry_proof: Mapping[str, Any],
@@ -34899,6 +34922,10 @@ def _paper_prior_position_close_transition_reasons(
             != str(material.get("position_generation_id") or "")
             or str(close.get("entry_fill_id") or "")
             != str(entry_proof.get("fill_id") or "")
+            or not _paper_close_receipt_source_fill_ids_valid(
+                close,
+                entry_proof,
+            )
             or _normalized_directional_side(close.get("position_side"))
             != transition_side
             or _normalized_directional_side(close.get("close_side"))
@@ -35404,16 +35431,38 @@ def _paper_position_close_transition_reasons(
         )
         cost_remaining = _coerce_float(material.get(f"{prefix}_remaining_usd"))
         supplied = [incurred, allocated, cost_remaining]
-        if all(value is not None for value in supplied) and not math.isclose(
-            incurred or 0.0,
-            (allocated or 0.0) + (cost_remaining or 0.0),
+        if any(value is None for value in supplied) or not math.isclose(
+            incurred if incurred is not None else -1.0,
+            (allocated if allocated is not None else -1.0)
+            + (cost_remaining if cost_remaining is not None else -1.0),
             rel_tol=1e-9,
             abs_tol=1e-10,
         ):
             reasons.append(
                 f"POSITION_CLOSE_TRANSITION_{prefix.upper()}_CONSERVATION_INVALID"
             )
-    if material.get("cost_basis_conserved") not in (None, True):
+        position_values = [
+            _coerce_float(position.get(f"{prefix}_incurred_usd")),
+            _coerce_float(position.get(f"{prefix}_allocated_to_closes_usd")),
+            _coerce_float(position.get(f"{prefix}_remaining_usd")),
+        ]
+        if any(value is None for value in position_values) or any(
+            not math.isclose(
+                supplied_value if supplied_value is not None else -1.0,
+                position_value if position_value is not None else -2.0,
+                rel_tol=1e-9,
+                abs_tol=1e-10,
+            )
+            for supplied_value, position_value in zip(
+                supplied,
+                position_values,
+                strict=True,
+            )
+        ):
+            reasons.append(
+                f"POSITION_CLOSE_TRANSITION_{prefix.upper()}_BINDING_MISMATCH"
+            )
+    if material.get("cost_basis_conserved") is not True:
         reasons.append("POSITION_CLOSE_TRANSITION_COST_BASIS_INVALID")
     if material.get("margin_released_by_reconciliation_usd") not in (0, 0.0):
         reasons.append("POSITION_CLOSE_TRANSITION_RECONCILIATION_MARGIN_MUTATION")
@@ -35462,6 +35511,10 @@ def _paper_position_close_transition_reasons(
             != str(position.get("position_generation_id") or "")
             or str(close.get("entry_fill_id") or "")
             != str(entry_proof.get("fill_id") or "")
+            or not _paper_close_receipt_source_fill_ids_valid(
+                close,
+                entry_proof,
+            )
             or _normalized_directional_side(close.get("position_side"))
             != position_side
             or _normalized_directional_side(close.get("close_side"))
