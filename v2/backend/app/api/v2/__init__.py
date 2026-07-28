@@ -18,6 +18,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from app.api.v2 import (
+    adaptive_status,
     admin,
     alerts_contracts,
     audit_ledger,
@@ -76,5 +77,6 @@ router.include_router(system_metrics.router)
 router.include_router(self_healing_status.router)
 router.include_router(symbol_intel.router)
 router.include_router(coverage_census.router)
+router.include_router(adaptive_status.router)
 
 __all__ = ["router"]
