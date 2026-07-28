@@ -2002,6 +2002,53 @@ margin remained zero. The authenticated proof manifest initialized as
 signals/intents; all 397 were rejected by the unchanged governed path, so no
 natural position existed for restart reconstruction.
 
+One post-boundary confirmation cycle completed from
+`2026-07-28T06:20:54.912Z` through `06:21:31.846Z`: 59 additional intents,
+zero accepted fills/positions, and unchanged paper-only/no-live authority. The
+final runtime artifact SHA-256 is
+`312421554d0e26ca8120014661c31b6801b501c1669eec57a2eba7d0454518b9`.
+
+### Scoped command ledger
+
+The following command families were run from the repository root, with the
+focused test/static commands rerun after each adversarial fixture commit and
+production repair SHA:
+
+```text
+rg -n <partial-close/proof-chain/status-patterns> v2/backend FINAL\ PASS.md claude_worklog/codex
+sed -n <scoped-ranges> v2/backend/app/cli/v2_trade_management_paper_loop.py v2/backend/tests/unit/cli/test_cg_f063_proof_store_reconciliation.py
+git status --short --branch
+git log -6 --oneline --decorate
+git diff -- <scoped-file>
+git diff --check
+git add -- <scoped-file>
+git commit -m <scoped-message>
+git rev-parse HEAD
+sha256sum v2/backend/app/cli/v2_trade_management_paper_loop.py goal_state/PERMANENT_SYSTEM_RECOVERY/d3635a8c_paper_runtime_acceptance_20260728.json
+.venv/bin/pytest -q v2/backend/tests/unit/cli/test_cg_f063_proof_store_reconciliation.py
+.venv/bin/pytest -q v2/backend/tests/unit/cli/test_v2_trade_management_paper_loop.py -k 'open_position_fill_proof or position_fill_reconciliation or critical_paper_state_uses_one_redis_transaction'
+.venv/bin/pytest -q v2/backend/tests/unit/services/paper_trade_management/test_partial_close_restart_reconstruction.py v2/backend/tests/unit/services/paper_trade_management/test_lifecycle.py
+.venv/bin/pytest -q v2/backend/tests/unit/services/microstructure_trust/test_cg_f057_completion_acceptance.py
+.venv/bin/pytest -q v2/backend/tests/unit/services/adaptive_system/test_adaptive_policy_shadow_v2.py
+.venv/bin/pytest -q --tb=no v2/backend/tests/unit/cli/test_v2_trade_management_paper_loop.py
+.venv/bin/python -m py_compile v2/backend/app/cli/v2_trade_management_paper_loop.py
+.venv/bin/ruff check --select E902,F821,F822,F823 v2/backend/app/cli/v2_trade_management_paper_loop.py
+systemctl --user show ai-bot-v2-trade-management-paper-loop.service -p <scoped-properties>
+systemd-analyze --user verify ai-bot-v2-stack.target default.target timers.target ai-bot-v2-trade-management-paper-loop.service
+redis-cli --raw GET/MGET <scoped-paper-state-keys> | jq <scoped-projection>
+jq <scoped-projection> goal_state/PERMANENT_SYSTEM_RECOVERY/generation_acceptance_status.json
+jq . goal_state/PERMANENT_SYSTEM_RECOVERY/d3635a8c_paper_runtime_acceptance_20260728.json
+.venv/bin/python scripts/s15_stale_feature_injection_test.py
+.venv/bin/python scripts/s16_redis_resilience_test.py
+.venv/bin/python scripts/guardian_phase10_rare_event_tests.py
+```
+
+Claude's runtime lane additionally used `git worktree add --detach`, credential
+metadata-only `stat`, read-only Redis/Python projections,
+`systemctl --user daemon-reload/restart/is-active/is-enabled`, journal/status
+inspection and completed-cycle polling. It restarted only the paper loop and
+did not read credential contents or touch a real exchange.
+
 ### Truthful final status for this segment
 
 ```text
