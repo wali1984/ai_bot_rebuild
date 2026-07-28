@@ -425,6 +425,17 @@ RUNTIME_PAPER_PIT_CONTEXT_FIELDS = (
     "feature_snapshot_id",
     "entry_feature_snapshot_id",
     "prediction_feature_snapshot_id",
+    "entry_feature_available_at",
+    "entry_feature_generated_at",
+    "entry_feature_cutoff",
+    "entry_feature_decision_time",
+    "entry_feature_candle_closed_confirmed",
+    "entry_feature_source",
+    "entry_feature_snapshot",
+    "latest_unclosed_kline_excluded",
+    "latest_unclosed_exclusion_method",
+    "latest_unclosed_exclusion_decision_time_ms",
+    "latest_closed_kline_close_time_ms",
     "available_at",
     "decision_time",
     "decision_time_est",
@@ -531,6 +542,21 @@ def _runtime_paper_pit_context_fields(
             continue
         out[field] = value
         source_fields[field] = source
+    entry_snapshot = out.get("entry_feature_snapshot")
+    if isinstance(entry_snapshot, Mapping):
+        out["entry_feature_snapshot"] = copy.deepcopy(dict(entry_snapshot))
+        for field in (
+            "latest_unclosed_kline_excluded",
+            "latest_unclosed_exclusion_method",
+            "latest_unclosed_exclusion_decision_time_ms",
+            "latest_closed_kline_close_time_ms",
+        ):
+            if field in out or not _present(entry_snapshot.get(field)):
+                continue
+            out[field] = entry_snapshot.get(field)
+            source_fields[field] = (
+                f"{source_fields['entry_feature_snapshot']}.{field}"
+            )
     if source_fields:
         out["runtime_paper_pit_context_source_fields"] = source_fields
     return out

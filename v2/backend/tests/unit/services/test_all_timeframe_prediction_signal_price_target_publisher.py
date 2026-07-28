@@ -1027,6 +1027,81 @@ def _runtime_lane_payloads(lane_row: dict[str, Any], extra: dict[str, Any] | Non
     return payloads
 
 
+def test_runtime_paper_row_preserves_entry_feature_finality_contract() -> None:
+    lane_row = {
+        "symbol": "AXSUSDT",
+        "timeframe": "1h",
+        "side": "long",
+        "prediction_id": "pred_finality",
+        "confidence_calibrated": 0.8,
+        "entry_feature_snapshot_id": "snapshot_finality",
+        "entry_feature_available_at": "2026-06-22T12:59:58.200Z",
+        "entry_feature_generated_at": "2026-06-22T12:59:58.100Z",
+        "entry_feature_cutoff": "2026-06-22T12:59:59.999Z",
+        "entry_feature_decision_time": "2026-06-22T13:00:00.000Z",
+        "entry_feature_candle_closed_confirmed": True,
+        "entry_feature_source": "SERVING_FEATURE_ABI_V2",
+        "entry_feature_snapshot": {
+            "latest_unclosed_kline_excluded": True,
+            "latest_unclosed_exclusion_method": (
+                "CLOSED_KLINE_FILTER_DECISION_TIME_BOUNDED_V1"
+            ),
+            "latest_unclosed_exclusion_decision_time_ms": 1_750_596_000_000,
+            "latest_closed_kline_close_time_ms": 1_750_595_999_999,
+        },
+    }
+    store = publisher.V2KeyValueStore(
+        FakeRedis(_runtime_lane_payloads(lane_row))
+    )
+
+    row = publisher.build_runtime_paper_signal_rows(store)[0]
+
+    for field in (
+        "entry_feature_snapshot_id",
+        "entry_feature_available_at",
+        "entry_feature_generated_at",
+        "entry_feature_cutoff",
+        "entry_feature_decision_time",
+        "entry_feature_candle_closed_confirmed",
+        "entry_feature_source",
+    ):
+        assert row[field] == lane_row[field]
+        assert row["runtime_paper_pit_context_source_fields"][field] == (
+            f"paper_signal.{field}"
+        )
+    for field in (
+        "latest_unclosed_kline_excluded",
+        "latest_unclosed_exclusion_method",
+        "latest_unclosed_exclusion_decision_time_ms",
+        "latest_closed_kline_close_time_ms",
+    ):
+        assert row[field] == lane_row["entry_feature_snapshot"][field]
+        assert row["runtime_paper_pit_context_source_fields"][field] == (
+            f"paper_signal.entry_feature_snapshot.{field}"
+        )
+
+
+def test_runtime_paper_row_does_not_invent_missing_entry_feature_finality() -> None:
+    lane_row = {
+        "symbol": "AXSUSDT",
+        "timeframe": "1h",
+        "side": "long",
+        "prediction_id": "pred_missing_finality",
+        "confidence_calibrated": 0.8,
+    }
+    store = publisher.V2KeyValueStore(
+        FakeRedis(_runtime_lane_payloads(lane_row))
+    )
+
+    row = publisher.build_runtime_paper_signal_rows(store)[0]
+
+    assert "entry_feature_available_at" not in row
+    assert "entry_feature_generated_at" not in row
+    assert "entry_feature_cutoff" not in row
+    assert "entry_feature_candle_closed_confirmed" not in row
+    assert "latest_unclosed_kline_excluded" not in row
+
+
 def test_runtime_paper_row_adopts_prediction_coverage_on_prediction_id_match() -> None:
     # Zero-coverage-symbols incident (2026-07-16): the paper lane never carries
     # data_coverage_percent, so runtime rows clobbered per-symbol signal keys
