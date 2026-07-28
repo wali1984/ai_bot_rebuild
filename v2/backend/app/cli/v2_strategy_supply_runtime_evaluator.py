@@ -36,6 +36,19 @@ _ALLOWED_WRITTEN_KEY_PREFIXES = (
 _ALLOWED_EXACT_WRITTEN_KEYS = frozenset(
     {STATUS_KEY, LATEST_POSITIVE_SUMMARY_KEY, LATEST_ERROR_SUMMARY_KEY}
 )
+_KNOWN_PUBLISHER_STATUSES = frozenset(
+    {
+        "RED_ZERO_HYPOTHESES",
+        "RED_STRATEGY_GENERATOR_FAILURE",
+        "GRAY_INPUT_MISSING",
+        "GRAY_PROVIDER_MISSING",
+        "GRAY_PRICE_MISSING",
+        "GRAY_MICROSTRUCTURE_MISSING_OR_WEAK",
+        "YELLOW_TRUE_NO_POSITIVE_EDGE",
+        "YELLOW_POSITIVE_HYPOTHESES_STAGE_REJECTED",
+        "GREEN_PUBLISHING_GATE_CLEAN_POSITIVES",
+    }
+)
 
 
 def _reject_duplicate_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -92,6 +105,22 @@ def _finite_positive(value: Any, label: str) -> float:
     return parsed
 
 
+def _canonical_axis(
+    value: Any,
+    *,
+    label: str,
+    uppercase: bool,
+) -> list[str]:
+    if type(value) is not list or not value or any(type(item) is not str for item in value):
+        raise ValueError(f"strategy_supply_status:{label.upper()}_LIST_INVALID")
+    normalized = [item.strip().upper() if uppercase else item.strip() for item in value]
+    if any(not item or ":" in item for item in normalized):
+        raise ValueError(f"strategy_supply_status:{label.upper()}_SEGMENT_INVALID")
+    if value != normalized or normalized != sorted(set(normalized)):
+        raise ValueError(f"strategy_supply_status:{label.upper()}_NOT_CANONICAL")
+    return normalized
+
+
 def _validate_no_authority(status: dict[str, Any]) -> None:
     if status.get("paper_only") is not True:
         raise ValueError("strategy_supply_status:PAPER_ONLY_REQUIRED")
@@ -132,6 +161,13 @@ def evaluate_strategy_supply_status(
         raise ValueError("strategy_supply_status:SCHEMA_VERSION_MISMATCH")
     _validate_no_authority(status)
 
+    publisher_status = status.get("status")
+    if publisher_status not in _KNOWN_PUBLISHER_STATUSES:
+        raise ValueError("strategy_supply_status:STATUS_INVALID")
+    publisher_status_reason = status.get("status_reason")
+    if type(publisher_status_reason) is not str or not publisher_status_reason.strip():
+        raise ValueError("strategy_supply_status:STATUS_REASON_INVALID")
+
     evaluated_at = now_utc or datetime.now(UTC)
     if evaluated_at.tzinfo is None or evaluated_at.utcoffset() != UTC.utcoffset(evaluated_at):
         raise ValueError("now_utc:UTC_REQUIRED")
@@ -148,6 +184,12 @@ def evaluate_strategy_supply_status(
     timeframe_count = _nonnegative_int(
         status.get("timeframe_count"), "timeframe_count"
     )
+    symbols = _canonical_axis(status.get("symbols"), label="symbols", uppercase=True)
+    timeframes = _canonical_axis(
+        status.get("timeframes"), label="timeframes", uppercase=False
+    )
+    if symbol_count != len(symbols) or timeframe_count != len(timeframes):
+        raise ValueError("strategy_supply_status:MATRIX_AXIS_COUNT_MISMATCH")
     hypothesis_count = _nonnegative_int(
         status.get("hypothesis_count"), "hypothesis_count"
     )
@@ -175,6 +217,8 @@ def evaluate_strategy_supply_status(
         raise ValueError("strategy_supply_status:STRATEGY_FAMILY_SET_MISMATCH")
 
     written_keys = status.get("redis_keys_written")
+    if status.get("status_key") != STATUS_KEY:
+        raise ValueError("strategy_supply_status:STATUS_KEY_IDENTITY_MISMATCH")
     if type(written_keys) is not list or any(type(key) is not str for key in written_keys):
         raise ValueError("strategy_supply_status:WRITTEN_KEY_LIST_INVALID")
     if len(written_keys) != len(set(written_keys)):
@@ -184,18 +228,21 @@ def evaluate_strategy_supply_status(
             _ALLOWED_WRITTEN_KEY_PREFIXES
         ):
             raise ValueError(f"strategy_supply_status:UNAUTHORIZED_WRITTEN_KEY:{key}")
-    expected_written_key_count = symbol_count * timeframe_count * 3 + 2
-    if len(written_keys) != expected_written_key_count:
-        raise ValueError("strategy_supply_status:WRITTEN_KEY_COUNT_MISMATCH")
-    if {
-        LATEST_POSITIVE_SUMMARY_KEY,
-        LATEST_ERROR_SUMMARY_KEY,
-    } - set(written_keys):
-        raise ValueError("strategy_supply_status:SUMMARY_KEYS_MISSING")
-    matrix_cell_count = symbol_count * timeframe_count
-    for prefix in _ALLOWED_WRITTEN_KEY_PREFIXES:
-        if sum(key.startswith(prefix) for key in written_keys) != matrix_cell_count:
-            raise ValueError("strategy_supply_status:WRITTEN_KEY_MATRIX_INCOMPLETE")
+    expected_written_keys = {
+        key
+        for symbol in symbols
+        for timeframe in timeframes
+        for key in (
+            f"v2:strategy_supply:hypotheses:{symbol}:{timeframe}",
+            f"v2:strategy_supply:positive_hypotheses:{symbol}:{timeframe}",
+            f"v2:strategy_supply:gate_clean_positive_hypotheses:{symbol}:{timeframe}",
+        )
+    }
+    expected_written_keys.update(
+        {LATEST_POSITIVE_SUMMARY_KEY, LATEST_ERROR_SUMMARY_KEY}
+    )
+    if set(written_keys) != expected_written_keys:
+        raise ValueError("strategy_supply_status:WRITTEN_KEY_MATRIX_IDENTITY_MISMATCH")
 
     ttl_seconds = _finite_positive(status.get("ttl_seconds"), "ttl_seconds")
     cadence_seconds = _finite_positive(
@@ -225,8 +272,10 @@ def evaluate_strategy_supply_status(
         "evaluated_utc": evaluated_utc,
         "source_age_seconds": round(max(0.0, age_seconds), 6),
         "max_age_seconds": max_age,
-        "publisher_status": status.get("status"),
-        "publisher_status_reason": status.get("status_reason"),
+        "publisher_status": publisher_status,
+        "publisher_status_reason": publisher_status_reason,
+        "symbols": symbols,
+        "timeframes": timeframes,
         "symbol_count": symbol_count,
         "timeframe_count": timeframe_count,
         "strategy_families": expected_families,

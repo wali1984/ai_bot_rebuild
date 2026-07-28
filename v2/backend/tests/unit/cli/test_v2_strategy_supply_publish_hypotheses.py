@@ -8,6 +8,9 @@ from v2.backend.app.cli.v2_strategy_supply_publish_hypotheses import (
     _positive_net_usd,
     publish_strategy_supply,
 )
+from v2.backend.app.services.strategy_supply.edge_hypothesis_generator import (
+    STATUS_KEY,
+)
 
 
 class FakeRedis:
@@ -105,8 +108,8 @@ def test_strategy_supply_publish_writes_redis_contract_and_artifacts(tmp_path: P
 
     status = publish_strategy_supply(
         client=client,
-        symbols=["BTCUSDT"],
-        timeframes=["1m"],
+        symbols=["BTCUSDT", " btcusdt "],
+        timeframes=["1m", " 1m "],
         ttl_seconds=123,
         output_dir=tmp_path,
     )
@@ -116,6 +119,13 @@ def test_strategy_supply_publish_writes_redis_contract_and_artifacts(tmp_path: P
     assert status["paper_only"] is True
     assert status["live_gate"] == "blocked_human_only"
     assert status["exchange_action_taken"] is False
+    assert status["symbols"] == ["BTCUSDT"]
+    assert status["timeframes"] == ["1m"]
+    assert status["symbol_count"] == 1
+    assert status["timeframe_count"] == 1
+    assert status["status_key"] == STATUS_KEY
+    assert STATUS_KEY not in status["redis_keys_written"]
+    assert len(status["redis_keys_written"]) == 5
     assert status["positive_hypothesis_count"] > 0
     assert status["ttl_seconds"] == 123
     assert status["status"] in {
@@ -128,6 +138,8 @@ def test_strategy_supply_publish_writes_redis_contract_and_artifacts(tmp_path: P
     assert ("v2:strategy_supply:latest_positive_summary", 123) in client.set_calls
     assert ("v2:strategy_supply:latest_error_summary", 123) in client.set_calls
     assert ("v2:strategy_supply:status", 123) in client.set_calls
+    persisted_status = json.loads(client.data[STATUS_KEY])
+    assert persisted_status == status
     latest_positive = json.loads(
         client.data["v2:strategy_supply:latest_positive_summary"]
     )
@@ -150,7 +162,8 @@ def test_strategy_supply_publish_writes_redis_contract_and_artifacts(tmp_path: P
         if row.get("side") == "short":
             assert row["expected_move_after_cost_bps"] < 0
             assert row["expected_short_net_edge_bps"] > 0
-    assert (tmp_path / "strategy_supply_publish_status.json").exists()
+    status_path = tmp_path / "strategy_supply_publish_status.json"
+    assert json.loads(status_path.read_text(encoding="utf-8")) == status
     positive_rows = (tmp_path / "strategy_supply_positive_hypotheses.jsonl").read_text(
         encoding="utf-8"
     ).splitlines()

@@ -1521,34 +1521,3 @@ def generate_hypotheses(client: Any, symbol: str, timeframe: str) -> list[dict[s
             "must_pass_gates": ["preemptive", "risk", "orchestrator", "allocator"],
         })
     return rows
-
-
-def publish_hypotheses(client: Any, symbols: list[str], timeframes: list[str]) -> dict[str, Any]:
-    total = 0
-    positive = 0
-    no_data = 0
-    for symbol in symbols:
-        for timeframe in timeframes:
-            rows = generate_hypotheses(client, symbol, timeframe)
-            total += len(rows)
-            positive += sum(1 for r in rows if r.get("why_rejected") is None and r.get("side"))
-            no_data += sum(1 for r in rows if r.get("strategy_family") is None)
-            client.set(
-                HYPOTHESIS_KEY.format(symbol=symbol.upper(), timeframe=timeframe),
-                json.dumps({"rows": rows, "generated_utc": _utc_now()}, sort_keys=True, default=str),
-                ex=HYPOTHESIS_TTL_SECONDS,
-            )
-    status = {
-        "schema_version": "strategy_supply_status_v1",
-        "generated_utc": _utc_now(),
-        "symbol_count": len(symbols),
-        "timeframe_count": len(timeframes),
-        "hypothesis_count": total,
-        "positive_hypothesis_count": positive,
-        "no_data_rows": no_data,
-        "strategy_families": list(STRATEGY_FAMILIES),
-        "approves_trade_alone": False,
-        "raw_key_exposed": False,
-    }
-    client.set(STATUS_KEY, json.dumps(status, sort_keys=True, default=str), ex=900)
-    return status

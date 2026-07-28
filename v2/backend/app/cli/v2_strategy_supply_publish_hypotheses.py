@@ -237,6 +237,20 @@ def publish_strategy_supply(
     output_dir: Path | None = None,
 ) -> dict[str, Any]:
     generated_utc = _utc_now()
+    normalized_symbols = sorted(
+        {
+            str(symbol or "").strip().upper()
+            for symbol in symbols
+            if str(symbol or "").strip()
+        }
+    )
+    normalized_timeframes = sorted(
+        {
+            str(timeframe or "").strip()
+            for timeframe in timeframes
+            if str(timeframe or "").strip()
+        }
+    )
     all_rows: list[dict[str, Any]] = []
     positive_rows: list[dict[str, Any]] = []
     gate_clean_positive_rows: list[dict[str, Any]] = []
@@ -247,14 +261,8 @@ def publish_strategy_supply(
     if cadence_seconds is not None and cadence_seconds > 0:
         effective_ttl_seconds = max(effective_ttl_seconds, int(cadence_seconds * 4))
 
-    for symbol in symbols:
-        normalized_symbol = str(symbol or "").upper()
-        if not normalized_symbol:
-            continue
-        for timeframe in timeframes:
-            normalized_timeframe = str(timeframe or "").strip()
-            if not normalized_timeframe:
-                continue
+    for normalized_symbol in normalized_symbols:
+        for normalized_timeframe in normalized_timeframes:
             try:
                 rows = generate_hypotheses(client, normalized_symbol, normalized_timeframe)
             except Exception as exc:  # noqa: BLE001 - status must carry exact runtime failure.
@@ -350,8 +358,10 @@ def publish_strategy_supply(
         "generated_utc": generated_utc,
         "status": status_details["status"],
         "status_reason": status_details["status_reason"],
-        "symbol_count": len(symbols),
-        "timeframe_count": len(timeframes),
+        "symbols": normalized_symbols,
+        "timeframes": normalized_timeframes,
+        "symbol_count": len(normalized_symbols),
+        "timeframe_count": len(normalized_timeframes),
         "hypothesis_count": len(all_rows),
         "positive_hypothesis_count": len(positive_rows),
         "gate_clean_positive_hypothesis_count": len(gate_clean_positive_rows),
@@ -363,6 +373,7 @@ def publish_strategy_supply(
         "positive_rejection_reason_counts": status_details["positive_rejection_reason_counts"],
         "strategy_families": list(STRATEGY_FAMILIES),
         "redis_keys_written": redis_keys_written,
+        "status_key": STATUS_KEY,
         "ttl_seconds": effective_ttl_seconds,
         "requested_ttl_seconds": int(ttl_seconds),
         "publish_cadence_seconds": cadence_seconds,
@@ -383,7 +394,6 @@ def publish_strategy_supply(
         "exchange_action_taken": False,
     }
     client.set(STATUS_KEY, json.dumps(status, sort_keys=True, default=str), ex=effective_ttl_seconds)
-    redis_keys_written.append(STATUS_KEY)
 
     if output_dir is not None:
         output_dir.mkdir(parents=True, exist_ok=True)

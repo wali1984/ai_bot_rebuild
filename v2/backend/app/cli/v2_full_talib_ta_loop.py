@@ -372,7 +372,11 @@ def run_once(
         "uses_compact_or_feature_snapshot_fallback": False,
         "technical_analysis_owner": "v2_feature_pipeline_native_loop",
         "technical_analysis_write_attempted": False,
-        "derived_available_at_claimed": False,
+        "derived_record_available_at_published": True,
+        "derived_record_available_at_semantics": (
+            "MAX_SOURCE_AVAILABLE_AT_PRODUCER_GENERATED_AT"
+        ),
+        "postcommit_available_at_claimed": False,
         "postcommit_publication_observed": False,
         "consumer_eligible": False,
         "trainer_consumable": False,

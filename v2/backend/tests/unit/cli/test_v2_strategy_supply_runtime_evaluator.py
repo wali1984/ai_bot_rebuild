@@ -30,6 +30,8 @@ def _status(**overrides: Any) -> dict[str, Any]:
         "generated_utc": _utc(NOW - timedelta(seconds=10)),
         "status": "GREEN_PUBLISHING_GATE_CLEAN_POSITIVES",
         "status_reason": "gate_clean_positive_hypotheses_available",
+        "symbols": ["BTCUSDT"],
+        "timeframes": ["1m"],
         "symbol_count": 1,
         "timeframe_count": 1,
         "hypothesis_count": 3,
@@ -44,6 +46,7 @@ def _status(**overrides: Any) -> dict[str, Any]:
             LATEST_POSITIVE_SUMMARY_KEY,
             LATEST_ERROR_SUMMARY_KEY,
         ],
+        "status_key": STATUS_KEY,
         "ttl_seconds": 900,
         "publish_cadence_seconds": 60.0,
         "ttl_longer_than_three_publish_cadences": True,
@@ -89,6 +92,12 @@ def test_valid_status_returns_content_bound_read_only_receipt() -> None:
     assert receipt["source_key"] == STATUS_KEY
     assert receipt["source_status_sha256"] == hashlib.sha256(raw).hexdigest()
     assert receipt["source_age_seconds"] == 10.0
+    assert receipt["publisher_status"] == "GREEN_PUBLISHING_GATE_CLEAN_POSITIVES"
+    assert receipt["publisher_status_reason"] == (
+        "gate_clean_positive_hypotheses_available"
+    )
+    assert receipt["symbols"] == ["BTCUSDT"]
+    assert receipt["timeframes"] == ["1m"]
     assert receipt["symbol_count"] == 1
     assert receipt["timeframe_count"] == 1
     assert receipt["redis_keys_observed"] == 5
@@ -99,6 +108,39 @@ def test_valid_status_returns_content_bound_read_only_receipt() -> None:
     assert receipt["routes_to_live"] is False
     assert receipt["places_real_order"] is False
     assert receipt["exchange_action_taken"] is False
+
+
+def test_valid_exact_multi_axis_matrix_is_admitted() -> None:
+    symbols = ["BTCUSDT", "ETHUSDT"]
+    timeframes = ["1m", "5m"]
+    written_keys = [
+        key
+        for symbol in symbols
+        for timeframe in timeframes
+        for key in (
+            f"v2:strategy_supply:hypotheses:{symbol}:{timeframe}",
+            f"v2:strategy_supply:positive_hypotheses:{symbol}:{timeframe}",
+            f"v2:strategy_supply:gate_clean_positive_hypotheses:{symbol}:{timeframe}",
+        )
+    ]
+    written_keys.extend([LATEST_POSITIVE_SUMMARY_KEY, LATEST_ERROR_SUMMARY_KEY])
+
+    receipt = evaluator.evaluate_strategy_supply_status(
+        _raw(
+            _status(
+                symbols=symbols,
+                timeframes=timeframes,
+                symbol_count=2,
+                timeframe_count=2,
+                redis_keys_written=written_keys,
+            )
+        ),
+        now_utc=NOW,
+    )
+
+    assert receipt["symbols"] == symbols
+    assert receipt["timeframes"] == timeframes
+    assert receipt["redis_keys_observed"] == 14
 
 
 def test_duplicate_json_keys_fail_closed() -> None:
@@ -151,8 +193,8 @@ def test_stale_or_future_status_fails_closed(
             {"stage_rejected_positive_hypothesis_count": 0},
             "STAGE_REJECTION_COUNT_MISMATCH",
         ),
-        ({"symbol_count": 0}, "EMPTY_EVALUATION_UNIVERSE"),
-        ({"timeframe_count": 0}, "EMPTY_EVALUATION_UNIVERSE"),
+        ({"symbol_count": 0}, "MATRIX_AXIS_COUNT_MISMATCH"),
+        ({"timeframe_count": 0}, "MATRIX_AXIS_COUNT_MISMATCH"),
         ({"hypothesis_count": 0}, "HYPOTHESIS_COUNT_ORDER_INVALID"),
     ],
 )
@@ -183,6 +225,61 @@ def test_family_tampering_fails_closed(families: list[str]) -> None:
         )
 
 
+@pytest.mark.parametrize(
+    ("overrides", "expected"),
+    [
+        ({"status": "UNRECOGNIZED_STATUS"}, "STATUS_INVALID"),
+        ({"status_reason": ""}, "STATUS_REASON_INVALID"),
+        ({"status_reason": "   "}, "STATUS_REASON_INVALID"),
+        ({"status_reason": {"malformed": True}}, "STATUS_REASON_INVALID"),
+    ],
+)
+def test_invalid_status_or_reason_fails_closed(
+    overrides: dict[str, Any],
+    expected: str,
+) -> None:
+    with pytest.raises(ValueError, match=expected):
+        evaluator.evaluate_strategy_supply_status(
+            _raw(_status(**overrides)),
+            now_utc=NOW,
+        )
+
+
+@pytest.mark.parametrize(
+    ("overrides", "expected"),
+    [
+        ({"symbols": ["btcusdt"]}, "SYMBOLS_NOT_CANONICAL"),
+        ({"symbols": ["BTCUSDT", "BTCUSDT"]}, "SYMBOLS_NOT_CANONICAL"),
+        ({"timeframes": ["5m", "1m"]}, "TIMEFRAMES_NOT_CANONICAL"),
+        ({"timeframes": ["1m", "1m"]}, "TIMEFRAMES_NOT_CANONICAL"),
+    ],
+)
+def test_noncanonical_or_duplicate_matrix_axes_fail_closed(
+    overrides: dict[str, Any],
+    expected: str,
+) -> None:
+    with pytest.raises(ValueError, match=expected):
+        evaluator.evaluate_strategy_supply_status(
+            _raw(_status(**overrides)),
+            now_utc=NOW,
+        )
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"symbol_count": 2},
+        {"timeframe_count": 2},
+    ],
+)
+def test_matrix_axis_count_mismatch_fails_closed(overrides: dict[str, Any]) -> None:
+    with pytest.raises(ValueError, match="MATRIX_AXIS_COUNT_MISMATCH"):
+        evaluator.evaluate_strategy_supply_status(
+            _raw(_status(**overrides)),
+            now_utc=NOW,
+        )
+
+
 def test_duplicate_written_key_fails_closed() -> None:
     written = list(_status()["redis_keys_written"])
     written.append(written[0])
@@ -208,9 +305,29 @@ def test_missing_expected_written_key_fails_closed() -> None:
     written = list(_status()["redis_keys_written"])
     written.remove("v2:strategy_supply:gate_clean_positive_hypotheses:BTCUSDT:1m")
 
-    with pytest.raises(ValueError, match="WRITTEN_KEY_COUNT_MISMATCH"):
+    with pytest.raises(ValueError, match="WRITTEN_KEY_MATRIX_IDENTITY_MISMATCH"):
         evaluator.evaluate_strategy_supply_status(
             _raw(_status(redis_keys_written=written)),
+            now_utc=NOW,
+        )
+
+
+def test_mismatched_written_cell_identity_fails_closed() -> None:
+    written = list(_status()["redis_keys_written"])
+    written[1] = "v2:strategy_supply:positive_hypotheses:ETHUSDT:5m"
+
+    with pytest.raises(ValueError, match="WRITTEN_KEY_MATRIX_IDENTITY_MISMATCH"):
+        evaluator.evaluate_strategy_supply_status(
+            _raw(_status(redis_keys_written=written)),
+            now_utc=NOW,
+        )
+
+
+@pytest.mark.parametrize("status_key", [None, "v2:strategy_supply:other_status"])
+def test_status_key_identity_mismatch_fails_closed(status_key: str | None) -> None:
+    with pytest.raises(ValueError, match="STATUS_KEY_IDENTITY_MISMATCH"):
+        evaluator.evaluate_strategy_supply_status(
+            _raw(_status(status_key=status_key)),
             now_utc=NOW,
         )
 
@@ -278,6 +395,81 @@ def test_evaluator_module_contains_no_redis_set_call() -> None:
         and node.func.attr == "set"
     ]
     assert redis_set_calls == []
+
+
+def test_only_canonical_cli_has_strategy_supply_redis_set_authority() -> None:
+    app_root = Path(evaluator.__file__).resolve().parents[1]
+    canonical_writer = Path("cli/v2_strategy_supply_publish_hypotheses.py")
+    key_names = {
+        "HYPOTHESIS_KEY",
+        "POSITIVE_HYPOTHESIS_KEY",
+        "GATE_CLEAN_POSITIVE_HYPOTHESIS_KEY",
+        "LATEST_POSITIVE_SUMMARY_KEY",
+        "LATEST_ERROR_SUMMARY_KEY",
+        "STATUS_KEY",
+    }
+    strategy_supply_writers: set[Path] = set()
+
+    for source_path in app_root.rglob("*.py"):
+        tree = ast.parse(source_path.read_text(encoding="utf-8"))
+        bound_key_names: set[str] = set()
+        for node in ast.walk(tree):
+            if (
+                isinstance(node, ast.ImportFrom)
+                and node.module
+                == "v2.backend.app.services.strategy_supply.edge_hypothesis_generator"
+            ):
+                bound_key_names.update(
+                    alias.asname or alias.name
+                    for alias in node.names
+                    if alias.name in key_names
+                )
+            if (
+                isinstance(node, ast.Assign)
+                and isinstance(node.value, ast.Constant)
+                and isinstance(node.value.value, str)
+                and node.value.value.startswith("v2:strategy_supply:")
+            ):
+                bound_key_names.update(
+                    target.id for target in node.targets if isinstance(target, ast.Name)
+                )
+
+        def references_strategy_supply_key(node: ast.AST) -> bool:
+            return any(
+                (isinstance(child, ast.Name) and child.id in bound_key_names)
+                or (
+                    isinstance(child, ast.Constant)
+                    and isinstance(child.value, str)
+                    and child.value.startswith("v2:strategy_supply:")
+                )
+                for child in ast.walk(node)
+            )
+
+        changed = True
+        while changed:
+            changed = False
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.Assign) or not references_strategy_supply_key(
+                    node.value
+                ):
+                    continue
+                for target in node.targets:
+                    if isinstance(target, ast.Name) and target.id not in bound_key_names:
+                        bound_key_names.add(target.id)
+                        changed = True
+
+        writes_strategy_supply_key = any(
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "set"
+            and bool(node.args)
+            and references_strategy_supply_key(node.args[0])
+            for node in ast.walk(tree)
+        )
+        if writes_strategy_supply_key:
+            strategy_supply_writers.add(source_path.relative_to(app_root))
+
+    assert strategy_supply_writers == {canonical_writer}
 
 
 def test_main_reads_status_once_and_never_writes(

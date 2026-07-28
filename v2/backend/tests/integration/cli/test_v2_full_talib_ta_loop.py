@@ -303,6 +303,12 @@ def test_run_once_writes_v2_ta_keys_and_status(
         assert compatibility["trainer_admission_granted"] is False
         assert compatibility["live_execution_authorized"] is False
     assert status["technical_analysis_write_attempted"] is False
+    assert status["derived_record_available_at_published"] is True
+    assert status["derived_record_available_at_semantics"] == (
+        "MAX_SOURCE_AVAILABLE_AT_PRODUCER_GENERATED_AT"
+    )
+    assert status["postcommit_available_at_claimed"] is False
+    assert status["postcommit_publication_observed"] is False
     assert status["trainer_consumable"] is False
     assert json.loads((tmp_path / "public.json").read_text())["worker_id"] == worker.WORKER_ID
 
