@@ -168,6 +168,7 @@ struct MoreView: View {
                     NavigationLink("Service Health", destination: ServiceHealthView())
                     NavigationLink("Providers & Ingestors", destination: ProvidersView())
                     NavigationLink("Live Readiness", destination: LiveReadinessView())
+                    NavigationLink("Adaptive System", destination: AdaptiveStatusView())
                 }
                 Section("NERVYX GUARD") {
                     NavigationLink("Risk Control", destination: RiskControlView())
