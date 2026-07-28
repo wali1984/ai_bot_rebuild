@@ -34886,6 +34886,8 @@ def _paper_prior_position_close_transition_reasons(
         )
         if (
             close.get("schema_version") != "paper_reduce_only_close_receipt_v1"
+            or material.get("close_id") in (None, "")
+            or close.get("close_id") in (None, "")
             or not _paper_valid_sha256(close_sha)
             or close_sha
             != _paper_canonical_sha256(_paper_close_receipt_material(close))
@@ -35449,6 +35451,8 @@ def _paper_position_close_transition_reasons(
         expected_close_side = "short" if position_side == "long" else "long"
         if (
             close.get("schema_version") != "paper_reduce_only_close_receipt_v1"
+            or material.get("close_id") in (None, "")
+            or close.get("close_id") in (None, "")
             or not _paper_valid_sha256(close.get("source_close_event_sha256"))
             or close.get("reduce_only") is not True
             or close.get("position_to_flat") is not False
