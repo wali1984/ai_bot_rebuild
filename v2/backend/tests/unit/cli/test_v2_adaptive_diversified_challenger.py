@@ -83,14 +83,52 @@ def _build(mode: str, dataset: dict | None = None) -> dict:
 def _with_hedge_labels(dataset: dict | None = None) -> dict:
     result = deepcopy(dataset or _dataset())
     for index, row in enumerate(result["rows"]):
-        unhedged = -8.0 if index % 2 == 0 else 4.0
-        hedged = -2.0
+        unhedged = float(row["long_net_bps"])
+        unhedged_scenario = {
+            "schema_version": "CounterfactualScenarioV2",
+            "scenario_id": f"unhedged-{index:04d}",
+            "action_sha256": "a" * 64,
+            "gross_pnl_bps": unhedged + 2.1,
+            "fees_bps": 1.0,
+            "spread_bps": 0.5,
+            "slippage_bps": 0.25,
+            "funding_bps": 0.1,
+            "market_impact_bps": 0.25,
+            "after_cost_pnl_bps": unhedged,
+            "source_event_time_ms": 1_000,
+            "producer_generated_at_ms": 1_001,
+            "record_available_at_ms": 1_002,
+            "source_receipt_sha256s": ["c" * 64],
+            "finality_proven": True,
+            "counts_as_paper_profit": False,
+            "actual_accounting_effect": False,
+        }
+        hedged = -4.0
+        hedged_scenario = {
+            **unhedged_scenario,
+            "scenario_id": f"hedged-{index:04d}",
+            "action_sha256": "b" * 64,
+            "gross_pnl_bps": 0.0,
+            "fees_bps": 2.0,
+            "spread_bps": 1.0,
+            "slippage_bps": 0.5,
+            "funding_bps": 0.0,
+            "market_impact_bps": 0.5,
+            "after_cost_pnl_bps": hedged,
+        }
+        unhedged_sha = worker._sha256(  # noqa: SLF001
+            worker._canonical_bytes(unhedged_scenario)  # noqa: SLF001
+        )
+        hedged_sha = worker._sha256(  # noqa: SLF001
+            worker._canonical_bytes(hedged_scenario)  # noqa: SLF001
+        )
         advantage = hedged - unhedged
         material = {
             "schema_version": "candidate_hedge_label_derivation_v2",
             "candidate_id": f"candidate-{index:04d}",
             "hedge_contract": worker.HEDGE_CONTRACT,
             "comparison_semantics": worker.HEDGE_COMPARISON,
+            "proposed_action": "LONG",
             "unhedged_after_cost_pnl_bps": unhedged,
             "hedged_after_cost_pnl_bps": hedged,
             "hedge_advantage_bps": advantage,
@@ -99,12 +137,18 @@ def _with_hedge_labels(dataset: dict | None = None) -> dict:
             "cross_sectional_relative_value_label_present": False,
             "counterfactual_counts_as_realized_paper_profit": False,
             "actual_accounting_effect": False,
-            "unhedged_scenario_sha256": "a" * 64,
-            "hedged_scenario_sha256": "b" * 64,
+            "unhedged_scenario_sha256": unhedged_sha,
+            "hedged_scenario_sha256": hedged_sha,
+            "unhedged_scenario": unhedged_scenario,
+            "hedged_scenario": hedged_scenario,
         }
         material["derivation_sha256"] = worker._sha256(  # noqa: SLF001
             worker._canonical_bytes(material)  # noqa: SLF001
         )
+        row["directional_label_derivation"] = {
+            "proposed_action": "LONG",
+            "unhedged_scenario_sha256s": [unhedged_sha],
+        }
         row["hedge_label_derivation"] = material
     return result
 
@@ -191,7 +235,8 @@ def test_hedge_challenger_is_loss_avoidance_only_and_non_authoritative() -> None
     assert candidate["declaration"]["relative_value_supported"] is False
     assert candidate["fit_partition"] == "TRAIN_ONLY"
     assert candidate["holdout_used_for_selection"] is False
-    assert candidate["train_target_hedge_counts"] == {"0": 30, "1": 30}
+    assert set(candidate["train_target_hedge_counts"]) == {"0", "1"}
+    assert sum(candidate["train_target_hedge_counts"].values()) == 60
     assert candidate["train_metrics"][
         "counterfactual_counts_as_realized_paper_profit"
     ] is False
@@ -208,7 +253,21 @@ def test_hedge_holdout_changes_cannot_change_fit_or_validation_selection() -> No
         if row["split"] != "holdout":
             continue
         hedge = row["hedge_label_derivation"]
-        hedge["unhedged_after_cost_pnl_bps"] *= -1.0
+        new_unhedged = -float(hedge["unhedged_after_cost_pnl_bps"])
+        hedge["unhedged_after_cost_pnl_bps"] = new_unhedged
+        hedge["unhedged_scenario"]["gross_pnl_bps"] = new_unhedged + 2.1
+        hedge["unhedged_scenario"]["after_cost_pnl_bps"] = new_unhedged
+        hedge["unhedged_scenario_sha256"] = worker._sha256(  # noqa: SLF001
+            worker._canonical_bytes(hedge["unhedged_scenario"])  # noqa: SLF001
+        )
+        row["directional_label_derivation"]["unhedged_scenario_sha256s"] = [
+            hedge["unhedged_scenario_sha256"]
+        ]
+        row["long_net_bps"] = new_unhedged
+        row["target_action"] = worker.target_action_from_net_edges(
+            long_net_bps=new_unhedged,
+            short_net_bps=float(row["short_net_bps"]),
+        )
         hedge["hedge_advantage_bps"] = (
             hedge["hedged_after_cost_pnl_bps"]
             - hedge["unhedged_after_cost_pnl_bps"]

@@ -317,7 +317,9 @@ def candidate_directional_edges(
     return long_net, short_net, target, material
 
 
-def candidate_hedge_label(record: CandidateDecisionOutcomeV2) -> dict[str, Any]:
+def candidate_hedge_label(
+    record: CandidateDecisionOutcomeV2,
+) -> dict[str, Any] | None:
     """Bind the predeclared delta-neutral hedge arm to the unhedged arm.
 
     This is a relative risk-avoidance label, not a profitable-pair label.  The
@@ -327,6 +329,15 @@ def candidate_hedge_label(record: CandidateDecisionOutcomeV2) -> dict[str, Any]:
     must never be counted as realized P&L or described as cross-sectional edge.
     """
 
+    proposed = str(
+        _payload(record, "proposed_action").get("proposed_action") or ""
+    ).upper()
+    if proposed not in {"LONG", "SHORT"}:
+        # A flat candidate's unhedged arm is a zero-gross cost counterfactual,
+        # not either directional label.  Until a separately authenticated flat
+        # hedge objective exists, omitting that label is safer than inventing a
+        # cross-binding that the serving artifact cannot independently prove.
+        return None
     unhedged = _arm_scenarios(record, "unhedged")
     hedged = _arm_scenarios(record, "hedged")
     if len(unhedged) != 1 or len(hedged) != 1:
@@ -350,6 +361,7 @@ def candidate_hedge_label(record: CandidateDecisionOutcomeV2) -> dict[str, Any]:
             "FULLY_DELTA_NEUTRAL_ZERO_GROSS_RETURN_DOUBLE_EXECUTION_DRAG"
         ),
         "comparison_semantics": "RELATIVE_LOSS_AVOIDANCE_VS_UNHEDGED",
+        "proposed_action": proposed,
         "unhedged_after_cost_pnl_bps": unhedged_net,
         "hedged_after_cost_pnl_bps": hedged_net,
         "hedge_advantage_bps": advantage,
@@ -360,6 +372,8 @@ def candidate_hedge_label(record: CandidateDecisionOutcomeV2) -> dict[str, Any]:
         "actual_accounting_effect": False,
         "unhedged_scenario_sha256": _sha256(asdict(unhedged[0])),
         "hedged_scenario_sha256": _sha256(asdict(hedged[0])),
+        "unhedged_scenario": asdict(unhedged[0]),
+        "hedged_scenario": asdict(hedged[0]),
     }
     material["derivation_sha256"] = _sha256(material)
     return material
@@ -506,21 +520,26 @@ def build_candidate_outcome_row(
     hedge_label_derivation = candidate_hedge_label(record)
     receipts = _source_receipts(record)
     label_material = {
-        "schema_version": "candidate_outcome_training_label_binding_v3",
+        "schema_version": (
+            "candidate_outcome_training_label_binding_v3"
+            if hedge_label_derivation is not None
+            else "candidate_outcome_training_label_binding_v2"
+        ),
         "candidate_id": record.decision.candidate_id,
         "decision_snapshot_sha256": record.decision.content_sha256(),
         "matured_labels_sha256": labels.content_sha256(),
         "label_record_available_at_ms": labels.record_available_at_ms,
         "directional_label_derivation_sha256": label_derivation["derivation_sha256"],
-        "hedge_label_derivation_sha256": hedge_label_derivation[
-            "derivation_sha256"
-        ],
         "label_source_receipt_sha256s": receipts,
         "future_labels_not_in_feature_tensor": True,
         "counterfactual_counts_as_realized_paper_profit": False,
     }
+    if hedge_label_derivation is not None:
+        label_material["hedge_label_derivation_sha256"] = (
+            hedge_label_derivation["derivation_sha256"]
+        )
     label_sha = _sha256(label_material)
-    return {
+    row = {
         "row_id": f"candidate_outcome:{record.decision.candidate_id}",
         "snapshot_id": snapshot_id,
         "feature_group_id": snapshot_id,
@@ -558,7 +577,6 @@ def build_candidate_outcome_row(
         "decision_disposition": record.decision.decision_disposition,
         "eventual_disposition": labels.eventual_disposition,
         "directional_label_derivation": label_derivation,
-        "hedge_label_derivation": hedge_label_derivation,
         "counterfactual_counts_as_realized_paper_profit": False,
         "actual_paper_outcome_present": labels.actual_paper_outcome is not None,
         "latest_unclosed_kline_excluded": vector.latest_unclosed_kline_excluded,
@@ -568,6 +586,9 @@ def build_candidate_outcome_row(
         ),
         "latest_closed_kline_close_time_ms": vector.latest_closed_kline_close_time_ms,
     }
+    if hedge_label_derivation is not None:
+        row["hedge_label_derivation"] = hedge_label_derivation
+    return row
 
 
 def _validated_base_rows(base_dataset: Mapping[str, Any]) -> list[dict[str, Any]]:

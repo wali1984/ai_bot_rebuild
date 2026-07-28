@@ -29,6 +29,10 @@ from sklearn.neural_network import MLPClassifier
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
+from v2.backend.app.contracts.runtime_v2.candidate_decision_outcome_v2 import (
+    CandidateOutcomeContractError,
+    CounterfactualScenarioV2,
+)
 from v2.backend.app.services.adaptive_system import escalation_supervisor_v2 as supervisor
 from v2.backend.app.services.native_trainer.trusted_replay.dataset import (
     target_action_from_net_edges,
@@ -56,11 +60,35 @@ _HEDGE_DERIVATION_KEYS = frozenset(
         "hedge_contract",
         "hedged_after_cost_pnl_bps",
         "hedged_after_cost_positive",
+        "hedged_scenario",
         "hedged_scenario_sha256",
+        "proposed_action",
         "schema_version",
         "target_hedge_vs_unhedged",
         "unhedged_after_cost_pnl_bps",
+        "unhedged_scenario",
         "unhedged_scenario_sha256",
+    }
+)
+_SCENARIO_KEYS = frozenset(
+    {
+        "action_sha256",
+        "actual_accounting_effect",
+        "after_cost_pnl_bps",
+        "counts_as_paper_profit",
+        "fees_bps",
+        "finality_proven",
+        "funding_bps",
+        "gross_pnl_bps",
+        "market_impact_bps",
+        "producer_generated_at_ms",
+        "record_available_at_ms",
+        "scenario_id",
+        "schema_version",
+        "slippage_bps",
+        "source_event_time_ms",
+        "source_receipt_sha256s",
+        "spread_bps",
     }
 )
 
@@ -107,6 +135,26 @@ def _utc(value: object, field: str) -> datetime:
     if parsed.tzinfo is None or parsed.utcoffset() is None:
         raise AdaptiveDiversifiedChallengerError(f"{field}:UTC_TIMESTAMP_REQUIRED")
     return parsed.astimezone(timezone.utc)
+
+
+def _scenario(value: object, field: str) -> CounterfactualScenarioV2:
+    if type(value) is not dict or set(value) != _SCENARIO_KEYS:
+        raise AdaptiveDiversifiedChallengerError(
+            f"{field}:EXACT_COUNTERFACTUAL_SCENARIO_REQUIRED"
+        )
+    material = dict(value)
+    receipts = material.get("source_receipt_sha256s")
+    if type(receipts) is not list:
+        raise AdaptiveDiversifiedChallengerError(
+            f"{field}:EXACT_COUNTERFACTUAL_SCENARIO_REQUIRED"
+        )
+    material["source_receipt_sha256s"] = tuple(receipts)
+    try:
+        return CounterfactualScenarioV2(**material)
+    except (CandidateOutcomeContractError, TypeError) as exc:
+        raise AdaptiveDiversifiedChallengerError(
+            f"{field}:COUNTERFACTUAL_SCENARIO_INVALID"
+        ) from exc
 
 
 @dataclass(frozen=True)
@@ -242,6 +290,29 @@ def _validated_rows(
                 hedge.get("unhedged_scenario_sha256"),
                 hedge.get("hedged_scenario_sha256"),
             )
+            unhedged_scenario = _scenario(
+                hedge.get("unhedged_scenario"),
+                f"dataset.rows[{index}].hedge.unhedged_scenario",
+            )
+            hedged_scenario = _scenario(
+                hedge.get("hedged_scenario"),
+                f"dataset.rows[{index}].hedge.hedged_scenario",
+            )
+            directional = raw.get("directional_label_derivation")
+            proposed_action = hedge.get("proposed_action")
+            selected_unhedged_net = (
+                long_net
+                if proposed_action == "LONG"
+                else short_net
+                if proposed_action == "SHORT"
+                else math.nan
+            )
+            physical_cost_fields = (
+                "fees_bps",
+                "spread_bps",
+                "slippage_bps",
+                "market_impact_bps",
+            )
             if (
                 hedge.get("schema_version")
                 != "candidate_hedge_label_derivation_v2"
@@ -249,6 +320,63 @@ def _validated_rows(
                 or not hedge.get("candidate_id")
                 or hedge.get("hedge_contract") != HEDGE_CONTRACT
                 or hedge.get("comparison_semantics") != HEDGE_COMPARISON
+                or not isinstance(directional, Mapping)
+                or directional.get("proposed_action") != proposed_action
+                or proposed_action not in {"LONG", "SHORT"}
+                or directional.get("unhedged_scenario_sha256s")
+                != [scenario_shas[0]]
+                or _sha256(_canonical_bytes(hedge.get("unhedged_scenario")))
+                != scenario_shas[0]
+                or _sha256(_canonical_bytes(hedge.get("hedged_scenario")))
+                != scenario_shas[1]
+                or not math.isclose(
+                    unhedged_after_cost,
+                    selected_unhedged_net,
+                    rel_tol=0.0,
+                    abs_tol=1e-9,
+                )
+                or not math.isclose(
+                    unhedged_after_cost,
+                    unhedged_scenario.after_cost_pnl_bps,
+                    rel_tol=0.0,
+                    abs_tol=1e-9,
+                )
+                or not math.isclose(
+                    hedged_after_cost,
+                    hedged_scenario.after_cost_pnl_bps,
+                    rel_tol=0.0,
+                    abs_tol=1e-9,
+                )
+                or not math.isclose(
+                    hedged_scenario.gross_pnl_bps,
+                    0.0,
+                    rel_tol=0.0,
+                    abs_tol=1e-12,
+                )
+                or not math.isclose(
+                    hedged_scenario.funding_bps,
+                    0.0,
+                    rel_tol=0.0,
+                    abs_tol=1e-12,
+                )
+                or any(
+                    not math.isclose(
+                        getattr(hedged_scenario, cost_field),
+                        2.0 * getattr(unhedged_scenario, cost_field),
+                        rel_tol=0.0,
+                        abs_tol=1e-9,
+                    )
+                    for cost_field in physical_cost_fields
+                )
+                or hedged_scenario.source_event_time_ms
+                != unhedged_scenario.source_event_time_ms
+                or hedged_scenario.producer_generated_at_ms
+                != unhedged_scenario.producer_generated_at_ms
+                or hedged_scenario.record_available_at_ms
+                != unhedged_scenario.record_available_at_ms
+                or hedged_scenario.source_receipt_sha256s
+                != unhedged_scenario.source_receipt_sha256s
+                or hedged_scenario.action_sha256 == unhedged_scenario.action_sha256
                 or not math.isclose(
                     advantage,
                     hedged_after_cost - unhedged_after_cost,

@@ -334,6 +334,7 @@ def test_candidate_row_uses_shared_builder_and_never_counts_counterfactual_profi
     assert row["counterfactual_counts_as_realized_paper_profit"] is False
     assert row["actual_paper_outcome_present"] is False
     hedge = row["hedge_label_derivation"]
+    assert hedge is not None
     assert hedge == candidate_hedge_label(matured)
     assert hedge["hedge_advantage_bps"] == pytest.approx(
         hedge["hedged_after_cost_pnl_bps"]
@@ -349,6 +350,7 @@ def test_candidate_row_uses_shared_builder_and_never_counts_counterfactual_profi
 
 def test_flat_labels_cover_balanced_and_legacy_predeclared_reference_contracts() -> None:
     matured, _ = _matured_record(hold=True)
+    assert candidate_hedge_label(matured) is None
     long_net, short_net, target, receipt = candidate_directional_edges(matured)
     assert math_is_finite(long_net, short_net)
     assert target in {"long", "short", "hold"}

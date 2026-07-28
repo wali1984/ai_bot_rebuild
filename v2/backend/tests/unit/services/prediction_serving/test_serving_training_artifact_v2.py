@@ -753,6 +753,8 @@ def test_historical_candidate_row_without_hedge_binding_remains_loadable(
         "advantage",
         "target",
         "scenario_identity",
+        "unhedged_directional_identity",
+        "coherent_pnl_shift",
         "cross_sectional_claim",
         "accounting_claim",
     ),
@@ -773,6 +775,19 @@ def test_coherently_rehashed_hedge_semantic_forgery_is_rejected(
         ]
     elif mutation == "scenario_identity":
         hedge["hedged_scenario_sha256"] = hedge["unhedged_scenario_sha256"]
+    elif mutation == "unhedged_directional_identity":
+        hedge["unhedged_scenario_sha256"] = "d" * 64
+    elif mutation == "coherent_pnl_shift":
+        hedge["unhedged_after_cost_pnl_bps"] += 100.0
+        hedge["hedged_after_cost_pnl_bps"] += 100.0
+        hedge["hedge_advantage_bps"] = (
+            hedge["hedged_after_cost_pnl_bps"]
+            - hedge["unhedged_after_cost_pnl_bps"]
+        )
+        hedge["target_hedge_vs_unhedged"] = hedge["hedge_advantage_bps"] > 0.0
+        hedge["hedged_after_cost_positive"] = (
+            hedge["hedged_after_cost_pnl_bps"] > 0.0
+        )
     elif mutation == "cross_sectional_claim":
         hedge["cross_sectional_relative_value_label_present"] = True
     else:
