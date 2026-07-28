@@ -10,6 +10,7 @@ from v2.backend.app.services.adaptive_system import adaptive_hard_validator_v2
 from v2.backend.app.services.adaptive_system import adaptive_objective_v2
 from v2.backend.app.services.adaptive_system.adaptive_policy_shadow_v2 import (
     AdaptivePolicyShadowError,
+    _continuous_performance_risk_multiplier,
     build_adaptive_policy_shadow_candidate,
 )
 from v2.backend.app.services.adaptive_system.candidate_outcome_calibration_v2 import (
@@ -86,6 +87,24 @@ def _feature_snapshot() -> dict:
         "trainer_consumable": True,
         "content_sha256": _sha("5"),
     }
+
+
+def test_performance_breaker_state_is_continuous_objective_input_not_veto() -> None:
+    neutral = _continuous_performance_risk_multiplier({})
+    adverse = _continuous_performance_risk_multiplier(
+        {
+            "performance_risk_state": {
+                "current_drawdown_fraction": 0.008,
+                "profit_factor": 0.703666,
+                "expectancy_bps": -7.70099,
+                "hard_trading_authority": False,
+            }
+        }
+    )
+
+    assert neutral == 1.0
+    assert adverse == pytest.approx(1.305104099)
+    assert adverse > neutral
 
 
 def _intent() -> dict:

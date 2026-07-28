@@ -9875,6 +9875,142 @@ def test_paper_allocation_missing_bracket_evidence_fails_closed() -> None:
     assert unconfigured_context["evidence_status"] == ("EVIDENCE_SECURITY_CONTEXT_INVALID")
 
 
+def test_adaptive_policy_cycle_receipt_binds_typed_action_and_flat_disposition() -> None:
+    action = {
+        "schema_version": "AdaptivePolicyActionV2",
+        "decision_id": "apa2_fixture",
+        "action_fingerprint_sha256": "a" * 64,
+        "selected_action": "remain_flat",
+    }
+    action_sha256 = paper_loop._paper_canonical_sha256(action)  # noqa: SLF001
+    authorization = {
+        "schema_version": "adaptive_paper_policy_authorization_v2",
+        "authorization_id": "appa2_fixture",
+        "adaptive_policy_action_id": action["decision_id"],
+        "adaptive_policy_action_sha256": action_sha256,
+        "hard_validation_receipt_sha256": "b" * 64,
+        "objective_evaluation_id": "aoe2_fixture",
+        "objective_evaluation_sha256": "d" * 64,
+        "selected_action": "remain_flat",
+        "paper_entry_authority": False,
+        "hard_validator_passed": True,
+        "exact_action_venue_executable": False,
+        "mandatory_stop_present": False,
+    }
+    authorization_sha256 = paper_loop._paper_canonical_sha256(  # noqa: SLF001
+        authorization
+    )
+    intent = {
+        "intent_id": "intent_fixture",
+        "prediction_id": "prediction_fixture",
+        "signal_id": "signal_fixture",
+        "orchestrator_decision_id": "orchestrator_fixture",
+        "risk_decision_id": "risk_fixture",
+        "adaptive_policy_action": action,
+        "adaptive_policy_action_id": action["decision_id"],
+        "adaptive_policy_action_sha256": action_sha256,
+        "adaptive_paper_policy_authorization": authorization,
+        "adaptive_paper_policy_authorization_sha256": authorization_sha256,
+        "adaptive_policy_reference_parity_status": "PASS",
+        "adaptive_policy_reference_disagreement_count": 0,
+        "adaptive_policy_decision_time": "2026-07-28T02:00:00Z",
+        "adaptive_policy_hard_validation_available_at": "2026-07-28T02:00:01Z",
+        "adaptive_policy_authorized_at": "2026-07-28T02:00:02Z",
+        "legacy_category_e_comparator": {"static_comparator_only": True},
+        "paper_performance_circuit_breaker_authority_classification": (
+            "CATEGORY_E_POLICY_PERFORMANCE"
+        ),
+        "paper_performance_circuit_breaker_adaptive_policy_role": (
+            "CONTINUOUS_OBJECTIVE_RISK_INPUT"
+        ),
+        "paper_performance_circuit_breaker_hard_trading_authority": False,
+        "paper_only": True,
+        "live_gate": "blocked_human_only",
+        "routes_to_live": False,
+        "places_real_order": False,
+        "exchange_action_taken": False,
+    }
+
+    receipt, reasons = paper_loop._paper_adaptive_policy_cycle_receipt(  # noqa: SLF001
+        intent,
+        cycle_control_snapshot_sha256="c" * 64,
+    )
+
+    assert reasons == []
+    assert receipt is not None
+    assert receipt["policy_disposition"] == "FLAT_DISPOSITION_PERSISTED"
+    assert receipt["hard_validation_receipt_sha256"] == "b" * 64
+    persisted = {
+        **intent,
+        "adaptive_policy_authoritative": True,
+        "adaptive_policy_paper_cycle_receipt": receipt,
+        "adaptive_policy_paper_cycle_receipt_id": receipt["receipt_id"],
+        "adaptive_policy_paper_cycle_receipt_sha256": receipt["receipt_sha256"],
+    }
+    assert paper_loop._paper_adaptive_policy_cycle_receipt_valid(persisted) is True  # noqa: SLF001
+    complete = paper_loop._paper_adaptive_policy_runtime_coverage([persisted])  # noqa: SLF001
+    assert complete["complete"] is True
+    assert complete["receipt_count"] == 1
+
+    missing_typed_decision = {
+        "adaptive_policy_authoritative": True,
+        "adaptive_policy_authority_status": "BLOCKED",
+    }
+    incomplete = paper_loop._paper_adaptive_policy_runtime_coverage(  # noqa: SLF001
+        [persisted, missing_typed_decision]
+    )
+    assert incomplete["complete"] is False
+    assert len(incomplete["authority_rows"]) == 2
+    assert len(incomplete["typed_action_rows"]) == 1
+
+    tampered = dict(persisted)
+    tampered_receipt = dict(receipt)
+    tampered_receipt["prediction_id"] = "different_prediction"
+    tampered["adaptive_policy_paper_cycle_receipt"] = tampered_receipt
+    assert paper_loop._paper_adaptive_policy_cycle_receipt_valid(tampered) is False  # noqa: SLF001
+
+
+def test_adaptive_policy_cycle_receipt_fails_closed_on_action_hash_mismatch() -> None:
+    intent = {
+        "adaptive_policy_action": {
+            "schema_version": "AdaptivePolicyActionV2",
+            "decision_id": "apa2_fixture",
+        },
+        "adaptive_policy_action_id": "apa2_fixture",
+        "adaptive_policy_action_sha256": "0" * 64,
+        "adaptive_paper_policy_authorization": {
+            "schema_version": "adaptive_paper_policy_authorization_v2",
+            "adaptive_policy_action_id": "apa2_fixture",
+            "adaptive_policy_action_sha256": "0" * 64,
+            "hard_validation_receipt_sha256": "b" * 64,
+        },
+        "adaptive_paper_policy_authorization_sha256": "1" * 64,
+        "adaptive_policy_reference_parity_status": "PASS",
+        "adaptive_policy_reference_disagreement_count": 0,
+        "paper_performance_circuit_breaker_authority_classification": (
+            "CATEGORY_E_POLICY_PERFORMANCE"
+        ),
+        "paper_performance_circuit_breaker_adaptive_policy_role": (
+            "CONTINUOUS_OBJECTIVE_RISK_INPUT"
+        ),
+        "paper_performance_circuit_breaker_hard_trading_authority": False,
+        "paper_only": True,
+        "live_gate": "blocked_human_only",
+        "routes_to_live": False,
+        "places_real_order": False,
+        "exchange_action_taken": False,
+    }
+
+    receipt, reasons = paper_loop._paper_adaptive_policy_cycle_receipt(  # noqa: SLF001
+        intent,
+        cycle_control_snapshot_sha256="c" * 64,
+    )
+
+    assert receipt is None
+    assert "ADAPTIVE_POLICY_ACTION_BINDING_INVALID" in reasons
+    assert "ADAPTIVE_POLICY_AUTHORIZATION_BINDING_INVALID" in reasons
+
+
 def test_paper_allocation_point_in_time_contract_is_per_candidate_and_fail_closed() -> None:
     decision_time = datetime(2026, 7, 17, 12, 1, tzinfo=timezone.utc)
     intent = {
@@ -9930,6 +10066,34 @@ def test_paper_allocation_point_in_time_contract_is_per_candidate_and_fail_close
     assert "entry_spread_available_at" in valid["required_component_time_fields"]
     assert valid["decision_time_semantics"] == (
         "IMMUTABLE_CAPTURE_AFTER_ALL_CANDIDATE_ALLOCATION_INPUTS_BEFORE_FIRST_ALLOCATION"
+    )
+
+    ta_atr = {
+        **intent,
+        "entry_atr_bps_source": "v2_ta_flat_NATR_FALLBACK",
+        "entry_atr_feature_cutoff": "2026-07-17T12:00:00Z",
+        "entry_atr_generated_at": "2026-07-17T12:00:40Z",
+        "entry_atr_available_at": "2026-07-17T12:00:41Z",
+        "ta_flat_atr_candle_closed_confirmed": True,
+        "entry_atr_source_hash": "c" * 64,
+        "entry_atr_source": "v2_ta_flat_hash_adapter_v1",
+    }
+    ta_atr_valid = paper_loop._paper_allocation_point_in_time_contract(  # noqa: SLF001
+        ta_atr,
+        allocation_decision_time=decision_time,
+    )
+    assert ta_atr_valid["status"] == "PASS"
+
+    ta_atr_invalid = dict(ta_atr)
+    ta_atr_invalid["entry_atr_generated_at"] = "2026-07-17T12:00:42Z"
+    ta_atr_invalid_result = paper_loop._paper_allocation_point_in_time_contract(  # noqa: SLF001
+        ta_atr_invalid,
+        allocation_decision_time=decision_time,
+    )
+    assert ta_atr_invalid_result["status"] == "BLOCKED"
+    assert (
+        "ALLOCATION_INPUT_TIME_ORDER_INVALID:entry_atr_generated_at>entry_atr_available_at"
+        in ta_atr_invalid_result["rejection_reasons"]
     )
 
     future = dict(intent)
@@ -20381,6 +20545,10 @@ def test_paper_performance_circuit_breaker_blocks_negative_rolling_25() -> None:
 
     assert status["state"] == "HALTED_PERFORMANCE"
     assert status["new_entries_allowed"] is False
+    assert status["authority_classification"] == "CATEGORY_E_POLICY_PERFORMANCE"
+    assert status["adaptive_policy_role"] == "CONTINUOUS_OBJECTIVE_RISK_INPUT"
+    assert status["hard_trading_authority"] is False
+    assert status["catastrophic_loss_mandate"] is False
     assert "ROLLING_25_PF_BELOW_1_AND_EXPECTANCY_NON_POSITIVE" in status["block_reasons"]
     assert status["pass_conditions"]["negative_pf_blocks_new_entries"] is True
     assert status["paper_only"] is True

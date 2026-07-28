@@ -1166,6 +1166,7 @@ def _objective_action(
     state_sha256: str,
     registry: Mapping[str, Any],
     decision_time_ms: int,
+    performance_risk_multiplier: float = 1.0,
 ) -> ActionObjectiveInputsV2:
     flat = selected_action == ACTION_REMAIN_FLAT
     stats = statistics or {}
@@ -1187,6 +1188,7 @@ def _objective_action(
             if flat
             else abs(float(stats["mae_bps_quantiles"]["0.5"]))
             * float(stats["loss_probability"])
+            * performance_risk_multiplier
         ),
         expected_tail_loss_bps=(
             0.0
@@ -1234,6 +1236,36 @@ def _inactive_exit() -> ExitPolicyV2:
     )
 
 
+def _continuous_performance_risk_multiplier(
+    paper_status: Mapping[str, Any],
+) -> float:
+    """Convert Category-E performance state into a bounded continuous penalty."""
+
+    raw = paper_status.get("performance_risk_state")
+    state = raw if isinstance(raw, Mapping) else {}
+
+    def finite_or_neutral(value: Any, neutral: float) -> float:
+        if type(value) not in {int, float} or not math.isfinite(float(value)):
+            return neutral
+        return float(value)
+
+    drawdown_fraction = max(
+        0.0,
+        finite_or_neutral(state.get("current_drawdown_fraction"), 0.0),
+    )
+    profit_factor = finite_or_neutral(state.get("profit_factor"), 1.0)
+    profit_factor_deficit = max(0.0, 1.0 - profit_factor)
+    expectancy_bps = finite_or_neutral(state.get("expectancy_bps"), 0.0)
+    expectancy_deficit_fraction = max(0.0, -expectancy_bps) / 10_000.0
+    return min(
+        10.0,
+        1.0
+        + drawdown_fraction
+        + profit_factor_deficit
+        + expectancy_deficit_fraction,
+    )
+
+
 def _policy_action(
     *,
     selected: ActionObjectiveInputsV2,
@@ -1247,6 +1279,7 @@ def _policy_action(
     state_sha256: str,
     source_receipts: tuple[str, ...],
     generated_at_ms: int,
+    performance_risk_multiplier: float = 1.0,
 ) -> AdaptivePolicyActionV2:
     flat = selected.selected_action == ACTION_REMAIN_FLAT
     horizon = _HORIZONS[_identifier(intent.get("timeframe"), "timeframe")]
@@ -1314,7 +1347,7 @@ def _policy_action(
         exposure = target_notional if side == "long" else -target_notional
         expected_drawdown = abs(float(statistics["mae_bps_quantiles"]["0.5"])) * float(
             statistics["loss_probability"]
-        )
+        ) * performance_risk_multiplier
         expected_tail = float(statistics["tail_loss_bps_quantiles"]["0.9"]) * float(
             statistics["loss_probability"]
         )
@@ -1459,6 +1492,7 @@ def _policy_action(
             "CALIBRATED_ADAPTIVE_OBJECTIVE",
             "HARD_CONSTRAINT_VALIDATED",
             "NONTERMINAL_LEARNING_CONTINUES",
+            "PERFORMANCE_RISK_CONTINUOUS_OBJECTIVE_INPUT",
         ),
         learning_continuation_action=(
             "label_and_evaluate_missed_opportunity" if flat else "mature_candidate_and_incremental_retrain"
@@ -1617,6 +1651,7 @@ def build_adaptive_policy_shadow_candidate(
         _feature_abi_sha256(intent, registry),
         _feature_builder_sha256(intent, registry),
         snapshot_content_sha,
+        _canonical_sha256(paper_status.get("performance_risk_state") or {}),
     }
     prediction = _mapping(intent.get("entry_prediction_snapshot"), "entry_prediction_snapshot")
     source_hashes = prediction.get("source_hashes")
@@ -1633,6 +1668,9 @@ def build_adaptive_policy_shadow_candidate(
     source_receipts = tuple(sorted(source_values))
     weights = _weights(calibration)
     allocation = _allocation(calibration, state_id=state_id, state_sha256=state_sha)
+    performance_risk_multiplier = _continuous_performance_risk_multiplier(
+        paper_status
+    )
     objective_inputs: list[ActionObjectiveInputsV2] = []
     bundles: list[AdaptiveComponentEstimatesV1] = []
     attestations: list[SelectedActionVenueFeasibilityV2] = []
@@ -1672,6 +1710,7 @@ def build_adaptive_policy_shadow_candidate(
                         state_sha256=state_sha,
                         registry=registry,
                         decision_time_ms=generated_at_ms,
+                        performance_risk_multiplier=performance_risk_multiplier,
                     )
                 )
                 action_dispositions[action_id] = (blocker,)
@@ -1750,6 +1789,7 @@ def build_adaptive_policy_shadow_candidate(
                     state_sha256=state_sha,
                     registry=registry,
                     decision_time_ms=generated_at_ms,
+                    performance_risk_multiplier=performance_risk_multiplier,
                 )
             )
             bundles.append(
@@ -1829,6 +1869,7 @@ def build_adaptive_policy_shadow_candidate(
             state_sha256=state_sha,
             registry=registry,
             decision_time_ms=generated_at_ms,
+            performance_risk_multiplier=performance_risk_multiplier,
         )
     )
     ordered_inputs = tuple(sorted(objective_inputs, key=lambda item: item.action_id))
@@ -1880,6 +1921,7 @@ def build_adaptive_policy_shadow_candidate(
         state_sha256=state_sha,
         source_receipts=source_receipts,
         generated_at_ms=generated_at_ms,
+        performance_risk_multiplier=performance_risk_multiplier,
     )
     production = {
         "preemptive_decision_id": intent.get("preemptive_decision_id"),
