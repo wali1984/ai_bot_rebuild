@@ -24571,6 +24571,162 @@ class TestCgF044StateFileOverrideAndSyntheticQuarantine:
 # ---------------------------------------------------------------------------
 
 
+class _CanonicalRiskHandoffRedisStub:
+    def __init__(
+        self,
+        exists_responses: list[int | Exception],
+        records: dict[str, dict] | None = None,
+    ) -> None:
+        self._exists_responses = list(exists_responses)
+        self._records = records or {}
+        self.exists_calls: list[tuple[str, ...]] = []
+
+    def exists(self, *keys: str) -> int:
+        self.exists_calls.append(tuple(keys))
+        index = min(len(self.exists_calls) - 1, len(self._exists_responses) - 1)
+        response = self._exists_responses[index]
+        if isinstance(response, Exception):
+            raise response
+        return response
+
+    def get(self, key: str):
+        value = self._records.get(key)
+        return json.dumps(value) if value is not None else None
+
+
+def _canonical_risk_handoff_clock() -> tuple[object, object]:
+    state = {"now": 0.0}
+
+    def monotonic() -> float:
+        return state["now"]
+
+    def sleep(seconds: float) -> None:
+        state["now"] += seconds
+
+    return monotonic, sleep
+
+
+def test_canonical_risk_handoff_awaits_exact_frozen_ids_until_ready() -> None:
+    signals = [
+        {"signal_id": "sig_b", "risk_decision_id": "rd_b"},
+        {"signal_id": "sig_a", "risk_decision_id": "rd_a"},
+        {"signal_id": "sig_a_duplicate", "risk_decision_id": "rd_a"},
+        {"signal_id": "sig_materialized", "risk_decision_id": "paper_risk_ignored"},
+    ]
+    original = deepcopy(signals)
+    redis_client = _CanonicalRiskHandoffRedisStub([0, 2])
+    monotonic, sleep = _canonical_risk_handoff_clock()
+
+    status = paper_loop._paper_wait_for_canonical_risk_records(  # noqa: SLF001
+        redis_client,
+        signals,
+        max_wait_seconds=1.0,
+        poll_seconds=0.25,
+        monotonic_clock=monotonic,
+        sleep_fn=sleep,
+    )
+
+    expected_keys = (
+        "v2:decision:risk:rd_a",
+        "v2:decision:risk:rd_b",
+    )
+    assert redis_client.exists_calls == [expected_keys, expected_keys]
+    assert status["status"] == "READY_ALL_CANONICAL_RISK_RECORDS_PRESENT"
+    assert status["canonical_signal_row_count"] == 3
+    assert status["canonical_risk_decision_id_count"] == 2
+    assert status["records_present_initial"] == 0
+    assert status["records_present_final"] == 2
+    assert status["records_missing_final"] == 0
+    assert status["all_records_present"] is True
+    assert status["timed_out"] is False
+    assert status["redis_read_error"] is False
+    assert status["waited_seconds"] == pytest.approx(0.25)
+    assert signals == original
+
+
+def test_canonical_risk_handoff_never_awaits_synthetic_paper_risk_ids() -> None:
+    signals = [
+        {"signal_id": "sig_materialized", "risk_decision_id": "paper_risk_1"},
+        {"signal_id": "sig_missing", "risk_decision_id": None},
+    ]
+    original = deepcopy(signals)
+    redis_client = _CanonicalRiskHandoffRedisStub(
+        [AssertionError("synthetic ID must not reach Redis EXISTS")]
+    )
+
+    status = paper_loop._paper_wait_for_canonical_risk_records(  # noqa: SLF001
+        redis_client,
+        signals,
+    )
+
+    assert redis_client.exists_calls == []
+    assert status["status"] == "NOT_APPLICABLE_NO_CANONICAL_RISK_IDS"
+    assert status["canonical_risk_decision_id_count"] == 0
+    assert status["all_records_present"] is True
+    assert status["waited_seconds"] == 0.0
+    assert signals == original
+
+
+def test_canonical_risk_handoff_redis_failure_is_fail_closed_and_read_only() -> None:
+    signals = [{"signal_id": "sig_x", "risk_decision_id": "rd_x"}]
+    original = deepcopy(signals)
+    redis_client = _CanonicalRiskHandoffRedisStub([RuntimeError("redis unavailable")])
+    monotonic, sleep = _canonical_risk_handoff_clock()
+
+    status = paper_loop._paper_wait_for_canonical_risk_records(  # noqa: SLF001
+        redis_client,
+        signals,
+        max_wait_seconds=1.0,
+        poll_seconds=0.25,
+        monotonic_clock=monotonic,
+        sleep_fn=sleep,
+    )
+
+    assert status["status"] == "BLOCKED_REDIS_READ_ERROR"
+    assert status["records_present_final"] == 0
+    assert status["records_missing_final"] == 1
+    assert status["all_records_present"] is False
+    assert status["timed_out"] is False
+    assert status["redis_read_error"] is True
+    assert signals == original
+    assert not {
+        "risk_controller_decision",
+        "risk_decision_record",
+        "risk_allowed",
+    } & set(status)
+
+
+def test_canonical_risk_handoff_timeout_is_fail_closed_and_read_only() -> None:
+    signals = [{"signal_id": "sig_x", "risk_decision_id": "rd_x"}]
+    original = deepcopy(signals)
+    redis_client = _CanonicalRiskHandoffRedisStub([0])
+    monotonic, sleep = _canonical_risk_handoff_clock()
+
+    status = paper_loop._paper_wait_for_canonical_risk_records(  # noqa: SLF001
+        redis_client,
+        signals,
+        max_wait_seconds=0.5,
+        poll_seconds=0.25,
+        monotonic_clock=monotonic,
+        sleep_fn=sleep,
+    )
+
+    assert status["status"] == "TIMED_OUT_MISSING_CANONICAL_RISK_RECORDS"
+    assert status["records_present_initial"] == 0
+    assert status["records_present_final"] == 0
+    assert status["records_missing_final"] == 1
+    assert status["all_records_present"] is False
+    assert status["timed_out"] is True
+    assert status["redis_read_error"] is False
+    assert status["waited_seconds"] == pytest.approx(0.5)
+    assert signals == original
+    assert not {
+        "risk_controller_decision",
+        "risk_decision_record",
+        "risk_allowed",
+    } & set(status)
+
+
 def _dereference_intent(**overrides):
     intent = {
         "symbol": "BTCUSDT",
@@ -24646,6 +24802,41 @@ def _canonical_decision_records(
         "v2:decision:risk:rd_dec_x1": risk,
         "v2:decision:orchestrator:dec_x1": orchestrator,
     }
+
+
+@pytest.mark.parametrize(
+    ("risk_overrides", "expected_reason"),
+    [
+        ({"side": "short"}, "RISK_DECISION_RECORD_SIDE_MISMATCH"),
+        (
+            {"feature_vector_hash": "other_hash"},
+            "RISK_DECISION_RECORD_FEATURE_HASH_MISMATCH",
+        ),
+    ],
+)
+def test_canonical_risk_handoff_presence_never_replaces_identity_validation(
+    risk_overrides: dict,
+    expected_reason: str,
+) -> None:
+    intent = _dereference_intent()
+    records = _canonical_decision_records(risk_overrides=risk_overrides)
+    redis_client = _CanonicalRiskHandoffRedisStub([1], records)
+
+    status = paper_loop._paper_wait_for_canonical_risk_records(  # noqa: SLF001
+        redis_client,
+        [{"signal_id": "sig_x1", "risk_decision_id": "rd_dec_x1"}],
+        max_wait_seconds=0.0,
+    )
+    out = paper_loop._paper_policy_intent_decision_dereference(  # noqa: SLF001
+        redis_client,
+        **_dereference_kwargs(intent),
+    )
+
+    assert status["status"] == "READY_ALL_CANONICAL_RISK_RECORDS_PRESENT"
+    assert "risk_controller_decision" not in status
+    assert expected_reason in out["decision_record_dereference_blockers"]
+    assert out["risk_decision_record_resolved"] is False
+    assert out["risk_controller_decision"] == "PENDING:RISK_DECISION_RECORD_REQUIRED"
 
 
 def test_policy_sampled_exploration_never_uses_risk_preview_as_authority() -> None:

@@ -5723,6 +5723,143 @@ def _read_paper_signals(r) -> list[dict]:
     return list(by_identity.values())
 
 
+PAPER_CANONICAL_RISK_HANDOFF_MAX_WAIT_SECONDS = 35.0
+PAPER_CANONICAL_RISK_HANDOFF_POLL_SECONDS = 0.25
+
+
+def _paper_wait_for_canonical_risk_records(
+    r: Any,
+    signals: Sequence[Mapping[str, Any]],
+    *,
+    max_wait_seconds: float = PAPER_CANONICAL_RISK_HANDOFF_MAX_WAIT_SECONDS,
+    poll_seconds: float = PAPER_CANONICAL_RISK_HANDOFF_POLL_SECONDS,
+    monotonic_clock: Any = None,
+    sleep_fn: Any = None,
+) -> dict[str, Any]:
+    """Bound the orchestrator-to-risk publication race without minting authority.
+
+    ``v2:signals:paper`` is published by the orchestrator before the independently
+    governed risk worker can create the immutable per-ID decision records.  The
+    paper loop freezes its signal set once per cycle, so consuming that set
+    immediately turns an ordinary producer lag into a whole-cycle authorization
+    outage.  Wait only for the exact canonical ``rd_*`` IDs already present in
+    the frozen signal rows.  The existing dereference validator remains the sole
+    authority for producer, identity, hash, side, expiry, and action validation.
+
+    Materialization/recovery ``paper_risk_*`` identifiers are deliberately not
+    awaited: absence of a canonical producer record for those rows remains a
+    hard fail-closed result.
+    """
+
+    monotonic_clock = monotonic_clock or time.monotonic
+    sleep_fn = sleep_fn or time.sleep
+    canonical_ids = sorted(
+        {
+            str(row.get("risk_decision_id"))
+            for row in signals
+            if isinstance(row, Mapping)
+            and str(row.get("risk_decision_id") or "").startswith("rd_")
+        }
+    )
+    canonical_id_hash = hashlib.sha256(
+        json.dumps(canonical_ids, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    base = {
+        "schema_version": "paper_canonical_risk_handoff_v1",
+        "canonical_signal_row_count": sum(
+            1
+            for row in signals
+            if isinstance(row, Mapping)
+            and str(row.get("risk_decision_id") or "").startswith("rd_")
+        ),
+        "canonical_risk_decision_id_count": len(canonical_ids),
+        "canonical_risk_decision_ids_sha256": canonical_id_hash,
+        "max_wait_seconds": float(max_wait_seconds),
+        "poll_seconds": float(poll_seconds),
+        "consumer_role": "READ_ONLY_CANONICAL_RISK_HANDOFF_BARRIER",
+        "authority_source": "v2_risk_gateway_live_loop_per_id_records",
+        "identity_validation_deferred_to": (
+            "_paper_policy_intent_decision_dereference"
+        ),
+        "paper_only": True,
+        "live_gate": LIVE_GATE_BLOCKED,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "exchange_action_taken": False,
+    }
+    if not canonical_ids:
+        return {
+            **base,
+            "status": "NOT_APPLICABLE_NO_CANONICAL_RISK_IDS",
+            "records_present_initial": 0,
+            "records_present_final": 0,
+            "records_missing_final": 0,
+            "all_records_present": True,
+            "timed_out": False,
+            "redis_read_error": False,
+            "waited_seconds": 0.0,
+        }
+    if r is None:
+        return {
+            **base,
+            "status": "BLOCKED_REDIS_UNAVAILABLE",
+            "records_present_initial": 0,
+            "records_present_final": 0,
+            "records_missing_final": len(canonical_ids),
+            "all_records_present": False,
+            "timed_out": False,
+            "redis_read_error": True,
+            "waited_seconds": 0.0,
+        }
+
+    keys = [f"{V2_REDIS_PREFIX}decision:risk:{decision_id}" for decision_id in canonical_ids]
+    started = monotonic_clock()
+    deadline = started + max(0.0, float(max_wait_seconds))
+    present_initial = 0
+    present_final = 0
+    redis_read_error = False
+    first_read = True
+    while True:
+        try:
+            present_final = int(r.exists(*keys))
+        except Exception:  # noqa: BLE001 - fail closed; authority is never inferred
+            redis_read_error = True
+            present_final = 0
+            break
+        if first_read:
+            present_initial = present_final
+            first_read = False
+        if present_final == len(keys):
+            break
+        now = monotonic_clock()
+        if now >= deadline:
+            break
+        sleep_fn(min(max(0.0, float(poll_seconds)), max(0.0, deadline - now)))
+
+    waited_seconds = max(0.0, monotonic_clock() - started)
+    all_present = present_final == len(keys) and not redis_read_error
+    timed_out = not all_present and not redis_read_error and waited_seconds >= max(
+        0.0, float(max_wait_seconds)
+    )
+    if all_present:
+        status = "READY_ALL_CANONICAL_RISK_RECORDS_PRESENT"
+    elif redis_read_error:
+        status = "BLOCKED_REDIS_READ_ERROR"
+    else:
+        status = "TIMED_OUT_MISSING_CANONICAL_RISK_RECORDS"
+    return {
+        **base,
+        "status": status,
+        "records_present_initial": present_initial,
+        "records_present_final": present_final,
+        "records_missing_final": max(0, len(keys) - present_final),
+        "all_records_present": all_present,
+        "timed_out": timed_out,
+        "redis_read_error": redis_read_error,
+        "waited_seconds": round(waited_seconds, 6),
+    }
+
+
 def _read_paper_exploration_materialization_queue(r) -> list[dict[str, Any]]:
     if r is None:
         return []
@@ -49247,6 +49384,10 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
     # Both sources are release-critical.  A read failure must fail the cycle
     # instead of being converted into an apparently healthy empty market.
     orchestrator_signals = _read_paper_signals(r)
+    canonical_risk_handoff_status = _paper_wait_for_canonical_risk_records(
+        r,
+        orchestrator_signals,
+    )
     exploration_signals = list(
         paper_exploration_materialization_queue_status.get(
             "_active_signal_rows",
@@ -57635,6 +57776,9 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                         "paper_strategy_mode_collapse_guard_status": strategy_mode_collapse_guard_status,
                         "paper_drawdown_recovery_guard_status": paper_drawdown_recovery_guard_status,
                         "paper_runtime_admission_status": paper_runtime_admission_status,
+                        "paper_canonical_risk_handoff_status": (
+                            canonical_risk_handoff_status
+                        ),
                         "preemptive_edge_control_status": preemptive_edge_control_status,
                         "preemptive_candidate_decision_matrix": preemptive_candidate_decision_matrix,
                         "paper_preemptive_admission_status": paper_preemptive_admission_status,
@@ -58130,6 +58274,7 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         "paper_strategy_mode_collapse_guard_status": strategy_mode_collapse_guard_status,
         "paper_drawdown_recovery_guard_status": paper_drawdown_recovery_guard_status,
         "paper_runtime_admission_status": paper_runtime_admission_status,
+        "paper_canonical_risk_handoff_status": canonical_risk_handoff_status,
         "preemptive_edge_control_status": preemptive_edge_control_status,
         "paper_per_id_decision_store_status": paper_per_id_decision_store_status,
         "preemptive_candidate_decision_matrix": preemptive_candidate_decision_matrix,
