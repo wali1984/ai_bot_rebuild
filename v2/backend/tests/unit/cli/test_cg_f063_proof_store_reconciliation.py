@@ -20,6 +20,9 @@ These fixtures encode the REQUIRED post-fix contract per the operator spec:
    conserve total margin (released + retained == pre-reconciliation total).
 5. The rules must be side-symmetric (long == short) and must survive a
    simulated process restart when durable proof already exists.
+6. A hash-bound, admitted reduce-only close transition must advance the
+   durable proof to the coherent remaining position.  A changed quantity,
+   notional, or margin after that transition is not positive phantom evidence.
 
 Paper-only. Live trading stays BLOCKED. This file is test-only: it does not
 modify ``v2_trade_management_paper_loop.py`` (owned by Codex) or any hook.
@@ -513,6 +516,139 @@ def test_no_duplicate_margin_release() -> None:
         receipt_1["used_margin_released_usd"] + receipt_2["used_margin_released_usd"]
     )
     assert total_released == pytest.approx(position["allocated_margin_usd"])
+
+
+# ---------------------------------------------------------------------------
+# 5a. A valid partial close advances, rather than invalidates, position proof.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("side", ["long", "short"])
+def test_coherent_reduce_only_partial_remainder_must_survive_restart_reconciliation(
+    side: str,
+) -> None:
+    """A durable entry proof is not a permanent snapshot of open quantity.
+
+    An admitted reduce-only close legitimately changes quantity, gross
+    notional, allocated margin, and entry-cost remainder while leaving the
+    position open.  Its hash-bound transition receipt must advance proof state;
+    reconciliation must not reinterpret the coherent remainder as a phantom.
+    The assertion is side-symmetric because both LONG and SHORT positions use
+    the same accounting and restart contract.
+    """
+
+    close_side = "short" if side == "long" else "long"
+    fill, position = _make_fill_position(
+        f"PARTIAL{side.upper()}USDT",
+        side,
+        550,
+        quantity=0.5,
+        price=100.0,
+        leverage=2.0,
+    )
+    proof = _sealed_proof(fill, position, generated_utc="2026-07-28T05:30:00Z")
+    manifest = _manifest_for([proof], [position])
+    proof_source = _proof_source_from_store([proof], manifest)
+
+    close_material = {
+        "schema_version": "paper_reduce_only_close_receipt_v1",
+        "close_id": f"reduce-close-{side}-550",
+        "position_id": position["position_id"],
+        "position_generation_id": position["position_generation_id"],
+        "entry_fill_id": fill["fill_id"],
+        "source_fill_ids": [fill["fill_id"]],
+        "position_side": side,
+        "close_side": close_side,
+        "quantity_before_close": 0.5,
+        "close_quantity": 0.2,
+        "remaining_quantity_after_close": 0.3,
+        "reduce_only": True,
+        "position_to_flat": False,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "exchange_action_taken": False,
+    }
+    close_receipt_sha256 = paper_loop._paper_canonical_sha256(close_material)  # noqa: SLF001
+    close_receipt = {
+        **close_material,
+        "close_receipt_sha256": close_receipt_sha256,
+    }
+
+    remaining = dict(position)
+    remaining.update(
+        {
+            "net_quantity": 0.3,
+            "gross_notional_usd": 30.0,
+            "allocated_margin_usd": 15.0,
+            "entry_cost_is_final_close": False,
+            "entry_fees_allocated_to_closes_usd": 0.01,
+            "entry_fees_remaining_usd": 0.015,
+        }
+    )
+    transition_material = {
+        "schema_version": "paper_position_close_transition_proof_v1",
+        "prior_open_position_fill_proof_id": proof["proof_id"],
+        "prior_open_position_fill_proof_sha256": (
+            paper_loop._paper_canonical_sha256(proof)  # noqa: SLF001
+        ),
+        "close_id": close_receipt["close_id"],
+        "close_receipt_sha256": close_receipt_sha256,
+        "position_id": remaining["position_id"],
+        "position_generation_id": remaining["position_generation_id"],
+        "position_side": side,
+        "quantity_before_close": 0.5,
+        "close_quantity": 0.2,
+        "remaining_quantity": 0.3,
+        "remaining_gross_notional_usd": 30.0,
+        "remaining_allocated_margin_usd": 15.0,
+        "remaining_position_payload_sha256": (
+            paper_loop._paper_canonical_sha256(remaining)  # noqa: SLF001
+        ),
+        "quantity_conserved": True,
+        "margin_released_by_reconciliation_usd": 0.0,
+        "wallet_balance_mutation_usd": 0.0,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "exchange_action_taken": False,
+    }
+    transition_proof_id = paper_loop._paper_canonical_sha256(  # noqa: SLF001
+        transition_material
+    )
+    transition_proof = {
+        **transition_material,
+        "transition_proof_id": transition_proof_id,
+    }
+    transition_proof_sha256 = paper_loop._paper_canonical_sha256(  # noqa: SLF001
+        transition_proof
+    )
+    transition_proof["transition_proof_sha256"] = transition_proof_sha256
+
+    # Simulates the next process lifetime: only durable ledger/proof records
+    # remain.  No same-cycle admission state is available to rescue the row.
+    ledger = _ledger_from_positions([remaining])
+    ledger["closed_trades"] = [close_receipt]
+    ledger["closes"] = [close_receipt]
+    ledger["paper_position_close_transition_proofs"] = [transition_proof]
+
+    reconciled, receipt = paper_loop._paper_reconcile_ledger_to_accepted_fill_proofs(  # noqa: SLF001
+        ledger,
+        proof_source,
+        generated_utc="2026-07-28T05:31:00Z",
+    )
+
+    assert receipt["retained_position_count"] == 1
+    assert receipt["phantom_position_count"] == 0
+    assert receipt["used_margin_released_usd"] == 0.0
+    assert receipt["wallet_balance_mutation_usd"] == 0.0
+    assert receipt.get("wallet_mutation_allowed") is False
+    assert len(paper_loop._paper_open_position_rows(reconciled)) == 1  # noqa: SLF001
+    assert reconciled["closed_trades"] == [close_receipt]
+    assert reconciled["closes"] == [close_receipt]
+    assert receipt["proof_bindings"][0]["position_close_transition_proof_sha256"] == (
+        transition_proof_sha256
+    )
 
 
 # ---------------------------------------------------------------------------
