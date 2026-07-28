@@ -66,6 +66,38 @@ def _candidate(*, overlap: int = 0) -> dict:
     }
 
 
+def _training() -> dict:
+    return {
+        "dataset_id": "adaptive_serving_dataset_v2_test",
+        "dataset_sha256": SHA_D,
+        "manifest_id": "adaptive_serving_manifest_v2_test",
+        "manifest_sha256": SHA_A,
+        "base_dataset_sha256": SHA_B,
+        "base_dataset_rows": 382,
+        "serving_eligible_candidate_rows": 7_369,
+        "dataset_admitted_candidate_rows": 4_618,
+        "candidate_training_rows": 2_657,
+        "candidate_validation_rows": 799,
+        "candidate_holdout_rows": 1_162,
+        "serving_rejections_by_reason": {
+            "serving_feature_vector:FEATURE_STALENESS_LIMIT_EXCEEDED": 485,
+        },
+        "split_purge_reasons": {
+            "FEATURE_GROUP_CROSSES_SPLIT_BOUNDARY": 43,
+            "TRAIN_LABEL_NOT_AVAILABLE_BEFORE_VALIDATION": 1_180,
+            "VALIDATION_LABEL_NOT_AVAILABLE_BEFORE_HOLDOUT": 1_528,
+        },
+        "candidate_records_fully_accounted": True,
+        "counterfactual_counts_as_realized_paper_profit": False,
+        "artifact_verified": True,
+        "paper_only": True,
+        "live_gate": "blocked_human_only",
+        "routes_to_live": False,
+        "places_real_order": False,
+        "exchange_action_taken": False,
+    }
+
+
 def _registry() -> dict:
     return {
         "checkpoint_id": "active",
@@ -109,6 +141,7 @@ def _build(**overrides):
         "generated_at": "2026-07-28T12:00:00.000Z",
         "frozen_corpus": _frozen(),
         "candidate_outcomes": _candidate(),
+        "candidate_training": _training(),
         "checkpoint_rows": _checkpoints(),
         "active_registry": _registry(),
     }
@@ -116,14 +149,15 @@ def _build(**overrides):
     return build_data_utilization_report_v3(**arguments)
 
 
-def test_report_is_consistent_but_blocks_unjoined_identity_domains():
+def test_report_reconciles_matured_outcomes_into_adaptive_training_dataset():
     report = _build()
     assert report["paths_consistent"] is True
     assert report["source_integrity_verified"] is True
-    assert report["status"] == "BLOCK"
-    assert report["blockers"] == [
-        "TYPED_CANDIDATE_OUTCOMES_NOT_JOINED_TO_GEN5_TRAINING_ROWS"
-    ]
+    assert report["status"] == "PASS"
+    assert report["blockers"] == []
+    assert report["typed_candidate_outcomes_joined_to_training"] is True
+    assert report["candidate_outcome_training_join"]["complete"] is True
+    assert report["candidate_outcome_training_join"]["legacy_gen5_exact_identity_overlap_rows"] == 0
     assert report["required_counters"]["rows_used_by_each_checkpoint"] == {
         "active": 192,
         "gen5_candidate": 382,
@@ -131,11 +165,13 @@ def test_report_is_consistent_but_blocks_unjoined_identity_domains():
     assert len(report["report_sha256"]) == 64
 
 
-def test_report_passes_only_when_exact_typed_outcome_join_is_complete():
-    report = _build(candidate_outcomes=_candidate(overlap=382))
-    assert report["status"] == "PASS"
-    assert report["complete_eligible_data_utilized"] is True
-    assert report["blockers"] == []
+def test_report_blocks_when_candidate_training_artifact_is_not_verified():
+    training = _training()
+    training["artifact_verified"] = False
+    report = _build(candidate_training=training)
+    assert report["status"] == "BLOCK"
+    assert report["source_integrity_verified"] is False
+    assert "SOURCE_INTEGRITY_UNVERIFIED" in report["blockers"]
 
 
 def test_bad_transition_reason_count_keeps_report_red():
@@ -149,7 +185,7 @@ def test_bad_transition_reason_count_keeps_report_red():
 
 
 def test_unsafe_authority_flag_keeps_report_red():
-    candidate = _candidate(overlap=382)
+    candidate = _candidate()
     candidate["routes_to_live"] = True
     report = _build(candidate_outcomes=candidate)
     assert report["status"] == "BLOCK"
@@ -161,7 +197,7 @@ def test_unbound_paid_source_inventory_keeps_report_red():
     frozen["complete_paid_source_inventory_bound"] = False
     report = _build(
         frozen_corpus=frozen,
-        candidate_outcomes=_candidate(overlap=382),
+        candidate_outcomes=_candidate(),
     )
     assert report["status"] == "BLOCK"
     assert "FULL_PAID_SOURCE_INVENTORY_NOT_BOUND_TO_FROZEN_GEN5_SCOPE" in report["blockers"]

@@ -31,6 +31,8 @@ HISTORICAL_PATH_STAGES = (
 CANDIDATE_PATH_STAGES = (
     "candidate_outcome_rows",
     "matured_candidate_outcome_rows",
+    "serving_eligible_candidate_rows",
+    "dataset_admitted_candidate_rows",
 )
 RAW_PATH_STAGES = ("raw_events", "canonical_events")
 
@@ -145,6 +147,7 @@ def build_data_utilization_report_v3(
     generated_at: str,
     frozen_corpus: Mapping[str, Any],
     candidate_outcomes: Mapping[str, Any],
+    candidate_training: Mapping[str, Any],
     checkpoint_rows: Sequence[Mapping[str, Any]],
     active_registry: Mapping[str, Any],
 ) -> dict[str, Any]:
@@ -166,7 +169,18 @@ def build_data_utilization_report_v3(
         stage: _required_int(frozen_corpus, stage) for stage in HISTORICAL_PATH_STAGES
     }
     candidate_counts = {
-        stage: _required_int(candidate_outcomes, stage) for stage in CANDIDATE_PATH_STAGES
+        "candidate_outcome_rows": _required_int(
+            candidate_outcomes, "candidate_outcome_rows"
+        ),
+        "matured_candidate_outcome_rows": _required_int(
+            candidate_outcomes, "matured_candidate_outcome_rows"
+        ),
+        "serving_eligible_candidate_rows": _required_int(
+            candidate_training, "serving_eligible_candidate_rows"
+        ),
+        "dataset_admitted_candidate_rows": _required_int(
+            candidate_training, "dataset_admitted_candidate_rows"
+        ),
     }
     overlap_count = _required_int(candidate_outcomes, "gen5_exact_identity_overlap_rows")
 
@@ -176,6 +190,12 @@ def build_data_utilization_report_v3(
     pending_reasons = candidate_outcomes.get("pending_reasons")
     if not isinstance(pending_reasons, Mapping):
         raise DataUtilizationReportError("CANDIDATE_PENDING_REASONS_OBJECT_REQUIRED")
+    serving_rejections = candidate_training.get("serving_rejections_by_reason")
+    if not isinstance(serving_rejections, Mapping):
+        raise DataUtilizationReportError("CANDIDATE_SERVING_REJECTIONS_OBJECT_REQUIRED")
+    split_purge_reasons = candidate_training.get("split_purge_reasons")
+    if not isinstance(split_purge_reasons, Mapping):
+        raise DataUtilizationReportError("CANDIDATE_SPLIT_PURGE_REASONS_OBJECT_REQUIRED")
 
     raw_path = build_path_funnel(RAW_PATH_STAGES, raw_counts)
     historical_path = build_path_funnel(
@@ -186,7 +206,11 @@ def build_data_utilization_report_v3(
     candidate_path = build_path_funnel(
         CANDIDATE_PATH_STAGES,
         candidate_counts,
-        {"candidate_outcome_rows": pending_reasons},
+        {
+            "candidate_outcome_rows": pending_reasons,
+            "matured_candidate_outcome_rows": serving_rejections,
+            "serving_eligible_candidate_rows": split_purge_reasons,
+        },
     )
 
     active_checkpoint_id = _required_text(active_registry, "checkpoint_id")
@@ -197,7 +221,12 @@ def build_data_utilization_report_v3(
         active_registry_generation=active_generation,
     )
 
-    safety_sources = (frozen_corpus, candidate_outcomes, active_registry)
+    safety_sources = (
+        frozen_corpus,
+        candidate_outcomes,
+        candidate_training,
+        active_registry,
+    )
     source_authority_safe = all(_authority_is_safe(source) for source in safety_sources)
     paths_consistent = bool(
         raw_path.consistent and historical_path.consistent and candidate_path.consistent
@@ -205,14 +234,22 @@ def build_data_utilization_report_v3(
     source_integrity_verified = bool(
         frozen_corpus.get("source_integrity_verified") is True
         and candidate_outcomes.get("archive_verified") is True
+        and candidate_training.get("artifact_verified") is True
         and active_registry.get("registry_binding_verified") is True
     )
     complete_paid_source_inventory_bound = bool(
         frozen_corpus.get("complete_paid_source_inventory_bound") is True
     )
-    exact_candidate_join_complete = bool(
-        overlap_count > 0
-        and overlap_count == historical_counts["training_eligible_rows"]
+    candidate_training_complete = bool(
+        candidate_training.get("candidate_records_fully_accounted") is True
+        and candidate_training.get("counterfactual_counts_as_realized_paper_profit")
+        is False
+        and candidate_training.get("base_dataset_sha256") == dataset_sha256
+        and _required_int(candidate_training, "base_dataset_rows")
+        == historical_counts["training_eligible_rows"]
+        and _required_int(candidate_training, "candidate_training_rows") > 0
+        and _required_int(candidate_training, "candidate_validation_rows") > 0
+        and _required_int(candidate_training, "candidate_holdout_rows") > 0
     )
     blockers: list[str] = []
     if not paths_consistent:
@@ -223,7 +260,7 @@ def build_data_utilization_report_v3(
         blockers.append("PAPER_LIVE_AUTHORITY_BOUNDARY_INVALID")
     if not complete_paid_source_inventory_bound:
         blockers.append("FULL_PAID_SOURCE_INVENTORY_NOT_BOUND_TO_FROZEN_GEN5_SCOPE")
-    if not exact_candidate_join_complete:
+    if not candidate_training_complete:
         blockers.append("TYPED_CANDIDATE_OUTCOMES_NOT_JOINED_TO_GEN5_TRAINING_ROWS")
 
     counters: dict[str, Any] = {
@@ -234,6 +271,21 @@ def build_data_utilization_report_v3(
             "matured_candidate_outcome_rows"
         ],
         "gen5_candidate_outcome_identity_overlap_rows": overlap_count,
+        "serving_eligible_candidate_rows": candidate_counts[
+            "serving_eligible_candidate_rows"
+        ],
+        "dataset_admitted_candidate_rows": candidate_counts[
+            "dataset_admitted_candidate_rows"
+        ],
+        "candidate_training_rows": _required_int(
+            candidate_training, "candidate_training_rows"
+        ),
+        "candidate_validation_rows": _required_int(
+            candidate_training, "candidate_validation_rows"
+        ),
+        "candidate_holdout_rows": _required_int(
+            candidate_training, "candidate_holdout_rows"
+        ),
         "rows_used_by_each_checkpoint": {
             row["checkpoint_id"]: row["rows_used_total"] for row in checkpoint_usage
         },
@@ -273,15 +325,36 @@ def build_data_utilization_report_v3(
         },
         "checkpoint_usage": checkpoint_usage,
         "candidate_outcome_training_join": {
-            "join_identity": "symbol+timeframe+decision_time_ms",
-            "exact_overlap_rows": overlap_count,
+            "join_identity": (
+                "candidate_id+authenticated_feature_snapshot_id+"
+                "candidate_archive_terminal_chain_sha256"
+            ),
+            "adaptive_dataset_id": _required_text(candidate_training, "dataset_id"),
+            "adaptive_dataset_sha256": _required_sha256(
+                candidate_training, "dataset_sha256"
+            ),
+            "adaptive_manifest_id": _required_text(candidate_training, "manifest_id"),
+            "adaptive_manifest_sha256": _required_sha256(
+                candidate_training, "manifest_sha256"
+            ),
+            "legacy_gen5_exact_identity_overlap_rows": overlap_count,
             "gen5_training_eligible_rows": historical_counts["training_eligible_rows"],
-            "complete": exact_candidate_join_complete,
+            "candidate_training_rows": _required_int(
+                candidate_training, "candidate_training_rows"
+            ),
+            "candidate_validation_rows": _required_int(
+                candidate_training, "candidate_validation_rows"
+            ),
+            "candidate_holdout_rows": _required_int(
+                candidate_training, "candidate_holdout_rows"
+            ),
+            "complete": candidate_training_complete,
             "counterfactual_counts_as_realized_paper_profit": False,
         },
         "paths_consistent": paths_consistent,
         "source_integrity_verified": source_integrity_verified,
-        "complete_eligible_data_utilized": exact_candidate_join_complete,
+        "typed_candidate_outcomes_joined_to_training": candidate_training_complete,
+        "complete_eligible_data_utilized": not blockers,
         "blockers": blockers,
         "status": "PASS" if not blockers else "BLOCK",
         "paper_only": True,

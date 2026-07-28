@@ -8,6 +8,7 @@ train, activate, authorize, route, or submit any order.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import sqlite3
@@ -43,6 +44,9 @@ from v2.backend.app.services.prediction_serving.serving_dataset_v2 import (
 CANDIDATE_STATUS_KEY = "v2:adaptive_system:candidate_outcomes:status"
 ACTIVE_REGISTRY_KEY = "v2:model_registry:paper:active"
 REPORT_RELATIVE_PATH = Path("goal_state/ADAPTIVE_SYSTEM_FINAL_PASS/data_utilization_report.json")
+DEFAULT_ADAPTIVE_DATASET_ROOT = Path(
+    "/home/wali/ai_bot_local_data/adaptive_candidate_dataset_v2"
+)
 EXPECTED_COST_LABELS = frozenset(
     {
         "causal_cost:auxiliary:expected_funding_bps",
@@ -90,6 +94,36 @@ def _read_object(path: Path, field: str) -> dict[str, Any]:
         raise DataUtilizationCollectorError(f"{field}:INVALID_JSON") from exc
     if not isinstance(value, dict):
         raise DataUtilizationCollectorError(f"{field}:OBJECT_REQUIRED")
+    return value
+
+
+def _file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _object_sha256(value: object) -> str:
+    return hashlib.sha256(_canonical_json(value).encode("utf-8")).hexdigest()
+
+
+def _required_nonnegative_int(source: Mapping[str, Any], field: str) -> int:
+    value = source.get(field)
+    if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+        raise DataUtilizationCollectorError(f"{field}:NONNEGATIVE_INT_REQUIRED")
+    return value
+
+
+def _required_sha256(source: Mapping[str, Any], field: str) -> str:
+    value = source.get(field)
+    if (
+        not isinstance(value, str)
+        or len(value) != 64
+        or any(character not in "0123456789abcdef" for character in value)
+    ):
+        raise DataUtilizationCollectorError(f"{field}:SHA256_REQUIRED")
     return value
 
 
@@ -401,6 +435,287 @@ def _candidate_profile(
     }
 
 
+def _counter_map(value: object, field: str) -> dict[str, int]:
+    if not isinstance(value, Mapping):
+        raise DataUtilizationCollectorError(f"{field}:OBJECT_REQUIRED")
+    result: dict[str, int] = {}
+    for raw_key, raw_count in value.items():
+        if not isinstance(raw_key, str) or not raw_key or raw_key.strip() != raw_key:
+            raise DataUtilizationCollectorError(f"{field}:KEY_INVALID")
+        if (
+            not isinstance(raw_count, int)
+            or isinstance(raw_count, bool)
+            or raw_count < 0
+        ):
+            raise DataUtilizationCollectorError(f"{field}:COUNT_INVALID")
+        if raw_count:
+            result[raw_key] = raw_count
+    return dict(sorted(result.items()))
+
+
+def _candidate_training_profile(
+    root: Path,
+    *,
+    frozen_corpus: Mapping[str, Any],
+    candidate_outcomes: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Verify the immutable enlarged-dataset evidence and exact row accounting."""
+
+    root = root.resolve()
+    if not root.is_dir() or root.is_symlink():
+        raise DataUtilizationCollectorError("ADAPTIVE_DATASET_ROOT_UNSAFE")
+    filenames = {
+        "dataset": "adaptive_serving_compatible_dataset_v2.json",
+        "manifest": "adaptive_serving_compatible_dataset_manifest_v2.json",
+        "parity": "adaptive_train_serve_feature_parity_report_v2.json",
+        "receipt": "candidate_outcome_dataset_build_receipt_v2.json",
+    }
+    paths = {name: root / filename for name, filename in filenames.items()}
+    dataset = _read_object(paths["dataset"], "adaptive_dataset")
+    manifest = _read_object(paths["manifest"], "adaptive_manifest")
+    parity = _read_object(paths["parity"], "adaptive_parity")
+    receipt = _read_object(paths["receipt"], "adaptive_build_receipt")
+
+    if (
+        dataset.get("schema_version") != "adaptive_serving_compatible_dataset_v2"
+        or manifest.get("schema_version")
+        != "adaptive_serving_compatible_dataset_manifest_v2"
+        or parity.get("schema_version") != "adaptive_train_serve_feature_parity_report_v2"
+        or receipt.get("schema_version") != "candidate_outcome_dataset_build_receipt_v2"
+    ):
+        raise DataUtilizationCollectorError("ADAPTIVE_DATASET_SCHEMA_MISMATCH")
+
+    artifact_hashes = receipt.get("artifact_file_sha256s")
+    if not isinstance(artifact_hashes, Mapping):
+        raise DataUtilizationCollectorError("ADAPTIVE_ARTIFACT_HASHES_MISSING")
+    for name in ("dataset", "manifest", "parity"):
+        filename = filenames[name]
+        if artifact_hashes.get(filename) != _file_sha256(paths[name]):
+            raise DataUtilizationCollectorError(
+                f"ADAPTIVE_ARTIFACT_FILE_HASH_MISMATCH:{filename}"
+            )
+
+    dataset_sha = _required_sha256(dataset, "dataset_sha256")
+    dataset_material = {
+        key: value
+        for key, value in dataset.items()
+        if key not in {"dataset_id", "dataset_sha256"}
+    }
+    if _object_sha256(dataset_material) != dataset_sha:
+        raise DataUtilizationCollectorError("ADAPTIVE_DATASET_CONTENT_HASH_INVALID")
+    manifest_sha = _required_sha256(manifest, "manifest_sha256")
+    manifest_material = {
+        key: value
+        for key, value in manifest.items()
+        if key not in {"manifest_id", "manifest_sha256"}
+    }
+    if _object_sha256(manifest_material) != manifest_sha:
+        raise DataUtilizationCollectorError("ADAPTIVE_MANIFEST_CONTENT_HASH_INVALID")
+
+    identity_fields = (
+        "dataset_id",
+        "dataset_sha256",
+        "manifest_id",
+        "manifest_sha256",
+    )
+    for field in identity_fields:
+        expected = manifest.get(field) if field.startswith("dataset_") else manifest.get(field)
+        if receipt.get(field) != expected:
+            raise DataUtilizationCollectorError(
+                f"ADAPTIVE_RECEIPT_IDENTITY_MISMATCH:{field}"
+            )
+    if dataset.get("dataset_id") != manifest.get("dataset_id"):
+        raise DataUtilizationCollectorError("ADAPTIVE_DATASET_MANIFEST_ID_MISMATCH")
+    if dataset_sha != manifest.get("dataset_sha256"):
+        raise DataUtilizationCollectorError("ADAPTIVE_DATASET_MANIFEST_HASH_MISMATCH")
+
+    feature_abi = _required_sha256(dataset, "feature_abi_sha256")
+    feature_builder = _required_sha256(dataset, "feature_builder_sha256")
+    if (
+        manifest.get("feature_abi_sha256") != feature_abi
+        or manifest.get("feature_builder_sha256") != feature_builder
+        or parity.get("feature_abi_sha256") != feature_abi
+        or parity.get("training_feature_builder_sha256") != feature_builder
+        or parity.get("serving_feature_builder_sha256") != feature_builder
+        or parity.get("builder_match") is not True
+        or parity.get("ordered_feature_names_match") is not True
+        or parity.get("required_feature_missing_rate") != 0.0
+        or parity.get("activation_eligible") is not False
+        or parity.get("live_eligible") is not False
+    ):
+        raise DataUtilizationCollectorError("ADAPTIVE_TRAIN_SERVE_PARITY_INVALID")
+    if dataset.get("ordered_feature_names") != manifest.get("ordered_feature_names"):
+        raise DataUtilizationCollectorError("ADAPTIVE_FEATURE_ORDER_MISMATCH")
+
+    rows = dataset.get("rows")
+    if not isinstance(rows, list) or not rows:
+        raise DataUtilizationCollectorError("ADAPTIVE_DATASET_ROWS_REQUIRED")
+    row_ids: set[str] = set()
+    source_counts: dict[str, int] = {}
+    source_split_counts: dict[str, dict[str, int]] = {}
+    for index, row in enumerate(rows):
+        if not isinstance(row, Mapping):
+            raise DataUtilizationCollectorError(
+                f"ADAPTIVE_DATASET_ROW_INVALID:{index}"
+            )
+        row_id = row.get("row_id")
+        source_kind = row.get("source_kind")
+        split = row.get("split")
+        if (
+            not isinstance(row_id, str)
+            or not row_id
+            or row_id in row_ids
+            or source_kind
+            not in {
+                "CANDIDATE_DECISION_OUTCOME_V2",
+                "GEN5_AUTHENTICATED_PROFILED_OBSERVATION",
+            }
+            or split not in {"train", "validation", "holdout"}
+        ):
+            raise DataUtilizationCollectorError(
+                f"ADAPTIVE_DATASET_ROW_IDENTITY_INVALID:{index}"
+            )
+        row_ids.add(row_id)
+        source_counts[source_kind] = source_counts.get(source_kind, 0) + 1
+        by_split = source_split_counts.setdefault(
+            source_kind, {"train": 0, "validation": 0, "holdout": 0}
+        )
+        by_split[split] += 1
+        if source_kind == "CANDIDATE_DECISION_OUTCOME_V2":
+            if (
+                not isinstance(row.get("candidate_id"), str)
+                or not row.get("candidate_id")
+                or not isinstance(row.get("snapshot_id"), str)
+                or not row.get("snapshot_id")
+                or row.get("counterfactual_counts_as_realized_paper_profit") is not False
+            ):
+                raise DataUtilizationCollectorError(
+                    f"ADAPTIVE_CANDIDATE_LINEAGE_INVALID:{index}"
+                )
+
+    expected_source_counts = _counter_map(
+        manifest.get("source_row_counts"), "source_row_counts"
+    )
+    if dict(sorted(source_counts.items())) != expected_source_counts:
+        raise DataUtilizationCollectorError("ADAPTIVE_SOURCE_ROW_COUNTS_MISMATCH")
+    if source_split_counts != manifest.get("source_split_counts"):
+        raise DataUtilizationCollectorError("ADAPTIVE_SOURCE_SPLIT_COUNTS_MISMATCH")
+    split_totals = {
+        split: sum(counts[split] for counts in source_split_counts.values())
+        for split in ("train", "validation", "holdout")
+    }
+    for split, manifest_field in (
+        ("train", "training_rows"),
+        ("validation", "validation_rows"),
+        ("holdout", "holdout_rows"),
+    ):
+        expected = _required_nonnegative_int(manifest, manifest_field)
+        if split_totals[split] != expected or parity.get(manifest_field) != expected:
+            raise DataUtilizationCollectorError(
+                f"ADAPTIVE_SPLIT_COUNT_MISMATCH:{split}"
+            )
+
+    high_water = manifest.get("source_high_watermark")
+    archive_verification = receipt.get("candidate_archive_verification")
+    if not isinstance(high_water, Mapping) or not isinstance(archive_verification, Mapping):
+        raise DataUtilizationCollectorError("ADAPTIVE_SOURCE_HIGH_WATER_MISSING")
+    candidate_count = _required_nonnegative_int(
+        candidate_outcomes, "candidate_outcome_rows"
+    )
+    matured_count = _required_nonnegative_int(
+        candidate_outcomes, "matured_candidate_outcome_rows"
+    )
+    archive_terminal = _required_sha256(
+        candidate_outcomes, "archive_terminal_chain_sha256"
+    )
+    if (
+        high_water.get("base_dataset_sha256") != frozen_corpus.get("dataset_sha256")
+        or high_water.get("candidate_archive_candidate_count") != candidate_count
+        or high_water.get("candidate_archive_matured_revision_count") != matured_count
+        or high_water.get("candidate_archive_terminal_chain_sha256") != archive_terminal
+        or archive_verification.get("candidate_count") != candidate_count
+        or archive_verification.get("matured_revision_count") != matured_count
+        or archive_verification.get("terminal_chain_sha256") != archive_terminal
+        or archive_verification.get("verified") is not True
+        or archive_verification.get("invalid_row_count") != 0
+        or archive_verification.get("duplicate_archive_record_count") != 0
+    ):
+        raise DataUtilizationCollectorError("ADAPTIVE_ARCHIVE_BINDING_INVALID")
+
+    serving_rejections = _counter_map(
+        manifest.get("candidate_exclusion_reasons"),
+        "candidate_exclusion_reasons",
+    )
+    split_purge_reasons = _counter_map(
+        manifest.get("purge_reason_counts"), "purge_reason_counts"
+    )
+    considered = _required_nonnegative_int(manifest, "candidate_records_considered")
+    matured_considered = _required_nonnegative_int(
+        manifest, "candidate_matured_records_considered"
+    )
+    eligible = _required_nonnegative_int(
+        manifest, "candidate_rows_before_split_purge"
+    )
+    candidate_split = source_split_counts["CANDIDATE_DECISION_OUTCOME_V2"]
+    admitted = sum(candidate_split.values())
+    if (
+        considered != candidate_count
+        or matured_considered != matured_count
+        or eligible + sum(serving_rejections.values()) != matured_count
+        or admitted + sum(split_purge_reasons.values()) != eligible
+        or manifest.get("candidate_records_fully_accounted") is not True
+        or manifest.get("counterfactual_counts_as_realized_paper_profit") is not False
+        or receipt.get("candidate_records_fully_accounted") is not True
+        or receipt.get("counterfactual_counts_as_realized_paper_profit") is not False
+    ):
+        raise DataUtilizationCollectorError("ADAPTIVE_CANDIDATE_ACCOUNTING_INVALID")
+
+    base_split = source_split_counts["GEN5_AUTHENTICATED_PROFILED_OBSERVATION"]
+    base_rows = sum(base_split.values())
+    if (
+        base_rows != frozen_corpus.get("training_eligible_rows")
+        or base_split != {"train": base_rows, "validation": 0, "holdout": 0}
+    ):
+        raise DataUtilizationCollectorError("ADAPTIVE_BASE_DATASET_BINDING_INVALID")
+    if (
+        receipt.get("status") != "PASS"
+        or receipt.get("paper_only") is not True
+        or receipt.get("live_gate") != "blocked_human_only"
+        or receipt.get("routes_to_live") is not False
+        or receipt.get("places_real_order") is not False
+        or receipt.get("exchange_action_taken") is not False
+        or manifest.get("paper_only") is not True
+        or manifest.get("live_eligible") is not False
+    ):
+        raise DataUtilizationCollectorError("ADAPTIVE_DATASET_AUTHORITY_INVALID")
+
+    return {
+        "dataset_id": dataset["dataset_id"],
+        "dataset_sha256": dataset_sha,
+        "manifest_id": manifest["manifest_id"],
+        "manifest_sha256": manifest_sha,
+        "feature_abi_sha256": feature_abi,
+        "feature_builder_sha256": feature_builder,
+        "base_dataset_sha256": high_water["base_dataset_sha256"],
+        "base_dataset_rows": base_rows,
+        "serving_eligible_candidate_rows": eligible,
+        "dataset_admitted_candidate_rows": admitted,
+        "candidate_training_rows": candidate_split["train"],
+        "candidate_validation_rows": candidate_split["validation"],
+        "candidate_holdout_rows": candidate_split["holdout"],
+        "serving_rejections_by_reason": serving_rejections,
+        "split_purge_reasons": split_purge_reasons,
+        "candidate_records_fully_accounted": True,
+        "counterfactual_counts_as_realized_paper_profit": False,
+        "artifact_verified": True,
+        "paper_only": True,
+        "live_gate": "blocked_human_only",
+        "routes_to_live": False,
+        "places_real_order": False,
+        "exchange_action_taken": False,
+    }
+
+
 def _checkpoint_bundle_row(
     payload: Mapping[str, Any],
     *,
@@ -596,6 +911,7 @@ def collect_report(
     config: Gen5BackfillConfig,
     candidate_status: Mapping[str, Any],
     active_registry: Mapping[str, Any],
+    adaptive_dataset_root: Path = DEFAULT_ADAPTIVE_DATASET_ROOT,
     generated_at: str | None = None,
 ) -> dict[str, Any]:
     frozen_corpus, dataset = _frozen_corpus_profile(config)
@@ -603,12 +919,18 @@ def collect_report(
         candidate_status,
         _dataset_decision_keys(dataset),
     )
+    candidate_training = _candidate_training_profile(
+        adaptive_dataset_root,
+        frozen_corpus=frozen_corpus,
+        candidate_outcomes=candidate_outcomes,
+    )
     checkpoint_rows, normalized_registry = _checkpoint_rows(active_registry, config.state_root)
     try:
         return build_data_utilization_report_v3(
             generated_at=generated_at or _utc_now(),
             frozen_corpus=frozen_corpus,
             candidate_outcomes=candidate_outcomes,
+            candidate_training=candidate_training,
             checkpoint_rows=checkpoint_rows,
             active_registry=normalized_registry,
         )
@@ -623,6 +945,11 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--source-ledger", type=Path)
     parser.add_argument("--source-label-archive", type=Path, default=DEFAULT_LABEL_ARCHIVE_PATH)
     parser.add_argument("--cost-store-root", type=Path, default=DEFAULT_COST_STORE_ROOT)
+    parser.add_argument(
+        "--adaptive-dataset-root",
+        type=Path,
+        default=DEFAULT_ADAPTIVE_DATASET_ROOT,
+    )
     parser.add_argument("--output", type=Path, default=repository_root / REPORT_RELATIVE_PATH)
     parser.add_argument(
         "--redis-url",
@@ -657,6 +984,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         config=config,
         candidate_status=candidate_status,
         active_registry=active_registry,
+        adaptive_dataset_root=arguments.adaptive_dataset_root,
     )
     if not arguments.no_write_report:
         _write_json_atomic(arguments.output.resolve(), report)
