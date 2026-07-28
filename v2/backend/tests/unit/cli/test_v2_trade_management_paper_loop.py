@@ -7233,6 +7233,28 @@ def test_sync_lifecycle_open_position_views_clears_stale_open_views() -> None:
     )
 
 
+def test_sync_lifecycle_open_position_views_preserves_reconstructed_unrealized_pnl() -> None:
+    lifecycle: dict[str, object] = {}
+    reconstructed = {
+        "position_id": "paper_pos_AAVEUSDT_generation",
+        "symbol": "AAVEUSDT",
+        "net_quantity": 0.5,
+        "avg_entry_price": 97.03,
+        "last_mark_price": 97.41,
+        "gross_notional_usd": 48.515,
+        "unrealized_pnl": -0.19,
+    }
+
+    paper_loop._sync_lifecycle_open_position_views(  # noqa: SLF001
+        lifecycle,
+        [reconstructed],
+    )
+
+    assert lifecycle["open_position_count"] == 1
+    assert lifecycle["unrealized_pnl_usd"] == -0.19
+    assert lifecycle["total_open_notional"] == 48.515
+
+
 def test_a_plus_gate_redistribution_flags_100pct_present_source_failures() -> None:
     evaluations = [
         {

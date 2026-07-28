@@ -32123,7 +32123,12 @@ def _open_position_notional_usd(row: Mapping[str, Any]) -> float:
 
 
 def _open_position_unrealized_pnl_usd(row: Mapping[str, Any]) -> float:
-    for key in ("unrealized_pnl_usd", "unrealized_pnl_usdt"):
+    # PositionLifecycleV2 serializes the canonical mark-to-market value as
+    # ``unrealized_pnl``.  Older rows used the explicit USD/USDT aliases.  A
+    # restart reconstruction must accept all three representations or the
+    # ledger silently resets open-position P&L to zero and publishes incoherent
+    # equity/free-margin truth on the next portfolio cycle.
+    for key in ("unrealized_pnl_usd", "unrealized_pnl_usdt", "unrealized_pnl"):
         value = _coerce_float(row.get(key))
         if value is not None:
             return value
