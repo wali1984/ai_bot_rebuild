@@ -18090,6 +18090,67 @@ def test_churn_equity_bleed_current_entry_rejection_reasons() -> None:
     ]
 
 
+def test_adaptive_category_e_bypass_retains_hard_local_gates() -> None:
+    reasons = paper_loop._paper_adaptive_hard_local_gate_rejection_reasons(  # noqa: SLF001
+        canonical_risk_allowed=False,
+        market_integrity_allowed=False,
+        reentry_dedup_allowed=False,
+        missing_thesis_timeframe=True,
+        signal_temporal_rejection_reasons=["FEATURE_AVAILABLE_AFTER_DECISION"],
+        runtime_market_evidence_rejection_reasons=["MISSING_EXACT_COST_EVIDENCE"],
+    )
+
+    assert reasons == [
+        "ADAPTIVE_HARD_GATE_CANONICAL_RISK_NOT_ALLOWED",
+        "ADAPTIVE_HARD_GATE_MARKET_INTEGRITY_NOT_ALLOWED",
+        "ADAPTIVE_HARD_GATE_REENTRY_DEDUP_NOT_ALLOWED",
+        "ADAPTIVE_HARD_GATE_RUNTIME_EVIDENCE:MISSING_EXACT_COST_EVIDENCE",
+        "ADAPTIVE_HARD_GATE_SIGNAL_TEMPORAL:FEATURE_AVAILABLE_AFTER_DECISION",
+        "ADAPTIVE_HARD_GATE_THESIS_TIMEFRAME_MISSING",
+    ]
+
+
+def test_adaptive_category_e_bypass_accepts_clean_hard_local_gate_state() -> None:
+    assert paper_loop._paper_adaptive_hard_local_gate_rejection_reasons(  # noqa: SLF001
+        canonical_risk_allowed=True,
+        market_integrity_allowed=True,
+        reentry_dedup_allowed=True,
+        missing_thesis_timeframe=False,
+        signal_temporal_rejection_reasons=[],
+        runtime_market_evidence_rejection_reasons=[],
+    ) == []
+
+
+def test_adaptive_policy_candidate_does_not_hide_current_cycle_duplicates() -> None:
+    existing = {
+        "fill_id": "fill-1",
+        "symbol": "SOLUSDT",
+        "timeframe": "5m",
+        "side": "short",
+        "prediction_id": "pred-dupe",
+        "signal_id": "sig-dupe",
+        "entry_feature_cutoff": "2026-06-29T07:54:59.999Z",
+    }
+    adaptive_candidate = {
+        **existing,
+        "fill_id": "fill-2",
+        "paper_opportunity_tier": paper_loop.PAPER_TIER_ADAPTIVE_POLICY_V2,
+        "adaptive_policy_entry_authorized": True,
+        "static_category_e_final_authority": False,
+    }
+
+    reasons = paper_loop._paper_churn_current_entry_rejection_reasons(  # noqa: SLF001
+        adaptive_candidate,
+        [existing],
+    )
+
+    assert reasons == [
+        "DUPLICATE_CURRENT_CYCLE_PREDICTION",
+        "DUPLICATE_CURRENT_CYCLE_SIGNAL",
+        "SAME_CANDLE_REENTRY_CURRENT_CYCLE",
+    ]
+
+
 def test_churn_equity_bleed_post_backfill_quarantines_same_signal_duplicates() -> None:
     current = [
         {

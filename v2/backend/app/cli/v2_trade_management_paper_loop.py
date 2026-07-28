@@ -25145,6 +25145,44 @@ def _paper_churn_current_entry_rejection_reasons(
     return sorted(set(reasons))
 
 
+def _paper_adaptive_hard_local_gate_rejection_reasons(
+    *,
+    canonical_risk_allowed: bool,
+    market_integrity_allowed: bool,
+    reentry_dedup_allowed: bool,
+    missing_thesis_timeframe: bool,
+    signal_temporal_rejection_reasons: Sequence[str],
+    runtime_market_evidence_rejection_reasons: Sequence[str],
+) -> list[str]:
+    """Retain Category-B/C gates when Category-E policy becomes advisory.
+
+    The adaptive policy owns the economic trade decision. It cannot override
+    canonical risk authorization, source integrity, duplicate prevention,
+    feature availability, or point-in-time evidence. These checks are repeated
+    before final admission, but this earlier boundary prevents a hard-invalid
+    candidate from being treated as an adaptive fill candidate at all.
+    """
+
+    reasons: list[str] = []
+    if canonical_risk_allowed is not True:
+        reasons.append("ADAPTIVE_HARD_GATE_CANONICAL_RISK_NOT_ALLOWED")
+    if market_integrity_allowed is not True:
+        reasons.append("ADAPTIVE_HARD_GATE_MARKET_INTEGRITY_NOT_ALLOWED")
+    if reentry_dedup_allowed is not True:
+        reasons.append("ADAPTIVE_HARD_GATE_REENTRY_DEDUP_NOT_ALLOWED")
+    if missing_thesis_timeframe:
+        reasons.append("ADAPTIVE_HARD_GATE_THESIS_TIMEFRAME_MISSING")
+    reasons.extend(
+        f"ADAPTIVE_HARD_GATE_SIGNAL_TEMPORAL:{reason}"
+        for reason in signal_temporal_rejection_reasons
+    )
+    reasons.extend(
+        f"ADAPTIVE_HARD_GATE_RUNTIME_EVIDENCE:{reason}"
+        for reason in runtime_market_evidence_rejection_reasons
+    )
+    return sorted(set(reasons))
+
+
 def _paper_apply_churn_equity_bleed_rejection(
     intent: dict[str, Any],
     reasons: list[str],
@@ -51642,6 +51680,48 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             intent.get("adaptive_policy_entry_authorized") is True
             and intent.get("paper_opportunity_tier") == PAPER_TIER_ADAPTIVE_POLICY_V2
         )
+        adaptive_policy_hard_local_gate_rejection_reasons = (
+            _paper_adaptive_hard_local_gate_rejection_reasons(
+                canonical_risk_allowed=canonical_risk_allowed,
+                market_integrity_allowed=integrity_gate.get("allowed") is True,
+                reentry_dedup_allowed=reentry_dedup_result.get("allowed") is True,
+                missing_thesis_timeframe=missing_thesis_timeframe,
+                signal_temporal_rejection_reasons=(
+                    paper_signal_temporal_rejection_reasons
+                ),
+                runtime_market_evidence_rejection_reasons=(
+                    runtime_market_evidence_rejection_reasons
+                ),
+            )
+            if adaptive_policy_relaxed_static_category_e
+            else []
+        )
+        intent["adaptive_policy_hard_local_gate_rejection_reasons"] = list(
+            adaptive_policy_hard_local_gate_rejection_reasons
+        )
+        if adaptive_policy_hard_local_gate_rejection_reasons:
+            intent["paper_fill_allowed"] = False
+            intent["paper_fill_block_reason"] = (
+                "ADAPTIVE_POLICY_HARD_LOCAL_GATE_BLOCKED"
+            )
+            intent["paper_fill_gate_block_reasons"] = sorted(
+                set(
+                    list(intent.get("paper_fill_gate_block_reasons") or [])
+                    + ["ADAPTIVE_POLICY_HARD_LOCAL_GATE_BLOCKED"]
+                    + adaptive_policy_hard_local_gate_rejection_reasons
+                )
+            )
+            intent["local_block_reasons"] = sorted(
+                set(
+                    list(intent.get("local_block_reasons") or [])
+                    + [
+                        f"adaptive_hard_local_gate:{reason}"
+                        for reason in adaptive_policy_hard_local_gate_rejection_reasons
+                    ]
+                )
+            )
+            blocked.append(intent)
+            continue
         if (
             b_grade_relaxed_strict_local_gate
             or bootstrap_relaxed_strict_local_gate
@@ -51749,7 +51829,7 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             intent,
             accepted,
         )
-        if current_cycle_churn_rejection_reasons and not adaptive_policy_relaxed_static_category_e:
+        if current_cycle_churn_rejection_reasons:
             _paper_apply_churn_equity_bleed_rejection(
                 intent,
                 current_cycle_churn_rejection_reasons,
