@@ -7920,6 +7920,20 @@ def _top_depth_notional_usd(levels: Any, *, depth: int = 5) -> float | None:
     return total if seen else None
 
 
+def _latest_iso_record_availability(*values: str | None) -> str | None:
+    """Return the exact latest valid producer/source availability timestamp."""
+
+    parsed: list[tuple[datetime, str]] = []
+    for value in values:
+        if value in (None, ""):
+            continue
+        text = str(value)
+        timestamp = _strict_aware_utc_time(text)
+        if timestamp is not None:
+            parsed.append((timestamp, text))
+    return max(parsed, key=lambda item: item[0])[1] if parsed else None
+
+
 def _read_v2_orderbook_microstructure(r, symbol: str) -> dict[str, Any]:
     """Read V2-owned top-of-book spread evidence for paper entry telemetry.
 
@@ -8064,6 +8078,10 @@ def _read_v2_orderbook_microstructure(r, symbol: str) -> dict[str, Any]:
                 payload.get("generated_at_ms"),
             )
         )
+        record_available_at = _latest_iso_record_availability(
+            available_at,
+            generated_at,
+        )
         captured_at = _utc_iso()
         depth_impact_bps = _coerce_float(
             _first_present(
@@ -8105,7 +8123,9 @@ def _read_v2_orderbook_microstructure(r, symbol: str) -> dict[str, Any]:
             "depth_price_impact_model": "DIRECT_ORDERBOOK_FEATURE_ESTIMATE"
             if depth_impact_bps is not None
             else None,
-            "entry_spread_available_at": available_at,
+            "entry_spread_source_available_at": available_at,
+            "entry_spread_available_at": record_available_at,
+            "entry_spread_record_available_at": record_available_at,
             "entry_spread_event_time": event_time,
             "entry_spread_generated_at": generated_at,
             "entry_spread_captured_at": captured_at,
@@ -12942,6 +12962,12 @@ PAPER_RUNTIME_INTENT_PROJECTION_FIELDS = (
     "paper_fill_risk_state",
     "adaptive_policy_action",
     "adaptive_paper_policy_authorization",
+    "adaptive_policy_paper_cycle_receipt",
+    "adaptive_policy_paper_cycle_receipt_id",
+    "adaptive_policy_paper_cycle_receipt_sha256",
+    "paper_performance_circuit_breaker_authority_classification",
+    "paper_performance_circuit_breaker_adaptive_policy_role",
+    "paper_performance_circuit_breaker_hard_trading_authority",
     "legacy_category_e_comparator",
     "adaptive_policy_source_action_comparator",
 )
@@ -36986,6 +37012,7 @@ PAPER_ALLOCATION_COMPONENT_TIME_FIELDS = (
     "strategy_cascade_decision_time",
     # Runtime spread/depth evidence used by sizing.
     "entry_spread_event_time",
+    "entry_spread_source_available_at",
     "entry_spread_generated_at",
     "entry_spread_available_at",
     "entry_spread_captured_at",
@@ -37488,6 +37515,7 @@ def _paper_allocation_point_in_time_contract(
         ("strategy_cascade_generated_at", "strategy_decision_time"),
         ("entry_spread_available_at", "entry_spread_captured_at"),
         ("entry_spread_event_time", "entry_spread_generated_at"),
+        ("entry_spread_source_available_at", "entry_spread_available_at"),
         ("entry_spread_generated_at", "entry_spread_available_at"),
         ("entry_spread_available_at", "entry_spread_decision_time"),
         ("entry_spread_captured_at", "paper_admission_decision_time"),
@@ -44701,6 +44729,8 @@ def _build_allocation_input(
         intent["entry_spread_available_at"] = market_microstructure.get("entry_spread_available_at")
         for field in (
             "entry_spread_event_time",
+            "entry_spread_source_available_at",
+            "entry_spread_record_available_at",
             "entry_spread_generated_at",
             "entry_spread_source_hash",
             "entry_spread_source_hash_contract",

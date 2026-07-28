@@ -12116,6 +12116,38 @@ def test_read_orderbook_microstructure_marks_missing_trust_score() -> None:
     assert "microstructure_trust_score" not in microstructure
 
 
+def test_read_orderbook_microstructure_uses_latest_producer_record_availability() -> None:
+    redis_client = _FakeRedis(
+        {
+            "v2:market:orderbook:BANKUSDT": {
+                "bid_ask_spread_bps": 1.2,
+                "best_bid": 99.99,
+                "best_ask": 100.01,
+                "available_at": "2026-07-28T02:20:11.136Z",
+                "generated_at": "2026-07-28T02:21:03.738196Z",
+            },
+        }
+    )
+
+    microstructure = paper_loop._read_v2_orderbook_microstructure(  # noqa: SLF001
+        redis_client,
+        "BANKUSDT",
+    )
+
+    assert microstructure["entry_spread_source_available_at"] == (
+        "2026-07-28T02:20:11.136Z"
+    )
+    assert microstructure["entry_spread_generated_at"] == (
+        "2026-07-28T02:21:03.738Z"
+    )
+    assert microstructure["entry_spread_record_available_at"] == (
+        "2026-07-28T02:21:03.738Z"
+    )
+    assert microstructure["entry_spread_available_at"] == (
+        "2026-07-28T02:21:03.738Z"
+    )
+
+
 def _missing_trust_allocation_input(intent: dict) -> object:
     return paper_loop._build_allocation_input(  # noqa: SLF001
         intent=intent,
@@ -13432,6 +13464,13 @@ def test_runtime_intent_projection_is_hash_bound_bounded_and_preserves_gate_line
         "entry_feature_snapshot_resolution_status": (
             "CANONICAL_PREDICTION_EMBEDDED_SERVING_ABI_PIT_VALID"
         ),
+        "adaptive_policy_paper_cycle_receipt": {
+            "schema_version": "adaptive_policy_paper_cycle_receipt_v1",
+            "receipt_id": "apcr1-fixture",
+            "receipt_sha256": "a" * 64,
+        },
+        "adaptive_policy_paper_cycle_receipt_id": "apcr1-fixture",
+        "adaptive_policy_paper_cycle_receipt_sha256": "a" * 64,
         "adaptive_allocation": {
             "allocation_id": "allocation-1",
             "allocator_decision": "BLOCK",
@@ -13455,6 +13494,11 @@ def test_runtime_intent_projection_is_hash_bound_bounded_and_preserves_gate_line
     assert projected["paper_strategy_cohort_id"] == "cohort-3"
     assert projected["preemptive_action"] == "ADMIT_POSITIVE_EDGE_PROBATION"
     assert projected["paper_fill_gate_block_reasons"] == ["UNCHANGED_SAFETY_BLOCK"]
+    assert projected["adaptive_policy_paper_cycle_receipt_id"] == "apcr1-fixture"
+    assert projected["adaptive_policy_paper_cycle_receipt_sha256"] == "a" * 64
+    assert projected["adaptive_policy_paper_cycle_receipt"]["schema_version"] == (
+        "adaptive_policy_paper_cycle_receipt_v1"
+    )
     assert "preemptive_input_material" not in projected
     assert "entry_feature_snapshot" not in projected
     assert len(json.dumps(projected)) < 50_000
