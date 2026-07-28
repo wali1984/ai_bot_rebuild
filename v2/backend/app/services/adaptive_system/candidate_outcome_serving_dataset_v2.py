@@ -14,6 +14,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import re
 from collections import Counter, defaultdict
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict
@@ -23,6 +24,9 @@ from typing import Any
 from v2.backend.app.contracts.runtime_v2.candidate_decision_outcome_v2 import (
     CandidateDecisionOutcomeV2,
     CounterfactualScenarioV2,
+)
+from v2.backend.app.services.adaptive_system.candidate_outcome_archive_v2 import (
+    ARCHIVE_VERIFICATION_SCHEMA_VERSION,
 )
 from v2.backend.app.services.adaptive_system.candidate_outcome_maturer_v2 import (
     counterfactual_reference_side,
@@ -51,6 +55,31 @@ PURGE_POLICY = (
 )
 EMBARGO_GROUPS = 2
 _SHA256_LENGTH = 64
+_SYMBOL_RE = re.compile(r"^[A-Z0-9]{2,30}$")
+_SUPPORTED_TIMEFRAMES = frozenset(
+    {"1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "1d"}
+)
+_SOURCE_ARCHIVE_VERIFICATION_FIELDS = frozenset(
+    {
+        "schema_version",
+        "archive_path",
+        "writer_id",
+        "writer_public_key_hex",
+        "row_count",
+        "decision_revision_count",
+        "matured_revision_count",
+        "candidate_count",
+        "terminal_chain_sha256",
+        "duplicate_archive_record_count",
+        "invalid_row_count",
+        "verified",
+        "paper_only",
+        "live_gate",
+        "routes_to_live",
+        "places_real_order",
+        "exchange_action_taken",
+    }
+)
 
 
 class CandidateOutcomeDatasetError(ValueError):
@@ -144,6 +173,7 @@ def _rejection_contract_counts(rejections: Mapping[str, int]) -> dict[str, int]:
             "AFTER_DECISION",
             "FUTURE_TIME",
             "POINT_IN_TIME_ORDER_INVALID",
+            "POINT_IN_TIME_CLOCK_ORDER_INVALID",
         ),
         "finality_unproven": count(
             "FINALITY",
@@ -514,6 +544,15 @@ def _validated_base_rows(base_dataset: Mapping[str, Any]) -> list[dict[str, Any]
         snapshot_id = row.get("snapshot_id")
         if type(snapshot_id) is not str or not snapshot_id:
             _fail("IDENTIFIER_REQUIRED", f"base_dataset.rows[{index}].snapshot_id")
+        symbol = row.get("symbol")
+        timeframe = row.get("timeframe")
+        if type(symbol) is not str or _SYMBOL_RE.fullmatch(symbol) is None:
+            _fail("CANONICAL_SYMBOL_REQUIRED", f"base_dataset.rows[{index}].symbol")
+        if timeframe not in _SUPPORTED_TIMEFRAMES:
+            _fail(
+                "SUPPORTED_TIMEFRAME_REQUIRED",
+                f"base_dataset.rows[{index}].timeframe",
+            )
         if (
             row.get("feature_abi_sha256") != feature_abi_sha256()
             or row.get("feature_builder_sha256") != feature_builder_sha256()
@@ -857,6 +896,11 @@ def build_adaptive_serving_dataset_v2(
         archive_matured_revision_count = len(seen_candidates)
         archive_row_count = len(candidate_records) + len(seen_candidates)
     else:
+        if set(source_archive_verification) != _SOURCE_ARCHIVE_VERIFICATION_FIELDS:
+            _fail(
+                "SOURCE_ARCHIVE_VERIFICATION_FIELDS_MISMATCH",
+                "source_archive_verification",
+            )
         archive_candidate_count = _nonnegative_int(
             source_archive_verification.get("candidate_count"),
             "source_archive_verification.candidate_count",
@@ -875,11 +919,29 @@ def build_adaptive_serving_dataset_v2(
         )
         if (
             archive_candidate_count != archive_decision_revision_count
+            or archive_matured_revision_count > archive_candidate_count
+            or len(candidate_records) != archive_matured_revision_count
             or archive_matured_revision_count != len(seen_candidates)
             or archive_row_count
             != archive_decision_revision_count + archive_matured_revision_count
         ):
             _fail("SOURCE_ARCHIVE_COUNT_MISMATCH", "source_archive_verification")
+        if (
+            source_archive_verification.get("schema_version")
+            != ARCHIVE_VERIFICATION_SCHEMA_VERSION
+            or source_archive_verification.get("terminal_chain_sha256")
+            != archive_chain
+            or source_archive_verification.get("verified") is not True
+            or source_archive_verification.get("invalid_row_count") != 0
+            or source_archive_verification.get("duplicate_archive_record_count") != 0
+            or source_archive_verification.get("paper_only") is not True
+            or source_archive_verification.get("live_gate")
+            != "blocked_human_only"
+            or source_archive_verification.get("routes_to_live") is not False
+            or source_archive_verification.get("places_real_order") is not False
+            or source_archive_verification.get("exchange_action_taken") is not False
+        ):
+            _fail("SOURCE_ARCHIVE_RECEIPT_UNSAFE", "source_archive_verification")
     dataset_material = {
         "schema_version": DATASET_SCHEMA_VERSION,
         "feature_abi_sha256": feature_abi_sha256(),

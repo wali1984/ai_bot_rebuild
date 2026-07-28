@@ -20,6 +20,7 @@ from v2.backend.app.services.adaptive_system.candidate_outcome_publisher_v2 impo
 )
 from v2.backend.app.services.adaptive_system.candidate_outcome_serving_dataset_v2 import (
     CandidateOutcomeDatasetError,
+    _rejection_contract_counts,
     build_adaptive_serving_dataset_v2,
     build_candidate_outcome_row,
     candidate_directional_edges,
@@ -52,6 +53,30 @@ def _digest(value: object) -> str:
             allow_nan=False,
         ).encode("utf-8")
     ).hexdigest()
+
+
+def _source_verification(**updates: object) -> dict[str, object]:
+    value: dict[str, object] = {
+        "schema_version": "candidate_outcome_archive_verification_v2",
+        "archive_path": "/authenticated/candidate-outcomes.jsonl",
+        "writer_id": "candidate-outcome-writer-v2",
+        "writer_public_key_hex": "b" * 64,
+        "row_count": 2,
+        "decision_revision_count": 1,
+        "matured_revision_count": 1,
+        "candidate_count": 1,
+        "terminal_chain_sha256": "a" * 64,
+        "duplicate_archive_record_count": 0,
+        "invalid_row_count": 0,
+        "verified": True,
+        "paper_only": True,
+        "live_gate": "blocked_human_only",
+        "routes_to_live": False,
+        "places_real_order": False,
+        "exchange_action_taken": False,
+    }
+    value.update(updates)
+    return value
 
 
 def _features() -> dict[str, float]:
@@ -438,6 +463,42 @@ def test_coherently_rehashed_base_dataset_with_invalid_target_fails_closed() -> 
 
 
 @pytest.mark.parametrize(
+    ("field", "value", "reason"),
+    (
+        ("symbol", "", "CANONICAL_SYMBOL_REQUIRED"),
+        ("timeframe", "NOT_A_TIMEFRAME", "SUPPORTED_TIMEFRAME_REQUIRED"),
+    ),
+)
+def test_coherently_rehashed_base_dataset_with_invalid_market_fails_closed(
+    field: str,
+    value: str,
+    reason: str,
+) -> None:
+    matured, snapshot = _matured_record()
+    template = build_candidate_outcome_row(
+        matured,
+        snapshot_loader=lambda _snapshot_id: snapshot,
+        source_archive_chain_sha256="a" * 64,
+    )
+    base = _base_dataset(template)
+    base["rows"][0][field] = value
+    material = {
+        key: item
+        for key, item in base.items()
+        if key not in {"dataset_id", "dataset_sha256"}
+    }
+    base["dataset_sha256"] = _digest(material)
+
+    with pytest.raises(CandidateOutcomeDatasetError, match=reason):
+        build_adaptive_serving_dataset_v2(
+            base_dataset=base,
+            candidate_records=(matured,),
+            snapshot_loader=lambda _snapshot_id: snapshot,
+            source_archive_chain_sha256="a" * 64,
+        )
+
+
+@pytest.mark.parametrize(
     ("field", "value"),
     (("symbol", "ETHUSDT"), ("timeframe", "1h")),
 )
@@ -477,6 +538,27 @@ def test_candidate_snapshot_finality_mismatch_fails_closed() -> None:
         )
 
 
+def test_serving_clock_rejection_is_counted_as_future_time_rejection() -> None:
+    matured, original = _matured_record()
+    snapshot = deepcopy(original)
+    snapshot["record_available_at"] = "2026-07-27T20:01:01.000Z"
+    snapshot["available_at"] = "2026-07-27T20:01:01.000Z"
+    rebound = _bind_modified_snapshot(matured, snapshot)
+
+    with pytest.raises(
+        CandidateOutcomeDatasetError,
+        match="POINT_IN_TIME_CLOCK_ORDER_INVALID",
+    ) as captured:
+        build_candidate_outcome_row(
+            rebound,
+            snapshot_loader=lambda _snapshot_id: snapshot,
+            source_archive_chain_sha256="a" * 64,
+        )
+    counts = _rejection_contract_counts({str(captured.value): 1})
+    assert counts["candidate_rejection_count"] == 1
+    assert counts["future_time_rejections"] == 1
+
+
 def test_source_archive_verification_counts_must_match_loaded_matured_rows() -> None:
     matured, snapshot = _matured_record()
     template = build_candidate_outcome_row(
@@ -491,10 +573,40 @@ def test_source_archive_verification_counts_must_match_loaded_matured_rows() -> 
             candidate_records=(matured,),
             snapshot_loader=lambda _snapshot_id: snapshot,
             source_archive_chain_sha256="a" * 64,
-            source_archive_verification={
-                "candidate_count": 2,
-                "decision_revision_count": 2,
-                "matured_revision_count": 2,
-                "row_count": 4,
-            },
+            source_archive_verification=_source_verification(
+                candidate_count=0,
+                decision_revision_count=0,
+                matured_revision_count=1,
+                row_count=1,
+            ),
+        )
+
+
+@pytest.mark.parametrize(
+    ("updates", "reason"),
+    (
+        ({"terminal_chain_sha256": "b" * 64}, "SOURCE_ARCHIVE_RECEIPT_UNSAFE"),
+        ({"verified": False}, "SOURCE_ARCHIVE_RECEIPT_UNSAFE"),
+        ({"routes_to_live": True}, "SOURCE_ARCHIVE_RECEIPT_UNSAFE"),
+        ({"unexpected": "field"}, "SOURCE_ARCHIVE_VERIFICATION_FIELDS_MISMATCH"),
+    ),
+)
+def test_source_archive_verification_identity_and_authority_fail_closed(
+    updates: dict[str, object],
+    reason: str,
+) -> None:
+    matured, snapshot = _matured_record()
+    template = build_candidate_outcome_row(
+        matured,
+        snapshot_loader=lambda _snapshot_id: snapshot,
+        source_archive_chain_sha256="a" * 64,
+    )
+
+    with pytest.raises(CandidateOutcomeDatasetError, match=reason):
+        build_adaptive_serving_dataset_v2(
+            base_dataset=_base_dataset(template),
+            candidate_records=(matured,),
+            snapshot_loader=lambda _snapshot_id: snapshot,
+            source_archive_chain_sha256="a" * 64,
+            source_archive_verification=_source_verification(**updates),
         )
