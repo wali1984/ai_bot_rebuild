@@ -2894,16 +2894,26 @@ def _flag_invalid_admission_open_positions(
     rows: list[dict[str, Any]],
     invalid_admission_rows: list[dict[str, Any]],
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Remove inventory whose accepted-fill lineage is quarantined.
+
+    A paper position is only authoritative while its accepted fill remains
+    admission-valid.  Returning a quarantined row in the managed open-position
+    collection would let an invalid fill continue mutating simulated PnL and
+    margin.  The second return value preserves the exact row and reasons for
+    audit/reconciliation; the first contains only positions that may remain in
+    inventory.
+    """
+
     invalid_ids = _invalid_admission_source_ids(invalid_admission_rows)
-    flagged_rows: list[dict[str, Any]] = []
+    valid_rows: list[dict[str, Any]] = []
     quarantined_rows: list[dict[str, Any]] = []
     for row in rows:
         if not isinstance(row, dict):
-            flagged_rows.append(row)
+            valid_rows.append(row)
             continue
         row_reasons = _non_relaxable_entry_gate_reasons(row)
         if not row_reasons and not (_paper_row_lineage_ids(row) & invalid_ids):
-            flagged_rows.append(row)
+            valid_rows.append(row)
             continue
         if not row_reasons:
             row_reasons = ["INVALID_ADMISSION_LINEAGE_MATCHED_ACCEPTED_FILL_QUARANTINE"]
@@ -2917,16 +2927,19 @@ def _flag_invalid_admission_open_positions(
             P0_ENTRY_GATE_NOT_EXPLORATION_RELAXABLE_REASON
         )
         flagged["invalid_admission_entry_gate_block_reasons"] = row_reasons
-        flagged["invalid_admission_open_position_retained_for_lifecycle"] = True
+        flagged["invalid_admission_open_position_retained_for_lifecycle"] = False
+        flagged["invalid_admission_open_position_removed"] = True
+        flagged["invalid_admission_position_removal_reason"] = (
+            "QUARANTINED_ACCEPTED_FILL_CANNOT_BACK_OPEN_POSITION"
+        )
         flagged["trainer_consumable"] = False
         flagged["counts_as_production_grade_training_evidence"] = False
         flagged["counts_as_a_grade_evidence"] = False
         flagged["counts_as_A_plus"] = False
         flagged["counts_as_final_a_plus"] = False
         flagged["counts_as_live_ready"] = False
-        flagged_rows.append(flagged)
         quarantined_rows.append(flagged)
-    return flagged_rows, quarantined_rows
+    return valid_rows, quarantined_rows
 
 
 def _string_list(value: Any) -> list[str]:
@@ -33813,6 +33826,174 @@ def _paper_reconciliation_with_unproved_closes(
     }
 
 
+def _paper_reconciliation_with_invalid_admission_positions(
+    receipt: Mapping[str, Any],
+    quarantined_positions: Sequence[Mapping[str, Any]],
+    *,
+    retained_positions: Sequence[Mapping[str, Any]],
+    active_proof_count: int,
+    generated_utc: str,
+) -> dict[str, Any]:
+    """Bind invalid-fill inventory removal and margin release into one receipt."""
+
+    unique: dict[str, dict[str, Any]] = {}
+    for row in quarantined_positions:
+        if not isinstance(row, Mapping):
+            continue
+        identity = str(
+            _first_present(
+                row.get("position_generation_id"),
+                row.get("position_id"),
+                row.get("entry_fill_id"),
+                row.get("prediction_id"),
+                _paper_canonical_sha256(row),
+            )
+        )
+        unique.setdefault(identity, dict(row))
+    if not unique:
+        return dict(receipt)
+
+    removed_rows = list(unique.values())
+    removed_position_ids = {
+        str(row.get("position_id"))
+        for row in removed_rows
+        if row.get("position_id") not in (None, "")
+    }
+    removed_projections = []
+    for row in removed_rows:
+        projection = _paper_phantom_position_projection(row)
+        projection.update(
+            {
+                "reason": "QUARANTINED_ACCEPTED_FILL_CANNOT_BACK_OPEN_POSITION",
+                "accepted_fill_quarantine_reasons": sorted(
+                    {
+                        str(reason)
+                        for reason in (
+                            row.get("accepted_fill_quarantine_reasons")
+                            or row.get("invalid_admission_entry_gate_block_reasons")
+                            or row.get("invalid_admission_integrity_block_reasons")
+                            or []
+                        )
+                        if reason not in (None, "")
+                    }
+                ),
+            }
+        )
+        removed_projections.append(projection)
+
+    existing_phantoms = [
+        dict(row)
+        for row in receipt.get("phantom_positions") or []
+        if isinstance(row, Mapping)
+    ]
+    phantom_positions = [*existing_phantoms, *removed_projections]
+    proof_bindings = [
+        dict(row)
+        for row in receipt.get("proof_bindings") or []
+        if isinstance(row, Mapping)
+        and str(row.get("position_id") or "") not in removed_position_ids
+    ]
+    retained_rows = [dict(row) for row in retained_positions if isinstance(row, Mapping)]
+    released_margin = round(
+        sum(
+            max(
+                0.0,
+                _coerce_float(
+                    _first_present(
+                        row.get("allocated_margin_usd"),
+                        row.get("margin_used_usd"),
+                        row.get("initial_margin_usd"),
+                    )
+                )
+                or 0.0,
+            )
+            for row in removed_rows
+        ),
+        8,
+    )
+    rejection_reasons = sorted(
+        {
+            *(str(reason) for reason in receipt.get("rejection_reasons") or [] if reason),
+            "INVALID_ADMISSION_OPEN_POSITION_REMOVED",
+        }
+    )
+    event_material = {
+        key: value
+        for key, value in receipt.items()
+        if key
+        not in {
+            "receipt_id",
+            "receipt_sha256",
+            "generated_utc",
+            "input_position_count",
+            "accepted_fill_proof_count",
+            "retained_position_count",
+            "phantom_position_count",
+            "unresolved_position_count",
+            "used_margin_released_usd",
+            "reserved_margin_released_usd",
+            "wallet_balance_mutation_usd",
+            "wallet_mutation_allowed",
+            "accounting_rebuild_source",
+            "idempotent",
+            "rejection_reasons",
+            "status",
+        }
+    }
+    event_material.update(
+        {
+            "retained_position_hashes": [
+                _paper_canonical_sha256(row) for row in retained_rows
+            ],
+            "phantom_positions": phantom_positions,
+            "proof_bindings": proof_bindings,
+            "status": "REPAIRED",
+            "invalid_admission_position_quarantine_count": len(removed_rows),
+            "invalid_admission_positions_removed_count": len(removed_rows),
+            "invalid_admission_position_quarantine": removed_projections,
+            "position_removed_without_close": True,
+            "counts_as_realized_paper_profit": False,
+            "historical_rows_deleted": False,
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+            "exchange_action_taken": False,
+        }
+    )
+    receipt_id = _paper_canonical_sha256(event_material)
+    receipt_material = {
+        **event_material,
+        "receipt_id": receipt_id,
+        "generated_utc": generated_utc,
+        "input_position_count": max(
+            int(receipt.get("input_position_count") or 0),
+            len(retained_rows) + len(removed_rows),
+        ),
+        "accepted_fill_proof_count": max(0, int(active_proof_count)),
+        "retained_position_count": len(retained_rows),
+        "phantom_position_count": len(phantom_positions),
+        "unresolved_position_count": len(event_material.get("unresolved_positions") or []),
+        "used_margin_released_usd": round(
+            float(receipt.get("used_margin_released_usd") or 0.0) + released_margin,
+            8,
+        ),
+        "reserved_margin_released_usd": float(
+            receipt.get("reserved_margin_released_usd") or 0.0
+        ),
+        "wallet_balance_mutation_usd": 0.0,
+        "wallet_mutation_allowed": False,
+        "accounting_rebuild_source": (
+            "VALID_ACCEPTED_FILL_PROOFS_AFTER_INVALID_ADMISSION_QUARANTINE"
+        ),
+        "idempotent": True,
+        "rejection_reasons": rejection_reasons,
+    }
+    return {
+        **receipt_material,
+        "receipt_sha256": _paper_canonical_sha256(receipt_material),
+    }
+
+
 def _paper_nonunderstating_decimal_float(value: Decimal) -> float:
     """Serialize a nonnegative Decimal without rounding the resource down."""
 
@@ -52771,34 +52952,17 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                 ],
             )
         )
-        late_proof_backed_invalid_positions = [
-            row
-            for row in late_integrity_invalid_open_positions
-            if _paper_position_has_single_accepted_fill_proof(
-                row,
-                accepted_fill_proof_source,
-            )
-        ]
-        late_retained_invalid_positions = _retain_admission_invalidated_positions(
-            late_proof_backed_invalid_positions,
-            recorded_utc=_utc_iso(),
-            paper_session_id=paper_session_id,
-        )
-        late_retained_invalid_positions, late_flagged_invalid_positions = (
+        _, late_flagged_invalid_positions = (
             _flag_invalid_admission_open_positions(
-                late_retained_invalid_positions,
+                late_integrity_invalid_open_positions,
                 late_persistence_integrity_quarantined_rows,
             )
         )
-        open_positions = [
-            *late_valid_open_positions,
-            *late_retained_invalid_positions,
-        ]
+        open_positions = list(late_valid_open_positions)
         invalid_admission_open_positions.extend(late_flagged_invalid_positions)
         lifecycle_result["late_unproved_admission_quarantined_positions"] = [
             _paper_phantom_position_projection(row)
             for row in late_integrity_invalid_open_positions
-            if row not in late_proof_backed_invalid_positions
         ]
         lifecycle_result["late_unproved_admission_quarantined_position_count"] = len(
             lifecycle_result["late_unproved_admission_quarantined_positions"]
@@ -52876,6 +53040,16 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             for row in open_positions
             if not (isinstance(row, dict) and row.get("accepted_fill_quarantined") is True)
         ]
+    if invalid_admission_open_positions:
+        paper_position_fill_reconciliation_status = (
+            _paper_reconciliation_with_invalid_admission_positions(
+                paper_position_fill_reconciliation_status,
+                invalid_admission_open_positions,
+                retained_positions=open_positions,
+                active_proof_count=len(open_position_fill_proofs),
+                generated_utc=_utc_iso(),
+            )
+        )
     _sync_lifecycle_open_position_views(lifecycle_result, open_positions)
     lifecycle_result["accepted_open_fills"] = valid_accepted_for_ledger
     paper_account_margin_status = build_paper_margin_status(

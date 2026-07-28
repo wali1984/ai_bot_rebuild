@@ -19646,7 +19646,7 @@ def test_no_trade_materialization_accepted_row_is_quarantined() -> None:
     assert status["invalid_admission_accepted_rows_quarantined"] == 1
 
 
-def test_invalid_admission_open_position_is_flagged_but_retained_for_lifecycle() -> None:
+def test_invalid_admission_open_position_is_quarantined_and_removed() -> None:
     invalid_rows = [
         {
             "fill_id": "paper_pos_aave",
@@ -19672,18 +19672,69 @@ def test_invalid_admission_open_position_is_flagged_but_retained_for_lifecycle()
         }
     ]
 
-    flagged_rows, quarantined_rows = paper_loop._flag_invalid_admission_open_positions(  # noqa: SLF001
+    valid_rows, quarantined_rows = paper_loop._flag_invalid_admission_open_positions(  # noqa: SLF001
         open_positions,
         invalid_rows,
     )
 
-    assert len(flagged_rows) == 1
+    assert valid_rows == []
     assert len(quarantined_rows) == 1
-    assert flagged_rows[0]["position_id"] == "paper_pos_aave"
-    assert flagged_rows[0]["accepted_fill_quarantined"] is True
-    assert flagged_rows[0]["invalid_admission_open_position_retained_for_lifecycle"] is True
-    assert flagged_rows[0]["trainer_consumable"] is False
-    assert flagged_rows[0]["counts_as_a_grade_evidence"] is False
+    assert quarantined_rows[0]["position_id"] == "paper_pos_aave"
+    assert quarantined_rows[0]["accepted_fill_quarantined"] is True
+    assert quarantined_rows[0]["invalid_admission_open_position_retained_for_lifecycle"] is False
+    assert quarantined_rows[0]["invalid_admission_open_position_removed"] is True
+    assert quarantined_rows[0]["trainer_consumable"] is False
+    assert quarantined_rows[0]["counts_as_a_grade_evidence"] is False
+
+
+@pytest.mark.parametrize("side", ["long", "short"])
+def test_invalid_admission_position_reconciliation_is_symmetric_and_idempotent(
+    side: str,
+) -> None:
+    proof, position = _open_position_fill_proof_fixture(side=side)
+    source = paper_loop._paper_accepted_fill_proof_source(  # noqa: SLF001
+        _FakeRedis({"v2:paper:open_position_fill_proofs": [proof]})
+    )
+    ledger = {"open_positions": [position]}
+    _, base = paper_loop._paper_reconcile_ledger_to_accepted_fill_proofs(  # noqa: SLF001
+        ledger,
+        source,
+        generated_utc="2026-07-28T01:00:00Z",
+    )
+    quarantined = {
+        **position,
+        "accepted_fill_quarantined": True,
+        "accepted_fill_quarantine_reasons": [
+            "PERSISTED_ADMISSION_FINAL_CONTRACT_MISSING"
+        ],
+        "invalid_admission_open_position_removed": True,
+    }
+
+    repaired = paper_loop._paper_reconciliation_with_invalid_admission_positions(  # noqa: SLF001
+        base,
+        [quarantined, quarantined],
+        retained_positions=[],
+        active_proof_count=0,
+        generated_utc="2026-07-28T01:01:00Z",
+    )
+    replay = paper_loop._paper_reconciliation_with_invalid_admission_positions(  # noqa: SLF001
+        repaired,
+        [],
+        retained_positions=[],
+        active_proof_count=0,
+        generated_utc="2026-07-28T01:02:00Z",
+    )
+
+    assert repaired["status"] == "REPAIRED"
+    assert repaired["invalid_admission_positions_removed_count"] == 1
+    assert repaired["retained_position_count"] == 0
+    assert repaired["accepted_fill_proof_count"] == 0
+    assert repaired["used_margin_released_usd"] == pytest.approx(50.0)
+    assert repaired["reserved_margin_released_usd"] == 0.0
+    assert repaired["wallet_balance_mutation_usd"] == 0.0
+    assert repaired["counts_as_realized_paper_profit"] is False
+    assert repaired["idempotent"] is True
+    assert replay == repaired
 
 
 def test_priority_bucket_context_matches_strategy_regime_labels_for_paper_only_collection() -> None:
