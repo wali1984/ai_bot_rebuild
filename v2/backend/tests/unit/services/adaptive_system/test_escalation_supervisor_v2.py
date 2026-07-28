@@ -884,6 +884,104 @@ def test_dispatch_replay_rejects_tampered_immutable_terminal_receipt(
     assert json.loads(state_path.read_text(encoding="utf-8")) == first
 
 
+@pytest.mark.parametrize("mutation", ["changed", "missing"])
+def test_dispatch_replay_binds_failure_cycle_id(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mutation: str,
+) -> None:
+    state_path = (tmp_path / "dispatch-state.json").resolve()
+    plan = replace(
+        _launch_plan(RECALIBRATE),
+        failure_cycle_id="adaptive_failure_cycle_" + "1" * 32,
+    )
+    first, release_root, dispatch_root, _ = _dispatch(
+        plan,
+        tmp_path,
+        _FakeRunner(state_path),
+        monkeypatch,
+    )
+    terminal_path = (
+        dispatch_root / first["dispatch_id"] / "dispatch_terminal_v1.json"
+    )
+    tampered = json.loads(terminal_path.read_text(encoding="utf-8"))
+    if mutation == "changed":
+        tampered["failure_cycle_id"] = "adaptive_failure_cycle_" + "2" * 32
+    else:
+        tampered.pop("failure_cycle_id")
+    terminal_path.write_text(
+        json.dumps(tampered, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    replay_runner = _FakeRunner(state_path, returncode=99)
+
+    with pytest.raises(
+        ValueError,
+        match="DISPATCH_MATERIAL_MISMATCH:failure_cycle_id",
+    ):
+        supervisor.dispatch_worker(
+            plan,
+            dataset_release_root=release_root,
+            dispatch_root=dispatch_root,
+            state_path=state_path,
+            lock_path=(tmp_path / "dispatch.lock").resolve(),
+            runner=replay_runner,
+            timeout_seconds=17,
+        )
+
+    assert replay_runner.calls == []
+
+
+def test_mutable_dispatch_state_cannot_claim_completion_without_terminal_receipt(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state_path = (tmp_path / "dispatch-state.json").resolve()
+    plan = replace(
+        _launch_plan(RECALIBRATE),
+        failure_cycle_id="adaptive_failure_cycle_" + "1" * 32,
+    )
+    first, release_root, dispatch_root, _ = _dispatch(
+        plan,
+        tmp_path,
+        _FakeRunner(state_path),
+        monkeypatch,
+    )
+    terminal_path = (
+        dispatch_root / first["dispatch_id"] / "dispatch_terminal_v1.json"
+    )
+    terminal_path.unlink()
+    forged = {
+        **first,
+        "status": "COMPLETED",
+        "launch_baseline_success": True,
+        "failure_cycle_id": "adaptive_failure_cycle_" + "2" * 32,
+        "paper_only": False,
+        "routes_to_live": True,
+    }
+    state_path.write_text(
+        json.dumps(forged, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    replay_runner = _FakeRunner(state_path, returncode=99)
+
+    with pytest.raises(
+        ValueError,
+        match="IMMUTABLE_TERMINAL_RECEIPT_REQUIRED",
+    ):
+        supervisor.dispatch_worker(
+            plan,
+            dataset_release_root=release_root,
+            dispatch_root=dispatch_root,
+            state_path=state_path,
+            lock_path=(tmp_path / "dispatch.lock").resolve(),
+            runner=replay_runner,
+            timeout_seconds=17,
+        )
+
+    assert replay_runner.calls == []
+
+
 @pytest.mark.parametrize(
     ("field", "value", "expected_error"),
     [

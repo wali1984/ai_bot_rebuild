@@ -990,6 +990,7 @@ def _replay_terminal_receipt(
         "dataset_release",
         "argv",
         "dispatch_id",
+        "failure_cycle_id",
     )
     for receipt_field in required_matches:
         if receipt.get(receipt_field) != dispatch_material.get(receipt_field):
@@ -1160,14 +1161,16 @@ def dispatch_worker(
             return terminal_replay
 
         prior = _load_json_if_present(Path(state_path))
-        if prior and prior.get("dispatch_id") == dispatch_id and prior.get("status") in {
-            "COMPLETED",
-            "FAILED",
-            "RUNNING",
-        }:
-            replay = dict(prior)
-            replay["idempotent_replay"] = True
-            return replay
+        if prior and prior.get("dispatch_id") == dispatch_id:
+            # The mutable latest-state file is operational telemetry only.  It
+            # must never authorize completion (or failure) when the canonical
+            # immutable terminal receipt is absent.  A matching RUNNING state
+            # also means the earlier attempt ended without a terminal receipt;
+            # the dispatch lock proves it is no longer executing here, but it
+            # does not prove that retrying the worker would be side-effect free.
+            raise ValueError(
+                "dispatch_state:IMMUTABLE_TERMINAL_RECEIPT_REQUIRED"
+            )
 
         run_root = _safe_directory(run_root, "dispatch_run_root", create=True)
         started = {
