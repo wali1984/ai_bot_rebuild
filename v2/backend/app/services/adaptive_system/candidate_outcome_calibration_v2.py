@@ -28,6 +28,7 @@ MINIMUM_FIT_ROWS = 40
 MINIMUM_VALIDATION_ROWS = 10
 MINIMUM_GROUP_ROWS = 10
 CALIBRATION_BIN_COUNT = 5
+MAX_BOUNDED_EXPLORATION_PROBABILITY = 0.5
 
 
 class CandidateOutcomeCalibrationError(ValueError):
@@ -584,7 +585,7 @@ def fit_candidate_outcome_calibration_v2(
         ]
     )
     bounded_exploration_probability = min(
-        0.5,
+        MAX_BOUNDED_EXPLORATION_PROBABILITY,
         max(0.01, missed_profitable_rate),
     )
     weights, objective_optimizer = _learned_weights(fit_rows)
@@ -708,6 +709,7 @@ def validate_candidate_outcome_calibration_v2(artifact: Mapping[str, Any]) -> No
 __all__ = (
     "CandidateCalibrationObservationV2",
     "CandidateOutcomeCalibrationError",
+    "MAX_BOUNDED_EXPLORATION_PROBABILITY",
     "extract_calibration_observation",
     "fit_candidate_outcome_calibration_v2",
     "validate_candidate_outcome_calibration_v2",

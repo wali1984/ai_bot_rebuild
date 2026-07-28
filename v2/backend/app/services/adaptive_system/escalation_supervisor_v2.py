@@ -282,16 +282,18 @@ WORKER_COMMANDS: Mapping[str, dict] = {
     ),
     "INCREASE_BOUNDED_INFORMATION_SEEKING_EXPLORATION": _worker(
         "INCREASE_BOUNDED_INFORMATION_SEEKING_EXPLORATION",
-        "v2.backend.app.cli.v2_adaptive_policy_shadow_runtime",
+        "v2.backend.app.cli.v2_bounded_exploration_runtime_evaluator",
         "module",
         (
             _VENV_PY,
             "-m",
-            "v2.backend.app.cli.v2_adaptive_policy_shadow_runtime",
-            "--once",
+            "v2.backend.app.cli.v2_bounded_exploration_runtime_evaluator",
+            "--max-authority-age-seconds",
+            "300",
         ),
-        "bounded_information_seeking_exploration",
-        "Increase bounded, hard-gated exploration to GENERATE the missing information.",
+        "bounded_information_seeking_exploration_limit_evaluation",
+        "Authenticate that adaptive information-seeking already reached its "
+        "configured paper-only bound; fail when controllable increase remains.",
     ),
     "PROMOTE_SUPERIOR_CHALLENGER": _worker(
         "PROMOTE_SUPERIOR_CHALLENGER",

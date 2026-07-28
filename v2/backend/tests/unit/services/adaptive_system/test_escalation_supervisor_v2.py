@@ -603,10 +603,36 @@ def test_dispatch_uses_exact_authenticated_v3_training_argv(
     assert result["exchange_action_taken"] is False
 
 
-def test_adaptive_shadow_worker_descriptor_is_bounded_to_one_cycle() -> None:
-    argv = WORKER_COMMANDS[EXPLORE]["argv"]
-    assert argv[-1] == "--once"
-    assert argv.count("--once") == 1
+def test_bounded_exploration_descriptor_is_exact_read_only_evaluator() -> None:
+    descriptor = WORKER_COMMANDS[EXPLORE]
+
+    assert descriptor == {
+        "ladder_step": EXPLORE,
+        "entrypoint": (
+            "v2.backend.app.cli.v2_bounded_exploration_runtime_evaluator"
+        ),
+        "entrypoint_kind": "module",
+        "argv": [
+            ".venv/bin/python",
+            "-m",
+            "v2.backend.app.cli.v2_bounded_exploration_runtime_evaluator",
+            "--max-authority-age-seconds",
+            "300",
+        ],
+        "scope": "bounded_information_seeking_exploration_limit_evaluation",
+        "description": (
+            "Authenticate that adaptive information-seeking already reached its "
+            "configured paper-only bound; fail when controllable increase remains."
+        ),
+        "paper_only": True,
+        "live_gate": "blocked_human_only",
+        "places_real_order": False,
+        "routes_to_live": False,
+        "exchange_action_taken": False,
+    }
+    serialized = json.dumps(descriptor, sort_keys=True)
+    assert "shadow" not in serialized
+    assert "--once" not in descriptor["argv"]
 
 
 def test_dispatch_writes_running_before_runner_and_hashes_output(
