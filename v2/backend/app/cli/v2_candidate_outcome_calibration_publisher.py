@@ -152,13 +152,13 @@ def process_once(
     generated_at_ms: int,
 ) -> dict[str, Any]:
     reader = _archive_reader(archive_path)
-    verification = reader.verify()
+    verification, records = reader.read_verified_records_with_verification()
     if verification.verified is not True:
         raise CandidateCalibrationPublisherError("candidate_archive:verification_failed")
     registry = _strict_object(client.get(ACTIVE_REGISTRY_KEY), ACTIVE_REGISTRY_KEY)
     try:
         calibration = fit_active_candidate_calibration(
-            reader.read_verified_records(),
+            records,
             active_registry=registry,
             source_archive_chain_sha256=verification.terminal_chain_sha256,
             generated_at_ms=generated_at_ms,

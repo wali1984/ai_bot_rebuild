@@ -285,14 +285,15 @@ class CandidateOutcomeArchiveV2:
                 _raise("regular_file_required", str(path))
 
     @contextmanager
-    def _locked(self):
+    def _locked(self, *, exclusive: bool = True):
         self._ensure_parent()
         descriptor = _open_regular_file(
             self.lock_path,
             os.O_RDWR | os.O_APPEND | os.O_CREAT,
         )
         with os.fdopen(descriptor, "a+", encoding="utf-8") as lock_handle:
-            fcntl.flock(lock_handle.fileno(), fcntl.LOCK_EX)
+            lock_mode = fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH
+            fcntl.flock(lock_handle.fileno(), lock_mode)
             try:
                 yield
             finally:
@@ -480,8 +481,44 @@ class CandidateOutcomeArchiveV2:
         )
 
     def verify(self) -> ArchiveVerificationV2:
-        with self._locked():
+        with self._locked(exclusive=False):
             return self._verify_rows(self._parse_rows())
+
+    def read_verified_records_with_verification(
+        self,
+        *,
+        latest_only: bool = False,
+    ) -> tuple[ArchiveVerificationV2, tuple[CandidateDecisionOutcomeV2, ...]]:
+        """Verify one immutable read view and return its records and receipt.
+
+        Consumers that need both the terminal chain/counts and the authenticated
+        records must not parse a growing archive twice.  The shared lock pins a
+        single byte-for-byte view while the full signature, hash-chain, CAS and
+        nested-contract checks run.  Writers continue to require the exclusive
+        lock.
+        """
+
+        if type(latest_only) is not bool:
+            _raise("must_be_exact_bool", "latest_only")
+        with self._locked(exclusive=False):
+            rows = self._parse_rows()
+            verification = self._verify_rows(rows)
+            selected_rows = rows
+            if latest_only:
+                latest: dict[str, dict[str, Any]] = {}
+                for row in rows:
+                    latest[row["candidate_id"]] = row
+                selected_rows = [latest[candidate_id] for candidate_id in sorted(latest)]
+            try:
+                records = tuple(
+                    candidate_decision_outcome_from_dict(row["record"])
+                    for row in selected_rows
+                )
+            except CandidateOutcomeContractError as exc:
+                raise CandidateOutcomeArchiveError(
+                    f"record:nested_contract_invalid:{exc}"
+                ) from exc
+        return verification, records
 
     def read_verified_records(
         self,
@@ -490,26 +527,10 @@ class CandidateOutcomeArchiveV2:
     ) -> tuple[CandidateDecisionOutcomeV2, ...]:
         """Return records only after signature, chain, and nested contract checks."""
 
-        if type(latest_only) is not bool:
-            _raise("must_be_exact_bool", "latest_only")
-        with self._locked():
-            rows = self._parse_rows()
-            self._verify_rows(rows)
-            try:
-                records = tuple(
-                    candidate_decision_outcome_from_dict(row["record"])
-                    for row in rows
-                )
-            except CandidateOutcomeContractError as exc:
-                raise CandidateOutcomeArchiveError(
-                    f"record:nested_contract_invalid:{exc}"
-                ) from exc
-        if not latest_only:
-            return records
-        latest: dict[str, CandidateDecisionOutcomeV2] = {}
-        for record in records:
-            latest[record.decision.candidate_id] = record
-        return tuple(latest[candidate_id] for candidate_id in sorted(latest))
+        _, records = self.read_verified_records_with_verification(
+            latest_only=latest_only
+        )
+        return records
 
     def append(
         self,
@@ -705,7 +726,7 @@ class CandidateOutcomeArchiveV2:
                 _raise("must_be_sorted_unique_tuple", field)
             for index, value in enumerate(values):
                 _require_identifier(value, f"{field}[{index}]")
-        with self._locked():
+        with self._locked(exclusive=False):
             rows = self._parse_rows()
             self._verify_rows(rows)
         recorded = tuple(

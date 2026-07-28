@@ -156,7 +156,10 @@ def test_idempotency_key_collision_fails_closed(tmp_path: Path) -> None:
         archive.append(other, signed_at_ms=1_100_000)
 
 
-def test_matured_revision_uses_exact_candidate_compare_and_swap(tmp_path: Path) -> None:
+def test_matured_revision_uses_exact_candidate_compare_and_swap(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     archive, _, _ = _writer(tmp_path / "candidate-outcomes.jsonl")
     first, second = _revision_pair()
     archive.append(first, signed_at_ms=1_100_000)
@@ -169,7 +172,21 @@ def test_matured_revision_uses_exact_candidate_compare_and_swap(tmp_path: Path) 
 
     records = archive.read_verified_records()
     assert records == (first, second)
-    latest = archive.read_verified_records(latest_only=True)
+    parse_count = 0
+    parse_rows = archive._parse_rows
+
+    def counted_parse_rows():
+        nonlocal parse_count
+        parse_count += 1
+        return parse_rows()
+
+    monkeypatch.setattr(archive, "_parse_rows", counted_parse_rows)
+    verification, latest = archive.read_verified_records_with_verification(
+        latest_only=True
+    )
+    assert parse_count == 1
+    assert verification.row_count == 2
+    assert verification.terminal_chain_sha256 != GENESIS_CHAIN_SHA256
     assert latest == (second,)
 
 

@@ -238,7 +238,9 @@ def process_maturation(
 
     if type(max_candidates) is not int or max_candidates < 1:
         raise CandidateOutcomeRuntimeError("max_candidates:positive_int_required")
-    records = archive.read_verified_records()
+    verification_before, records = archive.read_verified_records_with_verification(
+        latest_only=True
+    )
     first_revisions = {
         record.decision.candidate_id: record
         for record in records
@@ -351,8 +353,13 @@ def process_maturation(
         if candidates_to_append
         else ()
     )
-    verification = archive.verify()
-    total_matured = verification.matured_revision_count
+    appended_matured_ids = {
+        receipt.candidate_id
+        for receipt in append_receipts
+        if receipt.archive_sequence == 2
+    }
+    total_matured = len(matured_ids | appended_matured_ids)
+    decision_revision_count = verification_before.decision_revision_count
     proven_eligible_total = len(matured_ids | set(source_eligible_ids))
     unexplained_drops = max(0, proven_eligible_total - total_matured)
     status_name = (
@@ -366,10 +373,10 @@ def process_maturation(
         "schema_version": MATURATION_STATUS_SCHEMA_VERSION,
         "generated_at": _utc_now(),
         "status": status_name,
-        "decision_revision_count": verification.decision_revision_count,
+        "decision_revision_count": decision_revision_count,
         "matured_revision_count": total_matured,
         "unmatured_candidate_count": (
-            verification.decision_revision_count - verification.matured_revision_count
+            decision_revision_count - total_matured
         ),
         "horizon_due_candidate_count": len(due),
         "selected_candidate_awaiting_actual_close_count": len(selected_actual_pending),
@@ -435,14 +442,17 @@ def process_cycle(
 
     if already_complete:
         append_receipts = ()
-        verification = archive.verify()
     else:
         append_receipts = (
             archive.append_many(cycle.decision_records, signed_at_ms=signed_at_ms)
             if cycle.decision_records
             else ()
         )
-        verification = archive.verify()
+        terminal_chain_sha256 = (
+            append_receipts[-1].chain_sha256
+            if append_receipts
+            else archive.verify().terminal_chain_sha256
+        )
         cycle_receipt = {
             "schema_version": CYCLE_RECEIPT_SCHEMA_VERSION,
             "cycle_id": cycle_id,
@@ -457,7 +467,7 @@ def process_cycle(
                 record.content_sha256() for record in cycle.decision_records
             ],
             "archive_receipt_ids": [receipt.receipt_id for receipt in append_receipts],
-            "archive_terminal_chain_sha256": verification.terminal_chain_sha256,
+            "archive_terminal_chain_sha256": terminal_chain_sha256,
             "candidate_recording_coverage": cycle.candidate_recording_coverage,
             "unexplained_candidate_drops": cycle.unexplained_candidate_drops,
             "completed": True,
