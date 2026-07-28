@@ -1096,6 +1096,7 @@ def test_partial_close_transition_tampering_is_rejected(
     ("mutation", "value"),
     (
         ("schema_version", "paper_reduce_only_close_receipt_v0"),
+        ("close_id", ""),
         ("entry_fill_id", "fill-attacker"),
         ("position_side", "short"),
         ("close_side", "long"),
@@ -1124,6 +1125,8 @@ def test_partial_close_transition_rejects_resealed_current_receipt_contradiction
         )
     )
     rebound_transition = deepcopy(transitions[0])
+    if mutation == "close_id":
+        rebound_transition["close_id"] = value
     rebound_transition["close_receipt_sha256"] = contradictory_receipt[
         "close_receipt_sha256"
     ]
@@ -1210,6 +1213,7 @@ def test_partial_close_transition_rejects_unsafe_resealed_prior_chain_node() -> 
     ("mutation", "value"),
     (
         ("close_position", True),
+        ("close_id", ""),
         ("close_side", "short"),
         ("source_close_event_sha256", "not-a-sha256"),
         ("position_to_flat", None),
@@ -1273,6 +1277,8 @@ def test_partial_close_transition_rejects_prior_receipt_contradiction(
         )
     )
     rebound_prior = deepcopy(prior)
+    if mutation == "close_id":
+        rebound_prior["close_id"] = value
     rebound_prior["close_receipt_sha256"] = contradictory_receipt[
         "close_receipt_sha256"
     ]
