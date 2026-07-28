@@ -41,12 +41,20 @@ align exact names.
 
 from __future__ import annotations
 
+from copy import deepcopy
 import hashlib
+import json
 from typing import Any
 
 import pytest
 
 from v2.backend.app.cli import v2_trade_management_paper_loop as paper_loop
+from v2.backend.app.services.paper_trade_management.position_state import (
+    PAPER_ENTRY_COST_ACCOUNTING_VERSION,
+    PAPER_POSITION_RECONSTRUCTION_SCHEMA_VERSION,
+    paper_position_reconstruction_hash,
+    validate_paper_position_reconstruction,
+)
 
 PROOF_KEY = paper_loop.PAPER_OPEN_POSITION_FILL_PROOFS_REDIS_KEY
 MANIFEST_KEY = paper_loop.PAPER_OPEN_POSITION_FILL_PROOF_MANIFEST_REDIS_KEY
@@ -228,6 +236,154 @@ def _manifest_for(
     return paper_loop._paper_open_position_fill_proof_manifest(  # noqa: SLF001
         proofs, positions, generated_utc=generated_utc, bindings=bindings
     )
+
+
+def _reconstructable_partial_position(
+    position: dict[str, Any],
+    *,
+    quantity: float,
+    fees_allocated: float,
+    slippage_allocated: float,
+    generated_utc: str,
+) -> dict[str, Any]:
+    """Build a hash-valid durable remainder without borrowing runtime state."""
+
+    row = dict(position)
+    entry_price = float(row["avg_entry_price"])
+    leverage = float(row["effective_leverage"])
+    fees_incurred = 0.025
+    slippage_incurred = 0.02
+    row.update(
+        {
+            "position_reconstruction_schema_version": (
+                PAPER_POSITION_RECONSTRUCTION_SCHEMA_VERSION
+            ),
+            "position_reconstruction_generated_at": generated_utc,
+            "legacy_position_id": "paper_pos_" + str(row["symbol"]),
+            "position_id_version": "PAPER_POSITION_GENERATION_V1",
+            "entry_generation_time_utc": "2026-07-28T05:00:00Z",
+            "opened_est": "2026-07-28T05:00:01Z",
+            "net_quantity": quantity,
+            "gross_notional_usd": quantity * entry_price,
+            "allocated_margin_usd": quantity * entry_price / leverage,
+            "recommended_leverage": leverage,
+            "leverage_source": "CG_F063_FIXTURE",
+            "recommended_margin_mode": "isolated",
+            "margin_mode_simulated": "isolated",
+            "realized_pnl": 0.0,
+            "entry_cost_accounting_version": PAPER_ENTRY_COST_ACCOUNTING_VERSION,
+            "entry_fees_incurred_usd": fees_incurred,
+            "entry_fees_allocated_to_closes_usd": fees_allocated,
+            "entry_fees_remaining_usd": fees_incurred - fees_allocated,
+            "entry_slippage_incurred_usd": slippage_incurred,
+            "entry_slippage_allocated_to_closes_usd": slippage_allocated,
+            "entry_slippage_remaining_usd": (
+                slippage_incurred - slippage_allocated
+            ),
+            "entry_fee_cost_sources": ["CG_F063_AUTHENTICATED_CLOSE_FIXTURE"],
+            "entry_slippage_cost_sources": [
+                "CG_F063_AUTHENTICATED_CLOSE_FIXTURE"
+            ],
+            "entry_cost_basis_status": "EXACT_PARTIAL_REMAINDER",
+            "position_state": "OPEN_POSITION",
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+        }
+    )
+    row["position_reconstruction_hash"] = paper_position_reconstruction_hash(row)
+    assert validate_paper_position_reconstruction(row) == []
+    return row
+
+
+def _partial_close_event(
+    fill: dict[str, Any],
+    position: dict[str, Any],
+    *,
+    close_id: str,
+    quantity_before: float,
+    close_quantity: float,
+    remaining_quantity: float,
+) -> dict[str, Any]:
+    return {
+        "close_id": close_id,
+        "position_id": position["position_id"],
+        "position_generation_id": position["position_generation_id"],
+        "entry_fill_id": fill["fill_id"],
+        "source_fill_ids": [fill["fill_id"]],
+        "side": position["side"],
+        "quantity_before_close": quantity_before,
+        "close_quantity": close_quantity,
+        "remaining_quantity_after_close": remaining_quantity,
+        "reduce_only": True,
+        "close_position": False,
+        "paper_close_integrity_status": "PASS",
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "exchange_action_taken": False,
+    }
+
+
+def _produced_partial_transition(
+    side: str,
+) -> tuple[
+    dict[str, Any],
+    dict[str, Any],
+    dict[str, Any],
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+]:
+    fill, entry_position = _make_fill_position(
+        f"PRODUCED{side.upper()}USDT",
+        side,
+        560,
+        quantity=0.5,
+        price=100.0,
+        leverage=2.0,
+    )
+    proof = _sealed_proof(
+        fill,
+        entry_position,
+        generated_utc="2026-07-28T05:40:00Z",
+    )
+    remaining = _reconstructable_partial_position(
+        entry_position,
+        quantity=0.3,
+        fees_allocated=0.01,
+        slippage_allocated=0.008,
+        generated_utc="2026-07-28T05:41:00Z",
+    )
+    close_event = _partial_close_event(
+        fill,
+        remaining,
+        close_id=f"produced-close-{side}-560",
+        quantity_before=0.5,
+        close_quantity=0.2,
+        remaining_quantity=0.3,
+    )
+    receipts, transitions, status = (
+        paper_loop._paper_build_position_close_transition_state(  # noqa: SLF001
+            {},
+            [remaining],
+            [proof],
+            [close_event],
+        )
+    )
+    assert status["status"] == "PASS"
+    assert len(receipts) == len(transitions) == 1
+    return fill, proof, remaining, receipts, transitions
+
+
+def _reseal_transition(row: dict[str, Any]) -> dict[str, Any]:
+    resealed = deepcopy(row)
+    resealed.pop("transition_proof_sha256", None)
+    material = paper_loop._paper_position_close_transition_material(resealed)  # noqa: SLF001
+    resealed["transition_proof_id"] = paper_loop._paper_canonical_sha256(material)  # noqa: SLF001
+    resealed["transition_proof_sha256"] = paper_loop._paper_canonical_sha256(  # noqa: SLF001
+        resealed
+    )
+    return resealed
 
 
 # ---------------------------------------------------------------------------
@@ -649,6 +805,361 @@ def test_coherent_reduce_only_partial_remainder_must_survive_restart_reconciliat
     assert receipt["proof_bindings"][0]["position_close_transition_proof_sha256"] == (
         transition_proof_sha256
     )
+
+
+@pytest.mark.parametrize("side", ["long", "short"])
+def test_partial_close_producer_seals_stable_transition_and_restart_binding(
+    side: str,
+) -> None:
+    """The producer must seal both durable records before restart replay."""
+
+    _fill, proof, remaining, close_receipts, transitions = (
+        _produced_partial_transition(side)
+    )
+    transition = transitions[0]
+    assert transition["close_receipt_sha256"] == close_receipts[0][
+        "close_receipt_sha256"
+    ]
+    assert transition["remaining_position_binding_sha256"] == (
+        paper_loop._paper_canonical_sha256(  # noqa: SLF001
+            paper_loop._paper_position_close_transition_binding_material(  # noqa: SLF001
+                remaining
+            )
+        )
+    )
+
+    # Mark-to-market and reconstruction publication clocks may refresh without
+    # changing position identity, capital, fill lineage, or remaining costs.
+    refreshed = deepcopy(remaining)
+    refreshed["mark_price"] = 103.0 if side == "long" else 97.0
+    refreshed["latest_price"] = refreshed["mark_price"]
+    refreshed["position_reconstruction_generated_at"] = "2026-07-28T05:42:00Z"
+    refreshed["position_reconstruction_hash"] = paper_position_reconstruction_hash(
+        refreshed
+    )
+    assert validate_paper_position_reconstruction(refreshed) == []
+
+    proof_source = _proof_source_from_store(
+        [proof],
+        _manifest_for([proof], [remaining]),
+    )
+    ledger = _ledger_from_positions([refreshed])
+    ledger["closed_trades"] = list(close_receipts)
+    ledger["closes"] = list(close_receipts)
+    ledger["paper_position_close_receipts"] = list(close_receipts)
+    ledger["paper_position_close_transition_proofs"] = list(transitions)
+    reconciled, receipt = paper_loop._paper_reconcile_ledger_to_accepted_fill_proofs(  # noqa: SLF001
+        ledger,
+        proof_source,
+        generated_utc="2026-07-28T05:43:00Z",
+    )
+
+    assert receipt["status"] == "PASS"
+    assert receipt["retained_position_count"] == 1
+    assert receipt["phantom_position_count"] == 0
+    assert receipt["used_margin_released_usd"] == 0.0
+    assert receipt["wallet_balance_mutation_usd"] == 0.0
+    assert reconciled["closed_trades"] == close_receipts
+    assert receipt["proof_bindings"][0][
+        "position_close_transition_proof_sha256"
+    ] == transition["transition_proof_sha256"]
+
+
+@pytest.mark.parametrize("side", ["long", "short"])
+def test_legacy_authenticated_partial_remainder_without_transition_key_is_retained(
+    side: str,
+) -> None:
+    """Absence of a newly introduced rail cannot retroactively prove a phantom.
+
+    This is the pre-deployment state: the durable entry proof, coherent open
+    remainder, and authenticated reduce-only close receipt exist, but the
+    transition-proof Redis key has never been initialized.  Reconciliation may
+    backfill or block, but it must retain inventory non-destructively.
+    """
+
+    _fill, proof, remaining, close_receipts, _transitions = (
+        _produced_partial_transition(side)
+    )
+    proof_source = _proof_source_from_store(
+        [proof],
+        _manifest_for([proof], [remaining]),
+    )
+    ledger = _ledger_from_positions([remaining])
+    ledger["closed_trades"] = list(close_receipts)
+    ledger["closes"] = list(close_receipts)
+    ledger["paper_position_close_receipts"] = list(close_receipts)
+    assert "paper_position_close_transition_proofs" not in ledger
+
+    reconciled, receipt = paper_loop._paper_reconcile_ledger_to_accepted_fill_proofs(  # noqa: SLF001
+        ledger,
+        proof_source,
+        generated_utc="2026-07-28T05:44:00Z",
+    )
+
+    assert receipt["retained_position_count"] == 1
+    assert receipt["phantom_position_count"] == 0
+    assert receipt["used_margin_released_usd"] == 0.0
+    assert receipt["wallet_balance_mutation_usd"] == 0.0
+    assert receipt.get("wallet_mutation_allowed") is False
+    assert len(paper_loop._paper_open_position_rows(reconciled)) == 1  # noqa: SLF001
+    assert reconciled["closed_trades"] == close_receipts
+    assert reconciled["closes"] == close_receipts
+
+
+def test_partial_close_transition_replay_and_no_new_close_are_idempotent() -> None:
+    fill, proof, remaining, receipts, transitions = _produced_partial_transition(
+        "long"
+    )
+    close_event = _partial_close_event(
+        fill,
+        remaining,
+        close_id="produced-close-long-560",
+        quantity_before=0.5,
+        close_quantity=0.2,
+        remaining_quantity=0.3,
+    )
+    existing = {
+        "paper_position_close_receipts": list(receipts),
+        "paper_position_close_transition_proofs": list(transitions),
+    }
+
+    no_new_receipts, no_new_transitions, no_new_status = (
+        paper_loop._paper_build_position_close_transition_state(  # noqa: SLF001
+            existing,
+            [remaining],
+            [proof],
+            [],
+        )
+    )
+    assert no_new_status["status"] == "PASS"
+    assert no_new_status["new_transition_proof_count"] == 0
+    assert no_new_receipts == receipts
+    assert no_new_transitions == transitions
+
+    replay_receipts, replay_transitions, replay_status = (
+        paper_loop._paper_build_position_close_transition_state(  # noqa: SLF001
+            existing,
+            [remaining],
+            [proof],
+            [close_event],
+        )
+    )
+    assert replay_status["status"] == "PASS"
+    assert replay_status["new_transition_proof_count"] == 0
+    assert replay_receipts == receipts
+    assert replay_transitions == transitions
+
+
+def test_sequential_partial_close_transition_chain_reconciles_exactly_once() -> None:
+    fill, proof, remaining_one, receipts_one, transitions_one = (
+        _produced_partial_transition("short")
+    )
+    remaining_two = _reconstructable_partial_position(
+        remaining_one,
+        quantity=0.1,
+        fees_allocated=0.02,
+        slippage_allocated=0.016,
+        generated_utc="2026-07-28T05:45:00Z",
+    )
+    close_two = _partial_close_event(
+        fill,
+        remaining_two,
+        close_id="produced-close-short-561",
+        quantity_before=0.3,
+        close_quantity=0.2,
+        remaining_quantity=0.1,
+    )
+    receipts_two, transitions_two, status_two = (
+        paper_loop._paper_build_position_close_transition_state(  # noqa: SLF001
+            {
+                "paper_position_close_receipts": receipts_one,
+                "paper_position_close_transition_proofs": transitions_one,
+            },
+            [remaining_two],
+            [proof],
+            [close_two],
+        )
+    )
+
+    assert status_two["status"] == "PASS"
+    assert status_two["new_transition_proof_count"] == 1
+    assert len(receipts_two) == len(transitions_two) == 2
+    latest = next(
+        row for row in transitions_two if row["close_id"] == close_two["close_id"]
+    )
+    assert latest["prior_transition_proof_sha256"] == transitions_one[0][
+        "transition_proof_sha256"
+    ]
+
+    proof_source = _proof_source_from_store(
+        [proof],
+        _manifest_for([proof], [remaining_two]),
+    )
+    ledger = _ledger_from_positions([remaining_two])
+    ledger["closed_trades"] = list(receipts_two)
+    ledger["closes"] = list(receipts_two)
+    ledger["paper_position_close_receipts"] = list(receipts_two)
+    ledger["paper_position_close_transition_proofs"] = list(transitions_two)
+    reconciled_1, reconciliation_1 = (
+        paper_loop._paper_reconcile_ledger_to_accepted_fill_proofs(  # noqa: SLF001
+            ledger,
+            proof_source,
+            generated_utc="2026-07-28T05:46:00Z",
+        )
+    )
+    reconciled_2, reconciliation_2 = (
+        paper_loop._paper_reconcile_ledger_to_accepted_fill_proofs(  # noqa: SLF001
+            reconciled_1,
+            proof_source,
+            generated_utc="2026-07-28T05:47:00Z",
+        )
+    )
+    for receipt in (reconciliation_1, reconciliation_2):
+        assert receipt["retained_position_count"] == 1
+        assert receipt["phantom_position_count"] == 0
+        assert receipt["used_margin_released_usd"] == 0.0
+        assert receipt["wallet_balance_mutation_usd"] == 0.0
+    assert reconciled_2["closed_trades"] == receipts_two
+    assert reconciled_2["closes"] == receipts_two
+
+
+@pytest.mark.parametrize(
+    ("mutation", "expected_reason"),
+    (
+        ("identity", "POSITION_CLOSE_TRANSITION_POSITION_ID_MISMATCH"),
+        ("quantity", "POSITION_CLOSE_TRANSITION_QUANTITY_INVALID"),
+        (
+            "cost",
+            "POSITION_CLOSE_TRANSITION_ENTRY_FEES_CONSERVATION_INVALID",
+        ),
+        ("hash", "POSITION_CLOSE_TRANSITION_HASH_INVALID"),
+        ("safety", "POSITION_CLOSE_TRANSITION_AUTHORITY_INVALID"),
+        (
+            "prior_chain",
+            "POSITION_CLOSE_TRANSITION_PRIOR_TRANSITION_NOT_FOUND",
+        ),
+    ),
+)
+def test_partial_close_transition_tampering_is_rejected(
+    mutation: str,
+    expected_reason: str,
+) -> None:
+    _fill, proof, remaining, receipts, transitions = _produced_partial_transition(
+        "long"
+    )
+    tampered = deepcopy(transitions[0])
+    if mutation == "identity":
+        tampered["position_id"] = "paper-pos-attacker"
+        tampered = _reseal_transition(tampered)
+    elif mutation == "quantity":
+        tampered["remaining_quantity"] = 0.4
+        tampered = _reseal_transition(tampered)
+    elif mutation == "cost":
+        tampered["entry_fees_remaining_usd"] = 0.024
+        tampered = _reseal_transition(tampered)
+    elif mutation == "hash":
+        tampered["remaining_quantity"] = 0.4
+    elif mutation == "safety":
+        tampered["routes_to_live"] = True
+        tampered = _reseal_transition(tampered)
+    else:
+        tampered["prior_transition_proof_sha256"] = "f" * 64
+        tampered = _reseal_transition(tampered)
+
+    if mutation == "prior_chain":
+        validated, reasons = paper_loop._paper_valid_position_close_transition(  # noqa: SLF001
+            {
+                "paper_position_close_receipts": receipts,
+                "paper_position_close_transition_proofs": [tampered],
+            },
+            remaining,
+            proof,
+        )
+        assert validated is None
+        assert expected_reason in reasons
+        return
+
+    reasons = paper_loop._paper_position_close_transition_reasons(  # noqa: SLF001
+        remaining,
+        proof,
+        tampered,
+        receipts,
+    )
+
+    assert expected_reason in reasons
+
+
+def test_atomic_redis_transition_commit_and_readback_carry_both_stores(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Transaction:
+        def __init__(self, owner: Any):
+            self.owner = owner
+            self.writes: list[tuple[str, str, int | None]] = []
+
+        def set(self, key: str, value: str, ex: int | None = None):
+            self.writes.append((key, value, ex))
+            return self
+
+        def execute(self) -> list[bool]:
+            self.owner.execute_count += 1
+            for key, value, _ttl in self.writes:
+                self.owner.payloads[key] = value
+            return [True] * len(self.writes)
+
+    class TransactionRedis(_FakeRedis):
+        def __init__(self):
+            super().__init__({})
+            self.execute_count = 0
+
+        def pipeline(self, transaction: bool = True) -> Transaction:
+            assert transaction is True
+            return Transaction(self)
+
+    _fill, proof, remaining, receipts, transitions = _produced_partial_transition(
+        "long"
+    )
+    manifest = _manifest_for([proof], [remaining])
+    redis_client = TransactionRedis()
+    keys = paper_loop._write_paper_critical_state_atomically(  # noqa: SLF001
+        redis_client,
+        open_positions=[remaining],
+        open_position_fill_proofs=[proof],
+        open_position_fill_proof_manifest=manifest,
+        position_close_receipts=receipts,
+        position_close_transition_proofs=transitions,
+        accepted_fills=[],
+        quarantined_fills=[],
+        closed_trades=receipts,
+        unproved_close_quarantine=[],
+        outcome_labels=[],
+        trainer_feedback=[],
+        trainer_feedback_quarantine=[],
+        ledger_payload={"open_positions": [remaining]},
+        account_margin_status={"used_margin_usd": 15.0},
+        position_fill_reconciliation_status={
+            "receipt_id": "a" * 64,
+            "phantom_position_count": 0,
+            "unproved_close_quarantine_count": 0,
+        },
+    )
+
+    assert redis_client.execute_count == 1
+    assert paper_loop.PAPER_POSITION_CLOSE_RECEIPTS_REDIS_KEY in keys
+    assert paper_loop.PAPER_POSITION_CLOSE_TRANSITION_PROOFS_REDIS_KEY in keys
+    assert json.loads(
+        redis_client.get(paper_loop.PAPER_POSITION_CLOSE_RECEIPTS_REDIS_KEY)
+    ) == receipts
+    assert json.loads(
+        redis_client.get(
+            paper_loop.PAPER_POSITION_CLOSE_TRANSITION_PROOFS_REDIS_KEY
+        )
+    ) == transitions
+
+    monkeypatch.setattr(paper_loop, "_read_lifecycle_state_file", lambda: {})
+    restored = paper_loop._read_existing_ledger_payload(redis_client)  # noqa: SLF001
+    assert restored["paper_position_close_receipts"] == receipts
+    assert restored["paper_position_close_transition_proofs"] == transitions
 
 
 # ---------------------------------------------------------------------------
