@@ -34881,6 +34881,9 @@ def _paper_prior_position_close_transition_reasons(
         close_before = _coerce_float(close.get("quantity_before_close"))
         close_quantity = _coerce_float(close.get("close_quantity"))
         close_remaining = _coerce_float(close.get("remaining_quantity_after_close"))
+        expected_close_side = (
+            "short" if transition_side == "long" else "long"
+        )
         if (
             close.get("schema_version") != "paper_reduce_only_close_receipt_v1"
             or not _paper_valid_sha256(close_sha)
@@ -34895,6 +34898,8 @@ def _paper_prior_position_close_transition_reasons(
             != str(entry_proof.get("fill_id") or "")
             or _normalized_directional_side(close.get("position_side"))
             != transition_side
+            or _normalized_directional_side(close.get("close_side"))
+            != expected_close_side
             or close.get("reduce_only") is not True
             or close.get("position_to_flat") is True
             or close.get("close_position") is True
@@ -35438,14 +35443,35 @@ def _paper_position_close_transition_reasons(
         close_quantity = _coerce_float(
             _first_present(close.get("close_quantity"), close.get("closed_quantity"))
         )
+        close_before = _coerce_float(close.get("quantity_before_close"))
         close_remaining = _coerce_float(close.get("remaining_quantity_after_close"))
+        expected_close_side = "short" if position_side == "long" else "long"
         if (
-            close.get("reduce_only") is not True
+            close.get("schema_version") != "paper_reduce_only_close_receipt_v1"
+            or close.get("reduce_only") is not True
             or close.get("position_to_flat") is True
             or close.get("close_position") is True
             or str(close.get("position_id") or "") != str(position.get("position_id") or "")
             or str(close.get("position_generation_id") or "")
             != str(position.get("position_generation_id") or "")
+            or str(close.get("entry_fill_id") or "")
+            != str(entry_proof.get("fill_id") or "")
+            or _normalized_directional_side(close.get("position_side"))
+            != position_side
+            or _normalized_directional_side(close.get("close_side"))
+            != expected_close_side
+            or close.get("paper_only") is not True
+            or close.get("routes_to_live") is not False
+            or close.get("places_real_order") is not False
+            or close.get("exchange_action_taken") is not False
+            or close_before is None
+            or before is None
+            or not math.isclose(
+                close_before,
+                before,
+                rel_tol=1e-9,
+                abs_tol=1e-12,
+            )
             or close_quantity is None
             or closed is None
             or not math.isclose(close_quantity, closed, rel_tol=1e-9, abs_tol=1e-12)
