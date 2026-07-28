@@ -96,6 +96,12 @@ def test_iso_utc_preserves_millisecond_precision_when_present() -> None:
     assert svc.iso_utc("2026-06-22T07:36:01Z") == "2026-06-22T07:36:01Z"
 
 
+def test_iso_utc_preserves_submillisecond_decision_precision() -> None:
+    assert svc.iso_utc("2026-07-28T03:00:59.586524Z") == (
+        "2026-07-28T03:00:59.586524Z"
+    )
+
+
 def _seed_feature_snapshot(client: _MemoryClient, symbol: str, timeframe: str) -> None:
     client.set(
         svc.feature_latest_key(symbol, timeframe),

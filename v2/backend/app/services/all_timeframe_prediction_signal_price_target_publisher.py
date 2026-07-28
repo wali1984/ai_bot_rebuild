@@ -204,7 +204,16 @@ def iso_utc(value: Any) -> str | None:
     if parsed is None:
         return None
     parsed_utc = parsed.astimezone(dt.timezone.utc)
-    timespec = "milliseconds" if parsed_utc.microsecond else "seconds"
+    # Preserve sub-millisecond decision precision.  Truncating a producer
+    # timestamp such as ``...59.586524Z`` to ``...59.586Z`` makes the durable
+    # feature snapshot appear to have been generated *after* the downstream
+    # signal decision even when both records carry the same source instant.
+    if parsed_utc.microsecond % 1_000:
+        timespec = "microseconds"
+    elif parsed_utc.microsecond:
+        timespec = "milliseconds"
+    else:
+        timespec = "seconds"
     return parsed_utc.isoformat(timespec=timespec).replace("+00:00", "Z")
 
 
