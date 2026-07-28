@@ -24954,16 +24954,24 @@ def _paper_filter_open_positions_to_accepted_rows(
     persist an auditable record (F-0007: BASUSDT position disappeared with no
     close record, no quarantine, no PnL realization).
     """
-    allowed_open_position_ids = {_accepted_fill_identity(row) for row in accepted_rows}
-    if not allowed_open_position_ids:
+    accepted_alias_groups = [
+        _paper_fill_proof_aliases(row) for row in accepted_rows if isinstance(row, Mapping)
+    ]
+    accepted_alias_groups = [aliases for aliases in accepted_alias_groups if aliases]
+    if not accepted_alias_groups:
         return [], list(open_positions)
     kept: list[dict[str, Any]] = []
     dropped: list[dict[str, Any]] = []
     for row in open_positions:
-        if (
-            _accepted_fill_identity(_accepted_fill_from_open_position(row))
-            in allowed_open_position_ids
-        ):
+        position_aliases = _paper_fill_proof_aliases(
+            _accepted_fill_from_open_position(row)
+        )
+        matching_groups = sum(
+            1
+            for accepted_aliases in accepted_alias_groups
+            if position_aliases.intersection(accepted_aliases)
+        )
+        if matching_groups == 1:
             kept.append(row)
         else:
             dropped.append(row)

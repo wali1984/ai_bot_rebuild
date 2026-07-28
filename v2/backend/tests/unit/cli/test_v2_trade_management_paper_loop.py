@@ -17703,6 +17703,36 @@ def test_open_position_filter_with_no_accepted_proofs_drops_every_position() -> 
     assert dropped == positions
 
 
+def test_open_position_filter_joins_position_to_fill_through_source_fill_id() -> None:
+    prediction_id = "v2h_valid_new_fill"
+    position = {
+        "position_id": "paper_pos_BSBUSDT_generation",
+        "entry_fill_id": prediction_id,
+        "source_fill_ids": [prediction_id],
+        "prediction_id": prediction_id,
+        "signal_id": "sig_valid_new_fill",
+        "symbol": "BSBUSDT",
+        "side": "short",
+    }
+    accepted = {
+        "fill_id": prediction_id,
+        "ledger_row_id": prediction_id,
+        "prediction_id": prediction_id,
+        "signal_id": "sig_valid_new_fill",
+        "position_id": "paper_pos_BSBUSDT_generation",
+        "symbol": "BSBUSDT",
+        "side": "short",
+    }
+
+    kept, dropped = paper_loop._paper_filter_open_positions_to_accepted_rows(  # noqa: SLF001
+        [position],
+        [accepted],
+    )
+
+    assert kept == [position]
+    assert dropped == []
+
+
 @pytest.mark.parametrize("side", ["long", "short"])
 def test_position_fill_reconciliation_retains_exactly_proven_position(side: str) -> None:
     prediction_id = f"pred-{side}"
