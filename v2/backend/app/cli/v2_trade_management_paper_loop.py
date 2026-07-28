@@ -34837,6 +34837,10 @@ def _paper_prior_position_close_transition_reasons(
             incurred is None
             or allocated is None
             or cost_remaining is None
+            or not all(
+                math.isfinite(value) and value >= 0.0
+                for value in (incurred, allocated, cost_remaining)
+            )
             or not math.isclose(
                 incurred,
                 allocated + cost_remaining,
@@ -35431,12 +35435,20 @@ def _paper_position_close_transition_reasons(
         )
         cost_remaining = _coerce_float(material.get(f"{prefix}_remaining_usd"))
         supplied = [incurred, allocated, cost_remaining]
-        if any(value is None for value in supplied) or not math.isclose(
-            incurred if incurred is not None else -1.0,
-            (allocated if allocated is not None else -1.0)
-            + (cost_remaining if cost_remaining is not None else -1.0),
-            rel_tol=1e-9,
-            abs_tol=1e-10,
+        if (
+            any(value is None for value in supplied)
+            or any(
+                not math.isfinite(value) or value < 0.0
+                for value in supplied
+                if value is not None
+            )
+            or not math.isclose(
+                incurred if incurred is not None else -1.0,
+                (allocated if allocated is not None else -1.0)
+                + (cost_remaining if cost_remaining is not None else -1.0),
+                rel_tol=1e-9,
+                abs_tol=1e-10,
+            )
         ):
             reasons.append(
                 f"POSITION_CLOSE_TRANSITION_{prefix.upper()}_CONSERVATION_INVALID"
@@ -35446,17 +35458,25 @@ def _paper_position_close_transition_reasons(
             _coerce_float(position.get(f"{prefix}_allocated_to_closes_usd")),
             _coerce_float(position.get(f"{prefix}_remaining_usd")),
         ]
-        if any(value is None for value in position_values) or any(
-            not math.isclose(
-                supplied_value if supplied_value is not None else -1.0,
-                position_value if position_value is not None else -2.0,
-                rel_tol=1e-9,
-                abs_tol=1e-10,
+        if (
+            any(value is None for value in position_values)
+            or any(
+                not math.isfinite(value) or value < 0.0
+                for value in position_values
+                if value is not None
             )
-            for supplied_value, position_value in zip(
-                supplied,
-                position_values,
-                strict=True,
+            or any(
+                not math.isclose(
+                    supplied_value if supplied_value is not None else -1.0,
+                    position_value if position_value is not None else -2.0,
+                    rel_tol=1e-9,
+                    abs_tol=1e-10,
+                )
+                for supplied_value, position_value in zip(
+                    supplied,
+                    position_values,
+                    strict=True,
+                )
             )
         ):
             reasons.append(
