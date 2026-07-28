@@ -151,18 +151,19 @@ def scope_response_fields(
 # ===========================================================================
 # PREFLIGHT — canonical read-only precondition evaluation
 # ===========================================================================
+# Predicate-3 set (operator directive 2026-07-28): position/fill/reservation/accounting cleanliness.
+# Proof-store health, quarantine reasons, legitimate-position wipes and duplicate fills/closes are
+# validated by predicate 2 = tools/paper_runtime_acceptance_harness.py over >=3 cycles (the CG-F063
+# fix removed v2:paper:fill_persistence_trace, so a single-snapshot key check here is obsolete).
 _REQUIRED = {
-    "valid_proof_backed_open_positions": 0,
+    "open_positions": 0,
     "pending_fills": 0,
     "pending_reservations": 0,
     "used_margin_usd": 0,
     "reserved_margin_usd": 0,
-    "unresolved_position_proof_rows": 0,
     "unresolved_accounting_reconciliation": 0,
     "duplicate_fill_count": 0,
     "duplicate_close_count": 0,
-    "proof_store_initialized": True,
-    "proof_store_backfill_complete": True,
 }
 _NET_PNL_FIELDS = ("realized_net_pnl_usd", "realized_net_pnl", "realized_pnl_usd", "realized_pnl", "net_pnl_usd")
 
@@ -185,14 +186,9 @@ def evaluate_preconditions(redis) -> dict:
     def _num(v):
         return v if isinstance(v, (int, float)) else None
 
-    proof_backed = sum(
-        1 for p in positions if isinstance(p, dict) and isinstance(p.get("accepted_fills"), list) and p["accepted_fills"]
-    )
-    proofless = sum(1 for p in positions if isinstance(p, dict) and p.get("accepted_fills") in ([], None))
-    quarantined = int(trace.get("invalid_admission_quarantined") or 0)
-    record("valid_proof_backed_open_positions", proof_backed, proof_backed == 0, f"{len(positions)} position rows")
-    record("unresolved_position_proof_rows", proofless + quarantined, (proofless + quarantined) == 0,
-           f"proofless={proofless}, invalid_admission_quarantined={quarantined}")
+    # Predicate 3: any open position (proof-backed or proofless) blocks — the reset must not run
+    # while positions exist, and a proofless phantom is never "solved" by deletion here.
+    record("open_positions", len(positions), len(positions) == 0, f"{len(positions)} rows in v2:paper:positions")
     record("pending_fills", len(accepted), len(accepted) == 0)
     record("pending_reservations", 0, True, "no v2:paper:reservations key")
 
@@ -227,11 +223,6 @@ def evaluate_preconditions(redis) -> dict:
            _dupes(accepted, ("fill_id", "accepted_fill_id", "id")) == 0)
     record("duplicate_close_count", _dupes(closed, ("trade_id", "close_id", "id")),
            _dupes(closed, ("trade_id", "close_id", "id")) == 0)
-
-    psi = trace.get("proof_store_initialized")
-    psb = trace.get("proof_store_backfill_complete")
-    record("proof_store_initialized", psi, psi is True)
-    record("proof_store_backfill_complete", psb, psb is True)
 
     all_pass = all(c["pass"] for c in checks.values())
     return {

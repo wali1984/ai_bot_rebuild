@@ -124,13 +124,15 @@ def test_07_open_position_blocks(r):
     assert r.get(E.EPOCH_POINTER_KEY) is None  # no session created
 
 
-# 8 — uninitialized proof store blocks; no positions removed
-def test_08_uninitialized_proof_store_blocks(r):
+# 8 — a proofless phantom position blocks the reset and is NOT deleted ("no solve by deletion").
+#     (Proof-store/quarantine/wipe health is validated separately by the acceptance harness = predicate 2.)
+def test_08_proofless_position_blocks(r):
     _seed_clean(r)
-    r.set(E.FILL_PERSISTENCE_TRACE_KEY, json.dumps({"proof_store_initialized": None, "invalid_admission_quarantined": 3}))
+    r.set(E.GLOBAL_POSITIONS_KEY, json.dumps([{"symbol": "AAVEUSDT", "accepted_fills": []}]))
     res = E.rotate(r, execute=True)
     assert res["status"] == "BLOCKED_RESET_PRECONDITION" and res["state_mutated"] is False
-    assert "proof_store_initialized" in res["failing"]
+    assert "open_positions" in res["failing"]
+    assert json.loads(r.get(E.GLOBAL_POSITIONS_KEY))  # phantom NOT removed
     assert r.get(E.EPOCH_COUNTER_KEY) is None  # epoch not allocated
 
 
