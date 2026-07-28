@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -57,6 +58,18 @@ def _coinglass_v2_payload(
         "missing_feature_flags": [],
         "stale_feature_flags": [],
     }
+
+
+def test_runtime_repo_root_can_be_separate_from_immutable_code(tmp_path) -> None:
+    code_root = Path("/immutable/release")
+
+    assert monitor._configured_runtime_repo_root(  # noqa: SLF001
+        {monitor.MICROSTRUCTURE_RUNTIME_REPO_ROOT_ENV: str(tmp_path)},
+        code_root=code_root,
+    ) == tmp_path.resolve()
+    assert monitor._configured_runtime_repo_root(  # noqa: SLF001
+        {}, code_root=code_root
+    ) == code_root
 
 
 def test_microstructure_monitor_writes_only_microstructure_keys(tmp_path) -> None:

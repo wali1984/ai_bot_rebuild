@@ -45,7 +45,21 @@ from v2.backend.app.services.adaptive_system.candidate_outcome_calibration_v2 im
 )
 from v2.backend.app.services.v2_symbol_runtime_universe import resolve_symbols
 
-REPO_ROOT = Path(__file__).resolve().parents[4]
+MICROSTRUCTURE_RUNTIME_REPO_ROOT_ENV = "V2_MICROSTRUCTURE_RUNTIME_REPO_ROOT"
+CODE_ROOT = Path(__file__).resolve().parents[4]
+
+
+def _configured_runtime_repo_root(
+    environment: Mapping[str, str] | None = None,
+    *,
+    code_root: Path = CODE_ROOT,
+) -> Path:
+    values = os.environ if environment is None else environment
+    configured = str(values.get(MICROSTRUCTURE_RUNTIME_REPO_ROOT_ENV) or "").strip()
+    return Path(configured).resolve() if configured else code_root.resolve()
+
+
+REPO_ROOT = _configured_runtime_repo_root()
 DEFAULT_REPLAY_ROOT = REPO_ROOT / "v2/runtime/orderbook_replay"
 MICROSTRUCTURE_SUPERVISOR_STATUS_PATH = (
     REPO_ROOT
