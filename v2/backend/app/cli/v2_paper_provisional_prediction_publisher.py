@@ -79,13 +79,28 @@ from v2.backend.app.services.ordinary_paper_admission import (  # noqa: E402
 )
 from v2.backend.app.services.prediction_serving.serving_feature_abi_v2 import (  # noqa: E402
     build_serving_feature_vector,
+)
+from v2.backend.app.services.prediction_serving.serving_feature_abi_v2 import (
     feature_abi_sha256 as serving_feature_abi_sha256,
+)
+from v2.backend.app.services.prediction_serving.serving_feature_abi_v2 import (
     feature_builder_sha256 as serving_feature_builder_sha256,
 )
 from v2.backend.app.services.prediction_serving.serving_model_v3 import (  # noqa: E402
     EDGE_HEAD_ACTIONS,
-    MODEL_ARCHITECTURE,
     build_serving_model_v3,
+)
+from v2.backend.app.services.prediction_serving.serving_model_v3 import (
+    MODEL_ARCHITECTURE as MODEL_ARCHITECTURE_V3,
+)
+from v2.backend.app.services.prediction_serving.serving_model_v4 import (  # noqa: E402
+    DIRECTIONAL_ACTIONS as PROFITABILITY_HEAD_ACTIONS,
+)
+from v2.backend.app.services.prediction_serving.serving_model_v4 import (
+    MODEL_ARCHITECTURE as MODEL_ARCHITECTURE_V4,
+)
+from v2.backend.app.services.prediction_serving.serving_model_v4 import (
+    build_serving_model_v4,
 )
 
 STATUS_KEY = "v2:trainer:paper_provisional_prediction_publisher:status"
@@ -107,6 +122,7 @@ DEFAULT_MANIFEST = (
 )
 PROVISIONAL_TTL_SECONDS = 180
 OPENING_ACTION_LABELS = ("hold", "long", "short")
+EDGE_MODEL_ARCHITECTURES = {MODEL_ARCHITECTURE_V3, MODEL_ARCHITECTURE_V4}
 
 
 # --------------------------------------------------------------------------- #
@@ -258,17 +274,32 @@ class ProvisionalCheckpoint:
         self.directional_net_edge_scale_bps = torch.tensor(
             meta.get("directional_net_edge_scale_bps") or []
         )
+        self.directional_profitability_actions: tuple[str, ...] = tuple(
+            meta.get("directional_profitability_actions") or ()
+        )
+        self.has_directional_profitability_head = (
+            self.model_architecture == MODEL_ARCHITECTURE_V4
+        )
         self._torch = torch
-        if self.model_architecture == MODEL_ARCHITECTURE:
+        if self.model_architecture in EDGE_MODEL_ARCHITECTURES:
             if self.directional_net_edge_actions != EDGE_HEAD_ACTIONS:
                 raise ValueError("CHECKPOINT_DIRECTIONAL_EDGE_ACTIONS_MISMATCH")
             if self.directional_net_edge_mean_bps.numel() != len(EDGE_HEAD_ACTIONS):
                 raise ValueError("CHECKPOINT_DIRECTIONAL_EDGE_MEAN_INVALID")
             if self.directional_net_edge_scale_bps.numel() != len(EDGE_HEAD_ACTIONS):
                 raise ValueError("CHECKPOINT_DIRECTIONAL_EDGE_SCALE_INVALID")
-            model = build_serving_model_v3(
-                input_dim=len(self.feature_names), action_count=len(self.actions)
-            )
+            if self.has_directional_profitability_head:
+                if self.directional_profitability_actions != PROFITABILITY_HEAD_ACTIONS:
+                    raise ValueError(
+                        "CHECKPOINT_DIRECTIONAL_PROFITABILITY_ACTIONS_MISMATCH"
+                    )
+                model = build_serving_model_v4(
+                    input_dim=len(self.feature_names), action_count=len(self.actions)
+                )
+            else:
+                model = build_serving_model_v3(
+                    input_dim=len(self.feature_names), action_count=len(self.actions)
+                )
         else:
             # Rollback compatibility for the previous action-only paper model.
             model = torch.nn.Sequential(
@@ -287,8 +318,21 @@ class ProvisionalCheckpoint:
         xn = (x - self.mean) / self.std
         with torch.no_grad():
             output = self.model(xn)
-            if self.model_architecture == MODEL_ARCHITECTURE:
+            if self.has_directional_profitability_head:
+                (
+                    logits_batch,
+                    edge_standardized_batch,
+                    profitability_logits_batch,
+                ) = output
+                profitability_probabilities = torch.sigmoid(
+                    profitability_logits_batch[0]
+                )
+            elif self.model_architecture == MODEL_ARCHITECTURE_V3:
                 logits_batch, edge_standardized_batch = output
+                profitability_probabilities = None
+            else:
+                profitability_probabilities = None
+            if self.model_architecture in EDGE_MODEL_ARCHITECTURES:
                 logits = logits_batch[0]
                 directional_edges = (
                     edge_standardized_batch[0] * self.directional_net_edge_scale_bps
@@ -300,7 +344,16 @@ class ProvisionalCheckpoint:
             probs = torch.softmax(logits, dim=0)
         idx = int(torch.argmax(probs))
         action = self.actions[idx]
-        raw_prob = float(probs[idx])
+        raw_prob = (
+            float(
+                profitability_probabilities[
+                    PROFITABILITY_HEAD_ACTIONS.index(action)
+                ]
+            )
+            if profitability_probabilities is not None
+            and action in PROFITABILITY_HEAD_ACTIONS
+            else (0.0 if self.has_directional_profitability_head else float(probs[idx]))
+        )
         projected_logits, projected_probabilities, projected_index = (
             _project_opening_action_distribution(
                 source_labels=self.actions,
@@ -324,6 +377,20 @@ class ProvisionalCheckpoint:
             result["selected_directional_net_edge_bps"] = (
                 result["directional_net_edge_bps"].get(action)
             )
+        if profitability_probabilities is not None:
+            result["directional_profitability_probabilities"] = dict(
+                zip(
+                    PROFITABILITY_HEAD_ACTIONS,
+                    [
+                        float(value)
+                        for value in profitability_probabilities.tolist()
+                    ],
+                    strict=True,
+                )
+            )
+            result["selected_directional_profitability_probability"] = (
+                result["directional_profitability_probabilities"].get(action)
+            )
         return result
 
     def build_calibration(
@@ -334,17 +401,24 @@ class ProvisionalCheckpoint:
         calibrate_confidence(...) output + selected-action + checkpoint metadata."""
         cs = self.calibration_state
         temperature = float(cs["temperature"])
+        directional = action in CONFIDENCE_HEAD_ACTIONS
+        profitability_undefined = (
+            self.has_directional_profitability_head and not directional
+        )
         cal = calibrate_confidence(
             raw_probability=raw_prob,
             data_coverage_percent=data_coverage_percent,
             missing_feature_count=missing_feature_count,
             stale_feature_count=stale_feature_count,
             total_feature_count=total_feature_count,
-            temperature=temperature,
-            calibration_fitted=True,
-            calibration_reason=None,
+            temperature=None if profitability_undefined else temperature,
+            calibration_fitted=not profitability_undefined,
+            calibration_reason=(
+                None
+                if not profitability_undefined
+                else "SELECTED_ACTION_NOT_DIRECTIONAL_PROFITABILITY_UNDEFINED"
+            ),
         )
-        directional = action in CONFIDENCE_HEAD_ACTIONS
         cal.update(
             {
                 "selected_action": action,
@@ -357,6 +431,14 @@ class ProvisionalCheckpoint:
                 "checkpoint_calibration_fit_partition": cs.get("fit_partition"),
                 "checkpoint_calibration_validation_rows_used": cs.get("validation_rows_used"),
                 "checkpoint_calibration_row_digest": cs.get("row_digest"),
+                "confidence_probability_source": (
+                    "DEDICATED_DIRECTIONAL_AFTER_COST_PROFITABILITY_HEAD"
+                    if self.has_directional_profitability_head
+                    else "LEGACY_SELECTED_ACTION_CLASS_PROBABILITY"
+                ),
+                "action_probability_used_as_profitability_probability": (
+                    not self.has_directional_profitability_head
+                ),
             }
         )
         return cal
@@ -1023,7 +1105,7 @@ def publish_one(
     )
     confidence_calibrated = float(calibration["confidence_calibrated"])
     predicted_net_edge = _finite_float(fwd.get("selected_directional_net_edge_bps"))
-    if ckpt.model_architecture == MODEL_ARCHITECTURE:
+    if ckpt.model_architecture in EDGE_MODEL_ARCHITECTURES:
         expected_move_bps = _gross_expected_move_from_directional_net_edge(
             action=action,
             directional_net_edge_bps=predicted_net_edge,
@@ -1178,8 +1260,22 @@ def publish_one(
     payload["directional_net_edge_model_architecture"] = ckpt.model_architecture
     payload["directional_net_edge_semantics"] = (
         "predicted_position_return_bps_after_complete_round_trip_cost"
-        if ckpt.model_architecture == MODEL_ARCHITECTURE
+        if ckpt.model_architecture in EDGE_MODEL_ARCHITECTURES
         else "legacy_confidence_cost_proxy_rollback_only"
+    )
+    payload["directional_profitability_probability_model_architecture"] = (
+        ckpt.model_architecture
+    )
+    payload["directional_profitability_probability_semantics"] = (
+        "probability_selected_directional_position_return_after_complete_cost_is_positive"
+        if ckpt.has_directional_profitability_head
+        else "legacy_selected_action_class_probability_temperature_proxy"
+    )
+    payload["directional_profitability_probabilities"] = fwd.get(
+        "directional_profitability_probabilities"
+    )
+    payload["selected_directional_profitability_probability"] = fwd.get(
+        "selected_directional_profitability_probability"
     )
     payload["predicted_directional_net_edge_bps"] = predicted_net_edge
     payload["counterfactual_directional_net_edge_bps"] = fwd.get(

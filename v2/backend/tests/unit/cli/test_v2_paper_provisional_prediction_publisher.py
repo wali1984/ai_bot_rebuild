@@ -2,11 +2,83 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
 from v2.backend.app.cli import v2_paper_provisional_prediction_publisher as publisher
+from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.confidence import (
+    fit_temperature,
+)
+from v2.backend.app.services.prediction_serving.serving_model_v3 import (
+    MODEL_ARCHITECTURE as MODEL_ARCHITECTURE_V3,
+)
+from v2.backend.app.services.prediction_serving.serving_model_v3 import (
+    build_serving_model_v3,
+)
+from v2.backend.app.services.prediction_serving.serving_model_v4 import (
+    MODEL_ARCHITECTURE as MODEL_ARCHITECTURE_V4,
+)
+from v2.backend.app.services.prediction_serving.serving_model_v4 import (
+    build_serving_model_v4,
+)
+
+
+def _write_checkpoint_fixture(
+    path: Path,
+    *,
+    architecture: str,
+    selected_action: str,
+) -> None:
+    import torch
+
+    actions = ["long", "short", "hold"]
+    if architecture == MODEL_ARCHITECTURE_V4:
+        model = build_serving_model_v4(input_dim=1, action_count=len(actions))
+    elif architecture == MODEL_ARCHITECTURE_V3:
+        model = build_serving_model_v3(input_dim=1, action_count=len(actions))
+    else:  # pragma: no cover - fixture misuse
+        raise AssertionError(architecture)
+    with torch.no_grad():
+        for parameter in model.parameters():
+            parameter.zero_()
+        selected_index = actions.index(selected_action)
+        model.action_head.bias[selected_index] = 10.0
+        if architecture == MODEL_ARCHITECTURE_V4:
+            model.directional_profitability_head.bias.copy_(
+                torch.tensor([math.log(4.0), -math.log(4.0)])
+            )
+
+    calibration = fit_temperature(
+        [0.2, 0.8, 0.3, 0.7],
+        [0, 1, 0, 1],
+        row_ids=["row-1", "row-2", "row-3", "row-4"],
+        action_labels=["long", "short", "long", "short"],
+    )
+    fingerprint = "a" * 64
+    calibration["model_parameter_fingerprint"] = fingerprint
+    meta = {
+        "feature_names": ["feature-1"],
+        "actions": actions,
+        "standardize_mean": [0.0],
+        "standardize_std": [1.0],
+        "model_id": "fixture-model",
+        "checkpoint_id": "fixture-checkpoint",
+        "checkpoint_weight_sha256": "b" * 64,
+        "model_parameter_fingerprint": fingerprint,
+        "confidence_calibration_state": calibration,
+        "manifest_id": "fixture-manifest",
+        "model_architecture": architecture,
+        "directional_net_edge_actions": ["long", "short"],
+        "directional_net_edge_mean_bps": [0.0, 0.0],
+        "directional_net_edge_scale_bps": [1.0, 1.0],
+        "directional_profitability_actions": (
+            ["long", "short"] if architecture == MODEL_ARCHITECTURE_V4 else []
+        ),
+    }
+    torch.save({"meta": meta, "state_dict": model.state_dict()}, path)
 
 
 def _microstructure_source(action: str = "SHADOW_ONLY") -> dict[str, object]:
@@ -74,6 +146,107 @@ def test_opening_distribution_rejects_checkpoint_action_abi_mismatch(
             source_probabilities=[1.0 / len(source_labels)] * len(source_labels),
             selected_action=source_labels[0],
         )
+
+
+def test_v4_checkpoint_uses_profitability_head_not_action_probability(
+    tmp_path: Path,
+) -> None:
+    checkpoint_path = tmp_path / "profitability-v4.pt"
+    _write_checkpoint_fixture(
+        checkpoint_path,
+        architecture=MODEL_ARCHITECTURE_V4,
+        selected_action="long",
+    )
+
+    checkpoint = publisher.ProvisionalCheckpoint(checkpoint_path)
+    result = checkpoint.forward([0.0])
+    calibration = checkpoint.build_calibration(
+        raw_prob=result["confidence_raw"],
+        action=result["action"],
+        data_coverage_percent=100.0,
+        missing_feature_count=0,
+        stale_feature_count=0,
+        total_feature_count=1,
+    )
+
+    assert checkpoint.has_directional_profitability_head is True
+    assert result["action"] == "long"
+    assert result["probabilities"][result["action_index"]] > 0.999
+    assert result["confidence_raw"] == pytest.approx(0.8)
+    assert result["selected_directional_profitability_probability"] == pytest.approx(
+        0.8
+    )
+    assert result["confidence_raw"] != pytest.approx(
+        result["probabilities"][result["action_index"]]
+    )
+    assert (
+        calibration["confidence_probability_source"]
+        == "DEDICATED_DIRECTIONAL_AFTER_COST_PROFITABILITY_HEAD"
+    )
+    assert calibration["action_probability_used_as_profitability_probability"] is False
+    assert calibration["probability_semantics_valid"] is True
+
+
+def test_v4_hold_has_no_directional_profitability_confidence(tmp_path: Path) -> None:
+    checkpoint_path = tmp_path / "hold-v4.pt"
+    _write_checkpoint_fixture(
+        checkpoint_path,
+        architecture=MODEL_ARCHITECTURE_V4,
+        selected_action="hold",
+    )
+
+    checkpoint = publisher.ProvisionalCheckpoint(checkpoint_path)
+    result = checkpoint.forward([0.0])
+    calibration = checkpoint.build_calibration(
+        raw_prob=result["confidence_raw"],
+        action=result["action"],
+        data_coverage_percent=100.0,
+        missing_feature_count=0,
+        stale_feature_count=0,
+        total_feature_count=1,
+    )
+
+    assert result["action"] == "hold"
+    assert result["confidence_raw"] == 0.0
+    assert result["selected_directional_profitability_probability"] is None
+    assert calibration["confidence_calibrated"] == 0.0
+    assert calibration["calibration_fitted"] is False
+    assert calibration["probability_semantics_valid"] is False
+    assert (
+        calibration["calibration_reason"]
+        == "SELECTED_ACTION_NOT_DIRECTIONAL_PROFITABILITY_UNDEFINED"
+    )
+
+
+def test_v3_checkpoint_remains_backward_compatible(tmp_path: Path) -> None:
+    checkpoint_path = tmp_path / "legacy-v3.pt"
+    _write_checkpoint_fixture(
+        checkpoint_path,
+        architecture=MODEL_ARCHITECTURE_V3,
+        selected_action="short",
+    )
+
+    checkpoint = publisher.ProvisionalCheckpoint(checkpoint_path)
+    result = checkpoint.forward([0.0])
+    calibration = checkpoint.build_calibration(
+        raw_prob=result["confidence_raw"],
+        action=result["action"],
+        data_coverage_percent=100.0,
+        missing_feature_count=0,
+        stale_feature_count=0,
+        total_feature_count=1,
+    )
+
+    assert checkpoint.has_directional_profitability_head is False
+    assert result["action"] == "short"
+    assert result["confidence_raw"] == pytest.approx(
+        result["probabilities"][result["action_index"]]
+    )
+    assert "directional_profitability_probabilities" not in result
+    assert calibration["confidence_probability_source"] == (
+        "LEGACY_SELECTED_ACTION_CLASS_PROBABILITY"
+    )
+    assert calibration["action_probability_used_as_profitability_probability"] is True
 
 
 def test_current_feature_snapshot_binds_postcommit_availability_receipt() -> None:
