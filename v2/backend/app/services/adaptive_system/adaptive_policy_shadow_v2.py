@@ -145,6 +145,14 @@ def _sha(value: object, field: str) -> str:
     return text
 
 
+def _is_sha256(value: object) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(character in "0123456789abcdef" for character in value)
+    )
+
+
 def _finite(value: object, field: str) -> float:
     if type(value) not in {int, float} or not math.isfinite(float(value)):
         raise AdaptivePolicyShadowError(f"{field}:finite_number_required")
@@ -1004,6 +1012,7 @@ def _hard_check_inputs(
     venue_sha256: str,
     generated_at_ms: int,
     requires_execution_cost: bool,
+    requires_physical_execution: bool,
 ) -> tuple[bool, dict[str, tuple[str, ...]], tuple[str, ...]]:
     intent_sha = _canonical_sha256(intent)
     status_sha = _canonical_sha256(paper_status)
@@ -1021,11 +1030,24 @@ def _hard_check_inputs(
         failures.append("authorization_and_paper_only")
     if registry.get("paper_only") is not True or registry.get("live_eligible") is not False:
         failures.append("identity_and_lineage")
-    if reservation.get("status") != "PASS" or list(reservation.get("rejection_reasons") or []):
+    if requires_physical_execution and (
+        reservation.get("status") != "PASS"
+        or list(reservation.get("rejection_reasons") or [])
+    ):
         failures.append("accounting_and_reservation_conservation")
-    if filters.get("status") != "READY" or list(filters.get("rejection_reasons") or []):
+    if requires_physical_execution and (
+        filters.get("status") != "READY"
+        or list(filters.get("rejection_reasons") or [])
+    ):
         failures.append("venue_and_physical_feasibility")
-    if paper_status.get("paper_only") is not True or paper_status.get("open_position_count") != 0:
+    open_position_count = paper_status.get("open_position_count")
+    position_state_valid = (
+        paper_status.get("paper_only") is True
+        and type(open_position_count) is int
+        and open_position_count >= 0
+        and (not requires_physical_execution or open_position_count == 0)
+    )
+    if not position_state_valid:
         failures.append("position_transition_validity")
     prediction = intent.get("entry_prediction_snapshot")
     prediction = prediction if isinstance(prediction, Mapping) else {}
@@ -1091,19 +1113,41 @@ def _hard_check_inputs(
             }
         )
     )
+    reservation_sha = (
+        intent.get("paper_cycle_reservation_snapshot_hash")
+        if _is_sha256(intent.get("paper_cycle_reservation_snapshot_hash"))
+        else _canonical_sha256(
+            {
+                "schema_version": "adaptive_missing_reservation_evidence_v1",
+                "reservation": reservation,
+                "requires_physical_execution": requires_physical_execution,
+            }
+        )
+    )
+    filter_sha = (
+        intent.get("paper_exchange_filter_snapshot_hash")
+        if _is_sha256(intent.get("paper_exchange_filter_snapshot_hash"))
+        else _canonical_sha256(
+            {
+                "schema_version": "adaptive_missing_venue_evidence_v1",
+                "filters": filters,
+                "requires_physical_execution": requires_physical_execution,
+            }
+        )
+    )
     checks = {
         "accounting_and_reservation_conservation": tuple(
-            sorted({_sha(intent.get("paper_cycle_reservation_snapshot_hash"), "reservation_hash"), status_sha})
+            sorted({reservation_sha, status_sha, venue_sha256})
         ),
         "authorization_and_paper_only": tuple(sorted({intent_sha, registry_sha})),
         "catastrophic_loss_envelope": tuple(
-            sorted({_sha(intent.get("paper_cycle_reservation_snapshot_hash"), "reservation_hash"), venue_sha256})
+            sorted({reservation_sha, venue_sha256})
         ),
         "data_integrity_and_point_in_time": tuple(sorted({calibration_sha, intent_sha})),
         "identity_and_lineage": tuple(sorted({action_sha256, registry_sha, state_sha256})),
         "position_transition_validity": tuple(sorted({intent_sha, status_sha})),
         "venue_and_physical_feasibility": tuple(
-            sorted({_sha(intent.get("paper_exchange_filter_snapshot_hash"), "filter_hash"), venue_sha256})
+            sorted({filter_sha, venue_sha256})
         ),
     }
     return not failures, checks, tuple(sorted(set(failures)))
@@ -1304,7 +1348,27 @@ def _policy_action(
     )
     feature_cutoff_ms = _iso_ms(prediction.get("feature_cutoff"), "feature_cutoff")
     selection_sha = _canonical_sha256(asdict(evaluation))
-    reservation = _mapping(intent.get("paper_cycle_reservation_snapshot"), "reservation")
+    reservation_value = intent.get("paper_cycle_reservation_snapshot")
+    reservation = dict(reservation_value) if isinstance(reservation_value, Mapping) else {}
+    reservation_snapshot_hash = reservation.get("snapshot_hash")
+    if _is_sha256(reservation_snapshot_hash):
+        envelope_sha = str(reservation_snapshot_hash)
+        envelope_id = "paper_catastrophic_envelope_" + envelope_sha[:40]
+    elif flat:
+        envelope_sha = _canonical_sha256(
+            {
+                "schema_version": "adaptive_nonexecuting_flat_envelope_v1",
+                "action_sha256": selected.action_sha256,
+                "target_notional_usd": "0",
+                "target_margin_usd": "0",
+                "mutates_accounting": False,
+                "submits_order": False,
+            }
+        )
+        envelope_id = "paper_nonexecuting_flat_envelope_" + envelope_sha[:40]
+        source_receipts = tuple(sorted({*source_receipts, envelope_sha}))
+    else:
+        raise AdaptivePolicyShadowError("reservation.snapshot_hash:sha256_required")
     return AdaptivePolicyActionV2.create(
         state_id=state_id,
         feature_snapshot_id=_identifier(prediction.get("feature_snapshot_id"), "feature_snapshot_id"),
@@ -1402,13 +1466,8 @@ def _policy_action(
         affected_position_ids=(),
         position_adjustments=(),
         reduce_only=False,
-        operator_catastrophic_envelope_id=(
-            "paper_catastrophic_envelope_"
-            + _sha(reservation.get("snapshot_hash"), "reservation.snapshot_hash")[:40]
-        ),
-        operator_catastrophic_envelope_sha256=_sha(
-            reservation.get("snapshot_hash"), "operator_catastrophic_envelope_sha256"
-        ),
+        operator_catastrophic_envelope_id=envelope_id,
+        operator_catastrophic_envelope_sha256=envelope_sha,
         integrity_evidence_sha256=_canonical_sha256(source_receipts),
         execution_domain="PAPER",
         policy_authority_scope="trading_action_only",
@@ -1435,6 +1494,7 @@ class AdaptivePolicyShadowCandidateV2:
     objective_inputs: tuple[ActionObjectiveInputsV2, ...]
     objective_evaluation: object
     venue_attestations: tuple[SelectedActionVenueFeasibilityV2, ...]
+    action_dispositions: tuple[tuple[str, tuple[str, ...]], ...]
     selected_adaptive_action: AdaptivePolicyActionV2
     reference_utilities: tuple[tuple[str, float | None], ...]
     parity_disagreement_count: int
@@ -1455,6 +1515,15 @@ class AdaptivePolicyShadowCandidateV2:
             raise AdaptivePolicyShadowError("safety:paper_only_human_block_required")
         if any((self.routes_to_live, self.places_real_order, self.exchange_action_taken)):
             raise AdaptivePolicyShadowError("safety:live_or_exchange_authority_forbidden")
+        objective_ids = tuple(sorted(item.action_id for item in self.objective_inputs))
+        disposition_ids = tuple(item[0] for item in self.action_dispositions)
+        if disposition_ids != objective_ids:
+            raise AdaptivePolicyShadowError("action_dispositions:exact_objective_coverage_required")
+        if any(
+            type(reasons) is not tuple or reasons != tuple(sorted(set(reasons)))
+            for _action_id, reasons in self.action_dispositions
+        ):
+            raise AdaptivePolicyShadowError("action_dispositions:sorted_unique_reasons_required")
 
     @property
     def content_sha256(self) -> str:
@@ -1567,13 +1636,46 @@ def build_adaptive_policy_shadow_candidate(
     objective_inputs: list[ActionObjectiveInputsV2] = []
     bundles: list[AdaptiveComponentEstimatesV1] = []
     attestations: list[SelectedActionVenueFeasibilityV2] = []
+    action_dispositions: dict[str, tuple[str, ...]] = {}
     plans: dict[str, dict[str, Any]] = {}
     stats_by_action: dict[str, dict[str, Any]] = {}
     for side in ("LONG", "SHORT"):
         stats = _statistics(calibration, side, _identifier(intent.get("timeframe"), "timeframe"))
         for mode in (CHAMPION_EXPLOITATION, BOUNDED_EXPLORATION):
             action_id = f"{candidate_id}:{mode}:{side.lower()}"
-            plan = _physical_plan(intent=intent, statistics=stats, side=side, mode=mode)
+            try:
+                plan = _physical_plan(intent=intent, statistics=stats, side=side, mode=mode)
+            except AdaptivePolicyShadowError as exc:
+                blocker = f"PHYSICAL_PLAN_UNAVAILABLE:{exc}"
+                proposal_sha = _canonical_sha256(
+                    {
+                        "schema_version": "adaptive_policy_unavailable_proposal_v2",
+                        "candidate_id": candidate_id,
+                        "action_id": action_id,
+                        "side": side,
+                        "mode": mode,
+                        "physical_plan_available": False,
+                        "physical_plan_blocker": blocker,
+                        "calibration_sha256": calibration["calibration_sha256"],
+                    }
+                )
+                objective_inputs.append(
+                    _objective_action(
+                        action_id=action_id,
+                        action_sha256=proposal_sha,
+                        selected_action=ACTION_DIRECTIONAL_TRADE,
+                        mode=mode,
+                        statistics=stats,
+                        hard_pass=False,
+                        hard_receipt=None,
+                        state_id=state_id,
+                        state_sha256=state_sha,
+                        registry=registry,
+                        decision_time_ms=generated_at_ms,
+                    )
+                )
+                action_dispositions[action_id] = (blocker,)
+                continue
             proposal = {
                 "schema_version": "adaptive_policy_proposal_v2",
                 "candidate_id": candidate_id,
@@ -1596,7 +1698,7 @@ def build_adaptive_policy_shadow_candidate(
                 plan=plan,
             )
             venue_sha = _canonical_sha256(asdict(venue))
-            hard_pass, checks, _failures = _hard_check_inputs(
+            hard_pass, checks, failures = _hard_check_inputs(
                 intent=intent,
                 paper_status=paper_status,
                 registry=registry,
@@ -1606,8 +1708,15 @@ def build_adaptive_policy_shadow_candidate(
                 venue_sha256=venue_sha,
                 generated_at_ms=generated_at_ms,
                 requires_execution_cost=True,
+                requires_physical_execution=True,
             )
             hard_pass = hard_pass and venue.decision == DECISION_EXECUTABLE
+            disposition_reasons = set(failures)
+            if venue.decision != DECISION_EXECUTABLE:
+                disposition_reasons.update(
+                    f"venue:{reason}" for reason in venue.failed_checks
+                )
+            action_dispositions[action_id] = tuple(sorted(disposition_reasons))
             receipt = (
                 sign_hard_constraint_validation_receipt(
                     validator_seed=validator_seed,
@@ -1676,7 +1785,7 @@ def build_adaptive_policy_shadow_candidate(
     flat_fact_sha = _canonical_sha256(
         {"selected_action": ACTION_REMAIN_FLAT, "mutates_accounting": False, "submits_order": False}
     )
-    flat_pass, flat_checks, _flat_failures = _hard_check_inputs(
+    flat_pass, flat_checks, flat_failures = _hard_check_inputs(
         intent=intent,
         paper_status=paper_status,
         registry=registry,
@@ -1686,7 +1795,9 @@ def build_adaptive_policy_shadow_candidate(
         venue_sha256=flat_fact_sha,
         generated_at_ms=generated_at_ms,
         requires_execution_cost=False,
+        requires_physical_execution=False,
     )
+    action_dispositions[flat_id] = tuple(sorted(flat_failures))
     flat_receipt = (
         sign_hard_constraint_validation_receipt(
             validator_seed=validator_seed,
@@ -1787,6 +1898,7 @@ def build_adaptive_policy_shadow_candidate(
         objective_inputs=ordered_inputs,
         objective_evaluation=evaluation,
         venue_attestations=tuple(attestations),
+        action_dispositions=tuple(sorted(action_dispositions.items())),
         selected_adaptive_action=selected_action,
         reference_utilities=reference.utilities,
         parity_disagreement_count=0,

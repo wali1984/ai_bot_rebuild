@@ -171,6 +171,67 @@ def test_process_once_persists_every_candidate_with_zero_reference_disagreements
     assert exact_replay["archive"]["row_count"] == 2
 
 
+def test_process_once_persists_exact_fail_closed_disposition_during_exposure(
+    tmp_path: Path,
+) -> None:
+    client = _client()
+    intents = json.loads(client.values[INTENTS_KEY])
+    intents[0]["paper_cycle_reservation_snapshot"] = {}
+    intents[0]["paper_cycle_reservation_snapshot_hash"] = None
+    client.values[INTENTS_KEY] = json.dumps(intents)
+    paper_status = json.loads(client.values[PAPER_STATUS_KEY])
+    paper_status["open_position_count"] = 1
+    client.values[PAPER_STATUS_KEY] = json.dumps(paper_status)
+    state_root = tmp_path / "state"
+    archive = AdaptivePolicyShadowArchiveV2(
+        (state_root / "shadow_decisions_v2.sqlite3").resolve()
+    )
+
+    status = process_once(
+        client=client,
+        archive=archive,
+        state_root=state_root,
+        feature_archive_root=(tmp_path / "features").resolve(),
+        validator_seed=_SEED,
+        generated_at_ms=4_000_000,
+        snapshot_loader=lambda _snapshot_id, _root: _feature_snapshot(),
+    )
+
+    assert status["status"] == "PASS_SHADOW"
+    assert status["source_candidate_count"] == 1
+    assert status["production_decisions_persisted"] == 1
+    assert status["adaptive_shadow_decisions_persisted"] == 1
+    assert status["candidate_coverage"] == 1.0
+    assert status["unexplained_candidate_drop_count"] == 0
+    assert status["directional_action_disposition_count"] == 4
+    assert status["hard_blocked_directional_action_count"] == 4
+    assert status["physical_plan_unavailable_count"] == 4
+    assert status["production_reference_disagreement_count"] == 0
+    latest = json.loads(client.values[LATEST_KEY])
+    assert latest["actions"][0]["selected_action"] == "remain_flat"
+    assert latest["actions"][0]["target_notional_usd"] == 0.0
+    with sqlite3.connect(archive.path) as connection:
+        record = json.loads(
+            connection.execute(
+                "SELECT record_json FROM shadow_records WHERE row_index=1"
+            ).fetchone()[0]
+        )
+    assert len(record["action_dispositions"]) == 5
+    blockers = {
+        reason
+        for disposition in record["action_dispositions"]
+        for reason in disposition["blocking_reasons"]
+    }
+    assert blockers == {
+        "PHYSICAL_PLAN_UNAVAILABLE:reservation.derived:object_required"
+    }
+    assert record["production_reference_parity"] == {
+        "status": "PASS",
+        "disagreement_count": 0,
+    }
+    assert record["exchange_action_taken"] is False
+
+
 def test_archive_tampering_is_detected(tmp_path: Path) -> None:
     state_root = tmp_path / "state"
     archive = AdaptivePolicyShadowArchiveV2(

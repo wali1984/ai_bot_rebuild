@@ -282,6 +282,80 @@ def test_invalid_exact_cost_contract_cannot_produce_directional_action(
     )
 
 
+def test_missing_physical_evidence_during_open_position_persists_fail_closed_flat() -> None:
+    intent = _intent()
+    intent["paper_cycle_reservation_snapshot"] = {}
+    intent["paper_cycle_reservation_snapshot_hash"] = None
+
+    result = build_adaptive_policy_shadow_candidate(
+        intent=intent,
+        feature_snapshot=_feature_snapshot(),
+        paper_status={"paper_only": True, "open_position_count": 1},
+        calibration=_calibration(),
+        registry=_registry(),
+        validator_seed=_SEED,
+        generated_at_ms=4_000_000,
+    )
+
+    assert result.selected_adaptive_action.selected_action == "remain_flat"
+    assert result.selected_adaptive_action.target_notional_usd == 0.0
+    assert result.selected_adaptive_action.margin_allocation_usd == 0.0
+    assert result.selected_adaptive_action.operator_catastrophic_envelope_id.startswith(
+        "paper_nonexecuting_flat_envelope_"
+    )
+    assert len(result.component_estimates) == 0
+    assert len(result.venue_attestations) == 0
+    directional = [
+        item for item in result.objective_inputs if item.selected_action == "directional_trade"
+    ]
+    flat = next(
+        item for item in result.objective_inputs if item.selected_action == "remain_flat"
+    )
+    assert len(directional) == 4
+    assert all(item.hard_constraints_satisfied is False for item in directional)
+    assert flat.hard_constraints_satisfied is True
+    dispositions = dict(result.action_dispositions)
+    assert dispositions[flat.action_id] == ()
+    assert {
+        reason
+        for item in directional
+        for reason in dispositions[item.action_id]
+    } == {"PHYSICAL_PLAN_UNAVAILABLE:reservation.derived:object_required"}
+    assert result.routes_to_live is False
+    assert result.places_real_order is False
+    assert result.exchange_action_taken is False
+
+
+def test_existing_position_blocks_new_direction_but_not_nonexecuting_flat() -> None:
+    result = build_adaptive_policy_shadow_candidate(
+        intent=_intent(),
+        feature_snapshot=_feature_snapshot(),
+        paper_status={"paper_only": True, "open_position_count": 1},
+        calibration=_calibration(),
+        registry=_registry(),
+        validator_seed=_SEED,
+        generated_at_ms=4_000_000,
+    )
+
+    directional = [
+        item for item in result.objective_inputs if item.selected_action == "directional_trade"
+    ]
+    flat = next(
+        item for item in result.objective_inputs if item.selected_action == "remain_flat"
+    )
+    assert len(result.component_estimates) == 4
+    assert len(result.venue_attestations) == 4
+    assert all(item.hard_constraints_satisfied is False for item in directional)
+    assert all(
+        dict(result.action_dispositions)[item.action_id]
+        == ("position_transition_validity",)
+        for item in directional
+    )
+    assert flat.hard_constraints_satisfied is True
+    assert dict(result.action_dispositions)[flat.action_id] == ()
+    assert result.selected_adaptive_action.selected_action == "remain_flat"
+
+
 def test_nonfinite_cost_payload_fails_before_any_policy_decision() -> None:
     intent = _intent()
     intent["expected_slippage_bps"] = float("nan")

@@ -411,6 +411,10 @@ def _compact_record(
         "calibration_sha256": calibration_sha256,
         "generated_at_ms": generated_at_ms,
         "production_decision": result.production_decision,
+        "action_dispositions": [
+            {"action_id": action_id, "blocking_reasons": list(reasons)}
+            for action_id, reasons in result.action_dispositions
+        ],
         "component_estimates": _component_projection(result),
         "objective_evaluation": {
             "evaluation_id": result.objective_evaluation.evaluation_id,
@@ -545,6 +549,27 @@ def process_once(
         and item.selected_adaptive_action.selected_action == "directional_trade"
         for item in results
     )
+    directional_action_disposition_count = sum(
+        item.objective_inputs[index].selected_action == "directional_trade"
+        for item in results
+        for index in range(len(item.objective_inputs))
+    )
+    hard_blocked_directional_action_count = sum(
+        bool(reasons)
+        for item in results
+        for action_id, reasons in item.action_dispositions
+        if next(
+            objective.selected_action
+            for objective in item.objective_inputs
+            if objective.action_id == action_id
+        )
+        == "directional_trade"
+    )
+    physical_plan_unavailable_count = sum(
+        any(reason.startswith("PHYSICAL_PLAN_UNAVAILABLE:") for reason in reasons)
+        for item in results
+        for _action_id, reasons in item.action_dispositions
+    )
     status = {
         "schema_version": SCHEMA_VERSION,
         "generated_at": _utc_now(),
@@ -561,6 +586,9 @@ def process_once(
         "adaptive_shadow_decisions_persisted": len(results),
         "candidate_coverage": 1.0,
         "unexplained_candidate_drop_count": 0,
+        "directional_action_disposition_count": directional_action_disposition_count,
+        "hard_blocked_directional_action_count": hard_blocked_directional_action_count,
+        "physical_plan_unavailable_count": physical_plan_unavailable_count,
         "production_reference_parity_status": "PASS",
         "production_reference_disagreement_count": 0,
         "selected_directional_action_count": directional,
