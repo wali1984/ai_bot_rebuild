@@ -19781,6 +19781,55 @@ def test_invalid_admission_position_reconciliation_is_symmetric_and_idempotent(
     assert replay == repaired
 
 
+def test_post_lifecycle_reservation_status_clears_removed_position_margin() -> None:
+    pre_lifecycle = {
+        "schema_version": "paper_account_margin_v1",
+        "status": "PASS",
+        "open_position_count": 1,
+        "used_margin": 48.515,
+        "used_margin_usd": 48.515,
+        "newly_reserved_margin": 0.0,
+        "newly_reserved_margin_usd": 0.0,
+        "free_margin": 2936.85,
+        "free_margin_usd": 2936.85,
+        "invariant_holds": True,
+        "reserved_candidate_count": 0,
+    }
+    account = {
+        "schema_version": "paper_account_margin_v1",
+        "status": "PASS",
+        "open_position_count": 0,
+        "used_margin": 0.0,
+        "used_margin_usd": 0.0,
+        "free_margin": 2985.37,
+        "free_margin_usd": 2985.37,
+        "invariant_holds": True,
+    }
+    reconciliation = {
+        "receipt_id": "a" * 64,
+        "receipt_sha256": "b" * 64,
+        "unresolved_position_count": 0,
+    }
+
+    status = paper_loop._paper_post_lifecycle_reservation_status(  # noqa: SLF001
+        pre_lifecycle,
+        account,
+        reconciliation,
+        generated_utc="2026-07-28T03:00:00Z",
+    )
+
+    assert status["status"] == "PASS"
+    assert status["pre_lifecycle_used_margin_usd"] == pytest.approx(48.515)
+    assert status["post_lifecycle_used_margin_usd"] == 0.0
+    assert status["used_margin_usd"] == 0.0
+    assert status["reserved_margin_usd"] == 0.0
+    assert status["newly_reserved_margin_usd"] == 0.0
+    assert status["open_position_count"] == 0
+    assert status["free_margin_usd"] == pytest.approx(2985.37)
+    assert status["final_reservation_reconciliation_valid"] is True
+    assert status["post_lifecycle_reconciled"] is True
+
+
 def test_priority_bucket_context_matches_strategy_regime_labels_for_paper_only_collection() -> None:
     readiness = {
         "generated_utc": "2026-06-23T20:55:00Z",

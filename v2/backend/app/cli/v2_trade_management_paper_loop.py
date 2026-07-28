@@ -33998,6 +33998,64 @@ def _paper_reconciliation_with_invalid_admission_positions(
     }
 
 
+def _paper_post_lifecycle_reservation_status(
+    pre_lifecycle_status: Mapping[str, Any],
+    account_status: Mapping[str, Any],
+    reconciliation_status: Mapping[str, Any],
+    *,
+    generated_utc: str,
+) -> dict[str, Any]:
+    """Publish final margin truth while retaining the pre-lifecycle receipt."""
+
+    pre_snapshot = dict(pre_lifecycle_status)
+    account = dict(account_status)
+    invariant_holds = bool(
+        account.get("status") == "PASS"
+        and account.get("invariant_holds") is True
+        and int(reconciliation_status.get("unresolved_position_count") or 0) == 0
+    )
+    result = {
+        **pre_snapshot,
+        **account,
+        "status": "PASS" if invariant_holds else "BLOCKED",
+        "reservation_status": "PASS" if invariant_holds else "BLOCKED",
+        "pre_lifecycle_snapshot_sha256": _paper_canonical_sha256(pre_snapshot),
+        "pre_lifecycle_open_position_count": int(
+            pre_snapshot.get("open_position_count") or 0
+        ),
+        "pre_lifecycle_used_margin_usd": float(
+            pre_snapshot.get("used_margin_usd") or 0.0
+        ),
+        "pre_lifecycle_newly_reserved_margin_usd": float(
+            pre_snapshot.get("newly_reserved_margin_usd") or 0.0
+        ),
+        "post_lifecycle_open_position_count": int(account.get("open_position_count") or 0),
+        "post_lifecycle_used_margin_usd": float(account.get("used_margin_usd") or 0.0),
+        "post_lifecycle_reserved_margin_usd": 0.0,
+        "post_lifecycle_free_margin_usd": float(account.get("free_margin_usd") or 0.0),
+        "newly_reserved_margin": 0.0,
+        "newly_reserved_margin_usd": 0.0,
+        "newly_reserved_margin_unrounded_usd": 0.0,
+        "reserved_margin": 0.0,
+        "reserved_margin_usd": 0.0,
+        "reserved_margin_unrounded_usd": 0.0,
+        "newly_reserved_included_in_used_margin": True,
+        "final_reservation_reconciliation_valid": invariant_holds,
+        "post_lifecycle_accounting_invariant_holds": account.get("invariant_holds") is True,
+        "post_lifecycle_reconciled": True,
+        "position_fill_reconciliation_receipt_id": reconciliation_status.get("receipt_id"),
+        "position_fill_reconciliation_receipt_sha256": reconciliation_status.get(
+            "receipt_sha256"
+        ),
+        "source": "POST_LIFECYCLE_CANONICAL_OPEN_POSITIONS",
+        "generated_utc": generated_utc,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+    return result
+
+
 def _paper_nonunderstating_decimal_float(value: Decimal) -> float:
     """Serialize a nonnegative Decimal without rounding the resource down."""
 
@@ -53084,6 +53142,12 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             ),
             "source": "POST_LIFECYCLE_CANONICAL_OPEN_POSITIONS",
         }
+    )
+    paper_margin_reservation_status = _paper_post_lifecycle_reservation_status(
+        paper_margin_reservation_status,
+        paper_account_margin_status,
+        paper_position_fill_reconciliation_status,
+        generated_utc=_utc_iso(),
     )
     lifecycle_result["paper_account_margin_status"] = paper_account_margin_status
     lifecycle_result["paper_margin_reservation_status"] = paper_margin_reservation_status
