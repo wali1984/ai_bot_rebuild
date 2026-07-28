@@ -13107,6 +13107,11 @@ COMPACT_ACCEPTED_FILL_FIELDS = tuple(
             "ledger_row_id",
             "intent_id",
             "source_intent_id",
+            "paper_session_id",
+            "session_id",
+            "reset_session_id",
+            "paper_account_epoch",
+            "starting_equity_usd",
             "active_model_registry_generation",
             "checkpoint_generation",
             "paper_strategy_cohort_id",
@@ -56947,6 +56952,9 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         {
             "schema_version": "adaptive_paper_policy_runtime_status_v2",
             "generated_utc": _utc_iso(),
+            "paper_session_id": paper_session_id,
+            "paper_account_epoch": paper_account_epoch,
+            "starting_equity_usd": paper_starting_equity_usd,
             "status": (
                 "PASS_AUTHORITATIVE_PAPER_POLICY"
                 if adaptive_policy_cycle_context.get("status") == "READY"
@@ -59046,27 +59054,52 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
     feedback_quarantine_state_sample = _sample_rows(
         _compact_rows_for_state(trainer_feedback_quarantine_rows)
     )
-    runtime_intent_state_rows = _compact_runtime_intents_for_redis(intents)
-    runtime_held_intent_state_rows = _compact_runtime_intents_for_redis(held_by_gate_intents)
+    runtime_intent_state_rows = _compact_runtime_intents_for_redis(
+        _with_paper_session_metadata_rows(
+            intents,
+            paper_session_id=paper_session_id,
+            starting_equity_usd=paper_starting_equity_usd,
+            paper_account_epoch=paper_account_epoch,
+        )
+    )
+    runtime_held_intent_state_rows = _compact_runtime_intents_for_redis(
+        _with_paper_session_metadata_rows(
+            held_by_gate_intents,
+            paper_session_id=paper_session_id,
+            starting_equity_usd=paper_starting_equity_usd,
+            paper_account_epoch=paper_account_epoch,
+        )
+    )
+    runtime_risk_decision_rows = _with_paper_session_metadata_rows(
+        risk_decisions,
+        paper_session_id=paper_session_id,
+        starting_equity_usd=paper_starting_equity_usd,
+        paper_account_epoch=paper_account_epoch,
+    )
     if r is not None:
         # A+ goal Phase 13: publish the zero-tolerance gate verdicts so the
         # candidate matrix / rejection-reason matrix are operator-visible.
-        a_plus_rows = [
-            {
-                "symbol": row.get("symbol"),
-                "timeframe": row.get("timeframe"),
-                "side": row.get("side"),
-                "strategy_id": row.get("strategy_id"),
-                "bucket_key": row.get("bucket_key"),
-                "a_plus": row.get("a_plus"),
-                "failed_checks": row.get("failed_checks"),
-                "missing_evidence_checks": row.get("missing_evidence_checks"),
-                "passed_check_count": row.get("passed_check_count"),
-                "check_count": row.get("check_count"),
-                "generated_utc": row.get("generated_utc"),
-            }
-            for row in a_plus_evaluations
-        ]
+        a_plus_rows = _with_paper_session_metadata_rows(
+            [
+                {
+                    "symbol": row.get("symbol"),
+                    "timeframe": row.get("timeframe"),
+                    "side": row.get("side"),
+                    "strategy_id": row.get("strategy_id"),
+                    "bucket_key": row.get("bucket_key"),
+                    "a_plus": row.get("a_plus"),
+                    "failed_checks": row.get("failed_checks"),
+                    "missing_evidence_checks": row.get("missing_evidence_checks"),
+                    "passed_check_count": row.get("passed_check_count"),
+                    "check_count": row.get("check_count"),
+                    "generated_utc": row.get("generated_utc"),
+                }
+                for row in a_plus_evaluations
+            ],
+            paper_session_id=paper_session_id,
+            starting_equity_usd=paper_starting_equity_usd,
+            paper_account_epoch=paper_account_epoch,
+        )
         a_plus_rejected_reason_counts: dict[str, int] = {}
         for row in a_plus_evaluations:
             for check in row.get("failed_checks") or []:
@@ -59115,14 +59148,14 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         if _safe_write(
             r,
             f"{V2_REDIS_PREFIX}risk:decisions",
-            json.dumps(risk_decisions),
+            json.dumps(runtime_risk_decision_rows),
             ex=PAPER_RUNTIME_TRANSIENT_TTL_SECONDS,
         ):
             keys_written.append(f"{V2_REDIS_PREFIX}risk:decisions")
-        if risk_decisions and _safe_write(
+        if runtime_risk_decision_rows and _safe_write(
             r,
             f"{V2_REDIS_PREFIX}risk:decisions:latest",
-            json.dumps(risk_decisions[0]),
+            json.dumps(runtime_risk_decision_rows[0]),
             ex=PAPER_RUNTIME_TRANSIENT_TTL_SECONDS,
         ):
             keys_written.append(f"{V2_REDIS_PREFIX}risk:decisions:latest")
@@ -59480,6 +59513,9 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                     {
                         "worker_id": "v2_trade_management_paper_loop",
                         "schema_version": "v2_trade_management_paper_runtime_status_v1",
+                        "paper_session_id": paper_session_id,
+                        "paper_account_epoch": paper_account_epoch,
+                        "starting_equity_usd": paper_starting_equity_usd,
                         "runtime_identity": _paper_runtime_owner_identity(),
                         "active_runtime_status": paper_active_runtime_owner_status,
                         "active_runtime_owner_current_proof": paper_active_runtime_owner_status,
@@ -59652,8 +59688,10 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                         "heartbeat_ttl_seconds": PAPER_RUNTIME_HEARTBEAT_TTL_SECONDS,
                         **_paper_runtime_owner_identity(),
                         "paper_only": True,
+                        "live_gate": LIVE_GATE_BLOCKED,
                         "routes_to_live": False,
                         "places_real_order": False,
+                        "exchange_action_taken": False,
                         "writes_legacy_redis": False,
                         "trade_lifecycle_guard_status": {
                             "shared_guard_available": True,
@@ -59957,6 +59995,9 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
     status = {
         "worker_id": "v2_trade_management_paper_loop",
         "schema_version": "v2_trade_management_paper_live_v2",
+        "paper_session_id": paper_session_id,
+        "paper_account_epoch": paper_account_epoch,
+        "starting_equity_usd": paper_starting_equity_usd,
         "started_at": started,
         "finished_at": _utc_iso(),
         "heartbeat_generated_at": _utc_iso(),
@@ -60168,6 +60209,7 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         "paper_only": True,
         "routes_to_live": False,
         "places_real_order": False,
+        "exchange_action_taken": False,
         "writes_legacy_redis": False,
     }
     if r is not None:

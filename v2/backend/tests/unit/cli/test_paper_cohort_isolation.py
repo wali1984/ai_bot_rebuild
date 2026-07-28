@@ -4,6 +4,7 @@ from v2.backend.app.cli.v2_trade_management_paper_loop import (
     _paper_performance_circuit_breaker_status as breaker,
 )
 from v2.backend.app.cli.v2_trade_management_paper_loop import (
+    _compact_runtime_intents_for_redis,
     _paper_performance_source_rows,
     _read_active_paper_provisional_cohort,
     _stamp_paper_cohort_metadata,
@@ -143,6 +144,10 @@ def test_paper_account_epoch_is_stamped_on_every_session_row() -> None:
 
     assert {row["paper_session_id"] for row in rows} == {"paper_epoch_1"}
     assert {row["paper_account_epoch"] for row in rows} == {1}
+    projections = _compact_runtime_intents_for_redis(rows)
+    assert {row["paper_session_id"] for row in projections} == {"paper_epoch_1"}
+    assert {row["paper_account_epoch"] for row in projections} == {1}
+    assert {row["starting_equity_usd"] for row in projections} == {3000.0}
 
 
 # ---------------------------------------------------------------------------
