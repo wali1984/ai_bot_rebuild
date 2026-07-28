@@ -243,6 +243,63 @@ def test_ordinary_derived_signal_requires_exact_transport_and_current_ttls(
     assert audit["ordinary_signal_publish_suppressed"] == 0
 
 
+def test_all_timeframe_fallback_joins_exact_canonical_feature_finality() -> None:
+    prediction, replay, risk, assessment = _ordinary_derived_fixture()
+    row = _ordinary_prediction_row(prediction)
+    canonical = {
+        **prediction,
+        "symbol": row["symbol"],
+        "timeframe": row["timeframe"],
+        "entry_feature_available_at": "2026-06-22T12:59:58.200Z",
+        "entry_feature_generated_at": "2026-06-22T12:59:58.100Z",
+        "entry_feature_cutoff": "2026-06-22T12:59:59.999Z",
+        "entry_feature_decision_time": "2026-06-22T13:00:00.000Z",
+        "entry_feature_candle_closed_confirmed": True,
+        "entry_feature_snapshot": {
+            "latest_unclosed_kline_excluded": True,
+            "latest_unclosed_exclusion_method": (
+                "CLOSED_KLINE_FILTER_DECISION_TIME_BOUNDED_V1"
+            ),
+            "latest_unclosed_exclusion_decision_time_ms": 1_750_596_000_000,
+            "latest_closed_kline_close_time_ms": 1_750_595_999_999,
+        },
+    }
+    source_key = str((assessment.evidence or {})["source_redis_key"])
+    replay_key = str((assessment.evidence or {})["replay_snapshot_key"])
+    store = publisher.V2KeyValueStore(
+        FakeRedis(
+            {
+                source_key: prediction,
+                replay_key: replay,
+                publisher.prediction_key(str(row["symbol"]), str(row["timeframe"])): (
+                    canonical
+                ),
+                "v2:risk:gateway:decisions": [risk],
+                "v2:risk:decisions": [],
+            },
+            ttls={source_key: 250, replay_key: 240},
+        )
+    )
+
+    signal = publisher.build_signal_status([row], store)["published_signals"][0]
+
+    assert signal["entry_feature_available_at"] == canonical[
+        "entry_feature_available_at"
+    ]
+    assert signal["entry_feature_generated_at"] == canonical[
+        "entry_feature_generated_at"
+    ]
+    assert signal["entry_feature_cutoff"] == canonical["entry_feature_cutoff"]
+    assert signal["entry_feature_decision_time"] == canonical[
+        "entry_feature_decision_time"
+    ]
+    assert signal["entry_feature_candle_closed_confirmed"] is True
+    assert signal["latest_unclosed_kline_excluded"] is True
+    assert signal["runtime_paper_pit_context_source_fields"][
+        "entry_feature_available_at"
+    ] == "canonical_prediction.entry_feature_available_at"
+
+
 def test_runtime_ordinary_signal_replaces_only_superseded_risk_pending_state() -> None:
     prediction, replay, risk, assessment = _ordinary_derived_fixture()
     source_key = str((assessment.evidence or {})["source_redis_key"])

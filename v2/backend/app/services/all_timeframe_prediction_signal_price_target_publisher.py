@@ -4145,13 +4145,35 @@ def build_signal_status(
         _list_from_store(store, "v2:risk:gateway:decisions")
     )
     all_timeframe_visible_count = 0
-    for row in rows:
+    for source_row in rows:
+        row = dict(source_row)
         if row.get("status") != "PRESENT_CURRENT":
             continue
         if not row.get("prediction_id"):
             continue
         if str(row.get("prediction_id")) in seen_prediction_ids:
             continue
+        canonical_prediction = store.get_json(
+            prediction_key(str(row["symbol"]), str(row["timeframe"]))
+        )
+        canonical_prediction = as_dict(canonical_prediction)
+        if (
+            canonical_prediction.get("prediction_id")
+            and str(canonical_prediction.get("prediction_id"))
+            == str(row.get("prediction_id"))
+            and str(canonical_prediction.get("symbol") or "").upper()
+            == str(row.get("symbol") or "").upper()
+            and str(canonical_prediction.get("timeframe") or "")
+            == str(row.get("timeframe") or "")
+        ):
+            row.update(
+                _runtime_paper_pit_context_fields(
+                    (
+                        ("canonical_prediction", canonical_prediction),
+                        ("all_timeframe_prediction_row", row),
+                    )
+                )
+            )
         existing = store.get_json(signal_paper_key(str(row["symbol"]), str(row["timeframe"])))
         if existing is None:
             existing = store.get_json(f"v2:signals:paper:{row['symbol']}")
