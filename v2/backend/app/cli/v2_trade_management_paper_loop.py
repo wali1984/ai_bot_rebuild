@@ -2699,7 +2699,14 @@ def _embedded_entry_feature_snapshot(
 _PAPER_ROW_LINEAGE_ID_FIELDS = (
     "fill_id",
     "ledger_row_id",
-    "candidate_id",
+    # ``candidate_id`` identifies the reusable challenger/model candidate in
+    # current adaptive rows; it is not an execution identity.  Likewise the
+    # generic ``decision_id`` can be shared by several symbol/timeframe rows
+    # from one decision batch.  Treating either as accepted-fill lineage made
+    # one historical quarantined fill invalidate every later fill from the
+    # same challenger/batch.  Destructive quarantine matching is restricted
+    # to fill, intent, signal, prediction, risk, orchestrator and allocation
+    # identities below.
     "paper_exploration_candidate_id",
     "materialization_queue_id",
     "queue_id",
@@ -2713,7 +2720,6 @@ _PAPER_ROW_LINEAGE_ID_FIELDS = (
     "prediction_id",
     "source_prediction_id",
     "entry_prediction_id",
-    "decision_id",
     "entry_decision_id",
     "risk_decision_id",
     "orchestrator_decision_id",

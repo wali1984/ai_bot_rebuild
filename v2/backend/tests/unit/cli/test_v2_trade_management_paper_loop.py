@@ -21547,6 +21547,178 @@ def test_integrity_only_quarantined_fill_removes_matching_open_position() -> Non
     assert quarantined_rows[0]["invalid_admission_open_position_removed"] is True
 
 
+def _reused_candidate_position(*, side: str, identity: str) -> dict[str, object]:
+    return {
+        "position_id": f"paper_pos_{identity}_{side}",
+        "position_generation_id": f"position_generation_{identity}_{side}",
+        "entry_fill_id": f"fill_{identity}_{side}",
+        "source_fill_ids": [f"fill_{identity}_{side}"],
+        "prediction_id": f"prediction_{identity}_{side}",
+        "signal_id": f"signal_{identity}_{side}",
+        "intent_id": f"intent_{identity}_{side}",
+        "risk_decision_id": f"risk_{identity}_{side}",
+        "orchestrator_decision_id": f"orchestrator_{identity}_{side}",
+        "allocation_id": f"allocation_{identity}_{side}",
+        "candidate_id": "challenger_v2_cuda_exitless_shared_model",
+        "decision_id": "reused_multi_symbol_decision_batch",
+        "symbol": "PEPEUSDT" if side == "long" else "ETHUSDT",
+        "timeframe": "5m",
+        "side": side,
+        "allocated_margin_usd": 37.25,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+
+
+@pytest.mark.parametrize("side", ["long", "short"])
+@pytest.mark.parametrize(
+    "shared_fields",
+    [
+        ("candidate_id",),
+        ("decision_id",),
+        ("candidate_id", "decision_id"),
+    ],
+)
+def test_old_quarantine_reusing_model_candidate_or_batch_decision_retains_current_position(
+    side: str,
+    shared_fields: tuple[str, ...],
+) -> None:
+    current = _reused_candidate_position(side=side, identity="current")
+    historical_quarantine = {
+        "fill_id": "historical_fill",
+        "prediction_id": "historical_prediction",
+        "signal_id": "historical_signal",
+        "intent_id": "historical_intent",
+        "risk_decision_id": "historical_risk",
+        "orchestrator_decision_id": "historical_orchestrator",
+        "allocation_id": "historical_allocation",
+        "accepted_fill_quarantined": True,
+        "accepted_fill_quarantine_reasons": [
+            "PERSISTED_ADMISSION_FINAL_CONTRACT_MISSING"
+        ],
+        "paper_only": True,
+    }
+    for field in shared_fields:
+        historical_quarantine[field] = current[field]
+
+    retained, removed = paper_loop._flag_invalid_admission_open_positions(  # noqa: SLF001
+        [current],
+        [historical_quarantine],
+    )
+
+    assert retained == [current]
+    assert removed == []
+
+
+@pytest.mark.parametrize("side", ["long", "short"])
+@pytest.mark.parametrize("exact_identity", ["fill_id", "prediction_id"])
+def test_exact_fill_or_prediction_quarantine_removes_only_exact_phantom(
+    side: str,
+    exact_identity: str,
+) -> None:
+    current = _reused_candidate_position(side=side, identity="current")
+    phantom = _reused_candidate_position(side=side, identity="phantom")
+    quarantine = {
+        "fill_id": "historical_nonmatching_fill",
+        "prediction_id": "historical_nonmatching_prediction",
+        "candidate_id": current["candidate_id"],
+        "decision_id": current["decision_id"],
+        "accepted_fill_quarantined": True,
+        "accepted_fill_quarantine_reasons": [
+            "PERSISTED_ADMISSION_FINAL_CONTRACT_MISSING"
+        ],
+        "paper_only": True,
+    }
+    if exact_identity == "fill_id":
+        quarantine["fill_id"] = phantom["entry_fill_id"]
+    else:
+        quarantine["prediction_id"] = phantom["prediction_id"]
+
+    retained, removed = paper_loop._flag_invalid_admission_open_positions(  # noqa: SLF001
+        [current, phantom],
+        [quarantine],
+    )
+
+    assert retained == [current]
+    assert len(removed) == 1
+    assert removed[0]["position_id"] == phantom["position_id"]
+    assert removed[0]["invalid_admission_open_position_removed"] is True
+    assert removed[0]["accepted_fill_quarantined"] is True
+
+
+@pytest.mark.parametrize("side", ["long", "short"])
+def test_exact_quarantine_removal_is_single_release_without_wallet_or_close_effect(
+    side: str,
+) -> None:
+    current = _reused_candidate_position(side=side, identity="current")
+    phantom = _reused_candidate_position(side=side, identity="phantom")
+    quarantine = {
+        "fill_id": phantom["entry_fill_id"],
+        "prediction_id": phantom["prediction_id"],
+        "candidate_id": current["candidate_id"],
+        "decision_id": current["decision_id"],
+        "accepted_fill_quarantined": True,
+        "accepted_fill_quarantine_reasons": [
+            "PERSISTED_ADMISSION_FINAL_CONTRACT_MISSING"
+        ],
+        "paper_only": True,
+    }
+    retained, removed = paper_loop._flag_invalid_admission_open_positions(  # noqa: SLF001
+        [current, phantom],
+        [quarantine],
+    )
+    existing_close = {"close_id": "preexisting_close", "realized_net_pnl_usd": 4.0}
+    base_receipt = {
+        "schema_version": "paper_position_fill_reconciliation_v1",
+        "status": "PASS",
+        "input_position_count": 2,
+        "accepted_fill_proof_count": 2,
+        "retained_position_count": 2,
+        "phantom_position_count": 0,
+        "unresolved_position_count": 0,
+        "phantom_positions": [],
+        "unresolved_positions": [],
+        "proof_bindings": [],
+        "used_margin_released_usd": 0.0,
+        "reserved_margin_released_usd": 0.0,
+        "wallet_balance_mutation_usd": 0.0,
+        "wallet_balance_usd": 1_000.0,
+        "closed_trades": [existing_close],
+        "rejection_reasons": [],
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+
+    repaired = paper_loop._paper_reconciliation_with_invalid_admission_positions(  # noqa: SLF001
+        base_receipt,
+        [*removed, *removed],
+        retained_positions=retained,
+        active_proof_count=1,
+        generated_utc="2026-07-28T08:00:00Z",
+    )
+    replay = paper_loop._paper_reconciliation_with_invalid_admission_positions(  # noqa: SLF001
+        repaired,
+        [],
+        retained_positions=retained,
+        active_proof_count=1,
+        generated_utc="2026-07-28T08:01:00Z",
+    )
+
+    assert retained == [current]
+    assert repaired["invalid_admission_positions_removed_count"] == 1
+    assert repaired["retained_position_count"] == 1
+    assert repaired["used_margin_released_usd"] == pytest.approx(37.25)
+    assert repaired["reserved_margin_released_usd"] == 0.0
+    assert repaired["wallet_balance_mutation_usd"] == 0.0
+    assert repaired["wallet_balance_usd"] == 1_000.0
+    assert repaired["closed_trades"] == [existing_close]
+    assert repaired["counts_as_realized_paper_profit"] is False
+    assert len(repaired["phantom_positions"]) == 1
+    assert replay == repaired
+
+
 @pytest.mark.parametrize("side", ["long", "short"])
 def test_invalid_admission_position_reconciliation_is_symmetric_and_idempotent(
     side: str,
