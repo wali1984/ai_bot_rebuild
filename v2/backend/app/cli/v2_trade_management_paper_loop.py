@@ -298,6 +298,18 @@ PAPER_ACCEPTED_FILLS_QUARANTINE_STATE_PATH = (
 )
 PAPER_LIFECYCLE_STATE_PATH = TRADE_MANAGEMENT_PUBLIC_DIR / "paper_lifecycle_state.json"
 PAPER_ACCOUNT_MARGIN_STATUS_PATH = TRADE_MANAGEMENT_PUBLIC_DIR / "paper_account_margin_status.json"
+PAPER_POSITION_FILL_RECONCILIATION_STATUS_PATH = (
+    TRADE_MANAGEMENT_PUBLIC_DIR / "paper_position_fill_reconciliation_status.json"
+)
+PAPER_POSITION_FILL_RECONCILIATION_RECEIPTS_PATH = (
+    TRADE_MANAGEMENT_PUBLIC_DIR / "paper_position_fill_reconciliation_receipts.jsonl"
+)
+PAPER_POSITION_FILL_RECONCILIATION_STATUS_REDIS_KEY = (
+    f"{V2_REDIS_PREFIX}paper:position_fill_reconciliation:status"
+)
+PAPER_POSITION_FILL_RECONCILIATION_RECEIPT_REDIS_PREFIX = (
+    f"{V2_REDIS_PREFIX}paper:position_fill_reconciliation:receipts:"
+)
 PAPER_MAINTENANCE_BRACKET_SECURITY_STATUS_PATH = (
     TRADE_MANAGEMENT_PUBLIC_DIR / "paper_maintenance_bracket_security_status.json"
 )
@@ -2804,6 +2816,7 @@ def _split_invalid_admission_accepted_rows(
         quarantined["paper_admission_quarantine_reason"] = quarantine_reason
         quarantined["invalid_admission_entry_gate_block_reasons"] = entry_gate_reasons
         quarantined["invalid_admission_integrity_block_reasons"] = integrity_reasons
+        quarantined["accepted_fill_quarantine_reasons"] = reasons
         quarantined["trainer_consumable"] = False
         quarantined["counts_as_production_grade_training_evidence"] = False
         quarantined["counts_as_a_grade_evidence"] = False
@@ -2828,6 +2841,41 @@ def _split_invalid_admission_accepted_rows(
         "places_real_order": False,
     }
     return valid_rows, quarantined_rows, status
+
+
+def _paper_quarantine_row_with_exact_reasons(row: Mapping[str, Any]) -> dict[str, Any]:
+    normalized = dict(row)
+    reasons: set[str] = set()
+    for field in (
+        "accepted_fill_quarantine_reasons",
+        "invalid_admission_entry_gate_block_reasons",
+        "invalid_admission_integrity_block_reasons",
+        "paper_fill_gate_block_reasons",
+        "local_block_reasons",
+    ):
+        value = normalized.get(field)
+        if isinstance(value, list):
+            reasons.update(str(item) for item in value if item not in (None, ""))
+    for field in (
+        "accepted_fill_quarantine_reason",
+        "invalid_admission_quarantine_reason",
+        "paper_admission_quarantine_reason",
+        "paper_fill_block_reason",
+    ):
+        value = normalized.get(field)
+        if value not in (None, ""):
+            reasons.add(str(value))
+    if not reasons:
+        reasons.add("PAPER_ADMISSION_QUARANTINE_REASON_MISSING_FAIL_CLOSED")
+    exact_reasons = sorted(reasons)
+    normalized["accepted_fill_quarantine_reasons"] = exact_reasons
+    if not normalized.get("invalid_admission_integrity_block_reasons"):
+        normalized["invalid_admission_integrity_block_reasons"] = exact_reasons
+    normalized["accepted_fill_quarantined"] = True
+    normalized["trainer_consumable"] = False
+    normalized["counts_as_production_grade_training_evidence"] = False
+    normalized["counts_as_a_grade_evidence"] = False
+    return normalized
 
 
 def _flag_invalid_admission_open_positions(
@@ -3719,6 +3767,88 @@ def _write_paper_open_position_state(
         if _safe_write(r, key, payload, ex=ttl_seconds):
             written.append(key)
     return written
+
+
+def _write_paper_critical_state_atomically(
+    r: Any,
+    *,
+    open_positions: list[dict[str, Any]],
+    accepted_fills: list[dict[str, Any]],
+    quarantined_fills: list[dict[str, Any]],
+    ledger_payload: Mapping[str, Any],
+    account_margin_status: Mapping[str, Any],
+    position_fill_reconciliation_status: Mapping[str, Any],
+) -> list[str]:
+    """Commit fill proof, inventory and accounting as one Redis transition."""
+
+    if r is None:
+        return []
+    training_ttl = PAPER_TRAINING_EVIDENCE_TTL_SECONDS
+    writes: list[tuple[str, str, int]] = [
+        (
+            f"{V2_REDIS_PREFIX}paper:positions",
+            json.dumps(open_positions, default=str),
+            training_ttl,
+        ),
+        (
+            f"{V2_REDIS_PREFIX}paper:open_positions",
+            json.dumps(open_positions, default=str),
+            training_ttl,
+        ),
+        (
+            f"{V2_REDIS_PREFIX}paper:accepted_fills",
+            json.dumps(accepted_fills, default=str),
+            training_ttl,
+        ),
+        (
+            f"{V2_REDIS_PREFIX}paper:accepted_fills:quarantine",
+            json.dumps(quarantined_fills, default=str),
+            training_ttl,
+        ),
+        (
+            f"{V2_REDIS_PREFIX}paper:ledger",
+            json.dumps(dict(ledger_payload), default=str),
+            training_ttl,
+        ),
+        (
+            PAPER_ACCOUNT_MARGIN_STATUS_REDIS_KEY,
+            json.dumps(dict(account_margin_status), default=str),
+            PAPER_RUNTIME_HEARTBEAT_TTL_SECONDS,
+        ),
+        (
+            PAPER_POSITION_FILL_RECONCILIATION_STATUS_REDIS_KEY,
+            json.dumps(dict(position_fill_reconciliation_status), default=str),
+            PAPER_RUNTIME_HEARTBEAT_TTL_SECONDS,
+        ),
+    ]
+    receipt_id = str(position_fill_reconciliation_status.get("receipt_id") or "")
+    if (
+        int(position_fill_reconciliation_status.get("phantom_position_count") or 0) > 0
+        and _paper_valid_sha256(receipt_id)
+    ):
+        writes.append(
+            (
+                PAPER_POSITION_FILL_RECONCILIATION_RECEIPT_REDIS_PREFIX + receipt_id,
+                json.dumps(dict(position_fill_reconciliation_status), default=str),
+                training_ttl,
+            )
+        )
+
+    pipeline_factory = getattr(r, "pipeline", None)
+    if callable(pipeline_factory):
+        pipeline = pipeline_factory(transaction=True)
+        for key, payload, ttl_seconds in writes:
+            pipeline.set(key, payload, ex=ttl_seconds)
+        results = pipeline.execute()
+        if len(results) != len(writes) or not all(bool(result) for result in results):
+            raise RuntimeError("PAPER_CRITICAL_STATE_ATOMIC_COMMIT_FAILED")
+    else:
+        # In-memory unit-test clients deliberately omit transactions.  The
+        # production Redis client always takes the branch above.
+        for key, payload, ttl_seconds in writes:
+            if not _safe_write(r, key, payload, ex=ttl_seconds):
+                raise RuntimeError("PAPER_CRITICAL_STATE_TEST_COMMIT_FAILED:" + key)
+    return [key for key, _, _ in writes]
 
 
 def _paper_runtime_owner_identity() -> dict[str, Any]:
@@ -12212,6 +12342,8 @@ COMPACT_ACCEPTED_FILL_FIELDS = tuple(
             "invalid_admission_quarantine_reason",
             "paper_admission_quarantine_reason",
             "invalid_admission_entry_gate_block_reasons",
+            "invalid_admission_integrity_block_reasons",
+            "accepted_fill_quarantine_reasons",
             "paper_fill_gate_status",
             "paper_fill_gate_block_reasons",
             "paper_fill_block_reason",
@@ -13599,37 +13731,17 @@ def _read_lifecycle_state_file(path: Path | None = None) -> dict[str, Any]:
 
 
 def _read_existing_accepted_fills(r) -> dict[str, dict]:
+    # CG-F056: an open position is a consumer of accepted-fill proof; it can
+    # never manufacture that proof for itself.  Runtime reads therefore use
+    # only the canonical durable accepted-fill key.  The state file remains a
+    # disconnected/local-test fallback when Redis is intentionally absent.
     if r is not None:
-        open_positions = _read_json_list_redis_key_if_small(
-            r,
-            f"{V2_REDIS_PREFIX}paper:positions",
-        )
-        position_rows = _accepted_fill_rows_from_open_positions(open_positions)
-        if position_rows:
-            return _index_accepted_fill_rows(position_rows)
-        ledger_payload = _read_json_redis_key_if_small(
-            r,
-            f"{V2_REDIS_PREFIX}paper:ledger",
-        )
-        if isinstance(ledger_payload.get("open_positions"), list):
-            position_rows = _accepted_fill_rows_from_open_positions(
-                ledger_payload["open_positions"]
-            )
-            if position_rows:
-                return _index_accepted_fill_rows(position_rows)
-    file_rows = _read_accepted_fill_state_file()
-    if file_rows:
-        return file_rows
-    lifecycle_payload = _read_lifecycle_state_file()
-    if isinstance(lifecycle_payload.get("open_positions"), list):
-        position_rows = _accepted_fill_rows_from_open_positions(lifecycle_payload["open_positions"])
-        if position_rows:
-            return _index_accepted_fill_rows(position_rows)
-    if r is None:
-        return {}
-    payload = _read_json_redis_key_if_small(r, f"{V2_REDIS_PREFIX}paper:ledger")
-    rows = payload.get("accepted") or payload.get("accepted_intents") or []
-    return _index_accepted_fill_rows(rows)
+        proof_source = _paper_accepted_fill_proof_source(r)
+        if proof_source.get("status") != "READY":
+            return {}
+        rows = proof_source.get("rows")
+        return _index_accepted_fill_rows(rows if isinstance(rows, list) else [])
+    return _read_accepted_fill_state_file()
 
 
 def _row_has_economic_fill_fields(row: dict[str, Any]) -> bool:
@@ -24803,7 +24915,7 @@ def _paper_filter_open_positions_to_accepted_rows(
     """
     allowed_open_position_ids = {_accepted_fill_identity(row) for row in accepted_rows}
     if not allowed_open_position_ids:
-        return list(open_positions), []
+        return [], list(open_positions)
     kept: list[dict[str, Any]] = []
     dropped: list[dict[str, Any]] = []
     for row in open_positions:
@@ -32730,6 +32842,291 @@ def _paper_accepted_fill_proof_source(r: Any) -> dict[str, Any]:
         "rejection_reasons": [],
     }
     return {**material, "source_hash": _paper_canonical_sha256(material), "rows": rows}
+
+
+_PAPER_FILL_PROOF_ALIAS_FIELDS = (
+    "fill_id",
+    "ledger_row_id",
+    "position_id",
+    "entry_fill_id",
+    "intent_id",
+    "source_intent_id",
+    "signal_id",
+    "source_signal_id",
+    "prediction_id",
+    "source_prediction_id",
+)
+
+
+def _paper_fill_proof_aliases(row: Mapping[str, Any]) -> set[str]:
+    aliases = {
+        str(row.get(field)).strip()
+        for field in _PAPER_FILL_PROOF_ALIAS_FIELDS
+        if row.get(field) not in (None, "")
+    }
+    for field in ("source_fill_ids", "fill_ids"):
+        values = row.get(field)
+        if isinstance(values, (list, tuple, set)):
+            aliases.update(
+                str(value).strip() for value in values if value not in (None, "")
+            )
+    return {alias for alias in aliases if alias}
+
+
+def _paper_position_has_single_accepted_fill_proof(
+    row: Mapping[str, Any],
+    accepted_fill_proof_source: Mapping[str, Any],
+) -> bool:
+    rows = accepted_fill_proof_source.get("rows")
+    if accepted_fill_proof_source.get("status") != "READY" or not isinstance(rows, list):
+        return False
+    aliases = _paper_fill_proof_aliases(row)
+    if not aliases:
+        return False
+    matches = sum(
+        1
+        for proof in rows
+        if isinstance(proof, Mapping)
+        and aliases.intersection(_paper_fill_proof_aliases(proof))
+    )
+    return matches == 1
+
+
+def _paper_phantom_position_projection(row: Mapping[str, Any]) -> dict[str, Any]:
+    margin = _coerce_float(
+        _first_present(
+            row.get("allocated_margin_usd"),
+            row.get("margin_used_usd"),
+            row.get("initial_margin_usd"),
+        )
+    )
+    return {
+        "position_id": row.get("position_id"),
+        "symbol": row.get("symbol"),
+        "timeframe": row.get("timeframe"),
+        "side": row.get("side"),
+        "prediction_id": _first_present(
+            row.get("prediction_id"), row.get("source_prediction_id")
+        ),
+        "signal_id": _first_present(row.get("signal_id"), row.get("source_signal_id")),
+        "entry_fill_id": row.get("entry_fill_id"),
+        "source_fill_ids": list(row.get("source_fill_ids") or []),
+        "allocated_margin_usd": max(0.0, margin or 0.0),
+        "position_payload_sha256": _paper_canonical_sha256(row),
+        "reason": "UNPROVED_PHANTOM_POSITION",
+    }
+
+
+def _paper_reconcile_ledger_to_accepted_fill_proofs(
+    ledger: Mapping[str, Any],
+    accepted_fill_proof_source: Mapping[str, Any],
+    *,
+    generated_utc: str,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Remove proofless phantom inventory before lifecycle/accounting runs.
+
+    A malformed or ambiguous proof source is not a repair authorization: in
+    that case inventory remains managed and new admission stays fail closed.
+    A valid, exact empty proof source *is* authoritative and removes every
+    proofless position.  Wallet balance is never changed here; only margin
+    derived from an unproved position disappears when canonical accounting is
+    rebuilt from the reconciled open-position collection.
+    """
+
+    reconciled = deepcopy(dict(ledger))
+    positions = [dict(row) for row in _paper_open_position_rows(ledger)]
+    input_positions_sha256 = _paper_canonical_sha256(positions)
+    proof_rows_value = accepted_fill_proof_source.get("rows")
+    proof_rows = (
+        [dict(row) for row in proof_rows_value if isinstance(row, Mapping)]
+        if isinstance(proof_rows_value, list)
+        else []
+    )
+    proof_material = {
+        key: accepted_fill_proof_source.get(key)
+        for key in (
+            "schema_version",
+            "redis_key",
+            "status",
+            "observed_at",
+            "raw_size_bytes",
+            "row_count",
+            "payload_hash",
+            "rejection_reasons",
+            "paper_only",
+            "routes_to_live",
+            "places_real_order",
+        )
+    }
+    proof_source_valid = bool(
+        accepted_fill_proof_source.get("status") == "READY"
+        and accepted_fill_proof_source.get("row_count") == len(proof_rows)
+        and accepted_fill_proof_source.get("payload_hash")
+        == _paper_canonical_sha256(proof_rows)
+        and accepted_fill_proof_source.get("source_hash")
+        == _paper_canonical_sha256(proof_material)
+        and accepted_fill_proof_source.get("paper_only") is True
+        and accepted_fill_proof_source.get("routes_to_live") is False
+        and accepted_fill_proof_source.get("places_real_order") is False
+        and accepted_fill_proof_source.get("rejection_reasons") == []
+    )
+
+    retained: list[dict[str, Any]] = []
+    phantom_rows: list[dict[str, Any]] = []
+    unresolved_rows: list[dict[str, Any]] = []
+    proof_bindings: list[dict[str, Any]] = []
+    rejection_reasons: list[str] = []
+    if positions and not proof_source_valid:
+        retained = positions
+        rejection_reasons.append("OPEN_POSITION_ACCEPTED_FILL_PROOF_SOURCE_UNRESOLVED")
+        unresolved_rows = [
+            {
+                **_paper_phantom_position_projection(row),
+                "reason": "ACCEPTED_FILL_PROOF_SOURCE_UNRESOLVED",
+            }
+            for row in positions
+        ]
+    else:
+        proof_aliases = [_paper_fill_proof_aliases(row) for row in proof_rows]
+        for position in positions:
+            position_aliases = _paper_fill_proof_aliases(position)
+            matches = [
+                index
+                for index, aliases in enumerate(proof_aliases)
+                if position_aliases and aliases and position_aliases.intersection(aliases)
+            ]
+            if len(matches) == 1:
+                proof_row = proof_rows[matches[0]]
+                bound = dict(position)
+                bound["accepted_fill_proof_reconciled"] = True
+                bound["accepted_fill_proof_sha256"] = _paper_canonical_sha256(proof_row)
+                bound["accepted_fill_proof_source_hash"] = accepted_fill_proof_source.get(
+                    "source_hash"
+                )
+                retained.append(bound)
+                proof_bindings.append(
+                    {
+                        "position_id": position.get("position_id"),
+                        "position_payload_sha256": _paper_canonical_sha256(position),
+                        "accepted_fill_payload_sha256": _paper_canonical_sha256(proof_row),
+                        "matched_aliases": sorted(
+                            position_aliases.intersection(proof_aliases[matches[0]])
+                        ),
+                    }
+                )
+            elif not matches:
+                phantom_rows.append(_paper_phantom_position_projection(position))
+            else:
+                retained.append(position)
+                unresolved_rows.append(
+                    {
+                        **_paper_phantom_position_projection(position),
+                        "reason": "CONFLICTING_ACCEPTED_FILL_PROOFS",
+                        "matched_proof_indexes": matches,
+                    }
+                )
+                rejection_reasons.append(
+                    "OPEN_POSITION_ACCEPTED_FILL_PROOF_CONFLICT:"
+                    + str(position.get("position_id") or position.get("symbol") or "UNKNOWN")
+                )
+
+    if proof_source_valid:
+        reconciled["open_positions"] = retained
+        if "positions" in reconciled:
+            reconciled["positions"] = retained
+        reconciled["positions_by_symbol"] = {
+            (
+                f"{str(row['symbol']).upper()}::HEDGE"
+                if row.get("hedge_parent_id")
+                and str(row.get("hedge_state") or "").upper() == "HEDGE_CHILD"
+                else str(row["symbol"]).upper()
+            ): row
+            for row in retained
+            if row.get("symbol")
+        }
+        reconciled["open_position_count"] = len(retained)
+
+    released_used_margin_usd = round(
+        sum(float(row.get("allocated_margin_usd") or 0.0) for row in phantom_rows),
+        8,
+    )
+    status_name = (
+        "BLOCKED"
+        if rejection_reasons
+        else ("REPAIRED" if phantom_rows else "PASS")
+    )
+    event_material = {
+        "schema_version": "paper_position_fill_reconciliation_event_v1",
+        "input_positions_sha256": input_positions_sha256,
+        "accepted_fill_proof_source_hash": accepted_fill_proof_source.get("source_hash"),
+        "retained_position_hashes": [
+            _paper_canonical_sha256(row) for row in retained
+        ],
+        "phantom_positions": phantom_rows,
+        "unresolved_positions": unresolved_rows,
+        "proof_bindings": proof_bindings,
+        "status": status_name,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "exchange_action_taken": False,
+    }
+    receipt_id = _paper_canonical_sha256(event_material)
+    receipt_material = {
+        **event_material,
+        "receipt_id": receipt_id,
+        "generated_utc": generated_utc,
+        "input_position_count": len(positions),
+        "accepted_fill_proof_count": len(proof_rows),
+        "retained_position_count": len(retained),
+        "phantom_position_count": len(phantom_rows),
+        "unresolved_position_count": len(unresolved_rows),
+        "used_margin_released_usd": released_used_margin_usd,
+        "reserved_margin_released_usd": 0.0,
+        "wallet_balance_mutation_usd": 0.0,
+        "wallet_mutation_allowed": False,
+        "accounting_rebuild_source": "RECONCILED_PROOF_BACKED_OPEN_POSITIONS",
+        "idempotent": True,
+        "rejection_reasons": sorted(set(rejection_reasons)),
+    }
+    receipt = {
+        **receipt_material,
+        "receipt_sha256": _paper_canonical_sha256(receipt_material),
+    }
+    reconciled["paper_position_fill_reconciliation"] = receipt
+    return reconciled, receipt
+
+
+def _append_paper_position_fill_reconciliation_receipt(
+    receipt: Mapping[str, Any],
+    *,
+    path: Path | None = None,
+) -> bool:
+    """Append one immutable repair receipt, deduplicated by receipt_id."""
+
+    if int(receipt.get("phantom_position_count") or 0) <= 0:
+        return False
+    receipt_id = str(receipt.get("receipt_id") or "")
+    if not _paper_valid_sha256(receipt_id):
+        raise ValueError("PAPER_POSITION_RECONCILIATION_RECEIPT_ID_INVALID")
+    target = path or PAPER_POSITION_FILL_RECONCILIATION_RECEIPTS_PATH
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if target.exists():
+        for line in target.read_text(encoding="utf-8").splitlines():
+            try:
+                existing = json.loads(line)
+            except (TypeError, ValueError):
+                continue
+            if isinstance(existing, Mapping) and existing.get("receipt_id") == receipt_id:
+                return False
+    payload = json.dumps(receipt, sort_keys=True, separators=(",", ":"), default=str)
+    descriptor = os.open(target, os.O_APPEND | os.O_CREAT | os.O_WRONLY, 0o600)
+    try:
+        os.write(descriptor, (payload + "\n").encode("utf-8"))
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+    return True
 
 
 def _paper_nonunderstating_decimal_float(value: Decimal) -> float:
@@ -44845,10 +45242,27 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
     paper_starting_equity_usd = _coerce_float(
         paper_session_state.get("starting_equity_usd") or paper_session_state.get("initial_capital")
     )
+    existing_invalid_admission_quarantine_rows = [
+        _paper_quarantine_row_with_exact_reasons(row)
+        for row in _read_json_list_redis_key_if_small(
+            r,
+            f"{V2_REDIS_PREFIX}paper:accepted_fills:quarantine",
+        )
+        if isinstance(row, Mapping)
+    ]
     existing_ledger = _read_existing_ledger_payload(r)
     existing_ledger = _paper_ledger_with_exact_safety_sources(
         existing_ledger,
         paper_revocable_control_source_materials,
+    )
+    accepted_fill_proof_source = _paper_accepted_fill_proof_source(r)
+    (
+        existing_ledger,
+        paper_position_fill_reconciliation_status,
+    ) = _paper_reconcile_ledger_to_accepted_fill_proofs(
+        existing_ledger,
+        accepted_fill_proof_source,
+        generated_utc=_utc_iso(),
     )
     adaptive_policy_cycle_context: dict[str, Any] = {
         "status": "BLOCKED",
@@ -44905,7 +45319,6 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
     _set_symbol_tf_closed_evidence_counts(_closed_trade_rows(existing_ledger))
     _set_session_performance_sizing_evidence(_closed_trade_rows(existing_ledger))
     existing_accepted = _read_existing_accepted_fills(r)
-    accepted_fill_proof_source = _paper_accepted_fill_proof_source(r)
     existing_closed_rows = _closed_trade_rows(existing_ledger)
     pre_cycle_churn_equity_bleed_governor_status = _paper_churn_equity_bleed_governor_status(
         accepted_rows=list(existing_accepted.values()),
@@ -49717,6 +50130,32 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
     if post_backfill_churn_blocked:
         blocked.extend(post_backfill_churn_blocked)
 
+    # CG-F056: quarantine is a pre-lifecycle decision.  An invalid fill must
+    # never be allowed to create a position that is removed one cycle later.
+    # This split occurs after all lineage/seal backfills, but before margin
+    # reservation and lifecycle reconciliation.
+    _pre_lifecycle_current_ids = {_accepted_fill_identity(row) for row in accepted}
+    (
+        accepted_for_ledger,
+        pre_lifecycle_invalid_admission_accepted_rows,
+        pre_lifecycle_invalid_admission_status,
+    ) = _split_invalid_admission_accepted_rows(accepted_for_ledger)
+    _pre_lifecycle_valid_ids = {
+        _accepted_fill_identity(row) for row in accepted_for_ledger
+    }
+    accepted = [
+        row
+        for row in accepted
+        if _accepted_fill_identity(row) in _pre_lifecycle_valid_ids
+    ]
+    pre_lifecycle_current_invalid_admission_rows = [
+        row
+        for row in pre_lifecycle_invalid_admission_accepted_rows
+        if _accepted_fill_identity(row) in _pre_lifecycle_current_ids
+    ]
+    if pre_lifecycle_invalid_admission_accepted_rows:
+        blocked.extend(pre_lifecycle_invalid_admission_accepted_rows)
+
     # Account-wide paper margin reservation is deliberately the final entry
     # gate before lifecycle reconciliation.  Every candidate was sized against
     # the same pre-cycle free-margin snapshot; this atomic cumulative pass
@@ -49985,14 +50424,74 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         blocked.extend(post_lifecycle_churn_blocked)
     (
         valid_accepted_for_ledger,
-        invalid_admission_accepted_rows,
-        invalid_admission_accepted_quarantine_status,
+        post_lifecycle_invalid_admission_accepted_rows,
+        post_lifecycle_invalid_admission_status,
     ) = _split_invalid_admission_accepted_rows(accepted_for_ledger)
     (
         valid_current_accepted,
-        current_invalid_admission_accepted_rows,
-        current_invalid_admission_accepted_quarantine_status,
+        post_lifecycle_current_invalid_admission_rows,
+        post_lifecycle_current_invalid_admission_status,
     ) = _split_invalid_admission_accepted_rows(accepted)
+    invalid_admission_accepted_rows = list(
+        {
+            _accepted_fill_identity(row): row
+            for row in [
+                *existing_invalid_admission_quarantine_rows,
+                *pre_lifecycle_invalid_admission_accepted_rows,
+                *post_lifecycle_invalid_admission_accepted_rows,
+            ]
+        }.values()
+    )
+    invalid_admission_accepted_rows = [
+        _paper_quarantine_row_with_exact_reasons(row)
+        for row in invalid_admission_accepted_rows
+    ]
+    current_invalid_admission_accepted_rows = list(
+        {
+            _accepted_fill_identity(row): row
+            for row in [
+                *pre_lifecycle_current_invalid_admission_rows,
+                *post_lifecycle_current_invalid_admission_rows,
+            ]
+        }.values()
+    )
+    current_invalid_admission_accepted_rows = [
+        _paper_quarantine_row_with_exact_reasons(row)
+        for row in current_invalid_admission_accepted_rows
+    ]
+    if post_lifecycle_invalid_admission_accepted_rows:
+        blocked.extend(post_lifecycle_invalid_admission_accepted_rows)
+    invalid_admission_accepted_quarantine_status = {
+        **post_lifecycle_invalid_admission_status,
+        "status": (
+            "INVALID_ADMISSION_ACCEPTED_FILLS_QUARANTINED"
+            if invalid_admission_accepted_rows
+            else "NO_INVALID_ADMISSION_ACCEPTED_FILLS"
+        ),
+        "pre_lifecycle": pre_lifecycle_invalid_admission_status,
+        "invalid_admission_accepted_rows_quarantined": len(
+            invalid_admission_accepted_rows
+        ),
+        "valid_accepted_rows": len(valid_accepted_for_ledger),
+    }
+    current_invalid_admission_accepted_quarantine_status = {
+        **post_lifecycle_current_invalid_admission_status,
+        "status": (
+            "INVALID_ADMISSION_ACCEPTED_FILLS_QUARANTINED"
+            if current_invalid_admission_accepted_rows
+            else "NO_INVALID_ADMISSION_ACCEPTED_FILLS"
+        ),
+        "pre_lifecycle": {
+            **pre_lifecycle_invalid_admission_status,
+            "invalid_admission_accepted_rows_quarantined": len(
+                pre_lifecycle_current_invalid_admission_rows
+            ),
+        },
+        "invalid_admission_accepted_rows_quarantined": len(
+            current_invalid_admission_accepted_rows
+        ),
+        "valid_accepted_rows": len(valid_current_accepted),
+    }
     current_queue_accepted_ids = {
         str(row.get("materialization_queue_id"))
         for row in valid_current_accepted
@@ -51092,13 +51591,32 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
     retained_invalidated_positions: list[dict] = []
     if admission_dropped_positions:
         drop_recorded_utc = _utc_iso()
+        proof_backed_dropped_positions = [
+            row
+            for row in admission_dropped_positions
+            if _paper_position_has_single_accepted_fill_proof(
+                row,
+                accepted_fill_proof_source,
+            )
+        ]
+        unproved_dropped_positions = [
+            row
+            for row in admission_dropped_positions
+            if row not in proof_backed_dropped_positions
+        ]
         retained_invalidated_positions = _retain_admission_invalidated_positions(
-            admission_dropped_positions,
+            proof_backed_dropped_positions,
             recorded_utc=drop_recorded_utc,
             paper_session_id=paper_session_id,
         )
         lifecycle_result["admission_filtered_positions"] = list(retained_invalidated_positions)
         lifecycle_result["admission_filtered_position_count"] = len(retained_invalidated_positions)
+        lifecycle_result["unproved_admission_quarantined_positions"] = [
+            _paper_phantom_position_projection(row) for row in unproved_dropped_positions
+        ]
+        lifecycle_result["unproved_admission_quarantined_position_count"] = len(
+            unproved_dropped_positions
+        )
     open_positions = _bind_challenger_b_grade_canary_metadata_rows(
         # F-0015 stop-enforcement invariant: admission-invalidated positions
         # STAY under lifecycle management (mark-to-market + stop evaluation +
@@ -51145,7 +51663,10 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         late_persistence_integrity_status,
     ) = _split_invalid_admission_accepted_rows(valid_accepted_for_ledger)
     if late_persistence_integrity_quarantined_rows:
-        invalid_admission_accepted_rows.extend(late_persistence_integrity_quarantined_rows)
+        invalid_admission_accepted_rows.extend(
+            _paper_quarantine_row_with_exact_reasons(row)
+            for row in late_persistence_integrity_quarantined_rows
+        )
         blocked.extend(late_persistence_integrity_quarantined_rows)
         persisted_valid_ids = {_accepted_fill_identity(row) for row in valid_accepted_for_ledger}
         valid_current_accepted = [
@@ -51153,14 +51674,44 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             for row in valid_current_accepted
             if _accepted_fill_identity(row) in persisted_valid_ids
         ]
-        (
-            open_positions,
-            late_integrity_invalid_open_positions,
-        ) = _flag_invalid_admission_open_positions(
-            open_positions,
-            late_persistence_integrity_quarantined_rows,
+        late_valid_open_positions, late_integrity_invalid_open_positions = (
+            _paper_filter_open_positions_to_accepted_rows(
+                open_positions,
+                valid_accepted_for_ledger,
+            )
         )
-        invalid_admission_open_positions.extend(late_integrity_invalid_open_positions)
+        late_proof_backed_invalid_positions = [
+            row
+            for row in late_integrity_invalid_open_positions
+            if _paper_position_has_single_accepted_fill_proof(
+                row,
+                accepted_fill_proof_source,
+            )
+        ]
+        late_retained_invalid_positions = _retain_admission_invalidated_positions(
+            late_proof_backed_invalid_positions,
+            recorded_utc=_utc_iso(),
+            paper_session_id=paper_session_id,
+        )
+        late_retained_invalid_positions, late_flagged_invalid_positions = (
+            _flag_invalid_admission_open_positions(
+                late_retained_invalid_positions,
+                late_persistence_integrity_quarantined_rows,
+            )
+        )
+        open_positions = [
+            *late_valid_open_positions,
+            *late_retained_invalid_positions,
+        ]
+        invalid_admission_open_positions.extend(late_flagged_invalid_positions)
+        lifecycle_result["late_unproved_admission_quarantined_positions"] = [
+            _paper_phantom_position_projection(row)
+            for row in late_integrity_invalid_open_positions
+            if row not in late_proof_backed_invalid_positions
+        ]
+        lifecycle_result["late_unproved_admission_quarantined_position_count"] = len(
+            lifecycle_result["late_unproved_admission_quarantined_positions"]
+        )
         valid_open_positions_for_materialization = [
             row
             for row in open_positions
@@ -52227,6 +52778,9 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                 "paper_stop_takeprofit_trailing_status"
             ],
             "paper_account_margin_status": paper_account_margin_status,
+            "paper_position_fill_reconciliation_status": (
+                paper_position_fill_reconciliation_status
+            ),
             "paper_margin_reservation_status": paper_margin_reservation_status,
             "paper_closed_trade_outcome_label_status": paper_closed_trade_outcome_label_status,
             "paper_directional_collapse_guard_status": directional_collapse_guard_status,
@@ -52382,40 +52936,21 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             except Exception:
                 pass
         keys_written.extend(
-            _write_paper_open_position_state(
+            _write_paper_critical_state_atomically(
                 r,
-                open_positions,
-                ttl_seconds=PAPER_TRAINING_EVIDENCE_TTL_SECONDS,
+                open_positions=open_positions,
+                accepted_fills=accepted_state_rows,
+                quarantined_fills=invalid_admission_accepted_quarantine_state_rows,
+                ledger_payload=ledger_payload,
+                account_margin_status=paper_account_margin_status,
+                position_fill_reconciliation_status=(
+                    paper_position_fill_reconciliation_status
+                ),
             )
         )
-        if _safe_write(
-            r,
-            f"{V2_REDIS_PREFIX}paper:accepted_fills",
-            json.dumps(accepted_state_rows),
-            ex=PAPER_TRAINING_EVIDENCE_TTL_SECONDS,
-        ):
-            keys_written.append(f"{V2_REDIS_PREFIX}paper:accepted_fills")
-        if _safe_write(
-            r,
-            f"{V2_REDIS_PREFIX}paper:accepted_fills:quarantine",
-            json.dumps(invalid_admission_accepted_quarantine_state_rows),
-            ex=PAPER_TRAINING_EVIDENCE_TTL_SECONDS,
-        ):
-            keys_written.append(f"{V2_REDIS_PREFIX}paper:accepted_fills:quarantine")
-        if _safe_write(
-            r,
-            f"{V2_REDIS_PREFIX}paper:ledger",
-            json.dumps(ledger_payload),
-            ex=PAPER_TRAINING_EVIDENCE_TTL_SECONDS,
-        ):
-            keys_written.append(f"{V2_REDIS_PREFIX}paper:ledger")
-        if _safe_write(
-            r,
-            PAPER_ACCOUNT_MARGIN_STATUS_REDIS_KEY,
-            json.dumps(paper_account_margin_status),
-            ex=PAPER_RUNTIME_HEARTBEAT_TTL_SECONDS,
-        ):
-            keys_written.append(PAPER_ACCOUNT_MARGIN_STATUS_REDIS_KEY)
+        _append_paper_position_fill_reconciliation_receipt(
+            paper_position_fill_reconciliation_status
+        )
         if _safe_write(
             r,
             f"{V2_REDIS_PREFIX}paper:outcome_labels",
@@ -52513,6 +53048,9 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                             "paper_stop_takeprofit_trailing_status"
                         ],
                         "paper_account_margin_status": paper_account_margin_status,
+                        "paper_position_fill_reconciliation_status": (
+                            paper_position_fill_reconciliation_status
+                        ),
                         "paper_margin_reservation_status": paper_margin_reservation_status,
                         "paper_maintenance_bracket_security_status": (
                             paper_maintenance_bracket_security_status
@@ -53002,6 +53540,9 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             "paper_stop_takeprofit_trailing_status"
         ],
         "paper_account_margin_status": paper_account_margin_status,
+        "paper_position_fill_reconciliation_status": (
+            paper_position_fill_reconciliation_status
+        ),
         "paper_margin_reservation_status": paper_margin_reservation_status,
         "paper_closed_trade_outcome_label_status": paper_closed_trade_outcome_label_status,
         "paper_directional_collapse_guard_status": directional_collapse_guard_status,
@@ -53293,6 +53834,9 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                 "closed_trade_count": len(closes),
                 "outcome_label_count": len(outcome_labels),
                 "paper_account_margin_status": paper_account_margin_status,
+                "paper_position_fill_reconciliation_status": (
+                    paper_position_fill_reconciliation_status
+                ),
                 "paper_margin_reservation_status": paper_margin_reservation_status,
                 "paper_maintenance_bracket_security_status": (
                     paper_maintenance_bracket_security_status
@@ -53374,6 +53918,10 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         write_payload(
             paper_account_margin_status,
             PAPER_ACCOUNT_MARGIN_STATUS_PATH,
+        )
+        write_payload(
+            paper_position_fill_reconciliation_status,
+            PAPER_POSITION_FILL_RECONCILIATION_STATUS_PATH,
         )
         write_payload(
             paper_maintenance_bracket_security_status,

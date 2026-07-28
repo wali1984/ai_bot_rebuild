@@ -6103,7 +6103,7 @@ def test_active_safe_checkpoint_id_from_evidence_requires_loaded_native_weights(
     assert missing_source is None
 
 
-def test_existing_accepted_fills_fallback_uses_lifecycle_open_positions(
+def test_existing_accepted_fills_never_uses_lifecycle_open_positions_as_proof(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
@@ -6137,23 +6137,8 @@ def test_existing_accepted_fills_fallback_uses_lifecycle_open_positions(
     monkeypatch.setattr(paper_loop, "_read_accepted_fill_state_file", lambda: {})
 
     rows = paper_loop._read_existing_accepted_fills(None)  # noqa: SLF001
-    row = rows["paper_pos_ORDIUSDT"]
 
-    assert (
-        row["materialization_queue_id"] == "paper_exploration_materialize_hyp_replayed_exploration"
-    )
-    assert row["tier"] == "PAPER_RISK_CONTROLLER_EXPLORATION"
-    assert row["exploration_tier"] == "PAPER_RISK_CONTROLLER_EXPLORATION"
-    assert row["paper_exploration_tier"] == "PAPER_RISK_CONTROLLER_EXPLORATION"
-    assert row["preemptive_decision_id"] == "pec_replayed_exploration"
-    assert row["allocation_id"] == "alloc_real_replayed_exploration"
-    assert row["allocator_decision_id"] == "alloc_real_replayed_exploration"
-    assert row["allocator_decision_id_source"] == "adaptive_allocation.allocation_id"
-    assert row["feature_vector_hash"] == "strategy_supply_replayed"
-    assert row["provider_hashes"] == {"latest": "latest-provider-hash"}
-    assert row["paper_only"] is True
-    assert row["routes_to_live"] is False
-    assert row["places_real_order"] is False
+    assert rows == {}
 
 
 def test_repair_paper_exploration_public_lineage_rows_merges_open_position_context() -> None:
@@ -13494,7 +13479,9 @@ def test_compact_accepted_fill_backfills_adaptive_allocation_contract() -> None:
     )
 
 
-def test_read_existing_accepted_fills_prefers_compact_file_state(monkeypatch, tmp_path) -> None:
+def test_read_existing_accepted_fills_runtime_uses_only_canonical_redis_key(
+    monkeypatch, tmp_path
+) -> None:
     state_path = tmp_path / "paper_accepted_fills_state.json"
     state_path.write_text(
         json.dumps(
@@ -13514,26 +13501,24 @@ def test_read_existing_accepted_fills_prefers_compact_file_state(monkeypatch, tm
     monkeypatch.setattr(paper_loop, "PAPER_ACCEPTED_FILLS_STATE_PATH", state_path)
     redis_client = _FakeRedis(
         {
-            "v2:paper:ledger": {
-                "accepted": [
-                    {
-                        "fill_id": "redis-fill",
-                        "ledger_row_id": "redis-fill",
-                        "symbol": "ETHUSDT",
-                        "prediction_id": "redis-pred",
-                    }
-                ]
-            }
+            "v2:paper:accepted_fills": [
+                {
+                    "fill_id": "redis-fill",
+                    "ledger_row_id": "redis-fill",
+                    "symbol": "ETHUSDT",
+                    "prediction_id": "redis-pred",
+                }
+            ]
         }
     )
 
     rows = paper_loop._read_existing_accepted_fills(redis_client)  # noqa: SLF001
 
-    assert list(rows) == ["file-fill"]
-    assert rows["file-fill"]["prediction_id"] == "file-pred"
+    assert list(rows) == ["redis-fill"]
+    assert rows["redis-fill"]["prediction_id"] == "redis-pred"
 
 
-def test_read_existing_accepted_fills_replays_open_positions_when_file_is_oversized(
+def test_read_existing_accepted_fills_never_replays_positions_when_file_is_oversized(
     monkeypatch,
     tmp_path,
 ) -> None:
@@ -13574,12 +13559,7 @@ def test_read_existing_accepted_fills_replays_open_positions_when_file_is_oversi
 
     rows = paper_loop._read_existing_accepted_fills(redis_client)  # noqa: SLF001
 
-    assert list(rows) == ["pos-BTC"]
-    replay = rows["pos-BTC"]
-    assert replay["prediction_id"] == "pred-open"
-    assert replay["quantity"] == 0.25
-    assert replay["fill_price"] == 40000.0
-    assert replay["paper_fill_persistence_status"] == "OPEN_POSITION_COMPACT_STATE_REPLAY"
+    assert rows == {}
 
 
 def test_compact_status_for_redis_omits_heavy_row_lists() -> None:
@@ -17706,6 +17686,286 @@ def test_churn_equity_bleed_open_position_filter_matches_position_id_to_fill_id(
     assert [row["position_id"] for row in filtered] == ["paper_pos_KEEPUSDT"]
     # F-0007: dropped positions must be surfaced for audit, never silently lost
     assert [row["position_id"] for row in dropped] == ["paper_pos_DROPUSDT"]
+
+
+def test_open_position_filter_with_no_accepted_proofs_drops_every_position() -> None:
+    positions = [
+        {"position_id": "paper_pos_LONG", "symbol": "BTCUSDT", "side": "long"},
+        {"position_id": "paper_pos_SHORT", "symbol": "ETHUSDT", "side": "short"},
+    ]
+
+    filtered, dropped = paper_loop._paper_filter_open_positions_to_accepted_rows(  # noqa: SLF001
+        positions,
+        [],
+    )
+
+    assert filtered == []
+    assert dropped == positions
+
+
+@pytest.mark.parametrize("side", ["long", "short"])
+def test_position_fill_reconciliation_retains_exactly_proven_position(side: str) -> None:
+    prediction_id = f"pred-{side}"
+    redis_client = _FakeRedis(
+        {
+            "v2:paper:accepted_fills": [
+                {
+                    "fill_id": prediction_id,
+                    "prediction_id": prediction_id,
+                    "signal_id": f"sig-{side}",
+                    "symbol": "BTCUSDT",
+                    "side": side,
+                    "paper_only": True,
+                    "routes_to_live": False,
+                    "places_real_order": False,
+                }
+            ]
+        }
+    )
+    proof_source = paper_loop._paper_accepted_fill_proof_source(redis_client)  # noqa: SLF001
+    ledger = {
+        "open_positions": [
+            {
+                "position_id": f"paper-pos-{side}",
+                "entry_fill_id": prediction_id,
+                "source_fill_ids": [prediction_id],
+                "prediction_id": prediction_id,
+                "signal_id": f"sig-{side}",
+                "symbol": "BTCUSDT",
+                "side": side,
+                "allocated_margin_usd": 10.0,
+            }
+        ]
+    }
+
+    reconciled, receipt = paper_loop._paper_reconcile_ledger_to_accepted_fill_proofs(  # noqa: SLF001
+        ledger,
+        proof_source,
+        generated_utc="2026-07-28T01:00:00Z",
+    )
+
+    assert receipt["status"] == "PASS"
+    assert receipt["phantom_position_count"] == 0
+    assert receipt["unresolved_position_count"] == 0
+    assert len(reconciled["open_positions"]) == 1
+    assert reconciled["open_positions"][0]["accepted_fill_proof_reconciled"] is True
+    assert len(receipt["proof_bindings"]) == 1
+
+
+def test_position_fill_reconciliation_repairs_phantom_idempotently() -> None:
+    redis_client = _FakeRedis({"v2:paper:accepted_fills": []})
+    proof_source = paper_loop._paper_accepted_fill_proof_source(redis_client)  # noqa: SLF001
+    ledger = {
+        "open_positions": [
+            {
+                "position_id": "paper_pos_AAVEUSDT_fixture",
+                "entry_fill_id": "pred-aave",
+                "source_fill_ids": ["pred-aave"],
+                "prediction_id": "pred-aave",
+                "signal_id": "sig-aave",
+                "symbol": "AAVEUSDT",
+                "side": "short",
+                "allocated_margin_usd": 78.088,
+            }
+        ],
+        "positions_by_symbol": {"AAVEUSDT": {"position_id": "paper_pos_AAVEUSDT_fixture"}},
+        "open_position_count": 1,
+    }
+
+    reconciled, repair = paper_loop._paper_reconcile_ledger_to_accepted_fill_proofs(  # noqa: SLF001
+        ledger,
+        proof_source,
+        generated_utc="2026-07-28T01:00:00Z",
+    )
+    reconciled_again, replay = paper_loop._paper_reconcile_ledger_to_accepted_fill_proofs(  # noqa: SLF001
+        reconciled,
+        proof_source,
+        generated_utc="2026-07-28T01:01:00Z",
+    )
+
+    assert repair["status"] == "REPAIRED"
+    assert repair["phantom_position_count"] == 1
+    assert repair["phantom_positions"][0]["reason"] == "UNPROVED_PHANTOM_POSITION"
+    assert repair["used_margin_released_usd"] == pytest.approx(78.088)
+    assert repair["reserved_margin_released_usd"] == 0.0
+    assert repair["wallet_balance_mutation_usd"] == 0.0
+    assert reconciled["open_positions"] == []
+    assert reconciled["positions_by_symbol"] == {}
+    assert reconciled["open_position_count"] == 0
+    assert replay["status"] == "PASS"
+    assert replay["phantom_position_count"] == 0
+    assert reconciled_again["open_positions"] == []
+
+
+def test_position_fill_reconciliation_keeps_inventory_when_proof_source_malformed() -> None:
+    redis_client = _FakeRedis({"v2:paper:accepted_fills": {"not": "a-list"}})
+    proof_source = paper_loop._paper_accepted_fill_proof_source(redis_client)  # noqa: SLF001
+    ledger = {
+        "open_positions": [
+            {
+                "position_id": "paper-pos-unresolved",
+                "prediction_id": "pred-unresolved",
+                "symbol": "BTCUSDT",
+                "side": "long",
+            }
+        ]
+    }
+
+    reconciled, receipt = paper_loop._paper_reconcile_ledger_to_accepted_fill_proofs(  # noqa: SLF001
+        ledger,
+        proof_source,
+        generated_utc="2026-07-28T01:00:00Z",
+    )
+
+    assert receipt["status"] == "BLOCKED"
+    assert receipt["phantom_position_count"] == 0
+    assert receipt["unresolved_position_count"] == 1
+    assert receipt["rejection_reasons"] == [
+        "OPEN_POSITION_ACCEPTED_FILL_PROOF_SOURCE_UNRESOLVED"
+    ]
+    assert reconciled["open_positions"] == ledger["open_positions"]
+
+
+def test_position_fill_reconciliation_blocks_conflicting_duplicate_proofs() -> None:
+    redis_client = _FakeRedis(
+        {
+            "v2:paper:accepted_fills": [
+                {"fill_id": "fill-1", "prediction_id": "pred-shared"},
+                {"fill_id": "fill-2", "prediction_id": "pred-shared"},
+            ]
+        }
+    )
+    proof_source = paper_loop._paper_accepted_fill_proof_source(redis_client)  # noqa: SLF001
+    ledger = {
+        "open_positions": [
+            {
+                "position_id": "paper-pos-conflict",
+                "prediction_id": "pred-shared",
+                "symbol": "BTCUSDT",
+                "side": "long",
+            }
+        ]
+    }
+
+    reconciled, receipt = paper_loop._paper_reconcile_ledger_to_accepted_fill_proofs(  # noqa: SLF001
+        ledger,
+        proof_source,
+        generated_utc="2026-07-28T01:00:00Z",
+    )
+
+    assert receipt["status"] == "BLOCKED"
+    assert receipt["unresolved_position_count"] == 1
+    assert receipt["unresolved_positions"][0]["reason"] == (
+        "CONFLICTING_ACCEPTED_FILL_PROOFS"
+    )
+    assert reconciled["open_positions"] == ledger["open_positions"]
+
+
+def test_position_fill_repair_receipt_archive_is_idempotent(tmp_path: Path) -> None:
+    proof_source = paper_loop._paper_accepted_fill_proof_source(  # noqa: SLF001
+        _FakeRedis({"v2:paper:accepted_fills": []})
+    )
+    _, receipt = paper_loop._paper_reconcile_ledger_to_accepted_fill_proofs(  # noqa: SLF001
+        {
+            "open_positions": [
+                {
+                    "position_id": "paper-pos-once",
+                    "prediction_id": "pred-once",
+                    "symbol": "ETHUSDT",
+                    "side": "short",
+                }
+            ]
+        },
+        proof_source,
+        generated_utc="2026-07-28T01:00:00Z",
+    )
+    path = tmp_path / "repair-receipts.jsonl"
+
+    first = paper_loop._append_paper_position_fill_reconciliation_receipt(  # noqa: SLF001
+        receipt,
+        path=path,
+    )
+    second = paper_loop._append_paper_position_fill_reconciliation_receipt(  # noqa: SLF001
+        receipt,
+        path=path,
+    )
+
+    assert first is True
+    assert second is False
+    rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+    assert len(rows) == 1
+    assert rows[0]["receipt_id"] == receipt["receipt_id"]
+
+
+def test_quarantined_fill_compaction_preserves_nonempty_exact_reasons() -> None:
+    quarantined = paper_loop._paper_quarantine_row_with_exact_reasons(  # noqa: SLF001
+        {
+            "prediction_id": "pred-quarantine",
+            "accepted_fill_quarantined": True,
+            "accepted_fill_quarantine_reason": "PAPER_ADMISSION_INTEGRITY_CONTRACT_BLOCKED",
+        }
+    )
+
+    compact = paper_loop._compact_accepted_fill_for_state(quarantined)  # noqa: SLF001
+
+    assert compact["accepted_fill_quarantine_reasons"] == [
+        "PAPER_ADMISSION_INTEGRITY_CONTRACT_BLOCKED"
+    ]
+    assert compact["invalid_admission_integrity_block_reasons"] == [
+        "PAPER_ADMISSION_INTEGRITY_CONTRACT_BLOCKED"
+    ]
+
+
+def test_critical_paper_state_uses_one_redis_transaction() -> None:
+    class Transaction:
+        def __init__(self, owner):
+            self.owner = owner
+            self.writes = []
+
+        def set(self, key, value, ex=None):
+            self.writes.append((key, value, ex))
+            return self
+
+        def execute(self):
+            self.owner.execute_count += 1
+            for key, value, _ in self.writes:
+                self.owner.payloads[key] = value
+            return [True] * len(self.writes)
+
+    class TransactionRedis(_FakeRedis):
+        def __init__(self):
+            super().__init__({})
+            self.execute_count = 0
+
+        def pipeline(self, transaction=True):
+            assert transaction is True
+            return Transaction(self)
+
+    redis_client = TransactionRedis()
+    receipt = {
+        "receipt_id": "a" * 64,
+        "phantom_position_count": 1,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+
+    keys = paper_loop._write_paper_critical_state_atomically(  # noqa: SLF001
+        redis_client,
+        open_positions=[],
+        accepted_fills=[],
+        quarantined_fills=[{"prediction_id": "pred-q"}],
+        ledger_payload={"open_positions": []},
+        account_margin_status={"used_margin_usd": 0.0},
+        position_fill_reconciliation_status=receipt,
+    )
+
+    assert redis_client.execute_count == 1
+    assert "v2:paper:positions" in keys
+    assert "v2:paper:accepted_fills" in keys
+    assert "v2:paper:ledger" in keys
+    assert "v2:paper:account_margin_status" in keys
+    assert "v2:paper:position_fill_reconciliation:receipts:" + "a" * 64 in keys
 
 
 def _forward_canary_closed_row(symbol: str, side: str, **overrides) -> dict:
