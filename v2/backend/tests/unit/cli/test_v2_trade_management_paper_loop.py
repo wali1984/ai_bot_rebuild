@@ -80,6 +80,28 @@ class _TtlRedis(_FakeRedis):
         return self.ttl_seconds if key in self.payloads else -2
 
 
+def test_authoritative_preemptive_matrix_ordering_never_truncates() -> None:
+    decisions = [
+        {
+            "preemptive_decision_id": f"decision-{index}",
+            "strategy_supply_hypothesis": index in {275, 299},
+        }
+        for index in range(302)
+    ]
+
+    ordered = paper_loop._complete_preemptive_matrix_decisions(decisions)  # noqa: SLF001
+
+    assert len(ordered) == 302
+    assert {row["preemptive_decision_id"] for row in ordered} == {
+        row["preemptive_decision_id"] for row in decisions
+    }
+    assert [row["preemptive_decision_id"] for row in ordered[:2]] == [
+        "decision-275",
+        "decision-299",
+    ]
+    assert decisions[0]["preemptive_decision_id"] == "decision-0"
+
+
 def test_behavior_receipt_archive_root_is_cwd_independent_and_overrideable(
     tmp_path: Path,
     monkeypatch,

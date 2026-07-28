@@ -15,6 +15,7 @@ from v2.backend.app.cli.v2_candidate_outcome_publisher import (
     RUNTIME_STATUS_KEY,
     CandidateOutcomeRuntimeError,
     _acquire_single_writer_lock,
+    _load_feature_snapshots,
     _load_signing_key,
     process_cycle,
     process_maturation,
@@ -23,6 +24,7 @@ from v2.backend.app.services.adaptive_system.candidate_outcome_archive_v2 import
     CandidateOutcomeArchiveV2,
 )
 from v2.backend.app.services.native_trainer.durable_feature_snapshot_archive import (
+    SnapshotArchiveError,
     append_snapshot,
 )
 from v2.backend.tests.unit.services.adaptive_system.test_candidate_outcome_maturer_v2 import (
@@ -83,6 +85,53 @@ def _archive(path: Path) -> CandidateOutcomeArchiveV2:
 def _write_feature_archive(root: Path, snapshots) -> None:
     for snapshot in snapshots.values():
         append_snapshot(snapshot, root=root, update_checksum_manifest=False)
+
+
+def test_feature_snapshot_loader_consumes_verified_sharded_index(
+    tmp_path: Path,
+) -> None:
+    _status, intents, snapshots = _inputs(1)
+    snapshot = snapshots["snapshot-0"]
+    feature_root = tmp_path / "features"
+
+    archived = append_snapshot(
+        snapshot,
+        root=feature_root,
+        update_checksum_manifest=False,
+    )
+    loaded = _load_feature_snapshots(intents, feature_root)
+
+    assert archived.index_path.parent.parent.parent.name == "snapshot_id"
+    assert archived.index_path.parent.parent.name != "snapshot_id"
+    assert loaded == {"snapshot-0": snapshot}
+
+
+@pytest.mark.parametrize("failure_mode", ("missing", "corrupt"))
+def test_feature_snapshot_loader_fails_closed_for_unverified_sharded_snapshot(
+    tmp_path: Path,
+    failure_mode: str,
+) -> None:
+    _status, intents, snapshots = _inputs(1)
+    feature_root = tmp_path / "features"
+    if failure_mode == "missing":
+        with pytest.raises(
+            CandidateOutcomeRuntimeError,
+            match="snapshot-0:missing_from_verified_archive",
+        ):
+            _load_feature_snapshots(intents, feature_root)
+        return
+
+    archived = append_snapshot(
+        snapshots["snapshot-0"],
+        root=feature_root,
+        update_checksum_manifest=False,
+    )
+    corrupt = json.loads(archived.blob_path.read_text(encoding="utf-8"))
+    corrupt["features"]["close"] = 999.0
+    archived.blob_path.write_text(json.dumps(corrupt), encoding="utf-8")
+
+    with pytest.raises(SnapshotArchiveError, match="CONTENT_SHA256_MISMATCH"):
+        _load_feature_snapshots(intents, feature_root)
 
 
 def test_runtime_batch_archives_exact_cycle_and_is_idempotent(tmp_path: Path) -> None:

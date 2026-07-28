@@ -245,6 +245,18 @@ def test_exact_cycle_records_every_candidate_with_unique_decision_identity() -> 
     assert all(row.routes_to_live is False for row in cycle.decision_records)
 
 
+def test_exact_cycle_above_legacy_diagnostic_cap_records_every_candidate() -> None:
+    status, intents, snapshots = _inputs(251)
+
+    cycle = _build(status, intents, snapshots)
+
+    assert cycle.source_candidate_count == 251
+    assert len(cycle.decision_records) == 251
+    assert cycle.candidate_recording_coverage == 1.0
+    assert cycle.unexplained_candidate_drops == 0
+    assert len({row.decision.candidate_id for row in cycle.decision_records}) == 251
+
+
 def test_hold_candidate_predeclares_both_directional_missed_edge_scenarios() -> None:
     status, intents, snapshots = _inputs(1)
     intents[0]["side"] = "HOLD"

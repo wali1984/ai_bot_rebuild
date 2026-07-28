@@ -50701,6 +50701,30 @@ def _paper_signal_integrity_gate(signal: dict, redis_client: Any = None) -> dict
     }
 
 
+def _complete_preemptive_matrix_decisions(
+    decisions: Sequence[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Return the complete decision universe with supply evidence first.
+
+    CandidateDecisionOutcomeV2 consumes this matrix as an authenticated
+    identity cross-check against the finalized intents. Sampling here would
+    make a healthy cycle unpublishable as soon as it exceeded the old operator
+    display limit, so ordering is allowed but truncation is not.
+    """
+
+    supply: list[dict[str, Any]] = []
+    other: list[dict[str, Any]] = []
+    for decision in decisions:
+        target = (
+            supply
+            if decision.get("strategy_supply_hypothesis") is True
+            or decision.get("strategy_supply_hypothesis_id")
+            else other
+        )
+        target.append(decision)
+    return supply + other
+
+
 def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
     behavior_receipt_archive_root = _paper_behavior_receipt_archive_root(
         behavior_receipt_archive_root
@@ -56562,25 +56586,29 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         generated_utc=_utc_iso(),
         adaptive_tuning_state=_adaptive_tuning_state,
     )
-    # Strategy-supply-sourced decisions must stay visible in the 250-row sample
-    # even when the candidate stream exceeds the cap: the matrix is the runtime
-    # proof surface that the inventory bridge consumes strategy supply.
-    _matrix_supply_decisions = []
-    _matrix_other_decisions = []
-    for _matrix_decision in preemptive_decisions:
-        if _matrix_decision.get("strategy_supply_hypothesis") is True or _matrix_decision.get(
-            "strategy_supply_hypothesis_id"
-        ):
-            _matrix_supply_decisions.append(_matrix_decision)
-        else:
-            _matrix_other_decisions.append(_matrix_decision)
-    _matrix_sampled_decisions = (_matrix_supply_decisions + _matrix_other_decisions)[:250]
+    # This matrix is an authoritative candidate-evidence surface consumed by the
+    # CandidateDecisionOutcomeV2 publisher.  It must never be a diagnostic
+    # sample: candidate_count and rows are an exact identity universe.  Keep
+    # strategy-supply rows first for operator readability without truncating any
+    # other typed decision or disposition.
+    _matrix_sampled_decisions = _complete_preemptive_matrix_decisions(
+        preemptive_decisions
+    )
+    _matrix_supply_decisions = [
+        decision
+        for decision in _matrix_sampled_decisions
+        if decision.get("strategy_supply_hypothesis") is True
+        or decision.get("strategy_supply_hypothesis_id")
+    ]
     preemptive_candidate_decision_matrix = {
         "schema_version": "preemptive_candidate_decision_matrix_v1",
         "generated_utc": _utc_iso(),
         "candidate_count": len(preemptive_decisions),
         "strategy_supply_sourced_count": len(_matrix_supply_decisions),
-        "sample_limit": 250,
+        "sample_limit": len(preemptive_decisions),
+        "sampling_applied": False,
+        "matrix_complete": True,
+        "row_count": len(_matrix_sampled_decisions),
         "rows": [
             {
                 key: decision.get(key)
