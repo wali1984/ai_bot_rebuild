@@ -109,3 +109,7 @@ def test_snapshot_reports_duplicates_and_reservation_leaks() -> None:
     assert snapshot["duplicate_close_count"] == 1
     assert snapshot["reservation_leak_count"] == 1
 
+
+def test_cycle_observation_timeout_covers_long_production_cycles() -> None:
+    assert harness._cycle_observation_timeout(3.0) == 360.0
+    assert harness._cycle_observation_timeout(65.0) == 390.0

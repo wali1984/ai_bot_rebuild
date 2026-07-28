@@ -43,9 +43,19 @@ CRED_FILES = [
     Path.home() / ".config/ai-bot-v2/credentials/adaptive-hard-validator/seed.cred",
 ]
 
+# Production paper cycles currently include the full eligible-universe matrix and
+# can take several minutes before the configured inter-cycle sleep begins.  Keep
+# this evidence observer comfortably above that measured cycle duration; a
+# 90-second deadline incorrectly classified an active, CPU-bound worker as stale.
+MIN_CYCLE_OBSERVATION_TIMEOUT_SECONDS = 360.0
+
 
 def _r() -> redis.Redis:
     return redis.Redis(decode_responses=True)
+
+
+def _cycle_observation_timeout(interval_s: float) -> float:
+    return max(MIN_CYCLE_OBSERVATION_TIMEOUT_SECONDS, interval_s * 6.0)
 
 
 def _gj(r, key):
@@ -343,7 +353,7 @@ def observe(cycles: int, interval_s: float) -> int:
     baseline_wipes = None
     previous_cycle = None
     for i in range(cycles):
-        deadline = time.monotonic() + max(90.0, interval_s * 3.0)
+        deadline = time.monotonic() + _cycle_observation_timeout(interval_s)
         while True:
             snap = snapshot(r)
             cycle_id = snap.get("cycle_generated_utc")
