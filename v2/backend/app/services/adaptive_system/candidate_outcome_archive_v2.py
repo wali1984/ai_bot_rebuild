@@ -259,6 +259,9 @@ class ArchiveMaturationBatchV2:
 @dataclass(frozen=True, slots=True)
 class _MaturationIndexEntry:
     archive_sequence: int
+    archive_record_id: str
+    record_content_sha256: str
+    decision_snapshot_sha256: str
     decision_time_ms: int
     supported_horizon_seconds: tuple[int, ...]
     decision_disposition: str
@@ -552,6 +555,9 @@ class CandidateOutcomeArchiveV2:
                     )
                 maturation_index_out[row["candidate_id"]] = _MaturationIndexEntry(
                     archive_sequence=row["archive_sequence"],
+                    archive_record_id=row["archive_record_id"],
+                    record_content_sha256=row["record_content_sha256"],
+                    decision_snapshot_sha256=row["decision_snapshot_sha256"],
                     decision_time_ms=decision_time_ms,
                     supported_horizon_seconds=tuple(supported_horizons),
                     decision_disposition=disposition,
@@ -752,6 +758,39 @@ class CandidateOutcomeArchiveV2:
             ]
             if {row["candidate_id"] for row in selected_rows} != selected_ids:
                 _raise("selected_candidate_set_mismatch", "maturation_batch")
+            for row in selected_rows:
+                candidate_id = row["candidate_id"]
+                authenticated = maturation_index[candidate_id]
+                if (
+                    row.get("archive_record_id") != authenticated.archive_record_id
+                    or row.get("archive_sequence") != authenticated.archive_sequence
+                    or row.get("record_content_sha256")
+                    != authenticated.record_content_sha256
+                    or row.get("decision_snapshot_sha256")
+                    != authenticated.decision_snapshot_sha256
+                ):
+                    _raise(
+                        "selected_row_identity_mismatch",
+                        f"maturation_batch[{candidate_id}]",
+                    )
+                record = row.get("record")
+                if type(record) is not dict or _sha256(record) != (
+                    authenticated.record_content_sha256
+                ):
+                    _raise(
+                        "selected_record_content_hash_mismatch",
+                        f"maturation_batch[{candidate_id}]",
+                    )
+                decision = record.get("decision")
+                if (
+                    type(decision) is not dict
+                    or decision.get("candidate_id") != candidate_id
+                    or _sha256(decision) != authenticated.decision_snapshot_sha256
+                ):
+                    _raise(
+                        "selected_decision_snapshot_mismatch",
+                        f"maturation_batch[{candidate_id}]",
+                    )
             try:
                 records_by_id = {
                     row["candidate_id"]: candidate_decision_outcome_from_dict(

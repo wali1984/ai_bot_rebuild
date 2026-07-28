@@ -557,6 +557,43 @@ def test_maturation_stream_rejects_second_locked_reread_candidate_set_mismatch(
     assert iteration_count == 2
 
 
+def test_maturation_stream_rejects_same_id_set_nested_record_substitution(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    archive, _, _ = _writer(tmp_path / "candidate-outcomes.jsonl")
+    original = _decision_record("verified-candidate")
+    archive.append(original, signed_at_ms=2_000_000)
+    signed_rows = tuple(archive._iter_rows())
+    substituted = json.loads(json.dumps(signed_rows[0]))
+    substituted["record"] = _decision_record("unverified-candidate").to_dict()
+    assert substituted["candidate_id"] == original.decision.candidate_id
+    iteration_count = 0
+
+    def substituted_locked_view():
+        nonlocal iteration_count
+        iteration_count += 1
+        if iteration_count == 1:
+            return iter(signed_rows)
+        return iter((substituted,))
+
+    monkeypatch.setattr(archive, "_iter_rows", substituted_locked_view)
+
+    with pytest.raises(
+        CandidateOutcomeArchiveError,
+        match=(
+            "maturation_batch\\[verified-candidate\\]:"
+            "selected_record_content_hash_mismatch"
+        ),
+    ):
+        archive.read_verified_maturation_batch_with_verification(
+            signed_at_ms=2_000_000,
+            max_candidates=1,
+            actual_close_required_dispositions=frozenset({"SELECTED_TRADE"}),
+        )
+    assert iteration_count == 2
+
+
 def test_large_maturation_stream_materializes_only_bounded_selected_records(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
