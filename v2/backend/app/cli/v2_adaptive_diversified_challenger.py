@@ -299,6 +299,7 @@ def _validated_rows(
                 f"dataset.rows[{index}].hedge.hedged_scenario",
             )
             directional = raw.get("directional_label_derivation")
+            row_receipts = raw.get("source_receipt_sha256s")
             proposed_action = hedge.get("proposed_action")
             selected_unhedged_net = (
                 long_net
@@ -376,6 +377,17 @@ def _validated_rows(
                 != unhedged_scenario.record_available_at_ms
                 or hedged_scenario.source_receipt_sha256s
                 != unhedged_scenario.source_receipt_sha256s
+                or type(row_receipts) is not list
+                or not set(unhedged_scenario.source_receipt_sha256s).issubset(
+                    row_receipts
+                )
+                or not (
+                    int(decision_time.timestamp() * 1_000)
+                    < unhedged_scenario.source_event_time_ms
+                    <= unhedged_scenario.producer_generated_at_ms
+                    <= unhedged_scenario.record_available_at_ms
+                    <= int(label_available_at.timestamp() * 1_000)
+                )
                 or hedged_scenario.action_sha256 == unhedged_scenario.action_sha256
                 or not math.isclose(
                     advantage,

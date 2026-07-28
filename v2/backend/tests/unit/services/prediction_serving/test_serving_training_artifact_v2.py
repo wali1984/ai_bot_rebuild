@@ -755,6 +755,9 @@ def test_historical_candidate_row_without_hedge_binding_remains_loadable(
         "scenario_identity",
         "unhedged_directional_identity",
         "coherent_pnl_shift",
+        "receipt_substitution",
+        "predecision_clocks",
+        "post_label_clocks",
         "cross_sectional_claim",
         "accounting_claim",
     ),
@@ -765,6 +768,7 @@ def test_coherently_rehashed_hedge_semantic_forgery_is_rejected(
 ) -> None:
     row = _candidate_row(artifacts)
     hedge = row["hedge_label_derivation"]
+    nested_scenario_changed = False
     if mutation == "contract":
         hedge["hedge_contract"] = "UNDECLARED_DYNAMIC_HEDGE"
     elif mutation == "advantage":
@@ -788,10 +792,40 @@ def test_coherently_rehashed_hedge_semantic_forgery_is_rejected(
         hedge["hedged_after_cost_positive"] = (
             hedge["hedged_after_cost_pnl_bps"] > 0.0
         )
+    elif mutation == "receipt_substitution":
+        for scenario_name in ("unhedged_scenario", "hedged_scenario"):
+            hedge[scenario_name]["source_receipt_sha256s"] = ["d" * 64]
+        nested_scenario_changed = True
+    elif mutation in {"predecision_clocks", "post_label_clocks"}:
+        clock = datetime.fromisoformat(
+            row[
+                "decision_time"
+                if mutation == "predecision_clocks"
+                else "label_available_at"
+            ].replace("Z", "+00:00")
+        )
+        base_ms = int(clock.timestamp() * 1_000)
+        offsets = (-3, -2, -1) if mutation == "predecision_clocks" else (1, 2, 3)
+        for scenario_name in ("unhedged_scenario", "hedged_scenario"):
+            scenario = hedge[scenario_name]
+            scenario["source_event_time_ms"] = base_ms + offsets[0]
+            scenario["producer_generated_at_ms"] = base_ms + offsets[1]
+            scenario["record_available_at_ms"] = base_ms + offsets[2]
+        nested_scenario_changed = True
     elif mutation == "cross_sectional_claim":
         hedge["cross_sectional_relative_value_label_present"] = True
     else:
         hedge["actual_accounting_effect"] = True
+    if nested_scenario_changed:
+        hedge["unhedged_scenario_sha256"] = canonical_sha256(
+            hedge["unhedged_scenario"]
+        )
+        hedge["hedged_scenario_sha256"] = canonical_sha256(
+            hedge["hedged_scenario"]
+        )
+        row["directional_label_derivation"]["unhedged_scenario_sha256s"] = [
+            hedge["unhedged_scenario_sha256"]
+        ]
     _rehash_candidate_lineage(row)
     artifacts.write(repin_receipt=True)
 

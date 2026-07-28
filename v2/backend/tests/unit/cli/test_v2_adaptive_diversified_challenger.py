@@ -84,6 +84,12 @@ def _with_hedge_labels(dataset: dict | None = None) -> dict:
     result = deepcopy(dataset or _dataset())
     for index, row in enumerate(result["rows"]):
         unhedged = float(row["long_net_bps"])
+        decision_ms = int(
+            datetime.fromisoformat(
+                row["decision_time"].replace("Z", "+00:00")
+            ).timestamp()
+            * 1_000
+        )
         unhedged_scenario = {
             "schema_version": "CounterfactualScenarioV2",
             "scenario_id": f"unhedged-{index:04d}",
@@ -95,9 +101,9 @@ def _with_hedge_labels(dataset: dict | None = None) -> dict:
             "funding_bps": 0.1,
             "market_impact_bps": 0.25,
             "after_cost_pnl_bps": unhedged,
-            "source_event_time_ms": 1_000,
-            "producer_generated_at_ms": 1_001,
-            "record_available_at_ms": 1_002,
+            "source_event_time_ms": decision_ms + 1,
+            "producer_generated_at_ms": decision_ms + 2,
+            "record_available_at_ms": decision_ms + 3,
             "source_receipt_sha256s": ["c" * 64],
             "finality_proven": True,
             "counts_as_paper_profit": False,
@@ -149,6 +155,7 @@ def _with_hedge_labels(dataset: dict | None = None) -> dict:
             "proposed_action": "LONG",
             "unhedged_scenario_sha256s": [unhedged_sha],
         }
+        row["source_receipt_sha256s"] = ["c" * 64]
         row["hedge_label_derivation"] = material
     return result
 
@@ -303,10 +310,47 @@ def test_legacy_dataset_without_hedge_labels_is_truthfully_ineligible() -> None:
     ]
 
 
-def test_coherently_rehashed_invalid_hedge_semantics_fail_closed() -> None:
+@pytest.mark.parametrize(
+    "mutation",
+    ("advantage", "receipt_substitution", "predecision", "post_label"),
+)
+def test_coherently_rehashed_invalid_hedge_semantics_fail_closed(
+    mutation: str,
+) -> None:
     dataset = _with_hedge_labels()
-    hedge = dataset["rows"][0]["hedge_label_derivation"]
-    hedge["hedge_advantage_bps"] += 1.0
+    row = dataset["rows"][0]
+    hedge = row["hedge_label_derivation"]
+    nested_changed = False
+    if mutation == "advantage":
+        hedge["hedge_advantage_bps"] += 1.0
+    elif mutation == "receipt_substitution":
+        for scenario_name in ("unhedged_scenario", "hedged_scenario"):
+            hedge[scenario_name]["source_receipt_sha256s"] = ["d" * 64]
+        nested_changed = True
+    else:
+        boundary = datetime.fromisoformat(
+            row[
+                "decision_time" if mutation == "predecision" else "label_available_at"
+            ].replace("Z", "+00:00")
+        )
+        base_ms = int(boundary.timestamp() * 1_000)
+        offsets = (-3, -2, -1) if mutation == "predecision" else (1, 2, 3)
+        for scenario_name in ("unhedged_scenario", "hedged_scenario"):
+            scenario = hedge[scenario_name]
+            scenario["source_event_time_ms"] = base_ms + offsets[0]
+            scenario["producer_generated_at_ms"] = base_ms + offsets[1]
+            scenario["record_available_at_ms"] = base_ms + offsets[2]
+        nested_changed = True
+    if nested_changed:
+        hedge["unhedged_scenario_sha256"] = worker._sha256(  # noqa: SLF001
+            worker._canonical_bytes(hedge["unhedged_scenario"])  # noqa: SLF001
+        )
+        hedge["hedged_scenario_sha256"] = worker._sha256(  # noqa: SLF001
+            worker._canonical_bytes(hedge["hedged_scenario"])  # noqa: SLF001
+        )
+        row["directional_label_derivation"]["unhedged_scenario_sha256s"] = [
+            hedge["unhedged_scenario_sha256"]
+        ]
     material = {
         key: value for key, value in hedge.items() if key != "derivation_sha256"
     }

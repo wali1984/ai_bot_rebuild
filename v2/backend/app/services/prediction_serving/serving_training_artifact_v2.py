@@ -870,6 +870,16 @@ def _validate_row(
                 != unhedged_scenario.record_available_at_ms
                 or hedged_scenario.source_receipt_sha256s
                 != unhedged_scenario.source_receipt_sha256s
+                or not set(unhedged_scenario.source_receipt_sha256s).issubset(
+                    receipts
+                )
+                or not (
+                    decision_ms
+                    < unhedged_scenario.source_event_time_ms
+                    <= unhedged_scenario.producer_generated_at_ms
+                    <= unhedged_scenario.record_available_at_ms
+                    <= int(label.timestamp() * 1_000)
+                )
                 or hedged_scenario.action_sha256 == unhedged_scenario.action_sha256
                 or not math.isclose(
                     advantage,
