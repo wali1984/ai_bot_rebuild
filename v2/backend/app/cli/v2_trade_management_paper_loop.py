@@ -310,6 +310,12 @@ PAPER_POSITION_FILL_RECONCILIATION_STATUS_REDIS_KEY = (
 PAPER_POSITION_FILL_RECONCILIATION_RECEIPT_REDIS_PREFIX = (
     f"{V2_REDIS_PREFIX}paper:position_fill_reconciliation:receipts:"
 )
+PAPER_UNPROVED_CLOSE_QUARANTINE_REDIS_KEY = (
+    f"{V2_REDIS_PREFIX}paper:closed_trades:unproved_fill_quarantine"
+)
+PAPER_UNPROVED_CLOSE_QUARANTINE_PATH = (
+    TRADE_MANAGEMENT_PUBLIC_DIR / "paper_unproved_close_quarantine.json"
+)
 PAPER_MAINTENANCE_BRACKET_SECURITY_STATUS_PATH = (
     TRADE_MANAGEMENT_PUBLIC_DIR / "paper_maintenance_bracket_security_status.json"
 )
@@ -3775,6 +3781,11 @@ def _write_paper_critical_state_atomically(
     open_positions: list[dict[str, Any]],
     accepted_fills: list[dict[str, Any]],
     quarantined_fills: list[dict[str, Any]],
+    closed_trades: list[dict[str, Any]],
+    unproved_close_quarantine: list[dict[str, Any]],
+    outcome_labels: list[dict[str, Any]],
+    trainer_feedback: list[dict[str, Any]],
+    trainer_feedback_quarantine: list[dict[str, Any]],
     ledger_payload: Mapping[str, Any],
     account_margin_status: Mapping[str, Any],
     position_fill_reconciliation_status: Mapping[str, Any],
@@ -3806,6 +3817,31 @@ def _write_paper_critical_state_atomically(
             training_ttl,
         ),
         (
+            f"{V2_REDIS_PREFIX}paper:closed_trades",
+            json.dumps(closed_trades, default=str),
+            training_ttl,
+        ),
+        (
+            PAPER_UNPROVED_CLOSE_QUARANTINE_REDIS_KEY,
+            json.dumps(unproved_close_quarantine, default=str),
+            training_ttl,
+        ),
+        (
+            f"{V2_REDIS_PREFIX}paper:outcome_labels",
+            json.dumps(outcome_labels, default=str),
+            training_ttl,
+        ),
+        (
+            f"{V2_REDIS_PREFIX}trainer:feedback:outcomes",
+            json.dumps(trainer_feedback, default=str),
+            training_ttl,
+        ),
+        (
+            f"{V2_REDIS_PREFIX}trainer:feedback:outcomes:quarantine",
+            json.dumps(trainer_feedback_quarantine, default=str),
+            training_ttl,
+        ),
+        (
             f"{V2_REDIS_PREFIX}paper:ledger",
             json.dumps(dict(ledger_payload), default=str),
             training_ttl,
@@ -3823,7 +3859,12 @@ def _write_paper_critical_state_atomically(
     ]
     receipt_id = str(position_fill_reconciliation_status.get("receipt_id") or "")
     if (
-        int(position_fill_reconciliation_status.get("phantom_position_count") or 0) > 0
+        int(position_fill_reconciliation_status.get("phantom_position_count") or 0)
+        + int(
+            position_fill_reconciliation_status.get("unproved_close_quarantine_count")
+            or 0
+        )
+        > 0
         and _paper_valid_sha256(receipt_id)
     ):
         writes.append(
@@ -33104,7 +33145,11 @@ def _append_paper_position_fill_reconciliation_receipt(
 ) -> bool:
     """Append one immutable repair receipt, deduplicated by receipt_id."""
 
-    if int(receipt.get("phantom_position_count") or 0) <= 0:
+    if (
+        int(receipt.get("phantom_position_count") or 0)
+        + int(receipt.get("unproved_close_quarantine_count") or 0)
+        <= 0
+    ):
         return False
     receipt_id = str(receipt.get("receipt_id") or "")
     if not _paper_valid_sha256(receipt_id):
@@ -33127,6 +33172,120 @@ def _append_paper_position_fill_reconciliation_receipt(
     finally:
         os.close(descriptor)
     return True
+
+
+def _paper_split_unproved_adaptive_policy_closes(
+    rows: Sequence[Mapping[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Quarantine adaptive-policy closes whose entry was never durably sealed.
+
+    Legacy cohorts predate the v3 final-admission seal and are not relabelled
+    here.  The adaptive-policy-v2 authority was launched with that seal as a
+    mandatory contract, so a close in this cohort without a valid persisted
+    contract is proof of a phantom lifecycle, not realized paper economics.
+    """
+
+    valid: list[dict[str, Any]] = []
+    quarantined: list[dict[str, Any]] = []
+    for raw_row in rows:
+        row = dict(raw_row)
+        adaptive_v2 = bool(
+            str(row.get("paper_opportunity_tier") or "").upper()
+            == "ADAPTIVE_POLICY_V2"
+            or row.get("paper_fill_allowed_source")
+            == "ADAPTIVE_POLICY_V2_HARD_VALIDATED_EXACT_ACTION"
+        )
+        if not adaptive_v2:
+            valid.append(row)
+            continue
+        reasons = _paper_persisted_admission_rejection_reasons(row)
+        if not reasons:
+            valid.append(row)
+            continue
+        quarantine_reasons = sorted(
+            {
+                "UNPROVED_ADAPTIVE_POLICY_CLOSE_ENTRY_FILL",
+                *("ENTRY_FILL_" + reason for reason in reasons),
+            }
+        )
+        quarantined.append(
+            {
+                **row,
+                "unproved_fill_close_quarantined": True,
+                "unproved_fill_close_quarantine_reasons": quarantine_reasons,
+                "trainer_consumable": False,
+                "counts_as_realized_paper_profit": False,
+                "counts_as_economic_evidence": False,
+                "economic_evidence_eligible": False,
+                "paper_only": True,
+                "routes_to_live": False,
+                "places_real_order": False,
+                "exchange_action_taken": False,
+                "quarantine_payload_sha256": _paper_canonical_sha256(row),
+            }
+        )
+    return valid, quarantined
+
+
+def _paper_merge_close_quarantine_rows(
+    existing: Sequence[Mapping[str, Any]],
+    current: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    merged: dict[str, dict[str, Any]] = {}
+    for row in [*existing, *current]:
+        identity = str(
+            _first_present(
+                row.get("close_id"),
+                row.get("paper_close_id"),
+                row.get("outcome_label_id"),
+                row.get("position_id"),
+                _paper_canonical_sha256(row),
+            )
+        )
+        merged[identity] = dict(row)
+    return list(merged.values())
+
+
+def _paper_reconciliation_with_unproved_closes(
+    receipt: Mapping[str, Any],
+    quarantined_closes: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    if not quarantined_closes:
+        return dict(receipt)
+    close_projections = [
+        {
+            "close_id": row.get("close_id"),
+            "position_id": row.get("position_id"),
+            "prediction_id": row.get("prediction_id"),
+            "symbol": row.get("symbol"),
+            "side": row.get("side"),
+            "close_event_time": row.get("close_event_time"),
+            "realized_net_pnl_usd": row.get("realized_net_pnl_usd"),
+            "quarantine_payload_sha256": row.get("quarantine_payload_sha256"),
+            "reasons": row.get("unproved_fill_close_quarantine_reasons"),
+        }
+        for row in quarantined_closes
+    ]
+    material = {
+        key: value
+        for key, value in receipt.items()
+        if key not in {"receipt_id", "receipt_sha256", "status"}
+    }
+    material.update(
+        {
+            "status": "REPAIRED",
+            "unproved_close_quarantine_count": len(close_projections),
+            "unproved_close_quarantine_rows": close_projections,
+            "economic_evidence_removed_count": len(close_projections),
+            "historical_rows_deleted": False,
+        }
+    )
+    receipt_id = _paper_canonical_sha256(material)
+    receipt_material = {**material, "receipt_id": receipt_id}
+    return {
+        **receipt_material,
+        "receipt_sha256": _paper_canonical_sha256(receipt_material),
+    }
 
 
 def _paper_nonunderstating_decimal_float(value: Decimal) -> float:
@@ -45250,6 +45409,14 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         )
         if isinstance(row, Mapping)
     ]
+    existing_unproved_close_quarantine_rows = [
+        dict(row)
+        for row in _read_json_list_redis_key_if_small(
+            r,
+            PAPER_UNPROVED_CLOSE_QUARANTINE_REDIS_KEY,
+        )
+        if isinstance(row, Mapping)
+    ]
     existing_ledger = _read_existing_ledger_payload(r)
     existing_ledger = _paper_ledger_with_exact_safety_sources(
         existing_ledger,
@@ -45264,6 +45431,50 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         accepted_fill_proof_source,
         generated_utc=_utc_iso(),
     )
+    (
+        proof_backed_existing_closed_rows,
+        newly_quarantined_unproved_close_rows,
+    ) = _paper_split_unproved_adaptive_policy_closes(
+        _closed_trade_rows(existing_ledger)
+    )
+    unproved_close_quarantine_rows = _paper_merge_close_quarantine_rows(
+        existing_unproved_close_quarantine_rows,
+        newly_quarantined_unproved_close_rows,
+    )
+    if newly_quarantined_unproved_close_rows:
+        existing_ledger["closed_trades"] = proof_backed_existing_closed_rows
+        existing_ledger["closes"] = proof_backed_existing_closed_rows
+        existing_ledger["closed_trade_count"] = len(proof_backed_existing_closed_rows)
+        unproved_aliases: set[str] = set()
+        for quarantine_row in newly_quarantined_unproved_close_rows:
+            unproved_aliases.update(_paper_fill_proof_aliases(quarantine_row))
+            for field in ("close_id", "outcome_label_id", "position_id"):
+                value = quarantine_row.get(field)
+                if value not in (None, ""):
+                    unproved_aliases.add(str(value))
+        existing_outcome_labels = existing_ledger.get("outcome_labels")
+        if isinstance(existing_outcome_labels, list):
+            existing_ledger["outcome_labels"] = [
+                row
+                for row in existing_outcome_labels
+                if isinstance(row, Mapping)
+                and not (
+                    _paper_fill_proof_aliases(row).intersection(unproved_aliases)
+                    or any(
+                        str(row.get(field) or "") in unproved_aliases
+                        for field in ("close_id", "outcome_label_id", "position_id")
+                    )
+                )
+            ]
+            existing_ledger["outcome_label_count"] = len(
+                existing_ledger["outcome_labels"]
+            )
+        paper_position_fill_reconciliation_status = (
+            _paper_reconciliation_with_unproved_closes(
+                paper_position_fill_reconciliation_status,
+                newly_quarantined_unproved_close_rows,
+            )
+        )
     adaptive_policy_cycle_context: dict[str, Any] = {
         "status": "BLOCKED",
         "rejection_reasons": [],
@@ -52682,6 +52893,7 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             "accepted_position_count": len(open_positions),
             "open_position_count": len(open_positions),
             "closed_trade_count": len(closes),
+            "unproved_close_quarantine_count": len(unproved_close_quarantine_rows),
             "outcome_label_count": len(outcome_labels),
             "trainer_feedback_total_row_count": len(trainer_feedback_rows),
             "trainer_feedback_row_count": len(trainer_feedback_consumable_rows),
@@ -52908,19 +53120,12 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             json.dumps({**closed_trades_shrink_guard_status, "generated_utc": _utc_iso()}),
             ex=7 * 86400,
         )
-        if _safe_write(
-            r,
-            f"{V2_REDIS_PREFIX}paper:closed_trades",
-            json.dumps(closes),
-            ex=PAPER_TRAINING_EVIDENCE_TTL_SECONDS,
-        ):
-            keys_written.append(f"{V2_REDIS_PREFIX}paper:closed_trades")
         # 2026-07-16: outcome-memory buckets are the designed adaptive
         # per-bucket win-rate feedback into sizing/entry gating, but the
         # updater was never invoked from the close path (zero
         # v2:paper:outcome_memory:* keys at runtime). Rebuild from the freshly
         # written closed trades whenever this cycle produced new closes.
-        if lifecycle_result.get("new_close_events"):
+        if lifecycle_result.get("new_close_events") or newly_quarantined_unproved_close_rows:
             try:
                 _om_summary = rebuild_outcome_memory_from_closed_trades(
                     closed_trade_rows=[row for row in closes if isinstance(row, dict)],
@@ -52941,6 +53146,11 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                 open_positions=open_positions,
                 accepted_fills=accepted_state_rows,
                 quarantined_fills=invalid_admission_accepted_quarantine_state_rows,
+                closed_trades=closes,
+                unproved_close_quarantine=unproved_close_quarantine_rows,
+                outcome_labels=outcome_labels,
+                trainer_feedback=trainer_feedback_consumable_rows,
+                trainer_feedback_quarantine=trainer_feedback_quarantine_rows,
                 ledger_payload=ledger_payload,
                 account_margin_status=paper_account_margin_status,
                 position_fill_reconciliation_status=(
@@ -52951,27 +53161,6 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         _append_paper_position_fill_reconciliation_receipt(
             paper_position_fill_reconciliation_status
         )
-        if _safe_write(
-            r,
-            f"{V2_REDIS_PREFIX}paper:outcome_labels",
-            json.dumps(outcome_labels),
-            ex=PAPER_TRAINING_EVIDENCE_TTL_SECONDS,
-        ):
-            keys_written.append(f"{V2_REDIS_PREFIX}paper:outcome_labels")
-        if _safe_write(
-            r,
-            f"{V2_REDIS_PREFIX}trainer:feedback:outcomes",
-            json.dumps(trainer_feedback_consumable_rows),
-            ex=PAPER_TRAINING_EVIDENCE_TTL_SECONDS,
-        ):
-            keys_written.append(f"{V2_REDIS_PREFIX}trainer:feedback:outcomes")
-        if _safe_write(
-            r,
-            f"{V2_REDIS_PREFIX}trainer:feedback:outcomes:quarantine",
-            json.dumps(trainer_feedback_quarantine_rows),
-            ex=PAPER_TRAINING_EVIDENCE_TTL_SECONDS,
-        ):
-            keys_written.append(f"{V2_REDIS_PREFIX}trainer:feedback:outcomes:quarantine")
         side_performance_status = build_side_performance(
             trainer_feedback_consumable_rows,
             paper_session_id=paper_session_id,
@@ -52998,6 +53187,9 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                         "accepted_position_count": len(open_positions),
                         "open_position_count": len(open_positions),
                         "closed_trade_count": len(closes),
+                        "unproved_close_quarantine_count": len(
+                            unproved_close_quarantine_rows
+                        ),
                         "outcome_label_count": len(outcome_labels),
                         "persistent_accepted_fill_count": len(valid_accepted_for_ledger),
                         "persistent_accepted_fill_count_raw_before_invalid_admission_filter": len(
@@ -53490,6 +53682,7 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         "accepted_position_count": len(lifecycle_result["open_positions"]),
         "open_position_count": len(lifecycle_result["open_positions"]),
         "closed_trade_count": len(lifecycle_result["closed_trades"]),
+        "unproved_close_quarantine_count": len(unproved_close_quarantine_rows),
         "outcome_label_count": len(lifecycle_result["outcome_labels"]),
         "trainer_feedback_total_row_count": len(trainer_feedback_rows) if r is not None else 0,
         "trainer_feedback_row_count": len(trainer_feedback_consumable_rows) if r is not None else 0,
@@ -53832,6 +54025,7 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                 ),
                 "open_position_count": len(open_positions),
                 "closed_trade_count": len(closes),
+                "unproved_close_quarantine_count": len(unproved_close_quarantine_rows),
                 "outcome_label_count": len(outcome_labels),
                 "paper_account_margin_status": paper_account_margin_status,
                 "paper_position_fill_reconciliation_status": (
@@ -53922,6 +54116,21 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         write_payload(
             paper_position_fill_reconciliation_status,
             PAPER_POSITION_FILL_RECONCILIATION_STATUS_PATH,
+        )
+        write_payload(
+            {
+                "schema_version": "paper_unproved_close_quarantine_v1",
+                "generated_utc": _utc_iso(),
+                "quarantined_count": len(unproved_close_quarantine_rows),
+                "rows": unproved_close_quarantine_rows,
+                "counts_as_realized_paper_profit": False,
+                "counts_as_economic_evidence": False,
+                "paper_only": True,
+                "routes_to_live": False,
+                "places_real_order": False,
+                "exchange_action_taken": False,
+            },
+            PAPER_UNPROVED_CLOSE_QUARANTINE_PATH,
         )
         write_payload(
             paper_maintenance_bracket_security_status,

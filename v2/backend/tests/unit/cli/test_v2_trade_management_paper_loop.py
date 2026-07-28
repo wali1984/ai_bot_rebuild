@@ -17897,6 +17897,94 @@ def test_position_fill_repair_receipt_archive_is_idempotent(tmp_path: Path) -> N
     assert rows[0]["receipt_id"] == receipt["receipt_id"]
 
 
+def test_unproved_adaptive_policy_close_is_quarantined_not_economic() -> None:
+    valid, quarantined = paper_loop._paper_split_unproved_adaptive_policy_closes(  # noqa: SLF001
+        [
+            {
+                "close_id": "paper-close-aave",
+                "position_id": "paper-pos-aave",
+                "prediction_id": "pred-aave",
+                "symbol": "AAVEUSDT",
+                "side": "short",
+                "paper_opportunity_tier": "ADAPTIVE_POLICY_V2",
+                "paper_fill_allowed_source": (
+                    "ADAPTIVE_POLICY_V2_HARD_VALIDATED_EXACT_ACTION"
+                ),
+                "realized_net_pnl_usd": -0.05,
+                "paper_only": True,
+                "routes_to_live": False,
+                "places_real_order": False,
+            }
+        ]
+    )
+
+    assert valid == []
+    assert len(quarantined) == 1
+    assert quarantined[0]["unproved_fill_close_quarantined"] is True
+    assert "UNPROVED_ADAPTIVE_POLICY_CLOSE_ENTRY_FILL" in quarantined[0][
+        "unproved_fill_close_quarantine_reasons"
+    ]
+    assert quarantined[0]["trainer_consumable"] is False
+    assert quarantined[0]["counts_as_realized_paper_profit"] is False
+    assert quarantined[0]["counts_as_economic_evidence"] is False
+
+
+def test_unproved_close_quarantine_does_not_relabel_legacy_cohorts() -> None:
+    legacy = {
+        "close_id": "legacy-close",
+        "position_id": "legacy-position",
+        "prediction_id": "legacy-prediction",
+        "symbol": "BTCUSDT",
+        "side": "long",
+        "paper_opportunity_tier": "B_GRADE_EXPLORATION_PAPER",
+    }
+
+    valid, quarantined = paper_loop._paper_split_unproved_adaptive_policy_closes(  # noqa: SLF001
+        [legacy]
+    )
+
+    assert valid == [legacy]
+    assert quarantined == []
+
+
+def test_unproved_close_is_bound_into_immutable_reconciliation_receipt(tmp_path: Path) -> None:
+    proof_source = paper_loop._paper_accepted_fill_proof_source(  # noqa: SLF001
+        _FakeRedis({"v2:paper:accepted_fills": []})
+    )
+    _, base_receipt = paper_loop._paper_reconcile_ledger_to_accepted_fill_proofs(  # noqa: SLF001
+        {"open_positions": []},
+        proof_source,
+        generated_utc="2026-07-28T01:00:00Z",
+    )
+    quarantined_close = {
+        "close_id": "paper-close-aave",
+        "position_id": "paper-pos-aave",
+        "prediction_id": "pred-aave",
+        "symbol": "AAVEUSDT",
+        "side": "short",
+        "realized_net_pnl_usd": -0.05,
+        "unproved_fill_close_quarantine_reasons": [
+            "UNPROVED_ADAPTIVE_POLICY_CLOSE_ENTRY_FILL"
+        ],
+        "quarantine_payload_sha256": "b" * 64,
+    }
+
+    receipt = paper_loop._paper_reconciliation_with_unproved_closes(  # noqa: SLF001
+        base_receipt,
+        [quarantined_close],
+    )
+    written = paper_loop._append_paper_position_fill_reconciliation_receipt(  # noqa: SLF001
+        receipt,
+        path=tmp_path / "receipts.jsonl",
+    )
+
+    assert receipt["status"] == "REPAIRED"
+    assert receipt["unproved_close_quarantine_count"] == 1
+    assert receipt["economic_evidence_removed_count"] == 1
+    assert receipt["historical_rows_deleted"] is False
+    assert written is True
+
+
 def test_quarantined_fill_compaction_preserves_nonempty_exact_reasons() -> None:
     quarantined = paper_loop._paper_quarantine_row_with_exact_reasons(  # noqa: SLF001
         {
@@ -17955,6 +18043,11 @@ def test_critical_paper_state_uses_one_redis_transaction() -> None:
         open_positions=[],
         accepted_fills=[],
         quarantined_fills=[{"prediction_id": "pred-q"}],
+        closed_trades=[],
+        unproved_close_quarantine=[],
+        outcome_labels=[],
+        trainer_feedback=[],
+        trainer_feedback_quarantine=[],
         ledger_payload={"open_positions": []},
         account_margin_status={"used_margin_usd": 0.0},
         position_fill_reconciliation_status=receipt,
@@ -17963,6 +18056,10 @@ def test_critical_paper_state_uses_one_redis_transaction() -> None:
     assert redis_client.execute_count == 1
     assert "v2:paper:positions" in keys
     assert "v2:paper:accepted_fills" in keys
+    assert "v2:paper:closed_trades" in keys
+    assert "v2:paper:closed_trades:unproved_fill_quarantine" in keys
+    assert "v2:paper:outcome_labels" in keys
+    assert "v2:trainer:feedback:outcomes" in keys
     assert "v2:paper:ledger" in keys
     assert "v2:paper:account_margin_status" in keys
     assert "v2:paper:position_fill_reconciliation:receipts:" + "a" * 64 in keys
