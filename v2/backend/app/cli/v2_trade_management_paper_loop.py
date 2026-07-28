@@ -2746,7 +2746,11 @@ def _invalid_admission_source_ids(rows: list[dict[str, Any]]) -> set[str]:
     for row in rows:
         if not isinstance(row, dict):
             continue
-        if _non_relaxable_entry_gate_reasons(row):
+        if (
+            row.get("accepted_fill_quarantined") is True
+            or _non_relaxable_entry_gate_reasons(row)
+            or _paper_persisted_admission_rejection_reasons(row)
+        ):
             ids.update(_paper_row_lineage_ids(row))
     return ids
 

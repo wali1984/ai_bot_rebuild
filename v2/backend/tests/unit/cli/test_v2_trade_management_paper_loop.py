@@ -19687,6 +19687,50 @@ def test_invalid_admission_open_position_is_quarantined_and_removed() -> None:
     assert quarantined_rows[0]["counts_as_a_grade_evidence"] is False
 
 
+def test_integrity_only_quarantined_fill_removes_matching_open_position() -> None:
+    prediction_id = "v2h_integrity_only_fixture"
+    position = {
+        "position_id": "paper_pos_integrity_only_fixture",
+        "entry_fill_id": prediction_id,
+        "source_fill_ids": [prediction_id],
+        "prediction_id": prediction_id,
+        "signal_id": f"sig_{prediction_id}",
+        "symbol": "AAVEUSDT",
+        "timeframe": "4h",
+        "side": "short",
+        "allocated_margin_usd": 48.515,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+    integrity_quarantine = {
+        "fill_id": prediction_id,
+        "prediction_id": prediction_id,
+        "signal_id": f"sig_{prediction_id}",
+        "position_id": "paper_pos_integrity_only_fixture",
+        "accepted_fill_quarantined": True,
+        "accepted_fill_quarantine_reason": "PAPER_ADMISSION_INTEGRITY_CONTRACT_BLOCKED",
+        "accepted_fill_quarantine_reasons": [
+            "PERSISTED_ADMISSION_FINAL_CONTRACT_MISSING"
+        ],
+        "invalid_admission_entry_gate_block_reasons": [],
+        "invalid_admission_integrity_block_reasons": [
+            "PERSISTED_ADMISSION_FINAL_CONTRACT_MISSING"
+        ],
+        "paper_only": True,
+    }
+
+    valid_rows, quarantined_rows = paper_loop._flag_invalid_admission_open_positions(  # noqa: SLF001
+        [position],
+        [integrity_quarantine],
+    )
+
+    assert valid_rows == []
+    assert len(quarantined_rows) == 1
+    assert quarantined_rows[0]["prediction_id"] == prediction_id
+    assert quarantined_rows[0]["invalid_admission_open_position_removed"] is True
+
+
 @pytest.mark.parametrize("side", ["long", "short"])
 def test_invalid_admission_position_reconciliation_is_symmetric_and_idempotent(
     side: str,
