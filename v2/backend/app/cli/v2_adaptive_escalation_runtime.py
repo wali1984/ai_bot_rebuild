@@ -5,7 +5,9 @@ and the signed candidate-outcome dataset/training workers.  It authenticates the
 current policy, outcome, and economic-failure status, refreshes the immutable
 dataset release only after the predeclared information-gain threshold is met,
 reconstructs completed ladder steps from content-addressed dispatch receipts,
-and executes at most one paper-only worker per invocation.
+and executes a bounded sequence of paper-only workers against one frozen signed
+release per invocation.  This prevents a continuously growing corpus from
+starving every rung behind incremental training.
 
 It has no model-registry, paper-fill, order, or live authority.
 """
@@ -53,6 +55,7 @@ DEFAULT_FEATURE_ARCHIVE_ROOT = Path(
 DEFAULT_MAX_STATUS_AGE_SECONDS = 600.0
 DEFAULT_MIN_NEW_MATURED_OUTCOMES = 250
 DEFAULT_MIN_NEW_EFFECTIVE_N = 25.0
+DEFAULT_MAX_DISPATCHES_PER_RUN = 4
 LEGACY_FAILURE_RECEIPT_MIGRATION_CUTOFF = datetime(
     2026,
     7,
@@ -771,6 +774,7 @@ def _validate_runtime_configuration(
     min_new_effective_n: float,
     build_timeout_seconds: int,
     dispatch_timeout_seconds: int | float,
+    max_dispatches_per_run: int = 1,
 ) -> None:
     numeric = {
         "max_status_age_seconds": max_status_age_seconds,
@@ -788,9 +792,14 @@ def _validate_runtime_configuration(
     for field, value in {
         "min_new_matured_outcomes": min_new_matured_outcomes,
         "build_timeout_seconds": build_timeout_seconds,
+        "max_dispatches_per_run": max_dispatches_per_run,
     }.items():
         if type(value) is not int or value <= 0:
             raise AdaptiveEscalationRuntimeError(f"{field}:POSITIVE_INTEGER_REQUIRED")
+    if max_dispatches_per_run > len(LADDER):
+        raise AdaptiveEscalationRuntimeError(
+            "max_dispatches_per_run:LADDER_BOUND_EXCEEDED"
+        )
 
 
 def run_once(
@@ -809,6 +818,7 @@ def run_once(
     min_new_effective_n: float = DEFAULT_MIN_NEW_EFFECTIVE_N,
     build_timeout_seconds: int = 900,
     dispatch_timeout_seconds: int = supervisor.DISPATCH_TIMEOUT_SECONDS,
+    max_dispatches_per_run: int = 1,
 ) -> dict[str, Any]:
     now = now or datetime.now(UTC)
     _validate_runtime_configuration(
@@ -817,6 +827,7 @@ def run_once(
         min_new_effective_n=min_new_effective_n,
         build_timeout_seconds=build_timeout_seconds,
         dispatch_timeout_seconds=dispatch_timeout_seconds,
+        max_dispatches_per_run=max_dispatches_per_run,
     )
     authority, outcomes, performance, registry = authenticate_runtime_inputs(
         client,
@@ -862,6 +873,9 @@ def run_once(
         for evidence in cycle_dispatches
         if evidence.release.projection == release.projection
     }
+    completed_for_release = set(exact_release_steps)
+    if INCREMENTAL_STEP in completed_for_release:
+        completed_for_release.add(RECALIBRATION_STEP)
     completed: set[str] = set()
     if failure_cycle["active"]:
         # Runtime state is advisory only. A rung is complete solely when a full
@@ -911,13 +925,19 @@ def run_once(
         release_scoped_information_steps=RELEASE_REUSABLE_INFORMATION_STEPS,
         input_manifest_sha=str(release.projection["dataset_sha256"]),
     )
-    plan = supervisor.plan_escalation(inputs)
     plan = replace(
-        plan,
+        supervisor.plan_escalation(inputs),
         failure_cycle_id=str(failure_cycle["failure_cycle_id"]),
     )
-    dispatch_result: dict[str, Any] | None = None
-    if execute_worker and plan.action == supervisor.ACTION_LAUNCH:
+    reported_plan = plan
+    dispatch_results: list[dict[str, Any]] = []
+    executed_steps: list[str] = []
+    while (
+        execute_worker
+        and plan.action == supervisor.ACTION_LAUNCH
+        and len(dispatch_results) < max_dispatches_per_run
+    ):
+        reported_plan = plan
         dispatch_result = supervisor.dispatch_worker(
             plan,
             dataset_release_root=release.root,
@@ -926,31 +946,66 @@ def run_once(
             lock_path=dispatch_lock_path,
             timeout_seconds=dispatch_timeout_seconds,
         )
-        if dispatch_result.get("launch_baseline_success") is True:
-            completed.add(str(plan.selected_step))
-            if plan.selected_step in BASELINE_ADVANCING_STEPS:
-                baseline = {
-                    "matured_outcome_count": release.source_matured_revision_count,
-                    "effective_n": effective_n,
-                    "dataset_sha256": release.projection["dataset_sha256"],
-                    "source_terminal_chain_sha256": (
-                        release.source_terminal_chain_sha256
-                    ),
-                    "launched_step": plan.selected_step,
-                    "dispatch_id": dispatch_result.get("dispatch_id"),
-                    "recorded_utc": now.isoformat().replace("+00:00", "Z"),
-                }
+        dispatch_results.append(dispatch_result)
+        selected_step = str(plan.selected_step)
+        executed_steps.append(selected_step)
+        if dispatch_result.get("launch_baseline_success") is not True:
+            break
+        completed.add(selected_step)
+        completed_for_release.add(selected_step)
+        if selected_step == INCREMENTAL_STEP:
+            completed.add(RECALIBRATION_STEP)
+            completed_for_release.add(RECALIBRATION_STEP)
+        if selected_step in BASELINE_ADVANCING_STEPS:
+            baseline = {
+                "matured_outcome_count": release.source_matured_revision_count,
+                "effective_n": effective_n,
+                "dataset_sha256": release.projection["dataset_sha256"],
+                "source_terminal_chain_sha256": (
+                    release.source_terminal_chain_sha256
+                ),
+                "launched_step": selected_step,
+                "dispatch_id": dispatch_result.get("dispatch_id"),
+                "recorded_utc": now.isoformat().replace("+00:00", "Z"),
+            }
+        inputs = replace(
+            inputs,
+            baseline_matured_outcome_count=int(baseline["matured_outcome_count"]),
+            baseline_effective_n=float(baseline["effective_n"]),
+            exhausted_steps=frozenset(completed),
+        )
+        plan = replace(
+            supervisor.plan_escalation(inputs),
+            failure_cycle_id=str(failure_cycle["failure_cycle_id"]),
+        )
+
+    dispatch_result = dispatch_results[-1] if dispatch_results else None
+    continuation_plan = {
+        "action": plan.action,
+        "selected_step": plan.selected_step,
+        "next_step": plan.next_step,
+        "exact_trigger_condition": plan.exact_trigger_condition,
+    }
+    dispatch_limit_reached = (
+        len(dispatch_results) == max_dispatches_per_run
+        and plan.action == supervisor.ACTION_LAUNCH
+    )
 
     prior_history = prior.get("directional_history")
     history = [int(v) for v in prior_history] if isinstance(prior_history, list) else []
     history = (history + [inputs.directional_authorized_count])[-20:]
-    payload = plan.to_dict()
+    payload = reported_plan.to_dict()
     payload.update(
         {
             "schema_version": SCHEMA_VERSION,
             "generated_utc": now.isoformat().replace("+00:00", "Z"),
             "worker_execution_enabled": execute_worker,
             "dispatch_result": dispatch_result,
+            "dispatch_results": dispatch_results,
+            "executed_steps_this_run": executed_steps,
+            "max_dispatches_per_run": max_dispatches_per_run,
+            "dispatch_limit_reached": dispatch_limit_reached,
+            "continuation_plan": continuation_plan,
             "failure_cycle": failure_cycle,
             "prior_runtime_state_advisory_only": True,
             "completion_authority": "FULLY_REPLAYED_IMMUTABLE_DISPATCH_RECEIPTS",
@@ -958,7 +1013,7 @@ def run_once(
                 step for step in LADDER if step in completed
             ],
             "completed_steps_for_input_manifest": [
-                step for step in LADDER if step in completed
+                step for step in LADDER if step in completed_for_release
             ],
             "directional_history": history,
             "launch_baseline": baseline,
@@ -1034,6 +1089,11 @@ def _parser() -> argparse.ArgumentParser:
         type=int,
         default=supervisor.DISPATCH_TIMEOUT_SECONDS,
     )
+    parser.add_argument(
+        "--max-dispatches-per-run",
+        type=int,
+        default=DEFAULT_MAX_DISPATCHES_PER_RUN,
+    )
     return parser
 
 
@@ -1055,6 +1115,7 @@ def main(argv: list[str] | None = None) -> int:
             min_new_effective_n=args.min_new_effective_n,
             build_timeout_seconds=args.build_timeout_seconds,
             dispatch_timeout_seconds=args.dispatch_timeout_seconds,
+            max_dispatches_per_run=args.max_dispatches_per_run,
         )
     print(json.dumps(payload, sort_keys=True, allow_nan=False))
     return 0 if not payload.get("validation_errors") else 1

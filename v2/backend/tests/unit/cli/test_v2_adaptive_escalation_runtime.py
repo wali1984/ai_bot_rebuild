@@ -680,6 +680,139 @@ def test_new_release_retries_incremental_and_advances_baseline_only_on_success(
         assert retry["launch_baseline"]["matured_outcome_count"] == 250
 
 
+def test_bounded_multi_dispatch_advances_past_incremental_on_one_frozen_release(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    now = datetime(2026, 7, 28, 15, 40, tzinfo=UTC)
+    previous = _release(tmp_path, name="release_old", matured=250, decisions=400)
+    current = _release(
+        tmp_path,
+        name="release_new",
+        sha_character="f",
+        matured=500,
+        decisions=700,
+    )
+    values = _runtime_values(now)
+    client = _Redis(values)
+    _patch_run_inputs(
+        monkeypatch,
+        now=now,
+        release=current,
+        previous_release=previous,
+        rebuilt=True,
+        effective_n=55.0,
+        historical_steps=(
+            (runtime.RECALIBRATION_STEP, previous),
+            (runtime.INCREMENTAL_STEP, previous),
+            ("ACTIVATE_ALTERNATIVE_STRATEGY_FAMILIES", previous),
+            ("INCREASE_BOUNDED_INFORMATION_SEEKING_EXPLORATION", previous),
+        ),
+    )
+    dispatched: list[str] = []
+
+    def dispatch(plan, **_kwargs):
+        dispatched.append(str(plan.selected_step))
+        return {
+            "launch_baseline_success": True,
+            "dispatch_id": f"adaptive_dispatch_{len(dispatched)}",
+            "selected_step": plan.selected_step,
+        }
+
+    monkeypatch.setattr(supervisor, "dispatch_worker", dispatch)
+
+    payload = runtime.run_once(
+        client,
+        release_parent=tmp_path,
+        state_path=tmp_path / "state.json",
+        dispatch_root=tmp_path / "dispatches",
+        execute_worker=True,
+        max_dispatches_per_run=4,
+        now=now,
+    )
+
+    assert dispatched == [
+        runtime.INCREMENTAL_STEP,
+        "REBUILD_FEATURE_SELECTION_OR_REPRESENTATION",
+        "TRAIN_HORIZON_SPECIFIC_CHALLENGERS",
+        "TRAIN_SYMBOL_OR_REGIME_SPECIFIC_CHALLENGERS",
+    ]
+    assert payload["executed_steps_this_run"] == dispatched
+    assert len(payload["dispatch_results"]) == 4
+    assert payload["dispatch_limit_reached"] is True
+    assert payload["continuation_plan"]["selected_step"] == (
+        "TRAIN_ALTERNATIVE_MODEL_ARCHITECTURES"
+    )
+    assert payload["selected_step"] == dispatched[-1]
+    assert payload["launch_baseline"]["matured_outcome_count"] == 500
+    assert payload["completed_steps_for_input_manifest"] == [
+        runtime.RECALIBRATION_STEP,
+        runtime.INCREMENTAL_STEP,
+        "REBUILD_FEATURE_SELECTION_OR_REPRESENTATION",
+        "TRAIN_HORIZON_SPECIFIC_CHALLENGERS",
+        "TRAIN_SYMBOL_OR_REGIME_SPECIFIC_CHALLENGERS",
+    ]
+
+
+def test_multi_dispatch_stops_at_first_failed_worker(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    now = datetime(2026, 7, 28, 15, 40, tzinfo=UTC)
+    release = _release(tmp_path, matured=500, decisions=700)
+    client = _Redis(_runtime_values(now))
+    _patch_run_inputs(
+        monkeypatch,
+        now=now,
+        release=release,
+        previous_release=release,
+        rebuilt=False,
+        effective_n=55.0,
+    )
+    dispatched: list[str] = []
+
+    def dispatch(plan, **_kwargs):
+        dispatched.append(str(plan.selected_step))
+        return {
+            "launch_baseline_success": len(dispatched) == 1,
+            "dispatch_id": f"adaptive_dispatch_{len(dispatched)}",
+            "selected_step": plan.selected_step,
+        }
+
+    monkeypatch.setattr(supervisor, "dispatch_worker", dispatch)
+
+    payload = runtime.run_once(
+        client,
+        release_parent=tmp_path,
+        state_path=tmp_path / "state.json",
+        dispatch_root=tmp_path / "dispatches",
+        execute_worker=True,
+        max_dispatches_per_run=4,
+        now=now,
+    )
+
+    assert dispatched == [
+        runtime.RECALIBRATION_STEP,
+        "REBUILD_FEATURE_SELECTION_OR_REPRESENTATION",
+    ]
+    assert payload["dispatch_results"][-1]["launch_baseline_success"] is False
+    assert payload["selected_step"] == dispatched[-1]
+    assert dispatched[-1] not in payload["completed_steps_for_failure_cycle"]
+
+
+@pytest.mark.parametrize("limit", [0, len(supervisor.LADDER) + 1])
+def test_multi_dispatch_limit_fails_closed(limit: int) -> None:
+    with pytest.raises(runtime.AdaptiveEscalationRuntimeError):
+        runtime._validate_runtime_configuration(  # noqa: SLF001
+            max_status_age_seconds=600.0,
+            min_new_matured_outcomes=250,
+            min_new_effective_n=25.0,
+            build_timeout_seconds=900,
+            dispatch_timeout_seconds=3600,
+            max_dispatches_per_run=limit,
+        )
+
+
 def test_plan_only_and_non_information_success_preserve_training_baseline(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
