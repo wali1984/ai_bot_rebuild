@@ -5007,11 +5007,8 @@ _PAPER_PORTFOLIO_HARD_CONTROL_FIELDS = (
     "pending_reserved_margin_usd",
     "open_position_notional",
     "open_positions_count",
-    "open_positions",
-    "positions_by_symbol",
     "current_position_source",
     "closed_positions_count",
-    "closed_positions",
     "closed_ledger_net_pnl_usd",
     "cumulative_realized_pnl",
     "session_realized_pnl",
@@ -5029,10 +5026,8 @@ _PAPER_PORTFOLIO_HARD_CONTROL_FIELDS = (
     "equity_reconciles_within_1_cent",
     "equity_reconciliation_difference_usd",
     "portfolio_realized_matches_closed_ledger",
-    "ledger_count_fields_match_payload",
     "ledger_to_portfolio_status",
     "ledger_authoritative_no_open_positions",
-    "paper_account_margin_status",
     "accepted_fill_raw_total",
     "accepted_fill_state_row_count",
     "accepted_fill_state_source",
@@ -5040,7 +5035,6 @@ _PAPER_PORTFOLIO_HARD_CONTROL_FIELDS = (
     "active_accepted_fill_total",
     "economic_fill_total",
     "non_economic_fill_total",
-    "paper_fill_economic_inventory",
     "portfolio_state_time_contract_status",
     "portfolio_state_time_contract_rejection_reasons",
     "source_matches_redis",
@@ -5060,6 +5054,54 @@ _PAPER_PORTFOLIO_HARD_CONTROL_FIELDS = (
     "trader_execution_enabled",
     "live_gate_status",
     "live_safety",
+)
+
+_PAPER_PORTFOLIO_MARGIN_HARD_CONTROL_FIELDS = (
+    "schema_version",
+    "status",
+    "equity",
+    "equity_usd",
+    "wallet_balance_usd",
+    "margin_base_usd",
+    "margin_base_source",
+    "margin_base_available",
+    "open_position_count",
+    "open_position_collection_complete",
+    "accounted_open_position_count",
+    "duplicate_open_position_identity_group_count",
+    "duplicate_open_position_identity_row_count",
+    "open_position_canonical_identities_unique",
+    "invalid_open_position_margin_count",
+    "accounting_complete",
+    "control_inputs_valid",
+    "admission_inputs_valid",
+    "margin_buffer_input_valid",
+    "newly_reserved_margin_input_valid",
+    "reservations_included_in_open_positions_input_valid",
+    "failure_reasons",
+    "used_margin",
+    "used_margin_usd",
+    "newly_reserved_margin",
+    "newly_reserved_margin_usd",
+    "newly_reserved_included_in_used_margin",
+    "used_margin_aggregation_valid",
+    "projected_used_margin_aggregation_valid",
+    "projected_used_margin_usd",
+    "free_margin_before_reservations_usd",
+    "free_margin",
+    "free_margin_usd",
+    "margin_buffer_deficit_usd",
+    "margin_buffer_invariant_holds",
+    "margin_deficit_usd",
+    "no_negative_free_margin",
+    "invariant",
+    "invariant_holds",
+    "numeric_invariant_holds",
+    "invariant_formula",
+    "paper_only",
+    "routes_to_live",
+    "places_real_order",
+    "source",
 )
 
 
@@ -5085,18 +5127,28 @@ def _paper_revocable_source_control_material(
     if not isinstance(payload, Mapping):
         return source
     projected_payload = {
-        "schema_version": "paper_portfolio_hard_control_projection_v1",
+        "schema_version": "paper_portfolio_hard_control_projection_v2",
         **{field: deepcopy(payload.get(field)) for field in _PAPER_PORTFOLIO_HARD_CONTROL_FIELDS},
     }
-    margin_status = projected_payload.get("paper_account_margin_status")
+    margin_status = payload.get("paper_account_margin_status")
     if isinstance(margin_status, Mapping):
-        # The producer timestamp changes on every reconstruction; all margin
-        # operands, invariants, rows, reasons and safety flags remain sealed.
-        stable_margin_status = dict(margin_status)
-        stable_margin_status.pop("generated_utc", None)
-        projected_payload["paper_account_margin_status"] = stable_margin_status
+        # The portfolio publisher rebuilds a bounded reporting payload while a
+        # paper cycle is in flight.  Reporting arrays, generation clocks and
+        # policy-derived buffer diagnostics are not account resources.  Exact
+        # positions and closes are reread independently below, while this
+        # projection retains every balance, margin conservation, trust and
+        # no-live invariant used to authorize a new paper position.
+        projected_payload["paper_account_margin_status"] = {
+            "schema_version": "paper_portfolio_margin_hard_control_projection_v1",
+            **{
+                field: deepcopy(margin_status.get(field))
+                for field in _PAPER_PORTFOLIO_MARGIN_HARD_CONTROL_FIELDS
+            },
+        }
+    else:
+        projected_payload["paper_account_margin_status"] = None
     source["payload"] = projected_payload
-    source["control_projection"] = "PAPER_PORTFOLIO_HARD_CONTROL_PROJECTION_V1"
+    source["control_projection"] = "PAPER_PORTFOLIO_HARD_CONTROL_PROJECTION_V2"
     return source
 
 
@@ -51334,6 +51386,85 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         )
         if entry_prediction_snapshot is not None:
             intent["entry_prediction_snapshot"] = entry_prediction_snapshot
+
+        # Resolve and verify the immutable feature archive before the first
+        # candidate allocation PIT proof.  The adaptive policy previously did
+        # this only after the candidate dynamic envelope and reservation had
+        # already been sealed.  Valid archive clocks were therefore absent
+        # from the candidate market-context receipt, which correctly blocked
+        # that receipt and prevented the reservation from rebinding to the
+        # candidate envelope.  Keep the verified object for the later typed
+        # policy build; never reload or repair it by assertion.
+        adaptive_feature_snapshot: Mapping[str, Any] | None = None
+        durable_snapshot_binding_reasons: list[str] = []
+        durable_snapshot_binding_error: str | None = None
+        durable_snapshot_binding_decision_time: str | None = None
+        try:
+            if adaptive_policy_cycle_context.get("status") != "READY":
+                raise RuntimeError(
+                    "ADAPTIVE_POLICY_CYCLE_CONTEXT_NOT_READY:"
+                    + ",".join(
+                        str(reason)
+                        for reason in adaptive_policy_cycle_context.get(
+                            "rejection_reasons", []
+                        )
+                    )
+                )
+            if not isinstance(entry_prediction_snapshot, Mapping):
+                raise RuntimeError("ADAPTIVE_POLICY_ENTRY_PREDICTION_MISSING")
+            adaptive_feature_snapshot_id = entry_prediction_snapshot.get(
+                "feature_snapshot_id"
+            )
+            if not adaptive_feature_snapshot_id:
+                raise RuntimeError("ADAPTIVE_POLICY_FEATURE_SNAPSHOT_ID_MISSING")
+            if adaptive_policy_feature_archive_root is None:
+                raise RuntimeError("ADAPTIVE_POLICY_FEATURE_ARCHIVE_ROOT_MISSING")
+            loaded_adaptive_feature_snapshot = load_durable_feature_snapshot(
+                adaptive_feature_snapshot_id,
+                root=adaptive_policy_feature_archive_root,
+                verify=True,
+            )
+            if not isinstance(loaded_adaptive_feature_snapshot, Mapping):
+                raise RuntimeError("ADAPTIVE_POLICY_FEATURE_SNAPSHOT_MISSING")
+            adaptive_feature_snapshot = loaded_adaptive_feature_snapshot
+            # This is a consumer clock: capture it only after the authenticated
+            # archive read has completed, never before I/O.
+            durable_snapshot_binding_decision_time = _utc_iso()
+            durable_snapshot_binding_reasons = (
+                _paper_bind_verified_durable_feature_snapshot(
+                    intent=intent,
+                    snapshot=adaptive_feature_snapshot,
+                    paper_decision_time=durable_snapshot_binding_decision_time,
+                )
+            )
+        except (
+            SnapshotArchiveError,
+            OSError,
+            RuntimeError,
+            TypeError,
+            ValueError,
+        ) as exc:
+            durable_snapshot_binding_error = f"{type(exc).__name__}:{exc}"
+        durable_snapshot_binding_attempt_completed_at = _utc_iso()
+        intent["paper_durable_feature_preallocation_binding_status"] = (
+            "PASS"
+            if adaptive_feature_snapshot is not None
+            and not durable_snapshot_binding_reasons
+            and durable_snapshot_binding_error is None
+            else "BLOCKED"
+        )
+        intent["paper_durable_feature_preallocation_binding_decision_time"] = (
+            durable_snapshot_binding_decision_time
+        )
+        intent["paper_durable_feature_preallocation_binding_attempt_completed_at"] = (
+            durable_snapshot_binding_attempt_completed_at
+        )
+        intent["paper_durable_feature_preallocation_binding_rejection_reasons"] = sorted(
+            set(
+                durable_snapshot_binding_reasons
+                + ([durable_snapshot_binding_error] if durable_snapshot_binding_error else [])
+            )
+        )
         one_minute_result = _paper_standalone_1m_eligibility_gate(
             symbol=symbol,
             thesis_timeframe=paper_thesis_timeframe,
@@ -52905,29 +53036,10 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                         )
                     )
                 )
-            entry_prediction = intent.get("entry_prediction_snapshot")
-            if not isinstance(entry_prediction, Mapping):
-                raise RuntimeError("ADAPTIVE_POLICY_ENTRY_PREDICTION_MISSING")
-            feature_snapshot_id = entry_prediction.get("feature_snapshot_id")
-            if not feature_snapshot_id:
-                raise RuntimeError("ADAPTIVE_POLICY_FEATURE_SNAPSHOT_ID_MISSING")
-            assert adaptive_policy_feature_archive_root is not None
-            adaptive_feature_snapshot = load_durable_feature_snapshot(
-                feature_snapshot_id,
-                root=adaptive_policy_feature_archive_root,
-                verify=True,
-            )
+            if durable_snapshot_binding_error is not None:
+                raise RuntimeError(durable_snapshot_binding_error)
             if not isinstance(adaptive_feature_snapshot, Mapping):
                 raise RuntimeError("ADAPTIVE_POLICY_FEATURE_SNAPSHOT_MISSING")
-            durable_snapshot_binding_reasons = (
-                _paper_bind_verified_durable_feature_snapshot(
-                    intent=intent,
-                    snapshot=adaptive_feature_snapshot,
-                    paper_decision_time=_iso_from_epoch_ms(
-                        adaptive_policy_generated_at_ms
-                    ),
-                )
-            )
             if durable_snapshot_binding_reasons:
                 raise RuntimeError(
                     "ADAPTIVE_POLICY_DURABLE_FEATURE_SNAPSHOT_BINDING_BLOCKED:"

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import inspect
 import json
 import math
 import os
@@ -1717,6 +1718,337 @@ def test_final_admission_exact_reread_rejects_adaptive_or_safety_source_change(
     assert contract["status"] == "BLOCKED"
     assert receipt["source_revalidation"][role]["exact_match"] is False
     assert f"CONTROL_SOURCE_CHANGED:{role}" in receipt["rejection_reasons"]
+
+
+def _portfolio_control_material(payload: dict[str, object]) -> dict[str, object]:
+    return paper_loop._paper_revocable_source_control_material(  # noqa: SLF001
+        "portfolio_state_source",
+        {
+            "schema_version": "paper_exact_redis_json_source_material_v1",
+            "source_kind": "REDIS_EXACT_KEY",
+            "source_key": paper_loop.PAPER_PORTFOLIO_STATE_REDIS_KEY,
+            "expected_container": "mapping",
+            "read_status": "READY",
+            "present": True,
+            "payload": payload,
+        },
+    )
+
+
+def _portfolio_projection_fixture() -> dict[str, object]:
+    return {
+        "schema_version": "paper_portfolio_state_v1",
+        "wallet_balance": 1_000.0,
+        "equity": 1_010.0,
+        "free_margin_usd": 960.0,
+        "used_margin_usd": 50.0,
+        "reserved_margin_usd": 0.0,
+        "equity_trusted": True,
+        "pnl_trusted": True,
+        "live_safety": {
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+        },
+        "open_positions": [{"position_id": "reporting-copy-a"}],
+        "positions_by_symbol": {"BTCUSDT": [{"position_id": "reporting-copy-a"}]},
+        "closed_positions": [{"close_id": "reporting-close-a"}],
+        "ledger_count_fields_match_payload": True,
+        "paper_fill_economic_inventory": [{"fill_id": "reporting-fill-a"}],
+        "generated_utc": "2026-07-28T07:00:00Z",
+        "paper_account_margin_status": {
+            "schema_version": "paper_account_margin_status_v1",
+            "status": "PASS",
+            "equity_usd": 1_010.0,
+            "wallet_balance_usd": 1_000.0,
+            "used_margin_usd": 50.0,
+            "newly_reserved_margin_usd": 0.0,
+            "projected_used_margin_usd": 50.0,
+            "free_margin_usd": 960.0,
+            "accounting_complete": True,
+            "control_inputs_valid": True,
+            "admission_inputs_valid": True,
+            "margin_buffer_input_valid": True,
+            "margin_buffer_invariant_holds": True,
+            "no_negative_free_margin": True,
+            "invariant_holds": True,
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+            "generated_utc": "2026-07-28T07:00:00Z",
+            "position_margin_rows": [{"position_id": "reporting-copy-a"}],
+            "invalid_position_margin_rows": [],
+            "min_available_margin_buffer_pct": 0.05,
+            "margin_buffer_usd": 50.5,
+            "free_margin_after_buffer_usd": 909.5,
+            "usable_margin_usd": 909.5,
+        },
+    }
+
+
+@pytest.fixture
+def revocable_control_commit_fixture(monkeypatch):
+    session_id = "paper-revocable-projection-test-session"
+    tuning_state, session_raw = _canonical_fail_closed_adaptive_tuning_state(
+        monkeypatch,
+        session_id=session_id,
+    )
+    guardian = {
+        "status": "ACTIVE",
+        "a_grade_new_entries_allowed": True,
+        "new_entries_allowed": True,
+    }
+    entry_freeze = {
+        "schema_version": "paper_entry_freeze_v1",
+        "paper_new_entries_halted": False,
+        "new_entries_allowed": True,
+        "reason": None,
+    }
+    portfolio = _portfolio_projection_fixture()
+    portfolio["current_drawdown_bps"] = 0.0
+    redis = _TtlRedis(
+        {
+            paper_loop.CONTINUOUS_EDGE_GUARDIAN_GATE_REDIS_KEY: guardian,
+            paper_loop.PAPER_ENTRY_FREEZE_REDIS_KEY: entry_freeze,
+            paper_loop.PAPER_PORTFOLIO_STATE_REDIS_KEY: portfolio,
+            paper_loop.PAPER_ADAPTIVE_TUNING_REDIS_KEY: tuning_state,
+            paper_loop.PAPER_SESSION_REDIS_KEY: session_raw,
+            paper_loop.PAPER_POSITIONS_REDIS_KEY: [],
+            paper_loop.PAPER_CLOSED_TRADES_REDIS_KEY: [],
+        },
+        ttl_seconds=180,
+    )
+    sources = paper_loop._paper_revocable_control_source_materials(redis)  # noqa: SLF001
+    owner = _passing_final_admission_runtime_owner_status()
+    frozen_sources: dict[str, tuple[str, object]] = {
+        role: (
+            str(material.get("source_key") or ""),
+            paper_loop._paper_revocable_source_control_material(  # noqa: SLF001
+                role,
+                material,
+            ),
+        )
+        for role, material in sources.items()
+    }
+    frozen_sources.update(
+        {
+            "paper_entry_freeze": (
+                "IN_PROCESS_COMPOSED_FROM_EXACT_REDIS_FREEZE_AND_PORTFOLIO_SOURCES",
+                paper_loop._compose_paper_entry_freeze(entry_freeze, portfolio),  # noqa: SLF001
+            ),
+            "current_risk_state": (
+                "IN_PROCESS_DERIVED_FROM_EXACT_PAPER_POSITION_AND_PORTFOLIO_SOURCES",
+                paper_loop._paper_current_risk_state_from_sources(sources),  # noqa: SLF001
+            ),
+            "paper_runtime_owner": (
+                "PROCFS_AND_SYSTEMD_CURRENT_PROCESS_OWNER_PROJECTION",
+                paper_loop._paper_runtime_owner_minimal_projection(owner),  # noqa: SLF001
+            ),
+        }
+    )
+    observed_at = "2026-07-17T12:00:02Z"
+    lineage = [
+        paper_loop._paper_snapshot_lineage(  # noqa: SLF001
+            role=role,
+            redis_key=source_key,
+            payload=payload,
+            observed_at=observed_at,
+        )
+        for role, (source_key, payload) in frozen_sources.items()
+    ]
+    monkeypatch.setattr(
+        paper_loop,
+        "_paper_active_runtime_owner_status",
+        lambda: deepcopy(owner),
+    )
+    monkeypatch.setattr(paper_loop, "_utc_iso", lambda: "2026-07-17T12:00:10Z")
+    intent = {
+        "paper_session_id": session_id,
+        "paper_opportunity_tier": paper_loop.PAPER_TIER_A_GRADE_EXECUTION,
+        "paper_pre_cycle_control_snapshot": {
+            "observed_at": observed_at,
+            "lineage": lineage,
+            "snapshot_hash": paper_loop._paper_canonical_sha256(lineage),  # noqa: SLF001
+        },
+    }
+    return intent, redis
+
+
+def test_portfolio_hard_control_projection_ignores_only_bounded_reporting_material() -> None:
+    baseline = _portfolio_projection_fixture()
+    changed = deepcopy(baseline)
+    changed.update(
+        {
+            "open_positions": [{"position_id": "reporting-copy-b"}],
+            "positions_by_symbol": {"ETHUSDT": [{"position_id": "reporting-copy-b"}]},
+            "closed_positions": [{"close_id": "reporting-close-b"}],
+            "ledger_count_fields_match_payload": False,
+            "paper_fill_economic_inventory": [{"fill_id": "reporting-fill-b"}],
+            "generated_utc": "2026-07-28T07:01:00Z",
+        }
+    )
+    changed_margin = changed["paper_account_margin_status"]
+    assert isinstance(changed_margin, dict)
+    changed_margin.update(
+        {
+            "generated_utc": "2026-07-28T07:01:00Z",
+            "position_margin_rows": [{"position_id": "reporting-copy-b"}],
+            "invalid_position_margin_rows": [{"position_id": "diagnostic-only"}],
+            "min_available_margin_buffer_pct": 0.10,
+            "margin_buffer_usd": 101.0,
+            "free_margin_after_buffer_usd": 859.0,
+            "usable_margin_usd": 859.0,
+        }
+    )
+
+    baseline_projection = _portfolio_control_material(baseline)
+    changed_projection = _portfolio_control_material(changed)
+
+    assert changed_projection == baseline_projection
+    assert paper_loop._paper_canonical_sha256(changed_projection) == (  # noqa: SLF001
+        paper_loop._paper_canonical_sha256(baseline_projection)  # noqa: SLF001
+    )
+
+
+@pytest.mark.parametrize(
+    ("control_class", "value"),
+    [
+        ("wallet_balance", 999.0),
+        ("margin_conservation", False),
+        ("equity_trusted", False),
+        (
+            "live_safety",
+            {
+                "paper_only": True,
+                "routes_to_live": True,
+                "places_real_order": False,
+            },
+        ),
+    ],
+)
+def test_portfolio_hard_control_projection_hash_changes_for_authority_inputs(
+    control_class: str,
+    value: object,
+) -> None:
+    baseline = _portfolio_projection_fixture()
+    changed = deepcopy(baseline)
+    if control_class == "margin_conservation":
+        margin = changed["paper_account_margin_status"]
+        assert isinstance(margin, dict)
+        margin["invariant_holds"] = value
+    else:
+        changed[control_class] = value
+
+    baseline_projection = _portfolio_control_material(baseline)
+    changed_projection = _portfolio_control_material(changed)
+
+    assert changed_projection != baseline_projection
+    assert paper_loop._paper_canonical_sha256(changed_projection) != (  # noqa: SLF001
+        paper_loop._paper_canonical_sha256(baseline_projection)  # noqa: SLF001
+    )
+
+
+@pytest.mark.parametrize(
+    "hard_control_change",
+    [
+        {"wallet_balance": 9_999.0},
+        {"equity_trusted": False},
+        {
+            "live_safety": {
+                "paper_only": True,
+                "routes_to_live": True,
+                "places_real_order": False,
+            }
+        },
+        {
+            "paper_account_margin_status": {
+                "schema_version": "paper_account_margin_status_v1",
+                "status": "BLOCKED",
+                "invariant_holds": False,
+                "margin_buffer_invariant_holds": False,
+                "paper_only": True,
+                "routes_to_live": False,
+                "places_real_order": False,
+            }
+        },
+    ],
+)
+def test_final_admission_blocks_portfolio_hard_control_change(
+    revocable_control_commit_fixture,
+    hard_control_change: dict[str, object],
+) -> None:
+    intent, redis = revocable_control_commit_fixture
+    current = json.loads(redis.get(paper_loop.PAPER_PORTFOLIO_STATE_REDIS_KEY))
+    current.update(hard_control_change)
+    redis.set(paper_loop.PAPER_PORTFOLIO_STATE_REDIS_KEY, json.dumps(current))
+
+    receipt = paper_loop._paper_revocable_control_commit_revalidation(  # noqa: SLF001
+        intent,
+        redis_client=redis,
+        validation_started_at=datetime(
+            2026,
+            7,
+            17,
+            12,
+            0,
+            9,
+            tzinfo=timezone.utc,
+        ),
+    )
+
+    source = receipt["source_revalidation"]["portfolio_state_source"]
+    assert receipt["status"] == "BLOCKED"
+    assert source["exact_match"] is False
+    assert source["frozen_hash"] != source["current_hash"]
+    assert "CONTROL_SOURCE_CHANGED:portfolio_state_source" in receipt["rejection_reasons"]
+
+
+@pytest.mark.parametrize(
+    ("changed_role", "changed_key", "changed_payload"),
+    [
+        (
+            "paper_position_or_ledger_source",
+            paper_loop.PAPER_POSITIONS_REDIS_KEY,
+            [{"position_id": "position-created-after-freeze", "symbol": "BTCUSDT"}],
+        ),
+        (
+            "paper_closed_trades_source",
+            paper_loop.PAPER_CLOSED_TRADES_REDIS_KEY,
+            [{"close_id": "close-created-after-freeze", "symbol": "BTCUSDT"}],
+        ),
+    ],
+)
+def test_exact_position_and_closed_sources_still_block_when_portfolio_reports_move(
+    revocable_control_commit_fixture,
+    changed_role: str,
+    changed_key: str,
+    changed_payload: object,
+) -> None:
+    intent, redis = revocable_control_commit_fixture
+    portfolio = json.loads(redis.get(paper_loop.PAPER_PORTFOLIO_STATE_REDIS_KEY))
+    portfolio["open_positions"] = [{"position_id": "bounded-reporting-refresh"}]
+    portfolio["generated_utc"] = "2026-07-17T12:00:09Z"
+    redis.set(paper_loop.PAPER_PORTFOLIO_STATE_REDIS_KEY, json.dumps(portfolio))
+    redis.set(changed_key, json.dumps(changed_payload))
+
+    receipt = paper_loop._paper_revocable_control_commit_revalidation(  # noqa: SLF001
+        intent,
+        redis_client=redis,
+        validation_started_at=datetime(
+            2026,
+            7,
+            17,
+            12,
+            0,
+            9,
+            tzinfo=timezone.utc,
+        ),
+    )
+
+    assert receipt["status"] == "BLOCKED"
+    assert receipt["source_revalidation"]["portfolio_state_source"]["exact_match"] is True
+    assert receipt["source_revalidation"][changed_role]["exact_match"] is False
+    assert f"CONTROL_SOURCE_CHANGED:{changed_role}" in receipt["rejection_reasons"]
 
 
 @pytest.mark.parametrize(
@@ -10189,6 +10521,183 @@ def _explicit_durable_feature_clock_snapshot() -> dict[str, object]:
         "content_sha256": "e" * 64,
         "features": {"atr_bps": 33.0},
     }
+
+
+def test_run_once_verifies_and_binds_durable_archive_before_candidate_pit() -> None:
+    source = inspect.getsource(paper_loop._run_once_without_writer_lock)  # noqa: SLF001
+
+    archive_load = source.index("load_durable_feature_snapshot(")
+    archive_bind = source.index("_paper_bind_verified_durable_feature_snapshot(")
+    first_candidate_pit = source.index(
+        "preliminary_allocation_pit = _paper_allocation_point_in_time_contract("
+    )
+    candidate_envelope = source.index("_paper_candidate_dynamic_envelope_bundle(")
+
+    assert archive_load < archive_bind < first_candidate_pit < candidate_envelope
+    assert source.count("load_durable_feature_snapshot(") == 1
+    assert "verify=True" in source[archive_load:archive_bind]
+
+
+def test_preallocation_durable_binding_yields_ready_candidate_envelope_and_reservation() -> None:
+    from v2.backend.app.services.adaptive_capital_allocator import AllocationInput
+
+    snapshot = _explicit_durable_feature_clock_snapshot()
+    snapshot.update(
+        {
+            "feature_snapshot_id": "feature-preallocation-ready",
+            "symbol": "BTCUSDT",
+            "timeframe": "1m",
+        }
+    )
+    intent: dict[str, object] = {
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
+        "feature_snapshot_id": "feature-preallocation-ready",
+        "entry_feature_snapshot_id": "feature-preallocation-ready",
+        "decision_time": "2026-07-17T12:00:00Z",
+        "allocator_market_evidence_status": "READY",
+        "paper_exchange_filter_status": "READY",
+        "paper_exchange_filter_available_at": "2026-07-17T11:59:50Z",
+        "paper_exchange_filter_observed_at": "2026-07-17T12:00:00Z",
+    }
+    candidate_decision = datetime(2026, 7, 17, 12, 0, 1, tzinfo=timezone.utc)
+    blocked_before_binding = paper_loop._paper_allocation_point_in_time_contract(  # noqa: SLF001
+        intent,
+        allocation_decision_time=candidate_decision,
+        include_dynamic_envelope=False,
+    )
+    assert blocked_before_binding["status"] == "BLOCKED"
+    assert any(
+        reason.startswith("DURABLE_FEATURE_ADMISSION:")
+        for reason in blocked_before_binding["rejection_reasons"]
+    )
+
+    reasons = paper_loop._paper_bind_verified_durable_feature_snapshot(  # noqa: SLF001
+        intent=intent,
+        snapshot=snapshot,
+        paper_decision_time="2026-07-17T12:00:00Z",
+    )
+    pit = paper_loop._paper_allocation_point_in_time_contract(  # noqa: SLF001
+        intent,
+        allocation_decision_time=candidate_decision,
+        include_dynamic_envelope=False,
+    )
+    allocation_input, _fixture_envelope, _fixture_receipt = authorize_growth(
+        AllocationInput(
+            symbol="BTCUSDT",
+            timeframe="1m",
+            action="long",
+            price=100.0,
+            equity=10_000.0,
+            available_margin=5_000.0,
+            wallet_balance=10_000.0,
+            confidence_calibrated=0.9,
+            expected_move_after_cost_bps=100.0,
+            market_state_integrity_score=95.0,
+            liquidity_score=1.0,
+            regime_score=1.0,
+        )
+    )
+    envelope, envelope_receipt = paper_loop._paper_candidate_dynamic_envelope_bundle(  # noqa: SLF001
+        symbol="BTCUSDT",
+        intent=intent,
+        allocation_input=allocation_input,
+        point_in_time_evidence=pit,
+        allocation_decision_time=candidate_decision,
+        performance_status=_positive_strict_growth_status(),
+        trainer_status=_promoted_growth_trainer_status("checkpoint-promoted"),
+        candidate_checkpoint_id="checkpoint-promoted",
+        candidate_checkpoint_id_source="signal.checkpoint_id",
+        current_drawdown_pct=0.0,
+    )
+    preliminary = paper_loop.build_cycle_reservation_snapshot(
+        cycle_identity="preallocation-durable-binding",
+        candidate_symbol="BTCUSDT",
+        base_resource_evidence_hash="1" * 64,
+        precycle_exposure_snapshot_hash="2" * 64,
+        dynamic_envelope_evidence_hash="3" * 64,
+        base_equity_usd=10_000.0,
+        base_available_margin_usd=5_000.0,
+        realized_drawdown_fraction_of_equity=0.0,
+        precycle_total_notional_usd=0.0,
+        precycle_symbol_current_mark_notional_usd=0.0,
+        precycle_open_projected_max_loss_usd=0.0,
+        max_total_portfolio_risk_pct=envelope.max_total_portfolio_risk_pct,
+        max_single_symbol_exposure_pct=envelope.max_single_symbol_exposure_pct,
+        min_available_margin_buffer_pct=envelope.min_available_margin_buffer_pct,
+        max_daily_drawdown_pct=envelope.max_daily_drawdown_pct,
+        max_loss_per_trade_pct=envelope.max_loss_per_trade_pct,
+        emergency_absolute_cap_usdt=envelope.emergency_absolute_cap_usdt,
+        prior_accepted_rows=[],
+    )
+    rebound, reservation_reasons = (
+        paper_loop._paper_rebind_cycle_reservation_dynamic_envelope(  # noqa: SLF001
+            preliminary,
+            envelope=envelope,
+            envelope_receipt=envelope_receipt,
+        )
+    )
+
+    assert reasons == []
+    assert intent["entry_feature_snapshot_archive_verified"] is True
+    assert pit["status"] == "PASS", pit["rejection_reasons"]
+    assert envelope_receipt["status"] == "READY", envelope_receipt["rejection_reasons"]
+    assert reservation_reasons == []
+    assert rebound["status"] == "PASS"
+    assert rebound["evidence_bindings"]["dynamic_envelope_evidence_hash"] == (
+        envelope_receipt["evidence_hash"]
+    )
+
+
+@pytest.mark.parametrize("failure", ["missing", "malformed", "future"])
+def test_preallocation_durable_binding_remains_fail_closed_for_invalid_archive(
+    failure: str,
+) -> None:
+    intent: dict[str, object] = {
+        "symbol": "ETHUSDT",
+        "timeframe": "15m",
+        "feature_snapshot_id": "feature-explicit-clock-contract",
+        "entry_feature_snapshot_id": "feature-explicit-clock-contract",
+        "decision_time": "2026-07-17T12:00:00Z",
+        "paper_exchange_filter_status": "READY",
+        "paper_exchange_filter_available_at": "2026-07-17T11:59:50Z",
+        "paper_exchange_filter_observed_at": "2026-07-17T12:00:00Z",
+    }
+    snapshot = _explicit_durable_feature_clock_snapshot()
+    if failure == "missing":
+        snapshot = {}
+    elif failure == "malformed":
+        snapshot["content_sha256"] = "not-a-sha256"
+    else:
+        snapshot["producer_generated_at"] = "2026-07-17T12:00:02Z"
+        snapshot["record_available_at"] = "2026-07-17T12:00:02Z"
+
+    reasons = paper_loop._paper_bind_verified_durable_feature_snapshot(  # noqa: SLF001
+        intent=intent,
+        snapshot=snapshot,
+        paper_decision_time="2026-07-17T12:00:01Z",
+    )
+    pit = paper_loop._paper_allocation_point_in_time_contract(  # noqa: SLF001
+        intent,
+        allocation_decision_time=datetime(
+            2026,
+            7,
+            17,
+            12,
+            0,
+            1,
+            tzinfo=timezone.utc,
+        ),
+        include_dynamic_envelope=False,
+    )
+
+    assert reasons
+    assert "entry_feature_snapshot_archive_verified" not in intent
+    assert pit["status"] == "BLOCKED"
+    assert any(
+        reason.startswith("DURABLE_FEATURE_ADMISSION:")
+        for reason in pit["rejection_reasons"]
+    )
 
 
 def test_durable_feature_binding_accepts_explicit_four_clock_contract() -> None:
