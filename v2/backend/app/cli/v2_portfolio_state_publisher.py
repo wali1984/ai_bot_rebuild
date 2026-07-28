@@ -13,7 +13,9 @@ are diagnostics only; they are never counted as current open positions.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import math
 import os
 import sys
 import time
@@ -293,6 +295,201 @@ def _row_lineage_ids(row: dict[str, Any]) -> set[str]:
     return ids
 
 
+def _canonical_sha256(value: Any) -> str | None:
+    try:
+        encoded = json.dumps(
+            value,
+            sort_keys=True,
+            separators=(",", ":"),
+            default=str,
+            allow_nan=False,
+        ).encode("utf-8")
+    except (TypeError, ValueError):
+        return None
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _valid_sha256(value: Any) -> bool:
+    text = str(value or "")
+    return len(text) == 64 and all(character in "0123456789abcdef" for character in text)
+
+
+_OPEN_POSITION_PROOF_HASH_FIELDS = (
+    "paper_final_admission_receipt_hash",
+    "paper_final_admission_bound_material_hash",
+    "paper_persisted_ledger_contract_hash",
+    "paper_cycle_reservation_commit_receipt_hash",
+    "adaptive_policy_action_sha256",
+    "adaptive_paper_policy_authorization_sha256",
+)
+
+
+def _proof_backed_open_fill_rows(
+    open_positions: list[dict[str, Any]],
+    ledger: dict[str, Any],
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Project authoritative open inventory back to accounting fill rows.
+
+    Operational accepted-fill rows are compacted after their entry cycle.  The
+    portfolio publisher may therefore reconstruct mark-to-market state from an
+    open position only when the paper ledger carries the dedicated immutable
+    fill proof and a PASS one-proof-per-position receipt from the same atomic
+    transaction.  Position payloads alone never become accounting authority.
+    """
+
+    proof_rows = [
+        dict(row)
+        for row in _as_list(ledger.get("open_position_fill_proofs"))
+        if isinstance(row, dict)
+    ]
+    source_status = ledger.get("paper_open_position_fill_proof_status")
+    source_status = dict(source_status) if isinstance(source_status, dict) else {}
+    reasons: list[str] = []
+    if source_status.get("status") != "PASS":
+        reasons.append("OPEN_POSITION_FILL_PROOF_STATUS_NOT_PASS")
+    if source_status.get("one_proof_per_open_position") is not True:
+        reasons.append("OPEN_POSITION_FILL_PROOF_CARDINALITY_NOT_PROVEN")
+    if source_status.get("proof_count") != len(proof_rows):
+        reasons.append("OPEN_POSITION_FILL_PROOF_COUNT_MISMATCH")
+    if source_status.get("input_open_position_count") != len(open_positions):
+        reasons.append("OPEN_POSITION_FILL_PROOF_POSITION_COUNT_MISMATCH")
+    if source_status.get("proofs_sha256") != _canonical_sha256(proof_rows):
+        reasons.append("OPEN_POSITION_FILL_PROOF_COLLECTION_HASH_MISMATCH")
+    if len(proof_rows) != len(open_positions):
+        reasons.append("OPEN_POSITION_FILL_PROOF_COLLECTION_CARDINALITY_MISMATCH")
+
+    proof_ids = [str(row.get("proof_id") or "") for row in proof_rows]
+    if any(not proof_id for proof_id in proof_ids) or len(proof_ids) != len(set(proof_ids)):
+        reasons.append("OPEN_POSITION_FILL_PROOF_IDENTITY_INVALID_OR_DUPLICATE")
+
+    projected: list[dict[str, Any]] = []
+    bindings: list[dict[str, Any]] = []
+    for position in open_positions:
+        position_id = str(position.get("position_id") or "")
+        generation_id = str(position.get("position_generation_id") or "")
+        matches = [
+            proof
+            for proof in proof_rows
+            if str(proof.get("position_id") or "") == position_id
+            and str(proof.get("position_generation_id") or "") == generation_id
+        ]
+        if len(matches) != 1:
+            reasons.append(
+                "OPEN_POSITION_FILL_PROOF_BINDING_COUNT_INVALID:"
+                + (position_id or "MISSING_POSITION_ID")
+            )
+            continue
+        proof = matches[0]
+        proof_material = dict(proof)
+        claimed_proof_id = proof_material.pop("proof_id", None)
+        if (
+            not _valid_sha256(claimed_proof_id)
+            or claimed_proof_id != _canonical_sha256(proof_material)
+        ):
+            reasons.append("OPEN_POSITION_FILL_PROOF_HASH_INVALID:" + position_id)
+        if (
+            proof.get("schema_version") != "paper_open_position_fill_proof_v1"
+            or proof.get("paper_final_admission_status") != "PASS"
+            or proof.get("proof_origin")
+            not in {"CURRENT_CYCLE_FINAL_ADMISSION_PASS", "EXISTING_DURABLE_PROOF"}
+        ):
+            reasons.append("OPEN_POSITION_FILL_PROOF_ADMISSION_CONTRACT_INVALID:" + position_id)
+        if (
+            proof.get("paper_only") is not True
+            or proof.get("routes_to_live") is not False
+            or proof.get("places_real_order") is not False
+            or proof.get("exchange_action_taken") is not False
+        ):
+            reasons.append("OPEN_POSITION_FILL_PROOF_SAFETY_FLAGS_INVALID:" + position_id)
+        if any(not _valid_sha256(proof.get(field)) for field in _OPEN_POSITION_PROOF_HASH_FIELDS):
+            reasons.append("OPEN_POSITION_FILL_PROOF_REQUIRED_HASH_INVALID:" + position_id)
+
+        quantity = _coerce_float(proof.get("quantity"))
+        fill_price = _coerce_float(proof.get("fill_price"))
+        gross_notional = _coerce_float(proof.get("gross_notional_usd"))
+        leverage = _coerce_float(proof.get("effective_leverage"))
+        margin = _coerce_float(proof.get("allocated_margin_usd"))
+        position_quantity = _coerce_float(position.get("net_quantity"))
+        position_price = _coerce_float(
+            position.get("avg_entry_price") or position.get("entry_price")
+        )
+        if (
+            quantity is None
+            or quantity <= 0.0
+            or fill_price is None
+            or fill_price <= 0.0
+            or gross_notional is None
+            or gross_notional <= 0.0
+            or leverage is None
+            or leverage <= 0.0
+            or margin is None
+            or margin <= 0.0
+            or position_quantity is None
+            or not math.isclose(abs(position_quantity), quantity, rel_tol=1e-9, abs_tol=1e-12)
+            or position_price is None
+            or not math.isclose(position_price, fill_price, rel_tol=1e-9, abs_tol=1e-12)
+            or not math.isclose(gross_notional, quantity * fill_price, rel_tol=1e-9, abs_tol=1e-8)
+            or not math.isclose(margin, gross_notional / leverage, rel_tol=1e-9, abs_tol=1e-8)
+        ):
+            reasons.append("OPEN_POSITION_FILL_PROOF_ACCOUNTING_ARITHMETIC_INVALID:" + position_id)
+        for field in (
+            "fill_id",
+            "prediction_id",
+            "signal_id",
+            "intent_id",
+            "orchestrator_decision_id",
+            "risk_decision_id",
+            "allocation_id",
+        ):
+            if proof.get(field) in (None, ""):
+                reasons.append(
+                    f"OPEN_POSITION_FILL_PROOF_LINEAGE_MISSING:{position_id}:{field}"
+                )
+
+        projected.append(
+            {
+                **proof,
+                "entry_price": fill_price,
+                "notional": gross_notional,
+                "source_fill_ids": [proof.get("fill_id")],
+                "paper_session_id": position.get("paper_session_id"),
+                "session_id": position.get("session_id"),
+                "reset_session_id": position.get("reset_session_id"),
+                "starting_equity_usd": position.get("starting_equity_usd"),
+                "generated_utc": proof.get("proof_created_at"),
+                "source": "v2:paper:ledger.open_position_fill_proofs",
+            }
+        )
+        bindings.append(
+            {
+                "position_id": position_id,
+                "position_generation_id": generation_id,
+                "proof_id": claimed_proof_id,
+                "fill_id": proof.get("fill_id"),
+            }
+        )
+
+    reasons = sorted(set(reasons))
+    status = {
+        "schema_version": "portfolio_open_position_fill_proof_accounting_v1",
+        "status": "PASS" if not reasons else "BLOCKED",
+        "open_position_count": len(open_positions),
+        "proof_count": len(proof_rows),
+        "projected_fill_count": len(projected) if not reasons else 0,
+        "one_proof_per_open_position": bool(
+            not reasons and len(projected) == len(open_positions) == len(proof_rows)
+        ),
+        "bindings": bindings,
+        "rejection_reasons": reasons,
+        "position_payload_used_as_proof": False,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "exchange_action_taken": False,
+    }
+    return (projected if not reasons else []), status
+
+
 def _invalid_admission_source_ids(accepted_rows: list[dict[str, Any]]) -> set[str]:
     invalid_ids: set[str] = set()
     for row in accepted_rows:
@@ -542,6 +739,21 @@ def run_once(write_redis: bool = True) -> dict:
     invalid_admission_source_id_count = 0
     session_initial_capital = PAPER_INITIAL_CAPITAL
     authoritative_open_positions_for_margin: list[dict[str, Any]] = []
+    open_position_fill_proof_accounting_status: dict[str, Any] = {
+        "schema_version": "portfolio_open_position_fill_proof_accounting_v1",
+        "status": "NOT_EVALUATED_NO_LEDGER",
+        "open_position_count": 0,
+        "proof_count": 0,
+        "projected_fill_count": 0,
+        "one_proof_per_open_position": False,
+        "bindings": [],
+        "rejection_reasons": [],
+        "position_payload_used_as_proof": False,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "exchange_action_taken": False,
+    }
 
     if r:
         history_symbols_tracked = len(list(r.scan_iter(match="v2:paper:position_history:*", count=500)))
@@ -650,6 +862,54 @@ def run_once(write_redis: bool = True) -> dict:
                 if isinstance(row, dict)
             ]
             authoritative_open_positions_for_margin = ledger_open_rows
+            accepted_aliases = set().union(
+                *(_row_lineage_ids(row) for row in accepted_rows)
+            ) if accepted_rows else set()
+            proof_required_positions = [
+                row
+                for row in ledger_open_rows
+                if not (_row_lineage_ids(row) & accepted_aliases)
+            ]
+            if proof_required_positions:
+                (
+                    proof_backed_fill_rows,
+                    open_position_fill_proof_accounting_status,
+                ) = _proof_backed_open_fill_rows(ledger_open_rows, ledger)
+                if open_position_fill_proof_accounting_status["status"] == "PASS":
+                    accepted_rows = _dedupe_rows(
+                        [*accepted_rows, *proof_backed_fill_rows]
+                    )
+                    accepted_total = len(accepted_rows)
+                    accepted_fill_total = len(accepted_rows)
+                    raw_accepted_fill_total = len(accepted_rows)
+                    for row in proof_backed_fill_rows:
+                        sym = str(row.get("symbol") or "").upper()
+                        if sym and sym not in mark_prices:
+                            px, source, _generated = _read_v2_market_price(r, sym)
+                            mark_prices[sym] = (px, source, None)
+            else:
+                source_proofs = _as_list(ledger.get("open_position_fill_proofs"))
+                source_proof_status = ledger.get(
+                    "paper_open_position_fill_proof_status"
+                )
+                source_proof_status = (
+                    dict(source_proof_status)
+                    if isinstance(source_proof_status, dict)
+                    else {}
+                )
+                open_position_fill_proof_accounting_status = {
+                    **open_position_fill_proof_accounting_status,
+                    "status": "NOT_REQUIRED_CURRENT_OPERATIONAL_ACCEPTED_FILL_BOUND",
+                    "open_position_count": len(ledger_open_rows),
+                    "proof_count": len(source_proofs),
+                    "operational_fill_binding_count": len(ledger_open_rows),
+                    "one_proof_per_open_position": bool(
+                        source_proof_status.get("status") == "PASS"
+                        and source_proof_status.get("one_proof_per_open_position")
+                        is True
+                        and len(source_proofs) == len(ledger_open_rows)
+                    ),
+                }
             ledger_positions_by_symbol = ledger.get("positions_by_symbol")
             ledger_open_count = _coerce_float(
                 ledger.get("open_position_count")
@@ -683,6 +943,25 @@ def run_once(write_redis: bool = True) -> dict:
             economic_fill_total = int(_safe_float(accounting.get("economic_fill_count"), 0))
             non_economic_fill_total = int(_safe_float(accounting.get("non_economic_fill_count"), 0))
             pnl_blockers = list(accounting.get("non_economic_fill_blockers") or [])
+            if (
+                proof_required_positions
+                and open_position_fill_proof_accounting_status.get("status") != "PASS"
+            ):
+                pnl_blockers.append(
+                    {
+                        "classification": "OPEN_POSITION_FILL_PROOF_ACCOUNTING_BLOCKED",
+                        "missing_fields": list(
+                            open_position_fill_proof_accounting_status.get(
+                                "rejection_reasons"
+                            )
+                            or []
+                        ),
+                        "reason": (
+                            "OPEN_POSITION_WITHOUT_OPERATIONAL_ACCEPTED_FILL_REQUIRES_"
+                            "VALID_DURABLE_PROOF"
+                        ),
+                    }
+                )
             portfolio_pnl_blockers = [*pnl_blockers, *mark_price_blockers]
             unrealized_pnl_usd = _safe_float(accounting.get("unrealized_pnl"), 0.0)
             total_unrealized_bps = 0.0
@@ -1045,6 +1324,9 @@ def run_once(write_redis: bool = True) -> dict:
             accepted_authoritative_open_suppressed_count
         ),
         "ledger_authoritative_no_open_positions": ledger_authoritative_no_open_positions,
+        "open_position_fill_proof_accounting_status": (
+            open_position_fill_proof_accounting_status
+        ),
         "economic_fill_total": economic_fill_total,
         "non_economic_fill_total": non_economic_fill_total,
         "held_by_paper_fill_gate_total": held_total,

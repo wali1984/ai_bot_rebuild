@@ -64,6 +64,8 @@ def test_accepted_fill_recomputes_equity_from_current_market_price(monkeypatch, 
                 "open_positions": [
                     {
                         "position_id": "paper_pos_btc",
+                        "entry_fill_id": "intent-1",
+                        "source_fill_ids": ["intent-1"],
                         "symbol": "BTCUSDT",
                         "side": "long",
                             "net_quantity": 2.0,
@@ -135,6 +137,164 @@ def test_accepted_fill_recomputes_equity_from_current_market_price(monkeypatch, 
     assert result["live_gate_status"] == "enabled_operator_approved"
     assert result["positions"][0]["position_state"] == "accepted_paper_fill_open"
     assert all(row.get("open_position") is not True for row in result["positions"][1:])
+
+
+def _proof_backed_aave_ledger(*, mutate_proof: bool = False) -> dict[str, object]:
+    position = {
+        "position_id": "paper_pos_AAVEUSDT_generation",
+        "position_generation_id": "generation-aave",
+        "entry_fill_id": "fill-aave",
+        "source_fill_ids": ["fill-aave"],
+        "prediction_id": "prediction-aave",
+        "signal_id": "signal-aave",
+        "orchestrator_decision_id": "decision-aave",
+        "risk_decision_id": "risk-aave",
+        "allocation_id": "allocation-aave",
+        "symbol": "AAVEUSDT",
+        "timeframe": "4h",
+        "side": "short",
+        "net_quantity": 0.5,
+        "avg_entry_price": 97.03,
+        "gross_notional_usd": 48.515,
+        "effective_leverage": 1.0,
+        "maintenance_margin_rate": 0.01,
+        "current_capital_accounting": {
+            "accounting_scope": "CURRENT_EXECUTED_PAPER_POSITION",
+            "effective_leverage": 1.0,
+            "effective_leverage_validated": True,
+            "maintenance_margin_rate": 0.01,
+        },
+        "allocated_margin_usd": 48.515,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+    proof = {
+        "schema_version": "paper_open_position_fill_proof_v1",
+        "proof_origin": "CURRENT_CYCLE_FINAL_ADMISSION_PASS",
+        "proof_created_at": "2026-07-28T01:27:29.501011Z",
+        "fill_id": "fill-aave",
+        "ledger_row_id": "fill-aave",
+        "position_id": position["position_id"],
+        "position_generation_id": position["position_generation_id"],
+        "prediction_id": position["prediction_id"],
+        "signal_id": position["signal_id"],
+        "intent_id": "intent-aave",
+        "orchestrator_decision_id": position["orchestrator_decision_id"],
+        "risk_decision_id": position["risk_decision_id"],
+        "allocation_id": position["allocation_id"],
+        "adaptive_policy_action_id": "action-aave",
+        "symbol": "AAVEUSDT",
+        "timeframe": "4h",
+        "side": "short",
+        "quantity": 0.5,
+        "fill_price": 97.03,
+        "gross_notional_usd": 48.515,
+        "effective_leverage": 1.0,
+        "allocated_margin_usd": 48.515,
+        "paper_final_admission_status": "PASS",
+        "paper_final_admission_receipt_hash": "a" * 64,
+        "paper_final_admission_bound_material_hash": "b" * 64,
+        "paper_persisted_ledger_contract_hash": "c" * 64,
+        "paper_cycle_reservation_commit_receipt_hash": "d" * 64,
+        "adaptive_policy_action_sha256": "e" * 64,
+        "adaptive_paper_policy_authorization_sha256": "f" * 64,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "exchange_action_taken": False,
+    }
+    proof["proof_id"] = publisher._canonical_sha256(proof)  # noqa: SLF001
+    if mutate_proof:
+        proof["quantity"] = 0.6
+    proofs = [proof]
+    proof_status = {
+        "schema_version": "paper_open_position_fill_proof_status_v1",
+        "status": "PASS",
+        "input_open_position_count": 1,
+        "proof_count": 1,
+        "proofs_sha256": publisher._canonical_sha256(proofs),  # noqa: SLF001
+        "one_proof_per_open_position": True,
+    }
+    return {
+        "generated_utc": "2026-07-28T01:30:00Z",
+        "paper_session_id": "paper-session-aave",
+        "starting_equity_usd": 3000.0,
+        "initial_capital": 3000.0,
+        "accepted": [],
+        "accepted_count": 0,
+        "open_positions": [position],
+        "open_position_count": 1,
+        "open_position_fill_proofs": proofs,
+        "paper_open_position_fill_proof_status": proof_status,
+        "closed_trades": [],
+        "held_by_paper_fill_gate_count": 0,
+        "shadow_observation_count": 0,
+    }
+
+
+def test_compacted_fill_uses_hash_valid_durable_open_position_proof(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    fake = FakeRedis(
+        {
+            "v2:paper:session": {
+                "initial_capital": 3000.0,
+                "starting_equity_usd": 3000.0,
+                "paper_session_id": "paper-session-aave",
+            },
+            "v2:paper:ledger": _proof_backed_aave_ledger(),
+            "v2:market:prices:AAVEUSDT": {
+                "ticker_24hr": {"lastPrice": "97.41"},
+                "fetched_utc": "2026-07-28T01:30:01Z",
+            },
+        }
+    )
+    monkeypatch.setattr(publisher, "_connect_redis", lambda: fake)
+    monkeypatch.setattr(publisher, "PAYLOAD_PATH", tmp_path / "portfolio.json")
+
+    result = publisher.run_once(write_redis=False)
+
+    assert result["open_position_fill_proof_accounting_status"]["status"] == "PASS"
+    assert result["open_position_fill_proof_accounting_status"][
+        "one_proof_per_open_position"
+    ] is True
+    assert result["accepted_fill_total"] == 1
+    assert result["open_positions_count"] == 1
+    assert result["unrealized_pnl_usd"] == pytest.approx(-0.19)
+    assert result["wallet_balance"] == 3000.0
+    assert result["equity"] == pytest.approx(2999.81)
+    assert result["used_margin_usd"] == 48.515
+    assert result["paper_account_margin_status"]["status"] == "PASS"
+
+
+def test_mutated_durable_open_position_proof_never_authorizes_pnl(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    fake = FakeRedis(
+        {
+            "v2:paper:ledger": _proof_backed_aave_ledger(mutate_proof=True),
+            "v2:market:prices:AAVEUSDT": {
+                "ticker_24hr": {"lastPrice": "97.41"},
+                "fetched_utc": "2026-07-28T01:30:01Z",
+            },
+        }
+    )
+    monkeypatch.setattr(publisher, "_connect_redis", lambda: fake)
+    monkeypatch.setattr(publisher, "PAYLOAD_PATH", tmp_path / "portfolio.json")
+
+    result = publisher.run_once(write_redis=False)
+
+    proof_status = result["open_position_fill_proof_accounting_status"]
+    assert proof_status["status"] == "BLOCKED"
+    assert "OPEN_POSITION_FILL_PROOF_HASH_INVALID:paper_pos_AAVEUSDT_generation" in (
+        proof_status["rejection_reasons"]
+    )
+    assert result["accepted_fill_total"] == 0
+    assert result["unrealized_pnl_usd"] == 0.0
+    assert result["equity_trusted"] is False
 
 
 def test_future_ledger_clock_blocks_portfolio_time_contract(monkeypatch, tmp_path) -> None:
