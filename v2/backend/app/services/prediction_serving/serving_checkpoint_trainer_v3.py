@@ -21,6 +21,7 @@ from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.confidence impor
     fit_temperature,
     normalize_calibration_state,
 )
+from v2.backend.app.services.prediction_serving import serving_training_artifact_v2
 from v2.backend.app.services.prediction_serving.serving_checkpoint_trainer_v2 import (
     FIXED_RANDOM_SEED,
     MIN_EDGE_TARGET_SCALE_BPS,
@@ -41,7 +42,6 @@ from v2.backend.app.services.prediction_serving.serving_model_v4 import (
     build_serving_model_v4,
 )
 from v2.backend.app.services.prediction_serving.serving_training_artifact_v2 import (
-    PINNED_BUILD_RECEIPT_FILE_SHA256,
     load_validated_training_artifacts,
 )
 
@@ -543,7 +543,9 @@ def train_serving_checkpoint_v3(
             parity_path.name
         ],
         "build_receipt_sha256": canonical_sha256(build_receipt),
-        "build_receipt_file_sha256": PINNED_BUILD_RECEIPT_FILE_SHA256,
+        "build_receipt_file_sha256": (
+            serving_training_artifact_v2.PINNED_BUILD_RECEIPT_FILE_SHA256
+        ),
         "candidate_archive_terminal_chain_sha256": build_receipt[
             "candidate_archive_verification"
         ]["terminal_chain_sha256"],

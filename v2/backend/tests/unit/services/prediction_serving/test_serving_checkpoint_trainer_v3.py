@@ -102,6 +102,9 @@ def test_authenticated_training_is_deterministic_and_nonactivating(
     assert first_report["training_artifact_authentication"] == second_report[
         "training_artifact_authentication"
     ]
+    assert first_report["training_artifact_authentication"][
+        "build_receipt_file_sha256"
+    ] == hashlib.sha256(artifacts.receipt_path.read_bytes()).hexdigest()
     assert first_report["activation_eligible"] is False
     assert first_bundle.checkpoint_promotable is False
     assert first_bundle.live_eligible is False

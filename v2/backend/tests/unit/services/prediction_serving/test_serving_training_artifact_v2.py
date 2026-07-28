@@ -69,6 +69,7 @@ class ArtifactFixture:
         *,
         root: Path,
         dataset: dict[str, Any],
+        base_dataset: dict[str, Any],
         manifest: dict[str, Any],
         parity: dict[str, Any],
         receipt: dict[str, Any],
@@ -76,11 +77,13 @@ class ArtifactFixture:
     ) -> None:
         self.root = root
         self.dataset = dataset
+        self.base_dataset = base_dataset
         self.manifest = manifest
         self.parity = parity
         self.receipt = receipt
         self.monkeypatch = monkeypatch
         self.dataset_path = root / "adaptive_serving_compatible_dataset_v2.json"
+        self.base_dataset_path = root / "serving_compatible_dataset_gen5.json"
         self.manifest_path = (
             root / "adaptive_serving_compatible_dataset_manifest_v2.json"
         )
@@ -88,6 +91,21 @@ class ArtifactFixture:
         self.receipt_path = root / "candidate_outcome_dataset_build_receipt_v2.json"
 
     def write(self, *, repin_receipt: bool = True) -> None:
+        base_bytes = _bytes(self.base_dataset)
+        self.base_dataset_path.write_bytes(base_bytes)
+        base_file_sha = hashlib.sha256(base_bytes).hexdigest()
+        self.monkeypatch.setattr(
+            serving_training_artifact_v2,
+            "PINNED_BASE_DATASET_FILE_SHA256",
+            base_file_sha,
+        )
+        self.receipt.update(
+            {
+                "base_dataset_path": str(self.base_dataset_path),
+                "base_dataset_file_sha256": base_file_sha,
+                "trusted_base_dataset_file_sha256": base_file_sha,
+            }
+        )
         _rehash_dataset(self.dataset)
         self.manifest["dataset_id"] = self.dataset["dataset_id"]
         self.manifest["dataset_sha256"] = self.dataset["dataset_sha256"]
@@ -168,6 +186,20 @@ def _build_artifacts(
                 "latest_unclosed_exclusion_decision_time_ms": int(
                     decision_time.timestamp() * 1_000
                 ),
+                "source_hashes": {
+                    "canonical_label_binding_sha256": row[
+                        "label_binding_sha256"
+                    ],
+                    "cost_capture_artifact_sha256": "1" * 64,
+                    "cost_capture_binding_sha256": "2" * 64,
+                    "cost_capture_receipt_sha256": "3" * 64,
+                    "cost_cas_object_inventory_sha256": "4" * 64,
+                    "mtf_binding_sha256": "5" * 64,
+                    "parent_lineage_binding_sha256": "6" * 64,
+                    "parent_record_sha256": "7" * 64,
+                    "profiled_ledger_high_water_sha256": "8" * 64,
+                    "profiled_ledger_record_sha256": "9" * 64,
+                },
             }
         )
         action_offset = (sequence - 1) % 3
@@ -194,8 +226,11 @@ def _build_artifacts(
         if key not in {"dataset_id", "dataset_sha256"}
     }
     base_dataset["dataset_sha256"] = canonical_sha256(base_material)
+    base_dataset["dataset_id"] = (
+        f"serving_dataset_v2_{base_dataset['dataset_sha256'][:24]}"
+    )
     dataset, manifest, parity = build_adaptive_serving_dataset_v2(
-        base_dataset=base_dataset,
+        base_dataset=deepcopy(base_dataset),
         candidate_records=(matured,),
         snapshot_loader=lambda _snapshot_id: snapshot,
         source_archive_chain_sha256="a" * 64,
@@ -238,6 +273,7 @@ def _build_artifacts(
     fixture = ArtifactFixture(
         root=tmp_path,
         dataset=dataset,
+        base_dataset=base_dataset,
         manifest=manifest,
         parity=parity,
         receipt=receipt,
@@ -375,4 +411,145 @@ def test_symlinked_artifact_is_rejected(
     os.symlink(target, artifacts.receipt_path)
 
     with pytest.raises(ServingTrainingArtifactError, match="REGULAR_FILE_REQUIRED"):
+        artifacts.load()
+
+
+def _candidate_row(artifacts: ArtifactFixture) -> dict[str, Any]:
+    return next(
+        row
+        for row in artifacts.dataset["rows"]
+        if row["source_kind"] == "CANDIDATE_DECISION_OUTCOME_V2"
+    )
+
+
+def _gen5_row(artifacts: ArtifactFixture) -> dict[str, Any]:
+    return next(
+        row
+        for row in artifacts.dataset["rows"]
+        if row["source_kind"] == "GEN5_AUTHENTICATED_PROFILED_OBSERVATION"
+    )
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        lambda row: row.__setitem__("label_binding_sha256", "c" * 64),
+        lambda row: row["source_hashes"].__setitem__(
+            "label_binding_sha256", "c" * 64
+        ),
+        lambda row: row["source_hashes"].__setitem__(
+            "candidate_archive_terminal_chain_sha256", "c" * 64
+        ),
+        lambda row: (
+            row.__setitem__("cost_evidence_sha256", "c" * 64),
+            row["directional_label_derivation"].__setitem__(
+                "derivation_sha256", "c" * 64
+            ),
+        ),
+        lambda row: row.__setitem__("source_hashes", {"x": "c" * 64}),
+    ],
+)
+def test_rotated_receipt_cannot_authenticate_forged_candidate_lineage(
+    artifacts: ArtifactFixture,
+    mutate: Callable[[dict[str, Any]], object],
+) -> None:
+    mutate(_candidate_row(artifacts))
+    artifacts.write(repin_receipt=True)
+
+    with pytest.raises(ServingTrainingArtifactError):
+        artifacts.load()
+
+
+@pytest.mark.parametrize(
+    ("field", "invalid"),
+    [
+        ("feature_group_count", False),
+        ("feature_group_count", 999_999),
+        ("reused_feature_group_count", 999_999),
+        ("maximum_rows_per_feature_group", 999_999),
+        ("embargo_groups", 999_999),
+        ("candidate_rejection_count", False),
+    ],
+)
+def test_rotated_receipt_cannot_authenticate_forged_manifest_counters(
+    artifacts: ArtifactFixture,
+    field: str,
+    invalid: object,
+) -> None:
+    artifacts.manifest[field] = invalid
+    artifacts.write(repin_receipt=True)
+
+    with pytest.raises(ServingTrainingArtifactError):
+        artifacts.load()
+
+
+@pytest.mark.parametrize("field", ["purge_policy", "split_boundaries"])
+def test_rotated_receipt_requires_exact_purge_and_split_contract(
+    artifacts: ArtifactFixture,
+    field: str,
+) -> None:
+    artifacts.manifest[field] = {} if field == "split_boundaries" else ""
+    artifacts.write(repin_receipt=True)
+
+    with pytest.raises(ServingTrainingArtifactError):
+        artifacts.load()
+
+
+def test_rotated_receipt_requires_exact_source_high_watermark(
+    artifacts: ArtifactFixture,
+) -> None:
+    artifacts.manifest["source_high_watermark"][
+        "candidate_archive_latest_decision_only_count"
+    ] = 999_999
+    artifacts.write(repin_receipt=True)
+    with pytest.raises(ServingTrainingArtifactError, match="HIGH_WATERMARK"):
+        artifacts.load()
+
+    artifacts.manifest["source_high_watermark"][
+        "candidate_archive_latest_decision_only_count"
+    ] = 0
+    artifacts.manifest["source_high_watermark"]["base_dataset_sha256"] = "c" * 64
+    artifacts.write(repin_receipt=True)
+    with pytest.raises(ServingTrainingArtifactError, match="HIGH_WATERMARK"):
+        artifacts.load()
+
+
+def test_rotated_receipt_requires_exact_nested_archive_schema(
+    artifacts: ArtifactFixture,
+) -> None:
+    artifacts.receipt["candidate_archive_verification"]["unexpected"] = True
+    artifacts.write(repin_receipt=True)
+
+    with pytest.raises(ServingTrainingArtifactError, match="ARCHIVE_RECEIPT"):
+        artifacts.load()
+
+
+@pytest.mark.parametrize(
+    ("field", "invalid"),
+    [
+        ("required_feature_missing_rate", False),
+        ("activation_block_reason", None),
+    ],
+)
+def test_rotated_receipt_requires_exact_parity_semantics(
+    artifacts: ArtifactFixture,
+    field: str,
+    invalid: object,
+) -> None:
+    artifacts.parity[field] = invalid
+    artifacts.write(repin_receipt=True)
+
+    with pytest.raises(ServingTrainingArtifactError, match="PARITY"):
+        artifacts.load()
+
+
+def test_gen5_rows_are_exactly_bound_to_the_pinned_base_dataset(
+    artifacts: ArtifactFixture,
+) -> None:
+    _gen5_row(artifacts)["cost_evidence_sha256"] = "c" * 64
+    artifacts.write(repin_receipt=True)
+
+    with pytest.raises(
+        ServingTrainingArtifactError, match="DIFFERS_FROM_PINNED_BASE_DATASET"
+    ):
         artifacts.load()
