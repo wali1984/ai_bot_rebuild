@@ -52,6 +52,8 @@ _PAPER_POSITION_RECONSTRUCTION_FIELDS = (
     "adaptive_policy_action_id",
     "adaptive_policy_action_sha256",
     "adaptive_paper_policy_authorization_sha256",
+    "adaptive_policy_paper_cycle_receipt_id",
+    "adaptive_policy_paper_cycle_receipt_sha256",
     "adaptive_policy_exit_plan",
     "adaptive_policy_stop_price",
     "adaptive_policy_profit_target_price",
@@ -782,12 +784,19 @@ def validate_paper_position_reconstruction(
         for field_name in (
             "adaptive_policy_action_sha256",
             "adaptive_paper_policy_authorization_sha256",
+            "adaptive_policy_paper_cycle_receipt_sha256",
         ):
             if not _is_lower_sha256_hex(row.get(field_name)):
                 reasons.append(
                     "POSITION_RECONSTRUCTION_"
                     f"{field_name.upper()}_INVALID"
                 )
+        if not str(
+            row.get("adaptive_policy_paper_cycle_receipt_id") or ""
+        ).strip():
+            reasons.append(
+                "POSITION_RECONSTRUCTION_ADAPTIVE_POLICY_CYCLE_RECEIPT_ID_MISSING"
+            )
         if (
             not isinstance(exit_plan, dict)
             or exit_plan.get("status") != "ADAPTIVE_POLICY_EXIT_PLAN_ACTIVE"
@@ -1305,6 +1314,8 @@ class PaperNetPosition:
     adaptive_policy_action_id: str | None = None
     adaptive_policy_action_sha256: str | None = None
     adaptive_paper_policy_authorization_sha256: str | None = None
+    adaptive_policy_paper_cycle_receipt_id: str | None = None
+    adaptive_policy_paper_cycle_receipt_sha256: str | None = None
     adaptive_policy_exit_plan: dict[str, Any] | None = None
     adaptive_policy_stop_price: float | None = None
     adaptive_policy_profit_target_price: float | None = None
@@ -2543,6 +2554,12 @@ class PaperNetPosition:
             "adaptive_paper_policy_authorization_sha256": (
                 self.adaptive_paper_policy_authorization_sha256
             ),
+            "adaptive_policy_paper_cycle_receipt_id": (
+                self.adaptive_policy_paper_cycle_receipt_id
+            ),
+            "adaptive_policy_paper_cycle_receipt_sha256": (
+                self.adaptive_policy_paper_cycle_receipt_sha256
+            ),
             "adaptive_policy_exit_plan": self.adaptive_policy_exit_plan,
             "adaptive_policy_stop_price": self.adaptive_policy_stop_price,
             "adaptive_policy_profit_target_price": (
@@ -2801,6 +2818,12 @@ class PaperNetPosition:
             "adaptive_policy_action_sha256": self.adaptive_policy_action_sha256,
             "adaptive_paper_policy_authorization_sha256": (
                 self.adaptive_paper_policy_authorization_sha256
+            ),
+            "adaptive_policy_paper_cycle_receipt_id": (
+                self.adaptive_policy_paper_cycle_receipt_id
+            ),
+            "adaptive_policy_paper_cycle_receipt_sha256": (
+                self.adaptive_policy_paper_cycle_receipt_sha256
             ),
             "adaptive_policy_exit_plan": self.adaptive_policy_exit_plan,
             "adaptive_policy_stop_price": self.adaptive_policy_stop_price,
@@ -4489,6 +4512,18 @@ def position_from_fill(fill: dict[str, Any], *, fill_id: str, side: str, quantit
         adaptive_paper_policy_authorization_sha256=(
             str(fill.get("adaptive_paper_policy_authorization_sha256"))
             if fill.get("adaptive_paper_policy_authorization_sha256")
+            not in (None, "")
+            else None
+        ),
+        adaptive_policy_paper_cycle_receipt_id=(
+            str(fill.get("adaptive_policy_paper_cycle_receipt_id"))
+            if fill.get("adaptive_policy_paper_cycle_receipt_id")
+            not in (None, "")
+            else None
+        ),
+        adaptive_policy_paper_cycle_receipt_sha256=(
+            str(fill.get("adaptive_policy_paper_cycle_receipt_sha256"))
+            if fill.get("adaptive_policy_paper_cycle_receipt_sha256")
             not in (None, "")
             else None
         ),

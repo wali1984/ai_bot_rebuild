@@ -8,6 +8,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from v2.backend.app.services.adaptive_system import adaptive_hard_validator_v2
 from v2.backend.app.services.adaptive_system import adaptive_objective_v2
+from v2.backend.app.services.adaptive_system import adaptive_policy_shadow_v2 as policy_shadow
 from v2.backend.app.services.adaptive_system.adaptive_policy_shadow_v2 import (
     AdaptivePolicyShadowError,
     _continuous_performance_risk_multiplier,
@@ -133,6 +134,21 @@ def _intent() -> dict:
         "runtime_cost_capture_temporal_reject_reasons": [],
         "production_grade_cost_flag": True,
         "fallback_cost_flag": False,
+        "feed_integrity_pass": True,
+        "microstructure_action": "SHADOW_ONLY",
+        "microstructure_continuous_estimates_complete": True,
+        "microstructure_continuous_estimates_status": (
+            "PASS_CALIBRATED_CONTINUOUS_ESTIMATES"
+        ),
+        "microstructure_continuous_estimates": {
+            "schema_version": "microstructure_continuous_estimates_v1",
+            "status": "PASS_CALIBRATED_CONTINUOUS_ESTIMATES",
+            "complete": True,
+            "fill_probability": 0.37,
+            "slippage_bps": 7.0,
+            "market_impact_bps": 9.0,
+            "adverse_selection_probability": 0.61,
+        },
         "paper_fill_allowed": False,
         "allocator_decision": "BLOCK_STATIC_CATEGORY_E",
         "paper_fill_block_reason": "STATIC_COMPARATOR_ONLY",
@@ -232,6 +248,88 @@ def test_builds_complete_shadow_chain_with_zero_reference_disagreements() -> Non
     assert result.routes_to_live is False
     assert result.places_real_order is False
     assert result.exchange_action_taken is False
+
+
+def test_feed_integrity_false_blocks_every_typed_disposition_including_flat() -> None:
+    intent = _intent()
+    intent["feed_integrity_pass"] = False
+
+    with pytest.raises(AdaptivePolicyShadowError, match="no_hard_valid_selection"):
+        build_adaptive_policy_shadow_candidate(
+            intent=intent,
+            feature_snapshot=_feature_snapshot(),
+            paper_status={"paper_only": True, "open_position_count": 0},
+            calibration=_calibration(),
+            registry=_registry(),
+            validator_seed=_SEED,
+            generated_at_ms=4_000_000,
+        )
+
+
+def test_directional_typed_action_consumes_conservative_microstructure_estimates() -> None:
+    intent = _intent()
+    calibration = _calibration()
+    registry = _registry()
+    result = build_adaptive_policy_shadow_candidate(
+        intent=intent,
+        feature_snapshot=_feature_snapshot(),
+        paper_status={"paper_only": True, "open_position_count": 0},
+        calibration=calibration,
+        registry=registry,
+        validator_seed=_SEED,
+        generated_at_ms=4_000_000,
+    )
+    selected = next(
+        item
+        for item in result.objective_inputs
+        if item.action_id.endswith(":champion_exploitation:long")
+    )
+    statistics = policy_shadow._statistics(calibration, "LONG", "15m")  # noqa: SLF001
+    plan = policy_shadow._physical_plan(  # noqa: SLF001
+        intent=intent,
+        statistics=statistics,
+        side="LONG",
+        mode=policy_shadow.CHAMPION_EXPLOITATION,
+    )
+
+    action = policy_shadow._policy_action(  # noqa: SLF001
+        selected=selected,
+        intent=intent,
+        registry=registry,
+        calibration=calibration,
+        evaluation=result.objective_evaluation,
+        plan=plan,
+        statistics=statistics,
+        state_id=selected.state_id,
+        state_sha256=selected.state_sha256,
+        source_receipts=(_sha("f"),),
+        generated_at_ms=4_000_000,
+    )
+
+    assert action.expected_fill_probability == pytest.approx(
+        min(1.0 - statistics["venue_infeasible_probability"], 0.37)
+    )
+    assert action.expected_slippage == pytest.approx(
+        max(statistics["slippage_bps_quantiles"]["0.5"], 7.0)
+    )
+    assert action.expected_market_impact == pytest.approx(
+        max(statistics["market_impact_bps_quantiles"]["0.5"], 9.0)
+    )
+    assert action.expected_adverse_selection == pytest.approx(
+        max(statistics["slippage_failure_probability"], 0.61)
+    )
+    assert action.expected_cost_breakdown.slippage_bps == action.expected_slippage
+    assert action.expected_cost_breakdown.market_impact_bps == action.expected_market_impact
+    assert action.expected_cost_breakdown.total_cost_bps == pytest.approx(
+        action.expected_cost_breakdown.fee_bps
+        + action.expected_cost_breakdown.spread_bps
+        + action.expected_cost_breakdown.slippage_bps
+        + action.expected_cost_breakdown.market_impact_bps
+        + action.expected_cost_breakdown.funding_bps
+    )
+    assert "MICROSTRUCTURE_CONTINUOUS_ESTIMATES_CONSUMED" in (
+        action.decision_rationale_codes
+    )
 
 
 def test_missing_verified_finality_snapshot_fails_closed() -> None:

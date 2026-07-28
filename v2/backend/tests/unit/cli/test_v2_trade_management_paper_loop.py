@@ -942,6 +942,7 @@ def golden_a_grade_final_admission(
 
     intent: dict[str, object] = {
         "intent_id": "intent-final-golden-1",
+        "decision_time": "2026-07-17T12:00:01Z",
         "symbol": symbol,
         "timeframe": timeframe,
         "side": side,
@@ -1047,6 +1048,32 @@ def golden_a_grade_final_admission(
         "maintenance_bracket_expires_at": bracket_expires_at,
         "maintenance_bracket_consumer_observed_at": (bracket_consumer_observed_at),
     }
+    durable_feature_snapshot = {
+        "feature_snapshot_id": feature_snapshot_id,
+        "symbol": symbol,
+        "timeframe": timeframe,
+        "available_at": "2026-07-17T11:59:31Z",
+        "generated_at": "2026-07-17T11:59:30Z",
+        "feature_cutoff": "2026-07-17T11:59:00Z",
+        "trainer_consumable": True,
+        "candle_closed_confirmed": True,
+        "latest_unclosed_kline_excluded": True,
+        "latest_unclosed_exclusion_method": "DROP_CLOSE_TIME_AFTER_DECISION",
+        "latest_unclosed_exclusion_decision_time_ms": int(
+            datetime(2026, 7, 17, 12, 0, 0, tzinfo=timezone.utc).timestamp()
+            * 1_000
+        ),
+        "latest_closed_kline_close_time_ms": int(
+            datetime(2026, 7, 17, 11, 59, 0, tzinfo=timezone.utc).timestamp()
+            * 1_000
+        ),
+        "content_sha256": "d" * 64,
+        "features": {"atr_bps": 50.0, "ret_pct": 0.01},
+    }
+    assert paper_loop._paper_bind_verified_durable_feature_snapshot(  # noqa: SLF001
+        intent=intent,
+        snapshot=durable_feature_snapshot,
+    ) == []
     intent["maintenance_bracket_evidence"] = {
         "prevalidated": intent["maintenance_bracket_prevalidated"],
         "bracket_id": intent["maintenance_bracket_id"],
@@ -10008,12 +10035,155 @@ def test_adaptive_policy_cycle_receipt_fails_closed_on_action_hash_mismatch() ->
 
     assert receipt is None
     assert "ADAPTIVE_POLICY_ACTION_BINDING_INVALID" in reasons
-    assert "ADAPTIVE_POLICY_AUTHORIZATION_BINDING_INVALID" in reasons
+
+
+def test_durable_feature_binding_is_replayed_and_hash_bound_for_admission() -> None:
+    intent = {
+        "symbol": "BTCUSDT",
+        "timeframe": "5m",
+        "feature_snapshot_id": "feature-p3-binding",
+        "decision_time": "2026-07-17T12:00:00Z",
+    }
+    snapshot = {
+        "feature_snapshot_id": "feature-p3-binding",
+        "symbol": "BTCUSDT",
+        "timeframe": "5m",
+        "feature_cutoff": "2026-07-17T11:55:00Z",
+        "generated_at": "2026-07-17T11:55:01Z",
+        "available_at": "2026-07-17T11:55:02Z",
+        "trainer_consumable": True,
+        "candle_closed_confirmed": True,
+        "latest_unclosed_kline_excluded": True,
+        "latest_unclosed_exclusion_method": "DROP_CLOSE_TIME_AFTER_DECISION",
+        "latest_unclosed_exclusion_decision_time_ms": int(
+            datetime(2026, 7, 17, 11, 55, 3, tzinfo=timezone.utc).timestamp()
+            * 1_000
+        ),
+        "latest_closed_kline_close_time_ms": int(
+            datetime(2026, 7, 17, 11, 55, 0, tzinfo=timezone.utc).timestamp()
+            * 1_000
+        ),
+        "content_sha256": "d" * 64,
+        "features": {"atr_bps": 42.0},
+    }
+
+    assert paper_loop._paper_bind_verified_durable_feature_snapshot(  # noqa: SLF001
+        intent=intent,
+        snapshot=snapshot,
+    ) == []
+    assert paper_loop._paper_durable_feature_admission_rejection_reasons(  # noqa: SLF001
+        intent
+    ) == []
+
+    projection = paper_loop._paper_persisted_admission_projection(intent)  # noqa: SLF001
+    assert projection["critical_fields"]["entry_feature_snapshot_archive_verified"] is True
+    assert projection["critical_fields"]["entry_feature_snapshot_content_sha256"] == "d" * 64
+    original_nested_hash = projection["nested_payload_hashes"]["entry_feature_snapshot"]
+    tampered = deepcopy(intent)
+    tampered["entry_feature_snapshot"]["available_at"] = "2026-07-17T11:59:59Z"
+    assert (
+        paper_loop._paper_persisted_admission_projection(tampered)[  # noqa: SLF001
+            "nested_payload_hashes"
+        ]["entry_feature_snapshot"]
+        != original_nested_hash
+    )
+    assert "DURABLE_FEATURE_ADMISSION_BINDING_MISMATCH:available_at" in (
+        paper_loop._paper_durable_feature_admission_rejection_reasons(  # noqa: SLF001
+            tampered
+        )
+    )
+
+
+def test_durable_feature_binding_rejects_generated_after_available_at() -> None:
+    intent = {
+        "symbol": "ETHUSDT",
+        "timeframe": "15m",
+        "feature_snapshot_id": "feature-p3-clock-order",
+        "decision_time": "2026-07-17T12:00:00Z",
+    }
+    snapshot = {
+        "feature_snapshot_id": "feature-p3-clock-order",
+        "symbol": "ETHUSDT",
+        "timeframe": "15m",
+        "feature_cutoff": "2026-07-17T11:44:00Z",
+        "generated_at": "2026-07-17T11:46:00Z",
+        "available_at": "2026-07-17T11:45:00Z",
+        "trainer_consumable": True,
+        "candle_closed_confirmed": True,
+        "latest_unclosed_kline_excluded": True,
+        "latest_unclosed_exclusion_method": "DROP_CLOSE_TIME_AFTER_DECISION",
+        "latest_unclosed_exclusion_decision_time_ms": int(
+            datetime(2026, 7, 17, 11, 45, 1, tzinfo=timezone.utc).timestamp()
+            * 1_000
+        ),
+        "latest_closed_kline_close_time_ms": int(
+            datetime(2026, 7, 17, 11, 44, 0, tzinfo=timezone.utc).timestamp()
+            * 1_000
+        ),
+        "content_sha256": "e" * 64,
+        "features": {"atr_bps": 33.0},
+    }
+
+    reasons = paper_loop._paper_bind_verified_durable_feature_snapshot(  # noqa: SLF001
+        intent=intent,
+        snapshot=snapshot,
+    )
+
+    assert "DURABLE_FEATURE_SNAPSHOT_GENERATED_AFTER_AVAILABLE_AT" in reasons
+    assert "entry_feature_snapshot_archive_verified" not in intent
+
+
+def test_adaptive_policy_integrity_block_has_typed_denial_and_cycle_receipts() -> None:
+    row = {
+        "prediction_id": "pred-block-v2",
+        "signal_id": "sig-block-v2",
+        "orchestrator_decision_id": "orch-block-v2",
+        "risk_decision_id": "risk-block-v2",
+        "intent_id": "intent-block-v2",
+        "symbol": "BTCUSDT",
+        "timeframe": "5m",
+        "adaptive_policy_authoritative": True,
+        "adaptive_policy_authority_status": "BLOCKED",
+        "paper_only": True,
+        "live_gate": "blocked_human_only",
+        "routes_to_live": False,
+        "places_real_order": False,
+        "exchange_action_taken": False,
+    }
+    paper_loop._paper_attach_adaptive_policy_block_disposition(  # noqa: SLF001
+        row,
+        rejection_reasons=["MICROSTRUCTURE_FEED_INTEGRITY_NOT_PROVEN"],
+        cycle_control_snapshot_sha256="c" * 64,
+        decision_time_ms=1_785_000_000_000,
+    )
+
+    assert row["adaptive_policy_block_disposition"]["schema_version"] == (
+        "AdaptivePolicyDispositionV2"
+    )
+    assert row["adaptive_policy_block_disposition"]["paper_entry_authority"] is False
+    assert row["adaptive_policy_block_authorization_receipt"][
+        "authorization_status"
+    ] == "DENIED_FAIL_CLOSED"
+    assert row["adaptive_policy_block_cycle_receipt"]["policy_disposition"] == (
+        "BLOCK_DISPOSITION_PERSISTED"
+    )
+    assert paper_loop._paper_adaptive_policy_block_disposition_valid(row) is True  # noqa: SLF001
+    coverage = paper_loop._paper_adaptive_policy_runtime_coverage([row])  # noqa: SLF001
+    assert coverage["complete"] is True
+    assert coverage["block_receipt_count"] == 1
+
+    tampered = deepcopy(row)
+    tampered["adaptive_policy_block_disposition"][
+        "hard_integrity_rejection_reasons"
+    ] = []
+    assert paper_loop._paper_adaptive_policy_block_disposition_valid(tampered) is False  # noqa: SLF001
 
 
 def test_paper_allocation_point_in_time_contract_is_per_candidate_and_fail_closed() -> None:
     decision_time = datetime(2026, 7, 17, 12, 1, tzinfo=timezone.utc)
     intent = {
+        "symbol": "BTCUSDT",
+        "timeframe": "5m",
         "entry_price_provenance_present": True,
         "entry_price_source_available_at": "2026-07-17T12:00:50Z",
         "entry_price_source_generated_utc": "2026-07-17T12:00:50Z",
@@ -10023,8 +10193,9 @@ def test_paper_allocation_point_in_time_contract_is_per_candidate_and_fail_close
         "entry_feature_snapshot_id": "feature-1",
         "entry_feature_cutoff": "2026-07-17T12:00:00Z",
         "entry_feature_available_at": "2026-07-17T12:00:10Z",
-        "entry_feature_generated_at": "2026-07-17T12:00:11Z",
+        "entry_feature_generated_at": "2026-07-17T12:00:09Z",
         "entry_feature_decision_time": "2026-07-17T12:00:20Z",
+        "decision_time": "2026-07-17T12:00:20Z",
         "strategy_feature_cutoff": "2026-07-17T12:00:00Z",
         "strategy_available_at": "2026-07-17T12:00:10Z",
         "strategy_decision_time": "2026-07-17T12:00:20Z",
@@ -10054,6 +10225,31 @@ def test_paper_allocation_point_in_time_contract_is_per_candidate_and_fail_close
         "paper_exchange_filter_available_at": "2026-07-17T12:00:51Z",
         "paper_exchange_filter_observed_at": "2026-07-17T12:00:57Z",
     }
+    assert paper_loop._paper_bind_verified_durable_feature_snapshot(  # noqa: SLF001
+        intent=intent,
+        snapshot={
+            "feature_snapshot_id": "feature-1",
+            "symbol": "BTCUSDT",
+            "timeframe": "5m",
+            "feature_cutoff": "2026-07-17T12:00:00Z",
+            "generated_at": "2026-07-17T12:00:09Z",
+            "available_at": "2026-07-17T12:00:10Z",
+            "trainer_consumable": True,
+            "candle_closed_confirmed": True,
+            "latest_unclosed_kline_excluded": True,
+            "latest_unclosed_exclusion_method": "DROP_CLOSE_TIME_AFTER_DECISION",
+            "latest_unclosed_exclusion_decision_time_ms": int(
+                datetime(2026, 7, 17, 12, 0, 19, tzinfo=timezone.utc).timestamp()
+                * 1_000
+            ),
+            "latest_closed_kline_close_time_ms": int(
+                datetime(2026, 7, 17, 12, 0, 0, tzinfo=timezone.utc).timestamp()
+                * 1_000
+            ),
+            "content_sha256": "f" * 64,
+            "features": {"atr_bps": 50.0},
+        },
+    ) == []
 
     valid = paper_loop._paper_allocation_point_in_time_contract(  # noqa: SLF001
         intent,
@@ -18039,6 +18235,9 @@ def _open_position_fill_proof_fixture(
         "ledger_row_id": fill_id,
         "position_id": position_id,
         "position_generation_id": position_generation_id,
+        "checkpoint_id": "SERVING_ABI_V2_PAPER_fixture",
+        "checkpoint_generation": 3,
+        "cohort_id": "paper-serving-v2-fixture",
         "prediction_id": prediction_id,
         "signal_id": f"sig-{fill_id}",
         "intent_id": f"intent-{fill_id}",
@@ -18062,6 +18261,8 @@ def _open_position_fill_proof_fixture(
         "paper_cycle_reservation_commit_receipt_hash": "4" * 64,
         "adaptive_policy_action_sha256": "5" * 64,
         "adaptive_paper_policy_authorization_sha256": "6" * 64,
+        "adaptive_policy_paper_cycle_receipt_id": f"apcr1-{fill_id}",
+        "adaptive_policy_paper_cycle_receipt_sha256": "7" * 64,
         "paper_only": True,
         "routes_to_live": False,
         "places_real_order": False,
@@ -18069,6 +18270,9 @@ def _open_position_fill_proof_fixture(
     position = {
         "position_id": position_id,
         "position_generation_id": position_generation_id,
+        "checkpoint_id": "SERVING_ABI_V2_PAPER_fixture",
+        "checkpoint_generation": 3,
+        "cohort_id": "paper-serving-v2-fixture",
         "entry_fill_id": fill_id,
         "source_fill_ids": [fill_id],
         "prediction_id": prediction_id,
@@ -18095,13 +18299,38 @@ def _open_position_fill_proof_fixture(
     return proof, position
 
 
+def _open_position_fill_proof_store_payload(
+    proofs: list[dict],
+    *,
+    positions: list[dict] | None = None,
+    corroborated_invalid_positions: list[dict] | None = None,
+) -> dict[str, object]:
+    positions = positions or []
+    manifest = paper_loop._paper_open_position_fill_proof_manifest(  # noqa: SLF001
+        proofs,
+        positions,
+        generated_utc="2026-07-28T01:00:00Z",
+        bindings=[
+            {
+                "position_id": proof.get("position_id"),
+                "proof_id": proof.get("proof_id"),
+                "fill_id": proof.get("fill_id"),
+            }
+            for proof in proofs
+        ],
+        corroborated_invalid_positions=corroborated_invalid_positions or [],
+    )
+    return {
+        "v2:paper:open_position_fill_proofs": proofs,
+        "v2:paper:open_position_fill_proofs:manifest": manifest,
+    }
+
+
 @pytest.mark.parametrize("side", ["long", "short"])
 def test_position_fill_reconciliation_retains_exactly_proven_position(side: str) -> None:
     proof, position = _open_position_fill_proof_fixture(side=side)
     redis_client = _FakeRedis(
-        {
-            "v2:paper:open_position_fill_proofs": [proof]
-        }
+        _open_position_fill_proof_store_payload([proof], positions=[position])
     )
     proof_source = paper_loop._paper_accepted_fill_proof_source(redis_client)  # noqa: SLF001
     ledger = {"open_positions": [position]}
@@ -18120,21 +18349,38 @@ def test_position_fill_reconciliation_retains_exactly_proven_position(side: str)
     assert len(receipt["proof_bindings"]) == 1
 
 
-def test_missing_dedicated_proof_key_is_authoritative_empty_not_position_fallback() -> None:
+def test_missing_dedicated_proof_key_is_uninitialized_not_authoritative_empty() -> None:
     source = paper_loop._paper_accepted_fill_proof_source(_FakeRedis({}))  # noqa: SLF001
 
-    assert source["status"] == "READY"
+    assert source["status"] == "BLOCKED"
+    assert source["initialization_state"] == (
+        "PROOF_STORE_UNINITIALIZED_OR_UNBACKFILLED"
+    )
     assert source["rows"] == []
     assert source["row_count"] == 0
     assert source["redis_key"] == "v2:paper:open_position_fill_proofs"
+    assert source["rejection_reasons"] == ["PROOF_STORE_UNINITIALIZED"]
+
+
+def test_manifest_bound_empty_proof_store_is_initialized() -> None:
+    source = paper_loop._paper_accepted_fill_proof_source(  # noqa: SLF001
+        _FakeRedis(_open_position_fill_proof_store_payload([], positions=[]))
+    )
+
+    assert source["status"] == "READY"
+    assert source["initialization_state"] == "EMPTY_INITIALIZED_PROOF_SET"
+    assert source["row_count"] == 0
     assert source["rejection_reasons"] == []
+    assert paper_loop._paper_valid_sha256(source["manifest_sha256"])  # noqa: SLF001
 
 
 def test_mutated_open_position_fill_proof_blocks_source() -> None:
-    proof, _ = _open_position_fill_proof_fixture(side="short")
+    proof, position = _open_position_fill_proof_fixture(side="short")
+    payloads = _open_position_fill_proof_store_payload([proof], positions=[position])
     proof["quantity"] = 0.6
+    payloads["v2:paper:open_position_fill_proofs"] = [proof]
     source = paper_loop._paper_accepted_fill_proof_source(  # noqa: SLF001
-        _FakeRedis({"v2:paper:open_position_fill_proofs": [proof]})
+        _FakeRedis(payloads)
     )
 
     assert source["status"] == "BLOCKED"
@@ -18146,7 +18392,7 @@ def test_durable_proof_survives_operational_accepted_fill_compaction(side: str) 
     proof, position = _open_position_fill_proof_fixture(side=side)
     redis_client = _FakeRedis(
         {
-            "v2:paper:open_position_fill_proofs": [proof],
+            **_open_position_fill_proof_store_payload([proof], positions=[position]),
             "v2:paper:accepted_fills": [],
         }
     )
@@ -18193,7 +18439,7 @@ def test_new_proof_requires_current_final_admission_pass() -> None:
         [position],
         [invalid_fill],
         paper_loop._paper_accepted_fill_proof_source(  # noqa: SLF001
-            _FakeRedis({"v2:paper:open_position_fill_proofs": []})
+            _FakeRedis(_open_position_fill_proof_store_payload([], positions=[]))
         ),
         generated_utc="2026-07-28T01:00:00Z",
     )
@@ -18207,49 +18453,252 @@ def test_new_proof_requires_current_final_admission_pass() -> None:
     assert rejected[0]["accepted_fill_quarantine_reasons"]
 
 
-def test_position_fill_reconciliation_repairs_phantom_idempotently() -> None:
+def test_uninitialized_empty_proof_store_retains_five_legitimate_positions() -> None:
+    positions = [
+        {
+            "position_id": f"paper-pos-{index}",
+            "prediction_id": f"pred-{index}",
+            "symbol": f"COIN{index}USDT",
+            "side": "long" if index % 2 == 0 else "short",
+            "allocated_margin_usd": 49.664,
+        }
+        for index in range(5)
+    ]
     redis_client = _FakeRedis({"v2:paper:open_position_fill_proofs": []})
     proof_source = paper_loop._paper_accepted_fill_proof_source(redis_client)  # noqa: SLF001
     ledger = {
-        "open_positions": [
-            {
-                "position_id": "paper_pos_AAVEUSDT_fixture",
-                "entry_fill_id": "pred-aave",
-                "source_fill_ids": ["pred-aave"],
-                "prediction_id": "pred-aave",
-                "signal_id": "sig-aave",
-                "symbol": "AAVEUSDT",
-                "side": "short",
-                "allocated_margin_usd": 78.088,
-            }
-        ],
-        "positions_by_symbol": {"AAVEUSDT": {"position_id": "paper_pos_AAVEUSDT_fixture"}},
-        "open_position_count": 1,
+        "open_positions": positions,
+        "positions_by_symbol": {row["symbol"]: row for row in positions},
+        "open_position_count": 5,
+        "wallet_balance_usd": 2985.59472051,
+        "closed_trades": [],
     }
 
-    reconciled, repair = paper_loop._paper_reconcile_ledger_to_accepted_fill_proofs(  # noqa: SLF001
+    reconciled, blocked = paper_loop._paper_reconcile_ledger_to_accepted_fill_proofs(  # noqa: SLF001
         ledger,
         proof_source,
         generated_utc="2026-07-28T01:00:00Z",
     )
-    reconciled_again, replay = paper_loop._paper_reconcile_ledger_to_accepted_fill_proofs(  # noqa: SLF001
-        reconciled,
-        proof_source,
+
+    assert proof_source["status"] == "BLOCKED"
+    assert blocked["status"] == "BLOCKED"
+    assert blocked["rejection_reasons"] == ["PROOF_STORE_UNINITIALIZED"]
+    assert blocked["phantom_position_count"] == 0
+    assert blocked["unresolved_position_count"] == 5
+    assert blocked["used_margin_released_usd"] == 0.0
+    assert blocked["reserved_margin_released_usd"] == 0.0
+    assert blocked["wallet_balance_mutation_usd"] == 0.0
+    assert reconciled["open_positions"] == positions
+    assert reconciled["wallet_balance_usd"] == ledger["wallet_balance_usd"]
+    assert reconciled["closed_trades"] == []
+
+
+def test_backfill_binds_five_positions_and_restart_is_idempotent() -> None:
+    fixtures = [
+        _open_position_fill_proof_fixture(
+            side="long" if index % 2 == 0 else "short",
+            fill_id=f"fill-{index}",
+            prediction_id=f"pred-{index}",
+        )
+        for index in range(5)
+    ]
+    positions = [position for _, position in fixtures]
+    durable_fills = [
+        {**proof, "paper_final_admission_contract": {"status": "PASS"}}
+        for proof, _ in fixtures
+    ]
+
+    proofs, manifest = paper_loop._paper_build_open_position_fill_proof_backfill(  # noqa: SLF001
+        positions,
+        durable_fills,
+        [],
+        [],
+        generated_utc="2026-07-28T01:00:00Z",
+    )
+    replay_proofs, replay_manifest = (  # noqa: SLF001
+        paper_loop._paper_build_open_position_fill_proof_backfill(
+            positions,
+            durable_fills,
+            [],
+            proofs,
+            generated_utc="2026-07-28T01:01:00Z",
+        )
+    )
+    source = paper_loop._paper_accepted_fill_proof_source(  # noqa: SLF001
+        _FakeRedis(
+            {
+                "v2:paper:open_position_fill_proofs": proofs,
+                "v2:paper:open_position_fill_proofs:manifest": manifest,
+            }
+        )
+    )
+    reconstructed, first_receipt = (  # noqa: SLF001
+        paper_loop._paper_reconcile_ledger_to_accepted_fill_proofs(
+            {"open_positions": positions, "closed_trades": [], "wallet_balance_usd": 1000.0},
+            source,
+            generated_utc="2026-07-28T01:02:00Z",
+        )
+    )
+    restarted, second_receipt = (  # noqa: SLF001
+        paper_loop._paper_reconcile_ledger_to_accepted_fill_proofs(
+            reconstructed,
+            source,
+            generated_utc="2026-07-28T01:03:00Z",
+        )
+    )
+
+    assert manifest["completed"] is True
+    assert manifest["proof_count"] == 5
+    assert manifest["binding_count"] == 5
+    assert paper_loop._paper_valid_sha256(manifest["manifest_sha256"])  # noqa: SLF001
+    assert replay_proofs == proofs
+    assert replay_manifest["proofs_sha256"] == manifest["proofs_sha256"]
+    assert source["status"] == "READY"
+    assert first_receipt["status"] == "PASS"
+    assert second_receipt["status"] == "PASS"
+    assert len(reconstructed["open_positions"]) == 5
+    assert len(restarted["open_positions"]) == 5
+    assert all(row["accepted_fill_proof_reconciled"] is True for row in restarted["open_positions"])
+    assert restarted["wallet_balance_usd"] == 1000.0
+    assert restarted["closed_trades"] == []
+
+
+def test_proof_store_initialization_backfills_before_reconciliation_idempotently(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    fixtures = [
+        _open_position_fill_proof_fixture(
+            side="long" if index % 2 == 0 else "short",
+            fill_id=f"startup-fill-{index}",
+            prediction_id=f"startup-pred-{index}",
+        )
+        for index in range(5)
+    ]
+    positions = [position for _, position in fixtures]
+    durable_fills = [
+        {**proof, "paper_final_admission_contract": {"status": "PASS"}}
+        for proof, _ in fixtures
+    ]
+    redis_client = _FakeRedis(
+        {
+            "v2:paper:open_position_fill_proofs": [],
+            "v2:paper:accepted_fills": durable_fills,
+        }
+    )
+    monkeypatch.setattr(paper_loop, "_read_lifecycle_state_file", lambda: {})
+    monkeypatch.setattr(
+        paper_loop,
+        "PAPER_OPEN_POSITION_FILL_PROOF_MANIFEST_PATH",
+        tmp_path / "proof-backfill-manifest.json",
+    )
+    initial_source = paper_loop._paper_accepted_fill_proof_source(redis_client)  # noqa: SLF001
+
+    ready, manifest, written = paper_loop._paper_initialize_open_position_fill_proof_store(  # noqa: SLF001
+        redis_client,
+        {"open_positions": positions, "accepted": durable_fills},
+        initial_source,
+        generated_utc="2026-07-28T01:00:00Z",
+    )
+    replay_ready, replay_manifest, replay_written = (  # noqa: SLF001
+        paper_loop._paper_initialize_open_position_fill_proof_store(
+            redis_client,
+            {"open_positions": positions, "accepted": durable_fills},
+            ready,
+            generated_utc="2026-07-28T01:01:00Z",
+        )
+    )
+
+    assert initial_source["status"] == "BLOCKED"
+    assert ready["status"] == "READY"
+    assert ready["row_count"] == 5
+    assert manifest["completed"] is True
+    assert manifest["binding_count"] == 5
+    assert written is True
+    assert replay_written is False
+    assert replay_ready == ready
+    assert replay_manifest == manifest
+    assert json.loads((tmp_path / "proof-backfill-manifest.json").read_text()) == manifest
+
+
+def test_exact_quarantined_phantom_is_only_position_removed() -> None:
+    fixtures = [
+        _open_position_fill_proof_fixture(
+            side="long" if index % 2 == 0 else "short",
+            fill_id=f"valid-fill-{index}",
+            prediction_id=f"valid-pred-{index}",
+        )
+        for index in range(4)
+    ]
+    valid_positions = [position for _, position in fixtures]
+    durable_fills = [
+        {**proof, "paper_final_admission_contract": {"status": "PASS"}}
+        for proof, _ in fixtures
+    ]
+    phantom = {
+        "position_id": "paper-pos-quarantined-phantom",
+        "entry_fill_id": "phantom-fill",
+        "source_fill_ids": ["phantom-fill"],
+        "prediction_id": "phantom-pred",
+        "signal_id": "phantom-signal",
+        "symbol": "AAVEUSDT",
+        "timeframe": "5m",
+        "side": "short",
+        "allocated_margin_usd": 48.32,
+    }
+    quarantine = {
+        "fill_id": "phantom-fill",
+        "position_id": phantom["position_id"],
+        "prediction_id": phantom["prediction_id"],
+        "accepted_fill_quarantined": True,
+        "accepted_fill_quarantine_reasons": ["FINAL_ADMISSION_RECEIPT_HASH_INVALID"],
+    }
+    positions = [*valid_positions, phantom]
+    proofs, manifest = paper_loop._paper_build_open_position_fill_proof_backfill(  # noqa: SLF001
+        positions,
+        durable_fills,
+        [quarantine],
+        [],
+        generated_utc="2026-07-28T01:00:00Z",
+    )
+    source = paper_loop._paper_accepted_fill_proof_source(  # noqa: SLF001
+        _FakeRedis(
+            {
+                "v2:paper:open_position_fill_proofs": proofs,
+                "v2:paper:open_position_fill_proofs:manifest": manifest,
+            }
+        )
+    )
+    ledger = {
+        "open_positions": positions,
+        "positions_by_symbol": {row["symbol"]: row for row in positions},
+        "open_position_count": 5,
+        "wallet_balance_usd": 1000.0,
+        "closed_trades": [],
+    }
+
+    reconciled, receipt = paper_loop._paper_reconcile_ledger_to_accepted_fill_proofs(  # noqa: SLF001
+        ledger,
+        source,
         generated_utc="2026-07-28T01:01:00Z",
     )
 
-    assert repair["status"] == "REPAIRED"
-    assert repair["phantom_position_count"] == 1
-    assert repair["phantom_positions"][0]["reason"] == "UNPROVED_PHANTOM_POSITION"
-    assert repair["used_margin_released_usd"] == pytest.approx(78.088)
-    assert repair["reserved_margin_released_usd"] == 0.0
-    assert repair["wallet_balance_mutation_usd"] == 0.0
-    assert reconciled["open_positions"] == []
-    assert reconciled["positions_by_symbol"] == {}
-    assert reconciled["open_position_count"] == 0
-    assert replay["status"] == "PASS"
-    assert replay["phantom_position_count"] == 0
-    assert reconciled_again["open_positions"] == []
+    assert manifest["completed"] is True
+    assert manifest["corroborated_invalid_position_count"] == 1
+    assert receipt["status"] == "REPAIRED"
+    assert receipt["phantom_position_count"] == 1
+    assert receipt["phantom_positions"][0]["reason"] == (
+        "EXACT_ACCEPTED_FILL_QUARANTINE_CORROBORATED"
+    )
+    assert receipt["used_margin_released_usd"] == pytest.approx(48.32)
+    assert receipt["reserved_margin_released_usd"] == 0.0
+    assert receipt["wallet_balance_mutation_usd"] == 0.0
+    assert len(reconciled["open_positions"]) == 4
+    assert {row["position_id"] for row in reconciled["open_positions"]} == {
+        row["position_id"] for row in valid_positions
+    }
+    assert reconciled["wallet_balance_usd"] == 1000.0
+    assert reconciled["closed_trades"] == []
 
 
 def test_position_fill_reconciliation_keeps_inventory_when_proof_source_malformed() -> None:
@@ -18284,23 +18733,21 @@ def test_position_fill_reconciliation_keeps_inventory_when_proof_source_malforme
 
 
 def test_position_fill_reconciliation_blocks_conflicting_duplicate_proofs() -> None:
-    first_proof, _ = _open_position_fill_proof_fixture(
+    first_proof, first_position = _open_position_fill_proof_fixture(
         side="long",
         fill_id="fill-1",
         prediction_id="pred-shared",
     )
-    second_proof, _ = _open_position_fill_proof_fixture(
+    second_proof, second_position = _open_position_fill_proof_fixture(
         side="long",
         fill_id="fill-2",
         prediction_id="pred-shared",
     )
     redis_client = _FakeRedis(
-        {
-            "v2:paper:open_position_fill_proofs": [
-                first_proof,
-                second_proof,
-            ]
-        }
+        _open_position_fill_proof_store_payload(
+            [first_proof, second_proof],
+            positions=[first_position, second_position],
+        )
     )
     proof_source = paper_loop._paper_accepted_fill_proof_source(redis_client)  # noqa: SLF001
     ledger = {
@@ -18329,19 +18776,30 @@ def test_position_fill_reconciliation_blocks_conflicting_duplicate_proofs() -> N
 
 
 def test_position_fill_repair_receipt_archive_is_idempotent(tmp_path: Path) -> None:
+    phantom = {
+        "position_id": "paper-pos-once",
+        "entry_fill_id": "fill-once",
+        "source_fill_ids": ["fill-once"],
+        "prediction_id": "pred-once",
+        "symbol": "ETHUSDT",
+        "side": "short",
+        "allocated_margin_usd": 10.0,
+    }
+    invalid = {
+        "reason": "EXACT_ACCEPTED_FILL_QUARANTINE_CORROBORATED",
+        "matched_aliases": ["fill-once", "paper-pos-once", "pred-once"],
+        "quarantine_reasons": ["FINAL_ADMISSION_RECEIPT_HASH_INVALID"],
+    }
     proof_source = paper_loop._paper_accepted_fill_proof_source(  # noqa: SLF001
-        _FakeRedis({"v2:paper:open_position_fill_proofs": []})
+        _FakeRedis(
+            _open_position_fill_proof_store_payload(
+                [], positions=[phantom], corroborated_invalid_positions=[invalid]
+            )
+        )
     )
     _, receipt = paper_loop._paper_reconcile_ledger_to_accepted_fill_proofs(  # noqa: SLF001
         {
-            "open_positions": [
-                {
-                    "position_id": "paper-pos-once",
-                    "prediction_id": "pred-once",
-                    "symbol": "ETHUSDT",
-                    "side": "short",
-                }
-            ]
+            "open_positions": [phantom]
         },
         proof_source,
         generated_utc="2026-07-28T01:00:00Z",
@@ -18504,11 +18962,15 @@ def test_critical_paper_state_uses_one_redis_transaction() -> None:
         "routes_to_live": False,
         "places_real_order": False,
     }
+    proof_manifest = paper_loop._paper_open_position_fill_proof_manifest(  # noqa: SLF001
+        [], [], generated_utc="2026-07-28T01:00:00Z"
+    )
 
     keys = paper_loop._write_paper_critical_state_atomically(  # noqa: SLF001
         redis_client,
         open_positions=[],
         open_position_fill_proofs=[],
+        open_position_fill_proof_manifest=proof_manifest,
         accepted_fills=[],
         quarantined_fills=[{"prediction_id": "pred-q"}],
         closed_trades=[],
@@ -18524,6 +18986,7 @@ def test_critical_paper_state_uses_one_redis_transaction() -> None:
     assert redis_client.execute_count == 1
     assert "v2:paper:positions" in keys
     assert "v2:paper:open_position_fill_proofs" in keys
+    assert "v2:paper:open_position_fill_proofs:manifest" in keys
     assert "v2:paper:accepted_fills" in keys
     assert "v2:paper:closed_trades" in keys
     assert "v2:paper:closed_trades:unproved_fill_quarantine" in keys
@@ -19798,7 +20261,9 @@ def test_invalid_admission_position_reconciliation_is_symmetric_and_idempotent(
 ) -> None:
     proof, position = _open_position_fill_proof_fixture(side=side)
     source = paper_loop._paper_accepted_fill_proof_source(  # noqa: SLF001
-        _FakeRedis({"v2:paper:open_position_fill_proofs": [proof]})
+        _FakeRedis(
+            _open_position_fill_proof_store_payload([proof], positions=[position])
+        )
     )
     ledger = {"open_positions": [position]}
     _, base = paper_loop._paper_reconcile_ledger_to_accepted_fill_proofs(  # noqa: SLF001

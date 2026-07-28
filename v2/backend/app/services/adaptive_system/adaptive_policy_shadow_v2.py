@@ -1030,6 +1030,11 @@ def _hard_check_inputs(
         failures.append("authorization_and_paper_only")
     if registry.get("paper_only") is not True or registry.get("live_eligible") is not False:
         failures.append("identity_and_lineage")
+    # Feed integrity is a source-authentication boundary, not a Category-E
+    # trading preference. It therefore applies to every typed disposition,
+    # including REMAIN_FLAT/NO_TRADE.
+    if intent.get("feed_integrity_pass") is not True:
+        failures.append("data_integrity_and_point_in_time")
     if requires_physical_execution and (
         reservation.get("status") != "PASS"
         or list(reservation.get("rejection_reasons") or [])
@@ -1100,6 +1105,11 @@ def _hard_check_inputs(
     )
     if requires_execution_cost and not cost_contract_valid:
         failures.append("data_integrity_and_point_in_time")
+    if requires_physical_execution:
+        try:
+            _microstructure_continuous_policy_inputs(intent)
+        except AdaptivePolicyShadowError:
+            failures.append("data_integrity_and_point_in_time")
     receipts = tuple(
         sorted(
             {
@@ -1160,6 +1170,46 @@ def _hard_check_inputs(
     return not failures, checks, tuple(sorted(set(failures)))
 
 
+def _microstructure_continuous_policy_inputs(
+    intent: Mapping[str, Any],
+) -> dict[str, float]:
+    """Validate the exact continuous estimates consumed by the typed action."""
+
+    raw = intent.get("microstructure_continuous_estimates")
+    estimates = _mapping(raw, "microstructure_continuous_estimates")
+    if (
+        estimates.get("schema_version") != "microstructure_continuous_estimates_v1"
+        or estimates.get("status") != "PASS_CALIBRATED_CONTINUOUS_ESTIMATES"
+        or estimates.get("complete") is not True
+        or intent.get("microstructure_continuous_estimates_complete") is not True
+    ):
+        raise AdaptivePolicyShadowError("microstructure_continuous_estimates:incomplete")
+    values = {
+        "fill_probability": _finite(
+            estimates.get("fill_probability"), "continuous.fill_probability"
+        ),
+        "slippage_bps": _finite(
+            estimates.get("slippage_bps"), "continuous.slippage_bps"
+        ),
+        "market_impact_bps": _finite(
+            estimates.get("market_impact_bps"), "continuous.market_impact_bps"
+        ),
+        "adverse_selection_probability": _finite(
+            estimates.get("adverse_selection_probability"),
+            "continuous.adverse_selection_probability",
+        ),
+    }
+    if not 0.0 <= values["fill_probability"] <= 1.0:
+        raise AdaptivePolicyShadowError("continuous.fill_probability:probability_required")
+    if not 0.0 <= values["adverse_selection_probability"] <= 1.0:
+        raise AdaptivePolicyShadowError(
+            "continuous.adverse_selection_probability:probability_required"
+        )
+    if values["slippage_bps"] < 0.0 or values["market_impact_bps"] < 0.0:
+        raise AdaptivePolicyShadowError("continuous.costs:nonnegative_required")
+    return values
+
+
 def _objective_action(
     *,
     action_id: str,
@@ -1174,9 +1224,30 @@ def _objective_action(
     registry: Mapping[str, Any],
     decision_time_ms: int,
     performance_risk_multiplier: float = 1.0,
+    microstructure_estimates: Mapping[str, float] | None = None,
 ) -> ActionObjectiveInputsV2:
     flat = selected_action == ACTION_REMAIN_FLAT
     stats = statistics or {}
+    calibrated_slippage = (
+        0.0 if flat else float(stats["slippage_bps_quantiles"]["0.5"])
+    )
+    calibrated_impact = (
+        0.0 if flat else float(stats["market_impact_bps_quantiles"]["0.5"])
+    )
+    continuous = microstructure_estimates or {}
+    effective_slippage = (
+        0.0
+        if flat
+        else max(calibrated_slippage, float(continuous.get("slippage_bps", 0.0)))
+    )
+    effective_impact = (
+        0.0
+        if flat
+        else max(calibrated_impact, float(continuous.get("market_impact_bps", 0.0)))
+    )
+    current_cost_delta = (effective_slippage - calibrated_slippage) + (
+        effective_impact - calibrated_impact
+    )
     return ActionObjectiveInputsV2.create(
         schema_version=ACTION_INPUT_SCHEMA_VERSION,
         action_id=action_id,
@@ -1189,7 +1260,9 @@ def _objective_action(
         checkpoint_sha256=_sha(registry.get("checkpoint_bundle_sha256"), "checkpoint_sha256"),
         selected_action=selected_action,
         policy_mode=mode,
-        expected_after_cost_return_bps=(0.0 if flat else float(stats["after_cost_expectancy_bps"])),
+        expected_after_cost_return_bps=(
+            0.0 if flat else float(stats["after_cost_expectancy_bps"]) - current_cost_delta
+        ),
         expected_drawdown_contribution_bps=(
             0.0
             if flat
@@ -1204,9 +1277,7 @@ def _objective_action(
             * float(stats["loss_probability"])
         ),
         liquidation_risk_probability=(0.0 if flat else float(stats["stop_out_probability"])),
-        expected_market_impact_bps=(
-            0.0 if flat else float(stats["market_impact_bps_quantiles"]["0.5"])
-        ),
+        expected_market_impact_bps=effective_impact,
         expected_funding_cost_bps=(0.0 if flat else abs(float(stats["funding_bps_mean"]))),
         expected_turnover_bps=(
             0.0 if flat else float(stats["transaction_cost_bps_quantiles"]["0.5"])
@@ -1307,11 +1378,16 @@ def _policy_action(
         adverse_selection = information_gain = 0.0
     else:
         assert plan is not None and statistics is not None
+        continuous = _microstructure_continuous_policy_inputs(intent)
         entry = float(plan["entry_price"])
         stop_price = float(plan["stop_price"])
         stop_distance = abs(entry - stop_price) / entry * 10_000.0
         profit_target = float(plan["profit_target_price"])
-        maximum_slippage = max(0.0, float(statistics["slippage_bps_quantiles"]["0.9"]))
+        maximum_slippage = max(
+            0.0,
+            float(statistics["slippage_bps_quantiles"]["0.9"]),
+            continuous["slippage_bps"],
+        )
         entry_policy = EntryPolicyV2(
             True,
             "adaptive_policy_selected_market",
@@ -1341,12 +1417,20 @@ def _policy_action(
         )
         fee = max(0.0, _finite(intent.get("fee_bps"), "fee_bps"))
         spread = max(0.0, _finite(intent.get("observed_spread_bps"), "spread_bps"))
-        slippage = max(0.0, float(statistics["slippage_bps_quantiles"]["0.5"]))
-        impact = max(0.0, float(statistics["market_impact_bps_quantiles"]["0.5"]))
+        calibrated_slippage = max(
+            0.0, float(statistics["slippage_bps_quantiles"]["0.5"])
+        )
+        calibrated_impact = max(
+            0.0, float(statistics["market_impact_bps_quantiles"]["0.5"])
+        )
+        slippage = max(calibrated_slippage, continuous["slippage_bps"])
+        impact = max(calibrated_impact, continuous["market_impact_bps"])
         funding = float(statistics["funding_bps_mean"])
         total = math.fsum((fee, spread, slippage, impact, funding))
         costs = ExpectedCostBreakdownV2(fee, spread, slippage, impact, funding, total)
-        after_cost = float(statistics["after_cost_expectancy_bps"])
+        after_cost = float(statistics["after_cost_expectancy_bps"]) - (
+            slippage - calibrated_slippage
+        ) - (impact - calibrated_impact)
         side = str(plan["side"]).lower()
         target_notional = float(plan["selected_notional_usd"])
         target_margin = float(plan["selected_margin_usd"])
@@ -1360,8 +1444,14 @@ def _policy_action(
         )
         expected_slippage = slippage
         expected_impact = impact
-        fill_probability = 1.0 - float(statistics["venue_infeasible_probability"])
-        adverse_selection = float(statistics["slippage_failure_probability"])
+        fill_probability = min(
+            1.0 - float(statistics["venue_infeasible_probability"]),
+            continuous["fill_probability"],
+        )
+        adverse_selection = max(
+            float(statistics["slippage_failure_probability"]),
+            continuous["adverse_selection_probability"],
+        )
         information_gain = (
             float(statistics["posterior_uncertainty"])
             if selected.policy_mode == BOUNDED_EXPLORATION
@@ -1500,6 +1590,7 @@ def _policy_action(
             "HARD_CONSTRAINT_VALIDATED",
             "NONTERMINAL_LEARNING_CONTINUES",
             "PERFORMANCE_RISK_CONTINUOUS_OBJECTIVE_INPUT",
+            *(() if flat else ("MICROSTRUCTURE_CONTINUOUS_ESTIMATES_CONSUMED",)),
         ),
         learning_continuation_action=(
             "label_and_evaluate_missed_opportunity" if flat else "mature_candidate_and_incremental_retrain"
@@ -1672,6 +1763,13 @@ def build_adaptive_policy_shadow_candidate(
         value = intent.get(field)
         if isinstance(value, str) and len(value) == 64:
             source_values.add(value)
+    try:
+        continuous_microstructure = _microstructure_continuous_policy_inputs(intent)
+    except AdaptivePolicyShadowError:
+        continuous_microstructure = None
+    raw_continuous_microstructure = intent.get("microstructure_continuous_estimates")
+    if isinstance(raw_continuous_microstructure, Mapping):
+        source_values.add(_canonical_sha256(dict(raw_continuous_microstructure)))
     source_receipts = tuple(sorted(source_values))
     weights = _weights(calibration)
     allocation = _allocation(calibration, state_id=state_id, state_sha256=state_sha)
@@ -1718,6 +1816,7 @@ def build_adaptive_policy_shadow_candidate(
                         registry=registry,
                         decision_time_ms=generated_at_ms,
                         performance_risk_multiplier=performance_risk_multiplier,
+                        microstructure_estimates=continuous_microstructure,
                     )
                 )
                 action_dispositions[action_id] = (blocker,)
@@ -1797,6 +1896,7 @@ def build_adaptive_policy_shadow_candidate(
                     registry=registry,
                     decision_time_ms=generated_at_ms,
                     performance_risk_multiplier=performance_risk_multiplier,
+                    microstructure_estimates=continuous_microstructure,
                 )
             )
             bundles.append(
@@ -1877,6 +1977,7 @@ def build_adaptive_policy_shadow_candidate(
             registry=registry,
             decision_time_ms=generated_at_ms,
             performance_risk_multiplier=performance_risk_multiplier,
+            microstructure_estimates=None,
         )
     )
     ordered_inputs = tuple(sorted(objective_inputs, key=lambda item: item.action_id))

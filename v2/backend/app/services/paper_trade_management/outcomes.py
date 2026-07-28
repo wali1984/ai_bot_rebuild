@@ -517,6 +517,12 @@ def build_close_event(
         "adaptive_paper_policy_authorization_sha256": (
             position.adaptive_paper_policy_authorization_sha256
         ),
+        "adaptive_policy_paper_cycle_receipt_id": (
+            position.adaptive_policy_paper_cycle_receipt_id
+        ),
+        "adaptive_policy_paper_cycle_receipt_sha256": (
+            position.adaptive_policy_paper_cycle_receipt_sha256
+        ),
         "adaptive_policy_exit_plan": position.adaptive_policy_exit_plan,
         "adaptive_policy_stop_price": position.adaptive_policy_stop_price,
         "adaptive_policy_profit_target_price": (

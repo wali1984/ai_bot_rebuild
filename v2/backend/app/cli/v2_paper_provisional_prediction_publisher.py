@@ -861,15 +861,26 @@ def microstructure_publication_rejection_reasons(
     reasons: list[str] = []
     if not isinstance(evidence, Mapping):
         reasons.append("MICROSTRUCTURE_EVIDENCE_MISSING")
-    elif evidence.get("evidence_valid") is not True:
-        producer_reasons = evidence.get("producer_rejection_reasons")
-        if isinstance(producer_reasons, list) and producer_reasons:
-            reasons.extend(
-                f"MICROSTRUCTURE_EVIDENCE_INVALID:{reason}"
-                for reason in producer_reasons
+    else:
+        if evidence.get("evidence_valid") is not True:
+            producer_reasons = evidence.get("producer_rejection_reasons")
+            if isinstance(producer_reasons, list) and producer_reasons:
+                reasons.extend(
+                    f"MICROSTRUCTURE_EVIDENCE_INVALID:{reason}"
+                    for reason in producer_reasons
+                )
+            else:
+                reasons.append("MICROSTRUCTURE_EVIDENCE_INVALID")
+        source_payload = evidence.get("source_payload")
+        if not isinstance(source_payload, Mapping) or (
+            source_payload.get("feed_integrity_pass") is not True
+        ):
+            reasons.append(
+                "MICROSTRUCTURE_FEED_INTEGRITY_FAILED"
+                if isinstance(source_payload, Mapping)
+                and source_payload.get("feed_integrity_pass") is False
+                else "MICROSTRUCTURE_FEED_INTEGRITY_NOT_PROVEN"
             )
-        else:
-            reasons.append("MICROSTRUCTURE_EVIDENCE_INVALID")
     if normalized_action in MICRO_ACTIONS_NEW_ENTRY_RESTRICTED:
         reasons.append("MICROSTRUCTURE_CLOSE_OR_REDUCE_ONLY_NEW_ENTRY_RESTRICTED")
     elif normalized_action not in MICRO_ACTIONS_AUTHENTICATED_MARKET_STATE:

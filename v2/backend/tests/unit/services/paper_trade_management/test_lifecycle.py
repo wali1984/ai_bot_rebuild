@@ -347,6 +347,8 @@ def _adaptive_policy_position(
             "adaptive_policy_action_id": action_id,
             "adaptive_policy_action_sha256": "a" * 64,
             "adaptive_paper_policy_authorization_sha256": "b" * 64,
+            "adaptive_policy_paper_cycle_receipt_id": f"apcr1-{fill_id}",
+            "adaptive_policy_paper_cycle_receipt_sha256": "c" * 64,
             "effective_leverage": 1.0,
             "recommended_leverage": 1.0,
             "recommended_margin_mode": "isolated_paper_simulated",
@@ -402,6 +404,10 @@ def test_adaptive_policy_exit_plan_is_restart_hashed_and_validated() -> None:
         "adaptive_policy_exit_plan"
     ]
     assert restored_payload["adaptive_policy_action_sha256"] == "a" * 64
+    assert restored_payload["adaptive_policy_paper_cycle_receipt_id"] == (
+        "apcr1-adaptive-restart"
+    )
+    assert restored_payload["adaptive_policy_paper_cycle_receipt_sha256"] == "c" * 64
 
 
 def test_position_generation_and_opened_time_share_exact_fill_timestamp() -> None:
@@ -561,6 +567,10 @@ def test_adaptive_policy_close_preserves_action_and_exit_lineage() -> None:
         )
         assert row["adaptive_policy_action_sha256"] == "a" * 64
         assert row["adaptive_paper_policy_authorization_sha256"] == "b" * 64
+        assert row["adaptive_policy_paper_cycle_receipt_id"] == (
+            "apcr1-adaptive-close-lineage"
+        )
+        assert row["adaptive_policy_paper_cycle_receipt_sha256"] == "c" * 64
         assert row["adaptive_policy_exit_plan"]["status"] == (
             "ADAPTIVE_POLICY_EXIT_PLAN_ACTIVE"
         )
