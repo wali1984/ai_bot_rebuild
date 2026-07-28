@@ -1,6 +1,7 @@
 """Integration tests for the V2 post-hoc replay outcome miner."""
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from typing import Any
@@ -587,3 +588,111 @@ def test_backfill_artifacts_emit_no_live_canary_shutdown_approvals() -> None:
             '"approves_redis_trim": true',
         ):
             assert forbidden not in text, (str(path), forbidden)
+
+
+def test_pending_retention_prunes_multirow_store_streaming_and_preserves_bytes(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "pending.jsonl"
+    now_ts = 20_000.0
+    stale = {"prediction_id": "stale", "anchor_ts": 1_000.0, "payload": "x" * 4096}
+    fresh = {"prediction_id": "fresh", "anchor_ts": 19_000.0, "payload": "y" * 4096}
+    fresh_line = json.dumps(fresh, sort_keys=True).encode() + b"\n"
+    path.write_bytes(json.dumps(stale, sort_keys=True).encode() + b"\n" + fresh_line)
+
+    status = replay_miner._prune_stale_pending_streaming(  # noqa: SLF001
+        path,
+        now_ts=now_ts,
+        maximum_age_seconds=4_000,
+    )
+
+    assert status["status"] == "PASS"
+    assert status["rows_seen"] == 2
+    assert status["rows_stale_pruned"] == 1
+    assert status["rows_retained"] == 1
+    assert path.read_bytes() == fresh_line
+    assert status["output_sha256"] == hashlib.sha256(fresh_line).hexdigest()
+
+
+def test_pending_stream_validation_failure_keeps_original_store(tmp_path: Path) -> None:
+    path = tmp_path / "pending.jsonl"
+    original = b'{"anchor_ts":19000,"prediction_id":"valid"}\nnot-json\n'
+    path.write_bytes(original)
+
+    with pytest.raises(ValueError, match="PENDING_STREAM_ROW_INVALID_JSON:2"):
+        replay_miner._prune_stale_pending_streaming(  # noqa: SLF001
+            path,
+            now_ts=20_000.0,
+            maximum_age_seconds=4_000,
+        )
+
+    assert path.read_bytes() == original
+    assert not path.with_suffix(path.suffix + ".prune.tmp").exists()
+
+
+def test_replay_bundle_binds_large_authorities_by_hash_not_payload(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(replay_miner, "build_altdata_snapshot", lambda symbol: {
+        "symbol": symbol,
+        "status": "MISSING_SOURCE",
+        "source_label": "MISSING_SOURCE",
+        "source_key": f"v2:altdata:symbol_score:{symbol}",
+        "missing_reason": "test",
+        "payload": None,
+    })
+    monkeypatch.setattr(replay_miner, "_legacy_reference_action_for", lambda symbol: None)
+    large_risk = {
+        "risk_decision_id": "risk-1",
+        "symbol": "BTCUSDT",
+        "strategy_decision_time": "2026-07-28T20:00:00Z",
+        "strategy_feature_cutoff": "2026-07-28T19:59:00Z",
+        "paper_only": True,
+        "matrix": "r" * 1_000_000,
+    }
+    large_orchestrator = {
+        "orchestrator_decision_id": "orch-1",
+        "paper_only": True,
+        "matrix": "o" * 1_000_000,
+    }
+    row = {
+        "intent_id": "intent-1",
+        "symbol": "BTCUSDT",
+        "side": "long",
+        "generated_utc": "2026-07-28T20:00:00Z",
+        "ts": 1_785_268_800.0,
+        "entry_price": 100.0,
+        "risk_decision": large_risk,
+        "orchestrator_decision": large_orchestrator,
+        "paper_fill_allowed": False,
+        "decision": "PAPER_INTENT_OBSERVED",
+        "raw_row": {"paper_fill_gate_block_reasons": []},
+    }
+
+    bundle = replay_miner._new_bundle_from_row(row)  # noqa: SLF001
+
+    assert bundle["risk_decision"]["source_record_sha256"] == (
+        replay_miner._canonical_sha256(large_risk)  # noqa: SLF001
+    )
+    assert bundle["orchestrator_decision"]["source_record_sha256"] == (
+        replay_miner._canonical_sha256(large_orchestrator)  # noqa: SLF001
+    )
+    assert "matrix" not in bundle["risk_decision"]
+    assert "matrix" not in bundle["orchestrator_decision"]
+    assert len(json.dumps(bundle, sort_keys=True)) < 20_000
+
+
+def test_large_artifact_copy_is_streaming_and_atomic(tmp_path: Path) -> None:
+    from v2.backend.app.cli.v2_post_hoc_replay_outcome_miner import (
+        _copy_file_atomic,
+    )
+
+    source = tmp_path / "source.jsonl"
+    target = tmp_path / "mirror" / "target.jsonl"
+    payload = (b'{"row":1}\n' * 200_000)
+    source.write_bytes(payload)
+
+    _copy_file_atomic(source, target)
+
+    assert target.read_bytes() == payload
+    assert not target.with_suffix(target.suffix + ".tmp").exists()

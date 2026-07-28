@@ -30,7 +30,9 @@ Safety:
 """
 from __future__ import annotations
 
+import hashlib
 import json
+import math
 import os
 import time
 from dataclasses import asdict, dataclass, field
@@ -346,6 +348,7 @@ REPLAY_BUNDLES_PATH = STATE_DIR / "replay_bundles.jsonl"
 # removed from here, so this file stays tiny regardless of archive size.
 REPLAY_BUNDLES_PENDING_PATH = STATE_DIR / "replay_bundles_pending.jsonl"
 EVAL_METRICS_PATH = STATE_DIR / "eval_metrics.jsonl"
+MAX_PENDING_AGE_SECONDS = 4 * 3600
 
 # Fields extracted from each outcome window for the compact eval store.
 _EVAL_WINDOW_KEYS: tuple[str, ...] = (
@@ -370,6 +373,103 @@ def _read_bundles_from(path: Path) -> list[dict[str, Any]]:
             except Exception:  # noqa: BLE001
                 continue
     return out
+
+
+def _prune_stale_pending_streaming(
+    path: Path,
+    *,
+    now_ts: float,
+    maximum_age_seconds: int = MAX_PENDING_AGE_SECONDS,
+) -> dict[str, Any]:
+    """Atomically prune expired pending rows without materializing the store.
+
+    A pending row is transient scheduling state, not a realized outcome.  The
+    prior implementation loaded the complete JSONL into a Python list before
+    applying this same four-hour retention rule.  A multi-gigabyte store then
+    exceeded the service's 12 GiB cgroup even though every row was already
+    expired.  This pass preserves fresh row bytes exactly, records hashes and
+    counts, and leaves the source untouched if any row is malformed.
+    """
+
+    if not path.exists():
+        return {
+            "schema_version": "replay_pending_stream_prune_v1",
+            "path": str(path),
+            "exists": False,
+            "rows_seen": 0,
+            "rows_retained": 0,
+            "rows_stale_pruned": 0,
+            "rows_invalid": 0,
+            "input_sha256": hashlib.sha256(b"").hexdigest(),
+            "output_sha256": hashlib.sha256(b"").hexdigest(),
+            "status": "PASS_NOT_PRESENT",
+        }
+    if maximum_age_seconds <= 0 or not math.isfinite(now_ts):
+        raise ValueError("PENDING_STREAM_PRUNE_CONFIGURATION_INVALID")
+
+    tmp = path.with_suffix(path.suffix + ".prune.tmp")
+    input_digest = hashlib.sha256()
+    output_digest = hashlib.sha256()
+    rows_seen = 0
+    rows_retained = 0
+    rows_stale_pruned = 0
+    try:
+        with path.open("rb") as source, tmp.open("wb") as target:
+            for line_number, raw_line in enumerate(source, start=1):
+                input_digest.update(raw_line)
+                if not raw_line.strip():
+                    continue
+                rows_seen += 1
+                try:
+                    row = json.loads(raw_line)
+                except Exception as exc:  # noqa: BLE001 - fail-closed JSONL boundary
+                    raise ValueError(
+                        f"PENDING_STREAM_ROW_INVALID_JSON:{line_number}"
+                    ) from exc
+                if not isinstance(row, dict):
+                    raise ValueError(
+                        f"PENDING_STREAM_ROW_NOT_OBJECT:{line_number}"
+                    )
+                anchor_ts = row.get("anchor_ts")
+                anchor_valid = (
+                    type(anchor_ts) in {int, float}
+                    and math.isfinite(float(anchor_ts))
+                )
+                if (
+                    anchor_valid
+                    and now_ts - float(anchor_ts) <= maximum_age_seconds
+                ):
+                    output_line = (
+                        raw_line if raw_line.endswith(b"\n") else raw_line + b"\n"
+                    )
+                    target.write(output_line)
+                    output_digest.update(output_line)
+                    rows_retained += 1
+                else:
+                    rows_stale_pruned += 1
+            target.flush()
+            os.fsync(target.fileno())
+        os.replace(tmp, path)
+    except Exception:
+        try:
+            tmp.unlink()
+        except FileNotFoundError:
+            pass
+        raise
+
+    return {
+        "schema_version": "replay_pending_stream_prune_v1",
+        "path": str(path),
+        "exists": True,
+        "rows_seen": rows_seen,
+        "rows_retained": rows_retained,
+        "rows_stale_pruned": rows_stale_pruned,
+        "rows_invalid": 0,
+        "maximum_age_seconds": maximum_age_seconds,
+        "input_sha256": input_digest.hexdigest(),
+        "output_sha256": output_digest.hexdigest(),
+        "status": "PASS",
+    }
 
 
 def _read_bundles() -> list[dict[str, Any]]:
@@ -498,10 +598,39 @@ def _harvest_paper_evidence() -> list[dict[str, Any]]:
             "fee_gate_allowed": row.get("fee_gate_allowed"),
             "churn_blocked": row.get("churn_blocked"),
             "paper_fill_allowed": row.get("paper_fill_allowed"),
+            "paper_fill_gate_block_reasons": row.get(
+                "paper_fill_gate_block_reasons"
+            ),
             "decision": decision,
+            "decision_time": row.get("decision_time")
+            or row.get("entry_feature_decision_time"),
+            "available_at": row.get("available_at")
+            or row.get("entry_feature_available_at"),
+            "feature_cutoff": row.get("feature_cutoff")
+            or row.get("entry_feature_cutoff"),
+            "entry_feature_decision_time": row.get(
+                "entry_feature_decision_time"
+            ),
+            "entry_feature_available_at": row.get(
+                "entry_feature_available_at"
+            ),
+            "entry_feature_generated_at": row.get(
+                "entry_feature_generated_at"
+            ),
+            "entry_feature_cutoff": row.get("entry_feature_cutoff"),
+            "entry_feature_candle_closed_confirmed": row.get(
+                "entry_feature_candle_closed_confirmed"
+            ),
             "risk_decision": risk_by_symbol.get((row.get("symbol") or "").upper()),
             "orchestrator_decision": orch if isinstance(orch, dict) else None,
-            "raw_row": dict(row),
+            # The replay bundle needs exact disposition evidence, not another
+            # multi-megabyte copy of the complete paper matrix.  The complete
+            # authenticated candidate remains in CandidateDecisionOutcomeV2.
+            "raw_row": {
+                "paper_fill_gate_block_reasons": row.get(
+                    "paper_fill_gate_block_reasons"
+                )
+            },
         }
 
     for r in (ledger.get("accepted") or []):
@@ -521,6 +650,74 @@ def _harvest_paper_evidence() -> list[dict[str, Any]]:
         if isinstance(r, dict):
             rows.append(_decorate(r, "HELD_BY_PAPER_FILL_GATE"))
     return rows
+
+
+def _canonical_sha256(value: Any) -> str:
+    encoded = json.dumps(
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        default=str,
+        allow_nan=False,
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+_AUTHORITY_PROJECTION_FIELDS: tuple[str, ...] = (
+    "schema_version",
+    "decision_id",
+    "risk_decision_id",
+    "orchestrator_decision_id",
+    "prediction_id",
+    "symbol",
+    "timeframe",
+    "side",
+    "action",
+    "decision",
+    "status",
+    "reason",
+    "reasons",
+    "strategy_decision_time",
+    "strategy_feature_cutoff",
+    "decision_time",
+    "available_at",
+    "generated_at",
+    "generated_utc",
+    "source_payload_sha256",
+    "record_sha256",
+    "receipt_sha256",
+    "paper_only",
+    "live_gate",
+    "routes_to_live",
+    "places_real_order",
+    "exchange_action_taken",
+)
+
+
+def _compact_authority_projection(
+    value: Any,
+    *,
+    projection_schema_version: str,
+) -> dict[str, Any] | None:
+    """Bind a large authority record without duplicating its full payload."""
+
+    if not isinstance(value, Mapping):
+        return None
+    material = dict(value)
+    projected = {
+        field: material.get(field)
+        for field in _AUTHORITY_PROJECTION_FIELDS
+        if material.get(field) is not None
+    }
+    projected.update(
+        {
+            "projection_schema_version": projection_schema_version,
+            "source_record_sha256": _canonical_sha256(material),
+            "source_record_field_count": len(material),
+            "projection_is_complete_source_copy": False,
+        }
+    )
+    return projected
 
 
 def _resolve_paper_fill_gate_block_reasons(
@@ -652,7 +849,10 @@ def _new_bundle_from_row(row: Mapping[str, Any]) -> dict[str, Any]:
             "default_slippage_estimate_bps_visible": DEFAULT_SLIPPAGE_BPS,
         },
         "altdata_snapshot": altdata_snapshot,
-        "risk_decision": row.get("risk_decision"),
+        "risk_decision": _compact_authority_projection(
+            row.get("risk_decision"),
+            projection_schema_version="replay_risk_authority_projection_v1",
+        ),
         "trainer_output": {
             "selected_action": (
                 side if side in ("long", "short") else "hold"
@@ -676,7 +876,12 @@ def _new_bundle_from_row(row: Mapping[str, Any]) -> dict[str, Any]:
         ),
         "paper_fill_gate_block_reasons": block_reasons,
         "paper_fill_gate_block_reasons_lineage": block_reason_lineage,
-        "orchestrator_decision": row.get("orchestrator_decision"),
+        "orchestrator_decision": _compact_authority_projection(
+            row.get("orchestrator_decision"),
+            projection_schema_version=(
+                "replay_orchestrator_authority_projection_v1"
+            ),
+        ),
         "paper_intent": {
             "intent_id": row.get("intent_id"),
             "symbol": sym,
@@ -932,22 +1137,15 @@ def mine_once(
     if not REPLAY_BUNDLES_PENDING_PATH.exists():
         _seed_pending_from_archive()
 
+    # Apply the retention boundary before materializing pending state.  This is
+    # deliberately streaming: an expired multi-gigabyte store must be reducible
+    # under the miner's bounded memory cgroup.
+    pending_prune = _prune_stale_pending_streaming(
+        REPLAY_BUNDLES_PENDING_PATH,
+        now_ts=time.time(),
+    )
     pending = _read_bundles_from(REPLAY_BUNDLES_PENDING_PATH)
-
-    # Prune stale pending bundles before processing. Bundles older than
-    # _MAX_PENDING_AGE_SECONDS can never have their outcome windows filled
-    # (longest window is 1h; 4h gives a generous safety margin). This prevents
-    # the pending file from growing without bound when symbols outside the
-    # tracked set accumulate entries that are never processed.
-    _MAX_PENDING_AGE_SECONDS = 4 * 3600
-    _now_ts = time.time()
-    fresh_pending = [
-        b for b in pending
-        if isinstance(b.get("anchor_ts"), (int, float))
-        and _now_ts - b["anchor_ts"] <= _MAX_PENDING_AGE_SECONDS
-    ]
-    stale_pruned = len(pending) - len(fresh_pending)
-    pending = fresh_pending
+    stale_pruned = int(pending_prune["rows_stale_pruned"])
 
     merged, added = _merge_new_paper_rows(pending, paper_rows)
 
@@ -978,6 +1176,7 @@ def mine_once(
         "bundles_newly_filled": len(now_filled),
         "bundles_added_this_cycle": added,
         "bundles_stale_pruned": stale_pruned,
+        "pending_stream_prune": pending_prune,
         "timeline_lengths": {s: len(timeline_by_symbol[s]) for s in symbols},
     }
 
@@ -1038,6 +1237,40 @@ def _write_eval_metrics(bundles: list[dict[str, Any]]) -> None:
         for b in bundles:
             f.write(json.dumps(_compact_bundle(b), sort_keys=True) + "\n")
     os.replace(tmp, EVAL_METRICS_PATH)
+
+
+def _rebuild_eval_metrics_from_store(path: Path) -> None:
+    """Rebuild compact evaluator rows from a JSONL source with bounded RAM."""
+
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    tmp = EVAL_METRICS_PATH.with_suffix(".jsonl.tmp")
+    try:
+        with path.open("r", encoding="utf-8") as source, tmp.open(
+            "w", encoding="utf-8"
+        ) as target:
+            for line_number, line in enumerate(source, start=1):
+                if not line.strip():
+                    continue
+                try:
+                    row = json.loads(line)
+                except Exception as exc:  # noqa: BLE001 - persisted boundary
+                    raise ValueError(
+                        f"EVAL_REBUILD_ROW_INVALID_JSON:{line_number}"
+                    ) from exc
+                if not isinstance(row, dict):
+                    raise ValueError(
+                        f"EVAL_REBUILD_ROW_NOT_OBJECT:{line_number}"
+                    )
+                target.write(json.dumps(_compact_bundle(row), sort_keys=True) + "\n")
+            target.flush()
+            os.fsync(target.fileno())
+        os.replace(tmp, EVAL_METRICS_PATH)
+    except Exception:
+        try:
+            tmp.unlink()
+        except FileNotFoundError:
+            pass
+        raise
 
 
 def load_eval_bundles_or_fallback() -> list[dict[str, Any]]:
@@ -1278,59 +1511,90 @@ def backfill_jsonl_store(path: Path) -> dict[str, Any]:
     """
     if not path.exists():
         return {"path": str(path), "exists": False, "rows": 0, "changed": 0, "errors": []}
-    original_rows: list[dict[str, Any]] = []
     parse_errors: list[str] = []
-    with path.open("r", encoding="utf-8") as f:
-        for i, line in enumerate(f):
-            line = line.rstrip("\n")
-            if not line.strip():
-                continue
-            try:
-                original_rows.append(json.loads(line))
-            except Exception as exc:  # noqa: BLE001
-                parse_errors.append(f"row_{i}_invalid_json:{exc}")
-    new_rows: list[dict[str, Any]] = []
+    parse_error_count = 0
     changed_count = 0
     protected_drift: list[str] = []
+    protected_drift_count = 0
     validation_errors: list[str] = []
-    for i, orig in enumerate(original_rows):
-        sig_before = _row_protected_signature(orig)
-        cost_row, cost_changed = backfill_bundle_cost_model(orig)
-        sig_after = _row_protected_signature(cost_row)
-        if sig_before != sig_after:
-            protected_drift.append(
-                f"row_{i}_protected_field_drift:{orig.get('intent_id')}"
-            )
-        new_row, context_changed = backfill_bundle_replay_context(cost_row)
-        changed = cost_changed or context_changed
-        if changed:
-            changed_count += 1
-        errs = validate_bundle_row(new_row)
-        if errs:
-            validation_errors.extend(
-                f"row_{i}_{err}" for err in errs
-            )
-        new_rows.append(new_row)
-    # Atomic replace.
-    if changed_count > 0 and not protected_drift and not validation_errors:
-        tmp = path.with_suffix(path.suffix + ".tmp")
-        with tmp.open("w", encoding="utf-8") as f:
-            for r in new_rows:
-                f.write(json.dumps(r, sort_keys=True, default=str) + "\n")
-        os.replace(tmp, path)
-        if path == REPLAY_BUNDLES_PATH:
-            _write_eval_metrics(new_rows)
+    validation_error_count = 0
+    row_count = 0
+    tmp = path.with_suffix(path.suffix + ".backfill.tmp")
+    try:
+        with path.open("r", encoding="utf-8") as source, tmp.open(
+            "w", encoding="utf-8"
+        ) as target:
+            for line_number, line in enumerate(source, start=1):
+                if not line.strip():
+                    continue
+                row_count += 1
+                try:
+                    orig = json.loads(line)
+                except Exception:  # noqa: BLE001 - persisted JSONL boundary
+                    parse_error_count += 1
+                    if len(parse_errors) < 100:
+                        parse_errors.append(f"row_{line_number}_invalid_json")
+                    continue
+                if not isinstance(orig, dict):
+                    parse_error_count += 1
+                    if len(parse_errors) < 100:
+                        parse_errors.append(f"row_{line_number}_not_object")
+                    continue
+                sig_before = _row_protected_signature(orig)
+                cost_row, cost_changed = backfill_bundle_cost_model(orig)
+                sig_after = _row_protected_signature(cost_row)
+                if sig_before != sig_after:
+                    protected_drift_count += 1
+                    if len(protected_drift) < 100:
+                        protected_drift.append(
+                            "row_"
+                            f"{line_number}_protected_field_drift:"
+                            f"{orig.get('intent_id')}"
+                        )
+                new_row, context_changed = backfill_bundle_replay_context(cost_row)
+                if cost_changed or context_changed:
+                    changed_count += 1
+                row_errors = validate_bundle_row(new_row)
+                validation_error_count += len(row_errors)
+                for error in row_errors:
+                    if len(validation_errors) >= 100:
+                        break
+                    validation_errors.append(f"row_{line_number}_{error}")
+                target.write(
+                    json.dumps(new_row, sort_keys=True, default=str) + "\n"
+                )
+            target.flush()
+            os.fsync(target.fileno())
+        validation_passed = not (
+            parse_error_count
+            or protected_drift_count
+            or validation_error_count
+        )
+        if changed_count > 0 and validation_passed:
+            os.replace(tmp, path)
+            if path == REPLAY_BUNDLES_PATH:
+                _rebuild_eval_metrics_from_store(path)
+        else:
+            tmp.unlink()
+    except Exception:
+        try:
+            tmp.unlink()
+        except FileNotFoundError:
+            pass
+        raise
     return {
         "path": str(path),
         "exists": True,
-        "rows": len(original_rows),
+        "rows": row_count,
         "changed": changed_count,
         "parse_errors": parse_errors,
+        "parse_error_count": parse_error_count,
         "protected_field_drift": protected_drift,
+        "protected_field_drift_count": protected_drift_count,
         "validation_errors": validation_errors,
-        "validation_passed": (
-            not parse_errors and not protected_drift and not validation_errors
-        ),
+        "validation_error_count": validation_error_count,
+        "streaming_bounded_memory": True,
+        "validation_passed": validation_passed,
     }
 
 

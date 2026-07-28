@@ -26,6 +26,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import shutil
 import sys
 import time
 from datetime import datetime, timezone
@@ -73,6 +75,25 @@ def _write_json(path: Path, doc: Any) -> None:
         json.dumps(doc, indent=2, sort_keys=True, default=str) + "\n",
         encoding="utf-8",
     )
+
+
+def _copy_file_atomic(source: Path, target: Path) -> None:
+    """Copy a potentially large evidence file without loading it into RAM."""
+
+    target.parent.mkdir(parents=True, exist_ok=True)
+    tmp = target.with_suffix(target.suffix + ".tmp")
+    try:
+        with source.open("rb") as source_handle, tmp.open("wb") as target_handle:
+            shutil.copyfileobj(source_handle, target_handle, length=1024 * 1024)
+            target_handle.flush()
+            os.fsync(target_handle.fileno())
+        os.replace(tmp, target)
+    except Exception:
+        try:
+            tmp.unlink()
+        except FileNotFoundError:
+            pass
+        raise
 
 
 def _outcome_dict_to_window(d: dict[str, Any]) -> OutcomeWindow:
@@ -252,16 +273,13 @@ def run(*, symbols: tuple[str, ...]) -> dict[str, Any]:
     # The replay bundles JSONL is the canonical history store.
     if REPLAY_BUNDLES_PATH.exists():
         target = WORKLOG_DIR / "replay_outcome_bundles.jsonl"
-        target.write_text(
-            REPLAY_BUNDLES_PATH.read_text(encoding="utf-8"),
-            encoding="utf-8",
-        )
+        _copy_file_atomic(REPLAY_BUNDLES_PATH, target)
         # Mirror to public for the frontend operator dashboard. Bundle
         # payloads carry no secrets (already filtered to v2:* sources +
         # comparator mirror).
-        (PUBLIC_DIR / "replay_outcome_bundles.jsonl").write_text(
-            REPLAY_BUNDLES_PATH.read_text(encoding="utf-8"),
-            encoding="utf-8",
+        _copy_file_atomic(
+            REPLAY_BUNDLES_PATH,
+            PUBLIC_DIR / "replay_outcome_bundles.jsonl",
         )
     # Also refresh the native edge-proof evaluator's edge_metrics_summary
     # so the existing dashboard reflects the mined evidence.
