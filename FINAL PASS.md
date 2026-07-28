@@ -1606,18 +1606,18 @@ hard and fail closed.
 | FP-050 | 4 | Implement portfolio after-cost objective and adaptive exploration allocation | Claude/Codex | IN_PROGRESS | Independently accepted shadow foundation `d12f418d3d`; authenticated hard-validation evidence, exact PIT/lineage/units, self-recomputing scores, nonterminal flat-collapse signals, and bounded positive-utility information seeking; runtime fitting and policy integration remain |
 | FP-060 | 5 | Build `CandidateDecisionOutcomeV2` and point-in-time matured labels | Claude/Codex | COMPLETE | Contract `289bb9911f`; immutable runtime `27635258e8` publishes the complete unsampled candidate universe and now reports 10,335 decision revisions, 8,593 matured revisions and 18,928 verified signed rows, with zero invalid/duplicate rows, candidate and eligible-maturation coverage=1.0, unexplained drops=0, counterfactuals excluded from paper profit, and calibration bound to the identical archive chain |
 | FP-070 | 6 | Attribute gate performance and missed opportunity cost | Claude/Codex | PENDING | Exact segmented false-positive/negative, avoided-loss, and opportunity-cost evidence |
-| FP-080 | 7 | Build complete eligible-data funnel and repair corpus utilization | Claude/Codex | COMPLETE | `FP080_TYPED_OUTCOME_DATASET_ACCEPTANCE.json`, SHA-256 `0d072b34e91752828b9f7ce362fbe006f15da2d4ef6ebbe10da10dc41fbb9399`: gen-5 backfill reconciles 386 imports plus 11 exact rejections with no conflicts, and the authenticated adaptive corpus contains 6,954 PIT-valid rows from 382 gen-5 observations plus 6,572 matured typed outcomes across 161 symbols and 5m/15m/1h/4h; duplicate/future/finality/cost/label defects are all zero. |
+| FP-080 | 7 | Build complete eligible-data funnel and repair corpus utilization | Claude/Codex | COMPLETE | The original accepted 6,954-row corpus is superseded by the Ed25519-authenticated rolling release at `5821713e0b`: 9,189 PIT-valid rows split 4,502/2,802/1,885, bound to candidate archive chain `12068ab...`; duplicate/future/finality/cost/label defects remain zero. The immutable build-receipt file SHA-256 is `64170425...`. |
 | FP-090 | 8 | Verify one shared, point-in-time-safe train/serve representation | Claude/Codex | IN_PROGRESS | Gen-5 ABI and builder hashes match, feature order matches, required missing rate=0, and PIT manifest counters are zero; activation remains fail-closed because current serving distribution comparison is explicitly `CURRENT_SERVING_DISTRIBUTION_NOT_YET_EVALUATED` |
-| FP-100 | 9 | Train and compare diversified model and strategy challengers | Claude/Codex | IN_PROGRESS | The first fully authenticated 6,954-row challenger was trained deterministically at `7e8a153b78`, independently audited PASS, and correctly rejected: validation calibrated Brier `0.2660115` is worse than the frozen train-base-rate baseline `0.1934555`. No registry or runtime activation occurred; further governed diversification/escalation remains required. |
-| FP-110 | 10 | Implement automatic adaptation-escalation state machine | Claude/Codex | PENDING | Negative edge, starvation, flat collapse, and drift advance the ladder automatically |
+| FP-100 | 9 | Train and compare diversified model and strategy challengers | Claude/Codex | IN_PROGRESS | Two authenticated challengers have now been correctly rejected. The latest, `SERVING_ABI_V2_PROFITABILITY_PAPER_e492d5...`, trained for 400 finite steps on the signed 9,189-row release; validation calibrated Brier `0.3588536` failed the frozen train-base-rate baseline `0.3192224`. Independent artifact audit PASS, promotion BLOCK, generation 3 unchanged. Further governed diversification remains required. |
+| FP-110 | 10 | Implement automatic adaptation-escalation state machine | Claude/Codex | IN_PROGRESS | Durable authenticated dispatch is implemented through `39ba18ae7d`, independently passes 59 focused/125 combined/17 adversarial checks, and immutably executed the negative-edge recalibration rung once with idempotent replay. Automatic trusted runtime trigger ingestion and remaining-rung execution are still incomplete. |
 | FP-120 | 11 | Verify champion/challenger promotion, rollback, and serving independence | Claude/Codex | PENDING | Atomic receipts, superior-evidence promotion, rollback, trainer independence |
 | FP-130 | 12 | Implement venue-executable bounded information-seeking exploration | Claude/Codex | IN_PROGRESS | Exact non-authoritative venue-minimum primitive through `2b7442e61a`; opportunity selection and runtime integration remain |
 | FP-140 | 13 | Integrate unified policy with hard-only validator and paper portfolio engine | Claude/Codex | IN_PROGRESS | Scoped runtime integration is accepted through immutable `27635258e8`: authoritative adaptive policy, hard-only final validation, natural action→fill→position→stop→restart→close, complete candidate capture and runtime calibration all pass; full FP-040/FP-050/FP-130 upstream completion remains required for phase completion |
 | FP-150 | 14 | Remove duplicated policy authority and prove reference parity | Claude/Codex | IN_PROGRESS | Latest completed runtime cycle reports `adaptive_policy_authoritative=true`, `static_category_e_authority_removed=true`, 224 authority attempts and 0 reference disagreements; the repository-wide FP-020 classification/removal proof remains open |
-| FP-160 | 15 | Implement adaptive self-healing supervisor | Claude/Codex | PENDING | Every declared collapse/failure state produces a bounded repair or learning action |
+| FP-160 | 15 | Implement adaptive self-healing supervisor | Claude/Codex | IN_PROGRESS | Signed-release authentication, single-run locking, exact worker allowlisting, immutable start/terminal/output receipts, A→B→A replay, and dataset-plan identity binding are proven. The full trigger set and automatic continuation across all remaining ladder workers are still open. |
 | FP-170 | 16 | Record Claude implementation commits and acceptance claims | Claude | PENDING | Each material SHA and claim recorded in `CLAUDE_PROGRESS.jsonl` |
-| FP-180 | 17 | Perform independent adversarial audit, fixtures, co-fixes, and SHA review | Claude/Codex | IN_PROGRESS | Scoped CG-F063/CG-F057, lifecycle, matrix/calibration, and authenticated challenger audits pass. For trainer SHA `7e8a153b78`, 91 focused tests pass and 34/34 coherent rehash/repin attacks reject, including nested lineage, counter/type, exact-row and derivation-semantic forgery. Remaining FINAL PASS phases still require their own material-SHA reviews. |
-| FP-190 | 18 | Verify shadow-first immutable deployment and writer uniqueness | Codex | IN_PROGRESS | Scoped deployment proof passes for clean release `27635258e8`, paper PID `3710798`, outcome PID `3710826`, calibration PID `3710851`, all `NRestarts=0`, one canonical paper writer and three exact post-release cycles; full champion/challenger rollback acceptance remains tied to open FP-120/FP-160 work |
+| FP-180 | 17 | Perform independent adversarial audit, fixtures, co-fixes, and SHA review | Claude/Codex | IN_PROGRESS | In addition to prior scoped passes, exact dispatcher commit `39ba18ae7d` passes independent review and the real dispatch artifact receives artifact PASS/promotion BLOCK. Receipt/material/result/output tampering, arbitrary commands, dataset-plan mismatch, and non-consecutive replay are covered. Remaining FINAL PASS phases still require their own material-SHA reviews. |
+| FP-190 | 18 | Verify shadow-first immutable deployment and writer uniqueness | Codex | IN_PROGRESS | Existing paper/runtime proof remains valid, and immutable research release `39ba18ae7d` completed one non-activating signed challenger dispatch without changing canonical serving, paper, candidate-outcome PIDs or the model registry. A continuously running supervisor service and full champion/challenger rollback acceptance remain open. |
 | FP-200 | 19 | Complete natural lifecycle, restart reconstruction, and two further cycles | Joint | COMPLETE | Natural 1000PEPE short filled, retained through paper-loop restart, closed reduce-only to flat at max hold, reconciled wallet/margin, and remained canonical across two completed cycles; artifact SHA-256 `d1c1177da792fc8a02ca038551416f69a99046b0bb74e562a83063c2cac91c5f` |
 | FP-210 | 20 | Pass frozen-cohort G03/G11/G12/G13/G14 with automatic challenger escalation | Joint | PENDING | Same cohort passes all gates without deleting, relabeling, or hiding losses |
 | FP-220 | 21 | Decommission obsolete policy authority | Claude/Codex | PENDING | Temporary/static authorities disabled; safety validators and evidence preserved |
@@ -1664,6 +1664,7 @@ Machine-readable task state is maintained in
 | 2026-07-28T12:00:17.029Z | FP-060 / FP-180 / FP-190 candidate-outcome runtime acceptance | PASS SCOPED | Commits `f3fd227ad1` and `27635258e8` remove matrix truncation and stream-verify the full signed archive before selecting matured revisions. Independent review first BLOCKED and then PASSed the repaired calibration boundary. Three immutable cycles published 685/685 candidates with no sampling or drops; the final archive has 10,335 decisions, 8,593 matured revisions and 18,928 verified rows, and calibration consumes its exact terminal chain. All three PIDs remain stable with zero restarts; proof/accounting/live boundaries are unchanged. Evidence SHA-256 `b1b699410185482518074bb7183d7731fcdff038b16fc6a6e5656ce77e825e6e`; broader adaptation and economics remain open. |
 | 2026-07-28T12:40:30.554Z | FP-080 authenticated adaptive dataset | COMPLETE | Reconciled gen-5 backfill and typed-outcome corpus produce 6,954 authenticated serving-compatible rows with deterministic chronological splits 4,453/1,321/1,180, 161 symbols, four timeframes, no duplicate/future/finality/cost/label defects, and exact ABI/builder parity. Evidence SHA-256 `0d072b34e91752828b9f7ce362fbe006f15da2d4ef6ebbe10da10dc41fbb9399`. |
 | 2026-07-28T13:24:06.705216Z | FP-100 authenticated challenger attempt | GOVERNED REJECTION / ESCALATION REQUIRED | Commit `7e8a153b78` independently passes 91 focused tests and rejects 34/34 coherent hostile mutations. The real GPU run completes 400 finite steps on all 6,954 authenticated rows and emits immutable checkpoint `419c65e206e0...`; it is not superior because validation calibrated Brier `0.2660115` exceeds baseline `0.1934555`. Generation 3 remains active and untouched. Evidence SHA-256 `b66859b8110ac6ef28aa3a549768789e397c01f95d0480915361088da6d49b91`. |
+| 2026-07-28T14:19:08.391836Z | FP-080 / FP-100 / FP-110 authenticated rolling escalation | DISPATCH PASS / CHALLENGER REJECTED / CONTINUE LADDER | Commits `5821713e0b`, `8973b38140`, and `39ba18ae7d` authenticate the 9,189-row rolling release and execute one exact paper-only recalibration worker with immutable receipts and idempotent replay. Independent code and artifact audits PASS; checkpoint `e492d5c052...` is promotion-BLOCKED because validation calibrated Brier `0.3588536` is worse than baseline `0.3192224`. Generation 3 and runtime PIDs are unchanged. Evidence SHA-256 `605a46ab47d1980fcb5c692345f806a7f2254b317632ec10a4d48dedf750a63f`. |
 
 ## Current final status
 
@@ -2517,4 +2518,108 @@ exchange_action_taken=false
 
 FIRST_UNRESOLVED_STAGE=PHASE_1_TRADING_CONFIGURATION_CLASSIFICATION
 NEXT_CONTROLLABLE_WORK=IMPLEMENT_AUTOMATIC_CHALLENGER_ESCALATION_AND_CONTINUE_FP020_FP070_FP090_FP110_FP120
+```
+
+## Authenticated rolling escalation dispatch — authoritative update 2026-07-28
+
+This section supersedes the 6,954-row corpus as the latest training release and
+records the second authenticated challenger attempt. It does not supersede the
+open automatic-trigger, remaining-ladder, promotion, economic, or final
+acceptance predicates.
+
+### Completed task list
+
+- [x] Create a domain-separated Ed25519-signed v3 build receipt over the exact
+  rolling dataset, manifest, parity report, base dataset and candidate archive
+  terminal chain.
+- [x] Build and independently load the immutable 9,189-row release with
+  chronological purge/embargo splits of 4,502 training, 2,802 validation and
+  1,885 holdout rows.
+- [x] Require exact plan/dataset identity and exact allowlisted worker descriptor
+  before creating dispatch state or starting a process.
+- [x] Persist private immutable start, terminal, stdout and stderr evidence under
+  a content-addressed dispatch identity and a single-run lock.
+- [x] Make non-consecutive A→B→A replay return A's immutable terminal evidence
+  without executing a third process or overwriting the latest B state.
+- [x] Recompute terminal result consistency and stdout/stderr hashes before an
+  immutable receipt can advance the learning baseline.
+- [x] Obtain independent PASS on exact commit `39ba18ae7d`: 59 focused, 125
+  combined and 17 explicit adversarial cases pass.
+- [x] Execute the negative-after-cost-edge recalibration rung once from immutable
+  release `39ba18ae7d`; repeat invocation returned the same terminal receipt with
+  `idempotent_replay=true` and did not train twice.
+- [x] Independently audit the generated checkpoint and retain generation 3 after
+  the governed superiority test failed.
+
+### Signed release and dispatch evidence
+
+The signed release is
+`/home/wali/ai_bot_local_data/adaptive_candidate_dataset_v3/release_5821713e_20260728T1353Z`.
+Its semantic dataset SHA-256 is
+`d3183a5c52c8182b407d666a098e382caedcf5f56eccd34cd7081d9cec03b19a`,
+manifest SHA-256 is
+`d9ae369b475f28f5b678fde1ddff8f017561f0350502ffece89e7e991942b6d3`,
+and signed build-receipt file SHA-256 is
+`64170425f548424499cae457b3cdaca56fbbb6338ffc4dc456962c7e275ce624`.
+Duplicate rows, future-time violations, unproven finality, missing cost evidence
+and missing label evidence are all zero.
+
+Dispatch `adaptive_dispatch_88f4524e45bc76f70b8585656e5eb5ae` completed
+with return code zero, no timeout and no failure. The start and terminal receipt
+SHA-256 values are `fcd11a340ffb17dcb7c2e5631126c7d7b0573cb27c7f60361fa6fd05796ef988`
+and `e5b7150047112edc971f3e9a2fb6b13496389ea3bed004a43f88de8a33a2829e`.
+The exact compact evidence artifact is
+`goal_state/ADAPTIVE_SYSTEM_FINAL_PASS/FP110_AUTHENTICATED_ESCALATION_DISPATCH_20260728.json`,
+SHA-256 `605a46ab47d1980fcb5c692345f806a7f2254b317632ec10a4d48dedf750a63f`.
+
+### Truthful challenger decision
+
+Checkpoint `SERVING_ABI_V2_PROFITABILITY_PAPER_e492d5c052d1c8d77c2e2028`
+completed 400 optimizer steps with finite loss, exact ABI/builder parity, zero
+required-feature missingness and train-only calibration containing both
+directional actions, 3,862 positive outcomes and 5,142 negative outcomes.
+Its checkpoint SHA-256 is
+`7d5cc23cc5ba19befed966601bc9a5feb733f7edc07757942b8c97e1d7667c9e`.
+
+The challenger is not superior. Calibration improves validation Brier from
+`0.3614408` to `0.3588536`, but that remains worse than the frozen training
+base-rate Brier `0.3192224`. Activation is therefore blocked by:
+
+```text
+RESEARCH_CHALLENGER_NOT_GOVERNED_FOR_ACTIVATION
+VALIDATION_PROFITABILITY_BRIER_NOT_ABOVE_BASELINE
+FRESH_GENERATION_SCOPED_ECONOMIC_CERTIFICATION_REQUIRED
+```
+
+The active registry remains generation 3 at checkpoint
+`SERVING_ABI_V2_PAPER_f2f6e3b4c67a42b6c13880a4`; the paper candidate key does
+not exist. Canonical serving, paper loop and candidate-outcome publisher retain
+their prior PIDs with `NRestarts=0`. No runtime service was restarted.
+
+### Current truthful status
+
+```text
+FP_080=COMPLETE_LATEST_SIGNED_ROWS_9189
+FP_100=IN_PROGRESS_SECOND_AUTHENTICATED_CHALLENGER_REJECTED_NOT_SUPERIOR
+FP_110=IN_PROGRESS_DURABLE_DISPATCH_PROVEN_AUTOMATIC_RUNTIME_TRIGGERING_INCOMPLETE
+FP_120=PENDING_NO_SUPERIOR_CHALLENGER
+FP_160=IN_PROGRESS_AUTHENTICATED_DISPATCH_PROVEN_FULL_SELF_HEALING_INCOMPLETE
+FP_180=SCOPED_DISPATCH_AND_ARTIFACT_AUDIT_PASS_FULL_PHASE_IN_PROGRESS
+AUTHENTICATED_CHALLENGER_ACTIVATED=false
+ACTIVE_PAPER_REGISTRY_GENERATION=3
+ACTIVE_PAPER_CHECKPOINT_UNCHANGED=true
+AUTOMATIC_ESCALATION_LADDER_COMPLETE=false
+
+FULL_FINAL_PASS_ENGINEERING_COMPLETE=false
+ECONOMIC_ACCEPTANCE_PENDING=true
+PAPER_SYSTEM_LIVE_END_TO_END=false
+V2_PERMANENT_RECOVERY_COMPLETE=false
+LIVE_NO_GO=true
+paper_only=true
+live_gate=blocked_human_only
+routes_to_live=false
+places_real_order=false
+exchange_action_taken=false
+
+NEXT_CONTROLLABLE_WORK=BIND_TRUSTED_RUNTIME_FAILURE_SIGNALS_AND_ADVANCE_REMAINING_ESCALATION_RUNGS
 ```
