@@ -31,7 +31,10 @@ from pathlib import Path
 from typing import Any
 
 from v2.backend.app.services.adaptive_system import escalation_supervisor_v2 as supervisor
-from v2.backend.app.services.adaptive_system.escalation_ladder_v2 import LADDER
+from v2.backend.app.services.adaptive_system.escalation_ladder_v2 import (
+    LADDER,
+    TRIGGER_CONDITIONS,
+)
 
 SCHEMA_VERSION = "adaptive_escalation_runtime_v1"
 PERFORMANCE_STATUS_KEY = "v2:paper:performance_governor_status"
@@ -50,6 +53,13 @@ DEFAULT_MAX_STATUS_AGE_SECONDS = 600.0
 DEFAULT_MIN_NEW_MATURED_OUTCOMES = 250
 DEFAULT_MIN_NEW_EFFECTIVE_N = 25.0
 
+INCREMENTAL_STEP = "TRAIN_INCREMENTAL_ON_NEW_MATURED_OUTCOMES"
+RECALIBRATION_STEP = "RECALIBRATE_CURRENT_MODELS"
+BASELINE_ADVANCING_STEPS = frozenset({RECALIBRATION_STEP, INCREMENTAL_STEP})
+RELEASE_REUSABLE_INFORMATION_STEPS = frozenset(
+    supervisor.INFO_DEPENDENT_STEPS - {INCREMENTAL_STEP}
+)
+
 
 class AdaptiveEscalationRuntimeError(RuntimeError):
     pass
@@ -62,6 +72,13 @@ class ReleaseEvidence:
     source_matured_revision_count: int
     source_decision_revision_count: int
     source_terminal_chain_sha256: str
+
+
+@dataclass(frozen=True)
+class CompletedDispatch:
+    step: str
+    release: ReleaseEvidence
+    receipt: Mapping[str, Any]
 
 
 def _canonical_bytes(value: object) -> bytes:
@@ -212,6 +229,8 @@ def authenticate_runtime_inputs(
 
     if authority.get("schema_version") != "adaptive_paper_policy_runtime_status_v2":
         raise AdaptiveEscalationRuntimeError("policy_authority:SCHEMA_INVALID")
+    if authority.get("status") != "PASS_AUTHORITATIVE_PAPER_POLICY":
+        raise AdaptiveEscalationRuntimeError("policy_authority:STATUS_INVALID")
     _require_fresh(
         authority,
         timestamp_field="generated_utc",
@@ -225,6 +244,8 @@ def authenticate_runtime_inputs(
 
     if outcomes.get("schema_version") != "candidate_outcome_publisher_runtime_v2":
         raise AdaptiveEscalationRuntimeError("candidate_outcomes:SCHEMA_INVALID")
+    if outcomes.get("status") != "PASS":
+        raise AdaptiveEscalationRuntimeError("candidate_outcomes:STATUS_INVALID")
     _require_fresh(
         outcomes,
         timestamp_field="generated_at",
@@ -238,6 +259,7 @@ def authenticate_runtime_inputs(
     if type(archive) is not dict or type(maturation) is not dict:
         raise AdaptiveEscalationRuntimeError("candidate_outcomes:ARCHIVE_AND_MATURATION_REQUIRED")
     _safe_paper_authority(archive, "candidate_outcomes.archive")
+    _safe_paper_authority(maturation, "candidate_outcomes.maturation")
     if (
         archive.get("verified") is not True
         or archive.get("invalid_row_count") != 0
@@ -248,6 +270,8 @@ def authenticate_runtime_inputs(
         or maturation.get("unexplained_maturation_drops") != 0
         or maturation.get("matured_revision_count")
         != archive.get("matured_revision_count")
+        or maturation.get("status") != "PASS"
+        or outcomes.get("candidate_outcome_maturer_runtime_integrated") is not True
     ):
         raise AdaptiveEscalationRuntimeError("candidate_outcomes:INTEGRITY_INVALID")
 
@@ -268,6 +292,16 @@ def authenticate_runtime_inputs(
     governed = performance.get("governed_closed_rows")
     if type(closed) is not int or closed <= 0 or closed != governed:
         raise AdaptiveEscalationRuntimeError("performance_status:COHERENT_CLOSED_COUNT_REQUIRED")
+    if edge < 0.0 and (
+        performance.get("status") != "HALTED_PERFORMANCE"
+        or performance.get("state") != "HALTED_PERFORMANCE"
+        or performance.get("enabled") is not True
+        or performance.get("new_entries_allowed") is not False
+        or performance.get("allow_feedback_recording") is not True
+    ):
+        raise AdaptiveEscalationRuntimeError(
+            "performance_status:NEGATIVE_EDGE_STATE_INCOHERENT"
+        )
     performance = dict(performance)
     performance["source_payload_sha256"] = _sha256_bytes(_canonical_bytes(performance))
     return dict(authority), dict(outcomes), performance
@@ -275,19 +309,14 @@ def authenticate_runtime_inputs(
 
 def _validated_release(root: Path) -> ReleaseEvidence:
     try:
-        projection = supervisor._authenticated_dataset_release(root)  # noqa: SLF001
+        projection, source = supervisor._authenticated_dataset_release_evidence(  # noqa: SLF001
+            root
+        )
     except (OSError, ValueError, KeyError, TypeError) as exc:
         raise AdaptiveEscalationRuntimeError("dataset_release:AUTHENTICATION_FAILED") from exc
-    receipt = _read_json(
-        root / "candidate_outcome_dataset_build_receipt_v3.json",
-        "dataset_release.build_receipt",
-    )
-    archive = receipt.get("candidate_archive_verification")
-    if type(archive) is not dict:
-        raise AdaptiveEscalationRuntimeError("dataset_release:ARCHIVE_VERIFICATION_REQUIRED")
-    matured = archive.get("matured_revision_count")
-    decisions = archive.get("decision_revision_count")
-    terminal = archive.get("terminal_chain_sha256")
+    matured = source.get("matured_revision_count")
+    decisions = source.get("decision_revision_count")
+    terminal = source.get("terminal_chain_sha256")
     if type(matured) is not int or matured < 0 or type(decisions) is not int or decisions < matured:
         raise AdaptiveEscalationRuntimeError("dataset_release:SOURCE_COUNTS_INVALID")
     if type(terminal) is not str or len(terminal) != 64:
@@ -390,31 +419,33 @@ def resolve_release(
     feature_archive_root: Path,
     min_new_matured_outcomes: int,
     build_timeout_seconds: int,
-) -> tuple[ReleaseEvidence, bool]:
+) -> tuple[ReleaseEvidence, bool, ReleaseEvidence | None]:
     latest = select_latest_release(parent)
     if latest is not None:
         delta = current_matured_revision_count - latest.source_matured_revision_count
         if delta < 0:
             raise AdaptiveEscalationRuntimeError("candidate_outcomes:SOURCE_REGRESSION")
         if delta < min_new_matured_outcomes:
-            return latest, False
-    return (
-        build_signed_release(
-            parent,
-            feature_archive_root=feature_archive_root,
-            timeout_seconds=build_timeout_seconds,
-        ),
-        True,
+            return latest, False, latest
+    built = build_signed_release(
+        parent,
+        feature_archive_root=feature_archive_root,
+        timeout_seconds=build_timeout_seconds,
     )
+    if built.source_matured_revision_count < current_matured_revision_count:
+        raise AdaptiveEscalationRuntimeError(
+            "dataset_release:REBUILT_SOURCE_WATERMARK_BEHIND_TRIGGER"
+        )
+    return built, True, latest
 
 
-def discover_completed_steps(
+def discover_completed_dispatches(
     release: ReleaseEvidence,
     *,
     dispatch_root: Path,
-) -> frozenset[str]:
+) -> tuple[CompletedDispatch, ...]:
     root = _safe_directory(dispatch_root, "dispatch_root", create=True)
-    completed: set[str] = set()
+    completed: list[CompletedDispatch] = []
     for run_root in sorted(root.glob("adaptive_dispatch_*")):
         if run_root.is_symlink() or not run_root.is_dir():
             continue
@@ -427,33 +458,30 @@ def discover_completed_steps(
             if type(step) is not str or step not in supervisor.WORKER_COMMANDS:
                 continue
             worker = supervisor.WORKER_COMMANDS[step]
+            trigger = receipt.get("trigger")
             if (
-                receipt.get("schema_version") != supervisor.DISPATCH_SCHEMA_VERSION
-                or receipt.get("status") != "COMPLETED"
-                or receipt.get("returncode") != 0
-                or receipt.get("timed_out") is not False
-                or receipt.get("launch_baseline_success") is not True
+                type(trigger) is not list
+                or not trigger
+                or any(
+                    type(item) is not str
+                    or item not in TRIGGER_CONDITIONS
+                    for item in trigger
+                )
                 or receipt.get("dataset_release") != release.projection
                 or receipt.get("input_manifest_sha")
                 != release.projection["dataset_sha256"]
-                or receipt.get("worker_scope") != worker["scope"]
-                or receipt.get("worker_entrypoint") != worker["entrypoint"]
-                or receipt.get("worker_argv_template") != worker["argv"]
-                or receipt.get("worker_entrypoint_file_sha256")
-                != supervisor._worker_code_sha256(worker)  # noqa: SLF001
             ):
                 continue
-            _safe_paper_authority(receipt, "dispatch_terminal")
             material = {
                 "schema_version": supervisor.DISPATCH_SCHEMA_VERSION,
                 "selected_step": step,
-                "trigger": receipt.get("trigger"),
-                "input_manifest_sha": receipt.get("input_manifest_sha"),
+                "trigger": trigger,
+                "input_manifest_sha": release.projection["dataset_sha256"],
                 "worker_scope": worker["scope"],
                 "worker_entrypoint": worker["entrypoint"],
-                "worker_entrypoint_file_sha256": receipt[
-                    "worker_entrypoint_file_sha256"
-                ],
+                "worker_entrypoint_file_sha256": supervisor._worker_code_sha256(  # noqa: SLF001
+                    worker
+                ),
                 "worker_argv_template": worker["argv"],
                 "dataset_release": release.projection,
             }
@@ -462,25 +490,169 @@ def discover_completed_steps(
             )[:32]
             if receipt.get("dispatch_id") != dispatch_id or run_root.name != dispatch_id:
                 continue
-            expected_argv = supervisor._resolved_worker_argv(  # noqa: SLF001
+            material["argv"] = supervisor._resolved_worker_argv(  # noqa: SLF001
                 worker,
                 dataset_release_root=release.root,
                 dispatch_run_root=run_root,
             )
-            if receipt.get("argv") != expected_argv:
-                continue
-            for stream in ("stdout", "stderr"):
-                data = _read_regular_bytes(run_root / f"{stream}.bin", stream)
-                if receipt.get(f"{stream}_sha256") != _sha256_bytes(data):
-                    raise AdaptiveEscalationRuntimeError(
-                        f"dispatch_terminal:{stream.upper()}_HASH_MISMATCH"
-                    )
-            completed.add(step)
+            material["dispatch_id"] = dispatch_id
+            replay = supervisor._replay_terminal_receipt(  # noqa: SLF001
+                terminal_path,
+                dispatch_material=material,
+            )
+            if replay is not None:
+                completed.append(CompletedDispatch(step, release, replay))
         except (AdaptiveEscalationRuntimeError, KeyError, TypeError, ValueError):
             continue
-    if "TRAIN_INCREMENTAL_ON_NEW_MATURED_OUTCOMES" in completed:
-        completed.add("RECALIBRATE_CURRENT_MODELS")
+    return tuple(completed)
+
+
+def discover_completed_steps(
+    release: ReleaseEvidence,
+    *,
+    dispatch_root: Path,
+) -> frozenset[str]:
+    completed = {
+        evidence.step
+        for evidence in discover_completed_dispatches(
+            release,
+            dispatch_root=dispatch_root,
+        )
+    }
+    if INCREMENTAL_STEP in completed:
+        completed.add(RECALIBRATION_STEP)
     return frozenset(completed)
+
+
+def discover_historical_completed_dispatches(
+    release_parent: Path,
+    *,
+    dispatch_root: Path,
+) -> tuple[CompletedDispatch, ...]:
+    """Authenticate successful negative-edge work across immutable releases.
+
+    A receipt is accepted only by ``discover_completed_steps`` against the exact
+    signed release projection embedded in that receipt.  Iterating independently
+    authenticated releases allows non-information rungs to survive a corpus
+    refresh without permitting a receipt forged for one release to complete work
+    for another.
+    """
+
+    parent = _safe_directory(release_parent, "release_parent", create=True)
+    completed: list[CompletedDispatch] = []
+    for path in sorted(parent.glob("release_*")):
+        if path.is_symlink() or not path.is_dir():
+            continue
+        try:
+            release = _validated_release(path)
+            release_dispatches = discover_completed_dispatches(
+                release,
+                dispatch_root=dispatch_root,
+            )
+        except AdaptiveEscalationRuntimeError:
+            continue
+        completed.extend(release_dispatches)
+    return tuple(completed)
+
+
+def discover_historical_completed_steps(
+    release_parent: Path,
+    *,
+    dispatch_root: Path,
+) -> frozenset[str]:
+    completed = {
+        evidence.step
+        for evidence in discover_historical_completed_dispatches(
+            release_parent,
+            dispatch_root=dispatch_root,
+        )
+    }
+    if INCREMENTAL_STEP in completed:
+        completed.add(RECALIBRATION_STEP)
+    return frozenset(completed)
+
+
+def _authenticated_training_baseline(
+    dispatches: tuple[CompletedDispatch, ...],
+) -> dict[str, Any] | None:
+    eligible = [
+        evidence
+        for evidence in dispatches
+        if evidence.step in BASELINE_ADVANCING_STEPS
+    ]
+    if not eligible:
+        return None
+    latest = max(
+        eligible,
+        key=lambda row: (
+            row.release.source_matured_revision_count,
+            row.release.source_decision_revision_count,
+            row.release.projection["dataset_sha256"],
+        ),
+    )
+    effective_n = supervisor.load_gen5_corpus_effective_n(
+        Path(latest.release.projection["paths"]["dataset"])
+    )[0]
+    return {
+        "matured_outcome_count": latest.release.source_matured_revision_count,
+        "effective_n": effective_n,
+        "dataset_sha256": latest.release.projection["dataset_sha256"],
+        "source_terminal_chain_sha256": (
+            latest.release.source_terminal_chain_sha256
+        ),
+        "launched_step": latest.step,
+        "dispatch_id": latest.receipt.get("dispatch_id"),
+        "recorded_utc": latest.receipt.get("completed_utc"),
+        "derived_from_authenticated_terminal_receipt": True,
+    }
+
+
+def _failure_cycle(
+    prior: Mapping[str, Any],
+    *,
+    edge_bps: float,
+    now: datetime,
+    performance_sha256: str,
+) -> tuple[dict[str, Any], bool]:
+    prior_cycle = prior.get("failure_cycle")
+    if edge_bps >= 0.0:
+        return (
+            {
+                "active": False,
+                "classification": "AFTER_COST_EDGE_NONNEGATIVE",
+                "failure_cycle_id": None,
+                "started_utc": None,
+            },
+            False,
+        )
+    if (
+        isinstance(prior_cycle, dict)
+        and prior_cycle.get("active") is True
+        and type(prior_cycle.get("failure_cycle_id")) is str
+        and type(prior_cycle.get("started_utc")) is str
+    ):
+        cycle = dict(prior_cycle)
+        cycle["last_negative_edge_bps"] = edge_bps
+        return cycle, False
+    started = now.isoformat().replace("+00:00", "Z")
+    cycle_id = "adaptive_failure_cycle_" + _sha256_bytes(
+        _canonical_bytes(
+            {
+                "started_utc": started,
+                "performance_status_sha256": performance_sha256,
+            }
+        )
+    )[:32]
+    return (
+        {
+            "active": True,
+            "classification": "UNRESOLVED_NEGATIVE_AFTER_COST_EDGE",
+            "failure_cycle_id": cycle_id,
+            "started_utc": started,
+            "last_negative_edge_bps": edge_bps,
+        },
+        True,
+    )
 
 
 def _load_prior_state(client: Any, state_path: Path) -> dict[str, Any]:
@@ -520,6 +692,35 @@ def _persist_state(client: Any, state_path: Path, payload: Mapping[str, Any]) ->
     client.set(supervisor.STATUS_REDIS_KEY, json.dumps(payload, sort_keys=True))
 
 
+def _validate_runtime_configuration(
+    *,
+    max_status_age_seconds: float,
+    min_new_matured_outcomes: int,
+    min_new_effective_n: float,
+    build_timeout_seconds: int,
+    dispatch_timeout_seconds: int | float,
+) -> None:
+    numeric = {
+        "max_status_age_seconds": max_status_age_seconds,
+        "min_new_effective_n": min_new_effective_n,
+        "dispatch_timeout_seconds": dispatch_timeout_seconds,
+    }
+    for field, value in numeric.items():
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, int | float)
+            or not math.isfinite(value)
+            or value <= 0.0
+        ):
+            raise AdaptiveEscalationRuntimeError(f"{field}:POSITIVE_FINITE_REQUIRED")
+    for field, value in {
+        "min_new_matured_outcomes": min_new_matured_outcomes,
+        "build_timeout_seconds": build_timeout_seconds,
+    }.items():
+        if type(value) is not int or value <= 0:
+            raise AdaptiveEscalationRuntimeError(f"{field}:POSITIVE_INTEGER_REQUIRED")
+
+
 def run_once(
     client: Any,
     *,
@@ -538,6 +739,13 @@ def run_once(
     dispatch_timeout_seconds: int = supervisor.DISPATCH_TIMEOUT_SECONDS,
 ) -> dict[str, Any]:
     now = now or datetime.now(UTC)
+    _validate_runtime_configuration(
+        max_status_age_seconds=max_status_age_seconds,
+        min_new_matured_outcomes=min_new_matured_outcomes,
+        min_new_effective_n=min_new_effective_n,
+        build_timeout_seconds=build_timeout_seconds,
+        dispatch_timeout_seconds=dispatch_timeout_seconds,
+    )
     authority, outcomes, performance = authenticate_runtime_inputs(
         client,
         now=now,
@@ -545,7 +753,8 @@ def run_once(
     )
     archive = outcomes["archive"]
     current_matured = int(archive["matured_revision_count"])
-    release, rebuilt = resolve_release(
+    prior = _load_prior_state(client, state_path)
+    release, rebuilt, previous_release = resolve_release(
         release_parent,
         current_matured_revision_count=current_matured,
         feature_archive_root=feature_archive_root,
@@ -559,37 +768,70 @@ def run_once(
         min_new_matured_outcomes=min_new_matured_outcomes,
         min_new_effective_n=min_new_effective_n,
     )
-    prior = _load_prior_state(client, state_path)
-    completed = set(discover_completed_steps(release, dispatch_root=dispatch_root))
-    if prior.get("input_manifest_sha") == release.projection["dataset_sha256"]:
-        prior_steps = prior.get("completed_steps_for_input_manifest")
-        if isinstance(prior_steps, list) and all(
-            type(step) is str and step in LADDER for step in prior_steps
-        ):
-            completed.update(prior_steps)
-
     effective_n = supervisor.load_gen5_corpus_effective_n(dataset_path)[0]
-    prior_baseline = prior.get("launch_baseline")
-    if (
-        prior.get("input_manifest_sha") == release.projection["dataset_sha256"]
-        and isinstance(prior_baseline, dict)
-    ):
-        baseline_matured = prior_baseline.get("matured_outcome_count")
-        baseline_effective_n = prior_baseline.get("effective_n")
+    edge_bps = float(performance["notional_weighted_expectancy_bps"])
+    failure_cycle, _new_failure_cycle = _failure_cycle(
+        prior,
+        edge_bps=edge_bps,
+        now=now,
+        performance_sha256=str(performance["source_payload_sha256"]),
+    )
+    historical_dispatches = discover_historical_completed_dispatches(
+        release_parent,
+        dispatch_root=dispatch_root,
+    )
+    exact_release_steps = {
+        evidence.step
+        for evidence in historical_dispatches
+        if evidence.release.projection == release.projection
+    }
+    completed: set[str] = set()
+    if failure_cycle["active"]:
+        # Runtime state is advisory only. A rung is complete solely when a full
+        # canonical terminal-receipt replay succeeds against its exact signed
+        # release, so a recomputed plain state hash cannot claim work.
+        completed.update(evidence.step for evidence in historical_dispatches)
+        if INCREMENTAL_STEP in completed:
+            completed.add(RECALIBRATION_STEP)
+    if rebuilt and INCREMENTAL_STEP not in exact_release_steps:
+        # New labels must be consumed by a new incremental fit.  Other successful
+        # rungs remain completed for the same unresolved economic-failure cycle.
+        completed.discard(INCREMENTAL_STEP)
+
+    authenticated_baseline = _authenticated_training_baseline(historical_dispatches)
+    if authenticated_baseline is not None:
+        baseline = authenticated_baseline
+    elif rebuilt and previous_release is not None:
+        previous_effective_n = supervisor.load_gen5_corpus_effective_n(
+            Path(previous_release.projection["paths"]["dataset"])
+        )[0]
+        baseline = {
+            "matured_outcome_count": previous_release.source_matured_revision_count,
+            "effective_n": previous_effective_n,
+            "dataset_sha256": previous_release.projection["dataset_sha256"],
+            "source_terminal_chain_sha256": (
+                previous_release.source_terminal_chain_sha256
+            ),
+        }
     else:
-        baseline_matured = release.source_matured_revision_count
-        baseline_effective_n = effective_n
+        baseline = {
+            "matured_outcome_count": release.source_matured_revision_count,
+            "effective_n": effective_n,
+            "dataset_sha256": release.projection["dataset_sha256"],
+            "source_terminal_chain_sha256": release.source_terminal_chain_sha256,
+        }
 
     inputs = replace(
         base_inputs,
         matured_outcome_count=current_matured,
         effective_n=effective_n,
-        baseline_matured_outcome_count=int(baseline_matured),
-        baseline_effective_n=float(baseline_effective_n),
+        baseline_matured_outcome_count=int(baseline["matured_outcome_count"]),
+        baseline_effective_n=float(baseline["effective_n"]),
         min_new_matured_outcomes=min_new_matured_outcomes,
         min_new_effective_n=min_new_effective_n,
-        after_cost_edge_bps=float(performance["notional_weighted_expectancy_bps"]),
+        after_cost_edge_bps=edge_bps,
         exhausted_steps=frozenset(completed),
+        release_scoped_information_steps=RELEASE_REUSABLE_INFORMATION_STEPS,
         input_manifest_sha=str(release.projection["dataset_sha256"]),
     )
     plan = supervisor.plan_escalation(inputs)
@@ -605,16 +847,22 @@ def run_once(
         )
         if dispatch_result.get("launch_baseline_success") is True:
             completed.add(str(plan.selected_step))
+            if plan.selected_step in BASELINE_ADVANCING_STEPS:
+                baseline = {
+                    "matured_outcome_count": release.source_matured_revision_count,
+                    "effective_n": effective_n,
+                    "dataset_sha256": release.projection["dataset_sha256"],
+                    "source_terminal_chain_sha256": (
+                        release.source_terminal_chain_sha256
+                    ),
+                    "launched_step": plan.selected_step,
+                    "dispatch_id": dispatch_result.get("dispatch_id"),
+                    "recorded_utc": now.isoformat().replace("+00:00", "Z"),
+                }
 
     prior_history = prior.get("directional_history")
     history = [int(v) for v in prior_history] if isinstance(prior_history, list) else []
     history = (history + [inputs.directional_authorized_count])[-20:]
-    baseline = {
-        "matured_outcome_count": release.source_matured_revision_count,
-        "effective_n": effective_n,
-        "dataset_sha256": release.projection["dataset_sha256"],
-        "source_terminal_chain_sha256": release.source_terminal_chain_sha256,
-    }
     payload = plan.to_dict()
     payload.update(
         {
@@ -622,6 +870,12 @@ def run_once(
             "generated_utc": now.isoformat().replace("+00:00", "Z"),
             "worker_execution_enabled": execute_worker,
             "dispatch_result": dispatch_result,
+            "failure_cycle": failure_cycle,
+            "prior_runtime_state_advisory_only": True,
+            "completion_authority": "FULLY_REPLAYED_IMMUTABLE_DISPATCH_RECEIPTS",
+            "completed_steps_for_failure_cycle": [
+                step for step in LADDER if step in completed
+            ],
             "completed_steps_for_input_manifest": [
                 step for step in LADDER if step in completed
             ],

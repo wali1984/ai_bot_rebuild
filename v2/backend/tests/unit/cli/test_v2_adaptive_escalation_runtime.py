@@ -31,6 +31,7 @@ def _runtime_values(now: datetime) -> dict[str, dict]:
     return {
         supervisor.POLICY_AUTHORITY_STATUS_KEY: {
             "schema_version": "adaptive_paper_policy_runtime_status_v2",
+            "status": "PASS_AUTHORITATIVE_PAPER_POLICY",
             "generated_utc": generated,
             "directional_authorized_count": 5,
             "flat_authorized_count": 2,
@@ -43,6 +44,7 @@ def _runtime_values(now: datetime) -> dict[str, dict]:
         },
         supervisor.CANDIDATE_OUTCOMES_STATUS_KEY: {
             "schema_version": "candidate_outcome_publisher_runtime_v2",
+            "status": "PASS",
             "generated_at": generated,
             "candidate_recording_coverage": 1.0,
             "unexplained_candidate_drops": 0,
@@ -62,13 +64,25 @@ def _runtime_values(now: datetime) -> dict[str, dict]:
                 "exchange_action_taken": False,
             },
             "maturation": {
+                "status": "PASS",
                 "matured_revision_count": 500,
                 "eligible_matured_label_coverage": 1.0,
                 "unexplained_maturation_drops": 0,
+                "paper_only": True,
+                "live_gate": "blocked_human_only",
+                "routes_to_live": False,
+                "places_real_order": False,
+                "exchange_action_taken": False,
             },
+            "candidate_outcome_maturer_runtime_integrated": True,
         },
         runtime.PERFORMANCE_STATUS_KEY: {
             "schema_version": "paper_performance_governor_status_v2",
+            "status": "HALTED_PERFORMANCE",
+            "state": "HALTED_PERFORMANCE",
+            "enabled": True,
+            "new_entries_allowed": False,
+            "allow_feedback_recording": True,
             "generated_utc": generated,
             "closed_outcome_count": 24,
             "governed_closed_rows": 24,
@@ -100,6 +114,11 @@ def test_authenticate_runtime_inputs_binds_negative_edge() -> None:
     [
         (
             supervisor.POLICY_AUTHORITY_STATUS_KEY,
+            lambda row: row.update(status="FAIL"),
+            "STATUS_INVALID",
+        ),
+        (
+            supervisor.POLICY_AUTHORITY_STATUS_KEY,
             lambda row: row.update(exchange_action_taken=True),
             "UNSAFE_AUTHORITY",
         ),
@@ -107,6 +126,11 @@ def test_authenticate_runtime_inputs_binds_negative_edge() -> None:
             supervisor.CANDIDATE_OUTCOMES_STATUS_KEY,
             lambda row: row["archive"].update(invalid_row_count=1),
             "INTEGRITY_INVALID",
+        ),
+        (
+            supervisor.CANDIDATE_OUTCOMES_STATUS_KEY,
+            lambda row: row["maturation"].update(routes_to_live=True),
+            "UNSAFE_AUTHORITY",
         ),
         (
             runtime.PERFORMANCE_STATUS_KEY,
@@ -146,6 +170,20 @@ def test_authenticate_runtime_inputs_rejects_stale_status() -> None:
         )
 
 
+def test_runtime_configuration_rejects_nan_freshness_limit() -> None:
+    with pytest.raises(
+        runtime.AdaptiveEscalationRuntimeError,
+        match="max_status_age_seconds:POSITIVE_FINITE_REQUIRED",
+    ):
+        runtime._validate_runtime_configuration(  # noqa: SLF001
+            max_status_age_seconds=float("nan"),
+            min_new_matured_outcomes=250,
+            min_new_effective_n=25.0,
+            build_timeout_seconds=900,
+            dispatch_timeout_seconds=3600,
+        )
+
+
 def test_prior_state_requires_self_hash_and_no_live_authority(tmp_path: Path) -> None:
     client = _Redis({})
     state_path = tmp_path / "state.json"
@@ -171,8 +209,15 @@ def test_prior_state_requires_self_hash_and_no_live_authority(tmp_path: Path) ->
     assert runtime._load_prior_state(client, state_path) == {}  # noqa: SLF001
 
 
-def _release(tmp_path: Path) -> runtime.ReleaseEvidence:
-    root = (tmp_path / "release").resolve()
+def _release(
+    tmp_path: Path,
+    *,
+    name: str = "release",
+    sha_character: str = "a",
+    matured: int = 500,
+    decisions: int = 700,
+) -> runtime.ReleaseEvidence:
+    root = (tmp_path / name).resolve()
     root.mkdir()
     projection = {
         "root": str(root),
@@ -182,7 +227,7 @@ def _release(tmp_path: Path) -> runtime.ReleaseEvidence:
             "parity": str(root / "parity.json"),
             "build_receipt": str(root / "receipt.json"),
         },
-        "dataset_sha256": "a" * 64,
+        "dataset_sha256": sha_character * 64,
         "manifest_sha256": "b" * 64,
         "parity_sha256": "c" * 64,
         "build_receipt_file_sha256": "d" * 64,
@@ -191,7 +236,31 @@ def _release(tmp_path: Path) -> runtime.ReleaseEvidence:
         "validation_rows": 20,
         "holdout_rows": 20,
     }
-    return runtime.ReleaseEvidence(root, projection, 500, 700, "e" * 64)
+    return runtime.ReleaseEvidence(root, projection, matured, decisions, "e" * 64)
+
+
+def _self_hashed_state(**updates) -> dict:
+    value = {
+        "schema_version": runtime.SCHEMA_VERSION,
+        "paper_only": True,
+        "live_gate": "blocked_human_only",
+        "routes_to_live": False,
+        "places_real_order": False,
+        "exchange_action_taken": False,
+        "failure_cycle": {
+            "active": True,
+            "classification": "UNRESOLVED_NEGATIVE_AFTER_COST_EDGE",
+            "failure_cycle_id": "adaptive_failure_cycle_" + "1" * 32,
+            "started_utc": "2026-07-28T14:00:00Z",
+            "last_negative_edge_bps": -7.25,
+        },
+        "completed_steps_for_failure_cycle": [],
+    }
+    value.update(updates)
+    value["payload_sha256"] = hashlib.sha256(
+        runtime._canonical_bytes(value)  # noqa: SLF001
+    ).hexdigest()
+    return value
 
 
 def test_discover_completed_steps_authenticates_receipt_and_streams(
@@ -252,13 +321,55 @@ def test_discover_completed_steps_authenticates_receipt_and_streams(
     assert step in completed
     assert "RECALIBRATE_CURRENT_MODELS" in completed
 
+    receipt["failure_reason"] = "CONTRADICTORY_SUCCESS_FAILURE"
+    (run_root / "dispatch_terminal_v1.json").write_text(json.dumps(receipt))
+    assert runtime.discover_completed_steps(
+        release, dispatch_root=dispatch_root
+    ) == frozenset()
+    receipt.pop("failure_reason")
+    (run_root / "dispatch_terminal_v1.json").write_text(json.dumps(receipt))
+
     (run_root / "stdout.bin").write_bytes(b"tampered")
     assert runtime.discover_completed_steps(
         release, dispatch_root=dispatch_root
     ) == frozenset()
 
+    (run_root / "stdout.bin").write_bytes(stdout)
+    receipt["dataset_release"] = {**release.projection, "dataset_sha256": "0" * 64}
+    receipt["input_manifest_sha"] = "0" * 64
+    (run_root / "dispatch_terminal_v1.json").write_text(json.dumps(receipt))
+    assert runtime.discover_completed_steps(
+        release, dispatch_root=dispatch_root
+    ) == frozenset()
 
-def test_run_once_advances_from_incremental_receipt_to_strategy_evaluation(
+
+def test_rebuilt_release_must_cover_triggering_maturity_watermark(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    previous = _release(tmp_path, name="release_previous", matured=500, decisions=700)
+    behind = _release(
+        tmp_path,
+        name="release_behind",
+        sha_character="f",
+        matured=749,
+        decisions=900,
+    )
+    monkeypatch.setattr(runtime, "select_latest_release", lambda parent: previous)
+    monkeypatch.setattr(runtime, "build_signed_release", lambda *args, **kwargs: behind)
+
+    with pytest.raises(
+        runtime.AdaptiveEscalationRuntimeError,
+        match="REBUILT_SOURCE_WATERMARK_BEHIND_TRIGGER",
+    ):
+        runtime.resolve_release(
+            tmp_path,
+            current_matured_revision_count=750,
+            feature_archive_root=tmp_path / "features",
+            min_new_matured_outcomes=250,
+            build_timeout_seconds=900,
+        )
+def test_run_once_advances_from_incremental_receipt_to_representation_rebuild(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     now = datetime(2026, 7, 28, 15, 40, tzinfo=UTC)
@@ -276,15 +387,23 @@ def test_run_once_advances_from_incremental_receipt_to_strategy_evaluation(
             },
         ),
     )
-    monkeypatch.setattr(runtime, "resolve_release", lambda *args, **kwargs: (release, False))
     monkeypatch.setattr(
         runtime,
-        "discover_completed_steps",
-        lambda *args, **kwargs: frozenset(
-            {
-                "RECALIBRATE_CURRENT_MODELS",
-                "TRAIN_INCREMENTAL_ON_NEW_MATURED_OUTCOMES",
-            }
+        "resolve_release",
+        lambda *args, **kwargs: (release, False, release),
+    )
+    monkeypatch.setattr(
+        runtime,
+        "discover_historical_completed_dispatches",
+        lambda *args, **kwargs: (
+            runtime.CompletedDispatch(
+                runtime.INCREMENTAL_STEP,
+                release,
+                {
+                    "dispatch_id": "adaptive_dispatch_incremental",
+                    "completed_utc": "2026-07-28T15:00:00Z",
+                },
+            ),
         ),
     )
     monkeypatch.setattr(
@@ -313,7 +432,265 @@ def test_run_once_advances_from_incremental_receipt_to_strategy_evaluation(
     )
 
     assert payload["action"] == supervisor.ACTION_LAUNCH
-    assert payload["selected_step"] == "ACTIVATE_ALTERNATIVE_STRATEGY_FAMILIES"
+    assert payload["selected_step"] == "REBUILD_FEATURE_SELECTION_OR_REPRESENTATION"
     assert payload["runtime_input_evidence"]["after_cost_edge_bps"] == -7.25
     assert payload["paper_only"] is True
     assert payload["exchange_action_taken"] is False
+
+
+def _patch_run_inputs(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    now: datetime,
+    release: runtime.ReleaseEvidence,
+    previous_release: runtime.ReleaseEvidence,
+    rebuilt: bool,
+    effective_n: float,
+    historical_steps: tuple[tuple[str, runtime.ReleaseEvidence], ...] = (),
+) -> None:
+    values = _runtime_values(now)
+    monkeypatch.setattr(
+        runtime,
+        "authenticate_runtime_inputs",
+        lambda *args, **kwargs: (
+            values[supervisor.POLICY_AUTHORITY_STATUS_KEY],
+            values[supervisor.CANDIDATE_OUTCOMES_STATUS_KEY],
+            {
+                **values[runtime.PERFORMANCE_STATUS_KEY],
+                "source_payload_sha256": "9" * 64,
+            },
+        ),
+    )
+    monkeypatch.setattr(
+        runtime,
+        "resolve_release",
+        lambda *args, **kwargs: (release, rebuilt, previous_release),
+    )
+    monkeypatch.setattr(
+        runtime,
+        "discover_historical_completed_dispatches",
+        lambda *args, **kwargs: tuple(
+            runtime.CompletedDispatch(
+                step,
+                step_release,
+                {
+                    "dispatch_id": f"adaptive_dispatch_{index}",
+                    "completed_utc": "2026-07-28T15:00:00Z",
+                },
+            )
+            for index, (step, step_release) in enumerate(historical_steps)
+        ),
+    )
+    monkeypatch.setattr(
+        supervisor,
+        "build_inputs_from_redis",
+        lambda *args, **kwargs: SupervisorInputs(
+            directional_authorized_count=5,
+            flat_authorized_count=2,
+            candidate_count=7,
+            persistent_flat_cycles=0,
+            matured_outcome_count=500,
+            effective_n=effective_n,
+            input_manifest_sha=release.projection["dataset_sha256"],
+        ),
+    )
+    monkeypatch.setattr(
+        supervisor,
+        "load_gen5_corpus_effective_n",
+        lambda path: (
+            (30.0, 140)
+            if Path(path) == Path(previous_release.projection["paths"]["dataset"])
+            else (effective_n, 200)
+        ),
+    )
+    monkeypatch.setattr(runtime, "_persist_state", lambda *args, **kwargs: None)
+
+
+@pytest.mark.parametrize("dispatch_succeeded", [False, True])
+def test_new_release_retries_incremental_and_advances_baseline_only_on_success(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    dispatch_succeeded: bool,
+) -> None:
+    now = datetime(2026, 7, 28, 15, 40, tzinfo=UTC)
+    previous = _release(tmp_path, name="release_old", matured=250, decisions=400)
+    current = _release(
+        tmp_path,
+        name="release_new",
+        sha_character="f",
+        matured=500,
+        decisions=700,
+    )
+    prior = _self_hashed_state(
+        input_manifest_sha=previous.projection["dataset_sha256"],
+        completed_steps_for_failure_cycle=[
+            "RECALIBRATE_CURRENT_MODELS",
+            "TRAIN_INCREMENTAL_ON_NEW_MATURED_OUTCOMES",
+            "ACTIVATE_ALTERNATIVE_STRATEGY_FAMILIES",
+            "INCREASE_BOUNDED_INFORMATION_SEEKING_EXPLORATION",
+        ],
+        launch_baseline={
+            "matured_outcome_count": 250,
+            "effective_n": 30.0,
+            "dataset_sha256": previous.projection["dataset_sha256"],
+            "source_terminal_chain_sha256": previous.source_terminal_chain_sha256,
+        },
+    )
+    values = _runtime_values(now)
+    values[supervisor.STATUS_REDIS_KEY] = prior
+    client = _Redis(values)
+    _patch_run_inputs(
+        monkeypatch,
+        now=now,
+        release=current,
+        previous_release=previous,
+        rebuilt=True,
+        effective_n=55.0,
+        historical_steps=(
+            (runtime.RECALIBRATION_STEP, previous),
+            (runtime.INCREMENTAL_STEP, previous),
+            ("ACTIVATE_ALTERNATIVE_STRATEGY_FAMILIES", previous),
+            ("INCREASE_BOUNDED_INFORMATION_SEEKING_EXPLORATION", previous),
+        ),
+    )
+    monkeypatch.setattr(
+        supervisor,
+        "dispatch_worker",
+        lambda *args, **kwargs: {
+            "launch_baseline_success": dispatch_succeeded,
+            "dispatch_id": "adaptive_dispatch_test",
+        },
+    )
+
+    payload = runtime.run_once(
+        client,
+        release_parent=tmp_path,
+        state_path=tmp_path / "state.json",
+        dispatch_root=tmp_path / "dispatches",
+        execute_worker=True,
+        now=now,
+    )
+
+    assert payload["selected_step"] == runtime.INCREMENTAL_STEP
+    if dispatch_succeeded:
+        assert payload["launch_baseline"]["matured_outcome_count"] == 500
+        assert payload["launch_baseline"]["effective_n"] == 55.0
+        assert runtime.INCREMENTAL_STEP in payload["completed_steps_for_failure_cycle"]
+    else:
+        assert payload["launch_baseline"]["matured_outcome_count"] == 250
+        assert payload["launch_baseline"]["effective_n"] == 30.0
+        assert runtime.INCREMENTAL_STEP not in payload["completed_steps_for_failure_cycle"]
+        client.set(supervisor.STATUS_REDIS_KEY, json.dumps(payload))
+        retry = runtime.run_once(
+            client,
+            release_parent=tmp_path,
+            state_path=tmp_path / "state.json",
+            dispatch_root=tmp_path / "dispatches",
+            execute_worker=False,
+            now=now,
+        )
+        assert retry["selected_step"] == runtime.INCREMENTAL_STEP
+        assert retry["launch_baseline"]["matured_outcome_count"] == 250
+
+
+def test_plan_only_and_non_information_success_preserve_training_baseline(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    now = datetime(2026, 7, 28, 15, 40, tzinfo=UTC)
+    release = _release(tmp_path, matured=500, decisions=700)
+    completed = list(supervisor.LADDER[:6])
+    prior = _self_hashed_state(
+        input_manifest_sha=release.projection["dataset_sha256"],
+        completed_steps_for_failure_cycle=completed,
+        launch_baseline={
+            "matured_outcome_count": 500,
+            "effective_n": 30.0,
+            "dataset_sha256": release.projection["dataset_sha256"],
+            "source_terminal_chain_sha256": release.source_terminal_chain_sha256,
+        },
+    )
+    values = _runtime_values(now)
+    values[supervisor.STATUS_REDIS_KEY] = prior
+    client = _Redis(values)
+    _patch_run_inputs(
+        monkeypatch,
+        now=now,
+        release=release,
+        previous_release=release,
+        rebuilt=False,
+        effective_n=30.0,
+        historical_steps=tuple((step, release) for step in completed),
+    )
+
+    planned = runtime.run_once(
+        client,
+        release_parent=tmp_path,
+        state_path=tmp_path / "state.json",
+        dispatch_root=tmp_path / "dispatches",
+        execute_worker=False,
+        now=now,
+    )
+    assert planned["selected_step"] == "ACTIVATE_ALTERNATIVE_STRATEGY_FAMILIES"
+    assert planned["launch_baseline"]["matured_outcome_count"] == 500
+
+    monkeypatch.setattr(
+        supervisor,
+        "dispatch_worker",
+        lambda *args, **kwargs: {
+            "launch_baseline_success": True,
+            "dispatch_id": "adaptive_dispatch_strategy",
+        },
+    )
+    executed = runtime.run_once(
+        client,
+        release_parent=tmp_path,
+        state_path=tmp_path / "state.json",
+        dispatch_root=tmp_path / "dispatches",
+        execute_worker=True,
+        now=now,
+    )
+    assert executed["launch_baseline"] == planned["launch_baseline"]
+
+
+def test_forgeable_prior_state_cannot_claim_completed_rungs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    now = datetime(2026, 7, 28, 15, 40, tzinfo=UTC)
+    release = _release(tmp_path, matured=500, decisions=700)
+    forged = _self_hashed_state(
+        input_manifest_sha=release.projection["dataset_sha256"],
+        completed_steps_for_failure_cycle=list(supervisor.LADDER),
+        completed_steps_for_input_manifest=list(supervisor.LADDER),
+        launch_baseline={
+            "matured_outcome_count": 999999,
+            "effective_n": 999999.0,
+        },
+    )
+    values = _runtime_values(now)
+    values[supervisor.STATUS_REDIS_KEY] = forged
+    client = _Redis(values)
+    _patch_run_inputs(
+        monkeypatch,
+        now=now,
+        release=release,
+        previous_release=release,
+        rebuilt=False,
+        effective_n=30.0,
+        historical_steps=(),
+    )
+
+    payload = runtime.run_once(
+        client,
+        release_parent=tmp_path,
+        state_path=tmp_path / "state.json",
+        dispatch_root=tmp_path / "dispatches",
+        execute_worker=False,
+        now=now,
+    )
+
+    assert payload["selected_step"] == runtime.RECALIBRATION_STEP
+    assert payload["completed_steps_for_failure_cycle"] == []
+    assert payload["launch_baseline"]["matured_outcome_count"] == 500
+    assert payload["prior_runtime_state_advisory_only"] is True

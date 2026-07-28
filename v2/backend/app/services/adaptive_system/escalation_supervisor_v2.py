@@ -395,6 +395,13 @@ class SupervisorInputs:
     # Promotion availability + already-attempted steps this escalation cycle.
     superior_challenger_available: bool = False
     exhausted_steps: frozenset[str] = field(default_factory=frozenset)
+    # A signed release may remain a valid input for later, not-yet-attempted
+    # representation/model-family workers even after the incremental trainer has
+    # consumed its information gain and advanced the training high-water mark.
+    # Without this explicit release-scoped availability, advancing the baseline
+    # after incremental training makes every later information-dependent ladder
+    # rung unavailable and silently starves the escalation sequence.
+    release_scoped_information_steps: frozenset[str] = field(default_factory=frozenset)
     # Provenance + external gating.
     input_manifest_sha: str = ""
     external_blocker: str | None = None
@@ -461,7 +468,7 @@ def _controllable_available(inp: SupervisorInputs) -> dict[str, bool]:
     available: dict[str, bool] = {}
     available["RECALIBRATE_CURRENT_MODELS"] = inp.matured_outcome_count > 0
     for step in INFO_DEPENDENT_STEPS:
-        available[step] = info_gain
+        available[step] = info_gain or step in inp.release_scoped_information_steps
     available["PROMOTE_SUPERIOR_CHALLENGER"] = inp.superior_challenger_available
     return available
 
@@ -812,7 +819,16 @@ def _load_json_if_present(path: Path) -> dict[str, Any] | None:
     return value
 
 
-def _authenticated_dataset_release(root: Path) -> dict[str, Any]:
+def _authenticated_dataset_release_evidence(
+    root: Path,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Load one signed release snapshot and return projection + source counts.
+
+    The source counts are taken from the receipt object returned by the signed
+    artifact loader.  The receipt is never reopened later for authoritative
+    fields, closing an auth-then-reread substitution window.
+    """
+
     from v2.backend.app.services.prediction_serving.serving_training_artifact_v2 import (
         load_validated_training_artifacts,
     )
@@ -835,10 +851,30 @@ def _authenticated_dataset_release(root: Path) -> dict[str, Any]:
     )
     if receipt.get("schema_version") != "candidate_outcome_dataset_build_receipt_v3":
         raise ValueError("dataset_release_root:SIGNED_V3_RECEIPT_REQUIRED")
-    receipt_file_sha256 = _sha256_bytes(
-        _read_regular_bytes(paths["build_receipt"], "build_receipt")
-    )
-    return {
+    receipt_bytes = _read_regular_bytes(paths["build_receipt"], "build_receipt")
+    try:
+        receipt_readback = json.loads(receipt_bytes)
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValueError("dataset_release_root:RECEIPT_READBACK_INVALID") from exc
+    if receipt_readback != receipt:
+        raise ValueError("dataset_release_root:RECEIPT_CHANGED_DURING_AUTHENTICATION")
+    receipt_file_sha256 = _sha256_bytes(receipt_bytes)
+    archive = receipt.get("candidate_archive_verification")
+    if type(archive) is not dict:
+        raise ValueError("dataset_release_root:ARCHIVE_VERIFICATION_REQUIRED")
+    matured = archive.get("matured_revision_count")
+    decisions = archive.get("decision_revision_count")
+    terminal = archive.get("terminal_chain_sha256")
+    if (
+        type(matured) is not int
+        or matured < 0
+        or type(decisions) is not int
+        or decisions < matured
+        or type(terminal) is not str
+        or len(terminal) != 64
+    ):
+        raise ValueError("dataset_release_root:SOURCE_COUNTS_INVALID")
+    projection = {
         "root": str(release_root),
         "paths": {key: str(value) for key, value in paths.items()},
         "dataset_sha256": dataset["dataset_sha256"],
@@ -854,6 +890,16 @@ def _authenticated_dataset_release(root: Path) -> dict[str, Any]:
         "validation_rows": receipt["validation_rows"],
         "holdout_rows": receipt["holdout_rows"],
     }
+    return projection, {
+        "matured_revision_count": matured,
+        "decision_revision_count": decisions,
+        "terminal_chain_sha256": terminal,
+    }
+
+
+def _authenticated_dataset_release(root: Path) -> dict[str, Any]:
+    projection, _source = _authenticated_dataset_release_evidence(root)
+    return projection
 
 
 def _resolved_worker_argv(
