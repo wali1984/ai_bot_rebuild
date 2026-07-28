@@ -681,6 +681,43 @@ def _load_validator_seed(path: Path) -> bytes:
     return seed
 
 
+def _is_pending_feature_snapshot(exc: BaseException) -> bool:
+    """True for the durable-archive-not-yet-written race only.
+
+    ``process_once`` raises ``AdaptivePolicyShadowRuntimeError(f"feature_snapshot:
+    {snapshot_id}:missing_or_unverified")`` when ``load_snapshot`` returns ``None``
+    because the feature-snapshot archiver has not yet durably indexed a snapshot
+    that a just-published paper intent already references. That is an ordering
+    race between two independent producers (intent publisher vs. archive
+    writer), not a safety or integrity failure — the archiver reliably catches
+    up within the next tick or two. It is intentionally distinct from
+    ``SnapshotArchiveError`` (raised by ``load_snapshot`` itself for a missing
+    blob or a failed content/clock verification), which stays fail-closed.
+    """
+    message = str(exc)
+    return (
+        isinstance(exc, AdaptivePolicyShadowRuntimeError)
+        and message.startswith("feature_snapshot:")
+        and message.endswith(":missing_or_unverified")
+    )
+
+
+def _pending_feature_evidence_status(exc: BaseException) -> dict[str, Any]:
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "generated_at": _utc_now(),
+        "status": "PENDING_FEATURE_EVIDENCE",
+        "exact_blocker": str(exc),
+        "adaptive_policy_authoritative": False,
+        "execution_authority": False,
+        "paper_only": True,
+        "live_gate": "blocked_human_only",
+        "routes_to_live": False,
+        "places_real_order": False,
+        "exchange_action_taken": False,
+    }
+
+
 def _acquire_lock(path: Path) -> int:
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     descriptor = os.open(path, os.O_RDWR | os.O_CREAT, 0o600)
@@ -751,15 +788,36 @@ def main(argv: list[str] | None = None) -> int:
             raw_values = client.mget((INTENTS_KEY, PAPER_STATUS_KEY, CALIBRATION_KEY, REGISTRY_KEY))
             current_marker = _sha256(raw_values)
             if current_marker != marker:
-                process_once(
-                    client=client,
-                    archive=archive,
-                    state_root=args.state_root,
-                    feature_archive_root=args.feature_archive_root,
-                    validator_seed=validator_seed,
-                    generated_at_ms=_now_ms(),
-                )
-                marker = current_marker
+                try:
+                    process_once(
+                        client=client,
+                        archive=archive,
+                        state_root=args.state_root,
+                        feature_archive_root=args.feature_archive_root,
+                        validator_seed=validator_seed,
+                        generated_at_ms=_now_ms(),
+                    )
+                except AdaptivePolicyShadowRuntimeError as exc:
+                    # In --loop mode only: a not-yet-durable feature snapshot is
+                    # a transient producer race, not a fail-closed condition.
+                    # Leave ``marker`` unset so the same cycle is reattempted
+                    # next tick once the archiver catches up; every other
+                    # exception (including this one under --once) still
+                    # propagates to the outer fail-closed handler unchanged.
+                    if args.once or not _is_pending_feature_snapshot(exc):
+                        raise
+                    pending = _pending_feature_evidence_status(exc)
+                    _write_json_atomic(args.state_root / "status.json", pending)
+                    try:
+                        client.set(
+                            STATUS_KEY,
+                            json.dumps(pending, sort_keys=True, allow_nan=False,
+                                       default=_strict_json_default),
+                        )
+                    except Exception:
+                        pass
+                else:
+                    marker = current_marker
             if args.once:
                 break
             deadline = time.monotonic() + args.interval_seconds

@@ -21,6 +21,7 @@ from v2.backend.app.cli.v2_adaptive_policy_shadow_runtime import (
     AdaptivePolicyShadowArchiveV2,
     AdaptivePolicyShadowRuntimeError,
     _canonical_json,
+    _is_pending_feature_snapshot,
     process_once,
 )
 from v2.backend.app.services.adaptive_system import adaptive_hard_validator_v2
@@ -272,6 +273,57 @@ def test_missing_source_projection_fails_closed(tmp_path: Path) -> None:
             generated_at_ms=4_000_000,
             snapshot_loader=lambda _snapshot_id, _root: _feature_snapshot(),
         )
+
+
+def test_pending_feature_snapshot_classifier_matches_process_once_race(
+    tmp_path: Path,
+) -> None:
+    """The persistent ``--loop`` must retry (not fail-closed) exactly the race
+    where ``process_once`` cannot yet find a durable feature snapshot for an
+    already-published intent — the feature-snapshot archiver and the intent
+    publisher are independent producers, and the archiver reliably catches up
+    within the next tick or two."""
+    archive = AdaptivePolicyShadowArchiveV2(
+        (tmp_path / "state" / "shadow_decisions_v2.sqlite3").resolve()
+    )
+    with pytest.raises(AdaptivePolicyShadowRuntimeError, match="missing_or_unverified") as excinfo:
+        process_once(
+            client=_client(),
+            archive=archive,
+            state_root=tmp_path / "state",
+            feature_archive_root=(tmp_path / "features").resolve(),
+            validator_seed=_SEED,
+            generated_at_ms=4_000_000,
+            snapshot_loader=lambda _snapshot_id, _root: None,
+        )
+    assert _is_pending_feature_snapshot(excinfo.value)
+
+
+def test_pending_feature_snapshot_classifier_rejects_unrelated_failures(
+    tmp_path: Path,
+) -> None:
+    """Any other fail-closed condition (missing source projection here) must
+    stay fail-closed — the retry carve-out is scoped to the one transient
+    archive-ordering race, never to a real evidence-integrity gap."""
+    client = _client()
+    del client.values[CALIBRATION_KEY]
+    archive = AdaptivePolicyShadowArchiveV2(
+        (tmp_path / "state" / "shadow_decisions_v2.sqlite3").resolve()
+    )
+    with pytest.raises(AdaptivePolicyShadowRuntimeError, match="missing") as excinfo:
+        process_once(
+            client=client,
+            archive=archive,
+            state_root=tmp_path / "state",
+            feature_archive_root=(tmp_path / "features").resolve(),
+            validator_seed=_SEED,
+            generated_at_ms=4_000_000,
+            snapshot_loader=lambda _snapshot_id, _root: _feature_snapshot(),
+        )
+    assert not _is_pending_feature_snapshot(excinfo.value)
+    assert not _is_pending_feature_snapshot(
+        RuntimeError("feature_snapshot:x:missing_or_unverified")
+    )
 
 
 def test_exact_decimal_venue_values_are_losslessly_serialized() -> None:
