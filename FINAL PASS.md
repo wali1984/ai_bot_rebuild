@@ -1652,6 +1652,7 @@ Machine-readable task state is maintained in
 | 2026-07-28T04:16:40.037460Z | P3/P4/P6 paper integration | CODE SEALED / RUNTIME PROOF PENDING | Durable feature clock/hash/finality evidence is replayed at allocation and final admission; performance regression is a bounded objective penalty; typed action or typed BLOCK disposition and cycle authorization lineage persist through fills, positions, reconstruction, and closes |
 | 2026-07-28T04:16:40.037460Z | Candidate verification | PARTIAL PASS / BASELINE DEBT OPEN | 28/28 Claude-owned CG fixtures and 347/347 changed-path tests pass; compilation, focused Ruff, `git diff --check`, systemd verification, and G12 17/17 pass. Full legacy paper-loop module is 592 passed, 13 failed, 31 errors, matching the inherited 13/31 failure/error family |
 | 2026-07-28T04:16:40.037460Z | Runtime safety boundary | STOPPED / NO DEPLOYMENT | Paper loop has `MainPID=0`; repair approval sentinel is absent. The last forced stop recorded `Result=timeout`, `ExecMainStatus=9`, and `MemoryPeak=608399360`; no restart or runtime acceptance is claimed. Pre-stop book was flat: positions=0, accepted fills=0, used margin=0, wallet/equity=`2985.59472051`; proof manifest was absent and therefore uninitialized, not initialized-empty |
+| 2026-07-28T04:20:25.605120Z | PaperAccountEpochV1 SHA `bad88d5409` | BLOCK | Nominal DB-15 tests pass 13/13 and production dry preflight remains blocked without mutation, but adversarial probes prove mutation before the atomic guard, malformed-critical-JSON fail-open behavior, ignored reservations, incomplete archive hash verification, unenforced predecessor identity, and a `v2:paper:session` split brain. Rotation was not executed; see `claude_worklog/codex/PAPER_ACCOUNT_EPOCH_V1_CODEX_REVIEW_2026_07_28.md` |
 
 ## Current final status
 
@@ -1668,6 +1669,9 @@ CURRENT_SEGMENT_CLAUDE_EXACT_SHA_ACCEPTANCE=PENDING
 CURRENT_SEGMENT_IMMUTABLE_DEPLOYMENT=false
 PAPER_LOOP_RUNTIME_STATE=STOPPED_REPAIR_BOUNDARY
 PAPER_LOOP_RESTART_AUTHORIZED=false
+PAPER_ACCOUNT_EPOCH_ROTATION_SHA=bad88d5409dc33c7d30a191bde235a12fe1e7d7e
+PAPER_ACCOUNT_EPOCH_ROTATION_CODEX_REVIEW=BLOCK
+PAPER_ACCOUNT_EPOCH_ROTATION_EXECUTED=false
 
 CLAUDE_IMPLEMENTATION_COMPLETE=false
 CODEX_INDEPENDENT_AUDIT_PASS=false
@@ -1696,7 +1700,7 @@ places_real_order=false
 exchange_action_taken=false
 
 OPERATOR_ACTION_REQUIRED=NONE
-NEXT_OWNER_ACTION=CLAUDE_EXACT_SHA_REVIEW_THEN_RUNTIME_VERIFICATION_IF_PASS
+NEXT_OWNER_ACTION=CLAUDE_REVIEW_7D3624_AND_REPAIR_BAD88_EPOCH_BLOCKERS
 LATEST_REPOSITORY_CHECKPOINT=7d3624d24b68a4a50e4600f957ce3d9688f903c3
 LATEST_CANDIDATE_TESTS=28_OF_28_CLAUDE_FIXTURES_AND_347_OF_347_CHANGED_PATH_PASS
 LEGACY_PAPER_LOOP_SUITE=592_PASS_13_FAIL_31_ERROR_INHERITED_FAMILY
@@ -1709,6 +1713,10 @@ has not received Claude's independent exact-SHA acceptance or immutable runtime
 verification. Actual paper-loop state is stopped with `MainPID=0`; required
 state before restart is a Claude PASS for CG-F063/CG-F057 and approval of that
 same immutable SHA. No operator credential or reboot blocker exists.
+
+Separately, paper-account epoch commit `bad88d5409` is blocked from execution by
+the scoped Codex review. It is not a substitute for accepting and restarting the
+paper loop, and no epoch/session rotation is authorized from this state.
 
 Single next-owner action: Claude reviews the exact SHA, records PASS or a failing
 fixture, and—only on PASS—points the paper-loop immutable release drop-in at
@@ -1743,6 +1751,10 @@ git worktree move <initial-candidate-path> <exact-SHA-candidate-path>
 .venv/bin/pytest -q <changed-path-test-selection>
 .venv/bin/pytest -q --tb=no v2/backend/tests/unit/cli/test_v2_trade_management_paper_loop.py
 .venv/bin/python scripts/guardian_phase10_rare_event_tests.py
+.venv/bin/pytest -q v2/backend/tests/test_paper_epoch_rotation.py
+.venv/bin/python tools/paper_epoch_preflight.py
+.venv/bin/python - <in-memory PaperAccountEpochV1 adversarial probe>
+sha256sum v2/backend/app/services/paper_session/epoch.py v2/backend/tests/test_paper_epoch_rotation.py tools/paper_epoch_preflight.py tools/paper_epoch_rotate.py
 ```
 
 Files changed by the sealed production candidate:
