@@ -1301,6 +1301,7 @@ def _seeded_fill_replay_status(
 ) -> tuple[str | None, list[str]]:
     """Classify an accepted row relative to a verified persisted open state."""
 
+    fill_id = _fill_identity(fill)
     fill_position_id = fill.get("position_id")
     fill_generation_id = fill.get("position_generation_id")
     if (
@@ -1309,8 +1310,9 @@ def _seeded_fill_replay_status(
         and str(fill_position_id) == position.position_id
         and str(fill_generation_id) == str(position.position_generation_id)
     ):
+        if fill_id not in position.fill_ids:
+            return None, ["SOURCE_FILL_ID_REUSED_WHILE_POSITION_OPEN"]
         return "VERIFIED_OPEN_POSITION_SNAPSHOT_REPLAY", []
-    fill_id = _fill_identity(fill)
     if fill_id not in position.fill_ids:
         return None, []
     persisted_status = str(fill.get("paper_fill_persistence_status") or "")
@@ -2191,6 +2193,7 @@ def reconcile_paper_lifecycle(
     dirty_close_blocks: list[dict[str, Any]] = []
     seen_fill_generations: set[str] = set()
     restored_prior_rows: dict[str, dict[str, Any]] = {}
+    restored_prior_source_fills: dict[str, list[dict[str, Any]]] = {}
     reconstruction_blocks: list[dict[str, Any]] = []
     blocked_prior_keys: set[str] = set()
 
@@ -2323,6 +2326,16 @@ def reconcile_paper_lifecycle(
                 prior=seeded_prior,
             )
             if replay_status is not None:
+                # Preserve the authenticated accepted-fill payload that
+                # actually backs the restored position.  Reconstructing an
+                # accepted row from the position snapshot loses its final
+                # admission/ledger contracts and can later be misclassified
+                # as a quarantined phantom.  The caller may restore a sealed
+                # compact row byte-exactly only when this source identity is
+                # retained through lifecycle reconciliation.
+                restored_prior_source_fills.setdefault(fill_key, []).append(
+                    dict(fill)
+                )
                 continue
             if replay_blockers:
                 rejected = dict(fill)
@@ -2973,13 +2986,20 @@ def reconcile_paper_lifecycle(
             restored_position.position_generation_id or ""
         ) != str(prior.get("position_generation_id") or ""):
             continue
-        snapshot_payload = restored_position.to_payload(generated_utc=generated_utc)
-        accepted_open_fills.append(
+        # Absence of an authenticated source fill cannot be repaired by
+        # manufacturing one from position state.  The proof-backed position
+        # remains under lifecycle/stop management, while accepted-fill state
+        # stays absent and downstream proof reconciliation decides
+        # non-destructively.  This prevents a synthetic position-id row from
+        # becoming false positive quarantine evidence.
+        source_fills = restored_prior_source_fills.get(prior_key) or []
+        accepted_open_fills.extend(
             _accepted_fill_with_position_metadata(
-                snapshot_payload,
+                source_fill,
                 status="OPEN_POSITION_RESTORED_FROM_HASHED_SNAPSHOT",
                 position=restored_position,
             )
+            for source_fill in source_fills
         )
 
     open_positions = [pos.to_payload(generated_utc=generated_utc) for pos in positions.values()]

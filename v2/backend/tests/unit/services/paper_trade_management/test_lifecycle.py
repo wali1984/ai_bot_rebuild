@@ -331,6 +331,259 @@ def _position(fill_id: str, *, price: float = 100.0):
     )
 
 
+def _restart_hold_config() -> PaperLifecycleConfig:
+    return PaperLifecycleConfig(
+        portfolio_equity_usdt=10000.0,
+        exit_config=PaperExitConfig(
+            min_hold_seconds=0.0,
+            take_profit_bps=99999.0,
+            stop_loss_bps=99999.0,
+            profit_bank_bps=99999.0,
+            profit_lock_bps=99999.0,
+            max_hold_seconds=999999.0,
+        ),
+    )
+
+
+def _hashed_restart_source_fixture(
+    *,
+    side: str,
+    fill_ids: tuple[str, ...],
+) -> tuple[dict, list[dict]]:
+    source_fills = [
+        _fill(fill_id=fill_id, side=side, qty=1.0, price=100.0)
+        for fill_id in fill_ids
+    ]
+    opened = reconcile_paper_lifecycle(
+        existing_ledger={},
+        accepted_fills=source_fills,
+        mark_prices={"BTCUSDT": 100.0},
+        generated_utc="2026-06-11T10:01:00Z",
+        config=_restart_hold_config(),
+    )
+    assert len(opened["open_positions"]) == 1
+    prior = opened["open_positions"][0]
+    replay_sources: list[dict] = []
+    for index, source in enumerate(source_fills):
+        replay_source = dict(source)
+        replay_source.update(
+            {
+                "position_id": prior["position_id"],
+                "position_generation_id": prior["position_generation_id"],
+                "accepted_fill_state_compacted": True,
+                "paper_final_admission_contract": {
+                    "schema_version": "fixture_final_admission_v1",
+                    "status": "PASS",
+                    "receipt_hash": f"{index + 1}" * 64,
+                },
+                "paper_final_admission_receipt_hash": f"{index + 1}" * 64,
+                "paper_persisted_ledger_contract_hash": f"{index + 3}" * 64,
+                "restart_source_marker": f"sealed-source-{index}",
+            }
+        )
+        replay_sources.append(replay_source)
+    return opened, replay_sources
+
+
+@pytest.mark.parametrize("side", ("long", "short"))
+def test_restart_reconstruction_preserves_exact_accepted_source_identity_and_seals(
+    side: str,
+) -> None:
+    opened, sources = _hashed_restart_source_fixture(
+        side=side,
+        fill_ids=(f"restart-source-{side}",),
+    )
+
+    restarted = reconcile_paper_lifecycle(
+        existing_ledger=opened,
+        accepted_fills=sources,
+        mark_prices={"BTCUSDT": 100.0},
+        generated_utc="2026-06-11T10:02:00Z",
+        config=_restart_hold_config(),
+    )
+
+    assert len(restarted["open_positions"]) == 1
+    assert len(restarted["accepted_open_fills"]) == 1
+    restored_source = restarted["accepted_open_fills"][0]
+    assert restored_source["fill_id"] == sources[0]["fill_id"]
+    assert restored_source["ledger_row_id"] == sources[0]["ledger_row_id"]
+    assert restored_source["fill_id"] != restarted["open_positions"][0]["position_id"]
+    assert restored_source["restart_source_marker"] == "sealed-source-0"
+    assert restored_source["paper_final_admission_contract"] == sources[0][
+        "paper_final_admission_contract"
+    ]
+    assert restored_source["paper_final_admission_receipt_hash"] == sources[0][
+        "paper_final_admission_receipt_hash"
+    ]
+    assert restored_source["paper_persisted_ledger_contract_hash"] == sources[0][
+        "paper_persisted_ledger_contract_hash"
+    ]
+    assert restored_source["paper_lifecycle_status"] == (
+        "OPEN_POSITION_RESTORED_FROM_HASHED_SNAPSHOT"
+    )
+
+
+def test_restart_reconstruction_retains_multiple_source_fills_deterministically() -> None:
+    opened, sources = _hashed_restart_source_fixture(
+        side="long",
+        fill_ids=("restart-source-a", "restart-source-b"),
+    )
+    input_sources = [sources[1], sources[0]]
+
+    first = reconcile_paper_lifecycle(
+        existing_ledger=opened,
+        accepted_fills=input_sources,
+        mark_prices={"BTCUSDT": 100.0},
+        generated_utc="2026-06-11T10:02:00Z",
+        config=_restart_hold_config(),
+    )
+    second = reconcile_paper_lifecycle(
+        existing_ledger=opened,
+        accepted_fills=input_sources,
+        mark_prices={"BTCUSDT": 100.0},
+        generated_utc="2026-06-11T10:02:00Z",
+        config=_restart_hold_config(),
+    )
+
+    expected_ids = ["restart-source-b", "restart-source-a"]
+    assert [row["fill_id"] for row in first["accepted_open_fills"]] == expected_ids
+    assert [row["fill_id"] for row in second["accepted_open_fills"]] == expected_ids
+    assert [
+        row["restart_source_marker"] for row in first["accepted_open_fills"]
+    ] == ["sealed-source-1", "sealed-source-0"]
+    assert first["accepted_open_fills"] == second["accepted_open_fills"]
+
+
+def _unrelated_restart_fill() -> dict:
+    unrelated = _fill(fill_id="restart-unrelated-source", side="long")
+    unrelated.update(
+        {
+            "fill_price_utc": "2026-06-11T10:02:00Z",
+            "generated_utc": "2026-06-11T10:02:00Z",
+            "decision_time": "2026-06-11T10:02:00Z",
+            "restart_source_marker": "must-not-be-promoted",
+        }
+    )
+    return unrelated
+
+
+def test_restart_reconstruction_treats_unrelated_fill_as_new_not_restored() -> None:
+    opened, _sources = _hashed_restart_source_fixture(
+        side="long",
+        fill_ids=("restart-authenticated-source",),
+    )
+    unrelated = _unrelated_restart_fill()
+
+    restarted = reconcile_paper_lifecycle(
+        existing_ledger=opened,
+        accepted_fills=[unrelated],
+        mark_prices={"BTCUSDT": 100.0},
+        generated_utc="2026-06-11T10:03:00Z",
+        config=_restart_hold_config(),
+    )
+
+    assert len(restarted["accepted_open_fills"]) == 1
+    assert restarted["accepted_open_fills"][0]["fill_id"] == unrelated["fill_id"]
+    assert restarted["accepted_open_fills"][0]["paper_lifecycle_status"] == (
+        "NETTED_INTO_EXISTING_POSITION"
+    )
+    assert restarted["accepted_open_fills"][0]["paper_lifecycle_status"] != (
+        "OPEN_POSITION_RESTORED_FROM_HASHED_SNAPSHOT"
+    )
+    assert len(restarted["open_positions"]) == 1
+    assert restarted["open_positions"][0]["net_quantity"] == pytest.approx(2.0)
+    assert restarted["blocked_entries"] == []
+
+
+def test_restart_reconstruction_rejects_unrelated_fill_spoofing_position_identity(
+) -> None:
+    opened, _sources = _hashed_restart_source_fixture(
+        side="long",
+        fill_ids=("restart-authenticated-source",),
+    )
+    prior = opened["open_positions"][0]
+    unrelated = _unrelated_restart_fill()
+    unrelated["position_id"] = prior["position_id"]
+    unrelated["position_generation_id"] = prior["position_generation_id"]
+
+    restarted = reconcile_paper_lifecycle(
+        existing_ledger=opened,
+        accepted_fills=[unrelated],
+        mark_prices={"BTCUSDT": 100.0},
+        generated_utc="2026-06-11T10:03:00Z",
+        config=_restart_hold_config(),
+    )
+
+    assert restarted["accepted_open_fills"] == []
+    assert len(restarted["open_positions"]) == 1
+    assert len(restarted["blocked_entries"]) == 1
+    assert restarted["blocked_entries"][0]["paper_lifecycle_status"] == (
+        "ENTRY_BLOCKED_AMBIGUOUS_SOURCE_FILL_REPLAY"
+    )
+    assert restarted["blocked_entries"][0]["paper_lifecycle_block_reasons"] == [
+        "SOURCE_FILL_ID_REUSED_WHILE_POSITION_OPEN"
+    ]
+
+
+def test_restart_reconstruction_without_source_emits_no_false_accepted_identity() -> None:
+    opened, _sources = _hashed_restart_source_fixture(
+        side="long",
+        fill_ids=("restart-no-source",),
+    )
+
+    restarted = reconcile_paper_lifecycle(
+        existing_ledger=opened,
+        accepted_fills=[],
+        mark_prices={"BTCUSDT": 100.0},
+        generated_utc="2026-06-11T10:02:00Z",
+        config=_restart_hold_config(),
+    )
+
+    assert len(restarted["open_positions"]) == 1
+    assert restarted["accepted_open_fills"] == []
+    assert restarted["blocked_entries"] == []
+    assert restarted["closed_trades"] == []
+
+
+@pytest.mark.parametrize(
+    ("side", "exit_mark"),
+    (("long", 102.0), ("short", 98.0)),
+)
+def test_restart_close_does_not_readd_restored_accepted_source(
+    side: str,
+    exit_mark: float,
+) -> None:
+    opened, sources = _hashed_restart_source_fixture(
+        side=side,
+        fill_ids=(f"restart-close-{side}",),
+    )
+    close_config = PaperLifecycleConfig(
+        portfolio_equity_usdt=10000.0,
+        exit_config=PaperExitConfig(
+            min_hold_seconds=0.0,
+            take_profit_bps=100.0,
+            stop_loss_bps=99999.0,
+            profit_bank_bps=99999.0,
+            profit_lock_bps=99999.0,
+            max_hold_seconds=999999.0,
+        ),
+    )
+
+    closed = reconcile_paper_lifecycle(
+        existing_ledger=opened,
+        accepted_fills=sources,
+        mark_prices={"BTCUSDT": exit_mark},
+        generated_utc="2026-06-11T10:02:00Z",
+        config=close_config,
+    )
+
+    assert closed["open_positions"] == []
+    assert closed["accepted_open_fills"] == []
+    assert len(closed["closed_trades"]) == 1
+    assert closed["closed_trades"][0]["source_fill_ids"] == [sources[0]["fill_id"]]
+    assert closed["closed_trades"][0]["reduce_only"] is True
+
+
 def _adaptive_policy_position(
     fill_id: str,
     *,
