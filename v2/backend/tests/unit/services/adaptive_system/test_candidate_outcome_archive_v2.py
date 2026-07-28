@@ -1,12 +1,17 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
+from v2.backend.app.contracts.runtime_v2.candidate_decision_outcome_v2 import (
+    canonical_payload_json,
+    canonical_payload_sha256,
+)
 from v2.backend.app.services.adaptive_system import candidate_outcome_archive_v2 as archive_module
 from v2.backend.app.services.adaptive_system.candidate_outcome_archive_v2 import (
     ARCHIVE_COVERAGE_SCHEMA_VERSION,
@@ -18,6 +23,7 @@ from v2.backend.app.services.adaptive_system.candidate_outcome_archive_v2 import
 from v2.backend.tests.unit.contracts.runtime_v2.test_candidate_decision_outcome_v2 import (
     _archive,
     _decision,
+    _evidence,
     _labels,
     _sha,
 )
@@ -66,6 +72,52 @@ def _revision_pair():
         previous_archive_record_sha256=first.content_sha256(),
     )
     return first, second
+
+
+def _side_evidence(kind: str, side: str):
+    evidence = _evidence(kind)
+    payload = json.loads(evidence.payload_json)
+    payload["side"] = side
+    payload_json = canonical_payload_json(payload)
+    return replace(
+        evidence,
+        payload_json=payload_json,
+        payload_sha256=canonical_payload_sha256(payload_json),
+    )
+
+
+def _decision_record(
+    candidate_id: str,
+    *,
+    decision_time_ms: int = 1_000_000,
+    disposition: str = "REJECTED",
+    side: str = "LONG",
+):
+    decision = _decision(
+        candidate_id=candidate_id,
+        decision_time_ms=decision_time_ms,
+        record_generated_at_ms=decision_time_ms + 1,
+        record_available_at_ms=decision_time_ms + 2,
+        decision_disposition=disposition,
+        proposed_action=_side_evidence("proposed_action", side),
+        selected_action=_side_evidence("selected_action", side),
+    )
+    return _archive(
+        decision,
+        archive_record_id=f"{candidate_id}-revision-1",
+        record_generated_at_ms=decision_time_ms + 3,
+        record_available_at_ms=decision_time_ms + 4,
+    )
+
+
+def _rewrite_rows(path: Path, rows: list[dict]) -> None:
+    path.write_text(
+        "".join(
+            f"{json.dumps(row, sort_keys=True, separators=(',', ':'))}\n"
+            for row in rows
+        ),
+        encoding="utf-8",
+    )
 
 
 def test_empty_archive_verifies_fail_closed_metadata(tmp_path: Path) -> None:
@@ -142,6 +194,86 @@ def test_append_many_returns_exact_post_fsync_verification(tmp_path: Path) -> No
     assert len(receipts) == 2
     assert appended == reread
     assert appended.terminal_chain_sha256 == receipts[-1].chain_sha256
+
+
+def test_streaming_append_preserves_receipts_cas_idempotency_and_terminal_verification(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "candidate-outcomes.jsonl"
+    archive, _, _ = _writer(path)
+    first, matured = _revision_pair()
+    original = archive.append(first, signed_at_ms=1_100_000)
+    other = _decision_record("candidate-2")
+    monkeypatch.setattr(
+        archive,
+        "_parse_rows",
+        lambda: pytest.fail("streaming append must never materialize the prefix"),
+    )
+
+    wrong_predecessor = replace(
+        matured,
+        previous_archive_record_sha256="0" * 64,
+    )
+    with pytest.raises(
+        CandidateOutcomeArchiveError,
+        match="candidate_compare_and_swap_hash_mismatch",
+    ):
+        archive.append_many_with_verification(
+            (wrong_predecessor, other),
+            signed_at_ms=2_000_000,
+        )
+    assert len(path.read_text(encoding="utf-8").splitlines()) == 1
+
+    receipts, terminal = archive.append_many_with_verification(
+        (matured, other),
+        signed_at_ms=2_000_000,
+    )
+
+    assert [receipt.archive_sequence for receipt in receipts] == [2, 1]
+    assert receipts[0].record_content_sha256 == matured.content_sha256()
+    assert receipts[1].record_content_sha256 == other.content_sha256()
+    assert receipts[0].idempotent_replay is False
+    assert receipts[1].idempotent_replay is False
+    assert terminal.row_count == 3
+    assert terminal.decision_revision_count == 2
+    assert terminal.matured_revision_count == 1
+    assert terminal.candidate_count == 2
+    assert terminal.terminal_chain_sha256 == receipts[-1].chain_sha256
+    assert terminal.paper_only is True
+    assert terminal.live_gate == "blocked_human_only"
+    assert terminal.routes_to_live is False
+    assert terminal.places_real_order is False
+    assert terminal.exchange_action_taken is False
+
+    streamed_terminal, _ = archive._verify_rows_and_select(
+        archive._iter_rows(),
+        validate_nested_contracts=True,
+    )
+    assert terminal == streamed_terminal
+
+    replay, replay_terminal = archive.append_many_with_verification(
+        (first, matured, other),
+        signed_at_ms=2_100_000,
+    )
+    assert [receipt.receipt_id for receipt in replay] == [
+        original.receipt_id,
+        receipts[0].receipt_id,
+        receipts[1].receipt_id,
+    ]
+    assert [receipt.signature_hex for receipt in replay] == [
+        original.signature_hex,
+        receipts[0].signature_hex,
+        receipts[1].signature_hex,
+    ]
+    assert [receipt.signed_at_ms for receipt in replay] == [
+        original.signed_at_ms,
+        receipts[0].signed_at_ms,
+        receipts[1].signed_at_ms,
+    ]
+    assert all(receipt.idempotent_replay is True for receipt in replay)
+    assert replay_terminal == terminal
+    assert len(path.read_text(encoding="utf-8").splitlines()) == 3
 
 
 def test_append_many_validation_failure_writes_no_partial_batch(tmp_path: Path) -> None:
@@ -233,6 +365,263 @@ def test_sequence_filtered_read_stream_verifies_all_rows_and_retains_only_mature
     assert verification.matured_revision_count == 1
     assert verification.candidate_count == 1
     assert records == (second,)
+
+
+def test_maturation_stream_selects_exact_oldest_due_bounded_symmetric_batch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    archive, _, _ = _writer(tmp_path / "candidate-outcomes.jsonl")
+    matured_first = _decision_record("matured-candidate")
+    matured_second = _archive(
+        matured_first.decision,
+        _labels(matured_first.decision),
+        archive_record_id="matured-candidate-revision-2",
+        previous_archive_record_sha256=matured_first.content_sha256(),
+    )
+    records = (
+        _decision_record(
+            "b-long-tie",
+            decision_time_ms=1_200_000,
+            disposition="REJECTED",
+            side="LONG",
+        ),
+        _decision_record(
+            "actual-close-required",
+            decision_time_ms=1_050_000,
+            disposition="SELECTED_TRADE",
+            side="SHORT",
+        ),
+        _decision_record(
+            "z-long-oldest",
+            decision_time_ms=1_100_000,
+            disposition="REJECTED",
+            side="LONG",
+        ),
+        matured_first,
+        _decision_record(
+            "a-short-tie",
+            decision_time_ms=1_200_000,
+            disposition="INFEASIBLE",
+            side="SHORT",
+        ),
+        _decision_record(
+            "late-short",
+            decision_time_ms=2_200_000,
+            disposition="REJECTED",
+            side="SHORT",
+        ),
+        matured_second,
+    )
+    archive.append_many(records, signed_at_ms=3_000_000)
+    monkeypatch.setattr(
+        archive,
+        "_parse_rows",
+        lambda: pytest.fail("maturation stream must never materialize all rows"),
+    )
+
+    verification, selection = (
+        archive.read_verified_maturation_batch_with_verification(
+            signed_at_ms=3_000_000,
+            max_candidates=2,
+            actual_close_required_dispositions=frozenset(
+                {"SELECTED_TRADE", "SELECTED_RISK_REDUCED", "SELECTED_HEDGED"}
+            ),
+        )
+    )
+
+    assert verification.row_count == 7
+    assert verification.decision_revision_count == 6
+    assert verification.matured_revision_count == 1
+    assert verification.candidate_count == 6
+    assert selection.horizon_due_candidate_count == 4
+    assert selection.selected_actual_pending_count == 1
+    assert selection.label_candidate_count == 3
+    assert [record.decision.candidate_id for record in selection.records] == [
+        "z-long-oldest",
+        "a-short-tie",
+    ]
+    assert [record.decision.decision_disposition for record in selection.records] == [
+        "REJECTED",
+        "INFEASIBLE",
+    ]
+    assert [
+        json.loads(record.decision.selected_action.payload_json)["side"]
+        for record in selection.records
+    ] == ["LONG", "SHORT"]
+    assert all(record.archive_sequence == 1 for record in selection.records)
+    assert all(record.paper_only is True for record in selection.records)
+    assert all(record.live_gate == "blocked_human_only" for record in selection.records)
+    assert all(record.routes_to_live is False for record in selection.records)
+    assert all(record.places_real_order is False for record in selection.records)
+    assert all(record.exchange_action_taken is False for record in selection.records)
+    assert verification.paper_only is True
+    assert verification.routes_to_live is False
+    assert verification.places_real_order is False
+    assert verification.exchange_action_taken is False
+
+
+@pytest.mark.parametrize(
+    ("tamper", "reason"),
+    [
+        ("signature", "signature_invalid"),
+        ("hash", "record_content_sha256_mismatch"),
+        (
+            "nested",
+            "nested_contract_invalid:record_generated_at_ms:must_be_positive_int",
+        ),
+    ],
+)
+def test_maturation_stream_rejects_tamper_in_unselected_row(
+    tmp_path: Path,
+    tamper: str,
+    reason: str,
+) -> None:
+    path = tmp_path / f"{tamper}.jsonl"
+    archive, private_key, _ = _writer(path)
+    archive.append_many(
+        (
+            _decision_record("candidate-a"),
+            _decision_record("candidate-z"),
+        ),
+        signed_at_ms=2_000_000,
+    )
+    rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+    unselected = rows[1]
+    if tamper == "signature":
+        unselected["signature_hex"] = "0" * 128
+    elif tamper == "hash":
+        unselected["record"]["record_generated_at_ms"] = 1
+    else:
+        unselected["record"]["record_generated_at_ms"] = 0
+        unselected["record_content_sha256"] = archive_module._sha256(
+            unselected["record"]
+        )
+        unselected["chain_sha256"] = archive_module._chain_sha256(
+            previous_chain_sha256=unselected["previous_chain_sha256"],
+            row_index=unselected["row_index"],
+            archive_record_id=unselected["archive_record_id"],
+            candidate_id=unselected["candidate_id"],
+            archive_sequence=unselected["archive_sequence"],
+            record_content_sha256=unselected["record_content_sha256"],
+        )
+        unselected["signature_hex"] = private_key.sign(
+            archive_module._signature_material(unselected)
+        ).hex()
+    _rewrite_rows(path, rows)
+
+    with pytest.raises(CandidateOutcomeArchiveError, match=reason):
+        archive.read_verified_maturation_batch_with_verification(
+            signed_at_ms=2_000_000,
+            max_candidates=1,
+            actual_close_required_dispositions=frozenset({"SELECTED_TRADE"}),
+        )
+
+
+def test_maturation_stream_rejects_second_locked_reread_candidate_set_mismatch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    archive, _, _ = _writer(tmp_path / "candidate-outcomes.jsonl")
+    archive.append_many(
+        (
+            _decision_record("candidate-a"),
+            _decision_record("candidate-b"),
+        ),
+        signed_at_ms=2_000_000,
+    )
+    stored_rows = tuple(archive._iter_rows())
+    iteration_count = 0
+
+    def inconsistent_locked_view():
+        nonlocal iteration_count
+        iteration_count += 1
+        rows = stored_rows
+        if iteration_count == 2:
+            rows = tuple(
+                row for row in rows if row["candidate_id"] != "candidate-a"
+            )
+        return iter(rows)
+
+    monkeypatch.setattr(archive, "_iter_rows", inconsistent_locked_view)
+
+    with pytest.raises(
+        CandidateOutcomeArchiveError,
+        match="maturation_batch:selected_candidate_set_mismatch",
+    ):
+        archive.read_verified_maturation_batch_with_verification(
+            signed_at_ms=2_000_000,
+            max_candidates=1,
+            actual_close_required_dispositions=frozenset({"SELECTED_TRADE"}),
+        )
+    assert iteration_count == 2
+
+
+def test_large_maturation_stream_materializes_only_bounded_selected_records(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    archive, _, _ = _writer(tmp_path / "candidate-outcomes.jsonl")
+    record_count = 64
+    max_candidates = 3
+    archive.append_many(
+        tuple(
+            _decision_record(
+                f"candidate-{index:03d}",
+                disposition="REJECTED" if index % 2 == 0 else "INFEASIBLE",
+                side="LONG" if index % 2 == 0 else "SHORT",
+            )
+            for index in range(record_count)
+        ),
+        signed_at_ms=2_000_000,
+    )
+    monkeypatch.setattr(
+        archive,
+        "_parse_rows",
+        lambda: pytest.fail("large maturation stream must not materialize all rows"),
+    )
+    original_iter_rows = archive._iter_rows
+    original_convert = archive_module.candidate_decision_outcome_from_dict
+    active_pass = 0
+    conversion_candidate_ids: dict[int, list[str]] = {}
+
+    def tracked_iter_rows():
+        nonlocal active_pass
+        active_pass += 1
+        yield from original_iter_rows()
+
+    def tracked_convert(payload):
+        conversion_candidate_ids.setdefault(active_pass, []).append(
+            payload["decision"]["candidate_id"]
+        )
+        return original_convert(payload)
+
+    monkeypatch.setattr(archive, "_iter_rows", tracked_iter_rows)
+    monkeypatch.setattr(
+        archive_module,
+        "candidate_decision_outcome_from_dict",
+        tracked_convert,
+    )
+
+    verification, selection = (
+        archive.read_verified_maturation_batch_with_verification(
+            signed_at_ms=2_000_000,
+            max_candidates=max_candidates,
+            actual_close_required_dispositions=frozenset({"SELECTED_TRADE"}),
+        )
+    )
+
+    expected_ids = [f"candidate-{index:03d}" for index in range(max_candidates)]
+    assert verification.row_count == record_count
+    assert selection.horizon_due_candidate_count == record_count
+    assert selection.label_candidate_count == record_count
+    assert len(selection.records) == max_candidates
+    assert [record.decision.candidate_id for record in selection.records] == expected_ids
+    assert len(conversion_candidate_ids[1]) == record_count
+    assert conversion_candidate_ids[2] == expected_ids
+    assert sum(map(len, conversion_candidate_ids.values())) == (
+        record_count + max_candidates
+    )
 
 
 def test_sequence_filtered_read_rejects_unselected_prefix_tamper(tmp_path: Path) -> None:

@@ -62,6 +62,9 @@ SAFE_RESUME_COMMAND = (
     ".venv/bin/python -P -B -m "
     "v2.backend.app.cli.v2_candidate_outcome_publisher --loop"
 )
+ACTUAL_CLOSE_REQUIRED_DISPOSITIONS = frozenset(
+    {"SELECTED_TRADE", "SELECTED_RISK_REDUCED", "SELECTED_HEDGED"}
+)
 
 
 class CandidateOutcomeRuntimeError(RuntimeError):
@@ -238,55 +241,31 @@ def process_maturation(
 
     if type(max_candidates) is not int or max_candidates < 1:
         raise CandidateOutcomeRuntimeError("max_candidates:positive_int_required")
-    verification_before, records = archive.read_verified_records_with_verification(
-        latest_only=True
+    verification_before, selection = (
+        archive.read_verified_maturation_batch_with_verification(
+            signed_at_ms=signed_at_ms,
+            max_candidates=max_candidates,
+            actual_close_required_dispositions=(
+                ACTUAL_CLOSE_REQUIRED_DISPOSITIONS
+            ),
+        )
     )
-    first_revisions = {
-        record.decision.candidate_id: record
-        for record in records
-        if record.archive_sequence == 1
-    }
-    matured_ids = {
-        record.decision.candidate_id
-        for record in records
-        if record.archive_sequence == 2
-    }
-    due = sorted(
-        (
-            record
-            for candidate_id, record in first_revisions.items()
-            if candidate_id not in matured_ids
-            and signed_at_ms
-            >= record.decision.decision_time_ms
-            + max(record.decision.supported_horizon_seconds) * 1_000
-        ),
-        key=lambda item: (item.decision.decision_time_ms, item.decision.candidate_id),
-    )
-    selected_actual_pending = [
-        record
-        for record in due
-        if record.decision.decision_disposition
-        in {"SELECTED_TRADE", "SELECTED_RISK_REDUCED", "SELECTED_HEDGED"}
-    ]
-    label_candidates = [
-        record
-        for record in due
-        if record.decision.decision_disposition
-        not in {"SELECTED_TRADE", "SELECTED_RISK_REDUCED", "SELECTED_HEDGED"}
-    ]
-    batch = label_candidates[:max_candidates]
+    batch = list(selection.records)
     pending_reason_counts: dict[str, int] = {}
 
     def count_pending(reason: str, amount: int = 1) -> None:
         pending_reason_counts[reason] = pending_reason_counts.get(reason, 0) + amount
 
-    if selected_actual_pending:
+    if selection.selected_actual_pending_count:
         count_pending(
             "RECONCILED_ACTUAL_PAPER_CLOSE_REQUIRED",
-            len(selected_actual_pending),
+            selection.selected_actual_pending_count,
         )
-    if len(label_candidates) > len(batch):
-        count_pending("MATURATION_BATCH_LIMIT", len(label_candidates) - len(batch))
+    if selection.label_candidate_count > len(batch):
+        count_pending(
+            "MATURATION_BATCH_LIMIT",
+            selection.label_candidate_count - len(batch),
+        )
 
     integrity: Mapping[str, Any] | None = None
     integrity_rejection_reasons: list[str] = []
@@ -356,14 +335,12 @@ def process_maturation(
         )
     else:
         append_receipts = ()
-    appended_matured_ids = {
-        receipt.candidate_id
-        for receipt in append_receipts
-        if receipt.archive_sequence == 2
-    }
-    total_matured = len(matured_ids | appended_matured_ids)
+    total_matured = verification_after.matured_revision_count
     decision_revision_count = verification_before.decision_revision_count
-    proven_eligible_total = len(matured_ids | set(source_eligible_ids))
+    proven_eligible_total = (
+        verification_before.matured_revision_count
+        + len(set(source_eligible_ids))
+    )
     unexplained_drops = max(0, proven_eligible_total - total_matured)
     status_name = (
         "BLOCKED"
@@ -381,9 +358,11 @@ def process_maturation(
         "unmatured_candidate_count": (
             decision_revision_count - total_matured
         ),
-        "horizon_due_candidate_count": len(due),
-        "selected_candidate_awaiting_actual_close_count": len(selected_actual_pending),
-        "label_candidate_count": len(label_candidates),
+        "horizon_due_candidate_count": selection.horizon_due_candidate_count,
+        "selected_candidate_awaiting_actual_close_count": (
+            selection.selected_actual_pending_count
+        ),
+        "label_candidate_count": selection.label_candidate_count,
         "batch_candidate_count": len(batch),
         "source_eligible_candidate_count": len(source_eligible_ids),
         "newly_matured_candidate_count": len(append_receipts),

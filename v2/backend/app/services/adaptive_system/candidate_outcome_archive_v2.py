@@ -18,7 +18,7 @@ import re
 import stat
 from collections.abc import Callable, Iterable
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -248,6 +248,22 @@ class ArchiveCoverageV2:
     exchange_action_taken: bool
 
 
+@dataclass(frozen=True, slots=True)
+class ArchiveMaturationBatchV2:
+    records: tuple[CandidateDecisionOutcomeV2, ...]
+    horizon_due_candidate_count: int
+    selected_actual_pending_count: int
+    label_candidate_count: int
+
+
+@dataclass(frozen=True, slots=True)
+class _MaturationIndexEntry:
+    archive_sequence: int
+    decision_time_ms: int
+    supported_horizon_seconds: tuple[int, ...]
+    decision_disposition: str
+
+
 class CandidateOutcomeArchiveV2:
     """Authenticated JSONL archive with append-only candidate CAS semantics."""
 
@@ -338,10 +354,16 @@ class CandidateOutcomeArchiveV2:
         *,
         selected_archive_sequences: frozenset[int] | None = None,
         validate_nested_contracts: bool = False,
+        append_receipts_by_archive_id: dict[str, ArchiveAppendReceiptV2]
+        | None = None,
+        candidate_states_out: dict[str, tuple[int, str, str, int]] | None = None,
+        maturation_index_out: dict[str, _MaturationIndexEntry] | None = None,
     ) -> tuple[ArchiveVerificationV2, list[dict[str, Any]]]:
         previous_chain_sha256 = GENESIS_CHAIN_SHA256
         archive_ids: set[str] = set()
-        candidate_states: dict[str, tuple[int, str, str, int]] = {}
+        candidate_states = (
+            candidate_states_out if candidate_states_out is not None else {}
+        )
         selected_rows: list[dict[str, Any]] = []
         row_count = 0
         decision_revision_count = 0
@@ -500,6 +522,40 @@ class CandidateOutcomeArchiveV2:
                 row["decision_snapshot_sha256"],
                 int(record.get("record_available_at_ms", 0)),
             )
+            if append_receipts_by_archive_id is not None:
+                append_receipts_by_archive_id[row["archive_record_id"]] = self._receipt(
+                    row,
+                    idempotent_replay=True,
+                )
+            if maturation_index_out is not None:
+                supported_horizons = decision.get("supported_horizon_seconds")
+                if (
+                    type(supported_horizons) is not list
+                    or not supported_horizons
+                    or any(type(value) is not int or value < 1 for value in supported_horizons)
+                ):
+                    _raise(
+                        "supported_horizon_seconds_invalid",
+                        f"row[{row_index}].record.decision",
+                    )
+                decision_time_ms = decision.get("decision_time_ms")
+                disposition = decision.get("decision_disposition")
+                if type(decision_time_ms) is not int or decision_time_ms < 1:
+                    _raise(
+                        "decision_time_ms_invalid",
+                        f"row[{row_index}].record.decision",
+                    )
+                if type(disposition) is not str or not disposition:
+                    _raise(
+                        "decision_disposition_invalid",
+                        f"row[{row_index}].record.decision",
+                    )
+                maturation_index_out[row["candidate_id"]] = _MaturationIndexEntry(
+                    archive_sequence=row["archive_sequence"],
+                    decision_time_ms=decision_time_ms,
+                    supported_horizon_seconds=tuple(supported_horizons),
+                    decision_disposition=disposition,
+                )
             if (
                 selected_archive_sequences is not None
                 and row["archive_sequence"] in selected_archive_sequences
@@ -625,6 +681,100 @@ class CandidateOutcomeArchiveV2:
                 ) from exc
         return verification, records
 
+    def read_verified_maturation_batch_with_verification(
+        self,
+        *,
+        signed_at_ms: int,
+        max_candidates: int,
+        actual_close_required_dispositions: frozenset[str],
+    ) -> tuple[ArchiveVerificationV2, ArchiveMaturationBatchV2]:
+        """Stream-authenticate the archive and retain one bounded due batch.
+
+        The archive contains large immutable evidence snapshots.  Runtime
+        maturation needs a compact latest-revision index plus only the selected
+        revision-one records; retaining every typed record makes memory grow
+        linearly with the full archive.  This method verifies every row,
+        signature, hash-chain link, candidate CAS transition, nested contract,
+        and safety flag under one shared lock.  It then rereads the same locked
+        immutable view only to materialize the exact bounded candidate set.
+        """
+
+        _require_positive_int(signed_at_ms, "signed_at_ms")
+        if type(max_candidates) is not int or max_candidates < 1:
+            _raise("must_be_positive_int", "max_candidates")
+        if (
+            type(actual_close_required_dispositions) is not frozenset
+            or not actual_close_required_dispositions
+            or any(
+                type(value) is not str or not value
+                for value in actual_close_required_dispositions
+            )
+        ):
+            _raise(
+                "must_be_nonempty_frozenset_of_strings",
+                "actual_close_required_dispositions",
+            )
+
+        with self._locked(exclusive=False):
+            maturation_index: dict[str, _MaturationIndexEntry] = {}
+            verification, _ = self._verify_rows_and_select(
+                self._iter_rows(),
+                validate_nested_contracts=True,
+                maturation_index_out=maturation_index,
+            )
+            due = sorted(
+                (
+                    (candidate_id, entry)
+                    for candidate_id, entry in maturation_index.items()
+                    if entry.archive_sequence == 1
+                    and signed_at_ms
+                    >= entry.decision_time_ms
+                    + max(entry.supported_horizon_seconds) * 1_000
+                ),
+                key=lambda item: (item[1].decision_time_ms, item[0]),
+            )
+            selected_actual_pending_count = sum(
+                entry.decision_disposition in actual_close_required_dispositions
+                for _, entry in due
+            )
+            label_candidate_ids = [
+                candidate_id
+                for candidate_id, entry in due
+                if entry.decision_disposition
+                not in actual_close_required_dispositions
+            ]
+            selected_ids = frozenset(label_candidate_ids[:max_candidates])
+            selected_rows = [
+                row
+                for row in self._iter_rows()
+                if row["archive_sequence"] == 1
+                and row["candidate_id"] in selected_ids
+            ]
+            if {row["candidate_id"] for row in selected_rows} != selected_ids:
+                _raise("selected_candidate_set_mismatch", "maturation_batch")
+            try:
+                records_by_id = {
+                    row["candidate_id"]: candidate_decision_outcome_from_dict(
+                        row["record"]
+                    )
+                    for row in selected_rows
+                }
+            except CandidateOutcomeContractError as exc:
+                raise CandidateOutcomeArchiveError(
+                    f"record:nested_contract_invalid:{exc}"
+                ) from exc
+            records = tuple(
+                records_by_id[candidate_id]
+                for candidate_id in label_candidate_ids[:max_candidates]
+            )
+
+        return verification, ArchiveMaturationBatchV2(
+            records=records,
+            horizon_due_candidate_count=len(due),
+            selected_actual_pending_count=selected_actual_pending_count,
+            label_candidate_count=len(label_candidate_ids),
+        )
+
     def append(
         self,
         record: CandidateDecisionOutcomeV2,
@@ -673,51 +823,49 @@ class CandidateOutcomeArchiveV2:
 
         with self._locked():
             try:
-                rows = self._parse_rows()
-                verification = self._verify_rows(rows)
-                rows_by_archive_id = {row["archive_record_id"]: row for row in rows}
-                candidate_rows: dict[str, list[dict[str, Any]]] = {}
-                for row in rows:
-                    candidate_rows.setdefault(row["candidate_id"], []).append(row)
+                receipts_by_archive_id: dict[str, ArchiveAppendReceiptV2] = {}
+                candidate_states: dict[str, tuple[int, str, str, int]] = {}
+                verification, _ = self._verify_rows_and_select(
+                    self._iter_rows(),
+                    append_receipts_by_archive_id=receipts_by_archive_id,
+                    candidate_states_out=candidate_states,
+                )
                 previous_chain_sha256 = verification.terminal_chain_sha256
                 pending_rows: list[dict[str, Any]] = []
                 receipts: list[ArchiveAppendReceiptV2] = []
 
                 for record in records:
                     record_content_sha256 = record.content_sha256()
-                    existing = rows_by_archive_id.get(record.archive_record_id)
+                    existing = receipts_by_archive_id.get(record.archive_record_id)
                     if existing is not None:
-                        if existing["record_content_sha256"] != record_content_sha256:
+                        if existing.record_content_sha256 != record_content_sha256:
                             _raise("idempotency_key_content_collision", "archive_record_id")
-                        receipts.append(self._receipt(existing, idempotent_replay=True))
+                        receipts.append(replace(existing, idempotent_replay=True))
                         continue
 
-                    history = candidate_rows.setdefault(record.decision.candidate_id, [])
-                    if record.archive_sequence != len(history) + 1:
+                    candidate_id = record.decision.candidate_id
+                    previous = candidate_states.get(candidate_id)
+                    previous_sequence = previous[0] if previous is not None else 0
+                    if record.archive_sequence != previous_sequence + 1:
                         _raise("candidate_compare_and_swap_sequence_mismatch", "archive_sequence")
-                    if not history:
+                    if previous is None:
                         if record.archive_sequence != 1:
                             _raise("first_revision_must_be_one", "archive_sequence")
                     else:
-                        previous = history[-1]
                         if (
                             record.previous_archive_record_sha256
-                            != previous["record_content_sha256"]
+                            != previous[1]
                         ):
                             _raise(
                                 "candidate_compare_and_swap_hash_mismatch",
                                 "previous_archive_record_sha256",
                             )
-                        if record.decision.content_sha256() != previous[
-                            "decision_snapshot_sha256"
-                        ]:
+                        if record.decision.content_sha256() != previous[2]:
                             _raise("decision_snapshot_changed", "record")
-                        if record.record_generated_at_ms < previous["record"][
-                            "record_available_at_ms"
-                        ]:
+                        if record.record_generated_at_ms < previous[3]:
                             _raise("successor_generated_before_previous_available", "record")
 
-                    row_index = len(rows) + len(pending_rows) + 1
+                    row_index = verification.row_count + len(pending_rows) + 1
                     chain_sha256 = _chain_sha256(
                         previous_chain_sha256=previous_chain_sha256,
                         row_index=row_index,
@@ -773,10 +921,16 @@ class CandidateOutcomeArchiveV2:
                         ) from exc
                     row["signature_hex"] = signature.hex()
                     pending_rows.append(row)
-                    rows_by_archive_id[record.archive_record_id] = row
-                    history.append(row)
+                    receipt = self._receipt(row, idempotent_replay=False)
+                    receipts_by_archive_id[record.archive_record_id] = receipt
+                    candidate_states[candidate_id] = (
+                        record.archive_sequence,
+                        record_content_sha256,
+                        record.decision.content_sha256(),
+                        record.record_available_at_ms,
+                    )
                     previous_chain_sha256 = chain_sha256
-                    receipts.append(self._receipt(row, idempotent_replay=False))
+                    receipts.append(receipt)
 
                 final_verification = verification
                 if pending_rows:
@@ -823,7 +977,7 @@ class CandidateOutcomeArchiveV2:
                             verification.matured_revision_count
                             + sum(row["archive_sequence"] == 2 for row in pending_rows)
                         ),
-                        candidate_count=len(candidate_rows),
+                        candidate_count=len(candidate_states),
                         terminal_chain_sha256=previous_chain_sha256,
                         duplicate_archive_record_count=0,
                         invalid_row_count=0,
@@ -934,6 +1088,7 @@ __all__ = [
     "PINNED_PRODUCTION_WRITER_PUBLIC_KEY_HEX",
     "CandidateOutcomeArchiveError",
     "ArchiveAppendReceiptV2",
+    "ArchiveMaturationBatchV2",
     "ArchiveVerificationV2",
     "ArchiveCoverageV2",
     "CandidateOutcomeArchiveV2",

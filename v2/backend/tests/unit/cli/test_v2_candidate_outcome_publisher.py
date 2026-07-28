@@ -298,12 +298,41 @@ class _FakeExtendingLabelArchive(_FakeLabelArchive):
         }
 
 
-def test_runtime_matures_due_candidate_with_same_authenticated_writer(tmp_path: Path) -> None:
+def test_runtime_matures_due_candidate_with_same_authenticated_streaming_writer(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     record = _maturation_record()
     rows, proof = _rows_and_proof(record)
     archive = _archive(tmp_path / "state" / "candidate_decision_outcomes_v2.jsonl")
     archive.append(record, signed_at_ms=record.record_available_at_ms)
     signed_at_ms = proof["training_observed_at_ms"] + 1
+    stream_calls = 0
+    streaming_read = archive.read_verified_maturation_batch_with_verification
+
+    def counted_streaming_read(**kwargs):
+        nonlocal stream_calls
+        stream_calls += 1
+        return streaming_read(**kwargs)
+
+    monkeypatch.setattr(
+        archive,
+        "read_verified_maturation_batch_with_verification",
+        counted_streaming_read,
+    )
+    monkeypatch.setattr(
+        archive,
+        "read_verified_records_with_verification",
+        lambda **_kwargs: pytest.fail(
+            "runtime maturation must not use the full record materialization path"
+        ),
+    )
+    monkeypatch.setattr(
+        archive,
+        "_parse_rows",
+        lambda: pytest.fail("runtime maturation must not materialize all archive rows"),
+    )
+
     status = process_maturation(
         archive=archive,
         label_archive=_FakeLabelArchive(rows, proof),  # type: ignore[arg-type]
@@ -315,7 +344,14 @@ def test_runtime_matures_due_candidate_with_same_authenticated_writer(tmp_path: 
     assert status["newly_matured_candidate_count"] == 1
     assert status["eligible_matured_label_coverage_100_percent"] is True
     assert status["counterfactual_counts_as_paper_profit"] is False
-    assert archive.verify().matured_revision_count == 1
+    assert status["archive_verification"]["matured_revision_count"] == 1
+    assert status["execution_authority"] is False
+    assert status["paper_only"] is True
+    assert status["live_gate"] == "blocked_human_only"
+    assert status["routes_to_live"] is False
+    assert status["places_real_order"] is False
+    assert status["exchange_action_taken"] is False
+    assert stream_calls == 1
 
 
 def test_runtime_uses_and_refreshes_incremental_label_integrity_cache(
