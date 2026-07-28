@@ -14871,6 +14871,22 @@ def test_depth_price_impact_uses_orderbook_top5_vwap_after_sizing() -> None:
     assert intent["depth_utilization_pct"] == 0.4
 
 
+_VERIFIED_MICROSTRUCTURE_COST_EVIDENCE = {
+    "microstructure_trust_status": "MICROSTRUCTURE_TRUST_SCORE_FOUND",
+    "microstructure_trust_allocation_binding": (
+        "EXACT_PIT_VALID_REDIS_KEY_AND_FULL_CANONICAL_SOURCE_PAYLOAD_SHA256_V1"
+    ),
+    "microstructure_trust_allocation_rejection_reasons": [],
+    "microstructure_source_hash": "a" * 64,
+    "microstructure_source_hash_contract": (
+        "REDIS_KEY_AND_FULL_CANONICAL_SOURCE_PAYLOAD_SHA256_V1"
+    ),
+    "feed_integrity_pass": True,
+    "sequence_gap_free": True,
+    "book_sequence_gap": False,
+}
+
+
 def test_runtime_cost_capture_contract_marks_complete_production_grade_cost() -> None:
     intent = {
         "symbol": "BANKUSDT",
@@ -14919,6 +14935,7 @@ def test_runtime_cost_capture_contract_marks_complete_production_grade_cost() ->
         "adaptive_allocation": {},
     }
     market_microstructure = {
+        **_VERIFIED_MICROSTRUCTURE_COST_EVIDENCE,
         "source": "V2_MARKET_ORDERBOOK_TOP_OF_BOOK:v2:market:orderbook:BANKUSDT",
         "entry_spread_available_at": "2026-06-22T12:59:59.500Z",
         "best_bid": 99.99,
@@ -15087,6 +15104,18 @@ def _complete_runtime_cost_capture_intent_and_microstructure(
         "cross_venue_confirmation_score": 0.8,
         "sweep_risk_score": 0.1,
         "microstructure_trust_source": "v2:microstructure:trust_score:BANKUSDT:15m",
+        "microstructure_trust_status": "MICROSTRUCTURE_TRUST_SCORE_FOUND",
+        "microstructure_trust_allocation_binding": (
+            "EXACT_PIT_VALID_REDIS_KEY_AND_FULL_CANONICAL_SOURCE_PAYLOAD_SHA256_V1"
+        ),
+        "microstructure_trust_allocation_rejection_reasons": [],
+        "microstructure_source_hash": "a" * 64,
+        "microstructure_source_hash_contract": (
+            "REDIS_KEY_AND_FULL_CANONICAL_SOURCE_PAYLOAD_SHA256_V1"
+        ),
+        "feed_integrity_pass": True,
+        "sequence_gap_free": True,
+        "book_sequence_gap": False,
     }
     return intent, market_microstructure
 
@@ -15106,7 +15135,7 @@ def test_runtime_cost_capture_allows_reduce_size_below_microstructure_minimum() 
 
     assert intent["microstructure_below_adaptive_minimum"] is True
     assert intent["runtime_cost_capture_microstructure_trust_policy"] == (
-        "REDUCE_SIZE_BELOW_ADAPTIVE_MINIMUM"
+        "VALID_UNFAVORABLE_CONTINUOUS_ADAPTIVE_OBJECTIVE_INPUT"
     )
     assert intent["runtime_cost_capture_source_reject_reasons"] == []
     assert intent["runtime_cost_capture_missing_fields"] == []
@@ -15117,9 +15146,12 @@ def test_runtime_cost_capture_allows_reduce_size_below_microstructure_minimum() 
     assert intent["paper_policy_owner_open_allowed"] is True
 
 
-def test_runtime_cost_capture_rejects_allow_below_microstructure_minimum() -> None:
+@pytest.mark.parametrize("action", ["ALLOW", "SHADOW_ONLY", "NO_TRADE"])
+def test_runtime_cost_capture_keeps_valid_unfavorable_microstructure_as_cost_evidence(
+    action: str,
+) -> None:
     intent, market_microstructure = _complete_runtime_cost_capture_intent_and_microstructure(
-        microstructure_action="ALLOW",
+        microstructure_action=action,
         microstructure_trust_score=0.52,
     )
 
@@ -15129,15 +15161,34 @@ def test_runtime_cost_capture_rejects_allow_below_microstructure_minimum() -> No
         signal={"policy_fingerprint": paper_loop.CHALLENGER_V2_ACTIVE_CUDA_POLICY_FINGERPRINT},
         prediction={"model_source": "V2_LOCAL_TRAINED_RL_MASA_PPO_CUDA"},
     )
-    reasons = paper_loop._paper_policy_owner_open_rejection_reasons(intent)  # noqa: SLF001
+    assert intent["runtime_cost_capture_source_reject_reasons"] == []
+    assert intent["production_grade_cost_flag"] is True
+    assert intent["fallback_cost_flag"] is False
+    assert intent["microstructure_below_adaptive_minimum"] is True
+    assert intent["runtime_cost_capture_microstructure_trust_policy"] == (
+        "VALID_UNFAVORABLE_CONTINUOUS_ADAPTIVE_OBJECTIVE_INPUT"
+    )
 
-    assert intent["runtime_cost_capture_source_reject_reasons"] == [
-        "MICROSTRUCTURE_TRUST_BELOW_ADAPTIVE_MINIMUM"
+
+def test_runtime_cost_capture_rejects_unverified_microstructure_transport() -> None:
+    intent, market_microstructure = _complete_runtime_cost_capture_intent_and_microstructure(
+        microstructure_action="SHADOW_ONLY",
+        microstructure_trust_score=0.52,
+    )
+    market_microstructure["microstructure_source_hash"] = "invalid"
+
+    paper_loop._attach_runtime_cost_capture_contract(  # noqa: SLF001
+        intent,
+        market_microstructure,
+        signal={"policy_fingerprint": paper_loop.CHALLENGER_V2_ACTIVE_CUDA_POLICY_FINGERPRINT},
+        prediction={"model_source": "V2_LOCAL_TRAINED_RL_MASA_PPO_CUDA"},
+    )
+
+    assert "MICROSTRUCTURE_SOURCE_HASH_INVALID" in intent[
+        "runtime_cost_capture_source_reject_reasons"
     ]
     assert intent["production_grade_cost_flag"] is False
     assert intent["fallback_cost_flag"] is True
-    assert "source:MICROSTRUCTURE_TRUST_BELOW_ADAPTIVE_MINIMUM" in reasons
-    assert intent["paper_policy_owner_open_allowed"] is False
 
 
 def test_direct_orderbook_features_feed_production_grade_cost_contract() -> None:
@@ -15173,6 +15224,8 @@ def test_direct_orderbook_features_feed_production_grade_cost_contract() -> None
                 "orderbook_trust_tier": "HIGH_TRUST",
                 "microstructure_action": "ALLOW",
                 "adaptive_minimum": 0.65,
+                "feed_integrity_pass": True,
+                "sequence_gap_free": True,
                 "orderbook_latency_ms": 35.0,
                 "book_sequence_gap": False,
                 "depth_persistence": 0.9,
@@ -15243,6 +15296,10 @@ def test_direct_orderbook_features_feed_production_grade_cost_contract() -> None
         "REDIS_KEY_AND_FULL_CANONICAL_SOURCE_PAYLOAD_SHA256_V1"
     )
 
+    paper_loop._attach_validated_strategy_microstructure_evidence(  # noqa: SLF001
+        intent,
+        market_microstructure,
+    )
     paper_loop._attach_runtime_cost_capture_contract(  # noqa: SLF001
         intent,
         market_microstructure,
@@ -15294,6 +15351,7 @@ def test_runtime_cost_capture_source_family_allows_approved_sources(
 
 def test_runtime_cost_capture_rejects_disallowed_cost_source_family() -> None:
     intent = {
+        **_VERIFIED_MICROSTRUCTURE_COST_EVIDENCE,
         "symbol": "BANKUSDT",
         "timeframe": "15m",
         "side": "long",
@@ -15385,6 +15443,7 @@ def test_runtime_cost_capture_rejects_orderbook_timestamp_after_feature_decision
         "adaptive_allocation": {},
     }
     market_microstructure = {
+        **_VERIFIED_MICROSTRUCTURE_COST_EVIDENCE,
         "source": "V2_MARKET_ORDERBOOK_TOP_OF_BOOK:v2:market:orderbook:BANKUSDT",
         "entry_spread_available_at": "2026-06-22T13:00:05.000Z",
         "entry_spread_captured_at": "2026-06-22T13:05:00.000Z",
@@ -15446,6 +15505,7 @@ def test_runtime_cost_capture_rejects_orderbook_timestamp_after_feature_decision
 
 def test_runtime_cost_capture_uses_explicit_paper_admission_decision_time() -> None:
     intent = {
+        **_VERIFIED_MICROSTRUCTURE_COST_EVIDENCE,
         "symbol": "BANKUSDT",
         "timeframe": "15m",
         "side": "long",
@@ -15534,6 +15594,7 @@ def test_runtime_cost_capture_uses_explicit_paper_admission_decision_time() -> N
 
 def test_runtime_cost_capture_derives_orderbook_latency_from_pit_cost_timestamps() -> None:
     intent = {
+        **_VERIFIED_MICROSTRUCTURE_COST_EVIDENCE,
         "symbol": "BANKUSDT",
         "timeframe": "15m",
         "side": "long",

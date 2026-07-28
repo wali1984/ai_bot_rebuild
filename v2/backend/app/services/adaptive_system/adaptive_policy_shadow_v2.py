@@ -1049,6 +1049,13 @@ def _hard_check_inputs(
     )
     if not position_state_valid:
         failures.append("position_transition_validity")
+    if requires_physical_execution and str(
+        intent.get("microstructure_action") or ""
+    ).strip().upper() == "CLOSE_OR_REDUCE_ONLY":
+        # This is the one valid-unfavourable microstructure disposition that
+        # changes the permissible position transition.  Its evidence remains
+        # a calibrated objective input, but it cannot authorize a new entry.
+        failures.append("position_transition_validity")
     prediction = intent.get("entry_prediction_snapshot")
     prediction = prediction if isinstance(prediction, Mapping) else {}
     if (

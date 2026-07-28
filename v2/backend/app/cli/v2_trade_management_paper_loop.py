@@ -10460,6 +10460,8 @@ def _attach_runtime_cost_capture_contract(
         "sweep_risk_score",
         "microstructure_missing_components",
         "microstructure_trust_status",
+        "microstructure_trust_allocation_binding",
+        "microstructure_trust_allocation_rejection_reasons",
         "microstructure_trust_lookup_keys",
         "microstructure_source_decision_time",
         "microstructure_decision_time",
@@ -10668,27 +10670,64 @@ def _attach_runtime_cost_capture_contract(
         microstructure_action = "NO_TRADE"
         microstructure_trust_score = 0.0
     if no_order_reason is None:
-        if microstructure_action in {"NO_TRADE", "SHADOW_ONLY", "CLOSE_OR_REDUCE_ONLY"}:
-            source_reject_reasons.append(f"MICROSTRUCTURE_ACTION_{microstructure_action}")
-        elif microstructure_action not in {"ALLOW", "REDUCE_SIZE"}:
+        # Cost evidence quality and the policy interpretation of that evidence
+        # are different contracts.  SHADOW_ONLY/NO_TRADE and a trust score
+        # below the adaptive minimum are valid, measured adverse conditions;
+        # they must remain usable inputs to the adaptive objective instead of
+        # being relabelled as fallback or unauthenticated cost data.  Only the
+        # evidence/transport contract can make cost capture non-production.
+        known_microstructure_actions = {
+            "ALLOW",
+            "REDUCE_SIZE",
+            "SHADOW_ONLY",
+            "NO_TRADE",
+            "CLOSE_OR_REDUCE_ONLY",
+        }
+        if microstructure_action not in known_microstructure_actions:
             source_reject_reasons.append("MICROSTRUCTURE_ACTION_MISSING_OR_UNKNOWN")
-        if microstructure_minimum is None:
-            source_reject_reasons.append(
-                "MICROSTRUCTURE_ADAPTIVE_MINIMUM_INVALID"
-                if microstructure_minimum_invalid
-                else "MICROSTRUCTURE_ADAPTIVE_MINIMUM_MISSING"
-            )
-        elif (
-            microstructure_trust_score is not None
+        if microstructure_trust_score is not None and not (
+            math.isfinite(microstructure_trust_score)
+            and 0.0 <= microstructure_trust_score <= 1.0
+        ):
+            source_reject_reasons.append("MICROSTRUCTURE_TRUST_SCORE_INVALID")
+        trust_status = str(intent.get("microstructure_trust_status") or "")
+        if trust_status != "MICROSTRUCTURE_TRUST_SCORE_FOUND":
+            source_reject_reasons.append("MICROSTRUCTURE_TRUST_CONTRACT_NOT_FOUND")
+        if intent.get("microstructure_trust_allocation_binding") != (
+            "EXACT_PIT_VALID_REDIS_KEY_AND_FULL_CANONICAL_SOURCE_PAYLOAD_SHA256_V1"
+        ):
+            source_reject_reasons.append("MICROSTRUCTURE_TRUST_BINDING_INVALID")
+        for reason in intent.get("microstructure_trust_allocation_rejection_reasons") or []:
+            source_reject_reasons.append(f"MICROSTRUCTURE_TRUST_CONTRACT:{reason}")
+        if intent.get("feed_integrity_pass") is not True:
+            source_reject_reasons.append("MICROSTRUCTURE_FEED_INTEGRITY_NOT_PROVEN")
+        if intent.get("sequence_gap_free") is not True or intent.get("book_sequence_gap") is True:
+            source_reject_reasons.append("MICROSTRUCTURE_SEQUENCE_CONTINUITY_NOT_PROVEN")
+        source_hash = str(intent.get("microstructure_source_hash") or "")
+        if len(source_hash) != 64 or any(
+            character not in "0123456789abcdef" for character in source_hash
+        ):
+            source_reject_reasons.append("MICROSTRUCTURE_SOURCE_HASH_INVALID")
+        if intent.get("microstructure_source_hash_contract") != (
+            "REDIS_KEY_AND_FULL_CANONICAL_SOURCE_PAYLOAD_SHA256_V1"
+        ):
+            source_reject_reasons.append("MICROSTRUCTURE_SOURCE_HASH_CONTRACT_INVALID")
+        if (
+            microstructure_minimum is not None
+            and microstructure_trust_score is not None
             and microstructure_trust_score < microstructure_minimum
         ):
             intent["microstructure_below_adaptive_minimum"] = True
-            if microstructure_action == "REDUCE_SIZE":
-                intent["runtime_cost_capture_microstructure_trust_policy"] = (
-                    "REDUCE_SIZE_BELOW_ADAPTIVE_MINIMUM"
-                )
-            else:
-                source_reject_reasons.append("MICROSTRUCTURE_TRUST_BELOW_ADAPTIVE_MINIMUM")
+            intent["runtime_cost_capture_microstructure_trust_policy"] = (
+                "VALID_UNFAVORABLE_CONTINUOUS_ADAPTIVE_OBJECTIVE_INPUT"
+            )
+        elif microstructure_minimum_invalid:
+            # The minimum is Category-E policy context, not source
+            # authentication. Preserve its defect as telemetry; the adaptive
+            # objective cannot consume it as a calibrated policy input.
+            intent["runtime_cost_capture_microstructure_trust_policy"] = (
+                "INVALID_ADAPTIVE_MINIMUM_EXCLUDED_FROM_POLICY_CONTEXT"
+            )
     intent["microstructure_gate_allows_a_grade"] = bool(
         microstructure_trust_score is not None
         and microstructure_minimum is not None

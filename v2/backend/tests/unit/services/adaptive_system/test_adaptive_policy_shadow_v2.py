@@ -375,6 +375,32 @@ def test_existing_position_blocks_new_direction_but_not_nonexecuting_flat() -> N
     assert result.selected_adaptive_action.selected_action == "remain_flat"
 
 
+def test_close_or_reduce_only_microstructure_blocks_new_entry_but_remains_input() -> None:
+    intent = _intent()
+    intent["microstructure_action"] = "CLOSE_OR_REDUCE_ONLY"
+
+    result = build_adaptive_policy_shadow_candidate(
+        intent=intent,
+        feature_snapshot=_feature_snapshot(),
+        paper_status={"paper_only": True, "open_position_count": 0},
+        calibration=_calibration(),
+        registry=_registry(),
+        validator_seed=_SEED,
+        generated_at_ms=4_000_000,
+    )
+
+    directional = [
+        item for item in result.objective_inputs if item.selected_action == "directional_trade"
+    ]
+    assert all(item.hard_constraints_satisfied is False for item in directional)
+    assert all(
+        dict(result.action_dispositions)[item.action_id]
+        == ("position_transition_validity",)
+        for item in directional
+    )
+    assert result.selected_adaptive_action.selected_action == "remain_flat"
+
+
 def test_nonfinite_cost_payload_fails_before_any_policy_decision() -> None:
     intent = _intent()
     intent["expected_slippage_bps"] = float("nan")
