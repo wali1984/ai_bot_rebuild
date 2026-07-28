@@ -24,6 +24,7 @@ from v2.backend.app.services.adaptive_system.candidate_outcome_serving_dataset_v
     build_adaptive_serving_dataset_v2,
     build_candidate_outcome_row,
     candidate_directional_edges,
+    candidate_hedge_label,
 )
 from v2.backend.app.services.native_trainer.durable_feature_snapshot_archive import (
     build_archive_record,
@@ -213,6 +214,7 @@ def _base_dataset(template: dict[str, object], count: int = 120) -> dict[str, ob
             "decision_disposition",
             "eventual_disposition",
             "directional_label_derivation",
+            "hedge_label_derivation",
             "counterfactual_counts_as_realized_paper_profit",
             "actual_paper_outcome_present",
             "split",
@@ -331,6 +333,18 @@ def test_candidate_row_uses_shared_builder_and_never_counts_counterfactual_profi
     assert row["target_action"] in {"long", "short", "hold"}
     assert row["counterfactual_counts_as_realized_paper_profit"] is False
     assert row["actual_paper_outcome_present"] is False
+    hedge = row["hedge_label_derivation"]
+    assert hedge == candidate_hedge_label(matured)
+    assert hedge["hedge_advantage_bps"] == pytest.approx(
+        hedge["hedged_after_cost_pnl_bps"]
+        - hedge["unhedged_after_cost_pnl_bps"]
+    )
+    assert hedge["target_hedge_vs_unhedged"] is (
+        hedge["hedge_advantage_bps"] > 0.0
+    )
+    assert hedge["cross_sectional_relative_value_label_present"] is False
+    assert hedge["counterfactual_counts_as_realized_paper_profit"] is False
+    assert hedge["actual_accounting_effect"] is False
 
 
 def test_flat_labels_cover_balanced_and_legacy_predeclared_reference_contracts() -> None:

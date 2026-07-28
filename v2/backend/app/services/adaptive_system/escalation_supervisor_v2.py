@@ -312,15 +312,22 @@ WORKER_COMMANDS: Mapping[str, dict] = {
     ),
     "TRAIN_HEDGED_AND_RELATIVE_VALUE_POLICIES": _worker(
         "TRAIN_HEDGED_AND_RELATIVE_VALUE_POLICIES",
-        "v2.backend.app.cli.v2_runtime_alpha_remediated_dynamic_strategy_leverage_margin",
+        "v2.backend.app.cli.v2_adaptive_diversified_challenger",
         "module",
         (
             _VENV_PY,
             "-m",
-            "v2.backend.app.cli.v2_runtime_alpha_remediated_dynamic_strategy_leverage_margin",
+            "v2.backend.app.cli.v2_adaptive_diversified_challenger",
+            "--mode",
+            "hedged_relative_value",
+            "--dataset-release-root",
+            "{dataset_release_root}",
+            "--output-dir",
+            "{dispatch_run_root}/hedged_relative_value_challengers",
         ),
-        "hedged_relative_value_policy",
-        "Evaluate hedged / relative-value policy families (paper).",
+        "hedged_loss_avoidance_research_challenger",
+        "Train a signed-release-bound delta-neutral loss-avoidance research "
+        "challenger while explicitly blocking unsupported cross-sectional claims.",
     ),
     "INCREASE_BOUNDED_INFORMATION_SEEKING_EXPLORATION": _worker(
         "INCREASE_BOUNDED_INFORMATION_SEEKING_EXPLORATION",

@@ -317,6 +317,54 @@ def candidate_directional_edges(
     return long_net, short_net, target, material
 
 
+def candidate_hedge_label(record: CandidateDecisionOutcomeV2) -> dict[str, Any]:
+    """Bind the predeclared delta-neutral hedge arm to the unhedged arm.
+
+    This is a relative risk-avoidance label, not a profitable-pair label.  The
+    current counterfactual contract defines ``hedged`` as fully delta neutral
+    with zero gross return and double physical execution drag.  A positive
+    advantage therefore means the hedge lost less than the unhedged action; it
+    must never be counted as realized P&L or described as cross-sectional edge.
+    """
+
+    unhedged = _arm_scenarios(record, "unhedged")
+    hedged = _arm_scenarios(record, "hedged")
+    if len(unhedged) != 1 or len(hedged) != 1:
+        _fail("SINGLE_SCENARIO_REQUIRED", "hedge_counterfactual")
+    unhedged_net = _finite(
+        unhedged[0].after_cost_pnl_bps,
+        "unhedged_after_cost_pnl_bps",
+    )
+    hedged_net = _finite(
+        hedged[0].after_cost_pnl_bps,
+        "hedged_after_cost_pnl_bps",
+    )
+    advantage = _finite(
+        hedged_net - unhedged_net,
+        "hedge_advantage_bps",
+    )
+    material = {
+        "schema_version": "candidate_hedge_label_derivation_v2",
+        "candidate_id": record.decision.candidate_id,
+        "hedge_contract": (
+            "FULLY_DELTA_NEUTRAL_ZERO_GROSS_RETURN_DOUBLE_EXECUTION_DRAG"
+        ),
+        "comparison_semantics": "RELATIVE_LOSS_AVOIDANCE_VS_UNHEDGED",
+        "unhedged_after_cost_pnl_bps": unhedged_net,
+        "hedged_after_cost_pnl_bps": hedged_net,
+        "hedge_advantage_bps": advantage,
+        "target_hedge_vs_unhedged": advantage > 0.0,
+        "hedged_after_cost_positive": hedged_net > 0.0,
+        "cross_sectional_relative_value_label_present": False,
+        "counterfactual_counts_as_realized_paper_profit": False,
+        "actual_accounting_effect": False,
+        "unhedged_scenario_sha256": _sha256(asdict(unhedged[0])),
+        "hedged_scenario_sha256": _sha256(asdict(hedged[0])),
+    }
+    material["derivation_sha256"] = _sha256(material)
+    return material
+
+
 def _source_receipts(record: CandidateDecisionOutcomeV2) -> list[str]:
     labels = record.matured_labels
     if labels is None:
@@ -455,14 +503,18 @@ def build_candidate_outcome_row(
     long_net, short_net, target_action, label_derivation = candidate_directional_edges(
         record
     )
+    hedge_label_derivation = candidate_hedge_label(record)
     receipts = _source_receipts(record)
     label_material = {
-        "schema_version": "candidate_outcome_training_label_binding_v2",
+        "schema_version": "candidate_outcome_training_label_binding_v3",
         "candidate_id": record.decision.candidate_id,
         "decision_snapshot_sha256": record.decision.content_sha256(),
         "matured_labels_sha256": labels.content_sha256(),
         "label_record_available_at_ms": labels.record_available_at_ms,
         "directional_label_derivation_sha256": label_derivation["derivation_sha256"],
+        "hedge_label_derivation_sha256": hedge_label_derivation[
+            "derivation_sha256"
+        ],
         "label_source_receipt_sha256s": receipts,
         "future_labels_not_in_feature_tensor": True,
         "counterfactual_counts_as_realized_paper_profit": False,
@@ -506,6 +558,7 @@ def build_candidate_outcome_row(
         "decision_disposition": record.decision.decision_disposition,
         "eventual_disposition": labels.eventual_disposition,
         "directional_label_derivation": label_derivation,
+        "hedge_label_derivation": hedge_label_derivation,
         "counterfactual_counts_as_realized_paper_profit": False,
         "actual_paper_outcome_present": labels.actual_paper_outcome is not None,
         "latest_unclosed_kline_excluded": vector.latest_unclosed_kline_excluded,

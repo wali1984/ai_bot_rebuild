@@ -169,6 +169,25 @@ _DERIVATION_KEYS = frozenset(
         "unhedged_scenario_sha256s",
     }
 )
+_HEDGE_DERIVATION_KEYS = frozenset(
+    {
+        "actual_accounting_effect",
+        "candidate_id",
+        "comparison_semantics",
+        "counterfactual_counts_as_realized_paper_profit",
+        "cross_sectional_relative_value_label_present",
+        "derivation_sha256",
+        "hedge_advantage_bps",
+        "hedge_contract",
+        "hedged_after_cost_pnl_bps",
+        "hedged_after_cost_positive",
+        "hedged_scenario_sha256",
+        "schema_version",
+        "target_hedge_vs_unhedged",
+        "unhedged_after_cost_pnl_bps",
+        "unhedged_scenario_sha256",
+    }
+)
 _DATASET_KEYS = frozenset(
     {
         "schema_version",
@@ -327,7 +346,7 @@ _GEN5_ROW_KEYS = _COMMON_ROW_KEYS | frozenset(
         "profiled_ledger_sequence",
     }
 )
-_CANDIDATE_ROW_KEYS = _COMMON_ROW_KEYS | frozenset(
+_CANDIDATE_ROW_KEYS_V2 = _COMMON_ROW_KEYS | frozenset(
     {
         "candidate_id",
         "checkpoint_generation",
@@ -337,6 +356,9 @@ _CANDIDATE_ROW_KEYS = _COMMON_ROW_KEYS | frozenset(
         "eventual_disposition",
         "prediction_id",
     }
+)
+_CANDIDATE_ROW_KEYS_V3 = _CANDIDATE_ROW_KEYS_V2 | frozenset(
+    {"hedge_label_derivation"}
 )
 _ZERO_ADMISSION_COUNTERS = (
     "duplicate_rows",
@@ -509,14 +531,24 @@ def _validate_row(
     if type(row) is not dict:
         _fail("OBJECT_REQUIRED", field)
     source_kind = row.get("source_kind")
-    expected_keys = (
-        _CANDIDATE_ROW_KEYS
+    row_keys = set(row)
+    candidate_schema_version = (
+        3
         if source_kind == "CANDIDATE_DECISION_OUTCOME_V2"
-        else _GEN5_ROW_KEYS
-        if source_kind == "GEN5_AUTHENTICATED_PROFILED_OBSERVATION"
-        else frozenset()
+        and row_keys == _CANDIDATE_ROW_KEYS_V3
+        else 2
+        if source_kind == "CANDIDATE_DECISION_OUTCOME_V2"
+        and row_keys == _CANDIDATE_ROW_KEYS_V2
+        else None
     )
-    if not expected_keys or set(row) != expected_keys:
+    exact_schema = (
+        candidate_schema_version is not None
+        if source_kind == "CANDIDATE_DECISION_OUTCOME_V2"
+        else row_keys == _GEN5_ROW_KEYS
+        if source_kind == "GEN5_AUTHENTICATED_PROFILED_OBSERVATION"
+        else False
+    )
+    if not exact_schema:
         _fail("EXACT_SOURCE_ROW_SCHEMA_REQUIRED", field)
     _text(row.get("row_id"), f"{field}.row_id")
     _text(row.get("snapshot_id"), f"{field}.snapshot_id")
@@ -695,8 +727,67 @@ def _validate_row(
             ),
         }:
             _fail("DIRECTIONAL_LABEL_DERIVATION_SEMANTICS_MISMATCH", field)
+        hedge_derivation_sha256: str | None = None
+        if candidate_schema_version == 3:
+            hedge = row.get("hedge_label_derivation")
+            if not isinstance(hedge, Mapping) or set(hedge) != _HEDGE_DERIVATION_KEYS:
+                _fail("EXACT_HEDGE_LABEL_DERIVATION_REQUIRED", field)
+            unhedged_net = _finite(
+                hedge.get("unhedged_after_cost_pnl_bps"),
+                f"{field}.hedge_label_derivation.unhedged_after_cost_pnl_bps",
+            )
+            hedged_net = _finite(
+                hedge.get("hedged_after_cost_pnl_bps"),
+                f"{field}.hedge_label_derivation.hedged_after_cost_pnl_bps",
+            )
+            advantage = _finite(
+                hedge.get("hedge_advantage_bps"),
+                f"{field}.hedge_label_derivation.hedge_advantage_bps",
+            )
+            hedge_material = {
+                key: value for key, value in hedge.items() if key != "derivation_sha256"
+            }
+            hedge_derivation_sha256 = _sha256(
+                hedge.get("derivation_sha256"),
+                f"{field}.hedge_label_derivation.derivation_sha256",
+            )
+            unhedged_scenario_sha256 = _sha256(
+                hedge.get("unhedged_scenario_sha256"),
+                f"{field}.hedge_label_derivation.unhedged_scenario_sha256",
+            )
+            hedged_scenario_sha256 = _sha256(
+                hedge.get("hedged_scenario_sha256"),
+                f"{field}.hedge_label_derivation.hedged_scenario_sha256",
+            )
+            if (
+                hedge.get("schema_version")
+                != "candidate_hedge_label_derivation_v2"
+                or hedge.get("candidate_id") != row.get("candidate_id")
+                or hedge.get("hedge_contract")
+                != "FULLY_DELTA_NEUTRAL_ZERO_GROSS_RETURN_DOUBLE_EXECUTION_DRAG"
+                or hedge.get("comparison_semantics")
+                != "RELATIVE_LOSS_AVOIDANCE_VS_UNHEDGED"
+                or not math.isclose(
+                    advantage,
+                    hedged_net - unhedged_net,
+                    rel_tol=0.0,
+                    abs_tol=1e-12,
+                )
+                or hedge.get("target_hedge_vs_unhedged") is not (advantage > 0.0)
+                or hedge.get("hedged_after_cost_positive") is not (hedged_net > 0.0)
+                or hedge.get("cross_sectional_relative_value_label_present") is not False
+                or hedge.get("counterfactual_counts_as_realized_paper_profit") is not False
+                or hedge.get("actual_accounting_effect") is not False
+                or unhedged_scenario_sha256 == hedged_scenario_sha256
+                or canonical_sha256(hedge_material) != hedge_derivation_sha256
+            ):
+                _fail("HEDGE_LABEL_DERIVATION_MISMATCH", field)
         label_material = {
-            "schema_version": "candidate_outcome_training_label_binding_v2",
+            "schema_version": (
+                "candidate_outcome_training_label_binding_v3"
+                if candidate_schema_version == 3
+                else "candidate_outcome_training_label_binding_v2"
+            ),
             "candidate_id": row["candidate_id"],
             "decision_snapshot_sha256": source_hashes["decision_snapshot_sha256"],
             "matured_labels_sha256": source_hashes["matured_labels_sha256"],
@@ -706,6 +797,10 @@ def _validate_row(
             "future_labels_not_in_feature_tensor": True,
             "counterfactual_counts_as_realized_paper_profit": False,
         }
+        if candidate_schema_version == 3:
+            label_material["hedge_label_derivation_sha256"] = (
+                hedge_derivation_sha256
+            )
         if (
             canonical_sha256(label_material) != row.get("label_binding_sha256")
             or source_hashes.get("label_binding_sha256")

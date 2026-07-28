@@ -698,8 +698,20 @@ def _rehash_candidate_lineage(row: dict[str, Any]) -> None:
     row["cost_evidence_sha256"] = derivation_sha
     label_at = datetime.fromisoformat(row["label_available_at"].replace("Z", "+00:00"))
     source_hashes = row["source_hashes"]
+    hedge = row.get("hedge_label_derivation")
+    hedge_sha: str | None = None
+    if isinstance(hedge, dict):
+        hedge_material = {
+            key: value for key, value in hedge.items() if key != "derivation_sha256"
+        }
+        hedge_sha = canonical_sha256(hedge_material)
+        hedge["derivation_sha256"] = hedge_sha
     label_material = {
-        "schema_version": "candidate_outcome_training_label_binding_v2",
+        "schema_version": (
+            "candidate_outcome_training_label_binding_v3"
+            if hedge_sha is not None
+            else "candidate_outcome_training_label_binding_v2"
+        ),
         "candidate_id": row["candidate_id"],
         "decision_snapshot_sha256": source_hashes["decision_snapshot_sha256"],
         "matured_labels_sha256": source_hashes["matured_labels_sha256"],
@@ -709,9 +721,70 @@ def _rehash_candidate_lineage(row: dict[str, Any]) -> None:
         "future_labels_not_in_feature_tensor": True,
         "counterfactual_counts_as_realized_paper_profit": False,
     }
+    if hedge_sha is not None:
+        label_material["hedge_label_derivation_sha256"] = hedge_sha
     label_sha = canonical_sha256(label_material)
     row["label_binding_sha256"] = label_sha
     source_hashes["label_binding_sha256"] = label_sha
+
+
+def test_historical_candidate_row_without_hedge_binding_remains_loadable(
+    artifacts: ArtifactFixture,
+) -> None:
+    row = _candidate_row(artifacts)
+    row.pop("hedge_label_derivation")
+    _rehash_candidate_lineage(row)
+    artifacts.write(repin_receipt=True)
+
+    dataset, *_ = artifacts.load()
+
+    loaded = next(
+        item
+        for item in dataset["rows"]
+        if item["source_kind"] == "CANDIDATE_DECISION_OUTCOME_V2"
+    )
+    assert "hedge_label_derivation" not in loaded
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        "contract",
+        "advantage",
+        "target",
+        "scenario_identity",
+        "cross_sectional_claim",
+        "accounting_claim",
+    ),
+)
+def test_coherently_rehashed_hedge_semantic_forgery_is_rejected(
+    artifacts: ArtifactFixture,
+    mutation: str,
+) -> None:
+    row = _candidate_row(artifacts)
+    hedge = row["hedge_label_derivation"]
+    if mutation == "contract":
+        hedge["hedge_contract"] = "UNDECLARED_DYNAMIC_HEDGE"
+    elif mutation == "advantage":
+        hedge["hedge_advantage_bps"] += 1.0
+    elif mutation == "target":
+        hedge["target_hedge_vs_unhedged"] = not hedge[
+            "target_hedge_vs_unhedged"
+        ]
+    elif mutation == "scenario_identity":
+        hedge["hedged_scenario_sha256"] = hedge["unhedged_scenario_sha256"]
+    elif mutation == "cross_sectional_claim":
+        hedge["cross_sectional_relative_value_label_present"] = True
+    else:
+        hedge["actual_accounting_effect"] = True
+    _rehash_candidate_lineage(row)
+    artifacts.write(repin_receipt=True)
+
+    with pytest.raises(
+        ServingTrainingArtifactError,
+        match="HEDGE_LABEL_DERIVATION_MISMATCH",
+    ):
+        artifacts.load()
 
 
 @pytest.mark.parametrize(

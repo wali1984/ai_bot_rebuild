@@ -36,12 +36,33 @@ from v2.backend.app.services.native_trainer.trusted_replay.dataset import (
 
 SCHEMA_VERSION = "adaptive_diversified_challenger_v2"
 OUTPUT_NAME = "adaptive_diversified_challenger_v2.json"
-MODES = ("horizon", "symbol_regime", "architecture")
+MODES = ("horizon", "symbol_regime", "architecture", "hedged_relative_value")
 ACTION_ORDER = ("hold", "long", "short")
 ACTION_INDEX = {action: index for index, action in enumerate(ACTION_ORDER)}
 MIN_SPLIT_ROWS = 20
 MAX_SYMBOL_CANDIDATES = 12
 RANDOM_STATE = 1729
+HEDGE_CONTRACT = "FULLY_DELTA_NEUTRAL_ZERO_GROSS_RETURN_DOUBLE_EXECUTION_DRAG"
+HEDGE_COMPARISON = "RELATIVE_LOSS_AVOIDANCE_VS_UNHEDGED"
+_HEDGE_DERIVATION_KEYS = frozenset(
+    {
+        "actual_accounting_effect",
+        "candidate_id",
+        "comparison_semantics",
+        "counterfactual_counts_as_realized_paper_profit",
+        "cross_sectional_relative_value_label_present",
+        "derivation_sha256",
+        "hedge_advantage_bps",
+        "hedge_contract",
+        "hedged_after_cost_pnl_bps",
+        "hedged_after_cost_positive",
+        "hedged_scenario_sha256",
+        "schema_version",
+        "target_hedge_vs_unhedged",
+        "unhedged_after_cost_pnl_bps",
+        "unhedged_scenario_sha256",
+    }
+)
 
 
 class AdaptiveDiversifiedChallengerError(RuntimeError):
@@ -99,6 +120,9 @@ class ValidatedRow:
     short_net_bps: float
     decision_time: datetime
     label_available_at: datetime
+    hedge_target_index: int | None
+    unhedged_after_cost_pnl_bps: float | None
+    hedged_after_cost_pnl_bps: float | None
 
 
 def _validated_rows(
@@ -187,6 +211,73 @@ def _validated_rows(
             raise AdaptiveDiversifiedChallengerError(
                 f"dataset.rows[{index}]:LABEL_NOT_AFTER_DECISION"
             )
+        hedge = raw.get("hedge_label_derivation")
+        hedge_target: int | None = None
+        unhedged_after_cost: float | None = None
+        hedged_after_cost: float | None = None
+        if hedge is not None:
+            if type(hedge) is not dict or set(hedge) != _HEDGE_DERIVATION_KEYS:
+                raise AdaptiveDiversifiedChallengerError(
+                    f"dataset.rows[{index}].hedge_label_derivation:EXACT_SCHEMA_REQUIRED"
+                )
+            unhedged_after_cost = _finite(
+                hedge.get("unhedged_after_cost_pnl_bps"),
+                f"dataset.rows[{index}].hedge.unhedged_after_cost_pnl_bps",
+            )
+            hedged_after_cost = _finite(
+                hedge.get("hedged_after_cost_pnl_bps"),
+                f"dataset.rows[{index}].hedge.hedged_after_cost_pnl_bps",
+            )
+            advantage = _finite(
+                hedge.get("hedge_advantage_bps"),
+                f"dataset.rows[{index}].hedge.hedge_advantage_bps",
+            )
+            target = hedge.get("target_hedge_vs_unhedged")
+            derivation_material = {
+                key: value
+                for key, value in hedge.items()
+                if key != "derivation_sha256"
+            }
+            scenario_shas = (
+                hedge.get("unhedged_scenario_sha256"),
+                hedge.get("hedged_scenario_sha256"),
+            )
+            if (
+                hedge.get("schema_version")
+                != "candidate_hedge_label_derivation_v2"
+                or type(hedge.get("candidate_id")) is not str
+                or not hedge.get("candidate_id")
+                or hedge.get("hedge_contract") != HEDGE_CONTRACT
+                or hedge.get("comparison_semantics") != HEDGE_COMPARISON
+                or not math.isclose(
+                    advantage,
+                    hedged_after_cost - unhedged_after_cost,
+                    rel_tol=0.0,
+                    abs_tol=1e-12,
+                )
+                or type(target) is not bool
+                or target is not (advantage > 0.0)
+                or hedge.get("hedged_after_cost_positive")
+                is not (hedged_after_cost > 0.0)
+                or hedge.get("cross_sectional_relative_value_label_present")
+                is not False
+                or hedge.get("counterfactual_counts_as_realized_paper_profit")
+                is not False
+                or hedge.get("actual_accounting_effect") is not False
+                or any(
+                    type(value) is not str
+                    or len(value) != 64
+                    or any(character not in "0123456789abcdef" for character in value)
+                    for value in scenario_shas
+                )
+                or scenario_shas[0] == scenario_shas[1]
+                or hedge.get("derivation_sha256")
+                != _sha256(_canonical_bytes(derivation_material))
+            ):
+                raise AdaptiveDiversifiedChallengerError(
+                    f"dataset.rows[{index}].hedge_label_derivation:SEMANTICS_INVALID"
+                )
+            hedge_target = int(target)
         validated.append(
             ValidatedRow(
                 split=str(split),
@@ -198,6 +289,9 @@ def _validated_rows(
                 short_net_bps=short_net,
                 decision_time=decision_time,
                 label_available_at=label_available_at,
+                hedge_target_index=hedge_target,
+                unhedged_after_cost_pnl_bps=unhedged_after_cost,
+                hedged_after_cost_pnl_bps=hedged_after_cost,
             )
         )
     for split in ("train", "validation", "holdout"):
@@ -493,6 +587,232 @@ def _fit_candidate(
     return result
 
 
+def _eligible_hedge_partition(
+    partitions: Mapping[str, Sequence[ValidatedRow]],
+) -> tuple[bool, list[str]]:
+    reasons: list[str] = []
+    for split in ("train", "validation", "holdout"):
+        count = len(partitions[split])
+        if count < MIN_SPLIT_ROWS:
+            reasons.append(f"{split.upper()}_HEDGE_ROWS_BELOW_{MIN_SPLIT_ROWS}:{count}")
+    train_targets = {
+        row.hedge_target_index for row in partitions["train"]
+    }
+    if train_targets != {0, 1}:
+        reasons.append("TRAIN_HEDGE_AND_UNHEDGED_LABELS_REQUIRED")
+    return not reasons, reasons
+
+
+def _hedge_arrays(
+    rows: Sequence[ValidatedRow],
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    if any(
+        row.hedge_target_index is None
+        or row.unhedged_after_cost_pnl_bps is None
+        or row.hedged_after_cost_pnl_bps is None
+        for row in rows
+    ):
+        raise AdaptiveDiversifiedChallengerError(
+            "hedge_partition:COMPLETE_HEDGE_LABELS_REQUIRED"
+        )
+    return (
+        np.asarray([row.features for row in rows], dtype=np.float64),
+        np.asarray([row.hedge_target_index for row in rows], dtype=np.int64),
+        np.asarray(
+            [
+                (
+                    row.unhedged_after_cost_pnl_bps,
+                    row.hedged_after_cost_pnl_bps,
+                )
+                for row in rows
+            ],
+            dtype=np.float64,
+        ),
+    )
+
+
+def _hedge_probability(model: Any, values: np.ndarray) -> np.ndarray:
+    raw = np.asarray(model.predict_proba(values), dtype=np.float64)
+    classes = tuple(int(value) for value in model.classes_)
+    if set(classes) != {0, 1}:
+        raise AdaptiveDiversifiedChallengerError(
+            "hedge_model:BOTH_BINARY_CLASSES_REQUIRED"
+        )
+    probability = raw[:, classes.index(1)]
+    if (
+        probability.shape != (values.shape[0],)
+        or not np.all(np.isfinite(probability))
+        or np.any(probability < 0.0)
+        or np.any(probability > 1.0)
+    ):
+        raise AdaptiveDiversifiedChallengerError(
+            "hedge_model:PROBABILITY_SEMANTICS_INVALID"
+        )
+    return probability
+
+
+def _hedge_metrics(
+    probabilities: np.ndarray,
+    targets: np.ndarray,
+    after_cost_outcomes: np.ndarray,
+) -> dict[str, Any]:
+    predicted_hedge = probabilities >= 0.5
+    chosen_after_cost = np.where(
+        predicted_hedge,
+        after_cost_outcomes[:, 1],
+        after_cost_outcomes[:, 0],
+    )
+    clipped = np.clip(probabilities, 1e-12, 1.0 - 1e-12)
+    result = {
+        "rows": int(targets.shape[0]),
+        "binary_brier": float(np.mean((probabilities - targets) ** 2)),
+        "negative_log_likelihood": float(
+            -np.mean(
+                targets * np.log(clipped)
+                + (1 - targets) * np.log(1.0 - clipped)
+            )
+        ),
+        "target_hedge_accuracy": float(np.mean(predicted_hedge == targets)),
+        "predicted_hedge_rate": float(np.mean(predicted_hedge)),
+        "counterfactual_selected_after_cost_expectancy_bps": float(
+            np.mean(chosen_after_cost)
+        ),
+        "counterfactual_selected_positive_rate": float(
+            np.mean(chosen_after_cost > 0.0)
+        ),
+        "counterfactual_counts_as_realized_paper_profit": False,
+        "actual_accounting_effect": False,
+    }
+    if any(
+        not math.isfinite(float(value))
+        for key, value in result.items()
+        if key
+        not in {
+            "rows",
+            "counterfactual_counts_as_realized_paper_profit",
+            "actual_accounting_effect",
+        }
+    ):
+        raise AdaptiveDiversifiedChallengerError("hedge_metrics:NONFINITE")
+    return result
+
+
+def _fit_hedge_candidate(
+    *,
+    partitions: Mapping[str, Sequence[ValidatedRow]],
+    eligible_symbols: Sequence[str],
+    eligible_timeframes: Sequence[str],
+    dataset_sha256: str,
+) -> dict[str, Any]:
+    arrays = {split: _hedge_arrays(partitions[split]) for split in partitions}
+    model = _algorithm("multinomial_logistic")
+    model.fit(arrays["train"][0], arrays["train"][1])
+    try:
+        model_parameter_fingerprint = _sha256(pickle.dumps(model, protocol=5))
+    except (pickle.PickleError, TypeError, ValueError) as exc:
+        raise AdaptiveDiversifiedChallengerError(
+            "hedge_model:PARAMETER_FINGERPRINT_FAILED"
+        ) from exc
+    probabilities = {
+        split: _hedge_probability(model, values[0])
+        for split, values in arrays.items()
+    }
+    train_rate = float(np.mean(arrays["train"][1]))
+    baselines = {
+        split: np.full(values[1].shape[0], train_rate, dtype=np.float64)
+        for split, values in arrays.items()
+    }
+    declaration = {
+        "strategy_family": "predeclared_delta_neutral_loss_avoidance_research",
+        "hedge_contract": HEDGE_CONTRACT,
+        "comparison_semantics": HEDGE_COMPARISON,
+        "eligible_symbols": list(eligible_symbols),
+        "eligible_timeframes": list(eligible_timeframes),
+        "required_data": [
+            "ServingFeatureABIV2 exact feature vector",
+            "authenticated matured unhedged after-cost counterfactual",
+            "authenticated matured fully delta-neutral after-cost counterfactual",
+            "chronological purged train/validation/holdout split",
+        ],
+        "relative_value_supported": False,
+        "relative_value_block_reason": (
+            "NO_SYNCHRONIZED_PAIR_OR_BASKET_LABEL_BINDINGS"
+        ),
+        "execution_assumptions": {
+            "counterfactual_costs_reflected_in_labels": True,
+            "venue_executability_not_assumed": True,
+            "requires_hard_validator_before_any_future_paper_action": True,
+        },
+        "risk_behavior": (
+            "RESEARCH_ONLY_NO_SIZING_LEVERAGE_MARGIN_HEDGE_OR_ROUTE_AUTHORITY"
+        ),
+    }
+    contract = _algorithm_contract("multinomial_logistic")
+    identity = {
+        "dataset_sha256": dataset_sha256,
+        "algorithm_contract": contract,
+        "declaration": declaration,
+    }
+    result = {
+        "candidate_id": "adaptive_hedge_" + _sha256(_canonical_bytes(identity))[:24],
+        "dataset_sha256": dataset_sha256,
+        "algorithm": "multinomial_logistic",
+        "algorithm_contract": contract,
+        "model_parameter_fingerprint": model_parameter_fingerprint,
+        "runtime_versions": {
+            "numpy": np.__version__,
+            "scikit_learn": sklearn.__version__,
+        },
+        "group_kind": "complete_eligible_hedge_label_universe",
+        "group_value": "PREDECLARED_DELTA_NEUTRAL_ARM",
+        "declaration": declaration,
+        "split_rows": {split: len(partitions[split]) for split in partitions},
+        "train_target_hedge_counts": dict(
+            sorted(Counter(str(row.hedge_target_index) for row in partitions["train"]).items())
+        ),
+        "train_metrics": _hedge_metrics(
+            probabilities["train"], arrays["train"][1], arrays["train"][2]
+        ),
+        "validation_metrics": _hedge_metrics(
+            probabilities["validation"],
+            arrays["validation"][1],
+            arrays["validation"][2],
+        ),
+        "validation_train_base_rate_baseline": _hedge_metrics(
+            baselines["validation"],
+            arrays["validation"][1],
+            arrays["validation"][2],
+        ),
+        "holdout_metrics": _hedge_metrics(
+            probabilities["holdout"], arrays["holdout"][1], arrays["holdout"][2]
+        ),
+        "holdout_train_base_rate_baseline": _hedge_metrics(
+            baselines["holdout"],
+            arrays["holdout"][1],
+            arrays["holdout"][2],
+        ),
+        "fit_partition": "TRAIN_ONLY",
+        "selection_partition": "VALIDATION_ONLY",
+        "holdout_used_for_selection": False,
+        "selected_by_validation": False,
+    }
+    result["validation_brier_improves_baseline"] = (
+        result["validation_metrics"]["binary_brier"]
+        < result["validation_train_base_rate_baseline"]["binary_brier"]
+    )
+    result["validation_after_cost_positive"] = (
+        result["validation_metrics"][
+            "counterfactual_selected_after_cost_expectancy_bps"
+        ]
+        > 0.0
+    )
+    result["validation_research_screening_pass"] = (
+        result["validation_brier_improves_baseline"]
+        and result["validation_after_cost_positive"]
+    )
+    return result
+
+
 def _regime_predicates(
     ordered_features: Sequence[str],
     rows: Sequence[ValidatedRow],
@@ -575,7 +895,7 @@ def build_challenger_evidence(
                     timeframes,
                 )
             )
-    else:
+    elif mode == "architecture":
         selection_scope = "COMPARABLE_FULL_UNIVERSE_VALIDATION_BRIER"
         for algorithm in (
             "multinomial_logistic",
@@ -592,9 +912,41 @@ def build_challenger_evidence(
                     timeframes,
                 )
             )
+    else:
+        selection_scope = "PREDECLARED_HEDGE_LOSS_AVOIDANCE_VALIDATION_BRIER"
 
     candidates: list[dict[str, Any]] = []
     rejected: list[dict[str, Any]] = []
+    if mode == "hedged_relative_value":
+        hedge_partitions = _partition(
+            rows,
+            lambda row: row.hedge_target_index is not None,
+        )
+        hedge_eligible, hedge_reasons = _eligible_hedge_partition(
+            hedge_partitions
+        )
+        if hedge_eligible:
+            candidates.append(
+                _fit_hedge_candidate(
+                    partitions=hedge_partitions,
+                    eligible_symbols=symbols,
+                    eligible_timeframes=timeframes,
+                    dataset_sha256=str(release_projection["dataset_sha256"]),
+                )
+            )
+        else:
+            rejected.append(
+                {
+                    "algorithm": "multinomial_logistic",
+                    "group_kind": "complete_eligible_hedge_label_universe",
+                    "group_value": "PREDECLARED_DELTA_NEUTRAL_ARM",
+                    "split_rows": {
+                        split: len(hedge_partitions[split])
+                        for split in hedge_partitions
+                    },
+                    "exact_reasons": hedge_reasons,
+                }
+            )
     for algorithm, group_kind, group_value, predicate, eligible_symbols, eligible_timeframes in specifications:
         partitions = _partition(rows, predicate)
         eligible, reasons = _eligible_partition(partitions)
@@ -661,6 +1013,16 @@ def build_challenger_evidence(
         "selected_candidate_id": selected_candidate_id,
         "validation_research_screening_candidate_ids": screening_candidate_ids,
         "statistical_superiority_proven": False,
+        "hedge_contract": (
+            HEDGE_CONTRACT if mode == "hedged_relative_value" else None
+        ),
+        "hedge_comparison_semantics": (
+            HEDGE_COMPARISON if mode == "hedged_relative_value" else None
+        ),
+        "relative_value_supported": False,
+        "relative_value_block_reason": (
+            "NO_SYNCHRONIZED_PAIR_OR_BASKET_LABEL_BINDINGS"
+        ),
         "unsupported_families": [
             {
                 "family": "sequence_model",

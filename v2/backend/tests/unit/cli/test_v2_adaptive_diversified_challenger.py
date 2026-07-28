@@ -80,6 +80,35 @@ def _build(mode: str, dataset: dict | None = None) -> dict:
     )
 
 
+def _with_hedge_labels(dataset: dict | None = None) -> dict:
+    result = deepcopy(dataset or _dataset())
+    for index, row in enumerate(result["rows"]):
+        unhedged = -8.0 if index % 2 == 0 else 4.0
+        hedged = -2.0
+        advantage = hedged - unhedged
+        material = {
+            "schema_version": "candidate_hedge_label_derivation_v2",
+            "candidate_id": f"candidate-{index:04d}",
+            "hedge_contract": worker.HEDGE_CONTRACT,
+            "comparison_semantics": worker.HEDGE_COMPARISON,
+            "unhedged_after_cost_pnl_bps": unhedged,
+            "hedged_after_cost_pnl_bps": hedged,
+            "hedge_advantage_bps": advantage,
+            "target_hedge_vs_unhedged": advantage > 0.0,
+            "hedged_after_cost_positive": hedged > 0.0,
+            "cross_sectional_relative_value_label_present": False,
+            "counterfactual_counts_as_realized_paper_profit": False,
+            "actual_accounting_effect": False,
+            "unhedged_scenario_sha256": "a" * 64,
+            "hedged_scenario_sha256": "b" * 64,
+        }
+        material["derivation_sha256"] = worker._sha256(  # noqa: SLF001
+            worker._canonical_bytes(material)  # noqa: SLF001
+        )
+        row["hedge_label_derivation"] = material
+    return result
+
+
 def test_horizon_challengers_are_train_only_and_non_authoritative() -> None:
     result = _build("horizon")
 
@@ -145,6 +174,92 @@ def test_symbol_and_train_frozen_regime_slices_are_evaluated() -> None:
         "train_q33",
         "train_q67",
     }
+
+
+def test_hedge_challenger_is_loss_avoidance_only_and_non_authoritative() -> None:
+    result = _build("hedged_relative_value", _with_hedge_labels())
+
+    assert result["status"] == "PASS_RESEARCH_CHALLENGERS_TRAINED"
+    assert result["trained_candidate_count"] == 1
+    assert result["hedge_contract"] == worker.HEDGE_CONTRACT
+    assert result["hedge_comparison_semantics"] == worker.HEDGE_COMPARISON
+    assert result["relative_value_supported"] is False
+    assert result["relative_value_block_reason"] == (
+        "NO_SYNCHRONIZED_PAIR_OR_BASKET_LABEL_BINDINGS"
+    )
+    candidate = result["candidates"][0]
+    assert candidate["declaration"]["relative_value_supported"] is False
+    assert candidate["fit_partition"] == "TRAIN_ONLY"
+    assert candidate["holdout_used_for_selection"] is False
+    assert candidate["train_target_hedge_counts"] == {"0": 30, "1": 30}
+    assert candidate["train_metrics"][
+        "counterfactual_counts_as_realized_paper_profit"
+    ] is False
+    assert candidate["train_metrics"]["actual_accounting_effect"] is False
+    assert result["statistical_superiority_proven"] is False
+    assert result["activation_eligible"] is False
+    assert result["registry_write_attempted"] is False
+
+
+def test_hedge_holdout_changes_cannot_change_fit_or_validation_selection() -> None:
+    dataset = _with_hedge_labels()
+    mutated = deepcopy(dataset)
+    for row in mutated["rows"]:
+        if row["split"] != "holdout":
+            continue
+        hedge = row["hedge_label_derivation"]
+        hedge["unhedged_after_cost_pnl_bps"] *= -1.0
+        hedge["hedge_advantage_bps"] = (
+            hedge["hedged_after_cost_pnl_bps"]
+            - hedge["unhedged_after_cost_pnl_bps"]
+        )
+        hedge["target_hedge_vs_unhedged"] = hedge["hedge_advantage_bps"] > 0.0
+        material = {
+            key: value
+            for key, value in hedge.items()
+            if key != "derivation_sha256"
+        }
+        hedge["derivation_sha256"] = worker._sha256(  # noqa: SLF001
+            worker._canonical_bytes(material)  # noqa: SLF001
+        )
+
+    baseline = _build("hedged_relative_value", dataset)["candidates"][0]
+    changed = _build("hedged_relative_value", mutated)["candidates"][0]
+
+    assert changed["model_parameter_fingerprint"] == baseline[
+        "model_parameter_fingerprint"
+    ]
+    assert changed["validation_metrics"] == baseline["validation_metrics"]
+    assert changed["holdout_used_for_selection"] is False
+
+
+def test_legacy_dataset_without_hedge_labels_is_truthfully_ineligible() -> None:
+    result = _build("hedged_relative_value")
+
+    assert result["status"] == "PASS_NO_ELIGIBLE_SLICE"
+    assert result["trained_candidate_count"] == 0
+    assert result["rejected_slice_count"] == 1
+    assert "TRAIN_HEDGE_ROWS_BELOW_20:0" in result["rejected_slices"][0][
+        "exact_reasons"
+    ]
+
+
+def test_coherently_rehashed_invalid_hedge_semantics_fail_closed() -> None:
+    dataset = _with_hedge_labels()
+    hedge = dataset["rows"][0]["hedge_label_derivation"]
+    hedge["hedge_advantage_bps"] += 1.0
+    material = {
+        key: value for key, value in hedge.items() if key != "derivation_sha256"
+    }
+    hedge["derivation_sha256"] = worker._sha256(  # noqa: SLF001
+        worker._canonical_bytes(material)  # noqa: SLF001
+    )
+
+    with pytest.raises(
+        worker.AdaptiveDiversifiedChallengerError,
+        match="hedge_label_derivation:SEMANTICS_INVALID",
+    ):
+        _build("hedged_relative_value", dataset)
 
 
 @pytest.mark.parametrize("mutation", ["action", "bool", "future_label", "release"])
@@ -213,11 +328,24 @@ def test_run_once_consumes_authenticated_snapshot_without_path_reread(
 
 def test_supervisor_descriptors_bind_all_diversified_rungs_to_signed_release() -> None:
     expected_modes = {
-        "TRAIN_HORIZON_SPECIFIC_CHALLENGERS": "horizon",
-        "TRAIN_SYMBOL_OR_REGIME_SPECIFIC_CHALLENGERS": "symbol_regime",
-        "TRAIN_ALTERNATIVE_MODEL_ARCHITECTURES": "architecture",
+        "TRAIN_HORIZON_SPECIFIC_CHALLENGERS": (
+            "horizon",
+            "horizon_challengers",
+        ),
+        "TRAIN_SYMBOL_OR_REGIME_SPECIFIC_CHALLENGERS": (
+            "symbol_regime",
+            "symbol_regime_challengers",
+        ),
+        "TRAIN_ALTERNATIVE_MODEL_ARCHITECTURES": (
+            "architecture",
+            "architecture_challengers",
+        ),
+        "TRAIN_HEDGED_AND_RELATIVE_VALUE_POLICIES": (
+            "hedged_relative_value",
+            "hedged_relative_value_challengers",
+        ),
     }
-    for step, mode in expected_modes.items():
+    for step, (mode, output_name) in expected_modes.items():
         descriptor = supervisor.WORKER_COMMANDS[step]
         argv = descriptor["argv"]
         assert descriptor["entrypoint"] == (
@@ -232,7 +360,7 @@ def test_supervisor_descriptors_bind_all_diversified_rungs_to_signed_release() -
             "--dataset-release-root",
             "{dataset_release_root}",
             "--output-dir",
-            f"{{dispatch_run_root}}/{'horizon_challengers' if mode == 'horizon' else 'symbol_regime_challengers' if mode == 'symbol_regime' else 'architecture_challengers'}",
+            f"{{dispatch_run_root}}/{output_name}",
         ]
         assert descriptor["paper_only"] is True
         assert descriptor["routes_to_live"] is False
