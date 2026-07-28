@@ -2774,3 +2774,26 @@ market classification.
 Exact evidence is
 `goal_state/PERMANENT_SYSTEM_RECOVERY/adaptive_ladder_continuation_20260728.json`
 (SHA-256 `81de47c97a09c891753fbd674e29828b9b583ba7705a02a2b62a1375bdea619d`).
+
+### Governed incremental trigger completed after new matured evidence
+
+The predeclared trigger subsequently fired without manual intervention. The
+authenticated archive had reached 28,020 matured revisions, exceeding the
+frozen `matured_outcomes >= 27084 OR effective_N >= 156.0` condition. The
+runtime built immutable dataset release `c3ef7777` with 20,187 rows (8,292
+train, 5,031 validation, 6,864 holdout) and zero duplicate, future-time,
+finality, missing-cost or missing-label violations.
+
+Dispatch `adaptive_dispatch_b0657e3328849d30ca78b73f3ff6fff7` completed the
+incremental trainer with return code zero and produced checkpoint
+`SERVING_ABI_V2_PROFITABILITY_PAPER_22079faeb19ad24c0a7eca49`. The checkpoint
+is finite, ABI-compatible, non-degenerate and directional on validation and
+holdout, but it is not superior: validation profitability Brier was
+`0.2649516072` versus the `0.2466102242` train-base-rate baseline. It therefore
+remains non-promotable and generation 3 remains active. The candidate registry
+key was not written.
+
+The next governed step is `REBUILD_FEATURE_SELECTION_OR_REPRESENTATION`.
+Current-epoch lifecycle state remains flat and armed; the frozen economic
+cohort remains 1/5. Exact evidence is
+`goal_state/PERMANENT_SYSTEM_RECOVERY/adaptive_incremental_trigger_20260728.json`.
