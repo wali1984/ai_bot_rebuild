@@ -390,6 +390,46 @@ def test_portfolio_sources_are_hash_verified_and_projected_without_nested_receip
         _build(status, intents, snapshots)
 
 
+def test_nonexecuting_candidate_archives_exact_missing_reservation_disposition() -> None:
+    status, intents, snapshots = _inputs(1)
+    intents[0]["paper_cycle_reservation_snapshot"] = {}
+    intents[0]["paper_cycle_reservation_snapshot_hash"] = None
+    intents[0]["paper_fill_block_reason"] = "ADAPTIVE_POLICY_AUTHORITY_BLOCKED"
+    intents[0]["allocator_decision"] = "BLOCK_EXPOSURE_BUDGET"
+
+    record = _build(status, intents, snapshots).decision_records[0]
+    payload = json.loads(record.decision.portfolio_state.payload_json)
+
+    assert record.decision.decision_disposition == "REJECTED"
+    assert record.decision.disposition_reason == "ADAPTIVE_POLICY_AUTHORITY_BLOCKED"
+    assert payload["reservation"]["availability"] == (
+        "UNAVAILABLE_FOR_NONEXECUTING_CANDIDATE"
+    )
+    assert payload["reservation"]["unavailability_reason"] == (
+        "ADAPTIVE_POLICY_AUTHORITY_BLOCKED"
+    )
+    assert payload["reservation"]["producer_snapshot_sha256"] is None
+    assert len(payload["reservation"]["absence_evidence_sha256"]) == 64
+    assert payload["reservation"]["derived"] is None
+    assert record.paper_only is True
+    assert record.routes_to_live is False
+    assert record.places_real_order is False
+    assert record.exchange_action_taken is False
+
+
+def test_selected_trade_cannot_omit_authenticated_reservation() -> None:
+    status, intents, snapshots = _inputs(1)
+    intents[0]["paper_fill_allowed"] = True
+    intents[0]["paper_cycle_reservation_snapshot"] = {}
+    intents[0]["paper_cycle_reservation_snapshot_hash"] = None
+
+    with pytest.raises(
+        CandidateOutcomePublisherError,
+        match="authenticated_reservation_required_for_executing_candidate",
+    ):
+        _build(status, intents, snapshots)
+
+
 def test_source_payloads_are_not_mutated() -> None:
     status, intents, snapshots = _inputs(1)
     before = deepcopy((status, intents, snapshots))

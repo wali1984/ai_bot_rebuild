@@ -590,6 +590,79 @@ def _verified_embedded_hash(
     return source, producer_digest, _sha256(source)
 
 
+def _reservation_evidence(
+    intent: Mapping[str, Any],
+) -> tuple[
+    dict[str, Any],
+    str | None,
+    str,
+    str | None,
+    str | None,
+    tuple[str, ...],
+]:
+    """Verify a reservation, or bind its exact absence for a nonexecuting row.
+
+    A blocked/flat candidate may legitimately have no reservation because it
+    cannot mutate capital.  That absence is evidence and must be archived; it
+    must never be converted into available headroom.  A selected trade still
+    requires the producer-authenticated reservation snapshot.
+    """
+
+    source = _clean_mapping(intent.get("paper_cycle_reservation_snapshot"))
+    if source:
+        reservation, producer_sha, payload_sha = _verified_embedded_hash(
+            intent,
+            source_field="paper_cycle_reservation_snapshot",
+            top_level_hash_field="paper_cycle_reservation_snapshot_hash",
+            embedded_hash_field="snapshot_hash",
+        )
+        return (
+            reservation,
+            producer_sha,
+            payload_sha,
+            None,
+            None,
+            (producer_sha, payload_sha),
+        )
+
+    if intent.get("paper_cycle_reservation_snapshot_hash") not in (None, ""):
+        _fail(
+            "source_missing_for_declared_hash",
+            "intent.paper_cycle_reservation_snapshot_hash",
+        )
+    disposition, disposition_reason, _final_action = _decision_disposition(intent)
+    if intent.get("paper_fill_allowed") is True or disposition not in {
+        "REJECTED",
+        "INFEASIBLE",
+    }:
+        _fail(
+            "authenticated_reservation_required_for_executing_candidate",
+            "intent.paper_cycle_reservation_snapshot",
+        )
+    source_payload_sha = _sha256(source)
+    absence_material = {
+        "schema_version": "candidate_reservation_absence_evidence_v1",
+        "availability": "UNAVAILABLE_FOR_NONEXECUTING_CANDIDATE",
+        "source_payload_sha256": source_payload_sha,
+        "declared_snapshot_sha256": None,
+        "paper_fill_allowed": False,
+        "allocator_decision": intent.get("allocator_decision"),
+        "paper_fill_block_reason": intent.get("paper_fill_block_reason"),
+        "decision_disposition": disposition,
+        "disposition_reason": disposition_reason,
+        **_SAFE_ACTION_AUTHORITY,
+    }
+    absence_sha = _sha256(absence_material)
+    return (
+        source,
+        None,
+        source_payload_sha,
+        disposition_reason,
+        absence_sha,
+        tuple(sorted({source_payload_sha, absence_sha})),
+    )
+
+
 def _sequence_digest(value: object) -> tuple[int, str]:
     sequence = value if isinstance(value, list | tuple) else []
     return len(sequence), _sha256(sequence)
@@ -604,14 +677,14 @@ def _portfolio_state_payload(
         top_level_hash_field="paper_cycle_base_resource_evidence_hash",
         embedded_hash_field="evidence_hash",
     )
-    reservation, reservation_producer_sha, reservation_payload_sha = (
-        _verified_embedded_hash(
-            intent,
-            source_field="paper_cycle_reservation_snapshot",
-            top_level_hash_field="paper_cycle_reservation_snapshot_hash",
-            embedded_hash_field="snapshot_hash",
-        )
-    )
+    (
+        reservation,
+        reservation_producer_sha,
+        reservation_payload_sha,
+        reservation_unavailability_reason,
+        reservation_absence_sha,
+        reservation_receipts,
+    ) = _reservation_evidence(intent)
     dynamic, dynamic_producer_sha, dynamic_payload_sha = _verified_embedded_hash(
         intent,
         source_field="paper_dynamic_envelope_reservation_evidence",
@@ -653,6 +726,13 @@ def _portfolio_state_payload(
             "source_payload_sha256": base_payload_sha,
         },
         "reservation": {
+            "availability": (
+                "AVAILABLE"
+                if reservation_producer_sha is not None
+                else "UNAVAILABLE_FOR_NONEXECUTING_CANDIDATE"
+            ),
+            "unavailability_reason": reservation_unavailability_reason,
+            "absence_evidence_sha256": reservation_absence_sha,
             "schema_version": reservation.get("schema_version"),
             "status": reservation.get("status"),
             "candidate_symbol": reservation.get("candidate_symbol"),
@@ -694,14 +774,13 @@ def _portfolio_state_payload(
             {
                 base_producer_sha,
                 base_payload_sha,
-                reservation_producer_sha,
-                reservation_payload_sha,
                 dynamic_producer_sha,
                 dynamic_payload_sha,
                 prior_sha,
                 accounting_sha,
                 growth_rejection_sha,
                 dynamic_rejection_sha,
+                *reservation_receipts,
                 *(
                     (_sha256(growth_receipt),)
                     if growth_receipt
