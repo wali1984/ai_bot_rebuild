@@ -223,11 +223,20 @@ WORKER_COMMANDS: Mapping[str, dict] = {
     ),
     "REBUILD_FEATURE_SELECTION_OR_REPRESENTATION": _worker(
         "REBUILD_FEATURE_SELECTION_OR_REPRESENTATION",
-        "v2.backend.app.cli.v2_native_trainer_dataset_builder",
+        "v2.backend.app.cli.v2_adaptive_feature_representation_challenger",
         "module",
-        (_VENV_PY, "-m", "v2.backend.app.cli.v2_native_trainer_dataset_builder"),
+        (
+            _VENV_PY,
+            "-m",
+            "v2.backend.app.cli.v2_adaptive_feature_representation_challenger",
+            "--dataset-release-root",
+            "{dataset_release_root}",
+            "--output-dir",
+            "{dispatch_run_root}/feature_representation",
+        ),
         "feature_representation_rebuild",
-        "Rebuild the training dataset / feature representation from matured outcomes.",
+        "Build and evaluate a train-only feature-selection challenger from the "
+        "authenticated signed release without changing the serving ABI.",
     ),
     "TRAIN_HORIZON_SPECIFIC_CHALLENGERS": _worker(
         "TRAIN_HORIZON_SPECIFIC_CHALLENGERS",
