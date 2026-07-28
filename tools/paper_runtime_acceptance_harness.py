@@ -47,7 +47,7 @@ CRED_FILES = [
 # can take several minutes before the configured inter-cycle sleep begins.  Keep
 # this evidence observer comfortably above that measured cycle duration; a
 # 90-second deadline incorrectly classified an active, CPU-bound worker as stale.
-MIN_CYCLE_OBSERVATION_TIMEOUT_SECONDS = 360.0
+MIN_CYCLE_OBSERVATION_TIMEOUT_SECONDS = 900.0
 
 
 def _r() -> redis.Redis:

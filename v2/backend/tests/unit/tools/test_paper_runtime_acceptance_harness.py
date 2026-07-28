@@ -111,5 +111,6 @@ def test_snapshot_reports_duplicates_and_reservation_leaks() -> None:
 
 
 def test_cycle_observation_timeout_covers_long_production_cycles() -> None:
-    assert harness._cycle_observation_timeout(3.0) == 360.0
-    assert harness._cycle_observation_timeout(65.0) == 390.0
+    assert harness._cycle_observation_timeout(3.0) == 900.0
+    assert harness._cycle_observation_timeout(65.0) == 900.0
+    assert harness._cycle_observation_timeout(180.0) == 1080.0
