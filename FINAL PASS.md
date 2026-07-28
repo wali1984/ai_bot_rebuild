@@ -2664,6 +2664,10 @@ Exact machine-readable evidence is
 
 ### Exact failure classification and final state
 
+The exact dependency sets and journal transitions are frozen in
+`goal_state/PERMANENT_SYSTEM_RECOVERY/systemd_failure_classification_journal_20260728.json`
+(SHA-256 `1febfb63b605409aca25c452a60a30eed1dcbb49799a5d5a55332223b55c42cc`).
+
 | Unit | Initial failure | Classification | Final state |
 |---|---|---|---|
 | `ai-bot-v2-boot-validator.service` | exit 1 while the paper loop was `deactivating/stop-sigterm` | transient dependency settling | successful oneshot, exit 0, failures `[]` |
