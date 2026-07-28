@@ -316,6 +316,177 @@ def _release(
     return runtime.ReleaseEvidence(root, projection, matured, decisions, "e" * 64)
 
 
+def _write_novelty_manifest(
+    release: runtime.ReleaseEvidence,
+    *,
+    earliest: str = "2026-07-20T00:00:00Z",
+    latest: str = "2026-07-21T00:00:00Z",
+    symbol_counts: dict[str, int] | None = None,
+    timeframe_counts: dict[str, int] | None = None,
+) -> None:
+    total_rows = sum(
+        release.projection[field]
+        for field in ("training_rows", "validation_rows", "holdout_rows")
+    )
+    manifest = {
+        "schema_version": "adaptive_serving_compatible_dataset_manifest_v2",
+        "manifest_sha256": release.projection["manifest_sha256"],
+        "earliest_decision_time": earliest,
+        "latest_decision_time": latest,
+        "symbol_counts": symbol_counts or {"BTCUSDT": total_rows},
+        "timeframe_counts": timeframe_counts or {"5m": total_rows},
+        "target_action_counts": {
+            "hold": 40,
+            "long": 50,
+            "short": total_rows - 90,
+        },
+        "source_high_watermark": {
+            "candidate_archive_matured_revision_count": (
+                release.source_matured_revision_count
+            ),
+            "candidate_archive_decision_revision_count": (
+                release.source_decision_revision_count
+            ),
+            "candidate_archive_terminal_chain_sha256": (
+                release.source_terminal_chain_sha256
+            ),
+        },
+    }
+    Path(release.projection["paths"]["manifest"]).write_text(json.dumps(manifest))
+
+
+def _negative_failure_cycle() -> dict:
+    return {
+        "active": True,
+        "failure_cycle_id": "adaptive_failure_cycle_" + "1" * 32,
+        "checkpoint_binding": {
+            "checkpoint_generation": 3,
+            "checkpoint_id": "checkpoint-3",
+        },
+    }
+
+
+def test_raw_revision_growth_alone_does_not_authorize_incremental_training(
+    tmp_path: Path,
+) -> None:
+    baseline = _release(
+        tmp_path, name="release_baseline", matured=500, decisions=700
+    )
+    candidate = _release(
+        tmp_path,
+        name="release_candidate",
+        sha_character="f",
+        matured=750,
+        decisions=950,
+    )
+    _write_novelty_manifest(baseline)
+    _write_novelty_manifest(candidate, latest="2026-07-21T01:00:00Z")
+    dispatch = runtime.CompletedDispatch(
+        runtime.INCREMENTAL_STEP,
+        baseline,
+        {
+            "dispatch_id": "adaptive_dispatch_baseline",
+            "failure_cycle_id": "adaptive_failure_cycle_" + "1" * 32,
+        },
+    )
+
+    manifest = runtime.build_evidence_novelty_manifest(
+        baseline_dispatch=dispatch,
+        candidate_release=candidate,
+        baseline_effective_n=100.0,
+        candidate_effective_n=100.0,
+        failure_cycle=_negative_failure_cycle(),
+        completed_steps=set(runtime.PRE_PROMOTION_LADDER),
+        current_matured_revision_count=750,
+        min_new_matured_outcomes=250,
+        min_new_effective_n=25.0,
+        min_chronological_expansion_seconds=86_400.0,
+        min_new_scope_rows=25,
+        generated_utc="2026-07-28T22:30:00Z",
+    )
+
+    assert manifest["material_novelty_detected"] is False
+    assert manifest["authorizing_predicates"] == []
+    assert manifest["predicates"]["raw_archive_revision_growth"] == {
+        "evidence_available": True,
+        "baseline": 500,
+        "current": 750,
+        "actual_increase": 250,
+        "legacy_count_threshold": 250,
+        "threshold_crossed": True,
+        "authorizes_training": False,
+    }
+    assert manifest["completed_pre_promotion_rungs"] == "all_9"
+    assert len(manifest["manifest_sha256"]) == 64
+
+
+@pytest.mark.parametrize(
+    ("candidate_effective_n", "latest", "symbols", "expected_predicate"),
+    [
+        (
+            125.0,
+            "2026-07-21T01:00:00Z",
+            {"BTCUSDT": 140},
+            "effective_independent_sample_size",
+        ),
+        (
+            100.0,
+            "2026-07-22T00:00:00Z",
+            {"BTCUSDT": 140},
+            "chronological_coverage",
+        ),
+        (
+            100.0,
+            "2026-07-21T01:00:00Z",
+            {"BTCUSDT": 115, "NEWUSDT": 25},
+            "symbol_timeframe_coverage",
+        ),
+    ],
+)
+def test_authenticated_material_novelty_authorizes_training(
+    tmp_path: Path,
+    candidate_effective_n: float,
+    latest: str,
+    symbols: dict[str, int],
+    expected_predicate: str,
+) -> None:
+    baseline = _release(
+        tmp_path, name="release_baseline", matured=500, decisions=700
+    )
+    candidate = _release(
+        tmp_path,
+        name="release_candidate",
+        sha_character="f",
+        matured=750,
+        decisions=950,
+    )
+    _write_novelty_manifest(baseline)
+    _write_novelty_manifest(candidate, latest=latest, symbol_counts=symbols)
+    dispatch = runtime.CompletedDispatch(
+        runtime.INCREMENTAL_STEP,
+        baseline,
+        {"failure_cycle_id": "adaptive_failure_cycle_" + "1" * 32},
+    )
+
+    manifest = runtime.build_evidence_novelty_manifest(
+        baseline_dispatch=dispatch,
+        candidate_release=candidate,
+        baseline_effective_n=100.0,
+        candidate_effective_n=candidate_effective_n,
+        failure_cycle=_negative_failure_cycle(),
+        completed_steps=set(runtime.PRE_PROMOTION_LADDER),
+        current_matured_revision_count=750,
+        min_new_matured_outcomes=250,
+        min_new_effective_n=25.0,
+        min_chronological_expansion_seconds=86_400.0,
+        min_new_scope_rows=25,
+        generated_utc="2026-07-28T22:30:00Z",
+    )
+
+    assert manifest["material_novelty_detected"] is True
+    assert expected_predicate in manifest["authorizing_predicates"]
+
+
 def _self_hashed_state(**updates) -> dict:
     value = {
         "schema_version": runtime.SCHEMA_VERSION,
@@ -914,3 +1085,118 @@ def test_forgeable_prior_state_cannot_claim_completed_rungs(
     assert payload["completed_steps_for_failure_cycle"] == []
     assert payload["launch_baseline"]["matured_outcome_count"] == 500
     assert payload["prior_runtime_state_advisory_only"] is True
+
+
+def test_completed_failure_cycle_awaits_novel_evidence_without_dispatch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    now = datetime(2026, 7, 28, 15, 40, tzinfo=UTC)
+    previous = _release(tmp_path, name="release_old", matured=250, decisions=400)
+    current = _release(
+        tmp_path,
+        name="release_new",
+        sha_character="f",
+        matured=500,
+        decisions=700,
+    )
+    client = _Redis(_runtime_values(now))
+    _patch_run_inputs(
+        monkeypatch,
+        now=now,
+        release=current,
+        previous_release=previous,
+        rebuilt=True,
+        effective_n=55.0,
+        historical_steps=tuple(
+            (step, previous) for step in runtime.PRE_PROMOTION_LADDER
+        ),
+    )
+    monkeypatch.setattr(
+        runtime,
+        "build_evidence_novelty_manifest",
+        lambda **kwargs: {
+            "material_novelty_detected": False,
+            "manifest_sha256": "7" * 64,
+        },
+    )
+    monkeypatch.setattr(
+        supervisor,
+        "dispatch_worker",
+        lambda *args, **kwargs: pytest.fail("raw growth dispatched a trainer"),
+    )
+
+    payload = runtime.run_once(
+        client,
+        release_parent=tmp_path,
+        state_path=tmp_path / "state.json",
+        dispatch_root=tmp_path / "dispatches",
+        execute_worker=True,
+        now=now,
+    )
+
+    assert payload["action"] == runtime.ACTION_AWAIT_NOVEL_EVIDENCE
+    assert payload["active_failure_cycle"].startswith("adaptive_failure_cycle_")
+    assert payload["completed_pre_promotion_rungs"] == "all_9"
+    assert payload["active_checkpoint_generation"] == 3
+    assert payload["candidate_registry_write_attempted"] is False
+    assert payload["dispatch_results"] == []
+    assert payload["next_trigger_manifest"]["material_novelty_detected"] is False
+
+
+def test_completed_failure_cycle_launches_when_material_novelty_is_authenticated(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    now = datetime(2026, 7, 28, 15, 40, tzinfo=UTC)
+    previous = _release(tmp_path, name="release_old", matured=250, decisions=400)
+    current = _release(
+        tmp_path,
+        name="release_new",
+        sha_character="f",
+        matured=500,
+        decisions=700,
+    )
+    client = _Redis(_runtime_values(now))
+    _patch_run_inputs(
+        monkeypatch,
+        now=now,
+        release=current,
+        previous_release=previous,
+        rebuilt=True,
+        effective_n=55.0,
+        historical_steps=tuple(
+            (step, previous) for step in runtime.PRE_PROMOTION_LADDER
+        ),
+    )
+    monkeypatch.setattr(
+        runtime,
+        "build_evidence_novelty_manifest",
+        lambda **kwargs: {
+            "material_novelty_detected": True,
+            "authorizing_predicates": ["effective_independent_sample_size"],
+            "manifest_sha256": "7" * 64,
+        },
+    )
+    dispatched: list[str] = []
+
+    def dispatch(plan, **_kwargs):
+        dispatched.append(str(plan.selected_step))
+        return {
+            "launch_baseline_success": True,
+            "dispatch_id": "adaptive_dispatch_novel",
+        }
+
+    monkeypatch.setattr(supervisor, "dispatch_worker", dispatch)
+
+    payload = runtime.run_once(
+        client,
+        release_parent=tmp_path,
+        state_path=tmp_path / "state.json",
+        dispatch_root=tmp_path / "dispatches",
+        execute_worker=True,
+        max_dispatches_per_run=1,
+        now=now,
+    )
+
+    assert dispatched == [runtime.INCREMENTAL_STEP]
+    assert payload["action"] == supervisor.ACTION_LAUNCH
+    assert payload["selected_step"] == runtime.INCREMENTAL_STEP

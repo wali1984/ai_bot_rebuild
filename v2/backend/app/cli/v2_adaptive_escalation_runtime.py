@@ -39,8 +39,11 @@ from v2.backend.app.services.adaptive_system.escalation_ladder_v2 import (
 )
 
 SCHEMA_VERSION = "adaptive_escalation_runtime_v1"
+NOVELTY_MANIFEST_SCHEMA_VERSION = "adaptive_evidence_novelty_trigger_v1"
+ACTION_AWAIT_NOVEL_EVIDENCE = "AWAITING_NOVEL_AUTHENTICATED_EVIDENCE"
 PERFORMANCE_STATUS_KEY = "v2:paper:performance_governor_status"
 ACTIVE_REGISTRY_KEY = "v2:model_registry:paper:active"
+CANDIDATE_REGISTRY_KEY = "v2:model_registry:paper:candidate"
 DEFAULT_RELEASE_PARENT = Path(
     "/home/wali/ai_bot_local_data/adaptive_candidate_dataset_v3"
 )
@@ -55,6 +58,8 @@ DEFAULT_FEATURE_ARCHIVE_ROOT = Path(
 DEFAULT_MAX_STATUS_AGE_SECONDS = 600.0
 DEFAULT_MIN_NEW_MATURED_OUTCOMES = 250
 DEFAULT_MIN_NEW_EFFECTIVE_N = 25.0
+DEFAULT_MIN_CHRONOLOGICAL_EXPANSION_SECONDS = 86_400.0
+DEFAULT_MIN_NEW_SCOPE_ROWS = 25
 DEFAULT_MAX_DISPATCHES_PER_RUN = 4
 LEGACY_FAILURE_RECEIPT_MIGRATION_CUTOFF = datetime(
     2026,
@@ -67,6 +72,9 @@ LEGACY_FAILURE_RECEIPT_MIGRATION_CUTOFF = datetime(
 
 INCREMENTAL_STEP = "TRAIN_INCREMENTAL_ON_NEW_MATURED_OUTCOMES"
 RECALIBRATION_STEP = "RECALIBRATE_CURRENT_MODELS"
+PRE_PROMOTION_LADDER = tuple(
+    step for step in LADDER if step != "PROMOTE_SUPERIOR_CHALLENGER"
+)
 BASELINE_ADVANCING_STEPS = frozenset({RECALIBRATION_STEP, INCREMENTAL_STEP})
 RELEASE_REUSABLE_INFORMATION_STEPS = frozenset(
     supervisor.INFO_DEPENDENT_STEPS - {INCREMENTAL_STEP}
@@ -632,21 +640,9 @@ def discover_historical_completed_steps(
 def _authenticated_training_baseline(
     dispatches: tuple[CompletedDispatch, ...],
 ) -> dict[str, Any] | None:
-    eligible = [
-        evidence
-        for evidence in dispatches
-        if evidence.step in BASELINE_ADVANCING_STEPS
-    ]
-    if not eligible:
+    latest = _latest_authenticated_training_dispatch(dispatches)
+    if latest is None:
         return None
-    latest = max(
-        eligible,
-        key=lambda row: (
-            row.release.source_matured_revision_count,
-            row.release.source_decision_revision_count,
-            row.release.projection["dataset_sha256"],
-        ),
-    )
     effective_n = supervisor.load_gen5_corpus_effective_n(
         Path(latest.release.projection["paths"]["dataset"])
     )[0]
@@ -662,6 +658,263 @@ def _authenticated_training_baseline(
         "recorded_utc": latest.receipt.get("completed_utc"),
         "derived_from_authenticated_terminal_receipt": True,
     }
+
+
+def _latest_authenticated_training_dispatch(
+    dispatches: tuple[CompletedDispatch, ...],
+) -> CompletedDispatch | None:
+    eligible = [
+        evidence
+        for evidence in dispatches
+        if evidence.step in BASELINE_ADVANCING_STEPS
+    ]
+    if not eligible:
+        return None
+    return max(
+        eligible,
+        key=lambda row: (
+            row.release.source_matured_revision_count,
+            row.release.source_decision_revision_count,
+            row.release.projection["dataset_sha256"],
+        ),
+    )
+
+
+def _redis_value_present(client: Any, key: str) -> bool:
+    try:
+        return bool(client.get(key))
+    except Exception as exc:
+        raise AdaptiveEscalationRuntimeError(f"redis:{key}:READ_FAILED") from exc
+
+
+def _release_manifest_summary(release: ReleaseEvidence) -> dict[str, Any]:
+    manifest = _read_json(
+        Path(release.projection["paths"]["manifest"]),
+        "novelty.manifest",
+    )
+    if (
+        manifest.get("schema_version")
+        != "adaptive_serving_compatible_dataset_manifest_v2"
+        or manifest.get("manifest_sha256")
+        != release.projection.get("manifest_sha256")
+    ):
+        raise AdaptiveEscalationRuntimeError("novelty.manifest:IDENTITY_MISMATCH")
+    earliest = _parse_utc(
+        manifest.get("earliest_decision_time"),
+        "novelty.manifest.earliest_decision_time",
+    )
+    latest = _parse_utc(
+        manifest.get("latest_decision_time"),
+        "novelty.manifest.latest_decision_time",
+    )
+    if earliest > latest:
+        raise AdaptiveEscalationRuntimeError("novelty.manifest:TIME_RANGE_INVALID")
+    total_rows = sum(
+        int(release.projection[field])
+        for field in ("training_rows", "validation_rows", "holdout_rows")
+    )
+
+    def counts(field: str) -> dict[str, int]:
+        value = manifest.get(field)
+        if (
+            type(value) is not dict
+            or not value
+            or any(
+                type(key) is not str
+                or not key
+                or type(count) is not int
+                or count < 0
+                for key, count in value.items()
+            )
+            or sum(value.values()) != total_rows
+        ):
+            raise AdaptiveEscalationRuntimeError(
+                f"novelty.manifest.{field}:COUNTS_INVALID"
+            )
+        return dict(sorted(value.items()))
+
+    watermark = manifest.get("source_high_watermark")
+    if (
+        type(watermark) is not dict
+        or watermark.get("candidate_archive_matured_revision_count")
+        != release.source_matured_revision_count
+        or watermark.get("candidate_archive_decision_revision_count")
+        != release.source_decision_revision_count
+        or watermark.get("candidate_archive_terminal_chain_sha256")
+        != release.source_terminal_chain_sha256
+    ):
+        raise AdaptiveEscalationRuntimeError(
+            "novelty.manifest:SOURCE_HIGH_WATERMARK_MISMATCH"
+        )
+    return {
+        "dataset_sha256": release.projection["dataset_sha256"],
+        "manifest_sha256": release.projection["manifest_sha256"],
+        "source_terminal_chain_sha256": release.source_terminal_chain_sha256,
+        "source_matured_revision_count": release.source_matured_revision_count,
+        "source_decision_revision_count": release.source_decision_revision_count,
+        "total_rows": total_rows,
+        "earliest_decision_time": earliest.isoformat().replace("+00:00", "Z"),
+        "latest_decision_time": latest.isoformat().replace("+00:00", "Z"),
+        "symbol_counts": counts("symbol_counts"),
+        "timeframe_counts": counts("timeframe_counts"),
+        "target_action_counts": counts("target_action_counts"),
+    }
+
+
+def build_evidence_novelty_manifest(
+    *,
+    baseline_dispatch: CompletedDispatch,
+    candidate_release: ReleaseEvidence,
+    baseline_effective_n: float,
+    candidate_effective_n: float,
+    failure_cycle: Mapping[str, Any],
+    completed_steps: set[str],
+    current_matured_revision_count: int,
+    min_new_matured_outcomes: int,
+    min_new_effective_n: float,
+    min_chronological_expansion_seconds: float,
+    min_new_scope_rows: int,
+    generated_utc: str,
+) -> dict[str, Any]:
+    baseline = _release_manifest_summary(baseline_dispatch.release)
+    candidate = _release_manifest_summary(candidate_release)
+    baseline_earliest = _parse_utc(
+        baseline["earliest_decision_time"], "novelty.baseline.earliest_decision_time"
+    )
+    baseline_latest = _parse_utc(
+        baseline["latest_decision_time"], "novelty.baseline.latest_decision_time"
+    )
+    candidate_earliest = _parse_utc(
+        candidate["earliest_decision_time"], "novelty.candidate.earliest_decision_time"
+    )
+    candidate_latest = _parse_utc(
+        candidate["latest_decision_time"], "novelty.candidate.latest_decision_time"
+    )
+    chronological_expansion = max(
+        0.0, (baseline_earliest - candidate_earliest).total_seconds()
+    ) + max(0.0, (candidate_latest - baseline_latest).total_seconds())
+    effective_n_delta = round(candidate_effective_n - baseline_effective_n, 10)
+
+    def newly_covered(field: str) -> list[dict[str, Any]]:
+        baseline_counts = baseline[field]
+        candidate_counts = candidate[field]
+        return [
+            {"name": name, "authenticated_rows": count}
+            for name, count in candidate_counts.items()
+            if name not in baseline_counts and count >= min_new_scope_rows
+        ]
+
+    new_symbols = newly_covered("symbol_counts")
+    new_timeframes = newly_covered("timeframe_counts")
+    current_cycle_id = failure_cycle.get("failure_cycle_id")
+    baseline_cycle_id = baseline_dispatch.receipt.get("failure_cycle_id")
+    new_failure_cycle = (
+        type(baseline_cycle_id) is str and baseline_cycle_id != current_cycle_id
+    )
+    unevaluated_families = [
+        step for step in PRE_PROMOTION_LADDER if step not in completed_steps
+    ]
+    predicates = {
+        "effective_independent_sample_size": {
+            "evidence_available": True,
+            "baseline": baseline_effective_n,
+            "candidate": candidate_effective_n,
+            "actual_increase": effective_n_delta,
+            "required_increase": min_new_effective_n,
+            "passed": effective_n_delta >= min_new_effective_n,
+        },
+        "chronological_coverage": {
+            "evidence_available": True,
+            "actual_expansion_seconds": chronological_expansion,
+            "required_expansion_seconds": min_chronological_expansion_seconds,
+            "passed": (
+                chronological_expansion >= min_chronological_expansion_seconds
+            ),
+        },
+        "volatility_trend_range_regime": {
+            "evidence_available": False,
+            "passed": False,
+            "reason": "SIGNED_RELEASE_DOES_NOT_DECLARE_REGIME_MEMBERSHIP",
+        },
+        "symbol_timeframe_coverage": {
+            "evidence_available": True,
+            "minimum_rows_per_new_scope": min_new_scope_rows,
+            "new_symbols": new_symbols,
+            "new_timeframes": new_timeframes,
+            "passed": bool(new_symbols or new_timeframes),
+        },
+        "underrepresented_policy_actions": {
+            "evidence_available": False,
+            "passed": False,
+            "reason": "SIGNED_RELEASE_TARGET_ACTION_IS_NOT_POLICY_ACTION_AUTHORITY",
+        },
+        "calibration_drift": {
+            "evidence_available": False,
+            "passed": False,
+            "reason": "SIGNED_RELEASE_DOES_NOT_DECLARE_CALIBRATION_DRIFT",
+        },
+        "counterfactual_opportunity_cost": {
+            "evidence_available": False,
+            "passed": False,
+            "reason": "SIGNED_RELEASE_DOES_NOT_DECLARE_AGGREGATED_OPPORTUNITY_COST_DRIFT",
+        },
+        "checkpoint_or_cohort_generation": {
+            "evidence_available": type(baseline_cycle_id) is str,
+            "baseline_failure_cycle": baseline_cycle_id,
+            "active_failure_cycle": current_cycle_id,
+            "passed": new_failure_cycle,
+        },
+        "unevaluated_challenger_family": {
+            "evidence_available": True,
+            "unevaluated_families": unevaluated_families,
+            "passed": bool(unevaluated_families),
+        },
+        "raw_archive_revision_growth": {
+            "evidence_available": True,
+            "baseline": baseline["source_matured_revision_count"],
+            "current": current_matured_revision_count,
+            "actual_increase": (
+                current_matured_revision_count
+                - baseline["source_matured_revision_count"]
+            ),
+            "legacy_count_threshold": min_new_matured_outcomes,
+            "threshold_crossed": (
+                current_matured_revision_count
+                - baseline["source_matured_revision_count"]
+                >= min_new_matured_outcomes
+            ),
+            "authorizes_training": False,
+        },
+    }
+    authorizing_predicates = [
+        name
+        for name, evidence in predicates.items()
+        if name != "raw_archive_revision_growth" and evidence.get("passed") is True
+    ]
+    material = {
+        "schema_version": NOVELTY_MANIFEST_SCHEMA_VERSION,
+        "generated_utc": generated_utc,
+        "active_failure_cycle": current_cycle_id,
+        "checkpoint_generation": failure_cycle["checkpoint_binding"][
+            "checkpoint_generation"
+        ],
+        "checkpoint_id": failure_cycle["checkpoint_binding"]["checkpoint_id"],
+        "completed_pre_promotion_rungs": "all_9",
+        "baseline": baseline,
+        "candidate": candidate,
+        "predicates": predicates,
+        "authorizing_predicates": authorizing_predicates,
+        "material_novelty_detected": bool(authorizing_predicates),
+        "raw_revision_growth_alone_authorizes_training": False,
+        "authenticated_sources": True,
+        "paper_only": True,
+        "live_gate": "blocked_human_only",
+        "routes_to_live": False,
+        "places_real_order": False,
+        "exchange_action_taken": False,
+    }
+    material["manifest_sha256"] = _sha256_bytes(_canonical_bytes(material))
+    return material
 
 
 def _failure_cycle(
@@ -775,11 +1028,18 @@ def _validate_runtime_configuration(
     build_timeout_seconds: int,
     dispatch_timeout_seconds: int | float,
     max_dispatches_per_run: int = 1,
+    min_chronological_expansion_seconds: float = (
+        DEFAULT_MIN_CHRONOLOGICAL_EXPANSION_SECONDS
+    ),
+    min_new_scope_rows: int = DEFAULT_MIN_NEW_SCOPE_ROWS,
 ) -> None:
     numeric = {
         "max_status_age_seconds": max_status_age_seconds,
         "min_new_effective_n": min_new_effective_n,
         "dispatch_timeout_seconds": dispatch_timeout_seconds,
+        "min_chronological_expansion_seconds": (
+            min_chronological_expansion_seconds
+        ),
     }
     for field, value in numeric.items():
         if (
@@ -793,6 +1053,7 @@ def _validate_runtime_configuration(
         "min_new_matured_outcomes": min_new_matured_outcomes,
         "build_timeout_seconds": build_timeout_seconds,
         "max_dispatches_per_run": max_dispatches_per_run,
+        "min_new_scope_rows": min_new_scope_rows,
     }.items():
         if type(value) is not int or value <= 0:
             raise AdaptiveEscalationRuntimeError(f"{field}:POSITIVE_INTEGER_REQUIRED")
@@ -816,6 +1077,10 @@ def run_once(
     max_status_age_seconds: float = DEFAULT_MAX_STATUS_AGE_SECONDS,
     min_new_matured_outcomes: int = DEFAULT_MIN_NEW_MATURED_OUTCOMES,
     min_new_effective_n: float = DEFAULT_MIN_NEW_EFFECTIVE_N,
+    min_chronological_expansion_seconds: float = (
+        DEFAULT_MIN_CHRONOLOGICAL_EXPANSION_SECONDS
+    ),
+    min_new_scope_rows: int = DEFAULT_MIN_NEW_SCOPE_ROWS,
     build_timeout_seconds: int = 900,
     dispatch_timeout_seconds: int = supervisor.DISPATCH_TIMEOUT_SECONDS,
     max_dispatches_per_run: int = 1,
@@ -828,6 +1093,10 @@ def run_once(
         build_timeout_seconds=build_timeout_seconds,
         dispatch_timeout_seconds=dispatch_timeout_seconds,
         max_dispatches_per_run=max_dispatches_per_run,
+        min_chronological_expansion_seconds=(
+            min_chronological_expansion_seconds
+        ),
+        min_new_scope_rows=min_new_scope_rows,
     )
     authority, outcomes, performance, registry = authenticate_runtime_inputs(
         client,
@@ -884,12 +1153,17 @@ def run_once(
         completed.update(evidence.step for evidence in cycle_dispatches)
         if INCREMENTAL_STEP in completed:
             completed.add(RECALIBRATION_STEP)
-    if rebuilt and INCREMENTAL_STEP not in exact_release_steps:
-        # New labels must be consumed by a new incremental fit.  Other successful
-        # rungs remain completed for the same unresolved economic-failure cycle.
-        completed.discard(INCREMENTAL_STEP)
+    all_pre_promotion_rungs_completed = set(PRE_PROMOTION_LADDER).issubset(
+        completed
+    )
+    latest_training_dispatch = _latest_authenticated_training_dispatch(
+        cycle_dispatches
+    )
+    candidate_registry_present = _redis_value_present(
+        client, CANDIDATE_REGISTRY_KEY
+    )
 
-    authenticated_baseline = _authenticated_training_baseline(historical_dispatches)
+    authenticated_baseline = _authenticated_training_baseline(cycle_dispatches)
     if authenticated_baseline is not None:
         baseline = authenticated_baseline
     elif rebuilt and previous_release is not None:
@@ -911,6 +1185,41 @@ def run_once(
             "dataset_sha256": release.projection["dataset_sha256"],
             "source_terminal_chain_sha256": release.source_terminal_chain_sha256,
         }
+
+    novelty_manifest: dict[str, Any] | None = None
+    novelty_gate_active = False
+    if (
+        failure_cycle["active"]
+        and all_pre_promotion_rungs_completed
+        and latest_training_dispatch is not None
+        and not candidate_registry_present
+    ):
+        novelty_manifest = build_evidence_novelty_manifest(
+            baseline_dispatch=latest_training_dispatch,
+            candidate_release=release,
+            baseline_effective_n=float(baseline["effective_n"]),
+            candidate_effective_n=effective_n,
+            failure_cycle=failure_cycle,
+            completed_steps=completed,
+            current_matured_revision_count=current_matured,
+            min_new_matured_outcomes=min_new_matured_outcomes,
+            min_new_effective_n=min_new_effective_n,
+            min_chronological_expansion_seconds=(
+                min_chronological_expansion_seconds
+            ),
+            min_new_scope_rows=min_new_scope_rows,
+            generated_utc=now.isoformat().replace("+00:00", "Z"),
+        )
+        novelty_gate_active = not novelty_manifest["material_novelty_detected"]
+
+    if (
+        rebuilt
+        and INCREMENTAL_STEP not in exact_release_steps
+        and not novelty_gate_active
+    ):
+        # New labels must be consumed by a new incremental fit.  Other successful
+        # rungs remain completed for the same unresolved economic-failure cycle.
+        completed.discard(INCREMENTAL_STEP)
 
     inputs = replace(
         base_inputs,
@@ -934,6 +1243,7 @@ def run_once(
     executed_steps: list[str] = []
     while (
         execute_worker
+        and not novelty_gate_active
         and plan.action == supervisor.ACTION_LAUNCH
         and len(dispatch_results) < max_dispatches_per_run
     ):
@@ -995,6 +1305,33 @@ def run_once(
     history = [int(v) for v in prior_history] if isinstance(prior_history, list) else []
     history = (history + [inputs.directional_authorized_count])[-20:]
     payload = reported_plan.to_dict()
+    if novelty_gate_active:
+        payload.update(
+            {
+                "action": ACTION_AWAIT_NOVEL_EVIDENCE,
+                "selected_step": None,
+                "next_step": INCREMENTAL_STEP,
+                "worker_command": None,
+                "exact_trigger_condition": (
+                    "next_trigger_manifest.material_novelty_detected == true"
+                ),
+                "rationale": (
+                    "All nine pre-promotion rungs completed for the active "
+                    "failure cycle. Raw archive growth is recorded but cannot "
+                    "authorize another challenger without authenticated material "
+                    "novelty."
+                ),
+                "validation_errors": [],
+            }
+        )
+        continuation_plan = {
+            "action": ACTION_AWAIT_NOVEL_EVIDENCE,
+            "selected_step": None,
+            "next_step": INCREMENTAL_STEP,
+            "exact_trigger_condition": (
+                "next_trigger_manifest.material_novelty_detected == true"
+            ),
+        }
     payload.update(
         {
             "schema_version": SCHEMA_VERSION,
@@ -1006,6 +1343,15 @@ def run_once(
             "max_dispatches_per_run": max_dispatches_per_run,
             "dispatch_limit_reached": dispatch_limit_reached,
             "continuation_plan": continuation_plan,
+            "active_failure_cycle": failure_cycle["failure_cycle_id"],
+            "completed_pre_promotion_rungs": (
+                "all_9" if all_pre_promotion_rungs_completed else "incomplete"
+            ),
+            "active_checkpoint_generation": failure_cycle["checkpoint_binding"][
+                "checkpoint_generation"
+            ],
+            "candidate_registry_write_attempted": candidate_registry_present,
+            "next_trigger_manifest": novelty_manifest,
             "failure_cycle": failure_cycle,
             "prior_runtime_state_advisory_only": True,
             "completion_authority": "FULLY_REPLAYED_IMMUTABLE_DISPATCH_RECEIPTS",
@@ -1083,6 +1429,14 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--min-new-effective-n", type=float, default=DEFAULT_MIN_NEW_EFFECTIVE_N
     )
+    parser.add_argument(
+        "--min-chronological-expansion-seconds",
+        type=float,
+        default=DEFAULT_MIN_CHRONOLOGICAL_EXPANSION_SECONDS,
+    )
+    parser.add_argument(
+        "--min-new-scope-rows", type=int, default=DEFAULT_MIN_NEW_SCOPE_ROWS
+    )
     parser.add_argument("--build-timeout-seconds", type=int, default=900)
     parser.add_argument(
         "--dispatch-timeout-seconds",
@@ -1113,6 +1467,10 @@ def main(argv: list[str] | None = None) -> int:
             max_status_age_seconds=args.max_status_age_seconds,
             min_new_matured_outcomes=args.min_new_matured_outcomes,
             min_new_effective_n=args.min_new_effective_n,
+            min_chronological_expansion_seconds=(
+                args.min_chronological_expansion_seconds
+            ),
+            min_new_scope_rows=args.min_new_scope_rows,
             build_timeout_seconds=args.build_timeout_seconds,
             dispatch_timeout_seconds=args.dispatch_timeout_seconds,
             max_dispatches_per_run=args.max_dispatches_per_run,
