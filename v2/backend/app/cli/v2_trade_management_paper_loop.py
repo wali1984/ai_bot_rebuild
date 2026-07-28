@@ -34890,6 +34890,7 @@ def _paper_prior_position_close_transition_reasons(
             or close_sha
             != _paper_canonical_sha256(_paper_close_receipt_material(close))
             or close_sha != material.get("close_receipt_sha256")
+            or not _paper_valid_sha256(close.get("source_close_event_sha256"))
             or str(close.get("position_id") or "")
             != str(material.get("position_id") or "")
             or str(close.get("position_generation_id") or "")
@@ -34901,7 +34902,7 @@ def _paper_prior_position_close_transition_reasons(
             or _normalized_directional_side(close.get("close_side"))
             != expected_close_side
             or close.get("reduce_only") is not True
-            or close.get("position_to_flat") is True
+            or close.get("position_to_flat") is not False
             or close.get("close_position") is True
             or close.get("paper_only") is not True
             or close.get("routes_to_live") is not False
@@ -35448,8 +35449,9 @@ def _paper_position_close_transition_reasons(
         expected_close_side = "short" if position_side == "long" else "long"
         if (
             close.get("schema_version") != "paper_reduce_only_close_receipt_v1"
+            or not _paper_valid_sha256(close.get("source_close_event_sha256"))
             or close.get("reduce_only") is not True
-            or close.get("position_to_flat") is True
+            or close.get("position_to_flat") is not False
             or close.get("close_position") is True
             or str(close.get("position_id") or "") != str(position.get("position_id") or "")
             or str(close.get("position_generation_id") or "")
