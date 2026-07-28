@@ -62,6 +62,53 @@ def _as_list(x):
     return x if isinstance(x, list) else []
 
 
+def _float(value):
+    if isinstance(value, bool):
+        return None
+    try:
+        result = float(value)
+    except (TypeError, ValueError):
+        return None
+    return result if result == result and abs(result) != float("inf") else None
+
+
+def _proof_rows(payload) -> list[dict]:
+    if isinstance(payload, list):
+        return [row for row in payload if isinstance(row, dict)]
+    if isinstance(payload, dict):
+        rows = payload.get("proofs") or payload.get("bindings")
+        if isinstance(rows, list):
+            return [row for row in rows if isinstance(row, dict)]
+        return [row for row in payload.values() if isinstance(row, dict)]
+    return []
+
+
+def _identity(row: dict, fields: tuple[str, ...]) -> str | None:
+    for field in fields:
+        value = row.get(field)
+        if value not in (None, ""):
+            return f"{field}:{value}"
+    return None
+
+
+def _duplicate_count(rows: list[dict], fields: tuple[str, ...]) -> int:
+    identities = [_identity(row, fields) for row in rows]
+    present = [identity for identity in identities if identity is not None]
+    return len(present) - len(set(present))
+
+
+def _epoch_state(r) -> tuple[dict, str | None, int | None]:
+    pointer = _gj(r, "v2:paper:account_epoch:current") or {}
+    session_id = pointer.get("paper_session_id") if isinstance(pointer, dict) else None
+    raw_epoch = pointer.get("paper_account_epoch") if isinstance(pointer, dict) else None
+    epoch = raw_epoch if isinstance(raw_epoch, int) and not isinstance(raw_epoch, bool) else None
+    return pointer if isinstance(pointer, dict) else {}, session_id, epoch
+
+
+def _epoch_key(epoch: int | None, leaf: str, fallback: str) -> str:
+    return f"v2:paper:epoch:{epoch}:{leaf}" if epoch is not None else fallback
+
+
 def _paper_pid_and_start() -> dict:
     try:
         out = subprocess.run(
@@ -79,7 +126,7 @@ def _proof_backed(positions, proofs) -> tuple[int, int]:
     """(proof_backed_count, unproved_count) — a position is proof-backed if a proof
     row references its fill_id/prediction_id/identity."""
     proof_ids = set()
-    for p in _as_list(proofs) + (list(proofs.values()) if isinstance(proofs, dict) else []):
+    for p in _proof_rows(proofs):
         if isinstance(p, dict):
             for k in ("fill_id", "prediction_id", "position_id", "proof_id", "identity"):
                 if p.get(k):
@@ -97,14 +144,44 @@ def _proof_backed(positions, proofs) -> tuple[int, int]:
 
 
 def snapshot(r) -> dict:
-    positions = _gj(r, "v2:paper:positions") or []
+    pointer, paper_session_id, paper_account_epoch = _epoch_state(r)
+    legacy_session = _gj(r, "v2:paper:session") or {}
+    positions = _gj(
+        r,
+        _epoch_key(paper_account_epoch, "positions", "v2:paper:positions"),
+    ) or []
     proofs = _gj(r, "v2:paper:open_position_fill_proofs")
-    accepted = _gj(r, "v2:paper:accepted_fills") or []
+    proof_rows = _proof_rows(proofs)
+    proof_manifest = _gj(r, "v2:paper:open_position_fill_proofs:manifest") or {}
+    accepted = _gj(
+        r,
+        _epoch_key(paper_account_epoch, "accepted_fills", "v2:paper:accepted_fills"),
+    ) or []
     quarantine = _gj(r, "v2:paper:accepted_fills:quarantine") or []
     portfolio = _gj(r, "v2:portfolio:state") or {}
-    margin = _gj(r, "v2:paper:account_margin_status") or {}
+    paper_status = _gj(r, "v2:paper:trade_management:status") or {}
+    margin = (
+        paper_status.get("paper_margin_reservation_status")
+        if isinstance(paper_status, dict)
+        and isinstance(paper_status.get("paper_margin_reservation_status"), dict)
+        else _gj(r, "v2:paper:account_margin_status") or {}
+    )
     trace = _gj(r, "v2:paper:fill_persistence_trace") or {}
-    closed = _gj(r, "v2:paper:closed_trades") or []
+    closed = _gj(
+        r,
+        _epoch_key(paper_account_epoch, "closed_trades", "v2:paper:closed_trades"),
+    ) or []
+    reservations = _gj(
+        r,
+        _epoch_key(paper_account_epoch, "reservations", "v2:paper:reservations"),
+    ) or []
+    reservation_rows = (
+        reservations
+        if isinstance(reservations, list)
+        else margin.get("reservation_rows")
+        if isinstance(margin, dict) and isinstance(margin.get("reservation_rows"), list)
+        else []
+    )
 
     # wipe receipts
     wipe_keys = list(r.scan_iter("v2:paper:position_fill_reconciliation:receipts:*", count=8000))
@@ -112,13 +189,18 @@ def snapshot(r) -> dict:
     for k in wipe_keys:
         d = _gj(r, k)
         if isinstance(d, dict):
-            wipes.append({
-                "reason": d.get("reason"),
-                "phantom_position_count": d.get("phantom_position_count"),
-                "accepted_fill_proof_count": d.get("accepted_fill_proof_count"),
-                "used_margin_released_usd": d.get("used_margin_released_usd"),
-                "utc": d.get("generated_utc") or d.get("reconciled_utc"),
-            })
+            phantom_count = int(d.get("phantom_position_count") or 0)
+            margin_released = float(d.get("used_margin_released_usd") or 0.0)
+            removed = d.get("removed_position_ids") or d.get("removed_positions") or []
+            if phantom_count > 0 or margin_released > 0.0 or bool(removed):
+                wipes.append({
+                    "reason": d.get("reason"),
+                    "phantom_position_count": phantom_count,
+                    "accepted_fill_proof_count": d.get("accepted_fill_proof_count"),
+                    "used_margin_released_usd": margin_released,
+                    "removed_position_count": len(removed) if isinstance(removed, list) else None,
+                    "utc": d.get("generated_utc") or d.get("reconciled_utc"),
+                })
 
     # quarantine empty-reason count
     q_empty = sum(
@@ -130,24 +212,97 @@ def snapshot(r) -> dict:
     )
     backed, unproved = _proof_backed(positions, proofs)
 
+    accepted_rows = [row for row in _as_list(accepted) if isinstance(row, dict)]
+    closed_rows = [row for row in _as_list(closed) if isinstance(row, dict)]
+    duplicate_fills = _duplicate_count(
+        accepted_rows,
+        ("fill_id", "ledger_row_id", "accepted_fill_id"),
+    )
+    duplicate_closes = _duplicate_count(
+        closed_rows,
+        ("close_id", "closed_trade_id", "outcome_label_id", "position_id"),
+    )
+    used_margin = _float(margin.get("used_margin_usd")) if isinstance(margin, dict) else None
+    free_margin = _float(margin.get("free_margin_usd")) if isinstance(margin, dict) else None
+    reserved_margin = _float(portfolio.get("reserved_margin_usd"))
+    if reserved_margin is None and isinstance(margin, dict):
+        reserved_margin = _float(margin.get("reserved_margin_usd"))
+    equity = _float(portfolio.get("equity"))
+    wallet = _float(portfolio.get("wallet_balance"))
+    margin_base = _float(margin.get("margin_base_usd")) if isinstance(margin, dict) else None
+    accounting_conserved = (
+        equity is not None
+        and wallet is not None
+        and used_margin is not None
+        and free_margin is not None
+        and abs((margin_base if margin_base is not None else min(equity, wallet))
+                - used_margin - free_margin) <= 0.01
+        and margin.get("post_lifecycle_accounting_invariant_holds") is not False
+        and margin.get("post_lifecycle_reconciled") is not False
+    )
+    reservation_leak_count = len(reservation_rows)
+    if (reserved_margin or 0.0) > 0.005 and not reservation_rows:
+        reservation_leak_count += 1
+    candidate_count = int(margin.get("candidate_count") or 0) if isinstance(margin, dict) else 0
+    reservation_snapshot_present = (
+        candidate_count == 0
+        or (
+            isinstance(margin.get("pre_lifecycle_snapshot_sha256"), str)
+            and len(margin["pre_lifecycle_snapshot_sha256"]) == 64
+        )
+    )
+    safety = {
+        "paper_only": pointer.get("paper_only") is True,
+        "live_gate": pointer.get("live_gate") == "blocked_human_only",
+        "routes_to_live": pointer.get("routes_to_live") is False,
+        "places_real_order": pointer.get("places_real_order") is False,
+        "exchange_action_taken": (
+            pointer.get("exchange_action_taken") is False
+            or (
+                pointer.get("exchange_action_taken") is None
+                and isinstance(legacy_session, dict)
+                and legacy_session.get("exchange_action_taken") is False
+            )
+        ),
+    }
+
     return {
-        "wallet_balance_usd": portfolio.get("wallet_balance") or portfolio.get("equity"),
-        "equity_usd": portfolio.get("equity"),
-        "used_margin_usd": margin.get("used_margin_usd"),
-        "free_margin_usd": margin.get("free_margin_usd"),
+        "paper_session_id": paper_session_id,
+        "paper_account_epoch": paper_account_epoch,
+        "cycle_generated_utc": paper_status.get("generated_utc"),
+        "wallet_balance_usd": wallet,
+        "equity_usd": equity,
+        "used_margin_usd": used_margin,
+        "free_margin_usd": free_margin,
+        "reserved_margin_usd": reserved_margin,
         "open_positions_count": len(_as_list(positions)),
-        "proof_store_len": (len(proofs) if hasattr(proofs, "__len__") else None),
+        "proof_store_len": len(proof_rows),
         "proof_store_present": proofs is not None,
+        "proof_store_initialized": (
+            isinstance(proof_manifest, dict)
+            and proof_manifest.get("initialization_state")
+            in {"EMPTY_INITIALIZED_PROOF_SET", "INITIALIZED_WITH_PROOFS"}
+        ),
+        "proof_store_backfill_complete": (
+            isinstance(proof_manifest, dict) and proof_manifest.get("completed") is True
+        ),
         "proof_backed_positions": backed,
         "unproved_positions": unproved,
-        "accepted_fills_count": len(_as_list(accepted)),
+        "accepted_fills_count": len(accepted_rows),
         "valid_accepted_for_ledger": trace.get("valid_accepted_for_ledger"),
         "invalid_admission_quarantined": trace.get("invalid_admission_quarantined"),
         "quarantine_count": len(_as_list(quarantine)),
         "quarantine_rows_with_empty_reasons": q_empty,
-        "closed_trades_count": len(_as_list(closed)),
-        "wipe_receipt_count": len(wipe_keys),
+        "closed_trades_count": len(closed_rows),
+        "destructive_wipe_receipt_count": len(wipes),
         "wipe_receipts": wipes,
+        "pending_reservations_count": len(reservation_rows),
+        "reservation_snapshot_present": reservation_snapshot_present,
+        "duplicate_fill_count": duplicate_fills,
+        "duplicate_close_count": duplicate_closes,
+        "reservation_leak_count": reservation_leak_count,
+        "wallet_equity_margin_conserved": accounting_conserved,
+        "safety": safety,
         "fill_persistence_trace_utc": trace.get("generated_utc"),
     }
 
@@ -177,7 +332,7 @@ def capture(label: str) -> int:
         "open_positions": snap["open_positions_count"],
         "proof_store_len": snap["proof_store_len"],
         "unproved_positions": snap["unproved_positions"],
-        "wipe_receipt_count": snap["wipe_receipt_count"],
+        "destructive_wipe_receipt_count": snap["destructive_wipe_receipt_count"],
     }, indent=2))
     return 0
 
@@ -186,21 +341,30 @@ def observe(cycles: int, interval_s: float) -> int:
     r = _r()
     samples = []
     baseline_wipes = None
+    previous_cycle = None
     for i in range(cycles):
-        snap = snapshot(r)
+        deadline = time.monotonic() + max(90.0, interval_s * 3.0)
+        while True:
+            snap = snapshot(r)
+            cycle_id = snap.get("cycle_generated_utc")
+            if cycle_id and cycle_id != previous_cycle:
+                break
+            if time.monotonic() >= deadline:
+                raise RuntimeError("paper_cycle_observation_timeout")
+            time.sleep(min(3.0, interval_s))
+        previous_cycle = cycle_id
         samples.append(snap)
         if baseline_wipes is None:
-            baseline_wipes = snap["wipe_receipt_count"]
+            baseline_wipes = snap["destructive_wipe_receipt_count"]
         print(f"[cycle {i+1}/{cycles}] pos={snap['open_positions_count']} "
               f"proof_backed={snap['proof_backed_positions']} unproved={snap['unproved_positions']} "
               f"proof_store={snap['proof_store_len']} quarantine_empty={snap['quarantine_rows_with_empty_reasons']} "
-              f"wipes={snap['wipe_receipt_count']} closed={snap['closed_trades_count']}")
-        if i < cycles - 1:
-            time.sleep(interval_s)
+              f"wipes={snap['destructive_wipe_receipt_count']} closed={snap['closed_trades_count']} "
+              f"cycle={snap['cycle_generated_utc']}")
 
     last = samples[-1]
     # criteria
-    new_wipes = last["wipe_receipt_count"] - (baseline_wipes or 0)
+    new_wipes = last["destructive_wipe_receipt_count"] - (baseline_wipes or 0)
     # a "legitimate-position wipe" = a NEW wipe receipt that dropped a position with
     # proof_count==0 (the CG-F063 signature). Any new wipe is suspect post-fix.
     legit_wipe = new_wipes > 0
@@ -211,15 +375,24 @@ def observe(cycles: int, interval_s: float) -> int:
             s["proof_backed_positions"] >= 0 for s in samples
         ) and (last["open_positions_count"] == 0 or last["proof_backed_positions"] == last["open_positions_count"]),
         "quarantine_reasons_non_empty": all(s["quarantine_rows_with_empty_reasons"] == 0 for s in samples),
-        "reservation_snapshot_present": True,  # placeholder: wired when reservation key stabilizes
-        "duplicate_fills_or_closes_zero": True,  # closed monotonic non-decreasing, no dup ids
-        "reservation_leak_zero": True,  # placeholder: requires reservation ledger read
+        "reservation_snapshot_present": all(s["reservation_snapshot_present"] for s in samples),
+        "duplicate_fills_or_closes_zero": all(
+            s["duplicate_fill_count"] == 0 and s["duplicate_close_count"] == 0
+            for s in samples
+        ),
+        "reservation_leak_zero": all(s["reservation_leak_count"] == 0 for s in samples),
+        "wallet_equity_margin_conservation": all(
+            s["wallet_equity_margin_conserved"] for s in samples
+        ),
+        "proof_store_initialized_and_backfilled": all(
+            s["proof_store_initialized"] and s["proof_store_backfill_complete"]
+            for s in samples
+        ),
+        "paper_only_no_live_authority": all(all(s["safety"].values()) for s in samples),
+        "one_current_epoch": len(
+            {(s["paper_session_id"], s["paper_account_epoch"]) for s in samples}
+        ) == 1,
     }
-    # duplicate-close check: closed count never decreases spuriously
-    closed_seq = [s["closed_trades_count"] for s in samples]
-    criteria["duplicate_fills_or_closes_zero"] = all(
-        closed_seq[i] <= closed_seq[i + 1] for i in range(len(closed_seq) - 1)
-    )
     all_pass = all(criteria.values())
     verdict = {
         "schema": "paper_runtime_acceptance_observe_v1",
@@ -227,8 +400,7 @@ def observe(cycles: int, interval_s: float) -> int:
         "criteria": criteria,
         "new_wipe_receipts_during_observation": new_wipes,
         "verdict": "PASS" if all_pass else "FAIL",
-        "note": ("reservation_snapshot_present / reservation_leak_zero are placeholders "
-                 "until the reservation key path is confirmed; wire before final acceptance."),
+        "note": "All criteria are bound to the active PaperAccountEpochV1 keys and completed-cycle heartbeats.",
         "first": samples[0],
         "last": last,
     }
