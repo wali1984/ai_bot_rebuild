@@ -1216,7 +1216,14 @@ def test_partial_close_transition_rejects_incomplete_or_rebound_cost_basis(
 
 
 @pytest.mark.parametrize("prefix", ["entry_fees", "entry_slippage"])
-@pytest.mark.parametrize("mutation", ["serialized_infinity", "negative_values"])
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "serialized_infinity",
+        "negative_values",
+        "positive_conservation_rewrite",
+    ],
+)
 def test_partial_close_transition_rejects_unsafe_ancestor_cost_values(
     prefix: str,
     mutation: str,
@@ -1263,10 +1270,14 @@ def test_partial_close_transition_rejects_unsafe_ancestor_cost_values(
     if mutation == "serialized_infinity":
         unsafe_prior[f"{prefix}_incurred_usd"] = "inf"
         unsafe_prior[f"{prefix}_remaining_usd"] = "inf"
-    else:
+    elif mutation == "negative_values":
         unsafe_prior[f"{prefix}_incurred_usd"] = -1.0
         unsafe_prior[f"{prefix}_allocated_to_closes_usd"] = -0.4
         unsafe_prior[f"{prefix}_remaining_usd"] = -0.6
+    else:
+        unsafe_prior[f"{prefix}_incurred_usd"] = 1.01
+        unsafe_prior[f"{prefix}_allocated_to_closes_usd"] = 0.01
+        unsafe_prior[f"{prefix}_remaining_usd"] = 1.0
     unsafe_prior = _reseal_transition(unsafe_prior)
     rebound_latest = deepcopy(latest)
     rebound_latest["prior_transition_proof_sha256"] = unsafe_prior[
@@ -1287,9 +1298,14 @@ def test_partial_close_transition_rejects_unsafe_ancestor_cost_values(
     )
 
     assert validated is None
+    expected_suffix = (
+        "BINDING_MISMATCH"
+        if mutation == "positive_conservation_rewrite"
+        else "CONSERVATION_INVALID"
+    )
     assert (
         "POSITION_CLOSE_TRANSITION_PRIOR_TRANSITION_"
-        f"{prefix.upper()}_CONSERVATION_INVALID"
+        f"{prefix.upper()}_{expected_suffix}"
     ) in reasons
 
 
