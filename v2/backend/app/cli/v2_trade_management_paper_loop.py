@@ -8001,11 +8001,10 @@ def _read_v2_orderbook_microstructure(r, symbol: str) -> dict[str, Any]:
     if r is None or not symbol:
         return {}
     normalized = str(symbol).upper()
-    trust_decision_time = _utc_iso()
     trust_evidence = _read_v2_microstructure_trust(
         r,
         normalized,
-        decision_time=trust_decision_time,
+        capture_consumer_decision_after_read=True,
     )
     for key in (
         f"{V2_REDIS_PREFIX}orderbook:features:binance:{normalized}",
@@ -8205,7 +8204,17 @@ def _read_v2_microstructure_trust(
     *,
     decision_time: Any = None,
     timeframe: Any = None,
+    capture_consumer_decision_after_read: bool = False,
 ) -> dict[str, Any]:
+    """Read one exact microstructure record under an explicit clock contract.
+
+    Strategy/model consumers pass their already-frozen ``decision_time`` and
+    must reject evidence published later.  The paper execution consumer reads
+    the current record first and freezes its consumer decision immediately
+    after that exact Redis read.  Capturing before ``GET`` creates a race in
+    which evidence that was available when returned is falsely classified as
+    future data when the producer publishes between the timestamp and read.
+    """
     if r is None or not symbol:
         return {}
     normalized = str(symbol).upper()
@@ -8225,8 +8234,8 @@ def _read_v2_microstructure_trust(
         f"{V2_REDIS_PREFIX}microstructure:trust_score:{normalized}:{timeframe}"
         for timeframe in lookup_timeframes
     ]
-    decision_dt = _strict_aware_utc_time(decision_time)
-    if decision_dt is None:
+    frozen_decision_dt = _strict_aware_utc_time(decision_time)
+    if frozen_decision_dt is None and not capture_consumer_decision_after_read:
         return {
             "microstructure_trust_status": (
                 "REJECTED_MICROSTRUCTURE_TRUST_CONSUMER_DECISION_TIME_INVALID"
@@ -8247,6 +8256,14 @@ def _read_v2_microstructure_trust(
             raw = r.get(key)
         except Exception:
             raw = None
+        read_decision_time = (
+            _utc_iso() if capture_consumer_decision_after_read else decision_time
+        )
+        decision_dt = (
+            _strict_aware_utc_time(read_decision_time)
+            if capture_consumer_decision_after_read
+            else frozen_decision_dt
+        )
         if not raw:
             continue
         try:
@@ -8256,6 +8273,8 @@ def _read_v2_microstructure_trust(
         if not isinstance(payload, dict):
             continue
         contract_reasons: list[str] = []
+        if decision_dt is None:
+            contract_reasons.append("CONSUMER_DECISION_TIME_INVALID")
         if payload.get("schema_version") != MICROSTRUCTURE_TRUST_SCHEMA_VERSION:
             contract_reasons.append("SCHEMA_VERSION_MISMATCH")
         if str(payload.get("symbol") or "").upper() != normalized:
@@ -8289,7 +8308,7 @@ def _read_v2_microstructure_trust(
                 "microstructure_trust_lookup_keys": lookup_keys,
                 "microstructure_available_at": available_at,
                 "microstructure_generated_at": generated_at,
-                "microstructure_trust_decision_time": decision_time,
+                "microstructure_trust_decision_time": read_decision_time,
                 "microstructure_trust_clock_contract_invalid": (invalid_clock_contract),
                 "post_sweep_reversal_probability": None,
                 "fakeout_reversal_probability": None,
@@ -8364,7 +8383,7 @@ def _read_v2_microstructure_trust(
                 "continuous_estimates_status"
             ),
             "microstructure_source_decision_time": payload.get("decision_time"),
-            "microstructure_decision_time": decision_time,
+            "microstructure_decision_time": read_decision_time,
             "microstructure_available_at": available_at,
             "microstructure_generated_at": generated_at,
             "microstructure_source_hash": _altdata_feature_hash(

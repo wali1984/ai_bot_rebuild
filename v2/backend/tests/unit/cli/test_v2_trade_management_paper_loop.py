@@ -12524,6 +12524,202 @@ def test_read_orderbook_microstructure_uses_latest_producer_record_availability(
     )
 
 
+def _microstructure_clock_regression_trust_payload(
+    *,
+    available_at: str,
+    generated_at: str,
+    feed_integrity_pass: bool = True,
+) -> dict[str, object]:
+    return {
+        "schema_version": "microstructure_trust_score_v2",
+        "symbol": "BANKUSDT",
+        "timeframe": "1m",
+        "available_at": available_at,
+        "generated_at": generated_at,
+        "microstructure_trust_score": 0.82,
+        "orderbook_trust_score": 0.82,
+        "orderbook_trust_tier": "HIGH_TRUST",
+        "microstructure_action": "ALLOW",
+        "adaptive_minimum": 0.65,
+        "feed_integrity_pass": feed_integrity_pass,
+        "sequence_gap_free": True,
+        "book_sequence_gap": False,
+    }
+
+
+def _microstructure_clock_regression_orderbook_payload() -> dict[str, object]:
+    return {
+        "bid_ask_spread_bps": 1.2,
+        "best_bid": 99.99,
+        "best_ask": 100.01,
+        "bids": [[99.99, 10.0]],
+        "asks": [[100.01, 10.0]],
+        "available_at": "2026-06-22T12:59:59.500Z",
+        "generated_at": "2026-06-22T12:59:59.250Z",
+    }
+
+
+def test_microstructure_trust_explicit_originating_decision_rejects_later_payload() -> None:
+    trust = paper_loop._read_v2_microstructure_trust(  # noqa: SLF001
+        _FakeRedis(
+            {
+                "v2:microstructure:trust_score:BANKUSDT:1m": (
+                    _microstructure_clock_regression_trust_payload(
+                        generated_at="2026-07-28T12:00:00.400Z",
+                        available_at="2026-07-28T12:00:00.500Z",
+                    )
+                ),
+            }
+        ),
+        "BANKUSDT",
+        decision_time="2026-07-28T12:00:00.000Z",
+        timeframe="1m",
+    )
+
+    assert trust["microstructure_trust_status"] == (
+        "REJECTED_MICROSTRUCTURE_TRUST_AFTER_DECISION"
+    )
+    assert trust["microstructure_trust_clock_contract_invalid"] is False
+    assert trust["microstructure_trust_decision_time"] == (
+        "2026-07-28T12:00:00.000Z"
+    )
+
+
+def test_orderbook_execution_read_captures_consumer_after_exact_trust_get(
+    monkeypatch,
+) -> None:
+    trust_key = "v2:microstructure:trust_score:BANKUSDT:1m"
+    trust_read = {"complete": False}
+
+    def publish_during_get() -> dict[str, object]:
+        trust_read["complete"] = True
+        return _microstructure_clock_regression_trust_payload(
+            generated_at="2026-07-28T12:00:00.400Z",
+            available_at="2026-07-28T12:00:00.500Z",
+        )
+
+    redis_client = _CallbackRedis(
+        {"v2:market:orderbook:BANKUSDT": _microstructure_clock_regression_orderbook_payload()},
+        {trust_key: publish_during_get},
+    )
+    monkeypatch.setattr(
+        paper_loop,
+        "_utc_iso",
+        lambda: (
+            "2026-07-28T12:00:01.000Z"
+            if trust_read["complete"]
+            else "2026-07-28T12:00:00.000Z"
+        ),
+    )
+
+    microstructure = paper_loop._read_v2_orderbook_microstructure(  # noqa: SLF001
+        redis_client,
+        "BANKUSDT",
+    )
+
+    assert trust_read["complete"] is True
+    assert microstructure["microstructure_trust_status"] == (
+        "MICROSTRUCTURE_TRUST_SCORE_FOUND"
+    )
+    assert microstructure["microstructure_available_at"] == (
+        "2026-07-28T12:00:00.500Z"
+    )
+    assert microstructure["microstructure_decision_time"] == (
+        "2026-07-28T12:00:01.000Z"
+    )
+
+
+def test_orderbook_execution_read_still_rejects_future_dated_trust_payload(
+    monkeypatch,
+) -> None:
+    trust_key = "v2:microstructure:trust_score:BANKUSDT:1m"
+    trust_read = {"complete": False}
+
+    def read_future_payload() -> dict[str, object]:
+        trust_read["complete"] = True
+        return _microstructure_clock_regression_trust_payload(
+            generated_at="2026-07-28T12:00:01.250Z",
+            available_at="2026-07-28T12:00:01.500Z",
+        )
+
+    redis_client = _CallbackRedis(
+        {"v2:market:orderbook:BANKUSDT": _microstructure_clock_regression_orderbook_payload()},
+        {trust_key: read_future_payload},
+    )
+    monkeypatch.setattr(
+        paper_loop,
+        "_utc_iso",
+        lambda: (
+            "2026-07-28T12:00:01.000Z"
+            if trust_read["complete"]
+            else "2026-07-28T12:00:00.000Z"
+        ),
+    )
+
+    microstructure = paper_loop._read_v2_orderbook_microstructure(  # noqa: SLF001
+        redis_client,
+        "BANKUSDT",
+    )
+
+    assert microstructure["microstructure_trust_status"] == (
+        "REJECTED_MICROSTRUCTURE_TRUST_AFTER_DECISION"
+    )
+    assert microstructure["microstructure_trust_clock_contract_invalid"] is False
+    assert microstructure["microstructure_trust_decision_time"] == (
+        "2026-07-28T12:00:01.000Z"
+    )
+
+
+def test_orderbook_execution_read_keeps_feed_integrity_false_hard_fallback(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        paper_loop,
+        "_utc_iso",
+        lambda: "2026-06-22T13:00:00.000Z",
+    )
+    redis_client = _FakeRedis(
+        {
+            "v2:market:orderbook:BANKUSDT": (
+                _microstructure_clock_regression_orderbook_payload()
+            ),
+            "v2:microstructure:trust_score:BANKUSDT:1m": (
+                _microstructure_clock_regression_trust_payload(
+                    generated_at="2026-06-22T12:59:59.250Z",
+                    available_at="2026-06-22T12:59:59.500Z",
+                    feed_integrity_pass=False,
+                )
+            ),
+        }
+    )
+    microstructure = paper_loop._read_v2_orderbook_microstructure(  # noqa: SLF001
+        redis_client,
+        "BANKUSDT",
+    )
+    intent, _unused = _complete_runtime_cost_capture_intent_and_microstructure(
+        microstructure_action="ALLOW",
+        microstructure_trust_score=0.82,
+    )
+
+    paper_loop._attach_validated_strategy_microstructure_evidence(  # noqa: SLF001
+        intent,
+        microstructure,
+    )
+    paper_loop._attach_runtime_cost_capture_contract(  # noqa: SLF001
+        intent,
+        microstructure,
+        signal={"policy_fingerprint": paper_loop.CHALLENGER_V2_ACTIVE_CUDA_POLICY_FINGERPRINT},
+        prediction={"model_source": "V2_LOCAL_TRAINED_RL_MASA_PPO_CUDA"},
+    )
+
+    assert intent["feed_integrity_pass"] is False
+    assert "MICROSTRUCTURE_FEED_INTEGRITY_NOT_PROVEN" in intent[
+        "runtime_cost_capture_source_reject_reasons"
+    ]
+    assert intent["production_grade_cost_flag"] is False
+    assert intent["fallback_cost_flag"] is True
+
+
 def _missing_trust_allocation_input(intent: dict) -> object:
     return paper_loop._build_allocation_input(  # noqa: SLF001
         intent=intent,

@@ -139,6 +139,23 @@ def _durable_feature_snapshot() -> dict:
     }
 
 
+def _durable_feature_binding_intent() -> dict:
+    return {
+        "feature_snapshot_id": "snapshot_1",
+        "entry_feature_snapshot_id": "snapshot_1",
+        "symbol": "BTCUSDT",
+        "timeframe": "15m",
+        # Immutable archive-v1 does not carry a distinct source-producer
+        # generation clock. Preserve the already PIT-validated upstream feature
+        # clock on the intent instead of reinterpreting archive ``created_at``.
+        "entry_feature_generated_at": "2026-07-27T23:05:00Z",
+        "entry_feature_available_at": "2026-07-27T23:06:00Z",
+        "entry_feature_cutoff": "2026-07-27T22:59:59.999Z",
+        "entry_feature_decision_time": "2026-07-27T23:07:00Z",
+        "decision_time": "2026-07-27T23:10:00Z",
+    }
+
+
 def test_adaptive_authority_is_the_only_category_e_owner() -> None:
     intent = _authorized_intent()
 
@@ -565,13 +582,7 @@ def test_runtime_intent_projection_retains_adaptive_authority_evidence() -> None
 
 
 def test_verified_durable_snapshot_binds_exact_finality_and_clocks() -> None:
-    intent = {
-        "feature_snapshot_id": "snapshot_1",
-        "entry_feature_snapshot_id": "snapshot_1",
-        "symbol": "BTCUSDT",
-        "timeframe": "15m",
-        "decision_time": "2026-07-27T23:10:00Z",
-    }
+    intent = _durable_feature_binding_intent()
 
     reasons = paper_loop._paper_bind_verified_durable_feature_snapshot(
         intent=intent,
@@ -580,9 +591,22 @@ def test_verified_durable_snapshot_binds_exact_finality_and_clocks() -> None:
 
     assert reasons == []
     assert intent["entry_feature_available_at"] == "2026-07-27T23:06:00Z"
-    assert intent["entry_feature_generated_at"] == "2026-07-27T23:07:00Z"
+    assert intent["entry_feature_generated_at"] == "2026-07-27T23:05:00Z"
+    assert intent["entry_feature_source_generated_at"] == "2026-07-27T23:05:00Z"
+    assert intent["entry_feature_source_available_at"] == "2026-07-27T23:06:00Z"
+    assert intent["entry_feature_archive_producer_generated_at"] == (
+        "2026-07-27T23:07:00Z"
+    )
+    assert intent["entry_feature_record_available_at"] == "2026-07-27T23:07:00Z"
+    assert intent["entry_feature_archive_consumer_decision_time"] == (
+        "2026-07-27T23:10:00Z"
+    )
+    assert intent["entry_feature_clock_contract_version"] == (
+        "durable_feature_snapshot_clock_contract_v1_compat"
+    )
+    assert intent["entry_feature_clock_compatibility_interpretation_used"] is True
     assert intent["entry_feature_cutoff"] == "2026-07-27T22:59:59.999Z"
-    assert intent["entry_feature_decision_time"] == "2026-07-27T23:10:00Z"
+    assert intent["entry_feature_decision_time"] == "2026-07-27T23:07:00Z"
     assert intent["entry_feature_candle_closed_confirmed"] is True
     assert intent["entry_feature_latest_unclosed_kline_excluded"] is True
     assert intent["entry_feature_snapshot_archive_verified"] is True
@@ -605,14 +629,8 @@ def test_verified_durable_snapshot_binds_exact_finality_and_clocks() -> None:
     assert "ENTRY_FEATURE_CANDLE_NOT_CONFIRMED_CLOSED" not in market_reasons
 
 
-def test_durable_snapshot_future_generation_blocks_without_binding() -> None:
-    intent = {
-        "feature_snapshot_id": "snapshot_1",
-        "entry_feature_snapshot_id": "snapshot_1",
-        "symbol": "BTCUSDT",
-        "timeframe": "15m",
-        "decision_time": "2026-07-27T23:10:00Z",
-    }
+def test_durable_snapshot_future_record_availability_blocks_without_binding() -> None:
+    intent = _durable_feature_binding_intent()
     snapshot = _durable_feature_snapshot()
     snapshot["created_at"] = "2026-07-27T23:11:00Z"
 
@@ -621,8 +639,12 @@ def test_durable_snapshot_future_generation_blocks_without_binding() -> None:
         snapshot=snapshot,
     )
 
-    assert reasons == ["DURABLE_FEATURE_SNAPSHOT_GENERATED_AFTER_DECISION"]
-    assert "entry_feature_available_at" not in intent
+    assert reasons == [
+        "DURABLE_FEATURE_SNAPSHOT_RECORD_AVAILABLE_AFTER_PAPER_DECISION"
+    ]
+    assert intent["entry_feature_available_at"] == "2026-07-27T23:06:00Z"
+    assert "entry_feature_record_available_at" not in intent
+    assert "entry_feature_snapshot_archive_verified" not in intent
     assert "entry_feature_snapshot" not in intent
 
 
