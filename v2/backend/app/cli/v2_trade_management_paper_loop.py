@@ -154,6 +154,7 @@ from v2.backend.app.services.paper_trade_management.outcome_memory_updater impor
 from v2.backend.app.services.paper_trade_management.position_state import (
     PAPER_POSITION_RECONSTRUCTION_PERSISTENCE_FIELDS,
     atr_bps_from_payloads,
+    validate_paper_position_reconstruction,
 )
 from v2.backend.app.services.paper_trade_management.margin_accounting import (
     build_paper_margin_status,
@@ -231,6 +232,12 @@ PAPER_OPEN_POSITION_FILL_PROOFS_REDIS_KEY = (
 )
 PAPER_OPEN_POSITION_FILL_PROOF_MANIFEST_REDIS_KEY = (
     f"{V2_REDIS_PREFIX}paper:open_position_fill_proofs:manifest"
+)
+PAPER_POSITION_CLOSE_RECEIPTS_REDIS_KEY = (
+    f"{V2_REDIS_PREFIX}paper:position_close_receipts"
+)
+PAPER_POSITION_CLOSE_TRANSITION_PROOFS_REDIS_KEY = (
+    f"{V2_REDIS_PREFIX}paper:position_close_transition_proofs"
 )
 DEFAULT_PAYLOAD_PATH = Path(
     "v2/frontend/public/operator_runtime/v2_trade_management_paper/live/latest/v2_trade_management_paper_live_status.json"
@@ -3820,11 +3827,15 @@ def _write_paper_critical_state_atomically(
     ledger_payload: Mapping[str, Any],
     account_margin_status: Mapping[str, Any],
     position_fill_reconciliation_status: Mapping[str, Any],
+    position_close_receipts: list[dict[str, Any]] | None = None,
+    position_close_transition_proofs: list[dict[str, Any]] | None = None,
 ) -> list[str]:
     """Commit fill proof, inventory and accounting as one Redis transition."""
 
     if r is None:
         return []
+    position_close_receipts = position_close_receipts or []
+    position_close_transition_proofs = position_close_transition_proofs or []
     training_ttl = PAPER_TRAINING_EVIDENCE_TTL_SECONDS
     writes: list[tuple[str, str, int]] = [
         (
@@ -3845,6 +3856,16 @@ def _write_paper_critical_state_atomically(
         (
             PAPER_OPEN_POSITION_FILL_PROOF_MANIFEST_REDIS_KEY,
             json.dumps(dict(open_position_fill_proof_manifest), default=str),
+            training_ttl,
+        ),
+        (
+            PAPER_POSITION_CLOSE_RECEIPTS_REDIS_KEY,
+            json.dumps(position_close_receipts, default=str),
+            training_ttl,
+        ),
+        (
+            PAPER_POSITION_CLOSE_TRANSITION_PROOFS_REDIS_KEY,
+            json.dumps(position_close_transition_proofs, default=str),
             training_ttl,
         ),
         (
@@ -32366,6 +32387,22 @@ def _read_existing_ledger_payload(r) -> dict[str, Any]:
         payload["outcome_labels"] = outcome_labels
         payload["outcome_label_count"] = len(outcome_labels)
 
+    position_close_receipts = _read_json_list_redis_key_if_small(
+        r,
+        PAPER_POSITION_CLOSE_RECEIPTS_REDIS_KEY,
+    )
+    if position_close_receipts:
+        payload["paper_position_close_receipts"] = position_close_receipts
+
+    position_close_transition_proofs = _read_json_list_redis_key_if_small(
+        r,
+        PAPER_POSITION_CLOSE_TRANSITION_PROOFS_REDIS_KEY,
+    )
+    if position_close_transition_proofs:
+        payload["paper_position_close_transition_proofs"] = (
+            position_close_transition_proofs
+        )
+
     if not payload:
         redis_ledger = _read_json_redis_key_if_small(
             r,
@@ -32403,6 +32440,8 @@ def _read_existing_ledger_payload(r) -> dict[str, Any]:
         "outcome_labels",
         "trainer_feedback_outcomes",
         "trainer_feedback_outcomes_quarantine",
+        "paper_position_close_receipts",
+        "paper_position_close_transition_proofs",
     ):
         value = lifecycle_state.get(key)
         if value in (None, ""):
@@ -34407,6 +34446,741 @@ def _paper_position_proof_binding_reasons(
     return sorted(set(reasons))
 
 
+def _paper_position_close_transition_material(
+    row: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Return the immutable material for one admitted partial-close transition."""
+
+    material = {
+        "schema_version": row.get("schema_version"),
+        "prior_open_position_fill_proof_id": row.get(
+            "prior_open_position_fill_proof_id"
+        ),
+        "prior_open_position_fill_proof_sha256": row.get(
+            "prior_open_position_fill_proof_sha256"
+        ),
+        "prior_transition_proof_sha256": row.get("prior_transition_proof_sha256"),
+        "close_id": row.get("close_id"),
+        "close_receipt_sha256": row.get("close_receipt_sha256"),
+        "position_id": row.get("position_id"),
+        "position_generation_id": row.get("position_generation_id"),
+        "position_side": row.get("position_side"),
+        "quantity_before_close": row.get("quantity_before_close"),
+        "close_quantity": row.get("close_quantity"),
+        "remaining_quantity": row.get("remaining_quantity"),
+        "remaining_gross_notional_usd": row.get("remaining_gross_notional_usd"),
+        "remaining_allocated_margin_usd": row.get(
+            "remaining_allocated_margin_usd"
+        ),
+        "remaining_position_payload_sha256": row.get(
+            "remaining_position_payload_sha256"
+        ),
+        "remaining_position_binding_sha256": row.get(
+            "remaining_position_binding_sha256"
+        ),
+        "remaining_position_reconstruction_hash": row.get(
+            "remaining_position_reconstruction_hash"
+        ),
+        "entry_fees_incurred_usd": row.get("entry_fees_incurred_usd"),
+        "entry_fees_allocated_to_closes_usd": row.get(
+            "entry_fees_allocated_to_closes_usd"
+        ),
+        "entry_fees_remaining_usd": row.get("entry_fees_remaining_usd"),
+        "entry_slippage_incurred_usd": row.get("entry_slippage_incurred_usd"),
+        "entry_slippage_allocated_to_closes_usd": row.get(
+            "entry_slippage_allocated_to_closes_usd"
+        ),
+        "entry_slippage_remaining_usd": row.get(
+            "entry_slippage_remaining_usd"
+        ),
+        "quantity_conserved": row.get("quantity_conserved"),
+        "cost_basis_conserved": row.get("cost_basis_conserved"),
+        "margin_released_by_reconciliation_usd": row.get(
+            "margin_released_by_reconciliation_usd"
+        ),
+        "wallet_balance_mutation_usd": row.get("wallet_balance_mutation_usd"),
+        "paper_only": row.get("paper_only"),
+        "routes_to_live": row.get("routes_to_live"),
+        "places_real_order": row.get("places_real_order"),
+        "exchange_action_taken": row.get("exchange_action_taken"),
+    }
+    optional_fields = {
+        "prior_transition_proof_sha256",
+        "remaining_position_binding_sha256",
+        "remaining_position_reconstruction_hash",
+        "entry_fees_incurred_usd",
+        "entry_fees_allocated_to_closes_usd",
+        "entry_fees_remaining_usd",
+        "entry_slippage_incurred_usd",
+        "entry_slippage_allocated_to_closes_usd",
+        "entry_slippage_remaining_usd",
+        "cost_basis_conserved",
+    }
+    return {
+        key: value
+        for key, value in material.items()
+        if key not in optional_fields or key in row
+    }
+
+
+def _paper_position_close_transition_binding_material(
+    position: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Project fields that may change only through a new position transition."""
+
+    return {
+        "position_id": position.get("position_id"),
+        "position_generation_id": position.get("position_generation_id"),
+        "checkpoint_id": _first_present(
+            position.get("checkpoint_id"), position.get("model_checkpoint_id")
+        ),
+        "checkpoint_generation": position.get("checkpoint_generation"),
+        "prediction_id": position.get("prediction_id"),
+        "entry_fill_id": position.get("entry_fill_id"),
+        "source_fill_ids": [
+            str(value)
+            for value in position.get("source_fill_ids") or []
+            if value not in (None, "")
+        ],
+        "symbol": str(position.get("symbol") or "").upper(),
+        "timeframe": position.get("timeframe"),
+        "side": _normalized_directional_side(position.get("side")),
+        "quantity": _coerce_float(
+            _first_present(position.get("net_quantity"), position.get("quantity"))
+        ),
+        "entry_price": _coerce_float(
+            _first_present(
+                position.get("avg_entry_price"), position.get("entry_price")
+            )
+        ),
+        "gross_notional_usd": _coerce_float(
+            _first_present(
+                position.get("gross_notional_usd"), position.get("notional")
+            )
+        ),
+        "effective_leverage": _coerce_float(position.get("effective_leverage")),
+        "allocated_margin_usd": _coerce_float(
+            _first_present(
+                position.get("allocated_margin_usd"),
+                position.get("margin_used_usd"),
+            )
+        ),
+        "entry_fees_incurred_usd": _coerce_float(
+            position.get("entry_fees_incurred_usd")
+        ),
+        "entry_fees_allocated_to_closes_usd": _coerce_float(
+            position.get("entry_fees_allocated_to_closes_usd")
+        ),
+        "entry_fees_remaining_usd": _coerce_float(
+            position.get("entry_fees_remaining_usd")
+        ),
+        "entry_slippage_incurred_usd": _coerce_float(
+            position.get("entry_slippage_incurred_usd")
+        ),
+        "entry_slippage_allocated_to_closes_usd": _coerce_float(
+            position.get("entry_slippage_allocated_to_closes_usd")
+        ),
+        "entry_slippage_remaining_usd": _coerce_float(
+            position.get("entry_slippage_remaining_usd")
+        ),
+    }
+
+
+def _paper_close_receipt_material(row: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        key: value
+        for key, value in row.items()
+        if key != "close_receipt_sha256"
+    }
+
+
+def _paper_build_partial_close_receipt(
+    close_event: Mapping[str, Any],
+) -> tuple[dict[str, Any] | None, list[str]]:
+    """Seal the minimal durable receipt for an admitted reduce-only partial close."""
+
+    reasons: list[str] = []
+    closed_quantity = _coerce_float(
+        _first_present(
+            close_event.get("close_quantity"),
+            close_event.get("closed_quantity"),
+        )
+    )
+    remaining_quantity = _coerce_float(
+        close_event.get("remaining_quantity_after_close")
+    )
+    quantity_before_close = _coerce_float(
+        _first_present(
+            close_event.get("quantity_before_close"),
+            close_event.get("entry_cost_pre_close_quantity"),
+        )
+    )
+    if (
+        quantity_before_close is None
+        and closed_quantity is not None
+        and remaining_quantity is not None
+    ):
+        quantity_before_close = closed_quantity + remaining_quantity
+    for field in (
+        "close_id",
+        "position_id",
+        "position_generation_id",
+        "entry_fill_id",
+    ):
+        if close_event.get(field) in (None, ""):
+            reasons.append(f"PARTIAL_CLOSE_RECEIPT_{field.upper()}_MISSING")
+    position_side = _normalized_directional_side(close_event.get("side"))
+    if position_side is None:
+        reasons.append("PARTIAL_CLOSE_RECEIPT_POSITION_SIDE_INVALID")
+    if (
+        close_event.get("reduce_only") is not True
+        or close_event.get("close_position") is True
+        or closed_quantity is None
+        or remaining_quantity is None
+        or quantity_before_close is None
+        or closed_quantity <= 0.0
+        or remaining_quantity <= 0.0
+        or not math.isclose(
+            quantity_before_close,
+            closed_quantity + remaining_quantity,
+            rel_tol=1e-9,
+            abs_tol=1e-12,
+        )
+    ):
+        reasons.append("PARTIAL_CLOSE_RECEIPT_QUANTITY_OR_STATE_INVALID")
+    if reasons:
+        return None, sorted(set(reasons))
+    close_side = "short" if position_side == "long" else "long"
+    material = {
+        "schema_version": "paper_reduce_only_close_receipt_v1",
+        "close_id": close_event.get("close_id"),
+        "position_id": close_event.get("position_id"),
+        "position_generation_id": close_event.get("position_generation_id"),
+        "entry_fill_id": close_event.get("entry_fill_id"),
+        "source_fill_ids": [
+            str(value)
+            for value in close_event.get("source_fill_ids") or []
+            if value not in (None, "")
+        ],
+        "position_side": position_side,
+        "close_side": close_side,
+        "quantity_before_close": quantity_before_close,
+        "close_quantity": closed_quantity,
+        "remaining_quantity_after_close": remaining_quantity,
+        "reduce_only": True,
+        "position_to_flat": False,
+        "source_close_event_sha256": _paper_canonical_sha256(close_event),
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "exchange_action_taken": False,
+    }
+    return {
+        **material,
+        "close_receipt_sha256": _paper_canonical_sha256(material),
+    }, []
+
+
+def _paper_position_close_transition_intrinsic_valid(
+    row: Mapping[str, Any],
+) -> bool:
+    material = _paper_position_close_transition_material(row)
+    transition_id = row.get("transition_proof_id")
+    transition_sha = row.get("transition_proof_sha256")
+    without_sha = {
+        key: value for key, value in row.items() if key != "transition_proof_sha256"
+    }
+    return bool(
+        material.get("schema_version")
+        == "paper_position_close_transition_proof_v1"
+        and _paper_valid_sha256(transition_id)
+        and transition_id == _paper_canonical_sha256(material)
+        and _paper_valid_sha256(transition_sha)
+        and transition_sha == _paper_canonical_sha256(without_sha)
+    )
+
+
+def _paper_build_position_close_transition_state(
+    existing_ledger: Mapping[str, Any],
+    open_positions: Sequence[Mapping[str, Any]],
+    entry_proofs: Sequence[Mapping[str, Any]],
+    new_close_events: Sequence[Mapping[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
+    """Advance entry proof state after ordinary partial closes.
+
+    A partial close is persisted only with a hash-bound close receipt and a
+    transition proof for the exact remaining position.  Historical valid
+    receipts/proofs are retained so repeated cycles and restarts are idempotent.
+    """
+
+    existing_receipts = [
+        dict(row)
+        for row in existing_ledger.get("paper_position_close_receipts") or []
+        if isinstance(row, Mapping)
+        and row.get("schema_version") == "paper_reduce_only_close_receipt_v1"
+        and _paper_valid_sha256(row.get("close_receipt_sha256"))
+        and row.get("close_receipt_sha256")
+        == _paper_canonical_sha256(_paper_close_receipt_material(row))
+    ]
+    existing_transitions = [
+        dict(row)
+        for row in existing_ledger.get("paper_position_close_transition_proofs")
+        or []
+        if isinstance(row, Mapping)
+        and _paper_position_close_transition_intrinsic_valid(row)
+    ]
+    receipts_by_id = {
+        str(row.get("close_id")): row
+        for row in existing_receipts
+        if row.get("close_id") not in (None, "")
+    }
+    transitions_by_sha = {
+        str(row.get("transition_proof_sha256")): row
+        for row in existing_transitions
+        if row.get("transition_proof_sha256") not in (None, "")
+    }
+    positions = [dict(row) for row in open_positions if isinstance(row, Mapping)]
+    proofs = [dict(row) for row in entry_proofs if isinstance(row, Mapping)]
+    rejection_reasons: list[str] = []
+    created_transition_shas: list[str] = []
+    partial_close_count = 0
+
+    for raw_close in new_close_events:
+        if not isinstance(raw_close, Mapping):
+            continue
+        close_event = dict(raw_close)
+        remaining = _coerce_float(close_event.get("remaining_quantity_after_close"))
+        if close_event.get("reduce_only") is not True or remaining is None or remaining <= 0.0:
+            continue
+        partial_close_count += 1
+        receipt, receipt_reasons = _paper_build_partial_close_receipt(close_event)
+        if receipt is None:
+            rejection_reasons.extend(receipt_reasons)
+            continue
+        close_id = str(receipt.get("close_id"))
+        prior_receipt = receipts_by_id.get(close_id)
+        if prior_receipt is not None and prior_receipt != receipt:
+            rejection_reasons.append(
+                f"PARTIAL_CLOSE_RECEIPT_IDENTITY_CONFLICT:{close_id}"
+            )
+            continue
+        receipts_by_id[close_id] = receipt
+
+        position_matches = [
+            row
+            for row in positions
+            if str(row.get("position_id") or "")
+            == str(close_event.get("position_id") or "")
+            and str(row.get("position_generation_id") or "")
+            == str(close_event.get("position_generation_id") or "")
+        ]
+        proof_matches = [
+            row
+            for row in proofs
+            if str(row.get("position_id") or "")
+            == str(close_event.get("position_id") or "")
+            and str(row.get("position_generation_id") or "")
+            == str(close_event.get("position_generation_id") or "")
+        ]
+        if len(position_matches) != 1:
+            rejection_reasons.append(
+                f"PARTIAL_CLOSE_REMAINING_POSITION_NOT_UNIQUE:{close_id}"
+            )
+            continue
+        if len(proof_matches) != 1:
+            rejection_reasons.append(
+                f"PARTIAL_CLOSE_ENTRY_PROOF_NOT_UNIQUE:{close_id}"
+            )
+            continue
+        position = position_matches[0]
+        entry_proof = proof_matches[0]
+        reconstruction_reasons = validate_paper_position_reconstruction(position)
+        if reconstruction_reasons:
+            rejection_reasons.extend(
+                f"PARTIAL_CLOSE_REMAINING_POSITION_{reason}:{close_id}"
+                for reason in reconstruction_reasons
+            )
+            continue
+
+        quantity_before = _coerce_float(receipt.get("quantity_before_close"))
+        prior_candidates = [
+            row
+            for row in transitions_by_sha.values()
+            if str(row.get("position_id") or "")
+            == str(position.get("position_id") or "")
+            and str(row.get("position_generation_id") or "")
+            == str(position.get("position_generation_id") or "")
+            and quantity_before is not None
+            and math.isclose(
+                _coerce_float(row.get("remaining_quantity")) or -1.0,
+                quantity_before,
+                rel_tol=1e-9,
+                abs_tol=1e-12,
+            )
+        ]
+        if len(prior_candidates) > 1:
+            rejection_reasons.append(
+                f"PARTIAL_CLOSE_PRIOR_TRANSITION_NOT_UNIQUE:{close_id}"
+            )
+            continue
+
+        fee_values = tuple(
+            _coerce_float(position.get(field))
+            for field in (
+                "entry_fees_incurred_usd",
+                "entry_fees_allocated_to_closes_usd",
+                "entry_fees_remaining_usd",
+            )
+        )
+        slippage_values = tuple(
+            _coerce_float(position.get(field))
+            for field in (
+                "entry_slippage_incurred_usd",
+                "entry_slippage_allocated_to_closes_usd",
+                "entry_slippage_remaining_usd",
+            )
+        )
+        cost_basis_conserved = all(
+            all(value is not None for value in values)
+            and math.isclose(
+                values[0] or 0.0,
+                (values[1] or 0.0) + (values[2] or 0.0),
+                rel_tol=1e-9,
+                abs_tol=1e-10,
+            )
+            for values in (fee_values, slippage_values)
+        )
+        if not cost_basis_conserved:
+            rejection_reasons.append(
+                f"PARTIAL_CLOSE_COST_BASIS_NOT_CONSERVED:{close_id}"
+            )
+            continue
+
+        material = {
+            "schema_version": "paper_position_close_transition_proof_v1",
+            "prior_open_position_fill_proof_id": entry_proof.get("proof_id"),
+            "prior_open_position_fill_proof_sha256": _paper_canonical_sha256(
+                entry_proof
+            ),
+            "close_id": close_id,
+            "close_receipt_sha256": receipt.get("close_receipt_sha256"),
+            "position_id": position.get("position_id"),
+            "position_generation_id": position.get("position_generation_id"),
+            "position_side": _normalized_directional_side(position.get("side")),
+            "quantity_before_close": quantity_before,
+            "close_quantity": receipt.get("close_quantity"),
+            "remaining_quantity": receipt.get("remaining_quantity_after_close"),
+            "remaining_gross_notional_usd": _first_present(
+                position.get("gross_notional_usd"), position.get("notional")
+            ),
+            "remaining_allocated_margin_usd": _first_present(
+                position.get("allocated_margin_usd"),
+                position.get("margin_used_usd"),
+            ),
+            "remaining_position_payload_sha256": _paper_canonical_sha256(position),
+            "remaining_position_binding_sha256": _paper_canonical_sha256(
+                _paper_position_close_transition_binding_material(position)
+            ),
+            "remaining_position_reconstruction_hash": position.get(
+                "position_reconstruction_hash"
+            ),
+            "entry_fees_incurred_usd": fee_values[0],
+            "entry_fees_allocated_to_closes_usd": fee_values[1],
+            "entry_fees_remaining_usd": fee_values[2],
+            "entry_slippage_incurred_usd": slippage_values[0],
+            "entry_slippage_allocated_to_closes_usd": slippage_values[1],
+            "entry_slippage_remaining_usd": slippage_values[2],
+            "quantity_conserved": True,
+            "cost_basis_conserved": True,
+            "margin_released_by_reconciliation_usd": 0.0,
+            "wallet_balance_mutation_usd": 0.0,
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+            "exchange_action_taken": False,
+        }
+        if prior_candidates:
+            material["prior_transition_proof_sha256"] = prior_candidates[0].get(
+                "transition_proof_sha256"
+            )
+        transition_id = _paper_canonical_sha256(material)
+        transition = {**material, "transition_proof_id": transition_id}
+        transition["transition_proof_sha256"] = _paper_canonical_sha256(transition)
+        validation_reasons = _paper_position_close_transition_reasons(
+            position,
+            entry_proof,
+            transition,
+            [receipt],
+        )
+        if validation_reasons:
+            rejection_reasons.extend(
+                f"{reason}:{close_id}" for reason in validation_reasons
+            )
+            continue
+        transition_sha = str(transition["transition_proof_sha256"])
+        transitions_by_sha.setdefault(transition_sha, transition)
+        created_transition_shas.append(transition_sha)
+
+    receipts = sorted(receipts_by_id.values(), key=lambda row: str(row.get("close_id")))
+    transitions = sorted(
+        transitions_by_sha.values(),
+        key=lambda row: str(row.get("transition_proof_sha256")),
+    )
+    status = {
+        "schema_version": "paper_position_close_transition_status_v1",
+        "status": "BLOCKED" if rejection_reasons else "PASS",
+        "partial_close_count": partial_close_count,
+        "new_transition_proof_count": len(created_transition_shas),
+        "durable_close_receipt_count": len(receipts),
+        "durable_transition_proof_count": len(transitions),
+        "new_transition_proof_sha256s": sorted(created_transition_shas),
+        "rejection_reasons": sorted(set(rejection_reasons)),
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "exchange_action_taken": False,
+    }
+    return receipts, transitions, status
+
+
+def _paper_position_close_transition_reasons(
+    position: Mapping[str, Any],
+    entry_proof: Mapping[str, Any],
+    transition: Mapping[str, Any],
+    close_rows: Sequence[Mapping[str, Any]],
+) -> list[str]:
+    """Validate a partial-close transition without treating absence as invalidity."""
+
+    reasons: list[str] = []
+    material = _paper_position_close_transition_material(transition)
+    if material.get("schema_version") != "paper_position_close_transition_proof_v1":
+        reasons.append("POSITION_CLOSE_TRANSITION_SCHEMA_INVALID")
+    transition_id = transition.get("transition_proof_id")
+    if not _paper_valid_sha256(transition_id) or transition_id != _paper_canonical_sha256(
+        material
+    ):
+        reasons.append("POSITION_CLOSE_TRANSITION_ID_INVALID")
+    transition_without_sha = {
+        key: value
+        for key, value in transition.items()
+        if key != "transition_proof_sha256"
+    }
+    transition_sha = transition.get("transition_proof_sha256")
+    if not _paper_valid_sha256(transition_sha) or transition_sha != _paper_canonical_sha256(
+        transition_without_sha
+    ):
+        reasons.append("POSITION_CLOSE_TRANSITION_HASH_INVALID")
+    if material.get("prior_open_position_fill_proof_id") != entry_proof.get("proof_id"):
+        reasons.append("POSITION_CLOSE_TRANSITION_PRIOR_PROOF_ID_MISMATCH")
+    if material.get("prior_open_position_fill_proof_sha256") != _paper_canonical_sha256(
+        entry_proof
+    ):
+        reasons.append("POSITION_CLOSE_TRANSITION_PRIOR_PROOF_HASH_MISMATCH")
+    prior_transition = material.get("prior_transition_proof_sha256")
+    if prior_transition not in (None, "") and not _paper_valid_sha256(prior_transition):
+        reasons.append("POSITION_CLOSE_TRANSITION_PRIOR_TRANSITION_HASH_INVALID")
+    for field in ("position_id", "position_generation_id"):
+        if str(material.get(field) or "") != str(position.get(field) or ""):
+            reasons.append(f"POSITION_CLOSE_TRANSITION_{field.upper()}_MISMATCH")
+    position_side = _normalized_directional_side(position.get("side"))
+    if position_side is None or position_side != _normalized_directional_side(
+        material.get("position_side")
+    ):
+        reasons.append("POSITION_CLOSE_TRANSITION_SIDE_MISMATCH")
+    before = _coerce_float(material.get("quantity_before_close"))
+    closed = _coerce_float(material.get("close_quantity"))
+    remaining = _coerce_float(material.get("remaining_quantity"))
+    position_quantity = _coerce_float(
+        _first_present(position.get("net_quantity"), position.get("quantity"))
+    )
+    if (
+        before is None
+        or closed is None
+        or remaining is None
+        or before <= 0.0
+        or closed <= 0.0
+        or remaining <= 0.0
+        or not math.isclose(before, closed + remaining, rel_tol=1e-9, abs_tol=1e-12)
+        or not math.isclose(
+            remaining,
+            position_quantity if position_quantity is not None else -1.0,
+            rel_tol=1e-9,
+            abs_tol=1e-12,
+        )
+        or material.get("quantity_conserved") is not True
+    ):
+        reasons.append("POSITION_CLOSE_TRANSITION_QUANTITY_INVALID")
+    entry_price = _coerce_float(
+        _first_present(position.get("avg_entry_price"), position.get("entry_price"))
+    )
+    gross_notional = _coerce_float(
+        _first_present(position.get("gross_notional_usd"), position.get("notional"))
+    )
+    margin = _coerce_float(
+        _first_present(position.get("allocated_margin_usd"), position.get("margin_used_usd"))
+    )
+    leverage = _coerce_float(
+        _first_present(position.get("effective_leverage"), entry_proof.get("effective_leverage"))
+    )
+    if (
+        remaining is None
+        or entry_price is None
+        or gross_notional is None
+        or leverage is None
+        or leverage <= 0.0
+        or margin is None
+        or not math.isclose(gross_notional, remaining * entry_price, rel_tol=1e-9, abs_tol=1e-8)
+        or not math.isclose(margin, gross_notional / leverage, rel_tol=1e-9, abs_tol=1e-8)
+        or not math.isclose(
+            gross_notional,
+            _coerce_float(material.get("remaining_gross_notional_usd")) or -1.0,
+            rel_tol=1e-9,
+            abs_tol=1e-8,
+        )
+        or not math.isclose(
+            margin,
+            _coerce_float(material.get("remaining_allocated_margin_usd")) or -1.0,
+            rel_tol=1e-9,
+            abs_tol=1e-8,
+        )
+    ):
+        reasons.append("POSITION_CLOSE_TRANSITION_CAPITAL_INVALID")
+    position_payload_sha = material.get("remaining_position_payload_sha256")
+    position_binding_sha = material.get("remaining_position_binding_sha256")
+    if not _paper_valid_sha256(position_payload_sha):
+        reasons.append("POSITION_CLOSE_TRANSITION_POSITION_HASH_INVALID")
+    if position_binding_sha not in (None, ""):
+        if not _paper_valid_sha256(position_binding_sha):
+            reasons.append("POSITION_CLOSE_TRANSITION_BINDING_HASH_INVALID")
+        elif position_binding_sha != _paper_canonical_sha256(
+            _paper_position_close_transition_binding_material(position)
+        ):
+            reasons.append("POSITION_CLOSE_TRANSITION_BINDING_HASH_MISMATCH")
+    elif position_payload_sha != _paper_canonical_sha256(position):
+        # Legacy v1 transition fixtures predate the stable binding.  They are
+        # accepted only while their exact remaining payload is unchanged.
+        reasons.append("POSITION_CLOSE_TRANSITION_POSITION_HASH_MISMATCH")
+    reconstruction_hash = material.get("remaining_position_reconstruction_hash")
+    if reconstruction_hash not in (None, "") and not _paper_valid_sha256(
+        reconstruction_hash
+    ):
+        reasons.append("POSITION_CLOSE_TRANSITION_RECONSTRUCTION_HASH_INVALID")
+    elif (
+        position_binding_sha in (None, "")
+        and reconstruction_hash not in (None, "")
+        and reconstruction_hash != position.get("position_reconstruction_hash")
+    ):
+        reasons.append("POSITION_CLOSE_TRANSITION_RECONSTRUCTION_HASH_MISMATCH")
+    for prefix in ("entry_fees", "entry_slippage"):
+        incurred = _coerce_float(material.get(f"{prefix}_incurred_usd"))
+        allocated = _coerce_float(
+            material.get(f"{prefix}_allocated_to_closes_usd")
+        )
+        cost_remaining = _coerce_float(material.get(f"{prefix}_remaining_usd"))
+        supplied = [incurred, allocated, cost_remaining]
+        if all(value is not None for value in supplied) and not math.isclose(
+            incurred or 0.0,
+            (allocated or 0.0) + (cost_remaining or 0.0),
+            rel_tol=1e-9,
+            abs_tol=1e-10,
+        ):
+            reasons.append(
+                f"POSITION_CLOSE_TRANSITION_{prefix.upper()}_CONSERVATION_INVALID"
+            )
+    if material.get("cost_basis_conserved") not in (None, True):
+        reasons.append("POSITION_CLOSE_TRANSITION_COST_BASIS_INVALID")
+    if material.get("margin_released_by_reconciliation_usd") not in (0, 0.0):
+        reasons.append("POSITION_CLOSE_TRANSITION_RECONCILIATION_MARGIN_MUTATION")
+    if material.get("wallet_balance_mutation_usd") not in (0, 0.0):
+        reasons.append("POSITION_CLOSE_TRANSITION_WALLET_MUTATION")
+    if (
+        material.get("paper_only") is not True
+        or material.get("routes_to_live") is not False
+        or material.get("places_real_order") is not False
+        or material.get("exchange_action_taken") is not False
+    ):
+        reasons.append("POSITION_CLOSE_TRANSITION_AUTHORITY_INVALID")
+
+    matching_closes = [
+        row
+        for row in close_rows
+        if str(row.get("close_id") or "") == str(material.get("close_id") or "")
+    ]
+    if len(matching_closes) != 1:
+        reasons.append("POSITION_CLOSE_TRANSITION_CLOSE_RECEIPT_NOT_UNIQUE")
+    else:
+        close = matching_closes[0]
+        close_sha = close.get("close_receipt_sha256")
+        if not _paper_valid_sha256(close_sha) or close_sha != _paper_canonical_sha256(
+            _paper_close_receipt_material(close)
+        ):
+            reasons.append("POSITION_CLOSE_TRANSITION_CLOSE_RECEIPT_HASH_INVALID")
+        if close_sha != material.get("close_receipt_sha256"):
+            reasons.append("POSITION_CLOSE_TRANSITION_CLOSE_RECEIPT_BINDING_MISMATCH")
+        close_quantity = _coerce_float(
+            _first_present(close.get("close_quantity"), close.get("closed_quantity"))
+        )
+        close_remaining = _coerce_float(close.get("remaining_quantity_after_close"))
+        if (
+            close.get("reduce_only") is not True
+            or close.get("position_to_flat") is True
+            or close.get("close_position") is True
+            or str(close.get("position_id") or "") != str(position.get("position_id") or "")
+            or str(close.get("position_generation_id") or "")
+            != str(position.get("position_generation_id") or "")
+            or close_quantity is None
+            or closed is None
+            or not math.isclose(close_quantity, closed, rel_tol=1e-9, abs_tol=1e-12)
+            or close_remaining is None
+            or remaining is None
+            or not math.isclose(close_remaining, remaining, rel_tol=1e-9, abs_tol=1e-12)
+        ):
+            reasons.append("POSITION_CLOSE_TRANSITION_CLOSE_RECEIPT_INVALID")
+    return sorted(set(reasons))
+
+
+def _paper_valid_position_close_transition(
+    ledger: Mapping[str, Any],
+    position: Mapping[str, Any],
+    entry_proof: Mapping[str, Any],
+) -> tuple[dict[str, Any] | None, list[str]]:
+    transition_rows = ledger.get("paper_position_close_transition_proofs")
+    close_rows = (
+        ledger.get("paper_position_close_receipts")
+        or ledger.get("closed_trades")
+        or ledger.get("closes")
+        or []
+    )
+    if not isinstance(transition_rows, list) or not isinstance(close_rows, list):
+        return None, ["POSITION_CLOSE_TRANSITION_EVIDENCE_ABSENT"]
+    candidates = [
+        dict(row)
+        for row in transition_rows
+        if isinstance(row, Mapping)
+        and str(row.get("position_id") or "") == str(position.get("position_id") or "")
+        and row.get("prior_open_position_fill_proof_id") == entry_proof.get("proof_id")
+    ]
+    validated: list[dict[str, Any]] = []
+    failures: list[str] = []
+    close_mappings = [dict(row) for row in close_rows if isinstance(row, Mapping)]
+    for candidate in candidates:
+        candidate_reasons = _paper_position_close_transition_reasons(
+            position,
+            entry_proof,
+            candidate,
+            close_mappings,
+        )
+        if candidate_reasons:
+            failures.extend(candidate_reasons)
+        else:
+            validated.append(candidate)
+    if len(validated) == 1:
+        return validated[0], []
+    if len(validated) > 1:
+        return None, ["POSITION_CLOSE_TRANSITION_MULTIPLE_VALID_PROOFS"]
+    return None, sorted(set(failures or ["POSITION_CLOSE_TRANSITION_EVIDENCE_ABSENT"]))
+
+
 def _paper_reconcile_ledger_to_accepted_fill_proofs(
     ledger: Mapping[str, Any],
     accepted_fill_proof_source: Mapping[str, Any],
@@ -34510,12 +35284,66 @@ def _paper_reconcile_ledger_to_accepted_fill_proofs(
                 mismatch_reasons = [
                     reason for reason in binding_reasons if reason.endswith("_MISMATCH")
                 ]
+                accounting_mismatch_reasons = {
+                    "OPEN_POSITION_QUANTITY_PROOF_MISMATCH",
+                    "OPEN_POSITION_ENTRY_PRICE_PROOF_MISMATCH",
+                    "OPEN_POSITION_GROSS_NOTIONAL_PROOF_MISMATCH",
+                    "OPEN_POSITION_ALLOCATED_MARGIN_PROOF_MISMATCH",
+                }
+                transition_proof: dict[str, Any] | None = None
+                transition_reasons: list[str] = []
+                if (
+                    mismatch_reasons
+                    and not missing_reasons
+                    and set(mismatch_reasons).issubset(accounting_mismatch_reasons)
+                ):
+                    transition_proof, transition_reasons = (
+                        _paper_valid_position_close_transition(
+                            ledger,
+                            position,
+                            proof_row,
+                        )
+                    )
+                if transition_proof is not None:
+                    bound = dict(position)
+                    bound["accepted_fill_proof_reconciled"] = True
+                    bound["accepted_fill_proof_sha256"] = _paper_canonical_sha256(
+                        proof_row
+                    )
+                    bound["accepted_fill_proof_source_hash"] = (
+                        accepted_fill_proof_source.get("source_hash")
+                    )
+                    bound["position_close_transition_proof_sha256"] = (
+                        transition_proof.get("transition_proof_sha256")
+                    )
+                    retained.append(bound)
+                    proof_bindings.append(
+                        {
+                            "position_id": position.get("position_id"),
+                            "position_payload_sha256": _paper_canonical_sha256(
+                                position
+                            ),
+                            "accepted_fill_payload_sha256": _paper_canonical_sha256(
+                                proof_row
+                            ),
+                            "position_close_transition_proof_sha256": (
+                                transition_proof.get("transition_proof_sha256")
+                            ),
+                            "matched_aliases": sorted(
+                                position_aliases.intersection(
+                                    proof_aliases[matches[0]]
+                                )
+                            ),
+                        }
+                    )
+                    continue
                 if mismatch_reasons and not missing_reasons:
                     phantom_rows.append(
                         {
                             **_paper_phantom_position_projection(position),
                             "reason": "PROOF_IDENTITY_OR_ACCOUNTING_INVALID",
                             "positive_invalidity_reasons": mismatch_reasons,
+                            "position_close_transition_reasons": transition_reasons,
                             "matched_proof_id": proof_row.get("proof_id"),
                         }
                     )
@@ -54471,6 +55299,40 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             if row.get("proof_reconciliation_destructive_authorized") is not True
         ],
     )
+    (
+        position_close_receipts,
+        position_close_transition_proofs,
+        paper_position_close_transition_status,
+    ) = _paper_build_position_close_transition_state(
+        existing_ledger,
+        open_positions,
+        open_position_fill_proofs,
+        lifecycle_result.get("new_close_events") or [],
+    )
+    if (
+        paper_position_close_transition_status.get("status") != "PASS"
+        and int(
+            paper_position_close_transition_status.get("partial_close_count") or 0
+        )
+        > 0
+    ):
+        raise RuntimeError(
+            "PAPER_POSITION_CLOSE_TRANSITION_SEAL_FAILED:"
+            + ",".join(
+                str(reason)
+                for reason in paper_position_close_transition_status.get(
+                    "rejection_reasons"
+                )
+                or []
+            )
+        )
+    lifecycle_result["paper_position_close_receipts"] = position_close_receipts
+    lifecycle_result["paper_position_close_transition_proofs"] = (
+        position_close_transition_proofs
+    )
+    lifecycle_result["paper_position_close_transition_status"] = (
+        paper_position_close_transition_status
+    )
     _sync_lifecycle_open_position_views(lifecycle_result, open_positions)
     lifecycle_result["accepted_open_fills"] = valid_accepted_for_ledger
     paper_account_margin_status = build_paper_margin_status(
@@ -55524,6 +56386,13 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             "paper_open_position_fill_proof_status": (
                 open_position_fill_proof_status
             ),
+            "paper_position_close_receipts": position_close_receipts,
+            "paper_position_close_transition_proofs": (
+                position_close_transition_proofs
+            ),
+            "paper_position_close_transition_status": (
+                paper_position_close_transition_status
+            ),
             "close_event_count": len(closes),
             "new_close_event_count": len(lifecycle_result["new_close_events"]),
             "realized_exit_blocker": None if closes else "NO_CLOSE_TRIGGERED_THIS_CYCLE",
@@ -55698,6 +56567,10 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                 open_positions=open_positions,
                 open_position_fill_proofs=open_position_fill_proofs,
                 open_position_fill_proof_manifest=open_position_fill_proof_manifest,
+                position_close_receipts=position_close_receipts,
+                position_close_transition_proofs=(
+                    position_close_transition_proofs
+                ),
                 accepted_fills=accepted_state_rows,
                 quarantined_fills=invalid_admission_accepted_quarantine_state_rows,
                 closed_trades=closes,
@@ -55802,6 +56675,9 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                         ),
                         "paper_open_position_fill_proof_status": (
                             open_position_fill_proof_status
+                        ),
+                        "paper_position_close_transition_status": (
+                            paper_position_close_transition_status
                         ),
                         "paper_margin_reservation_status": paper_margin_reservation_status,
                         "paper_maintenance_bracket_security_status": (
@@ -56610,6 +57486,13 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                 ),
                 "paper_open_position_fill_proof_status": (
                     open_position_fill_proof_status
+                ),
+                "paper_position_close_receipts": position_close_receipts,
+                "paper_position_close_transition_proofs": (
+                    position_close_transition_proofs
+                ),
+                "paper_position_close_transition_status": (
+                    paper_position_close_transition_status
                 ),
                 "closed_trades": closes,
                 "closes": closes,
