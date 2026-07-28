@@ -1089,6 +1089,54 @@ def test_partial_close_transition_tampering_is_rejected(
     assert expected_reason in reasons
 
 
+@pytest.mark.parametrize(
+    ("mutation", "value"),
+    (
+        ("schema_version", "paper_reduce_only_close_receipt_v0"),
+        ("entry_fill_id", "fill-attacker"),
+        ("position_side", "short"),
+        ("close_side", "long"),
+        ("quantity_before_close", 0.7),
+        ("routes_to_live", True),
+    ),
+)
+def test_partial_close_transition_rejects_resealed_current_receipt_contradiction(
+    mutation: str,
+    value: object,
+) -> None:
+    """The latest receipt must satisfy the complete sealed receipt contract."""
+
+    _fill, proof, remaining, receipts, transitions = _produced_partial_transition(
+        "long"
+    )
+    contradictory_receipt = deepcopy(receipts[0])
+    contradictory_receipt[mutation] = value
+    contradictory_receipt["close_receipt_sha256"] = (
+        paper_loop._paper_canonical_sha256(  # noqa: SLF001
+            paper_loop._paper_close_receipt_material(  # noqa: SLF001
+                contradictory_receipt
+            )
+        )
+    )
+    rebound_transition = deepcopy(transitions[0])
+    rebound_transition["close_receipt_sha256"] = contradictory_receipt[
+        "close_receipt_sha256"
+    ]
+    rebound_transition = _reseal_transition(rebound_transition)
+
+    validated, reasons = paper_loop._paper_valid_position_close_transition(  # noqa: SLF001
+        {
+            "paper_position_close_receipts": [contradictory_receipt],
+            "paper_position_close_transition_proofs": [rebound_transition],
+        },
+        remaining,
+        proof,
+    )
+
+    assert validated is None
+    assert "POSITION_CLOSE_TRANSITION_CLOSE_RECEIPT_INVALID" in reasons
+
+
 def test_partial_close_transition_rejects_unsafe_resealed_prior_chain_node() -> None:
     """Every historical chain node must preserve paper-only authority."""
 
@@ -1153,8 +1201,18 @@ def test_partial_close_transition_rejects_unsafe_resealed_prior_chain_node() -> 
     assert "POSITION_CLOSE_TRANSITION_PRIOR_TRANSITION_AUTHORITY_INVALID" in reasons
 
 
-def test_partial_close_transition_rejects_prior_receipt_marked_close_position() -> None:
-    """An ancestor receipt cannot claim both a remainder and close-position."""
+@pytest.mark.parametrize(
+    ("mutation", "value"),
+    (
+        ("close_position", True),
+        ("close_side", "short"),
+    ),
+)
+def test_partial_close_transition_rejects_prior_receipt_contradiction(
+    mutation: str,
+    value: object,
+) -> None:
+    """An ancestor receipt must preserve partial-close side and state."""
 
     fill, proof, remaining_one, receipts_one, transitions_one = (
         _produced_partial_transition("short")
@@ -1199,7 +1257,7 @@ def test_partial_close_transition_rejects_prior_receipt_marked_close_position() 
         row for row in receipts_two if row["close_id"] == latest["close_id"]
     )
     contradictory_receipt = deepcopy(prior_receipt)
-    contradictory_receipt["close_position"] = True
+    contradictory_receipt[mutation] = value
     contradictory_receipt["close_receipt_sha256"] = (
         paper_loop._paper_canonical_sha256(  # noqa: SLF001
             paper_loop._paper_close_receipt_material(  # noqa: SLF001
