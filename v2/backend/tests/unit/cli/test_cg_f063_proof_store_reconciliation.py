@@ -720,6 +720,9 @@ def test_coherent_reduce_only_partial_remainder_must_survive_restart_reconciliat
         "remaining_quantity_after_close": 0.3,
         "reduce_only": True,
         "position_to_flat": False,
+        "source_close_event_sha256": _hash(
+            f"source-close-event-{side}-550"
+        ),
         "paper_only": True,
         "routes_to_live": False,
         "places_real_order": False,
