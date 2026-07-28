@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -82,3 +84,52 @@ def test_live_eligible_registry_is_rejected() -> None:
             generated_at_ms=3_000_000,
         )
 
+
+def test_runtime_streams_only_matured_revisions_after_full_archive_verification(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[int, ...]] = []
+
+    class _Reader:
+        def read_verified_records_by_sequence_with_verification(
+            self,
+            *,
+            archive_sequences: tuple[int, ...],
+        ):
+            calls.append(archive_sequences)
+            return (
+                SimpleNamespace(
+                    verified=True,
+                    terminal_chain_sha256="c" * 64,
+                    matured_revision_count=0,
+                ),
+                (),
+            )
+
+    class _Client:
+        def __init__(self) -> None:
+            self.values: dict[str, str] = {}
+
+        def get(self, key: str) -> str:
+            assert key == publisher.ACTIVE_REGISTRY_KEY
+            return json.dumps(_registry())
+
+        def set(self, key: str, value: str) -> None:
+            self.values[key] = value
+
+    monkeypatch.setattr(publisher, "_archive_reader", lambda _path: _Reader())
+    client = _Client()
+
+    status = publisher.process_once(
+        client=client,
+        archive_path=tmp_path / "candidate-outcomes.jsonl",
+        state_root=tmp_path / "calibration",
+        generated_at_ms=3_000_000,
+    )
+
+    assert calls == [(2,)]
+    assert status["status"] == "BLOCKED_INSUFFICIENT_OR_INVALID_MATURED_EVIDENCE"
+    assert status["source_matured_revision_count"] == 0
+    assert status["paper_only"] is True
+    assert status["routes_to_live"] is False

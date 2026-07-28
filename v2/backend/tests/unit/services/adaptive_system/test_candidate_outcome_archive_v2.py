@@ -7,6 +7,7 @@ import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
+from v2.backend.app.services.adaptive_system import candidate_outcome_archive_v2 as archive_module
 from v2.backend.app.services.adaptive_system.candidate_outcome_archive_v2 import (
     ARCHIVE_COVERAGE_SCHEMA_VERSION,
     ARCHIVE_RECEIPT_SCHEMA_VERSION,
@@ -205,6 +206,129 @@ def test_matured_revision_uses_exact_candidate_compare_and_swap(
     assert verification.row_count == 2
     assert verification.terminal_chain_sha256 != GENESIS_CHAIN_SHA256
     assert latest == (second,)
+
+
+def test_sequence_filtered_read_stream_verifies_all_rows_and_retains_only_matured(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    archive, _, _ = _writer(tmp_path / "candidate-outcomes.jsonl")
+    first, second = _revision_pair()
+    archive.append(first, signed_at_ms=1_100_000)
+    archive.append(second, signed_at_ms=2_000_000)
+    monkeypatch.setattr(
+        archive,
+        "_parse_rows",
+        lambda: pytest.fail("streaming filtered read must not materialize every row"),
+    )
+
+    verification, records = (
+        archive.read_verified_records_by_sequence_with_verification(
+            archive_sequences=(2,)
+        )
+    )
+
+    assert verification.row_count == 2
+    assert verification.decision_revision_count == 1
+    assert verification.matured_revision_count == 1
+    assert verification.candidate_count == 1
+    assert records == (second,)
+
+
+def test_sequence_filtered_read_rejects_unselected_prefix_tamper(tmp_path: Path) -> None:
+    path = tmp_path / "candidate-outcomes.jsonl"
+    archive, _, _ = _writer(path)
+    first, second = _revision_pair()
+    archive.append(first, signed_at_ms=1_100_000)
+    archive.append(second, signed_at_ms=2_000_000)
+    rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+    rows[0]["signature_hex"] = "0" * 128
+    path.write_text(
+        "".join(
+            f"{json.dumps(row, sort_keys=True, separators=(',', ':'))}\n"
+            for row in rows
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(CandidateOutcomeArchiveError, match="signature_invalid"):
+        archive.read_verified_records_by_sequence_with_verification(
+            archive_sequences=(2,)
+        )
+
+
+def test_sequence_filtered_read_rejects_resigned_nested_invalid_prefix(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "candidate-outcomes.jsonl"
+    archive, private_key, _ = _writer(path)
+    first, second = _revision_pair()
+    archive.append(first, signed_at_ms=1_100_000)
+    archive.append(second, signed_at_ms=2_000_000)
+    rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+
+    rows[0]["record"]["record_generated_at_ms"] = 0
+    rows[0]["record_content_sha256"] = archive_module._sha256(rows[0]["record"])
+    rows[0]["chain_sha256"] = archive_module._chain_sha256(
+        previous_chain_sha256=GENESIS_CHAIN_SHA256,
+        row_index=1,
+        archive_record_id=rows[0]["archive_record_id"],
+        candidate_id=rows[0]["candidate_id"],
+        archive_sequence=1,
+        record_content_sha256=rows[0]["record_content_sha256"],
+    )
+    rows[0]["signature_hex"] = private_key.sign(
+        archive_module._signature_material(rows[0])
+    ).hex()
+
+    rows[1]["record"]["previous_archive_record_sha256"] = rows[0][
+        "record_content_sha256"
+    ]
+    rows[1]["previous_candidate_record_sha256"] = rows[0]["record_content_sha256"]
+    rows[1]["record_content_sha256"] = archive_module._sha256(rows[1]["record"])
+    rows[1]["previous_chain_sha256"] = rows[0]["chain_sha256"]
+    rows[1]["chain_sha256"] = archive_module._chain_sha256(
+        previous_chain_sha256=rows[0]["chain_sha256"],
+        row_index=2,
+        archive_record_id=rows[1]["archive_record_id"],
+        candidate_id=rows[1]["candidate_id"],
+        archive_sequence=2,
+        record_content_sha256=rows[1]["record_content_sha256"],
+    )
+    rows[1]["signature_hex"] = private_key.sign(
+        archive_module._signature_material(rows[1])
+    ).hex()
+    path.write_text(
+        "".join(
+            f"{json.dumps(row, sort_keys=True, separators=(',', ':'))}\n"
+            for row in rows
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        CandidateOutcomeArchiveError,
+        match="nested_contract_invalid:record_generated_at_ms:must_be_positive_int",
+    ):
+        archive.read_verified_records_by_sequence_with_verification(
+            archive_sequences=(2,)
+        )
+
+
+@pytest.mark.parametrize("archive_sequences", [(), (2, 1), (2, 2), (3,), (True,)])
+def test_sequence_filtered_read_requires_canonical_revision_subset(
+    tmp_path: Path,
+    archive_sequences: tuple[int, ...],
+) -> None:
+    archive, _, _ = _writer(tmp_path / "candidate-outcomes.jsonl")
+
+    with pytest.raises(
+        CandidateOutcomeArchiveError,
+        match="canonical_nonempty_subset_of_1_2_required",
+    ):
+        archive.read_verified_records_by_sequence_with_verification(
+            archive_sequences=archive_sequences
+        )
 
 
 def test_matured_revision_without_predecessor_fails_closed(tmp_path: Path) -> None:
