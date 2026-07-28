@@ -1097,6 +1097,8 @@ def test_partial_close_transition_tampering_is_rejected(
         ("position_side", "short"),
         ("close_side", "long"),
         ("quantity_before_close", 0.7),
+        ("source_close_event_sha256", "not-a-sha256"),
+        ("position_to_flat", None),
         ("routes_to_live", True),
     ),
 )
@@ -1206,6 +1208,8 @@ def test_partial_close_transition_rejects_unsafe_resealed_prior_chain_node() -> 
     (
         ("close_position", True),
         ("close_side", "short"),
+        ("source_close_event_sha256", "not-a-sha256"),
+        ("position_to_flat", None),
     ),
 )
 def test_partial_close_transition_rejects_prior_receipt_contradiction(
