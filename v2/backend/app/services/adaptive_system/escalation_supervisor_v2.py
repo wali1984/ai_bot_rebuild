@@ -133,17 +133,26 @@ def _worker(
 WORKER_COMMANDS: Mapping[str, dict] = {
     "RECALIBRATE_CURRENT_MODELS": _worker(
         "RECALIBRATE_CURRENT_MODELS",
-        "v2.backend.app.cli.v2_trainer_fit_confidence_calibration",
-        "module",
+        "scripts/train_serving_feature_abi_v2_checkpoint.py",
+        "script",
         (
             _VENV_PY,
-            "-m",
-            "v2.backend.app.cli.v2_trainer_fit_confidence_calibration",
-            "--limit",
-            "8000",
+            "scripts/train_serving_feature_abi_v2_checkpoint.py",
+            "--dataset",
+            str(DEFAULT_GEN5_DATASET),
+            "--manifest",
+            str(DEFAULT_GEN5_MANIFEST),
         ),
-        "confidence_calibration_refit",
-        "Refit confidence calibration of the current checkpoint on held-out rows.",
+        "confidence_recalibration_via_checkpoint_refit",
+        # Standalone external confidence calibration (the former
+        # v2_trainer_fit_confidence_calibration command) is a deprecated,
+        # fail-closed no-op: fitting calibration from a held-out slice leaks
+        # forward validation into inference (CG-F053). The only real, non-leaking
+        # recalibration is a bounded serving-checkpoint refit that fits the
+        # calibration head IN-checkpoint from the purged matured-outcome partition.
+        "Recalibrate confidence via a bounded serving-checkpoint refit that fits "
+        "calibration in-checkpoint from matured outcomes (standalone external "
+        "calibration is leakage-unsafe/deprecated per CG-F053).",
     ),
     "TRAIN_INCREMENTAL_ON_NEW_MATURED_OUTCOMES": _worker(
         "TRAIN_INCREMENTAL_ON_NEW_MATURED_OUTCOMES",

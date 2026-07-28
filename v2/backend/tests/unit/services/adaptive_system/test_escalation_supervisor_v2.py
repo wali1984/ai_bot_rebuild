@@ -301,3 +301,43 @@ def test_negative_after_cost_edge_triggers():
     plan = plan_escalation(inp)
     assert plan.action == ACTION_LAUNCH
     assert plan.validate() == []
+
+
+# --------------------------------------------------------------------------- #
+# Operator #2: every ladder rung must launch a REAL worker, never a no-op.
+# Guards against a descriptor silently pointing at a deprecated/removed command
+# (a "LAUNCH_WORKER" that does nothing is a passive wait in disguise).
+# --------------------------------------------------------------------------- #
+import importlib.util  # noqa: E402
+from pathlib import Path  # noqa: E402
+
+_REPO_ROOT = Path(__file__).resolve().parents[6]
+
+# Commands that are deprecated fail-closed no-ops and must NEVER be a worker target.
+_DEPRECATED_NOOP_ENTRYPOINTS = frozenset(
+    {"v2.backend.app.cli.v2_trainer_fit_confidence_calibration"}
+)
+
+
+def test_no_worker_targets_a_deprecated_noop_command():
+    for step, wc in WORKER_COMMANDS.items():
+        assert wc["entrypoint"] not in _DEPRECATED_NOOP_ENTRYPOINTS, (
+            f"{step} points at deprecated fail-closed no-op {wc['entrypoint']!r}; "
+            "a LAUNCH_WORKER that does nothing is a passive wait in disguise"
+        )
+
+
+def test_every_worker_entrypoint_is_a_real_resolvable_target():
+    for step, wc in WORKER_COMMANDS.items():
+        kind = wc["entrypoint_kind"]
+        ep = wc["entrypoint"]
+        if kind == "script":
+            assert (_REPO_ROOT / ep).is_file(), f"{step}: missing script {ep}"
+        elif kind == "module":
+            assert importlib.util.find_spec(ep) is not None, (
+                f"{step}: unimportable module {ep}"
+            )
+        else:  # pragma: no cover - descriptor schema guard
+            raise AssertionError(f"{step}: unknown entrypoint_kind {kind!r}")
+        # every descriptor stays paper-only and never routes to live
+        assert wc["paper_only"] is True and wc["routes_to_live"] is False
