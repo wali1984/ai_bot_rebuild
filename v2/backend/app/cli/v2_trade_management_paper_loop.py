@@ -35994,6 +35994,56 @@ def _strict_aware_utc_time(value: Any) -> datetime | None:
     return parsed.astimezone(timezone.utc)
 
 
+def _paper_ledger_open_position_generation_timestamp(
+    existing_ledger: Mapping[str, Any],
+) -> str | None:
+    """Latest authenticated open-position reconstruction clock, or ``None``.
+
+    When the paper loop rebuilds ``existing_ledger`` from ``v2:paper:positions``
+    the payload carries open-position rows but no ledger-level
+    ``generated_at``/``generated_utc``/``updated_at``.  Each open-position row is
+    nonetheless stamped by its producer with an authenticated reconstruction
+    clock (``position_reconstruction_generated_at``, with the durable fill/entry
+    clocks as fallbacks).  The reconstructed ledger's generation time is the
+    latest of those real producer timestamps — never a fabricated wall-clock
+    read — so the allocation point-in-time contract can see the authentic time
+    the open-position inventory was generated instead of failing closed on a
+    field the reconstruction simply forgot to carry.
+
+    Side-agnostic: long and short rows are treated identically.  Returns ``None``
+    when no row carries a parseable timezone-aware clock so the fail-closed
+    allocation contract still blocks (missing proof never becomes valid proof).
+    """
+
+    rows = existing_ledger.get("open_positions") or existing_ledger.get("positions")
+    if not isinstance(rows, list):
+        return None
+    latest_parsed: datetime | None = None
+    latest_raw: str | None = None
+    for row in rows:
+        if not isinstance(row, Mapping):
+            continue
+        raw = _first_present(
+            row.get("position_reconstruction_generated_at"),
+            row.get("generated_utc"),
+            row.get("generated_at"),
+            row.get("updated_at"),
+        )
+        if raw in (None, ""):
+            continue
+        parsed = _strict_aware_utc_time(raw)
+        if parsed is None:
+            continue
+        if latest_parsed is None or parsed > latest_parsed:
+            latest_parsed = parsed
+            latest_raw = (
+                raw
+                if isinstance(raw, str)
+                else parsed.isoformat().replace("+00:00", "Z")
+            )
+    return latest_raw
+
+
 def _paper_bind_liquidation_atr_evidence(
     *,
     intent: dict[str, Any],
@@ -44918,10 +44968,17 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         r,
         existing_ledger=existing_ledger,
     )
+    # A ledger reconstructed from ``v2:paper:positions`` carries open-position
+    # rows (so ``paper_ledger_open_position_count`` > 0 and the allocation
+    # point-in-time contract requires ``paper_ledger_generated_at``) but no
+    # ledger-level generation clock.  Fall back to the latest authenticated
+    # open-position reconstruction clock so the contract sees the real time the
+    # inventory was generated instead of spuriously blocking every new candidate.
     portfolio_context["paper_ledger_generated_at"] = _first_present(
         existing_ledger.get("generated_at"),
         existing_ledger.get("generated_utc"),
         existing_ledger.get("updated_at"),
+        _paper_ledger_open_position_generation_timestamp(existing_ledger),
     )
     portfolio_context["paper_ledger_observed_at"] = existing_ledger_observed_at
     portfolio_context["exit_overshoot_premium_bps"] = _paper_exit_overshoot_premium_bps(
