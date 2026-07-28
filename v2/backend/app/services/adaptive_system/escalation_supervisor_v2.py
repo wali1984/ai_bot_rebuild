@@ -23,20 +23,28 @@ The step-selection ladder itself is NOT reimplemented here — it is delegated t
 LAUNCH-vs-AWAIT wrapper, the corpus-information-gain test, the worker-command
 mapping, and the Redis/ledger runtime plumbing.
 
-Paper-only.  This module NEVER spawns training, never places an order, never
-promotes a challenger, never touches the live gate.  It only *describes* the
-worker; a separate operator/service executes it.
+Paper-only.  Planning remains side-effect free.  When explicitly enabled, the
+durable dispatcher below may run an exact non-activating challenger command
+after authenticating its dataset release and persisting a single-run receipt.
+It never places an order, activates a checkpoint, or touches the live gate.
 """
 from __future__ import annotations
 
+import fcntl
+import hashlib
+import importlib.util
 import json
 import logging
 import os
+import stat
+import subprocess
+import tempfile
 from collections import Counter
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC
 from pathlib import Path
+from typing import Any
 
 from v2.backend.app.services.adaptive_system.escalation_ladder_v2 import (
     LADDER,
@@ -50,6 +58,18 @@ logger = logging.getLogger(__name__)
 SCHEMA_VERSION = "escalation_supervisor_v2"
 STATUS_REDIS_KEY = "v2:adaptive_system:escalation_supervisor:status"
 DEFAULT_LEDGER_PATH = Path("claude_worklog/adaptive_system/escalation_supervisor_ledger.jsonl")
+DEFAULT_DISPATCH_ROOT = Path(
+    "/home/wali/ai_bot_local_data/adaptive_candidate_dataset_v3/escalation_dispatches"
+)
+DEFAULT_DISPATCH_STATE_PATH = Path(
+    "/home/wali/ai_bot_local_data/adaptive_candidate_dataset_v3/"
+    "escalation_dispatch_state_v1.json"
+)
+DEFAULT_DISPATCH_LOCK_PATH = Path(
+    "/run/user/1000/ai-bot-v2-adaptive-escalation-dispatch.lock"
+)
+DISPATCH_SCHEMA_VERSION = "adaptive_escalation_dispatch_v1"
+DISPATCH_TIMEOUT_SECONDS = 3600
 
 # Authoritative source keys (read-only) — the adaptive-policy authority publishes
 # per-cycle directional/flat authorization counts; the candidate-outcome publisher
@@ -112,6 +132,18 @@ FIRST_INFO_DEPENDENT_STEP = "TRAIN_INCREMENTAL_ON_NEW_MATURED_OUTCOMES"
 # exist on the referenced entrypoint; ``scope`` carries the intent the executor
 # resolves.  These are DESCRIPTORS — a separate operator/service executes them.
 _VENV_PY = ".venv/bin/python"
+_SIGNED_DATASET = "{dataset_release_root}/adaptive_serving_compatible_dataset_v2.json"
+_SIGNED_MANIFEST = (
+    "{dataset_release_root}/adaptive_serving_compatible_dataset_manifest_v2.json"
+)
+_SIGNED_PARITY = (
+    "{dataset_release_root}/adaptive_train_serve_feature_parity_report_v2.json"
+)
+_SIGNED_RECEIPT = (
+    "{dataset_release_root}/candidate_outcome_dataset_build_receipt_v3.json"
+)
+_DISPATCH_MODELS = "{dispatch_run_root}/models"
+_DISPATCH_EVIDENCE = "{dispatch_run_root}/evidence"
 
 
 def _worker(
@@ -125,23 +157,33 @@ def _worker(
         "scope": scope,
         "description": desc,
         "paper_only": True,
+        "live_gate": "blocked_human_only",
         "places_real_order": False,
         "routes_to_live": False,
+        "exchange_action_taken": False,
     }
 
 
 WORKER_COMMANDS: Mapping[str, dict] = {
     "RECALIBRATE_CURRENT_MODELS": _worker(
         "RECALIBRATE_CURRENT_MODELS",
-        "scripts/train_serving_feature_abi_v2_checkpoint.py",
+        "scripts/train_serving_profitability_v3_checkpoint.py",
         "script",
         (
             _VENV_PY,
-            "scripts/train_serving_feature_abi_v2_checkpoint.py",
+            "scripts/train_serving_profitability_v3_checkpoint.py",
             "--dataset",
-            str(DEFAULT_GEN5_DATASET),
+            _SIGNED_DATASET,
             "--manifest",
-            str(DEFAULT_GEN5_MANIFEST),
+            _SIGNED_MANIFEST,
+            "--parity",
+            _SIGNED_PARITY,
+            "--build-receipt",
+            _SIGNED_RECEIPT,
+            "--model-dir",
+            _DISPATCH_MODELS,
+            "--evidence-dir",
+            _DISPATCH_EVIDENCE,
         ),
         "confidence_recalibration_via_checkpoint_refit",
         # Standalone external confidence calibration (the former
@@ -156,18 +198,27 @@ WORKER_COMMANDS: Mapping[str, dict] = {
     ),
     "TRAIN_INCREMENTAL_ON_NEW_MATURED_OUTCOMES": _worker(
         "TRAIN_INCREMENTAL_ON_NEW_MATURED_OUTCOMES",
-        "scripts/train_serving_feature_abi_v2_checkpoint.py",
+        "scripts/train_serving_profitability_v3_checkpoint.py",
         "script",
         (
             _VENV_PY,
-            "scripts/train_serving_feature_abi_v2_checkpoint.py",
+            "scripts/train_serving_profitability_v3_checkpoint.py",
             "--dataset",
-            str(DEFAULT_GEN5_DATASET),
+            _SIGNED_DATASET,
             "--manifest",
-            str(DEFAULT_GEN5_MANIFEST),
+            _SIGNED_MANIFEST,
+            "--parity",
+            _SIGNED_PARITY,
+            "--build-receipt",
+            _SIGNED_RECEIPT,
+            "--model-dir",
+            _DISPATCH_MODELS,
+            "--evidence-dir",
+            _DISPATCH_EVIDENCE,
         ),
         "gen5_serving_checkpoint_incremental_train",
-        "Train the serving-ABI-v2 checkpoint on the latest matured gen-5 corpus.",
+        "Retrain the serving-profitability-v3 challenger on the incrementally "
+        "expanded authenticated matured-outcome corpus.",
     ),
     "REBUILD_FEATURE_SELECTION_OR_REPRESENTATION": _worker(
         "REBUILD_FEATURE_SELECTION_OR_REPRESENTATION",
@@ -225,18 +276,29 @@ WORKER_COMMANDS: Mapping[str, dict] = {
         "INCREASE_BOUNDED_INFORMATION_SEEKING_EXPLORATION",
         "v2.backend.app.cli.v2_adaptive_policy_shadow_runtime",
         "module",
-        (_VENV_PY, "-m", "v2.backend.app.cli.v2_adaptive_policy_shadow_runtime"),
+        (
+            _VENV_PY,
+            "-m",
+            "v2.backend.app.cli.v2_adaptive_policy_shadow_runtime",
+            "--once",
+        ),
         "bounded_information_seeking_exploration",
         "Increase bounded, hard-gated exploration to GENERATE the missing information.",
     ),
     "PROMOTE_SUPERIOR_CHALLENGER": _worker(
         "PROMOTE_SUPERIOR_CHALLENGER",
-        "v2.backend.app.cli.v2_trainer_h2l_promote",
+        "v2.backend.app.cli.v2_checkpoint_promotion_status",
         "module",
-        (_VENV_PY, "-m", "v2.backend.app.cli.v2_trainer_h2l_promote"),
-        "promote_superior_challenger",
-        "Promote a challenger that beats the champion on held-out validation "
-        "(operator/gate-controlled; paper evaluation only here).",
+        (
+            _VENV_PY,
+            "-m",
+            "v2.backend.app.cli.v2_checkpoint_promotion_status",
+            "--once",
+        ),
+        "governed_promotion_readiness",
+        "Recompute governed paper promotion readiness for a challenger that "
+        "already proved superiority. Registry activation remains fail-closed "
+        "until its independent smoke and atomic-CAS predicates pass.",
     ),
 }
 
@@ -283,6 +345,18 @@ def load_gen5_corpus_effective_n(dataset_path: Path = DEFAULT_GEN5_DATASET) -> t
     rows = ds.get("rows") or []
     times = [r.get("decision_time", "") for r in rows]
     return kish_effective_n(times), len(rows)
+
+
+def _dataset_identity(dataset_path: Path) -> str:
+    path = Path(dataset_path)
+    if not path.is_file():
+        return ""
+    try:
+        dataset = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return ""
+    identity = dataset.get("dataset_sha256") if isinstance(dataset, dict) else None
+    return identity if isinstance(identity, str) else ""
 
 
 # --------------------------------------------------------------------------- #
@@ -608,8 +682,408 @@ def plan_escalation(inp: SupervisorInputs) -> EscalationWorkPlan:
 
 
 # --------------------------------------------------------------------------- #
-# Thin runtime wrapper (Redis read -> plan -> Redis/ledger persist).  No worker
-# is spawned here; the plan only DESCRIBES the worker.
+# Durable paper-only worker dispatch.  The planner above remains pure; callers
+# must explicitly request execution.  Every training dispatch is bound to a
+# loader-verified, Ed25519-signed dataset release and is idempotent by content.
+# --------------------------------------------------------------------------- #
+def _canonical_bytes(value: object) -> bytes:
+    return json.dumps(
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+        allow_nan=False,
+    ).encode("utf-8")
+
+
+def _sha256_bytes(value: bytes) -> str:
+    return hashlib.sha256(value).hexdigest()
+
+
+def _read_regular_bytes(path: Path, field: str) -> bytes:
+    try:
+        descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+    except OSError as exc:
+        raise ValueError(f"{field}:REGULAR_FILE_REQUIRED") from exc
+    try:
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            raise ValueError(f"{field}:REGULAR_FILE_REQUIRED")
+        with os.fdopen(descriptor, "rb", closefd=False) as handle:
+            return handle.read()
+    finally:
+        os.close(descriptor)
+
+
+def _safe_directory(path: Path, field: str, *, create: bool) -> Path:
+    if create:
+        path.mkdir(mode=0o700, parents=True, exist_ok=True)
+    try:
+        metadata = os.lstat(path)
+    except OSError as exc:
+        raise ValueError(f"{field}:SAFE_DIRECTORY_REQUIRED") from exc
+    if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
+        raise ValueError(f"{field}:SAFE_DIRECTORY_REQUIRED")
+    return path.absolute()
+
+
+def _fsync_directory(path: Path) -> None:
+    descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def _write_atomic_private_json(path: Path, value: Mapping[str, Any]) -> None:
+    parent = _safe_directory(path.parent, "dispatch_state_parent", create=True)
+    if path.exists() or path.is_symlink():
+        metadata = os.lstat(path)
+        if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
+            raise ValueError("dispatch_state_path:REGULAR_FILE_REQUIRED")
+    data = _canonical_bytes(dict(value)) + b"\n"
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{path.name}.", suffix=".tmp", dir=parent
+    )
+    temporary = Path(temporary_name)
+    try:
+        os.fchmod(descriptor, 0o600)
+        with os.fdopen(descriptor, "wb") as handle:
+            descriptor = -1
+            handle.write(data)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+        os.chmod(path, 0o600, follow_symlinks=False)
+        _fsync_directory(parent)
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+        temporary.unlink(missing_ok=True)
+
+
+def _write_immutable_private_bytes(path: Path, data: bytes) -> str:
+    parent = _safe_directory(path.parent, "dispatch_receipt_parent", create=True)
+    digest = _sha256_bytes(data)
+    try:
+        descriptor = os.open(
+            path,
+            os.O_WRONLY
+            | os.O_CREAT
+            | os.O_EXCL
+            | getattr(os, "O_NOFOLLOW", 0),
+            0o600,
+        )
+    except FileExistsError:
+        if _read_regular_bytes(path, "dispatch_receipt") != data:
+            raise ValueError(f"dispatch_receipt:IMMUTABLE_COLLISION:{path}") from None
+        return digest
+    try:
+        with os.fdopen(descriptor, "wb") as handle:
+            descriptor = -1
+            handle.write(data)
+            handle.flush()
+            os.fsync(handle.fileno())
+        _fsync_directory(parent)
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+    return digest
+
+
+def _load_json_if_present(path: Path) -> dict[str, Any] | None:
+    if not path.exists():
+        return None
+    try:
+        value = json.loads(_read_regular_bytes(path, "dispatch_state_path"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValueError("dispatch_state_path:STRICT_JSON_REQUIRED") from exc
+    if type(value) is not dict:
+        raise ValueError("dispatch_state_path:OBJECT_REQUIRED")
+    return value
+
+
+def _authenticated_dataset_release(root: Path) -> dict[str, Any]:
+    from v2.backend.app.services.prediction_serving.serving_training_artifact_v2 import (
+        load_validated_training_artifacts,
+    )
+
+    release_root = _safe_directory(Path(root), "dataset_release_root", create=False)
+    paths = {
+        "dataset": release_root / "adaptive_serving_compatible_dataset_v2.json",
+        "manifest": release_root
+        / "adaptive_serving_compatible_dataset_manifest_v2.json",
+        "parity": release_root
+        / "adaptive_train_serve_feature_parity_report_v2.json",
+        "build_receipt": release_root
+        / "candidate_outcome_dataset_build_receipt_v3.json",
+    }
+    dataset, manifest, parity, receipt = load_validated_training_artifacts(
+        dataset_path=paths["dataset"],
+        manifest_path=paths["manifest"],
+        parity_path=paths["parity"],
+        build_receipt_path=paths["build_receipt"],
+    )
+    if receipt.get("schema_version") != "candidate_outcome_dataset_build_receipt_v3":
+        raise ValueError("dataset_release_root:SIGNED_V3_RECEIPT_REQUIRED")
+    receipt_file_sha256 = _sha256_bytes(
+        _read_regular_bytes(paths["build_receipt"], "build_receipt")
+    )
+    return {
+        "root": str(release_root),
+        "paths": {key: str(value) for key, value in paths.items()},
+        "dataset_sha256": dataset["dataset_sha256"],
+        "manifest_sha256": manifest["manifest_sha256"],
+        "parity_sha256": _sha256_bytes(
+            _read_regular_bytes(paths["parity"], "parity")
+        ),
+        "build_receipt_file_sha256": receipt_file_sha256,
+        "source_terminal_chain_sha256": receipt["candidate_archive_verification"][
+            "terminal_chain_sha256"
+        ],
+        "training_rows": receipt["training_rows"],
+        "validation_rows": receipt["validation_rows"],
+        "holdout_rows": receipt["holdout_rows"],
+    }
+
+
+def _resolved_worker_argv(
+    worker: Mapping[str, Any],
+    *,
+    dataset_release_root: Path,
+    dispatch_run_root: Path,
+) -> list[str]:
+    argv = worker.get("argv")
+    if type(argv) is not list or not argv or any(type(item) is not str for item in argv):
+        raise ValueError("worker_command:EXACT_ARGV_REQUIRED")
+    replacements = {
+        "dataset_release_root": str(dataset_release_root),
+        "dispatch_run_root": str(dispatch_run_root),
+    }
+    resolved = [item.format_map(replacements) for item in argv]
+    if resolved[0] != _VENV_PY:
+        raise ValueError("worker_command:PINNED_PYTHON_REQUIRED")
+    if any("train_serving_feature_abi_v2_checkpoint.py" in item for item in resolved):
+        raise ValueError("worker_command:LEGACY_UNAUTHENTICATED_TRAINER_FORBIDDEN")
+    if any("v2_trainer_h2l_promote" in item for item in resolved):
+        raise ValueError("worker_command:LEGACY_H2L_PROMOTION_FORBIDDEN")
+    return resolved
+
+
+def _worker_code_sha256(worker: Mapping[str, Any]) -> str:
+    entrypoint = worker.get("entrypoint")
+    kind = worker.get("entrypoint_kind")
+    if type(entrypoint) is not str or not entrypoint:
+        raise ValueError("worker_command:ENTRYPOINT_REQUIRED")
+    if kind == "script":
+        path = Path(__file__).resolve().parents[5] / entrypoint
+    elif kind == "module":
+        spec = importlib.util.find_spec(entrypoint)
+        if spec is None or spec.origin is None:
+            raise ValueError("worker_command:IMPORTABLE_MODULE_REQUIRED")
+        path = Path(spec.origin)
+    else:
+        raise ValueError("worker_command:ENTRYPOINT_KIND_INVALID")
+    return _sha256_bytes(_read_regular_bytes(path, "worker_entrypoint"))
+
+
+def _default_runner(
+    argv: Sequence[str], timeout_seconds: int | float
+) -> subprocess.CompletedProcess:
+    return subprocess.run(  # noqa: S603 - argv is descriptor-pinned and shell=False
+        list(argv),
+        cwd=Path(__file__).resolve().parents[5],
+        check=False,
+        capture_output=True,
+        timeout=timeout_seconds,
+        shell=False,
+    )
+
+
+def _result_bytes(value: object) -> bytes:
+    if value is None:
+        return b""
+    if isinstance(value, bytes):
+        return value
+    return str(value).encode("utf-8", "replace")
+
+
+def dispatch_worker(
+    plan: EscalationWorkPlan,
+    *,
+    dataset_release_root: Path,
+    dispatch_root: Path,
+    state_path: Path,
+    lock_path: Path,
+    runner: Callable[[Sequence[str], int | float], Any] = _default_runner,
+    timeout_seconds: int | float = DISPATCH_TIMEOUT_SECONDS,
+) -> dict[str, Any]:
+    """Execute one content-addressed paper-only worker exactly once.
+
+    The signed release is fully loaded and verified before the worker is
+    started.  The latest state file is mutable but private and atomic; every
+    started/terminal receipt and output stream is immutable under its dispatch
+    ID.  Terminal replay returns the prior receipt without executing again.
+    """
+
+    errors = plan.validate()
+    if errors or plan.action != ACTION_LAUNCH or not plan.worker_command:
+        raise ValueError(f"dispatch_plan:INVALID:{','.join(errors) or plan.action}")
+    worker = plan.worker_command
+    if (
+        worker.get("paper_only") is not True
+        or worker.get("live_gate") != "blocked_human_only"
+        or worker.get("routes_to_live") is not False
+        or worker.get("places_real_order") is not False
+        or worker.get("exchange_action_taken") is not False
+    ):
+        raise ValueError("UNSAFE_DISPATCH_AUTHORITY")
+    environment_live_gate = os.environ.get("LIVE_GATE")
+    if environment_live_gate != "blocked_human_only":
+        raise ValueError("dispatch_authority:LIVE_GATE_BLOCK_REQUIRED")
+    if (
+        isinstance(timeout_seconds, bool)
+        or not isinstance(timeout_seconds, int | float)
+        or timeout_seconds <= 0
+    ):
+        raise ValueError("timeout_seconds:POSITIVE_NUMBER_REQUIRED")
+
+    release = _authenticated_dataset_release(Path(dataset_release_root))
+    dispatch_parent = _safe_directory(Path(dispatch_root), "dispatch_root", create=True)
+    dispatch_material = {
+        "schema_version": DISPATCH_SCHEMA_VERSION,
+        "selected_step": plan.selected_step,
+        "trigger": list(plan.trigger),
+        "input_manifest_sha": plan.input_manifest_sha,
+        "worker_scope": worker.get("scope"),
+        "worker_entrypoint": worker.get("entrypoint"),
+        "worker_entrypoint_file_sha256": _worker_code_sha256(worker),
+        "worker_argv_template": list(worker.get("argv") or []),
+        "dataset_release": release,
+    }
+    dispatch_id = "adaptive_dispatch_" + _sha256_bytes(
+        _canonical_bytes(dispatch_material)
+    )[:32]
+    run_root = dispatch_parent / dispatch_id
+    argv = _resolved_worker_argv(
+        worker,
+        dataset_release_root=Path(release["root"]),
+        dispatch_run_root=run_root,
+    )
+    dispatch_material["argv"] = argv
+    dispatch_material["dispatch_id"] = dispatch_id
+
+    lock_parent = _safe_directory(Path(lock_path).parent, "dispatch_lock_parent", create=True)
+    try:
+        lock_descriptor = os.open(
+            lock_parent / Path(lock_path).name,
+            os.O_RDWR
+            | os.O_CREAT
+            | getattr(os, "O_NOFOLLOW", 0),
+            0o600,
+        )
+    except OSError as exc:
+        raise ValueError("dispatch_lock_path:REGULAR_FILE_REQUIRED") from exc
+    try:
+        if not stat.S_ISREG(os.fstat(lock_descriptor).st_mode):
+            raise ValueError("dispatch_lock_path:REGULAR_FILE_REQUIRED")
+        try:
+            fcntl.flock(lock_descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return {
+                **dispatch_material,
+                "status": "FAILED",
+                "failure_reason": "DISPATCH_LOCK_CONTENDED",
+                "returncode": None,
+                "timed_out": False,
+                "stdout_sha256": _sha256_bytes(b""),
+                "stderr_sha256": _sha256_bytes(b""),
+                "launch_baseline_success": False,
+                "idempotent_replay": False,
+                "paper_only": True,
+                "live_gate": "blocked_human_only",
+                "routes_to_live": False,
+                "places_real_order": False,
+                "exchange_action_taken": False,
+            }
+
+        prior = _load_json_if_present(Path(state_path))
+        if prior and prior.get("dispatch_id") == dispatch_id and prior.get("status") in {
+            "COMPLETED",
+            "FAILED",
+            "RUNNING",
+        }:
+            replay = dict(prior)
+            replay["idempotent_replay"] = True
+            return replay
+
+        run_root = _safe_directory(run_root, "dispatch_run_root", create=True)
+        started = {
+            **dispatch_material,
+            "status": "RUNNING",
+            "generated_utc": _utc_iso(),
+            "returncode": None,
+            "timed_out": False,
+            "stdout_sha256": None,
+            "stderr_sha256": None,
+            "launch_baseline_success": False,
+            "idempotent_replay": False,
+            "paper_only": True,
+            "live_gate": "blocked_human_only",
+            "routes_to_live": False,
+            "places_real_order": False,
+            "exchange_action_taken": False,
+        }
+        _write_atomic_private_json(Path(state_path), started)
+        _write_immutable_private_bytes(
+            run_root / "dispatch_started_v1.json",
+            _canonical_bytes(started) + b"\n",
+        )
+
+        timed_out = False
+        failure_reason: str | None = None
+        try:
+            completed = runner(argv, timeout_seconds)
+            returncode = int(completed.returncode)
+            stdout = _result_bytes(getattr(completed, "stdout", b""))
+            stderr = _result_bytes(getattr(completed, "stderr", b""))
+        except subprocess.TimeoutExpired as exc:
+            returncode = None
+            timed_out = True
+            failure_reason = "WORKER_TIMEOUT"
+            stdout = _result_bytes(exc.stdout)
+            stderr = _result_bytes(exc.stderr)
+        stdout_sha256 = _write_immutable_private_bytes(run_root / "stdout.bin", stdout)
+        stderr_sha256 = _write_immutable_private_bytes(run_root / "stderr.bin", stderr)
+        succeeded = returncode == 0 and not timed_out
+        if not succeeded and failure_reason is None:
+            failure_reason = f"WORKER_EXIT_{returncode}"
+        terminal = {
+            **started,
+            "status": "COMPLETED" if succeeded else "FAILED",
+            "completed_utc": _utc_iso(),
+            "returncode": returncode,
+            "timed_out": timed_out,
+            "failure_reason": failure_reason,
+            "stdout_sha256": stdout_sha256,
+            "stderr_sha256": stderr_sha256,
+            "launch_baseline_success": succeeded,
+        }
+        _write_atomic_private_json(Path(state_path), terminal)
+        _write_immutable_private_bytes(
+            run_root / "dispatch_terminal_v1.json",
+            _canonical_bytes(terminal) + b"\n",
+        )
+        return terminal
+    finally:
+        try:
+            fcntl.flock(lock_descriptor, fcntl.LOCK_UN)
+        finally:
+            os.close(lock_descriptor)
+
+
+# --------------------------------------------------------------------------- #
+# Thin runtime wrapper (Redis read -> plan -> optional durable dispatch ->
+# Redis/ledger persist).
 # --------------------------------------------------------------------------- #
 def _get_json(client, key: str) -> dict | None:
     try:
@@ -688,13 +1162,26 @@ def build_inputs_from_redis(
     history = history[-history_window:]
     persistent_flat_cycles = _trailing_flat_cycles(history, directional)
 
-    superior_challenger_available = bool(champion.get("best_challenger_id"))
-
     manifest_sha = (
-        outcomes.get("recorded_candidate_ids_sha256")
+        _dataset_identity(dataset_path)
+        or outcomes.get("recorded_candidate_ids_sha256")
         or authority.get("source_candidate_ids_sha256")
         or ""
     )
+    superior_challenger_available = (
+        bool(champion.get("best_challenger_id"))
+        and champion.get("best_challenger_superior") is True
+        and champion.get("paper_only") is True
+        and champion.get("live_eligible") is not True
+    )
+
+    completed_steps: frozenset[str] = frozenset()
+    if prior.get("input_manifest_sha") == manifest_sha:
+        prior_steps = prior.get("completed_steps_for_input_manifest")
+        if isinstance(prior_steps, list) and all(
+            type(step) is str and step in LADDER for step in prior_steps
+        ):
+            completed_steps = frozenset(prior_steps)
 
     return SupervisorInputs(
         directional_authorized_count=directional,
@@ -709,6 +1196,7 @@ def build_inputs_from_redis(
         min_new_matured_outcomes=min_new_matured_outcomes,
         min_new_effective_n=min_new_effective_n,
         superior_challenger_available=superior_challenger_available,
+        exhausted_steps=completed_steps,
         input_manifest_sha=str(manifest_sha),
     )
 
@@ -725,13 +1213,40 @@ def run_once(
     dataset_path: Path = DEFAULT_GEN5_DATASET,
     ledger_path: Path = DEFAULT_LEDGER_PATH,
     persist: bool = True,
+    execute_worker: bool = False,
+    dataset_release_root: Path | None = None,
+    dispatch_root: Path = DEFAULT_DISPATCH_ROOT,
+    dispatch_state_path: Path = DEFAULT_DISPATCH_STATE_PATH,
+    dispatch_lock_path: Path = DEFAULT_DISPATCH_LOCK_PATH,
+    dispatch_timeout_seconds: int | float = DISPATCH_TIMEOUT_SECONDS,
 ) -> EscalationWorkPlan:
-    """Read Redis -> plan -> persist status + jsonl ledger.  Spawns NO worker."""
+    """Read Redis, plan, optionally dispatch, then persist status and ledger."""
     inp = build_inputs_from_redis(client, dataset_path=dataset_path)
     plan = plan_escalation(inp)
+    dispatch_result: dict[str, Any] | None = None
+    if execute_worker and plan.action == ACTION_LAUNCH:
+        if dataset_release_root is None:
+            raise ValueError("dataset_release_root:REQUIRED_FOR_WORKER_EXECUTION")
+        dispatch_result = dispatch_worker(
+            plan,
+            dataset_release_root=dataset_release_root,
+            dispatch_root=dispatch_root,
+            state_path=dispatch_state_path,
+            lock_path=dispatch_lock_path,
+            timeout_seconds=dispatch_timeout_seconds,
+        )
 
     payload = plan.to_dict()
     payload["generated_utc"] = _utc_iso()
+    payload["worker_execution_enabled"] = execute_worker
+    payload["dispatch_result"] = dispatch_result
+    completed_steps = set(inp.exhausted_steps)
+    if dispatch_result and dispatch_result.get("launch_baseline_success") is True:
+        if plan.selected_step in LADDER:
+            completed_steps.add(plan.selected_step)
+    payload["completed_steps_for_input_manifest"] = [
+        step for step in LADDER if step in completed_steps
+    ]
 
     # Roll the directional-history window forward (so persistence is real over runs).
     prior = _get_json(client, STATUS_REDIS_KEY) or {}
@@ -740,13 +1255,17 @@ def run_once(
     history = (history + [inp.directional_authorized_count])[-20:]
     payload["directional_history"] = history
 
-    # Record the launch baseline when we actually dispatch a worker (so the next
-    # cycle measures "new information since the last recorded challenger").
-    if plan.action == ACTION_LAUNCH:
+    # Record the launch baseline only after a real successful dispatch. Merely
+    # describing a LAUNCH_WORKER plan must never advance the learning state.
+    if dispatch_result and dispatch_result.get("launch_baseline_success") is True:
         payload["launch_baseline"] = {
             "matured_outcome_count": inp.matured_outcome_count,
             "effective_n": inp.effective_n,
             "launched_step": plan.selected_step,
+            "dispatch_id": dispatch_result["dispatch_id"],
+            "dataset_build_receipt_file_sha256": dispatch_result["dataset_release"][
+                "build_receipt_file_sha256"
+            ],
             "recorded_utc": payload["generated_utc"],
         }
     elif isinstance(prior.get("launch_baseline"), dict):
@@ -785,19 +1304,46 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--redis-url", default=os.environ.get("REDIS_URL", "redis://127.0.0.1:6379/0")
     )
-    parser.add_argument("--dataset", type=Path, default=DEFAULT_GEN5_DATASET)
+    parser.add_argument("--dataset", type=Path)
     parser.add_argument("--ledger", type=Path, default=DEFAULT_LEDGER_PATH)
+    parser.add_argument("--execute-worker", action="store_true")
+    parser.add_argument("--dataset-release-root", type=Path)
+    parser.add_argument("--dispatch-root", type=Path, default=DEFAULT_DISPATCH_ROOT)
+    parser.add_argument(
+        "--dispatch-state", type=Path, default=DEFAULT_DISPATCH_STATE_PATH
+    )
+    parser.add_argument("--dispatch-lock", type=Path, default=DEFAULT_DISPATCH_LOCK_PATH)
+    parser.add_argument(
+        "--dispatch-timeout-seconds", type=int, default=DISPATCH_TIMEOUT_SECONDS
+    )
     parser.add_argument(
         "--no-persist", action="store_true", help="Compute and print the plan but do not write."
     )
     args = parser.parse_args(argv)
+    if args.execute_worker and args.no_persist:
+        parser.error("--execute-worker cannot be combined with --no-persist")
+    if args.execute_worker and args.dataset_release_root is None:
+        parser.error("--execute-worker requires --dataset-release-root")
+    dataset_path = args.dataset
+    if dataset_path is None and args.dataset_release_root is not None:
+        dataset_path = (
+            args.dataset_release_root / "adaptive_serving_compatible_dataset_v2.json"
+        )
+    if dataset_path is None:
+        dataset_path = DEFAULT_GEN5_DATASET
 
     client = _build_redis_client(args.redis_url)
     plan = run_once(
         client,
-        dataset_path=args.dataset,
+        dataset_path=dataset_path,
         ledger_path=args.ledger,
         persist=not args.no_persist,
+        execute_worker=args.execute_worker,
+        dataset_release_root=args.dataset_release_root,
+        dispatch_root=args.dispatch_root,
+        dispatch_state_path=args.dispatch_state,
+        dispatch_lock_path=args.dispatch_lock,
+        dispatch_timeout_seconds=args.dispatch_timeout_seconds,
     )
     print(json.dumps(plan.to_dict(), indent=2, sort_keys=True))
     errors = plan.validate()
@@ -813,6 +1359,7 @@ __all__ = [
     "ACTION_LAUNCH",
     "ACTION_AWAIT",
     "ACTION_NO_ESCALATION",
+    "DISPATCH_SCHEMA_VERSION",
     "INFO_DEPENDENT_STEPS",
     "WORKER_COMMANDS",
     "SupervisorInputs",
@@ -821,6 +1368,7 @@ __all__ = [
     "load_gen5_corpus_effective_n",
     "derive_conditions",
     "plan_escalation",
+    "dispatch_worker",
     "build_inputs_from_redis",
     "run_once",
     "main",
