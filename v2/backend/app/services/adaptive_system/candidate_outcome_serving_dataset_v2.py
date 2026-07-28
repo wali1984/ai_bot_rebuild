@@ -941,6 +941,7 @@ def build_adaptive_serving_dataset_v2(
         or not archive_path
         or archive_path.strip() != archive_path
         or not Path(archive_path).is_absolute()
+        or ".." in Path(archive_path).parts
         or source_archive_verification.get("writer_id")
         != PINNED_PRODUCTION_WRITER_ID
         or source_archive_verification.get("writer_public_key_hex")

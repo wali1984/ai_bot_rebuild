@@ -618,6 +618,10 @@ def test_source_archive_verification_is_mandatory() -> None:
         ({"writer_id": "attacker"}, "SOURCE_ARCHIVE_RECEIPT_UNSAFE"),
         ({"writer_public_key_hex": "0" * 64}, "SOURCE_ARCHIVE_RECEIPT_UNSAFE"),
         ({"archive_path": 17}, "SOURCE_ARCHIVE_RECEIPT_UNSAFE"),
+        (
+            {"archive_path": "/authenticated/../attacker.jsonl"},
+            "SOURCE_ARCHIVE_RECEIPT_UNSAFE",
+        ),
         ({"unexpected": "field"}, "SOURCE_ARCHIVE_VERIFICATION_FIELDS_MISMATCH"),
     ),
 )
