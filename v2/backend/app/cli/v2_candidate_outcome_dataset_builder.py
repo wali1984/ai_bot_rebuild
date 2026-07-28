@@ -14,15 +14,28 @@ import json
 import os
 import stat
 import tempfile
+from collections.abc import Callable, Mapping
 from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import (
+    Ed25519PrivateKey,
+)
+
 from v2.backend.app.services.adaptive_system.candidate_outcome_archive_v2 import (
     PINNED_PRODUCTION_WRITER_ID,
     PINNED_PRODUCTION_WRITER_PUBLIC_KEY_HEX,
     CandidateOutcomeArchiveV2,
+)
+from v2.backend.app.services.adaptive_system.candidate_outcome_dataset_receipt_v3 import (
+    SCHEMA_VERSION,
+    CandidateOutcomeDatasetReceiptError,
+)
+from v2.backend.app.services.adaptive_system.candidate_outcome_dataset_receipt_v3 import (
+    finalize_signed_build_receipt as _finalize_signed_build_receipt,
 )
 from v2.backend.app.services.adaptive_system.candidate_outcome_serving_dataset_v2 import (
     build_adaptive_serving_dataset_v2,
@@ -31,7 +44,7 @@ from v2.backend.app.services.native_trainer.durable_feature_snapshot_archive imp
     load_snapshot,
 )
 
-SCHEMA_VERSION = "candidate_outcome_dataset_build_receipt_v2"
+RECEIPT_SIGNING_CREDENTIAL_NAME = "candidate_outcome_ed25519_seed"
 DEFAULT_WRITER_ID = PINNED_PRODUCTION_WRITER_ID
 PINNED_BASE_DATASET_FILE_SHA256 = (
     "416a25c61e147af30b2ab45fb8c8e08d6348467a42045d0944cf6f1a0d785156"
@@ -53,8 +66,33 @@ class CandidateOutcomeDatasetBuilderError(RuntimeError):
     pass
 
 
-def _utc_now() -> str:
-    return datetime.now(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+def finalize_signed_build_receipt(
+    receipt: Mapping[str, Any],
+    *,
+    artifact_file_sha256s: Mapping[str, str],
+    signer: Callable[[bytes], bytes],
+    writer_public_key_hex: str,
+) -> dict[str, Any]:
+    """Finalize against the production writer trust anchor used by this CLI."""
+
+    if writer_public_key_hex != PINNED_PRODUCTION_WRITER_PUBLIC_KEY_HEX:
+        raise CandidateOutcomeDatasetBuilderError(
+            "receipt_writer_public_key:PINNED_KEY_REQUIRED"
+        )
+    try:
+        return _finalize_signed_build_receipt(
+            receipt,
+            artifact_file_sha256s=artifact_file_sha256s,
+            signer=signer,
+            writer_id=PINNED_PRODUCTION_WRITER_ID,
+            writer_public_key_hex=writer_public_key_hex,
+        )
+    except CandidateOutcomeDatasetReceiptError as exc:
+        if "SIGNATURE_DOES_NOT_MATCH_DECLARED_KEY" in str(exc):
+            raise CandidateOutcomeDatasetBuilderError(
+                "receipt_signer:SIGNATURE_DOES_NOT_MATCH_PINNED_KEY"
+            ) from exc
+        raise CandidateOutcomeDatasetBuilderError(str(exc)) from exc
 
 
 def _canonical_bytes(value: object, *, pretty: bool = False) -> bytes:
@@ -76,6 +114,80 @@ def _canonical_bytes(value: object, *, pretty: bool = False) -> bytes:
 
 def _sha256_bytes(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
+
+
+def _deterministic_receipt_generated_at(dataset: Mapping[str, Any]) -> str:
+    """Use the latest authenticated label clock, never the wall clock.
+
+    An unchanged source high-water must reproduce identical dataset-release
+    bytes.  Every admitted row has already passed the point-in-time validator;
+    binding this clock to its latest label availability also prevents a replay
+    from pretending to be a newer release merely by rerunning the command.
+    """
+
+    rows = dataset.get("rows")
+    if type(rows) is not list or not rows:
+        raise CandidateOutcomeDatasetBuilderError("dataset:NONEMPTY_ROWS_REQUIRED")
+    clocks: list[datetime] = []
+    for index, row in enumerate(rows):
+        if type(row) is not dict or type(row.get("label_available_at")) is not str:
+            raise CandidateOutcomeDatasetBuilderError(
+                f"dataset.rows[{index}].label_available_at:UTC_TIMESTAMP_REQUIRED"
+            )
+        try:
+            parsed = datetime.fromisoformat(
+                row["label_available_at"].replace("Z", "+00:00")
+            )
+        except ValueError as exc:
+            raise CandidateOutcomeDatasetBuilderError(
+                f"dataset.rows[{index}].label_available_at:UTC_TIMESTAMP_REQUIRED"
+            ) from exc
+        if parsed.tzinfo is None or parsed.utcoffset() != UTC.utcoffset(parsed):
+            raise CandidateOutcomeDatasetBuilderError(
+                f"dataset.rows[{index}].label_available_at:UTC_TIMESTAMP_REQUIRED"
+            )
+        clocks.append(parsed)
+    return max(clocks).isoformat().replace("+00:00", "Z")
+
+
+def _load_receipt_signing_key() -> tuple[Ed25519PrivateKey, str]:
+    credentials_directory = os.environ.get("CREDENTIALS_DIRECTORY")
+    if not credentials_directory:
+        raise CandidateOutcomeDatasetBuilderError("CREDENTIALS_DIRECTORY:MISSING")
+    path = Path(credentials_directory) / RECEIPT_SIGNING_CREDENTIAL_NAME
+    try:
+        descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+    except OSError as exc:
+        raise CandidateOutcomeDatasetBuilderError(
+            "receipt_signing_credential:REGULAR_FILE_REQUIRED"
+        ) from exc
+    try:
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            raise CandidateOutcomeDatasetBuilderError(
+                "receipt_signing_credential:REGULAR_FILE_REQUIRED"
+            )
+        with os.fdopen(descriptor, "rb", closefd=False) as handle:
+            seed = handle.read()
+    finally:
+        os.close(descriptor)
+    if len(seed) != 32:
+        raise CandidateOutcomeDatasetBuilderError(
+            "receipt_signing_credential:EXACTLY_32_BYTES_REQUIRED"
+        )
+    private_key = Ed25519PrivateKey.from_private_bytes(seed)
+    public_key_hex = (
+        private_key.public_key()
+        .public_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PublicFormat.Raw,
+        )
+        .hex()
+    )
+    if public_key_hex != PINNED_PRODUCTION_WRITER_PUBLIC_KEY_HEX:
+        raise CandidateOutcomeDatasetBuilderError(
+            "receipt_signing_credential:PINNED_PUBLIC_KEY_MISMATCH"
+        )
+    return private_key, public_key_hex
 
 
 def _read_pinned_object(
@@ -114,11 +226,33 @@ def _read_pinned_object(
     return value, actual_sha256
 
 
-def _write_atomic(path: Path, value: object) -> str:
+def _write_immutable(path: Path, value: object) -> str:
     path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-    if path.parent.is_symlink() or (path.exists() and (path.is_symlink() or not path.is_file())):
+    if path.parent.is_symlink():
         raise CandidateOutcomeDatasetBuilderError(f"output_path:UNSAFE:{path}")
     data = _canonical_bytes(value, pretty=True)
+    digest = _sha256_bytes(data)
+    if path.exists():
+        try:
+            descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+        except OSError as exc:
+            raise CandidateOutcomeDatasetBuilderError(
+                f"output_path:UNSAFE:{path}"
+            ) from exc
+        try:
+            if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+                raise CandidateOutcomeDatasetBuilderError(f"output_path:UNSAFE:{path}")
+            with os.fdopen(descriptor, "rb", closefd=False) as handle:
+                current = handle.read()
+        finally:
+            os.close(descriptor)
+        if current != data:
+            raise CandidateOutcomeDatasetBuilderError(
+                f"output_path:IMMUTABLE_COLLISION:{path}"
+            )
+        return digest
+    if path.is_symlink():
+        raise CandidateOutcomeDatasetBuilderError(f"output_path:UNSAFE:{path}")
     descriptor, name = tempfile.mkstemp(
         prefix=f".{path.name}.", suffix=".tmp", dir=path.parent
     )
@@ -129,7 +263,32 @@ def _write_atomic(path: Path, value: object) -> str:
             handle.write(data)
             handle.flush()
             os.fsync(handle.fileno())
-        os.replace(temporary, path)
+        try:
+            os.link(temporary, path, follow_symlinks=False)
+        except FileExistsError:
+            try:
+                existing_descriptor = os.open(
+                    path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+                )
+            except OSError as exc:
+                raise CandidateOutcomeDatasetBuilderError(
+                    f"output_path:UNSAFE:{path}"
+                ) from exc
+            try:
+                if not stat.S_ISREG(os.fstat(existing_descriptor).st_mode):
+                    raise CandidateOutcomeDatasetBuilderError(
+                        f"output_path:UNSAFE:{path}"
+                    )
+                with os.fdopen(
+                    existing_descriptor, "rb", closefd=False
+                ) as handle:
+                    current = handle.read()
+            finally:
+                os.close(existing_descriptor)
+            if current != data:
+                raise CandidateOutcomeDatasetBuilderError(
+                    f"output_path:IMMUTABLE_COLLISION:{path}"
+                ) from None
         directory_descriptor = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
         try:
             os.fsync(directory_descriptor)
@@ -138,7 +297,7 @@ def _write_atomic(path: Path, value: object) -> str:
     finally:
         if temporary.exists():
             temporary.unlink()
-    return _sha256_bytes(data)
+    return digest
 
 
 def _archive_reader(
@@ -223,7 +382,7 @@ def build_once(
         )
     receipt = {
         "schema_version": SCHEMA_VERSION,
-        "generated_at": _utc_now(),
+        "generated_at": _deterministic_receipt_generated_at(dataset),
         "status": "PASS",
         "base_dataset_path": str(base_dataset_path.resolve()),
         "base_dataset_file_sha256": base_dataset_file_sha256,
@@ -275,24 +434,37 @@ def main(argv: list[str] | None = None) -> int:
         candidate_archive_path=args.candidate_archive,
         feature_archive_root=args.feature_archive_root,
     )
+    private_key, public_key_hex = _load_receipt_signing_key()
+    artifact_values = {
+        "adaptive_serving_compatible_dataset_v2.json": dataset,
+        "adaptive_serving_compatible_dataset_manifest_v2.json": manifest,
+        "adaptive_train_serve_feature_parity_report_v2.json": parity,
+    }
+    artifact_hashes = {
+        name: _sha256_bytes(_canonical_bytes(value, pretty=True))
+        for name, value in artifact_values.items()
+    }
+    signed_receipt = finalize_signed_build_receipt(
+        receipt,
+        artifact_file_sha256s=artifact_hashes,
+        signer=private_key.sign,
+        writer_public_key_hex=public_key_hex,
+    )
     if not args.verify_only:
         root = args.output_root.resolve()
         if root.exists() and (root.is_symlink() or not root.is_dir()):
             raise CandidateOutcomeDatasetBuilderError("output_root:SAFE_DIRECTORY_REQUIRED")
-        artifact_hashes = {
-            "adaptive_serving_compatible_dataset_v2.json": _write_atomic(
-                root / "adaptive_serving_compatible_dataset_v2.json", dataset
-            ),
-            "adaptive_serving_compatible_dataset_manifest_v2.json": _write_atomic(
-                root / "adaptive_serving_compatible_dataset_manifest_v2.json", manifest
-            ),
-            "adaptive_train_serve_feature_parity_report_v2.json": _write_atomic(
-                root / "adaptive_train_serve_feature_parity_report_v2.json", parity
-            ),
-        }
-        receipt["artifact_file_sha256s"] = artifact_hashes
-        _write_atomic(root / "candidate_outcome_dataset_build_receipt_v2.json", receipt)
-    print(json.dumps(receipt, sort_keys=True, allow_nan=False))
+        for name, value in artifact_values.items():
+            actual = _write_immutable(root / name, value)
+            if actual != artifact_hashes[name]:
+                raise CandidateOutcomeDatasetBuilderError(
+                    f"artifact_file_sha256s:WRITE_READBACK_MISMATCH:{name}"
+                )
+        _write_immutable(
+            root / "candidate_outcome_dataset_build_receipt_v3.json",
+            signed_receipt,
+        )
+    print(json.dumps(signed_receipt, sort_keys=True, allow_nan=False))
     return 0
 
 

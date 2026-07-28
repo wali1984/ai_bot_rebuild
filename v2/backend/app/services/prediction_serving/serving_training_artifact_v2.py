@@ -20,6 +20,16 @@ from v2.backend.app.services.adaptive_system.candidate_outcome_archive_v2 import
     PINNED_PRODUCTION_WRITER_ID,
     PINNED_PRODUCTION_WRITER_PUBLIC_KEY_HEX,
 )
+from v2.backend.app.services.adaptive_system.candidate_outcome_dataset_receipt_v3 import (
+    SCHEMA_VERSION as SIGNED_RECEIPT_SCHEMA_VERSION,
+)
+from v2.backend.app.services.adaptive_system.candidate_outcome_dataset_receipt_v3 import (
+    SIGNATURE_FIELDS as SIGNED_RECEIPT_FIELDS,
+)
+from v2.backend.app.services.adaptive_system.candidate_outcome_dataset_receipt_v3 import (
+    CandidateOutcomeDatasetReceiptError,
+    verify_signed_build_receipt,
+)
 from v2.backend.app.services.adaptive_system.candidate_outcome_serving_dataset_v2 import (
     EMBARGO_GROUPS,
     PURGE_POLICY,
@@ -275,6 +285,7 @@ _RECEIPT_KEYS = frozenset(
         "validation_rows",
     }
 )
+_SIGNED_RECEIPT_KEYS = _RECEIPT_KEYS | SIGNED_RECEIPT_FIELDS
 _COMMON_ROW_KEYS = frozenset(
     {
         "actual_paper_outcome_present",
@@ -750,11 +761,25 @@ def load_validated_training_artifacts(
         _fail("SCHEMA_MISMATCH", "manifest")
     if set(parity) != _PARITY_KEYS or parity.get("schema_version") != PARITY_SCHEMA_VERSION:
         _fail("SCHEMA_MISMATCH", "parity")
-    if (
-        set(receipt) != _RECEIPT_KEYS
-        or receipt.get("schema_version") != RECEIPT_SCHEMA_VERSION
-        or receipt_file_sha != PINNED_BUILD_RECEIPT_FILE_SHA256
-    ):
+    receipt_schema_version = receipt.get("schema_version")
+    if receipt_schema_version == RECEIPT_SCHEMA_VERSION:
+        if (
+            set(receipt) != _RECEIPT_KEYS
+            or receipt_file_sha != PINNED_BUILD_RECEIPT_FILE_SHA256
+        ):
+            _fail("SCHEMA_MISMATCH", "build_receipt")
+    elif receipt_schema_version == SIGNED_RECEIPT_SCHEMA_VERSION:
+        if set(receipt) != _SIGNED_RECEIPT_KEYS:
+            _fail("SCHEMA_MISMATCH", "build_receipt")
+        try:
+            verify_signed_build_receipt(
+                receipt,
+                pinned_writer_id=PINNED_PRODUCTION_WRITER_ID,
+                pinned_writer_public_key_hex=PINNED_PRODUCTION_WRITER_PUBLIC_KEY_HEX,
+            )
+        except CandidateOutcomeDatasetReceiptError as exc:
+            _fail(f"SIGNED_RECEIPT_INVALID:{exc}", "build_receipt")
+    else:
         _fail("SCHEMA_MISMATCH", "build_receipt")
     dataset_sha = _sha256(dataset.get("dataset_sha256"), "dataset.dataset_sha256")
     dataset_material = {

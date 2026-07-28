@@ -5,12 +5,17 @@ from dataclasses import replace
 from pathlib import Path
 
 import pytest
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from v2.backend.app.cli import v2_candidate_outcome_dataset_builder as builder
 from v2.backend.app.cli.v2_candidate_outcome_dataset_builder import (
     CandidateOutcomeDatasetBuilderError,
     _archive_reader,
+    _canonical_bytes,
+    _write_immutable,
     build_once,
+    finalize_signed_build_receipt,
 )
 from v2.backend.app.services.adaptive_system import (
     candidate_outcome_serving_dataset_v2 as serving_dataset,
@@ -83,10 +88,24 @@ def test_build_once_verifies_signed_archive_and_durable_snapshot(
         candidate_archive_path=archive_path,
         feature_archive_root=feature_root,
     )
+    repeated = build_once(
+        base_dataset_path=base_path,
+        candidate_archive_path=archive_path,
+        feature_archive_root=feature_root,
+    )
 
+    assert repeated == (dataset, manifest, parity, receipt)
     assert receipt["status"] == "PASS"
     assert receipt["candidate_records_fully_accounted"] is True
     assert receipt["candidate_archive_verification"]["verified"] is True
+    assert receipt["paper_only"] is True
+    assert receipt["live_gate"] == "blocked_human_only"
+    assert receipt["routes_to_live"] is False
+    assert receipt["places_real_order"] is False
+    assert receipt["exchange_action_taken"] is False
+    assert receipt["generated_at"] == max(
+        row["label_available_at"] for row in dataset["rows"]
+    )
     assert manifest["source_high_watermark"]["candidate_archive_candidate_count"] == 1
     assert any(row.get("candidate_id") == matured.decision.candidate_id for row in dataset["rows"])
     assert parity["activation_eligible"] is False
@@ -159,3 +178,139 @@ def test_archive_reader_rejects_self_signed_alternate_key(tmp_path: Path) -> Non
     ):
         _archive_reader(path)
     assert public_key_hex != "bbff6e85cd6954ae5aff4ee2ec5d2078de96bf8f8750aaa889d2ea4712c5b4d9"
+
+
+def _receipt_signer() -> tuple[bytes, Ed25519PrivateKey, str]:
+    private_seed = bytes(range(32))
+    private_key = Ed25519PrivateKey.from_private_bytes(private_seed)
+    public_key_hex = (
+        private_key.public_key()
+        .public_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PublicFormat.Raw,
+        )
+        .hex()
+    )
+    return private_seed, private_key, public_key_hex
+
+
+def _unsigned_v3_receipt() -> dict[str, object]:
+    return {
+        "schema_version": builder.SCHEMA_VERSION,
+        "generated_at": "2026-07-28T12:00:00Z",
+        "status": "PASS",
+        "source_high_watermark_sha256": "a" * 64,
+        "paper_only": True,
+        "live_gate": "blocked_human_only",
+        "routes_to_live": False,
+        "places_real_order": False,
+        "exchange_action_taken": False,
+    }
+
+
+def _artifact_hashes() -> dict[str, str]:
+    return {
+        "adaptive_serving_compatible_dataset_v2.json": "1" * 64,
+        "adaptive_serving_compatible_dataset_manifest_v2.json": "2" * 64,
+        "adaptive_train_serve_feature_parity_report_v2.json": "3" * 64,
+    }
+
+
+def test_signed_build_receipt_is_byte_deterministic_idempotent_and_secret_free(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    private_seed, _, public_key_hex = _receipt_signer()
+    monkeypatch.setattr(
+        builder,
+        "PINNED_PRODUCTION_WRITER_PUBLIC_KEY_HEX",
+        public_key_hex,
+    )
+    credentials_directory = tmp_path / "credentials"
+    credentials_directory.mkdir()
+    credential_path = credentials_directory / builder.RECEIPT_SIGNING_CREDENTIAL_NAME
+    credential_path.write_bytes(private_seed)
+    monkeypatch.setenv("CREDENTIALS_DIRECTORY", str(credentials_directory))
+    private_key, loaded_public_key_hex = builder._load_receipt_signing_key()
+    assert loaded_public_key_hex == public_key_hex
+
+    first = finalize_signed_build_receipt(
+        _unsigned_v3_receipt(),
+        artifact_file_sha256s=_artifact_hashes(),
+        signer=private_key.sign,
+        writer_public_key_hex=public_key_hex,
+    )
+    second = finalize_signed_build_receipt(
+        _unsigned_v3_receipt(),
+        artifact_file_sha256s=_artifact_hashes(),
+        signer=private_key.sign,
+        writer_public_key_hex=public_key_hex,
+    )
+    first_bytes = _canonical_bytes(first, pretty=True)
+    second_bytes = _canonical_bytes(second, pretty=True)
+
+    assert first == second
+    assert first_bytes == second_bytes
+    assert private_seed not in first_bytes
+    assert private_seed.hex().encode("ascii") not in first_bytes
+    assert first["paper_only"] is True
+    assert first["live_gate"] == "blocked_human_only"
+    assert first["routes_to_live"] is False
+    assert first["places_real_order"] is False
+    assert first["exchange_action_taken"] is False
+
+    target = tmp_path / "candidate_outcome_dataset_build_receipt_v3.json"
+    first_sha = _write_immutable(target, first)
+    second_sha = _write_immutable(target, second)
+    assert first_sha == second_sha
+    assert target.read_bytes() == first_bytes
+
+
+def test_signed_build_receipt_rejects_alternate_self_signed_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _, trusted_private, trusted_public_hex = _receipt_signer()
+    alternate_private = Ed25519PrivateKey.from_private_bytes(bytes(range(32, 64)))
+    alternate_public_hex = (
+        alternate_private.public_key()
+        .public_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PublicFormat.Raw,
+        )
+        .hex()
+    )
+    monkeypatch.setattr(
+        builder,
+        "PINNED_PRODUCTION_WRITER_PUBLIC_KEY_HEX",
+        trusted_public_hex,
+    )
+
+    with pytest.raises(
+        CandidateOutcomeDatasetBuilderError,
+        match="PINNED_KEY_REQUIRED",
+    ):
+        finalize_signed_build_receipt(
+            _unsigned_v3_receipt(),
+            artifact_file_sha256s=_artifact_hashes(),
+            signer=alternate_private.sign,
+            writer_public_key_hex=alternate_public_hex,
+        )
+
+    with pytest.raises(
+        CandidateOutcomeDatasetBuilderError,
+        match="SIGNATURE_DOES_NOT_MATCH_PINNED_KEY",
+    ):
+        finalize_signed_build_receipt(
+            _unsigned_v3_receipt(),
+            artifact_file_sha256s=_artifact_hashes(),
+            signer=alternate_private.sign,
+            writer_public_key_hex=trusted_public_hex,
+        )
+
+    trusted = finalize_signed_build_receipt(
+        _unsigned_v3_receipt(),
+        artifact_file_sha256s=_artifact_hashes(),
+        signer=trusted_private.sign,
+        writer_public_key_hex=trusted_public_hex,
+    )
+    assert trusted["receipt_writer_public_key_hex"] == trusted_public_hex

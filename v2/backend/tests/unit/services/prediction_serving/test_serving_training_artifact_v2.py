@@ -10,8 +10,19 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from v2.backend.app.contracts.runtime_v2.contracts import canonical_sha256
+from v2.backend.app.services.adaptive_system.candidate_outcome_dataset_receipt_v3 import (
+    SCHEMA_VERSION as SIGNED_RECEIPT_SCHEMA_VERSION,
+)
+from v2.backend.app.services.adaptive_system.candidate_outcome_dataset_receipt_v3 import (
+    SIGNATURE_FIELDS,
+    canonical_receipt_bytes,
+    finalize_signed_build_receipt,
+    receipt_unsigned_material,
+)
 from v2.backend.app.services.adaptive_system.candidate_outcome_serving_dataset_v2 import (
     build_adaptive_serving_dataset_v2,
     build_candidate_outcome_row,
@@ -296,6 +307,253 @@ def test_exact_authenticated_artifacts_load(artifacts: ArtifactFixture) -> None:
     )
     assert parity["builder_match"] is True
     assert receipt["candidate_records_fully_accounted"] is True
+
+
+def _upgrade_to_signed_v3(
+    artifacts: ArtifactFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> Ed25519PrivateKey:
+    private_key = Ed25519PrivateKey.from_private_bytes(bytes(range(32)))
+    public_key_hex = (
+        private_key.public_key()
+        .public_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PublicFormat.Raw,
+        )
+        .hex()
+    )
+    monkeypatch.setattr(
+        serving_training_artifact_v2,
+        "PINNED_PRODUCTION_WRITER_PUBLIC_KEY_HEX",
+        public_key_hex,
+    )
+    artifacts.receipt["trusted_writer_public_key_hex"] = public_key_hex
+    artifacts.receipt["candidate_archive_verification"][
+        "writer_public_key_hex"
+    ] = public_key_hex
+    artifacts.manifest["source_high_watermark"][
+        "candidate_archive_writer_public_key_hex"
+    ] = public_key_hex
+    artifacts.write(repin_receipt=False)
+    unsigned = {**artifacts.receipt, "schema_version": SIGNED_RECEIPT_SCHEMA_VERSION}
+    signed = finalize_signed_build_receipt(
+        unsigned,
+        artifact_file_sha256s=unsigned["artifact_file_sha256s"],
+        signer=private_key.sign,
+        writer_id=serving_training_artifact_v2.PINNED_PRODUCTION_WRITER_ID,
+        writer_public_key_hex=public_key_hex,
+    )
+    artifacts.receipt.clear()
+    artifacts.receipt.update(signed)
+    artifacts.receipt_path.write_bytes(_bytes(signed))
+    monkeypatch.setattr(
+        serving_training_artifact_v2,
+        "PINNED_BUILD_RECEIPT_FILE_SHA256",
+        "0" * 64,
+    )
+    return private_key
+
+
+def _write_receipt(artifacts: ArtifactFixture) -> None:
+    artifacts.receipt_path.write_bytes(_bytes(artifacts.receipt))
+
+
+def _publicly_rehash_receipt(artifacts: ArtifactFixture) -> None:
+    unsigned_bytes = canonical_receipt_bytes(
+        receipt_unsigned_material(artifacts.receipt)
+    )
+    artifacts.receipt["receipt_payload_sha256"] = hashlib.sha256(
+        unsigned_bytes
+    ).hexdigest()
+    _write_receipt(artifacts)
+
+
+def _resign_receipt(
+    artifacts: ArtifactFixture,
+    private_key: Ed25519PrivateKey,
+) -> None:
+    unsigned = {
+        key: value
+        for key, value in artifacts.receipt.items()
+        if key not in SIGNATURE_FIELDS
+    }
+    signed = finalize_signed_build_receipt(
+        unsigned,
+        artifact_file_sha256s=unsigned["artifact_file_sha256s"],
+        signer=private_key.sign,
+        writer_id=artifacts.receipt["receipt_writer_id"],
+        writer_public_key_hex=artifacts.receipt["receipt_writer_public_key_hex"],
+    )
+    artifacts.receipt.clear()
+    artifacts.receipt.update(signed)
+    _write_receipt(artifacts)
+
+
+def test_valid_signed_v3_receipt_loads_without_raw_file_pin(
+    artifacts: ArtifactFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _upgrade_to_signed_v3(artifacts, monkeypatch)
+
+    dataset, manifest, parity, receipt = artifacts.load()
+
+    assert dataset["dataset_sha256"] == receipt["dataset_sha256"]
+    assert manifest["manifest_sha256"] == receipt["manifest_sha256"]
+    assert parity["paper_only"] is True
+    assert receipt["schema_version"] == SIGNED_RECEIPT_SCHEMA_VERSION
+    assert receipt["paper_only"] is True
+    assert receipt["live_gate"] == "blocked_human_only"
+    assert receipt["routes_to_live"] is False
+    assert receipt["places_real_order"] is False
+    assert receipt["exchange_action_taken"] is False
+
+
+def test_unsigned_v3_receipt_is_rejected(
+    artifacts: ArtifactFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _upgrade_to_signed_v3(artifacts, monkeypatch)
+    for field in SIGNATURE_FIELDS:
+        artifacts.receipt.pop(field)
+    _write_receipt(artifacts)
+
+    with pytest.raises(ServingTrainingArtifactError, match="build_receipt:SCHEMA_MISMATCH"):
+        artifacts.load()
+
+
+def test_public_receipt_rehash_and_raw_repin_cannot_replace_signature(
+    artifacts: ArtifactFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _upgrade_to_signed_v3(artifacts, monkeypatch)
+    artifacts.receipt["status"] = "PUBLICLY_REHASHED"
+    _publicly_rehash_receipt(artifacts)
+    monkeypatch.setattr(
+        serving_training_artifact_v2,
+        "PINNED_BUILD_RECEIPT_FILE_SHA256",
+        hashlib.sha256(artifacts.receipt_path.read_bytes()).hexdigest(),
+    )
+
+    with pytest.raises(ServingTrainingArtifactError, match="SIGNATURE_INVALID"):
+        artifacts.load()
+
+
+def test_alternate_self_signed_v3_key_is_rejected(
+    artifacts: ArtifactFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _upgrade_to_signed_v3(artifacts, monkeypatch)
+    alternate = Ed25519PrivateKey.from_private_bytes(bytes(range(32, 64)))
+    alternate_public_hex = (
+        alternate.public_key()
+        .public_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PublicFormat.Raw,
+        )
+        .hex()
+    )
+    unsigned = {
+        key: value
+        for key, value in artifacts.receipt.items()
+        if key not in SIGNATURE_FIELDS
+    }
+    signed = finalize_signed_build_receipt(
+        unsigned,
+        artifact_file_sha256s=unsigned["artifact_file_sha256s"],
+        signer=alternate.sign,
+        writer_id=artifacts.receipt["receipt_writer_id"],
+        writer_public_key_hex=alternate_public_hex,
+    )
+    artifacts.receipt.clear()
+    artifacts.receipt.update(signed)
+    _write_receipt(artifacts)
+
+    with pytest.raises(ServingTrainingArtifactError, match="PINNED_PUBLIC_KEY_REQUIRED"):
+        artifacts.load()
+
+
+@pytest.mark.parametrize(
+    ("field", "invalid", "reason"),
+    [
+        ("receipt_signature_hex", "c" * 128, "SIGNATURE_INVALID"),
+        ("receipt_payload_sha256", "c" * 64, "PAYLOAD_SHA256_MISMATCH"),
+        ("receipt_signature_domain", "wrong-domain", "DOMAIN_MISMATCH"),
+        ("receipt_signature_algorithm", "not-ed25519", "ALGORITHM_MISMATCH"),
+        ("receipt_writer_id", "alternate-writer", "PINNED_WRITER_REQUIRED"),
+    ],
+)
+def test_signed_v3_envelope_tampering_is_rejected(
+    artifacts: ArtifactFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    field: str,
+    invalid: str,
+    reason: str,
+) -> None:
+    _upgrade_to_signed_v3(artifacts, monkeypatch)
+    artifacts.receipt[field] = invalid
+    _write_receipt(artifacts)
+
+    with pytest.raises(ServingTrainingArtifactError, match=reason):
+        artifacts.load()
+
+
+@pytest.mark.parametrize("artifact", ["dataset", "manifest", "parity"])
+def test_public_artifact_rehashes_cannot_replace_private_receipt_signature(
+    artifacts: ArtifactFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    artifact: str,
+) -> None:
+    _upgrade_to_signed_v3(artifacts, monkeypatch)
+    if artifact == "dataset":
+        artifacts.dataset["rows"][0]["feature_values"][0] += 0.125
+    elif artifact == "manifest":
+        artifacts.manifest["symbol_count"] += 1
+    else:
+        artifacts.parity["activation_block_reason"] = "PUBLIC_MUTATION"
+    artifacts.write(repin_receipt=True)
+    _publicly_rehash_receipt(artifacts)
+    monkeypatch.setattr(
+        serving_training_artifact_v2,
+        "PINNED_BUILD_RECEIPT_FILE_SHA256",
+        hashlib.sha256(artifacts.receipt_path.read_bytes()).hexdigest(),
+    )
+
+    with pytest.raises(ServingTrainingArtifactError, match="SIGNATURE_INVALID"):
+        artifacts.load()
+
+
+@pytest.mark.parametrize(
+    ("field", "invalid"),
+    [
+        ("paper_only", False),
+        ("live_gate", "open"),
+        ("routes_to_live", True),
+        ("places_real_order", True),
+        ("exchange_action_taken", True),
+    ],
+)
+def test_even_trusted_signed_v3_receipt_requires_exact_paper_only_authority(
+    artifacts: ArtifactFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    field: str,
+    invalid: object,
+) -> None:
+    private_key = _upgrade_to_signed_v3(artifacts, monkeypatch)
+    artifacts.receipt[field] = invalid
+    _resign_receipt(artifacts, private_key)
+
+    with pytest.raises(
+        ServingTrainingArtifactError,
+        match="UNTRUSTED_OR_UNSAFE_BUILD_RECEIPT",
+    ):
+        artifacts.load()
+
+
+def test_historical_exact_v2_receipt_still_loads(
+    artifacts: ArtifactFixture,
+) -> None:
+    assert artifacts.receipt["schema_version"] == "candidate_outcome_dataset_build_receipt_v2"
+    artifacts.load()
 
 
 @pytest.mark.parametrize(

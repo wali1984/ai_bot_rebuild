@@ -21,7 +21,6 @@ from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.confidence impor
     fit_temperature,
     normalize_calibration_state,
 )
-from v2.backend.app.services.prediction_serving import serving_training_artifact_v2
 from v2.backend.app.services.prediction_serving.serving_checkpoint_trainer_v2 import (
     FIXED_RANDOM_SEED,
     MIN_EDGE_TARGET_SCALE_BPS,
@@ -310,12 +309,23 @@ def train_serving_checkpoint_v3(
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(FIXED_RANDOM_SEED)
     torch.use_deterministic_algorithms(True)
+    receipt_bytes_before_validation = _read_regular_bytes(
+        build_receipt_path, "build_receipt_path"
+    )
     dataset, manifest, parity, build_receipt = load_validated_training_artifacts(
         dataset_path=dataset_path,
         manifest_path=manifest_path,
         parity_path=parity_path,
         build_receipt_path=build_receipt_path,
     )
+    receipt_bytes_after_validation = _read_regular_bytes(
+        build_receipt_path, "build_receipt_path"
+    )
+    if receipt_bytes_before_validation != receipt_bytes_after_validation:
+        raise ValueError("build_receipt_path:CHANGED_DURING_VALIDATION")
+    build_receipt_file_sha256 = hashlib.sha256(
+        receipt_bytes_before_validation
+    ).hexdigest()
 
     train_rows = _partition(dataset, "train")
     validation_rows = _partition(dataset, "validation")
@@ -543,9 +553,7 @@ def train_serving_checkpoint_v3(
             parity_path.name
         ],
         "build_receipt_sha256": canonical_sha256(build_receipt),
-        "build_receipt_file_sha256": (
-            serving_training_artifact_v2.PINNED_BUILD_RECEIPT_FILE_SHA256
-        ),
+        "build_receipt_file_sha256": build_receipt_file_sha256,
         "candidate_archive_terminal_chain_sha256": build_receipt[
             "candidate_archive_verification"
         ]["terminal_chain_sha256"],
