@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import fcntl
 import hashlib
+import hmac
 import importlib.util
 import json
 import logging
@@ -907,6 +908,81 @@ def _result_bytes(value: object) -> bytes:
     return str(value).encode("utf-8", "replace")
 
 
+def _replay_terminal_receipt(
+    path: Path,
+    *,
+    dispatch_material: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    if not path.exists():
+        return None
+    try:
+        receipt = json.loads(_read_regular_bytes(path, "dispatch_terminal_receipt"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValueError("dispatch_terminal_receipt:STRICT_JSON_REQUIRED") from exc
+    if type(receipt) is not dict:
+        raise ValueError("dispatch_terminal_receipt:OBJECT_REQUIRED")
+    required_matches = (
+        "schema_version",
+        "selected_step",
+        "trigger",
+        "input_manifest_sha",
+        "worker_scope",
+        "worker_entrypoint",
+        "worker_entrypoint_file_sha256",
+        "worker_argv_template",
+        "dataset_release",
+        "argv",
+        "dispatch_id",
+    )
+    for receipt_field in required_matches:
+        if receipt.get(receipt_field) != dispatch_material.get(receipt_field):
+            raise ValueError(
+                "dispatch_terminal_receipt:DISPATCH_MATERIAL_MISMATCH:"
+                f"{receipt_field}"
+            )
+    if receipt.get("status") not in {"COMPLETED", "FAILED"}:
+        raise ValueError("dispatch_terminal_receipt:TERMINAL_STATUS_REQUIRED")
+    timed_out = receipt.get("timed_out")
+    returncode = receipt.get("returncode")
+    if type(timed_out) is not bool or (
+        returncode is not None and type(returncode) is not int
+    ):
+        raise ValueError("dispatch_terminal_receipt:RESULT_TYPES_INVALID")
+    succeeded = returncode == 0 and not timed_out
+    expected_status = "COMPLETED" if succeeded else "FAILED"
+    if receipt.get("status") != expected_status:
+        raise ValueError("dispatch_terminal_receipt:RESULT_STATUS_INCONSISTENT")
+    if receipt.get("launch_baseline_success") is not succeeded:
+        raise ValueError("dispatch_terminal_receipt:BASELINE_SUCCESS_INCONSISTENT")
+    failure_reason = receipt.get("failure_reason")
+    if (succeeded and failure_reason is not None) or (
+        not succeeded and (type(failure_reason) is not str or not failure_reason)
+    ):
+        raise ValueError("dispatch_terminal_receipt:FAILURE_REASON_INCONSISTENT")
+    for stream_name in ("stdout", "stderr"):
+        claimed_sha256 = receipt.get(f"{stream_name}_sha256")
+        if type(claimed_sha256) is not str or len(claimed_sha256) != 64:
+            raise ValueError(
+                f"dispatch_terminal_receipt:{stream_name.upper()}_SHA256_INVALID"
+            )
+        stream_bytes = _read_regular_bytes(path.parent / f"{stream_name}.bin", stream_name)
+        if not hmac.compare_digest(claimed_sha256, _sha256_bytes(stream_bytes)):
+            raise ValueError(
+                f"dispatch_terminal_receipt:{stream_name.upper()}_HASH_MISMATCH"
+            )
+    if (
+        receipt.get("paper_only") is not True
+        or receipt.get("live_gate") != "blocked_human_only"
+        or receipt.get("routes_to_live") is not False
+        or receipt.get("places_real_order") is not False
+        or receipt.get("exchange_action_taken") is not False
+    ):
+        raise ValueError("dispatch_terminal_receipt:UNSAFE_AUTHORITY")
+    replay = dict(receipt)
+    replay["idempotent_replay"] = True
+    return replay
+
+
 def dispatch_worker(
     plan: EscalationWorkPlan,
     *,
@@ -929,6 +1005,9 @@ def dispatch_worker(
     if errors or plan.action != ACTION_LAUNCH or not plan.worker_command:
         raise ValueError(f"dispatch_plan:INVALID:{','.join(errors) or plan.action}")
     worker = plan.worker_command
+    expected_worker = WORKER_COMMANDS.get(plan.selected_step or "")
+    if expected_worker is None or worker != expected_worker:
+        raise ValueError("worker_command:UNAUTHORIZED_DESCRIPTOR")
     if (
         worker.get("paper_only") is not True
         or worker.get("live_gate") != "blocked_human_only"
@@ -948,6 +1027,8 @@ def dispatch_worker(
         raise ValueError("timeout_seconds:POSITIVE_NUMBER_REQUIRED")
 
     release = _authenticated_dataset_release(Path(dataset_release_root))
+    if plan.input_manifest_sha != release["dataset_sha256"]:
+        raise ValueError("dataset_release_root:PLAN_DATASET_IDENTITY_MISMATCH")
     dispatch_parent = _safe_directory(Path(dispatch_root), "dispatch_root", create=True)
     dispatch_material = {
         "schema_version": DISPATCH_SCHEMA_VERSION,
@@ -1005,6 +1086,13 @@ def dispatch_worker(
                 "places_real_order": False,
                 "exchange_action_taken": False,
             }
+
+        terminal_replay = _replay_terminal_receipt(
+            run_root / "dispatch_terminal_v1.json",
+            dispatch_material=dispatch_material,
+        )
+        if terminal_replay is not None:
+            return terminal_replay
 
         prior = _load_json_if_present(Path(state_path))
         if prior and prior.get("dispatch_id") == dispatch_id and prior.get("status") in {

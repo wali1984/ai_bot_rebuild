@@ -58,7 +58,7 @@ def _flat_inputs(**over) -> SupervisorInputs:
         min_new_matured_outcomes=250,
         min_new_effective_n=25.0,
         superior_challenger_available=False,
-        input_manifest_sha="deadbeef",
+        input_manifest_sha="1" * 64,
     )
     base.update(over)
     return SupervisorInputs(**base)
@@ -648,6 +648,298 @@ def test_completed_dispatch_replay_is_idempotent_and_does_not_execute_twice(
     assert json.loads(state_path.read_text(encoding="utf-8")) == first
 
 
+def test_nonconsecutive_dispatch_replay_uses_immutable_terminal_receipt(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    release_root = _dataset_release(tmp_path)
+    dispatch_root = (tmp_path / "dispatches").resolve()
+    state_path = (tmp_path / "dispatch-state.json").resolve()
+    lock_path = (tmp_path / "dispatch.lock").resolve()
+    monkeypatch.setenv("LIVE_GATE", "blocked_human_only")
+    monkeypatch.setattr(
+        supervisor,
+        "_authenticated_dataset_release",
+        lambda root: _authenticated_release_projection(Path(root).resolve()),
+    )
+    plan_a = _launch_plan(RECALIBRATE)
+    plan_b = _launch_plan(TRAIN_INCREMENTAL)
+    first_runner = _FakeRunner(state_path)
+    second_runner = _FakeRunner(state_path)
+
+    first = supervisor.dispatch_worker(
+        plan_a,
+        dataset_release_root=release_root,
+        dispatch_root=dispatch_root,
+        state_path=state_path,
+        lock_path=lock_path,
+        runner=first_runner,
+        timeout_seconds=17,
+    )
+    second = supervisor.dispatch_worker(
+        plan_b,
+        dataset_release_root=release_root,
+        dispatch_root=dispatch_root,
+        state_path=state_path,
+        lock_path=lock_path,
+        runner=second_runner,
+        timeout_seconds=17,
+    )
+    latest_state_before_replay = state_path.read_bytes()
+    replay_runner = _FakeRunner(state_path, returncode=99)
+
+    replay = supervisor.dispatch_worker(
+        plan_a,
+        dataset_release_root=release_root,
+        dispatch_root=dispatch_root,
+        state_path=state_path,
+        lock_path=lock_path,
+        runner=replay_runner,
+        timeout_seconds=17,
+    )
+
+    assert first["dispatch_id"] != second["dispatch_id"]
+    assert len(first_runner.calls) == len(second_runner.calls) == 1
+    assert replay["dispatch_id"] == first["dispatch_id"]
+    assert replay["status"] == "COMPLETED"
+    assert replay["idempotent_replay"] is True
+    assert replay_runner.calls == []
+    assert state_path.read_bytes() == latest_state_before_replay
+    assert json.loads(state_path.read_text(encoding="utf-8")) == second
+
+
+def test_dispatch_rejects_plan_and_authenticated_dataset_identity_mismatch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    release_root = _dataset_release(tmp_path)
+    dispatch_root = (tmp_path / "dispatches").resolve()
+    state_path = (tmp_path / "dispatch-state.json").resolve()
+    runner = _FakeRunner(state_path)
+    monkeypatch.setenv("LIVE_GATE", "blocked_human_only")
+    monkeypatch.setattr(
+        supervisor,
+        "_authenticated_dataset_release",
+        lambda root: _authenticated_release_projection(Path(root).resolve()),
+    )
+    mismatched = replace(
+        _launch_plan(RECALIBRATE),
+        input_manifest_sha="2" * 64,
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="PLAN_DATASET_IDENTITY_MISMATCH",
+    ):
+        supervisor.dispatch_worker(
+            mismatched,
+            dataset_release_root=release_root,
+            dispatch_root=dispatch_root,
+            state_path=state_path,
+            lock_path=(tmp_path / "dispatch.lock").resolve(),
+            runner=runner,
+            timeout_seconds=17,
+        )
+
+    assert runner.calls == []
+    assert not state_path.exists()
+    assert not dispatch_root.exists()
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("entrypoint", "scripts/unregistered_adaptive_worker.py"),
+        (
+            "argv",
+            [".venv/bin/python", "scripts/unregistered_adaptive_worker.py"],
+        ),
+    ],
+)
+def test_dispatch_rejects_unregistered_worker_descriptor_before_runner(
+    tmp_path: Path,
+    field: str,
+    value: object,
+) -> None:
+    plan = _launch_plan(RECALIBRATE)
+    unauthorized = replace(
+        plan,
+        worker_command={**plan.worker_command, field: value},
+    )
+    state_path = (tmp_path / "dispatch-state.json").resolve()
+    runner = _FakeRunner(state_path)
+
+    with pytest.raises(ValueError, match="UNAUTHORIZED_DESCRIPTOR"):
+        supervisor.dispatch_worker(
+            unauthorized,
+            dataset_release_root=tmp_path,
+            dispatch_root=(tmp_path / "dispatches").resolve(),
+            state_path=state_path,
+            lock_path=(tmp_path / "dispatch.lock").resolve(),
+            runner=runner,
+            timeout_seconds=17,
+        )
+
+    assert runner.calls == []
+    assert not state_path.exists()
+    assert not (tmp_path / "dispatches").exists()
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("dispatch_id", "adaptive_dispatch_tampered"),
+        ("worker_entrypoint_file_sha256", "0" * 64),
+        ("routes_to_live", True),
+    ],
+)
+def test_dispatch_replay_rejects_tampered_immutable_terminal_receipt(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    field: str,
+    value: object,
+) -> None:
+    state_path = (tmp_path / "dispatch-state.json").resolve()
+    runner = _FakeRunner(state_path)
+    plan = _launch_plan(RECALIBRATE)
+    first, release_root, dispatch_root, _ = _dispatch(
+        plan,
+        tmp_path,
+        runner,
+        monkeypatch,
+    )
+    terminal_path = (
+        dispatch_root / first["dispatch_id"] / "dispatch_terminal_v1.json"
+    )
+    tampered = json.loads(terminal_path.read_text(encoding="utf-8"))
+    tampered[field] = value
+    terminal_path.write_text(
+        json.dumps(tampered, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    replay_runner = _FakeRunner(state_path, returncode=99)
+
+    with pytest.raises(ValueError, match="dispatch_terminal_receipt"):
+        supervisor.dispatch_worker(
+            plan,
+            dataset_release_root=release_root,
+            dispatch_root=dispatch_root,
+            state_path=state_path,
+            lock_path=(tmp_path / "dispatch.lock").resolve(),
+            runner=replay_runner,
+            timeout_seconds=17,
+        )
+
+    assert replay_runner.calls == []
+    assert json.loads(state_path.read_text(encoding="utf-8")) == first
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "expected_error"),
+    [
+        (
+            "launch_baseline_success",
+            False,
+            "BASELINE_SUCCESS_INCONSISTENT",
+        ),
+        ("status", "FAILED", "RESULT_STATUS_INCONSISTENT"),
+        ("returncode", 7, "RESULT_STATUS_INCONSISTENT"),
+        ("timed_out", True, "RESULT_STATUS_INCONSISTENT"),
+        ("failure_reason", "tampered", "FAILURE_REASON_INCONSISTENT"),
+    ],
+)
+def test_dispatch_replay_rejects_tampered_terminal_result_consistency(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    field: str,
+    value: object,
+    expected_error: str,
+) -> None:
+    state_path = (tmp_path / "dispatch-state.json").resolve()
+    plan = _launch_plan(RECALIBRATE)
+    first, release_root, dispatch_root, _ = _dispatch(
+        plan,
+        tmp_path,
+        _FakeRunner(state_path),
+        monkeypatch,
+    )
+    terminal_path = (
+        dispatch_root / first["dispatch_id"] / "dispatch_terminal_v1.json"
+    )
+    tampered = json.loads(terminal_path.read_text(encoding="utf-8"))
+    tampered[field] = value
+    terminal_path.write_text(
+        json.dumps(tampered, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    replay_runner = _FakeRunner(state_path, returncode=99)
+
+    with pytest.raises(ValueError, match=expected_error):
+        supervisor.dispatch_worker(
+            plan,
+            dataset_release_root=release_root,
+            dispatch_root=dispatch_root,
+            state_path=state_path,
+            lock_path=(tmp_path / "dispatch.lock").resolve(),
+            runner=replay_runner,
+            timeout_seconds=17,
+        )
+
+    assert replay_runner.calls == []
+    assert json.loads(state_path.read_text(encoding="utf-8")) == first
+
+
+@pytest.mark.parametrize("stream_name", ["stdout", "stderr"])
+@pytest.mark.parametrize("tamper_target", ["claimed_hash", "stream_bytes"])
+def test_dispatch_replay_rejects_tampered_output_hash_or_bytes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    stream_name: str,
+    tamper_target: str,
+) -> None:
+    state_path = (tmp_path / "dispatch-state.json").resolve()
+    plan = _launch_plan(RECALIBRATE)
+    first, release_root, dispatch_root, _ = _dispatch(
+        plan,
+        tmp_path,
+        _FakeRunner(
+            state_path,
+            stdout="authenticated stdout\n",
+            stderr="authenticated stderr\n",
+        ),
+        monkeypatch,
+    )
+    run_root = dispatch_root / first["dispatch_id"]
+    terminal_path = run_root / "dispatch_terminal_v1.json"
+    if tamper_target == "claimed_hash":
+        tampered = json.loads(terminal_path.read_text(encoding="utf-8"))
+        tampered[f"{stream_name}_sha256"] = "0" * 64
+        terminal_path.write_text(
+            json.dumps(tampered, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+    else:
+        (run_root / f"{stream_name}.bin").write_bytes(b"tampered stream bytes\n")
+    replay_runner = _FakeRunner(state_path, returncode=99)
+
+    with pytest.raises(
+        ValueError,
+        match=f"{stream_name.upper()}_HASH_MISMATCH",
+    ):
+        supervisor.dispatch_worker(
+            plan,
+            dataset_release_root=release_root,
+            dispatch_root=dispatch_root,
+            state_path=state_path,
+            lock_path=(tmp_path / "dispatch.lock").resolve(),
+            runner=replay_runner,
+            timeout_seconds=17,
+        )
+
+    assert replay_runner.calls == []
+    assert json.loads(state_path.read_text(encoding="utf-8")) == first
+
+
 def test_dispatch_lock_contention_rejects_without_execution(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -786,7 +1078,7 @@ def test_failed_or_timed_out_dispatch_is_evidenced_without_baseline_success(
         ("exchange_action_taken", True),
     ],
 )
-def test_dispatch_rejects_unsafe_authority_before_runner(
+def test_dispatch_rejects_modified_authority_descriptor_before_runner(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     field: str,
@@ -798,7 +1090,7 @@ def test_dispatch_rejects_unsafe_authority_before_runner(
     state_path = (tmp_path / "dispatch-state.json").resolve()
     runner = _FakeRunner(state_path)
 
-    with pytest.raises(ValueError, match="UNSAFE_DISPATCH_AUTHORITY"):
+    with pytest.raises(ValueError, match="UNAUTHORIZED_DESCRIPTOR"):
         _dispatch(bad_plan, tmp_path, runner, monkeypatch)
     assert runner.calls == []
 
@@ -1021,7 +1313,7 @@ def test_promotion_requires_explicit_superiority_and_paper_only_authority(
         assert plan.selected_step != PROMOTE
 
 
-def test_dispatch_identity_binds_entrypoint_bytes_and_argv_template(
+def test_dispatch_identity_binds_allowlisted_entrypoint_bytes(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1029,22 +1321,20 @@ def test_dispatch_identity_binds_entrypoint_bytes_and_argv_template(
     dispatch_root = (tmp_path / "dispatches").resolve()
     state_path = (tmp_path / "dispatch-state.json").resolve()
     lock_path = (tmp_path / "dispatch.lock").resolve()
-    entrypoint = (tmp_path / "worker.py").resolve()
-    entrypoint.write_bytes(b"first worker bytes\n")
     monkeypatch.setenv("LIVE_GATE", "blocked_human_only")
     monkeypatch.setattr(
         supervisor,
         "_authenticated_dataset_release",
         lambda root: _authenticated_release_projection(Path(root).resolve()),
     )
-    base_plan = _launch_plan(RECALIBRATE)
-    worker = {
-        **base_plan.worker_command,
-        "entrypoint": str(entrypoint),
-        "entrypoint_kind": "script",
-        "argv": [".venv/bin/python", str(entrypoint)],
-    }
-    plan = replace(base_plan, worker_command=worker)
+    code_digest = {"value": "a" * 64}
+    monkeypatch.setattr(
+        supervisor,
+        "_worker_code_sha256",
+        lambda worker: code_digest["value"],
+    )
+    plan = _launch_plan(RECALIBRATE)
+    assert plan.worker_command == WORKER_COMMANDS[RECALIBRATE]
 
     first = supervisor.dispatch_worker(
         plan,
@@ -1055,10 +1345,11 @@ def test_dispatch_identity_binds_entrypoint_bytes_and_argv_template(
         runner=_FakeRunner(state_path),
         timeout_seconds=17,
     )
-    first_sha256 = hashlib.sha256(b"first worker bytes\n").hexdigest()
-    assert first["worker_entrypoint_file_sha256"] == first_sha256
+    assert first["worker_entrypoint_file_sha256"] == "a" * 64
+    assert first["worker_entrypoint"] == WORKER_COMMANDS[RECALIBRATE]["entrypoint"]
+    assert first["worker_argv_template"] == WORKER_COMMANDS[RECALIBRATE]["argv"]
 
-    entrypoint.write_bytes(b"second worker bytes\n")
+    code_digest["value"] = "b" * 64
     second = supervisor.dispatch_worker(
         plan,
         dataset_release_root=release_root,
@@ -1068,22 +1359,5 @@ def test_dispatch_identity_binds_entrypoint_bytes_and_argv_template(
         runner=_FakeRunner(state_path),
         timeout_seconds=17,
     )
-    second_sha256 = hashlib.sha256(b"second worker bytes\n").hexdigest()
-    assert second["worker_entrypoint_file_sha256"] == second_sha256
+    assert second["worker_entrypoint_file_sha256"] == "b" * 64
     assert second["dispatch_id"] != first["dispatch_id"]
-
-    changed_argv = [*worker["argv"], "--variant"]
-    third_plan = replace(plan, worker_command={**worker, "argv": changed_argv})
-    third = supervisor.dispatch_worker(
-        third_plan,
-        dataset_release_root=release_root,
-        dispatch_root=dispatch_root,
-        state_path=state_path,
-        lock_path=lock_path,
-        runner=_FakeRunner(state_path),
-        timeout_seconds=17,
-    )
-
-    assert third["worker_entrypoint_file_sha256"] == second_sha256
-    assert third["worker_argv_template"] == changed_argv
-    assert third["dispatch_id"] not in {first["dispatch_id"], second["dispatch_id"]}
