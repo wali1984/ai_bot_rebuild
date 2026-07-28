@@ -34600,6 +34600,20 @@ def _paper_build_partial_close_receipt(
     """Seal the minimal durable receipt for an admitted reduce-only partial close."""
 
     reasons: list[str] = []
+    existing_receipt = (
+        dict(close_event)
+        if close_event.get("schema_version")
+        == "paper_reduce_only_close_receipt_v1"
+        else None
+    )
+    if existing_receipt is not None:
+        existing_sha = existing_receipt.get("close_receipt_sha256")
+        if not _paper_valid_sha256(existing_sha) or existing_sha != (
+            _paper_canonical_sha256(
+                _paper_close_receipt_material(existing_receipt)
+            )
+        ):
+            reasons.append("PARTIAL_CLOSE_RECEIPT_HASH_INVALID")
     closed_quantity = _coerce_float(
         _first_present(
             close_event.get("close_quantity"),
@@ -34629,7 +34643,9 @@ def _paper_build_partial_close_receipt(
     ):
         if close_event.get(field) in (None, ""):
             reasons.append(f"PARTIAL_CLOSE_RECEIPT_{field.upper()}_MISSING")
-    position_side = _normalized_directional_side(close_event.get("side"))
+    position_side = _normalized_directional_side(
+        _first_present(close_event.get("side"), close_event.get("position_side"))
+    )
     if position_side is None:
         reasons.append("PARTIAL_CLOSE_RECEIPT_POSITION_SIDE_INVALID")
     if (
@@ -34650,6 +34666,8 @@ def _paper_build_partial_close_receipt(
         reasons.append("PARTIAL_CLOSE_RECEIPT_QUANTITY_OR_STATE_INVALID")
     if reasons:
         return None, sorted(set(reasons))
+    if existing_receipt is not None:
+        return existing_receipt, []
     close_side = "short" if position_side == "long" else "long"
     material = {
         "schema_version": "paper_reduce_only_close_receipt_v1",
@@ -34698,6 +34716,82 @@ def _paper_position_close_transition_intrinsic_valid(
         and _paper_valid_sha256(transition_sha)
         and transition_sha == _paper_canonical_sha256(without_sha)
     )
+
+
+def _paper_position_close_transition_chain_reasons(
+    transition: Mapping[str, Any],
+    transition_rows: Sequence[Mapping[str, Any]],
+    entry_proof: Mapping[str, Any],
+) -> list[str]:
+    """Require every prior-transition reference to resolve to the entry root."""
+
+    reasons: list[str] = []
+    by_sha: dict[str, list[dict[str, Any]]] = {}
+    for row in transition_rows:
+        if not isinstance(row, Mapping):
+            continue
+        sha = str(row.get("transition_proof_sha256") or "")
+        if sha:
+            by_sha.setdefault(sha, []).append(dict(row))
+    current = dict(transition)
+    seen = {str(current.get("transition_proof_sha256") or "")}
+    while current.get("prior_transition_proof_sha256") not in (None, ""):
+        prior_sha = str(current.get("prior_transition_proof_sha256"))
+        matches = by_sha.get(prior_sha) or []
+        if not matches:
+            reasons.append("POSITION_CLOSE_TRANSITION_PRIOR_TRANSITION_NOT_FOUND")
+            break
+        if len(matches) != 1:
+            reasons.append("POSITION_CLOSE_TRANSITION_PRIOR_TRANSITION_NOT_UNIQUE")
+            break
+        prior = matches[0]
+        if prior_sha in seen:
+            reasons.append("POSITION_CLOSE_TRANSITION_PRIOR_TRANSITION_CYCLE")
+            break
+        seen.add(prior_sha)
+        if not _paper_position_close_transition_intrinsic_valid(prior):
+            reasons.append("POSITION_CLOSE_TRANSITION_PRIOR_TRANSITION_HASH_INVALID")
+            break
+        for field in (
+            "position_id",
+            "position_generation_id",
+            "prior_open_position_fill_proof_id",
+            "prior_open_position_fill_proof_sha256",
+        ):
+            if str(prior.get(field) or "") != str(current.get(field) or ""):
+                reasons.append(
+                    f"POSITION_CLOSE_TRANSITION_PRIOR_TRANSITION_{field.upper()}_MISMATCH"
+                )
+        prior_remaining = _coerce_float(prior.get("remaining_quantity"))
+        current_before = _coerce_float(current.get("quantity_before_close"))
+        if (
+            prior_remaining is None
+            or current_before is None
+            or not math.isclose(
+                prior_remaining,
+                current_before,
+                rel_tol=1e-9,
+                abs_tol=1e-12,
+            )
+        ):
+            reasons.append(
+                "POSITION_CLOSE_TRANSITION_PRIOR_TRANSITION_QUANTITY_MISMATCH"
+            )
+        current = prior
+    root_before = _coerce_float(current.get("quantity_before_close"))
+    entry_quantity = _coerce_float(entry_proof.get("quantity"))
+    if (
+        root_before is None
+        or entry_quantity is None
+        or not math.isclose(
+            root_before,
+            entry_quantity,
+            rel_tol=1e-9,
+            abs_tol=1e-12,
+        )
+    ):
+        reasons.append("POSITION_CLOSE_TRANSITION_CHAIN_NOT_ROOTED_AT_ENTRY_PROOF")
+    return sorted(set(reasons))
 
 
 def _paper_build_position_close_transition_state(
@@ -34918,8 +35012,9 @@ def _paper_build_position_close_transition_state(
             )
             continue
         transition_sha = str(transition["transition_proof_sha256"])
-        transitions_by_sha.setdefault(transition_sha, transition)
-        created_transition_shas.append(transition_sha)
+        if transition_sha not in transitions_by_sha:
+            transitions_by_sha[transition_sha] = transition
+            created_transition_shas.append(transition_sha)
 
     receipts = sorted(receipts_by_id.values(), key=lambda row: str(row.get("close_id")))
     transitions = sorted(
@@ -35170,6 +35265,18 @@ def _paper_valid_position_close_transition(
             candidate,
             close_mappings,
         )
+        candidate_reasons.extend(
+            _paper_position_close_transition_chain_reasons(
+                candidate,
+                [
+                    dict(row)
+                    for row in transition_rows
+                    if isinstance(row, Mapping)
+                ],
+                entry_proof,
+            )
+        )
+        candidate_reasons = sorted(set(candidate_reasons))
         if candidate_reasons:
             failures.extend(candidate_reasons)
         else:
@@ -35179,6 +35286,91 @@ def _paper_valid_position_close_transition(
     if len(validated) > 1:
         return None, ["POSITION_CLOSE_TRANSITION_MULTIPLE_VALID_PROOFS"]
     return None, sorted(set(failures or ["POSITION_CLOSE_TRANSITION_EVIDENCE_ABSENT"]))
+
+
+def _paper_authenticated_partial_close_receipts_for_position(
+    ledger: Mapping[str, Any],
+    position: Mapping[str, Any],
+    entry_proof: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    """Find exact durable partial-close receipts that predate the new rail."""
+
+    rows: list[Mapping[str, Any]] = []
+    for key in (
+        "paper_position_close_receipts",
+        "closed_trades",
+        "closes",
+    ):
+        value = ledger.get(key)
+        if isinstance(value, list):
+            rows.extend(row for row in value if isinstance(row, Mapping))
+    position_quantity = _coerce_float(
+        _first_present(position.get("net_quantity"), position.get("quantity"))
+    )
+    entry_fill_id = str(entry_proof.get("fill_id") or "")
+    matches: dict[str, dict[str, Any]] = {}
+    for raw_row in rows:
+        row = dict(raw_row)
+        if row.get("schema_version") != "paper_reduce_only_close_receipt_v1":
+            continue
+        receipt_sha = str(row.get("close_receipt_sha256") or "")
+        if (
+            not _paper_valid_sha256(receipt_sha)
+            or receipt_sha
+            != _paper_canonical_sha256(_paper_close_receipt_material(row))
+        ):
+            continue
+        row_fill_ids = {
+            str(value)
+            for value in (
+                row.get("entry_fill_id"),
+                *(row.get("source_fill_ids") or []),
+            )
+            if value not in (None, "")
+        }
+        before = _coerce_float(row.get("quantity_before_close"))
+        closed = _coerce_float(
+            _first_present(row.get("close_quantity"), row.get("closed_quantity"))
+        )
+        remaining = _coerce_float(row.get("remaining_quantity_after_close"))
+        if (
+            str(row.get("position_id") or "")
+            != str(position.get("position_id") or "")
+            or str(row.get("position_generation_id") or "")
+            != str(position.get("position_generation_id") or "")
+            or entry_fill_id not in row_fill_ids
+            or _normalized_directional_side(row.get("position_side"))
+            != _normalized_directional_side(position.get("side"))
+            or row.get("reduce_only") is not True
+            or row.get("position_to_flat") is True
+            or row.get("close_position") is True
+            or row.get("paper_only") is not True
+            or row.get("routes_to_live") is not False
+            or row.get("places_real_order") is not False
+            or row.get("exchange_action_taken") is not False
+            or before is None
+            or closed is None
+            or remaining is None
+            or position_quantity is None
+            or before <= 0.0
+            or closed <= 0.0
+            or remaining <= 0.0
+            or not math.isclose(
+                before,
+                closed + remaining,
+                rel_tol=1e-9,
+                abs_tol=1e-12,
+            )
+            or not math.isclose(
+                remaining,
+                position_quantity,
+                rel_tol=1e-9,
+                abs_tol=1e-12,
+            )
+        ):
+            continue
+        matches.setdefault(receipt_sha, row)
+    return sorted(matches.values(), key=lambda row: str(row.get("close_id")))
 
 
 def _paper_reconcile_ledger_to_accepted_fill_proofs(
@@ -35292,6 +35484,7 @@ def _paper_reconcile_ledger_to_accepted_fill_proofs(
                 }
                 transition_proof: dict[str, Any] | None = None
                 transition_reasons: list[str] = []
+                legacy_partial_receipts: list[dict[str, Any]] = []
                 if (
                     mismatch_reasons
                     and not missing_reasons
@@ -35299,11 +35492,52 @@ def _paper_reconcile_ledger_to_accepted_fill_proofs(
                 ):
                     transition_proof, transition_reasons = (
                         _paper_valid_position_close_transition(
-                            ledger,
+                            reconciled,
                             position,
                             proof_row,
                         )
                     )
+                    if transition_proof is None:
+                        legacy_partial_receipts = (
+                            _paper_authenticated_partial_close_receipts_for_position(
+                                reconciled,
+                                position,
+                                proof_row,
+                            )
+                        )
+                    if legacy_partial_receipts:
+                        (
+                            backfilled_close_receipts,
+                            backfilled_transition_proofs,
+                            backfill_status,
+                        ) = _paper_build_position_close_transition_state(
+                            reconciled,
+                            [position],
+                            [proof_row],
+                            legacy_partial_receipts,
+                        )
+                        transition_reasons.extend(
+                            str(reason)
+                            for reason in backfill_status.get("rejection_reasons")
+                            or []
+                        )
+                        if backfill_status.get("status") == "PASS":
+                            reconciled["paper_position_close_receipts"] = (
+                                backfilled_close_receipts
+                            )
+                            reconciled[
+                                "paper_position_close_transition_proofs"
+                            ] = backfilled_transition_proofs
+                            transition_proof, backfill_validation_reasons = (
+                                _paper_valid_position_close_transition(
+                                    reconciled,
+                                    position,
+                                    proof_row,
+                                )
+                            )
+                            transition_reasons.extend(
+                                backfill_validation_reasons
+                            )
                 if transition_proof is not None:
                     bound = dict(position)
                     bound["accepted_fill_proof_reconciled"] = True
@@ -35335,6 +35569,30 @@ def _paper_reconcile_ledger_to_accepted_fill_proofs(
                                 )
                             ),
                         }
+                    )
+                    continue
+                if legacy_partial_receipts:
+                    retained.append(position)
+                    unresolved_reason = (
+                        "LEGACY_PARTIAL_CLOSE_TRANSITION_BACKFILL_UNRESOLVED"
+                    )
+                    unresolved_rows.append(
+                        {
+                            **_paper_phantom_position_projection(position),
+                            "reason": unresolved_reason,
+                            "authenticated_partial_close_receipt_sha256s": [
+                                row.get("close_receipt_sha256")
+                                for row in legacy_partial_receipts
+                            ],
+                            "position_close_transition_reasons": sorted(
+                                set(transition_reasons)
+                            ),
+                        }
+                    )
+                    rejection_reasons.append(
+                        unresolved_reason
+                        + ":"
+                        + str(position.get("position_id") or "UNKNOWN")
                     )
                     continue
                 if mismatch_reasons and not missing_reasons:
