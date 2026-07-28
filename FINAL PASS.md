@@ -1776,6 +1776,23 @@ git worktree move <initial-candidate-path> <exact-SHA-candidate-path>
 .venv/bin/python tools/paper_epoch_preflight.py
 .venv/bin/python - <in-memory PaperAccountEpochV1 adversarial probe>
 sha256sum v2/backend/app/services/paper_session/epoch.py v2/backend/tests/test_paper_epoch_rotation.py tools/paper_epoch_preflight.py tools/paper_epoch_rotate.py
+git status --short --branch
+git log --oneline --decorate <scoped-history>
+git show --stat/--format <material-SHA>
+git branch --all --contains <material-SHA>
+git merge-base --is-ancestor <material-SHA> HEAD
+rg -n <allocation-proof-authority-runtime-patterns> v2/backend goal_state claude_worklog FINAL\ PASS.md
+systemctl --user show/cat/list-units/list-unit-files <paper/adaptive/candidate-units>
+systemctl --user list-dependencies ai-bot-v2-stack.target
+systemd-analyze --user verify <scoped-units-and-targets>
+redis-cli --raw GET <paper-proof/account/adaptive/candidate-status-key> | jq <scoped-projection>
+jq <scoped-projection> /home/wali/ai_bot_local_data/gen5_snapshot_backfill_v1/evidence/*.json
+jq <scoped-projection> /home/wali/ai_bot_local_data/gen5_snapshot_backfill_v1/*report.json
+.venv/bin/pytest -q v2/backend/tests/unit/cli/test_paper_allocation_reconstructed_ledger_generated_at.py
+.venv/bin/pytest -q <exact-proof-integrity-router-adaptive-selection>
+.venv/bin/python -m py_compile <paper/adaptive/router-production-files>
+.venv/bin/ruff check --select E902,F821,F822,F823 <paper/adaptive/router-and-ledger-test-files>
+.venv/bin/python scripts/guardian_phase10_rare_event_tests.py
 ```
 
 Files changed by the sealed production candidate:
@@ -1803,6 +1820,14 @@ Runtime-only safety boundary (outside the repository):
 
 The pre-existing `.claude/hooks/block_dangerous.sh` modification was preserved,
 excluded from the candidate commit, and not edited by this segment.
+
+Additional evidence-only files updated during the ledger/runtime reconciliation:
+
+```text
+FINAL PASS.md
+goal_state/ADAPTIVE_SYSTEM_FINAL_PASS/CODEX_REVIEWS.jsonl (ignored local coordination ledger)
+goal_state/ADAPTIVE_SYSTEM_FINAL_PASS/WORK_QUEUE.json (ignored local coordination ledger)
+```
 
 ---
 
