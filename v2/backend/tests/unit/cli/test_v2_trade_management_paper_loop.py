@@ -17363,6 +17363,60 @@ def test_execution_microstructure_reader_uses_authenticated_trust_contract(
     ]
 
 
+def test_runtime_intent_projection_preserves_execution_microstructure_contract() -> None:
+    row = {
+        "intent_id": "intent-1",
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "feed_integrity_pass": True,
+        "microstructure_action": "SHADOW_ONLY",
+        "microstructure_trust_status": "MICROSTRUCTURE_TRUST_SCORE_FOUND",
+        "microstructure_trust_allocation_binding": (
+            "EXACT_PIT_VALID_REDIS_KEY_AND_FULL_CANONICAL_SOURCE_PAYLOAD_SHA256_V1"
+        ),
+        "microstructure_trust_allocation_rejection_reasons": [],
+        "microstructure_continuous_estimates": {
+            "schema_version": "microstructure_continuous_estimates_v1",
+            "status": "PASS_CALIBRATED_CONTINUOUS_ESTIMATES",
+            "complete": True,
+            "fill_probability": 0.4,
+            "slippage_bps": 1.0,
+            "market_impact_bps": 2.0,
+            "adverse_selection_probability": 0.3,
+            "available_liquidity_capacity_usd": 500.0,
+            "sweep_risk": 0.2,
+        },
+        "microstructure_continuous_estimates_complete": True,
+        "microstructure_continuous_estimates_status": (
+            "PASS_CALIBRATED_CONTINUOUS_ESTIMATES"
+        ),
+        "execution_microstructure_evidence": {
+            "schema_version": "paper_execution_microstructure_evidence_v1",
+            "status": "PASS",
+        },
+        "execution_microstructure_evidence_sha256": "a" * 64,
+        "execution_microstructure_evidence_status": "PASS",
+        "active_microstructure_evidence_role": "PAPER_EXECUTION_DECISION_INPUT",
+    }
+
+    compact = paper_loop._compact_runtime_intent_for_redis(row)  # noqa: SLF001
+
+    assert compact["feed_integrity_pass"] is True
+    assert compact["microstructure_action"] == "SHADOW_ONLY"
+    assert compact["microstructure_continuous_estimates"] == row[
+        "microstructure_continuous_estimates"
+    ]
+    assert compact["microstructure_continuous_estimates_complete"] is True
+    assert compact["execution_microstructure_evidence"] == row[
+        "execution_microstructure_evidence"
+    ]
+    assert compact["execution_microstructure_evidence_status"] == "PASS"
+    assert compact["active_microstructure_evidence_role"] == (
+        "PAPER_EXECUTION_DECISION_INPUT"
+    )
+
+
 def test_execution_microstructure_replaces_rejected_strategy_evidence_for_cost_capture() -> None:
     intent, _unused = _complete_runtime_cost_capture_intent_and_microstructure(
         microstructure_action="ALLOW",
