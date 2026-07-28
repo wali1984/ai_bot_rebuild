@@ -351,6 +351,62 @@ class CandidateOutcomeArchiveV2:
     def _parse_rows(self) -> list[dict[str, Any]]:
         return list(self._iter_rows())
 
+    def copy_locked_snapshot(self, destination: Path) -> dict[str, Any]:
+        """Copy one exact archive view while holding the shared lock briefly.
+
+        Long-running analytic consumers verify and project this private snapshot
+        after releasing the source lock.  Writers are blocked only for the byte
+        copy, never for signature verification, typed decoding, calibration, or
+        fitting over the multi-gigabyte archive.
+        """
+
+        if (
+            not isinstance(destination, Path)
+            or not destination.is_absolute()
+            or ".." in destination.parts
+        ):
+            _raise("must_be_absolute_without_parent_traversal", "destination")
+        destination.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        if destination.parent.resolve() != Path(os.path.abspath(destination.parent)):
+            _raise("symlink_parent_forbidden", "destination")
+        if destination.exists() or destination.is_symlink():
+            _raise("must_not_exist", "destination")
+
+        digest = hashlib.sha256()
+        copied = 0
+        try:
+            with self._locked(exclusive=False):
+                source_descriptor = _open_regular_file(self.archive_path, os.O_RDONLY)
+                destination_descriptor = _open_regular_file(
+                    destination,
+                    os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+                )
+                try:
+                    while True:
+                        chunk = os.read(source_descriptor, 8 * 1024 * 1024)
+                        if not chunk:
+                            break
+                        digest.update(chunk)
+                        copied += len(chunk)
+                        remaining = memoryview(chunk)
+                        while remaining:
+                            written = os.write(destination_descriptor, remaining)
+                            if written <= 0:
+                                _raise("short_write", "destination")
+                            remaining = remaining[written:]
+                    os.fsync(destination_descriptor)
+                finally:
+                    os.close(source_descriptor)
+                    os.close(destination_descriptor)
+            _fsync_directory(destination.parent)
+        except Exception:
+            destination.unlink(missing_ok=True)
+            raise
+        return {
+            "source_size_bytes": copied,
+            "snapshot_sha256": digest.hexdigest(),
+        }
+
     def _verify_rows_and_select(
         self,
         rows: Iterable[dict[str, Any]],
@@ -361,6 +417,8 @@ class CandidateOutcomeArchiveV2:
         | None = None,
         candidate_states_out: dict[str, tuple[int, str, str, int]] | None = None,
         maturation_index_out: dict[str, _MaturationIndexEntry] | None = None,
+        selected_record_projector: Callable[[CandidateDecisionOutcomeV2], None]
+        | None = None,
     ) -> tuple[ArchiveVerificationV2, list[dict[str, Any]]]:
         previous_chain_sha256 = GENESIS_CHAIN_SHA256
         archive_ids: set[str] = set()
@@ -459,9 +517,10 @@ class CandidateOutcomeArchiveV2:
             if _sha256(row["record"]) != row["record_content_sha256"]:
                 _raise("record_content_sha256_mismatch", f"row[{row_index}]")
             record = row["record"]
+            typed_record: CandidateDecisionOutcomeV2 | None = None
             if validate_nested_contracts:
                 try:
-                    candidate_decision_outcome_from_dict(record)
+                    typed_record = candidate_decision_outcome_from_dict(record)
                 except CandidateOutcomeContractError as exc:
                     raise CandidateOutcomeArchiveError(
                         f"record:nested_contract_invalid:{exc}"
@@ -566,7 +625,17 @@ class CandidateOutcomeArchiveV2:
                 selected_archive_sequences is not None
                 and row["archive_sequence"] in selected_archive_sequences
             ):
-                selected_rows.append(row)
+                if selected_record_projector is None:
+                    selected_rows.append(row)
+                else:
+                    if typed_record is None:
+                        try:
+                            typed_record = candidate_decision_outcome_from_dict(record)
+                        except CandidateOutcomeContractError as exc:
+                            raise CandidateOutcomeArchiveError(
+                                f"record:nested_contract_invalid:{exc}"
+                            ) from exc
+                    selected_record_projector(typed_record)
             previous_chain_sha256 = row["chain_sha256"]
         verification = ArchiveVerificationV2(
             schema_version=ARCHIVE_VERIFICATION_SCHEMA_VERSION,
@@ -686,6 +755,42 @@ class CandidateOutcomeArchiveV2:
                     f"record:nested_contract_invalid:{exc}"
                 ) from exc
         return verification, records
+
+    def read_verified_projections_by_sequence_with_verification(
+        self,
+        *,
+        archive_sequences: tuple[int, ...],
+        projector: Callable[[CandidateDecisionOutcomeV2], Any],
+    ) -> tuple[ArchiveVerificationV2, tuple[Any, ...]]:
+        """Verify every row but retain only compact projected selected records."""
+
+        if (
+            type(archive_sequences) is not tuple
+            or not archive_sequences
+            or archive_sequences != tuple(sorted(set(archive_sequences)))
+            or any(
+                type(sequence) is not int or sequence not in {1, 2}
+                for sequence in archive_sequences
+            )
+        ):
+            _raise("canonical_nonempty_subset_of_1_2_required", "archive_sequences")
+        if not callable(projector):
+            _raise("must_be_callable", "projector")
+        projections: list[Any] = []
+
+        def project(record: CandidateDecisionOutcomeV2) -> None:
+            value = projector(record)
+            if value is not None:
+                projections.append(value)
+
+        with self._locked(exclusive=False):
+            verification, _ = self._verify_rows_and_select(
+                self._iter_rows(),
+                selected_archive_sequences=frozenset(archive_sequences),
+                validate_nested_contracts=True,
+                selected_record_projector=project,
+            )
+        return verification, tuple(projections)
 
     def read_verified_maturation_batch_with_verification(
         self,

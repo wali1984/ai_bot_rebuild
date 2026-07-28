@@ -9,6 +9,7 @@ import signal
 import tempfile
 import time
 from collections.abc import Mapping, Sequence
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -119,19 +120,7 @@ def fit_active_candidate_calibration(
     source_archive_chain_sha256: str,
     generated_at_ms: int,
 ) -> dict[str, Any]:
-    generation = active_registry.get("registry_generation")
-    checkpoint_id = active_registry.get("checkpoint_id")
-    bundle_sha = active_registry.get("checkpoint_bundle_sha256")
-    if type(generation) is not int or generation < 1:
-        raise CandidateCalibrationPublisherError("active_registry:generation_invalid")
-    if type(checkpoint_id) is not str or not checkpoint_id:
-        raise CandidateCalibrationPublisherError("active_registry:checkpoint_id_invalid")
-    if type(bundle_sha) is not str or len(bundle_sha) != 64:
-        raise CandidateCalibrationPublisherError("active_registry:checkpoint_sha_invalid")
-    if active_registry.get("paper_only") is not True:
-        raise CandidateCalibrationPublisherError("active_registry:paper_only_required")
-    if active_registry.get("live_eligible") is not False:
-        raise CandidateCalibrationPublisherError("active_registry:live_eligible_forbidden")
+    generation, checkpoint_id, bundle_sha = _active_registry_identity(active_registry)
 
     active_records = [
         record
@@ -152,6 +141,47 @@ def fit_active_candidate_calibration(
     )
 
 
+def _active_registry_identity(
+    active_registry: Mapping[str, Any],
+) -> tuple[int, str, str]:
+    generation = active_registry.get("registry_generation")
+    checkpoint_id = active_registry.get("checkpoint_id")
+    bundle_sha = active_registry.get("checkpoint_bundle_sha256")
+    if type(generation) is not int or generation < 1:
+        raise CandidateCalibrationPublisherError("active_registry:generation_invalid")
+    if type(checkpoint_id) is not str or not checkpoint_id:
+        raise CandidateCalibrationPublisherError("active_registry:checkpoint_id_invalid")
+    if type(bundle_sha) is not str or len(bundle_sha) != 64:
+        raise CandidateCalibrationPublisherError("active_registry:checkpoint_sha_invalid")
+    if active_registry.get("paper_only") is not True:
+        raise CandidateCalibrationPublisherError("active_registry:paper_only_required")
+    if active_registry.get("live_eligible") is not False:
+        raise CandidateCalibrationPublisherError("active_registry:live_eligible_forbidden")
+    return generation, checkpoint_id, bundle_sha
+
+
+@contextmanager
+def _private_archive_snapshot_reader(
+    *,
+    archive_path: Path,
+    state_root: Path,
+):
+    source = _archive_reader(archive_path)
+    snapshot_root = state_root / "archive_snapshots"
+    snapshot_root.mkdir(mode=0o700, parents=True, exist_ok=True)
+    snapshot_path = snapshot_root / (
+        f"candidate_decision_outcomes_v2.{os.getpid()}.{time.time_ns()}.jsonl"
+    )
+    snapshot_receipt = source.copy_locked_snapshot(snapshot_path)
+    try:
+        yield _archive_reader(snapshot_path), snapshot_receipt
+    finally:
+        snapshot_path.with_suffix(f"{snapshot_path.suffix}.lock").unlink(
+            missing_ok=True
+        )
+        snapshot_path.unlink(missing_ok=True)
+
+
 def process_once(
     *,
     client: Any,
@@ -159,17 +189,36 @@ def process_once(
     state_root: Path,
     generated_at_ms: int,
 ) -> dict[str, Any]:
-    reader = _archive_reader(archive_path)
-    verification, records = reader.read_verified_records_by_sequence_with_verification(
-        archive_sequences=(2,)
-    )
+    registry = _strict_object(client.get(ACTIVE_REGISTRY_KEY), ACTIVE_REGISTRY_KEY)
+    generation, checkpoint_id, bundle_sha = _active_registry_identity(registry)
+
+    def active_observation(record: CandidateDecisionOutcomeV2):
+        if (
+            record.archive_sequence != 2
+            or record.matured_labels is None
+            or record.decision.checkpoint_generation != generation
+            or record.decision.checkpoint_id != checkpoint_id
+            or record.decision.checkpoint_sha256 != bundle_sha
+        ):
+            return None
+        return extract_calibration_observation(record)
+
+    with _private_archive_snapshot_reader(
+        archive_path=archive_path,
+        state_root=state_root,
+    ) as (reader, snapshot_receipt):
+        (
+            verification,
+            observations,
+        ) = reader.read_verified_projections_by_sequence_with_verification(
+            archive_sequences=(2,),
+            projector=active_observation,
+        )
     if verification.verified is not True:
         raise CandidateCalibrationPublisherError("candidate_archive:verification_failed")
-    registry = _strict_object(client.get(ACTIVE_REGISTRY_KEY), ACTIVE_REGISTRY_KEY)
     try:
-        calibration = fit_active_candidate_calibration(
-            records,
-            active_registry=registry,
+        calibration = fit_candidate_outcome_calibration_v2(
+            observations,
             source_archive_chain_sha256=verification.terminal_chain_sha256,
             generated_at_ms=generated_at_ms,
         )
@@ -181,6 +230,8 @@ def process_once(
             "exact_blocker": str(exc),
             "source_archive_chain_sha256": verification.terminal_chain_sha256,
             "source_matured_revision_count": verification.matured_revision_count,
+            "source_snapshot": snapshot_receipt,
+            "source_lock_scope": "BYTE_COPY_ONLY_VERIFICATION_OUTSIDE_SOURCE_LOCK",
             "paper_only": True,
             "live_gate": "blocked_human_only",
             "routes_to_live": False,
@@ -202,6 +253,8 @@ def process_once(
         "validation_sample_count": calibration["validation_sample_count"],
         "source_archive_chain_sha256": verification.terminal_chain_sha256,
         "source_matured_revision_count": verification.matured_revision_count,
+        "source_snapshot": snapshot_receipt,
+        "source_lock_scope": "BYTE_COPY_ONLY_VERIFICATION_OUTSIDE_SOURCE_LOCK",
         "paper_only": True,
         "live_gate": "blocked_human_only",
         "routes_to_live": False,

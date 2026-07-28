@@ -96,10 +96,15 @@ def test_runtime_streams_only_matured_revisions_after_full_archive_verification(
     calls: list[tuple[int, ...]] = []
 
     class _Reader:
-        def read_verified_records_by_sequence_with_verification(
+        def copy_locked_snapshot(self, path: Path):
+            path.write_text("snapshot")
+            return {"source_size_bytes": 8, "snapshot_sha256": "a" * 64}
+
+        def read_verified_projections_by_sequence_with_verification(
             self,
             *,
             archive_sequences: tuple[int, ...],
+            projector,
         ):
             calls.append(archive_sequences)
             return (
