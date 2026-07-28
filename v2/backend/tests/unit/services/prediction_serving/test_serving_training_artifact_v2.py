@@ -1,0 +1,378 @@
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+from collections.abc import Callable
+from copy import deepcopy
+from datetime import timedelta
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+from v2.backend.app.contracts.runtime_v2.contracts import canonical_sha256
+from v2.backend.app.services.adaptive_system.candidate_outcome_serving_dataset_v2 import (
+    build_adaptive_serving_dataset_v2,
+    build_candidate_outcome_row,
+)
+from v2.backend.app.services.prediction_serving import serving_training_artifact_v2
+from v2.backend.app.services.prediction_serving.serving_training_artifact_v2 import (
+    ServingTrainingArtifactError,
+    load_validated_training_artifacts,
+)
+from v2.backend.tests.unit.services.adaptive_system.test_candidate_outcome_serving_dataset_v2 import (
+    _base_dataset,
+    _matured_record,
+    _source_verification,
+)
+
+
+def _bytes(value: object) -> bytes:
+    return (
+        json.dumps(
+            value,
+            indent=2,
+            sort_keys=True,
+            ensure_ascii=True,
+            allow_nan=False,
+        )
+        + "\n"
+    ).encode("utf-8")
+
+
+def _rehash_dataset(dataset: dict[str, Any]) -> None:
+    material = {
+        key: value
+        for key, value in dataset.items()
+        if key not in {"dataset_id", "dataset_sha256"}
+    }
+    digest = canonical_sha256(material)
+    dataset["dataset_sha256"] = digest
+    dataset["dataset_id"] = f"adaptive_serving_dataset_v2_{digest[:24]}"
+
+
+def _rehash_manifest(manifest: dict[str, Any]) -> None:
+    material = {
+        key: value
+        for key, value in manifest.items()
+        if key not in {"manifest_id", "manifest_sha256"}
+    }
+    digest = canonical_sha256(material)
+    manifest["manifest_sha256"] = digest
+    manifest["manifest_id"] = f"adaptive_serving_manifest_v2_{digest[:24]}"
+
+
+class ArtifactFixture:
+    def __init__(
+        self,
+        *,
+        root: Path,
+        dataset: dict[str, Any],
+        manifest: dict[str, Any],
+        parity: dict[str, Any],
+        receipt: dict[str, Any],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        self.root = root
+        self.dataset = dataset
+        self.manifest = manifest
+        self.parity = parity
+        self.receipt = receipt
+        self.monkeypatch = monkeypatch
+        self.dataset_path = root / "adaptive_serving_compatible_dataset_v2.json"
+        self.manifest_path = (
+            root / "adaptive_serving_compatible_dataset_manifest_v2.json"
+        )
+        self.parity_path = root / "adaptive_train_serve_feature_parity_report_v2.json"
+        self.receipt_path = root / "candidate_outcome_dataset_build_receipt_v2.json"
+
+    def write(self, *, repin_receipt: bool = True) -> None:
+        _rehash_dataset(self.dataset)
+        self.manifest["dataset_id"] = self.dataset["dataset_id"]
+        self.manifest["dataset_sha256"] = self.dataset["dataset_sha256"]
+        _rehash_manifest(self.manifest)
+        self.receipt.update(
+            {
+                "dataset_id": self.dataset["dataset_id"],
+                "dataset_sha256": self.dataset["dataset_sha256"],
+                "manifest_id": self.manifest["manifest_id"],
+                "manifest_sha256": self.manifest["manifest_sha256"],
+                "training_rows": self.manifest["training_rows"],
+                "validation_rows": self.manifest["validation_rows"],
+                "holdout_rows": self.manifest["holdout_rows"],
+                "candidate_exclusion_reasons": self.manifest[
+                    "candidate_exclusion_reasons"
+                ],
+            }
+        )
+        artifact_values = {
+            self.dataset_path: self.dataset,
+            self.manifest_path: self.manifest,
+            self.parity_path: self.parity,
+        }
+        artifact_bytes = {path: _bytes(value) for path, value in artifact_values.items()}
+        self.receipt["artifact_file_sha256s"] = {
+            path.name: hashlib.sha256(data).hexdigest()
+            for path, data in artifact_bytes.items()
+        }
+        for path, data in artifact_bytes.items():
+            path.write_bytes(data)
+        receipt_bytes = _bytes(self.receipt)
+        self.receipt_path.write_bytes(receipt_bytes)
+        if repin_receipt:
+            self.monkeypatch.setattr(
+                serving_training_artifact_v2,
+                "PINNED_BUILD_RECEIPT_FILE_SHA256",
+                hashlib.sha256(receipt_bytes).hexdigest(),
+            )
+
+    def load(self) -> tuple[dict[str, Any], ...]:
+        return load_validated_training_artifacts(
+            dataset_path=self.dataset_path,
+            manifest_path=self.manifest_path,
+            parity_path=self.parity_path,
+            build_receipt_path=self.receipt_path,
+        )
+
+
+def _build_artifacts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> ArtifactFixture:
+    tmp_path.mkdir(mode=0o700, parents=True, exist_ok=True)
+    matured, snapshot = _matured_record()
+    template = build_candidate_outcome_row(
+        matured,
+        snapshot_loader=lambda _snapshot_id: snapshot,
+        source_archive_chain_sha256="a" * 64,
+    )
+    base_dataset = _base_dataset(template)
+    for sequence, row in enumerate(base_dataset["rows"], start=1):
+        decision_time = serving_training_artifact_v2._utc(
+            row["decision_time"], "fixture.decision_time"
+        )
+        feature_cutoff = decision_time - timedelta(minutes=2)
+        record_available_at = decision_time - timedelta(minutes=1)
+        row.update(
+            {
+                "discovery_inventory_content_matches_current": True,
+                "discovery_inventory_content_sha256": "b" * 64,
+                "profiled_ledger_sequence": sequence,
+                "feature_cutoff": feature_cutoff.isoformat().replace("+00:00", "Z"),
+                "record_available_at": record_available_at.isoformat().replace(
+                    "+00:00", "Z"
+                ),
+                "latest_closed_kline_close_time_ms": int(
+                    feature_cutoff.timestamp() * 1_000
+                ),
+                "latest_unclosed_exclusion_decision_time_ms": int(
+                    decision_time.timestamp() * 1_000
+                ),
+            }
+        )
+        action_offset = (sequence - 1) % 3
+        if action_offset == 0:
+            long_net_bps, short_net_bps, action, action_index = 20.0, -20.0, "long", 0
+            row["feature_values"][0:3] = [10.0, -10.0, 1.0]
+        elif action_offset == 1:
+            long_net_bps, short_net_bps, action, action_index = -20.0, 20.0, "short", 1
+            row["feature_values"][0:3] = [-10.0, 10.0, 1.0]
+        else:
+            long_net_bps, short_net_bps, action, action_index = -5.0, -5.0, "hold", 2
+            row["feature_values"][0:3] = [0.0, 0.0, -1.0]
+        row.update(
+            {
+                "long_net_bps": long_net_bps,
+                "short_net_bps": short_net_bps,
+                "target_action": action,
+                "target_action_index": action_index,
+            }
+        )
+    base_material = {
+        key: value
+        for key, value in base_dataset.items()
+        if key not in {"dataset_id", "dataset_sha256"}
+    }
+    base_dataset["dataset_sha256"] = canonical_sha256(base_material)
+    dataset, manifest, parity = build_adaptive_serving_dataset_v2(
+        base_dataset=base_dataset,
+        candidate_records=(matured,),
+        snapshot_loader=lambda _snapshot_id: snapshot,
+        source_archive_chain_sha256="a" * 64,
+        source_archive_verification=_source_verification(),
+    )
+    receipt: dict[str, Any] = {
+        "schema_version": "candidate_outcome_dataset_build_receipt_v2",
+        "generated_at": "2027-01-01T00:00:00.000Z",
+        "status": "PASS",
+        "base_dataset_path": "/authenticated/serving_compatible_dataset_gen5.json",
+        "base_dataset_file_sha256": (
+            serving_training_artifact_v2.PINNED_BASE_DATASET_FILE_SHA256
+        ),
+        "trusted_base_dataset_file_sha256": (
+            serving_training_artifact_v2.PINNED_BASE_DATASET_FILE_SHA256
+        ),
+        "trusted_writer_id": "candidate-outcome-writer-v2",
+        "trusted_writer_public_key_hex": (
+            "bbff6e85cd6954ae5aff4ee2ec5d2078de96bf8f8750aaa889d2ea4712c5b4d9"
+        ),
+        "candidate_archive_verification": _source_verification(),
+        "feature_archive_root": "/authenticated/durable-feature-snapshots",
+        "dataset_id": "pending",
+        "dataset_sha256": "0" * 64,
+        "manifest_id": "pending",
+        "manifest_sha256": "0" * 64,
+        "training_rows": 0,
+        "validation_rows": 0,
+        "holdout_rows": 0,
+        "candidate_exclusion_reasons": {},
+        "candidate_records_fully_accounted": True,
+        "counterfactual_counts_as_realized_paper_profit": False,
+        "paper_only": True,
+        "live_gate": "blocked_human_only",
+        "routes_to_live": False,
+        "places_real_order": False,
+        "exchange_action_taken": False,
+        "artifact_file_sha256s": {},
+    }
+    fixture = ArtifactFixture(
+        root=tmp_path,
+        dataset=dataset,
+        manifest=manifest,
+        parity=parity,
+        receipt=receipt,
+        monkeypatch=monkeypatch,
+    )
+    fixture.write()
+    return fixture
+
+
+@pytest.fixture
+def artifacts(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> ArtifactFixture:
+    return _build_artifacts(tmp_path, monkeypatch)
+
+
+def test_exact_authenticated_artifacts_load(artifacts: ArtifactFixture) -> None:
+    dataset, manifest, parity, receipt = artifacts.load()
+
+    assert len(dataset["rows"]) == sum(
+        manifest[field] for field in ("training_rows", "validation_rows", "holdout_rows")
+    )
+    assert parity["builder_match"] is True
+    assert receipt["candidate_records_fully_accounted"] is True
+
+
+@pytest.mark.parametrize(
+    ("mutate", "reason"),
+    [
+        (lambda row: row.__setitem__("split", "unknown"), "KNOWN_SPLIT_REQUIRED"),
+        (
+            lambda row: row.__setitem__("target_action_index", 99),
+            "ACTION_INDEX_MISMATCH",
+        ),
+        (lambda row: row["feature_values"].pop(), "FEATURE_WIDTH_MISMATCH"),
+        (lambda row: row["missing_mask"].__setitem__(0, 1), "REQUIRED_FEATURE_MISSING"),
+        (
+            lambda row: row.__setitem__("record_available_at", "2099-01-01T00:00:00Z"),
+            "POINT_IN_TIME_CLOCK_ORDER_INVALID",
+        ),
+        (
+            lambda row: row.__setitem__("label_available_at", row["decision_time"]),
+            "POINT_IN_TIME_CLOCK_ORDER_INVALID",
+        ),
+        (
+            lambda row: row.__setitem__("latest_unclosed_kline_excluded", False),
+            "LATEST_UNCLOSED_KLINE_EXCLUSION_REQUIRED",
+        ),
+        (
+            lambda row: row.__setitem__("cost_evidence_sha256", None),
+            "LOWERCASE_SHA256_REQUIRED",
+        ),
+        (
+            lambda row: row.__setitem__(
+                "counterfactual_counts_as_realized_paper_profit", True
+            ),
+            "COUNTERFACTUAL_REALIZED_PROFIT_FORBIDDEN",
+        ),
+    ],
+)
+def test_coherently_rehashed_unsafe_row_is_rejected(
+    artifacts: ArtifactFixture,
+    mutate: Callable[[dict[str, Any]], None],
+    reason: str,
+) -> None:
+    mutate(artifacts.dataset["rows"][0])
+    artifacts.write()
+
+    with pytest.raises(ServingTrainingArtifactError, match=reason):
+        artifacts.load()
+
+
+def test_duplicate_row_id_is_rejected(artifacts: ArtifactFixture) -> None:
+    artifacts.dataset["rows"].append(deepcopy(artifacts.dataset["rows"][0]))
+    artifacts.write()
+
+    with pytest.raises(ServingTrainingArtifactError, match="DUPLICATE_ROW_ID"):
+        artifacts.load()
+
+
+@pytest.mark.parametrize("invalid", [False, 0.5, "0"])
+def test_zero_admission_counters_require_exact_integer_zero(
+    artifacts: ArtifactFixture, invalid: object
+) -> None:
+    artifacts.manifest["future_time_rejections"] = invalid
+    artifacts.write()
+
+    with pytest.raises(ServingTrainingArtifactError, match="NONNEGATIVE_INT_REQUIRED"):
+        artifacts.load()
+
+
+def test_coherently_rehashed_substitute_receipt_is_not_the_pinned_receipt(
+    artifacts: ArtifactFixture,
+) -> None:
+    artifacts.dataset["rows"][0]["feature_values"][0] += 0.25
+    artifacts.write(repin_receipt=False)
+
+    with pytest.raises(ServingTrainingArtifactError, match="build_receipt:SCHEMA_MISMATCH"):
+        artifacts.load()
+
+
+def test_artifact_file_hash_mismatch_is_rejected(artifacts: ArtifactFixture) -> None:
+    artifacts.dataset_path.write_bytes(artifacts.dataset_path.read_bytes() + b" ")
+
+    with pytest.raises(
+        ServingTrainingArtifactError, match="ARTIFACT_FILE_SHA256_BINDING_MISMATCH"
+    ):
+        artifacts.load()
+
+
+def test_nonfinite_json_and_duplicate_json_keys_are_rejected(
+    artifacts: ArtifactFixture,
+) -> None:
+    dataset_bytes = artifacts.dataset_path.read_bytes()
+    artifacts.dataset_path.write_bytes(dataset_bytes.replace(b'"rows": [', b'"x": NaN, "rows": [', 1))
+    with pytest.raises(ServingTrainingArtifactError, match="STRICT_JSON_REQUIRED"):
+        artifacts.load()
+
+    artifacts.write()
+    dataset_bytes = artifacts.dataset_path.read_bytes()
+    artifacts.dataset_path.write_bytes(
+        dataset_bytes.replace(
+            b'"schema_version":',
+            b'"schema_version": "duplicate", "schema_version":',
+            1,
+        )
+    )
+    with pytest.raises(ServingTrainingArtifactError, match="STRICT_JSON_REQUIRED"):
+        artifacts.load()
+
+
+def test_symlinked_artifact_is_rejected(
+    artifacts: ArtifactFixture, tmp_path: Path
+) -> None:
+    target = tmp_path / "receipt-target.json"
+    artifacts.receipt_path.replace(target)
+    os.symlink(target, artifacts.receipt_path)
+
+    with pytest.raises(ServingTrainingArtifactError, match="REGULAR_FILE_REQUIRED"):
+        artifacts.load()

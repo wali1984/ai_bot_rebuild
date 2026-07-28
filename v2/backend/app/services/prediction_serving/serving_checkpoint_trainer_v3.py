@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import hashlib
-import json
+import io
 import math
 import os
+import stat
 import tempfile
 from collections import Counter
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -26,7 +28,6 @@ from v2.backend.app.services.prediction_serving.serving_checkpoint_trainer_v2 im
     OPTIMIZER_STEPS,
     _parameter_fingerprint,
     _partition,
-    _utc_now,
 )
 from v2.backend.app.services.prediction_serving.serving_dataset_v2 import ACTION_LABELS
 from v2.backend.app.services.prediction_serving.serving_feature_abi_v2 import (
@@ -39,11 +40,76 @@ from v2.backend.app.services.prediction_serving.serving_model_v4 import (
     MODEL_ARCHITECTURE,
     build_serving_model_v4,
 )
+from v2.backend.app.services.prediction_serving.serving_training_artifact_v2 import (
+    PINNED_BUILD_RECEIPT_FILE_SHA256,
+    load_validated_training_artifacts,
+)
 
 SCHEMA_VERSION = "serving_checkpoint_training_report_v3"
 EDGE_REGRESSION_LOSS_WEIGHT = 0.25
 PROFITABILITY_LOSS_WEIGHT = 0.50
 MIN_EFFECTIVE_INDEPENDENT_TRAINING_GROUPS = 80.0
+
+
+def _read_regular_bytes(path: Path, field: str) -> bytes:
+    try:
+        descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+    except OSError as exc:
+        raise ValueError(f"{field}:REGULAR_FILE_REQUIRED") from exc
+    try:
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            raise ValueError(f"{field}:REGULAR_FILE_REQUIRED")
+        with os.fdopen(descriptor, "rb", closefd=False) as handle:
+            return handle.read()
+    finally:
+        os.close(descriptor)
+
+
+def _fsync_directory(path: Path) -> None:
+    descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def _prepare_output_directory(path: Path) -> None:
+    if not isinstance(path, Path) or not path.is_absolute() or ".." in path.parts:
+        raise ValueError("OUTPUT_DIR_ABSOLUTE_WITHOUT_TRAVERSAL_REQUIRED")
+    path.mkdir(mode=0o700, parents=True, exist_ok=True)
+    metadata = os.lstat(path)
+    if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
+        raise ValueError("OUTPUT_DIR_SAFE_DIRECTORY_REQUIRED")
+
+
+def _publish_immutable_checkpoint(*, checkpoint_bytes: bytes, target_path: Path) -> None:
+    """Publish once, or accept only a byte-identical idempotent replay."""
+
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{target_path.name}.", suffix=".tmp", dir=target_path.parent
+    )
+    temporary_path = Path(temporary_name)
+    try:
+        os.fchmod(descriptor, 0o600)
+        owned_descriptor = descriptor
+        descriptor = -1
+        with os.fdopen(owned_descriptor, "wb") as handle:
+            handle.write(checkpoint_bytes)
+            handle.flush()
+            os.fsync(handle.fileno())
+        try:
+            os.link(temporary_path, target_path, follow_symlinks=False)
+        except FileExistsError as exc:
+            existing_bytes = _read_regular_bytes(target_path, "checkpoint_path")
+            if existing_bytes != checkpoint_bytes:
+                raise ValueError(
+                    "CHECKPOINT_ID_COLLISION_WITH_DIFFERENT_BYTES"
+                ) from exc
+        _fsync_directory(target_path.parent)
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+        temporary_path.unlink(missing_ok=True)
 
 
 def _decision_minute(value: Any) -> str:
@@ -232,6 +298,8 @@ def train_serving_checkpoint_v3(
     *,
     dataset_path: Path,
     manifest_path: Path,
+    parity_path: Path,
+    build_receipt_path: Path,
     output_dir: Path,
 ) -> tuple[CheckpointBundleV2, dict[str, Any], Path]:
     """Train a non-activating paper challenger; never mutates the registry."""
@@ -242,27 +310,12 @@ def train_serving_checkpoint_v3(
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(FIXED_RANDOM_SEED)
     torch.use_deterministic_algorithms(True)
-    dataset = json.loads(dataset_path.read_text())
-    manifest = json.loads(manifest_path.read_text())
-    if dataset.get("feature_abi_sha256") != feature_abi_sha256():
-        raise ValueError("DATASET_FEATURE_ABI_MISMATCH")
-    if dataset.get("feature_builder_sha256") != feature_builder_sha256():
-        raise ValueError("DATASET_FEATURE_BUILDER_MISMATCH")
-    if tuple(dataset.get("ordered_feature_names") or ()) != ORDERED_FEATURE_NAMES:
-        raise ValueError("DATASET_FEATURE_ORDER_MISMATCH")
-    if manifest.get("dataset_sha256") != dataset.get("dataset_sha256"):
-        raise ValueError("DATASET_MANIFEST_BINDING_MISMATCH")
-    if any(
-        int(manifest.get(field, -1)) != 0
-        for field in (
-            "duplicate_rows",
-            "future_time_rejections",
-            "finality_unproven",
-            "missing_cost_evidence",
-            "missing_label_evidence",
-        )
-    ):
-        raise ValueError("DATASET_ADMISSION_COUNTS_NOT_CLEAN")
+    dataset, manifest, parity, build_receipt = load_validated_training_artifacts(
+        dataset_path=dataset_path,
+        manifest_path=manifest_path,
+        parity_path=parity_path,
+        build_receipt_path=build_receipt_path,
+    )
 
     train_rows = _partition(dataset, "train")
     validation_rows = _partition(dataset, "validation")
@@ -468,11 +521,40 @@ def train_serving_checkpoint_v3(
     checkpoint_id = "SERVING_ABI_V2_PROFITABILITY_PAPER_" + hashlib.sha256(
         f"{manifest['manifest_sha256']}:{parameter_fingerprint}".encode("ascii")
     ).hexdigest()[:24]
-    generated_at = _utc_now()
+    generated_at = max(
+        dataset["rows"],
+        key=lambda row: datetime.fromisoformat(
+            row["label_available_at"].replace("Z", "+00:00")
+        ),
+    )["label_available_at"]
+    training_artifact_authentication = {
+        "schema_version": "serving_training_artifact_authentication_v2",
+        "dataset_id": dataset["dataset_id"],
+        "dataset_sha256": dataset["dataset_sha256"],
+        "dataset_file_sha256": build_receipt["artifact_file_sha256s"][
+            dataset_path.name
+        ],
+        "manifest_id": manifest["manifest_id"],
+        "manifest_sha256": manifest["manifest_sha256"],
+        "manifest_file_sha256": build_receipt["artifact_file_sha256s"][
+            manifest_path.name
+        ],
+        "parity_file_sha256": build_receipt["artifact_file_sha256s"][
+            parity_path.name
+        ],
+        "build_receipt_sha256": canonical_sha256(build_receipt),
+        "build_receipt_file_sha256": PINNED_BUILD_RECEIPT_FILE_SHA256,
+        "candidate_archive_terminal_chain_sha256": build_receipt[
+            "candidate_archive_verification"
+        ]["terminal_chain_sha256"],
+        "base_dataset_file_sha256": build_receipt["base_dataset_file_sha256"],
+        "artifact_contracts_authenticated": True,
+    }
     meta = {
         "checkpoint_id": checkpoint_id,
         "checkpoint_classification": "PAPER_PROVISIONAL",
         "generated_utc": generated_at,
+        "generated_utc_semantics": "LATEST_AUTHENTICATED_LABEL_AVAILABLE_AT",
         "manifest_id": manifest["manifest_id"],
         "manifest_sha256": manifest["manifest_sha256"],
         "feature_abi_sha256": feature_abi_sha256(),
@@ -516,6 +598,7 @@ def train_serving_checkpoint_v3(
         "model_parameter_fingerprint": parameter_fingerprint,
         "model_id": f"serving_abi_v2_profit_mlp_{parameter_fingerprint[:16]}",
         "confidence_calibration_state": calibration,
+        "training_artifact_authentication": training_artifact_authentication,
         "training_metrics": {
             "optimizer_steps": OPTIMIZER_STEPS,
             "final_loss": final_loss,
@@ -533,28 +616,20 @@ def train_serving_checkpoint_v3(
         "routes_to_live": False,
         "economic_certification": "PROVISIONAL",
     }
-    output_dir.mkdir(parents=True, exist_ok=True)
+    _prepare_output_directory(output_dir)
     checkpoint_path = output_dir / f"{checkpoint_id}.pt"
-    fd, temporary_name = tempfile.mkstemp(
-        prefix=f".{checkpoint_id}.", suffix=".tmp", dir=output_dir
-    )
-    os.close(fd)
-    temporary_path = Path(temporary_name)
-    try:
-        torch.save(
-            {
-                "meta": meta,
-                "state_dict": {
-                    key: value.detach().cpu()
-                    for key, value in model.state_dict().items()
-                },
+    checkpoint_buffer = io.BytesIO()
+    torch.save(
+        {
+            "meta": meta,
+            "state_dict": {
+                key: value.detach().cpu() for key, value in model.state_dict().items()
             },
-            temporary_path,
-        )
-        temporary_path.replace(checkpoint_path)
-    finally:
-        temporary_path.unlink(missing_ok=True)
-    checkpoint_file_sha256 = hashlib.sha256(checkpoint_path.read_bytes()).hexdigest()
+        },
+        checkpoint_buffer,
+    )
+    checkpoint_bytes = checkpoint_buffer.getvalue()
+    checkpoint_file_sha256 = hashlib.sha256(checkpoint_bytes).hexdigest()
     metrics = {
         "optimizer_steps": OPTIMIZER_STEPS,
         "final_loss": final_loss,
@@ -572,6 +647,7 @@ def train_serving_checkpoint_v3(
         "live_eligible": False,
         "checkpoint_promotable": False,
         "economic_certification": "PROVISIONAL",
+        "training_artifact_authentication": training_artifact_authentication,
     }
     bundle = CheckpointBundleV2(
         checkpoint_id=checkpoint_id,
@@ -601,9 +677,14 @@ def train_serving_checkpoint_v3(
     bundle_reasons = bundle.validate()
     if bundle_reasons:
         raise ValueError("CHECKPOINT_BUNDLE_INVALID:" + ",".join(bundle_reasons))
+    _publish_immutable_checkpoint(
+        checkpoint_bytes=checkpoint_bytes,
+        target_path=checkpoint_path,
+    )
     report = {
         "schema_version": SCHEMA_VERSION,
         "generated_at": generated_at,
+        "generated_at_semantics": "LATEST_AUTHENTICATED_LABEL_AVAILABLE_AT",
         "checkpoint_id": checkpoint_id,
         "checkpoint_path": str(checkpoint_path.resolve()),
         "checkpoint_file_sha256": checkpoint_file_sha256,
@@ -612,6 +693,7 @@ def train_serving_checkpoint_v3(
         "manifest_sha256": manifest["manifest_sha256"],
         "feature_abi_sha256": feature_abi_sha256(),
         "feature_builder_sha256": feature_builder_sha256(),
+        "training_artifact_authentication": training_artifact_authentication,
         "metrics": metrics,
         "holdout_consumed_once_after_model_and_calibration_frozen": True,
         "activation_eligible": False,
