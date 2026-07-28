@@ -1944,3 +1944,85 @@ exchange_action_taken=false
 catastrophic_envelope_relaxed=false
 block_dangerous_hook_modified=false
 ```
+
+---
+
+## CG-F063 / CG-F057 immutable runtime acceptance — 2026-07-28
+
+This is the latest authoritative status for the scoped paper-loop recovery
+segment. It supersedes older candidate-SHA and restart-pending entries above;
+it does not supersede the broader unfinished FINAL PASS architecture phases.
+
+### Completed task list
+
+- [x] Distinguish `EMPTY_INITIALIZED_PROOF_SET` from
+  `PROOF_STORE_UNINITIALIZED_OR_UNBACKFILLED` and fail closed without deleting
+  positions or mutating wallet/margin when proof state is absent.
+- [x] Backfill and hash-bind authenticated accepted fills, position identity,
+  checkpoint/prediction lineage, quantity, price, notional and margin.
+- [x] Require positive invalidity evidence before destructive reconciliation;
+  preserve legitimate long/short positions and make reconciliation idempotent.
+- [x] Atomically persist entry proofs, proof manifest, close receipts,
+  partial-close transition proofs, positions, fills, closes and accounting.
+- [x] Validate every partial-close ancestor and successor link for identity,
+  hash, quantity, capital, paper-only authority, exact reduce-only receipt,
+  complete finite nonnegative cost basis and cross-generation cost continuity.
+- [x] Preserve hard `feed_integrity_pass=false` rejection for every typed action
+  and consume conservative continuous microstructure estimates in
+  `AdaptivePolicyActionV2` (`CG-F057`: 14/14 focused tests PASS).
+- [x] Independently review exact production commit
+  `d3635a8c10ef02f0a8c553e0a7d69feb780cef60`; paper-loop SHA-256
+  `1c234a4f297745e8bfcf5bb45b325a230a58b7600916bd6eed62871c6e324f10`.
+- [x] Deploy one clean detached immutable paper-loop release, verify credential
+  file presence/mode without reading contents, restart only the paper loop and
+  preserve the human-blocked live boundary.
+- [x] Observe three completed runtime cycles with no wipe, phantom, duplicate
+  fill/close, reservation leak, wallet mutation or accounting drift.
+- [x] Revalidate S15 `8/8`, S16 `5/5`, G12 `17/17`, systemd diagnostics `0`,
+  focused Ruff, Python compilation and `git diff --check`.
+- [ ] Observe a natural accepted paper fill and proof-backed open position.
+- [ ] Perform restart reconstruction while that natural position remains open.
+- [ ] Observe ordinary adaptive reduce-only close, accounting reconciliation and
+  two additional completed cycles.
+- [ ] Accumulate the required natural economic cohort and close G03/G11/G13/G14.
+
+### Runtime evidence
+
+The immutable runtime acceptance artifact is
+`goal_state/PERMANENT_SYSTEM_RECOVERY/d3635a8c_paper_runtime_acceptance_20260728.json`;
+the pre-restart snapshot is
+`goal_state/PERMANENT_SYSTEM_RECOVERY/d3635a8c_paper_runtime_acceptance_pre_restart_20260728.json`.
+
+Across the three completed cycles, accepted fills, open positions, phantoms,
+duplicate fills, duplicate closes and reservation leaks were all zero. Wallet,
+equity and free margin remained exactly `$2,985.59472051`; used and reserved
+margin remained zero. The authenticated proof manifest initialized as
+`EMPTY_INITIALIZED_PROOF_SET` with `completed=true`. Historical closes remained
+92/92 unique with the same canonical hash. Cycle 3 evaluated 397 paper
+signals/intents; all 397 were rejected by the unchanged governed path, so no
+natural position existed for restart reconstruction.
+
+### Truthful final status for this segment
+
+```text
+CG_F063_CODE_AND_ADVERSARIAL_FIXTURES=PASS_58_OF_58
+CG_F063_EMPTY_BOOK_RUNTIME_ACCEPTANCE=PASS_3_OF_3_CYCLES
+CG_F057=PASS_14_OF_14
+G12=PASS_17_OF_17
+CURRENT_SEGMENT_CONTROLLABLE_ENGINEERING_COMPLETE=true
+IMMUTABLE_PAPER_RELEASE_ACTIVE=true
+NATURAL_PAPER_FILL_OBSERVED=false
+PROOF_BACKED_OPEN_POSITION_OBSERVED=false
+RESTART_RECONSTRUCTION_MATCH=false
+NORMAL_PAPER_LIFECYCLE_COMPLETE=false
+ECONOMIC_ACCEPTANCE_PENDING=true
+PAPER_SYSTEM_LIVE_END_TO_END=false
+V2_PERMANENT_RECOVERY_COMPLETE=false
+LIVE_NO_GO=true
+paper_only=true
+live_gate=blocked_human_only
+routes_to_live=false
+places_real_order=false
+exchange_action_taken=false
+NEXT_TRIGGER=FRESH_GENERATION_3_PERSISTED_NATURAL_FILL_WITH_OPEN_POSITION
+```
