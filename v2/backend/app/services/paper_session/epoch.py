@@ -662,6 +662,10 @@ local acc = redis.call('GET', KEYS[3])
 if acc and acc ~= '[]' and acc ~= '' and acc ~= 'null' then
   return cjson.encode({status='BLOCKED_ATOMIC_GUARD', reason='accepted_fills_not_empty'})
 end
+local counter = redis.call('GET', KEYS[13]) or '0'
+if counter ~= ARGV[5] then
+  return cjson.encode({status='BLOCKED_ATOMIC_GUARD', reason='epoch_counter_changed'})
+end
 -- write clean epoch-scoped current state + operational face + pointer + receipt
 redis.call('SET', KEYS[4], ARGV[1])   -- epoch:{N}:portfolio_state
 redis.call('SET', KEYS[5], '[]')      -- epoch:{N}:positions
@@ -672,6 +676,7 @@ redis.call('SET', KEYS[9], ARGV[1])   -- v2:portfolio:state (operational face)
 redis.call('SET', KEYS[10], ARGV[2])  -- account_epoch:current pointer
 redis.call('SET', KEYS[11], ARGV[3])  -- receipt:{N}
 redis.call('SET', KEYS[12], ARGV[4])  -- v2:paper:session writer source
+redis.call('SET', KEYS[13], ARGV[6])  -- monotonic epoch counter
 redis.call('SET', idempo, ARGV[3])    -- idempotency -> receipt
 return ARGV[3]
 """
@@ -773,25 +778,16 @@ def rotate(redis, *, started_at: str | None = None,
             epoch_key(next_epoch, "reservations"), PORTFOLIO_STATE_KEY, EPOCH_POINTER_KEY,
             EPOCH_RECEIPT_PREFIX + str(next_epoch),
             LEGACY_SESSION_KEY,
+            EPOCH_COUNTER_KEY,
         ],
         "would_NOT_touch_history_keys": [GLOBAL_CLOSED_TRADES_KEY, GLOBAL_ACCEPTED_FILLS_KEY],
     }
     if not execute:
         return plan
 
-    # EXECUTE: allocate epoch atomically, then atomic write via Lua (guarded + idempotent).
-    epoch = int(redis.incr(EPOCH_COUNTER_KEY))
-    # Recompute identity for the actually-allocated epoch (counter may have advanced).
-    new_id = deterministic_session_id(prev.get("paper_session_id"), epoch, started_at)
-    clean = clean_portfolio_state(new_id, epoch)
-    pointer.update({"paper_session_id": new_id, "paper_account_epoch": epoch})
-    pointer.pop("content_sha256", None)
-    pointer["content_sha256"] = _canonical_sha256(pointer)
-    session_state.update({"paper_session_id": new_id, "reset_session_id": new_id,
-                          "paper_account_epoch": epoch})
-    session_state.pop("content_sha256", None)
-    session_state["content_sha256"] = _canonical_sha256(session_state)
-    receipt.update({"new_session_id": new_id, "paper_account_epoch": epoch})
+    # EXECUTE: the epoch counter and every operational pointer/state key move in
+    # the same Lua transaction. A failed guard cannot consume an epoch number.
+    epoch = next_epoch
     keys = [
         EPOCH_IDEMPO_PREFIX + idem, GLOBAL_POSITIONS_KEY, GLOBAL_ACCEPTED_FILLS_KEY,
         epoch_key(epoch, "portfolio_state"), epoch_key(epoch, "positions"),
@@ -799,8 +795,16 @@ def rotate(redis, *, started_at: str | None = None,
         epoch_key(epoch, "reservations"), PORTFOLIO_STATE_KEY, EPOCH_POINTER_KEY,
         EPOCH_RECEIPT_PREFIX + str(epoch),
         LEGACY_SESSION_KEY,
+        EPOCH_COUNTER_KEY,
     ]
-    argv = [json.dumps(clean), json.dumps(pointer), json.dumps(receipt), json.dumps(session_state)]
+    argv = [
+        json.dumps(clean),
+        json.dumps(pointer),
+        json.dumps(receipt),
+        json.dumps(session_state),
+        str(counter),
+        str(epoch),
+    ]
     # Persist the archive manifest once, then verify the exact immutable value
     # before the atomic session-pointer rotation.
     archive_key = EPOCH_ARCHIVE_PREFIX + str(prev.get("paper_session_id"))
