@@ -872,14 +872,15 @@ def build_evidence_novelty_manifest(
         "raw_archive_revision_growth": {
             "evidence_available": True,
             "baseline": baseline["source_matured_revision_count"],
-            "current": current_matured_revision_count,
+            "status_observed_before_build": current_matured_revision_count,
+            "signed_candidate": candidate["source_matured_revision_count"],
             "actual_increase": (
-                current_matured_revision_count
+                candidate["source_matured_revision_count"]
                 - baseline["source_matured_revision_count"]
             ),
             "legacy_count_threshold": min_new_matured_outcomes,
             "threshold_crossed": (
-                current_matured_revision_count
+                candidate["source_matured_revision_count"]
                 - baseline["source_matured_revision_count"]
                 >= min_new_matured_outcomes
             ),

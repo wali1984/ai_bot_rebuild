@@ -410,7 +410,8 @@ def test_raw_revision_growth_alone_does_not_authorize_incremental_training(
     assert manifest["predicates"]["raw_archive_revision_growth"] == {
         "evidence_available": True,
         "baseline": 500,
-        "current": 750,
+        "status_observed_before_build": 750,
+        "signed_candidate": 750,
         "actual_increase": 250,
         "legacy_count_threshold": 250,
         "threshold_crossed": True,
