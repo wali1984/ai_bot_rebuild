@@ -546,6 +546,18 @@ class CandidateOutcomeArchiveV2:
         *,
         signed_at_ms: int,
     ) -> tuple[ArchiveAppendReceiptV2, ...]:
+        receipts, _ = self.append_many_with_verification(
+            records,
+            signed_at_ms=signed_at_ms,
+        )
+        return receipts
+
+    def append_many_with_verification(
+        self,
+        records: tuple[CandidateDecisionOutcomeV2, ...],
+        *,
+        signed_at_ms: int,
+    ) -> tuple[tuple[ArchiveAppendReceiptV2, ...], ArchiveVerificationV2]:
         """Append one complete cycle under one lock and one archive verification.
 
         Candidate coverage cycles can contain hundreds of records.  Verifying
@@ -673,20 +685,63 @@ class CandidateOutcomeArchiveV2:
                     previous_chain_sha256 = chain_sha256
                     receipts.append(self._receipt(row, idempotent_replay=False))
 
+                final_verification = verification
                 if pending_rows:
+                    encoded_rows = b"".join(
+                        f"{_canonical_json(row)}\n".encode("ascii")
+                        for row in pending_rows
+                    )
                     descriptor = _open_regular_file(
                         self.archive_path,
                         os.O_WRONLY | os.O_APPEND | os.O_CREAT,
                     )
-                    with os.fdopen(descriptor, "a", encoding="utf-8") as archive_handle:
-                        for row in pending_rows:
-                            archive_handle.write(_canonical_json(row))
-                            archive_handle.write("\n")
-                        archive_handle.flush()
+                    with os.fdopen(descriptor, "ab", buffering=0) as archive_handle:
+                        pre_append_size = os.fstat(archive_handle.fileno()).st_size
+                        view = memoryview(encoded_rows)
+                        while view:
+                            written = os.write(archive_handle.fileno(), view)
+                            if written <= 0:
+                                _raise("append_write_incomplete", "archive_path")
+                            view = view[written:]
                         os.fsync(archive_handle.fileno())
+                        expected_size = pre_append_size + len(encoded_rows)
+                        if os.fstat(archive_handle.fileno()).st_size != expected_size:
+                            _raise("append_size_readback_mismatch", "archive_path")
                     _fsync_directory(self.archive_path.parent)
-                    self._verify_rows([*rows, *pending_rows])
-                return tuple(receipts)
+                    readback_descriptor = _open_regular_file(
+                        self.archive_path,
+                        os.O_RDONLY,
+                    )
+                    with os.fdopen(readback_descriptor, "rb", buffering=0) as readback:
+                        readback.seek(pre_append_size)
+                        if readback.read(len(encoded_rows) + 1) != encoded_rows:
+                            _raise("append_content_readback_mismatch", "archive_path")
+                    final_verification = ArchiveVerificationV2(
+                        schema_version=ARCHIVE_VERIFICATION_SCHEMA_VERSION,
+                        archive_path=str(self.archive_path),
+                        writer_id=self.writer_id,
+                        writer_public_key_hex=self.writer_public_key_hex,
+                        row_count=verification.row_count + len(pending_rows),
+                        decision_revision_count=(
+                            verification.decision_revision_count
+                            + sum(row["archive_sequence"] == 1 for row in pending_rows)
+                        ),
+                        matured_revision_count=(
+                            verification.matured_revision_count
+                            + sum(row["archive_sequence"] == 2 for row in pending_rows)
+                        ),
+                        candidate_count=len(candidate_rows),
+                        terminal_chain_sha256=previous_chain_sha256,
+                        duplicate_archive_record_count=0,
+                        invalid_row_count=0,
+                        verified=True,
+                        paper_only=True,
+                        live_gate="blocked_human_only",
+                        routes_to_live=False,
+                        places_real_order=False,
+                        exchange_action_taken=False,
+                    )
+                return tuple(receipts), final_verification
             except OSError as exc:
                 raise CandidateOutcomeArchiveError(
                     f"archive_path:secure_append_failed:{type(exc).__name__}"

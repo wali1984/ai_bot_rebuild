@@ -126,6 +126,23 @@ def test_append_many_verifies_prefix_once_and_preserves_per_record_chain(tmp_pat
     assert archive.verify().row_count == 2
 
 
+def test_append_many_returns_exact_post_fsync_verification(tmp_path: Path) -> None:
+    archive, _, _ = _writer(tmp_path / "candidate-outcomes.jsonl")
+    first = _archive()
+    second = _archive(
+        _decision(candidate_id="candidate-2"),
+        archive_record_id="candidate-2-decision",
+    )
+    receipts, appended = archive.append_many_with_verification(
+        (first, second),
+        signed_at_ms=1_100_000,
+    )
+    reread = archive.verify()
+    assert len(receipts) == 2
+    assert appended == reread
+    assert appended.terminal_chain_sha256 == receipts[-1].chain_sha256
+
+
 def test_append_many_validation_failure_writes_no_partial_batch(tmp_path: Path) -> None:
     path = tmp_path / "candidate-outcomes.jsonl"
     archive, _, _ = _writer(path)

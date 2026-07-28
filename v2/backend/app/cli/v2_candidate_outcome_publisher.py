@@ -348,11 +348,14 @@ def process_maturation(
                 candidates_to_append.append(matured)
                 source_eligible_ids.append(record.decision.candidate_id)
 
-    append_receipts = (
-        archive.append_many(tuple(candidates_to_append), signed_at_ms=signed_at_ms)
-        if candidates_to_append
-        else ()
-    )
+    verification_after = verification_before
+    if candidates_to_append:
+        append_receipts, verification_after = archive.append_many_with_verification(
+            tuple(candidates_to_append),
+            signed_at_ms=signed_at_ms,
+        )
+    else:
+        append_receipts = ()
     appended_matured_ids = {
         receipt.candidate_id
         for receipt in append_receipts
@@ -407,6 +410,7 @@ def process_maturation(
         ),
         "canonical_label_archive_rejection_reasons": integrity_rejection_reasons,
         "transaction_identity_cache_entry_count": len(transaction_cache),
+        "archive_verification": asdict(verification_after),
         "counterfactual_counts_as_paper_profit": False,
         "execution_authority": False,
         "paper_only": True,
@@ -440,19 +444,21 @@ def process_cycle(
     receipt_path = state_root / "cycle_receipts" / f"{cycle_id}.json"
     already_complete = _existing_cycle_receipt(receipt_path, cycle, cycle_id)
 
+    verification_after_decisions = None
     if already_complete:
         append_receipts = ()
     else:
-        append_receipts = (
-            archive.append_many(cycle.decision_records, signed_at_ms=signed_at_ms)
-            if cycle.decision_records
-            else ()
-        )
-        terminal_chain_sha256 = (
-            append_receipts[-1].chain_sha256
-            if append_receipts
-            else archive.verify().terminal_chain_sha256
-        )
+        if cycle.decision_records:
+            (
+                append_receipts,
+                verification_after_decisions,
+            ) = archive.append_many_with_verification(
+                cycle.decision_records,
+                signed_at_ms=signed_at_ms,
+            )
+        else:
+            append_receipts = ()
+            verification_after_decisions = archive.verify()
         cycle_receipt = {
             "schema_version": CYCLE_RECEIPT_SCHEMA_VERSION,
             "cycle_id": cycle_id,
@@ -467,7 +473,9 @@ def process_cycle(
                 record.content_sha256() for record in cycle.decision_records
             ],
             "archive_receipt_ids": [receipt.receipt_id for receipt in append_receipts],
-            "archive_terminal_chain_sha256": terminal_chain_sha256,
+            "archive_terminal_chain_sha256": (
+                verification_after_decisions.terminal_chain_sha256
+            ),
             "candidate_recording_coverage": cycle.candidate_recording_coverage,
             "unexplained_candidate_drops": cycle.unexplained_candidate_drops,
             "completed": True,
@@ -499,7 +507,12 @@ def process_cycle(
             "exchange_action_taken": False,
         }
     )
-    verification = archive.verify()
+    if maturation.get("archive_verification") is not None:
+        archive_verification = maturation["archive_verification"]
+    elif verification_after_decisions is not None:
+        archive_verification = asdict(verification_after_decisions)
+    else:
+        archive_verification = asdict(archive.verify())
     status = {
         "schema_version": RUNTIME_SCHEMA_VERSION,
         "generated_at": _utc_now(),
@@ -522,7 +535,7 @@ def process_cycle(
         "archive_idempotent_append_count": sum(
             receipt.idempotent_replay for receipt in append_receipts
         ),
-        "archive": asdict(verification),
+        "archive": archive_verification,
         "maturation": maturation,
         "candidate_outcome_maturer_runtime_integrated": label_archive is not None,
         "feature_snapshot_archive_root": str(feature_archive_root),
