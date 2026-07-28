@@ -55,6 +55,35 @@ def test_active_repair_held_unit_fails_closed(monkeypatch) -> None:
     assert failures[0]["reason"] == "repair-held service became authoritative"
 
 
+def test_profiled_ledger_writer_is_not_misclassified_as_superseded(
+    monkeypatch,
+) -> None:
+    publisher = "ai-bot-v2-profiled-base-feature-publisher.service"
+    trainer = "ai-bot-v2-native-cuda-trainer-persistent.service"
+    monkeypatch.setattr(
+        validator,
+        "expected_active_units",
+        lambda: {trainer: "ai-bot-v2-training.target"},
+    )
+    monkeypatch.setattr(
+        validator,
+        "sh",
+        lambda _cmd: f"{publisher} enabled\n{trainer} enabled",
+    )
+    monkeypatch.setattr(
+        validator,
+        "unit_state",
+        lambda _unit: ("active", "running", "yes"),
+    )
+
+    rows, failures = validator.classify_units({"holds": []})
+
+    by_unit = {row["unit"]: row for row in rows}
+    assert by_unit[publisher]["classification"] == "OPTIONAL"
+    assert by_unit[trainer]["classification"] == "ACTIVE_EXPECTED"
+    assert failures == []
+
+
 def test_serving_is_not_healthy_without_directional_supply(monkeypatch) -> None:
     monkeypatch.setattr(
         validator,

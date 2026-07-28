@@ -36,7 +36,9 @@ PLANE_TARGETS = [
     "ai-bot-v2-observability.target",
 ]
 SUPERSEDED = {
-    "ai-bot-v2-profiled-base-feature-publisher.service": "ai-bot-v2-native-cuda-trainer-persistent.service",
+    # The profiled-base publisher is the authenticated writer of the durable
+    # feature ledger.  The native CUDA trainer consumes that ledger read-only;
+    # it is not a replacement writer and both services may run concurrently.
     "ai-bot-v2-paper-online-runtime.service": "ai-bot-v2-trade-management-paper-loop.service",
 }
 FRESHNESS_SAMPLE_STRIDE = 8
