@@ -770,6 +770,12 @@ def build_close_event(
         "selected_action": position.selected_action or position.side,
         "model_version": position.model_version,
         "checkpoint_id": position.checkpoint_id,
+        "active_model_registry_generation": (
+            position.active_model_registry_generation
+        ),
+        "checkpoint_generation": position.checkpoint_generation,
+        "paper_strategy_cohort_id": position.paper_strategy_cohort_id,
+        "paper_cohort_checkpoint_id": position.paper_cohort_checkpoint_id,
         "feature_tensor_id": position.feature_tensor_id,
         "source_hashes": position.source_hashes,
         "strategy_supply_hypothesis": position.strategy_supply_hypothesis,

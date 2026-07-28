@@ -13293,6 +13293,10 @@ def test_compact_accepted_fill_state_omits_snapshot_but_keeps_trust_and_executio
     compact = paper_loop._compact_accepted_fill_for_state(  # noqa: SLF001
         {
             "fill_id": "fill-1",
+            "active_model_registry_generation": 3,
+            "checkpoint_generation": 3,
+            "paper_strategy_cohort_id": "cohort-3",
+            "paper_cohort_checkpoint_id": "checkpoint-3",
             "symbol": "BTCUSDT",
             "timeframe": "1m",
             "side": "long",
@@ -13388,6 +13392,10 @@ def test_compact_accepted_fill_state_omits_snapshot_but_keeps_trust_and_executio
     assert compact["entry_feature_snapshot_omitted_from_state"] is True
     assert "entry_feature_snapshot" not in compact
     assert compact["prediction_id"] == "pred-1"
+    assert compact["active_model_registry_generation"] == 3
+    assert compact["checkpoint_generation"] == 3
+    assert compact["paper_strategy_cohort_id"] == "cohort-3"
+    assert compact["paper_cohort_checkpoint_id"] == "checkpoint-3"
     assert compact["feature_snapshot_id"] == "fs-1"
     assert compact["entry_feature_snapshot_id"] == "fs-1"
     assert compact["maker_probability"] == 0.0

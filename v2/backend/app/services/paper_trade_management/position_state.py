@@ -32,6 +32,10 @@ _PAPER_POSITION_RECONSTRUCTION_FIELDS = (
     "position_generation_id",
     "position_id_version",
     "entry_generation_time_utc",
+    "active_model_registry_generation",
+    "checkpoint_generation",
+    "paper_strategy_cohort_id",
+    "paper_cohort_checkpoint_id",
     "symbol",
     "side",
     "net_quantity",
@@ -1173,6 +1177,10 @@ class PaperNetPosition:
     model_version: str | None = None
     checkpoint_id: str | None = None
     checkpoint_id_source: str | None = None
+    active_model_registry_generation: int | str | None = None
+    checkpoint_generation: int | str | None = None
+    paper_strategy_cohort_id: str | None = None
+    paper_cohort_checkpoint_id: str | None = None
     entry_prediction_snapshot: dict[str, Any] | None = None
     risk_decision_record_key: str | None = None
     risk_decision_record_hash: str | None = None
@@ -2508,6 +2516,12 @@ class PaperNetPosition:
             "position_generation_id": self.position_generation_id,
             "position_id_version": self.position_id_version,
             "entry_generation_time_utc": self.entry_generation_time_utc,
+            "active_model_registry_generation": (
+                self.active_model_registry_generation
+            ),
+            "checkpoint_generation": self.checkpoint_generation,
+            "paper_strategy_cohort_id": self.paper_strategy_cohort_id,
+            "paper_cohort_checkpoint_id": self.paper_cohort_checkpoint_id,
             "symbol": self.symbol,
             "side": self.side,
             "net_quantity": round(self.net_quantity, 12),
@@ -2929,6 +2943,12 @@ class PaperNetPosition:
             "model_version": self.model_version,
             "checkpoint_id": self.checkpoint_id,
             "checkpoint_id_source": self.checkpoint_id_source,
+            "active_model_registry_generation": (
+                self.active_model_registry_generation
+            ),
+            "checkpoint_generation": self.checkpoint_generation,
+            "paper_strategy_cohort_id": self.paper_strategy_cohort_id,
+            "paper_cohort_checkpoint_id": self.paper_cohort_checkpoint_id,
             "entry_prediction_snapshot": self.entry_prediction_snapshot,
             "feature_tensor_id": self.feature_tensor_id,
             "risk_decision_record_key": self.risk_decision_record_key,
@@ -4050,6 +4070,15 @@ def position_from_fill(fill: dict[str, Any], *, fill_id: str, side: str, quantit
         model_version=first_present(fill.get("model_version"), fill.get("model_source"), fill.get("model_id")),
         checkpoint_id=fill.get("checkpoint_id"),
         checkpoint_id_source=fill.get("checkpoint_id_source"),
+        active_model_registry_generation=fill.get(
+            "active_model_registry_generation"
+        ),
+        checkpoint_generation=first_present(
+            fill.get("checkpoint_generation"),
+            fill.get("active_model_registry_generation"),
+        ),
+        paper_strategy_cohort_id=fill.get("paper_strategy_cohort_id"),
+        paper_cohort_checkpoint_id=fill.get("paper_cohort_checkpoint_id"),
         entry_prediction_snapshot=fill.get("entry_prediction_snapshot")
         if isinstance(fill.get("entry_prediction_snapshot"), dict)
         else None,

@@ -430,6 +430,49 @@ def test_position_generation_and_opened_time_share_exact_fill_timestamp() -> Non
     ) == []
 
 
+def test_generation_and_cohort_lineage_survives_restart_and_close() -> None:
+    fill = _fill(fill_id="generation-cohort-lineage")
+    fill.update(
+        {
+            "active_model_registry_generation": 3,
+            "checkpoint_generation": 3,
+            "paper_strategy_cohort_id": "paper-serving-cohort-3",
+            "paper_cohort_checkpoint_id": "checkpoint-generation-3",
+        }
+    )
+    position = position_from_fill(
+        fill,
+        fill_id="generation-cohort-lineage",
+        side="long",
+        quantity=1.0,
+        price=100.0,
+    )
+
+    payload = position.to_payload(generated_utc="2026-06-11T10:01:00Z")
+    restored = position_from_fill(
+        payload,
+        fill_id="generation-cohort-lineage",
+        side="long",
+        quantity=1.0,
+        price=100.0,
+    )
+    close_event, outcome = build_close_event(
+        position=restored,
+        close_quantity=1.0,
+        exit_price=101.0,
+        exit_time="2026-06-11T10:02:00Z",
+        close_reason="UNIT_ORDINARY_CLOSE",
+        fee_bps=0.0,
+        slippage_bps=0.0,
+    )
+
+    for row in (payload, restored.to_payload(generated_utc="2026-06-11T10:01:30Z"), close_event, outcome):
+        assert row["active_model_registry_generation"] == 3
+        assert row["checkpoint_generation"] == 3
+        assert row["paper_strategy_cohort_id"] == "paper-serving-cohort-3"
+        assert row["paper_cohort_checkpoint_id"] == "checkpoint-generation-3"
+
+
 def test_adaptive_policy_mandatory_stop_preempts_min_hold() -> None:
     position = _adaptive_policy_position("adaptive-stop")
 
