@@ -34743,6 +34743,7 @@ def _paper_close_receipt_source_fill_ids_valid(
 
 def _paper_prior_position_close_transition_reasons(
     transition: Mapping[str, Any],
+    successor_transition: Mapping[str, Any],
     entry_proof: Mapping[str, Any],
     close_rows: Sequence[Mapping[str, Any]],
 ) -> list[str]:
@@ -34756,6 +34757,9 @@ def _paper_prior_position_close_transition_reasons(
 
     reasons: list[str] = []
     material = _paper_position_close_transition_material(transition)
+    successor_material = _paper_position_close_transition_material(
+        successor_transition
+    )
     entry_proof_sha = _paper_canonical_sha256(entry_proof)
     if (
         material.get("prior_open_position_fill_proof_id")
@@ -34851,6 +34855,43 @@ def _paper_prior_position_close_transition_reasons(
             reasons.append(
                 "POSITION_CLOSE_TRANSITION_PRIOR_TRANSITION_"
                 f"{prefix.upper()}_CONSERVATION_INVALID"
+            )
+        successor_incurred = _coerce_float(
+            successor_material.get(f"{prefix}_incurred_usd")
+        )
+        successor_allocated = _coerce_float(
+            successor_material.get(f"{prefix}_allocated_to_closes_usd")
+        )
+        successor_remaining = _coerce_float(
+            successor_material.get(f"{prefix}_remaining_usd")
+        )
+        if (
+            successor_incurred is None
+            or successor_allocated is None
+            or successor_remaining is None
+            or not all(
+                math.isfinite(value) and value >= 0.0
+                for value in (
+                    successor_incurred,
+                    successor_allocated,
+                    successor_remaining,
+                )
+            )
+            or incurred is None
+            or allocated is None
+            or cost_remaining is None
+            or not math.isclose(
+                incurred,
+                successor_incurred,
+                rel_tol=1e-9,
+                abs_tol=1e-10,
+            )
+            or allocated > successor_allocated + 1e-10
+            or cost_remaining + 1e-10 < successor_remaining
+        ):
+            reasons.append(
+                "POSITION_CLOSE_TRANSITION_PRIOR_TRANSITION_"
+                f"{prefix.upper()}_BINDING_MISMATCH"
             )
     if material.get("cost_basis_conserved") is not True:
         reasons.append(
@@ -35010,6 +35051,7 @@ def _paper_position_close_transition_chain_reasons(
         reasons.extend(
             _paper_prior_position_close_transition_reasons(
                 prior,
+                current,
                 entry_proof,
                 close_rows,
             )
