@@ -35,8 +35,12 @@ from pathlib import Path
 from typing import Any
 
 THIS_FILE = Path(__file__).resolve()
-REPO_ROOT = THIS_FILE.parents[4]
-sys.path.insert(0, str(REPO_ROOT))
+CODE_ROOT = THIS_FILE.parents[4]
+RUNTIME_REPO_ROOT_ENV = "V2_RUNTIME_REPO_ROOT"
+REPO_ROOT = Path(
+    os.environ.get(RUNTIME_REPO_ROOT_ENV) or CODE_ROOT
+).expanduser().resolve()
+sys.path.insert(0, str(CODE_ROOT))
 
 from v2.backend.app.services.edge_proof.replay_schema import (  # noqa: E402
     OUTCOME_WINDOWS_SECONDS,

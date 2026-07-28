@@ -696,3 +696,18 @@ def test_large_artifact_copy_is_streaming_and_atomic(tmp_path: Path) -> None:
 
     assert target.read_bytes() == payload
     assert not target.with_suffix(target.suffix + ".tmp").exists()
+
+
+def test_runtime_evidence_root_is_independent_from_immutable_code_root(
+    tmp_path: Path,
+) -> None:
+    code_root = tmp_path / "immutable-release"
+    evidence_root = tmp_path / "runtime-evidence"
+
+    resolved = replay_miner._configured_repo_root(  # noqa: SLF001
+        {"V2_RUNTIME_REPO_ROOT": str(evidence_root)},
+        code_root=code_root,
+    )
+
+    assert resolved == evidence_root.resolve()
+    assert replay_miner._configured_repo_root({}, code_root=code_root) == code_root  # noqa: SLF001

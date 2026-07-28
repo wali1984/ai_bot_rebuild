@@ -48,7 +48,25 @@ from .replay_schema import (
     ReplayLabel,
 )
 
-REPO_ROOT = Path(__file__).resolve().parents[5]
+V2_RUNTIME_REPO_ROOT_ENV = "V2_RUNTIME_REPO_ROOT"
+
+
+def _configured_repo_root(
+    environ: Mapping[str, str] | None = None,
+    *,
+    code_root: Path | None = None,
+) -> Path:
+    source = os.environ if environ is None else environ
+    immutable_code_root = code_root or Path(__file__).resolve().parents[5]
+    configured = str(source.get(V2_RUNTIME_REPO_ROOT_ENV) or "").strip()
+    return (
+        Path(configured).expanduser().resolve()
+        if configured
+        else immutable_code_root
+    )
+
+
+REPO_ROOT = _configured_repo_root()
 STATE_DIR = (
     REPO_ROOT
     / "claude_worklog"
