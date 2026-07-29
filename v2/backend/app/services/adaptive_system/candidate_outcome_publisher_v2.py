@@ -138,6 +138,147 @@ def _project(source: Mapping[str, Any], fields: tuple[str, ...]) -> dict[str, An
     return {field: source.get(field) for field in fields}
 
 
+def _validated_adaptive_block_projection(
+    intent: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Validate and project a typed fail-closed policy disposition.
+
+    A hard validator failure is an authoritative policy result, but it is not
+    an ``AdaptivePolicyActionV2``. Absence of an action ID is valid only when
+    the disposition, denial receipt, and cycle receipt form one exact chain.
+    """
+
+    field_contracts = (
+        (
+            "adaptive_policy_block_disposition",
+            "adaptive_policy_block_disposition_id",
+            "adaptive_policy_block_disposition_sha256",
+            "decision_id",
+            "apd2_",
+        ),
+        (
+            "adaptive_policy_block_authorization_receipt",
+            "adaptive_policy_block_authorization_receipt_id",
+            "adaptive_policy_block_authorization_receipt_sha256",
+            "authorization_id",
+            "apbar1_",
+        ),
+        (
+            "adaptive_policy_block_cycle_receipt",
+            "adaptive_policy_block_cycle_receipt_id",
+            "adaptive_policy_block_cycle_receipt_sha256",
+            "receipt_id",
+            "apbcr1_",
+        ),
+    )
+    validated: dict[str, dict[str, Any]] = {}
+    projected: dict[str, Any] = {"adaptive_policy_disposition_type": "BLOCK"}
+    for (
+        payload_field,
+        id_field,
+        sha_field,
+        embedded_id_field,
+        prefix,
+    ) in field_contracts:
+        raw_payload = intent.get(payload_field)
+        if not isinstance(raw_payload, Mapping):
+            _fail("typed_block_object_required", f"intent.{payload_field}")
+        payload = _clean_mapping(raw_payload)
+        identifier = _require_identifier(
+            intent.get(id_field),
+            f"intent.{id_field}",
+        )
+        digest = _require_sha256(intent.get(sha_field), f"intent.{sha_field}")
+        if payload.get(embedded_id_field) != identifier:
+            _fail("typed_block_identity_mismatch", f"intent.{payload_field}")
+        if _sha256(payload) != digest:
+            _fail("typed_block_hash_mismatch", f"intent.{payload_field}")
+        identity_material = dict(payload)
+        identity_material.pop(embedded_id_field, None)
+        if identifier != f"{prefix}{_sha256(identity_material)}":
+            _fail("typed_block_identifier_hash_mismatch", f"intent.{id_field}")
+        if not (
+            payload.get("paper_only") is True
+            and payload.get("live_gate") == LIVE_GATE_BLOCKED_HUMAN_ONLY
+            and payload.get("routes_to_live") is False
+            and payload.get("places_real_order") is False
+            and payload.get("exchange_action_taken") is False
+        ):
+            _fail("typed_block_no_live_invariant_failed", f"intent.{payload_field}")
+        validated[payload_field] = payload
+        projected[id_field] = identifier
+        projected[sha_field] = digest
+
+    disposition = validated["adaptive_policy_block_disposition"]
+    authorization = validated["adaptive_policy_block_authorization_receipt"]
+    cycle_receipt = validated["adaptive_policy_block_cycle_receipt"]
+    reasons = disposition.get("hard_integrity_rejection_reasons")
+    if not (
+        disposition.get("schema_version") == "AdaptivePolicyDispositionV2"
+        and disposition.get("disposition") == "BLOCK"
+        and disposition.get("selected_action") == "BLOCK"
+        and disposition.get("paper_entry_authority") is False
+        and isinstance(reasons, list)
+        and bool(reasons)
+    ):
+        _fail(
+            "typed_block_disposition_invalid",
+            "intent.adaptive_policy_block_disposition",
+        )
+    for identity_field in (
+        "prediction_id",
+        "signal_id",
+        "orchestrator_decision_id",
+        "risk_decision_id",
+        "intent_id",
+        "symbol",
+        "timeframe",
+    ):
+        if disposition.get(identity_field) != intent.get(identity_field):
+            _fail(
+                "typed_block_lineage_mismatch",
+                f"intent.adaptive_policy_block_disposition.{identity_field}",
+            )
+    if not (
+        authorization.get("schema_version")
+        == "adaptive_policy_block_authorization_receipt_v1"
+        and authorization.get("adaptive_policy_disposition_id")
+        == disposition.get("decision_id")
+        and authorization.get("adaptive_policy_disposition_sha256")
+        == projected["adaptive_policy_block_disposition_sha256"]
+        and authorization.get("source_adaptive_policy_action_id") is None
+        and authorization.get("source_adaptive_policy_action_sha256") is None
+        and authorization.get("authorization_status") == "DENIED_FAIL_CLOSED"
+        and authorization.get("paper_entry_authority") is False
+        and authorization.get("hard_validator_passed") is False
+        and authorization.get("rejection_reasons") == reasons
+    ):
+        _fail(
+            "typed_block_authorization_invalid",
+            "intent.adaptive_policy_block_authorization_receipt",
+        )
+    if not (
+        cycle_receipt.get("schema_version")
+        == "adaptive_policy_block_cycle_receipt_v1"
+        and cycle_receipt.get("adaptive_policy_disposition_id")
+        == disposition.get("decision_id")
+        and cycle_receipt.get("adaptive_policy_disposition_sha256")
+        == projected["adaptive_policy_block_disposition_sha256"]
+        and cycle_receipt.get("adaptive_policy_block_authorization_id")
+        == authorization.get("authorization_id")
+        and cycle_receipt.get("adaptive_policy_block_authorization_sha256")
+        == projected["adaptive_policy_block_authorization_receipt_sha256"]
+        and cycle_receipt.get("policy_disposition")
+        == "BLOCK_DISPOSITION_PERSISTED"
+        and cycle_receipt.get("paper_entry_authority") is False
+    ):
+        _fail(
+            "typed_block_cycle_receipt_invalid",
+            "intent.adaptive_policy_block_cycle_receipt",
+        )
+    return projected
+
+
 def _source_receipts(
     intent: Mapping[str, Any],
     registry: PaperRegistryBindingV2,
@@ -154,6 +295,12 @@ def _source_receipts(
         intent.get("feature_abi_sha256"),
         intent.get("feature_builder_sha256"),
         intent.get("policy_fingerprint"),
+        intent.get("adaptive_policy_action_sha256"),
+        intent.get("adaptive_paper_policy_authorization_sha256"),
+        intent.get("adaptive_policy_paper_cycle_receipt_sha256"),
+        intent.get("adaptive_policy_block_disposition_sha256"),
+        intent.get("adaptive_policy_block_authorization_receipt_sha256"),
+        intent.get("adaptive_policy_block_cycle_receipt_sha256"),
         registry.checkpoint_bundle_sha256,
         registry.weight_sha256,
         registry.model_parameter_fingerprint,
@@ -540,6 +687,12 @@ _EXECUTION_FIELDS = (
     "adaptive_paper_policy_authorization_sha256",
     "adaptive_policy_paper_cycle_receipt_id",
     "adaptive_policy_paper_cycle_receipt_sha256",
+    "adaptive_policy_block_disposition_id",
+    "adaptive_policy_block_disposition_sha256",
+    "adaptive_policy_block_authorization_receipt_id",
+    "adaptive_policy_block_authorization_receipt_sha256",
+    "adaptive_policy_block_cycle_receipt_id",
+    "adaptive_policy_block_cycle_receipt_sha256",
     "exploration_provenance",
     "counts_as_training_feedback",
     "counts_as_live_profit",
@@ -1054,6 +1207,24 @@ def build_decision_revision(
         "adaptive_policy_paper_cycle_receipt_sha256": intent.get(
             "adaptive_policy_paper_cycle_receipt_sha256"
         ),
+        "adaptive_policy_block_disposition_id": intent.get(
+            "adaptive_policy_block_disposition_id"
+        ),
+        "adaptive_policy_block_disposition_sha256": intent.get(
+            "adaptive_policy_block_disposition_sha256"
+        ),
+        "adaptive_policy_block_authorization_receipt_id": intent.get(
+            "adaptive_policy_block_authorization_receipt_id"
+        ),
+        "adaptive_policy_block_authorization_receipt_sha256": intent.get(
+            "adaptive_policy_block_authorization_receipt_sha256"
+        ),
+        "adaptive_policy_block_cycle_receipt_id": intent.get(
+            "adaptive_policy_block_cycle_receipt_id"
+        ),
+        "adaptive_policy_block_cycle_receipt_sha256": intent.get(
+            "adaptive_policy_block_cycle_receipt_sha256"
+        ),
         "exploration_provenance": intent.get("exploration_provenance") is True,
         "counts_as_training_feedback": (
             intent.get("counts_as_training_feedback") is True
@@ -1061,47 +1232,70 @@ def build_decision_revision(
         "counts_as_live_profit": intent.get("counts_as_live_profit") is True,
     }
     if selected_payload["adaptive_policy_authoritative"] is True:
-        _require_identifier(
-            selected_payload["adaptive_policy_action_id"],
-            "intent.adaptive_policy_action_id",
+        has_action = selected_payload["adaptive_policy_action_id"] not in (None, "")
+        has_block = selected_payload["adaptive_policy_block_disposition_id"] not in (
+            None,
+            "",
         )
-        _require_sha256(
-            selected_payload["adaptive_policy_action_sha256"],
-            "intent.adaptive_policy_action_sha256",
-        )
-        policy_mode = selected_payload["adaptive_policy_action_policy_mode"]
-        if policy_mode not in {
-            "champion_exploitation",
-            "bounded_information_seeking_exploration",
-        }:
+        if has_action == has_block:
             _fail(
-                "typed_policy_mode_required",
-                "intent.adaptive_policy_action_policy_mode",
+                "exactly_one_typed_action_or_block_required",
+                "intent.adaptive_policy_authority_result",
             )
-        _require_sha256(
-            selected_payload["adaptive_paper_policy_authorization_sha256"],
-            "intent.adaptive_paper_policy_authorization_sha256",
-        )
-        _require_identifier(
-            selected_payload["adaptive_policy_paper_cycle_receipt_id"],
-            "intent.adaptive_policy_paper_cycle_receipt_id",
-        )
-        _require_sha256(
-            selected_payload["adaptive_policy_paper_cycle_receipt_sha256"],
-            "intent.adaptive_policy_paper_cycle_receipt_sha256",
-        )
-        expected_exploration = (
-            policy_mode == "bounded_information_seeking_exploration"
-        )
-        if (
-            selected_payload["exploration_provenance"] is not expected_exploration
-            or selected_payload["counts_as_training_feedback"] is not True
-            or selected_payload["counts_as_live_profit"] is not False
-        ):
-            _fail(
-                "typed_training_provenance_invalid",
-                "intent.adaptive_policy_provenance",
+        if has_block:
+            if not (
+                selected_payload["paper_fill_allowed"] is False
+                and intent.get("adaptive_policy_authority_status") == "BLOCKED"
+                and intent.get("adaptive_policy_entry_authorized") is False
+            ):
+                _fail(
+                    "typed_block_cannot_authorize_execution",
+                    "intent.adaptive_policy_block_disposition",
+                )
+            selected_payload.update(_validated_adaptive_block_projection(intent))
+        else:
+            selected_payload["adaptive_policy_disposition_type"] = "ACTION"
+            _require_identifier(
+                selected_payload["adaptive_policy_action_id"],
+                "intent.adaptive_policy_action_id",
             )
+            _require_sha256(
+                selected_payload["adaptive_policy_action_sha256"],
+                "intent.adaptive_policy_action_sha256",
+            )
+            policy_mode = selected_payload["adaptive_policy_action_policy_mode"]
+            if policy_mode not in {
+                "champion_exploitation",
+                "bounded_information_seeking_exploration",
+            }:
+                _fail(
+                    "typed_policy_mode_required",
+                    "intent.adaptive_policy_action_policy_mode",
+                )
+            _require_sha256(
+                selected_payload["adaptive_paper_policy_authorization_sha256"],
+                "intent.adaptive_paper_policy_authorization_sha256",
+            )
+            _require_identifier(
+                selected_payload["adaptive_policy_paper_cycle_receipt_id"],
+                "intent.adaptive_policy_paper_cycle_receipt_id",
+            )
+            _require_sha256(
+                selected_payload["adaptive_policy_paper_cycle_receipt_sha256"],
+                "intent.adaptive_policy_paper_cycle_receipt_sha256",
+            )
+            expected_exploration = (
+                policy_mode == "bounded_information_seeking_exploration"
+            )
+            if (
+                selected_payload["exploration_provenance"] is not expected_exploration
+                or selected_payload["counts_as_training_feedback"] is not True
+                or selected_payload["counts_as_live_profit"] is not False
+            ):
+                _fail(
+                    "typed_training_provenance_invalid",
+                    "intent.adaptive_policy_provenance",
+                )
     component_payload = {
         "schema_version": "candidate_component_estimates_projection_v2",
         **_project(intent, _COMPONENT_FIELDS),

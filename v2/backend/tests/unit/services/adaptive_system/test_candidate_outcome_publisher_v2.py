@@ -221,6 +221,114 @@ def _inputs(count: int = 2):
     return status, intents, snapshots
 
 
+def _with_typed_block_authority(intent: dict[str, object]) -> dict[str, object]:
+    row = deepcopy(intent)
+    prediction_id = str(row["prediction_id"])
+    row.update(
+        {
+            "signal_id": f"signal-{prediction_id}",
+            "orchestrator_decision_id": f"orchestrator-{prediction_id}",
+            "risk_decision_id": f"risk-{prediction_id}",
+            "intent_id": f"intent-{prediction_id}",
+            "adaptive_policy_authoritative": True,
+            "adaptive_policy_authority_status": "BLOCKED",
+            "adaptive_policy_entry_authorized": False,
+            "paper_fill_allowed": False,
+            "paper_fill_block_reason": "ADAPTIVE_POLICY_AUTHORITY_BLOCKED",
+        }
+    )
+    identity = {
+        field: row[field]
+        for field in (
+            "prediction_id",
+            "signal_id",
+            "orchestrator_decision_id",
+            "risk_decision_id",
+            "intent_id",
+            "symbol",
+            "timeframe",
+        )
+    }
+    reasons = ["authenticated_feature_binding_missing"]
+    disposition_material = {
+        "schema_version": "AdaptivePolicyDispositionV2",
+        **identity,
+        "disposition": "BLOCK",
+        "selected_action": "BLOCK",
+        "paper_entry_authority": False,
+        "hard_integrity_rejection_reasons": reasons,
+        "learning_continuation_action": (
+            "PERSIST_BLOCK_LABEL_AND_CONTINUE_ADAPTIVE_LEARNING"
+        ),
+        "decision_time_ms": 1_785_182_410_000,
+        "paper_only": True,
+        "live_gate": "blocked_human_only",
+        "routes_to_live": False,
+        "places_real_order": False,
+        "exchange_action_taken": False,
+    }
+    disposition_id = f"apd2_{_digest(disposition_material)}"
+    disposition = {**disposition_material, "decision_id": disposition_id}
+    disposition_sha256 = _digest(disposition)
+    authorization_material = {
+        "schema_version": "adaptive_policy_block_authorization_receipt_v1",
+        "adaptive_policy_disposition_id": disposition_id,
+        "adaptive_policy_disposition_sha256": disposition_sha256,
+        "source_adaptive_policy_action_id": None,
+        "source_adaptive_policy_action_sha256": None,
+        "authorization_status": "DENIED_FAIL_CLOSED",
+        "paper_entry_authority": False,
+        "hard_validator_passed": False,
+        "rejection_reasons": reasons,
+        "authorized_at_ms": 1_785_182_410_000,
+        "paper_only": True,
+        "live_gate": "blocked_human_only",
+        "routes_to_live": False,
+        "places_real_order": False,
+        "exchange_action_taken": False,
+    }
+    authorization_id = f"apbar1_{_digest(authorization_material)}"
+    authorization = {
+        **authorization_material,
+        "authorization_id": authorization_id,
+    }
+    authorization_sha256 = _digest(authorization)
+    cycle_material = {
+        "schema_version": "adaptive_policy_block_cycle_receipt_v1",
+        "paper_cycle_control_snapshot_sha256": "7" * 64,
+        **identity,
+        "adaptive_policy_disposition_id": disposition_id,
+        "adaptive_policy_disposition_sha256": disposition_sha256,
+        "adaptive_policy_block_authorization_id": authorization_id,
+        "adaptive_policy_block_authorization_sha256": authorization_sha256,
+        "policy_disposition": "BLOCK_DISPOSITION_PERSISTED",
+        "paper_entry_authority": False,
+        "paper_only": True,
+        "live_gate": "blocked_human_only",
+        "routes_to_live": False,
+        "places_real_order": False,
+        "exchange_action_taken": False,
+    }
+    cycle_id = f"apbcr1_{_digest(cycle_material)}"
+    cycle_receipt = {**cycle_material, "receipt_id": cycle_id}
+    row.update(
+        {
+            "adaptive_policy_block_disposition": disposition,
+            "adaptive_policy_block_disposition_id": disposition_id,
+            "adaptive_policy_block_disposition_sha256": disposition_sha256,
+            "adaptive_policy_block_authorization_receipt": authorization,
+            "adaptive_policy_block_authorization_receipt_id": authorization_id,
+            "adaptive_policy_block_authorization_receipt_sha256": (
+                authorization_sha256
+            ),
+            "adaptive_policy_block_cycle_receipt": cycle_receipt,
+            "adaptive_policy_block_cycle_receipt_id": cycle_id,
+            "adaptive_policy_block_cycle_receipt_sha256": _digest(cycle_receipt),
+        }
+    )
+    return row
+
+
 def _build(status, intents, snapshots):
     return build_publisher_cycle(
         paper_status=status,
@@ -427,6 +535,35 @@ def test_nonexecuting_candidate_archives_exact_missing_reservation_disposition()
     assert record.routes_to_live is False
     assert record.places_real_order is False
     assert record.exchange_action_taken is False
+
+
+def test_authoritative_typed_block_is_archived_without_selected_action() -> None:
+    status, intents, snapshots = _inputs(1)
+    intents[0] = _with_typed_block_authority(intents[0])
+
+    record = _build(status, intents, snapshots).decision_records[0]
+    selected = json.loads(record.decision.selected_action.payload_json)
+
+    assert record.decision.decision_disposition != "SELECTED_TRADE"
+    assert selected["adaptive_policy_disposition_type"] == "BLOCK"
+    assert selected["adaptive_policy_action_id"] is None
+    assert selected["adaptive_policy_block_disposition_id"].startswith("apd2_")
+    assert selected["adaptive_policy_block_authorization_receipt_id"].startswith(
+        "apbar1_"
+    )
+    assert selected["adaptive_policy_block_cycle_receipt_id"].startswith("apbcr1_")
+    assert selected["paper_fill_allowed"] is False
+
+
+def test_authoritative_typed_block_fails_closed_on_receipt_mutation() -> None:
+    status, intents, snapshots = _inputs(1)
+    intents[0] = _with_typed_block_authority(intents[0])
+    intents[0]["adaptive_policy_block_cycle_receipt"]["policy_disposition"] = (
+        "BLOCK_RECEIPT_TAMPERED"
+    )
+
+    with pytest.raises(CandidateOutcomePublisherError, match="typed_block_hash_mismatch"):
+        _build(status, intents, snapshots)
 
 
 def test_selected_trade_cannot_omit_authenticated_reservation() -> None:
