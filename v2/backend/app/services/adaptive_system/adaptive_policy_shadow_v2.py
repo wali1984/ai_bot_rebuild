@@ -2170,15 +2170,21 @@ def _bootstrap_information_acquisition_selection(
         or champion_score.utility is None
     ):
         return None
-    side_suffix = (
-        f":{BOUNDED_EXPLORATION}:{str(designation['side']).lower()}:venue_minimum"
+    designated_side = str(designation["side"]).lower()
+    # The experiment may execute at the LEARNED notional or, when the learned
+    # target is below the venue minimum, at the exact venue-minimum notional
+    # (mutually exclusive by construction: the venue-minimum second candidate
+    # only exists when the learned-size plan is sub-minimum and blocked).
+    side_suffixes = (
+        f":{BOUNDED_EXPLORATION}:{designated_side}",
+        f":{BOUNDED_EXPLORATION}:{designated_side}:venue_minimum",
     )
     matches = tuple(
         item
         for item in ordered_inputs
         if item.policy_mode == BOUNDED_EXPLORATION
         and item.selected_action == ACTION_DIRECTIONAL_TRADE
-        and item.action_id.endswith(side_suffix)
+        and item.action_id.endswith(side_suffixes)
         and item.hard_constraints_satisfied is True
         and item.expected_information_gain > 0.0
     )

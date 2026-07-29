@@ -138,16 +138,17 @@ def select_reference_action_id(
         and champion_is_flat
         and bootstrap_designation.get("side") in {"LONG", "SHORT"}
     ):
-        side_suffix = (
-            f":{BOUNDED_EXPLORATION}"
-            f":{str(bootstrap_designation['side']).lower()}:venue_minimum"
+        bootstrap_side = str(bootstrap_designation["side"]).lower()
+        side_suffixes = (
+            f":{BOUNDED_EXPLORATION}:{bootstrap_side}",
+            f":{BOUNDED_EXPLORATION}:{bootstrap_side}:venue_minimum",
         )
         bootstrap_matches = [
             action
             for action in actions
             if action.policy_mode == BOUNDED_EXPLORATION
             and action.selected_action == ACTION_DIRECTIONAL_TRADE
-            and action.action_id.endswith(side_suffix)
+            and action.action_id.endswith(side_suffixes)
             and action.hard_constraints_satisfied is True
             and action.expected_information_gain > 0.0
         ]

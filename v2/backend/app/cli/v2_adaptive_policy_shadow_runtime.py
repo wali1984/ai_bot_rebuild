@@ -386,15 +386,18 @@ def _compact_record(
         # Bootstrap information acquisition binds to its exact venue-minimum
         # exploration input by identity; the champion/exploration slots stay
         # reserved for positive-utility selections.
-        bootstrap_side_suffix = (
-            f":{result.selected_adaptive_action.primary_side.lower()}:venue_minimum"
+        bootstrap_side = result.selected_adaptive_action.primary_side.lower()
+        bootstrap_side_suffixes = (
+            f":bounded_information_seeking_exploration:{bootstrap_side}",
+            f":{bootstrap_side}:venue_minimum",
         )
         selected_input = next(
             item
             for item in result.objective_inputs
             if item.policy_mode == "bounded_information_seeking_exploration"
             and item.selected_action != ACTION_REMAIN_FLAT
-            and item.action_id.endswith(bootstrap_side_suffix)
+            and item.action_id.endswith(bootstrap_side_suffixes)
+            and item.hard_constraints_satisfied is True
         )
     else:
         selected_input_id = (

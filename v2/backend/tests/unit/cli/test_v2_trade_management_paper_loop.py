@@ -28952,7 +28952,7 @@ def test_bootstrap_designation_ranks_by_information_gain_per_expected_loss() -> 
     assert designation["timeframe"] == "4h"
     assert designation["side"] == "SHORT"
     assert designation["source_candidate_id"] == "cand_eth_short"
-    assert designation["source_venue_minimum_action_id"] == (
+    assert designation["source_action_id"] == (
         "apa2_eth:bounded_information_seeking_exploration:short:venue_minimum"
     )
     assert designation["expected_information_gain_nats"] == 0.9
@@ -29063,7 +29063,7 @@ def test_bootstrap_designation_ratio_tie_breaks_on_utility_then_action_id() -> N
     )
     assert by_action_id is not None
     assert by_action_id["source_candidate_id"] == "cand_tie_high"
-    assert by_action_id["source_venue_minimum_action_id"] == (
+    assert by_action_id["source_action_id"] == (
         "apa2_zulu:bounded_information_seeking_exploration:long:venue_minimum"
     )
 

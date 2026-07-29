@@ -382,13 +382,18 @@ def _selected_input(
             )
         if action.selected_action != ACTION_DIRECTIONAL_TRADE:
             _fail("bootstrap_requires_directional_trade", "selected_adaptive_action")
-        side_suffix = f":{action.primary_side.lower()}:venue_minimum"
+        bootstrap_side = action.primary_side.lower()
+        side_suffixes = (
+            f":{POLICY_MODE_BOUNDED_EXPLORATION}:{bootstrap_side}",
+            f":{bootstrap_side}:venue_minimum",
+        )
         matches = tuple(
             item
             for item in result.objective_inputs
             if item.policy_mode == POLICY_MODE_BOUNDED_EXPLORATION
             and item.selected_action == ACTION_DIRECTIONAL_TRADE
-            and item.action_id.endswith(side_suffix)
+            and item.action_id.endswith(side_suffixes)
+            and item.hard_constraints_satisfied is True
         )
         if len(matches) != 1:
             _fail("selected_objective_input_not_unique", "objective_inputs")

@@ -14170,6 +14170,7 @@ PAPER_RUNTIME_INTENT_PROJECTION_FIELDS = (
     "counts_as_champion_profitability_evidence",
     "adaptive_policy_venue_minimum_objective_comparisons",
     "adaptive_policy_venue_minimum_comparisons_sha256",
+    "adaptive_policy_bootstrap_exploration_candidates",
     "adaptive_paper_policy_authorization",
     "adaptive_paper_policy_authorization_sha256",
     "adaptive_policy_paper_cycle_receipt",
@@ -41546,21 +41547,54 @@ def _paper_bootstrap_information_acquisition_designation(
             for reason in (intent_row.get("paper_fill_gate_block_reasons") or [])
         ):
             continue
-        comparisons = intent_row.get(
-            "adaptive_policy_venue_minimum_objective_comparisons"
+        exploration_rows = intent_row.get(
+            "adaptive_policy_bootstrap_exploration_candidates"
         )
-        if not isinstance(comparisons, list):
-            continue
-        for row in comparisons:
-            if not isinstance(row, Mapping):
+        normalized_rows: list[Mapping[str, Any]]
+        if isinstance(exploration_rows, list) and exploration_rows:
+            # Preferred source: per-side bounded-exploration economics for
+            # BOTH learned-notional and venue-minimum variants.
+            normalized_rows = [
+                {
+                    "hard_pass": row.get("hard_valid") is True,
+                    "gain": row.get("expected_information_gain_nats"),
+                    "loss": row.get("bounded_experiment_loss_usd"),
+                    "side": row.get("side"),
+                    "utility": row.get("utility"),
+                    "stable_id": row.get("action_id"),
+                    "candidate_id": str(row.get("action_id") or "").split(":")[0],
+                }
+                for row in exploration_rows
+                if isinstance(row, Mapping)
+            ]
+        else:
+            comparisons = intent_row.get(
+                "adaptive_policy_venue_minimum_objective_comparisons"
+            )
+            if not isinstance(comparisons, list):
                 continue
-            if row.get("venue_min_candidate_hard_risk_pass") is not True:
+            normalized_rows = [
+                {
+                    "hard_pass": row.get("venue_min_candidate_hard_risk_pass")
+                    is True,
+                    "gain": row.get(
+                        "venue_min_candidate_expected_information_gain_nats"
+                    ),
+                    "loss": row.get("venue_min_candidate_expected_loss_usd"),
+                    "side": row.get("side"),
+                    "utility": row.get("venue_min_candidate_utility"),
+                    "stable_id": row.get("venue_minimum_action_id"),
+                    "candidate_id": row.get("candidate_id"),
+                }
+                for row in comparisons
+                if isinstance(row, Mapping)
+            ]
+        for row in normalized_rows:
+            if row.get("hard_pass") is not True:
                 continue
             try:
-                gain_nats = float(
-                    row["venue_min_candidate_expected_information_gain_nats"]
-                )
-                expected_loss_usd = float(row["venue_min_candidate_expected_loss_usd"])
+                gain_nats = float(row["gain"])
+                expected_loss_usd = float(row["loss"])
             except (KeyError, TypeError, ValueError, OverflowError):
                 continue
             # Nonfinite persisted values would poison canonical hashing of
@@ -41582,7 +41616,7 @@ def _paper_bootstrap_information_acquisition_designation(
             if str(side).upper() != str(intent_row.get("side") or "").upper():
                 continue
             eligible_count += 1
-            raw_utility = row.get("venue_min_candidate_utility")
+            raw_utility = row.get("utility")
             try:
                 utility = (
                     float(raw_utility)
@@ -41593,7 +41627,7 @@ def _paper_bootstrap_information_acquisition_designation(
             except OverflowError:
                 utility = float("-inf")
             ratio = gain_nats / expected_loss_usd
-            key = (ratio, utility, str(row.get("venue_minimum_action_id") or ""))
+            key = (ratio, utility, str(row.get("stable_id") or ""))
             ranked_entries.append(
                 (
                     key,
@@ -41602,9 +41636,7 @@ def _paper_bootstrap_information_acquisition_designation(
                         "timeframe": str(timeframe),
                         "side": str(side),
                         "source_candidate_id": row.get("candidate_id"),
-                        "source_venue_minimum_action_id": row.get(
-                            "venue_minimum_action_id"
-                        ),
+                        "source_action_id": row.get("stable_id"),
                         "expected_information_gain_nats": gain_nats,
                         "expected_experiment_loss_usd": expected_loss_usd,
                         "information_gain_per_expected_loss_usd": ratio,
@@ -41741,7 +41773,23 @@ def _paper_bootstrap_ranked_candidate_dispositions(
                     comparison = c
                     break
             if comparison is None:
-                predicate = "NO_VENUE_MINIMUM_CANDIDATE_FOR_LINEAGE_SIDE"
+                exploration_row = None
+                for c in (
+                    row.get("adaptive_policy_bootstrap_exploration_candidates")
+                    or []
+                ):
+                    if (
+                        isinstance(c, Mapping)
+                        and str(c.get("side") or "").upper() == side
+                    ):
+                        exploration_row = c
+                        break
+                if exploration_row is None:
+                    predicate = "NO_EXPLORATION_INPUT_FOR_LINEAGE_SIDE"
+                elif exploration_row.get("hard_valid") is not True:
+                    predicate = "EXPLORATION_INPUT_HARD_INVALID"
+                else:
+                    predicate = "EXPLORATION_INPUT_PRESENT_NOT_SELECTED"
             elif comparison.get("venue_min_candidate_hard_risk_pass") is not True:
                 predicate = "VENUE_MINIMUM_HARD_RISK_REJECTED"
             elif comparison.get("selection_reason") == (
@@ -55195,6 +55243,54 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             _paper_canonical_sha256(
                 intent["adaptive_policy_venue_minimum_objective_comparisons"]
             )
+        )
+        # Bootstrap ranking evidence: per-side bounded-exploration economics
+        # for BOTH the learned-notional and venue-minimum variants, with the
+        # venue-attested exact bounded experiment loss in USD as the ranking
+        # denominator.  Observational projection only — no authority.
+        _bootstrap_scores_by_id = {
+            score.action_id: score
+            for score in adaptive_policy_result.objective_evaluation.scores
+        }
+        _bootstrap_loss_by_action_sha = {
+            attestation.request.policy_action_sha256: (
+                attestation.exact_selected_bounded_loss_usd
+            )
+            for attestation in adaptive_policy_result.venue_attestations
+        }
+        _bootstrap_exploration_rows: list[dict[str, Any]] = []
+        for _b_input in adaptive_policy_result.objective_inputs:
+            if (
+                _b_input.policy_mode != "bounded_information_seeking_exploration"
+                or _b_input.selected_action != "directional_trade"
+            ):
+                continue
+            _b_parts = _b_input.action_id.split(":")
+            _b_side = (
+                _b_parts[-2] if _b_parts[-1] == "venue_minimum" else _b_parts[-1]
+            ).upper()
+            if _b_side not in ("LONG", "SHORT"):
+                continue
+            _b_score = _bootstrap_scores_by_id.get(_b_input.action_id)
+            _b_loss_raw = _bootstrap_loss_by_action_sha.get(_b_input.action_sha256)
+            _bootstrap_exploration_rows.append(
+                {
+                    "side": _b_side,
+                    "action_id": _b_input.action_id,
+                    "action_sha256": _b_input.action_sha256,
+                    "venue_minimum_variant": _b_parts[-1] == "venue_minimum",
+                    "hard_valid": _b_input.hard_constraints_satisfied is True,
+                    "expected_information_gain_nats": float(
+                        _b_input.expected_information_gain
+                    ),
+                    "bounded_experiment_loss_usd": (
+                        float(_b_loss_raw) if _b_loss_raw is not None else None
+                    ),
+                    "utility": (None if _b_score is None else _b_score.utility),
+                }
+            )
+        intent["adaptive_policy_bootstrap_exploration_candidates"] = (
+            _bootstrap_exploration_rows
         )
         intent["adaptive_paper_policy_authorization"] = adaptive_authorization_payload
         intent["adaptive_paper_policy_authorization_sha256"] = (
