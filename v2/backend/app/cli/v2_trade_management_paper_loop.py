@@ -41559,6 +41559,13 @@ def _paper_bootstrap_information_acquisition_designation(
             side = row.get("side")
             if side not in ("LONG", "SHORT"):
                 continue
+            # Authenticated-lineage side consistency (Category C, preserved):
+            # the orchestrator/risk decision records authorize exactly one
+            # side per candidate, and final admission replays them.  Only the
+            # venue-minimum comparison matching the candidate's authenticated
+            # side is a lawful experiment.
+            if str(side).upper() != str(intent_row.get("side") or "").upper():
+                continue
             eligible_count += 1
             raw_utility = row.get("venue_min_candidate_utility")
             try:
@@ -41604,6 +41611,7 @@ def _paper_bootstrap_information_acquisition_designation(
             "EXPECTED_INFORMATION_GAIN_NATS_POSITIVE",
             "EXPECTED_EXPERIMENT_LOSS_USD_POSITIVE_FINITE",
             "CANONICAL_RISK_DECISION_RESOLVED_ALLOW",
+            "COMPARISON_SIDE_MATCHES_AUTHENTICATED_DECISION_SIDE",
             "NO_PRIOR_ADAPTIVE_HARD_LOCAL_GATE_BLOCK",
         ],
         **best,
@@ -46426,7 +46434,20 @@ def _paper_final_admission_point_in_time_contract(
         reject("FINAL_ADMISSION_PAPER_SIZING_INCOMPLETE")
     expected_net_pnl = _coerce_float(intent.get("expected_net_pnl_usd"))
     allocation_expected_net_pnl = _coerce_float(allocation.get("expected_net_pnl_usd"))
-    if expected_net_pnl is None or not math.isfinite(expected_net_pnl) or expected_net_pnl <= 0.0:
+    # Category-E positivity preference: a bootstrap information-acquisition
+    # experiment is authorized precisely when no positive-expectation action
+    # exists, so the positivity veto has no final authority over that lane.
+    # Presence/finiteness (integrity) and the allocator-consistency check
+    # below remain mandatory for every lane, bootstrap included.
+    bootstrap_information_acquisition_intent = (
+        intent.get("adaptive_policy_action_policy_mode")
+        == "bootstrap_information_acquisition"
+    )
+    if (
+        expected_net_pnl is None
+        or not math.isfinite(expected_net_pnl)
+        or (expected_net_pnl <= 0.0 and not bootstrap_information_acquisition_intent)
+    ):
         reject("FINAL_ADMISSION_CURRENT_EXPECTED_NET_PNL_NOT_POSITIVE")
     if (
         allocation_expected_net_pnl is None

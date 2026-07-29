@@ -28714,6 +28714,7 @@ def _bootstrap_designation_intent(
     comparisons: object,
     *,
     timeframe: object = "1h",
+    side: object = "long",
     risk_decision_record_resolved: object = True,
     risk_controller_decision: object = "PASS",
     paper_fill_gate_block_reasons: object = (),
@@ -28721,11 +28722,47 @@ def _bootstrap_designation_intent(
     return {
         "symbol": symbol,
         "timeframe": timeframe,
+        "side": side,
         "risk_decision_record_resolved": risk_decision_record_resolved,
         "risk_controller_decision": risk_controller_decision,
         "paper_fill_gate_block_reasons": list(paper_fill_gate_block_reasons),
         "adaptive_policy_venue_minimum_objective_comparisons": comparisons,
     }
+
+
+def test_bootstrap_designation_requires_lineage_side_match() -> None:
+    """Only the venue-minimum comparison matching the candidate's
+    authenticated orchestrator/risk decision side is eligible; the opposite
+    side is excluded even at a superior information-gain ratio.
+    """
+
+    calibration = _bootstrap_designation_calibration()
+    short_lineage_long_comparison = _bootstrap_designation_intent(
+        "AAAUSDT",
+        [_bootstrap_designation_comparison(gain_nats=0.9, expected_loss_usd=1.0)],
+        side="short",
+    )
+    long_lineage_long_comparison = _bootstrap_designation_intent(
+        "BBBUSDT",
+        [_bootstrap_designation_comparison(gain_nats=0.2, expected_loss_usd=1.0)],
+        side="long",
+    )
+    designation = paper_loop._paper_bootstrap_information_acquisition_designation(  # noqa: SLF001
+        calibration=calibration,
+        previous_cycle_intents=[
+            short_lineage_long_comparison,
+            long_lineage_long_comparison,
+        ],
+        current_epoch_closed_trade_rows=[],
+        current_epoch_open_position_rows=[],
+    )
+    assert designation is not None
+    assert designation["symbol"] == "BBBUSDT"
+    assert designation["eligible_candidate_count"] == 1
+    assert (
+        "COMPARISON_SIDE_MATCHES_AUTHENTICATED_DECISION_SIDE"
+        in designation["hard_eligibility_filters"]
+    )
 
 
 def test_bootstrap_designation_requires_resolved_canonical_risk_allow() -> None:
@@ -28888,7 +28925,9 @@ def test_bootstrap_designation_ranks_by_information_gain_per_expected_loss() -> 
         calibration=_bootstrap_designation_calibration(),
         previous_cycle_intents=[
             _bootstrap_designation_intent("BTCUSDT", [loser], timeframe="1h"),
-            _bootstrap_designation_intent("ETHUSDT", [winner], timeframe="4h"),
+            _bootstrap_designation_intent(
+                "ETHUSDT", [winner], timeframe="4h", side="short"
+            ),
         ],
         current_epoch_closed_trade_rows=[],
         current_epoch_open_position_rows=[],
