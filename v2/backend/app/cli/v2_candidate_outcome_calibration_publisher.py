@@ -201,7 +201,21 @@ def process_once(
             or record.decision.checkpoint_sha256 != bundle_sha
         ):
             return None
-        return extract_calibration_observation(record)
+        observation = extract_calibration_observation(record)
+        actual_outcome = record.matured_labels.actual_paper_outcome
+        try:
+            selected_payload = json.loads(
+                record.decision.selected_action.payload_json
+            )
+        except json.JSONDecodeError as exc:  # pragma: no cover - contract defensive
+            raise CandidateCalibrationPublisherError(
+                "selected_action:invalid_json"
+            ) from exc
+        exploration = (
+            selected_payload.get("adaptive_policy_action_policy_mode")
+            == "bounded_information_seeking_exploration"
+        )
+        return (observation, actual_outcome is not None, exploration)
 
     with _private_archive_snapshot_reader(
         archive_path=archive_path,
@@ -209,7 +223,7 @@ def process_once(
     ) as (reader, snapshot_receipt):
         (
             verification,
-            observations,
+            observation_projections,
         ) = reader.read_verified_projections_by_sequence_with_verification(
             archive_sequences=(2,),
             projector=active_observation,
@@ -218,6 +232,11 @@ def process_once(
         )
     if verification.verified is not True:
         raise CandidateCalibrationPublisherError("candidate_archive:verification_failed")
+    observations = tuple(item[0] for item in observation_projections)
+    actual_paper_outcome_count = sum(item[1] for item in observation_projections)
+    exploration_outcome_count = sum(
+        item[1] and item[2] for item in observation_projections
+    )
     calibration_error: CandidateOutcomeCalibrationError | None = None
     try:
         calibration = fit_candidate_outcome_calibration_v2(
@@ -248,6 +267,10 @@ def process_once(
             "source_matured_revision_count": verification.matured_revision_count,
             "source_snapshot": snapshot_receipt,
             "source_lock_scope": "BYTE_COPY_ONLY_VERIFICATION_OUTSIDE_SOURCE_LOCK",
+            "actual_paper_outcomes_consumed_by_training": actual_paper_outcome_count,
+            "bounded_exploration_outcomes_consumed_by_training": (
+                exploration_outcome_count
+            ),
             "paper_only": True,
             "live_gate": "blocked_human_only",
             "routes_to_live": False,
@@ -274,6 +297,10 @@ def process_once(
         "source_matured_revision_count": verification.matured_revision_count,
         "source_snapshot": snapshot_receipt,
         "source_lock_scope": "BYTE_COPY_ONLY_VERIFICATION_OUTSIDE_SOURCE_LOCK",
+        "actual_paper_outcomes_consumed_by_training": actual_paper_outcome_count,
+        "bounded_exploration_outcomes_consumed_by_training": (
+            exploration_outcome_count
+        ),
         "paper_only": True,
         "live_gate": "blocked_human_only",
         "routes_to_live": False,

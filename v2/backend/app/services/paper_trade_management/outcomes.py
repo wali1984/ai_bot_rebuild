@@ -3,6 +3,10 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
+from v2.backend.app.domain.adaptive_policy_action_v2 import (
+    POLICY_MODE_BOUNDED_EXPLORATION,
+)
+
 from .accounting import fee_and_slippage_usd, pnl_bps, pnl_usd
 from .position_state import (
     PaperNetPosition,
@@ -509,11 +513,26 @@ def build_close_event(
             else "FALLBACK_OR_INCOMPLETE_ENTRY_EXIT_COST_PROVENANCE"
         ),
     }
+    # Exploitation vs bounded information-gain exploration provenance.  Kept on
+    # the outcome/close record so exploration and exploitation stay SEPARATELY
+    # ATTRIBUTABLE for training feedback.  ``policy_mode`` is the canonical
+    # selected mode ("champion_exploitation" or
+    # "bounded_information_seeking_exploration").  A bounded exploration close is
+    # training feedback but NEVER live profit (paper-only; live stays BLOCKED).
+    adaptive_policy_action_policy_mode = position.adaptive_policy_action_policy_mode
+    exploration_provenance = (
+        adaptive_policy_action_policy_mode == POLICY_MODE_BOUNDED_EXPLORATION
+    )
     telemetry = {
         "adaptive_allocation": adaptive_allocation,
         "adaptive_policy_authoritative": position.adaptive_policy_authoritative,
         "adaptive_policy_action_id": position.adaptive_policy_action_id,
         "adaptive_policy_action_sha256": position.adaptive_policy_action_sha256,
+        "adaptive_policy_action_policy_mode": adaptive_policy_action_policy_mode,
+        "policy_mode": adaptive_policy_action_policy_mode,
+        "exploration_provenance": exploration_provenance,
+        "counts_as_training_feedback": True,
+        "counts_as_live_profit": False,
         "adaptive_paper_policy_authorization_sha256": (
             position.adaptive_paper_policy_authorization_sha256
         ),
@@ -766,6 +785,8 @@ def build_close_event(
         "model_source": position.model_source or position.model_version,
         "prediction_id": position.prediction_id,
         "signal_id": position.source_signal_id,
+        "intent_id": position.source_intent_id,
+        "source_intent_id": position.source_intent_id,
         "risk_decision_id": position.risk_decision_id,
         "orchestrator_decision_id": position.orchestrator_decision_id,
         "decision_id": position.decision_id,
@@ -1017,7 +1038,9 @@ def build_close_event(
         "future_window_label_source": position.future_window_label_source or "closed_trade_outcome",
         "source_fill_ids": list(position.fill_ids),
         "paper_only": True,
+        "routes_to_live": False,
         "places_real_order": False,
+        "exchange_action_taken": False,
         **trust_envelope,
         **prediction_score_envelope,
         **outcome_targets,
@@ -1112,7 +1135,9 @@ def build_close_event(
         "future_window_label_source": position.future_window_label_source or "closed_trade_outcome",
         "trainer_feedback_source": "V2_PAPER_TRADE_MANAGEMENT_CLOSED_TRADE",
         "paper_only": True,
+        "routes_to_live": False,
         "places_real_order": False,
+        "exchange_action_taken": False,
         **trust_envelope,
         **prediction_score_envelope,
         **outcome_targets,

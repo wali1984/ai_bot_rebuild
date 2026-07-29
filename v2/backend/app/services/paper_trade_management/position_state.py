@@ -32,6 +32,7 @@ _PAPER_POSITION_RECONSTRUCTION_FIELDS = (
     "position_generation_id",
     "position_id_version",
     "entry_generation_time_utc",
+    "source_intent_id",
     "active_model_registry_generation",
     "checkpoint_generation",
     "paper_strategy_cohort_id",
@@ -51,6 +52,7 @@ _PAPER_POSITION_RECONSTRUCTION_FIELDS = (
     "adaptive_policy_authoritative",
     "adaptive_policy_action_id",
     "adaptive_policy_action_sha256",
+    "adaptive_policy_action_policy_mode",
     "adaptive_paper_policy_authorization_sha256",
     "adaptive_policy_paper_cycle_receipt_id",
     "adaptive_policy_paper_cycle_receipt_sha256",
@@ -1164,6 +1166,7 @@ class PaperNetPosition:
     position_id_version: str | None = None
     entry_generation_time_utc: str | None = None
     source_signal_id: str | None = None
+    source_intent_id: str | None = None
     prediction_id: str | None = None
     preemptive_decision_id: str | None = None
     risk_decision_id: str | None = None
@@ -1313,6 +1316,11 @@ class PaperNetPosition:
     adaptive_policy_authoritative: bool = False
     adaptive_policy_action_id: str | None = None
     adaptive_policy_action_sha256: str | None = None
+    # champion_exploitation vs bounded_information_seeking_exploration.  Carried
+    # so the closed-trade/outcome record stays separately attributable between
+    # exploitation and bounded information-gain exploration, including across
+    # restart reconstruction.
+    adaptive_policy_action_policy_mode: str | None = None
     adaptive_paper_policy_authorization_sha256: str | None = None
     adaptive_policy_paper_cycle_receipt_id: str | None = None
     adaptive_policy_paper_cycle_receipt_sha256: str | None = None
@@ -2527,6 +2535,7 @@ class PaperNetPosition:
             "position_generation_id": self.position_generation_id,
             "position_id_version": self.position_id_version,
             "entry_generation_time_utc": self.entry_generation_time_utc,
+            "source_intent_id": self.source_intent_id,
             "active_model_registry_generation": (
                 self.active_model_registry_generation
             ),
@@ -2551,6 +2560,7 @@ class PaperNetPosition:
             "adaptive_policy_authoritative": self.adaptive_policy_authoritative,
             "adaptive_policy_action_id": self.adaptive_policy_action_id,
             "adaptive_policy_action_sha256": self.adaptive_policy_action_sha256,
+            "adaptive_policy_action_policy_mode": self.adaptive_policy_action_policy_mode,
             "adaptive_paper_policy_authorization_sha256": (
                 self.adaptive_paper_policy_authorization_sha256
             ),
@@ -2802,6 +2812,8 @@ class PaperNetPosition:
             "position_generation_id": self.position_generation_id,
             "position_id_version": self.position_id_version,
             "entry_generation_time_utc": self.entry_generation_time_utc,
+            "source_intent_id": self.source_intent_id,
+            "intent_id": self.source_intent_id,
             "symbol": self.symbol,
             "side": self.side,
             "net_quantity": round(self.net_quantity, 12),
@@ -2816,6 +2828,7 @@ class PaperNetPosition:
             "adaptive_policy_authoritative": self.adaptive_policy_authoritative,
             "adaptive_policy_action_id": self.adaptive_policy_action_id,
             "adaptive_policy_action_sha256": self.adaptive_policy_action_sha256,
+            "adaptive_policy_action_policy_mode": self.adaptive_policy_action_policy_mode,
             "adaptive_paper_policy_authorization_sha256": (
                 self.adaptive_paper_policy_authorization_sha256
             ),
@@ -4051,6 +4064,9 @@ def position_from_fill(fill: dict[str, Any], *, fill_id: str, side: str, quantit
         position_id_version=POSITION_ID_VERSION,
         entry_generation_time_utc=generation.entry_time_utc,
         source_signal_id=fill.get("signal_id"),
+        source_intent_id=first_present(
+            fill.get("intent_id"), fill.get("source_intent_id")
+        ),
         prediction_id=fill.get("prediction_id") or fill.get("source_prediction_id"),
         preemptive_decision_id=first_present(
             fill.get("preemptive_decision_id"),
@@ -4507,6 +4523,11 @@ def position_from_fill(fill: dict[str, Any], *, fill_id: str, side: str, quantit
         adaptive_policy_action_sha256=(
             str(fill.get("adaptive_policy_action_sha256"))
             if fill.get("adaptive_policy_action_sha256") not in (None, "")
+            else None
+        ),
+        adaptive_policy_action_policy_mode=(
+            str(fill.get("adaptive_policy_action_policy_mode"))
+            if fill.get("adaptive_policy_action_policy_mode") not in (None, "")
             else None
         ),
         adaptive_paper_policy_authorization_sha256=(

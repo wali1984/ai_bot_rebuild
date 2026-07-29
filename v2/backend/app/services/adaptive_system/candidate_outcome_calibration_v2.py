@@ -248,6 +248,11 @@ def extract_calibration_observation(
     gross = statistics.fmean(
         scenario.gross_pnl_bps for scenario in selected_scenarios
     )
+    # Executed paper decisions learn from their reconciled realized result.
+    # Counterfactual paths remain useful for MFE/MAE and opportunity labels but
+    # must never override an authenticated actual close or count as paper P&L.
+    if labels.actual_paper_outcome is not None:
+        after_cost = labels.actual_paper_outcome.realized_pnl_bps
     first_return = labels.horizon_labels[0].future_return_bps
     final_return = labels.horizon_labels[-1].future_return_bps
     expected_move_raw = proposed.get("expected_move_after_cost_bps")

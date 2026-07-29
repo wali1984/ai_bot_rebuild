@@ -20,6 +20,13 @@ from v2.backend.tests.unit.services.adaptive_system.test_candidate_outcome_matur
     _record,
     _rows_and_proof,
 )
+from v2.backend.tests.unit.contracts.runtime_v2.test_candidate_decision_outcome_v2 import (
+    _actual,
+)
+from v2.backend.tests.unit.services.adaptive_system.test_candidate_outcome_publisher_v2 import (
+    _build,
+    _inputs,
+)
 
 
 def _observation(index: int) -> CandidateCalibrationObservationV2:
@@ -182,3 +189,49 @@ def test_hold_observation_uses_predeclared_reference_side_missed_edge() -> None:
     assert observation.final_gross_return_bps != 0.0
     assert matured.matured_labels is not None
     assert matured.matured_labels.counts_as_paper_profit is False
+
+
+def test_executed_observation_uses_reconciled_actual_pnl_not_counterfactual() -> None:
+    status, intents, snapshots = _inputs(1)
+    intents[0].update(
+        {
+            "paper_fill_allowed": True,
+            "allocator_decision": "ALLOW_WITH_SIZE",
+            "entry_price": 100.1,
+            "paper_execution_mark_price": 100.0,
+            "observed_bid": 99.9,
+            "observed_ask": 100.1,
+            "observed_spread_bps": 20.0,
+            "fee_bps": 1.0,
+            "expected_slippage_bps": 2.0,
+            "expected_funding_bps": 0.5,
+            "depth_derived_price_impact_bps": 3.0,
+        }
+    )
+    record = _build(status, intents, snapshots).decision_records[0]
+    rows, proof = _rows_and_proof(record)
+    generated_at_ms = proof["training_observed_at_ms"] + 1
+    actual = _actual(
+        record.decision,
+        fill_execution_time_ms=record.decision.decision_time_ms + 1,
+        fill_record_available_at_ms=record.decision.decision_time_ms + 2,
+        close_execution_time_ms=generated_at_ms - 3,
+        close_record_available_at_ms=generated_at_ms - 2,
+        accounting_record_available_at_ms=generated_at_ms - 1,
+        realized_pnl_usd=-0.5,
+        realized_pnl_bps=-250.0,
+    )
+    matured = mature_candidate(
+        record,
+        rows=rows,
+        proof=proof,
+        label_generated_at_ms=generated_at_ms,
+        actual_paper_outcome=actual,
+    )
+
+    observation = extract_calibration_observation(matured)
+
+    assert observation.final_after_cost_return_bps == -250.0
+    assert observation.loss is True
+    assert matured.matured_labels is not None
+    assert matured.matured_labels.counts_as_paper_profit is True

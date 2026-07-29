@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -10,6 +11,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from v2.backend.app.cli.v2_candidate_outcome_publisher import (
     PAPER_INTENTS_KEY,
+    PAPER_CLOSED_TRADES_KEY,
     PAPER_REGISTRY_KEY,
     PAPER_STATUS_KEY,
     RUNTIME_STATUS_KEY,
@@ -17,11 +19,16 @@ from v2.backend.app.cli.v2_candidate_outcome_publisher import (
     _acquire_single_writer_lock,
     _load_feature_snapshots,
     _load_signing_key,
+    _actual_paper_outcome_from_close,
+    _authenticated_actual_close_sources,
     process_cycle,
     process_maturation,
 )
 from v2.backend.app.services.adaptive_system.candidate_outcome_archive_v2 import (
     CandidateOutcomeArchiveV2,
+)
+from v2.backend.app.services.adaptive_system.candidate_outcome_publisher_v2 import (
+    build_publisher_cycle,
 )
 from v2.backend.app.services.native_trainer.durable_feature_snapshot_archive import (
     SnapshotArchiveError,
@@ -60,6 +67,7 @@ def _client(status, intents) -> _FakeRedis:
             PAPER_STATUS_KEY: json.dumps(status),
             PAPER_INTENTS_KEY: json.dumps(intents),
             PAPER_REGISTRY_KEY: json.dumps(_registry()),
+            PAPER_CLOSED_TRADES_KEY: json.dumps([]),
         }
     )
 
@@ -381,3 +389,118 @@ def test_runtime_uses_and_refreshes_incremental_label_integrity_cache(
     assert status["canonical_label_archive_verification_mode"] == (
         "VERIFIED_APPEND_ONLY_SUFFIX_EXTENSION"
     )
+
+
+def _iso(epoch_ms: int) -> str:
+    return datetime.fromtimestamp(epoch_ms / 1_000, tz=UTC).isoformat().replace(
+        "+00:00", "Z"
+    )
+
+
+def test_typed_exploration_close_builds_exact_actual_paper_outcome() -> None:
+    status, intents, snapshots = _inputs(1)
+    intent = intents[0]
+    intent.update(
+        {
+            "paper_fill_allowed": True,
+            "allocator_decision": "ALLOW_WITH_SIZE",
+            "adaptive_policy_authoritative": True,
+            "adaptive_policy_action_id": "adaptive-action-1",
+            "adaptive_policy_action_sha256": "1" * 64,
+            "adaptive_policy_action_policy_mode": (
+                "bounded_information_seeking_exploration"
+            ),
+            "adaptive_paper_policy_authorization_sha256": "2" * 64,
+            "adaptive_policy_paper_cycle_receipt_id": "adaptive-cycle-1",
+            "adaptive_policy_paper_cycle_receipt_sha256": "3" * 64,
+            "exploration_provenance": True,
+            "counts_as_training_feedback": True,
+            "counts_as_live_profit": False,
+        }
+    )
+    record = build_publisher_cycle(
+        paper_status=status,
+        intents=intents,
+        registry_payload=_registry(),
+        feature_snapshots_by_id=snapshots,
+    ).decision_records[0]
+    decision_ms = record.decision.decision_time_ms
+    close = {
+        "adaptive_policy_authoritative": True,
+        "adaptive_policy_action_id": "adaptive-action-1",
+        "adaptive_policy_action_sha256": "1" * 64,
+        "adaptive_policy_action_policy_mode": (
+            "bounded_information_seeking_exploration"
+        ),
+        "adaptive_paper_policy_authorization_sha256": "2" * 64,
+        "adaptive_policy_paper_cycle_receipt_id": "adaptive-cycle-1",
+        "adaptive_policy_paper_cycle_receipt_sha256": "3" * 64,
+        "exploration_provenance": True,
+        "counts_as_training_feedback": True,
+        "counts_as_live_profit": False,
+        "close_position": True,
+        "reduce_only": True,
+        "remaining_quantity_after_close": 0.0,
+        "entry_prediction_id": intent["prediction_id"],
+        "preemptive_decision_id": intent["preemptive_decision_id"],
+        "policy_id": intent.get("policy_id") or intent["candidate_id"],
+        "policy_fingerprint": intent["policy_fingerprint"],
+        "checkpoint_generation": _registry()["registry_generation"],
+        "checkpoint_id": intent["checkpoint_id"],
+        "entry_signal_id": "paper-signal-1",
+        "intent_id": "paper-intent-1",
+        "entry_fill_id": "paper-fill-1",
+        "position_id": "paper-position-1",
+        "close_id": "paper-close-1",
+        "paper_final_admission_receipt_hash": "4" * 64,
+        "entry_generation_time_utc": _iso(decision_ms + 1_000),
+        "close_event_time": _iso(decision_ms + 2_000),
+        "closed_quantity": 2.0,
+        "entry_price": 10.0,
+        "gross_notional_usd": 20.0,
+        "effective_leverage": 2.0,
+        "allocated_margin_usd": 10.0,
+        "realized_net_pnl_usd": -0.5,
+        "paper_session_id": "paper-session-1",
+        "paper_account_epoch": 1,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "exchange_action_taken": False,
+    }
+    paper_status = {
+        "paper_session_id": "paper-session-1",
+        "paper_account_epoch": 1,
+        "paper_account_margin_status": {
+            "status": "PASS",
+            "accounting_complete": True,
+            "invariant_holds": True,
+            "used_margin_usd": 0.0,
+            "newly_reserved_margin_usd": 0.0,
+        },
+        "paper_position_fill_reconciliation_status": {
+            "status": "PASS",
+            "unresolved_position_count": 0,
+            "phantom_position_count": 0,
+            "wallet_balance_mutation_usd": 0.0,
+        },
+    }
+
+    sources, source_status = _authenticated_actual_close_sources(
+        paper_status=paper_status,
+        closed_trades=[close],
+    )
+    assert sources == {record.decision.candidate_id: close}
+    assert source_status["actual_close_source_rejection_counts"] == {}
+    actual = _actual_paper_outcome_from_close(
+        record=record,
+        close=close,
+        paper_status=paper_status,
+        observed_at_ms=decision_ms + 3_000,
+    )
+    assert actual.candidate_id == record.decision.candidate_id
+    assert actual.realized_pnl_usd == -0.5
+    assert actual.realized_pnl_bps == -250.0
+    assert actual.open_quantity_after_close == 0.0
+    assert actual.places_real_order is False
+    assert actual.exchange_action_taken is False

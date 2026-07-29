@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 from typing import Sequence
 
@@ -80,4 +81,54 @@ def evaluate_reference_objective(
     )
 
 
-__all__ = ("ReferenceObjectiveResultV2", "evaluate_reference_objective")
+def select_reference_action_id(
+    result: ReferenceObjectiveResultV2,
+    actions: Sequence[ActionObjectiveInputsV2],
+    *,
+    candidate_id: str,
+    calibration_sha256: str,
+    bounded_exploration_probability: float,
+) -> str | None:
+    """Independently replay the final exploit/explore selection.
+
+    A positive information-seeking action is selected deterministically when
+    the champion is the hard-valid flat action.  Otherwise the fitted mode
+    allocation remains the selector.  This deliberately duplicates the small
+    production selection rule instead of importing it, so a production-only
+    change becomes a parity disagreement.
+    """
+
+    by_id = {item.action_id: item for item in actions}
+    if len(by_id) != len(actions):
+        raise ValueError("actions:unique_ids_required")
+    if not 0.0 < bounded_exploration_probability < 1.0:
+        raise ValueError("bounded_exploration_probability:open_unit_interval_required")
+    champion = by_id.get(result.champion_action_id or "")
+    champion_is_flat = (
+        champion is not None
+        and champion.selected_action == ACTION_REMAIN_FLAT
+        and champion.hard_constraints_satisfied is True
+    )
+    deterministic_information_seeking = (
+        champion_is_flat and result.exploration_action_id is not None
+    )
+    draw = int(
+        hashlib.sha256(
+            f"{candidate_id}:{calibration_sha256}".encode("utf-8")
+        ).hexdigest()[:16],
+        16,
+    ) / float(2**64)
+    choose_exploration = draw < bounded_exploration_probability
+    if (
+        result.exploration_action_id is not None
+        and (choose_exploration or deterministic_information_seeking)
+    ):
+        return result.exploration_action_id
+    return result.champion_action_id
+
+
+__all__ = (
+    "ReferenceObjectiveResultV2",
+    "evaluate_reference_objective",
+    "select_reference_action_id",
+)

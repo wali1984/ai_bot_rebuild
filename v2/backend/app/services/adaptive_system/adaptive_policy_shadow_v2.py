@@ -59,6 +59,7 @@ from v2.backend.app.services.adaptive_system.adaptive_hard_validator_v2 import (
 )
 from v2.backend.app.services.adaptive_system.adaptive_objective_reference_v2 import (
     evaluate_reference_objective,
+    select_reference_action_id,
 )
 from v2.backend.app.services.adaptive_system.adaptive_objective_v2 import (
     ACTION_INPUT_SCHEMA_VERSION,
@@ -493,6 +494,25 @@ def _physical_plan(
             (continuous_target / entry / step).to_integral_value(rounding=ROUND_FLOOR)
             * step
         )
+        # Venue feasibility is a hard physical validator, not sizing policy.
+        # Never increase a learned policy target merely to satisfy the venue
+        # minimum.  This candidate is ineligible and another opportunity must
+        # be selected when the exact continuous budget is sub-minimum.
+        if minimum_step_quantity > maximum_quantity:
+            raise AdaptivePolicyShadowError(
+                "venue_minimum_quantity_exceeds_venue_maximum"
+            )
+        if (
+            mode == BOUNDED_EXPLORATION
+            and selected_quantity < minimum_step_quantity
+        ):
+            raise AdaptivePolicyShadowError(
+                "continuous_policy_target_below_venue_minimum"
+            )
+        # Champion proposals retain the venue-minimum comparator so the
+        # objective can score complete exploit/explore alternatives.  A
+        # non-positive champion cannot win against the hard-valid flat action;
+        # a selected directional action must still pass the exact attestation.
         selected_quantity = max(minimum_step_quantity, selected_quantity)
         if selected_quantity > maximum_quantity:
             selected_quantity = maximum_quantity
@@ -2018,11 +2038,73 @@ def build_adaptive_policy_shadow_candidate(
         16,
     ) / float(2**64)
     choose_exploration = draw < allocation.bounded_exploration_probability
+    # Bounded information-gain escape from the data-starvation deadlock.  When
+    # the champion (exploitation) action resolves to REMAIN_FLAT -- i.e. no
+    # positive-edge directional action exists, so every candidate would
+    # otherwise stay flat and generate no training feedback -- and a bounded
+    # exploration action carries a strictly positive LEARNED EXPLORATION
+    # OBJECTIVE, deterministically select that information-seeking action.
+    # ``exploration_action_id`` is only
+    # non-None when the exploration score already satisfies utility > 0.0 AND
+    # information_gain_contribution > 0.0 (adaptive_objective_v2.best), and
+    # utility = return_contribution - total_penalty + information_gain_contribution.
+    # So this fires precisely when expected edge is <= 0 but expected
+    # information gain more than offsets bounded downside.  It is a no-op when
+    # the champion is already directional or when no positive-objective
+    # exploration action exists, and it runs strictly AFTER the reference-parity
+    # formula check above.  The final action id is independently replayed below
+    # as a second parity check, so selection itself cannot drift silently.
+    champion_score = next(
+        (
+            score
+            for score in evaluation.scores
+            if score.action_id == evaluation.champion_action_id
+        ),
+        None,
+    )
+    champion_is_remain_flat = (
+        champion_score is not None
+        and champion_score.selected_action == ACTION_REMAIN_FLAT
+    )
+    exploration_score = (
+        next(
+            (
+                score
+                for score in evaluation.scores
+                if score.action_id == evaluation.exploration_action_id
+            ),
+            None,
+        )
+        if evaluation.exploration_action_id is not None
+        else None
+    )
+    information_gain_exploration_objective_positive = (
+        exploration_score is not None
+        and exploration_score.utility is not None
+        and exploration_score.utility > 0.0
+    )
+    deterministic_information_seeking_exploration = (
+        champion_is_remain_flat
+        and evaluation.exploration_action_id is not None
+        and information_gain_exploration_objective_positive
+    )
     selected_id = (
         evaluation.exploration_action_id
-        if choose_exploration and evaluation.exploration_action_id is not None
+        if (choose_exploration or deterministic_information_seeking_exploration)
+        and evaluation.exploration_action_id is not None
         else evaluation.champion_action_id
     )
+    reference_selected_id = select_reference_action_id(
+        reference,
+        ordered_inputs,
+        candidate_id=candidate_id,
+        calibration_sha256=str(calibration["calibration_sha256"]),
+        bounded_exploration_probability=allocation.bounded_exploration_probability,
+    )
+    if selected_id != reference_selected_id:
+        raise AdaptivePolicyShadowError(
+            "reference_parity:final_selection_disagreement_count=1"
+        )
     if selected_id is None:
         # A hard-integrity or authorization failure must remain non-executable,
         # but it is still a typed learning outcome.  Select the zero-notional

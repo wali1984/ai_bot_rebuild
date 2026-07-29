@@ -533,6 +533,16 @@ _EXECUTION_FIELDS = (
     "preemptive_decision",
     "preemptive_decision_id",
     "preemptive_decision_reasons",
+    "adaptive_policy_authoritative",
+    "adaptive_policy_action_id",
+    "adaptive_policy_action_sha256",
+    "adaptive_policy_action_policy_mode",
+    "adaptive_paper_policy_authorization_sha256",
+    "adaptive_policy_paper_cycle_receipt_id",
+    "adaptive_policy_paper_cycle_receipt_sha256",
+    "exploration_provenance",
+    "counts_as_training_feedback",
+    "counts_as_live_profit",
 )
 
 
@@ -1025,7 +1035,73 @@ def build_decision_revision(
         "production_preemptive_action": intent.get("preemptive_action"),
         "production_preemptive_reasons": intent.get("preemptive_decision_reasons") or [],
         "paper_fill_allowed": intent.get("paper_fill_allowed") is True,
+        "adaptive_policy_authoritative": (
+            intent.get("adaptive_policy_authoritative") is True
+        ),
+        "adaptive_policy_action_id": intent.get("adaptive_policy_action_id"),
+        "adaptive_policy_action_sha256": intent.get(
+            "adaptive_policy_action_sha256"
+        ),
+        "adaptive_policy_action_policy_mode": intent.get(
+            "adaptive_policy_action_policy_mode"
+        ),
+        "adaptive_paper_policy_authorization_sha256": intent.get(
+            "adaptive_paper_policy_authorization_sha256"
+        ),
+        "adaptive_policy_paper_cycle_receipt_id": intent.get(
+            "adaptive_policy_paper_cycle_receipt_id"
+        ),
+        "adaptive_policy_paper_cycle_receipt_sha256": intent.get(
+            "adaptive_policy_paper_cycle_receipt_sha256"
+        ),
+        "exploration_provenance": intent.get("exploration_provenance") is True,
+        "counts_as_training_feedback": (
+            intent.get("counts_as_training_feedback") is True
+        ),
+        "counts_as_live_profit": intent.get("counts_as_live_profit") is True,
     }
+    if selected_payload["adaptive_policy_authoritative"] is True:
+        _require_identifier(
+            selected_payload["adaptive_policy_action_id"],
+            "intent.adaptive_policy_action_id",
+        )
+        _require_sha256(
+            selected_payload["adaptive_policy_action_sha256"],
+            "intent.adaptive_policy_action_sha256",
+        )
+        policy_mode = selected_payload["adaptive_policy_action_policy_mode"]
+        if policy_mode not in {
+            "champion_exploitation",
+            "bounded_information_seeking_exploration",
+        }:
+            _fail(
+                "typed_policy_mode_required",
+                "intent.adaptive_policy_action_policy_mode",
+            )
+        _require_sha256(
+            selected_payload["adaptive_paper_policy_authorization_sha256"],
+            "intent.adaptive_paper_policy_authorization_sha256",
+        )
+        _require_identifier(
+            selected_payload["adaptive_policy_paper_cycle_receipt_id"],
+            "intent.adaptive_policy_paper_cycle_receipt_id",
+        )
+        _require_sha256(
+            selected_payload["adaptive_policy_paper_cycle_receipt_sha256"],
+            "intent.adaptive_policy_paper_cycle_receipt_sha256",
+        )
+        expected_exploration = (
+            policy_mode == "bounded_information_seeking_exploration"
+        )
+        if (
+            selected_payload["exploration_provenance"] is not expected_exploration
+            or selected_payload["counts_as_training_feedback"] is not True
+            or selected_payload["counts_as_live_profit"] is not False
+        ):
+            _fail(
+                "typed_training_provenance_invalid",
+                "intent.adaptive_policy_provenance",
+            )
     component_payload = {
         "schema_version": "candidate_component_estimates_projection_v2",
         **_project(intent, _COMPONENT_FIELDS),

@@ -54656,6 +54656,19 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         intent["adaptive_policy_action"] = adaptive_action.to_payload()
         intent["adaptive_policy_action_id"] = adaptive_action.decision_id
         intent["adaptive_policy_action_sha256"] = adaptive_action.content_sha256
+        # Carry the selected policy mode (champion_exploitation vs
+        # bounded_information_seeking_exploration) forward so the downstream
+        # closed-trade/outcome record stays separately attributable between
+        # exploitation and bounded information-gain exploration.  Paper-only
+        # provenance: an exploration outcome is training feedback, never live
+        # profit (live stays BLOCKED).
+        intent["adaptive_policy_action_policy_mode"] = adaptive_action.policy_mode
+        intent["exploration_provenance"] = (
+            adaptive_action.policy_mode
+            == "bounded_information_seeking_exploration"
+        )
+        intent["counts_as_training_feedback"] = True
+        intent["counts_as_live_profit"] = False
         intent["adaptive_policy_result_sha256"] = adaptive_policy_result.content_sha256
         intent["adaptive_policy_reference_parity_status"] = (
             adaptive_policy_result.parity_status

@@ -504,6 +504,22 @@ def test_maturation_stream_selects_exact_oldest_due_bounded_symmetric_batch(
     assert verification.places_real_order is False
     assert verification.exchange_action_taken is False
 
+    _, with_authenticated_actual = (
+        archive.read_verified_maturation_batch_with_verification(
+            signed_at_ms=3_000_000,
+            max_candidates=2,
+            actual_close_required_dispositions=frozenset(
+                {"SELECTED_TRADE", "SELECTED_RISK_REDUCED", "SELECTED_HEDGED"}
+            ),
+            actual_close_candidate_ids=frozenset({"actual-close-required"}),
+        )
+    )
+    assert with_authenticated_actual.selected_actual_pending_count == 0
+    assert with_authenticated_actual.label_candidate_count == 4
+    assert [
+        record.decision.candidate_id for record in with_authenticated_actual.records
+    ] == ["actual-close-required", "z-long-oldest"]
+
 
 @pytest.mark.parametrize(
     ("tamper", "reason"),

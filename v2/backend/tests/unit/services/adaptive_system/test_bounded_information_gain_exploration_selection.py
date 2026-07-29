@@ -1,0 +1,286 @@
+"""Change 2 fixtures: deterministic bounded information-gain exploration
+selection in the adaptive policy shadow.
+
+When the champion (exploitation) action resolves to REMAIN_FLAT and a bounded
+exploration action carries a strictly positive learned exploration objective
+(``utility > 0`` AND ``information_gain_contribution > 0``), the shadow selects
+the information-seeking directional action deterministically -- breaking the
+data-starvation deadlock -- while reference parity is preserved.
+"""
+
+from __future__ import annotations
+
+import copy
+import hashlib
+
+import pytest
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+from v2.backend.app.services.adaptive_system import adaptive_hard_validator_v2
+from v2.backend.app.services.adaptive_system import adaptive_objective_v2
+from v2.backend.app.services.adaptive_system import adaptive_policy_shadow_v2
+from v2.backend.app.services.adaptive_system.adaptive_paper_policy_authorization_v2 import (  # noqa: E501
+    authorize_adaptive_paper_policy_action,
+)
+from v2.backend.app.services.adaptive_system.adaptive_policy_shadow_v2 import (
+    build_adaptive_policy_shadow_candidate,
+)
+from v2.backend.app.services.adaptive_system.candidate_outcome_calibration_v2 import (
+    _canonical_sha256,
+)
+from v2.backend.tests.unit.services.adaptive_system.test_adaptive_policy_shadow_v2 import (  # noqa: E501
+    _SEED,
+    _calibration,
+    _feature_snapshot,
+    _intent,
+    _registry,
+)
+
+_PRIVATE = Ed25519PrivateKey.from_private_bytes(
+    hashlib.sha256(b"adaptive-shadow-runtime-test-validator").digest()
+)
+_PUBLIC_HEX = _PRIVATE.public_key().public_bytes(
+    serialization.Encoding.Raw,
+    serialization.PublicFormat.Raw,
+).hex()
+
+BOUNDED = "bounded_information_seeking_exploration"
+
+
+@pytest.fixture(autouse=True)
+def _validator_anchor(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        adaptive_objective_v2,
+        "CANONICAL_HARD_VALIDATOR_PUBLIC_KEY_HEX",
+        _PUBLIC_HEX,
+    )
+    monkeypatch.setattr(
+        adaptive_hard_validator_v2,
+        "CANONICAL_HARD_VALIDATOR_PUBLIC_KEY_HEX",
+        _PUBLIC_HEX,
+    )
+
+
+def _controlled_statistic(
+    *, after_cost_expectancy_bps: float, posterior_uncertainty: float, tail_0_9: float
+) -> dict:
+    return {
+        "sample_count": 40,
+        "after_cost_expectancy_bps": after_cost_expectancy_bps,
+        "win_rate_posterior_mean": 0.5,
+        "posterior_uncertainty": posterior_uncertainty,
+        "loss_probability": 0.2,
+        "stop_out_probability": 0.01,
+        "profit_exit_probability": 0.3,
+        "reversal_probability": 0.02,
+        "slippage_failure_probability": 0.1,
+        "missed_tp_then_stop_probability": 0.02,
+        "venue_infeasible_probability": 0.1,
+        "return_bps_quantiles": {"0.1": -2.0, "0.5": 0.0, "0.9": 2.0},
+        "tail_loss_bps_quantiles": {"0.1": 0.0, "0.5": 0.0, "0.9": tail_0_9},
+        "mfe_bps_quantiles": {"0.1": 1.0, "0.5": 2.0, "0.9": 3.0},
+        "mae_bps_quantiles": {"0.1": -2.0, "0.5": -1.0, "0.9": 0.0},
+        "transaction_cost_bps_quantiles": {"0.1": 1.0, "0.5": 1.0, "0.9": 1.0},
+        "slippage_bps_quantiles": {"0.1": 0.1, "0.5": 0.1, "0.9": 0.1},
+        "market_impact_bps_quantiles": {"0.1": 0.1, "0.5": 0.1, "0.9": 0.1},
+        "realized_volatility_bps_quantiles": {"0.1": 1.0, "0.5": 2.0, "0.9": 3.0},
+        "funding_bps_mean": 0.0,
+    }
+
+
+def _calibration_with_statistic(statistic: dict) -> dict:
+    calibration = copy.deepcopy(_calibration())
+    calibration["global_statistics"] = copy.deepcopy(statistic)
+    for key in list(calibration["side_timeframe_statistics"]):
+        calibration["side_timeframe_statistics"][key] = copy.deepcopy(statistic)
+    calibration["side_timeframe_statistics"]["LONG:15m"] = copy.deepcopy(statistic)
+    calibration["side_timeframe_statistics"]["SHORT:15m"] = copy.deepcopy(statistic)
+    material = {k: v for k, v in calibration.items() if k != "calibration_sha256"}
+    calibration["calibration_sha256"] = _canonical_sha256(material)
+    return calibration
+
+
+def _low_cost_intent() -> dict:
+    intent = _intent()
+    intent["microstructure_continuous_estimates"]["slippage_bps"] = 0.1
+    intent["microstructure_continuous_estimates"]["market_impact_bps"] = 0.1
+    intent["microstructure_continuous_estimates"]["fill_probability"] = 0.8
+    intent["microstructure_continuous_estimates"]["adverse_selection_probability"] = 0.2
+    return intent
+
+
+def _build(calibration: dict):
+    return build_adaptive_policy_shadow_candidate(
+        intent=_low_cost_intent(),
+        feature_snapshot=_feature_snapshot(),
+        paper_status={"paper_only": True, "open_position_count": 0},
+        calibration=calibration,
+        registry=_registry(),
+        validator_seed=_SEED,
+        generated_at_ms=4_000_000,
+    )
+
+
+def test_exploration_fires_when_champion_flat_and_objective_positive() -> None:
+    """Fixture 1: champion=REMAIN_FLAT (edge<=0), positive learned exploration
+    objective -> the bounded exploration directional action is selected and is
+    an authorizable action."""
+
+    # Slightly negative edge -> champion directional utility < flat (util 0) so
+    # champion resolves to flat; high posterior uncertainty + tiny tail -> the
+    # exploration objective (utility) is strictly positive.
+    calibration = _calibration_with_statistic(
+        _controlled_statistic(
+            after_cost_expectancy_bps=-0.5,
+            posterior_uncertainty=0.9,
+            tail_0_9=1.0,
+        )
+    )
+    result = _build(calibration)
+    evaluation = result.objective_evaluation
+
+    champion_score = next(
+        score
+        for score in evaluation.scores
+        if score.action_id == evaluation.champion_action_id
+    )
+    assert champion_score.selected_action == "remain_flat"
+    assert evaluation.exploration_action_id is not None
+    exploration_score = next(
+        score
+        for score in evaluation.scores
+        if score.action_id == evaluation.exploration_action_id
+    )
+    assert exploration_score.utility is not None and exploration_score.utility > 0.0
+    assert exploration_score.information_gain_contribution > 0.0
+
+    selected = result.selected_adaptive_action
+    assert selected.selected_action == "directional_trade"
+    assert selected.policy_mode == BOUNDED
+    assert selected.target_notional_usd > 0.0
+    # Live authority never granted at the shadow layer.
+    assert selected.execution_authority is False
+    assert result.routes_to_live is False
+    assert result.places_real_order is False
+
+    # The selected information-seeking action authorizes through the standard
+    # adaptive paper authorization lane (no parallel path).  hard_validator_passed
+    # requires the full hard-check inputs + venue DECISION_EXECUTABLE + physical
+    # catastrophic plan to have passed for this exact action.
+    authorization = authorize_adaptive_paper_policy_action(
+        result, authorized_at_ms=5_000_000
+    )
+    payload = authorization.to_payload()
+    assert payload["hard_validator_passed"] is True
+    assert payload["selected_action"] == "directional_trade"
+    assert payload["selected_objective_input_id"] == evaluation.exploration_action_id
+
+
+def test_stays_flat_when_champion_flat_and_objective_nonpositive() -> None:
+    """Fixture 3: champion=REMAIN_FLAT and NO positive-objective exploration
+    action (utility <= 0 -> exploration_action_id is None) -> stays flat, no
+    wasteful exploration."""
+
+    result = _build(copy.deepcopy(_calibration()))  # default: exploration util < 0
+    evaluation = result.objective_evaluation
+
+    champion_score = next(
+        score
+        for score in evaluation.scores
+        if score.action_id == evaluation.champion_action_id
+    )
+    assert champion_score.selected_action == "remain_flat"
+    # A bounded exploration action exists in the scores but its utility is <= 0,
+    # so it is not an eligible exploration action.
+    assert evaluation.exploration_action_id is None
+    assert any(
+        score.policy_mode == BOUNDED
+        and score.utility is not None
+        and score.utility <= 0.0
+        for score in evaluation.scores
+    )
+    assert result.selected_adaptive_action.selected_action == "remain_flat"
+    assert result.selected_adaptive_action.target_notional_usd == 0.0
+
+
+def test_reference_parity_maintained_when_information_seeking_fires() -> None:
+    """Fixture 5: independent objective and final-selection parity both pass."""
+
+    calibration = _calibration_with_statistic(
+        _controlled_statistic(
+            after_cost_expectancy_bps=-0.5,
+            posterior_uncertainty=0.9,
+            tail_0_9=1.0,
+        )
+    )
+    result = _build(calibration)
+
+    # build_adaptive_policy_shadow_candidate raises AdaptivePolicyShadowError on
+    # any parity disagreement; reaching here proves parity held.
+    assert result.parity_status == "PASS"
+    assert result.parity_disagreement_count == 0
+    # And the information-seeking action was indeed selected in this scenario.
+    assert result.selected_adaptive_action.policy_mode == BOUNDED
+
+
+def test_subminimum_policy_budget_never_rounds_up_to_venue_minimum() -> None:
+    """A useful candidate stays flat when its own risk budget is sub-minimum."""
+
+    intent = _low_cost_intent()
+    derived = intent["paper_cycle_reservation_snapshot"]["derived"]
+    derived["remaining_total_notional_usd"] = 4.0
+    derived["remaining_symbol_notional_usd"] = 4.0
+    calibration = _calibration_with_statistic(
+        _controlled_statistic(
+            after_cost_expectancy_bps=-0.5,
+            posterior_uncertainty=0.9,
+            tail_0_9=1.0,
+        )
+    )
+
+    result = build_adaptive_policy_shadow_candidate(
+        intent=intent,
+        feature_snapshot=_feature_snapshot(),
+        paper_status={"paper_only": True, "open_position_count": 0},
+        calibration=calibration,
+        registry=_registry(),
+        validator_seed=_SEED,
+        generated_at_ms=4_000_000,
+    )
+
+    assert result.selected_adaptive_action.selected_action == "remain_flat"
+    assert result.selected_adaptive_action.target_notional_usd == 0.0
+    directional_reasons = {
+        reason
+        for action_id, reasons in result.action_dispositions
+        if not action_id.endswith(":flat")
+        for reason in reasons
+    }
+    assert (
+        "PHYSICAL_PLAN_UNAVAILABLE:continuous_policy_target_below_venue_minimum"
+        in directional_reasons
+    )
+
+
+def test_final_selection_reference_disagreement_fails_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calibration = _calibration_with_statistic(
+        _controlled_statistic(
+            after_cost_expectancy_bps=-0.5,
+            posterior_uncertainty=0.9,
+            tail_0_9=1.0,
+        )
+    )
+    monkeypatch.setattr(
+        adaptive_policy_shadow_v2,
+        "select_reference_action_id",
+        lambda *_args, **_kwargs: "forged-reference-action",
+    )
+
+    with pytest.raises(
+        adaptive_policy_shadow_v2.AdaptivePolicyShadowError,
+        match="final_selection_disagreement_count=1",
+    ):
+        _build(calibration)

@@ -13,6 +13,7 @@ import argparse
 import fcntl
 import hashlib
 import json
+import math
 import os
 import signal
 import sys
@@ -30,6 +31,11 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from v2.backend.app.services.adaptive_system.candidate_outcome_archive_v2 import (
     CandidateOutcomeArchiveV2,
+)
+from v2.backend.app.contracts.runtime_v2.candidate_decision_outcome_v2 import (
+    ACTUAL_PAPER_OUTCOME_SCHEMA_VERSION,
+    ActualPaperExecutionOutcomeV2,
+    CandidateDecisionOutcomeV2,
 )
 from v2.backend.app.services.adaptive_system.candidate_outcome_maturer_v2 import (
     CandidateOutcomeMaturationError,
@@ -57,6 +63,7 @@ SIGNING_CREDENTIAL_NAME = "candidate_outcome_ed25519_seed"
 PAPER_STATUS_KEY = "v2:paper:trade_management:status"
 PAPER_INTENTS_KEY = "v2:paper:intents"
 PAPER_REGISTRY_KEY = "v2:model_registry:paper:active"
+PAPER_CLOSED_TRADES_KEY = "v2:paper:closed_trades"
 RUNTIME_STATUS_KEY = "v2:adaptive_system:candidate_outcomes:status"
 SAFE_RESUME_COMMAND = (
     ".venv/bin/python -P -B -m "
@@ -146,14 +153,335 @@ def _strict_json_array(raw: object, field: str) -> list[dict[str, Any]]:
 
 def _read_cycle_projection(
     client: Any,
-) -> tuple[dict[str, Any], list[dict[str, Any]], dict[str, Any]]:
-    raw_status, raw_intents, raw_registry = client.mget(
-        (PAPER_STATUS_KEY, PAPER_INTENTS_KEY, PAPER_REGISTRY_KEY)
+) -> tuple[
+    dict[str, Any],
+    list[dict[str, Any]],
+    dict[str, Any],
+    list[dict[str, Any]],
+]:
+    raw_status, raw_intents, raw_registry, raw_closed = client.mget(
+        (
+            PAPER_STATUS_KEY,
+            PAPER_INTENTS_KEY,
+            PAPER_REGISTRY_KEY,
+            PAPER_CLOSED_TRADES_KEY,
+        )
     )
     return (
         _strict_json_object(raw_status, PAPER_STATUS_KEY),
         _strict_json_array(raw_intents, PAPER_INTENTS_KEY),
         _strict_json_object(raw_registry, PAPER_REGISTRY_KEY),
+        _strict_json_array(raw_closed, PAPER_CLOSED_TRADES_KEY),
+    )
+
+
+def _parse_aware_utc_ms(value: object, field: str) -> int:
+    if type(value) is not str or not value:
+        raise CandidateOutcomeRuntimeError(f"{field}:aware_timestamp_required")
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise CandidateOutcomeRuntimeError(
+            f"{field}:aware_timestamp_required"
+        ) from exc
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise CandidateOutcomeRuntimeError(f"{field}:aware_timestamp_required")
+    return int(parsed.astimezone(UTC).timestamp() * 1_000)
+
+
+def _required_identifier(value: object, field: str) -> str:
+    if (
+        type(value) is not str
+        or not value
+        or value.strip() != value
+        or any(character.isspace() for character in value)
+    ):
+        raise CandidateOutcomeRuntimeError(f"{field}:identifier_required")
+    return value
+
+
+def _required_sha256(value: object, field: str) -> str:
+    result = _required_identifier(value, field)
+    if len(result) != 64 or any(character not in "0123456789abcdef" for character in result):
+        raise CandidateOutcomeRuntimeError(f"{field}:sha256_required")
+    return result
+
+
+def _required_positive_float(value: object, field: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        raise CandidateOutcomeRuntimeError(f"{field}:positive_float_required")
+    result = float(value)
+    if not math.isfinite(result) or result <= 0.0:
+        raise CandidateOutcomeRuntimeError(f"{field}:positive_float_required")
+    return result
+
+
+def _required_zero_float(value: object, field: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        raise CandidateOutcomeRuntimeError(f"{field}:exact_zero_required")
+    result = float(value)
+    if not math.isfinite(result) or result != 0.0:
+        raise CandidateOutcomeRuntimeError(f"{field}:exact_zero_required")
+    return result
+
+
+def _candidate_id_from_close(close: Mapping[str, Any]) -> str:
+    generation = close.get("checkpoint_generation")
+    if type(generation) is not int or generation < 1:
+        raise CandidateOutcomeRuntimeError(
+            "close.checkpoint_generation:positive_int_required"
+        )
+    identity_material = {
+        "prediction_id": _required_identifier(
+            close.get("entry_prediction_id") or close.get("prediction_id"),
+            "close.prediction_id",
+        ),
+        "preemptive_decision_id": _required_identifier(
+            close.get("preemptive_decision_id"),
+            "close.preemptive_decision_id",
+        ),
+        "policy_id": _required_identifier(
+            close.get("policy_id") or close.get("candidate_id"),
+            "close.policy_id",
+        ),
+        "policy_sha256": _required_sha256(
+            close.get("policy_fingerprint"),
+            "close.policy_fingerprint",
+        ),
+        "checkpoint_generation": generation,
+        "checkpoint_id": _required_identifier(
+            close.get("checkpoint_id"), "close.checkpoint_id"
+        ),
+    }
+    return f"cdo2_{_sha256(identity_material)}"
+
+
+def _authenticated_actual_close_sources(
+    *,
+    paper_status: Mapping[str, Any],
+    closed_trades: list[dict[str, Any]],
+) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
+    """Index final typed-policy closes without granting execution authority."""
+
+    current_session = paper_status.get("paper_session_id")
+    current_epoch = paper_status.get("paper_account_epoch")
+    sources: dict[str, dict[str, Any]] = {}
+    duplicate_candidate_ids: set[str] = set()
+    rejection_counts: dict[str, int] = {}
+    eligible_rows = 0
+
+    def reject(reason: str) -> None:
+        rejection_counts[reason] = rejection_counts.get(reason, 0) + 1
+
+    for raw in closed_trades:
+        if raw.get("adaptive_policy_authoritative") is not True:
+            continue
+        if raw.get("close_position") is not True:
+            continue
+        if raw.get("paper_session_id") != current_session or raw.get(
+            "paper_account_epoch"
+        ) != current_epoch:
+            continue
+        eligible_rows += 1
+        try:
+            if (
+                raw.get("paper_only") is not True
+                or raw.get("routes_to_live") is not False
+                or raw.get("places_real_order") is not False
+                or raw.get("exchange_action_taken") is not False
+            ):
+                raise CandidateOutcomeRuntimeError("close:unsafe_authority_flags")
+            mode = raw.get("adaptive_policy_action_policy_mode")
+            if mode not in {
+                "champion_exploitation",
+                "bounded_information_seeking_exploration",
+            }:
+                raise CandidateOutcomeRuntimeError("close:typed_policy_mode_required")
+            expected_exploration = (
+                mode == "bounded_information_seeking_exploration"
+            )
+            if (
+                raw.get("exploration_provenance") is not expected_exploration
+                or raw.get("counts_as_training_feedback") is not True
+                or raw.get("counts_as_live_profit") is not False
+            ):
+                raise CandidateOutcomeRuntimeError(
+                    "close:typed_training_provenance_invalid"
+                )
+            candidate_id = _candidate_id_from_close(raw)
+            if candidate_id in sources or candidate_id in duplicate_candidate_ids:
+                sources.pop(candidate_id, None)
+                duplicate_candidate_ids.add(candidate_id)
+                raise CandidateOutcomeRuntimeError(
+                    "close:duplicate_final_close_for_candidate"
+                )
+            sources[candidate_id] = dict(raw)
+        except CandidateOutcomeRuntimeError as exc:
+            reject(str(exc))
+    return sources, {
+        "eligible_typed_final_close_count": eligible_rows,
+        "authenticated_actual_close_source_count": len(sources),
+        "actual_close_source_rejection_counts": dict(sorted(rejection_counts.items())),
+    }
+
+
+def _actual_paper_outcome_from_close(
+    *,
+    record: CandidateDecisionOutcomeV2,
+    close: Mapping[str, Any],
+    paper_status: Mapping[str, Any],
+    observed_at_ms: int,
+) -> ActualPaperExecutionOutcomeV2:
+    if _candidate_id_from_close(close) != record.decision.candidate_id:
+        raise CandidateOutcomeRuntimeError("actual_close:candidate_identity_mismatch")
+    try:
+        selected = json.loads(record.decision.selected_action.payload_json)
+    except json.JSONDecodeError as exc:  # pragma: no cover - contract defensive
+        raise CandidateOutcomeRuntimeError("selected_action:invalid_json") from exc
+    for field in (
+        "adaptive_policy_action_id",
+        "adaptive_policy_action_sha256",
+        "adaptive_policy_action_policy_mode",
+        "adaptive_paper_policy_authorization_sha256",
+        "adaptive_policy_paper_cycle_receipt_id",
+        "adaptive_policy_paper_cycle_receipt_sha256",
+    ):
+        if close.get(field) != selected.get(field):
+            raise CandidateOutcomeRuntimeError(
+                f"actual_close:selected_action_binding_mismatch:{field}"
+            )
+    if (
+        close.get("exploration_provenance")
+        is not selected.get("exploration_provenance")
+        or close.get("counts_as_training_feedback") is not True
+        or close.get("counts_as_live_profit") is not False
+    ):
+        raise CandidateOutcomeRuntimeError(
+            "actual_close:selected_action_provenance_mismatch"
+        )
+
+    margin = paper_status.get("paper_account_margin_status")
+    reconciliation = paper_status.get("paper_position_fill_reconciliation_status")
+    if not isinstance(margin, Mapping) or (
+        margin.get("status") != "PASS"
+        or margin.get("accounting_complete") is not True
+        or margin.get("invariant_holds") is not True
+    ):
+        raise CandidateOutcomeRuntimeError(
+            "actual_close:flat_accounting_reconciliation_required"
+        )
+    _required_zero_float(
+        margin.get("used_margin_usd"), "paper_status.used_margin_usd"
+    )
+    _required_zero_float(
+        margin.get("newly_reserved_margin_usd"),
+        "paper_status.newly_reserved_margin_usd",
+    )
+    if not isinstance(reconciliation, Mapping) or (
+        reconciliation.get("status") != "PASS"
+        or reconciliation.get("unresolved_position_count") != 0
+        or reconciliation.get("phantom_position_count") != 0
+    ):
+        raise CandidateOutcomeRuntimeError(
+            "actual_close:position_fill_reconciliation_required"
+        )
+    _required_zero_float(
+        reconciliation.get("wallet_balance_mutation_usd"),
+        "paper_status.wallet_balance_mutation_usd",
+    )
+
+    quantity = _required_positive_float(close.get("closed_quantity"), "close.closed_quantity")
+    entry_price = _required_positive_float(close.get("entry_price"), "close.entry_price")
+    gross_notional = quantity * entry_price
+    declared_notional = _required_positive_float(
+        close.get("gross_notional_usd"), "close.gross_notional_usd"
+    )
+    if not math.isclose(
+        gross_notional, declared_notional, rel_tol=1e-9, abs_tol=1e-9
+    ):
+        raise CandidateOutcomeRuntimeError("actual_close:gross_notional_mismatch")
+    leverage = _required_positive_float(
+        close.get("effective_leverage"), "close.effective_leverage"
+    )
+    allocated_margin = _required_positive_float(
+        close.get("allocated_margin_usd"), "close.allocated_margin_usd"
+    )
+    if not math.isclose(
+        allocated_margin,
+        gross_notional / leverage,
+        rel_tol=1e-9,
+        abs_tol=1e-9,
+    ):
+        raise CandidateOutcomeRuntimeError("actual_close:allocated_margin_mismatch")
+    realized_pnl_usd_raw = close.get("realized_net_pnl_usd")
+    if isinstance(realized_pnl_usd_raw, bool) or not isinstance(
+        realized_pnl_usd_raw, int | float
+    ):
+        raise CandidateOutcomeRuntimeError("actual_close:realized_net_pnl_required")
+    realized_pnl_usd = float(realized_pnl_usd_raw)
+    if not math.isfinite(realized_pnl_usd):
+        raise CandidateOutcomeRuntimeError("actual_close:realized_net_pnl_required")
+    fill_execution_ms = _parse_aware_utc_ms(
+        close.get("entry_generation_time_utc"),
+        "close.entry_generation_time_utc",
+    )
+    close_execution_ms = _parse_aware_utc_ms(
+        close.get("close_event_time") or close.get("exit_time"),
+        "close.close_event_time",
+    )
+    if observed_at_ms < close_execution_ms:
+        raise CandidateOutcomeRuntimeError("actual_close:observed_before_close")
+    if close.get("reduce_only") is not True or close.get(
+        "remaining_quantity_after_close"
+    ) != 0.0:
+        raise CandidateOutcomeRuntimeError("actual_close:final_reduce_only_flat_required")
+
+    return ActualPaperExecutionOutcomeV2(
+        schema_version=ACTUAL_PAPER_OUTCOME_SCHEMA_VERSION,
+        candidate_id=record.decision.candidate_id,
+        selected_action_sha256=record.decision.selected_action.content_sha256(),
+        signal_id=_required_identifier(
+            close.get("entry_signal_id") or close.get("signal_id"),
+            "close.signal_id",
+        ),
+        intent_id=_required_identifier(
+            close.get("intent_id") or close.get("source_intent_id"),
+            "close.intent_id",
+        ),
+        fill_id=_required_identifier(close.get("entry_fill_id"), "close.entry_fill_id"),
+        position_id=_required_identifier(close.get("position_id"), "close.position_id"),
+        closed_trade_id=_required_identifier(close.get("close_id"), "close.close_id"),
+        fill_receipt_sha256=_required_sha256(
+            close.get("paper_final_admission_receipt_hash"),
+            "close.paper_final_admission_receipt_hash",
+        ),
+        close_receipt_sha256=_sha256(close),
+        accounting_receipt_sha256=_sha256(
+            {
+                "paper_account_margin_status": dict(margin),
+                "paper_position_fill_reconciliation_status": dict(reconciliation),
+            }
+        ),
+        fill_execution_time_ms=fill_execution_ms,
+        fill_record_available_at_ms=fill_execution_ms,
+        close_execution_time_ms=close_execution_ms,
+        close_record_available_at_ms=observed_at_ms,
+        accounting_record_available_at_ms=observed_at_ms,
+        executed_quantity=quantity,
+        execution_price=entry_price,
+        gross_notional_usd=gross_notional,
+        effective_leverage=leverage,
+        allocated_margin_usd=allocated_margin,
+        realized_pnl_usd=realized_pnl_usd,
+        realized_pnl_bps=realized_pnl_usd / gross_notional * 10_000.0,
+        open_quantity_after_close=0.0,
+        used_margin_after_close_usd=0.0,
+        reserved_margin_after_close_usd=0.0,
+        reduce_only_close=True,
+        fully_closed=True,
+        paper_only=True,
+        places_real_order=False,
+        exchange_action_taken=False,
     )
 
 
@@ -235,12 +563,29 @@ def process_maturation(
     label_archive: DurableCanonical5mLabelArchive,
     signed_at_ms: int,
     max_candidates: int,
+    paper_status: Mapping[str, Any] | None = None,
+    closed_trades: list[dict[str, Any]] | None = None,
     integrity_proof_cache: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Mature one bounded oldest-first batch under the publisher's writer key."""
 
     if type(max_candidates) is not int or max_candidates < 1:
         raise CandidateOutcomeRuntimeError("max_candidates:positive_int_required")
+    actual_close_sources, actual_close_source_status = (
+        _authenticated_actual_close_sources(
+            paper_status=paper_status,
+            closed_trades=closed_trades or [],
+        )
+        if paper_status is not None
+        else (
+            {},
+            {
+                "eligible_typed_final_close_count": 0,
+                "authenticated_actual_close_source_count": 0,
+                "actual_close_source_rejection_counts": {},
+            },
+        )
+    )
     verification_before, selection = (
         archive.read_verified_maturation_batch_with_verification(
             signed_at_ms=signed_at_ms,
@@ -248,6 +593,7 @@ def process_maturation(
             actual_close_required_dispositions=(
                 ACTUAL_CLOSE_REQUIRED_DISPOSITIONS
             ),
+            actual_close_candidate_ids=frozenset(actual_close_sources),
         )
     )
     batch = list(selection.records)
@@ -312,12 +658,32 @@ def process_maturation(
                         count_pending(reason)
                     continue
                 try:
+                    actual_paper_outcome = None
+                    if record.decision.decision_disposition in (
+                        ACTUAL_CLOSE_REQUIRED_DISPOSITIONS
+                    ):
+                        source_close = actual_close_sources.get(
+                            record.decision.candidate_id
+                        )
+                        if source_close is None or paper_status is None:
+                            count_pending("RECONCILED_ACTUAL_PAPER_CLOSE_REQUIRED")
+                            continue
+                        actual_paper_outcome = _actual_paper_outcome_from_close(
+                            record=record,
+                            close=source_close,
+                            paper_status=paper_status,
+                            observed_at_ms=signed_at_ms,
+                        )
                     matured = mature_candidate(
                         record,
                         rows=rows,
                         proof=proof,
                         label_generated_at_ms=signed_at_ms,
+                        actual_paper_outcome=actual_paper_outcome,
                     )
+                except CandidateOutcomeRuntimeError as exc:
+                    count_pending(f"INVALID_ACTUAL_PAPER_OUTCOME:{exc}")
+                    continue
                 except CandidateOutcomeMaturationPending as exc:
                     count_pending(str(exc))
                     continue
@@ -346,6 +712,11 @@ def process_maturation(
         "BLOCKED"
         if integrity_rejection_reasons
         or any(reason.startswith("INVALID_LABEL_INPUT:") for reason in pending_reason_counts)
+        or any(
+            reason.startswith("INVALID_ACTUAL_PAPER_OUTCOME:")
+            for reason in pending_reason_counts
+        )
+        or bool(actual_close_source_status["actual_close_source_rejection_counts"])
         or unexplained_drops
         else "PASS"
     )
@@ -376,6 +747,22 @@ def process_maturation(
         "eligible_matured_label_coverage_100_percent": unexplained_drops == 0,
         "unexplained_maturation_drops": unexplained_drops,
         "pending_reason_counts": dict(sorted(pending_reason_counts.items())),
+        "actual_close_sources": actual_close_source_status,
+        "actual_paper_outcome_candidate_count": len(actual_close_sources),
+        "newly_matured_actual_paper_outcome_count": sum(
+            candidate.matured_labels is not None
+            and candidate.matured_labels.actual_paper_outcome is not None
+            for candidate in candidates_to_append
+        ),
+        "newly_matured_exploration_outcome_count": sum(
+            candidate.matured_labels is not None
+            and candidate.matured_labels.actual_paper_outcome is not None
+            and actual_close_sources.get(candidate.decision.candidate_id, {}).get(
+                "exploration_provenance"
+            )
+            is True
+            for candidate in candidates_to_append
+        ),
         "canonical_label_archive_integrity_verified": (
             integrity.get("archive_integrity_verified") is True if integrity is not None else None
         ),
@@ -411,7 +798,7 @@ def process_cycle(
     max_maturation_candidates: int = 256,
     label_integrity_proof_cache: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    paper_status, intents, registry = _read_cycle_projection(client)
+    paper_status, intents, registry, closed_trades = _read_cycle_projection(client)
     snapshots = _load_feature_snapshots(intents, feature_archive_root)
     cycle = build_publisher_cycle(
         paper_status=paper_status,
@@ -472,6 +859,8 @@ def process_cycle(
             label_archive=label_archive,
             signed_at_ms=signed_at_ms,
             max_candidates=max_maturation_candidates,
+            paper_status=paper_status,
+            closed_trades=closed_trades,
             integrity_proof_cache=label_integrity_proof_cache,
         )
         if label_archive is not None

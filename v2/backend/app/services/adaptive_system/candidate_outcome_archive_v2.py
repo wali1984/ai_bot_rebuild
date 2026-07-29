@@ -847,6 +847,7 @@ class CandidateOutcomeArchiveV2:
         signed_at_ms: int,
         max_candidates: int,
         actual_close_required_dispositions: frozenset[str],
+        actual_close_candidate_ids: frozenset[str] = frozenset(),
     ) -> tuple[ArchiveVerificationV2, ArchiveMaturationBatchV2]:
         """Stream-authenticate the archive and retain one bounded due batch.
 
@@ -874,6 +875,14 @@ class CandidateOutcomeArchiveV2:
                 "must_be_nonempty_frozenset_of_strings",
                 "actual_close_required_dispositions",
             )
+        if type(actual_close_candidate_ids) is not frozenset or any(
+            type(value) is not str or not value
+            for value in actual_close_candidate_ids
+        ):
+            _raise(
+                "must_be_frozenset_of_nonempty_strings",
+                "actual_close_candidate_ids",
+            )
 
         with self._locked(exclusive=False):
             maturation_index: dict[str, _MaturationIndexEntry] = {}
@@ -895,13 +904,15 @@ class CandidateOutcomeArchiveV2:
             )
             selected_actual_pending_count = sum(
                 entry.decision_disposition in actual_close_required_dispositions
-                for _, entry in due
+                and candidate_id not in actual_close_candidate_ids
+                for candidate_id, entry in due
             )
             label_candidate_ids = [
                 candidate_id
                 for candidate_id, entry in due
                 if entry.decision_disposition
                 not in actual_close_required_dispositions
+                or candidate_id in actual_close_candidate_ids
             ]
             selected_ids = frozenset(label_candidate_ids[:max_candidates])
             selected_rows = [
