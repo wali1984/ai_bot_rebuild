@@ -41450,23 +41450,23 @@ def _paper_bootstrap_information_acquisition_designation(
     would deactivate the prior-only trigger).
     """
 
+    # Continuous paper learning: posterior/maturation state has NO
+    # authorization authority — it is captured for telemetry only.  The
+    # execution loop and the learning loop run concurrently; a close that is
+    # still maturing or awaiting training consumption never blocks the next
+    # bounded experiment.
     uncertainty = calibration.get("posterior_uncertainty_calibration")
-    if not isinstance(uncertainty, Mapping):
-        return None
-    try:
-        natural_execution_count = int(uncertainty["natural_execution_count"])
-        effective_sample_size = float(uncertainty["effective_sample_size"])
-        posterior_alpha = float(uncertainty["posterior_alpha"])
-        posterior_beta = float(uncertainty["posterior_beta"])
-    except (KeyError, TypeError, ValueError):
-        return None
+    uncertainty = uncertainty if isinstance(uncertainty, Mapping) else {}
+
+    def _telemetry_number(key: str) -> Any:
+        value = uncertainty.get(key)
+        return value if isinstance(value, (int, float)) else None
+
+    natural_execution_count = _telemetry_number("natural_execution_count")
+    effective_sample_size = _telemetry_number("effective_sample_size")
+    posterior_alpha = _telemetry_number("posterior_alpha")
+    posterior_beta = _telemetry_number("posterior_beta")
     prior_only = posterior_alpha == 1.0 and posterior_beta == 1.0
-    if not (
-        natural_execution_count == 0
-        or effective_sample_size == 0.0
-        or prior_only
-    ):
-        return None
 
     def _bootstrap_mode(row: Any) -> bool:
         if not isinstance(row, Mapping):
@@ -41491,7 +41491,11 @@ def _paper_bootstrap_information_acquisition_designation(
     epoch_bootstrap_open = sum(
         _bootstrap_mode(row) for row in current_epoch_open_position_rows
     )
-    if epoch_bootstrap_closed or epoch_bootstrap_open:
+    # Only an OPEN experiment suppresses the next designation (the existing
+    # accounting-engine concurrency rail).  Closed experiments awaiting
+    # maturation or training consumption never do: the learning loop runs
+    # asynchronously and must not stall the execution loop.
+    if epoch_bootstrap_open:
         return None
 
     eligible_count = 0

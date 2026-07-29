@@ -2110,23 +2110,13 @@ def _bootstrap_information_acquisition_designation(
         return None
     if designation.get("timeframe") != intent.get("timeframe"):
         return None
-    uncertainty = calibration.get("posterior_uncertainty_calibration")
-    if not isinstance(uncertainty, Mapping):
-        return None
-    try:
-        natural_execution_count = int(uncertainty["natural_execution_count"])
-        effective_sample_size = float(uncertainty["effective_sample_size"])
-        posterior_alpha = float(uncertainty["posterior_alpha"])
-        posterior_beta = float(uncertainty["posterior_beta"])
-    except (KeyError, TypeError, ValueError):
-        return None
-    prior_only = posterior_alpha == 1.0 and posterior_beta == 1.0
-    if not (
-        natural_execution_count == 0
-        or effective_sample_size == 0.0
-        or prior_only
-    ):
-        return None
+    # Continuous paper learning: posterior/maturation state carries NO
+    # authorization authority.  Exploration remains active whenever the
+    # champion has no demonstrated positive after-cost edge for this
+    # candidate (enforced by the selection helper: champion flat AND no
+    # positive-utility exploration) and a hard-valid executable input
+    # exists.  Posterior evidence flows into the learned allocation
+    # asynchronously; it never gates execution.
     return designation
 
 

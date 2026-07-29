@@ -28826,12 +28826,11 @@ def test_bootstrap_designation_requires_resolved_canonical_risk_allow() -> None:
     assert none_eligible is None
 
 
-def test_bootstrap_designation_returns_none_once_posterior_has_evidence() -> None:
-    """A posterior carrying authenticated evidence deactivates the bootstrap trigger.
-
-    natural_execution_count=5, effective_sample_size=3.2 and Beta(4, 3) is no
-    longer prior-only, so no experiment is designated even though a perfectly
-    eligible venue-minimum comparison is available.
+def test_bootstrap_designation_persists_once_posterior_has_evidence() -> None:
+    """Continuous paper learning: posterior evidence carries NO authorization
+    authority.  A posterior with authenticated evidence (no longer prior-only)
+    still designates the eligible experiment; the posterior values ride along
+    as telemetry only.
     """
 
     designation = paper_loop._paper_bootstrap_information_acquisition_designation(  # noqa: SLF001
@@ -28850,13 +28849,17 @@ def test_bootstrap_designation_returns_none_once_posterior_has_evidence() -> Non
         current_epoch_open_position_rows=[],
     )
 
-    assert designation is None
+    assert designation is not None
+    assert designation["symbol"] == "BTCUSDT"
+    assert designation["bootstrap_trigger"]["natural_execution_count"] == 5
 
 
 def test_bootstrap_designation_cadence_blocks_on_epoch_bootstrap_rows() -> None:
-    """One experiment per prior-only window: any current-epoch closed trade or
-    open position stamped bootstrap_information_acquisition suppresses a new
-    designation; ordinary-mode and malformed epoch rows do not.
+    """Continuous execution: only an OPEN bootstrap position suppresses the
+    next designation (the accounting-engine concurrency rail).  A CLOSED
+    experiment awaiting maturation or training consumption never does — the
+    learning loop is asynchronous.  Ordinary-mode and malformed epoch rows
+    never suppress.
     """
 
     calibration = _bootstrap_designation_calibration()
@@ -28891,7 +28894,8 @@ def test_bootstrap_designation_cadence_blocks_on_epoch_bootstrap_rows() -> None:
         ],
     )
 
-    assert closed_blocked is None
+    assert closed_blocked is not None
+    assert closed_blocked["current_epoch_bootstrap_closed_trades"] == 1
     assert open_blocked is None
     assert clean is not None
     assert clean["current_epoch_bootstrap_closed_trades"] == 0
@@ -29126,8 +29130,10 @@ def test_bootstrap_designation_filters_ineligible_rows_and_returns_none() -> Non
 
 
 def test_bootstrap_designation_fails_closed_on_malformed_uncertainty_block() -> None:
-    """Missing, non-mapping, or non-numeric uncertainty_calibration content
-    never designates an experiment, even with eligible candidates present.
+    """Continuous paper learning: the posterior uncertainty block is telemetry
+    only.  Missing, non-mapping, or non-numeric content must NOT block the
+    designation of an eligible experiment; non-numeric values surface as None
+    telemetry instead of fabricated numbers.
     """
 
     intents = [
@@ -29153,15 +29159,14 @@ def test_bootstrap_designation_fails_closed_on_malformed_uncertainty_block() -> 
     ]
 
     for calibration in malformed_calibrations:
-        assert (
-            paper_loop._paper_bootstrap_information_acquisition_designation(  # noqa: SLF001
-                calibration=calibration,
-                previous_cycle_intents=intents,
-                current_epoch_closed_trade_rows=[],
-                current_epoch_open_position_rows=[],
-            )
-            is None
+        designation = paper_loop._paper_bootstrap_information_acquisition_designation(  # noqa: SLF001
+            calibration=calibration,
+            previous_cycle_intents=intents,
+            current_epoch_closed_trade_rows=[],
+            current_epoch_open_position_rows=[],
         )
+        assert designation is not None
+        assert designation["symbol"] == "BTCUSDT"
 
 
 def _bootstrap_liquidity_replay_material(

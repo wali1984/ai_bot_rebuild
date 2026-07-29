@@ -611,11 +611,12 @@ def test_bootstrap_designation_selects_negative_utility_venue_minimum() -> None:
     assert authorization.exchange_action_taken is False
 
 
-def test_bootstrap_designation_ignored_without_prior_only_posterior() -> None:
-    """The same designation is inert once the posterior carries evidence
-    (natural closes, positive effective N, non-Beta(1,1)): selection stays
-    flat and the venue-minimum reason remains the nonpositive-utility
-    rejection."""
+def test_bootstrap_designation_selects_with_evidenced_posterior() -> None:
+    """Continuous paper learning: posterior evidence carries no authorization
+    authority.  The same designation still selects the hard-valid
+    venue-minimum experiment when the posterior already has authenticated
+    evidence (natural closes, positive effective N, non-Beta(1,1)); the
+    learned allocation, not a posterior gate, governs exploration."""
 
     result = _build_with_designation(
         _sub_minimum_target_intent(),
@@ -623,13 +624,12 @@ def test_bootstrap_designation_ignored_without_prior_only_posterior() -> None:
         _bootstrap_designation(),
     )
 
-    assert result.selected_adaptive_action.selected_action == "remain_flat"
-    assert result.selected_adaptive_action.target_notional_usd == 0.0
-    assert result.selected_adaptive_action.policy_mode != BOOTSTRAP
-    assert all(
-        comparison.venue_min_candidate_selected is False
+    assert result.selected_adaptive_action.policy_mode == BOOTSTRAP
+    assert result.selected_adaptive_action.selected_action == "directional_trade"
+    assert any(
+        comparison.venue_min_candidate_selected is True
         and comparison.selection_reason
-        == "VENUE_MINIMUM_RECOMPUTED_UTILITY_NONPOSITIVE"
+        == "VENUE_MINIMUM_BOOTSTRAP_INFORMATION_ACQUISITION_SELECTED"
         for comparison in result.venue_minimum_objective_comparisons
     )
 
