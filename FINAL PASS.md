@@ -1611,7 +1611,7 @@ hard and fail closed.
 | FP-100 | 9 | Train and compare diversified model and strategy challengers | Claude/Codex | IN_PROGRESS | Two authenticated challengers have now been correctly rejected. The latest, `SERVING_ABI_V2_PROFITABILITY_PAPER_e492d5...`, trained for 400 finite steps on the signed 9,189-row release; validation calibrated Brier `0.3588536` failed the frozen train-base-rate baseline `0.3192224`. Independent artifact audit PASS, promotion BLOCK, generation 3 unchanged. Further governed diversification remains required. |
 | FP-110 | 10 | Implement automatic adaptation-escalation state machine | Claude/Codex | IN_PROGRESS | Durable authenticated dispatch is implemented through `39ba18ae7d`, independently passes 59 focused/125 combined/17 adversarial checks, and immutably executed the negative-edge recalibration rung once with idempotent replay. Automatic trusted runtime trigger ingestion and remaining-rung execution are still incomplete. |
 | FP-120 | 11 | Verify champion/challenger promotion, rollback, and serving independence | Claude/Codex | PENDING | Atomic receipts, superior-evidence promotion, rollback, trainer independence |
-| FP-130 | 12 | Implement venue-executable bounded information-seeking exploration | Claude/Codex | IN_PROGRESS | Exact non-authoritative venue-minimum primitive through `2b7442e61a`; opportunity selection and runtime integration remain |
+| FP-130 | 12 | Implement venue-executable bounded information-seeking exploration | Claude/Codex | ENGINEERING COMPLETE / NATURAL OUTCOME PENDING | Commits `4b7a09f6e4`, `3ad7460999`, and `58c9e8fb5e` make positive learned information gain execution-authoritative in paper mode, preserve typed action/BLOCK provenance through the outcome archive, and pass immutable runtime/reference verification; the current market produced no positive exploration objective, so natural authorization/fill/close acceptance remains pending |
 | FP-140 | 13 | Integrate unified policy with hard-only validator and paper portfolio engine | Claude/Codex | IN_PROGRESS | Scoped runtime integration is accepted through immutable `27635258e8`: authoritative adaptive policy, hard-only final validation, natural action→fill→position→stop→restart→close, complete candidate capture and runtime calibration all pass; full FP-040/FP-050/FP-130 upstream completion remains required for phase completion |
 | FP-150 | 14 | Remove duplicated policy authority and prove reference parity | Claude/Codex | IN_PROGRESS | Latest completed runtime cycle reports `adaptive_policy_authoritative=true`, `static_category_e_authority_removed=true`, 224 authority attempts and 0 reference disagreements; the repository-wide FP-020 classification/removal proof remains open |
 | FP-160 | 15 | Implement adaptive self-healing supervisor | Claude/Codex | IN_PROGRESS | Signed-release authentication, single-run locking, exact worker allowlisting, immutable start/terminal/output receipts, A→B→A replay, and dataset-plan identity binding are proven. The full trigger set and automatic continuation across all remaining ladder workers are still open. |
@@ -2960,3 +2960,99 @@ LIVE_NO_GO=true
 The paper stack is safe and remains autonomously armed. Final acceptance is
 still gated by a genuinely superior governed challenger and current-epoch
 natural outcomes; neither is fabricated by this pass.
+
+## Bounded information-gain execution authority — authoritative update 2026-07-29
+
+The missing paper bootstrap lane is now implemented and deployed. Commit
+`4b7a09f6e4e63e4ccc793199af735d240b00cb54` makes an authenticated,
+hard-valid bounded information-seeking action authoritative when the champion
+is flat and its learned exploration objective is strictly positive. It does not
+lower integrity, accounting, margin, liquidation, catastrophic-loss, venue, or
+live-authority rails, and it never raises a risk target merely to meet a venue
+minimum.
+
+Two runtime-only contract defects were then found and repaired without changing
+the policy objective:
+
+- `3ad74609993b3bdd43568a476c5095dc7697928e` retains policy mode,
+  exploration provenance, and training/live-profit attribution in the bounded
+  Redis intent projection.
+- `58c9e8fb5e28b8e8f14a5ef4445928834a07d029` makes the candidate-outcome
+  publisher accept exactly one of a fully hash-bound typed action chain or a
+  fully hash-bound typed fail-closed BLOCK chain. Missing, mixed, or mutated
+  chains still fail closed.
+
+### Immutable runtime proof
+
+The paper loop is running immutable SHA `3ad7460999…`; the candidate-outcome
+publisher is running `58c9e8fb5e…`; calibration and independent shadow/reference
+evaluation are running `4b7a09f6e4…`. All changed services are active with
+`NRestarts=0`. Five new post-deployment epoch-1 paper cycles were observed,
+exceeding the required three.
+
+The latest independent matrix contains 140 candidates: 134 typed actions and 6
+typed hard BLOCK dispositions. Every row has exactly one typed authority result.
+All 134 action rows retain training feedback and no-live-profit provenance;
+missing execution-trust projections, missing typed microstructure consumption,
+production/reference disagreements, and safety violations are all zero.
+
+The repaired outcome publisher recorded 264/264 candidates with coverage 1.0,
+zero unexplained drops, and an archive readback with zero invalid or duplicate
+records. Calibration then published PASS on 26,298 fit and 11,535 validation
+rows, and shadow evaluation published `PASS_SHADOW` with 140/140 production and
+reference decisions and zero disagreements.
+
+Verification remains green:
+
+```text
+focused pytest invocations: 182 + 308 + 53 + 4 + 67 passed
+focused Ruff: PASS
+Python compilation: PASS
+git diff --check: PASS
+G12: 17/17 PASS
+systemd diagnostics: 0
+ordering cycles: 0
+boot validator: PASS, exit status 0 at 2026-07-29T04:38:40Z
+```
+
+Exact evidence is
+`goal_state/PERMANENT_SYSTEM_RECOVERY/bounded_information_gain_exploration_runtime_20260729.json`
+(SHA-256 `687937c9d8d90c15fbd3919716c2c7940e129348331d9a5a6db4c2515e82b57f`).
+
+### Current truthful final status
+
+No candidate in the observed runtime window had a strictly positive learned
+exploration objective. The policy therefore correctly remained flat instead of
+manufacturing a trade. The lifecycle controller stays active and will capture
+the first naturally authorized proof-backed exploration fill through restart,
+ordinary close, reconciliation, maturation, and training consumption.
+
+```text
+bounded_information_gain_engineering_complete=true
+bounded_information_gain_runtime_chain_pass=true
+current_epoch_directional_exploration_authorizations=0
+current_epoch_proof_backed_fills=0
+current_epoch_open_positions=0
+current_epoch_natural_closes=0
+exploration_outcomes_matured=0
+exploration_outcomes_consumed_by_training=0
+
+duplicate_fill_count=0
+duplicate_close_count=0
+reservation_leak_count=0
+accounting_conservation=true
+
+G03=FAIL
+G11=FAIL
+G12=PASS_17_OF_17
+G13=FAIL
+G14=FAIL
+
+paper_only=true
+live_gate=blocked_human_only
+routes_to_live=false
+places_real_order=false
+exchange_action_taken=false
+V2_PERMANENT_RECOVERY_COMPLETE=false
+LIVE_NO_GO=true
+```
