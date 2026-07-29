@@ -41616,8 +41616,14 @@ def _paper_bootstrap_information_acquisition_designation(
             )
     if not ranked_entries:
         return None
+    # Complete deterministic ranking — no fixed-count truncation.  The
+    # authoritative evaluator traverses the ENTIRE ranked set; any bounded
+    # display is a projection, never the authority.
     ranked_entries.sort(key=lambda item: item[0], reverse=True)
-    ranked_candidates = [entry for _key, entry in ranked_entries[:8]]
+    ranked_candidates = [
+        {**entry, "rank": rank}
+        for rank, (_key, entry) in enumerate(ranked_entries, start=1)
+    ]
     best = ranked_candidates[0]
     return {
         "schema_version": "bootstrap_information_acquisition_designation_v1",
@@ -41640,6 +41646,7 @@ def _paper_bootstrap_information_acquisition_designation(
         ],
         **best,
         "ranked_candidates": ranked_candidates,
+        "total_ranked_candidate_count": len(ranked_candidates),
         "eligible_candidate_count": eligible_count,
         "bootstrap_trigger": {
             "natural_execution_count": natural_execution_count,
@@ -41660,6 +41667,101 @@ def _paper_bootstrap_information_acquisition_designation(
         "places_real_order": False,
         "exchange_action_taken": False,
     }
+
+
+def _paper_bootstrap_ranked_candidate_dispositions(
+    designation: Mapping[str, Any] | None,
+    finalized_intents: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    """First failing current-cycle predicate for EVERY ranked bootstrap
+    candidate, derived from finalized cycle evidence.  Purely observational —
+    grants and removes no authority."""
+
+    if not isinstance(designation, Mapping):
+        return []
+    ranked = designation.get("ranked_candidates")
+    if not isinstance(ranked, list):
+        return []
+    by_key: dict[tuple[str, str], Mapping[str, Any]] = {}
+    for row in finalized_intents:
+        if isinstance(row, Mapping) and row.get("symbol") and row.get("timeframe"):
+            by_key[(str(row["symbol"]).upper(), str(row["timeframe"]))] = row
+    out: list[dict[str, Any]] = []
+    for entry in ranked:
+        if not isinstance(entry, Mapping):
+            continue
+        symbol = str(entry.get("symbol") or "").upper()
+        timeframe = str(entry.get("timeframe") or "")
+        side = str(entry.get("side") or "").upper()
+        row = by_key.get((symbol, timeframe))
+        predicate = None
+        if row is None:
+            predicate = "CANDIDATE_NOT_IN_CURRENT_CYCLE_UNIVERSE"
+        elif str(row.get("side") or "").upper() != side:
+            predicate = "LINEAGE_SIDE_CHANGED_IN_CURRENT_CYCLE"
+        elif row.get("adaptive_policy_action_policy_mode") == (
+            "bootstrap_information_acquisition"
+        ):
+            if row.get("paper_fill_allowed") is True or row.get("decision") == (
+                "ACCEPTED_PAPER_FILL"
+            ):
+                predicate = "SELECTED_AND_FILL_ADMITTED"
+            else:
+                predicate = "SELECTED_THEN_FILL_BLOCKED:" + str(
+                    row.get("paper_fill_block_reason") or "UNKNOWN"
+                )
+        elif row.get("risk_decision_record_resolved") is not True:
+            predicate = "CANONICAL_RISK_DECISION_UNRESOLVED"
+        elif _paper_decision_action(
+            _first_present(
+                row.get("risk_controller_decision"),
+                row.get("risk_decision"),
+                row.get("risk_action"),
+            ),
+            default="deny",
+        ) != "allow":
+            predicate = "CANONICAL_RISK_ACTION_NOT_ALLOW"
+        elif row.get("feed_integrity_pass") is not True:
+            predicate = "FEED_INTEGRITY_FAIL"
+        elif not str(
+            row.get("entry_feature_snapshot_resolution_status") or ""
+        ).startswith("RESOLVED"):
+            predicate = "FEATURE_SNAPSHOT_UNRESOLVED"
+        elif (
+            str(row.get("microstructure_action") or "").strip().upper()
+            == "CLOSE_OR_REDUCE_ONLY"
+        ):
+            predicate = "MICROSTRUCTURE_RESTRICTED"
+        else:
+            comparison = None
+            for c in (
+                row.get("adaptive_policy_venue_minimum_objective_comparisons") or []
+            ):
+                if isinstance(c, Mapping) and str(c.get("side") or "").upper() == side:
+                    comparison = c
+                    break
+            if comparison is None:
+                predicate = "NO_VENUE_MINIMUM_CANDIDATE_FOR_LINEAGE_SIDE"
+            elif comparison.get("venue_min_candidate_hard_risk_pass") is not True:
+                predicate = "VENUE_MINIMUM_HARD_RISK_REJECTED"
+            elif comparison.get("selection_reason") == (
+                "VENUE_MINIMUM_BOOTSTRAP_INFORMATION_ACQUISITION_SELECTED"
+            ):
+                predicate = "SELECTED"
+            else:
+                predicate = "NOT_SELECTED:" + str(
+                    comparison.get("selection_reason") or "UNKNOWN"
+                )
+        out.append(
+            {
+                "rank": entry.get("rank"),
+                "symbol": symbol,
+                "timeframe": timeframe,
+                "side": side,
+                "first_failing_predicate": predicate,
+            }
+        )
+    return out
 
 
 def _paper_adaptive_policy_cycle_receipt(
@@ -52163,6 +52265,57 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             default=str,
         ).encode("utf-8")
     ).hexdigest()
+    # Bootstrap information acquisition: traverse the COMPLETE deterministic
+    # ranking (freshest complete evidence) in rank order and target the first
+    # member present in the CURRENT cycle's signal universe with a matching
+    # authenticated side.  Exactly one target per cycle; every unchanged hard
+    # rail still validates it in-cycle before any authorization.
+    _bootstrap_full_designation = adaptive_policy_cycle_context.get(
+        "bootstrap_information_acquisition_designation"
+    )
+    _bootstrap_cycle_target: dict[str, Any] | None = None
+    _bootstrap_ranks_traversed = 0
+    if isinstance(_bootstrap_full_designation, Mapping):
+        _bootstrap_universe: set[tuple[str, str, str]] = set()
+        for _b_signal in signals:
+            if not isinstance(_b_signal, Mapping):
+                continue
+            _b_symbol = str(_b_signal.get("symbol") or "").upper()
+            _b_side = str(
+                _first_present(
+                    _b_signal.get("side"),
+                    _b_signal.get("action"),
+                    _b_signal.get("selected_action"),
+                    "long",
+                )
+            ).upper()
+            _b_lineage = _lineage_ids(_b_signal, _b_symbol)
+            _b_tf = _paper_thesis_timeframe(
+                _b_signal,
+                predictions_by_id.get(_b_lineage["prediction_id"], {}),
+            )
+            if _b_symbol and _b_tf:
+                _bootstrap_universe.add((_b_symbol, str(_b_tf), _b_side))
+        for _b_entry in (
+            _bootstrap_full_designation.get("ranked_candidates") or []
+        ):
+            if not isinstance(_b_entry, Mapping):
+                continue
+            _bootstrap_ranks_traversed += 1
+            _b_key = (
+                str(_b_entry.get("symbol") or "").upper(),
+                str(_b_entry.get("timeframe") or ""),
+                str(_b_entry.get("side") or "").upper(),
+            )
+            if _b_key in _bootstrap_universe:
+                _bootstrap_cycle_target = dict(_b_entry)
+                break
+    adaptive_policy_cycle_context["bootstrap_current_cycle_target"] = (
+        _bootstrap_cycle_target
+    )
+    adaptive_policy_cycle_context["bootstrap_current_cycle_candidates_evaluated"] = (
+        _bootstrap_ranks_traversed
+    )
     for s_idx, s in enumerate(signals):
         _paper_release_pending_halted_probe_token(
             halted_empty_book_probe_context,
@@ -54870,13 +55023,37 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                 )
                 + len(accepted),
                 # At most one bootstrap authorization per completed paper
-                # cycle: the designation is withheld from every candidate
-                # after the first bootstrap authorization this cycle.
+                # cycle: only the single rank-order current-universe target is
+                # handed to the builder, and it is withheld from every
+                # candidate after the first bootstrap authorization this
+                # cycle.
                 "bootstrap_information_acquisition_designation": (
-                    adaptive_policy_cycle_context.get(
-                        "bootstrap_information_acquisition_designation"
+                    {
+                        **adaptive_policy_cycle_context[
+                            "bootstrap_information_acquisition_designation"
+                        ],
+                        **adaptive_policy_cycle_context[
+                            "bootstrap_current_cycle_target"
+                        ],
+                        "ranked_candidates": [
+                            adaptive_policy_cycle_context[
+                                "bootstrap_current_cycle_target"
+                            ]
+                        ],
+                    }
+                    if isinstance(
+                        adaptive_policy_cycle_context.get(
+                            "bootstrap_information_acquisition_designation"
+                        ),
+                        Mapping,
                     )
-                    if not adaptive_policy_cycle_context.get(
+                    and isinstance(
+                        adaptive_policy_cycle_context.get(
+                            "bootstrap_current_cycle_target"
+                        ),
+                        Mapping,
+                    )
+                    and not adaptive_policy_cycle_context.get(
                         "bootstrap_information_acquisition_cycle_authorizations"
                     )
                     else None
@@ -57394,6 +57571,106 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                 == "bootstrap_information_acquisition"
                 and row.get("adaptive_policy_entry_authorized") is True
                 for row in adaptive_policy_authority_rows
+            ),
+            "bootstrap_total_ranked_candidate_count": int(
+                (
+                    adaptive_policy_cycle_context.get(
+                        "bootstrap_information_acquisition_designation"
+                    )
+                    or {}
+                ).get("total_ranked_candidate_count")
+                or 0
+            ),
+            "bootstrap_current_cycle_candidates_evaluated": int(
+                adaptive_policy_cycle_context.get(
+                    "bootstrap_current_cycle_candidates_evaluated"
+                )
+                or 0
+            ),
+            "bootstrap_current_cycle_target": (
+                adaptive_policy_cycle_context.get("bootstrap_current_cycle_target")
+            ),
+            "bootstrap_current_cycle_hard_valid_count": sum(
+                row.get("adaptive_policy_action_policy_mode")
+                == "bootstrap_information_acquisition"
+                and row.get("adaptive_policy_entry_authorized") is True
+                for row in adaptive_policy_authority_rows
+            ),
+            "bootstrap_first_hard_valid_rank": next(
+                (
+                    (
+                        adaptive_policy_cycle_context.get(
+                            "bootstrap_current_cycle_target"
+                        )
+                        or {}
+                    ).get("rank")
+                    for row in adaptive_policy_authority_rows
+                    if row.get("adaptive_policy_action_policy_mode")
+                    == "bootstrap_information_acquisition"
+                    and row.get("adaptive_policy_entry_authorized") is True
+                ),
+                None,
+            ),
+            "bootstrap_selected_candidate_id": next(
+                (
+                    row.get("adaptive_policy_action_id")
+                    for row in adaptive_policy_authority_rows
+                    if row.get("adaptive_policy_action_policy_mode")
+                    == "bootstrap_information_acquisition"
+                    and row.get("adaptive_policy_entry_authorized") is True
+                ),
+                None,
+            ),
+            "bootstrap_selected_symbol": next(
+                (
+                    row.get("symbol")
+                    for row in adaptive_policy_authority_rows
+                    if row.get("adaptive_policy_action_policy_mode")
+                    == "bootstrap_information_acquisition"
+                    and row.get("adaptive_policy_entry_authorized") is True
+                ),
+                None,
+            ),
+            "bootstrap_selected_timeframe": next(
+                (
+                    row.get("timeframe")
+                    for row in adaptive_policy_authority_rows
+                    if row.get("adaptive_policy_action_policy_mode")
+                    == "bootstrap_information_acquisition"
+                    and row.get("adaptive_policy_entry_authorized") is True
+                ),
+                None,
+            ),
+            "bootstrap_selected_side": next(
+                (
+                    row.get("side")
+                    for row in adaptive_policy_authority_rows
+                    if row.get("adaptive_policy_action_policy_mode")
+                    == "bootstrap_information_acquisition"
+                    and row.get("adaptive_policy_entry_authorized") is True
+                ),
+                None,
+            ),
+            "bootstrap_selection_receipt_sha256": next(
+                (
+                    (row.get("adaptive_policy_action") or {}).get(
+                        "selection_receipt_sha256"
+                    )
+                    for row in adaptive_policy_authority_rows
+                    if isinstance(row.get("adaptive_policy_action"), Mapping)
+                    and row.get("adaptive_policy_action_policy_mode")
+                    == "bootstrap_information_acquisition"
+                    and row.get("adaptive_policy_entry_authorized") is True
+                ),
+                None,
+            ),
+            "bootstrap_rejection_first_predicate_by_candidate": (
+                _paper_bootstrap_ranked_candidate_dispositions(
+                    adaptive_policy_cycle_context.get(
+                        "bootstrap_information_acquisition_designation"
+                    ),
+                    intents,
+                )
             ),
             "flat_authorized_count": sum(
                 row.get("adaptive_policy_authority_status") == "AUTHORIZED_FLAT"
