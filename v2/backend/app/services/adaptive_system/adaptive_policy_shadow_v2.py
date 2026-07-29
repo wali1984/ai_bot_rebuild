@@ -2082,6 +2082,28 @@ def _bootstrap_information_acquisition_designation(
         return None
     if designation.get("paper_only") is not True:
         return None
+    # The designation may carry a ranked candidate list (ordered by expected
+    # information gain per expected experiment-loss dollar over the freshest
+    # COMPLETE full-universe evidence).  Any ranked member may execute, but
+    # only if ITS current-cycle hard state passes every unchanged rail below;
+    # the paper loop's cycle cap keeps authorizations at one per cycle.  A
+    # designation without a ranked list targets its single top-level
+    # symbol/timeframe/side.
+    ranked = designation.get("ranked_candidates")
+    matched: Mapping[str, Any] | None = None
+    if isinstance(ranked, list) and ranked:
+        for entry in ranked:
+            if (
+                isinstance(entry, Mapping)
+                and entry.get("symbol") == intent.get("symbol")
+                and entry.get("timeframe") == intent.get("timeframe")
+                and entry.get("side") in {"LONG", "SHORT"}
+            ):
+                matched = entry
+                break
+        if matched is None:
+            return None
+        designation = {**designation, **matched}
     if designation.get("side") not in {"LONG", "SHORT"}:
         return None
     if designation.get("symbol") != intent.get("symbol"):

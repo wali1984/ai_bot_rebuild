@@ -41494,14 +41494,29 @@ def _paper_bootstrap_information_acquisition_designation(
         return None
 
     eligible_count = 0
-    best_key: tuple[float, float, str] | None = None
-    best: dict[str, Any] | None = None
+    ranked_entries: list[tuple[tuple[float, float, str], dict[str, Any]]] = []
     for intent_row in previous_cycle_intents:
         if not isinstance(intent_row, Mapping):
             continue
         symbol = intent_row.get("symbol")
         timeframe = intent_row.get("timeframe")
         if not symbol or not timeframe:
+            continue
+        # Freshest-complete-evidence prefilter for the remaining hard
+        # families observable per intent row: authenticated feed/feature
+        # evidence and a non-restrictive microstructure disposition.  The
+        # designated candidate is still fully re-validated against every
+        # unchanged current-cycle hard rail before authorization.
+        if intent_row.get("feed_integrity_pass") is not True:
+            continue
+        if not str(
+            intent_row.get("entry_feature_snapshot_resolution_status") or ""
+        ).startswith("RESOLVED"):
+            continue
+        if (
+            str(intent_row.get("microstructure_action") or "").strip().upper()
+            == "CLOSE_OR_REDUCE_ONLY"
+        ):
             continue
         # Hard eligibility includes valid canonical-risk lineage: the
         # Category-B risk gateway is never overridden, so a candidate whose
@@ -41579,25 +41594,31 @@ def _paper_bootstrap_information_acquisition_designation(
                 utility = float("-inf")
             ratio = gain_nats / expected_loss_usd
             key = (ratio, utility, str(row.get("venue_minimum_action_id") or ""))
-            if best_key is None or key > best_key:
-                best_key = key
-                best = {
-                    "symbol": str(symbol),
-                    "timeframe": str(timeframe),
-                    "side": str(side),
-                    "source_candidate_id": row.get("candidate_id"),
-                    "source_venue_minimum_action_id": row.get(
-                        "venue_minimum_action_id"
-                    ),
-                    "expected_information_gain_nats": gain_nats,
-                    "expected_experiment_loss_usd": expected_loss_usd,
-                    "information_gain_per_expected_loss_usd": ratio,
-                    "venue_min_candidate_utility": (
-                        utility if utility != float("-inf") else None
-                    ),
-                }
-    if best is None:
+            ranked_entries.append(
+                (
+                    key,
+                    {
+                        "symbol": str(symbol),
+                        "timeframe": str(timeframe),
+                        "side": str(side),
+                        "source_candidate_id": row.get("candidate_id"),
+                        "source_venue_minimum_action_id": row.get(
+                            "venue_minimum_action_id"
+                        ),
+                        "expected_information_gain_nats": gain_nats,
+                        "expected_experiment_loss_usd": expected_loss_usd,
+                        "information_gain_per_expected_loss_usd": ratio,
+                        "venue_min_candidate_utility": (
+                            utility if utility != float("-inf") else None
+                        ),
+                    },
+                )
+            )
+    if not ranked_entries:
         return None
+    ranked_entries.sort(key=lambda item: item[0], reverse=True)
+    ranked_candidates = [entry for _key, entry in ranked_entries[:8]]
+    best = ranked_candidates[0]
     return {
         "schema_version": "bootstrap_information_acquisition_designation_v1",
         "policy_objective": "BOOTSTRAP_INFORMATION_ACQUISITION",
@@ -41612,9 +41633,13 @@ def _paper_bootstrap_information_acquisition_designation(
             "EXPECTED_EXPERIMENT_LOSS_USD_POSITIVE_FINITE",
             "CANONICAL_RISK_DECISION_RESOLVED_ALLOW",
             "COMPARISON_SIDE_MATCHES_AUTHENTICATED_DECISION_SIDE",
+            "FEED_INTEGRITY_PASS",
+            "ENTRY_FEATURE_SNAPSHOT_RESOLVED",
+            "MICROSTRUCTURE_NOT_CLOSE_OR_REDUCE_ONLY",
             "NO_PRIOR_ADAPTIVE_HARD_LOCAL_GATE_BLOCK",
         ],
         **best,
+        "ranked_candidates": ranked_candidates,
         "eligible_candidate_count": eligible_count,
         "bootstrap_trigger": {
             "natural_execution_count": natural_execution_count,

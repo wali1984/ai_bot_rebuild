@@ -28725,6 +28725,11 @@ def _bootstrap_designation_intent(
         "side": side,
         "risk_decision_record_resolved": risk_decision_record_resolved,
         "risk_controller_decision": risk_controller_decision,
+        "feed_integrity_pass": True,
+        "entry_feature_snapshot_resolution_status": (
+            "RESOLVED_DURABLE_ARCHIVE_VERIFY_TRUE"
+        ),
+        "microstructure_action": "ALLOW",
         "paper_fill_gate_block_reasons": list(paper_fill_gate_block_reasons),
         "adaptive_policy_venue_minimum_objective_comparisons": comparisons,
     }
