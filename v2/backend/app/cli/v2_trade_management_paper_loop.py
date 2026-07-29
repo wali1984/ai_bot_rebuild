@@ -22934,6 +22934,26 @@ def _non_relaxable_entry_gate_reasons(
     ]
     if exploration_confidence_authority:
         reasons = [reason for reason in reasons if not _strict_confidence_entry_gate_reason(reason)]
+    if (
+        str(intent.get("adaptive_policy_action_policy_mode") or "")
+        == "bootstrap_information_acquisition"
+    ):
+        # Continuous paper exploration: historical side-bucket performance
+        # and side-confidence-floor preferences are Category-E trading
+        # preferences with no final authority over a bounded
+        # information-acquisition experiment (it exists precisely because no
+        # demonstrated positive edge does).  Every integrity, lifecycle,
+        # accounting, and venue reason in this gate is left untouched.
+        reasons = [
+            reason
+            for reason in reasons
+            if not str(reason).startswith(
+                (
+                    "SIDE_GATE_BLOCK:SIDE_BUCKET_EXPECTANCY_NON_POSITIVE",
+                    "SIDE_GATE_BLOCK:SIDE_CONFIDENCE_BELOW_FLOOR",
+                )
+            )
+        ]
     lifecycle_or_no_trade_strategy_reasons = _paper_lifecycle_or_no_trade_strategy_reasons(
         signal={}, intent=intent
     )

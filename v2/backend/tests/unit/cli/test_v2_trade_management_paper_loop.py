@@ -29245,3 +29245,36 @@ def test_liquidity_replay_still_enforces_reduction_for_allow_below_minimum() -> 
         material
     )
     assert "CANDIDATE_LIQUIDITY_FINAL_SCORE_REPLAY_MISMATCH" in reasons
+
+
+def test_non_relaxable_entry_gate_scopes_side_performance_off_bootstrap() -> None:
+    """Continuous paper exploration: side-bucket expectancy and
+    side-confidence-floor preferences (Category E) carry no final authority
+    over a bootstrap information-acquisition intent; every other entry-gate
+    reason is preserved, and non-bootstrap intents keep the full gate.
+    """
+
+    reasons = [
+        "SIDE_GATE_BLOCK:SIDE_BUCKET_EXPECTANCY_NON_POSITIVE:LONG:-10.25bps:n=16",
+        "SIDE_GATE_BLOCK:SIDE_CONFIDENCE_BELOW_FLOOR:LONG:0.41<0.55",
+        "ADAPTIVE_TUNING_AUTHORITY_NOT_VALID",
+    ]
+    bootstrap_intent = {
+        "adaptive_policy_action_policy_mode": "bootstrap_information_acquisition",
+        "entry_gate_block_reasons": list(reasons),
+    }
+    ordinary_intent = {
+        "adaptive_policy_action_policy_mode": "champion_exploitation",
+        "entry_gate_block_reasons": list(reasons),
+    }
+    bootstrap_out = paper_loop._non_relaxable_entry_gate_reasons(  # noqa: SLF001
+        bootstrap_intent
+    )
+    ordinary_out = paper_loop._non_relaxable_entry_gate_reasons(  # noqa: SLF001
+        ordinary_intent
+    )
+    assert not any("SIDE_GATE_BLOCK" in reason for reason in bootstrap_out)
+    assert "ADAPTIVE_TUNING_AUTHORITY_NOT_VALID" in bootstrap_out
+    assert any(
+        "SIDE_BUCKET_EXPECTANCY_NON_POSITIVE" in reason for reason in ordinary_out
+    )
