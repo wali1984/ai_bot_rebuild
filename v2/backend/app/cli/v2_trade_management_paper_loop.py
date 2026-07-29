@@ -41503,6 +41503,34 @@ def _paper_bootstrap_information_acquisition_designation(
         timeframe = intent_row.get("timeframe")
         if not symbol or not timeframe:
             continue
+        # Hard eligibility includes valid canonical-risk lineage: the
+        # Category-B risk gateway is never overridden, so a candidate whose
+        # previous-cycle risk decision was not a resolved ALLOW cannot be the
+        # designated experiment (it would deterministically hard-block at the
+        # adaptive local gate and burn the cycle's single designation).
+        if intent_row.get("risk_decision_record_resolved") is not True:
+            continue
+        if (
+            _paper_decision_action(
+                _first_present(
+                    intent_row.get("risk_controller_decision"),
+                    intent_row.get("risk_decision"),
+                    intent_row.get("risk_action"),
+                ),
+                default="deny",
+            )
+            != "allow"
+        ):
+            continue
+        # A candidate the adaptive hard local gate already rejected in the
+        # previous cycle (canonical risk / market integrity / dedup /
+        # temporal / runtime evidence) is excluded so the designation moves
+        # to the next-ranked candidate instead of retrying a proven block.
+        if any(
+            str(reason).startswith("ADAPTIVE_HARD_GATE_")
+            for reason in (intent_row.get("paper_fill_gate_block_reasons") or [])
+        ):
+            continue
         comparisons = intent_row.get(
             "adaptive_policy_venue_minimum_objective_comparisons"
         )
@@ -41571,6 +41599,13 @@ def _paper_bootstrap_information_acquisition_designation(
             "MAX_EXPECTED_INFORMATION_GAIN_NATS_PER_EXPECTED_LOSS_USD"
             "_TIE_UTILITY_THEN_ACTION_ID"
         ),
+        "hard_eligibility_filters": [
+            "VENUE_MIN_CANDIDATE_HARD_RISK_PASS",
+            "EXPECTED_INFORMATION_GAIN_NATS_POSITIVE",
+            "EXPECTED_EXPERIMENT_LOSS_USD_POSITIVE_FINITE",
+            "CANONICAL_RISK_DECISION_RESOLVED_ALLOW",
+            "NO_PRIOR_ADAPTIVE_HARD_LOCAL_GATE_BLOCK",
+        ],
         **best,
         "eligible_candidate_count": eligible_count,
         "bootstrap_trigger": {

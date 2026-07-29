@@ -28714,12 +28714,74 @@ def _bootstrap_designation_intent(
     comparisons: object,
     *,
     timeframe: object = "1h",
+    risk_decision_record_resolved: object = True,
+    risk_controller_decision: object = "PASS",
+    paper_fill_gate_block_reasons: object = (),
 ) -> dict[str, object]:
     return {
         "symbol": symbol,
         "timeframe": timeframe,
+        "risk_decision_record_resolved": risk_decision_record_resolved,
+        "risk_controller_decision": risk_controller_decision,
+        "paper_fill_gate_block_reasons": list(paper_fill_gate_block_reasons),
         "adaptive_policy_venue_minimum_objective_comparisons": comparisons,
     }
+
+
+def test_bootstrap_designation_requires_resolved_canonical_risk_allow() -> None:
+    """The Category-B canonical risk gateway is never overridden: a candidate
+    whose previous-cycle risk decision is unresolved or non-ALLOW is excluded
+    from designation, and one already blocked by the adaptive hard local gate
+    is skipped so the designation converges to the next-ranked candidate.
+    """
+
+    calibration = _bootstrap_designation_calibration()
+    unresolved = _bootstrap_designation_intent(
+        "AAAUSDT",
+        [_bootstrap_designation_comparison(gain_nats=0.9, expected_loss_usd=1.0)],
+        risk_decision_record_resolved=False,
+    )
+    denied = _bootstrap_designation_intent(
+        "BBBUSDT",
+        [_bootstrap_designation_comparison(gain_nats=0.8, expected_loss_usd=1.0)],
+        risk_controller_decision="BLOCK_RISK",
+    )
+    hard_gate_blocked = _bootstrap_designation_intent(
+        "CCCUSDT",
+        [_bootstrap_designation_comparison(gain_nats=0.7, expected_loss_usd=1.0)],
+        paper_fill_gate_block_reasons=[
+            "ADAPTIVE_HARD_GATE_MARKET_INTEGRITY_NOT_ALLOWED",
+            "ADAPTIVE_POLICY_HARD_LOCAL_GATE_BLOCKED",
+        ],
+    )
+    allowed = _bootstrap_designation_intent(
+        "DDDUSDT",
+        [_bootstrap_designation_comparison(gain_nats=0.1, expected_loss_usd=1.0)],
+    )
+    designation = paper_loop._paper_bootstrap_information_acquisition_designation(  # noqa: SLF001
+        calibration=calibration,
+        previous_cycle_intents=[unresolved, denied, hard_gate_blocked, allowed],
+        current_epoch_closed_trade_rows=[],
+        current_epoch_open_position_rows=[],
+    )
+    assert designation is not None
+    assert designation["symbol"] == "DDDUSDT"
+    assert designation["eligible_candidate_count"] == 1
+    assert (
+        "CANONICAL_RISK_DECISION_RESOLVED_ALLOW"
+        in designation["hard_eligibility_filters"]
+    )
+    assert (
+        "NO_PRIOR_ADAPTIVE_HARD_LOCAL_GATE_BLOCK"
+        in designation["hard_eligibility_filters"]
+    )
+    none_eligible = paper_loop._paper_bootstrap_information_acquisition_designation(  # noqa: SLF001
+        calibration=calibration,
+        previous_cycle_intents=[unresolved, denied, hard_gate_blocked],
+        current_epoch_closed_trade_rows=[],
+        current_epoch_open_position_rows=[],
+    )
+    assert none_eligible is None
 
 
 def test_bootstrap_designation_returns_none_once_posterior_has_evidence() -> None:
