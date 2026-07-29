@@ -115,7 +115,7 @@ test.describe('trader nav cleanliness', () => {
 
     await gotoWithAuth(page, '/dashboard');
     await expect(page.getByTestId('dashboard-websocket-status')).toBeVisible();
-    await expect(page.locator('body')).not.toContainText(/Paper Equity|Paper Fills|Paper Account|Paper\/read-only/i);
+    await expect(page.locator('body')).not.toContainText(/Paper Equity|Paper Account|Paper\/read-only/i);
     expect(staleApiRequests).toEqual([]);
   });
 
@@ -738,7 +738,7 @@ test.describe('trader nav cleanliness', () => {
     await expect(page.getByTestId('admin-nav')).toBeVisible();
   });
 
-  test('risk route exposes liquidation hedge squeeze and kill-switch truth', async ({ page }) => {
+  test('risk route exposes liquidation hedge sweep and kill-switch truth', async ({ page }) => {
     await gotoWithAuth(page, '/risk', 'trader', { waitUntil: 'domcontentloaded' });
     await page.waitForLoadState('domcontentloaded').catch(() => undefined);
 
@@ -747,14 +747,14 @@ test.describe('trader nav cleanliness', () => {
     await expect(page.getByTestId('risk-runtime-truth-panel')).toContainText('/api/v2/mobile/risk-status');
     await expect(page.getByTestId('risk-runtime-truth-panel')).toContainText(/Liquidation buffer/i);
     await expect(page.getByTestId('risk-runtime-truth-panel')).toContainText(/Hedge state/i);
-    await expect(page.getByTestId('risk-runtime-truth-panel')).toContainText(/Squeeze risk/i);
+    await expect(page.getByTestId('risk-runtime-truth-panel')).toContainText(/Sweep risk/i);
     await expect(page.getByTestId('risk-runtime-truth-panel')).toContainText(/Kill switch/i);
     await expect(page.getByTestId('risk-runtime-truth-panel')).toContainText(/Operator approval/i);
     await expect(page.getByTestId('risk-runtime-truth-panel')).not.toContainText(/live order enabled|ready to submit live/i);
   });
 
   test('audit-ledger route exposes read-only immutable event truth without live-approver access', async ({ page }) => {
-    await page.route('**/api/v2/admin/audit/chain', async (route) => {
+    await page.route('**/api/v2/audit-ledger/events', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -783,7 +783,7 @@ test.describe('trader nav cleanliness', () => {
     await expect(page).toHaveURL(/\/audit-ledger$/);
     await expect(page.getByTestId('page-audit-ledger')).toBeVisible();
     await expect(page.getByTestId('access-denied')).toHaveCount(0);
-    await expect(page.getByTestId('page-audit-ledger')).toContainText('/api/v2/admin/audit/chain');
+    await expect(page.getByTestId('page-audit-ledger')).toContainText('/api/v2/audit-ledger/events');
     await expect(page.getByTestId('page-audit-ledger')).toContainText(/Immutable audit/i);
     await expect(page.getByTestId('page-audit-ledger')).toContainText(/provider_truth_refresh/i);
     await expect(page.getByTestId('page-audit-ledger')).toContainText(/read-only authenticated view/i);
@@ -927,7 +927,7 @@ test.describe('trader nav cleanliness', () => {
     const text = await page.locator('body').innerText();
     await expect(page.getByTestId('page-positions')).toBeVisible();
     await expect(page.getByText(/Account Scope/i)).toBeVisible();
-    await expect(page.getByText(/Authenticated trader account/i)).toBeVisible();
+    await expect(page.getByText('Authenticated trader account', { exact: true })).toBeVisible();
     expect(text).not.toMatch(/operator_runtime|payload|available_margin|order_submission_allowed|live transport/i);
   });
 
@@ -1284,21 +1284,21 @@ test.describe('trader nav cleanliness', () => {
     await expect(page.locator('body')).not.toContainText(/CUDA Trainer Paper Signal Lineage|Operator Review|live paper \/ shadow trading loop/i);
   });
 
-  test('legacy market symbols route redirects to the canonical markets screener', async ({ page }) => {
+  test('canonical market symbols route keeps the dedicated symbol-universe page reachable', async ({ page }) => {
     await gotoWithAuth(page, '/markets/symbols');
     await page.waitForLoadState('domcontentloaded').catch(() => undefined);
 
-    await expect(page).toHaveURL(/\/markets$/);
-    await expect(page.getByTestId('page-markets')).toBeVisible();
+    await expect(page).toHaveURL(/\/markets\/symbols$/);
+    await expect(page.getByTestId('page-symbols')).toBeVisible();
     await expect(page.locator('body')).not.toContainText(/operator_dashboard|payload|symbol universe worker|live gate/i);
   });
 
-  test('legacy admin market symbols alias redirects directly to the canonical markets screener', async ({ page }) => {
+  test('legacy admin market symbols alias redirects to the dedicated symbol-universe page', async ({ page }) => {
     await gotoWithAuth(page, '/admin/symbols');
     await page.waitForLoadState('domcontentloaded').catch(() => undefined);
 
-    await expect(page).toHaveURL(/\/markets$/);
-    await expect(page.getByTestId('page-markets')).toBeVisible();
+    await expect(page).toHaveURL(/\/markets\/symbols$/);
+    await expect(page.getByTestId('page-symbols')).toBeVisible();
     await expect(page.locator('body')).not.toContainText(/operator_dashboard|payload|symbol universe worker|live gate/i);
   });
 
@@ -1311,16 +1311,12 @@ test.describe('trader nav cleanliness', () => {
     await expect(page.locator('body')).not.toContainText(/local role|role override/i);
   });
 
-  test('legacy replay route redirects to the cleaned backtests page', async ({ page }) => {
+  test('canonical replay route keeps the interactive replay page reachable', async ({ page }) => {
     await gotoWithAuth(page, '/backtests/replay');
     await page.waitForLoadState('domcontentloaded').catch(() => undefined);
 
-    await expect(page).toHaveURL(/\/backtests$/);
-    await expect(page.getByTestId('page-strategy-backtesting')).toBeVisible();
-    await expect(page.getByRole('heading', { name: /Backtest Engine/i })).toBeVisible();
-    await expect(page.getByText(/Historical replay of AI signals/i)).toBeVisible();
-    await expect(page.getByRole('heading', { name: /Manual Backtest Run/i })).toBeVisible();
-    await expect(page.getByRole('heading', { name: /All Results/i })).toBeVisible();
+    await expect(page).toHaveURL(/\/backtests\/replay$/);
+    await expect(page.getByTestId('page-backtests-replay')).toBeVisible();
     await expect(page.locator('body')).not.toContainText(/CUDA Actionability|Pipeline Control|operator role|required|payload/i);
   });
 

@@ -79,6 +79,8 @@ public final class DashboardViewModel {
     private var fallbackTask: Task<Void, Never>?
     private let streamIntervalMs = 1_000
     private let staleAfterSeconds: Double = 90
+    private var lastSessionId: String?
+    private var lastEpoch: Int?
 
     public func load(token: String?, baseURL: String) async {
         connect(token: token, baseURL: baseURL)
@@ -93,7 +95,12 @@ public final class DashboardViewModel {
         dashboardStreamLabel = "Connecting"
         healthStreamLabel = "Connecting"
 
-        guard let dashboardURL = APIEndpoints.wsResourceURL(baseURL: baseURL, path: APIEndpoints.mobileDashboard, intervalMs: streamIntervalMs),
+        guard let dashboardURL = APIEndpoints.wsResourceURL(
+                baseURL: baseURL,
+                path: APIEndpoints.mobileDashboard,
+                queryItems: APIEndpoints.currentPaperScopeQueryItems,
+                intervalMs: streamIntervalMs
+              ),
               let healthURL = APIEndpoints.wsResourceURL(baseURL: baseURL, path: APIEndpoints.mobileHealth, intervalMs: streamIntervalMs) else {
             isLoading = false
             error = "Invalid WebSocket resource URL"
@@ -174,7 +181,7 @@ public final class DashboardViewModel {
     private func loadFallback(token: String?, baseURL: String) async {
         do {
             async let dashboardFallback: DashboardPayload = APIClient.shared.get(
-                path: APIEndpoints.mobileDashboard,
+                path: APIEndpoints.mobileDashboardCurrentSession,
                 token: token,
                 baseURL: baseURL
             )
@@ -184,7 +191,12 @@ public final class DashboardViewModel {
                 baseURL: baseURL
             )
             let (d, h) = try await (dashboardFallback, healthFallback)
-            dashboard = d.core
+            guard applyCurrentSessionDashboard(d.core) else {
+                dashboardStreamLabel = "Stale epoch ignored"
+                health = h
+                isLoading = false
+                return
+            }
             paperExtras = d.extras.paper
             health = h
             dashboardStale = false
@@ -223,7 +235,10 @@ public final class DashboardViewModel {
     private func applyDashboardMessage(_ message: String) {
         do {
             let snapshot = try decodeMobileResourceSnapshot(DashboardPayload.self, from: message)
-            dashboard = snapshot.payload.core
+            guard applyCurrentSessionDashboard(snapshot.payload.core) else {
+                dashboardStreamLabel = "Stale epoch ignored"
+                return
+            }
             paperExtras = snapshot.payload.extras.paper
             dashboardStale = snapshot.stale
             dashboardLagMs = snapshot.lagMs
@@ -239,6 +254,20 @@ public final class DashboardViewModel {
             self.error = error.localizedDescription
             isLoading = false
         }
+    }
+
+    @discardableResult
+    private func applyCurrentSessionDashboard(_ incoming: MobileDashboard) -> Bool {
+        guard acceptsCurrentPaperSessionFrame(
+            incomingSessionId: incoming.paper.paper_session_id,
+            incomingEpoch: incoming.paper.paper_account_epoch,
+            activeSessionId: lastSessionId,
+            activeEpoch: lastEpoch
+        ) else { return false }
+        dashboard = incoming
+        lastSessionId = incoming.paper.paper_session_id
+        lastEpoch = incoming.paper.paper_account_epoch
+        return true
     }
 
     private func applyHealthMessage(_ message: String) {

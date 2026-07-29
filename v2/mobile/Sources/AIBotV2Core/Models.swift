@@ -1,5 +1,26 @@
 import Foundation
 
+public func acceptsCurrentPaperSessionFrame(
+    incomingSessionId: String?,
+    incomingEpoch: Int?,
+    activeSessionId: String?,
+    activeEpoch: Int?
+) -> Bool {
+    guard activeSessionId != nil || activeEpoch != nil else { return true }
+    if activeSessionId != nil && incomingSessionId == nil { return false }
+    if let activeEpoch {
+        guard let incomingEpoch else { return false }
+        if incomingEpoch < activeEpoch { return false }
+        if incomingEpoch == activeEpoch,
+           let activeSessionId,
+           let incomingSessionId,
+           incomingSessionId != activeSessionId {
+            return false
+        }
+    }
+    return true
+}
+
 // MARK: - Dashboard
 
 public struct MobileDashboard: Decodable, Sendable {
@@ -21,6 +42,10 @@ public struct LiveGateState: Decodable, Sendable {
 
 public struct PaperState: Decodable, Sendable {
     public let paper_session_id: String?
+    public let paper_account_epoch: Int?
+    public let scope: String?
+    public let historical_rows_excluded_from_current_view: Int?
+    public let historical_evidence_preserved: Bool?
     public let equity: Double?
     public let paper_equity: Double?
     public let paper_equity_usd: Double?
@@ -303,6 +328,8 @@ public struct GPUState: Decodable, Sendable {
 
 public struct MobilePosition: Decodable, Sendable {
     public let id: String
+    public let paper_session_id: String?
+    public let paper_account_epoch: Int?
     public let symbol: String
     public let side: String
     public let qty: Double
@@ -359,6 +386,12 @@ public struct PositionDecisionReasoning: Decodable, Sendable {
 
 public struct MobilePositionsResponse: Decodable, Sendable {
     public let generated_utc: String
+    public let paper_session_id: String?
+    public let paper_account_epoch: Int?
+    public let scope: String?
+    public let starting_equity_usd: Double?
+    public let historical_rows_excluded_from_current_view: Int?
+    public let historical_evidence_preserved: Bool?
     public let positions: [MobilePosition]
     public let closed_positions: [MobilePosition]?
     public let historical_positions: [MobilePosition]?
@@ -693,6 +726,10 @@ public struct MobilePaperSummary: Decodable, Sendable {
     public let places_real_order: Bool
     public let live_gate: String
     public let paper_session_id: String?
+    public let paper_account_epoch: Int?
+    public let scope: String?
+    public let historical_rows_excluded_from_current_view: Int?
+    public let historical_evidence_preserved: Bool?
     public let equity: Double?
     public let paper_equity: Double?
     public let paper_balance: Double?
@@ -834,6 +871,7 @@ public struct CanonicalPnL: Decodable, Sendable, Equatable {
     public let source_timezone: String?
     public let display_timezone: String?
     public let paper_session_id: String?
+    public let paper_account_epoch: Int?
     public let account_scope: String
     public let paper_equity_usd: Double?
     public let paper_realized_pnl_usd: Double?
@@ -1392,6 +1430,10 @@ public struct PortfolioCanonicalData: Decodable, Sendable {
     public let closed_trade_count: Int?
     public let total_open_notional: Double?
     public let paper_session_id: String?
+    public let paper_account_epoch: Int?
+    public let scope: String?
+    public let historical_rows_excluded_from_current_view: Int?
+    public let historical_evidence_preserved: Bool?
     public let mode: String?
     public let paper_or_live: String?
     public let equity_trusted: Bool?

@@ -119,6 +119,8 @@ public final class ActivityViewModel {
 
     private let stream = WebSocketClient()
     private var refreshTask: Task<Void, Never>?
+    private var lastSessionId: String?
+    private var lastEpoch: Int?
 
     public var ageSeconds: Double? {
         lastSuccessAt.map { Date().timeIntervalSince($0) }
@@ -138,7 +140,11 @@ public final class ActivityViewModel {
         let (positions, windows) = await (positionsCall, windowsCall)
 
         if let positions {
-            applyPositions(positions)
+            guard applyPositions(positions) else {
+                self.error = "Ignored stale paper-account epoch response"
+                isLoading = false
+                return
+            }
             envelopeTransport = "http"
             envelopeStale = false
             envelopeLagMs = nil
@@ -157,7 +163,7 @@ public final class ActivityViewModel {
     private func fetchPositions(token: String?, baseURL: String) async -> MobilePositionsResponse? {
         do {
             return try await APIClient.shared.get(
-                path: APIEndpoints.mobilePositions,
+                path: APIEndpoints.mobilePositionsCurrentSession,
                 token: token,
                 baseURL: baseURL
             )
@@ -170,7 +176,7 @@ public final class ActivityViewModel {
     private func fetchWindows(token: String?, baseURL: String) async -> ActivityPaperWindowsEnvelope? {
         do {
             return try await APIClient.shared.get(
-                path: APIEndpoints.mobilePaperSummary,
+                path: APIEndpoints.mobilePaperSummaryCurrentSession,
                 token: token,
                 baseURL: baseURL
             )
@@ -180,7 +186,16 @@ public final class ActivityViewModel {
         }
     }
 
-    private func applyPositions(_ response: MobilePositionsResponse) {
+    @discardableResult
+    private func applyPositions(_ response: MobilePositionsResponse) -> Bool {
+        guard acceptsCurrentPaperSessionFrame(
+            incomingSessionId: response.paper_session_id,
+            incomingEpoch: response.paper_account_epoch,
+            activeSessionId: lastSessionId,
+            activeEpoch: lastEpoch
+        ) else { return false }
+        lastSessionId = response.paper_session_id
+        lastEpoch = response.paper_account_epoch
         // historical_positions is the deeper slice (up to 200 rows) of the same
         // v2:paper:closed_trades source; closed_positions is its first 50.
         closedTrades = response.historical_positions ?? response.closed_positions ?? []
@@ -188,6 +203,7 @@ public final class ActivityViewModel {
             liveGate = response.live_gate
         }
         error = nil
+        return true
     }
 
     private func applyWindows(_ envelope: ActivityPaperWindowsEnvelope) {
@@ -230,6 +246,7 @@ public final class ActivityViewModel {
         guard let url = APIEndpoints.wsResourceURL(
             baseURL: baseURL,
             path: APIEndpoints.mobilePositions,
+            queryItems: APIEndpoints.currentPaperScopeQueryItems,
             intervalMs: 8_000
         ) else { return }
         streamLabel = "Connecting"
@@ -241,7 +258,10 @@ public final class ActivityViewModel {
     private func applyStream(_ message: String) {
         do {
             let snapshot = try decodeMobileResourceSnapshot(MobilePositionsResponse.self, from: message)
-            applyPositions(snapshot.payload)
+            guard applyPositions(snapshot.payload) else {
+                streamLabel = "Stale epoch ignored"
+                return
+            }
             streamLabel = "Realtime"
             envelopeStale = snapshot.stale
             envelopeLagMs = snapshot.lagMs

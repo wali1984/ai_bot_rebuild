@@ -57,6 +57,7 @@ public final class PaperViewModel {
     private let streamIntervalMs = 1_500
     private var pnlRolling = RollingSeries(capacity: 90)
     private var lastSessionId: String?
+    private var lastEpoch: Int?
 
     public func load(token: String?, baseURL: String) async {
         connect(token: token, baseURL: baseURL)
@@ -94,6 +95,7 @@ public final class PaperViewModel {
         guard let url = APIEndpoints.wsResourceURL(
             baseURL: baseURL,
             path: APIEndpoints.mobilePaperSummary,
+            queryItems: APIEndpoints.currentPaperScopeQueryItems,
             intervalMs: streamIntervalMs
         ) else {
             streamLabel = "Offline"
@@ -110,10 +112,20 @@ public final class PaperViewModel {
         error = nil
         do {
             let payload: PaperSummaryPayload = try await APIClient.shared.get(
-                path: APIEndpoints.mobilePaperSummary,
+                path: APIEndpoints.mobilePaperSummaryCurrentSession,
                 token: token,
                 baseURL: baseURL
             )
+            guard acceptsCurrentPaperSessionFrame(
+                incomingSessionId: payload.summary.paper_session_id,
+                incomingEpoch: payload.summary.paper_account_epoch,
+                activeSessionId: lastSessionId,
+                activeEpoch: lastEpoch
+            ) else {
+                streamWarnings = ["Ignored stale paper-account epoch response"]
+                isLoading = false
+                return
+            }
             summary = payload.summary
             pnlWindows = payload.pnlWindows
             recordPnL(payload.summary)
@@ -133,9 +145,10 @@ public final class PaperViewModel {
     /// Append the observed total PnL to the session path, resetting when the
     /// paper session id rotates so two sessions never share one curve.
     private func recordPnL(_ summary: MobilePaperSummary) {
-        if summary.paper_session_id != lastSessionId {
+        if summary.paper_session_id != lastSessionId || summary.paper_account_epoch != lastEpoch {
             pnlRolling = RollingSeries(capacity: 90)
             lastSessionId = summary.paper_session_id
+            lastEpoch = summary.paper_account_epoch
         }
         pnlRolling.append(summary.pnl.total_usd)
         pnlSeries = pnlRolling.values
@@ -144,6 +157,15 @@ public final class PaperViewModel {
     private func applyStream(_ message: String) {
         do {
             let snapshot = try decodeMobileResourceSnapshot(PaperSummaryPayload.self, from: message)
+            guard acceptsCurrentPaperSessionFrame(
+                incomingSessionId: snapshot.payload.summary.paper_session_id,
+                incomingEpoch: snapshot.payload.summary.paper_account_epoch,
+                activeSessionId: lastSessionId,
+                activeEpoch: lastEpoch
+            ) else {
+                streamWarnings = ["Ignored stale paper-account epoch frame"]
+                return
+            }
             summary = snapshot.payload.summary
             pnlWindows = snapshot.payload.pnlWindows
             recordPnL(snapshot.payload.summary)

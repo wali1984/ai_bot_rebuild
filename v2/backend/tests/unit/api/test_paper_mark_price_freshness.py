@@ -699,6 +699,97 @@ class TestPriceSourceSelection:
         assert payload["closed_trade_count"] == 0
         assert "77.0" not in json.dumps(payload["summary"])
 
+    @pytest.mark.asyncio
+    async def test_mobile_positions_apply_epoch_scope_and_preserve_lineage(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        import app.api.v2.mobile as mobile
+
+        fake = _MobilePaperSummaryFakeRedis({
+            "v2:paper:account_epoch:current": {
+                "schema_version": "PaperAccountEpochV1",
+                "paper_session_id": "paper_epoch_1",
+                "paper_account_epoch": 1,
+                "starting_equity_usd": 3000.0,
+            },
+            "v2:paper:session": {
+                "paper_session_id": "paper_epoch_1",
+                "paper_account_epoch": 1,
+                "starting_equity_usd": 3000.0,
+            },
+            "v2:portfolio:state": {
+                "paper_session_id": "paper_epoch_1",
+                "paper_account_epoch": 1,
+                "starting_equity_usd": 3000.0,
+                "equity": 3000.0,
+                "realized_net_pnl_usd": 0.0,
+                "unrealized_pnl_usd": 0.0,
+                "total_pnl_usd": 0.0,
+            },
+            "v2:paper:positions": [
+                {
+                    "position_id": "current-position",
+                    "paper_session_id": "paper_epoch_1",
+                    "paper_account_epoch": 1,
+                    "symbol": "BTCUSDT",
+                    "side": "LONG",
+                    "quantity": 0.01,
+                    "entry_price": 60000.0,
+                },
+                {
+                    "position_id": "archived-position",
+                    "paper_session_id": "paper_epoch_0",
+                    "paper_account_epoch": 0,
+                    "symbol": "ETHUSDT",
+                    "side": "SHORT",
+                    "quantity": 0.1,
+                    "entry_price": 3000.0,
+                },
+            ],
+            "v2:paper:closed_trades": [
+                {
+                    "close_id": "current-close",
+                    "paper_session_id": "paper_epoch_1",
+                    "paper_account_epoch": 1,
+                    "symbol": "SOLUSDT",
+                    "side": "LONG",
+                    "quantity": 1.0,
+                    "entry_price": 100.0,
+                    "exit_price": 101.0,
+                    "realized_net_pnl_usd": 1.0,
+                },
+                {
+                    "close_id": "archived-close",
+                    "paper_session_id": "paper_epoch_0",
+                    "paper_account_epoch": 0,
+                    "symbol": "XRPUSDT",
+                    "side": "SHORT",
+                    "quantity": 10.0,
+                    "entry_price": 1.0,
+                    "exit_price": 0.9,
+                    "realized_net_pnl_usd": 1.0,
+                },
+            ],
+        })
+        monkeypatch.setattr(mobile, "get_redis", lambda: fake)
+
+        current = await mobile.get_mobile_positions(scope="current_session")
+        archived = await mobile.get_mobile_positions(scope="archived")
+
+        assert current["paper_session_id"] == "paper_epoch_1"
+        assert current["paper_account_epoch"] == 1
+        assert current["scope"] == "current_session"
+        assert current["starting_equity_usd"] == 3000.0
+        assert current["historical_rows_excluded_from_current_view"] == 2
+        assert current["historical_evidence_preserved"] is True
+        assert [row["id"] for row in current["positions"]] == ["current-position"]
+        assert [row["id"] for row in current["closed_positions"]] == ["current-close"]
+        assert current["positions"][0]["paper_session_id"] == "paper_epoch_1"
+        assert current["positions"][0]["paper_account_epoch"] == 1
+        assert [row["id"] for row in archived["positions"]] == ["archived-position"]
+        assert [row["id"] for row in archived["closed_positions"]] == ["archived-close"]
+
 
 # ---------------------------------------------------------------------------
 # _paper_market_price_candidate

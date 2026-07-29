@@ -1,6 +1,7 @@
 import { lazy } from 'react';
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { AdminShell } from './components/layout/AdminShell';
+import { RequireRole } from './components/auth/RequireRole';
 import { PublicShell } from './components/layout/PublicShell';
 import { TraderShell } from './components/layout/TraderShell';
 import { RouteErrorBoundary } from './components/RouteErrorBoundary';
@@ -9,17 +10,24 @@ import { MERGED_LEGACY_PATHS } from './pages/productNavigation';
 
 const PublicLandingPage = lazy(() => import('./pages/public-landing-v2'));
 
+function pageElement(page: (typeof ADMIN_PAGES)[number]): JSX.Element {
+  const element = <page.Component />;
+  return page.rbac.minRole === 'public'
+    ? element
+    : <RequireRole role={page.rbac.minRole}>{element}</RequireRole>;
+}
+
 const adminChildren = ADMIN_PAGES.map((p) => ({
   path: p.route.path,
-  element: <p.Component />,
+  element: pageElement(p),
 }));
 const publicChildren = PUBLIC_PAGES.map((p) => ({
   path: p.route.path,
-  element: <p.Component />,
+  element: pageElement(p),
 }));
 const appChildren = APP_PAGES.map((p) => ({
   path: p.route.path,
-  element: <p.Component />,
+  element: pageElement(p),
 }));
 
 // All legacy → canonical redirects are driven by MERGED_LEGACY_PATHS in productNavigation.ts.

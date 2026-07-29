@@ -275,7 +275,7 @@ public final class SignalsViewModel {
     private func loadDashboardAux(token: String?, baseURL: String) async {
         do {
             let probe: SignalsDashboardProbe = try await APIClient.shared.get(
-                path: APIEndpoints.mobileDashboard,
+                path: APIEndpoints.mobileDashboardCurrentSession,
                 token: token,
                 baseURL: baseURL
             )

@@ -35,18 +35,37 @@ export const TRADER_PAGE_PATHS: ReadonlyArray<string> = ACTIVE_ROUTE_MODULES
   .map((page) => materializeDynamicPath(page.route.path));
 
 export const ADMIN_PAGE_PATHS: ReadonlyArray<string> = ACTIVE_ROUTE_MODULES
-  .filter((page) => page.meta.surface === 'admin' || page.meta.surface === 'system')
+  .filter(
+    (page) =>
+      (page.meta.surface === 'admin' || page.meta.surface === 'system')
+      && page.rbac.minRole !== 'live_approver',
+  )
   .map((page) => materializeDynamicPath(page.route.path));
 
-// No active page requires the legacy superadmin/live_approver role. The
-// operator-evidence page is intentionally reachable by an existing admin.
-export const SUPERADMIN_PAGE_PATHS: ReadonlyArray<string> = [];
+export const SUPERADMIN_PAGE_PATHS: ReadonlyArray<string> = ACTIVE_ROUTE_MODULES
+  .filter(
+    (page) =>
+      (page.meta.surface === 'admin' || page.meta.surface === 'system')
+      && page.rbac.minRole === 'live_approver',
+  )
+  .map((page) => materializeDynamicPath(page.route.path));
 
 export const ALL_PAGE_PATHS: ReadonlyArray<string> = [
   ...PUBLIC_PAGE_PATHS,
   ...TRADER_PAGE_PATHS,
   ...ADMIN_PAGE_PATHS,
+  ...SUPERADMIN_PAGE_PATHS,
 ];
+
+export const PAGE_MIN_ROLE_BY_PATH: Readonly<Record<string, string>> = Object.freeze({
+  '/': 'public',
+  ...Object.fromEntries(
+    ACTIVE_ROUTE_MODULES.map((page) => [
+      materializeDynamicPath(page.route.path),
+      page.rbac.minRole,
+    ]),
+  ),
+});
 
 export const REVIEWER_ONLY_ADMIN_PATHS: ReadonlyArray<string> = ACTIVE_ROUTE_MODULES
   .filter((page) => page.rbac.minRole === 'reviewer')

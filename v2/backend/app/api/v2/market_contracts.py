@@ -923,11 +923,15 @@ async def _readonly_resource_direct_payload(
         )
     if path.startswith("/api/v2/mobile/"):
         from app.api.v2 import mobile as mobile_api  # noqa: PLC0415
+        mobile_scope = (
+            _first_query_value(query, "scope", paper_epoch.DEFAULT_SCOPE)
+            or paper_epoch.DEFAULT_SCOPE
+        )
 
         if path == "/api/v2/mobile/dashboard":
-            return True, await mobile_api.get_mobile_dashboard(actor=None)
+            return True, await mobile_api.get_mobile_dashboard(actor=None, scope=mobile_scope)
         if path == "/api/v2/mobile/positions":
-            return True, await mobile_api.get_mobile_positions(actor=None)
+            return True, await mobile_api.get_mobile_positions(actor=None, scope=mobile_scope)
         if path == "/api/v2/mobile/signals":
             return True, await mobile_api.get_mobile_signals(
                 limit=int(_first_query_value(query, "limit", "50") or "50"),
@@ -944,7 +948,7 @@ async def _readonly_resource_direct_payload(
         if path == "/api/v2/mobile/risk-status":
             return True, await mobile_api.get_mobile_risk_status(actor=None)
         if path == "/api/v2/mobile/paper-summary":
-            return True, await mobile_api.get_mobile_paper_summary(actor=None)
+            return True, await mobile_api.get_mobile_paper_summary(actor=None, scope=mobile_scope)
 
     explain_symbol = _first_query_value(query, "symbol")
     explain_timeframe = _first_query_value(query, "timeframe", "1h")

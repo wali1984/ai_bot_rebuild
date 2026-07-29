@@ -260,7 +260,7 @@ export function TradeExecutionReadinessPanel({ state }: { state: TradeTerminalSt
         <div style={{ marginTop: 10, padding: '9px 10px', borderRadius: 8, background: 'var(--bg-base)', border: '1px solid var(--line-soft)', color: 'var(--text-primary)', fontSize: 12, lineHeight: 1.35 }}>
           <strong style={{ display: 'block', fontFamily: 'var(--font-mono)', marginBottom: 4 }}>{whyNoTrade}</strong>
           <span style={{ color: 'var(--text-muted)' }}>
-            Execution remains read-only unless backend live-canary, final A+ inventory, risk, and operator approval contracts all agree. This panel cannot submit or approve live orders.
+            Execution remains read-only unless backend live-canary, final A+ inventory, risk, and human approval contracts all agree. This panel cannot submit or approve live orders.
           </span>
           {liveCanary.error || aPlus.error ? (
             <span style={{ display: 'block', marginTop: 6, color: 'var(--gold, #f59e0b)', fontFamily: 'var(--font-mono)' }}>

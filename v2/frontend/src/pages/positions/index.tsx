@@ -29,7 +29,7 @@ export { default as rbac } from './rbac';
 export { default as route } from './route';
 export { sourceText };
 
-type PositionTab = 'open' | 'closed' | 'historical';
+type PositionTab = 'open' | 'closed';
 const PORTFOLIO_ENDPOINT = '/api/v2/portfolio?scope=current_session';
 
 export interface RuntimePositionEvidence {
@@ -407,14 +407,14 @@ export default function PortfolioPage(): JSX.Element {
         <SectionLabel hint={`${openPositions.length} open · ${runtimeData?.summary?.closed_trade_count ?? closedPositions.length} closed`}>Positions</SectionLabel>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', background: 'var(--bg-panel)' }}>
-            {positionTabs.map((tab) => (
+            {positionTabs.map((tab, index) => (
               <button
                 key={tab.key}
                 type="button"
                 onClick={() => setPositionTab(tab.key)}
                 style={{
                   border: 'none',
-                  borderRight: tab.key === 'historical' ? 'none' : '1px solid var(--border)',
+                  borderRight: index === positionTabs.length - 1 ? 'none' : '1px solid var(--border)',
                   background: positionTab === tab.key ? 'color-mix(in oklch, var(--accent) 16%, transparent)' : 'transparent',
                   color: positionTab === tab.key ? 'var(--text-primary)' : 'var(--text-muted)',
                   fontSize: 12,

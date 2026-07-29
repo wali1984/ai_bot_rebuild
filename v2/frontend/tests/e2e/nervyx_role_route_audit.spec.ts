@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { test, type Page, type Request, type WebSocket } from '@playwright/test';
+import { expect, test, type Page, type Request, type WebSocket } from '@playwright/test';
 import {
   ALL_PAGE_PATHS,
   LEGACY_REDIRECTS,
@@ -8,6 +8,7 @@ import {
   TRADER_PAGE_PATHS,
   ADMIN_PAGE_PATHS,
   SUPERADMIN_PAGE_PATHS,
+  PAGE_MIN_ROLE_BY_PATH,
 } from './helpers/routeContracts';
 
 type AuditRole = 'guest' | 'viewer' | 'trader' | 'admin' | 'superadmin';
@@ -18,6 +19,7 @@ interface AuditRoute {
   kind: AuditRouteKind;
   expectedFinalRoute?: string;
   canonicalGroup: 'public' | 'trader' | 'admin' | 'superadmin' | 'legacy-target';
+  requiredMinRole: string;
 }
 
 type RequestIssue = { url: string; method: string; status?: number; failure?: string };
@@ -37,6 +39,7 @@ interface AuditRow {
   route_kind: AuditRouteKind;
   expected_final_route?: string;
   canonical_group: string;
+  required_min_role: string;
   role: AuditRole;
   auth_fixture_kind: string;
   auth_backend_login_proven: boolean;
@@ -162,12 +165,14 @@ function auditRoutes(): AuditRoute[] {
     path: route,
     kind: 'canonical' as const,
     canonicalGroup: canonicalGroupFor(route),
+    requiredMinRole: PAGE_MIN_ROLE_BY_PATH[route] ?? 'public',
   }));
   const legacy = Object.entries(LEGACY_REDIRECTS).map(([from, to]) => ({
     path: from,
     kind: 'legacy-redirect' as const,
     expectedFinalRoute: to,
     canonicalGroup: 'legacy-target' as const,
+    requiredMinRole: PAGE_MIN_ROLE_BY_PATH[to] ?? 'public',
   }));
   const targets = Array.from(new Set(Object.values(LEGACY_REDIRECTS)))
     .filter((route) => !ALL_PAGE_PATHS.includes(route as never))
@@ -175,6 +180,7 @@ function auditRoutes(): AuditRoute[] {
       path: route,
       kind: 'canonical' as const,
       canonicalGroup: 'legacy-target' as const,
+      requiredMinRole: PAGE_MIN_ROLE_BY_PATH[route] ?? 'public',
     }));
   return [...canonical, ...targets, ...legacy].sort((a, b) => `${a.kind}:${a.path}`.localeCompare(`${b.kind}:${b.path}`));
 }
@@ -420,11 +426,20 @@ async function clippedTextSamples(page: Page): Promise<ClippedTextSample[]> {
   }).catch(() => []);
 }
 
+const ROLE_LEVEL: Record<string, number> = {
+  public: 0,
+  guest: 0,
+  viewer: 1,
+  trader: 2,
+  operator: 3,
+  reviewer: 4,
+  admin: 5,
+  live_approver: 6,
+  superadmin: 6,
+};
+
 async function unauthorizedLeakage(page: Page, role: AuditRole, route: AuditRoute, state: AuditRow['rendered_restricted_redirect']): Promise<boolean> {
-  if (role === 'admin' || role === 'superadmin') return false;
-  if (route.canonicalGroup !== 'admin' && route.canonicalGroup !== 'superadmin' && !route.path.startsWith('/admin') && !route.path.startsWith('/system')) {
-    return false;
-  }
+  if ((ROLE_LEVEL[role] ?? -1) >= (ROLE_LEVEL[route.requiredMinRole] ?? Number.MAX_SAFE_INTEGER)) return false;
   const adminMain = await page.getByTestId('admin-main').count().catch(() => 0);
   const adminNav = await page.getByTestId('admin-nav').count().catch(() => 0);
   return state === 'rendered' || adminMain > 0 || adminNav > 0;
@@ -498,6 +513,7 @@ test.describe('NERVYX role-route audit evidence', () => {
           route_kind: route.kind,
           expected_final_route: route.expectedFinalRoute,
           canonical_group: route.canonicalGroup,
+          required_min_role: route.requiredMinRole,
           role,
           auth_fixture_kind: AUTH_FIXTURE_KIND,
           auth_backend_login_proven: Boolean(authProofs[role]?.login_proven),
@@ -597,5 +613,8 @@ test.describe('NERVYX role-route audit evidence', () => {
       routes: rows,
     };
     writeFileSync(path.join(ARTIFACT_ROOT, ARTIFACT_FILE), `${JSON.stringify(artifact, null, 2)}\n`, 'utf8');
+    expect(summary.loading_or_error).toBe(0);
+    expect(summary.rows_with_horizontal_overflow).toBe(0);
+    expect(summary.rows_with_unauthorized_content_leakage).toBe(0);
   });
 });

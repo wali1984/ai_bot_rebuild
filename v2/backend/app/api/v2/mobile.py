@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel
 
 from app.api.v2._common import get_redis
@@ -26,6 +26,7 @@ from app.auth.users import UserRecord
 from app.services.coinglass_provider import build_coinglass_health
 from app.services.hedge_engine import compute_portfolio_exposure, simulate_cross_margin_stress
 from app.services.portfolio import build_canonical_pnl
+from app.services.paper_session import epoch as paper_epoch
 from app.services.provider_features import build_provider_actual_data_panel
 from app.services.smart_money_wallets import build_moralis_health
 
@@ -1409,13 +1410,57 @@ def _paper_closed_trades_from_redis(r: Any) -> list[dict[str, Any]]:
     return []
 
 
-def _mobile_paper_charts(r: Any, max_points: int = 60) -> dict[str, Any]:
+def _mobile_scope_rows(
+    r: Any | None,
+    rows: list[dict[str, Any]],
+    scope: str,
+) -> list[dict[str, Any]]:
+    """Apply the same PaperAccountEpochV1 row boundary used by the website."""
+    if r is None:
+        return []
+    normalized_scope = paper_epoch.normalize_scope(scope)
+    session = paper_epoch.current_session(r)
+    if (
+        session.get("paper_account_epoch") is None
+        and normalized_scope == paper_epoch.DEFAULT_SCOPE
+    ):
+        return list(rows)
+    return paper_epoch.scope_rows(
+        rows,
+        session.get("paper_session_id"),
+        normalized_scope,
+    )
+
+
+def _mobile_scope_metadata(
+    r: Any | None,
+    scope: str,
+    *,
+    total_rows: int,
+    shown_rows: int,
+) -> dict[str, Any]:
+    normalized_scope = paper_epoch.normalize_scope(scope)
+    session = paper_epoch.current_session(r) if r is not None else {}
+    return paper_epoch.scope_response_fields(
+        session,
+        normalized_scope,
+        total_rows,
+        shown_rows,
+    )
+
+
+def _mobile_paper_charts(
+    r: Any,
+    max_points: int = 60,
+    *,
+    rows: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     """Compact cumulative-equity curve + win/loss for the mobile dashboard charts.
 
     Reads the same v2:paper:closed_trades ledger the web uses so the iOS app can
     draw a real equity trend + win/loss donut instead of scalar tiles only.
     """
-    rows = _paper_closed_trades_from_redis(r)
+    rows = _paper_closed_trades_from_redis(r) if rows is None else rows
     if not rows:
         return {"equity_curve": [], "win_rate": None, "win_count": 0, "loss_count": 0}
     ordered = sorted(rows, key=lambda x: str(x.get("exit_price_utc") or x.get("closed_at") or ""))
@@ -1791,8 +1836,15 @@ def _paper_account_session_fields(
     if paper_session_id is None:
         ledger_payload = _ledger()
         paper_session_id = ledger_payload.get("paper_session_id") or ledger_payload.get("session_id")
+    paper_account_epoch = _first_int_or_none(
+        session.get("paper_account_epoch"),
+        portfolio.get("paper_account_epoch"),
+        hb.get("paper_account_epoch"),
+        _ledger().get("paper_account_epoch"),
+    )
     return {
         "paper_session_id": paper_session_id,
+        "paper_account_epoch": paper_account_epoch,
         "equity": equity,
         "paper_equity": equity,
         "paper_equity_usd": canonical.get("paper_equity_usd", equity),
@@ -1915,6 +1967,8 @@ def _compact_position(pos: dict[str, Any]) -> dict[str, Any]:
     )
     return {
         "id": str(pos.get("position_id") or pos.get("id") or ""),
+        "paper_session_id": pos.get("paper_session_id") or pos.get("session_id"),
+        "paper_account_epoch": pos.get("paper_account_epoch"),
         "symbol": str(pos.get("symbol") or ""),
         "side": str(pos.get("side") or ""),
         "qty": _position_quantity(pos),
@@ -2105,6 +2159,7 @@ def _compact_alert(alert: dict[str, Any]) -> dict[str, Any]:
 @router.get("/dashboard")
 async def get_mobile_dashboard(
     actor: UserRecord | None = Depends(optional_auth),
+    scope: str = Query(default=paper_epoch.DEFAULT_SCOPE),
 ) -> dict[str, Any]:
     """Compact system overview for mobile home screen."""
     try:
@@ -2120,6 +2175,14 @@ async def get_mobile_dashboard(
         r,
         hb,
         source_type="paper_mobile_dashboard",
+    )
+    closed_rows_all = _paper_closed_trades_from_redis(r) if r else []
+    closed_rows = _mobile_scope_rows(r, closed_rows_all, scope)
+    scope_metadata = _mobile_scope_metadata(
+        r,
+        scope,
+        total_rows=len(closed_rows_all),
+        shown_rows=len(closed_rows),
     )
 
     open_count = _safe_int(
@@ -2158,14 +2221,16 @@ async def get_mobile_dashboard(
         "staleness_seconds": account_fields.get("staleness_seconds"),
         "freshness_status": account_fields.get("freshness_status"),
         "canonical_owner": "/api/v2/mobile/dashboard",
+        **scope_metadata,
         "routes_to_live": False,
         "places_real_order": False,
         "data_quality_status": "partial" if account_fields.get("freshness_status") in {"stale", "unavailable"} else "fresh",
         "live_gate": live_gate,
         "paper": {
             **account_fields,
+            **scope_metadata,
             **_mobile_a_plus_runtime_summary(r),
-            **_mobile_paper_charts(r),
+            **_mobile_paper_charts(r, rows=closed_rows),
             "open_positions": open_count,
             "closed_trades": closed_count,
             "realized_pnl_usd": realized_pnl,
@@ -2178,7 +2243,7 @@ async def get_mobile_dashboard(
             # Additive parity block: website Signals-page prediction accuracy
             # (winner_rate from v2:paper:closed_trades, ~1KB).
             "signal_prediction_accuracy": _mobile_signal_prediction_accuracy(
-                _paper_closed_trades_from_redis(r) if r else []
+                closed_rows
             ),
         },
         "trainer": {
@@ -2231,6 +2296,7 @@ async def get_mobile_dashboard(
 @router.get("/positions")
 async def get_mobile_positions(
     actor: UserRecord | None = Depends(optional_auth),
+    scope: str = Query(default=paper_epoch.DEFAULT_SCOPE),
 ) -> dict[str, Any]:
     """Compact paper positions list for mobile positions tab."""
     try:
@@ -2238,8 +2304,16 @@ async def get_mobile_positions(
     except Exception:
         r = None
 
-    raw_positions = _paper_positions_from_redis(r) if r else []
-    raw_closed_trades = _paper_closed_trades_from_redis(r) if r else []
+    all_positions = _paper_positions_from_redis(r) if r else []
+    all_closed_trades = _paper_closed_trades_from_redis(r) if r else []
+    raw_positions = _mobile_scope_rows(r, all_positions, scope)
+    raw_closed_trades = _mobile_scope_rows(r, all_closed_trades, scope)
+    scope_metadata = _mobile_scope_metadata(
+        r,
+        scope,
+        total_rows=len(all_positions) + len(all_closed_trades),
+        shown_rows=len(raw_positions) + len(raw_closed_trades),
+    )
     hb = _paper_heartbeat(r) if r else {}
 
     position_pricing: dict[str, Any] | None = None
@@ -2296,7 +2370,7 @@ async def get_mobile_positions(
         "warnings": position_warnings,
         "summary": {
             "open_count": len(positions),
-            "closed_count": _safe_int(hb.get("closed_trade_count") or len(closed_positions)),
+            "closed_count": len(closed_positions),
             "total_pnl_usd": total_pnl,
             "realized_pnl_usd": realized_pnl,
             "realized_net_pnl_usd": realized_pnl,
@@ -2310,6 +2384,7 @@ async def get_mobile_positions(
         "mode": "paper",
         "live_gate": "blocked_human_only",
         "places_real_order": False,
+        **scope_metadata,
         **account_fields,
         **truth_fields,
     }
@@ -2501,6 +2576,7 @@ async def get_mobile_risk_status(
 @router.get("/paper-summary")
 async def get_mobile_paper_summary(
     actor: UserRecord | None = Depends(optional_auth),
+    scope: str = Query(default=paper_epoch.DEFAULT_SCOPE),
 ) -> dict[str, Any]:
     """Paper trading summary for mobile paper trading tab."""
     try:
@@ -2509,7 +2585,16 @@ async def get_mobile_paper_summary(
         r = None
 
     hb = _paper_heartbeat(r) if r else {}
-    positions = _paper_positions_from_redis(r) if r else []
+    all_positions = _paper_positions_from_redis(r) if r else []
+    all_closed_trades = _paper_closed_trades_from_redis(r) if r else []
+    positions = _mobile_scope_rows(r, all_positions, scope)
+    closed_trades = _mobile_scope_rows(r, all_closed_trades, scope)
+    scope_metadata = _mobile_scope_metadata(
+        r,
+        scope,
+        total_rows=len(all_positions) + len(all_closed_trades),
+        shown_rows=len(positions) + len(closed_trades),
+    )
     positions_enriched, position_pricing = _mobile_enriched_open_positions(r, positions)
 
     signals_seen = _safe_int(hb.get("paper_signals_seen"))
@@ -2535,16 +2620,8 @@ async def get_mobile_paper_summary(
         hb,
         source_type="paper_mobile_summary",
     )
-    open_count = _safe_int(
-        account_fields.get("open_position_count")
-        if account_fields.get("open_position_count") is not None
-        else hb.get("open_position_count") or hb.get("accepted_position_count") or len(positions_enriched)
-    )
-    closed_count = _safe_int(
-        account_fields.get("closed_trade_count")
-        if account_fields.get("closed_trade_count") is not None
-        else hb.get("closed_trade_count")
-    )
+    open_count = len(positions_enriched)
+    closed_count = len(closed_trades)
     realized_pnl = _safe_float(account_fields.get("realized_pnl_usd"))
     if not positions_enriched:
         unrealized_pnl = _safe_float(account_fields.get("unrealized_pnl_usd"))
@@ -2560,6 +2637,7 @@ async def get_mobile_paper_summary(
         "mode": "paper",
         "places_real_order": False,
         "live_gate": "blocked_human_only",
+        **scope_metadata,
         **truth_fields,
         **account_fields,
         "loop": {
@@ -2618,7 +2696,7 @@ async def get_mobile_paper_summary(
         # Additive parity block: website History-page 1d/7d/30d PnL windows
         # (NET realized PnL + winner-flag win rate from v2:paper:closed_trades).
         "pnl_windows": _mobile_pnl_windows(
-            _paper_closed_trades_from_redis(r) if r else []
+            closed_trades
         ),
         **_mobile_a_plus_runtime_truth(r),
     }

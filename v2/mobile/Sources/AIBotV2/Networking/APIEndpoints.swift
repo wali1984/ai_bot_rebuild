@@ -83,6 +83,13 @@ public enum APIEndpoints {
     public static let goalTrajectory1000x = "/api/v2/goal/trajectory-1000x"
     /// Canonical paper portfolio PnL (realized/unrealized/total/equity).
     public static let portfolio = "/api/v2/portfolio"
+    public static let mobileDashboardCurrentSession = "\(mobileDashboard)?scope=current_session"
+    public static let mobilePositionsCurrentSession = "\(mobilePositions)?scope=current_session"
+    public static let mobilePaperSummaryCurrentSession = "\(mobilePaperSummary)?scope=current_session"
+    public static let portfolioCurrentSession = "\(portfolio)?scope=current_session"
+    public static let currentPaperScopeQueryItems = [
+        URLQueryItem(name: "scope", value: "current_session")
+    ]
     /// Per-surface data-feed health with lag (System Health page source).
     public static let dataHealth = "/api/v2/data-health"
     /// Backend service health (small).

@@ -12,6 +12,61 @@ final class AIBotV2CoreTests: XCTestCase {
         XCTAssertEqual(APIEndpoints.liveCanaryStatus, "/api/v2/live-canary/status")
         XCTAssertEqual(APIEndpoints.aPlusInventory, "/api/v2/a-plus/inventory")
         XCTAssertEqual(APIEndpoints.currentSignal, "/api/v2/signals/current")
+        XCTAssertEqual(APIEndpoints.mobileDashboardCurrentSession, "/api/v2/mobile/dashboard?scope=current_session")
+        XCTAssertEqual(APIEndpoints.mobilePositionsCurrentSession, "/api/v2/mobile/positions?scope=current_session")
+        XCTAssertEqual(APIEndpoints.mobilePaperSummaryCurrentSession, "/api/v2/mobile/paper-summary?scope=current_session")
+        XCTAssertEqual(APIEndpoints.portfolioCurrentSession, "/api/v2/portfolio?scope=current_session")
+    }
+
+    func testPaperEpochFramesRejectStaleOrConflictingSessions() throws {
+        XCTAssertTrue(acceptsCurrentPaperSessionFrame(
+            incomingSessionId: "paper_epoch_1",
+            incomingEpoch: 1,
+            activeSessionId: nil,
+            activeEpoch: nil
+        ))
+        XCTAssertFalse(acceptsCurrentPaperSessionFrame(
+            incomingSessionId: "paper_epoch_0",
+            incomingEpoch: 0,
+            activeSessionId: "paper_epoch_1",
+            activeEpoch: 1
+        ))
+        XCTAssertFalse(acceptsCurrentPaperSessionFrame(
+            incomingSessionId: "conflicting_session",
+            incomingEpoch: 1,
+            activeSessionId: "paper_epoch_1",
+            activeEpoch: 1
+        ))
+        XCTAssertTrue(acceptsCurrentPaperSessionFrame(
+            incomingSessionId: "paper_epoch_2",
+            incomingEpoch: 2,
+            activeSessionId: "paper_epoch_1",
+            activeEpoch: 1
+        ))
+
+        let json = Data("""
+        {
+          "generated_utc":"2026-07-28T20:00:00Z",
+          "paper_session_id":"paper_epoch_1",
+          "paper_account_epoch":1,
+          "scope":"current_session",
+          "starting_equity_usd":3000.0,
+          "historical_rows_excluded_from_current_view":92,
+          "historical_evidence_preserved":true,
+          "positions":[],
+          "summary":{"open_count":0,"closed_count":0,"total_pnl_usd":0.0,"realized_pnl_usd":0.0,"unrealized_pnl_usd":0.0},
+          "mode":"paper",
+          "live_gate":"blocked_human_only",
+          "places_real_order":false
+        }
+        """.utf8)
+        let response = try JSONDecoder().decode(MobilePositionsResponse.self, from: json)
+        XCTAssertEqual(response.paper_session_id, "paper_epoch_1")
+        XCTAssertEqual(response.paper_account_epoch, 1)
+        XCTAssertEqual(response.scope, "current_session")
+        XCTAssertEqual(response.starting_equity_usd, 3000.0)
+        XCTAssertEqual(response.historical_rows_excluded_from_current_view, 92)
+        XCTAssertEqual(response.historical_evidence_preserved, true)
     }
 
     func testAPIErrorMessages() {
@@ -328,7 +383,8 @@ final class AIBotV2CoreTests: XCTestCase {
     }
 
     func testMobilePositionIsBuy() {
-        let pos = MobilePosition(id: "1", symbol: "BTC", side: "LONG",
+        let pos = MobilePosition(id: "1", paper_session_id: nil, paper_account_epoch: nil,
+                                  symbol: "BTC", side: "LONG",
                                   qty: 0.1, entry_price: 60000,
                                   entry_price_source: "avg_entry_price",
                                   exit_price: nil, exit_price_source: nil,

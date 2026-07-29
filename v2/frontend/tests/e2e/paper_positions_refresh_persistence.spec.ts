@@ -140,12 +140,12 @@ test.describe('position pricing presentation contract', () => {
     expect(tradeTerminal).toContain('function positiveFinite(value: unknown): number | null');
   });
 
-  test('web open closed and historical positions expose AI decision basis', () => {
+  test('web open and closed positions expose AI decision basis without a duplicate historical tab', () => {
     const paperTrading = readFileSync(new URL('../../src/pages/paper-trading/index.tsx', import.meta.url), 'utf8');
     const portfolioPositions = readFileSync(new URL('../../src/pages/positions/index.tsx', import.meta.url), 'utf8');
 
-    expect(portfolioPositions).toContain("type PositionTab = 'open' | 'closed' | 'historical'");
-    expect(portfolioPositions).toContain("const historicalPositions = closedPositions");
+    expect(portfolioPositions).toContain("type PositionTab = 'open' | 'closed'");
+    expect(portfolioPositions).not.toContain("key: 'historical'");
     expect(portfolioPositions).toContain('<PositionEvidenceCard');
     expect(portfolioPositions).toContain('<h3 style={{ margin: 0, fontSize: 12');
     expect(portfolioPositions).toContain('AI Reasoning');

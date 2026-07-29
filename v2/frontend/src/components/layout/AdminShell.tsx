@@ -209,11 +209,10 @@ function AdminLeftNav({
 }): JSX.Element {
   const primary = SYSTEM_NAV_ORDER.filter((id) => !SYSTEM_NAV_SECONDARY.has(id));
   const secondary = SYSTEM_NAV_ORDER.filter((id) => SYSTEM_NAV_SECONDARY.has(id));
-  // 'admin' (not 'live_approver'): the restricted pages (audit/tools) are now
-  // rbac-gated at 'admin' because no superadmin account exists in the auth
-  // store — the nav must match the page gate or reachable pages become
-  // URL-only dead links (final field audit).
-  const canReachRestrictedNav = canSee(role, 'admin');
+  // Audit, logs, and developer tools expose governance evidence and remain
+  // restricted to the explicit live-approver/superadmin role. The navigation
+  // must match the route gate so an admin cannot discover a URL it may not use.
+  const canReachRestrictedNav = canSee(role, 'live_approver');
 
   const renderItem = (navId: string) => {
     if (SYSTEM_NAV_SUPERADMIN_ONLY.has(navId) && !canReachRestrictedNav) return null;

@@ -56,6 +56,8 @@ public final class PositionsViewModel {
     private let stream = WebSocketClient()
     private var fallbackTask: Task<Void, Never>?
     private let streamIntervalMs = 1_500
+    private var lastSessionId: String?
+    private var lastEpoch: Int?
 
     public var positions: [MobilePosition] { response?.positions ?? [] }
     public var closedPositions: [MobilePosition] { response?.closed_positions ?? [] }
@@ -171,6 +173,7 @@ public final class PositionsViewModel {
         guard let url = APIEndpoints.wsResourceURL(
             baseURL: baseURL,
             path: APIEndpoints.mobilePositions,
+            queryItems: APIEndpoints.currentPaperScopeQueryItems,
             intervalMs: streamIntervalMs
         ) else {
             streamLabel = "Offline"
@@ -186,11 +189,16 @@ public final class PositionsViewModel {
         isLoading = true
         error = nil
         do {
-            response = try await APIClient.shared.get(
-                path: APIEndpoints.mobilePositions,
+            let incoming: MobilePositionsResponse = try await APIClient.shared.get(
+                path: APIEndpoints.mobilePositionsCurrentSession,
                 token: token,
                 baseURL: baseURL
             )
+            guard applyCurrentSessionResponse(incoming) else {
+                streamWarnings = ["Ignored stale paper-account epoch response"]
+                isLoading = false
+                return
+            }
             sourceType = "api"
             transport = "http"
             lastUpdatedAt = response?.generated_utc
@@ -208,7 +216,7 @@ public final class PositionsViewModel {
     private func loadOverlays(token: String?, baseURL: String) async {
         do {
             let canonical: PortfolioCanonicalResponse = try await APIClient.shared.get(
-                path: APIEndpoints.portfolio,
+                path: APIEndpoints.portfolioCurrentSession,
                 token: token,
                 baseURL: baseURL
             )
@@ -219,7 +227,7 @@ public final class PositionsViewModel {
         }
         do {
             let overlay: PortfolioPerformanceOverlay = try await APIClient.shared.get(
-                path: APIEndpoints.mobileDashboard,
+                path: APIEndpoints.mobileDashboardCurrentSession,
                 token: token,
                 baseURL: baseURL
             )
@@ -233,7 +241,10 @@ public final class PositionsViewModel {
     private func applyStream(_ message: String) {
         do {
             let snapshot = try decodeMobileResourceSnapshot(MobilePositionsResponse.self, from: message)
-            response = snapshot.payload
+            guard applyCurrentSessionResponse(snapshot.payload) else {
+                streamWarnings = ["Ignored stale paper-account epoch frame"]
+                return
+            }
             streamLabel = "Realtime"
             sourceType = snapshot.sourceType ?? snapshot.transport ?? "websocket"
             transport = snapshot.transport ?? "websocket"
@@ -250,5 +261,19 @@ public final class PositionsViewModel {
             self.error = error.localizedDescription
             isLoading = false
         }
+    }
+
+    @discardableResult
+    private func applyCurrentSessionResponse(_ incoming: MobilePositionsResponse) -> Bool {
+        guard acceptsCurrentPaperSessionFrame(
+            incomingSessionId: incoming.paper_session_id,
+            incomingEpoch: incoming.paper_account_epoch,
+            activeSessionId: lastSessionId,
+            activeEpoch: lastEpoch
+        ) else { return false }
+        response = incoming
+        lastSessionId = incoming.paper_session_id
+        lastEpoch = incoming.paper_account_epoch
+        return true
     }
 }

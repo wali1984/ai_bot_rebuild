@@ -5,6 +5,7 @@ import { registerServiceWorker } from './pwa/registerServiceWorker';
 import { isStaleChunkError, reloadForStaleChunkOnce } from './utils/staleChunk';
 import './brand/generated/nervyx-tokens.css';
 import './styles.css';
+import './components/charts/proChartInternals.css';
 import './styles/tokens.css';
 import './styles/layout.css';
 import './styles/components.css';

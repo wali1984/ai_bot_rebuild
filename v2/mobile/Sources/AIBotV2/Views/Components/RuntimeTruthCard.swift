@@ -595,7 +595,7 @@ struct RuntimeTruthLiveCard: View {
     private func load() async {
         do {
             summary = try await APIClient.shared.get(
-                path: APIEndpoints.mobilePaperSummary,
+                path: APIEndpoints.mobilePaperSummaryCurrentSession,
                 token: auth.currentToken(),
                 baseURL: appState.baseURL
             )

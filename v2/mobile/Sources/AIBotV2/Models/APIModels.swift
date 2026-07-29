@@ -1,5 +1,26 @@
 import Foundation
 
+public func acceptsCurrentPaperSessionFrame(
+    incomingSessionId: String?,
+    incomingEpoch: Int?,
+    activeSessionId: String?,
+    activeEpoch: Int?
+) -> Bool {
+    guard activeSessionId != nil || activeEpoch != nil else { return true }
+    if activeSessionId != nil && incomingSessionId == nil { return false }
+    if let activeEpoch {
+        guard let incomingEpoch else { return false }
+        if incomingEpoch < activeEpoch { return false }
+        if incomingEpoch == activeEpoch,
+           let activeSessionId,
+           let incomingSessionId,
+           incomingSessionId != activeSessionId {
+            return false
+        }
+    }
+    return true
+}
+
 public func nervyxPublicRuntimeText(_ value: String) -> String {
     let cleaned = value
         .replacingOccurrences(of: "blocked_human_only", with: "operator gated", options: .caseInsensitive)
@@ -47,6 +68,10 @@ public struct EquityPoint: Decodable, Equatable {
 
 public struct PaperState: Decodable, Equatable {
     public let paper_session_id: String?
+    public let paper_account_epoch: Int?
+    public let scope: String?
+    public let historical_rows_excluded_from_current_view: Int?
+    public let historical_evidence_preserved: Bool?
     public let equity: Double?
     public let paper_equity: Double?
     public let paper_equity_usd: Double?
@@ -443,6 +468,8 @@ public struct GPUState: Decodable, Equatable {
 
 public struct MobilePosition: Decodable, Identifiable, Equatable {
     public let id: String
+    public let paper_session_id: String?
+    public let paper_account_epoch: Int?
     public let symbol: String
     public let side: String
     public let qty: Double
@@ -504,6 +531,12 @@ public struct PositionDecisionReasoning: Decodable, Equatable {
 
 public struct MobilePositionsResponse: Decodable {
     public let generated_utc: String
+    public let paper_session_id: String?
+    public let paper_account_epoch: Int?
+    public let scope: String?
+    public let starting_equity_usd: Double?
+    public let historical_rows_excluded_from_current_view: Int?
+    public let historical_evidence_preserved: Bool?
     public let positions: [MobilePosition]
     public let closed_positions: [MobilePosition]?
     public let historical_positions: [MobilePosition]?
@@ -1306,6 +1339,10 @@ public struct MobilePaperSummary: Decodable, Equatable {
     public let places_real_order: Bool
     public let live_gate: String
     public let paper_session_id: String?
+    public let paper_account_epoch: Int?
+    public let scope: String?
+    public let historical_rows_excluded_from_current_view: Int?
+    public let historical_evidence_preserved: Bool?
     public let equity: Double?
     public let paper_equity: Double?
     public let paper_balance: Double?
@@ -2017,6 +2054,10 @@ public struct PortfolioCanonicalData: Decodable, Equatable {
     public let closed_trade_count: Int?
     public let total_open_notional: Double?
     public let paper_session_id: String?
+    public let paper_account_epoch: Int?
+    public let scope: String?
+    public let historical_rows_excluded_from_current_view: Int?
+    public let historical_evidence_preserved: Bool?
     public let mode: String?
     public let paper_or_live: String?
     public let equity_trusted: Bool?
