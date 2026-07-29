@@ -46,6 +46,7 @@ from v2.backend.app.domain.adaptive_policy_action_v2 import (
     ACTION_REDUCE_EXISTING_EXPOSURE,
     ACTION_REMAIN_FLAT,
     LIVE_GATE_BLOCKED_HUMAN_ONLY,
+    POLICY_MODE_BOOTSTRAP_INFORMATION_ACQUISITION,
     POLICY_MODE_BOUNDED_EXPLORATION,
     POLICY_MODE_CHAMPION_EXPLOITATION,
     UNIT_CONTRACT_USD_BPS_SECONDS_PROBABILITY,
@@ -1629,6 +1630,7 @@ def _policy_action(
     source_receipts: tuple[str, ...],
     generated_at_ms: int,
     performance_risk_multiplier: float = 1.0,
+    policy_mode_override: str | None = None,
 ) -> AdaptivePolicyActionV2:
     flat = selected.selected_action == ACTION_REMAIN_FLAT
     horizon = _HORIZONS[_identifier(intent.get("timeframe"), "timeframe")]
@@ -1788,7 +1790,9 @@ def _policy_action(
         policy_id=POLICY_ID,
         policy_generation=POLICY_GENERATION,
         policy_mode=(
-            POLICY_MODE_BOUNDED_EXPLORATION
+            policy_mode_override
+            if policy_mode_override is not None
+            else POLICY_MODE_BOUNDED_EXPLORATION
             if selected.policy_mode == BOUNDED_EXPLORATION
             else POLICY_MODE_CHAMPION_EXPLOITATION
         ),
@@ -2049,6 +2053,116 @@ class VenueMinimumObjectiveComparisonV1:
     @property
     def content_sha256(self) -> str:
         return _canonical_sha256(asdict(self))
+
+
+BOOTSTRAP_DESIGNATION_SCHEMA_VERSION = "bootstrap_information_acquisition_designation_v1"
+
+
+def _bootstrap_information_acquisition_designation(
+    paper_status: Mapping[str, Any],
+    calibration: Mapping[str, Any],
+    intent: Mapping[str, Any],
+) -> Mapping[str, Any] | None:
+    """Return the cycle's bootstrap designation iff it targets this candidate.
+
+    Bootstrap information acquisition activates only while the global
+    profitability posterior is prior-only: zero authenticated natural
+    execution closes, zero effective independent N, or an untouched
+    Beta(1, 1) posterior.  The designation is computed once per completed
+    paper cycle by the authoritative paper loop from the latest complete
+    full-universe evaluation; this function only recognizes it and weakens
+    no hard rail.  A stale, foreign, or post-bootstrap designation resolves
+    to ``None`` and the normal selection rules stand.
+    """
+
+    designation = paper_status.get("bootstrap_information_acquisition_designation")
+    if not isinstance(designation, Mapping):
+        return None
+    if designation.get("schema_version") != BOOTSTRAP_DESIGNATION_SCHEMA_VERSION:
+        return None
+    if designation.get("paper_only") is not True:
+        return None
+    if designation.get("side") not in {"LONG", "SHORT"}:
+        return None
+    if designation.get("symbol") != intent.get("symbol"):
+        return None
+    if designation.get("timeframe") != intent.get("timeframe"):
+        return None
+    uncertainty = calibration.get("posterior_uncertainty_calibration")
+    if not isinstance(uncertainty, Mapping):
+        return None
+    try:
+        natural_execution_count = int(uncertainty["natural_execution_count"])
+        effective_sample_size = float(uncertainty["effective_sample_size"])
+        posterior_alpha = float(uncertainty["posterior_alpha"])
+        posterior_beta = float(uncertainty["posterior_beta"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    prior_only = posterior_alpha == 1.0 and posterior_beta == 1.0
+    if not (
+        natural_execution_count == 0
+        or effective_sample_size == 0.0
+        or prior_only
+    ):
+        return None
+    return designation
+
+
+def _bootstrap_information_acquisition_selection(
+    *,
+    designation: Mapping[str, Any] | None,
+    evaluation: Any,
+    ordered_inputs: tuple[ActionObjectiveInputsV2, ...],
+) -> str | None:
+    """Resolve the designated venue-minimum information-acquisition action.
+
+    Fires only when no positive-utility action exists anywhere in the
+    evaluation (the champion resolved to the hard-valid flat baseline and no
+    exploration action cleared the positive learned objective).  Monetary
+    utility is deliberately not required to be positive; the selected input
+    must already be hard-valid and venue-executable with strictly positive
+    expected information gain.  The SELECTION predicate is mirrored in
+    ``select_reference_action_id`` (same validated designation object passed
+    to both sides, like ``bounded_exploration_probability``), so a
+    production-only change to the selection rule becomes a parity
+    disagreement; the ACTIVATION gate in
+    ``_bootstrap_information_acquisition_designation`` is a shared input to
+    both sides, not independently replayed.
+    """
+
+    if designation is None:
+        return None
+    if evaluation.exploration_action_id is not None:
+        return None
+    champion_score = next(
+        (
+            score
+            for score in evaluation.scores
+            if score.action_id == evaluation.champion_action_id
+        ),
+        None,
+    )
+    if (
+        champion_score is None
+        or champion_score.selected_action != ACTION_REMAIN_FLAT
+        or champion_score.utility is None
+    ):
+        return None
+    side_suffix = (
+        f":{BOUNDED_EXPLORATION}:{str(designation['side']).lower()}:venue_minimum"
+    )
+    matches = tuple(
+        item
+        for item in ordered_inputs
+        if item.policy_mode == BOUNDED_EXPLORATION
+        and item.selected_action == ACTION_DIRECTIONAL_TRADE
+        and item.action_id.endswith(side_suffix)
+        and item.hard_constraints_satisfied is True
+        and item.expected_information_gain > 0.0
+    )
+    if len(matches) != 1:
+        return None
+    return matches[0].action_id
 
 
 @dataclass(frozen=True, slots=True)
@@ -2593,12 +2707,30 @@ def build_adaptive_policy_shadow_candidate(
         and evaluation.exploration_action_id is not None
         else evaluation.champion_action_id
     )
+    # Bootstrap information acquisition (paper-only): while the profitability
+    # posterior is prior-only and this candidate carries the cycle's single
+    # designation, a hard-valid venue-minimum information-seeking action may be
+    # selected even though its monetary utility is nonpositive.  Every hard
+    # rail, attestation, receipt, and budget path is unchanged; only the
+    # selection among already-hard-valid actions differs, and it is replayed
+    # independently by the reference selector below.
+    bootstrap_designation = _bootstrap_information_acquisition_designation(
+        paper_status, calibration, intent
+    )
+    bootstrap_selected_id = _bootstrap_information_acquisition_selection(
+        designation=bootstrap_designation,
+        evaluation=evaluation,
+        ordered_inputs=ordered_inputs,
+    )
+    if bootstrap_selected_id is not None:
+        selected_id = bootstrap_selected_id
     reference_selected_id = select_reference_action_id(
         reference,
         ordered_inputs,
         candidate_id=candidate_id,
         calibration_sha256=str(calibration["calibration_sha256"]),
         bounded_exploration_probability=allocation.bounded_exploration_probability,
+        bootstrap_designation=bootstrap_designation,
     )
     if selected_id != reference_selected_id:
         raise AdaptivePolicyShadowError(
@@ -2695,6 +2827,10 @@ def build_adaptive_policy_shadow_candidate(
         selected_minimum = selected_id == minimum_action_id
         if not minimum_input.hard_constraints_satisfied:
             selection_reason = "VENUE_MINIMUM_HARD_RISK_OR_INTEGRITY_REJECTED"
+        elif selected_minimum and bootstrap_selected_id == minimum_action_id:
+            selection_reason = (
+                "VENUE_MINIMUM_BOOTSTRAP_INFORMATION_ACQUISITION_SELECTED"
+            )
         elif minimum_score.utility is None or minimum_score.utility <= 0.0:
             selection_reason = "VENUE_MINIMUM_RECOMPUTED_UTILITY_NONPOSITIVE"
         elif minimum_score.information_gain_contribution is None or (
@@ -2799,6 +2935,12 @@ def build_adaptive_policy_shadow_candidate(
         source_receipts=action_source_receipts,
         generated_at_ms=generated_at_ms,
         performance_risk_multiplier=performance_risk_multiplier,
+        policy_mode_override=(
+            POLICY_MODE_BOOTSTRAP_INFORMATION_ACQUISITION
+            if bootstrap_selected_id is not None
+            and selected_id == bootstrap_selected_id
+            else None
+        ),
     )
     production = {
         "preemptive_decision_id": intent.get("preemptive_decision_id"),

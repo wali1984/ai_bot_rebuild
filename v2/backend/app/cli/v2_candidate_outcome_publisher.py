@@ -295,15 +295,25 @@ def _authenticated_actual_close_sources(
             if mode not in {
                 "champion_exploitation",
                 "bounded_information_seeking_exploration",
+                "bootstrap_information_acquisition",
             }:
                 raise CandidateOutcomeRuntimeError("close:typed_policy_mode_required")
-            expected_exploration = (
-                mode == "bounded_information_seeking_exploration"
-            )
+            expected_exploration = mode in {
+                "bounded_information_seeking_exploration",
+                "bootstrap_information_acquisition",
+            }
             if (
                 raw.get("exploration_provenance") is not expected_exploration
                 or raw.get("counts_as_training_feedback") is not True
                 or raw.get("counts_as_live_profit") is not False
+            ):
+                raise CandidateOutcomeRuntimeError(
+                    "close:typed_training_provenance_invalid"
+                )
+            if mode == "bootstrap_information_acquisition" and (
+                raw.get("counts_as_natural_paper_execution") is not True
+                or raw.get("counts_as_counterfactual") is not False
+                or raw.get("counts_as_champion_profitability_evidence") is not False
             ):
                 raise CandidateOutcomeRuntimeError(
                     "close:typed_training_provenance_invalid"

@@ -428,6 +428,278 @@ def test_separate_venue_minimum_candidate_recomputes_and_can_win() -> None:
     assert result.selected_adaptive_action.policy_mode == BOUNDED
 
 
+# --- Bootstrap information acquisition (paper-only) -------------------------
+#
+# While the global profitability posterior is prior-only (zero authenticated
+# natural execution closes / zero effective independent N / untouched
+# Beta(1, 1)), the paper loop may designate at most one venue-minimum
+# information-acquisition experiment per cycle.  The shadow recognizes the
+# designation only when every unchanged hard rail already passed; monetary
+# utility is deliberately allowed to be nonpositive but expected information
+# gain must be strictly positive.
+
+BOOTSTRAP = "bootstrap_information_acquisition"
+
+_PRIOR_ONLY_UNCERTAINTY = {
+    "natural_execution_count": 0,
+    "effective_sample_size": 0.0,
+    "posterior_alpha": 1.0,
+    "posterior_beta": 1.0,
+}
+
+# Fails every prior-only trigger arm: closes exist, effective N is positive,
+# and the posterior has moved off Beta(1, 1).
+_EVIDENCED_UNCERTAINTY = {
+    "natural_execution_count": 7,
+    "effective_sample_size": 6.5,
+    "posterior_alpha": 4.0,
+    "posterior_beta": 5.0,
+}
+
+
+def _calibration_with_uncertainty_block(
+    calibration: dict, uncertainty: dict
+) -> dict:
+    """Overwrite the bootstrap-trigger fields and re-seal the calibration.
+
+    Production reads the trigger from the fitted artifact's
+    ``posterior_uncertainty_calibration`` block, so the fields are updated in
+    place there and both nested and top-level seals are recomputed.
+    """
+
+    calibration = copy.deepcopy(calibration)
+    block = calibration["posterior_uncertainty_calibration"]
+    block.update(copy.deepcopy(uncertainty))
+    calibration["uncertainty_calibration_sha256"] = _canonical_sha256(block)
+    material = {k: v for k, v in calibration.items() if k != "calibration_sha256"}
+    calibration["calibration_sha256"] = _canonical_sha256(material)
+    return calibration
+
+
+def _bootstrap_designation(**overrides: object) -> dict:
+    designation: dict = {
+        "schema_version": "bootstrap_information_acquisition_designation_v1",
+        "paper_only": True,
+        "side": "LONG",
+        "symbol": "BTCUSDT",
+        "timeframe": "15m",
+    }
+    designation.update(overrides)
+    return designation
+
+
+def _sub_minimum_target_intent() -> dict:
+    intent = _low_cost_intent()
+    intent["paper_exchange_filter_snapshot"]["min_notional"] = 100.0
+    return intent
+
+
+def _negative_utility_venue_minimum_calibration(uncertainty: dict) -> dict:
+    # Tiny posterior uncertainty -> tiny information gain, so with the fixture
+    # default information_gain_reward (10.0, deliberately NOT doctored upward
+    # the way test_separate_venue_minimum_candidate_recomputes_and_can_win
+    # must) the venue-minimum recompute utility stays strictly negative and no
+    # positive-objective exploration action exists.
+    return _calibration_with_uncertainty_block(
+        _calibration_with_statistic(
+            _controlled_statistic(
+                after_cost_expectancy_bps=-0.01,
+                posterior_uncertainty=0.01,
+                tail_0_9=0.01,
+            )
+        ),
+        uncertainty,
+    )
+
+
+def _build_with_designation(
+    intent: dict, calibration: dict, designation: dict | None
+):
+    paper_status: dict = {"paper_only": True, "open_position_count": 0}
+    if designation is not None:
+        paper_status["bootstrap_information_acquisition_designation"] = designation
+    return build_adaptive_policy_shadow_candidate(
+        intent=intent,
+        feature_snapshot=_feature_snapshot(),
+        paper_status=paper_status,
+        calibration=calibration,
+        registry=_registry(),
+        validator_seed=_SEED,
+        generated_at_ms=4_000_000,
+    )
+
+
+def test_bootstrap_designation_selects_negative_utility_venue_minimum() -> None:
+    """Prior-only posterior + this cycle's designation -> the hard-valid
+    venue-minimum information-acquisition action is selected even though its
+    recomputed monetary utility is negative, parity holds, every paper-only
+    safety flag stays intact, and the action authorizes through the standard
+    adaptive paper lane as a bootstrap-mode action."""
+
+    result = _build_with_designation(
+        _sub_minimum_target_intent(),
+        _negative_utility_venue_minimum_calibration(_PRIOR_ONLY_UNCERTAINTY),
+        _bootstrap_designation(),
+    )
+    evaluation = result.objective_evaluation
+
+    # Preconditions the bootstrap rule requires: flat champion baseline and no
+    # positive-utility exploration action anywhere in the evaluation.
+    champion_score = next(
+        score
+        for score in evaluation.scores
+        if score.action_id == evaluation.champion_action_id
+    )
+    assert champion_score.selected_action == "remain_flat"
+    assert evaluation.exploration_action_id is None
+
+    selected = result.selected_adaptive_action
+    assert selected.selected_action == "directional_trade"
+    assert selected.policy_mode == BOOTSTRAP
+    assert selected.expected_information_gain > 0.0
+    assert selected.target_notional_usd > 0.0
+
+    comparison = next(
+        item
+        for item in result.venue_minimum_objective_comparisons
+        if item.venue_min_candidate_selected
+    )
+    assert comparison.side == "LONG"
+    assert (
+        comparison.selection_reason
+        == "VENUE_MINIMUM_BOOTSTRAP_INFORMATION_ACQUISITION_SELECTED"
+    )
+    assert comparison.venue_min_candidate_hard_risk_pass is True
+    assert comparison.venue_min_candidate_utility is not None
+    assert comparison.venue_min_candidate_utility <= 0.0
+    assert comparison.venue_min_candidate_expected_information_gain_nats > 0.0
+    assert selected.target_notional_usd == pytest.approx(
+        comparison.venue_min_notional_usd
+    )
+
+    # Independent reference replay agrees (the rule is mirrored, not shared).
+    assert result.parity_status == "PASS"
+    assert result.parity_disagreement_count == 0
+
+    # No safety rail weakened: paper-only human-blocked on the result, the
+    # comparison row, and the typed action; never any live/exchange authority.
+    assert result.paper_only is True
+    assert result.live_gate == "blocked_human_only"
+    assert result.routes_to_live is False
+    assert result.places_real_order is False
+    assert result.exchange_action_taken is False
+    assert comparison.paper_only is True
+    assert comparison.routes_to_live is False
+    assert comparison.places_real_order is False
+    assert comparison.exchange_action_taken is False
+    assert selected.paper_only is True
+    assert selected.live_gate == "blocked_human_only"
+    assert selected.routes_to_live is False
+    assert selected.places_real_order is False
+    assert selected.exchange_action_taken is False
+    assert selected.execution_authority is False
+
+    authorization = authorize_adaptive_paper_policy_action(
+        result, authorized_at_ms=5_000_000
+    )
+    assert authorization.policy_mode == BOOTSTRAP
+    assert authorization.paper_entry_authority is True
+    assert authorization.mandatory_stop_present is True
+    assert authorization.hard_validator_passed is True
+    assert authorization.routes_to_live is False
+    assert authorization.places_real_order is False
+    assert authorization.exchange_action_taken is False
+
+
+def test_bootstrap_designation_ignored_without_prior_only_posterior() -> None:
+    """The same designation is inert once the posterior carries evidence
+    (natural closes, positive effective N, non-Beta(1,1)): selection stays
+    flat and the venue-minimum reason remains the nonpositive-utility
+    rejection."""
+
+    result = _build_with_designation(
+        _sub_minimum_target_intent(),
+        _negative_utility_venue_minimum_calibration(_EVIDENCED_UNCERTAINTY),
+        _bootstrap_designation(),
+    )
+
+    assert result.selected_adaptive_action.selected_action == "remain_flat"
+    assert result.selected_adaptive_action.target_notional_usd == 0.0
+    assert result.selected_adaptive_action.policy_mode != BOOTSTRAP
+    assert all(
+        comparison.venue_min_candidate_selected is False
+        and comparison.selection_reason
+        == "VENUE_MINIMUM_RECOMPUTED_UTILITY_NONPOSITIVE"
+        for comparison in result.venue_minimum_objective_comparisons
+    )
+
+
+def test_bootstrap_designation_ignored_for_other_symbol() -> None:
+    """A designation targeting a different symbol never fires here: the
+    candidate stays flat under the unchanged nonpositive-utility rule."""
+
+    result = _build_with_designation(
+        _sub_minimum_target_intent(),
+        _negative_utility_venue_minimum_calibration(_PRIOR_ONLY_UNCERTAINTY),
+        _bootstrap_designation(symbol="ETHUSDT"),
+    )
+
+    assert result.selected_adaptive_action.selected_action == "remain_flat"
+    assert result.selected_adaptive_action.target_notional_usd == 0.0
+    assert result.selected_adaptive_action.policy_mode != BOOTSTRAP
+    assert all(
+        comparison.venue_min_candidate_selected is False
+        and comparison.selection_reason
+        == "VENUE_MINIMUM_RECOMPUTED_UTILITY_NONPOSITIVE"
+        for comparison in result.venue_minimum_objective_comparisons
+    )
+
+
+def test_bootstrap_designation_never_overrides_hard_invalid_candidate() -> None:
+    """A prior-only designation cannot resurrect a hard-blocked candidate: the
+    sub-minimum risk budget keeps every venue-minimum action hard-rejected and
+    the selection stays flat -- no rail is weakened by bootstrap mode."""
+
+    intent = _low_cost_intent()
+    derived = intent["paper_cycle_reservation_snapshot"]["derived"]
+    derived["remaining_total_notional_usd"] = 4.0
+    derived["remaining_symbol_notional_usd"] = 4.0
+    calibration = _calibration_with_uncertainty_block(
+        _calibration_with_statistic(
+            _controlled_statistic(
+                after_cost_expectancy_bps=-0.5,
+                posterior_uncertainty=0.9,
+                tail_0_9=1.0,
+            )
+        ),
+        _PRIOR_ONLY_UNCERTAINTY,
+    )
+
+    result = _build_with_designation(intent, calibration, _bootstrap_designation())
+
+    assert result.selected_adaptive_action.selected_action == "remain_flat"
+    assert result.selected_adaptive_action.target_notional_usd == 0.0
+    assert result.selected_adaptive_action.policy_mode != BOOTSTRAP
+    assert len(result.venue_minimum_objective_comparisons) == 2
+    assert all(
+        comparison.venue_min_candidate_hard_risk_pass is False
+        and comparison.venue_min_candidate_selected is False
+        and comparison.selection_reason
+        == "VENUE_MINIMUM_HARD_RISK_OR_INTEGRITY_REJECTED"
+        for comparison in result.venue_minimum_objective_comparisons
+    )
+    directional_reasons = {
+        reason
+        for action_id, reasons in result.action_dispositions
+        if not action_id.endswith(":flat")
+        for reason in reasons
+    }
+    assert (
+        "PHYSICAL_PLAN_UNAVAILABLE:continuous_policy_target_below_venue_minimum"
+        in directional_reasons
+    )
+
+
 def test_final_selection_reference_disagreement_fails_closed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

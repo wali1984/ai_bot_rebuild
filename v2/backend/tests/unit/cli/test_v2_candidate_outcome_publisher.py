@@ -21,6 +21,7 @@ from v2.backend.app.cli.v2_candidate_outcome_publisher import (
     _load_signing_key,
     _actual_paper_outcome_from_close,
     _authenticated_actual_close_sources,
+    _candidate_id_from_close,
     process_cycle,
     process_maturation,
 )
@@ -504,3 +505,82 @@ def test_typed_exploration_close_builds_exact_actual_paper_outcome() -> None:
     assert actual.open_quantity_after_close == 0.0
     assert actual.places_real_order is False
     assert actual.exchange_action_taken is False
+
+
+def _bootstrap_close_row() -> tuple[dict, dict]:
+    close = {
+        "adaptive_policy_authoritative": True,
+        "close_position": True,
+        "paper_session_id": "paper-session-1",
+        "paper_account_epoch": 1,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "exchange_action_taken": False,
+        "adaptive_policy_action_policy_mode": "bootstrap_information_acquisition",
+        "exploration_provenance": True,
+        "counts_as_training_feedback": True,
+        "counts_as_live_profit": False,
+        "counts_as_natural_paper_execution": True,
+        "counts_as_counterfactual": False,
+        "counts_as_champion_profitability_evidence": False,
+        "entry_prediction_id": "prediction-0",
+        "preemptive_decision_id": "preemptive-0",
+        "policy_id": "paper-policy-v2",
+        "policy_fingerprint": "5" * 64,
+        "checkpoint_generation": 3,
+        "checkpoint_id": "SERVING_ABI_V2_PAPER_fixture",
+    }
+    paper_status = {
+        "paper_session_id": "paper-session-1",
+        "paper_account_epoch": 1,
+    }
+    return close, paper_status
+
+
+def test_bootstrap_close_with_natural_execution_triple_authenticates() -> None:
+    close, paper_status = _bootstrap_close_row()
+
+    sources, source_status = _authenticated_actual_close_sources(
+        paper_status=paper_status,
+        closed_trades=[close],
+    )
+
+    assert sources == {_candidate_id_from_close(close): close}
+    assert source_status["eligible_typed_final_close_count"] == 1
+    assert source_status["authenticated_actual_close_source_count"] == 1
+    assert source_status["actual_close_source_rejection_counts"] == {}
+
+
+_MISSING = object()
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("counts_as_natural_paper_execution", _MISSING),
+        ("counts_as_counterfactual", _MISSING),
+        ("counts_as_champion_profitability_evidence", _MISSING),
+        ("counts_as_natural_paper_execution", False),
+        ("counts_as_counterfactual", True),
+        ("counts_as_champion_profitability_evidence", True),
+    ],
+)
+def test_bootstrap_close_missing_or_wrong_counts_triple_is_rejected(
+    field: str, value: object
+) -> None:
+    close, paper_status = _bootstrap_close_row()
+    if value is _MISSING:
+        close.pop(field)
+    else:
+        close[field] = value
+
+    sources, source_status = _authenticated_actual_close_sources(
+        paper_status=paper_status,
+        closed_trades=[close],
+    )
+
+    assert sources == {}
+    assert source_status["actual_close_source_rejection_counts"] == {
+        "close:typed_training_provenance_invalid": 1
+    }

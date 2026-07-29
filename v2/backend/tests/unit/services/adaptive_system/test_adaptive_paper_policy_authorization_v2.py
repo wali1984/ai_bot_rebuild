@@ -23,6 +23,11 @@ from v2.backend.tests.unit.services.adaptive_system.test_adaptive_policy_shadow_
     _intent,
     _registry,
 )
+from v2.backend.tests.unit.services.adaptive_system.test_bounded_information_gain_exploration_selection import (  # noqa: E501
+    _calibration_with_statistic,
+    _controlled_statistic,
+    _low_cost_intent,
+)
 from v2.backend.tests.unit.services.adaptive_system.test_candidate_outcome_calibration_v2 import (
     _observation,
 )
@@ -222,6 +227,49 @@ def test_reference_disagreement_never_receives_authority() -> None:
             )
     finally:
         object.__setattr__(result, "parity_disagreement_count", 0)
+
+
+def test_bootstrap_mode_rejected_when_positive_utility_exploration_exists() -> None:
+    """A bootstrap-tagged action is only legitimate when NO positive-utility
+    exploration action exists: re-tagging a genuinely selected bounded
+    exploration action (exploration_action_id set) as bootstrap mode fails
+    closed instead of borrowing the exploration slot's authority."""
+
+    # High posterior uncertainty -> positive learned exploration objective, so
+    # the bounded exploration action is selected and exploration_action_id is
+    # populated.
+    calibration = _calibration_with_statistic(
+        _controlled_statistic(
+            after_cost_expectancy_bps=-0.5,
+            posterior_uncertainty=0.9,
+            tail_0_9=1.0,
+        )
+    )
+    result = build_adaptive_policy_shadow_candidate(
+        intent=_low_cost_intent(),
+        feature_snapshot=_feature_snapshot(),
+        paper_status={"paper_only": True, "open_position_count": 0},
+        calibration=calibration,
+        registry=_registry(),
+        validator_seed=_SEED,
+        generated_at_ms=4_000_000,
+    )
+    assert result.objective_evaluation.exploration_action_id is not None
+    action = result.selected_adaptive_action
+    assert action.policy_mode == "bounded_information_seeking_exploration"
+    retagged_action = _recreate_action(
+        action,
+        policy_mode="bootstrap_information_acquisition",
+    )
+
+    with pytest.raises(
+        AdaptivePaperPolicyAuthorizationError,
+        match="bootstrap_requires_no_positive_utility_exploration",
+    ):
+        authorize_adaptive_paper_policy_action(
+            replace(result, selected_adaptive_action=retagged_action),
+            authorized_at_ms=4_000_001,
+        )
 
 
 def test_authorization_record_rejects_static_authority_reintroduction() -> None:

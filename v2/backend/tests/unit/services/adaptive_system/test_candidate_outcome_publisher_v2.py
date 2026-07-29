@@ -329,6 +329,38 @@ def _with_typed_block_authority(intent: dict[str, object]) -> dict[str, object]:
     return row
 
 
+def _with_typed_bootstrap_action_authority(
+    intent: dict[str, object], **overrides: object
+) -> dict[str, object]:
+    row = deepcopy(intent)
+    prediction_id = str(row["prediction_id"])
+    row.update(
+        {
+            "paper_fill_allowed": True,
+            "allocator_decision": "ALLOW_WITH_SIZE",
+            "adaptive_policy_authoritative": True,
+            "adaptive_policy_action_id": f"adaptive-action-{prediction_id}",
+            "adaptive_policy_action_sha256": "1" * 64,
+            "adaptive_policy_action_policy_mode": (
+                "bootstrap_information_acquisition"
+            ),
+            "adaptive_paper_policy_authorization_sha256": "2" * 64,
+            "adaptive_policy_paper_cycle_receipt_id": (
+                f"adaptive-cycle-{prediction_id}"
+            ),
+            "adaptive_policy_paper_cycle_receipt_sha256": "3" * 64,
+            "exploration_provenance": True,
+            "counts_as_training_feedback": True,
+            "counts_as_live_profit": False,
+            "counts_as_natural_paper_execution": True,
+            "counts_as_counterfactual": False,
+            "counts_as_champion_profitability_evidence": False,
+        }
+    )
+    row.update(overrides)
+    return row
+
+
 def _build(status, intents, snapshots):
     return build_publisher_cycle(
         paper_status=status,
@@ -575,6 +607,60 @@ def test_selected_trade_cannot_omit_authenticated_reservation() -> None:
     with pytest.raises(
         CandidateOutcomePublisherError,
         match="authenticated_reservation_required_for_executing_candidate",
+    ):
+        _build(status, intents, snapshots)
+
+
+def test_bootstrap_action_intent_passes_provenance_and_projects_counts_flags() -> None:
+    status, intents, snapshots = _inputs(1)
+    intents[0] = _with_typed_bootstrap_action_authority(intents[0])
+
+    record = _build(status, intents, snapshots).decision_records[0]
+    selected = json.loads(record.decision.selected_action.payload_json)
+
+    assert selected["adaptive_policy_disposition_type"] == "ACTION"
+    assert selected["adaptive_policy_action_policy_mode"] == (
+        "bootstrap_information_acquisition"
+    )
+    assert selected["exploration_provenance"] is True
+    assert selected["counts_as_training_feedback"] is True
+    assert selected["counts_as_live_profit"] is False
+    assert selected["counts_as_natural_paper_execution"] is True
+    assert selected["counts_as_counterfactual"] is False
+    assert selected["counts_as_champion_profitability_evidence"] is False
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("counts_as_champion_profitability_evidence", True),
+        ("counts_as_counterfactual", True),
+        ("exploration_provenance", False),
+    ],
+)
+def test_bootstrap_action_provenance_contradiction_fails_closed(
+    field: str, value: bool
+) -> None:
+    status, intents, snapshots = _inputs(1)
+    intents[0] = _with_typed_bootstrap_action_authority(
+        intents[0], **{field: value}
+    )
+
+    with pytest.raises(
+        CandidateOutcomePublisherError, match="typed_training_provenance_invalid"
+    ):
+        _build(status, intents, snapshots)
+
+
+def test_unknown_typed_policy_mode_still_fails_closed() -> None:
+    status, intents, snapshots = _inputs(1)
+    intents[0] = _with_typed_bootstrap_action_authority(
+        intents[0],
+        adaptive_policy_action_policy_mode="unbounded_speculative_acquisition",
+    )
+
+    with pytest.raises(
+        CandidateOutcomePublisherError, match="typed_policy_mode_required"
     ):
         _build(status, intents, snapshots)
 

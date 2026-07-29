@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Sequence
+from typing import Any, Sequence
 
-from v2.backend.app.domain.adaptive_policy_action_v2 import ACTION_REMAIN_FLAT
+from v2.backend.app.domain.adaptive_policy_action_v2 import (
+    ACTION_DIRECTIONAL_TRADE,
+    ACTION_REMAIN_FLAT,
+)
 from v2.backend.app.services.adaptive_system.adaptive_objective_v2 import (
     BOUNDED_EXPLORATION,
     CHAMPION_EXPLOITATION,
@@ -88,11 +92,15 @@ def select_reference_action_id(
     candidate_id: str,
     calibration_sha256: str,
     bounded_exploration_probability: float,
+    bootstrap_designation: Mapping[str, Any] | None = None,
 ) -> str | None:
     """Independently replay the final exploit/explore selection.
 
     A positive information-seeking action is selected deterministically when
-    the champion is the hard-valid flat action.  Otherwise the fitted mode
+    the champion is the hard-valid flat action.  While the profitability
+    posterior is prior-only, a validated bootstrap information-acquisition
+    designation may select the designated hard-valid venue-minimum action even
+    though its monetary utility is nonpositive.  Otherwise the fitted mode
     allocation remains the selector.  This deliberately duplicates the small
     production selection rule instead of importing it, so a production-only
     change becomes a parity disagreement.
@@ -124,6 +132,27 @@ def select_reference_action_id(
         and (choose_exploration or deterministic_information_seeking)
     ):
         return result.exploration_action_id
+    if (
+        bootstrap_designation is not None
+        and result.exploration_action_id is None
+        and champion_is_flat
+        and bootstrap_designation.get("side") in {"LONG", "SHORT"}
+    ):
+        side_suffix = (
+            f":{BOUNDED_EXPLORATION}"
+            f":{str(bootstrap_designation['side']).lower()}:venue_minimum"
+        )
+        bootstrap_matches = [
+            action
+            for action in actions
+            if action.policy_mode == BOUNDED_EXPLORATION
+            and action.selected_action == ACTION_DIRECTIONAL_TRADE
+            and action.action_id.endswith(side_suffix)
+            and action.hard_constraints_satisfied is True
+            and action.expected_information_gain > 0.0
+        ]
+        if len(bootstrap_matches) == 1:
+            return bootstrap_matches[0].action_id
     return result.champion_action_id
 
 

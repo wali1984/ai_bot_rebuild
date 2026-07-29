@@ -11,6 +11,7 @@ from v2.backend.app.services.paper_trade_management.position_state import (
 )
 
 BOUNDED = "bounded_information_seeking_exploration"
+BOOTSTRAP = "bootstrap_information_acquisition"
 CHAMPION = "champion_exploitation"
 
 
@@ -91,6 +92,33 @@ def test_exploitation_close_is_separately_attributable() -> None:
     assert close_event["exploration_provenance"] is False
     assert close_event["counts_as_training_feedback"] is True
     assert close_event["counts_as_live_profit"] is False
+
+
+def test_bootstrap_close_carries_natural_paper_execution_provenance() -> None:
+    close_event = _close(
+        _position(adaptive_policy_action_policy_mode=BOOTSTRAP)
+    )
+
+    assert close_event["policy_mode"] == BOOTSTRAP
+    assert close_event["adaptive_policy_action_policy_mode"] == BOOTSTRAP
+    assert close_event["exploration_provenance"] is True
+    assert close_event["counts_as_training_feedback"] is True
+    assert close_event["counts_as_live_profit"] is False
+    assert close_event["counts_as_natural_paper_execution"] is True
+    assert close_event["counts_as_counterfactual"] is False
+    assert close_event["counts_as_champion_profitability_evidence"] is False
+
+
+def test_bounded_exploration_close_omits_bootstrap_only_counts_keys() -> None:
+    close_event = _close(
+        _position(adaptive_policy_action_policy_mode=BOUNDED)
+    )
+
+    # The natural-execution / counterfactual / champion-evidence triple is
+    # stamped ONLY for bootstrap information-acquisition closes.
+    assert "counts_as_natural_paper_execution" not in close_event
+    assert "counts_as_counterfactual" not in close_event
+    assert "counts_as_champion_profitability_evidence" not in close_event
 
 
 def test_position_payload_persists_policy_mode_for_reload() -> None:

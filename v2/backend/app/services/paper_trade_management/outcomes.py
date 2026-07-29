@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from v2.backend.app.domain.adaptive_policy_action_v2 import (
+    POLICY_MODE_BOOTSTRAP_INFORMATION_ACQUISITION,
     POLICY_MODE_BOUNDED_EXPLORATION,
 )
 
@@ -520,8 +521,17 @@ def build_close_event(
     # "bounded_information_seeking_exploration").  A bounded exploration close is
     # training feedback but NEVER live profit (paper-only; live stays BLOCKED).
     adaptive_policy_action_policy_mode = position.adaptive_policy_action_policy_mode
-    exploration_provenance = (
-        adaptive_policy_action_policy_mode == POLICY_MODE_BOUNDED_EXPLORATION
+    # Bootstrap information acquisition carries exploration provenance too:
+    # its close is an authenticated natural paper execution and training
+    # feedback, never counterfactual evidence and never champion-profitability
+    # or live-profit evidence.
+    exploration_provenance = adaptive_policy_action_policy_mode in (
+        POLICY_MODE_BOUNDED_EXPLORATION,
+        POLICY_MODE_BOOTSTRAP_INFORMATION_ACQUISITION,
+    )
+    bootstrap_information_acquisition_provenance = (
+        adaptive_policy_action_policy_mode
+        == POLICY_MODE_BOOTSTRAP_INFORMATION_ACQUISITION
     )
     telemetry = {
         "adaptive_allocation": adaptive_allocation,
@@ -533,6 +543,15 @@ def build_close_event(
         "exploration_provenance": exploration_provenance,
         "counts_as_training_feedback": True,
         "counts_as_live_profit": False,
+        **(
+            {
+                "counts_as_natural_paper_execution": True,
+                "counts_as_counterfactual": False,
+                "counts_as_champion_profitability_evidence": False,
+            }
+            if bootstrap_information_acquisition_provenance
+            else {}
+        ),
         "adaptive_paper_policy_authorization_sha256": (
             position.adaptive_paper_policy_authorization_sha256
         ),

@@ -15,6 +15,7 @@ from v2.backend.app.domain.adaptive_policy_action_v2 import (
     ACTION_REDUCE_EXISTING_EXPOSURE,
     ACTION_REMAIN_FLAT,
     LIVE_GATE_BLOCKED_HUMAN_ONLY,
+    POLICY_MODE_BOOTSTRAP_INFORMATION_ACQUISITION,
     POLICY_MODE_BOUNDED_EXPLORATION,
     UNIT_CONTRACT_USD_BPS_SECONDS_PROBABILITY,
     ActionProbabilityV2,
@@ -240,6 +241,20 @@ def test_directional_action_accepts_negative_after_cost_edge_for_learning() -> N
     assert action.expected_after_cost_return == -2.5
     assert action.selected_action == ACTION_DIRECTIONAL_TRADE
     assert action.execution_authority is False
+
+
+def test_bootstrap_information_acquisition_policy_mode_is_accepted_and_round_trips() -> None:
+    action = _valid_action(
+        policy_mode=POLICY_MODE_BOOTSTRAP_INFORMATION_ACQUISITION,
+    )
+    assert action.policy_mode == "bootstrap_information_acquisition"
+    assert AdaptivePolicyActionV2.from_payload(action.to_payload()) == action
+    assert AdaptivePolicyActionV2.from_json(action.canonical_json()) == action
+
+
+def test_unknown_policy_mode_still_fails_closed() -> None:
+    with pytest.raises(AdaptivePolicyActionDomainError, match="invalid_policy_mode"):
+        _valid_action(policy_mode="unbounded_speculative_acquisition")
 
 
 def test_short_action_requires_signed_negative_exposure() -> None:

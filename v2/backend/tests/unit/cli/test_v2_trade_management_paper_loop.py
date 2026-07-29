@@ -28667,3 +28667,392 @@ def test_correlation_source_hash_binds_source_availability_finality_and_decision
     }
     assert len(hashes) == 5
     assert base["source_hash_contract"].endswith("CANONICAL_SHA256_V2")
+
+
+def _bootstrap_designation_calibration(
+    *,
+    natural_execution_count: object = 0,
+    effective_sample_size: object = 0.0,
+    posterior_alpha: object = 1.0,
+    posterior_beta: object = 1.0,
+) -> dict[str, object]:
+    return {
+        "posterior_uncertainty_calibration": {
+            "natural_execution_count": natural_execution_count,
+            "effective_sample_size": effective_sample_size,
+            "posterior_alpha": posterior_alpha,
+            "posterior_beta": posterior_beta,
+        }
+    }
+
+
+def _bootstrap_designation_comparison(
+    *,
+    side: object = "LONG",
+    gain_nats: object = 0.9,
+    expected_loss_usd: object = 3.0,
+    utility: object = -0.5,
+    hard_risk_pass: object = True,
+    candidate_id: str = "cand_btc_long",
+    action_id: str = (
+        "apa2_btc:bounded_information_seeking_exploration:long:venue_minimum"
+    ),
+) -> dict[str, object]:
+    return {
+        "candidate_id": candidate_id,
+        "venue_minimum_action_id": action_id,
+        "side": side,
+        "venue_min_candidate_hard_risk_pass": hard_risk_pass,
+        "venue_min_candidate_expected_information_gain_nats": gain_nats,
+        "venue_min_candidate_expected_loss_usd": expected_loss_usd,
+        "venue_min_candidate_utility": utility,
+    }
+
+
+def _bootstrap_designation_intent(
+    symbol: object,
+    comparisons: object,
+    *,
+    timeframe: object = "1h",
+) -> dict[str, object]:
+    return {
+        "symbol": symbol,
+        "timeframe": timeframe,
+        "adaptive_policy_venue_minimum_objective_comparisons": comparisons,
+    }
+
+
+def test_bootstrap_designation_returns_none_once_posterior_has_evidence() -> None:
+    """A posterior carrying authenticated evidence deactivates the bootstrap trigger.
+
+    natural_execution_count=5, effective_sample_size=3.2 and Beta(4, 3) is no
+    longer prior-only, so no experiment is designated even though a perfectly
+    eligible venue-minimum comparison is available.
+    """
+
+    designation = paper_loop._paper_bootstrap_information_acquisition_designation(  # noqa: SLF001
+        calibration=_bootstrap_designation_calibration(
+            natural_execution_count=5,
+            effective_sample_size=3.2,
+            posterior_alpha=4.0,
+            posterior_beta=3.0,
+        ),
+        previous_cycle_intents=[
+            _bootstrap_designation_intent(
+                "BTCUSDT", [_bootstrap_designation_comparison()]
+            )
+        ],
+        current_epoch_closed_trade_rows=[],
+        current_epoch_open_position_rows=[],
+    )
+
+    assert designation is None
+
+
+def test_bootstrap_designation_cadence_blocks_on_epoch_bootstrap_rows() -> None:
+    """One experiment per prior-only window: any current-epoch closed trade or
+    open position stamped bootstrap_information_acquisition suppresses a new
+    designation; ordinary-mode and malformed epoch rows do not.
+    """
+
+    calibration = _bootstrap_designation_calibration()
+    intents = [
+        _bootstrap_designation_intent(
+            "BTCUSDT", [_bootstrap_designation_comparison()]
+        )
+    ]
+    bootstrap_row = {
+        "adaptive_policy_action_policy_mode": "bootstrap_information_acquisition"
+    }
+    ordinary_row = {"adaptive_policy_action_policy_mode": "champion_exploitation"}
+
+    closed_blocked = paper_loop._paper_bootstrap_information_acquisition_designation(  # noqa: SLF001
+        calibration=calibration,
+        previous_cycle_intents=intents,
+        current_epoch_closed_trade_rows=[ordinary_row, bootstrap_row],
+        current_epoch_open_position_rows=[],
+    )
+    open_blocked = paper_loop._paper_bootstrap_information_acquisition_designation(  # noqa: SLF001
+        calibration=calibration,
+        previous_cycle_intents=intents,
+        current_epoch_closed_trade_rows=[],
+        current_epoch_open_position_rows=[dict(bootstrap_row)],
+    )
+    clean = paper_loop._paper_bootstrap_information_acquisition_designation(  # noqa: SLF001
+        calibration=calibration,
+        previous_cycle_intents=intents,
+        current_epoch_closed_trade_rows=[ordinary_row, "not-a-mapping"],
+        current_epoch_open_position_rows=[
+            {"adaptive_policy_action_policy_mode": None}
+        ],
+    )
+
+    assert closed_blocked is None
+    assert open_blocked is None
+    assert clean is not None
+    assert clean["current_epoch_bootstrap_closed_trades"] == 0
+    assert clean["current_epoch_bootstrap_open_positions"] == 0
+
+
+def test_bootstrap_designation_ranks_by_information_gain_per_expected_loss() -> None:
+    """The designated experiment maximizes expected information gain per dollar
+    of expected experiment loss; a more negative monetary utility never
+    outranks a higher gain/loss ratio, and the designation carries the full
+    paper-only safety contract.
+    """
+
+    loser = _bootstrap_designation_comparison(
+        side="LONG",
+        gain_nats=0.8,
+        expected_loss_usd=4.0,
+        utility=-0.25,
+        candidate_id="cand_btc_long",
+        action_id=(
+            "apa2_btc:bounded_information_seeking_exploration:long:venue_minimum"
+        ),
+    )
+    winner = _bootstrap_designation_comparison(
+        side="SHORT",
+        gain_nats=0.9,
+        expected_loss_usd=2.0,
+        utility=-1.75,
+        candidate_id="cand_eth_short",
+        action_id=(
+            "apa2_eth:bounded_information_seeking_exploration:short:venue_minimum"
+        ),
+    )
+
+    designation = paper_loop._paper_bootstrap_information_acquisition_designation(  # noqa: SLF001
+        calibration=_bootstrap_designation_calibration(),
+        previous_cycle_intents=[
+            _bootstrap_designation_intent("BTCUSDT", [loser], timeframe="1h"),
+            _bootstrap_designation_intent("ETHUSDT", [winner], timeframe="4h"),
+        ],
+        current_epoch_closed_trade_rows=[],
+        current_epoch_open_position_rows=[],
+    )
+
+    assert designation is not None
+    assert designation["schema_version"] == (
+        "bootstrap_information_acquisition_designation_v1"
+    )
+    assert designation["policy_mode"] == "bootstrap_information_acquisition"
+    assert designation["policy_objective"] == "BOOTSTRAP_INFORMATION_ACQUISITION"
+    assert designation["selection_rule"] == (
+        "MAX_EXPECTED_INFORMATION_GAIN_NATS_PER_EXPECTED_LOSS_USD"
+        "_TIE_UTILITY_THEN_ACTION_ID"
+    )
+    assert designation["symbol"] == "ETHUSDT"
+    assert designation["timeframe"] == "4h"
+    assert designation["side"] == "SHORT"
+    assert designation["source_candidate_id"] == "cand_eth_short"
+    assert designation["source_venue_minimum_action_id"] == (
+        "apa2_eth:bounded_information_seeking_exploration:short:venue_minimum"
+    )
+    assert designation["expected_information_gain_nats"] == 0.9
+    assert designation["expected_experiment_loss_usd"] == 2.0
+    assert designation["information_gain_per_expected_loss_usd"] == pytest.approx(
+        0.45
+    )
+    assert designation["venue_min_candidate_utility"] == -1.75
+    assert designation["eligible_candidate_count"] == 2
+    assert designation["bootstrap_trigger"] == {
+        "natural_execution_count": 0,
+        "effective_sample_size": 0.0,
+        "posterior_alpha": 1.0,
+        "posterior_beta": 1.0,
+        "prior_only_posterior": True,
+    }
+    assert designation["current_epoch_bootstrap_closed_trades"] == 0
+    assert designation["current_epoch_bootstrap_open_positions"] == 0
+    assert designation["max_concurrent_bootstrap_positions"] == 1
+    assert designation["max_bootstrap_authorizations_per_cycle"] == 1
+    assert designation["counts_as_champion_profitability_evidence"] is False
+    assert designation["counts_as_live_profit"] is False
+    assert designation["paper_only"] is True
+    assert designation["live_gate"] == "blocked_human_only"
+    assert designation["routes_to_live"] is False
+    assert designation["places_real_order"] is False
+    assert designation["exchange_action_taken"] is False
+
+
+def test_bootstrap_designation_ratio_tie_breaks_on_utility_then_action_id() -> None:
+    """An exact gain/loss-ratio tie is broken by the higher (least negative)
+    utility, with non-numeric utility ranked strictly last; a full ratio and
+    utility tie is broken deterministically by the greatest
+    venue_minimum_action_id.
+    """
+
+    calibration = _bootstrap_designation_calibration()
+    # Three candidates at an exact 0.25 gain/loss ratio.
+    worse_utility = _bootstrap_designation_comparison(
+        gain_nats=0.5,
+        expected_loss_usd=2.0,
+        utility=-3.0,
+        candidate_id="cand_aaa",
+        action_id=(
+            "apa2_aaa:bounded_information_seeking_exploration:long:venue_minimum"
+        ),
+    )
+    best_utility = _bootstrap_designation_comparison(
+        gain_nats=1.0,
+        expected_loss_usd=4.0,
+        utility=-1.0,
+        candidate_id="cand_mmm",
+        action_id=(
+            "apa2_mmm:bounded_information_seeking_exploration:long:venue_minimum"
+        ),
+    )
+    missing_utility = _bootstrap_designation_comparison(
+        gain_nats=0.5,
+        expected_loss_usd=2.0,
+        utility=None,
+        candidate_id="cand_zzz",
+        action_id=(
+            "apa2_zzz:bounded_information_seeking_exploration:long:venue_minimum"
+        ),
+    )
+
+    by_utility = paper_loop._paper_bootstrap_information_acquisition_designation(  # noqa: SLF001
+        calibration=calibration,
+        previous_cycle_intents=[
+            _bootstrap_designation_intent(
+                "BTCUSDT", [missing_utility, worse_utility, best_utility]
+            )
+        ],
+        current_epoch_closed_trade_rows=[],
+        current_epoch_open_position_rows=[],
+    )
+    assert by_utility is not None
+    assert by_utility["source_candidate_id"] == "cand_mmm"
+    assert by_utility["venue_min_candidate_utility"] == -1.0
+    assert by_utility["eligible_candidate_count"] == 3
+
+    # Ratio AND utility tie: greatest venue_minimum_action_id wins.
+    tie_low_id = _bootstrap_designation_comparison(
+        gain_nats=0.5,
+        expected_loss_usd=2.0,
+        utility=-1.0,
+        candidate_id="cand_tie_low",
+        action_id=(
+            "apa2_alpha:bounded_information_seeking_exploration:long:venue_minimum"
+        ),
+    )
+    tie_high_id = _bootstrap_designation_comparison(
+        gain_nats=1.0,
+        expected_loss_usd=4.0,
+        utility=-1.0,
+        candidate_id="cand_tie_high",
+        action_id=(
+            "apa2_zulu:bounded_information_seeking_exploration:long:venue_minimum"
+        ),
+    )
+    by_action_id = paper_loop._paper_bootstrap_information_acquisition_designation(  # noqa: SLF001
+        calibration=calibration,
+        previous_cycle_intents=[
+            _bootstrap_designation_intent("BTCUSDT", [tie_low_id, tie_high_id])
+        ],
+        current_epoch_closed_trade_rows=[],
+        current_epoch_open_position_rows=[],
+    )
+    assert by_action_id is not None
+    assert by_action_id["source_candidate_id"] == "cand_tie_high"
+    assert by_action_id["source_venue_minimum_action_id"] == (
+        "apa2_zulu:bounded_information_seeking_exploration:long:venue_minimum"
+    )
+
+
+def test_bootstrap_designation_filters_ineligible_rows_and_returns_none() -> None:
+    """Rows failing hard risk, with non-positive gain or loss, FLAT side, or
+    structural malformation are invisible to the ranking; with nothing
+    eligible the designation is None.
+    """
+
+    calibration = _bootstrap_designation_calibration()
+    ineligible = [
+        _bootstrap_designation_comparison(hard_risk_pass=False),
+        _bootstrap_designation_comparison(hard_risk_pass="true"),
+        _bootstrap_designation_comparison(gain_nats=0.0),
+        _bootstrap_designation_comparison(gain_nats=-0.4),
+        _bootstrap_designation_comparison(expected_loss_usd=0.0),
+        _bootstrap_designation_comparison(expected_loss_usd=-2.0),
+        _bootstrap_designation_comparison(side="FLAT"),
+        _bootstrap_designation_comparison(gain_nats="not-a-number"),
+        _bootstrap_designation_comparison(expected_loss_usd=None),
+        "not-a-mapping",
+        None,
+    ]
+
+    nothing = paper_loop._paper_bootstrap_information_acquisition_designation(  # noqa: SLF001
+        calibration=calibration,
+        previous_cycle_intents=[
+            "not-an-intent-mapping",
+            _bootstrap_designation_intent(
+                "", [_bootstrap_designation_comparison()]
+            ),
+            _bootstrap_designation_intent(
+                "BTCUSDT",
+                [_bootstrap_designation_comparison()],
+                timeframe=None,
+            ),
+            _bootstrap_designation_intent("BTCUSDT", {"not": "a list"}),
+            _bootstrap_designation_intent("BTCUSDT", ineligible),
+        ],
+        current_epoch_closed_trade_rows=[],
+        current_epoch_open_position_rows=[],
+    )
+    assert nothing is None
+
+    only_eligible = paper_loop._paper_bootstrap_information_acquisition_designation(  # noqa: SLF001
+        calibration=calibration,
+        previous_cycle_intents=[
+            _bootstrap_designation_intent(
+                "BTCUSDT", [*ineligible, _bootstrap_designation_comparison()]
+            )
+        ],
+        current_epoch_closed_trade_rows=[],
+        current_epoch_open_position_rows=[],
+    )
+    assert only_eligible is not None
+    assert only_eligible["eligible_candidate_count"] == 1
+    assert only_eligible["symbol"] == "BTCUSDT"
+    assert only_eligible["side"] == "LONG"
+
+
+def test_bootstrap_designation_fails_closed_on_malformed_uncertainty_block() -> None:
+    """Missing, non-mapping, or non-numeric uncertainty_calibration content
+    never designates an experiment, even with eligible candidates present.
+    """
+
+    intents = [
+        _bootstrap_designation_intent(
+            "BTCUSDT", [_bootstrap_designation_comparison()]
+        )
+    ]
+    malformed_calibrations = [
+        {},
+        {"posterior_uncertainty_calibration": None},
+        {"posterior_uncertainty_calibration": ["not", "a", "mapping"]},
+        {
+            "posterior_uncertainty_calibration": {
+                "natural_execution_count": 0,
+                "effective_sample_size": 0.0,
+                "posterior_alpha": 1.0,
+            }
+        },
+        _bootstrap_designation_calibration(natural_execution_count="zero"),
+        _bootstrap_designation_calibration(effective_sample_size=None),
+        _bootstrap_designation_calibration(posterior_alpha="prior"),
+        _bootstrap_designation_calibration(posterior_beta={}),
+    ]
+
+    for calibration in malformed_calibrations:
+        assert (
+            paper_loop._paper_bootstrap_information_acquisition_designation(  # noqa: SLF001
+                calibration=calibration,
+                previous_cycle_intents=intents,
+                current_epoch_closed_trade_rows=[],
+                current_epoch_open_position_rows=[],
+            )
+            is None
+        )

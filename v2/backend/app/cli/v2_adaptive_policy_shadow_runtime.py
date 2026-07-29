@@ -379,26 +379,46 @@ def _compact_record(
     generated_at_ms: int,
 ) -> dict[str, Any]:
     selected_id = result.selected_adaptive_action.decision_id
-    selected_input_id = (
-        result.objective_evaluation.exploration_action_id
-        if result.selected_adaptive_action.policy_mode
-        == "bounded_information_seeking_exploration"
-        else result.objective_evaluation.champion_action_id
-    )
-    if selected_input_id is None:
-        if result.selected_adaptive_action.selected_action != ACTION_REMAIN_FLAT:
-            raise AdaptivePolicyShadowRuntimeError(
-                "selected_objective_input:missing_for_nonflat_action"
-            )
+    if (
+        result.selected_adaptive_action.policy_mode
+        == "bootstrap_information_acquisition"
+    ):
+        # Bootstrap information acquisition binds to its exact venue-minimum
+        # exploration input by identity; the champion/exploration slots stay
+        # reserved for positive-utility selections.
+        bootstrap_side_suffix = (
+            f":{result.selected_adaptive_action.primary_side.lower()}:venue_minimum"
+        )
         selected_input = next(
             item
             for item in result.objective_inputs
-            if item.selected_action == ACTION_REMAIN_FLAT
+            if item.policy_mode == "bounded_information_seeking_exploration"
+            and item.selected_action != ACTION_REMAIN_FLAT
+            and item.action_id.endswith(bootstrap_side_suffix)
         )
     else:
-        selected_input = next(
-            item for item in result.objective_inputs if item.action_id == selected_input_id
+        selected_input_id = (
+            result.objective_evaluation.exploration_action_id
+            if result.selected_adaptive_action.policy_mode
+            == "bounded_information_seeking_exploration"
+            else result.objective_evaluation.champion_action_id
         )
+        if selected_input_id is None:
+            if result.selected_adaptive_action.selected_action != ACTION_REMAIN_FLAT:
+                raise AdaptivePolicyShadowRuntimeError(
+                    "selected_objective_input:missing_for_nonflat_action"
+                )
+            selected_input = next(
+                item
+                for item in result.objective_inputs
+                if item.selected_action == ACTION_REMAIN_FLAT
+            )
+        else:
+            selected_input = next(
+                item
+                for item in result.objective_inputs
+                if item.action_id == selected_input_id
+            )
     selected_venue = next(
         (
             item
@@ -633,6 +653,11 @@ def process_once(
         ),
         "venue_minimum_hard_risk_pass_count": sum(
             item.venue_min_candidate_hard_risk_pass
+            for item in venue_minimum_comparisons
+        ),
+        "venue_minimum_bootstrap_information_acquisition_selected": sum(
+            item.selection_reason
+            == "VENUE_MINIMUM_BOOTSTRAP_INFORMATION_ACQUISITION_SELECTED"
             for item in venue_minimum_comparisons
         ),
         "venue_minimum_comparison_reference_disagreements": sum(

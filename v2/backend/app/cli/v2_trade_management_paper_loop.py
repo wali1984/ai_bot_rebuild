@@ -14165,6 +14165,11 @@ PAPER_RUNTIME_INTENT_PROJECTION_FIELDS = (
     "exploration_provenance",
     "counts_as_training_feedback",
     "counts_as_live_profit",
+    "counts_as_natural_paper_execution",
+    "counts_as_counterfactual",
+    "counts_as_champion_profitability_evidence",
+    "adaptive_policy_venue_minimum_objective_comparisons",
+    "adaptive_policy_venue_minimum_comparisons_sha256",
     "adaptive_paper_policy_authorization",
     "adaptive_paper_policy_authorization_sha256",
     "adaptive_policy_paper_cycle_receipt",
@@ -41418,6 +41423,177 @@ def _paper_valid_sha256(value: Any) -> bool:
     return len(text) == 64 and all(character in "0123456789abcdef" for character in text)
 
 
+def _paper_bootstrap_information_acquisition_designation(
+    *,
+    calibration: Mapping[str, Any],
+    previous_cycle_intents: list[dict[str, Any]],
+    current_epoch_closed_trade_rows: list[dict[str, Any]],
+    current_epoch_open_position_rows: list[dict[str, Any]],
+    current_paper_account_epoch: int | None = None,
+) -> dict[str, Any] | None:
+    """Designate at most ONE bootstrap information-acquisition experiment.
+
+    Bootstrap activation (paper-only): the profitability posterior is
+    prior-only — zero authenticated natural execution closes, zero effective
+    independent N, or an untouched Beta(1, 1) posterior.  While active, the
+    single candidate maximizing expected information gain per dollar of
+    expected experiment loss is designated from the latest COMPLETE
+    full-universe evaluation's venue-minimum comparisons.  Only already
+    hard-valid, venue-executable comparisons with strictly positive expected
+    information gain are eligible; monetary utility is a tie-break only.  The
+    designation itself grants no authority: the designated candidate is fully
+    rebuilt and re-validated against every unchanged hard rail in the current
+    cycle before any authorization.  Cadence: no new designation while any
+    bootstrap position is open or while a bootstrap close from the current
+    epoch has not yet been consumed into the calibration posterior (which
+    would deactivate the prior-only trigger).
+    """
+
+    uncertainty = calibration.get("posterior_uncertainty_calibration")
+    if not isinstance(uncertainty, Mapping):
+        return None
+    try:
+        natural_execution_count = int(uncertainty["natural_execution_count"])
+        effective_sample_size = float(uncertainty["effective_sample_size"])
+        posterior_alpha = float(uncertainty["posterior_alpha"])
+        posterior_beta = float(uncertainty["posterior_beta"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    prior_only = posterior_alpha == 1.0 and posterior_beta == 1.0
+    if not (
+        natural_execution_count == 0
+        or effective_sample_size == 0.0
+        or prior_only
+    ):
+        return None
+
+    def _bootstrap_mode(row: Any) -> bool:
+        if not isinstance(row, Mapping):
+            return False
+        if (
+            row.get("adaptive_policy_action_policy_mode")
+            != "bootstrap_information_acquisition"
+        ):
+            return False
+        # Scope the cadence guard to the current paper account epoch: a
+        # bootstrap close surviving from a previous epoch must not suppress a
+        # fresh prior-only bootstrap window.  Rows without an epoch stamp are
+        # counted conservatively (suppress designation).
+        row_epoch = row.get("paper_account_epoch")
+        if current_paper_account_epoch is None or row_epoch is None:
+            return True
+        return row_epoch == current_paper_account_epoch
+
+    epoch_bootstrap_closed = sum(
+        _bootstrap_mode(row) for row in current_epoch_closed_trade_rows
+    )
+    epoch_bootstrap_open = sum(
+        _bootstrap_mode(row) for row in current_epoch_open_position_rows
+    )
+    if epoch_bootstrap_closed or epoch_bootstrap_open:
+        return None
+
+    eligible_count = 0
+    best_key: tuple[float, float, str] | None = None
+    best: dict[str, Any] | None = None
+    for intent_row in previous_cycle_intents:
+        if not isinstance(intent_row, Mapping):
+            continue
+        symbol = intent_row.get("symbol")
+        timeframe = intent_row.get("timeframe")
+        if not symbol or not timeframe:
+            continue
+        comparisons = intent_row.get(
+            "adaptive_policy_venue_minimum_objective_comparisons"
+        )
+        if not isinstance(comparisons, list):
+            continue
+        for row in comparisons:
+            if not isinstance(row, Mapping):
+                continue
+            if row.get("venue_min_candidate_hard_risk_pass") is not True:
+                continue
+            try:
+                gain_nats = float(
+                    row["venue_min_candidate_expected_information_gain_nats"]
+                )
+                expected_loss_usd = float(row["venue_min_candidate_expected_loss_usd"])
+            except (KeyError, TypeError, ValueError, OverflowError):
+                continue
+            # Nonfinite persisted values would poison canonical hashing of
+            # every candidate's paper status downstream; contain them here.
+            if not (
+                math.isfinite(gain_nats) and math.isfinite(expected_loss_usd)
+            ):
+                continue
+            if gain_nats <= 0.0 or expected_loss_usd <= 0.0:
+                continue
+            side = row.get("side")
+            if side not in ("LONG", "SHORT"):
+                continue
+            eligible_count += 1
+            raw_utility = row.get("venue_min_candidate_utility")
+            try:
+                utility = (
+                    float(raw_utility)
+                    if isinstance(raw_utility, (int, float))
+                    and math.isfinite(float(raw_utility))
+                    else float("-inf")
+                )
+            except OverflowError:
+                utility = float("-inf")
+            ratio = gain_nats / expected_loss_usd
+            key = (ratio, utility, str(row.get("venue_minimum_action_id") or ""))
+            if best_key is None or key > best_key:
+                best_key = key
+                best = {
+                    "symbol": str(symbol),
+                    "timeframe": str(timeframe),
+                    "side": str(side),
+                    "source_candidate_id": row.get("candidate_id"),
+                    "source_venue_minimum_action_id": row.get(
+                        "venue_minimum_action_id"
+                    ),
+                    "expected_information_gain_nats": gain_nats,
+                    "expected_experiment_loss_usd": expected_loss_usd,
+                    "information_gain_per_expected_loss_usd": ratio,
+                    "venue_min_candidate_utility": (
+                        utility if utility != float("-inf") else None
+                    ),
+                }
+    if best is None:
+        return None
+    return {
+        "schema_version": "bootstrap_information_acquisition_designation_v1",
+        "policy_objective": "BOOTSTRAP_INFORMATION_ACQUISITION",
+        "policy_mode": "bootstrap_information_acquisition",
+        "selection_rule": (
+            "MAX_EXPECTED_INFORMATION_GAIN_NATS_PER_EXPECTED_LOSS_USD"
+            "_TIE_UTILITY_THEN_ACTION_ID"
+        ),
+        **best,
+        "eligible_candidate_count": eligible_count,
+        "bootstrap_trigger": {
+            "natural_execution_count": natural_execution_count,
+            "effective_sample_size": effective_sample_size,
+            "posterior_alpha": posterior_alpha,
+            "posterior_beta": posterior_beta,
+            "prior_only_posterior": prior_only,
+        },
+        "current_epoch_bootstrap_closed_trades": epoch_bootstrap_closed,
+        "current_epoch_bootstrap_open_positions": epoch_bootstrap_open,
+        "max_concurrent_bootstrap_positions": 1,
+        "max_bootstrap_authorizations_per_cycle": 1,
+        "counts_as_champion_profitability_evidence": False,
+        "counts_as_live_profit": False,
+        "paper_only": True,
+        "live_gate": LIVE_GATE_BLOCKED,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "exchange_action_taken": False,
+    }
+
+
 def _paper_adaptive_policy_cycle_receipt(
     intent: Mapping[str, Any],
     *,
@@ -51341,6 +51517,39 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                 "feature_archive_root": str(adaptive_policy_feature_archive_root),
             }
         )
+        # Bootstrap information acquisition (paper-only): while the
+        # profitability posterior is prior-only, designate at most one
+        # venue-minimum experiment for this cycle from the previous COMPLETE
+        # full-universe evaluation.  The designation grants no authority by
+        # itself; the designated candidate is rebuilt and re-validated
+        # against every unchanged hard rail before authorization.
+        try:
+            _bootstrap_previous_intents = _read_json_list_redis_key_if_small(
+                r,
+                f"{V2_REDIS_PREFIX}paper:intents",
+                max_bytes=268_435_456,
+            )
+            adaptive_policy_cycle_context[
+                "bootstrap_information_acquisition_designation"
+            ] = _paper_bootstrap_information_acquisition_designation(
+                calibration=adaptive_policy_calibration,
+                previous_cycle_intents=_bootstrap_previous_intents,
+                current_epoch_closed_trade_rows=_closed_trade_rows(existing_ledger),
+                current_epoch_open_position_rows=(
+                    _paper_existing_open_position_rows(existing_ledger)
+                ),
+                current_paper_account_epoch=paper_account_epoch,
+            )
+        except (OSError, RuntimeError, TypeError, ValueError, OverflowError) as exc:
+            adaptive_policy_cycle_context[
+                "bootstrap_information_acquisition_designation"
+            ] = None
+            adaptive_policy_cycle_context[
+                "bootstrap_information_acquisition_designation_error"
+            ] = f"{type(exc).__name__}:{exc}"
+        adaptive_policy_cycle_context[
+            "bootstrap_information_acquisition_cycle_authorizations"
+        ] = 0
     existing_ledger_observed_at = _utc_iso()
     _set_symbol_tf_closed_evidence_counts(_closed_trade_rows(existing_ledger))
     _set_session_performance_sizing_evidence(_closed_trade_rows(existing_ledger))
@@ -54579,6 +54788,18 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                     _paper_existing_open_position_rows(existing_ledger)
                 )
                 + len(accepted),
+                # At most one bootstrap authorization per completed paper
+                # cycle: the designation is withheld from every candidate
+                # after the first bootstrap authorization this cycle.
+                "bootstrap_information_acquisition_designation": (
+                    adaptive_policy_cycle_context.get(
+                        "bootstrap_information_acquisition_designation"
+                    )
+                    if not adaptive_policy_cycle_context.get(
+                        "bootstrap_information_acquisition_cycle_authorizations"
+                    )
+                    else None
+                ),
                 "performance_risk_state": {
                     "schema_version": "adaptive_performance_risk_state_v1",
                     "source_schema_version": (
@@ -54670,12 +54891,32 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         # provenance: an exploration outcome is training feedback, never live
         # profit (live stays BLOCKED).
         intent["adaptive_policy_action_policy_mode"] = adaptive_action.policy_mode
-        intent["exploration_provenance"] = (
-            adaptive_action.policy_mode
-            == "bounded_information_seeking_exploration"
+        intent["exploration_provenance"] = adaptive_action.policy_mode in (
+            "bounded_information_seeking_exploration",
+            "bootstrap_information_acquisition",
         )
         intent["counts_as_training_feedback"] = True
         intent["counts_as_live_profit"] = False
+        if adaptive_action.policy_mode == "bootstrap_information_acquisition":
+            # Prospective classification per the bootstrap amendment: the
+            # experiment's outcome is an authenticated natural paper
+            # execution and training feedback; it is never counterfactual
+            # evidence, never champion-profitability evidence, and never
+            # live profit.  Losses stay visible under their own policy mode.
+            intent["counts_as_natural_paper_execution"] = True
+            intent["counts_as_counterfactual"] = False
+            intent["counts_as_champion_profitability_evidence"] = False
+            adaptive_policy_cycle_context[
+                "bootstrap_information_acquisition_cycle_authorizations"
+            ] = (
+                int(
+                    adaptive_policy_cycle_context.get(
+                        "bootstrap_information_acquisition_cycle_authorizations"
+                    )
+                    or 0
+                )
+                + 1
+            )
         intent["adaptive_policy_result_sha256"] = adaptive_policy_result.content_sha256
         intent["adaptive_policy_reference_parity_status"] = (
             adaptive_policy_result.parity_status
@@ -57051,6 +57292,26 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             ),
             "directional_authorized_count": sum(
                 row.get("adaptive_policy_entry_authorized") is True
+                for row in adaptive_policy_authority_rows
+            ),
+            "bootstrap_information_acquisition_designation_present": bool(
+                adaptive_policy_cycle_context.get(
+                    "bootstrap_information_acquisition_designation"
+                )
+            ),
+            "bootstrap_information_acquisition_eligible_candidates": int(
+                (
+                    adaptive_policy_cycle_context.get(
+                        "bootstrap_information_acquisition_designation"
+                    )
+                    or {}
+                ).get("eligible_candidate_count")
+                or 0
+            ),
+            "bootstrap_information_acquisition_authorizations": sum(
+                row.get("adaptive_policy_action_policy_mode")
+                == "bootstrap_information_acquisition"
+                and row.get("adaptive_policy_entry_authorized") is True
                 for row in adaptive_policy_authority_rows
             ),
             "flat_authorized_count": sum(
@@ -59591,6 +59852,17 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                         "active_runtime_owner_current_proof": paper_active_runtime_owner_status,
                         "accepted_position_count": len(open_positions),
                         "open_position_count": len(open_positions),
+                        "bootstrap_information_acquisition_designation": (
+                            adaptive_policy_cycle_context.get(
+                                "bootstrap_information_acquisition_designation"
+                            )
+                        ),
+                        "bootstrap_information_acquisition_cycle_authorizations": int(
+                            adaptive_policy_cycle_context.get(
+                                "bootstrap_information_acquisition_cycle_authorizations"
+                            )
+                            or 0
+                        ),
                         "closed_trade_count": len(closes),
                         "unproved_close_quarantine_count": len(
                             unproved_close_quarantine_rows

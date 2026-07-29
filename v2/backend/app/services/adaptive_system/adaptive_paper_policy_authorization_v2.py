@@ -20,6 +20,7 @@ from typing import Any, Mapping
 from v2.backend.app.domain.adaptive_policy_action_v2 import (
     ACTION_DIRECTIONAL_TRADE,
     ACTION_REMAIN_FLAT,
+    POLICY_MODE_BOOTSTRAP_INFORMATION_ACQUISITION,
     POLICY_MODE_BOUNDED_EXPLORATION,
     AdaptivePolicyActionV2,
 )
@@ -353,6 +354,53 @@ def _selected_input(
     action: AdaptivePolicyActionV2,
     evaluation: AdaptiveObjectiveEvaluationV2,
 ) -> ActionObjectiveInputsV2:
+    if action.policy_mode == POLICY_MODE_BOOTSTRAP_INFORMATION_ACQUISITION:
+        # A bootstrap information-acquisition action binds to the exact
+        # hard-valid venue-minimum exploration input by identity.  It can
+        # never ride the champion/exploration slots: its monetary utility may
+        # be nonpositive, so it is only legitimate when neither slot holds a
+        # positive-utility action.  Every downstream gate (signed hard
+        # validator receipt, exact venue attestation, mandatory stop) applies
+        # unchanged.
+        if evaluation.exploration_action_id is not None:
+            _fail(
+                "bootstrap_requires_no_positive_utility_exploration",
+                "objective_evaluation",
+            )
+        champion_matches = tuple(
+            item
+            for item in result.objective_inputs
+            if item.action_id == evaluation.champion_action_id
+        )
+        if (
+            len(champion_matches) != 1
+            or champion_matches[0].selected_action != ACTION_REMAIN_FLAT
+        ):
+            _fail(
+                "bootstrap_requires_flat_champion_baseline",
+                "objective_evaluation",
+            )
+        if action.selected_action != ACTION_DIRECTIONAL_TRADE:
+            _fail("bootstrap_requires_directional_trade", "selected_adaptive_action")
+        side_suffix = f":{action.primary_side.lower()}:venue_minimum"
+        matches = tuple(
+            item
+            for item in result.objective_inputs
+            if item.policy_mode == POLICY_MODE_BOUNDED_EXPLORATION
+            and item.selected_action == ACTION_DIRECTIONAL_TRADE
+            and item.action_id.endswith(side_suffix)
+        )
+        if len(matches) != 1:
+            _fail("selected_objective_input_not_unique", "objective_inputs")
+        selected = matches[0]
+        if selected.expected_information_gain <= 0.0:
+            _fail(
+                "bootstrap_requires_positive_information_gain",
+                "selected_objective_input",
+            )
+        if selected.selected_action != action.selected_action:
+            _fail("selected_action_mismatch", "selected_objective_input")
+        return selected
     selected_id = (
         evaluation.exploration_action_id
         if action.policy_mode == POLICY_MODE_BOUNDED_EXPLORATION

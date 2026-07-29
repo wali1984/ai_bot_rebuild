@@ -211,11 +211,10 @@ def process_once(
             raise CandidateCalibrationPublisherError(
                 "selected_action:invalid_json"
             ) from exc
-        exploration = (
-            selected_payload.get("adaptive_policy_action_policy_mode")
-            == "bounded_information_seeking_exploration"
-        )
-        return (observation, actual_outcome is not None, exploration)
+        policy_mode = selected_payload.get("adaptive_policy_action_policy_mode")
+        exploration = policy_mode == "bounded_information_seeking_exploration"
+        bootstrap = policy_mode == "bootstrap_information_acquisition"
+        return (observation, actual_outcome is not None, exploration, bootstrap)
 
     with _private_archive_snapshot_reader(
         archive_path=archive_path,
@@ -236,6 +235,9 @@ def process_once(
     actual_paper_outcome_count = sum(item[1] for item in observation_projections)
     exploration_outcome_count = sum(
         item[1] and item[2] for item in observation_projections
+    )
+    bootstrap_outcome_count = sum(
+        item[1] and item[3] for item in observation_projections
     )
     calibration_error: CandidateOutcomeCalibrationError | None = None
     try:
@@ -270,6 +272,9 @@ def process_once(
             "actual_paper_outcomes_consumed_by_training": actual_paper_outcome_count,
             "bounded_exploration_outcomes_consumed_by_training": (
                 exploration_outcome_count
+            ),
+            "bootstrap_information_acquisition_outcomes_consumed_by_training": (
+                bootstrap_outcome_count
             ),
             "paper_only": True,
             "live_gate": "blocked_human_only",
@@ -336,6 +341,9 @@ def process_once(
         "actual_paper_outcomes_consumed_by_training": actual_paper_outcome_count,
         "bounded_exploration_outcomes_consumed_by_training": (
             exploration_outcome_count
+        ),
+        "bootstrap_information_acquisition_outcomes_consumed_by_training": (
+            bootstrap_outcome_count
         ),
         "paper_only": True,
         "live_gate": "blocked_human_only",

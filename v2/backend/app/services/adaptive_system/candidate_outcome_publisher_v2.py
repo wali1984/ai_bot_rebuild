@@ -1232,6 +1232,22 @@ def build_decision_revision(
             intent.get("counts_as_training_feedback") is True
         ),
         "counts_as_live_profit": intent.get("counts_as_live_profit") is True,
+        **(
+            {
+                "counts_as_natural_paper_execution": (
+                    intent.get("counts_as_natural_paper_execution") is True
+                ),
+                "counts_as_counterfactual": (
+                    intent.get("counts_as_counterfactual") is True
+                ),
+                "counts_as_champion_profitability_evidence": (
+                    intent.get("counts_as_champion_profitability_evidence") is True
+                ),
+            }
+            if intent.get("adaptive_policy_action_policy_mode")
+            == "bootstrap_information_acquisition"
+            else {}
+        ),
     }
     if selected_payload["adaptive_policy_authoritative"] is True:
         has_action = selected_payload["adaptive_policy_action_id"] not in (None, "")
@@ -1269,6 +1285,7 @@ def build_decision_revision(
             if policy_mode not in {
                 "champion_exploitation",
                 "bounded_information_seeking_exploration",
+                "bootstrap_information_acquisition",
             }:
                 _fail(
                     "typed_policy_mode_required",
@@ -1286,13 +1303,25 @@ def build_decision_revision(
                 selected_payload["adaptive_policy_paper_cycle_receipt_sha256"],
                 "intent.adaptive_policy_paper_cycle_receipt_sha256",
             )
-            expected_exploration = (
-                policy_mode == "bounded_information_seeking_exploration"
-            )
+            expected_exploration = policy_mode in {
+                "bounded_information_seeking_exploration",
+                "bootstrap_information_acquisition",
+            }
             if (
                 selected_payload["exploration_provenance"] is not expected_exploration
                 or selected_payload["counts_as_training_feedback"] is not True
                 or selected_payload["counts_as_live_profit"] is not False
+            ):
+                _fail(
+                    "typed_training_provenance_invalid",
+                    "intent.adaptive_policy_provenance",
+                )
+            if policy_mode == "bootstrap_information_acquisition" and (
+                selected_payload.get("counts_as_natural_paper_execution")
+                is not True
+                or selected_payload.get("counts_as_counterfactual") is not False
+                or selected_payload.get("counts_as_champion_profitability_evidence")
+                is not False
             ):
                 _fail(
                     "typed_training_provenance_invalid",

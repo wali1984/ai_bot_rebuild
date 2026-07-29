@@ -19,6 +19,14 @@ ACTION_REMAIN_FLAT = "remain_flat"
 
 POLICY_MODE_CHAMPION_EXPLOITATION = "champion_exploitation"
 POLICY_MODE_BOUNDED_EXPLORATION = "bounded_information_seeking_exploration"
+# Bootstrap information acquisition: a paper-only experiment authorized while
+# the profitability posterior is prior-only (zero authenticated natural
+# execution closes / zero effective independent N).  Its monetary utility may
+# be negative; expected information gain must be strictly positive and the
+# experiment must fit inside the unchanged hard paper-exploration loss
+# envelope.  Its outcomes are training feedback and natural paper executions,
+# never champion-profitability evidence and never live profit.
+POLICY_MODE_BOOTSTRAP_INFORMATION_ACQUISITION = "bootstrap_information_acquisition"
 POLICY_MODE_POSITION_MANAGEMENT = "position_management"
 POLICY_MODE_RISK_REDUCTION = "risk_reduction"
 
@@ -37,6 +45,7 @@ _POLICY_MODES = frozenset(
     {
         POLICY_MODE_CHAMPION_EXPLOITATION,
         POLICY_MODE_BOUNDED_EXPLORATION,
+        POLICY_MODE_BOOTSTRAP_INFORMATION_ACQUISITION,
         POLICY_MODE_POSITION_MANAGEMENT,
         POLICY_MODE_RISK_REDUCTION,
     }
@@ -1448,6 +1457,7 @@ __all__ = (
     "ACTION_REMAIN_FLAT",
     "ADAPTIVE_POLICY_ACTION_SCHEMA_VERSION",
     "LIVE_GATE_BLOCKED_HUMAN_ONLY",
+    "POLICY_MODE_BOOTSTRAP_INFORMATION_ACQUISITION",
     "POLICY_MODE_BOUNDED_EXPLORATION",
     "POLICY_MODE_CHAMPION_EXPLOITATION",
     "POLICY_MODE_POSITION_MANAGEMENT",
