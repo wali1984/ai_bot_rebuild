@@ -225,6 +225,15 @@ def _required_zero_float(value: object, field: str) -> float:
     return result
 
 
+def _required_nonnegative_float(value: object, field: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        raise CandidateOutcomeRuntimeError(f"{field}:nonnegative_float_required")
+    result = float(value)
+    if not math.isfinite(result) or result < 0.0:
+        raise CandidateOutcomeRuntimeError(f"{field}:nonnegative_float_required")
+    return result
+
+
 def _candidate_id_from_close(close: Mapping[str, Any]) -> str:
     generation = close.get("checkpoint_generation")
     if type(generation) is not int or generation < 1:
@@ -380,10 +389,19 @@ def _actual_paper_outcome_from_close(
         raise CandidateOutcomeRuntimeError(
             "actual_close:flat_accounting_reconciliation_required"
         )
-    _required_zero_float(
+    # Continuous paper learning: other positions may legitimately be OPEN
+    # while an earlier close matures, so global used/newly-reserved margin is
+    # finite-nonnegative rather than exactly zero.  Conservation authority is
+    # unchanged and still mandatory: margin status PASS with
+    # accounting_complete and invariant_holds (used margin == sum of open
+    # position margins), reconciliation PASS with zero unresolved/phantom
+    # positions, exact-zero unexplained wallet mutation below, and the
+    # close's own contract (reduce_only, fully_closed, released margin)
+    # enforced in ActualPaperExecutionOutcomeV2.
+    _required_nonnegative_float(
         margin.get("used_margin_usd"), "paper_status.used_margin_usd"
     )
-    _required_zero_float(
+    _required_nonnegative_float(
         margin.get("newly_reserved_margin_usd"),
         "paper_status.newly_reserved_margin_usd",
     )
