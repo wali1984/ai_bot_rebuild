@@ -15,13 +15,13 @@ from v2.backend.app.services.adaptive_system.candidate_outcome_calibration_v2 im
 from v2.backend.app.services.adaptive_system.candidate_outcome_maturer_v2 import (
     mature_candidate,
 )
+from v2.backend.tests.unit.contracts.runtime_v2.test_candidate_decision_outcome_v2 import (
+    _actual,
+)
 from v2.backend.tests.unit.services.adaptive_system.test_candidate_outcome_maturer_v2 import (
     _hold_record,
     _record,
     _rows_and_proof,
-)
-from v2.backend.tests.unit.contracts.runtime_v2.test_candidate_decision_outcome_v2 import (
-    _actual,
 )
 from v2.backend.tests.unit.services.adaptive_system.test_candidate_outcome_publisher_v2 import (
     _build,
@@ -43,6 +43,7 @@ def _observation(index: int) -> CandidateCalibrationObservationV2:
         timeframe="5m" if index % 2 else "15m",
         side="LONG" if index % 2 else "SHORT",
         decision_disposition="REJECTED" if index % 3 else "INFEASIBLE",
+        realized_execution_outcome=index % 10 == 0,
         calibrated_confidence_source=(index % 10) / 10.0,
         predicted_loss_probability_source=(10 - index % 10) / 10.0,
         exit_feasibility_source=(index % 5) / 5.0,
@@ -81,7 +82,20 @@ def test_fits_chronological_calibration_without_holdout_leakage() -> None:
     assert artifact["validation_sample_count"] == 20
     assert artifact["fit_window_end_ms"] < artifact["validation_window_start_ms"]
     assert artifact["holdout_used_for_fitting"] is False
-    assert artifact["validation"]["parameters_changed_after_validation"] is False
+    assert artifact["validation"][
+        "objective_and_return_parameters_changed_after_validation"
+    ] is False
+    uncertainty = artifact["posterior_uncertainty_calibration"]
+    assert uncertainty["method"] == (
+        "CHRONOLOGICAL_HELDOUT_BERNOULLI_RESIDUAL_DISPERSION"
+    )
+    assert uncertainty["arbitrary_multiplier_used"] is False
+    assert uncertainty["tuned_to_create_trades"] is False
+    assert uncertainty["counterfactual_counts_as_realized_execution_profit"] is False
+    assert uncertainty["realized_execution_outcome_count"] == 2
+    assert artifact["global_statistics"]["posterior_uncertainty"] == uncertainty[
+        "calibrated_predictive_uncertainty"
+    ]
     assert artifact["mode_allocation"]["permanent_percentage"] is False
     assert artifact["counterfactual_counts_as_realized_paper_profit"] is False
     assert artifact["objective_weight_optimizer"]["optimizer_steps"] >= 100
@@ -127,7 +141,15 @@ def test_validation_suffix_cannot_change_fitted_parameters() -> None:
     assert first["fit_row_digest"] == second["fit_row_digest"]
     assert first["learned_objective_weights"] == second["learned_objective_weights"]
     assert first["objective_weight_optimizer"] == second["objective_weight_optimizer"]
-    assert first["global_statistics"] == second["global_statistics"]
+    first_without_uncertainty = dict(first["global_statistics"])
+    second_without_uncertainty = dict(second["global_statistics"])
+    first_without_uncertainty.pop("posterior_uncertainty")
+    second_without_uncertainty.pop("posterior_uncertainty")
+    assert first_without_uncertainty == second_without_uncertainty
+    assert (
+        first["global_statistics"]["posterior_uncertainty"]
+        != second["global_statistics"]["posterior_uncertainty"]
+    )
     assert first["validation"] != second["validation"]
 
 
@@ -170,6 +192,7 @@ def test_extracts_only_complete_point_in_time_matured_revision() -> None:
     assert observation.final_after_cost_return_bps == (
         matured.matured_labels.counterfactual_outcomes[0].scenarios[0].after_cost_pnl_bps
     )
+    assert observation.realized_execution_outcome is False
 
 
 def test_hold_observation_uses_predeclared_reference_side_missed_edge() -> None:
@@ -233,5 +256,6 @@ def test_executed_observation_uses_reconciled_actual_pnl_not_counterfactual() ->
 
     assert observation.final_after_cost_return_bps == -250.0
     assert observation.loss is True
+    assert observation.realized_execution_outcome is True
     assert matured.matured_labels is not None
     assert matured.matured_labels.counts_as_paper_profit is True

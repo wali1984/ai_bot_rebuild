@@ -12,13 +12,16 @@ import dataclasses
 import hashlib
 import json
 import math
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass, replace
 from datetime import datetime
-from decimal import Decimal, ROUND_CEILING, ROUND_FLOOR, localcontext
-from typing import Any, Mapping
+from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal, localcontext
+from typing import Any
 
 from v2.backend.app.domain.adaptive_component_estimates_v1 import (
     AUTHORITY_MODE as COMPONENT_AUTHORITY_MODE,
+)
+from v2.backend.app.domain.adaptive_component_estimates_v1 import (
     AVAILABLE,
     CALIBRATED_PROBABILITY,
     COMPONENT_NAMES,
@@ -437,7 +440,12 @@ def _statistics(
 
 
 def _physical_plan(
-    *, intent: Mapping[str, Any], statistics: Mapping[str, Any], side: str, mode: str
+    *,
+    intent: Mapping[str, Any],
+    statistics: Mapping[str, Any],
+    side: str,
+    mode: str,
+    force_venue_minimum_candidate: bool = False,
 ) -> dict[str, Any]:
     filters = _mapping(intent.get("paper_exchange_filter_snapshot"), "exchange_filter")
     reservation = _mapping(intent.get("paper_cycle_reservation_snapshot"), "reservation")
@@ -490,30 +498,34 @@ def _physical_plan(
             (minimum_notional / entry / step).to_integral_value(rounding=ROUND_CEILING)
             * step,
         )
-        selected_quantity = (
+        raw_selected_quantity = (
             (continuous_target / entry / step).to_integral_value(rounding=ROUND_FLOOR)
             * step
         )
-        # Venue feasibility is a hard physical validator, not sizing policy.
-        # Never increase a learned policy target merely to satisfy the venue
-        # minimum.  This candidate is ineligible and another opportunity must
-        # be selected when the exact continuous budget is sub-minimum.
         if minimum_step_quantity > maximum_quantity:
             raise AdaptivePolicyShadowError(
                 "venue_minimum_quantity_exceeds_venue_maximum"
             )
         if (
             mode == BOUNDED_EXPLORATION
-            and selected_quantity < minimum_step_quantity
+            and raw_selected_quantity < minimum_step_quantity
+            and not force_venue_minimum_candidate
         ):
             raise AdaptivePolicyShadowError(
                 "continuous_policy_target_below_venue_minimum"
             )
-        # Champion proposals retain the venue-minimum comparator so the
-        # objective can score complete exploit/explore alternatives.  A
-        # non-positive champion cannot win against the hard-valid flat action;
-        # a selected directional action must still pass the exact attestation.
-        selected_quantity = max(minimum_step_quantity, selected_quantity)
+        if force_venue_minimum_candidate:
+            if mode != BOUNDED_EXPLORATION or raw_selected_quantity >= minimum_step_quantity:
+                raise AdaptivePolicyShadowError(
+                    "venue_minimum_candidate_requires_subminimum_bounded_proposal"
+                )
+            # This is a distinct objective candidate.  The learned target is
+            # retained unchanged below; only this second candidate uses the
+            # exact executable lot at the venue minimum.
+            selected_quantity = minimum_step_quantity
+        else:
+            # Champion proposals retain their existing executable comparator.
+            selected_quantity = max(minimum_step_quantity, raw_selected_quantity)
         if selected_quantity > maximum_quantity:
             selected_quantity = maximum_quantity
         notional = selected_quantity * entry
@@ -538,6 +550,73 @@ def _physical_plan(
             if side == "LONG"
             else (raw_target / tick).to_integral_value(rounding=ROUND_FLOOR) * tick
         )
+        selected_round_trip_cost_bps = transaction_cost
+        recomputed_fill_probability: Decimal | None = None
+        recomputed_slippage_bps: Decimal | None = None
+        recomputed_market_impact_bps: Decimal | None = None
+        recomputed_adverse_selection_probability: Decimal | None = None
+        liquidity_utilization: Decimal | None = None
+        if force_venue_minimum_candidate:
+            continuous = _microstructure_continuous_policy_inputs(intent)
+            exact_fee_bps = max(
+                Decimal("0"), Decimal(str(_finite(intent.get("fee_bps"), "fee_bps")))
+            )
+            exact_spread_bps = max(
+                Decimal("0"),
+                Decimal(
+                    str(
+                        _finite(
+                            intent.get("observed_spread_bps"),
+                            "observed_spread_bps",
+                        )
+                    )
+                ),
+            )
+            exact_slippage_bps = max(
+                Decimal(str(statistics["slippage_bps_quantiles"]["0.5"])),
+                Decimal(str(continuous["slippage_bps"])),
+            )
+            exact_impact_bps = max(
+                Decimal(str(statistics["market_impact_bps_quantiles"]["0.5"])),
+                Decimal(str(continuous["market_impact_bps"])),
+            )
+            exact_funding_bps = abs(Decimal(str(statistics["funding_bps_mean"])))
+            adverse_probability = max(
+                Decimal(str(statistics["slippage_failure_probability"])),
+                Decimal(str(continuous["adverse_selection_probability"])),
+            )
+            adverse_loss_bps = adverse_probability * abs(
+                Decimal(str(statistics["mae_bps_quantiles"]["0.5"]))
+            )
+            liquidity_capacity = Decimal(
+                str(continuous["available_liquidity_capacity_usd"])
+            )
+            liquidity_utilization = min(
+                Decimal("1"), notional / liquidity_capacity
+            )
+            recomputed_fill_probability = min(
+                Decimal("1")
+                - Decimal(str(statistics["venue_infeasible_probability"])),
+                Decimal(str(continuous["fill_probability"])),
+            ) * (Decimal("1") - liquidity_utilization)
+            recomputed_slippage_bps = exact_slippage_bps
+            recomputed_market_impact_bps = exact_impact_bps * (
+                Decimal("1") + liquidity_utilization
+            )
+            recomputed_adverse_selection_probability = Decimal("1") - (
+                Decimal("1") - adverse_probability
+            ) * (Decimal("1") - liquidity_utilization)
+            adverse_loss_bps = recomputed_adverse_selection_probability * abs(
+                Decimal(str(statistics["mae_bps_quantiles"]["0.5"]))
+            )
+            selected_round_trip_cost_bps = (
+                exact_fee_bps * Decimal("2")
+                + exact_spread_bps
+                + exact_slippage_bps
+                + recomputed_market_impact_bps
+                + exact_funding_bps
+                + adverse_loss_bps
+            )
     return {
         "side": side,
         "entry_price": entry,
@@ -547,7 +626,7 @@ def _physical_plan(
         "selected_notional_usd": notional,
         "selected_margin_usd": margin,
         "selected_leverage": leverage,
-        "round_trip_cost_bps": transaction_cost,
+        "round_trip_cost_bps": selected_round_trip_cost_bps,
         "venue_price_tick": tick,
         "venue_min_notional_usd": minimum_notional,
         "venue_max_notional_usd": _positive_decimal(
@@ -571,6 +650,19 @@ def _physical_plan(
         ),
         "reserved_margin_usd": Decimal(str(derived.get("prior_reserved_margin_usd", 0.0))),
         "continuous_target_notional_usd": continuous_target,
+        "raw_learned_target_notional_usd": continuous_target,
+        "raw_learned_selected_quantity": raw_selected_quantity,
+        "venue_minimum_candidate": force_venue_minimum_candidate,
+        "venue_minimum_candidate_notional_usd": (
+            notional if force_venue_minimum_candidate else None
+        ),
+        "venue_minimum_recomputed_fill_probability": recomputed_fill_probability,
+        "venue_minimum_recomputed_slippage_bps": recomputed_slippage_bps,
+        "venue_minimum_recomputed_market_impact_bps": recomputed_market_impact_bps,
+        "venue_minimum_recomputed_adverse_selection_probability": (
+            recomputed_adverse_selection_probability
+        ),
+        "venue_minimum_liquidity_utilization": liquidity_utilization,
         "adaptive_scale": scale,
     }
 
@@ -1218,6 +1310,13 @@ def _microstructure_continuous_policy_inputs(
             estimates.get("adverse_selection_probability"),
             "continuous.adverse_selection_probability",
         ),
+        "available_liquidity_capacity_usd": _finite(
+            estimates.get("available_liquidity_capacity_usd"),
+            "continuous.available_liquidity_capacity_usd",
+        ),
+        "sweep_risk": _finite(
+            estimates.get("sweep_risk"), "continuous.sweep_risk"
+        ),
     }
     if not 0.0 <= values["fill_probability"] <= 1.0:
         raise AdaptivePolicyShadowError("continuous.fill_probability:probability_required")
@@ -1227,6 +1326,12 @@ def _microstructure_continuous_policy_inputs(
         )
     if values["slippage_bps"] < 0.0 or values["market_impact_bps"] < 0.0:
         raise AdaptivePolicyShadowError("continuous.costs:nonnegative_required")
+    if values["available_liquidity_capacity_usd"] <= 0.0:
+        raise AdaptivePolicyShadowError(
+            "continuous.available_liquidity_capacity_usd:positive_required"
+        )
+    if not 0.0 <= values["sweep_risk"] <= 1.0:
+        raise AdaptivePolicyShadowError("continuous.sweep_risk:probability_required")
     return values
 
 
@@ -1245,6 +1350,8 @@ def _objective_action(
     decision_time_ms: int,
     performance_risk_multiplier: float = 1.0,
     microstructure_estimates: Mapping[str, float] | None = None,
+    intent: Mapping[str, Any] | None = None,
+    plan: Mapping[str, Any] | None = None,
 ) -> ActionObjectiveInputsV2:
     flat = selected_action == ACTION_REMAIN_FLAT
     stats = statistics or {}
@@ -1268,6 +1375,85 @@ def _objective_action(
     current_cost_delta = (effective_slippage - calibrated_slippage) + (
         effective_impact - calibrated_impact
     )
+    fill_probability = (
+        1.0
+        if flat
+        else min(
+            1.0 - float(stats["venue_infeasible_probability"]),
+            float(continuous.get("fill_probability", 0.0)),
+        )
+    )
+    adverse_selection_probability = (
+        0.0
+        if flat
+        else max(
+            float(stats["slippage_failure_probability"]),
+            float(continuous.get("adverse_selection_probability", 0.0)),
+        )
+    )
+    venue_minimum_candidate = bool(plan and plan.get("venue_minimum_candidate") is True)
+    if venue_minimum_candidate:
+        assert plan is not None
+        effective_slippage = float(plan["venue_minimum_recomputed_slippage_bps"])
+        effective_impact = float(
+            plan["venue_minimum_recomputed_market_impact_bps"]
+        )
+        fill_probability = float(
+            plan["venue_minimum_recomputed_fill_probability"]
+        )
+        adverse_selection_probability = float(
+            plan["venue_minimum_recomputed_adverse_selection_probability"]
+        )
+        current_cost_delta = (effective_slippage - calibrated_slippage) + (
+            effective_impact - calibrated_impact
+        )
+    base_after_cost = (
+        0.0 if flat else float(stats["after_cost_expectancy_bps"]) - current_cost_delta
+    )
+    base_drawdown = (
+        0.0
+        if flat
+        else abs(float(stats["mae_bps_quantiles"]["0.5"]))
+        * float(stats["loss_probability"])
+        * performance_risk_multiplier
+    )
+    base_tail_loss = (
+        0.0
+        if flat
+        else float(stats["tail_loss_bps_quantiles"]["0.9"])
+        * float(stats["loss_probability"])
+    )
+    base_information_gain = (
+        0.0
+        if flat or mode != BOUNDED_EXPLORATION
+        else float(stats["posterior_uncertainty"])
+    )
+    concentration_bps = 0.0
+    turnover_bps = 0.0 if flat else float(stats["transaction_cost_bps_quantiles"]["0.5"])
+    if venue_minimum_candidate:
+        if intent is None or plan is None:
+            raise AdaptivePolicyShadowError(
+                "venue_minimum_candidate:plan_and_intent_required"
+            )
+        reservation = _mapping(
+            intent.get("paper_cycle_reservation_snapshot"), "reservation"
+        )
+        inputs = _mapping(reservation.get("inputs"), "reservation.inputs")
+        equity = _positive_decimal(inputs.get("base_equity_usd"), "base_equity_usd")
+        selected_notional = _positive_decimal(
+            plan.get("selected_notional_usd"), "selected_notional_usd"
+        )
+        concentration_bps = float(
+            min(Decimal("10000"), selected_notional / equity * Decimal("10000"))
+        )
+        turnover_bps = concentration_bps
+        adverse_selection_loss_bps = adverse_selection_probability * abs(
+            float(stats["mae_bps_quantiles"]["0.5"])
+        )
+        base_after_cost = (base_after_cost - adverse_selection_loss_bps) * fill_probability
+        base_drawdown *= fill_probability
+        base_tail_loss *= fill_probability
+        base_information_gain *= fill_probability
     return ActionObjectiveInputsV2.create(
         schema_version=ACTION_INPUT_SCHEMA_VERSION,
         action_id=action_id,
@@ -1280,32 +1466,15 @@ def _objective_action(
         checkpoint_sha256=_sha(registry.get("checkpoint_bundle_sha256"), "checkpoint_sha256"),
         selected_action=selected_action,
         policy_mode=mode,
-        expected_after_cost_return_bps=(
-            0.0 if flat else float(stats["after_cost_expectancy_bps"]) - current_cost_delta
-        ),
-        expected_drawdown_contribution_bps=(
-            0.0
-            if flat
-            else abs(float(stats["mae_bps_quantiles"]["0.5"]))
-            * float(stats["loss_probability"])
-            * performance_risk_multiplier
-        ),
-        expected_tail_loss_bps=(
-            0.0
-            if flat
-            else float(stats["tail_loss_bps_quantiles"]["0.9"])
-            * float(stats["loss_probability"])
-        ),
+        expected_after_cost_return_bps=base_after_cost,
+        expected_drawdown_contribution_bps=base_drawdown,
+        expected_tail_loss_bps=base_tail_loss,
         liquidation_risk_probability=(0.0 if flat else float(stats["stop_out_probability"])),
         expected_market_impact_bps=effective_impact,
         expected_funding_cost_bps=(0.0 if flat else abs(float(stats["funding_bps_mean"]))),
-        expected_turnover_bps=(
-            0.0 if flat else float(stats["transaction_cost_bps_quantiles"]["0.5"])
-        ),
-        expected_concentration_bps=0.0,
-        expected_information_gain=(
-            0.0 if flat or mode != BOUNDED_EXPLORATION else float(stats["posterior_uncertainty"])
-        ),
+        expected_turnover_bps=turnover_bps,
+        expected_concentration_bps=concentration_bps,
+        expected_information_gain=base_information_gain,
         hard_constraints_satisfied=hard_pass,
         hard_validation_receipt=hard_receipt,
         unit_contract=UNIT_CONTRACT,
@@ -1450,38 +1619,45 @@ def _policy_action(
         )
         slippage = max(calibrated_slippage, continuous["slippage_bps"])
         impact = max(calibrated_impact, continuous["market_impact_bps"])
+        if plan.get("venue_minimum_candidate") is True:
+            slippage = float(plan["venue_minimum_recomputed_slippage_bps"])
+            impact = float(plan["venue_minimum_recomputed_market_impact_bps"])
         funding = float(statistics["funding_bps_mean"])
         total = math.fsum((fee, spread, slippage, impact, funding))
         costs = ExpectedCostBreakdownV2(fee, spread, slippage, impact, funding, total)
-        after_cost = float(statistics["after_cost_expectancy_bps"]) - (
-            slippage - calibrated_slippage
-        ) - (impact - calibrated_impact)
+        # Bind the typed action to the exact objective input that won.  Venue-
+        # minimum candidates carry fill-adjusted return/risk/information and
+        # actual-size concentration/turnover values in that input; rebuilding
+        # from the raw calibration here would silently discard the recompute.
+        after_cost = selected.expected_after_cost_return_bps
         side = str(plan["side"]).lower()
         target_notional = float(plan["selected_notional_usd"])
         target_margin = float(plan["selected_margin_usd"])
         leverage = float(plan["selected_leverage"])
         exposure = target_notional if side == "long" else -target_notional
-        expected_drawdown = abs(float(statistics["mae_bps_quantiles"]["0.5"])) * float(
-            statistics["loss_probability"]
-        ) * performance_risk_multiplier
-        expected_tail = float(statistics["tail_loss_bps_quantiles"]["0.9"]) * float(
-            statistics["loss_probability"]
-        )
+        expected_drawdown = selected.expected_drawdown_contribution_bps
+        expected_tail = selected.expected_tail_loss_bps
         expected_slippage = slippage
         expected_impact = impact
-        fill_probability = min(
-            1.0 - float(statistics["venue_infeasible_probability"]),
-            continuous["fill_probability"],
-        )
-        adverse_selection = max(
-            float(statistics["slippage_failure_probability"]),
-            continuous["adverse_selection_probability"],
-        )
-        information_gain = (
-            float(statistics["posterior_uncertainty"])
-            if selected.policy_mode == BOUNDED_EXPLORATION
-            else 0.0
-        )
+        if plan.get("venue_minimum_candidate") is True:
+            fill_probability = float(
+                plan["venue_minimum_recomputed_fill_probability"]
+            )
+            adverse_selection = float(
+                plan[
+                    "venue_minimum_recomputed_adverse_selection_probability"
+                ]
+            )
+        else:
+            fill_probability = min(
+                1.0 - float(statistics["venue_infeasible_probability"]),
+                continuous["fill_probability"],
+            )
+            adverse_selection = max(
+                float(statistics["slippage_failure_probability"]),
+                continuous["adverse_selection_probability"],
+            )
+        information_gain = selected.expected_information_gain
     loss_probability = 1.0 if statistics is None else float(statistics["loss_probability"])
     flat_probability = min(1.0, max(0.01, loss_probability))
     directional_probability = 1.0 - flat_probability
@@ -1647,6 +1823,139 @@ def _policy_action(
 
 
 @dataclass(frozen=True, slots=True)
+class VenueMinimumObjectiveComparisonV1:
+    candidate_id: str
+    raw_action_id: str
+    venue_minimum_action_id: str
+    side: str
+    raw_target_notional_usd: float
+    venue_min_notional_usd: float
+    venue_filter_min_notional_usd: float
+    venue_min_candidate_evaluated: bool
+    venue_min_candidate_utility: float | None
+    venue_min_candidate_entry_fee_usd: float
+    venue_min_candidate_round_trip_fee_usd: float
+    venue_min_candidate_expected_loss_usd: float
+    venue_min_candidate_expected_cost_usd: float
+    venue_min_candidate_information_gain: float
+    venue_min_candidate_margin_usd: float
+    venue_min_candidate_hard_risk_pass: bool
+    venue_min_candidate_selected: bool
+    selection_reason: str
+    expected_fill_probability: float
+    expected_slippage_bps: float
+    expected_market_impact_bps: float
+    expected_adverse_selection_probability: float
+    expected_adverse_selection_loss_usd: float
+    available_liquidity_capacity_usd: float
+    liquidity_utilization: float
+    sweep_risk: float
+    expected_after_cost_return_bps: float
+    expected_tail_loss_usd: float
+    stop_loss_usd: float
+    liquidation_distance_bps: float
+    concentration_bps: float
+    turnover_bps: float
+    drawdown_contribution_usd: float
+    production_reference_utility: float | None
+    production_reference_disagreement_count: int
+    paper_only: bool = True
+    live_gate: str = LIVE_GATE_BLOCKED_HUMAN_ONLY
+    routes_to_live: bool = False
+    places_real_order: bool = False
+    exchange_action_taken: bool = False
+    schema_version: str = "venue_minimum_objective_comparison_v1"
+
+    def __post_init__(self) -> None:
+        for field in (
+            "candidate_id",
+            "raw_action_id",
+            "venue_minimum_action_id",
+            "side",
+            "selection_reason",
+        ):
+            _identifier(getattr(self, field), field)
+        if self.side not in {"LONG", "SHORT"}:
+            raise AdaptivePolicyShadowError("venue_minimum_comparison:side_invalid")
+        if self.venue_min_candidate_evaluated is not True:
+            raise AdaptivePolicyShadowError(
+                "venue_minimum_comparison:evaluated_required"
+            )
+        for field in (
+            "raw_target_notional_usd",
+            "venue_min_notional_usd",
+            "venue_filter_min_notional_usd",
+            "venue_min_candidate_entry_fee_usd",
+            "venue_min_candidate_round_trip_fee_usd",
+            "venue_min_candidate_expected_loss_usd",
+            "venue_min_candidate_expected_cost_usd",
+            "venue_min_candidate_information_gain",
+            "venue_min_candidate_margin_usd",
+            "expected_fill_probability",
+            "expected_slippage_bps",
+            "expected_market_impact_bps",
+            "expected_adverse_selection_probability",
+            "expected_adverse_selection_loss_usd",
+            "available_liquidity_capacity_usd",
+            "liquidity_utilization",
+            "sweep_risk",
+            "expected_tail_loss_usd",
+            "stop_loss_usd",
+            "liquidation_distance_bps",
+            "concentration_bps",
+            "turnover_bps",
+            "drawdown_contribution_usd",
+        ):
+            value = _finite(getattr(self, field), field)
+            if value < 0.0:
+                raise AdaptivePolicyShadowError(
+                    f"venue_minimum_comparison:{field}:nonnegative_required"
+                )
+        for field in (
+            "venue_min_candidate_utility",
+            "expected_after_cost_return_bps",
+            "production_reference_utility",
+        ):
+            value = getattr(self, field)
+            if value is not None:
+                _finite(value, field)
+        if not 0.0 <= self.expected_fill_probability <= 1.0:
+            raise AdaptivePolicyShadowError(
+                "venue_minimum_comparison:fill_probability_invalid"
+            )
+        if not 0.0 <= self.expected_adverse_selection_probability <= 1.0:
+            raise AdaptivePolicyShadowError(
+                "venue_minimum_comparison:adverse_selection_invalid"
+            )
+        if not 0.0 <= self.liquidity_utilization <= 1.0:
+            raise AdaptivePolicyShadowError(
+                "venue_minimum_comparison:liquidity_utilization_invalid"
+            )
+        if not 0.0 <= self.sweep_risk <= 1.0:
+            raise AdaptivePolicyShadowError(
+                "venue_minimum_comparison:sweep_risk_invalid"
+            )
+        if self.production_reference_disagreement_count != 0:
+            raise AdaptivePolicyShadowError(
+                "venue_minimum_comparison:reference_disagreement"
+            )
+        if (
+            self.paper_only is not True
+            or self.live_gate != LIVE_GATE_BLOCKED_HUMAN_ONLY
+            or any(
+                (self.routes_to_live, self.places_real_order, self.exchange_action_taken)
+            )
+        ):
+            raise AdaptivePolicyShadowError(
+                "venue_minimum_comparison:paper_only_human_block_required"
+            )
+
+    @property
+    def content_sha256(self) -> str:
+        return _canonical_sha256(asdict(self))
+
+
+@dataclass(frozen=True, slots=True)
 class AdaptivePolicyShadowCandidateV2:
     candidate_id: str
     source_intent_sha256: str
@@ -1655,6 +1964,7 @@ class AdaptivePolicyShadowCandidateV2:
     objective_inputs: tuple[ActionObjectiveInputsV2, ...]
     objective_evaluation: object
     venue_attestations: tuple[SelectedActionVenueFeasibilityV2, ...]
+    venue_minimum_objective_comparisons: tuple[VenueMinimumObjectiveComparisonV1, ...]
     action_dispositions: tuple[tuple[str, tuple[str, ...]], ...]
     selected_adaptive_action: AdaptivePolicyActionV2
     reference_utilities: tuple[tuple[str, float | None], ...]
@@ -1685,6 +1995,14 @@ class AdaptivePolicyShadowCandidateV2:
             for _action_id, reasons in self.action_dispositions
         ):
             raise AdaptivePolicyShadowError("action_dispositions:sorted_unique_reasons_required")
+        comparison_ids = tuple(
+            item.venue_minimum_action_id
+            for item in self.venue_minimum_objective_comparisons
+        )
+        if comparison_ids != tuple(sorted(set(comparison_ids))):
+            raise AdaptivePolicyShadowError(
+                "venue_minimum_comparisons:unique_sorted_actions_required"
+            )
 
     @property
     def content_sha256(self) -> str:
@@ -1811,10 +2129,12 @@ def build_adaptive_policy_shadow_candidate(
     action_dispositions: dict[str, tuple[str, ...]] = {}
     plans: dict[str, dict[str, Any]] = {}
     stats_by_action: dict[str, dict[str, Any]] = {}
+    venue_minimum_comparison_seeds: dict[str, dict[str, Any]] = {}
     for side in ("LONG", "SHORT"):
         stats = _statistics(calibration, side, _identifier(intent.get("timeframe"), "timeframe"))
         for mode in (CHAMPION_EXPLOITATION, BOUNDED_EXPLORATION):
-            action_id = f"{candidate_id}:{mode}:{side.lower()}"
+            raw_action_id = f"{candidate_id}:{mode}:{side.lower()}"
+            action_id = raw_action_id
             try:
                 plan = _physical_plan(intent=intent, statistics=stats, side=side, mode=mode)
             except AdaptivePolicyShadowError as exc:
@@ -1823,7 +2143,7 @@ def build_adaptive_policy_shadow_candidate(
                     {
                         "schema_version": "adaptive_policy_unavailable_proposal_v2",
                         "candidate_id": candidate_id,
-                        "action_id": action_id,
+                        "action_id": raw_action_id,
                         "side": side,
                         "mode": mode,
                         "physical_plan_available": False,
@@ -1848,14 +2168,89 @@ def build_adaptive_policy_shadow_candidate(
                         microstructure_estimates=continuous_microstructure,
                     )
                 )
-                action_dispositions[action_id] = (blocker,)
-                continue
+                action_dispositions[raw_action_id] = (blocker,)
+                if not (
+                    mode == BOUNDED_EXPLORATION
+                    and str(exc) == "continuous_policy_target_below_venue_minimum"
+                    and float(stats["posterior_uncertainty"]) > 0.0
+                ):
+                    continue
+                # Preserve the rejected learned proposal above and construct a
+                # second, separately identified objective candidate at the
+                # exact executable venue lot.  This does not mutate or round
+                # the learned target and does not grant authority by itself.
+                action_id = f"{raw_action_id}:venue_minimum"
+                try:
+                    plan = _physical_plan(
+                        intent=intent,
+                        statistics=stats,
+                        side=side,
+                        mode=mode,
+                        force_venue_minimum_candidate=True,
+                    )
+                except AdaptivePolicyShadowError as venue_exc:
+                    venue_blocker = f"PHYSICAL_PLAN_UNAVAILABLE:{venue_exc}"
+                    venue_proposal_sha = _canonical_sha256(
+                        {
+                            "schema_version": "adaptive_venue_minimum_unavailable_proposal_v1",
+                            "candidate_id": candidate_id,
+                            "action_id": action_id,
+                            "raw_action_id": raw_action_id,
+                            "side": side,
+                            "mode": mode,
+                            "physical_plan_available": False,
+                            "physical_plan_blocker": venue_blocker,
+                            "calibration_sha256": calibration["calibration_sha256"],
+                        }
+                    )
+                    objective_inputs.append(
+                        _objective_action(
+                            action_id=action_id,
+                            action_sha256=venue_proposal_sha,
+                            selected_action=ACTION_DIRECTIONAL_TRADE,
+                            mode=mode,
+                            statistics=stats,
+                            hard_pass=False,
+                            hard_receipt=None,
+                            state_id=state_id,
+                            state_sha256=state_sha,
+                            registry=registry,
+                            decision_time_ms=generated_at_ms,
+                            performance_risk_multiplier=performance_risk_multiplier,
+                            microstructure_estimates=continuous_microstructure,
+                        )
+                    )
+                    action_dispositions[action_id] = (venue_blocker,)
+                    continue
+                venue_minimum_comparison_seeds[action_id] = {
+                    "raw_action_id": raw_action_id,
+                    "side": side,
+                    "raw_target_notional_usd": float(
+                        plan["raw_learned_target_notional_usd"]
+                    ),
+                    "venue_min_notional_usd": float(
+                        plan["venue_minimum_candidate_notional_usd"]
+                    ),
+                }
             proposal = {
-                "schema_version": "adaptive_policy_proposal_v2",
+                "schema_version": (
+                    "adaptive_policy_venue_minimum_candidate_v1"
+                    if plan.get("venue_minimum_candidate") is True
+                    else "adaptive_policy_proposal_v2"
+                ),
                 "candidate_id": candidate_id,
                 "action_id": action_id,
+                "raw_action_id": raw_action_id,
                 "side": side,
                 "mode": mode,
+                "raw_learned_target_notional_usd": str(
+                    plan["raw_learned_target_notional_usd"]
+                ),
+                "venue_minimum_candidate_notional_usd": (
+                    str(plan["venue_minimum_candidate_notional_usd"])
+                    if plan.get("venue_minimum_candidate") is True
+                    else None
+                ),
                 "selected_entry_price": str(plan["entry_price"]),
                 "selected_stop_price": str(plan["stop_price"]),
                 "selected_quantity": str(plan["selected_quantity"]),
@@ -1926,6 +2321,8 @@ def build_adaptive_policy_shadow_candidate(
                     decision_time_ms=generated_at_ms,
                     performance_risk_multiplier=performance_risk_multiplier,
                     microstructure_estimates=continuous_microstructure,
+                    intent=intent,
+                    plan=plan,
                 )
             )
             bundles.append(
@@ -2113,6 +2510,162 @@ def build_adaptive_policy_shadow_candidate(
         # validator receipt, so no execution consumer can mistake it for an
         # authorized action.
         selected_id = flat_id
+    score_by_id = {score.action_id: score for score in evaluation.scores}
+    reference_utility_by_id = dict(reference.utilities)
+    venue_minimum_comparisons: list[VenueMinimumObjectiveComparisonV1] = []
+    for minimum_action_id, seed in sorted(venue_minimum_comparison_seeds.items()):
+        minimum_input = next(
+            item for item in ordered_inputs if item.action_id == minimum_action_id
+        )
+        minimum_score = score_by_id[minimum_action_id]
+        reference_utility = reference_utility_by_id[minimum_action_id]
+        utility_disagreement = int(
+            (minimum_score.utility is None) != (reference_utility is None)
+            or (
+                minimum_score.utility is not None
+                and reference_utility is not None
+                and not math.isclose(
+                    minimum_score.utility,
+                    reference_utility,
+                    rel_tol=0.0,
+                    abs_tol=1e-12,
+                )
+            )
+        )
+        if utility_disagreement:
+            raise AdaptivePolicyShadowError(
+                "venue_minimum_comparison:reference_disagreement_count=1"
+            )
+        minimum_plan = plans[minimum_action_id]
+        minimum_stats = stats_by_action[minimum_action_id]
+        notional = float(minimum_plan["selected_notional_usd"])
+        margin = float(minimum_plan["selected_margin_usd"])
+        entry_fee_bps = max(0.0, _finite(intent.get("fee_bps"), "fee_bps"))
+        entry_fee_usd = notional * entry_fee_bps / 10_000.0
+        round_trip_fee_usd = entry_fee_usd * 2.0
+        spread_bps = max(
+            0.0, _finite(intent.get("observed_spread_bps"), "observed_spread_bps")
+        )
+        slippage_bps = float(
+            minimum_plan["venue_minimum_recomputed_slippage_bps"]
+        )
+        impact_bps = float(
+            minimum_plan["venue_minimum_recomputed_market_impact_bps"]
+        )
+        funding_bps = abs(float(minimum_stats["funding_bps_mean"]))
+        expected_cost_bps = math.fsum(
+            (entry_fee_bps * 2.0, spread_bps, slippage_bps, impact_bps, funding_bps)
+        )
+        expected_cost_usd = notional * expected_cost_bps / 10_000.0
+        fill_probability = float(
+            minimum_plan["venue_minimum_recomputed_fill_probability"]
+        )
+        adverse_probability = float(
+            minimum_plan[
+                "venue_minimum_recomputed_adverse_selection_probability"
+            ]
+        )
+        adverse_loss_bps = adverse_probability * abs(
+            float(minimum_stats["mae_bps_quantiles"]["0.5"])
+        )
+        adverse_loss_usd = notional * adverse_loss_bps / 10_000.0
+        tail_loss_usd = (
+            notional * minimum_input.expected_tail_loss_bps / 10_000.0
+        )
+        stop_distance_bps = (
+            abs(
+                float(minimum_plan["entry_price"])
+                - float(minimum_plan["stop_price"])
+            )
+            / float(minimum_plan["entry_price"])
+            * 10_000.0
+        )
+        stop_loss_usd = notional * stop_distance_bps / 10_000.0
+        expected_loss_usd = max(
+            stop_loss_usd + adverse_loss_usd + expected_cost_usd,
+            tail_loss_usd + adverse_loss_usd + expected_cost_usd,
+        )
+        drawdown_usd = (
+            notional
+            * minimum_input.expected_drawdown_contribution_bps
+            / 10_000.0
+        )
+        selected_minimum = selected_id == minimum_action_id
+        if not minimum_input.hard_constraints_satisfied:
+            selection_reason = "VENUE_MINIMUM_HARD_RISK_OR_INTEGRITY_REJECTED"
+        elif minimum_score.utility is None or minimum_score.utility <= 0.0:
+            selection_reason = "VENUE_MINIMUM_RECOMPUTED_UTILITY_NONPOSITIVE"
+        elif minimum_score.information_gain_contribution is None or (
+            minimum_score.information_gain_contribution <= 0.0
+        ):
+            selection_reason = "VENUE_MINIMUM_INFORMATION_GAIN_NONPOSITIVE"
+        elif selected_minimum:
+            selection_reason = "VENUE_MINIMUM_POSITIVE_UTILITY_SELECTED"
+        else:
+            selection_reason = "VENUE_MINIMUM_POSITIVE_BUT_SUPERIOR_ACTION_SELECTED"
+        venue_minimum_comparisons.append(
+            VenueMinimumObjectiveComparisonV1(
+                candidate_id=candidate_id,
+                raw_action_id=str(seed["raw_action_id"]),
+                venue_minimum_action_id=minimum_action_id,
+                side=str(seed["side"]),
+                raw_target_notional_usd=float(seed["raw_target_notional_usd"]),
+                venue_min_notional_usd=float(seed["venue_min_notional_usd"]),
+                venue_filter_min_notional_usd=float(
+                    minimum_plan["venue_min_notional_usd"]
+                ),
+                venue_min_candidate_evaluated=True,
+                venue_min_candidate_utility=minimum_score.utility,
+                venue_min_candidate_entry_fee_usd=entry_fee_usd,
+                venue_min_candidate_round_trip_fee_usd=round_trip_fee_usd,
+                venue_min_candidate_expected_loss_usd=expected_loss_usd,
+                venue_min_candidate_expected_cost_usd=expected_cost_usd,
+                venue_min_candidate_information_gain=(
+                    minimum_score.information_gain_contribution or 0.0
+                ),
+                venue_min_candidate_margin_usd=margin,
+                venue_min_candidate_hard_risk_pass=(
+                    minimum_input.hard_constraints_satisfied
+                ),
+                venue_min_candidate_selected=selected_minimum,
+                selection_reason=selection_reason,
+                expected_fill_probability=fill_probability,
+                expected_slippage_bps=slippage_bps,
+                expected_market_impact_bps=impact_bps,
+                expected_adverse_selection_probability=adverse_probability,
+                expected_adverse_selection_loss_usd=adverse_loss_usd,
+                available_liquidity_capacity_usd=float(
+                    (continuous_microstructure or {})[
+                        "available_liquidity_capacity_usd"
+                    ]
+                ),
+                liquidity_utilization=float(
+                    minimum_plan["venue_minimum_liquidity_utilization"]
+                ),
+                sweep_risk=float((continuous_microstructure or {})["sweep_risk"]),
+                expected_after_cost_return_bps=(
+                    minimum_input.expected_after_cost_return_bps
+                ),
+                expected_tail_loss_usd=tail_loss_usd,
+                stop_loss_usd=stop_loss_usd,
+                liquidation_distance_bps=(
+                    10_000.0 / float(minimum_plan["selected_leverage"])
+                ),
+                concentration_bps=minimum_input.expected_concentration_bps,
+                turnover_bps=minimum_input.expected_turnover_bps,
+                drawdown_contribution_usd=drawdown_usd,
+                production_reference_utility=reference_utility,
+                production_reference_disagreement_count=0,
+            )
+        )
+    selected_comparison_receipts = {
+        item.content_sha256
+        for item in venue_minimum_comparisons
+        if item.venue_min_candidate_selected
+    }
+    action_source_receipts = tuple(
+        sorted({*source_receipts, *selected_comparison_receipts})
+    )
     selected_input = next(item for item in ordered_inputs if item.action_id == selected_id)
     selected_action = _policy_action(
         selected=selected_input,
@@ -2124,7 +2677,7 @@ def build_adaptive_policy_shadow_candidate(
         statistics=stats_by_action.get(selected_id),
         state_id=state_id,
         state_sha256=state_sha,
-        source_receipts=source_receipts,
+        source_receipts=action_source_receipts,
         generated_at_ms=generated_at_ms,
         performance_risk_multiplier=performance_risk_multiplier,
     )
@@ -2145,6 +2698,7 @@ def build_adaptive_policy_shadow_candidate(
         objective_inputs=ordered_inputs,
         objective_evaluation=evaluation,
         venue_attestations=tuple(attestations),
+        venue_minimum_objective_comparisons=tuple(venue_minimum_comparisons),
         action_dispositions=tuple(sorted(action_dispositions.items())),
         selected_adaptive_action=selected_action,
         reference_utilities=reference.utilities,

@@ -163,6 +163,8 @@ def _intent() -> dict:
             "slippage_bps": 7.0,
             "market_impact_bps": 9.0,
             "adverse_selection_probability": 0.61,
+            "available_liquidity_capacity_usd": 100_000.0,
+            "sweep_risk": 0.2,
         },
         "paper_fill_allowed": False,
         "allocator_decision": "BLOCK_STATIC_CATEGORY_E",
@@ -188,6 +190,7 @@ def _intent() -> dict:
             "rejection_reasons": [],
             "cycle_identity": "cycle-1",
             "snapshot_hash": reservation_hash,
+            "inputs": {"base_equity_usd": 1000.0},
             "derived": {
                 "remaining_total_notional_usd": 500.0,
                 "remaining_symbol_notional_usd": 200.0,

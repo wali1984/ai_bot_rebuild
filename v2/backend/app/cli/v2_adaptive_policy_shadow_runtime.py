@@ -16,8 +16,8 @@ import time
 from collections import Counter
 from collections.abc import Callable, Mapping
 from dataclasses import asdict
-from decimal import Decimal
 from datetime import UTC, datetime
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -450,6 +450,13 @@ def _compact_record(
             ],
         },
         "reference_utilities": [list(item) for item in result.reference_utilities],
+        "venue_minimum_objective_comparisons": [
+            {
+                **asdict(item),
+                "content_sha256": item.content_sha256,
+            }
+            for item in result.venue_minimum_objective_comparisons
+        ],
         "production_reference_parity": {
             "status": result.parity_status,
             "disagreement_count": result.parity_disagreement_count,
@@ -588,6 +595,11 @@ def process_once(
         in item.selected_adaptive_action.decision_rationale_codes
         for item in results
     )
+    venue_minimum_comparisons = [
+        comparison
+        for item in results
+        for comparison in item.venue_minimum_objective_comparisons
+    ]
     status = {
         "schema_version": SCHEMA_VERSION,
         "generated_at": _utc_now(),
@@ -607,6 +619,26 @@ def process_once(
         "directional_action_disposition_count": directional_action_disposition_count,
         "hard_blocked_directional_action_count": hard_blocked_directional_action_count,
         "physical_plan_unavailable_count": physical_plan_unavailable_count,
+        "sub_minimum_exploration_candidates": len(venue_minimum_comparisons),
+        "venue_minimum_candidates_evaluated": sum(
+            item.venue_min_candidate_evaluated
+            for item in venue_minimum_comparisons
+        ),
+        "venue_minimum_positive_utility_authorizations": sum(
+            item.venue_min_candidate_selected
+            and item.venue_min_candidate_hard_risk_pass
+            and item.venue_min_candidate_utility is not None
+            and item.venue_min_candidate_utility > 0.0
+            for item in venue_minimum_comparisons
+        ),
+        "venue_minimum_hard_risk_pass_count": sum(
+            item.venue_min_candidate_hard_risk_pass
+            for item in venue_minimum_comparisons
+        ),
+        "venue_minimum_comparison_reference_disagreements": sum(
+            item.production_reference_disagreement_count
+            for item in venue_minimum_comparisons
+        ),
         "hard_blocked_typed_flat_count": hard_blocked_typed_flat_count,
         "production_reference_parity_status": "PASS",
         "production_reference_disagreement_count": 0,
@@ -648,6 +680,13 @@ def process_once(
                 "leverage": item.selected_adaptive_action.leverage,
                 "margin_allocation_usd": item.selected_adaptive_action.margin_allocation_usd,
                 "stop_price": item.selected_adaptive_action.stop_price,
+                "venue_minimum_objective_comparisons": [
+                    {
+                        **asdict(comparison),
+                        "content_sha256": comparison.content_sha256,
+                    }
+                    for comparison in item.venue_minimum_objective_comparisons
+                ],
                 "execution_authority": False,
                 "paper_only": True,
                 "routes_to_live": False,

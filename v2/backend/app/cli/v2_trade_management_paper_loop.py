@@ -25,7 +25,7 @@ import threading
 import time
 from collections import Counter
 from copy import deepcopy
-from dataclasses import replace
+from dataclasses import asdict, replace
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -54682,6 +54682,20 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         )
         intent["adaptive_policy_reference_disagreement_count"] = (
             adaptive_policy_result.parity_disagreement_count
+        )
+        intent["adaptive_policy_venue_minimum_objective_comparisons"] = [
+            {
+                **asdict(comparison),
+                "content_sha256": comparison.content_sha256,
+            }
+            for comparison in (
+                adaptive_policy_result.venue_minimum_objective_comparisons
+            )
+        ]
+        intent["adaptive_policy_venue_minimum_comparisons_sha256"] = (
+            _paper_canonical_sha256(
+                intent["adaptive_policy_venue_minimum_objective_comparisons"]
+            )
         )
         intent["adaptive_paper_policy_authorization"] = adaptive_authorization_payload
         intent["adaptive_paper_policy_authorization_sha256"] = (

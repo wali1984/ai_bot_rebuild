@@ -93,6 +93,7 @@ class CandidateCalibrationObservationV2:
     timeframe: str
     side: str
     decision_disposition: str
+    realized_execution_outcome: bool
     calibrated_confidence_source: float | None
     predicted_loss_probability_source: float | None
     exit_feasibility_source: float | None
@@ -129,6 +130,8 @@ class CandidateCalibrationObservationV2:
                 _fail("identifier_required", field)
         if self.side not in {"LONG", "SHORT"}:
             _fail("LONG_or_SHORT_required", "side")
+        if type(self.realized_execution_outcome) is not bool:
+            _fail("bool_required", "realized_execution_outcome")
         for field in (
             "decision_time_ms",
             "label_record_available_at_ms",
@@ -282,6 +285,7 @@ def extract_calibration_observation(
         timeframe=record.decision.timeframe,
         side=side,
         decision_disposition=record.decision.decision_disposition,
+        realized_execution_outcome=(labels.actual_paper_outcome is not None),
         calibrated_confidence_source=_optional_probability(
             model.get("confidence_calibrated"), "confidence_calibrated"
         ),
@@ -359,6 +363,195 @@ def _statistics(rows: Sequence[CandidateCalibrationObservationV2]) -> dict[str, 
             [row.realized_volatility_bps for row in rows]
         ),
         "funding_bps_mean": statistics.fmean(row.funding_bps for row in rows),
+    }
+
+
+def _effective_independent_sample_size(residuals: Sequence[float]) -> float:
+    """Estimate chronological effective N from lag-one residual dependence."""
+
+    if len(residuals) < 3:
+        return float(len(residuals))
+    mean = statistics.fmean(residuals)
+    centered = [value - mean for value in residuals]
+    denominator = math.fsum(value * value for value in centered)
+    if denominator <= 0.0:
+        return float(len(residuals))
+    lag_covariance = math.fsum(
+        centered[index] * centered[index - 1]
+        for index in range(1, len(centered))
+    )
+    lag_one_correlation = max(
+        -0.99,
+        min(0.99, lag_covariance / denominator),
+    )
+    effective = len(residuals) * (1.0 - lag_one_correlation) / (
+        1.0 + lag_one_correlation
+    )
+    return max(1.0, min(float(len(residuals)), effective))
+
+
+def _uncertainty_group_metrics(
+    rows: Sequence[CandidateCalibrationObservationV2],
+    *,
+    predicted_win_probability: float,
+    predictive_dispersion: float,
+) -> dict[str, Any]:
+    residuals = [float(row.profitable) - predicted_win_probability for row in rows]
+    if not residuals:
+        return {
+            "sample_count": 0,
+            "residual_dispersion": None,
+            "residual_bias": None,
+            "effective_independent_sample_size": 0.0,
+            "expected_interval_coverage": {"one_sigma": 0.682689, "two_sigma": 0.9545},
+            "realized_interval_coverage": {"one_sigma": None, "two_sigma": None},
+        }
+
+    def coverage(multiplier: float) -> float:
+        lower = max(0.0, predicted_win_probability - multiplier * predictive_dispersion)
+        upper = min(1.0, predicted_win_probability + multiplier * predictive_dispersion)
+        return statistics.fmean(
+            lower <= float(row.profitable) <= upper for row in rows
+        )
+
+    return {
+        "sample_count": len(rows),
+        "residual_dispersion": math.sqrt(
+            statistics.fmean(value * value for value in residuals)
+        ),
+        "residual_bias": statistics.fmean(residuals),
+        "effective_independent_sample_size": _effective_independent_sample_size(
+            residuals
+        ),
+        "expected_interval_coverage": {
+            "one_sigma": 0.682689,
+            "two_sigma": 0.9545,
+        },
+        "realized_interval_coverage": {
+            "one_sigma": coverage(1.0),
+            "two_sigma": coverage(2.0),
+        },
+    }
+
+
+def _uncertainty_calibration(
+    fit_rows: Sequence[CandidateCalibrationObservationV2],
+    validation_rows: Sequence[CandidateCalibrationObservationV2],
+    *,
+    fit_statistics: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Audit and, when required, recalibrate predictive uncertainty.
+
+    The prior value was the standard error of the aggregate win-rate mean.  It
+    is not a predictive interval for the next candidate.  The chronological
+    suffix supplies authenticated out-of-sample Bernoulli residuals, which are
+    used only for this uncertainty calibration; objective weights and return
+    parameters remain fitted solely on the prefix.
+    """
+
+    predicted_win = float(fit_statistics["win_rate_posterior_mean"])
+    frozen_standard_error = float(fit_statistics["posterior_uncertainty"])
+    validation_residuals = [
+        float(row.profitable) - predicted_win for row in validation_rows
+    ]
+    heldout_dispersion = math.sqrt(
+        statistics.fmean(value * value for value in validation_residuals)
+    )
+    frozen_metrics = _uncertainty_group_metrics(
+        validation_rows,
+        predicted_win_probability=predicted_win,
+        predictive_dispersion=frozen_standard_error,
+    )
+    under_dispersed = (
+        heldout_dispersion > frozen_standard_error * 1.25
+        or float(frozen_metrics["realized_interval_coverage"]["two_sigma"])
+        < 0.90
+    )
+    calibrated_dispersion = (
+        max(1e-9, min(1.0, heldout_dispersion))
+        if under_dispersed
+        else frozen_standard_error
+    )
+    calibrated_metrics = _uncertainty_group_metrics(
+        validation_rows,
+        predicted_win_probability=predicted_win,
+        predictive_dispersion=calibrated_dispersion,
+    )
+
+    fit_volatility = sorted(row.realized_volatility_bps for row in fit_rows)
+    low_index = max(0, int((len(fit_volatility) - 1) * 0.33))
+    high_index = max(0, int((len(fit_volatility) - 1) * 0.67))
+    low_threshold = fit_volatility[low_index]
+    high_threshold = fit_volatility[high_index]
+
+    def regime(row: CandidateCalibrationObservationV2) -> str:
+        if row.realized_volatility_bps <= low_threshold:
+            return "LOW_REALIZED_VOLATILITY"
+        if row.realized_volatility_bps >= high_threshold:
+            return "HIGH_REALIZED_VOLATILITY"
+        return "MID_REALIZED_VOLATILITY"
+
+    dimensions: dict[str, dict[str, Any]] = {}
+    for dimension, key_fn in (
+        ("symbol", lambda row: row.symbol),
+        ("side", lambda row: row.side),
+        ("timeframe", lambda row: row.timeframe),
+        ("regime", regime),
+    ):
+        grouped: dict[str, list[CandidateCalibrationObservationV2]] = defaultdict(list)
+        for row in validation_rows:
+            grouped[str(key_fn(row))].append(row)
+        dimensions[dimension] = {
+            key: _uncertainty_group_metrics(
+                members,
+                predicted_win_probability=predicted_win,
+                predictive_dispersion=calibrated_dispersion,
+            )
+            for key, members in sorted(grouped.items())
+        }
+
+    realized_rows = [
+        row for row in validation_rows if row.realized_execution_outcome
+    ]
+    realized_execution_metrics = _uncertainty_group_metrics(
+        realized_rows,
+        predicted_win_probability=predicted_win,
+        predictive_dispersion=calibrated_dispersion,
+    )
+    return {
+        "schema_version": "posterior_uncertainty_calibration_v1",
+        "method": "CHRONOLOGICAL_HELDOUT_BERNOULLI_RESIDUAL_DISPERSION",
+        "frozen_fit_standard_error": frozen_standard_error,
+        "heldout_residual_dispersion": heldout_dispersion,
+        "calibrated_predictive_uncertainty": calibrated_dispersion,
+        "diagnosis": (
+            "MATERIALLY_UNDER_DISPERSED_RECALIBRATED"
+            if under_dispersed
+            else "EMPIRICALLY_CALIBRATED_NO_CHANGE"
+        ),
+        "under_dispersed": under_dispersed,
+        "arbitrary_multiplier_used": False,
+        "tuned_to_create_trades": False,
+        "chronological_heldout_used_for_uncertainty_only": True,
+        "objective_weights_use_heldout": False,
+        "return_parameters_use_heldout": False,
+        "validation_row_digest": _canonical_sha256(
+            [asdict(row) for row in validation_rows]
+        ),
+        "all_authenticated_outcome_labels": calibrated_metrics,
+        "frozen_interval_audit": frozen_metrics,
+        "calibration_by_dimension": dimensions,
+        "regime_definition": {
+            "source": "authenticated_realized_volatility_bps",
+            "fit_prefix_low_threshold_bps": low_threshold,
+            "fit_prefix_high_threshold_bps": high_threshold,
+        },
+        "realized_execution_outcomes": realized_execution_metrics,
+        "counterfactual_outcome_count": sum(
+            not row.realized_execution_outcome for row in validation_rows
+        ),
+        "realized_execution_outcome_count": len(realized_rows),
+        "counterfactual_counts_as_realized_execution_profit": False,
     }
 
 
@@ -582,6 +775,32 @@ def fit_candidate_outcome_calibration_v2(
     validation_mae = statistics.fmean(
         abs(expected_return - row.final_after_cost_return_bps) for row in validation_rows
     )
+    uncertainty_calibration = _uncertainty_calibration(
+        fit_rows,
+        validation_rows,
+        fit_statistics=fit_statistics,
+    )
+    fit_statistics = {
+        **fit_statistics,
+        "posterior_uncertainty": uncertainty_calibration[
+            "calibrated_predictive_uncertainty"
+        ],
+        "posterior_uncertainty_source": (
+            "CHRONOLOGICAL_HELDOUT_BERNOULLI_RESIDUAL_DISPERSION"
+        ),
+    }
+    group_statistics = {
+        name: {
+            **values,
+            "posterior_uncertainty": uncertainty_calibration[
+                "calibrated_predictive_uncertainty"
+            ],
+            "posterior_uncertainty_source": (
+                "GLOBAL_CHRONOLOGICAL_HELDOUT_RESIDUAL_CALIBRATION"
+            ),
+        }
+        for name, values in group_statistics.items()
+    }
     missed_profitable_rate = _posterior(
         [
             row.profitable
@@ -597,12 +816,14 @@ def fit_candidate_outcome_calibration_v2(
     checkpoint_generation, checkpoint_id, checkpoint_sha256 = next(iter(lineage))
     fit_row_digest = _canonical_sha256([asdict(row) for row in fit_rows])
     validation_row_digest = _canonical_sha256([asdict(row) for row in validation_rows])
+    uncertainty_calibration_sha256 = _canonical_sha256(uncertainty_calibration)
     population_sha256 = _canonical_sha256([row.candidate_id for row in rows])
     fit_receipt_sha256 = _canonical_sha256(
         {
             "fit_row_digest": fit_row_digest,
             "source_archive_chain_sha256": source_archive_chain_sha256,
             "objective_parameter_fingerprint": weights["objective_parameter_fingerprint"],
+            "uncertainty_calibration_sha256": uncertainty_calibration_sha256,
         }
     )
     material: dict[str, Any] = {
@@ -623,6 +844,7 @@ def fit_candidate_outcome_calibration_v2(
         "holdout_used_for_fitting": False,
         "fit_row_digest": fit_row_digest,
         "validation_row_digest": validation_row_digest,
+        "uncertainty_calibration_sha256": uncertainty_calibration_sha256,
         "training_population_sha256": population_sha256,
         "fit_receipt_sha256": fit_receipt_sha256,
         "global_statistics": fit_statistics,
@@ -635,8 +857,16 @@ def fit_candidate_outcome_calibration_v2(
         "validation": {
             "frozen_global_probability_brier": validation_brier,
             "frozen_global_return_mae_bps": validation_mae,
-            "parameters_changed_after_validation": False,
+            "parameters_changed_after_validation": uncertainty_calibration[
+                "under_dispersed"
+            ],
+            "objective_and_return_parameters_changed_after_validation": False,
+            "posterior_uncertainty_changed_after_validation": uncertainty_calibration[
+                "under_dispersed"
+            ],
         },
+        "posterior_uncertainty_calibration": uncertainty_calibration,
+        "heldout_used_for_uncertainty_calibration": True,
         "learned_objective_weights": weights,
         "objective_weight_optimizer": objective_optimizer,
         "mode_allocation": {
@@ -668,9 +898,42 @@ def validate_candidate_outcome_calibration_v2(artifact: Mapping[str, Any]) -> No
         artifact.get("chronological_split") is not True
         or int(artifact["fit_window_end_ms"]) >= int(artifact["validation_window_start_ms"])
         or artifact.get("holdout_used_for_fitting") is not False
-        or artifact.get("validation", {}).get("parameters_changed_after_validation") is not False
     ):
         _fail("chronological_fit_validation_boundary_invalid", "split")
+    uncertainty = artifact.get("posterior_uncertainty_calibration")
+    if not isinstance(uncertainty, Mapping):
+        _fail("uncertainty_calibration_required", "posterior_uncertainty_calibration")
+    validation = artifact.get("validation")
+    if not isinstance(validation, Mapping):
+        _fail("validation_required", "validation")
+    if (
+        artifact.get("heldout_used_for_uncertainty_calibration") is not True
+        or uncertainty.get("chronological_heldout_used_for_uncertainty_only") is not True
+        or uncertainty.get("objective_weights_use_heldout") is not False
+        or uncertainty.get("return_parameters_use_heldout") is not False
+        or uncertainty.get("arbitrary_multiplier_used") is not False
+        or uncertainty.get("tuned_to_create_trades") is not False
+        or uncertainty.get("counterfactual_counts_as_realized_execution_profit")
+        is not False
+        or validation.get("objective_and_return_parameters_changed_after_validation")
+        is not False
+        or validation.get("posterior_uncertainty_changed_after_validation")
+        is not uncertainty.get("under_dispersed")
+        or validation.get("parameters_changed_after_validation")
+        is not uncertainty.get("under_dispersed")
+        or artifact.get("uncertainty_calibration_sha256")
+        != _canonical_sha256(uncertainty)
+    ):
+        _fail("uncertainty_calibration_invalid", "posterior_uncertainty_calibration")
+    global_statistics = artifact.get("global_statistics")
+    if (
+        not isinstance(global_statistics, Mapping)
+        or global_statistics.get("posterior_uncertainty")
+        != uncertainty.get("calibrated_predictive_uncertainty")
+        or global_statistics.get("posterior_uncertainty_source")
+        != "CHRONOLOGICAL_HELDOUT_BERNOULLI_RESIDUAL_DISPERSION"
+    ):
+        _fail("uncertainty_projection_mismatch", "global_statistics")
     if (
         int(artifact["fit_sample_count"]) < MINIMUM_FIT_ROWS
         or int(artifact["validation_sample_count"]) < MINIMUM_VALIDATION_ROWS

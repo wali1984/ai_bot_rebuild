@@ -17,9 +17,11 @@ import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
-from v2.backend.app.services.adaptive_system import adaptive_hard_validator_v2
-from v2.backend.app.services.adaptive_system import adaptive_objective_v2
-from v2.backend.app.services.adaptive_system import adaptive_policy_shadow_v2
+from v2.backend.app.services.adaptive_system import (
+    adaptive_hard_validator_v2,
+    adaptive_objective_v2,
+    adaptive_policy_shadow_v2,
+)
 from v2.backend.app.services.adaptive_system.adaptive_paper_policy_authorization_v2 import (  # noqa: E501
     authorize_adaptive_paper_policy_action,
 )
@@ -70,6 +72,9 @@ def _controlled_statistic(
         "after_cost_expectancy_bps": after_cost_expectancy_bps,
         "win_rate_posterior_mean": 0.5,
         "posterior_uncertainty": posterior_uncertainty,
+        "posterior_uncertainty_source": (
+            "CHRONOLOGICAL_HELDOUT_BERNOULLI_RESIDUAL_DISPERSION"
+        ),
         "loss_probability": 0.2,
         "stop_out_probability": 0.01,
         "profit_exit_probability": 0.3,
@@ -91,6 +96,12 @@ def _controlled_statistic(
 
 def _calibration_with_statistic(statistic: dict) -> dict:
     calibration = copy.deepcopy(_calibration())
+    calibration["posterior_uncertainty_calibration"][
+        "calibrated_predictive_uncertainty"
+    ] = statistic["posterior_uncertainty"]
+    calibration["uncertainty_calibration_sha256"] = _canonical_sha256(
+        calibration["posterior_uncertainty_calibration"]
+    )
     calibration["global_statistics"] = copy.deepcopy(statistic)
     for key in list(calibration["side_timeframe_statistics"]):
         calibration["side_timeframe_statistics"][key] = copy.deepcopy(statistic)
@@ -251,6 +262,14 @@ def test_subminimum_policy_budget_never_rounds_up_to_venue_minimum() -> None:
 
     assert result.selected_adaptive_action.selected_action == "remain_flat"
     assert result.selected_adaptive_action.target_notional_usd == 0.0
+    assert len(result.venue_minimum_objective_comparisons) == 2
+    assert all(
+        comparison.venue_min_candidate_hard_risk_pass is False
+        and comparison.venue_min_candidate_selected is False
+        and comparison.selection_reason
+        == "VENUE_MINIMUM_HARD_RISK_OR_INTEGRITY_REJECTED"
+        for comparison in result.venue_minimum_objective_comparisons
+    )
     directional_reasons = {
         reason
         for action_id, reasons in result.action_dispositions
@@ -261,6 +280,74 @@ def test_subminimum_policy_budget_never_rounds_up_to_venue_minimum() -> None:
         "PHYSICAL_PLAN_UNAVAILABLE:continuous_policy_target_below_venue_minimum"
         in directional_reasons
     )
+
+
+def test_separate_venue_minimum_candidate_recomputes_and_can_win() -> None:
+    """A sub-minimum target remains unchanged while a second candidate wins."""
+
+    intent = _low_cost_intent()
+    intent["paper_exchange_filter_snapshot"]["min_notional"] = 100.0
+    calibration = _calibration_with_statistic(
+        _controlled_statistic(
+            after_cost_expectancy_bps=-0.01,
+            posterior_uncertainty=0.01,
+            tail_0_9=0.01,
+        )
+    )
+    weights = calibration["learned_objective_weights"]
+    weights["information_gain_reward"] = 10_000.0
+    weight_material = {
+        key: value
+        for key, value in weights.items()
+        if key != "objective_parameter_fingerprint"
+    }
+    weights["objective_parameter_fingerprint"] = _canonical_sha256(weight_material)
+    calibration_material = {
+        key: value for key, value in calibration.items() if key != "calibration_sha256"
+    }
+    calibration["calibration_sha256"] = _canonical_sha256(calibration_material)
+
+    result = build_adaptive_policy_shadow_candidate(
+        intent=intent,
+        feature_snapshot=_feature_snapshot(),
+        paper_status={"paper_only": True, "open_position_count": 0},
+        calibration=calibration,
+        registry=_registry(),
+        validator_seed=_SEED,
+        generated_at_ms=4_000_000,
+    )
+
+    comparisons = result.venue_minimum_objective_comparisons
+    assert len(comparisons) == 2
+    selected = next(item for item in comparisons if item.venue_min_candidate_selected)
+    assert selected.raw_target_notional_usd < selected.venue_filter_min_notional_usd
+    assert selected.venue_min_notional_usd >= selected.venue_filter_min_notional_usd
+    assert selected.venue_min_candidate_utility is not None
+    assert selected.venue_min_candidate_utility > 0.0
+    assert selected.venue_min_candidate_information_gain > 0.0
+    assert selected.venue_min_candidate_hard_risk_pass is True
+    assert selected.production_reference_disagreement_count == 0
+    assert selected.venue_min_candidate_expected_cost_usd > 0.0
+    assert selected.venue_min_candidate_expected_loss_usd > 0.0
+    assert selected.venue_min_candidate_margin_usd > 0.0
+    assert selected.stop_loss_usd > 0.0
+    assert selected.available_liquidity_capacity_usd == 100_000.0
+    assert 0.0 < selected.liquidity_utilization < 1.0
+    assert selected.sweep_risk == 0.2
+    assert result.selected_adaptive_action.target_notional_usd == pytest.approx(
+        selected.venue_min_notional_usd
+    )
+    assert result.selected_adaptive_action.expected_information_gain > 0.0
+    assert result.selected_adaptive_action.expected_market_impact == pytest.approx(
+        selected.expected_market_impact_bps
+    )
+    assert result.selected_adaptive_action.expected_fill_probability == pytest.approx(
+        selected.expected_fill_probability
+    )
+    assert result.selected_adaptive_action.expected_adverse_selection == pytest.approx(
+        selected.expected_adverse_selection_probability
+    )
+    assert result.selected_adaptive_action.policy_mode == BOUNDED
 
 
 def test_final_selection_reference_disagreement_fails_closed(

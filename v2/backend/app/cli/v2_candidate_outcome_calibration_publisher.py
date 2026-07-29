@@ -293,6 +293,25 @@ def process_once(
         "checkpoint_id": calibration["checkpoint_id"],
         "fit_sample_count": calibration["fit_sample_count"],
         "validation_sample_count": calibration["validation_sample_count"],
+        "posterior_uncertainty_calibration": {
+            key: calibration["posterior_uncertainty_calibration"][key]
+            for key in (
+                "method",
+                "frozen_fit_standard_error",
+                "heldout_residual_dispersion",
+                "calibrated_predictive_uncertainty",
+                "diagnosis",
+                "under_dispersed",
+                "arbitrary_multiplier_used",
+                "tuned_to_create_trades",
+                "realized_execution_outcome_count",
+                "counterfactual_outcome_count",
+                "counterfactual_counts_as_realized_execution_profit",
+            )
+        },
+        "uncertainty_calibration_sha256": calibration[
+            "uncertainty_calibration_sha256"
+        ],
         "source_archive_chain_sha256": verification.terminal_chain_sha256,
         "source_matured_revision_count": verification.matured_revision_count,
         "source_snapshot": snapshot_receipt,

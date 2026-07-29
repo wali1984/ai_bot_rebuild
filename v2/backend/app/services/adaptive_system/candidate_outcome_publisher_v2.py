@@ -684,6 +684,8 @@ _EXECUTION_FIELDS = (
     "adaptive_policy_action_id",
     "adaptive_policy_action_sha256",
     "adaptive_policy_action_policy_mode",
+    "adaptive_policy_venue_minimum_objective_comparisons",
+    "adaptive_policy_venue_minimum_comparisons_sha256",
     "adaptive_paper_policy_authorization_sha256",
     "adaptive_policy_paper_cycle_receipt_id",
     "adaptive_policy_paper_cycle_receipt_sha256",

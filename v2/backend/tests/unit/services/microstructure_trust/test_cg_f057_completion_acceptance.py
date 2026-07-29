@@ -54,8 +54,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Mapping
 from types import SimpleNamespace
-from typing import Any, Mapping
+from typing import Any
 
 import pytest
 from cryptography.hazmat.primitives import serialization
@@ -432,6 +433,7 @@ def _observation(index: int) -> CandidateCalibrationObservationV2:
         timeframe="5m" if index % 2 else "15m",
         side="LONG" if index % 2 else "SHORT",
         decision_disposition="REJECTED" if index % 3 else "INFEASIBLE",
+        realized_execution_outcome=index % 10 == 0,
         calibrated_confidence_source=(index % 10) / 10.0,
         predicted_loss_probability_source=(10 - index % 10) / 10.0,
         exit_feasibility_source=(index % 5) / 5.0,
@@ -562,6 +564,8 @@ def _micro_continuous_estimates(
         "slippage_bps": slippage_bps,
         "market_impact_bps": market_impact_bps,
         "adverse_selection_probability": adverse_selection_probability,
+        "available_liquidity_capacity_usd": 100_000.0,
+        "sweep_risk": 0.2,
     }
 
 
@@ -622,6 +626,7 @@ def _intent(
             "rejection_reasons": [],
             "cycle_identity": "cycle-1",
             "snapshot_hash": reservation_hash,
+            "inputs": {"base_equity_usd": 1000.0},
             "derived": {
                 "remaining_total_notional_usd": 500.0,
                 "remaining_symbol_notional_usd": 200.0,
