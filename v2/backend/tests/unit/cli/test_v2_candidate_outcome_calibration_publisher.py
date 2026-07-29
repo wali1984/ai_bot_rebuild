@@ -67,8 +67,9 @@ def test_fits_only_active_authenticated_matured_population(
         generated_at_ms=3_000_000,
     )
 
-    assert artifact["fit_sample_count"] == 48
-    assert artifact["validation_sample_count"] == 12
+    assert artifact["fit_sample_count"] == 40
+    assert artifact["validation_sample_count"] == 10
+    assert artifact["holdout_sample_count"] == 10
     assert artifact["checkpoint_generation"] == 3
     assert artifact["counterfactual_counts_as_realized_paper_profit"] is False
 

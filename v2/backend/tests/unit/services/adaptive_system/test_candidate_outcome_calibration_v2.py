@@ -8,6 +8,8 @@ from v2.backend.app.services.adaptive_system.candidate_outcome_calibration_v2 im
     OBSERVATION_SCHEMA_VERSION,
     CandidateCalibrationObservationV2,
     CandidateOutcomeCalibrationError,
+    _beta_bernoulli_information_gain,
+    _effective_sample_evidence,
     extract_calibration_observation,
     fit_candidate_outcome_calibration_v2,
     validate_candidate_outcome_calibration_v2,
@@ -31,6 +33,7 @@ from v2.backend.tests.unit.services.adaptive_system.test_candidate_outcome_publi
 
 def _observation(index: int) -> CandidateCalibrationObservationV2:
     after_cost = float((index % 11) - 5)
+    realized = index % 10 == 0
     return CandidateCalibrationObservationV2(
         schema_version=OBSERVATION_SCHEMA_VERSION,
         candidate_id=f"candidate-{index:03d}",
@@ -43,7 +46,23 @@ def _observation(index: int) -> CandidateCalibrationObservationV2:
         timeframe="5m" if index % 2 else "15m",
         side="LONG" if index % 2 else "SHORT",
         decision_disposition="REJECTED" if index % 3 else "INFEASIBLE",
-        realized_execution_outcome=index % 10 == 0,
+        realized_execution_outcome=realized,
+        actual_fill_id=(f"fill-{index:03d}" if realized else None),
+        actual_close_id=(f"close-{index:03d}" if realized else None),
+        actual_fill_execution_time_ms=(1_000_100 + index * 1_000 if realized else None),
+        actual_close_execution_time_ms=(1_000_500 + index * 1_000 if realized else None),
+        policy_mode=(
+            "bounded_information_seeking_exploration"
+            if index % 20 == 0
+            else "champion_exploitation"
+        ),
+        cohort_id="cohort-3",
+        regime_bucket=(
+            "LOW_REGIME_COMPATIBILITY"
+            if index % 3 == 0
+            else "HIGH_REGIME_COMPATIBILITY"
+        ),
+        confidence_raw_source=(index % 10) / 10.0,
         calibrated_confidence_source=(index % 10) / 10.0,
         predicted_loss_probability_source=(10 - index % 10) / 10.0,
         exit_feasibility_source=(index % 5) / 5.0,
@@ -78,24 +97,32 @@ def test_fits_chronological_calibration_without_holdout_leakage() -> None:
         source_archive_chain_sha256="c" * 64,
     )
 
-    assert artifact["fit_sample_count"] == 80
-    assert artifact["validation_sample_count"] == 20
+    assert artifact["fit_sample_count"] == 70
+    assert artifact["validation_sample_count"] == 15
+    assert artifact["holdout_sample_count"] == 15
     assert artifact["fit_window_end_ms"] < artifact["validation_window_start_ms"]
+    assert artifact["validation_window_end_ms"] < artifact["holdout_window_start_ms"]
     assert artifact["holdout_used_for_fitting"] is False
     assert artifact["validation"][
         "objective_and_return_parameters_changed_after_validation"
     ] is False
     uncertainty = artifact["posterior_uncertainty_calibration"]
-    assert uncertainty["method"] == (
-        "CHRONOLOGICAL_HELDOUT_BERNOULLI_RESIDUAL_DISPERSION"
-    )
+    assert uncertainty["method"] == "HIERARCHICAL_BETA_EFFECTIVE_INDEPENDENT_N"
     assert uncertainty["arbitrary_multiplier_used"] is False
     assert uncertainty["tuned_to_create_trades"] is False
     assert uncertainty["counterfactual_counts_as_realized_execution_profit"] is False
-    assert uncertainty["realized_execution_outcome_count"] == 2
+    assert uncertainty["realized_execution_outcome_count"] == 9
     assert artifact["global_statistics"]["posterior_uncertainty"] == uncertainty[
-        "calibrated_predictive_uncertainty"
+        "epistemic_parameter_uncertainty"
     ]
+    assert uncertainty["effective_sample_size"] < uncertainty["raw_row_count"]
+    assert uncertainty["expected_information_gain_nats"] > 0.0
+    assert artifact["probability_semantics"]["confidence_calibrated"][
+        "is_profitability_probability"
+    ] is False
+    assert artifact["validation"]["untouched_holdout"][
+        "holdout_used_to_select_uncertainty_coefficients"
+    ] is False
     assert artifact["mode_allocation"]["permanent_percentage"] is False
     assert artifact["counterfactual_counts_as_realized_paper_profit"] is False
     assert artifact["objective_weight_optimizer"]["optimizer_steps"] >= 100
@@ -122,7 +149,7 @@ def test_validation_suffix_cannot_change_fitted_parameters() -> None:
     observations = [_observation(index) for index in range(100)]
     mutated = [
         replace(row, final_after_cost_return_bps=999.0, profitable=True, loss=False)
-        if index >= 80
+        if index >= 85
         else row
         for index, row in enumerate(observations)
     ]
@@ -141,15 +168,10 @@ def test_validation_suffix_cannot_change_fitted_parameters() -> None:
     assert first["fit_row_digest"] == second["fit_row_digest"]
     assert first["learned_objective_weights"] == second["learned_objective_weights"]
     assert first["objective_weight_optimizer"] == second["objective_weight_optimizer"]
-    first_without_uncertainty = dict(first["global_statistics"])
-    second_without_uncertainty = dict(second["global_statistics"])
-    first_without_uncertainty.pop("posterior_uncertainty")
-    second_without_uncertainty.pop("posterior_uncertainty")
-    assert first_without_uncertainty == second_without_uncertainty
-    assert (
-        first["global_statistics"]["posterior_uncertainty"]
-        != second["global_statistics"]["posterior_uncertainty"]
-    )
+    assert first["global_statistics"] == second["global_statistics"]
+    assert first["profitability_posterior_hierarchy"] == second[
+        "profitability_posterior_hierarchy"
+    ]
     assert first["validation"] != second["validation"]
 
 
@@ -171,6 +193,58 @@ def test_future_available_label_and_tampered_artifact_fail_closed() -> None:
     artifact["fit_sample_count"] = 999
     with pytest.raises(CandidateOutcomeCalibrationError, match="content_hash_mismatch"):
         validate_candidate_outcome_calibration_v2(artifact)
+
+
+def test_effective_sample_excludes_counterfactual_rows_and_collapses_close_identity() -> None:
+    natural = _observation(0)
+    duplicate = replace(
+        natural,
+        candidate_id="candidate-duplicate-close",
+        decision_time_ms=natural.decision_time_ms + 1,
+    )
+    counterfactuals = [_observation(index) for index in range(1, 10)]
+
+    evidence, profitable_weight, unprofitable_weight = _effective_sample_evidence(
+        [natural, duplicate, *counterfactuals],
+        source_archive_chain_sha256="c" * 64,
+    )
+
+    assert evidence["raw_row_count"] == 11
+    assert evidence["natural_execution_count"] == 2
+    assert evidence["unique_close_count"] == 1
+    assert evidence["duplicate_execution_revisions_collapsed"] == 1
+    assert evidence["counterfactual_outcome_count"] == 9
+    assert evidence["counterfactual_counts_as_independent_realized_executions"] is False
+    assert profitable_weight + unprofitable_weight == pytest.approx(
+        evidence["effective_sample_size"]
+    )
+
+
+def test_expected_information_gain_declines_with_authenticated_evidence() -> None:
+    sparse = _beta_bernoulli_information_gain(1.0, 1.0)
+    learned = _beta_bernoulli_information_gain(100.0, 100.0)
+
+    assert sparse["expected_information_gain_nats"] > 0.0
+    assert learned["expected_information_gain_nats"] > 0.0
+    assert sparse["expected_information_gain_nats"] > learned[
+        "expected_information_gain_nats"
+    ]
+
+
+def test_conflicting_duplicate_close_fails_closed() -> None:
+    natural = _observation(0)
+    conflicting = replace(
+        natural,
+        candidate_id="candidate-conflicting-close",
+        profitable=not natural.profitable,
+        loss=not natural.loss,
+        final_after_cost_return_bps=-natural.final_after_cost_return_bps,
+    )
+    with pytest.raises(CandidateOutcomeCalibrationError, match="conflicting_duplicate_close"):
+        _effective_sample_evidence(
+            [natural, conflicting],
+            source_archive_chain_sha256="c" * 64,
+        )
 
 
 def test_extracts_only_complete_point_in_time_matured_revision() -> None:

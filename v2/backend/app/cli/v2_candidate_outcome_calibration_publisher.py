@@ -293,15 +293,26 @@ def process_once(
         "checkpoint_id": calibration["checkpoint_id"],
         "fit_sample_count": calibration["fit_sample_count"],
         "validation_sample_count": calibration["validation_sample_count"],
+        "holdout_sample_count": calibration["holdout_sample_count"],
         "posterior_uncertainty_calibration": {
             key: calibration["posterior_uncertainty_calibration"][key]
             for key in (
                 "method",
-                "frozen_fit_standard_error",
-                "heldout_residual_dispersion",
-                "calibrated_predictive_uncertainty",
                 "diagnosis",
-                "under_dispersed",
+                "raw_row_count",
+                "natural_execution_count",
+                "unique_candidate_count",
+                "unique_close_count",
+                "effective_sample_size",
+                "effective_sample_method",
+                "posterior_alpha",
+                "posterior_beta",
+                "posterior_mean",
+                "posterior_variance",
+                "epistemic_parameter_uncertainty",
+                "prior_entropy",
+                "expected_posterior_entropy",
+                "expected_information_gain_nats",
                 "arbitrary_multiplier_used",
                 "tuned_to_create_trades",
                 "realized_execution_outcome_count",
@@ -311,6 +322,12 @@ def process_once(
         },
         "uncertainty_calibration_sha256": calibration[
             "uncertainty_calibration_sha256"
+        ],
+        "posterior_hierarchy_sha256": calibration[
+            "posterior_hierarchy_sha256"
+        ],
+        "probability_semantics_sha256": calibration[
+            "probability_semantics_sha256"
         ],
         "source_archive_chain_sha256": verification.terminal_chain_sha256,
         "source_matured_revision_count": verification.matured_revision_count,

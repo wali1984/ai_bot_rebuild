@@ -421,6 +421,7 @@ def _observation(index: int) -> CandidateCalibrationObservationV2:
     depend on a test module Codex may still be actively editing."""
 
     after_cost = float((index % 11) - 5)
+    realized = index % 10 == 0
     return CandidateCalibrationObservationV2(
         schema_version=OBSERVATION_SCHEMA_VERSION,
         candidate_id=f"cg-f057-candidate-{index:03d}",
@@ -433,7 +434,15 @@ def _observation(index: int) -> CandidateCalibrationObservationV2:
         timeframe="5m" if index % 2 else "15m",
         side="LONG" if index % 2 else "SHORT",
         decision_disposition="REJECTED" if index % 3 else "INFEASIBLE",
-        realized_execution_outcome=index % 10 == 0,
+        realized_execution_outcome=realized,
+        actual_fill_id=(f"fill-{index:03d}" if realized else None),
+        actual_close_id=(f"close-{index:03d}" if realized else None),
+        actual_fill_execution_time_ms=(1_000_100 + index * 1_000 if realized else None),
+        actual_close_execution_time_ms=(1_000_500 + index * 1_000 if realized else None),
+        policy_mode="champion_exploitation",
+        cohort_id="cohort-3",
+        regime_bucket="REGIME_EVIDENCE_UNAVAILABLE",
+        confidence_raw_source=(index % 10) / 10.0,
         calibrated_confidence_source=(index % 10) / 10.0,
         predicted_loss_probability_source=(10 - index % 10) / 10.0,
         exit_feasibility_source=(index % 5) / 5.0,

@@ -29,6 +29,7 @@ from v2.backend.app.services.adaptive_system.adaptive_policy_shadow_v2 import (
     build_adaptive_policy_shadow_candidate,
 )
 from v2.backend.app.services.adaptive_system.candidate_outcome_calibration_v2 import (
+    _beta_bernoulli_information_gain,
     _canonical_sha256,
 )
 from v2.backend.tests.unit.services.adaptive_system.test_adaptive_policy_shadow_v2 import (  # noqa: E501
@@ -67,14 +68,37 @@ def _validator_anchor(monkeypatch: pytest.MonkeyPatch) -> None:
 def _controlled_statistic(
     *, after_cost_expectancy_bps: float, posterior_uncertainty: float, tail_0_9: float
 ) -> dict:
+    # The input is capped at the uninformative Beta(1,1) parameter standard
+    # deviation; Bernoulli outcome dispersion is never used as epistemic
+    # authority.  Lower values represent larger authenticated effective N.
+    epistemic_standard_deviation = min(posterior_uncertainty, (1.0 / 12.0) ** 0.5)
+    symmetric_alpha = max(
+        1.0,
+        (1.0 / (4.0 * epistemic_standard_deviation**2) - 1.0) / 2.0,
+    )
+    information = _beta_bernoulli_information_gain(
+        symmetric_alpha, symmetric_alpha
+    )
     return {
         "sample_count": 40,
         "after_cost_expectancy_bps": after_cost_expectancy_bps,
         "win_rate_posterior_mean": 0.5,
-        "posterior_uncertainty": posterior_uncertainty,
+        "posterior_uncertainty": epistemic_standard_deviation,
         "posterior_uncertainty_source": (
-            "CHRONOLOGICAL_HELDOUT_BERNOULLI_RESIDUAL_DISPERSION"
+            "HIERARCHICAL_BETA_EFFECTIVE_N_NATURAL_EXECUTIONS"
         ),
+        "expected_information_gain_nats": information[
+            "expected_information_gain_nats"
+        ],
+        "prior_entropy": information["prior_entropy"],
+        "expected_posterior_entropy": information[
+            "expected_posterior_entropy"
+        ],
+        "effective_sample_size": 2.0 * symmetric_alpha - 2.0,
+        "bucket_identity": "global",
+        "parent_bucket_identity": None,
+        "posterior_alpha": symmetric_alpha,
+        "posterior_beta": symmetric_alpha,
         "loss_probability": 0.2,
         "stop_out_probability": 0.01,
         "profit_exit_probability": 0.3,
@@ -96,17 +120,66 @@ def _controlled_statistic(
 
 def _calibration_with_statistic(statistic: dict) -> dict:
     calibration = copy.deepcopy(_calibration())
-    calibration["posterior_uncertainty_calibration"][
-        "calibrated_predictive_uncertainty"
-    ] = statistic["posterior_uncertainty"]
+    uncertainty = calibration["posterior_uncertainty_calibration"]
+    uncertainty["epistemic_parameter_uncertainty"] = statistic[
+        "posterior_uncertainty"
+    ]
+    for field in (
+        "posterior_alpha",
+        "posterior_beta",
+        "prior_entropy",
+        "expected_posterior_entropy",
+        "expected_information_gain_nats",
+        "effective_sample_size",
+    ):
+        uncertainty[field] = statistic[field]
     calibration["uncertainty_calibration_sha256"] = _canonical_sha256(
-        calibration["posterior_uncertainty_calibration"]
+        uncertainty
     )
     calibration["global_statistics"] = copy.deepcopy(statistic)
     for key in list(calibration["side_timeframe_statistics"]):
         calibration["side_timeframe_statistics"][key] = copy.deepcopy(statistic)
     calibration["side_timeframe_statistics"]["LONG:15m"] = copy.deepcopy(statistic)
     calibration["side_timeframe_statistics"]["SHORT:15m"] = copy.deepcopy(statistic)
+    hierarchy = calibration["profitability_posterior_hierarchy"]
+    for level in hierarchy["levels"].values():
+        for entry in level.values():
+            entry["posterior_alpha"] = statistic["posterior_alpha"]
+            entry["posterior_beta"] = statistic["posterior_beta"]
+            entry["posterior_mean"] = 0.5
+            entry["posterior_variance"] = statistic["posterior_uncertainty"] ** 2
+            entry["posterior_standard_deviation"] = statistic[
+                "posterior_uncertainty"
+            ]
+            entry["prior_entropy"] = statistic["prior_entropy"]
+            entry["expected_posterior_entropy"] = statistic[
+                "expected_posterior_entropy"
+            ]
+            entry["expected_information_gain_nats"] = statistic[
+                "expected_information_gain_nats"
+            ]
+            entry["effective_sample_evidence"]["effective_sample_size"] = statistic[
+                "effective_sample_size"
+            ]
+    hierarchy_material = {
+        key: value
+        for key, value in hierarchy.items()
+        if key != "posterior_hierarchy_sha256"
+    }
+    hierarchy["posterior_hierarchy_sha256"] = _canonical_sha256(
+        hierarchy_material
+    )
+    calibration["posterior_hierarchy_sha256"] = hierarchy[
+        "posterior_hierarchy_sha256"
+    ]
+    weights = calibration["learned_objective_weights"]
+    weights["information_gain_reward"] = 10.0
+    weight_material = {
+        key: value
+        for key, value in weights.items()
+        if key != "objective_parameter_fingerprint"
+    }
+    weights["objective_parameter_fingerprint"] = _canonical_sha256(weight_material)
     material = {k: v for k, v in calibration.items() if k != "calibration_sha256"}
     calibration["calibration_sha256"] = _canonical_sha256(material)
     return calibration
@@ -325,6 +398,11 @@ def test_separate_venue_minimum_candidate_recomputes_and_can_win() -> None:
     assert selected.venue_min_candidate_utility is not None
     assert selected.venue_min_candidate_utility > 0.0
     assert selected.venue_min_candidate_information_gain > 0.0
+    assert selected.venue_min_candidate_expected_information_gain_nats > 0.0
+    assert selected.posterior_expected_information_gain_nats > 0.0
+    assert selected.posterior_alpha > 0.0
+    assert selected.posterior_beta > 0.0
+    assert selected.bucket_identity
     assert selected.venue_min_candidate_hard_risk_pass is True
     assert selected.production_reference_disagreement_count == 0
     assert selected.venue_min_candidate_expected_cost_usd > 0.0

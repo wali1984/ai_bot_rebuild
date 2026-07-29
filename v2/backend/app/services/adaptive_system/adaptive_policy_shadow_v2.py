@@ -429,14 +429,91 @@ def _replace_group(
     )
 
 
+def _regime_bucket(intent: Mapping[str, Any]) -> str:
+    raw = intent.get("regime_compatibility_score")
+    if raw is None:
+        return "REGIME_EVIDENCE_UNAVAILABLE"
+    score = _finite(raw, "regime_compatibility_score")
+    if not 0.0 <= score <= 1.0:
+        raise AdaptivePolicyShadowError(
+            "regime_compatibility_score:probability_0_1_required"
+        )
+    if score < 1.0 / 3.0:
+        return "LOW_REGIME_COMPATIBILITY"
+    if score > 2.0 / 3.0:
+        return "HIGH_REGIME_COMPATIBILITY"
+    return "MID_REGIME_COMPATIBILITY"
+
+
 def _statistics(
-    calibration: Mapping[str, Any], side: str, timeframe: str
+    calibration: Mapping[str, Any],
+    side: str,
+    timeframe: str,
+    *,
+    symbol: str,
+    regime_bucket: str,
 ) -> dict[str, Any]:
     groups = _mapping(calibration.get("side_timeframe_statistics"), "statistics")
     value = groups.get(f"{side}:{timeframe}")
     if not isinstance(value, Mapping):
         value = _mapping(calibration.get("global_statistics"), "global_statistics")
-    return dict(value)
+    result = dict(value)
+    hierarchy = _mapping(
+        calibration.get("profitability_posterior_hierarchy"),
+        "profitability_posterior_hierarchy",
+    )
+    levels = _mapping(hierarchy.get("levels"), "posterior_hierarchy.levels")
+    bucket_keys = (
+        (
+            "symbol_side_timeframe_regime",
+            f"{symbol}:{side}:{timeframe}:{regime_bucket}",
+        ),
+        (
+            "side_timeframe_regime",
+            f"{side}:{timeframe}:{regime_bucket}",
+        ),
+        ("side_timeframe", f"{side}:{timeframe}"),
+        ("timeframe", timeframe),
+        ("global", "global"),
+    )
+    posterior: Mapping[str, Any] | None = None
+    for level_name, key in bucket_keys:
+        level = _mapping(levels.get(level_name), f"posterior_hierarchy.{level_name}")
+        candidate = level.get(key)
+        if isinstance(candidate, Mapping):
+            posterior = candidate
+            break
+    if posterior is None:
+        raise AdaptivePolicyShadowError("profitability_posterior:bucket_missing")
+    effective = _mapping(
+        posterior.get("effective_sample_evidence"),
+        "posterior.effective_sample_evidence",
+    )
+    result.update(
+        {
+            "win_rate_posterior_mean": float(posterior["posterior_mean"]),
+            "loss_probability": 1.0 - float(posterior["posterior_mean"]),
+            "posterior_uncertainty": float(
+                posterior["posterior_standard_deviation"]
+            ),
+            "posterior_uncertainty_source": (
+                "HIERARCHICAL_BETA_EFFECTIVE_N_NATURAL_EXECUTIONS"
+            ),
+            "expected_information_gain_nats": float(
+                posterior["expected_information_gain_nats"]
+            ),
+            "prior_entropy": float(posterior["prior_entropy"]),
+            "expected_posterior_entropy": float(
+                posterior["expected_posterior_entropy"]
+            ),
+            "effective_sample_size": float(effective["effective_sample_size"]),
+            "bucket_identity": str(posterior["bucket_identity"]),
+            "parent_bucket_identity": posterior["parent_bucket_identity"],
+            "posterior_alpha": float(posterior["posterior_alpha"]),
+            "posterior_beta": float(posterior["posterior_beta"]),
+        }
+    )
+    return result
 
 
 def _physical_plan(
@@ -484,7 +561,7 @@ def _physical_plan(
         Decimal("0"), Decimal(str(statistics["transaction_cost_bps_quantiles"]["0.5"]))
     )
     expected = Decimal(str(statistics["after_cost_expectancy_bps"]))
-    information = Decimal(str(statistics["posterior_uncertainty"]))
+    information = Decimal(str(statistics["expected_information_gain_nats"]))
     positive_signal = max(Decimal("0"), expected) + (
         information * Decimal("100") if mode == BOUNDED_EXPLORATION else Decimal("0")
     )
@@ -1426,7 +1503,7 @@ def _objective_action(
     base_information_gain = (
         0.0
         if flat or mode != BOUNDED_EXPLORATION
-        else float(stats["posterior_uncertainty"])
+        else float(stats["expected_information_gain_nats"])
     )
     concentration_bps = 0.0
     turnover_bps = 0.0 if flat else float(stats["transaction_cost_bps_quantiles"]["0.5"])
@@ -1838,6 +1915,15 @@ class VenueMinimumObjectiveComparisonV1:
     venue_min_candidate_expected_loss_usd: float
     venue_min_candidate_expected_cost_usd: float
     venue_min_candidate_information_gain: float
+    venue_min_candidate_expected_information_gain_nats: float
+    posterior_expected_information_gain_nats: float
+    effective_sample_size: float
+    bucket_identity: str
+    parent_bucket_identity: str | None
+    posterior_alpha: float
+    posterior_beta: float
+    prior_entropy: float
+    expected_posterior_entropy: float
     venue_min_candidate_margin_usd: float
     venue_min_candidate_hard_risk_pass: bool
     venue_min_candidate_selected: bool
@@ -1873,8 +1959,11 @@ class VenueMinimumObjectiveComparisonV1:
             "venue_minimum_action_id",
             "side",
             "selection_reason",
+            "bucket_identity",
         ):
             _identifier(getattr(self, field), field)
+        if self.parent_bucket_identity is not None:
+            _identifier(self.parent_bucket_identity, "parent_bucket_identity")
         if self.side not in {"LONG", "SHORT"}:
             raise AdaptivePolicyShadowError("venue_minimum_comparison:side_invalid")
         if self.venue_min_candidate_evaluated is not True:
@@ -1890,6 +1979,11 @@ class VenueMinimumObjectiveComparisonV1:
             "venue_min_candidate_expected_loss_usd",
             "venue_min_candidate_expected_cost_usd",
             "venue_min_candidate_information_gain",
+            "venue_min_candidate_expected_information_gain_nats",
+            "posterior_expected_information_gain_nats",
+            "effective_sample_size",
+            "posterior_alpha",
+            "posterior_beta",
             "venue_min_candidate_margin_usd",
             "expected_fill_probability",
             "expected_slippage_bps",
@@ -1915,6 +2009,8 @@ class VenueMinimumObjectiveComparisonV1:
             "venue_min_candidate_utility",
             "expected_after_cost_return_bps",
             "production_reference_utility",
+            "prior_entropy",
+            "expected_posterior_entropy",
         ):
             value = getattr(self, field)
             if value is not None:
@@ -2131,7 +2227,13 @@ def build_adaptive_policy_shadow_candidate(
     stats_by_action: dict[str, dict[str, Any]] = {}
     venue_minimum_comparison_seeds: dict[str, dict[str, Any]] = {}
     for side in ("LONG", "SHORT"):
-        stats = _statistics(calibration, side, _identifier(intent.get("timeframe"), "timeframe"))
+        stats = _statistics(
+            calibration,
+            side,
+            _identifier(intent.get("timeframe"), "timeframe"),
+            symbol=_identifier(intent.get("symbol"), "symbol"),
+            regime_bucket=_regime_bucket(intent),
+        )
         for mode in (CHAMPION_EXPLOITATION, BOUNDED_EXPLORATION):
             raw_action_id = f"{candidate_id}:{mode}:{side.lower()}"
             action_id = raw_action_id
@@ -2172,7 +2274,7 @@ def build_adaptive_policy_shadow_candidate(
                 if not (
                     mode == BOUNDED_EXPLORATION
                     and str(exc) == "continuous_policy_target_below_venue_minimum"
-                    and float(stats["posterior_uncertainty"]) > 0.0
+                    and float(stats["expected_information_gain_nats"]) > 0.0
                 ):
                     continue
                 # Preserve the rejected learned proposal above and construct a
@@ -2622,6 +2724,23 @@ def build_adaptive_policy_shadow_candidate(
                 venue_min_candidate_expected_cost_usd=expected_cost_usd,
                 venue_min_candidate_information_gain=(
                     minimum_score.information_gain_contribution or 0.0
+                ),
+                venue_min_candidate_expected_information_gain_nats=(
+                    minimum_input.expected_information_gain
+                ),
+                posterior_expected_information_gain_nats=float(
+                    minimum_stats["expected_information_gain_nats"]
+                ),
+                effective_sample_size=float(
+                    minimum_stats["effective_sample_size"]
+                ),
+                bucket_identity=str(minimum_stats["bucket_identity"]),
+                parent_bucket_identity=minimum_stats["parent_bucket_identity"],
+                posterior_alpha=float(minimum_stats["posterior_alpha"]),
+                posterior_beta=float(minimum_stats["posterior_beta"]),
+                prior_entropy=float(minimum_stats["prior_entropy"]),
+                expected_posterior_entropy=float(
+                    minimum_stats["expected_posterior_entropy"]
                 ),
                 venue_min_candidate_margin_usd=margin,
                 venue_min_candidate_hard_risk_pass=(

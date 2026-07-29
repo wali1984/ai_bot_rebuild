@@ -639,6 +639,28 @@ def process_once(
             item.production_reference_disagreement_count
             for item in venue_minimum_comparisons
         ),
+        "venue_minimum_effective_sample_sizes": sorted(
+            {item.effective_sample_size for item in venue_minimum_comparisons}
+        ),
+        "venue_minimum_posterior_alpha_beta": sorted(
+            {
+                (
+                    item.bucket_identity,
+                    item.posterior_alpha,
+                    item.posterior_beta,
+                )
+                for item in venue_minimum_comparisons
+            }
+        ),
+        "venue_minimum_expected_information_gain_nats": sorted(
+            {
+                item.venue_min_candidate_expected_information_gain_nats
+                for item in venue_minimum_comparisons
+            }
+        ),
+        "venue_minimum_rejection_decomposition": dict(
+            sorted(Counter(item.selection_reason for item in venue_minimum_comparisons).items())
+        ),
         "hard_blocked_typed_flat_count": hard_blocked_typed_flat_count,
         "production_reference_parity_status": "PASS",
         "production_reference_disagreement_count": 0,

@@ -309,7 +309,13 @@ def test_directional_typed_action_consumes_conservative_microstructure_estimates
         for item in result.objective_inputs
         if item.action_id.endswith(":champion_exploitation:long")
     )
-    statistics = policy_shadow._statistics(calibration, "LONG", "15m")  # noqa: SLF001
+    statistics = policy_shadow._statistics(  # noqa: SLF001
+        calibration,
+        "LONG",
+        "15m",
+        symbol="BTCUSDT",
+        regime_bucket="REGIME_EVIDENCE_UNAVAILABLE",
+    )
     plan = policy_shadow._physical_plan(  # noqa: SLF001
         intent=intent,
         statistics=statistics,

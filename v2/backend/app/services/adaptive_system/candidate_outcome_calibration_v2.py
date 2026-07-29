@@ -94,6 +94,14 @@ class CandidateCalibrationObservationV2:
     side: str
     decision_disposition: str
     realized_execution_outcome: bool
+    actual_fill_id: str | None
+    actual_close_id: str | None
+    actual_fill_execution_time_ms: int | None
+    actual_close_execution_time_ms: int | None
+    policy_mode: str
+    cohort_id: str
+    regime_bucket: str
+    confidence_raw_source: float | None
     calibrated_confidence_source: float | None
     predicted_loss_probability_source: float | None
     exit_feasibility_source: float | None
@@ -132,6 +140,35 @@ class CandidateCalibrationObservationV2:
             _fail("LONG_or_SHORT_required", "side")
         if type(self.realized_execution_outcome) is not bool:
             _fail("bool_required", "realized_execution_outcome")
+        actual_identity = (
+            self.actual_fill_id,
+            self.actual_close_id,
+            self.actual_fill_execution_time_ms,
+            self.actual_close_execution_time_ms,
+        )
+        if self.realized_execution_outcome:
+            if any(value is None for value in actual_identity):
+                _fail("actual_execution_identity_required", "actual_execution")
+            if (
+                type(self.actual_fill_id) is not str
+                or not self.actual_fill_id
+                or type(self.actual_close_id) is not str
+                or not self.actual_close_id
+                or type(self.actual_fill_execution_time_ms) is not int
+                or type(self.actual_close_execution_time_ms) is not int
+                or self.actual_fill_execution_time_ms < self.decision_time_ms
+                or self.actual_close_execution_time_ms
+                <= self.actual_fill_execution_time_ms
+            ):
+                _fail("actual_execution_identity_invalid", "actual_execution")
+        elif any(value is not None for value in actual_identity):
+            _fail("counterfactual_cannot_claim_execution", "actual_execution")
+        for field in ("policy_mode", "cohort_id", "regime_bucket"):
+            value = getattr(self, field)
+            if not isinstance(value, str) or not value or any(
+                character.isspace() for character in value
+            ):
+                _fail("identifier_required", field)
         for field in (
             "decision_time_ms",
             "label_record_available_at_ms",
@@ -150,6 +187,7 @@ class CandidateCalibrationObservationV2:
         ):
             _fail("sha256_required", "sha256")
         for field in (
+            "confidence_raw_source",
             "calibrated_confidence_source",
             "predicted_loss_probability_source",
             "exit_feasibility_source",
@@ -204,6 +242,7 @@ def extract_calibration_observation(
     proposed = _payload(record, "proposed_action")
     components = _payload(record, "component_estimates")
     model = _payload(record, "model_distributions")
+    selected = _payload(record, "selected_action")
     proposed_action = str(
         proposed.get("proposed_action") or proposed.get("side") or ""
     ).upper()
@@ -273,6 +312,31 @@ def extract_calibration_observation(
         + labels.funding_bps,
     )
     receipts = tuple(sorted(labels.label_source_receipt_sha256s))
+    actual = labels.actual_paper_outcome
+    policy_mode_raw = selected.get("adaptive_policy_action_policy_mode")
+    policy_mode = (
+        str(policy_mode_raw)
+        if isinstance(policy_mode_raw, str) and policy_mode_raw
+        else "LEGACY_OR_UNTYPED"
+    )
+    cohort_raw = selected.get("cohort_id")
+    cohort_id = (
+        str(cohort_raw)
+        if isinstance(cohort_raw, str) and cohort_raw
+        else f"derived_{_canonical_sha256({'policy_id': record.decision.policy_id, 'checkpoint_generation': record.decision.checkpoint_generation})[:24]}"
+    )
+    regime_score = _optional_probability(
+        components.get("regime_compatibility_score"),
+        "regime_compatibility_score",
+    )
+    if regime_score is None:
+        regime_bucket = "REGIME_EVIDENCE_UNAVAILABLE"
+    elif regime_score < 1.0 / 3.0:
+        regime_bucket = "LOW_REGIME_COMPATIBILITY"
+    elif regime_score > 2.0 / 3.0:
+        regime_bucket = "HIGH_REGIME_COMPATIBILITY"
+    else:
+        regime_bucket = "MID_REGIME_COMPATIBILITY"
     return CandidateCalibrationObservationV2(
         schema_version=OBSERVATION_SCHEMA_VERSION,
         candidate_id=record.decision.candidate_id,
@@ -285,7 +349,22 @@ def extract_calibration_observation(
         timeframe=record.decision.timeframe,
         side=side,
         decision_disposition=record.decision.decision_disposition,
-        realized_execution_outcome=(labels.actual_paper_outcome is not None),
+        realized_execution_outcome=(actual is not None),
+        actual_fill_id=(None if actual is None else actual.fill_id),
+        actual_close_id=(None if actual is None else actual.closed_trade_id),
+        actual_fill_execution_time_ms=(
+            None if actual is None else actual.fill_execution_time_ms
+        ),
+        actual_close_execution_time_ms=(
+            None if actual is None else actual.close_execution_time_ms
+        ),
+        policy_mode=policy_mode,
+        cohort_id=cohort_id,
+        regime_bucket=regime_bucket,
+        confidence_raw_source=_optional_probability(
+            model.get("selected_action_probability"),
+            "selected_action_probability",
+        ),
         calibrated_confidence_source=_optional_probability(
             model.get("confidence_calibrated"), "confidence_calibrated"
         ),
@@ -334,16 +413,30 @@ def _posterior(events: Sequence[bool]) -> float:
     return (sum(events) + 1.0) / (len(events) + 2.0)
 
 
-def _statistics(rows: Sequence[CandidateCalibrationObservationV2]) -> dict[str, Any]:
-    win_rate = _posterior([row.profitable for row in rows])
-    return {
+def _statistics(
+    rows: Sequence[CandidateCalibrationObservationV2],
+    *,
+    profitability_posterior: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    reference_win_rate = _posterior([row.profitable for row in rows])
+    win_rate = (
+        reference_win_rate
+        if profitability_posterior is None
+        else float(profitability_posterior["posterior_mean"])
+    )
+    loss_probability = (
+        _posterior([row.loss for row in rows])
+        if profitability_posterior is None
+        else 1.0 - win_rate
+    )
+    result = {
         "sample_count": len(rows),
         "after_cost_expectancy_bps": statistics.fmean(
             row.final_after_cost_return_bps for row in rows
         ),
         "win_rate_posterior_mean": win_rate,
-        "posterior_uncertainty": math.sqrt(win_rate * (1.0 - win_rate) / (len(rows) + 3.0)),
-        "loss_probability": _posterior([row.loss for row in rows]),
+        "reference_outcome_win_rate_posterior_mean": reference_win_rate,
+        "loss_probability": loss_probability,
         "stop_out_probability": _posterior([row.stop_hit for row in rows]),
         "profit_exit_probability": _posterior([row.profit_target_hit for row in rows]),
         "reversal_probability": _posterior([row.short_horizon_reversal for row in rows]),
@@ -364,6 +457,52 @@ def _statistics(rows: Sequence[CandidateCalibrationObservationV2]) -> dict[str, 
         ),
         "funding_bps_mean": statistics.fmean(row.funding_bps for row in rows),
     }
+    if profitability_posterior is None:
+        result.update(
+            {
+                "posterior_uncertainty": math.sqrt(
+                    win_rate * (1.0 - win_rate) / (len(rows) + 3.0)
+                ),
+                "posterior_uncertainty_source": "LEGACY_RAW_REFERENCE_ROW_STANDARD_ERROR_DIAGNOSTIC_ONLY",
+                "expected_information_gain_nats": 0.0,
+            }
+        )
+    else:
+        result.update(
+            {
+                "posterior_uncertainty": float(
+                    profitability_posterior["posterior_standard_deviation"]
+                ),
+                "posterior_uncertainty_source": (
+                    "HIERARCHICAL_BETA_EFFECTIVE_N_NATURAL_EXECUTIONS"
+                ),
+                "expected_information_gain_nats": float(
+                    profitability_posterior["expected_information_gain_nats"]
+                ),
+                "prior_entropy": float(profitability_posterior["prior_entropy"]),
+                "expected_posterior_entropy": float(
+                    profitability_posterior["expected_posterior_entropy"]
+                ),
+                "effective_sample_size": float(
+                    profitability_posterior["effective_sample_evidence"][
+                        "effective_sample_size"
+                    ]
+                ),
+                "bucket_identity": str(
+                    profitability_posterior["bucket_identity"]
+                ),
+                "parent_bucket_identity": profitability_posterior[
+                    "parent_bucket_identity"
+                ],
+                "posterior_alpha": float(
+                    profitability_posterior["posterior_alpha"]
+                ),
+                "posterior_beta": float(
+                    profitability_posterior["posterior_beta"]
+                ),
+            }
+        )
+    return result
 
 
 def _effective_independent_sample_size(residuals: Sequence[float]) -> float:
@@ -390,168 +529,567 @@ def _effective_independent_sample_size(residuals: Sequence[float]) -> float:
     return max(1.0, min(float(len(residuals)), effective))
 
 
-def _uncertainty_group_metrics(
+def _digamma(value: float) -> float:
+    """Stable positive-domain digamma approximation for Beta evidence."""
+
+    if value <= 0.0 or not math.isfinite(value):
+        _fail("positive_finite_required", "digamma")
+    result = 0.0
+    while value < 8.0:
+        result -= 1.0 / value
+        value += 1.0
+    inverse = 1.0 / value
+    inverse_squared = inverse * inverse
+    return result + math.log(value) - 0.5 * inverse - inverse_squared * (
+        1.0 / 12.0
+        - inverse_squared
+        * (1.0 / 120.0 - inverse_squared * (1.0 / 252.0))
+    )
+
+
+def _beta_entropy(alpha: float, beta: float) -> float:
+    total = alpha + beta
+    return (
+        math.lgamma(alpha)
+        + math.lgamma(beta)
+        - math.lgamma(total)
+        - (alpha - 1.0) * _digamma(alpha)
+        - (beta - 1.0) * _digamma(beta)
+        + (total - 2.0) * _digamma(total)
+    )
+
+
+def _beta_bernoulli_information_gain(alpha: float, beta: float) -> dict[str, float]:
+    """Expected reduction in Beta-parameter entropy from one execution."""
+
+    total = alpha + beta
+    profitable_probability = alpha / total
+    prior_entropy = _beta_entropy(alpha, beta)
+    expected_posterior_entropy = (
+        profitable_probability * _beta_entropy(alpha + 1.0, beta)
+        + (1.0 - profitable_probability) * _beta_entropy(alpha, beta + 1.0)
+    )
+    return {
+        "prior_entropy": prior_entropy,
+        "expected_posterior_entropy": expected_posterior_entropy,
+        "expected_information_gain_nats": max(
+            0.0, prior_entropy - expected_posterior_entropy
+        ),
+    }
+
+
+def _beta_continued_fraction(alpha: float, beta: float, value: float) -> float:
+    maximum_iterations = 200
+    epsilon = 3e-14
+    floor = 1e-300
+    qab = alpha + beta
+    qap = alpha + 1.0
+    qam = alpha - 1.0
+    c = 1.0
+    d = 1.0 - qab * value / qap
+    if abs(d) < floor:
+        d = floor
+    d = 1.0 / d
+    result = d
+    for iteration in range(1, maximum_iterations + 1):
+        twice = 2 * iteration
+        coefficient = iteration * (beta - iteration) * value / (
+            (qam + twice) * (alpha + twice)
+        )
+        d = 1.0 + coefficient * d
+        if abs(d) < floor:
+            d = floor
+        c = 1.0 + coefficient / c
+        if abs(c) < floor:
+            c = floor
+        d = 1.0 / d
+        result *= d * c
+        coefficient = -(
+            (alpha + iteration)
+            * (qab + iteration)
+            * value
+            / ((alpha + twice) * (qap + twice))
+        )
+        d = 1.0 + coefficient * d
+        if abs(d) < floor:
+            d = floor
+        c = 1.0 + coefficient / c
+        if abs(c) < floor:
+            c = floor
+        d = 1.0 / d
+        delta = d * c
+        result *= delta
+        if abs(delta - 1.0) <= epsilon:
+            return result
+    _fail("continued_fraction_did_not_converge", "beta_cdf")
+
+
+def _regularized_beta(value: float, alpha: float, beta: float) -> float:
+    if value <= 0.0:
+        return 0.0
+    if value >= 1.0:
+        return 1.0
+    front = math.exp(
+        math.lgamma(alpha + beta)
+        - math.lgamma(alpha)
+        - math.lgamma(beta)
+        + alpha * math.log(value)
+        + beta * math.log1p(-value)
+    )
+    if value < (alpha + 1.0) / (alpha + beta + 2.0):
+        return front * _beta_continued_fraction(alpha, beta, value) / alpha
+    return 1.0 - front * _beta_continued_fraction(
+        beta, alpha, 1.0 - value
+    ) / beta
+
+
+def _beta_quantile(probability: float, alpha: float, beta: float) -> float:
+    lower = 0.0
+    upper = 1.0
+    for _ in range(80):
+        midpoint = (lower + upper) / 2.0
+        if _regularized_beta(midpoint, alpha, beta) < probability:
+            lower = midpoint
+        else:
+            upper = midpoint
+    return (lower + upper) / 2.0
+
+
+def _concentration_effective_count(values: Sequence[str]) -> float:
+    if not values:
+        return 0.0
+    counts: dict[str, int] = defaultdict(int)
+    for value in values:
+        counts[value] += 1
+    total = float(len(values))
+    return 1.0 / math.fsum((count / total) ** 2 for count in counts.values())
+
+
+def _effective_sample_evidence(
     rows: Sequence[CandidateCalibrationObservationV2],
     *,
-    predicted_win_probability: float,
-    predictive_dispersion: float,
+    source_archive_chain_sha256: str,
+) -> tuple[dict[str, Any], float, float]:
+    """Collapse executions and conservatively estimate independent evidence."""
+
+    natural_rows = [row for row in rows if row.realized_execution_outcome]
+    by_close: dict[str, CandidateCalibrationObservationV2] = {}
+    for row in natural_rows:
+        close_id = str(row.actual_close_id)
+        previous = by_close.get(close_id)
+        if previous is not None and (
+            previous.profitable != row.profitable
+            or previous.actual_fill_id != row.actual_fill_id
+            or previous.symbol != row.symbol
+            or previous.side != row.side
+        ):
+            _fail("conflicting_duplicate_close", "natural_execution_outcomes")
+        if previous is None or row.decision_time_ms < previous.decision_time_ms:
+            by_close[close_id] = row
+    unique_rows = sorted(
+        by_close.values(), key=lambda row: (row.decision_time_ms, row.candidate_id)
+    )
+    count = len(unique_rows)
+    if count:
+        latest_decision_time_ms = max(row.decision_time_ms for row in unique_rows)
+        half_life_ms = 30.0 * 24.0 * 60.0 * 60.0 * 1_000.0
+        decay_weights = [
+            math.exp(
+                -math.log(2.0)
+                * (latest_decision_time_ms - row.decision_time_ms)
+                / half_life_ms
+            )
+            for row in unique_rows
+        ]
+        decay_sum = math.fsum(decay_weights)
+        decay_kish = decay_sum * decay_sum / math.fsum(
+            weight * weight for weight in decay_weights
+        )
+        autocorrelation_n = _effective_independent_sample_size(
+            [float(row.profitable) for row in unique_rows]
+        )
+        nonoverlap_count = 0
+        last_close_ms = -1
+        for row in sorted(
+            unique_rows,
+            key=lambda item: (
+                int(item.actual_close_execution_time_ms or 0),
+                item.candidate_id,
+            ),
+        ):
+            fill_ms = int(row.actual_fill_execution_time_ms or 0)
+            close_ms = int(row.actual_close_execution_time_ms or 0)
+            if fill_ms >= last_close_ms:
+                nonoverlap_count += 1
+                last_close_ms = close_ms
+        symbol_diversity = _concentration_effective_count(
+            [row.symbol for row in unique_rows]
+        )
+        timeframe_diversity = _concentration_effective_count(
+            [row.timeframe for row in unique_rows]
+        )
+        cohort_diversity = _concentration_effective_count(
+            [row.cohort_id for row in unique_rows]
+        )
+        policy_diversity = _concentration_effective_count(
+            [row.policy_mode for row in unique_rows]
+        )
+        symbol_factor = min(1.0, symbol_diversity / min(4.0, count))
+        timeframe_factor = min(1.0, timeframe_diversity / min(3.0, count))
+        cohort_policy_factor = min(
+            1.0,
+            max(1.0, min(cohort_diversity, policy_diversity)) / min(2.0, count),
+        )
+        correlation_factor = min(
+            symbol_factor, timeframe_factor, cohort_policy_factor
+        )
+        effective_sample_size = max(
+            1e-9,
+            min(
+                float(count),
+                autocorrelation_n,
+                float(nonoverlap_count),
+                decay_kish,
+            )
+            * correlation_factor,
+        )
+        scaled_weights = [
+            weight * effective_sample_size / decay_sum for weight in decay_weights
+        ]
+        weighted_profitable = math.fsum(
+            weight * float(row.profitable)
+            for row, weight in zip(unique_rows, scaled_weights, strict=True)
+        )
+        weighted_unprofitable = math.fsum(scaled_weights) - weighted_profitable
+    else:
+        decay_kish = autocorrelation_n = symbol_diversity = 0.0
+        timeframe_diversity = cohort_diversity = policy_diversity = 0.0
+        nonoverlap_count = 0
+        correlation_factor = 0.0
+        effective_sample_size = weighted_profitable = weighted_unprofitable = 0.0
+    row_digest = _canonical_sha256([asdict(row) for row in unique_rows])
+    material = {
+        "schema_version": "authenticated_effective_sample_evidence_v1",
+        "raw_row_count": len(rows),
+        "natural_execution_count": len(natural_rows),
+        "counterfactual_outcome_count": sum(
+            not row.realized_execution_outcome for row in rows
+        ),
+        "unique_candidate_count": len({row.candidate_id for row in rows}),
+        "unique_close_count": count,
+        "duplicate_execution_revisions_collapsed": len(natural_rows) - count,
+        "effective_sample_size": effective_sample_size,
+        "effective_sample_method": (
+            "DURABLE_CLOSE_COLLAPSE_MIN_AUTOCORRELATION_NONOVERLAP_DECAY_KISH_"
+            "WITH_SYMBOL_TIMEFRAME_COHORT_POLICY_CONCENTRATION"
+        ),
+        "correlation_adjustment": {
+            "lag_one_outcome_effective_n": autocorrelation_n,
+            "nonoverlapping_execution_interval_count": nonoverlap_count,
+            "symbol_effective_diversity": symbol_diversity,
+            "timeframe_effective_diversity": timeframe_diversity,
+            "cohort_effective_diversity": cohort_diversity,
+            "policy_mode_effective_diversity": policy_diversity,
+            "combined_correlation_factor": correlation_factor,
+            "symbol_correlation_method": "CONSERVATIVE_CONCENTRATION_PROXY",
+            "timeframe_overlap_method": "CONSERVATIVE_CONCENTRATION_AND_EXECUTION_INTERVALS",
+        },
+        "temporal_decay": {
+            "method": "EXPONENTIAL_POINT_IN_TIME_DECISION_RECENCY",
+            "half_life_days": 30.0,
+            "kish_effective_n": decay_kish,
+        },
+        "checkpoint_generations": sorted(
+            {row.checkpoint_generation for row in unique_rows}
+        ),
+        "cohort_ids": sorted({row.cohort_id for row in unique_rows}),
+        "policy_modes": sorted({row.policy_mode for row in unique_rows}),
+        "regime_buckets": sorted({row.regime_bucket for row in unique_rows}),
+        "row_digest": row_digest,
+        "source_archive_chain_sha256": source_archive_chain_sha256,
+        "counterfactual_counts_as_independent_realized_executions": False,
+    }
+    evidence = {**material, "receipt_sha256": _canonical_sha256(material)}
+    return evidence, weighted_profitable, weighted_unprofitable
+
+
+def _posterior_entry(
+    *,
+    bucket_identity: str,
+    parent_bucket_identity: str | None,
+    rows: Sequence[CandidateCalibrationObservationV2],
+    prior_alpha: float,
+    prior_beta: float,
+    source_archive_chain_sha256: str,
 ) -> dict[str, Any]:
-    residuals = [float(row.profitable) - predicted_win_probability for row in rows]
-    if not residuals:
+    effective, weighted_profitable, weighted_unprofitable = _effective_sample_evidence(
+        rows,
+        source_archive_chain_sha256=source_archive_chain_sha256,
+    )
+    alpha = prior_alpha + weighted_profitable
+    beta = prior_beta + weighted_unprofitable
+    total = alpha + beta
+    variance = alpha * beta / (total * total * (total + 1.0))
+    information = _beta_bernoulli_information_gain(alpha, beta)
+    credible_intervals = {
+        str(level): {
+            "lower": _beta_quantile((1.0 - level / 100.0) / 2.0, alpha, beta),
+            "upper": _beta_quantile(1.0 - (1.0 - level / 100.0) / 2.0, alpha, beta),
+        }
+        for level in (50, 80, 95)
+    }
+    return {
+        "schema_version": "hierarchical_beta_posterior_bucket_v1",
+        "bucket_identity": bucket_identity,
+        "parent_bucket_identity": parent_bucket_identity,
+        "prior_alpha": prior_alpha,
+        "prior_beta": prior_beta,
+        "posterior_alpha": alpha,
+        "posterior_beta": beta,
+        "posterior_mean": alpha / total,
+        "posterior_variance": variance,
+        "posterior_standard_deviation": math.sqrt(variance),
+        "credible_intervals": credible_intervals,
+        **information,
+        "effective_sample_evidence": effective,
+    }
+
+
+def _hierarchical_profitability_posteriors(
+    rows: Sequence[CandidateCalibrationObservationV2],
+    *,
+    source_archive_chain_sha256: str,
+) -> dict[str, Any]:
+    levels: dict[str, dict[str, dict[str, Any]]] = {}
+    global_entry = _posterior_entry(
+        bucket_identity="global",
+        parent_bucket_identity=None,
+        rows=rows,
+        prior_alpha=1.0,
+        prior_beta=1.0,
+        source_archive_chain_sha256=source_archive_chain_sha256,
+    )
+    levels["global"] = {"global": global_entry}
+
+    level_specs = (
+        ("timeframe", lambda row: row.timeframe, lambda _: "global"),
+        (
+            "side_timeframe",
+            lambda row: f"{row.side}:{row.timeframe}",
+            lambda key: key.split(":", 1)[1],
+        ),
+        (
+            "side_timeframe_regime",
+            lambda row: f"{row.side}:{row.timeframe}:{row.regime_bucket}",
+            lambda key: ":".join(key.split(":")[:2]),
+        ),
+        (
+            "symbol_side_timeframe_regime",
+            lambda row: (
+                f"{row.symbol}:{row.side}:{row.timeframe}:{row.regime_bucket}"
+            ),
+            lambda key: ":".join(key.split(":")[1:]),
+        ),
+    )
+    previous_level_name = "global"
+    for level_name, key_fn, parent_key_fn in level_specs:
+        grouped: dict[str, list[CandidateCalibrationObservationV2]] = defaultdict(list)
+        for row in rows:
+            grouped[str(key_fn(row))].append(row)
+        entries: dict[str, dict[str, Any]] = {}
+        for key, members in sorted(grouped.items()):
+            parent_key = parent_key_fn(key)
+            parent = levels[previous_level_name][parent_key]
+            parent_mean = float(parent["posterior_mean"])
+            parent_effective_n = float(
+                parent["effective_sample_evidence"]["effective_sample_size"]
+            )
+            shrinkage_strength = min(
+                4.0, 2.0 + math.log1p(parent_effective_n)
+            )
+            entries[key] = _posterior_entry(
+                bucket_identity=f"{level_name}:{key}",
+                parent_bucket_identity=str(parent["bucket_identity"]),
+                rows=members,
+                prior_alpha=parent_mean * shrinkage_strength,
+                prior_beta=(1.0 - parent_mean) * shrinkage_strength,
+                source_archive_chain_sha256=source_archive_chain_sha256,
+            )
+            entries[key]["parent_shrinkage_strength"] = shrinkage_strength
+        levels[level_name] = entries
+        previous_level_name = level_name
+    material = {
+        "schema_version": "hierarchical_beta_profitability_posterior_v1",
+        "hierarchy": [
+            "global",
+            "timeframe",
+            "side_timeframe",
+            "side_timeframe_regime",
+            "symbol_side_timeframe_regime",
+        ],
+        "outcome_population": "AUTHENTICATED_RECONCILED_NATURAL_EXECUTION_CLOSES_ONLY",
+        "point_in_time_regime_source": "decision.component_estimates.regime_compatibility_score",
+        "sparse_bucket_shrinkage": "AUTHENTICATED_PARENT_POSTERIOR_EMPIRICAL_BAYES",
+        "levels": levels,
+        "counterfactual_counts_as_realized_execution_profit": False,
+        "source_archive_chain_sha256": source_archive_chain_sha256,
+    }
+    return {**material, "posterior_hierarchy_sha256": _canonical_sha256(material)}
+
+
+def _select_posterior(
+    hierarchy: Mapping[str, Any], row: CandidateCalibrationObservationV2
+) -> Mapping[str, Any]:
+    levels = hierarchy["levels"]
+    keys = (
+        (
+            "symbol_side_timeframe_regime",
+            f"{row.symbol}:{row.side}:{row.timeframe}:{row.regime_bucket}",
+        ),
+        (
+            "side_timeframe_regime",
+            f"{row.side}:{row.timeframe}:{row.regime_bucket}",
+        ),
+        ("side_timeframe", f"{row.side}:{row.timeframe}"),
+        ("timeframe", row.timeframe),
+        ("global", "global"),
+    )
+    for level, key in keys:
+        entry = levels[level].get(key)
+        if isinstance(entry, Mapping):
+            return entry
+    _fail("posterior_bucket_missing", "profitability_posterior_hierarchy")
+
+
+def _reliability_metrics(
+    rows: Sequence[CandidateCalibrationObservationV2],
+    hierarchy: Mapping[str, Any],
+) -> dict[str, Any]:
+    if not rows:
         return {
             "sample_count": 0,
+            "brier_score": None,
+            "log_loss": None,
+            "ece": None,
             "residual_dispersion": None,
             "residual_bias": None,
-            "effective_independent_sample_size": 0.0,
-            "expected_interval_coverage": {"one_sigma": 0.682689, "two_sigma": 0.9545},
-            "realized_interval_coverage": {"one_sigma": None, "two_sigma": None},
+            "outcome_surprise": {"mean_nats": None, "p90_nats": None},
         }
-
-    def coverage(multiplier: float) -> float:
-        lower = max(0.0, predicted_win_probability - multiplier * predictive_dispersion)
-        upper = min(1.0, predicted_win_probability + multiplier * predictive_dispersion)
-        return statistics.fmean(
-            lower <= float(row.profitable) <= upper for row in rows
+    probabilities = [
+        float(_select_posterior(hierarchy, row)["posterior_mean"]) for row in rows
+    ]
+    targets = [float(row.profitable) for row in rows]
+    residuals = [target - probability for target, probability in zip(targets, probabilities, strict=True)]
+    surprises = [
+        -math.log(
+            max(1e-15, probability if target else 1.0 - probability)
         )
-
+        for target, probability in zip(targets, probabilities, strict=True)
+    ]
+    ordered_surprises = sorted(surprises)
     return {
         "sample_count": len(rows),
+        "brier_score": statistics.fmean(
+            residual * residual for residual in residuals
+        ),
+        "log_loss": statistics.fmean(surprises),
+        "ece": abs(statistics.fmean(probabilities) - statistics.fmean(targets)),
         "residual_dispersion": math.sqrt(
-            statistics.fmean(value * value for value in residuals)
+            statistics.fmean(residual * residual for residual in residuals)
         ),
         "residual_bias": statistics.fmean(residuals),
-        "effective_independent_sample_size": _effective_independent_sample_size(
-            residuals
-        ),
-        "expected_interval_coverage": {
-            "one_sigma": 0.682689,
-            "two_sigma": 0.9545,
-        },
-        "realized_interval_coverage": {
-            "one_sigma": coverage(1.0),
-            "two_sigma": coverage(2.0),
+        "outcome_surprise": {
+            "mean_nats": statistics.fmean(surprises),
+            "p90_nats": ordered_surprises[
+                round((len(ordered_surprises) - 1) * 0.9)
+            ],
         },
     }
 
 
-def _uncertainty_calibration(
-    fit_rows: Sequence[CandidateCalibrationObservationV2],
-    validation_rows: Sequence[CandidateCalibrationObservationV2],
-    *,
-    fit_statistics: Mapping[str, Any],
+def _holdout_evaluation(
+    holdout_rows: Sequence[CandidateCalibrationObservationV2],
+    hierarchy: Mapping[str, Any],
 ) -> dict[str, Any]:
-    """Audit and, when required, recalibrate predictive uncertainty.
-
-    The prior value was the standard error of the aggregate win-rate mean.  It
-    is not a predictive interval for the next candidate.  The chronological
-    suffix supplies authenticated out-of-sample Bernoulli residuals, which are
-    used only for this uncertainty calibration; objective weights and return
-    parameters remain fitted solely on the prefix.
-    """
-
-    predicted_win = float(fit_statistics["win_rate_posterior_mean"])
-    frozen_standard_error = float(fit_statistics["posterior_uncertainty"])
-    validation_residuals = [
-        float(row.profitable) - predicted_win for row in validation_rows
-    ]
-    heldout_dispersion = math.sqrt(
-        statistics.fmean(value * value for value in validation_residuals)
-    )
-    frozen_metrics = _uncertainty_group_metrics(
-        validation_rows,
-        predicted_win_probability=predicted_win,
-        predictive_dispersion=frozen_standard_error,
-    )
-    under_dispersed = (
-        heldout_dispersion > frozen_standard_error * 1.25
-        or float(frozen_metrics["realized_interval_coverage"]["two_sigma"])
-        < 0.90
-    )
-    calibrated_dispersion = (
-        max(1e-9, min(1.0, heldout_dispersion))
-        if under_dispersed
-        else frozen_standard_error
-    )
-    calibrated_metrics = _uncertainty_group_metrics(
-        validation_rows,
-        predicted_win_probability=predicted_win,
-        predictive_dispersion=calibrated_dispersion,
-    )
-
-    fit_volatility = sorted(row.realized_volatility_bps for row in fit_rows)
-    low_index = max(0, int((len(fit_volatility) - 1) * 0.33))
-    high_index = max(0, int((len(fit_volatility) - 1) * 0.67))
-    low_threshold = fit_volatility[low_index]
-    high_threshold = fit_volatility[high_index]
-
-    def regime(row: CandidateCalibrationObservationV2) -> str:
-        if row.realized_volatility_bps <= low_threshold:
-            return "LOW_REALIZED_VOLATILITY"
-        if row.realized_volatility_bps >= high_threshold:
-            return "HIGH_REALIZED_VOLATILITY"
-        return "MID_REALIZED_VOLATILITY"
-
+    natural = [row for row in holdout_rows if row.realized_execution_outcome]
     dimensions: dict[str, dict[str, Any]] = {}
     for dimension, key_fn in (
         ("symbol", lambda row: row.symbol),
         ("side", lambda row: row.side),
         ("timeframe", lambda row: row.timeframe),
-        ("regime", regime),
+        ("regime", lambda row: row.regime_bucket),
     ):
         grouped: dict[str, list[CandidateCalibrationObservationV2]] = defaultdict(list)
-        for row in validation_rows:
+        for row in natural:
             grouped[str(key_fn(row))].append(row)
         dimensions[dimension] = {
-            key: _uncertainty_group_metrics(
-                members,
-                predicted_win_probability=predicted_win,
-                predictive_dispersion=calibrated_dispersion,
-            )
+            key: _reliability_metrics(members, hierarchy)
             for key, members in sorted(grouped.items())
         }
-
-    realized_rows = [
-        row for row in validation_rows if row.realized_execution_outcome
-    ]
-    realized_execution_metrics = _uncertainty_group_metrics(
-        realized_rows,
-        predicted_win_probability=predicted_win,
-        predictive_dispersion=calibrated_dispersion,
-    )
+    coverage: dict[str, float | None] = {}
+    grouped_buckets: dict[str, list[CandidateCalibrationObservationV2]] = defaultdict(list)
+    for row in natural:
+        posterior = _select_posterior(hierarchy, row)
+        grouped_buckets[str(posterior["bucket_identity"])].append(row)
+    for level in (50, 80, 95):
+        included: list[bool] = []
+        for members in grouped_buckets.values():
+            posterior = _select_posterior(hierarchy, members[0])
+            interval = posterior["credible_intervals"][str(level)]
+            realized_rate = statistics.fmean(row.profitable for row in members)
+            included.append(
+                float(interval["lower"]) <= realized_rate <= float(interval["upper"])
+            )
+        coverage[str(level)] = statistics.fmean(included) if included else None
     return {
-        "schema_version": "posterior_uncertainty_calibration_v1",
-        "method": "CHRONOLOGICAL_HELDOUT_BERNOULLI_RESIDUAL_DISPERSION",
-        "frozen_fit_standard_error": frozen_standard_error,
-        "heldout_residual_dispersion": heldout_dispersion,
-        "calibrated_predictive_uncertainty": calibrated_dispersion,
-        "diagnosis": (
-            "MATERIALLY_UNDER_DISPERSED_RECALIBRATED"
-            if under_dispersed
-            else "EMPIRICALLY_CALIBRATED_NO_CHANGE"
-        ),
-        "under_dispersed": under_dispersed,
-        "arbitrary_multiplier_used": False,
-        "tuned_to_create_trades": False,
-        "chronological_heldout_used_for_uncertainty_only": True,
-        "objective_weights_use_heldout": False,
-        "return_parameters_use_heldout": False,
-        "validation_row_digest": _canonical_sha256(
-            [asdict(row) for row in validation_rows]
-        ),
-        "all_authenticated_outcome_labels": calibrated_metrics,
-        "frozen_interval_audit": frozen_metrics,
-        "calibration_by_dimension": dimensions,
-        "regime_definition": {
-            "source": "authenticated_realized_volatility_bps",
-            "fit_prefix_low_threshold_bps": low_threshold,
-            "fit_prefix_high_threshold_bps": high_threshold,
-        },
-        "realized_execution_outcomes": realized_execution_metrics,
-        "counterfactual_outcome_count": sum(
-            not row.realized_execution_outcome for row in validation_rows
-        ),
-        "realized_execution_outcome_count": len(realized_rows),
+        "schema_version": "profitability_holdout_evaluation_v1",
+        "population": "AUTHENTICATED_RECONCILED_NATURAL_EXECUTION_CLOSES_ONLY",
+        "holdout_row_count": len(holdout_rows),
+        "natural_execution_holdout_count": len(natural),
+        "counterfactual_holdout_count": len(holdout_rows) - len(natural),
+        "metrics": _reliability_metrics(natural, hierarchy),
+        "reliability_by_dimension": dimensions,
+        "credible_interval_coverage": coverage,
+        "holdout_used_to_select_uncertainty_coefficients": False,
         "counterfactual_counts_as_realized_execution_profit": False,
+        "holdout_row_digest": _canonical_sha256([asdict(row) for row in holdout_rows]),
+    }
+
+
+def _probability_semantics() -> dict[str, Any]:
+    return {
+        "schema_version": "adaptive_probability_semantics_v1",
+        "confidence_raw": {
+            "source_field": "model_distributions.selected_action_probability",
+            "meaning": "ACTION_CLASS_PROBABILITY",
+            "is_profitability_probability": False,
+            "producer_contract": "v2.backend.app.services.rl_core.trainer_output",
+            "producer_definition": "softmax_probability_at_selected_action_index",
+        },
+        "confidence_calibrated": {
+            "source_field": "model_distributions.confidence_calibrated",
+            "meaning": "CALIBRATED_ACTION_CLASS_CONFIDENCE",
+            "is_profitability_probability": False,
+            "producer_contract": "v2.backend.app.services.rl_core.trainer_output",
+            "producer_definition": "temperature_scaled_selected_action_logit",
+        },
+        "confidence_to_profitability": {
+            "meaning": "P_POSITIVE_AFTER_COST_REFERENCE_OUTCOME_CONDITIONAL_ON_ACTION_CONFIDENCE",
+            "population": "MATURED_CANDIDATE_REFERENCE_OUTCOMES",
+            "is_realized_execution_profitability_probability": False,
+        },
+        "win_rate_posterior_mean": {
+            "meaning": "P_POSITIVE_AFTER_COST_NATURAL_EXECUTION_OUTCOME",
+            "population": "AUTHENTICATED_RECONCILED_NATURAL_EXECUTION_CLOSES_ONLY",
+        },
+        "loss_probability": {
+            "meaning": "P_NEGATIVE_AFTER_COST_NATURAL_EXECUTION_OUTCOME",
+            "population": "AUTHENTICATED_RECONCILED_NATURAL_EXECUTION_CLOSES_ONLY",
+        },
+        "posterior_uncertainty": {
+            "meaning": "EPISTEMIC_STANDARD_DEVIATION_OF_PROFITABILITY_PARAMETER",
+            "is_predictive_aleatoric_uncertainty": False,
+        },
     }
 
 
@@ -733,22 +1271,56 @@ def fit_candidate_outcome_calibration_v2(
     if len(lineage) != 1:
         _fail("single_checkpoint_lineage_required", "observations")
     unique_times = sorted({row.decision_time_ms for row in rows})
-    if len(unique_times) < 2:
-        _fail("multiple_decision_time_groups_required", "observations")
-    proposed_index = max(1, min(len(unique_times) - 1, int(len(unique_times) * 0.8)))
-    validation_start = unique_times[proposed_index]
-    fit_rows = [row for row in rows if row.decision_time_ms < validation_start]
-    validation_rows = [row for row in rows if row.decision_time_ms >= validation_start]
+    if len(unique_times) < 3:
+        _fail("three_chronological_time_groups_required", "observations")
+    calibration_index = max(
+        1,
+        min(
+            len(unique_times) - 2 * MINIMUM_VALIDATION_ROWS,
+            int(len(unique_times) * 0.70),
+        ),
+    )
+    holdout_index = min(
+        len(unique_times) - MINIMUM_VALIDATION_ROWS,
+        max(
+            calibration_index + MINIMUM_VALIDATION_ROWS,
+            int(len(unique_times) * 0.85),
+        ),
+    )
+    calibration_start = unique_times[calibration_index]
+    holdout_start = unique_times[holdout_index]
+    fit_rows = [row for row in rows if row.decision_time_ms < calibration_start]
+    calibration_rows = [
+        row
+        for row in rows
+        if calibration_start <= row.decision_time_ms < holdout_start
+    ]
+    holdout_rows = [row for row in rows if row.decision_time_ms >= holdout_start]
     if len(fit_rows) < MINIMUM_FIT_ROWS:
         _fail("minimum_fit_rows_not_met", "observations")
-    if len(validation_rows) < MINIMUM_VALIDATION_ROWS:
-        _fail("minimum_validation_rows_not_met", "observations")
-    fit_statistics = _statistics(fit_rows)
+    if len(calibration_rows) < MINIMUM_VALIDATION_ROWS:
+        _fail("minimum_calibration_rows_not_met", "observations")
+    if len(holdout_rows) < MINIMUM_VALIDATION_ROWS:
+        _fail("minimum_holdout_rows_not_met", "observations")
+    posterior_rows = [*fit_rows, *calibration_rows]
+    posterior_hierarchy = _hierarchical_profitability_posteriors(
+        posterior_rows,
+        source_archive_chain_sha256=source_archive_chain_sha256,
+    )
+    global_posterior = posterior_hierarchy["levels"]["global"]["global"]
+    fit_statistics = _statistics(
+        fit_rows, profitability_posterior=global_posterior
+    )
     groups: dict[str, list[CandidateCalibrationObservationV2]] = defaultdict(list)
     for row in fit_rows:
         groups[f"{row.side}:{row.timeframe}"].append(row)
     group_statistics = {
-        name: _statistics(group)
+        name: _statistics(
+            group,
+            profitability_posterior=posterior_hierarchy["levels"][
+                "side_timeframe"
+            ].get(name, global_posterior),
+        )
         for name, group in sorted(groups.items())
         if len(group) >= MINIMUM_GROUP_ROWS
     }
@@ -767,39 +1339,85 @@ def fit_candidate_outcome_calibration_v2(
         source_field="exit_feasibility_source",
         target_field="profit_target_hit",
     )
-    expected_win = float(fit_statistics["win_rate_posterior_mean"])
     expected_return = float(fit_statistics["after_cost_expectancy_bps"])
-    validation_brier = statistics.fmean(
-        (expected_win - float(row.profitable)) ** 2 for row in validation_rows
-    )
+    holdout_evaluation = _holdout_evaluation(holdout_rows, posterior_hierarchy)
+    holdout_metrics = holdout_evaluation["metrics"]
     validation_mae = statistics.fmean(
-        abs(expected_return - row.final_after_cost_return_bps) for row in validation_rows
+        abs(expected_return - row.final_after_cost_return_bps)
+        for row in holdout_rows
     )
-    uncertainty_calibration = _uncertainty_calibration(
-        fit_rows,
-        validation_rows,
-        fit_statistics=fit_statistics,
-    )
-    fit_statistics = {
-        **fit_statistics,
-        "posterior_uncertainty": uncertainty_calibration[
-            "calibrated_predictive_uncertainty"
-        ],
-        "posterior_uncertainty_source": (
-            "CHRONOLOGICAL_HELDOUT_BERNOULLI_RESIDUAL_DISPERSION"
+    global_effective = global_posterior["effective_sample_evidence"]
+    recent_surprise = holdout_metrics["outcome_surprise"]
+    uncertainty_calibration = {
+        "schema_version": "posterior_uncertainty_calibration_v2",
+        "method": "HIERARCHICAL_BETA_EFFECTIVE_INDEPENDENT_N",
+        "diagnosis": (
+            "PARTIALLY_VALID_ROOT_CAUSE_REFINED_TO_RAW_N_AND_SEMANTIC_MISMATCH"
         ),
-    }
-    group_statistics = {
-        name: {
-            **values,
-            "posterior_uncertainty": uncertainty_calibration[
-                "calibrated_predictive_uncertainty"
+        "raw_row_count": len(posterior_rows),
+        "natural_execution_count": global_effective["natural_execution_count"],
+        "unique_candidate_count": global_effective["unique_candidate_count"],
+        "unique_close_count": global_effective["unique_close_count"],
+        "effective_sample_size": global_effective["effective_sample_size"],
+        "effective_sample_method": global_effective["effective_sample_method"],
+        "correlation_adjustment": global_effective["correlation_adjustment"],
+        "temporal_decay": global_effective["temporal_decay"],
+        "checkpoint_generation": next(iter(lineage))[0],
+        "cohort_ids": global_effective["cohort_ids"],
+        "row_digest": global_effective["row_digest"],
+        "receipt_sha256": global_effective["receipt_sha256"],
+        "posterior_alpha": global_posterior["posterior_alpha"],
+        "posterior_beta": global_posterior["posterior_beta"],
+        "posterior_mean": global_posterior["posterior_mean"],
+        "posterior_variance": global_posterior["posterior_variance"],
+        "epistemic_parameter_uncertainty": global_posterior[
+            "posterior_standard_deviation"
+        ],
+        "prior_entropy": global_posterior["prior_entropy"],
+        "expected_posterior_entropy": global_posterior[
+            "expected_posterior_entropy"
+        ],
+        "expected_information_gain_nats": global_posterior[
+            "expected_information_gain_nats"
+        ],
+        "epistemic_signal_components": {
+            "bucket_sparsity": 1.0
+            / (1.0 + float(global_effective["effective_sample_size"])),
+            "chronological_holdout_calibration_residual": holdout_metrics[
+                "residual_dispersion"
             ],
-            "posterior_uncertainty_source": (
-                "GLOBAL_CHRONOLOGICAL_HELDOUT_RESIDUAL_CALIBRATION"
-            ),
-        }
-        for name, values in group_statistics.items()
+            "recent_outcome_surprise_mean_nats": recent_surprise["mean_nats"],
+            "regime_drift": {
+                "available": bool(holdout_rows),
+                "method": "POINT_IN_TIME_REGIME_BUCKET_FREQUENCY_AUDIT",
+            },
+            "feature_distribution_drift": {
+                "available": False,
+                "reason": "NOT_PRESENT_IN_CANDIDATE_OUTCOME_CALIBRATION_CONTRACT",
+            },
+            "challenger_ensemble_disagreement": {
+                "available": False,
+                "reason": "NO_AUTHENTICATED_MULTI_MODEL_PROJECTION_IN_THIS_ARTIFACT",
+            },
+        },
+        "bounded_learned_epistemic_estimate": global_posterior[
+            "posterior_standard_deviation"
+        ],
+        "predictive_aleatoric_dispersion_used_as_epistemic_authority": False,
+        "arbitrary_multiplier_used": False,
+        "tuned_to_create_trades": False,
+        "chronological_calibration_period_used_for_posterior": True,
+        "untouched_holdout_used_for_posterior": False,
+        "objective_weights_use_holdout": False,
+        "return_parameters_use_holdout": False,
+        "holdout_evaluation": holdout_evaluation,
+        "counterfactual_outcome_count": global_effective[
+            "counterfactual_outcome_count"
+        ],
+        "realized_execution_outcome_count": global_effective[
+            "natural_execution_count"
+        ],
+        "counterfactual_counts_as_realized_execution_profit": False,
     }
     missed_profitable_rate = _posterior(
         [
@@ -815,8 +1433,16 @@ def fit_candidate_outcome_calibration_v2(
     weights, objective_optimizer = _learned_weights(fit_rows)
     checkpoint_generation, checkpoint_id, checkpoint_sha256 = next(iter(lineage))
     fit_row_digest = _canonical_sha256([asdict(row) for row in fit_rows])
-    validation_row_digest = _canonical_sha256([asdict(row) for row in validation_rows])
+    validation_row_digest = _canonical_sha256(
+        [asdict(row) for row in calibration_rows]
+    )
+    holdout_row_digest = _canonical_sha256([asdict(row) for row in holdout_rows])
     uncertainty_calibration_sha256 = _canonical_sha256(uncertainty_calibration)
+    posterior_hierarchy_sha256 = posterior_hierarchy[
+        "posterior_hierarchy_sha256"
+    ]
+    probability_semantics = _probability_semantics()
+    probability_semantics_sha256 = _canonical_sha256(probability_semantics)
     population_sha256 = _canonical_sha256([row.candidate_id for row in rows])
     fit_receipt_sha256 = _canonical_sha256(
         {
@@ -824,6 +1450,8 @@ def fit_candidate_outcome_calibration_v2(
             "source_archive_chain_sha256": source_archive_chain_sha256,
             "objective_parameter_fingerprint": weights["objective_parameter_fingerprint"],
             "uncertainty_calibration_sha256": uncertainty_calibration_sha256,
+            "posterior_hierarchy_sha256": posterior_hierarchy_sha256,
+            "probability_semantics_sha256": probability_semantics_sha256,
         }
     )
     material: dict[str, Any] = {
@@ -836,37 +1464,44 @@ def fit_candidate_outcome_calibration_v2(
         "chronological_split": True,
         "fit_window_start_ms": fit_rows[0].decision_time_ms,
         "fit_window_end_ms": fit_rows[-1].decision_time_ms,
-        "validation_window_start_ms": validation_rows[0].decision_time_ms,
-        "validation_window_end_ms": validation_rows[-1].decision_time_ms,
+        "validation_window_start_ms": calibration_rows[0].decision_time_ms,
+        "validation_window_end_ms": calibration_rows[-1].decision_time_ms,
+        "holdout_window_start_ms": holdout_rows[0].decision_time_ms,
+        "holdout_window_end_ms": holdout_rows[-1].decision_time_ms,
         "fit_record_available_at_ms": generated_at_ms,
         "fit_sample_count": len(fit_rows),
-        "validation_sample_count": len(validation_rows),
+        "validation_sample_count": len(calibration_rows),
+        "holdout_sample_count": len(holdout_rows),
         "holdout_used_for_fitting": False,
         "fit_row_digest": fit_row_digest,
         "validation_row_digest": validation_row_digest,
+        "holdout_row_digest": holdout_row_digest,
         "uncertainty_calibration_sha256": uncertainty_calibration_sha256,
+        "posterior_hierarchy_sha256": posterior_hierarchy_sha256,
+        "probability_semantics_sha256": probability_semantics_sha256,
         "training_population_sha256": population_sha256,
         "fit_receipt_sha256": fit_receipt_sha256,
         "global_statistics": fit_statistics,
         "side_timeframe_statistics": group_statistics,
+        "profitability_posterior_hierarchy": posterior_hierarchy,
+        "probability_semantics": probability_semantics,
         "calibrators": {
             "confidence_to_profitability": confidence_bins,
             "loss_score_to_loss_probability": loss_bins,
             "exit_score_to_profit_exit_probability": exit_bins,
         },
         "validation": {
-            "frozen_global_probability_brier": validation_brier,
+            "frozen_global_probability_brier": holdout_metrics["brier_score"],
+            "frozen_global_probability_log_loss": holdout_metrics["log_loss"],
+            "frozen_global_probability_ece": holdout_metrics["ece"],
             "frozen_global_return_mae_bps": validation_mae,
-            "parameters_changed_after_validation": uncertainty_calibration[
-                "under_dispersed"
-            ],
+            "parameters_changed_after_validation": False,
             "objective_and_return_parameters_changed_after_validation": False,
-            "posterior_uncertainty_changed_after_validation": uncertainty_calibration[
-                "under_dispersed"
-            ],
+            "posterior_uncertainty_changed_after_validation": False,
+            "untouched_holdout": holdout_evaluation,
         },
         "posterior_uncertainty_calibration": uncertainty_calibration,
-        "heldout_used_for_uncertainty_calibration": True,
+        "heldout_used_for_uncertainty_calibration": False,
         "learned_objective_weights": weights,
         "objective_weight_optimizer": objective_optimizer,
         "mode_allocation": {
@@ -897,6 +1532,8 @@ def validate_candidate_outcome_calibration_v2(artifact: Mapping[str, Any]) -> No
     if (
         artifact.get("chronological_split") is not True
         or int(artifact["fit_window_end_ms"]) >= int(artifact["validation_window_start_ms"])
+        or int(artifact["validation_window_end_ms"])
+        >= int(artifact["holdout_window_start_ms"])
         or artifact.get("holdout_used_for_fitting") is not False
     ):
         _fail("chronological_fit_validation_boundary_invalid", "split")
@@ -907,10 +1544,14 @@ def validate_candidate_outcome_calibration_v2(artifact: Mapping[str, Any]) -> No
     if not isinstance(validation, Mapping):
         _fail("validation_required", "validation")
     if (
-        artifact.get("heldout_used_for_uncertainty_calibration") is not True
-        or uncertainty.get("chronological_heldout_used_for_uncertainty_only") is not True
-        or uncertainty.get("objective_weights_use_heldout") is not False
-        or uncertainty.get("return_parameters_use_heldout") is not False
+        artifact.get("heldout_used_for_uncertainty_calibration") is not False
+        or uncertainty.get("method")
+        != "HIERARCHICAL_BETA_EFFECTIVE_INDEPENDENT_N"
+        or uncertainty.get("untouched_holdout_used_for_posterior") is not False
+        or uncertainty.get("objective_weights_use_holdout") is not False
+        or uncertainty.get("return_parameters_use_holdout") is not False
+        or uncertainty.get("predictive_aleatoric_dispersion_used_as_epistemic_authority")
+        is not False
         or uncertainty.get("arbitrary_multiplier_used") is not False
         or uncertainty.get("tuned_to_create_trades") is not False
         or uncertainty.get("counterfactual_counts_as_realized_execution_profit")
@@ -918,9 +1559,9 @@ def validate_candidate_outcome_calibration_v2(artifact: Mapping[str, Any]) -> No
         or validation.get("objective_and_return_parameters_changed_after_validation")
         is not False
         or validation.get("posterior_uncertainty_changed_after_validation")
-        is not uncertainty.get("under_dispersed")
+        is not False
         or validation.get("parameters_changed_after_validation")
-        is not uncertainty.get("under_dispersed")
+        is not False
         or artifact.get("uncertainty_calibration_sha256")
         != _canonical_sha256(uncertainty)
     ):
@@ -929,14 +1570,34 @@ def validate_candidate_outcome_calibration_v2(artifact: Mapping[str, Any]) -> No
     if (
         not isinstance(global_statistics, Mapping)
         or global_statistics.get("posterior_uncertainty")
-        != uncertainty.get("calibrated_predictive_uncertainty")
+        != uncertainty.get("epistemic_parameter_uncertainty")
         or global_statistics.get("posterior_uncertainty_source")
-        != "CHRONOLOGICAL_HELDOUT_BERNOULLI_RESIDUAL_DISPERSION"
+        != "HIERARCHICAL_BETA_EFFECTIVE_N_NATURAL_EXECUTIONS"
+        or global_statistics.get("expected_information_gain_nats")
+        != uncertainty.get("expected_information_gain_nats")
     ):
         _fail("uncertainty_projection_mismatch", "global_statistics")
+    hierarchy = artifact.get("profitability_posterior_hierarchy")
+    semantics = artifact.get("probability_semantics")
+    if (
+        not isinstance(hierarchy, Mapping)
+        or hierarchy.get("counterfactual_counts_as_realized_execution_profit")
+        is not False
+        or artifact.get("posterior_hierarchy_sha256")
+        != hierarchy.get("posterior_hierarchy_sha256")
+        or not isinstance(semantics, Mapping)
+        or artifact.get("probability_semantics_sha256")
+        != _canonical_sha256(semantics)
+        or semantics.get("confidence_calibrated", {}).get(
+            "is_profitability_probability"
+        )
+        is not False
+    ):
+        _fail("posterior_or_probability_semantics_invalid", "epistemic_contract")
     if (
         int(artifact["fit_sample_count"]) < MINIMUM_FIT_ROWS
         or int(artifact["validation_sample_count"]) < MINIMUM_VALIDATION_ROWS
+        or int(artifact["holdout_sample_count"]) < MINIMUM_VALIDATION_ROWS
     ):
         _fail("minimum_samples_not_met", "sample_count")
     weights = artifact.get("learned_objective_weights")
