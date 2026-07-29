@@ -561,6 +561,12 @@ def test_adaptive_execution_refresh_rebuilds_partial_fill_ledger(
 def test_runtime_intent_projection_retains_adaptive_authority_evidence() -> None:
     intent = _authorized_intent()
     intent["adaptive_policy_action"] = {"decision_id": "action_1"}
+    intent["adaptive_policy_action_id"] = "action_1"
+    intent["adaptive_policy_action_sha256"] = "b" * 64
+    intent["adaptive_policy_action_policy_mode"] = "champion_exploitation"
+    intent["exploration_provenance"] = False
+    intent["counts_as_training_feedback"] = True
+    intent["counts_as_live_profit"] = False
     intent["legacy_category_e_comparator"] = {"static_comparator_only": True}
     intent["adaptive_policy_source_action_comparator"] = {
         "side": "hold",
@@ -570,6 +576,12 @@ def test_runtime_intent_projection_retains_adaptive_authority_evidence() -> None
     compact = paper_loop._compact_runtime_intent_for_redis(intent)
 
     assert compact["adaptive_policy_action"] == {"decision_id": "action_1"}
+    assert compact["adaptive_policy_action_id"] == "action_1"
+    assert compact["adaptive_policy_action_sha256"] == "b" * 64
+    assert compact["adaptive_policy_action_policy_mode"] == "champion_exploitation"
+    assert compact["exploration_provenance"] is False
+    assert compact["counts_as_training_feedback"] is True
+    assert compact["counts_as_live_profit"] is False
     assert compact["adaptive_paper_policy_authorization"] == intent[
         "adaptive_paper_policy_authorization"
     ]
