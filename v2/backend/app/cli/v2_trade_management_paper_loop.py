@@ -41701,6 +41701,61 @@ def _paper_bootstrap_information_acquisition_designation(
     }
 
 
+def _paper_bootstrap_queue_head_failure_predicate(
+    result: Any,
+    side: Any,
+) -> str:
+    """First failing current-cycle predicate for a rank-queue head whose
+    bootstrap selection did not fire, derived from its COMPLETE current
+    shadow evaluation (hard validator, attestation, objective, parity)."""
+
+    side_l = str(side or "").lower()
+    suffixes = (
+        f":bounded_information_seeking_exploration:{side_l}",
+        f":{side_l}:venue_minimum",
+    )
+    inputs = [
+        item
+        for item in result.objective_inputs
+        if item.policy_mode == "bounded_information_seeking_exploration"
+        and item.selected_action == "directional_trade"
+        and item.action_id.endswith(suffixes)
+    ]
+    if not inputs:
+        return "NO_EXPLORATION_INPUT_FOR_LINEAGE_SIDE"
+    hard_valid = [
+        item for item in inputs if item.hard_constraints_satisfied is True
+    ]
+    if not hard_valid:
+        dispositions = dict(result.action_dispositions)
+        reasons: list[str] = []
+        for item in inputs:
+            reasons.extend(dispositions.get(item.action_id) or ())
+        return "EXPLORATION_INPUT_HARD_INVALID:" + (
+            sorted(set(reasons))[0] if reasons else "UNKNOWN"
+        )
+    if all(item.expected_information_gain <= 0.0 for item in hard_valid):
+        return "INFORMATION_GAIN_NONPOSITIVE"
+    evaluation = result.objective_evaluation
+    if evaluation.exploration_action_id is not None:
+        return "POSITIVE_UTILITY_EXPLORATION_EXISTS"
+    champion_score = next(
+        (
+            score
+            for score in evaluation.scores
+            if score.action_id == evaluation.champion_action_id
+        ),
+        None,
+    )
+    if champion_score is None:
+        return "NO_HARD_VALID_CHAMPION_BASELINE"
+    if champion_score.selected_action != "remain_flat":
+        return "CHAMPION_DIRECTIONAL_POSITIVE_UTILITY"
+    if len(hard_valid) != 1:
+        return "EXPLORATION_INPUT_NOT_UNIQUE"
+    return "BOOTSTRAP_SELECTION_ANOMALY"
+
+
 def _paper_bootstrap_ranked_candidate_dispositions(
     designation: Mapping[str, Any] | None,
     finalized_intents: Sequence[Mapping[str, Any]],
@@ -52318,14 +52373,24 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
     # member present in the CURRENT cycle's signal universe with a matching
     # authenticated side.  Exactly one target per cycle; every unchanged hard
     # rail still validates it in-cycle before any authorization.
+    # Bootstrap information acquisition — deterministic two-pass selector.
+    # PASS 1/2 realization: signals of ranked candidates are processed FIRST
+    # and in complete prior-rank order, so every ranked member receives its
+    # full current-cycle evaluation (pure shadow build + hard validator +
+    # venue attestation + parity; no reservation, no fill, no allowance
+    # consumed on failure) at its own turn.  The first member whose CURRENT
+    # evaluation passes every unchanged hard rail is authorized; a failed
+    # member records its first failing predicate and the queue falls back to
+    # the next rank IN THE SAME CYCLE.  Exactly one authorization per cycle.
     _bootstrap_full_designation = adaptive_policy_cycle_context.get(
         "bootstrap_information_acquisition_designation"
     )
-    _bootstrap_cycle_target: dict[str, Any] | None = None
-    _bootstrap_ranks_traversed = 0
+    _bootstrap_ranked_queue: list[dict[str, Any]] = []
+    _bootstrap_rank_dispositions: list[dict[str, Any]] = []
+    _bootstrap_signal_priority: dict[int, int] = {}
     if isinstance(_bootstrap_full_designation, Mapping):
-        _bootstrap_universe: set[tuple[str, str, str]] = set()
-        for _b_signal in signals:
+        _bootstrap_signal_keys: dict[tuple[str, str, str], list[int]] = {}
+        for _b_index, _b_signal in enumerate(signals):
             if not isinstance(_b_signal, Mapping):
                 continue
             _b_symbol = str(_b_signal.get("symbol") or "").upper()
@@ -52343,26 +52408,64 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                 predictions_by_id.get(_b_lineage["prediction_id"], {}),
             )
             if _b_symbol and _b_tf:
-                _bootstrap_universe.add((_b_symbol, str(_b_tf), _b_side))
+                _bootstrap_signal_keys.setdefault(
+                    (_b_symbol, str(_b_tf), _b_side), []
+                ).append(_b_index)
         for _b_entry in (
             _bootstrap_full_designation.get("ranked_candidates") or []
         ):
             if not isinstance(_b_entry, Mapping):
                 continue
-            _bootstrap_ranks_traversed += 1
             _b_key = (
                 str(_b_entry.get("symbol") or "").upper(),
                 str(_b_entry.get("timeframe") or ""),
                 str(_b_entry.get("side") or "").upper(),
             )
-            if _b_key in _bootstrap_universe:
-                _bootstrap_cycle_target = dict(_b_entry)
-                break
-    adaptive_policy_cycle_context["bootstrap_current_cycle_target"] = (
-        _bootstrap_cycle_target
+            if _b_key in _bootstrap_signal_keys:
+                _bootstrap_ranked_queue.append(dict(_b_entry))
+                for _b_index in _bootstrap_signal_keys[_b_key]:
+                    _bootstrap_signal_priority.setdefault(
+                        _b_index, len(_bootstrap_ranked_queue)
+                    )
+            else:
+                _bootstrap_rank_dispositions.append(
+                    {
+                        "rank": _b_entry.get("rank"),
+                        "symbol": _b_key[0],
+                        "timeframe": _b_key[1],
+                        "side": _b_key[2],
+                        "first_failing_predicate": (
+                            "CANDIDATE_NOT_IN_CURRENT_CYCLE_UNIVERSE"
+                        ),
+                    }
+                )
+    if _bootstrap_signal_priority:
+        # Deterministic reorder: ranked members first (complete prior-rank
+        # order), everything else keeps its original relative order.  This is
+        # a pure permutation of the same candidate universe; no candidate is
+        # added, dropped, or re-labelled, and every per-candidate rail runs
+        # identically at its (re-ordered) turn.
+        signals = [
+            item[2]
+            for item in sorted(
+                (
+                    _bootstrap_signal_priority.get(index, len(signals) + 1),
+                    index,
+                    signal,
+                )
+                for index, signal in enumerate(signals)
+            )
+        ]
+    adaptive_policy_cycle_context["bootstrap_ranked_queue"] = _bootstrap_ranked_queue
+    adaptive_policy_cycle_context["bootstrap_rank_dispositions"] = (
+        _bootstrap_rank_dispositions
     )
-    adaptive_policy_cycle_context["bootstrap_current_cycle_candidates_evaluated"] = (
-        _bootstrap_ranks_traversed
+    adaptive_policy_cycle_context["bootstrap_prior_ranked_candidate_count"] = (
+        int(
+            _bootstrap_full_designation.get("total_ranked_candidate_count") or 0
+        )
+        if isinstance(_bootstrap_full_designation, Mapping)
+        else 0
     )
     for s_idx, s in enumerate(signals):
         _paper_release_pending_halted_probe_token(
@@ -55071,22 +55174,20 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                 )
                 + len(accepted),
                 # At most one bootstrap authorization per completed paper
-                # cycle: only the single rank-order current-universe target is
-                # handed to the builder, and it is withheld from every
-                # candidate after the first bootstrap authorization this
-                # cycle.
+                # cycle: only the CURRENT rank-order queue head is handed to
+                # the builder (signals are processed in prior-rank order for
+                # queue members, so the head's complete current evaluation
+                # happens before any lower rank can select), and the
+                # designation is withheld entirely after the first bootstrap
+                # authorization this cycle.
                 "bootstrap_information_acquisition_designation": (
                     {
                         **adaptive_policy_cycle_context[
                             "bootstrap_information_acquisition_designation"
                         ],
-                        **adaptive_policy_cycle_context[
-                            "bootstrap_current_cycle_target"
-                        ],
+                        **adaptive_policy_cycle_context["bootstrap_ranked_queue"][0],
                         "ranked_candidates": [
-                            adaptive_policy_cycle_context[
-                                "bootstrap_current_cycle_target"
-                            ]
+                            adaptive_policy_cycle_context["bootstrap_ranked_queue"][0]
                         ],
                     }
                     if isinstance(
@@ -55095,12 +55196,7 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                         ),
                         Mapping,
                     )
-                    and isinstance(
-                        adaptive_policy_cycle_context.get(
-                            "bootstrap_current_cycle_target"
-                        ),
-                        Mapping,
-                    )
+                    and adaptive_policy_cycle_context.get("bootstrap_ranked_queue")
                     and not adaptive_policy_cycle_context.get(
                         "bootstrap_information_acquisition_cycle_authorizations"
                     )
@@ -55180,6 +55276,31 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                 ],
                 decision_time_ms=adaptive_policy_generated_at_ms,
             )
+            _bootstrap_queue = (
+                adaptive_policy_cycle_context.get("bootstrap_ranked_queue") or []
+            )
+            if (
+                _bootstrap_queue
+                and str(_bootstrap_queue[0].get("symbol") or "").upper()
+                == str(intent.get("symbol") or "").upper()
+                and str(_bootstrap_queue[0].get("timeframe") or "")
+                == str(intent.get("timeframe") or "")
+            ):
+                _bootstrap_head = _bootstrap_queue[0]
+                adaptive_policy_cycle_context["bootstrap_rank_dispositions"].append(
+                    {
+                        "rank": _bootstrap_head.get("rank"),
+                        "symbol": str(_bootstrap_head.get("symbol") or "").upper(),
+                        "timeframe": str(_bootstrap_head.get("timeframe") or ""),
+                        "side": str(_bootstrap_head.get("side") or "").upper(),
+                        "first_failing_predicate": (
+                            f"AUTHORITY_EXCEPTION:{adaptive_reason[:160]}"
+                        ),
+                    }
+                )
+                adaptive_policy_cycle_context["bootstrap_ranked_queue"] = (
+                    _bootstrap_queue[1:]
+                )
             blocked.append(intent)
             continue
 
@@ -55223,6 +55344,53 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                 )
                 + 1
             )
+        # Rank-order queue bookkeeping: when this candidate is the current
+        # queue head, either the traversal stops on selection or the queue
+        # falls back to the next rank IN THE SAME CYCLE with the head's first
+        # failing current predicate recorded.
+        _bootstrap_queue = (
+            adaptive_policy_cycle_context.get("bootstrap_ranked_queue") or []
+        )
+        if (
+            _bootstrap_queue
+            and str(_bootstrap_queue[0].get("symbol") or "").upper()
+            == str(intent.get("symbol") or "").upper()
+            and str(_bootstrap_queue[0].get("timeframe") or "")
+            == str(intent.get("timeframe") or "")
+        ):
+            _bootstrap_head = _bootstrap_queue[0]
+            if adaptive_action.policy_mode == "bootstrap_information_acquisition":
+                adaptive_policy_cycle_context["bootstrap_rank_dispositions"].append(
+                    {
+                        "rank": _bootstrap_head.get("rank"),
+                        "symbol": str(_bootstrap_head.get("symbol") or "").upper(),
+                        "timeframe": str(_bootstrap_head.get("timeframe") or ""),
+                        "side": str(_bootstrap_head.get("side") or "").upper(),
+                        "first_failing_predicate": "SELECTED",
+                    }
+                )
+                adaptive_policy_cycle_context[
+                    "bootstrap_first_current_hard_valid_rank"
+                ] = _bootstrap_head.get("rank")
+                adaptive_policy_cycle_context["bootstrap_ranked_queue"] = []
+            else:
+                adaptive_policy_cycle_context["bootstrap_rank_dispositions"].append(
+                    {
+                        "rank": _bootstrap_head.get("rank"),
+                        "symbol": str(_bootstrap_head.get("symbol") or "").upper(),
+                        "timeframe": str(_bootstrap_head.get("timeframe") or ""),
+                        "side": str(_bootstrap_head.get("side") or "").upper(),
+                        "first_failing_predicate": (
+                            _paper_bootstrap_queue_head_failure_predicate(
+                                adaptive_policy_result,
+                                _bootstrap_head.get("side"),
+                            )
+                        ),
+                    }
+                )
+                adaptive_policy_cycle_context["bootstrap_ranked_queue"] = (
+                    _bootstrap_queue[1:]
+                )
         intent["adaptive_policy_result_sha256"] = adaptive_policy_result.content_sha256
         intent["adaptive_policy_reference_parity_status"] = (
             adaptive_policy_result.parity_status
@@ -57668,23 +57836,38 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                 and row.get("adaptive_policy_entry_authorized") is True
                 for row in adaptive_policy_authority_rows
             ),
-            "bootstrap_total_ranked_candidate_count": int(
-                (
-                    adaptive_policy_cycle_context.get(
-                        "bootstrap_information_acquisition_designation"
-                    )
-                    or {}
-                ).get("total_ranked_candidate_count")
-                or 0
-            ),
-            "bootstrap_current_cycle_candidates_evaluated": int(
+            "bootstrap_prior_ranked_candidate_count": int(
                 adaptive_policy_cycle_context.get(
-                    "bootstrap_current_cycle_candidates_evaluated"
+                    "bootstrap_prior_ranked_candidate_count"
                 )
                 or 0
             ),
-            "bootstrap_current_cycle_target": (
-                adaptive_policy_cycle_context.get("bootstrap_current_cycle_target")
+            "bootstrap_ranked_candidates_resolved_current_count": sum(
+                str(entry.get("first_failing_predicate") or "")
+                != "CANDIDATE_NOT_IN_CURRENT_CYCLE_UNIVERSE"
+                for entry in (
+                    adaptive_policy_cycle_context.get("bootstrap_rank_dispositions")
+                    or []
+                )
+            ),
+            "bootstrap_ranked_candidates_missing_current_count": sum(
+                str(entry.get("first_failing_predicate") or "")
+                == "CANDIDATE_NOT_IN_CURRENT_CYCLE_UNIVERSE"
+                for entry in (
+                    adaptive_policy_cycle_context.get("bootstrap_rank_dispositions")
+                    or []
+                )
+            ),
+            "bootstrap_ranked_candidates_hard_rejected_count": sum(
+                str(entry.get("first_failing_predicate") or "")
+                not in (
+                    "SELECTED",
+                    "CANDIDATE_NOT_IN_CURRENT_CYCLE_UNIVERSE",
+                )
+                for entry in (
+                    adaptive_policy_cycle_context.get("bootstrap_rank_dispositions")
+                    or []
+                )
             ),
             "bootstrap_current_cycle_hard_valid_count": sum(
                 row.get("adaptive_policy_action_policy_mode")
@@ -57692,20 +57875,10 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                 and row.get("adaptive_policy_entry_authorized") is True
                 for row in adaptive_policy_authority_rows
             ),
-            "bootstrap_first_hard_valid_rank": next(
-                (
-                    (
-                        adaptive_policy_cycle_context.get(
-                            "bootstrap_current_cycle_target"
-                        )
-                        or {}
-                    ).get("rank")
-                    for row in adaptive_policy_authority_rows
-                    if row.get("adaptive_policy_action_policy_mode")
-                    == "bootstrap_information_acquisition"
-                    and row.get("adaptive_policy_entry_authorized") is True
-                ),
-                None,
+            "bootstrap_first_current_hard_valid_rank": (
+                adaptive_policy_cycle_context.get(
+                    "bootstrap_first_current_hard_valid_rank"
+                )
             ),
             "bootstrap_selected_candidate_id": next(
                 (
@@ -57760,13 +57933,42 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                 ),
                 None,
             ),
-            "bootstrap_rejection_first_predicate_by_candidate": (
-                _paper_bootstrap_ranked_candidate_dispositions(
-                    adaptive_policy_cycle_context.get(
-                        "bootstrap_information_acquisition_designation"
-                    ),
-                    intents,
-                )
+            "bootstrap_rejection_first_predicate_by_rank": sorted(
+                (
+                    list(
+                        adaptive_policy_cycle_context.get(
+                            "bootstrap_rank_dispositions"
+                        )
+                        or []
+                    )
+                    + [
+                        {
+                            "rank": entry.get("rank"),
+                            "symbol": str(entry.get("symbol") or "").upper(),
+                            "timeframe": str(entry.get("timeframe") or ""),
+                            "side": str(entry.get("side") or "").upper(),
+                            "first_failing_predicate": (
+                                "NOT_EVALUATED_SELECTION_ALREADY_MADE"
+                                if adaptive_policy_cycle_context.get(
+                                    "bootstrap_first_current_hard_valid_rank"
+                                )
+                                is not None
+                                else "CANDIDATE_TURN_NOT_REACHED"
+                            ),
+                        }
+                        for entry in (
+                            adaptive_policy_cycle_context.get(
+                                "bootstrap_ranked_queue"
+                            )
+                            or []
+                        )
+                        if isinstance(entry, Mapping)
+                    ]
+                ),
+                key=lambda entry: (
+                    entry.get("rank") is None,
+                    entry.get("rank") or 0,
+                ),
             ),
             "flat_authorized_count": sum(
                 row.get("adaptive_policy_authority_status") == "AUTHORIZED_FLAT"
