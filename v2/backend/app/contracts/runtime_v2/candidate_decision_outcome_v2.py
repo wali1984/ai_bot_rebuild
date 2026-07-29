@@ -873,6 +873,7 @@ class ActualPaperExecutionOutcomeV2:
     fill_receipt_sha256: str
     close_receipt_sha256: str
     accounting_receipt_sha256: str
+    action_decision_time_ms: int
     fill_execution_time_ms: int
     fill_record_available_at_ms: int
     close_execution_time_ms: int
@@ -917,6 +918,7 @@ class ActualPaperExecutionOutcomeV2:
         ):
             _require_sha256(getattr(self, field), field)
         for field in (
+            "action_decision_time_ms",
             "fill_execution_time_ms",
             "fill_record_available_at_ms",
             "close_execution_time_ms",
@@ -924,6 +926,12 @@ class ActualPaperExecutionOutcomeV2:
             "accounting_record_available_at_ms",
         ):
             _require_positive_int(getattr(self, field), field)
+        # The typed action's own decision instant is hash-bound to this
+        # outcome via ``selected_action_sha256`` (the close row's action id
+        # and sha are verified against the archived selected action before
+        # this outcome is constructed).  Execution can never precede it.
+        if self.fill_execution_time_ms < self.action_decision_time_ms:
+            _raise("fill_execution_before_decision", "fill_execution_time_ms")
         if self.fill_record_available_at_ms < self.fill_execution_time_ms:
             _raise("fill_record_available_before_execution", "fill_record_available_at_ms")
         if self.close_execution_time_ms < self.fill_record_available_at_ms:
@@ -1268,33 +1276,19 @@ class CandidateDecisionOutcomeV2:
                 _raise("selected_action_hash_mismatch", "matured_labels")
             if self.matured_labels.actual_paper_outcome is not None:
                 actual = self.matured_labels.actual_paper_outcome
-                # Causality is checked against the authenticated TYPED
-                # ACTION's own decision instant when the archived selected
-                # action carries one (its payload hash is already bound to
-                # the close at ``selected_action_hash_mismatch`` above).  The
-                # record-level ``decision_time_ms`` is the cycle archival
-                # stamp, which legitimately postdates an intra-cycle fill and
-                # must not be the causality comparand for executions.
-                causality_decision_time_ms = self.decision.decision_time_ms
-                try:
-                    _selected_payload = json.loads(
-                        self.decision.selected_action.payload_json
-                    )
-                    _action_decision_ms = (
-                        _selected_payload.get("decision_time_ms")
-                        if isinstance(_selected_payload, dict)
-                        else None
-                    )
-                    if (
-                        isinstance(_action_decision_ms, int)
-                        and not isinstance(_action_decision_ms, bool)
-                        and _action_decision_ms > 0
-                    ):
-                        causality_decision_time_ms = _action_decision_ms
-                except (TypeError, ValueError):
-                    pass
-                if actual.fill_execution_time_ms < causality_decision_time_ms:
-                    _raise("fill_execution_before_decision", "matured_labels")
+                # Execution causality is enforced inside
+                # ``ActualPaperExecutionOutcomeV2`` against the typed
+                # action's authenticated ``action_decision_time_ms`` (bound
+                # via ``selected_action_sha256``).  The record-level
+                # ``decision_time_ms`` is the cycle ARCHIVAL stamp, which
+                # legitimately postdates an intra-cycle fill; the archival
+                # ordering it does guarantee is that the record itself was
+                # generated after the fill's own record became available.
+                if (
+                    actual.fill_record_available_at_ms
+                    > self.record_generated_at_ms
+                ):
+                    _raise("fill_record_after_archive_generation", "matured_labels")
                 if (
                     actual.accounting_record_available_at_ms
                     > self.matured_labels.label_generated_at_ms

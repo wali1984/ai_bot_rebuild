@@ -276,6 +276,7 @@ def _actual(
         "fill_receipt_sha256": _sha("fill"),
         "close_receipt_sha256": _sha("close"),
         "accounting_receipt_sha256": _sha("accounting"),
+        "action_decision_time_ms": 1_000_005,
         "fill_execution_time_ms": 1_000_010,
         "fill_record_available_at_ms": 1_000_011,
         "close_execution_time_ms": 1_900_000,

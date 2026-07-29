@@ -455,6 +455,7 @@ def test_typed_exploration_close_builds_exact_actual_paper_outcome() -> None:
         "close_id": "paper-close-1",
         "paper_final_admission_receipt_hash": "4" * 64,
         "entry_generation_time_utc": _iso(decision_ms + 1_000),
+        "adaptive_policy_decision_time": _iso(decision_ms + 500),
         "close_event_time": _iso(decision_ms + 2_000),
         "closed_quantity": 2.0,
         "entry_price": 10.0,

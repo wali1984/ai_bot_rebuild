@@ -460,6 +460,13 @@ def _actual_paper_outcome_from_close(
         or close.get("entry_generation_time_utc"),
         "close.paper_final_admission_decision_time",
     )
+    # The typed action's own decision instant: bound to this close by the
+    # verified adaptive_policy_action_id/sha binding above, so execution
+    # causality is checked against the authenticated action decision.
+    action_decision_ms = _parse_aware_utc_ms(
+        close.get("adaptive_policy_decision_time"),
+        "close.adaptive_policy_decision_time",
+    )
     close_execution_ms = _parse_aware_utc_ms(
         close.get("close_event_time") or close.get("exit_time"),
         "close.close_event_time",
@@ -497,6 +504,7 @@ def _actual_paper_outcome_from_close(
                 "paper_position_fill_reconciliation_status": dict(reconciliation),
             }
         ),
+        action_decision_time_ms=action_decision_ms,
         fill_execution_time_ms=fill_execution_ms,
         fill_record_available_at_ms=fill_execution_ms,
         close_execution_time_ms=close_execution_ms,
