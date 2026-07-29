@@ -339,7 +339,7 @@ struct ProvidersView: View {
         let color = providerColor(provider.providerDashboardTone)
         Button {
             SwiftUI.withAnimation(.default) {
-                expandedProviders.insert(provider.provider)
+                _ = expandedProviders.insert(provider.provider)
             }
         } label: {
             HStack(spacing: 10) {
@@ -400,9 +400,9 @@ struct ProvidersView: View {
             Button {
                 SwiftUI.withAnimation(.default) {
                     if isExpanded {
-                        expandedProviders.remove(provider.provider)
+                        _ = expandedProviders.remove(provider.provider)
                     } else {
-                        expandedProviders.insert(provider.provider)
+                        _ = expandedProviders.insert(provider.provider)
                     }
                 }
             } label: {

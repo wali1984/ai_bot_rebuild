@@ -678,6 +678,14 @@ final class AIBotV2CoreTests: XCTestCase {
             )
         }
 
+        XCTAssertNil(
+            providersView.range(
+                of: #"(?m)^\s*expandedProviders\.(?:insert|remove)\("#,
+                options: .regularExpression
+            ),
+            "Set mutations inside withAnimation must explicitly discard their non-Void results for Swift 6/Xcode 26"
+        )
+
         for field in [
             "last_success_utc",
             "last_error_utc",
