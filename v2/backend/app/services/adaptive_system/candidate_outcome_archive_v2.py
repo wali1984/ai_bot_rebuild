@@ -914,6 +914,17 @@ class CandidateOutcomeArchiveV2:
                 not in actual_close_required_dispositions
                 or candidate_id in actual_close_candidate_ids
             ]
+            # Authenticated actual-close candidates mature FIRST: the feedback
+            # of a natural paper execution must not starve behind the
+            # label-gap backlog of decision-time-only candidates at the head
+            # of the oldest-first queue.  ``list.sort`` is stable, so ordering
+            # stays fully deterministic (actual-close group first, each group
+            # still ordered by decision time then candidate id); every label
+            # validation and integrity check downstream is unchanged.
+            label_candidate_ids.sort(
+                key=lambda candidate_id: candidate_id
+                not in actual_close_candidate_ids
+            )
             selected_ids = frozenset(label_candidate_ids[:max_candidates])
             selected_rows = [
                 row
