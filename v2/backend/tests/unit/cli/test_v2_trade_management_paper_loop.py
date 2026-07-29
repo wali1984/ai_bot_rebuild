@@ -29162,3 +29162,81 @@ def test_bootstrap_designation_fails_closed_on_malformed_uncertainty_block() -> 
             )
             is None
         )
+
+
+def _bootstrap_liquidity_replay_material(
+    *,
+    action: str,
+    trust: float,
+    minimum: float,
+    final_score: object = None,
+) -> dict[str, object]:
+    scratch: dict[str, object] = {}
+    base, source, reason = paper_loop._derive_allocator_liquidity_score(  # noqa: SLF001
+        intent=scratch,
+        signal={},
+        prediction={},
+        features={},
+        market_microstructure={"liquidity_score": 0.8},
+        spread_bps=None,
+        feature_source_name="features",
+    )
+    return {
+        "schema_version": "paper_allocator_liquidity_source_material_v1",
+        "symbol": "BTCUSDT",
+        "timeframe": "15m",
+        "feature_source_name": "features",
+        "derivation_inputs": {
+            "signal": {},
+            "prediction": {},
+            "features": {},
+            "market_microstructure": {"liquidity_score": 0.8},
+            "spread_bps_argument": None,
+        },
+        "base_score": base,
+        "base_source": source,
+        "base_reason": reason,
+        "microstructure_gate_inputs": {
+            "feed_integrity_pass": True,
+            "microstructure_trust_score": trust,
+            "microstructure_adaptive_minimum": minimum,
+            "microstructure_action": action,
+        },
+        "final_score": final_score if final_score is not None else base,
+    }
+
+
+def test_liquidity_replay_accepts_cg_f057_valid_unfavorable_no_trade() -> None:
+    """CG-F057 producer semantics: a valid-unfavourable microstructure
+    classification (NO_TRADE / SHADOW_ONLY) is a continuous adaptive-policy
+    input and never reduces the liquidity score.  The replay validator must
+    reproduce exactly the production formula for a self-consistent material,
+    even when trust is below the adaptive minimum.
+    """
+
+    for action in ("NO_TRADE", "SHADOW_ONLY"):
+        material = _bootstrap_liquidity_replay_material(
+            action=action, trust=0.2, minimum=0.5
+        )
+        reasons = paper_loop._paper_allocator_liquidity_source_rejection_reasons(  # noqa: SLF001
+            material
+        )
+        assert "CANDIDATE_LIQUIDITY_FINAL_SCORE_REPLAY_MISMATCH" not in reasons, (
+            action,
+            reasons,
+        )
+
+
+def test_liquidity_replay_still_enforces_reduction_for_allow_below_minimum() -> None:
+    """No weakening: an ALLOW action with trust below the adaptive minimum
+    must still replay to the reduced score, so an unreduced final_score is
+    rejected exactly as before.
+    """
+
+    material = _bootstrap_liquidity_replay_material(
+        action="ALLOW", trust=0.2, minimum=0.5
+    )
+    reasons = paper_loop._paper_allocator_liquidity_source_rejection_reasons(  # noqa: SLF001
+        material
+    )
+    assert "CANDIDATE_LIQUIDITY_FINAL_SCORE_REPLAY_MISMATCH" in reasons

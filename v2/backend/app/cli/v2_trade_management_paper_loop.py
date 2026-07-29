@@ -48919,6 +48919,15 @@ def _paper_allocator_liquidity_source_rejection_reasons(
         or action not in {"ALLOW", "REDUCE_SIZE", "NO_TRADE", "SHADOW_ONLY"}
     ):
         replayed_final = 0.0
+    elif action in {"NO_TRADE", "SHADOW_ONLY"}:
+        # CG-F057: an authenticated valid-unfavourable microstructure
+        # classification is a continuous adaptive-policy input, never an
+        # allocator veto or sizing haircut.  The producer keeps the
+        # underlying liquidity score unchanged on this branch, so the
+        # faithful replay must reproduce exactly that — replaying a
+        # DIFFERENT formula than production is a replica defect, not a
+        # stricter check.
+        replayed_final = replayed_base
     elif action == "REDUCE_SIZE" or trust < minimum:
         replayed_final = min(replayed_base, 0.35)
     else:
