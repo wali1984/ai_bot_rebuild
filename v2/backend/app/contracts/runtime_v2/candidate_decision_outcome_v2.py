@@ -1268,7 +1268,32 @@ class CandidateDecisionOutcomeV2:
                 _raise("selected_action_hash_mismatch", "matured_labels")
             if self.matured_labels.actual_paper_outcome is not None:
                 actual = self.matured_labels.actual_paper_outcome
-                if actual.fill_execution_time_ms < self.decision.decision_time_ms:
+                # Causality is checked against the authenticated TYPED
+                # ACTION's own decision instant when the archived selected
+                # action carries one (its payload hash is already bound to
+                # the close at ``selected_action_hash_mismatch`` above).  The
+                # record-level ``decision_time_ms`` is the cycle archival
+                # stamp, which legitimately postdates an intra-cycle fill and
+                # must not be the causality comparand for executions.
+                causality_decision_time_ms = self.decision.decision_time_ms
+                try:
+                    _selected_payload = json.loads(
+                        self.decision.selected_action.payload_json
+                    )
+                    _action_decision_ms = (
+                        _selected_payload.get("decision_time_ms")
+                        if isinstance(_selected_payload, dict)
+                        else None
+                    )
+                    if (
+                        isinstance(_action_decision_ms, int)
+                        and not isinstance(_action_decision_ms, bool)
+                        and _action_decision_ms > 0
+                    ):
+                        causality_decision_time_ms = _action_decision_ms
+                except (TypeError, ValueError):
+                    pass
+                if actual.fill_execution_time_ms < causality_decision_time_ms:
                     _raise("fill_execution_before_decision", "matured_labels")
                 if (
                     actual.accounting_record_available_at_ms

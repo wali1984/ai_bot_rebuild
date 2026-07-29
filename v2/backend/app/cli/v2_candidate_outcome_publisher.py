@@ -36,6 +36,7 @@ from v2.backend.app.contracts.runtime_v2.candidate_decision_outcome_v2 import (
     ACTUAL_PAPER_OUTCOME_SCHEMA_VERSION,
     ActualPaperExecutionOutcomeV2,
     CandidateDecisionOutcomeV2,
+    CandidateOutcomeContractError,
 )
 from v2.backend.app.services.adaptive_system.candidate_outcome_maturer_v2 import (
     CandidateOutcomeMaturationError,
@@ -449,9 +450,15 @@ def _actual_paper_outcome_from_close(
     realized_pnl_usd = float(realized_pnl_usd_raw)
     if not math.isfinite(realized_pnl_usd):
         raise CandidateOutcomeRuntimeError("actual_close:realized_net_pnl_required")
+    # The execution instant is the authenticated FINAL-ADMISSION decision
+    # time (when the fill was actually admitted), not the entry price
+    # snapshot instant, which legitimately precedes the typed action's
+    # decision it fed.  Legacy rows without the receipt keep the entry
+    # generation time.
     fill_execution_ms = _parse_aware_utc_ms(
-        close.get("entry_generation_time_utc"),
-        "close.entry_generation_time_utc",
+        close.get("paper_final_admission_decision_time")
+        or close.get("entry_generation_time_utc"),
+        "close.paper_final_admission_decision_time",
     )
     close_execution_ms = _parse_aware_utc_ms(
         close.get("close_event_time") or close.get("exit_time"),
@@ -717,6 +724,13 @@ def process_maturation(
                     continue
                 except CandidateOutcomeMaturationError as exc:
                     count_pending(f"INVALID_LABEL_INPUT:{exc}")
+                    continue
+                except CandidateOutcomeContractError as exc:
+                    # One candidate's contract failure is an alert, never a
+                    # stall: the learning loop must keep maturing every other
+                    # candidate while this one surfaces in the pending
+                    # decomposition for repair.
+                    count_pending(f"INVALID_MATURED_CONTRACT:{exc}")
                     continue
                 candidates_to_append.append(matured)
                 source_eligible_ids.append(record.decision.candidate_id)
