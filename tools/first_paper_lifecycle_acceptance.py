@@ -184,6 +184,11 @@ def _safe_context(client: redis.Redis) -> dict[str, Any]:
     if manifest.get("initialization_state") not in {
         "EMPTY_INITIALIZED_PROOF_SET",
         "INITIALIZED_WITH_PROOFS",
+        # Production paper loop writes this literal state once at least one
+        # proof exists (v2_trade_management_paper_loop initialization
+        # vocabulary); the acceptance tool must recognize the producer's
+        # actual state names, not a never-written alias.
+        "INITIALIZED_OR_BACKFILLED_PROOF_SET",
     }:
         raise AcceptanceBoundary("proof_store:uninitialized")
     if manifest.get("proof_count") != len(proofs):
@@ -335,7 +340,20 @@ def _freeze(context: Mapping[str, Any], position: Mapping[str, Any]) -> dict[str
         "checkpoint_id",
         "cohort_id",
     )
-    lineage = {field: _first(position, field) or _first(fill, field) or _first(proof, field) for field in lineage_fields}
+    # ``paper_strategy_cohort_id`` is the canonical cohort identity stamped by
+    # the production loop on positions/fills; the bare ``cohort_id`` alias is
+    # only present on some historical rows.  Accept either spelling without
+    # weakening the non-empty requirement.
+    lineage_aliases: dict[str, tuple[str, ...]] = {
+        field: (field,) for field in lineage_fields
+    }
+    lineage_aliases["cohort_id"] = ("cohort_id", "paper_strategy_cohort_id")
+    lineage = {
+        field: _first(position, *aliases)
+        or _first(fill, *aliases)
+        or _first(proof, *aliases)
+        for field, aliases in lineage_aliases.items()
+    }
     missing = [field for field, value in lineage.items() if value in (None, "")]
     if missing:
         raise AcceptanceBoundary(f"lineage:missing:{','.join(missing)}")
