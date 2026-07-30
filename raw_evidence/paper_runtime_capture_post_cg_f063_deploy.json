@@ -1,0 +1,100 @@
+{
+  "credentials_all_present": true,
+  "credentials_present": {
+    "/home/wali/.config/ai-bot-v2/credentials/adaptive-hard-validator/seed.cred": true,
+    "/home/wali/.config/ai-bot-v2/credentials/binance-bracket-evidence/evidence-hmac.cred": true
+  },
+  "label": "post_cg_f063_deploy",
+  "live_gate": "blocked_human_only",
+  "paper_only": true,
+  "schema": "paper_runtime_acceptance_capture_v1",
+  "service": {
+    "ActiveState": "deactivating",
+    "ExecMainStartTimestamp": "Mon 2026-07-27 23:54:59 EDT",
+    "MainPID": "2946256"
+  },
+  "snapshot": {
+    "accepted_fills_count": 0,
+    "closed_trades_count": 92,
+    "equity_usd": 2985.59472051,
+    "fill_persistence_trace_utc": "2026-07-28T03:54:47.844888Z",
+    "free_margin_usd": 2985.59472051,
+    "invalid_admission_quarantined": 16,
+    "open_positions_count": 0,
+    "proof_backed_positions": 0,
+    "proof_store_len": 0,
+    "proof_store_present": true,
+    "quarantine_count": 16,
+    "quarantine_rows_with_empty_reasons": 0,
+    "unproved_positions": 0,
+    "used_margin_usd": 0.0,
+    "valid_accepted_for_ledger": 0,
+    "wallet_balance_usd": 2985.59472051,
+    "wipe_receipt_count": 9,
+    "wipe_receipts": [
+      {
+        "accepted_fill_proof_count": 0,
+        "phantom_position_count": 0,
+        "reason": null,
+        "used_margin_released_usd": 0,
+        "utc": "2026-07-28T01:00:25.681349Z"
+      },
+      {
+        "accepted_fill_proof_count": 0,
+        "phantom_position_count": 1,
+        "reason": null,
+        "used_margin_released_usd": 48.9203,
+        "utc": "2026-07-28T01:17:57.868618Z"
+      },
+      {
+        "accepted_fill_proof_count": 0,
+        "phantom_position_count": 1,
+        "reason": null,
+        "used_margin_released_usd": 80.3226,
+        "utc": "2026-07-28T03:36:47.252914Z"
+      },
+      {
+        "accepted_fill_proof_count": 0,
+        "phantom_position_count": 1,
+        "reason": null,
+        "used_margin_released_usd": 51.06634,
+        "utc": "2026-07-28T01:13:19.534396Z"
+      },
+      {
+        "accepted_fill_proof_count": 0,
+        "phantom_position_count": 1,
+        "reason": null,
+        "used_margin_released_usd": 48.835,
+        "utc": "2026-07-28T01:09:46.844048Z"
+      },
+      {
+        "accepted_fill_proof_count": 0,
+        "phantom_position_count": 1,
+        "reason": null,
+        "used_margin_released_usd": 48.535,
+        "utc": "2026-07-28T01:25:09.409630Z"
+      },
+      {
+        "accepted_fill_proof_count": 0,
+        "phantom_position_count": 1,
+        "reason": null,
+        "used_margin_released_usd": 50.96144,
+        "utc": "2026-07-28T01:21:21.550780Z"
+      },
+      {
+        "accepted_fill_proof_count": 0,
+        "phantom_position_count": 1,
+        "reason": null,
+        "used_margin_released_usd": 48.515,
+        "utc": "2026-07-28T02:57:21.017825Z"
+      },
+      {
+        "accepted_fill_proof_count": 0,
+        "phantom_position_count": 1,
+        "reason": null,
+        "used_margin_released_usd": 78.2,
+        "utc": "2026-07-28T03:00:44.131714Z"
+      }
+    ]
+  }
+}

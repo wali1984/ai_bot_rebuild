@@ -246,6 +246,177 @@ V2_PERMANENT_RECOVERY_COMPLETE=false
 LIVE_NO_GO=true
 ```
 
+## Effective-N and executable venue-minimum correction — authoritative update 2026-07-29
+
+The uncertainty root cause has been narrowed and the corrected implementation is
+running. Commit `81d2a014e7a8920a283728cae99b8723832a5f83` preserves the valid
+epistemic standard-error interpretation and removes raw correlated archive-row
+count from profitability-posterior authority. It does not substitute aleatoric
+Bernoulli dispersion, realized volatility, confidence error, target uncertainty,
+or an arbitrary multiplier.
+
+### Completed task list
+
+- [x] Bind the model's selected-action probability and calibrated confidence to
+  their action-class semantics; neither is labeled as execution profitability.
+- [x] Admit only authenticated, reconciled natural execution closes to the
+  profitability Beta posterior. Counterfactual rows continue to inform
+  opportunity, return, and cost estimates but never count as realized paper
+  profit.
+- [x] Collapse duplicate execution revisions by durable close identity and fail
+  closed on conflicting duplicates.
+- [x] Compute effective independent N from non-overlapping execution intervals,
+  lag-one outcome dependence, point-in-time 30-day decay/Kish N, and conservative
+  symbol, timeframe, cohort, and policy-mode concentration.
+- [x] Fit hierarchical Beta posteriors with authenticated parent shrinkage for
+  sparse symbol/side/timeframe/regime buckets.
+- [x] Replace posterior-standard-deviation reward with direct Beta-Bernoulli
+  expected entropy reduction.
+- [x] Keep nonstationarity inputs separate and mark unavailable challenger
+  disagreement or feature-drift evidence unavailable instead of inventing it.
+- [x] Use chronological fit/calibration/untouched-holdout partitions and prohibit
+  holdout feedback into fitting or uncertainty coefficients.
+- [x] Recompute the complete learned objective at the actual venue-minimum
+  executable size while preserving the raw learned target and every hard rail.
+- [x] Persist the complete comparison and reproduce it independently with zero
+  production/reference disagreements.
+- [x] Deploy the paper loop, calibration publisher, and adaptive shadow runtime
+  immutably at `81d2a014e7a8920a283728cae99b8723832a5f83`.
+- [x] Observe four new epoch-1 paper cycles after the immutable switch, exceeding
+  the required three, with no fill, close, reservation, proof, or accounting
+  anomalies.
+
+### Authenticated calibration truth
+
+```text
+CG-F067=PARTIALLY_VALID_ROOT_CAUSE_REFINED_TO_RAW_N_AND_SEMANTIC_MISMATCH
+fit_rows=20027
+calibration_rows=9412
+untouched_holdout_rows=8394
+raw_counterfactual_rows=29439
+natural_execution_rows=0
+unique_natural_close_rows=0
+effective_independent_N=0.0
+posterior=Beta(1.0,1.0)
+epistemic_parameter_uncertainty=0.28867513459481287
+expected_information_gain_nats=0.19314718055994506
+counterfactual_counts_as_realized_execution_profit=false
+holdout_execution_metrics=null
+holdout_null_reason=NO_AUTHENTICATED_RECONCILED_NATURAL_EXECUTION_CLOSES_IN_CANDIDATE_ARCHIVE
+calibration_sha256=f7efa9836f05097fb743c9731d7088c9e4c29d62995c3dba4e412fe5bccb71be
+```
+
+Null held-out profitability coverage is the only truthful result while this
+candidate archive contains no authenticated natural execution close. The frozen
+generation-3 economic cohort's historical 1/5 close remains preserved and is not
+reclassified as a candidate-archive execution observation.
+
+### Full-universe executable-size runtime result
+
+The latest complete shadow/reference cycle at `2026-07-29T06:21:49.077Z`
+evaluated 258 candidates. Eight learned exploration targets were below their
+venue-executable size; all eight were recomputed at the exact executable
+notional and passed the unchanged hard risk envelope. All eight full objectives
+remained negative:
+
+```text
+sub_minimum_exploration_candidates=8
+venue_minimum_candidates_evaluated=8
+venue_minimum_hard_risk_pass_count=8
+venue_minimum_positive_utility_authorizations=0
+recomputed_utility_range=-101.891385157094..-24.45113490621139
+expected_loss_usd_range=0.6216001017985926..2.1386712212113657
+expected_cost_usd_range=0.03531624795546054..0.12371440309204725
+fill_adjusted_information_gain_nats_range=0.03794046630351885..0.08115415582381354
+selection_reason=VENUE_MINIMUM_RECOMPUTED_UTILITY_NONPOSITIVE (8/8)
+production_reference_disagreements=0
+venue_minimum_comparison_reference_disagreements=0
+runtime_result=B_ALL_EXECUTABLE_VENUE_MINIMUM_CANDIDATES_OBJECTIVELY_NONPOSITIVE
+```
+
+This is runtime result B, not execution-inert rounding: the actual executable
+actions were evaluated, their positive information value was included, and the
+complete after-cost/tail/risk objective still rejected them. No risk allocation,
+threshold, posterior, or venue rule was changed to manufacture a fill.
+
+Exact evidence is
+`goal_state/PERMANENT_SYSTEM_RECOVERY/effective_n_venue_minimum_runtime_20260729.json`
+(SHA-256 `021943cc5cd6a0c2889136cf88f70150c2bbeac71a5e091e16155ceaee3e9a7a`).
+
+### Verification
+
+```text
+.venv/bin/pytest -q v2/backend/tests/unit/services/adaptive_system \
+  v2/backend/tests/unit/domain/adaptive_policy_action_v2 \
+  v2/backend/tests/unit/cli/test_v2_bounded_exploration_runtime_evaluator.py \
+  v2/backend/tests/unit/cli/test_v2_candidate_outcome_calibration_publisher.py \
+  v2/backend/tests/unit/cli/test_v2_adaptive_policy_shadow_runtime.py \
+  v2/backend/tests/unit/cli/test_v2_candidate_outcome_publisher.py \
+  v2/backend/tests/unit/services/microstructure_trust/test_cg_f057_completion_acceptance.py \
+  --tb=short
+# 436 passed
+
+.venv/bin/pytest -q v2/backend/tests/unit/cli/test_v2_trade_management_paper_loop.py \
+  -k 'adaptive_policy or bounded_exploration or candidate_outcome' --tb=short
+# 5 passed, 740 deselected
+
+.venv/bin/python scripts/guardian_phase10_rare_event_tests.py
+# 17 PASS / 0 FAIL / 0 WARNING
+
+python compilation: PASS
+focused Ruff E902/F821/F822/F823: PASS
+git diff --check: PASS
+systemd-analyze --user verify: diagnostics=0, ordering_cycles=0
+boot validator: successful oneshot, exit status 0
+```
+
+### Current truthful boundary
+
+The paper loop, adaptive shadow, calibration publisher, candidate-outcome
+publisher, and current-epoch lifecycle controller are active with
+`NRestarts=0`. The lifecycle controller status heartbeat is
+`WAITING_FOR_NATURAL_CURRENT_EPOCH_POSITION`; its single-run reconstruction
+path remains armed.
+
+```text
+paper_account_epoch=1
+paper_session_id=paper_session_140989e198032b94
+wallet_balance_usd=3000.00
+equity_usd=3000.00
+free_margin_usd=3000.00
+used_margin_usd=0.00
+reserved_margin_usd=0.00
+open_positions=0
+accepted_fills=0
+proof_store_state=EMPTY_INITIALIZED_PROOF_SET
+duplicate_fill_count=0
+duplicate_close_count=0
+reservation_leak_count=0
+accounting_conservation=true
+
+current_epoch_natural_lifecycles=0
+governed_economic_closes=1/5
+G03=FAIL
+G11=FAIL
+G12=PASS_17_OF_17
+G13=FAIL
+G14=FAIL
+
+paper_only=true
+live_gate=blocked_human_only
+routes_to_live=false
+places_real_order=false
+exchange_action_taken=false
+V2_PERMANENT_RECOVERY_COMPLETE=false
+LIVE_NO_GO=true
+```
+
+The remaining blocker is authenticated natural execution evidence: there is no
+positive executable venue-minimum utility in the observed full-universe cycle
+and no natural execution close in the candidate archive with which to estimate
+effective N or held-out profitability coverage. The automated lifecycle and
+novelty paths remain active; permanent and economic acceptance are not claimed.
+
 ---
 
 # Phase 1 — Classify every existing configuration value
@@ -3056,3 +3227,45 @@ exchange_action_taken=false
 V2_PERMANENT_RECOVERY_COMPLETE=false
 LIVE_NO_GO=true
 ```
+
+## Current authoritative status — effective-N venue-minimum runtime
+
+This supersedes the bounded-information-gain status immediately above. The
+complete corrected record is documented under **Effective-N and executable
+venue-minimum correction — authoritative update 2026-07-29** and in
+`goal_state/PERMANENT_SYSTEM_RECOVERY/effective_n_venue_minimum_runtime_20260729.json`.
+
+```text
+repository_head=81d2a014e7a8920a283728cae99b8723832a5f83
+CG-F067=PARTIALLY_VALID_ROOT_CAUSE_REFINED_TO_RAW_N_AND_SEMANTIC_MISMATCH
+effective_independent_N=0.0
+authenticated_natural_execution_rows=0
+counterfactual_counts_as_realized_execution_profit=false
+
+sub_minimum_exploration_candidates=8
+venue_minimum_candidates_evaluated=8
+venue_minimum_hard_risk_pass_count=8
+venue_minimum_positive_utility_authorizations=0
+runtime_result=B_ALL_EXECUTABLE_VENUE_MINIMUM_CANDIDATES_OBJECTIVELY_NONPOSITIVE
+production_reference_disagreements=0
+
+current_epoch_natural_lifecycles=0
+governed_economic_closes=1/5
+G03=FAIL
+G11=FAIL
+G12=PASS_17_OF_17
+G13=FAIL
+G14=FAIL
+
+paper_only=true
+live_gate=blocked_human_only
+routes_to_live=false
+places_real_order=false
+exchange_action_taken=false
+V2_PERMANENT_RECOVERY_COMPLETE=false
+LIVE_NO_GO=true
+```
+
+The lifecycle controller and evidence-novelty supervisor remain armed. No
+service requires stopping; no execution, risk, venue, or economic threshold was
+weakened.

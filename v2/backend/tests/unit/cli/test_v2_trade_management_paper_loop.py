@@ -28692,6 +28692,14 @@ def _bootstrap_designation_comparison(
     gain_nats: object = 0.9,
     expected_loss_usd: object = 3.0,
     utility: object = -0.5,
+    terminal_target_probability: object = 0.01,
+    expected_log_growth_per_opportunity: object = 0.002,
+    expected_log_growth: object = 0.02,
+    expected_terminal_equity_usd: object = 1_020.0,
+    terminal_p10: object = 800.0,
+    terminal_p50: object = 1_000.0,
+    terminal_p90: object = 1_300.0,
+    terminal_liquidation_probability: object = 0.01,
     hard_risk_pass: object = True,
     candidate_id: str = "cand_btc_long",
     action_id: str = (
@@ -28706,6 +28714,38 @@ def _bootstrap_designation_comparison(
         "venue_min_candidate_expected_information_gain_nats": gain_nats,
         "venue_min_candidate_expected_loss_usd": expected_loss_usd,
         "venue_min_candidate_utility": utility,
+        "terminal_target_probability": terminal_target_probability,
+        "expected_log_equity_growth_per_opportunity": (
+            expected_log_growth_per_opportunity
+        ),
+        "expected_compounded_log_equity_growth": expected_log_growth,
+        "expected_terminal_equity_usd": expected_terminal_equity_usd,
+        "terminal_equity_p10_usd": terminal_p10,
+        "terminal_equity_p50_usd": terminal_p50,
+        "terminal_equity_p90_usd": terminal_p90,
+        "terminal_liquidation_probability": terminal_liquidation_probability,
+        "terminal_projection": {
+            "schema_version": "terminal_paper_equity_projection_v1",
+            "horizon_days": 90.0,
+            "target_multiple": 1000.0,
+            "state_available_at_ms": 999,
+            "decision_time_ms": 1_000,
+            "latest_unclosed_kline_excluded": True,
+            "terminal_state_evidence_supported": True,
+            "evidence_supported_probability": False,
+            "prior_only": True,
+            "underdispersed": True,
+            "defaulted_fields": [],
+            "probability_authority": (
+                "TELEMETRY_ONLY_NO_SELECTION_OR_SIZING_AUTHORITY"
+            ),
+            "guaranteed_target_claim": False,
+            "paper_only": True,
+            "live_gate": "blocked_human_only",
+            "routes_to_live": False,
+            "places_real_order": False,
+            "exchange_action_taken": False,
+        },
     }
 
 
@@ -28733,6 +28773,36 @@ def _bootstrap_designation_intent(
         "paper_fill_gate_block_reasons": list(paper_fill_gate_block_reasons),
         "adaptive_policy_venue_minimum_objective_comparisons": comparisons,
     }
+
+
+def test_terminal_objective_survives_existing_persistence_compaction_paths() -> None:
+    terminal_objective = {
+        **_bootstrap_designation_comparison()["terminal_projection"],
+        "objective_input_fingerprint_sha256": "a" * 64,
+        "objective_score_fingerprint": "b" * 64,
+        "objective_parameter_fingerprint": "c" * 64,
+    }
+    row = {
+        "adaptive_policy_terminal_equity_objective": terminal_objective,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "exchange_action_taken": False,
+    }
+
+    runtime_projection = paper_loop._compact_runtime_intent_for_redis(  # noqa: SLF001
+        row
+    )
+    accepted_fill_projection = paper_loop._compact_accepted_fill_for_state(  # noqa: SLF001
+        row
+    )
+
+    assert runtime_projection["adaptive_policy_terminal_equity_objective"] == (
+        terminal_objective
+    )
+    assert accepted_fill_projection[
+        "adaptive_policy_terminal_equity_objective"
+    ] == terminal_objective
 
 
 def test_bootstrap_designation_requires_lineage_side_match() -> None:
@@ -28902,11 +28972,10 @@ def test_bootstrap_designation_cadence_blocks_on_epoch_bootstrap_rows() -> None:
     assert clean["current_epoch_bootstrap_open_positions"] == 0
 
 
-def test_bootstrap_designation_ranks_by_information_gain_per_expected_loss() -> None:
-    """The designated experiment maximizes expected information gain per dollar
-    of expected experiment loss; a more negative monetary utility never
-    outranks a higher gain/loss ratio, and the designation carries the full
-    paper-only safety contract.
+def test_bootstrap_designation_ranks_by_learned_terminal_equity_utility() -> None:
+    """The designated experiment maximizes the learned day-90 terminal-equity
+    utility even when another candidate has a higher information-gain/loss
+    ratio, and the designation carries the full paper-only safety contract.
     """
 
     loser = _bootstrap_designation_comparison(
@@ -28947,24 +29016,30 @@ def test_bootstrap_designation_ranks_by_information_gain_per_expected_loss() -> 
         "bootstrap_information_acquisition_designation_v1"
     )
     assert designation["policy_mode"] == "bootstrap_information_acquisition"
-    assert designation["policy_objective"] == "BOOTSTRAP_INFORMATION_ACQUISITION"
+    assert designation["policy_objective"] == (
+        "PER_OPPORTUNITY_EXPECTED_LOG_EQUITY_GROWTH"
+    )
     assert designation["selection_rule"] == (
-        "MAX_EXPECTED_INFORMATION_GAIN_NATS_PER_EXPECTED_LOSS_USD"
-        "_TIE_UTILITY_THEN_ACTION_ID"
+        "MAX_LEARNED_PER_OPPORTUNITY_UTILITY_THEN_INFORMATION_GAIN"
+        "_THEN_ACTION_ID;TERMINAL_PROBABILITY_TELEMETRY_ONLY"
     )
-    assert designation["symbol"] == "ETHUSDT"
-    assert designation["timeframe"] == "4h"
-    assert designation["side"] == "SHORT"
-    assert designation["source_candidate_id"] == "cand_eth_short"
+    assert designation["symbol"] == "BTCUSDT"
+    assert designation["timeframe"] == "1h"
+    assert designation["side"] == "LONG"
+    assert designation["source_candidate_id"] == "cand_btc_long"
     assert designation["source_action_id"] == (
-        "apa2_eth:bounded_information_seeking_exploration:short:venue_minimum"
+        "apa2_btc:bounded_information_seeking_exploration:long:venue_minimum"
     )
-    assert designation["expected_information_gain_nats"] == 0.9
-    assert designation["expected_experiment_loss_usd"] == 2.0
+    assert designation["expected_information_gain_nats"] == 0.8
+    assert designation["expected_experiment_loss_usd"] == 4.0
     assert designation["information_gain_per_expected_loss_usd"] == pytest.approx(
-        0.45
+        0.2
     )
-    assert designation["venue_min_candidate_utility"] == -1.75
+    assert designation["venue_min_candidate_utility"] == -0.25
+    assert designation["learned_terminal_objective_utility"] == -0.25
+    assert designation["terminal_target_probability"] == 0.01
+    assert designation["terminal_target_guaranteed"] is False
+    assert designation["information_gain_is_primary_allocation_objective"] is False
     assert designation["eligible_candidate_count"] == 2
     assert designation["bootstrap_trigger"] == {
         "natural_execution_count": 0,
@@ -28986,11 +29061,11 @@ def test_bootstrap_designation_ranks_by_information_gain_per_expected_loss() -> 
     assert designation["exchange_action_taken"] is False
 
 
-def test_bootstrap_designation_ratio_tie_breaks_on_utility_then_action_id() -> None:
-    """An exact gain/loss-ratio tie is broken by the higher (least negative)
-    utility, with non-numeric utility ranked strictly last; a full ratio and
-    utility tie is broken deterministically by the greatest
-    venue_minimum_action_id.
+def test_bootstrap_designation_utility_tie_breaks_deterministically() -> None:
+    """The higher learned terminal utility wins regardless of an information
+    ratio tie; malformed utility is ineligible, probability/full-horizon
+    telemetry cannot change eligibility or ranking, and an authoritative-input
+    tie is broken by stable action id.
     """
 
     calibration = _bootstrap_designation_calibration()
@@ -29036,22 +29111,26 @@ def test_bootstrap_designation_ratio_tie_breaks_on_utility_then_action_id() -> N
     assert by_utility is not None
     assert by_utility["source_candidate_id"] == "cand_mmm"
     assert by_utility["venue_min_candidate_utility"] == -1.0
-    assert by_utility["eligible_candidate_count"] == 3
+    assert by_utility["eligible_candidate_count"] == 2
 
     # Ratio AND utility tie: greatest venue_minimum_action_id wins.
     tie_low_id = _bootstrap_designation_comparison(
         gain_nats=0.5,
         expected_loss_usd=2.0,
         utility=-1.0,
+        terminal_target_probability="diagnostic-unavailable",
+        expected_log_growth="diagnostic-unavailable",
         candidate_id="cand_tie_low",
         action_id=(
             "apa2_alpha:bounded_information_seeking_exploration:long:venue_minimum"
         ),
     )
     tie_high_id = _bootstrap_designation_comparison(
-        gain_nats=1.0,
-        expected_loss_usd=4.0,
+        gain_nats=0.5,
+        expected_loss_usd=2.0,
         utility=-1.0,
+        terminal_target_probability=0.0,
+        expected_log_growth=-99.0,
         candidate_id="cand_tie_high",
         action_id=(
             "apa2_zulu:bounded_information_seeking_exploration:long:venue_minimum"

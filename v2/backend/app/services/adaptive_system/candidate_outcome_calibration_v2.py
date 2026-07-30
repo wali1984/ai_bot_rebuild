@@ -22,13 +22,27 @@ from v2.backend.app.services.adaptive_system.candidate_outcome_maturer_v2 import
     counterfactual_reference_side,
 )
 
-SCHEMA_VERSION = "candidate_outcome_calibration_v2"
-OBSERVATION_SCHEMA_VERSION = "candidate_calibration_observation_v2"
+SCHEMA_VERSION = "candidate_outcome_calibration_v3"
+OBSERVATION_SCHEMA_VERSION = "candidate_calibration_observation_v3"
 MINIMUM_FIT_ROWS = 40
 MINIMUM_VALIDATION_ROWS = 10
 MINIMUM_GROUP_ROWS = 10
 CALIBRATION_BIN_COUNT = 5
 MAX_BOUNDED_EXPLORATION_PROBABILITY = 0.5
+REQUIRED_OBJECTIVE_WEIGHT_FIELDS = (
+    "expected_after_cost_return",
+    "terminal_target_probability_reward",
+    "expected_log_equity_growth_reward",
+    "drawdown_penalty",
+    "tail_loss_penalty",
+    "liquidation_risk_penalty",
+    "market_impact_penalty",
+    "funding_cost_penalty",
+    "turnover_penalty",
+    "concentration_penalty",
+    "correlation_penalty",
+    "information_gain_reward",
+)
 
 
 class CandidateOutcomeCalibrationError(ValueError):
@@ -106,6 +120,7 @@ class CandidateCalibrationObservationV2:
     predicted_loss_probability_source: float | None
     exit_feasibility_source: float | None
     expected_move_after_cost_source_bps: float | None
+    correlation_exposure_source: float
     final_gross_return_bps: float
     final_after_cost_return_bps: float
     max_favorable_excursion_bps: float
@@ -198,6 +213,12 @@ class CandidateCalibrationObservationV2:
                 self.expected_move_after_cost_source_bps,
                 "expected_move_after_cost_source_bps",
             )
+        correlation_exposure = _finite(
+            self.correlation_exposure_source,
+            "correlation_exposure_source",
+        )
+        if not 0.0 <= correlation_exposure <= 1.0:
+            _fail("probability_0_1_required", "correlation_exposure_source")
         for field in (
             "final_gross_return_bps",
             "final_after_cost_return_bps",
@@ -243,6 +264,7 @@ def extract_calibration_observation(
     components = _payload(record, "component_estimates")
     model = _payload(record, "model_distributions")
     selected = _payload(record, "selected_action")
+    portfolio = _payload(record, "portfolio_state")
     proposed_action = str(
         proposed.get("proposed_action") or proposed.get("side") or ""
     ).upper()
@@ -387,6 +409,16 @@ def extract_calibration_observation(
             components.get("exit_feasibility_score"), "exit_feasibility_score"
         ),
         expected_move_after_cost_source_bps=expected_move,
+        correlation_exposure_source=max(
+            0.0,
+            min(
+                1.0,
+                _finite(
+                    portfolio.get("correlation_exposure_after_trade"),
+                    "correlation_exposure_after_trade",
+                ),
+            ),
+        ),
         final_gross_return_bps=float(gross),
         final_after_cost_return_bps=float(after_cost),
         max_favorable_excursion_bps=labels.max_favorable_excursion_bps,
@@ -1156,6 +1188,7 @@ def _learned_weights(
         "market_impact_penalty",
         "funding_cost_penalty",
         "turnover_penalty",
+        "correlation_penalty",
     )
     feature_rows = [
         (
@@ -1165,6 +1198,8 @@ def _learned_weights(
             row.market_impact_bps,
             abs(row.funding_bps),
             row.transaction_cost_bps,
+            row.correlation_exposure_source
+            * abs(row.max_adverse_excursion_bps),
         )
         for row in rows
     ]
@@ -1229,9 +1264,50 @@ def _learned_weights(
         1e-6,
         statistics.median(learned.values()) / max(1.0, return_scale),
     )
+    realized_log_growth = [
+        abs(math.log1p(max(-0.999999999999, row.final_after_cost_return_bps / 10_000.0)))
+        for row in rows
+    ]
+    observed_log_growth_scale = max(
+        1e-12,
+        statistics.fmean(realized_log_growth),
+    )
+    expected_log_equity_growth_reward = max(
+        1e-6,
+        return_scale / observed_log_growth_scale,
+    )
+    terminal_target_probability_reward = max(
+        1e-6,
+        expected_log_equity_growth_reward * math.log(1000.0),
+    )
+    expected_return_pairs = [
+        (
+            float(row.expected_move_after_cost_source_bps),
+            row.final_after_cost_return_bps,
+        )
+        for row in rows
+        if row.expected_move_after_cost_source_bps is not None
+    ]
+    expected_return_denominator = math.fsum(
+        predicted * predicted for predicted, _realized in expected_return_pairs
+    )
+    expected_after_cost_return = max(
+        1e-6,
+        (
+            math.fsum(
+                predicted * realized
+                for predicted, realized in expected_return_pairs
+            )
+            / expected_return_denominator
+            if expected_return_denominator > 0.0
+            else 1.0 / (1.0 + return_scale)
+        ),
+    )
     parameters = {
         "schema_version": WEIGHTS_SCHEMA_VERSION,
-        "expected_after_cost_return": 1.0,
+        "expected_after_cost_return": expected_after_cost_return,
+        "terminal_target_probability_reward": terminal_target_probability_reward,
+        "expected_log_equity_growth_reward": expected_log_equity_growth_reward,
         **learned,
         "concentration_penalty": concentration_penalty,
         "information_gain_reward": information_reward,
@@ -1251,6 +1327,35 @@ def _learned_weights(
         "fit_row_time_ordered": True,
         "validation_rows_used": 0,
         "holdout_used": False,
+        "terminal_target_multiple": 1000.0,
+        "terminal_target_probability_reward_learned_online": False,
+        "terminal_target_probability_reward_derivation": {
+            "method": (
+                "EXPECTED_LOG_EQUITY_GROWTH_REWARD_TIMES_LN_TARGET_MULTIPLE"
+            ),
+            "source_parameters": {
+                "expected_log_equity_growth_reward": (
+                    expected_log_equity_growth_reward
+                ),
+                "terminal_target_multiple": 1000.0,
+            },
+            "derived_value": terminal_target_probability_reward,
+        },
+        "terminal_target_probability_selection_authority": False,
+        "expected_log_equity_growth_reward_learned_online": False,
+        "expected_log_equity_growth_reward_derivation": {
+            "method": (
+                "RETURN_SCALE_DIVIDED_BY_MEAN_ABSOLUTE_REALIZED_LOG_RETURN"
+            ),
+            "source_parameters": {
+                "return_scale_bps": return_scale,
+                "mean_absolute_realized_log_return": observed_log_growth_scale,
+            },
+            "derived_value": expected_log_equity_growth_reward,
+        },
+        "correlation_penalty_learned_online": True,
+        "expected_after_cost_return_reward_learned_online": True,
+        "all_economic_tradeoff_weights_learned_online": False,
     }
     return weights, optimizer
 
@@ -1625,6 +1730,16 @@ def validate_candidate_outcome_calibration_v2(artifact: Mapping[str, Any]) -> No
     weights = artifact.get("learned_objective_weights")
     if not isinstance(weights, Mapping):
         _fail("weights_required", "learned_objective_weights")
+    if weights.get("schema_version") != WEIGHTS_SCHEMA_VERSION:
+        _fail("invalid_schema_version", "learned_objective_weights.schema_version")
+    if weights.get("unit_contract") != UNIT_CONTRACT:
+        _fail("invalid_unit_contract", "learned_objective_weights.unit_contract")
+    for field in REQUIRED_OBJECTIVE_WEIGHT_FIELDS:
+        value = _finite(
+            weights.get(field), f"learned_objective_weights.{field}"
+        )
+        if value <= 0.0:
+            _fail("strictly_positive_required", f"learned_objective_weights.{field}")
     parameter_material = dict(weights)
     fingerprint = parameter_material.pop("objective_parameter_fingerprint", None)
     if fingerprint != _canonical_sha256(parameter_material):
@@ -1632,6 +1747,56 @@ def validate_candidate_outcome_calibration_v2(artifact: Mapping[str, Any]) -> No
     optimizer = artifact.get("objective_weight_optimizer")
     if not isinstance(optimizer, Mapping):
         _fail("optimizer_evidence_required", "objective_weight_optimizer")
+    log_growth_derivation = optimizer.get(
+        "expected_log_equity_growth_reward_derivation"
+    )
+    target_probability_derivation = optimizer.get(
+        "terminal_target_probability_reward_derivation"
+    )
+    log_growth_sources = (
+        log_growth_derivation.get("source_parameters")
+        if isinstance(log_growth_derivation, Mapping)
+        else None
+    )
+    target_probability_sources = (
+        target_probability_derivation.get("source_parameters")
+        if isinstance(target_probability_derivation, Mapping)
+        else None
+    )
+    if not isinstance(log_growth_sources, Mapping) or not isinstance(
+        target_probability_sources, Mapping
+    ):
+        _fail("derivation_sources_required", "objective_weight_optimizer")
+    derivation_return_scale = _finite(
+        log_growth_sources.get("return_scale_bps"),
+        "objective_weight_optimizer.log_growth.return_scale_bps",
+    )
+    derivation_mean_log_return = _finite(
+        log_growth_sources.get("mean_absolute_realized_log_return"),
+        "objective_weight_optimizer.log_growth.mean_absolute_realized_log_return",
+    )
+    derivation_target_multiple = _finite(
+        target_probability_sources.get("terminal_target_multiple"),
+        "objective_weight_optimizer.target.terminal_target_multiple",
+    )
+    if (
+        derivation_return_scale <= 0.0
+        or derivation_mean_log_return <= 0.0
+        or derivation_target_multiple != 1000.0
+    ):
+        _fail("positive_derivation_sources_required", "objective_weight_optimizer")
+    derived_log_growth_reward = max(
+        1e-6,
+        derivation_return_scale / derivation_mean_log_return,
+    )
+    derived_target_probability_reward = max(
+        1e-6,
+        _finite(
+            target_probability_sources.get("expected_log_equity_growth_reward"),
+            "objective_weight_optimizer.target.expected_log_equity_growth_reward",
+        )
+        * math.log(derivation_target_multiple),
+    )
     if (
         optimizer.get("schema_version")
         != "candidate_outcome_objective_weight_optimizer_v2"
@@ -1644,6 +1809,39 @@ def validate_candidate_outcome_calibration_v2(artifact: Mapping[str, Any]) -> No
         or optimizer.get("fit_row_time_ordered") is not True
         or optimizer.get("validation_rows_used") != 0
         or optimizer.get("holdout_used") is not False
+        or optimizer.get("terminal_target_multiple") != 1000.0
+        or optimizer.get("expected_log_equity_growth_reward_learned_online")
+        is not False
+        or optimizer.get("terminal_target_probability_reward_learned_online")
+        is not False
+        or optimizer.get("terminal_target_probability_selection_authority")
+        is not False
+        or optimizer.get("all_economic_tradeoff_weights_learned_online")
+        is not False
+        or not isinstance(log_growth_derivation, Mapping)
+        or log_growth_derivation.get("method")
+        != "RETURN_SCALE_DIVIDED_BY_MEAN_ABSOLUTE_REALIZED_LOG_RETURN"
+        or log_growth_derivation.get("derived_value")
+        != weights.get("expected_log_equity_growth_reward")
+        or not math.isclose(
+            derived_log_growth_reward,
+            float(weights["expected_log_equity_growth_reward"]),
+            rel_tol=1e-12,
+            abs_tol=1e-12,
+        )
+        or not isinstance(target_probability_derivation, Mapping)
+        or target_probability_derivation.get("method")
+        != "EXPECTED_LOG_EQUITY_GROWTH_REWARD_TIMES_LN_TARGET_MULTIPLE"
+        or target_probability_derivation.get("derived_value")
+        != weights.get("terminal_target_probability_reward")
+        or target_probability_sources.get("expected_log_equity_growth_reward")
+        != weights.get("expected_log_equity_growth_reward")
+        or not math.isclose(
+            derived_target_probability_reward,
+            float(weights["terminal_target_probability_reward"]),
+            rel_tol=1e-12,
+            abs_tol=1e-12,
+        )
     ):
         _fail("optimizer_evidence_invalid", "objective_weight_optimizer")
     if artifact.get("paper_only") is not True or artifact.get("live_gate") != (

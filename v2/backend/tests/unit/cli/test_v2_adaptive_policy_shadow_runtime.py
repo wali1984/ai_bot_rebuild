@@ -144,6 +144,22 @@ def test_process_once_persists_every_candidate_with_zero_reference_disagreements
     assert len(latest["actions"]) == 1
     assert latest["actions"][0]["execution_authority"] is False
     assert json.loads(client.values[STATUS_KEY]) == status
+    with sqlite3.connect(archive.path) as connection:
+        diagnostic_record = json.loads(
+            connection.execute(
+                "SELECT record_json FROM shadow_records WHERE row_index=1"
+            ).fetchone()[0]
+        )
+    diagnostic_projection = diagnostic_record["selected_objective_input"][
+        "terminal_equity_projection"
+    ]
+    assert diagnostic_projection["terminal_state_evidence_supported"] is False
+    assert diagnostic_projection["evidence_supported_probability"] is False
+    assert diagnostic_projection["prior_only"] is True
+    assert "terminal_objective_state" in diagnostic_projection["defaulted_fields"]
+    assert diagnostic_projection["probability_authority"] == (
+        "TELEMETRY_ONLY_NO_SELECTION_OR_SIZING_AUTHORITY"
+    )
 
     duplicate = process_once(
         client=client,

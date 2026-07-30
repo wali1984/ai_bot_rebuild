@@ -19,7 +19,7 @@ blocked_patterns=(
   "redis-cli FLUSHALL"
   "redis-cli FLUSHDB"
   "../AI BOT/"
-  "chmod .*../AI BOT"
+  "chmod .*\.\./AI BOT/"
   "rm -rf .*AI BOT"
 )
 

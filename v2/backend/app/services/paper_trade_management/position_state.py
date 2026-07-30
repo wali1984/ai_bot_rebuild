@@ -1321,6 +1321,7 @@ class PaperNetPosition:
     # exploitation and bounded information-gain exploration, including across
     # restart reconstruction.
     adaptive_policy_action_policy_mode: str | None = None
+    adaptive_policy_terminal_equity_objective: dict[str, Any] | None = None
     adaptive_paper_policy_authorization_sha256: str | None = None
     adaptive_policy_paper_cycle_receipt_id: str | None = None
     adaptive_policy_paper_cycle_receipt_sha256: str | None = None
@@ -2561,6 +2562,9 @@ class PaperNetPosition:
             "adaptive_policy_action_id": self.adaptive_policy_action_id,
             "adaptive_policy_action_sha256": self.adaptive_policy_action_sha256,
             "adaptive_policy_action_policy_mode": self.adaptive_policy_action_policy_mode,
+            "adaptive_policy_terminal_equity_objective": (
+                self.adaptive_policy_terminal_equity_objective
+            ),
             "adaptive_paper_policy_authorization_sha256": (
                 self.adaptive_paper_policy_authorization_sha256
             ),
@@ -2829,6 +2833,9 @@ class PaperNetPosition:
             "adaptive_policy_action_id": self.adaptive_policy_action_id,
             "adaptive_policy_action_sha256": self.adaptive_policy_action_sha256,
             "adaptive_policy_action_policy_mode": self.adaptive_policy_action_policy_mode,
+            "adaptive_policy_terminal_equity_objective": (
+                self.adaptive_policy_terminal_equity_objective
+            ),
             "adaptive_paper_policy_authorization_sha256": (
                 self.adaptive_paper_policy_authorization_sha256
             ),
@@ -4528,6 +4535,14 @@ def position_from_fill(fill: dict[str, Any], *, fill_id: str, side: str, quantit
         adaptive_policy_action_policy_mode=(
             str(fill.get("adaptive_policy_action_policy_mode"))
             if fill.get("adaptive_policy_action_policy_mode") not in (None, "")
+            else None
+        ),
+        adaptive_policy_terminal_equity_objective=(
+            dict(fill.get("adaptive_policy_terminal_equity_objective"))
+            if isinstance(
+                fill.get("adaptive_policy_terminal_equity_objective"),
+                dict,
+            )
             else None
         ),
         adaptive_paper_policy_authorization_sha256=(

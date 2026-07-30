@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import math
 
 import pytest
 from cryptography.hazmat.primitives import serialization
@@ -173,7 +174,34 @@ def _calibration_with_statistic(statistic: dict) -> dict:
         "posterior_hierarchy_sha256"
     ]
     weights = calibration["learned_objective_weights"]
+    # This suite isolates the still-supported useful-information term.  Keep
+    # the separately tested terminal-equity terms positive but immaterial so
+    # the fixtures continue to exercise bounded exploration specifically.
+    weights["expected_log_equity_growth_reward"] = 1e-6
+    weights["terminal_target_probability_reward"] = 1e-6 * math.log(1000.0)
+    weights["correlation_penalty"] = 1e-6
     weights["information_gain_reward"] = 10.0
+    optimizer = calibration["objective_weight_optimizer"]
+    optimizer["expected_log_equity_growth_reward_derivation"] = {
+        "method": "RETURN_SCALE_DIVIDED_BY_MEAN_ABSOLUTE_REALIZED_LOG_RETURN",
+        "source_parameters": {
+            "return_scale_bps": 1e-6,
+            "mean_absolute_realized_log_return": 1.0,
+        },
+        "derived_value": weights["expected_log_equity_growth_reward"],
+    }
+    optimizer["terminal_target_probability_reward_derivation"] = {
+        "method": (
+            "EXPECTED_LOG_EQUITY_GROWTH_REWARD_TIMES_LN_TARGET_MULTIPLE"
+        ),
+        "source_parameters": {
+            "expected_log_equity_growth_reward": weights[
+                "expected_log_equity_growth_reward"
+            ],
+            "terminal_target_multiple": 1000.0,
+        },
+        "derived_value": weights["terminal_target_probability_reward"],
+    }
     weight_material = {
         key: value
         for key, value in weights.items()

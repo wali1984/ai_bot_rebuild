@@ -1,0 +1,42 @@
+{
+  "counts": {
+    "accepted_fills": 0,
+    "closed_trades": 92,
+    "exploration_closes": 0,
+    "intents": 18,
+    "open_positions": 0
+  },
+  "current_epoch": 1,
+  "current_session": "paper_session_140989e198032b94",
+  "generated_utc": "2026-07-29T05:49:29.217689+00:00",
+  "invariant_criteria": {
+    "accounting_conservation": true,
+    "duplicate_close_count": 0,
+    "duplicate_fill_count": 0,
+    "reservation_leak_count": 0
+  },
+  "invariant_criteria_all_met": true,
+  "live_gate": "blocked_human_only",
+  "operator_8_observability": {
+    "effective_n_fix_active": false,
+    "effective_sample_sizes_observed": null,
+    "expected_information_gain_nats_observed": null,
+    "note": "null observables => the effective-N / venue-min repair (Codex #2-7) is not yet emitting these fields; result A (venue_minimum_positive_utility_authorizations>0) or B (all evaluated nonpositive) is determinable once effective_n_fix_active=true",
+    "sub_minimum_exploration_candidates": 0,
+    "venue_minimum_candidates_evaluated": 0,
+    "venue_minimum_positive_utility_authorizations": 0
+  },
+  "paper_only": true,
+  "positive_criteria": {
+    "current_epoch_directional_exploration_authorizations": 0,
+    "current_epoch_natural_closes": 0,
+    "current_epoch_positions": 0,
+    "current_epoch_proof_backed_fills": 0,
+    "exploration_outcomes_consumed_by_training": 0,
+    "exploration_outcomes_matured": 0
+  },
+  "positive_criteria_all_met": false,
+  "safety_ok": true,
+  "schema": "exploration_acceptance_v1",
+  "verdict": "EXPLORATION_PENDING"
+}

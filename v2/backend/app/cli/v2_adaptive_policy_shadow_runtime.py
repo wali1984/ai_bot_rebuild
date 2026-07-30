@@ -561,6 +561,7 @@ def process_once(
             registry=registry,
             validator_seed=validator_seed,
             generated_at_ms=generated_at_ms,
+            require_complete_terminal_state=False,
         )
         results.append(result)
         records.append(

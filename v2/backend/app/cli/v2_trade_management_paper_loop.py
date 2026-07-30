@@ -12699,6 +12699,7 @@ PERSISTENT_ACCEPTED_FILL_METADATA_FIELDS = (
     "adaptive_policy_action_id",
     "adaptive_policy_action_sha256",
     "adaptive_policy_result_sha256",
+    "adaptive_policy_terminal_equity_objective",
     "adaptive_policy_reference_parity_status",
     "adaptive_policy_reference_disagreement_count",
     "adaptive_paper_policy_authorization_sha256",
@@ -14162,6 +14163,7 @@ PAPER_RUNTIME_INTENT_PROJECTION_FIELDS = (
     "adaptive_policy_action_id",
     "adaptive_policy_action_sha256",
     "adaptive_policy_action_policy_mode",
+    "adaptive_policy_terminal_equity_objective",
     "exploration_provenance",
     "counts_as_training_feedback",
     "counts_as_live_profit",
@@ -41452,22 +41454,23 @@ def _paper_bootstrap_information_acquisition_designation(
     current_epoch_open_position_rows: list[dict[str, Any]],
     current_paper_account_epoch: int | None = None,
 ) -> dict[str, Any] | None:
-    """Designate at most ONE bootstrap information-acquisition experiment.
+    """Designate the best hard-valid terminal-equity experiment.
 
-    Bootstrap activation (paper-only): the profitability posterior is
-    prior-only — zero authenticated natural execution closes, zero effective
-    independent N, or an untouched Beta(1, 1) posterior.  While active, the
-    single candidate maximizing expected information gain per dollar of
-    expected experiment loss is designated from the latest COMPLETE
-    full-universe evaluation's venue-minimum comparisons.  Only already
-    hard-valid, venue-executable comparisons with strictly positive expected
-    information gain are eligible; monetary utility is a tie-break only.  The
+    Paper bootstrap remains a provenance label, while posterior maturity is
+    telemetry rather than an authorization gate.  The single candidate
+    maximizing the learned per-opportunity log-equity utility is designated
+    from the latest COMPLETE full-universe evaluation.  Expected return,
+    per-opportunity log growth, information gain, downside, liquidation,
+    costs, concentration and correlation are already combined by the fitted
+    objective.  The full 90-day distribution and 1000x target probability are
+    telemetry only and never break selection ties.  Only already hard-valid,
+    venue-executable comparisons with a complete terminal distribution are
+    eligible.  The
     designation itself grants no authority: the designated candidate is fully
     rebuilt and re-validated against every unchanged hard rail in the current
-    cycle before any authorization.  Cadence: no new designation while any
-    bootstrap position is open or while a bootstrap close from the current
-    epoch has not yet been consumed into the calibration posterior (which
-    would deactivate the prior-only trigger).
+    cycle before any authorization.  An open bootstrap position preserves the
+    existing accounting concurrency rail; completed outcomes mature
+    asynchronously and do not stall later decision cycles.
     """
 
     # Continuous paper learning: posterior/maturation state has NO
@@ -41498,7 +41501,7 @@ def _paper_bootstrap_information_acquisition_designation(
             return False
         # Scope the cadence guard to the current paper account epoch: a
         # bootstrap close surviving from a previous epoch must not suppress a
-        # fresh prior-only bootstrap window.  Rows without an epoch stamp are
+        # fresh paper-account campaign.  Rows without an epoch stamp are
         # counted conservatively (suppress designation).
         row_epoch = row.get("paper_account_epoch")
         if current_paper_account_epoch is None or row_epoch is None:
@@ -41585,6 +41588,31 @@ def _paper_bootstrap_information_acquisition_designation(
                     "loss": row.get("bounded_experiment_loss_usd"),
                     "side": row.get("side"),
                     "utility": row.get("utility"),
+                    "terminal_target_probability": row.get(
+                        "terminal_target_probability"
+                    ),
+                    "expected_compounded_log_equity_growth": row.get(
+                        "expected_compounded_log_equity_growth"
+                    ),
+                    "expected_log_equity_growth_per_opportunity": row.get(
+                        "expected_log_equity_growth_per_opportunity"
+                    ),
+                    "expected_terminal_equity_usd": row.get(
+                        "expected_terminal_equity_usd"
+                    ),
+                    "terminal_equity_p10_usd": row.get(
+                        "terminal_equity_p10_usd"
+                    ),
+                    "terminal_equity_p50_usd": row.get(
+                        "terminal_equity_p50_usd"
+                    ),
+                    "terminal_equity_p90_usd": row.get(
+                        "terminal_equity_p90_usd"
+                    ),
+                    "terminal_liquidation_probability": row.get(
+                        "terminal_liquidation_probability"
+                    ),
+                    "terminal_projection": row.get("terminal_projection"),
                     "stable_id": row.get("action_id"),
                     "candidate_id": str(row.get("action_id") or "").split(":")[0],
                 }
@@ -41607,6 +41635,31 @@ def _paper_bootstrap_information_acquisition_designation(
                     "loss": row.get("venue_min_candidate_expected_loss_usd"),
                     "side": row.get("side"),
                     "utility": row.get("venue_min_candidate_utility"),
+                    "terminal_target_probability": row.get(
+                        "terminal_target_probability"
+                    ),
+                    "expected_compounded_log_equity_growth": row.get(
+                        "expected_compounded_log_equity_growth"
+                    ),
+                    "expected_log_equity_growth_per_opportunity": row.get(
+                        "expected_log_equity_growth_per_opportunity"
+                    ),
+                    "expected_terminal_equity_usd": row.get(
+                        "expected_terminal_equity_usd"
+                    ),
+                    "terminal_equity_p10_usd": row.get(
+                        "terminal_equity_p10_usd"
+                    ),
+                    "terminal_equity_p50_usd": row.get(
+                        "terminal_equity_p50_usd"
+                    ),
+                    "terminal_equity_p90_usd": row.get(
+                        "terminal_equity_p90_usd"
+                    ),
+                    "terminal_liquidation_probability": row.get(
+                        "terminal_liquidation_probability"
+                    ),
+                    "terminal_projection": row.get("terminal_projection"),
                     "stable_id": row.get("venue_minimum_action_id"),
                     "candidate_id": row.get("candidate_id"),
                 }
@@ -41639,19 +41692,86 @@ def _paper_bootstrap_information_acquisition_designation(
             # side is a lawful experiment.
             if str(side).upper() != str(intent_row.get("side") or "").upper():
                 continue
-            eligible_count += 1
-            raw_utility = row.get("utility")
             try:
-                utility = (
-                    float(raw_utility)
-                    if isinstance(raw_utility, (int, float))
-                    and math.isfinite(float(raw_utility))
-                    else float("-inf")
+                utility = float(row["utility"])
+                expected_log_growth_per_opportunity = float(
+                    row["expected_log_equity_growth_per_opportunity"]
                 )
-            except OverflowError:
-                utility = float("-inf")
+            except (KeyError, TypeError, ValueError, OverflowError):
+                continue
+            if not math.isfinite(utility) or not math.isfinite(
+                expected_log_growth_per_opportunity
+            ):
+                continue
+
+            def _diagnostic_number(field: str) -> float | None:
+                value = row.get(field)
+                try:
+                    parsed = float(value)
+                except (TypeError, ValueError, OverflowError):
+                    return None
+                return parsed if math.isfinite(parsed) else None
+
+            terminal_target_probability = _diagnostic_number(
+                "terminal_target_probability"
+            )
+            expected_log_growth = _diagnostic_number(
+                "expected_compounded_log_equity_growth"
+            )
+            expected_terminal_equity_usd = _diagnostic_number(
+                "expected_terminal_equity_usd"
+            )
+            terminal_p10 = _diagnostic_number("terminal_equity_p10_usd")
+            terminal_p50 = _diagnostic_number("terminal_equity_p50_usd")
+            terminal_p90 = _diagnostic_number("terminal_equity_p90_usd")
+            terminal_liquidation_probability = _diagnostic_number(
+                "terminal_liquidation_probability"
+            )
+            terminal_projection = row.get("terminal_projection")
+            if (
+                not isinstance(terminal_projection, Mapping)
+                or terminal_projection.get("schema_version")
+                != "terminal_paper_equity_projection_v1"
+                or terminal_projection.get("horizon_days") != 90.0
+                or terminal_projection.get("target_multiple") != 1000.0
+                or terminal_projection.get("latest_unclosed_kline_excluded")
+                is not True
+                or terminal_projection.get("terminal_state_evidence_supported")
+                is not True
+                or type(
+                    terminal_projection.get("evidence_supported_probability")
+                )
+                is not bool
+                or terminal_projection.get("underdispersed") is not True
+                or terminal_projection.get("defaulted_fields") not in ((), [])
+                or terminal_projection.get("probability_authority")
+                != "TELEMETRY_ONLY_NO_SELECTION_OR_SIZING_AUTHORITY"
+                or terminal_projection.get("guaranteed_target_claim") is not False
+                or terminal_projection.get("paper_only") is not True
+                or terminal_projection.get("live_gate") != LIVE_GATE_BLOCKED
+                or terminal_projection.get("routes_to_live") is not False
+                or terminal_projection.get("places_real_order") is not False
+                or terminal_projection.get("exchange_action_taken") is not False
+            ):
+                continue
+            terminal_state_available_at_ms = terminal_projection.get(
+                "state_available_at_ms"
+            )
+            terminal_decision_time_ms = terminal_projection.get("decision_time_ms")
+            if (
+                type(terminal_state_available_at_ms) is not int
+                or type(terminal_decision_time_ms) is not int
+                or terminal_state_available_at_ms < 1
+                or terminal_state_available_at_ms > terminal_decision_time_ms
+            ):
+                continue
+            eligible_count += 1
             ratio = gain_nats / expected_loss_usd
-            key = (ratio, utility, str(row.get("stable_id") or ""))
+            key = (
+                utility,
+                gain_nats,
+                str(row.get("stable_id") or ""),
+            )
             ranked_entries.append(
                 (
                     key,
@@ -41664,9 +41784,25 @@ def _paper_bootstrap_information_acquisition_designation(
                         "expected_information_gain_nats": gain_nats,
                         "expected_experiment_loss_usd": expected_loss_usd,
                         "information_gain_per_expected_loss_usd": ratio,
-                        "venue_min_candidate_utility": (
-                            utility if utility != float("-inf") else None
+                        "learned_terminal_objective_utility": utility,
+                        "venue_min_candidate_utility": utility,
+                        "terminal_target_probability": terminal_target_probability,
+                        "expected_log_equity_growth_per_opportunity": (
+                            expected_log_growth_per_opportunity
                         ),
+                        "expected_compounded_log_equity_growth": expected_log_growth,
+                        "expected_terminal_equity_usd": (
+                            expected_terminal_equity_usd
+                        ),
+                        "terminal_equity_distribution_usd": {
+                            "p10": terminal_p10,
+                            "p50": terminal_p50,
+                            "p90": terminal_p90,
+                        },
+                        "terminal_liquidation_probability": (
+                            terminal_liquidation_probability
+                        ),
+                        "terminal_projection": dict(terminal_projection),
                     },
                 )
             )
@@ -41683,16 +41819,20 @@ def _paper_bootstrap_information_acquisition_designation(
     best = ranked_candidates[0]
     return {
         "schema_version": "bootstrap_information_acquisition_designation_v1",
-        "policy_objective": "BOOTSTRAP_INFORMATION_ACQUISITION",
+        "policy_objective": "PER_OPPORTUNITY_EXPECTED_LOG_EQUITY_GROWTH",
         "policy_mode": "bootstrap_information_acquisition",
         "selection_rule": (
-            "MAX_EXPECTED_INFORMATION_GAIN_NATS_PER_EXPECTED_LOSS_USD"
-            "_TIE_UTILITY_THEN_ACTION_ID"
+            "MAX_LEARNED_PER_OPPORTUNITY_UTILITY_THEN_INFORMATION_GAIN"
+            "_THEN_ACTION_ID;TERMINAL_PROBABILITY_TELEMETRY_ONLY"
         ),
         "hard_eligibility_filters": [
             "VENUE_MIN_CANDIDATE_HARD_RISK_PASS",
             "EXPECTED_INFORMATION_GAIN_NATS_POSITIVE",
             "EXPECTED_EXPERIMENT_LOSS_USD_POSITIVE_FINITE",
+            "TERMINAL_EQUITY_PROJECTION_COMPLETE_POINT_IN_TIME",
+            "TERMINAL_TARGET_PROBABILITY_TELEMETRY_ONLY",
+            "PER_OPPORTUNITY_EXPECTED_LOG_GROWTH_FINITE",
+            "LEARNED_TERMINAL_OBJECTIVE_UTILITY_FINITE",
             "CANONICAL_RISK_DECISION_RESOLVED_ALLOW",
             "COMPARISON_SIDE_MATCHES_AUTHENTICATED_DECISION_SIDE",
             "FEED_INTEGRITY_PASS",
@@ -41715,6 +41855,8 @@ def _paper_bootstrap_information_acquisition_designation(
         "current_epoch_bootstrap_open_positions": epoch_bootstrap_open,
         "max_concurrent_bootstrap_positions": 1,
         "max_bootstrap_authorizations_per_cycle": 1,
+        "information_gain_is_primary_allocation_objective": False,
+        "terminal_target_guaranteed": False,
         "counts_as_champion_profitability_evidence": False,
         "counts_as_live_profit": False,
         "paper_only": True,
@@ -51836,12 +51978,11 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                 "feature_archive_root": str(adaptive_policy_feature_archive_root),
             }
         )
-        # Bootstrap information acquisition (paper-only): while the
-        # profitability posterior is prior-only, designate at most one
-        # venue-minimum experiment for this cycle from the previous COMPLETE
+        # Terminal-equity-ranked bootstrap exploration (paper-only): designate
+        # at most one experiment for this cycle from the previous COMPLETE
         # full-universe evaluation.  The designation grants no authority by
-        # itself; the designated candidate is rebuilt and re-validated
-        # against every unchanged hard rail before authorization.
+        # itself; the designated candidate is rebuilt and re-validated against
+        # every unchanged hard rail before authorization.
         try:
             _bootstrap_previous_intents = _read_json_list_redis_key_if_small(
                 r,
@@ -51859,7 +52000,14 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                 ),
                 current_paper_account_epoch=paper_account_epoch,
             )
-        except (OSError, RuntimeError, TypeError, ValueError, OverflowError) as exc:
+        except (
+            LookupError,
+            OSError,
+            RuntimeError,
+            TypeError,
+            ValueError,
+            OverflowError,
+        ) as exc:
             adaptive_policy_cycle_context[
                 "bootstrap_information_acquisition_designation"
             ] = None
@@ -52024,7 +52172,8 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
     _dd_baseline_equity = _coerce_float(paper_starting_equity_usd)
     if _dd_baseline_equity is None or _dd_baseline_equity <= 0:
         _dd_baseline_equity = float(portfolio_context.get("equity") or 0.0)
-    _current_equity = _coerce_float(portfolio_context.get("equity"))
+    _observed_current_equity = _coerce_float(portfolio_context.get("equity"))
+    _current_equity = _observed_current_equity
     if _current_equity is None or not math.isfinite(_current_equity):
         _current_equity = _dd_baseline_equity
     _current_drawdown = max(
@@ -52034,6 +52183,34 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
     portfolio_context["paper_session_starting_equity_usd"] = _dd_baseline_equity
     portfolio_context["current_equity_usd"] = _current_equity
     portfolio_context["current_drawdown_fraction"] = _current_drawdown
+    _terminal_objective_state_material = {
+        "schema_version": "terminal_objective_point_in_time_state_v1",
+        "starting_equity_usd": paper_starting_equity_usd,
+        "current_equity_usd": (
+            _observed_current_equity
+            if _observed_current_equity is not None
+            and math.isfinite(_observed_current_equity)
+            and _observed_current_equity > 0.0
+            else None
+        ),
+        "session_started_at": paper_session_state.get("started_at"),
+        "current_drawdown_fraction": _current_drawdown,
+        "state_available_at_ms": int(time.time() * 1_000),
+        "state_source": (
+            "AUTHENTICATED_PAPER_SESSION_AND_PRECYCLE_PORTFOLIO_CONTEXT"
+        ),
+        "paper_only": True,
+        "live_gate": LIVE_GATE_BLOCKED,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "exchange_action_taken": False,
+    }
+    paper_terminal_objective_state = {
+        **_terminal_objective_state_material,
+        "state_sha256": _paper_canonical_sha256(
+            _terminal_objective_state_material
+        ),
+    }
     cycle_base_resource_evidence = _paper_cycle_base_resource_evidence(portfolio_context)
 
     # Above-base leverage requires point-in-time market context in addition to
@@ -55258,6 +55435,9 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                         )
                     ),
                 },
+                "terminal_objective_state": dict(
+                    paper_terminal_objective_state
+                ),
                 "paper_only": True,
                 "live_gate": LIVE_GATE_BLOCKED,
                 "routes_to_live": False,
@@ -55272,6 +55452,7 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                 registry=adaptive_policy_registry,
                 validator_seed=adaptive_policy_validator_seed,
                 generated_at_ms=adaptive_policy_generated_at_ms,
+                require_complete_terminal_state=True,
             )
             adaptive_policy_authorization = authorize_adaptive_paper_policy_action(
                 adaptive_policy_result,
@@ -55280,6 +55461,7 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         except (
             AdaptivePaperPolicyAuthorizationError,
             AdaptivePolicyShadowError,
+            LookupError,
             SnapshotArchiveError,
             OSError,
             RuntimeError,
@@ -55344,6 +55526,114 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         intent["adaptive_policy_action"] = adaptive_action.to_payload()
         intent["adaptive_policy_action_id"] = adaptive_action.decision_id
         intent["adaptive_policy_action_sha256"] = adaptive_action.content_sha256
+        if adaptive_action.policy_mode == "bootstrap_information_acquisition":
+            _selected_objective_action_id = next(
+                (
+                    comparison.venue_minimum_action_id
+                    for comparison in (
+                        adaptive_policy_result.venue_minimum_objective_comparisons
+                    )
+                    if comparison.venue_min_candidate_selected
+                ),
+                None,
+            )
+            if _selected_objective_action_id is None:
+                _bootstrap_side = str(adaptive_action.primary_side).lower()
+                _bootstrap_matches = [
+                    item
+                    for item in adaptive_policy_result.objective_inputs
+                    if item.policy_mode
+                    == "bounded_information_seeking_exploration"
+                    and item.selected_action == "directional_trade"
+                    and item.hard_constraints_satisfied is True
+                    and item.expected_information_gain > 0.0
+                    and item.action_id.endswith(
+                        (
+                            ":bounded_information_seeking_exploration:"
+                            f"{_bootstrap_side}"
+                        )
+                    )
+                ]
+                if len(_bootstrap_matches) == 1:
+                    _selected_objective_action_id = (
+                        _bootstrap_matches[0].action_id
+                    )
+        elif (
+            adaptive_action.policy_mode
+            == "bounded_information_seeking_exploration"
+        ):
+            _selected_objective_action_id = (
+                adaptive_policy_result.objective_evaluation.exploration_action_id
+            )
+        else:
+            _selected_objective_action_id = (
+                adaptive_policy_result.objective_evaluation.champion_action_id
+            )
+        _selected_objective_input = next(
+            (
+                item
+                for item in adaptive_policy_result.objective_inputs
+                if item.action_id == _selected_objective_action_id
+            ),
+            None,
+        )
+        _selected_objective_score = next(
+            (
+                item
+                for item in adaptive_policy_result.objective_evaluation.scores
+                if item.action_id == _selected_objective_action_id
+            ),
+            None,
+        )
+        if (
+            _selected_objective_input is not None
+            and _selected_objective_score is not None
+        ):
+            intent["adaptive_policy_terminal_equity_objective"] = {
+                **asdict(_selected_objective_input.terminal_equity_projection),
+                "objective_action_id": _selected_objective_input.action_id,
+                "objective_action_sha256": _selected_objective_input.action_sha256,
+                "objective_input_fingerprint_sha256": (
+                    _selected_objective_input.objective_input_fingerprint_sha256
+                ),
+                "objective_score_fingerprint": (
+                    _selected_objective_score.score_fingerprint
+                ),
+                "objective_evaluation_id": (
+                    adaptive_policy_result.objective_evaluation.evaluation_id
+                ),
+                "learned_terminal_objective_utility": (
+                    _selected_objective_score.utility
+                ),
+                "terminal_target_probability_contribution": (
+                    _selected_objective_score.terminal_target_probability_contribution
+                ),
+                "terminal_log_equity_growth_contribution": (
+                    _selected_objective_score.terminal_log_equity_growth_contribution
+                ),
+                "information_gain_contribution": (
+                    _selected_objective_score.information_gain_contribution
+                ),
+                "total_penalty": _selected_objective_score.total_penalty,
+                "correlation_penalty_contribution": (
+                    _selected_objective_score.correlation_penalty_contribution
+                ),
+                "primary_allocation_objective": (
+                    "PER_OPPORTUNITY_EXPECTED_LOG_EQUITY_GROWTH"
+                ),
+                "terminal_projection_authority": "TELEMETRY_ONLY",
+                "information_gain_is_primary_allocation_objective": False,
+                "objective_parameter_fingerprint": (
+                    _selected_objective_score.objective_parameter_fingerprint
+                ),
+                "complete_current_candidate_universe_required": True,
+                "guaranteed_1000x_claim": False,
+                "paper_only": True,
+                "live_gate": LIVE_GATE_BLOCKED,
+                "routes_to_live": False,
+                "places_real_order": False,
+                "exchange_action_taken": False,
+            }
         # Carry the selected policy mode (champion_exploitation vs
         # bounded_information_seeking_exploration) forward so the downstream
         # closed-trade/outcome record stays separately attributable between
@@ -55488,6 +55778,33 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                         float(_b_loss_raw) if _b_loss_raw is not None else None
                     ),
                     "utility": (None if _b_score is None else _b_score.utility),
+                    "terminal_target_probability": (
+                        _b_input.terminal_equity_projection.terminal_target_probability
+                    ),
+                    "expected_log_equity_growth_per_opportunity": (
+                        _b_input.terminal_equity_projection.expected_log_equity_growth_per_opportunity
+                    ),
+                    "expected_compounded_log_equity_growth": (
+                        _b_input.terminal_equity_projection.expected_compounded_log_equity_growth
+                    ),
+                    "expected_terminal_equity_usd": (
+                        _b_input.terminal_equity_projection.expected_terminal_equity_usd
+                    ),
+                    "terminal_equity_p10_usd": (
+                        _b_input.terminal_equity_projection.terminal_equity_p10_usd
+                    ),
+                    "terminal_equity_p50_usd": (
+                        _b_input.terminal_equity_projection.terminal_equity_p50_usd
+                    ),
+                    "terminal_equity_p90_usd": (
+                        _b_input.terminal_equity_projection.terminal_equity_p90_usd
+                    ),
+                    "terminal_liquidation_probability": (
+                        _b_input.terminal_equity_projection.liquidation_probability
+                    ),
+                    "terminal_projection": asdict(
+                        _b_input.terminal_equity_projection
+                    ),
                 }
             )
         intent["adaptive_policy_bootstrap_exploration_candidates"] = (
@@ -60536,6 +60853,9 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                         "paper_session_id": paper_session_id,
                         "paper_account_epoch": paper_account_epoch,
                         "starting_equity_usd": paper_starting_equity_usd,
+                        "terminal_objective_state": dict(
+                            paper_terminal_objective_state
+                        ),
                         "runtime_identity": _paper_runtime_owner_identity(),
                         "active_runtime_status": paper_active_runtime_owner_status,
                         "active_runtime_owner_current_proof": paper_active_runtime_owner_status,

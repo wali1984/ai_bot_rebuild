@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import hashlib
+from copy import deepcopy
 
 import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
-from v2.backend.app.services.adaptive_system import adaptive_hard_validator_v2
-from v2.backend.app.services.adaptive_system import adaptive_objective_v2
+from v2.backend.app.services.adaptive_system import (
+    adaptive_hard_validator_v2,
+    adaptive_objective_v2,
+)
 from v2.backend.app.services.adaptive_system import adaptive_policy_shadow_v2 as policy_shadow
 from v2.backend.app.services.adaptive_system.adaptive_policy_shadow_v2 import (
     AdaptivePolicyShadowError,
@@ -87,6 +90,27 @@ def _feature_snapshot() -> dict:
         "latest_closed_kline_close_time_ms": 999_999,
         "trainer_consumable": True,
         "content_sha256": _sha("5"),
+    }
+
+
+def _terminal_state(*, state_source: str = "TEST_AUTHENTICATED_STATE") -> dict:
+    material = {
+        "schema_version": "terminal_objective_point_in_time_state_v1",
+        "starting_equity_usd": 1_000.0,
+        "current_equity_usd": 1_000.0,
+        "session_started_at_ms": 3_500_000,
+        "current_drawdown_fraction": 0.0,
+        "state_available_at_ms": 3_999_999,
+        "state_source": state_source,
+        "paper_only": True,
+        "live_gate": "blocked_human_only",
+        "routes_to_live": False,
+        "places_real_order": False,
+        "exchange_action_taken": False,
+    }
+    return {
+        **material,
+        "state_sha256": policy_shadow._canonical_sha256(material),  # noqa: SLF001
     }
 
 
@@ -268,6 +292,111 @@ def test_builds_complete_shadow_chain_with_zero_reference_disagreements() -> Non
     assert result.exchange_action_taken is False
 
 
+def test_diagnostic_missing_terminal_state_is_explicitly_prior_only() -> None:
+    result = build_adaptive_policy_shadow_candidate(
+        intent=_intent(),
+        feature_snapshot=_feature_snapshot(),
+        paper_status={"paper_only": True, "open_position_count": 0},
+        calibration=_calibration(),
+        registry=_registry(),
+        validator_seed=_SEED,
+        generated_at_ms=4_000_000,
+        require_complete_terminal_state=False,
+    )
+    projection = result.objective_inputs[0].terminal_equity_projection
+
+    assert projection.terminal_state_evidence_supported is False
+    assert projection.evidence_supported_probability is False
+    assert projection.prior_only is True
+    assert projection.underdispersed is True
+    assert "terminal_objective_state" in projection.defaulted_fields
+    assert projection.probability_authority == (
+        "TELEMETRY_ONLY_NO_SELECTION_OR_SIZING_AUTHORITY"
+    )
+
+
+def test_authoritative_path_fails_closed_without_complete_terminal_state() -> None:
+    with pytest.raises(
+        AdaptivePolicyShadowError,
+        match="complete_point_in_time_evidence_required",
+    ):
+        build_adaptive_policy_shadow_candidate(
+            intent=_intent(),
+            feature_snapshot=_feature_snapshot(),
+            paper_status={"paper_only": True, "open_position_count": 0},
+            calibration=_calibration(),
+            registry=_registry(),
+            validator_seed=_SEED,
+            generated_at_ms=4_000_000,
+            require_complete_terminal_state=True,
+        )
+
+
+def test_terminal_state_digest_is_bound_into_action_fingerprint() -> None:
+    intent = _intent()
+    intent["correlation_exposure_pct"] = 0.1
+    intent["allocator_regime_score"] = 0.8
+    common = {
+        "intent": intent,
+        "feature_snapshot": _feature_snapshot(),
+        "calibration": _calibration(),
+        "registry": _registry(),
+        "validator_seed": _SEED,
+        "generated_at_ms": 4_000_000,
+        "require_complete_terminal_state": True,
+    }
+    first = build_adaptive_policy_shadow_candidate(
+        paper_status={
+            "paper_only": True,
+            "open_position_count": 0,
+            "terminal_objective_state": _terminal_state(state_source="SOURCE_A"),
+        },
+        **common,
+    )
+    second = build_adaptive_policy_shadow_candidate(
+        paper_status={
+            "paper_only": True,
+            "open_position_count": 0,
+            "terminal_objective_state": _terminal_state(state_source="SOURCE_B"),
+        },
+        **common,
+    )
+
+    assert first.selected_adaptive_action.state_sha256 != (
+        second.selected_adaptive_action.state_sha256
+    )
+    assert first.selected_adaptive_action.action_fingerprint_sha256 != (
+        second.selected_adaptive_action.action_fingerprint_sha256
+    )
+
+
+def test_incompatible_calibration_is_a_controlled_shadow_error() -> None:
+    calibration = deepcopy(_calibration())
+    weights = calibration["learned_objective_weights"]
+    weights.pop("terminal_target_probability_reward")
+    parameter_material = dict(weights)
+    parameter_material.pop("objective_parameter_fingerprint")
+    weights["objective_parameter_fingerprint"] = policy_shadow._canonical_sha256(  # noqa: SLF001
+        parameter_material
+    )
+    material = dict(calibration)
+    material.pop("calibration_sha256")
+    calibration["calibration_sha256"] = policy_shadow._canonical_sha256(  # noqa: SLF001
+        material
+    )
+
+    with pytest.raises(AdaptivePolicyShadowError, match="calibration:.*terminal"):
+        build_adaptive_policy_shadow_candidate(
+            intent=_intent(),
+            feature_snapshot=_feature_snapshot(),
+            paper_status={"paper_only": True, "open_position_count": 0},
+            calibration=calibration,
+            registry=_registry(),
+            validator_seed=_SEED,
+            generated_at_ms=4_000_000,
+        )
+
+
 def test_feed_integrity_false_blocks_every_typed_disposition_including_flat() -> None:
     intent = _intent()
     intent["feed_integrity_pass"] = False
@@ -402,6 +531,38 @@ def test_live_authority_flag_prevents_hard_valid_adaptive_trade() -> None:
 @pytest.mark.parametrize(
     ("field", "value"),
     (
+        ("paper_only", False),
+        ("live_gate", "open"),
+        ("routes_to_live", True),
+        ("places_real_order", True),
+        ("exchange_action_taken", True),
+    ),
+)
+def test_terminal_objective_rejects_unsafe_paper_status(
+    field: str,
+    value: object,
+) -> None:
+    paper_status = {"paper_only": True, "open_position_count": 0}
+    paper_status[field] = value
+
+    with pytest.raises(
+        AdaptivePolicyShadowError,
+        match="paper_only_human_block_required",
+    ):
+        build_adaptive_policy_shadow_candidate(
+            intent=_intent(),
+            feature_snapshot=_feature_snapshot(),
+            paper_status=paper_status,
+            calibration=_calibration(),
+            registry=_registry(),
+            validator_seed=_SEED,
+            generated_at_ms=4_000_000,
+        )
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (
         ("runtime_cost_capture_status", "FALLBACK_COST_CAPTURE"),
         ("production_grade_cost_flag", False),
         ("fallback_cost_flag", True),
@@ -444,7 +605,17 @@ def test_missing_physical_evidence_during_open_position_persists_fail_closed_fla
     result = build_adaptive_policy_shadow_candidate(
         intent=intent,
         feature_snapshot=_feature_snapshot(),
-        paper_status={"paper_only": True, "open_position_count": 1},
+        paper_status={
+            "paper_only": True,
+            "open_position_count": 1,
+            "terminal_objective_state": {
+                "starting_equity_usd": 1_000.0,
+                "current_equity_usd": 1_000.0,
+                "session_started_at_ms": 3_999_000,
+                "current_drawdown_fraction": 0.0,
+                "state_available_at_ms": 3_999_999,
+            },
+        },
         calibration=_calibration(),
         registry=_registry(),
         validator_seed=_SEED,

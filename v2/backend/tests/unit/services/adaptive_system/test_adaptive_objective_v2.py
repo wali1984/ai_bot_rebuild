@@ -30,6 +30,9 @@ from v2.backend.app.services.adaptive_system.adaptive_objective_v2 import (
     HARD_VALIDATION_SIGNATURE_DOMAIN,
     MODE_ALLOCATION_SCHEMA_VERSION,
     SCHEMA_VERSION,
+    TERMINAL_EQUITY_PROJECTION_SCHEMA_VERSION,
+    TERMINAL_HORIZON_DAYS,
+    TERMINAL_TARGET_MULTIPLE,
     UNIT_CONTRACT,
     WEIGHTS_SCHEMA_VERSION,
     ActionObjectiveInputsV2,
@@ -40,6 +43,7 @@ from v2.backend.app.services.adaptive_system.adaptive_objective_v2 import (
     HardConstraintCheckEvidenceV2,
     HardConstraintValidationReceiptV2,
     LearnedObjectiveWeightsV2,
+    TerminalEquityProjectionV1,
     evaluate_shadow_objective,
     score_action,
 )
@@ -172,6 +176,8 @@ def _weights(**overrides: object) -> LearnedObjectiveWeightsV2:
     parameters: dict[str, object] = {
         "schema_version": WEIGHTS_SCHEMA_VERSION,
         "expected_after_cost_return": 1.0,
+        "terminal_target_probability_reward": 1.0,
+        "expected_log_equity_growth_reward": 1.0,
         "drawdown_penalty": 1.0,
         "tail_loss_penalty": 1.0,
         "liquidation_risk_penalty": 1.0,
@@ -179,6 +185,7 @@ def _weights(**overrides: object) -> LearnedObjectiveWeightsV2:
         "funding_cost_penalty": 1.0,
         "turnover_penalty": 1.0,
         "concentration_penalty": 1.0,
+        "correlation_penalty": 1.0,
         "information_gain_reward": 1.0,
         "unit_contract": UNIT_CONTRACT,
     }
@@ -265,6 +272,56 @@ def _action(
         "paper_only": True,
     }
     values.update(overrides)
+    if "terminal_equity_projection" not in values:
+        flat = values["selected_action"] == ACTION_REMAIN_FLAT
+        values["terminal_equity_projection"] = TerminalEquityProjectionV1(
+            schema_version=TERMINAL_EQUITY_PROJECTION_SCHEMA_VERSION,
+            horizon_days=TERMINAL_HORIZON_DAYS,
+            target_multiple=TERMINAL_TARGET_MULTIPLE,
+            starting_equity_usd=1_000.0,
+            current_equity_usd=1_000.0,
+            target_equity_usd=1_000_000.0,
+            target_distance_log=6.907755278982137,
+            remaining_horizon_seconds=7_776_000.0,
+            expected_compounding_opportunities=0.0 if flat else 10.0,
+            terminal_target_probability=0.0 if flat else 0.1,
+            expected_log_equity_growth_per_opportunity=(
+                0.0 if flat else 0.02
+            ),
+            expected_compounded_log_equity_growth=0.0 if flat else 0.2,
+            terminal_log_equity_standard_deviation=0.0 if flat else 0.3,
+            expected_terminal_equity_usd=1_000.0 if flat else 1_300.0,
+            terminal_equity_p10_usd=1_000.0 if flat else 800.0,
+            terminal_equity_p50_usd=1_000.0 if flat else 1_100.0,
+            terminal_equity_p90_usd=1_000.0 if flat else 1_600.0,
+            current_drawdown_fraction=0.0,
+            posterior_edge_bps=0.0 if flat else 10.0,
+            posterior_uncertainty=0.0 if flat else 0.1,
+            expected_cost_drag_bps=0.0 if flat else 1.0,
+            liquidity_fill_probability=1.0,
+            correlation_exposure_fraction=0.0 if flat else 0.1,
+            correlation_exposure_bps=0.0 if flat else 1.0,
+            regime_compatibility=1.0,
+            liquidation_probability=0.0 if flat else 0.01,
+            terminal_state_sha256=_sha("a"),
+            state_available_at_ms=990,
+            decision_time_ms=values["decision_time_ms"],  # type: ignore[arg-type]
+            latest_unclosed_kline_excluded=True,
+            terminal_state_evidence_supported=True,
+            evidence_supported_probability=False,
+            prior_only=False,
+            underdispersed=True,
+            defaulted_fields=(),
+            probability_authority=(
+                "TELEMETRY_ONLY_NO_SELECTION_OR_SIZING_AUTHORITY"
+            ),
+            guaranteed_target_claim=False,
+            paper_only=True,
+            live_gate="blocked_human_only",
+            routes_to_live=False,
+            places_real_order=False,
+            exchange_action_taken=False,
+        )
     if "hard_validation_receipt" not in values:
         if values["hard_constraints_satisfied"] is True:
             values["hard_validation_receipt"] = _signed_hard_validation_receipt(
@@ -284,16 +341,138 @@ def _action(
 def test_exact_after_cost_portfolio_utility_formula() -> None:
     score = score_action(_action("action_1", CHAMPION_EXPLOITATION), _weights())
     assert score.return_contribution == 10.0
-    assert score.total_penalty == 6.01
+    assert score.terminal_target_probability_contribution == 0.0
+    assert score.terminal_log_equity_growth_contribution == 0.02
+    assert score.total_penalty == 7.01
+    assert score.correlation_penalty_contribution == 1.0
     assert score.information_gain_contribution == 1.0
-    assert score.utility == pytest.approx(4.99)
+    assert score.utility == pytest.approx(4.01)
     assert score.execution_authority is False
+
+
+def test_terminal_probability_is_telemetry_only_for_action_ranking() -> None:
+    action = _action("telemetry_probability", CHAMPION_EXPLOITATION)
+    low_probability = dataclasses.replace(
+        action.terminal_equity_projection,
+        terminal_target_probability=0.0,
+    )
+    high_probability = dataclasses.replace(
+        action.terminal_equity_projection,
+        terminal_target_probability=1.0,
+    )
+
+    low_score = score_action(
+        _action(
+            "telemetry_probability_low",
+            CHAMPION_EXPLOITATION,
+            terminal_equity_projection=low_probability,
+        ),
+        _weights(),
+    )
+    high_score = score_action(
+        _action(
+            "telemetry_probability_high",
+            CHAMPION_EXPLOITATION,
+            terminal_equity_projection=high_probability,
+        ),
+        _weights(),
+    )
+
+    assert low_score.terminal_target_probability_contribution == 0.0
+    assert high_score.terminal_target_probability_contribution == 0.0
+    assert low_score.utility == high_score.utility
+
+
+def test_per_opportunity_growth_stays_on_decision_step_magnitude() -> None:
+    projection = dataclasses.replace(
+        _action("magnitude_seed", CHAMPION_EXPLOITATION).terminal_equity_projection,
+        expected_log_equity_growth_per_opportunity=0.00024,
+        expected_compounded_log_equity_growth=0.94,
+    )
+    score = score_action(
+        _action(
+            "magnitude",
+            CHAMPION_EXPLOITATION,
+            terminal_equity_projection=projection,
+            expected_after_cost_return_bps=30.0,
+            expected_drawdown_contribution_bps=5.0,
+            expected_tail_loss_bps=5.0,
+            expected_market_impact_bps=1.0,
+            expected_funding_cost_bps=1.0,
+            expected_turnover_bps=2.0,
+            expected_concentration_bps=2.0,
+        ),
+        _weights(expected_log_equity_growth_reward=10_000.0),
+    )
+
+    assert score.terminal_log_equity_growth_contribution == pytest.approx(2.4)
+    assert score.return_contribution == pytest.approx(30.0)
+    assert score.total_penalty == pytest.approx(17.01)
+    assert score.terminal_log_equity_growth_contribution <= 10.0 * max(
+        abs(score.return_contribution),
+        score.total_penalty,
+    )
+
+
+def test_zero_edge_zero_cost_has_zero_terminal_ranking_delta() -> None:
+    seed = _action("zero_seed", CHAMPION_EXPLOITATION)
+    projection = dataclasses.replace(
+        seed.terminal_equity_projection,
+        terminal_target_probability=1.0,
+        expected_log_equity_growth_per_opportunity=0.0,
+        expected_compounded_log_equity_growth=0.0,
+        correlation_exposure_bps=0.0,
+        liquidation_probability=0.0,
+    )
+    score = score_action(
+        _action(
+            "zero_edge",
+            CHAMPION_EXPLOITATION,
+            terminal_equity_projection=projection,
+            expected_after_cost_return_bps=0.0,
+            expected_drawdown_contribution_bps=0.0,
+            expected_tail_loss_bps=0.0,
+            liquidation_risk_probability=0.0,
+            expected_market_impact_bps=0.0,
+            expected_funding_cost_bps=0.0,
+            expected_turnover_bps=0.0,
+            expected_concentration_bps=0.0,
+            expected_information_gain=0.0,
+        ),
+        _weights(),
+    )
+
+    assert score.utility == 0.0
+    assert score.terminal_target_probability_contribution == 0.0
+    assert score.terminal_log_equity_growth_contribution == 0.0
+
+
+def test_terminal_projection_enforces_target_distance_horizon_and_causality() -> None:
+    projection = _action(
+        "terminal_contract",
+        CHAMPION_EXPLOITATION,
+    ).terminal_equity_projection
+
+    with pytest.raises(AdaptiveObjectiveContractError, match="target_distance"):
+        dataclasses.replace(projection, target_distance_log=0.0)
+    with pytest.raises(AdaptiveObjectiveContractError, match="terminal_horizon"):
+        dataclasses.replace(
+            projection,
+            remaining_horizon_seconds=90.0 * 86_400.0 + 1.0,
+        )
+    with pytest.raises(AdaptiveObjectiveContractError, match="state_available"):
+        dataclasses.replace(
+            projection,
+            state_available_at_ms=projection.decision_time_ms + 1,
+        )
 
 
 @pytest.mark.parametrize(
     "field",
     [
         "expected_after_cost_return",
+        "terminal_target_probability_reward",
+        "expected_log_equity_growth_reward",
         "drawdown_penalty",
         "tail_loss_penalty",
         "liquidation_risk_penalty",
@@ -301,6 +480,7 @@ def test_exact_after_cost_portfolio_utility_formula() -> None:
         "funding_cost_penalty",
         "turnover_penalty",
         "concentration_penalty",
+        "correlation_penalty",
         "information_gain_reward",
     ],
 )
@@ -699,7 +879,10 @@ def test_public_score_construction_cannot_relabel_hard_invalid_action() -> None:
             eligible=True,
             utility=999.0,
             return_contribution=999.0,
+            terminal_target_probability_contribution=999.0,
+            terminal_log_equity_growth_contribution=999.0,
             total_penalty=0.0,
+            correlation_penalty_contribution=0.0,
             information_gain_contribution=0.0,
         )
 
@@ -786,6 +969,10 @@ def test_every_persistable_record_is_schema_version_bound() -> None:
     )
     records = (
         (action, ACTION_INPUT_SCHEMA_VERSION),
+        (
+            action.terminal_equity_projection,
+            TERMINAL_EQUITY_PROJECTION_SCHEMA_VERSION,
+        ),
         (action.hard_validation_receipt, HARD_VALIDATION_SCHEMA_VERSION),
         (weights, WEIGHTS_SCHEMA_VERSION),
         (weights.evidence, FIT_EVIDENCE_SCHEMA_VERSION),

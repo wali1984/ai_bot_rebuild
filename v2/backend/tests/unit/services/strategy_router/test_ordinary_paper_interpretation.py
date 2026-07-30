@@ -25,7 +25,7 @@ from v2.backend.app.services.strategy_router.ordinary_paper_interpretation impor
     bind_ordinary_paper_router_envelope,
     interpret_ordinary_paper_router_result,
 )
-from v2.backend.app.services.strategy_router.service import route_strategy
+from v2.backend.app.services.strategy_router.service import MODE_REDUCE_SIZE, route_strategy
 
 
 def _admission(
@@ -35,14 +35,16 @@ def _admission(
     sweep_risk: float = 0.2,
     microstructure_action: str = "ALLOW",
     confidence: float = 0.8,
+    direction: str = "long",
 ) -> OrdinaryPaperAdmissionResult:
     source, replay = ordinary_source(
         confidence=confidence,
         coverage=80.0,
-        edge_bps=12.0,
+        edge_bps=(12.0 if direction == "long" else -12.0),
         microstructure_trust_score=trust_score,
         sweep_risk_score=sweep_risk,
         microstructure_action=microstructure_action,
+        selected_action=direction,
     )
     result = _assess(
         source,
@@ -278,6 +280,102 @@ def test_negative_performance_bucket_remains_hard() -> None:
 
     assert result["strategy_trade_allowed"] is False
     assert "NEGATIVE_BUCKET_PERFORMANCE_QUARANTINE" in result["hard_reasons"]
+
+
+@pytest.mark.parametrize(
+    ("direction", "aligned_directions"),
+    [
+        ("long", ("long", "long", "long")),
+        ("short", ("short", "short", "short")),
+    ],
+)
+def test_paper_loss_bucket_quarantine_becomes_continuous_reduce_size_not_hard_block(
+    direction: str,
+    aligned_directions: tuple[str, str, str],
+) -> None:
+    """CG-F061: a merely-recently-losing bucket must reduce sizing, not veto.
+
+    RED (pre-fix) behavior: a ``paper_loss_quarantine_blocked_bucket_keys``
+    match on the candidate's own side forced ``PAPER_LOSS_BUCKET_QUARANTINE``
+    into ``hard_reasons`` and ``strategy_trade_allowed`` was False.
+
+    GREEN (post-fix) behavior asserted here: the candidate remains tradeable
+    at a reduced ``continuous_weight`` (REDUCE_SIZE), carrying a bounded
+    Category-E continuous risk input, symmetric for long and short.
+    """
+
+    def mutate(material: dict[str, Any]) -> None:
+        material["market_state_envelope"]["paper_loss_quarantine_status"] = (
+            "ACTIVE_WITH_QUARANTINES"
+        )
+        material["market_state_envelope"]["paper_loss_quarantine_blocked_bucket_keys"] = [
+            f"side:{direction}"
+        ]
+
+    admission = _admission(direction=direction)
+    baseline, _, _ = _run(admission, action=direction, directions=aligned_directions)
+    quarantined, router, _ = _run(
+        admission,
+        action=direction,
+        directions=aligned_directions,
+        mutate_input=mutate,
+    )
+
+    # The authoritative router (legacy comparator, service.py) is untouched:
+    # it still hard no-trades its own selected_mode/block_reason (see
+    # test_paper_loss_quarantine_keys_force_no_trade_before_allocation).
+    assert router["block_reason"] == "PAPER_LOSS_BUCKET_QUARANTINE"
+    assert f"side:{direction}" in router["paper_loss_quarantine_matched_bucket_keys"]
+
+    # The ordinary-paper continuous interpretation no longer treats that
+    # router block as fatal: it is tradeable, at reduced size.
+    assert baseline["strategy_trade_allowed"] is True
+    assert quarantined["strategy_trade_allowed"] is True
+    assert quarantined["effective_mode"] == MODE_REDUCE_SIZE
+    assert "PAPER_LOSS_BUCKET_QUARANTINE" not in quarantined["hard_reasons"]
+    assert "PAPER_LOSS_BUCKET_QUARANTINE" in quarantined["softened_reasons"]
+    assert quarantined["paper_loss_quarantine_category_e_continuous"] is True
+    assert quarantined["paper_loss_quarantine_authority_classification"] == (
+        "CATEGORY_E_POLICY_PERFORMANCE"
+    )
+    assert quarantined["paper_loss_quarantine_adaptive_policy_role"] == (
+        "CONTINUOUS_OBJECTIVE_RISK_INPUT"
+    )
+    assert quarantined["paper_loss_quarantine_hard_trading_authority"] is False
+    assert quarantined["paper_loss_quarantine_risk_multiplier"] > 1.0
+    assert quarantined["paper_loss_quarantine_adaptive_penalty_required"] is True
+
+    # Bounded severity that reduces (never zeroes) downstream sizing
+    # relative to an otherwise-identical, unquarantined candidate.
+    assert 0.0 < quarantined["continuous_weight"] < baseline["continuous_weight"]
+
+
+def test_genuinely_catastrophic_bucket_performance_still_hard_blocks_alongside_quarantine() -> None:
+    """A negative rolling profit-factor/expectancy bucket is a genuinely
+    catastrophic condition and remains a hard veto even when a merely-
+    recently-losing quarantine match is ALSO present -- proving the two are
+    distinguished rather than the catastrophic control being weakened.
+    """
+
+    def mutate(material: dict[str, Any]) -> None:
+        material["market_state_envelope"]["paper_loss_quarantine_status"] = (
+            "ACTIVE_WITH_QUARANTINES"
+        )
+        material["market_state_envelope"]["paper_loss_quarantine_blocked_bucket_keys"] = [
+            "side:long"
+        ]
+        material["recent_execution_success_metrics"]["bucket_performance"] = {
+            "profit_factor": 0.9,
+            "expectancy_bps": -1.0,
+            "sample_count": 10,
+        }
+
+    result, _, _ = _run(mutate_input=mutate)
+
+    assert result["strategy_trade_allowed"] is False
+    assert "NEGATIVE_BUCKET_PERFORMANCE_QUARANTINE" in result["hard_reasons"]
+    assert "PAPER_LOSS_BUCKET_QUARANTINE" not in result["hard_reasons"]
+    assert "PAPER_LOSS_BUCKET_QUARANTINE" in result["softened_reasons"]
 
 
 def test_absent_optional_magnitudes_are_explicit_and_not_promoted_to_hard_inputs() -> None:

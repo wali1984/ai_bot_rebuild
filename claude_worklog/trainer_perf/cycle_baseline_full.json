@@ -1,0 +1,54 @@
+{
+  "schema": "trainer_cycle_perf_baseline_v1",
+  "captured_utc": "2026-07-24T03:02:27.509242+00:00",
+  "window_seconds": 340.0,
+  "trainer_pid": 2453146,
+  "trainer_release": "/home/wali/ai_bot_local_data/deployments/ai_bot_rebuild/2dd18aad76634cf1dbd1258fbc385649718ab74e/v2/backend/app/cli/v2_native_cuda_trainer_persistent_loop.py",
+  "trainer_classification": "LOCAL_PROFILED_RESEARCH_CYCLE_RUNNING",
+  "cuda_runtime": {
+    "compute_capability": "12.0",
+    "cuda_available": true,
+    "cuda_probe_ok": true,
+    "device_count": 1,
+    "device_index": 0,
+    "gpu_name": "NVIDIA GeForce RTX 5080",
+    "memory_allocated_bytes": 0,
+    "memory_free_bytes": 15401091072,
+    "memory_reserved_bytes": 0,
+    "memory_total_bytes": 16585850880,
+    "peak_memory_allocated_bytes": 0,
+    "torch_cuda_version": "12.8",
+    "torch_version": "2.10.0+cu128"
+  },
+  "scan_time": {
+    "note": "wall time between consecutive trainer status writes (full-scan cadence)",
+    "cycle_wall_times_seconds": [
+      15.01,
+      30.01
+    ],
+    "median_cycle_seconds": 22.51,
+    "status_writes_observed": 3
+  },
+  "rows_scanned": {
+    "durable_ledger_records": 512,
+    "durable_ledger_samples": 114,
+    "replay_snapshots_scanned": 60000,
+    "replay_windows_processed": 196,
+    "champion_challenger_train_rows": 55
+  },
+  "cpu": {
+    "peak_pct": 100.6,
+    "mean_pct": 89.7,
+    "samples": 114
+  },
+  "ram": {
+    "peak_rss_mb": 2146.0,
+    "mean_rss_mb": 1748.0
+  },
+  "publication_latency": {
+    "base_publisher_cycle_elapsed_seconds": 11.516952785954345,
+    "base_publisher_cycle_period_seconds": 300.0,
+    "base_publisher_published_symbol_count": 0,
+    "note": "published_symbol_count=0 while WSS window rebuilds; latency is publish-cycle wall time"
+  }
+}

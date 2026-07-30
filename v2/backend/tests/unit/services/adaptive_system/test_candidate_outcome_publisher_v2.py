@@ -171,6 +171,7 @@ def _intent(index: int) -> dict[str, object]:
         "places_real_order": False,
         "paper_fill_allowed": False,
         "allocator_decision": "BLOCK_EXCHANGE_MIN_ORDER",
+        "correlation_exposure_after_trade": 0.25,
         "source_row_canonical_sha256": _SOURCE_SHA,
         "paper_cycle_base_resource_evidence": base_resource,
         "paper_cycle_base_resource_evidence_hash": base_resource["evidence_hash"],

@@ -21,15 +21,18 @@ from v2.backend.app.domain.adaptive_policy_action_v2 import (
     POLICY_MODE_CHAMPION_EXPLOITATION,
 )
 
-SCHEMA_VERSION = "adaptive_portfolio_objective_v2"
+SCHEMA_VERSION = "adaptive_portfolio_objective_v3"
 FIT_EVIDENCE_SCHEMA_VERSION = "fitted_objective_evidence_v2"
-WEIGHTS_SCHEMA_VERSION = "learned_objective_weights_v2"
+WEIGHTS_SCHEMA_VERSION = "learned_terminal_equity_objective_weights_v3"
 MODE_ALLOCATION_SCHEMA_VERSION = "adaptive_policy_mode_allocation_v2"
 HARD_VALIDATION_SCHEMA_VERSION = "hard_constraint_validation_receipt_v2"
 HARD_VALIDATION_CHECK_SCHEMA_VERSION = "hard_constraint_check_evidence_v2"
-ACTION_INPUT_SCHEMA_VERSION = "action_objective_inputs_v2"
-ACTION_SCORE_SCHEMA_VERSION = "action_objective_score_v2"
+TERMINAL_EQUITY_PROJECTION_SCHEMA_VERSION = "terminal_paper_equity_projection_v1"
+ACTION_INPUT_SCHEMA_VERSION = "terminal_equity_action_objective_inputs_v3"
+ACTION_SCORE_SCHEMA_VERSION = "terminal_equity_action_objective_score_v3"
 AUTHORITY_MODE = "SHADOW_DIAGNOSTIC_ONLY"
+TERMINAL_HORIZON_DAYS = 90.0
+TERMINAL_TARGET_MULTIPLE = 1000.0
 
 CHAMPION_EXPLOITATION = POLICY_MODE_CHAMPION_EXPLOITATION
 BOUNDED_EXPLORATION = POLICY_MODE_BOUNDED_EXPLORATION
@@ -45,7 +48,10 @@ ACTION_SET = frozenset(
 )
 UNIT_CONTRACT = (
     "INPUTS_RETURN_DRAWDOWN_TAIL_IMPACT_FUNDING_TURNOVER_CONCENTRATION_BPS;"
-    "LIQUIDATION_PROBABILITY_0_1;INFORMATION_GAIN_NATS;"
+    "CORRELATION_EXPOSURE_BPS;LIQUIDATION_PROBABILITY_0_1;"
+    "EXPECTED_LOG_EQUITY_GROWTH_PER_OPPORTUNITY_NATS;INFORMATION_GAIN_NATS;"
+    "TERMINAL_TARGET_PROBABILITY_AND_COMPOUNDED_GROWTH_TELEMETRY_ONLY;"
+    "TERMINAL_EQUITY_USD;"
     "COEFFICIENTS_LEARNED_UTILITY_PER_DECLARED_INPUT_UNIT;OUTPUT_LEARNED_UTILITY"
 )
 CANONICAL_HARD_VALIDATOR_ID = "canonical_adaptive_hard_constraint_validator_v2"
@@ -182,6 +188,8 @@ class FittedObjectiveEvidenceV2:
 class LearnedObjectiveWeightsV2:
     schema_version: str
     expected_after_cost_return: float
+    terminal_target_probability_reward: float
+    expected_log_equity_growth_reward: float
     drawdown_penalty: float
     tail_loss_penalty: float
     liquidation_risk_penalty: float
@@ -189,6 +197,7 @@ class LearnedObjectiveWeightsV2:
     funding_cost_penalty: float
     turnover_penalty: float
     concentration_penalty: float
+    correlation_penalty: float
     information_gain_reward: float
     unit_contract: str
     evidence: FittedObjectiveEvidenceV2
@@ -198,6 +207,8 @@ class LearnedObjectiveWeightsV2:
             _raise("invalid_schema_version", "schema_version")
         for field in (
             "expected_after_cost_return",
+            "terminal_target_probability_reward",
+            "expected_log_equity_growth_reward",
             "drawdown_penalty",
             "tail_loss_penalty",
             "liquidation_risk_penalty",
@@ -205,6 +216,7 @@ class LearnedObjectiveWeightsV2:
             "funding_cost_penalty",
             "turnover_penalty",
             "concentration_penalty",
+            "correlation_penalty",
             "information_gain_reward",
         ):
             value = getattr(self, field)
@@ -220,6 +232,8 @@ class LearnedObjectiveWeightsV2:
             for field in (
                 "schema_version",
                 "expected_after_cost_return",
+                "terminal_target_probability_reward",
+                "expected_log_equity_growth_reward",
                 "drawdown_penalty",
                 "tail_loss_penalty",
                 "liquidation_risk_penalty",
@@ -227,6 +241,7 @@ class LearnedObjectiveWeightsV2:
                 "funding_cost_penalty",
                 "turnover_penalty",
                 "concentration_penalty",
+                "correlation_penalty",
                 "information_gain_reward",
                 "unit_contract",
             )
@@ -479,6 +494,176 @@ class HardConstraintValidationReceiptV2:
 
 
 @dataclass(frozen=True, slots=True)
+class TerminalEquityProjectionV1:
+    schema_version: str
+    horizon_days: float
+    target_multiple: float
+    starting_equity_usd: float
+    current_equity_usd: float
+    target_equity_usd: float
+    target_distance_log: float
+    remaining_horizon_seconds: float
+    expected_compounding_opportunities: float
+    terminal_target_probability: float
+    expected_log_equity_growth_per_opportunity: float
+    expected_compounded_log_equity_growth: float
+    terminal_log_equity_standard_deviation: float
+    expected_terminal_equity_usd: float
+    terminal_equity_p10_usd: float
+    terminal_equity_p50_usd: float
+    terminal_equity_p90_usd: float
+    current_drawdown_fraction: float
+    posterior_edge_bps: float
+    posterior_uncertainty: float
+    expected_cost_drag_bps: float
+    liquidity_fill_probability: float
+    correlation_exposure_fraction: float
+    correlation_exposure_bps: float
+    regime_compatibility: float
+    liquidation_probability: float
+    terminal_state_sha256: str
+    state_available_at_ms: int
+    decision_time_ms: int
+    latest_unclosed_kline_excluded: bool
+    terminal_state_evidence_supported: bool
+    evidence_supported_probability: bool
+    prior_only: bool
+    underdispersed: bool
+    defaulted_fields: tuple[str, ...]
+    probability_authority: str
+    guaranteed_target_claim: bool
+    paper_only: bool
+    live_gate: str
+    routes_to_live: bool
+    places_real_order: bool
+    exchange_action_taken: bool
+
+    def __post_init__(self) -> None:
+        if self.schema_version != TERMINAL_EQUITY_PROJECTION_SCHEMA_VERSION:
+            _raise("invalid_schema_version", "schema_version")
+        for field in (
+            "horizon_days",
+            "target_multiple",
+            "starting_equity_usd",
+            "current_equity_usd",
+            "target_equity_usd",
+            "remaining_horizon_seconds",
+            "expected_compounding_opportunities",
+            "terminal_target_probability",
+            "terminal_log_equity_standard_deviation",
+            "expected_terminal_equity_usd",
+            "terminal_equity_p10_usd",
+            "terminal_equity_p50_usd",
+            "terminal_equity_p90_usd",
+            "current_drawdown_fraction",
+            "posterior_uncertainty",
+            "expected_cost_drag_bps",
+            "liquidity_fill_probability",
+            "correlation_exposure_fraction",
+            "correlation_exposure_bps",
+            "regime_compatibility",
+            "liquidation_probability",
+        ):
+            _require_nonnegative(getattr(self, field), field)
+        for field in (
+            "target_distance_log",
+            "expected_log_equity_growth_per_opportunity",
+            "expected_compounded_log_equity_growth",
+            "posterior_edge_bps",
+        ):
+            _require_finite(getattr(self, field), field)
+        if self.horizon_days != TERMINAL_HORIZON_DAYS:
+            _raise("must_match_terminal_horizon", "horizon_days")
+        if self.target_multiple != TERMINAL_TARGET_MULTIPLE:
+            _raise("must_match_terminal_target_multiple", "target_multiple")
+        if (
+            self.starting_equity_usd <= 0.0
+            or self.current_equity_usd <= 0.0
+            or self.target_equity_usd <= 0.0
+        ):
+            _raise("positive_equity_required", "terminal_equity_projection")
+        if not math.isclose(
+            self.target_equity_usd,
+            self.starting_equity_usd * self.target_multiple,
+            rel_tol=1e-12,
+            abs_tol=1e-9,
+        ):
+            _raise("must_match_starting_equity_times_target_multiple", "target_equity_usd")
+        if not math.isclose(
+            self.target_distance_log,
+            math.log(self.target_equity_usd / self.current_equity_usd),
+            rel_tol=1e-12,
+            abs_tol=1e-12,
+        ):
+            _raise("must_match_target_distance", "target_distance_log")
+        if self.remaining_horizon_seconds > self.horizon_days * 86_400.0:
+            _raise("must_not_exceed_terminal_horizon", "remaining_horizon_seconds")
+        for field in (
+            "terminal_target_probability",
+            "current_drawdown_fraction",
+            "posterior_uncertainty",
+            "liquidity_fill_probability",
+            "correlation_exposure_fraction",
+            "regime_compatibility",
+            "liquidation_probability",
+        ):
+            if getattr(self, field) > 1.0:
+                _raise("must_not_exceed_one", field)
+        if self.correlation_exposure_bps > 10_000.0:
+            _raise("must_not_exceed_10000", "correlation_exposure_bps")
+        if not (
+            self.terminal_equity_p10_usd
+            <= self.terminal_equity_p50_usd
+            <= self.terminal_equity_p90_usd
+        ):
+            _raise("quantiles_must_be_monotone", "terminal_equity_quantiles")
+        _require_sha256(self.terminal_state_sha256, "terminal_state_sha256")
+        for field in ("state_available_at_ms", "decision_time_ms"):
+            value = getattr(self, field)
+            if type(value) is not int or value < 1:
+                _raise("must_be_positive_int", field)
+        if self.state_available_at_ms > self.decision_time_ms:
+            _raise("state_available_after_decision", "state_available_at_ms")
+        for field in (
+            "terminal_state_evidence_supported",
+            "evidence_supported_probability",
+            "prior_only",
+            "underdispersed",
+        ):
+            if type(getattr(self, field)) is not bool:
+                _raise("must_be_bool", field)
+        if type(self.defaulted_fields) is not tuple:
+            _raise("must_be_tuple", "defaulted_fields")
+        if self.defaulted_fields != tuple(sorted(set(self.defaulted_fields))):
+            _raise("must_be_sorted_unique", "defaulted_fields")
+        for field in self.defaulted_fields:
+            _require_identifier(field, "defaulted_fields")
+        if self.evidence_supported_probability and (
+            not self.terminal_state_evidence_supported
+            or self.prior_only
+        ):
+            _raise(
+                "probability_support_incompatible_with_evidence_flags",
+                "evidence_supported_probability",
+            )
+        if self.probability_authority != (
+            "TELEMETRY_ONLY_NO_SELECTION_OR_SIZING_AUTHORITY"
+        ):
+            _raise("must_be_telemetry_only", "probability_authority")
+        if self.latest_unclosed_kline_excluded is not True or self.paper_only is not True:
+            _raise("must_be_true", "terminal_projection_safety")
+        if self.guaranteed_target_claim is not False:
+            _raise("must_be_false", "guaranteed_target_claim")
+        if (
+            self.live_gate != "blocked_human_only"
+            or self.routes_to_live is not False
+            or self.places_real_order is not False
+            or self.exchange_action_taken is not False
+        ):
+            _raise("paper_only_human_block_required", "terminal_projection_authority")
+
+
+@dataclass(frozen=True, slots=True)
 class ActionObjectiveInputsV2:
     schema_version: str
     objective_input_fingerprint_sha256: str
@@ -501,6 +686,7 @@ class ActionObjectiveInputsV2:
     expected_turnover_bps: float
     expected_concentration_bps: float
     expected_information_gain: float
+    terminal_equity_projection: TerminalEquityProjectionV1
     hard_constraints_satisfied: bool
     hard_validation_receipt: HardConstraintValidationReceiptV2 | None
     unit_contract: str
@@ -542,6 +728,11 @@ class ActionObjectiveInputsV2:
             "expected_information_gain",
         ):
             _require_nonnegative(getattr(self, field), field)
+        if type(self.terminal_equity_projection) is not TerminalEquityProjectionV1:
+            _raise("structured_terminal_equity_projection_required", "terminal_equity_projection")
+        projection = self.terminal_equity_projection
+        if projection.decision_time_ms != self.decision_time_ms:
+            _raise("terminal_projection_decision_time_mismatch", "terminal_equity_projection")
         if self.liquidation_risk_probability > 1.0:
             _raise("must_not_exceed_one", "liquidation_risk_probability")
         if type(self.hard_constraints_satisfied) is not bool:
@@ -614,7 +805,10 @@ def _derive_score_values(
             "eligible": False,
             "utility": None,
             "return_contribution": None,
+            "terminal_target_probability_contribution": None,
+            "terminal_log_equity_growth_contribution": None,
             "total_penalty": None,
+            "correlation_penalty_contribution": None,
             "information_gain_contribution": None,
         }
     return_contribution = (
@@ -628,15 +822,43 @@ def _derive_score_values(
         + weights.funding_cost_penalty * action.expected_funding_cost_bps
         + weights.turnover_penalty * action.expected_turnover_bps
         + weights.concentration_penalty * action.expected_concentration_bps
+        + weights.correlation_penalty
+        * action.terminal_equity_projection.correlation_exposure_bps
+    )
+    # The current terminal probability estimator omits persistent parameter
+    # uncertainty and is intentionally telemetry-only.  Keep its fitted/derived
+    # coefficient in the calibration contract for version compatibility and
+    # attestation, but grant the probability no selection or sizing authority.
+    terminal_target_probability_contribution = 0.0
+    terminal_log_equity_growth_contribution = (
+        weights.expected_log_equity_growth_reward
+        * action.terminal_equity_projection.expected_log_equity_growth_per_opportunity
+    )
+    correlation_penalty_contribution = (
+        weights.correlation_penalty
+        * action.terminal_equity_projection.correlation_exposure_bps
     )
     information_gain_contribution = (
         weights.information_gain_reward * action.expected_information_gain
     )
     return {
         "eligible": True,
-        "utility": return_contribution - total_penalty + information_gain_contribution,
+        "utility": (
+            return_contribution
+            + terminal_target_probability_contribution
+            + terminal_log_equity_growth_contribution
+            - total_penalty
+            + information_gain_contribution
+        ),
         "return_contribution": return_contribution,
+        "terminal_target_probability_contribution": (
+            terminal_target_probability_contribution
+        ),
+        "terminal_log_equity_growth_contribution": (
+            terminal_log_equity_growth_contribution
+        ),
         "total_penalty": total_penalty,
+        "correlation_penalty_contribution": correlation_penalty_contribution,
         "information_gain_contribution": information_gain_contribution,
     }
 
@@ -662,7 +884,10 @@ class ActionObjectiveScoreV2:
     eligible: bool
     utility: float | None
     return_contribution: float | None
+    terminal_target_probability_contribution: float | None
+    terminal_log_equity_growth_contribution: float | None
     total_penalty: float | None
+    correlation_penalty_contribution: float | None
     information_gain_contribution: float | None
     score_fingerprint: str
     unit_contract: str
@@ -702,7 +927,10 @@ class ActionObjectiveScoreV2:
         values = (
             self.utility,
             self.return_contribution,
+            self.terminal_target_probability_contribution,
+            self.terminal_log_equity_growth_contribution,
             self.total_penalty,
+            self.correlation_penalty_contribution,
             self.information_gain_contribution,
         )
         if self.eligible:
@@ -755,7 +983,16 @@ class ActionObjectiveScoreV2:
             "eligible": self.eligible,
             "utility": self.utility,
             "return_contribution": self.return_contribution,
+            "terminal_target_probability_contribution": (
+                self.terminal_target_probability_contribution
+            ),
+            "terminal_log_equity_growth_contribution": (
+                self.terminal_log_equity_growth_contribution
+            ),
             "total_penalty": self.total_penalty,
+            "correlation_penalty_contribution": (
+                self.correlation_penalty_contribution
+            ),
             "information_gain_contribution": self.information_gain_contribution,
         }
         if actual_values != expected_values:
@@ -1124,6 +1361,9 @@ __all__ = (
     "MODE_ALLOCATION_SCHEMA_VERSION",
     "POLICY_MODES",
     "SCHEMA_VERSION",
+    "TERMINAL_EQUITY_PROJECTION_SCHEMA_VERSION",
+    "TERMINAL_HORIZON_DAYS",
+    "TERMINAL_TARGET_MULTIPLE",
     "ActionObjectiveInputsV2",
     "ActionObjectiveScoreV2",
     "AdaptiveObjectiveContractError",
@@ -1133,6 +1373,7 @@ __all__ = (
     "HardConstraintCheckEvidenceV2",
     "HardConstraintValidationReceiptV2",
     "LearnedObjectiveWeightsV2",
+    "TerminalEquityProjectionV1",
     "UNIT_CONTRACT",
     "WEIGHTS_SCHEMA_VERSION",
     "evaluate_shadow_objective",

@@ -447,6 +447,7 @@ def _observation(index: int) -> CandidateCalibrationObservationV2:
         predicted_loss_probability_source=(10 - index % 10) / 10.0,
         exit_feasibility_source=(index % 5) / 5.0,
         expected_move_after_cost_source_bps=float(index % 7),
+        correlation_exposure_source=(index % 10) / 10.0,
         final_gross_return_bps=after_cost + 2.0,
         final_after_cost_return_bps=after_cost,
         max_favorable_excursion_bps=float(index % 20),

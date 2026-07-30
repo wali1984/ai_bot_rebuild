@@ -16,6 +16,7 @@ from collections.abc import Mapping
 from dataclasses import asdict, dataclass, replace
 from datetime import datetime
 from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal, localcontext
+from statistics import NormalDist
 from typing import Any
 
 from v2.backend.app.domain.adaptive_component_estimates_v1 import (
@@ -71,15 +72,20 @@ from v2.backend.app.services.adaptive_system.adaptive_objective_v2 import (
     CHAMPION_EXPLOITATION,
     FIT_EVIDENCE_SCHEMA_VERSION,
     MODE_ALLOCATION_SCHEMA_VERSION,
+    TERMINAL_EQUITY_PROJECTION_SCHEMA_VERSION,
+    TERMINAL_HORIZON_DAYS,
+    TERMINAL_TARGET_MULTIPLE,
     UNIT_CONTRACT,
     WEIGHTS_SCHEMA_VERSION,
     ActionObjectiveInputsV2,
     AdaptivePolicyModeAllocationV2,
     FittedObjectiveEvidenceV2,
     LearnedObjectiveWeightsV2,
+    TerminalEquityProjectionV1,
     evaluate_shadow_objective,
 )
 from v2.backend.app.services.adaptive_system.candidate_outcome_calibration_v2 import (
+    CandidateOutcomeCalibrationError,
     validate_candidate_outcome_calibration_v2,
 )
 from v2.backend.app.services.adaptive_system.selected_action_venue_feasibility_v2 import (
@@ -93,7 +99,7 @@ SCHEMA_VERSION = "adaptive_policy_shadow_candidate_v2"
 POLICY_ID = "candidate_outcome_adaptive_policy_v2"
 POLICY_GENERATION = 1
 PRODUCER_ID = "candidate_outcome_adaptive_shadow_v2"
-SOURCE_SCHEMA = "candidate_outcome_calibration_v2"
+SOURCE_SCHEMA = "candidate_outcome_calibration_v3"
 MODEL_ID = "candidate_outcome_calibrator_v2"
 _HORIZONS = {"5m": 300, "15m": 900, "1h": 3_600, "4h": 14_400}
 _SHA_FIELDS = (
@@ -162,6 +168,18 @@ def _finite(value: object, field: str) -> float:
     if type(value) not in {int, float} or not math.isfinite(float(value)):
         raise AdaptivePolicyShadowError(f"{field}:finite_number_required")
     return float(value)
+
+
+def _positive_int(value: object, field: str) -> int:
+    if type(value) is not int or value < 1:
+        raise AdaptivePolicyShadowError(f"{field}:positive_int_required")
+    return value
+
+
+def _strict_finite_field(values: Mapping[str, Any], field: str) -> float:
+    """Read a required numeric field without leaking ``KeyError``/``TypeError``."""
+
+    return _finite(values.get(field), field)
 
 
 def _positive_decimal(value: object, field: str) -> Decimal:
@@ -244,11 +262,22 @@ def _weights(calibration: Mapping[str, Any]) -> LearnedObjectiveWeightsV2:
         training_population_sha256=_sha(
             calibration.get("training_population_sha256"), "training_population_sha256"
         ),
-        fit_window_start_ms=int(calibration["fit_window_start_ms"]),
-        fit_window_end_ms=int(calibration["fit_window_end_ms"]),
-        fit_record_available_at_ms=int(calibration["fit_record_available_at_ms"]),
-        sample_count=int(calibration["fit_sample_count"]),
-        checkpoint_generation=int(calibration["checkpoint_generation"]),
+        fit_window_start_ms=_positive_int(
+            calibration.get("fit_window_start_ms"), "fit_window_start_ms"
+        ),
+        fit_window_end_ms=_positive_int(
+            calibration.get("fit_window_end_ms"), "fit_window_end_ms"
+        ),
+        fit_record_available_at_ms=_positive_int(
+            calibration.get("fit_record_available_at_ms"),
+            "fit_record_available_at_ms",
+        ),
+        sample_count=_positive_int(
+            calibration.get("fit_sample_count"), "fit_sample_count"
+        ),
+        checkpoint_generation=_positive_int(
+            calibration.get("checkpoint_generation"), "checkpoint_generation"
+        ),
         checkpoint_id=_identifier(calibration.get("checkpoint_id"), "checkpoint_id"),
         checkpoint_sha256=_sha(calibration.get("checkpoint_sha256"), "checkpoint_sha256"),
         fitted=True,
@@ -257,15 +286,26 @@ def _weights(calibration: Mapping[str, Any]) -> LearnedObjectiveWeightsV2:
     )
     return LearnedObjectiveWeightsV2(
         schema_version=WEIGHTS_SCHEMA_VERSION,
-        expected_after_cost_return=float(raw["expected_after_cost_return"]),
-        drawdown_penalty=float(raw["drawdown_penalty"]),
-        tail_loss_penalty=float(raw["tail_loss_penalty"]),
-        liquidation_risk_penalty=float(raw["liquidation_risk_penalty"]),
-        market_impact_penalty=float(raw["market_impact_penalty"]),
-        funding_cost_penalty=float(raw["funding_cost_penalty"]),
-        turnover_penalty=float(raw["turnover_penalty"]),
-        concentration_penalty=float(raw["concentration_penalty"]),
-        information_gain_reward=float(raw["information_gain_reward"]),
+        expected_after_cost_return=_strict_finite_field(
+            raw, "expected_after_cost_return"
+        ),
+        terminal_target_probability_reward=_strict_finite_field(
+            raw, "terminal_target_probability_reward"
+        ),
+        expected_log_equity_growth_reward=_strict_finite_field(
+            raw, "expected_log_equity_growth_reward"
+        ),
+        drawdown_penalty=_strict_finite_field(raw, "drawdown_penalty"),
+        tail_loss_penalty=_strict_finite_field(raw, "tail_loss_penalty"),
+        liquidation_risk_penalty=_strict_finite_field(
+            raw, "liquidation_risk_penalty"
+        ),
+        market_impact_penalty=_strict_finite_field(raw, "market_impact_penalty"),
+        funding_cost_penalty=_strict_finite_field(raw, "funding_cost_penalty"),
+        turnover_penalty=_strict_finite_field(raw, "turnover_penalty"),
+        concentration_penalty=_strict_finite_field(raw, "concentration_penalty"),
+        correlation_penalty=_strict_finite_field(raw, "correlation_penalty"),
+        information_gain_reward=_strict_finite_field(raw, "information_gain_reward"),
         unit_contract=UNIT_CONTRACT,
         evidence=evidence,
     )
@@ -277,25 +317,40 @@ def _allocation(
     raw = _mapping(calibration.get("mode_allocation"), "mode_allocation")
     values = {
         "schema_version": MODE_ALLOCATION_SCHEMA_VERSION,
-        "champion_exploitation_probability": float(
-            raw["champion_exploitation_probability"]
+        "champion_exploitation_probability": _strict_finite_field(
+            raw, "champion_exploitation_probability"
         ),
-        "bounded_exploration_probability": float(raw["bounded_exploration_probability"]),
+        "bounded_exploration_probability": _strict_finite_field(
+            raw, "bounded_exploration_probability"
+        ),
         "fit_receipt_sha256": _sha(
             calibration.get("fit_receipt_sha256"), "fit_receipt_sha256"
         ),
         "optimizer_id": "candidate_outcome_adaptive_mode_allocator_v2",
         "state_id": state_id,
         "state_sha256": state_sha256,
-        "checkpoint_generation": int(calibration["checkpoint_generation"]),
+        "checkpoint_generation": int(
+            _finite(calibration.get("checkpoint_generation"), "checkpoint_generation")
+        ),
         "checkpoint_id": _identifier(calibration.get("checkpoint_id"), "checkpoint_id"),
         "checkpoint_sha256": _sha(
             calibration.get("checkpoint_sha256"), "checkpoint_sha256"
         ),
-        "fit_window_start_ms": int(calibration["fit_window_start_ms"]),
-        "fit_window_end_ms": int(calibration["fit_window_end_ms"]),
-        "fit_record_available_at_ms": int(calibration["fit_record_available_at_ms"]),
-        "fit_sample_count": int(calibration["fit_sample_count"]),
+        "fit_window_start_ms": int(
+            _finite(calibration.get("fit_window_start_ms"), "fit_window_start_ms")
+        ),
+        "fit_window_end_ms": int(
+            _finite(calibration.get("fit_window_end_ms"), "fit_window_end_ms")
+        ),
+        "fit_record_available_at_ms": int(
+            _finite(
+                calibration.get("fit_record_available_at_ms"),
+                "fit_record_available_at_ms",
+            )
+        ),
+        "fit_sample_count": int(
+            _finite(calibration.get("fit_sample_count"), "fit_sample_count")
+        ),
         "fit_row_digest": _sha(calibration.get("fit_row_digest"), "fit_row_digest"),
         "fit_population_sha256": _sha(
             calibration.get("training_population_sha256"), "training_population_sha256"
@@ -432,6 +487,8 @@ def _replace_group(
 
 def _regime_bucket(intent: Mapping[str, Any]) -> str:
     raw = intent.get("regime_compatibility_score")
+    if raw is None:
+        raw = intent.get("allocator_regime_score")
     if raw is None:
         return "REGIME_EVIDENCE_UNAVAILABLE"
     score = _finite(raw, "regime_compatibility_score")
@@ -1413,6 +1470,466 @@ def _microstructure_continuous_policy_inputs(
     return values
 
 
+def _terminal_objective_state_sha256(value: object) -> str:
+    """Validate and hash terminal state without hashing its self-declared digest."""
+
+    terminal_state = dict(value) if isinstance(value, Mapping) else {}
+    stored = terminal_state.pop("state_sha256", None)
+    computed = _canonical_sha256(terminal_state)
+    if stored not in (None, "") and _sha(
+        stored, "terminal_objective.state_sha256"
+    ) != computed:
+        raise AdaptivePolicyShadowError(
+            "terminal_objective.state_sha256:content_hash_mismatch"
+        )
+    return computed
+
+
+def _terminal_equity_projection(
+    *,
+    intent: Mapping[str, Any],
+    paper_status: Mapping[str, Any],
+    statistics: Mapping[str, Any] | None,
+    plan: Mapping[str, Any] | None,
+    flat: bool,
+    expected_after_cost_return_bps: float,
+    expected_cost_drag_bps: float,
+    fill_probability: float,
+    liquidation_probability_per_opportunity: float,
+    decision_time_ms: int,
+    require_complete_terminal_state: bool,
+) -> TerminalEquityProjectionV1:
+    """Project day-90 paper equity from authenticated point-in-time state.
+
+    This is a distributional objective input, not a guarantee or an execution
+    rail.  The opportunity count is implied by the action's learned holding
+    horizon and remaining campaign time; it is not a fixed frequency target.
+    """
+
+    if type(require_complete_terminal_state) is not bool:
+        raise AdaptivePolicyShadowError(
+            "require_complete_terminal_state:bool_required"
+        )
+    terminal_state_raw = paper_status.get("terminal_objective_state")
+    terminal_state_present = isinstance(terminal_state_raw, Mapping)
+    terminal_state = dict(terminal_state_raw) if terminal_state_present else {}
+    terminal_state_sha256 = _terminal_objective_state_sha256(terminal_state_raw)
+    defaulted_fields: set[str] = set()
+    if not terminal_state_present:
+        defaulted_fields.add("terminal_objective_state")
+    for field in (
+        "schema_version",
+        "starting_equity_usd",
+        "current_equity_usd",
+        "current_drawdown_fraction",
+        "state_available_at_ms",
+        "state_source",
+        "state_sha256",
+        "paper_only",
+        "live_gate",
+        "routes_to_live",
+        "places_real_order",
+        "exchange_action_taken",
+    ):
+        if terminal_state.get(field) in (None, ""):
+            defaulted_fields.add(field)
+    if terminal_state.get("session_started_at_ms") in (None, "") and (
+        terminal_state.get("session_started_at") in (None, "")
+    ):
+        defaulted_fields.add("session_started_at")
+    if terminal_state.get("schema_version") not in (
+        None,
+        "",
+        "terminal_objective_point_in_time_state_v1",
+    ):
+        raise AdaptivePolicyShadowError(
+            "terminal_objective.schema_version:invalid"
+        )
+    for field, expected in (
+        ("paper_only", True),
+        ("live_gate", LIVE_GATE_BLOCKED_HUMAN_ONLY),
+        ("routes_to_live", False),
+        ("places_real_order", False),
+        ("exchange_action_taken", False),
+    ):
+        value = terminal_state.get(field)
+        invalid = (
+            value is not expected
+            if isinstance(expected, bool)
+            else value != expected
+        )
+        if value not in (None, "") and invalid:
+            raise AdaptivePolicyShadowError(
+                f"terminal_objective.{field}:paper_only_human_block_required"
+            )
+    reservation_raw = intent.get("paper_cycle_reservation_snapshot")
+    reservation = dict(reservation_raw) if isinstance(reservation_raw, Mapping) else {}
+    reservation_inputs_raw = reservation.get("inputs")
+    reservation_inputs = (
+        dict(reservation_inputs_raw)
+        if isinstance(reservation_inputs_raw, Mapping)
+        else {}
+    )
+
+    current_equity_raw = terminal_state.get("current_equity_usd")
+    if current_equity_raw in (None, ""):
+        current_equity_raw = reservation_inputs.get("base_equity_usd")
+        defaulted_fields.add("current_equity_usd")
+    if current_equity_raw in (None, "") and not require_complete_terminal_state:
+        # Diagnostic-only survival for an already hard-blocked/unavailable
+        # physical plan.  The placeholder is disclosed, makes the probability
+        # prior-only/unsupported, and never bypasses the hard disposition.
+        current_equity_raw = 1.0
+        defaulted_fields.add("current_equity_usd:diagnostic_unit_placeholder")
+    current_equity = _finite(
+        current_equity_raw, "terminal_objective.current_equity_usd"
+    )
+    if current_equity <= 0.0:
+        raise AdaptivePolicyShadowError(
+            "terminal_objective.current_equity_usd:positive_required"
+        )
+    starting_raw = terminal_state.get("starting_equity_usd")
+    if starting_raw in (None, ""):
+        starting_raw = intent.get("starting_equity_usd")
+        defaulted_fields.add("starting_equity_usd")
+    if starting_raw in (None, ""):
+        starting_equity = current_equity
+    else:
+        starting_equity = _finite(
+            starting_raw, "terminal_objective.starting_equity_usd"
+        )
+    if starting_equity <= 0.0:
+        raise AdaptivePolicyShadowError(
+            "terminal_objective.starting_equity_usd:positive_required"
+        )
+    target_equity = starting_equity * TERMINAL_TARGET_MULTIPLE
+
+    session_started_at_ms_raw = terminal_state.get("session_started_at_ms")
+    if session_started_at_ms_raw is None:
+        session_started_at_raw = terminal_state.get("session_started_at")
+        if session_started_at_raw in (None, ""):
+            defaulted_fields.add("session_started_at")
+        session_started_at_ms = (
+            decision_time_ms
+            if session_started_at_raw in (None, "")
+            else _iso_ms(
+                session_started_at_raw,
+                "terminal_objective.session_started_at",
+            )
+        )
+    elif (
+        type(session_started_at_ms_raw) is not int
+        or session_started_at_ms_raw < 1
+    ):
+        raise AdaptivePolicyShadowError(
+            "terminal_objective.session_started_at_ms:positive_int_required"
+        )
+    else:
+        session_started_at_ms = session_started_at_ms_raw
+    if session_started_at_ms > decision_time_ms:
+        raise AdaptivePolicyShadowError(
+            "terminal_objective.session_started_at_ms:future_start_forbidden"
+        )
+    full_horizon_seconds = TERMINAL_HORIZON_DAYS * 86_400.0
+    elapsed_seconds = max(
+        0.0,
+        (decision_time_ms - session_started_at_ms) / 1_000.0,
+    )
+    remaining_seconds = max(0.0, full_horizon_seconds - elapsed_seconds)
+    state_available_at_raw = terminal_state.get("state_available_at_ms")
+    if state_available_at_raw in (None, ""):
+        state_available_at_raw = decision_time_ms
+        defaulted_fields.add("state_available_at_ms")
+    if type(state_available_at_raw) is not int or state_available_at_raw < 1:
+        raise AdaptivePolicyShadowError(
+            "terminal_objective.state_available_at_ms:positive_int_required"
+        )
+    if state_available_at_raw > decision_time_ms:
+        raise AdaptivePolicyShadowError(
+            "terminal_objective.state_available_at_ms:future_state_forbidden"
+        )
+
+    if terminal_state.get("current_drawdown_fraction") in (None, ""):
+        defaulted_fields.add("current_drawdown_fraction")
+    drawdown = max(
+        0.0,
+        min(
+            1.0,
+            _finite(
+                terminal_state.get("current_drawdown_fraction", 0.0),
+                "terminal_objective.current_drawdown_fraction",
+            ),
+        ),
+    )
+    if intent.get("correlation_exposure_pct") in (None, ""):
+        defaulted_fields.add("correlation_exposure_pct")
+    correlation = max(
+        0.0,
+        min(
+            1.0,
+            _finite(
+                intent.get("correlation_exposure_pct", 0.0),
+                "terminal_objective.correlation_exposure_pct",
+            ),
+        ),
+    )
+    regime_raw = intent.get("regime_compatibility_score")
+    if regime_raw is None:
+        regime_raw = intent.get("allocator_regime_score")
+    if regime_raw is None:
+        defaulted_fields.add("regime_compatibility_score")
+    regime = (
+        0.5
+        if regime_raw is None
+        else max(
+            0.0,
+            min(
+                1.0,
+                _finite(
+                    regime_raw,
+                    "terminal_objective.regime_compatibility_score",
+                ),
+            ),
+        )
+    )
+    authoritative_defaulted_fields = set(defaulted_fields)
+    if statistics is None:
+        defaulted_fields.add("posterior_uncertainty")
+    posterior_uncertainty = (
+        0.0
+        if statistics is None
+        else max(
+            0.0,
+            min(
+                1.0,
+                _finite(
+                    statistics["posterior_uncertainty"],
+                    "terminal_objective.posterior_uncertainty",
+                ),
+            ),
+        )
+    )
+    horizon_seconds = (
+        0.0
+        if flat
+        else float(_HORIZONS[_identifier(intent.get("timeframe"), "timeframe")])
+    )
+    selected_notional_raw = (
+        0.0 if flat or plan is None else plan["selected_notional_usd"]
+    )
+    selected_notional = (
+        float(selected_notional_raw)
+        if isinstance(selected_notional_raw, Decimal)
+        and selected_notional_raw.is_finite()
+        else _finite(
+            selected_notional_raw,
+            "terminal_objective.selected_notional_usd",
+        )
+    )
+    allocation_fraction = max(0.0, selected_notional / current_equity)
+    effective_fill_probability = max(0.0, min(1.0, fill_probability))
+    opportunities = (
+        0.0
+        if flat or horizon_seconds <= 0.0 or remaining_seconds <= 0.0
+        else (
+            remaining_seconds
+            / horizon_seconds
+            * effective_fill_probability
+            * regime
+            * (1.0 - correlation)
+        )
+    )
+    portfolio_return_per_opportunity = (
+        expected_after_cost_return_bps / 10_000.0 * allocation_fraction
+    )
+    portfolio_return_per_opportunity = max(
+        -0.999999999999,
+        portfolio_return_per_opportunity,
+    )
+    opportunity_log_return = math.log1p(portfolio_return_per_opportunity)
+    expected_log_growth_per_opportunity = opportunity_log_return * (1.0 - drawdown)
+    expected_log_growth = opportunities * expected_log_growth_per_opportunity
+
+    if flat or statistics is None:
+        return_dispersion_bps = 0.0
+    else:
+        quantiles = _mapping(
+            statistics["return_bps_quantiles"],
+            "terminal_objective.return_bps_quantiles",
+        )
+        return_dispersion_bps = max(
+            0.0,
+            (
+                _finite(quantiles["0.9"], "terminal_objective.return_p90")
+                - _finite(quantiles["0.1"], "terminal_objective.return_p10")
+            )
+            / 2.563,
+        )
+    per_opportunity_log_stddev = (
+        return_dispersion_bps
+        / 10_000.0
+        * allocation_fraction
+        * (1.0 + posterior_uncertainty + correlation)
+    )
+    terminal_log_stddev = (
+        math.sqrt(opportunities) * per_opportunity_log_stddev
+        if opportunities > 0.0
+        else 0.0
+    )
+    per_opportunity_liquidation = max(
+        0.0,
+        min(1.0, liquidation_probability_per_opportunity),
+    )
+    horizon_liquidation_probability = (
+        0.0
+        if opportunities <= 0.0 or per_opportunity_liquidation <= 0.0
+        else 1.0
+        - math.exp(-per_opportunity_liquidation * math.sqrt(opportunities))
+    )
+    survival_probability = 1.0 - horizon_liquidation_probability
+    target_distance_log = math.log(target_equity / current_equity)
+    if terminal_log_stddev > 0.0:
+        standardized_target = (
+            target_distance_log - expected_log_growth
+        ) / terminal_log_stddev
+        conditional_target_probability = 1.0 - NormalDist().cdf(
+            standardized_target
+        )
+    else:
+        conditional_target_probability = float(
+            expected_log_growth >= target_distance_log
+        )
+    target_probability = max(
+        0.0,
+        min(1.0, survival_probability * conditional_target_probability),
+    )
+
+    def terminal_quantile(probability: float) -> float:
+        if probability <= horizon_liquidation_probability:
+            return 0.0
+        conditional_probability = (
+            (probability - horizon_liquidation_probability)
+            / max(1e-15, survival_probability)
+        )
+        conditional_probability = min(
+            1.0 - 1e-15,
+            max(1e-15, conditional_probability),
+        )
+        log_terminal = (
+            math.log(current_equity)
+            + expected_log_growth
+            + terminal_log_stddev
+            * NormalDist().inv_cdf(conditional_probability)
+        )
+        return math.exp(min(700.0, max(-745.0, log_terminal)))
+
+    expected_terminal = survival_probability * math.exp(
+        min(
+            700.0,
+            max(
+                -745.0,
+                math.log(current_equity)
+                + expected_log_growth
+                + 0.5 * terminal_log_stddev**2,
+            ),
+        )
+    )
+    correlation_exposure_bps = min(
+        10_000.0,
+        correlation * min(1.0, allocation_fraction) * 10_000.0,
+    )
+    effective_sample_size = (
+        0.0
+        if statistics is None
+        else _finite(
+            statistics.get("effective_sample_size"),
+            "terminal_objective.effective_sample_size",
+        )
+    )
+    posterior_alpha = (
+        1.0
+        if statistics is None
+        else _finite(
+            statistics.get("posterior_alpha"),
+            "terminal_objective.posterior_alpha",
+        )
+    )
+    posterior_beta = (
+        1.0
+        if statistics is None
+        else _finite(
+            statistics.get("posterior_beta"),
+            "terminal_objective.posterior_beta",
+        )
+    )
+    prior_only = bool(defaulted_fields) or effective_sample_size <= 0.0 or (
+        posterior_alpha == 1.0 and posterior_beta == 1.0
+    )
+    # Persistent posterior-parameter uncertainty and a fully declared
+    # liquidation mixture are not yet represented in this diagnostic horizon
+    # estimator.  Until both are hardened, its target probability is explicitly
+    # underdispersed telemetry and never evidence-supported authority.
+    underdispersed = True
+    terminal_state_evidence_supported = not authoritative_defaulted_fields
+    if require_complete_terminal_state and not terminal_state_evidence_supported:
+        raise AdaptivePolicyShadowError(
+            "terminal_objective_state:complete_point_in_time_evidence_required:"
+            + ",".join(sorted(authoritative_defaulted_fields))
+        )
+    return TerminalEquityProjectionV1(
+        schema_version=TERMINAL_EQUITY_PROJECTION_SCHEMA_VERSION,
+        horizon_days=float(TERMINAL_HORIZON_DAYS),
+        target_multiple=float(TERMINAL_TARGET_MULTIPLE),
+        starting_equity_usd=float(starting_equity),
+        current_equity_usd=float(current_equity),
+        target_equity_usd=float(target_equity),
+        target_distance_log=float(target_distance_log),
+        remaining_horizon_seconds=float(remaining_seconds),
+        expected_compounding_opportunities=float(opportunities),
+        terminal_target_probability=float(target_probability),
+        expected_log_equity_growth_per_opportunity=float(
+            expected_log_growth_per_opportunity
+        ),
+        expected_compounded_log_equity_growth=float(expected_log_growth),
+        terminal_log_equity_standard_deviation=float(terminal_log_stddev),
+        expected_terminal_equity_usd=float(expected_terminal),
+        terminal_equity_p10_usd=float(terminal_quantile(0.1)),
+        terminal_equity_p50_usd=float(terminal_quantile(0.5)),
+        terminal_equity_p90_usd=float(terminal_quantile(0.9)),
+        current_drawdown_fraction=float(drawdown),
+        posterior_edge_bps=float(expected_after_cost_return_bps),
+        posterior_uncertainty=float(posterior_uncertainty),
+        expected_cost_drag_bps=float(max(0.0, expected_cost_drag_bps)),
+        liquidity_fill_probability=float(effective_fill_probability),
+        correlation_exposure_fraction=float(correlation),
+        correlation_exposure_bps=float(correlation_exposure_bps),
+        regime_compatibility=float(regime),
+        liquidation_probability=float(horizon_liquidation_probability),
+        terminal_state_sha256=terminal_state_sha256,
+        state_available_at_ms=state_available_at_raw,
+        decision_time_ms=decision_time_ms,
+        latest_unclosed_kline_excluded=(
+            intent.get("entry_feature_latest_unclosed_kline_excluded") is True
+        ),
+        terminal_state_evidence_supported=terminal_state_evidence_supported,
+        evidence_supported_probability=(
+            terminal_state_evidence_supported and not prior_only
+        ),
+        prior_only=prior_only,
+        underdispersed=underdispersed,
+        defaulted_fields=tuple(sorted(defaulted_fields)),
+        probability_authority=(
+            "TELEMETRY_ONLY_NO_SELECTION_OR_SIZING_AUTHORITY"
+        ),
+        guaranteed_target_claim=False,
+        paper_only=True,
+        live_gate=LIVE_GATE_BLOCKED_HUMAN_ONLY,
+        routes_to_live=False,
+        places_real_order=False,
+        exchange_action_taken=False,
+    )
+
+
 def _objective_action(
     *,
     action_id: str,
@@ -1430,6 +1947,8 @@ def _objective_action(
     microstructure_estimates: Mapping[str, float] | None = None,
     intent: Mapping[str, Any] | None = None,
     plan: Mapping[str, Any] | None = None,
+    paper_status: Mapping[str, Any] | None = None,
+    require_complete_terminal_state: bool = False,
 ) -> ActionObjectiveInputsV2:
     flat = selected_action == ACTION_REMAIN_FLAT
     stats = statistics or {}
@@ -1532,6 +2051,33 @@ def _objective_action(
         base_drawdown *= fill_probability
         base_tail_loss *= fill_probability
         base_information_gain *= fill_probability
+    if intent is None:
+        raise AdaptivePolicyShadowError(
+            "terminal_objective.intent:point_in_time_state_required"
+        )
+    terminal_projection = _terminal_equity_projection(
+        intent=intent,
+        paper_status=paper_status or {},
+        statistics=statistics,
+        plan=plan,
+        flat=flat,
+        expected_after_cost_return_bps=base_after_cost,
+        expected_cost_drag_bps=(
+            0.0
+            if flat
+            else max(
+                0.0,
+                float(stats["transaction_cost_bps_quantiles"]["0.5"])
+                + current_cost_delta,
+            )
+        ),
+        fill_probability=fill_probability,
+        liquidation_probability_per_opportunity=(
+            0.0 if flat else float(stats["stop_out_probability"])
+        ),
+        decision_time_ms=decision_time_ms,
+        require_complete_terminal_state=require_complete_terminal_state,
+    )
     return ActionObjectiveInputsV2.create(
         schema_version=ACTION_INPUT_SCHEMA_VERSION,
         action_id=action_id,
@@ -1553,6 +2099,7 @@ def _objective_action(
         expected_turnover_bps=turnover_bps,
         expected_concentration_bps=concentration_bps,
         expected_information_gain=base_information_gain,
+        terminal_equity_projection=terminal_projection,
         hard_constraints_satisfied=hard_pass,
         hard_validation_receipt=hard_receipt,
         unit_contract=UNIT_CONTRACT,
@@ -2065,14 +2612,12 @@ def _bootstrap_information_acquisition_designation(
 ) -> Mapping[str, Any] | None:
     """Return the cycle's bootstrap designation iff it targets this candidate.
 
-    Bootstrap information acquisition activates only while the global
-    profitability posterior is prior-only: zero authenticated natural
-    execution closes, zero effective independent N, or an untouched
-    Beta(1, 1) posterior.  The designation is computed once per completed
-    paper cycle by the authoritative paper loop from the latest complete
-    full-universe evaluation; this function only recognizes it and weakens
-    no hard rail.  A stale, foreign, or post-bootstrap designation resolves
-    to ``None`` and the normal selection rules stand.
+    The designation is computed once per completed paper cycle by the
+    authoritative paper loop from the latest complete full-universe terminal
+    projections.  Posterior maturity is telemetry and never an authorization
+    gate; this function only recognizes the designation and weakens no hard
+    rail.  A stale or foreign designation resolves to ``None`` and the normal
+    selection rules stand.
     """
 
     designation = paper_status.get("bootstrap_information_acquisition_designation")
@@ -2082,9 +2627,9 @@ def _bootstrap_information_acquisition_designation(
         return None
     if designation.get("paper_only") is not True:
         return None
-    # The designation may carry a ranked candidate list (ordered by expected
-    # information gain per expected experiment-loss dollar over the freshest
-    # COMPLETE full-universe evidence).  Any ranked member may execute, but
+    # The designation may carry a candidate list ranked by learned day-90
+    # terminal-equity utility over the freshest COMPLETE full-universe
+    # evidence.  Any ranked member may execute, but
     # only if ITS current-cycle hard state passes every unchanged rail below;
     # the paper loop's cycle cap keeps authorizations at one per cycle.  A
     # designation without a ranked list targets its single top-level
@@ -2246,10 +2791,14 @@ def build_adaptive_policy_shadow_candidate(
     registry: Mapping[str, Any],
     validator_seed: bytes,
     generated_at_ms: int,
+    require_complete_terminal_state: bool = False,
 ) -> AdaptivePolicyShadowCandidateV2:
     """Build and independently verify one shadow decision."""
 
-    validate_candidate_outcome_calibration_v2(calibration)
+    try:
+        validate_candidate_outcome_calibration_v2(calibration)
+    except (CandidateOutcomeCalibrationError, KeyError, LookupError) as exc:
+        raise AdaptivePolicyShadowError(f"calibration:{exc}") from exc
     snapshot = _mapping(feature_snapshot, "feature_snapshot")
     prediction_before_normalization = _mapping(
         intent.get("entry_prediction_snapshot"), "entry_prediction_snapshot"
@@ -2288,7 +2837,11 @@ def build_adaptive_policy_shadow_candidate(
             snapshot_field = field.removeprefix("entry_feature_")
             normalized_intent[field] = snapshot.get(snapshot_field)
     intent = normalized_intent
-    if generated_at_ms <= int(calibration["fit_record_available_at_ms"]):
+    fit_record_available_at_ms = _positive_int(
+        calibration.get("fit_record_available_at_ms"),
+        "fit_record_available_at_ms",
+    )
+    if generated_at_ms <= fit_record_available_at_ms:
         raise AdaptivePolicyShadowError("generated_at_ms:must_follow_calibration_availability")
     if (
         calibration.get("checkpoint_generation") != registry.get("registry_generation")
@@ -2296,6 +2849,35 @@ def build_adaptive_policy_shadow_candidate(
         or calibration.get("checkpoint_sha256") != registry.get("checkpoint_bundle_sha256")
     ):
         raise AdaptivePolicyShadowError("calibration:active_registry_mismatch")
+    if (
+        paper_status.get("paper_only") is not True
+        or paper_status.get("live_gate", LIVE_GATE_BLOCKED_HUMAN_ONLY)
+        != LIVE_GATE_BLOCKED_HUMAN_ONLY
+        or paper_status.get("routes_to_live", False) is not False
+        or paper_status.get("places_real_order", False) is not False
+        or paper_status.get("exchange_action_taken", False) is not False
+    ):
+        raise AdaptivePolicyShadowError(
+            "paper_status:paper_only_human_block_required"
+        )
+    terminal_state_raw = paper_status.get("terminal_objective_state")
+    if isinstance(terminal_state_raw, Mapping) and (
+        terminal_state_raw.get("paper_only", True) is not True
+        or terminal_state_raw.get(
+            "live_gate",
+            LIVE_GATE_BLOCKED_HUMAN_ONLY,
+        )
+        != LIVE_GATE_BLOCKED_HUMAN_ONLY
+        or terminal_state_raw.get("routes_to_live", False) is not False
+        or terminal_state_raw.get("places_real_order", False) is not False
+        or terminal_state_raw.get("exchange_action_taken", False) is not False
+    ):
+        raise AdaptivePolicyShadowError(
+            "terminal_objective_state:paper_only_human_block_required"
+        )
+    terminal_objective_state_sha = _terminal_objective_state_sha256(
+        terminal_state_raw
+    )
     candidate_id = _candidate_id(intent, registry)
     source_intent_sha = _canonical_sha256(
         {
@@ -2312,6 +2894,7 @@ def build_adaptive_policy_shadow_candidate(
         {
             "candidate_id": candidate_id,
             "source_intent_sha256": source_intent_sha,
+            "terminal_objective_state_sha256": terminal_objective_state_sha,
             "calibration_sha256": calibration["calibration_sha256"],
             "checkpoint_generation": registry["registry_generation"],
             "checkpoint_id": registry["checkpoint_id"],
@@ -2325,6 +2908,7 @@ def build_adaptive_policy_shadow_candidate(
         _feature_builder_sha256(intent, registry),
         snapshot_content_sha,
         _canonical_sha256(paper_status.get("performance_risk_state") or {}),
+        terminal_objective_state_sha,
     }
     prediction = _mapping(intent.get("entry_prediction_snapshot"), "entry_prediction_snapshot")
     source_hashes = prediction.get("source_hashes")
@@ -2400,6 +2984,11 @@ def build_adaptive_policy_shadow_candidate(
                         decision_time_ms=generated_at_ms,
                         performance_risk_multiplier=performance_risk_multiplier,
                         microstructure_estimates=continuous_microstructure,
+                        intent=intent,
+                        paper_status=paper_status,
+                        require_complete_terminal_state=(
+                            require_complete_terminal_state
+                        ),
                     )
                 )
                 action_dispositions[raw_action_id] = (blocker,)
@@ -2452,6 +3041,11 @@ def build_adaptive_policy_shadow_candidate(
                             decision_time_ms=generated_at_ms,
                             performance_risk_multiplier=performance_risk_multiplier,
                             microstructure_estimates=continuous_microstructure,
+                            intent=intent,
+                            paper_status=paper_status,
+                            require_complete_terminal_state=(
+                                require_complete_terminal_state
+                            ),
                         )
                     )
                     action_dispositions[action_id] = (venue_blocker,)
@@ -2557,6 +3151,10 @@ def build_adaptive_policy_shadow_candidate(
                     microstructure_estimates=continuous_microstructure,
                     intent=intent,
                     plan=plan,
+                    paper_status=paper_status,
+                    require_complete_terminal_state=(
+                        require_complete_terminal_state
+                    ),
                 )
             )
             bundles.append(
@@ -2638,6 +3236,9 @@ def build_adaptive_policy_shadow_candidate(
             decision_time_ms=generated_at_ms,
             performance_risk_multiplier=performance_risk_multiplier,
             microstructure_estimates=None,
+            intent=intent,
+            paper_status=paper_status,
+            require_complete_terminal_state=require_complete_terminal_state,
         )
     )
     ordered_inputs = tuple(sorted(objective_inputs, key=lambda item: item.action_id))
@@ -2669,18 +3270,18 @@ def build_adaptive_policy_shadow_candidate(
         16,
     ) / float(2**64)
     choose_exploration = draw < allocation.bounded_exploration_probability
-    # Bounded information-gain escape from the data-starvation deadlock.  When
+    # Bounded exploration escape from the data-starvation deadlock.  When
     # the champion (exploitation) action resolves to REMAIN_FLAT -- i.e. no
     # positive-edge directional action exists, so every candidate would
     # otherwise stay flat and generate no training feedback -- and a bounded
-    # exploration action carries a strictly positive LEARNED EXPLORATION
-    # OBJECTIVE, deterministically select that information-seeking action.
+    # exploration action carries a strictly positive LEARNED OBJECTIVE,
+    # deterministically select it.
     # ``exploration_action_id`` is only
     # non-None when the exploration score already satisfies utility > 0.0 AND
     # information_gain_contribution > 0.0 (adaptive_objective_v2.best), and
-    # utility = return_contribution - total_penalty + information_gain_contribution.
-    # So this fires precisely when expected edge is <= 0 but expected
-    # information gain more than offsets bounded downside.  It is a no-op when
+    # Utility includes per-opportunity log growth, return, information, and all
+    # learned risk/cost penalties.  Terminal probability and full-horizon
+    # compounded growth are telemetry only.  It is a no-op when
     # the champion is already directional or when no positive-objective
     # exploration action exists, and it runs strictly AFTER the reference-parity
     # formula check above.  The final action id is independently replayed below
@@ -2725,10 +3326,9 @@ def build_adaptive_policy_shadow_candidate(
         and evaluation.exploration_action_id is not None
         else evaluation.champion_action_id
     )
-    # Bootstrap information acquisition (paper-only): while the profitability
-    # posterior is prior-only and this candidate carries the cycle's single
-    # designation, a hard-valid venue-minimum information-seeking action may be
-    # selected even though its monetary utility is nonpositive.  Every hard
+    # Bootstrap exploration (paper-only): when this candidate carries the
+    # cycle's terminal-equity-ranked designation, a hard-valid bounded action
+    # may be selected even when its learned utility is nonpositive.  Every hard
     # rail, attestation, receipt, and budget path is unchanged; only the
     # selection among already-hard-valid actions differs, and it is replayed
     # independently by the reference selector below.
