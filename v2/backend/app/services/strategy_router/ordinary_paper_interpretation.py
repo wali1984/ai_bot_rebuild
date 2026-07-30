@@ -66,6 +66,14 @@ _SOFT_MAGNITUDE_REASONS = frozenset(
         "PPO_CONFIDENCE_LOW",
         "PPO_CONFIDENCE_TOO_LOW",
         "PPO_TRADE_MASA_NO_EDGE",
+        # CG-F061: a merely-recently-losing bucket is a bounded Category-E
+        # continuous risk input (mirrors the allocator's adaptive-policy
+        # treatment of the same bucket-quarantine evidence), never a
+        # permanent binary veto.  Catastrophic conditions (drawdown,
+        # liquidation, margin, exposure, position-state conflict, PIT/
+        # lookahead, negative rolling profit-factor/expectancy quarantine)
+        # remain in ``_HARD_ROUTER_REASONS`` below, untouched.
+        "PAPER_LOSS_BUCKET_QUARANTINE",
     }
 )
 
@@ -73,7 +81,6 @@ _HARD_ROUTER_REASONS = frozenset(
     {
         "MASA_FUTURE_CUTOFF_BLOCK",
         "NEGATIVE_BUCKET_PERFORMANCE_QUARANTINE",
-        "PAPER_LOSS_BUCKET_QUARANTINE",
         "POSITION_STATE_CONFLICT_BLOCK",
         "PPO_ACTION_NOT_TRADABLE",
         "PPO_HOLD_MASA_TRADE",
@@ -81,8 +88,13 @@ _HARD_ROUTER_REASONS = frozenset(
     }
 )
 
+# Per-bucket quarantine match evidence (``PAPER_LOSS_BUCKET_QUARANTINE_MATCH:
+# <key>``) is diagnostic detail behind the soft ``PAPER_LOSS_BUCKET_QUARANTINE``
+# reason above; it contracts sizing continuously and never hard-blocks on its
+# own.
+_SOFT_REASON_PREFIXES = ("PAPER_LOSS_BUCKET_QUARANTINE_MATCH:",)
+
 _HARD_REASON_PREFIXES = (
-    "PAPER_LOSS_BUCKET_QUARANTINE_MATCH:",
     "PIT_",
     "LOOKAHEAD_",
     "FUTURE_",
@@ -706,7 +718,7 @@ def interpret_ordinary_paper_router_result(
     if router_block_reason and router_block_reason not in all_router_reasons:
         all_router_reasons.append(router_block_reason)
     for reason in all_router_reasons:
-        if reason in _SOFT_MAGNITUDE_REASONS:
+        if reason in _SOFT_MAGNITUDE_REASONS or reason.startswith(_SOFT_REASON_PREFIXES):
             softened_reasons.append(reason)
         elif reason in _HARD_ROUTER_REASONS or reason.startswith(_HARD_REASON_PREFIXES):
             hard_reasons.append(reason)
@@ -718,6 +730,7 @@ def interpret_ordinary_paper_router_result(
     if (
         router_block_reason
         and router_block_reason not in _SOFT_MAGNITUDE_REASONS
+        and not router_block_reason.startswith(_SOFT_REASON_PREFIXES)
         and router_block_reason not in _HARD_ROUTER_REASONS
         and not router_block_reason.startswith(_HARD_REASON_PREFIXES)
     ):
@@ -729,8 +742,17 @@ def interpret_ordinary_paper_router_result(
         or bucket_state.get("negative_bucket") is True
     ):
         hard_reasons.append("NEGATIVE_BUCKET_PERFORMANCE_QUARANTINE")
-    if _reason_list(verified_router.get("paper_loss_quarantine_matched_bucket_keys")):
-        hard_reasons.append("PAPER_LOSS_BUCKET_QUARANTINE")
+    # CG-F061: a bucket match against the recent-loss quarantine is a bounded
+    # Category-E continuous risk input here (see ``paper_loss_quarantine_*``
+    # fields on the returned interpretation), not a hard veto.  It is recorded
+    # as a soft reason and contracts ``continuous_weight`` below in proportion
+    # to how many buckets matched; it never sets ``strategy_trade_allowed``
+    # to False by itself.
+    paper_loss_quarantine_matched_bucket_keys = _reason_list(
+        verified_router.get("paper_loss_quarantine_matched_bucket_keys")
+    )
+    if paper_loss_quarantine_matched_bucket_keys:
+        softened_reasons.append("PAPER_LOSS_BUCKET_QUARANTINE")
 
     factors = _router_magnitudes(
         verified_router,
@@ -738,6 +760,18 @@ def interpret_ordinary_paper_router_result(
         hard_reasons,
         missing_optional_factors,
     )
+    paper_loss_quarantine_risk_multiplier = 1.0
+    paper_loss_quarantine_category_e_continuous = bool(
+        paper_loss_quarantine_matched_bucket_keys
+    )
+    if paper_loss_quarantine_category_e_continuous:
+        quarantine_penalty = min(1.0, 0.20 * len(paper_loss_quarantine_matched_bucket_keys))
+        factors["paper_loss_quarantine_safety"] = round(
+            max(0.0, 1.0 - quarantine_penalty), 8
+        )
+        paper_loss_quarantine_risk_multiplier = round(
+            min(10.0, 1.0 + 0.20 * len(paper_loss_quarantine_matched_bucket_keys)), 8
+        )
     required_factor_names = {
         "base_weight",
         "data_quality_fraction",
@@ -819,6 +853,35 @@ def interpret_ordinary_paper_router_result(
         "hard_reasons": hard_reasons,
         "softened_reasons": softened_reasons,
         "telemetry_reasons": telemetry_reasons,
+        # CG-F061: bucket-loss-quarantine evidence surfaced as a bounded
+        # Category-E continuous risk input, mirroring the allocator-level
+        # ``paper_performance_adaptive_risk_multiplier`` /
+        # ``paper_performance_adaptive_penalty_required`` shape
+        # (843613d92d) so downstream consumers treat both the same way.
+        # This never carries hard trading authority; catastrophic controls
+        # (drawdown, liquidation, margin, exposure, kill-switch, negative
+        # rolling profit-factor/expectancy quarantine) are untouched.
+        "paper_loss_quarantine_matched_bucket_keys": sorted(
+            set(paper_loss_quarantine_matched_bucket_keys)
+        ),
+        "paper_loss_quarantine_category_e_continuous": (
+            paper_loss_quarantine_category_e_continuous
+        ),
+        "paper_loss_quarantine_authority_classification": (
+            "CATEGORY_E_POLICY_PERFORMANCE"
+            if paper_loss_quarantine_category_e_continuous
+            else None
+        ),
+        "paper_loss_quarantine_adaptive_policy_role": (
+            "CONTINUOUS_OBJECTIVE_RISK_INPUT"
+            if paper_loss_quarantine_category_e_continuous
+            else None
+        ),
+        "paper_loss_quarantine_hard_trading_authority": False,
+        "paper_loss_quarantine_risk_multiplier": paper_loss_quarantine_risk_multiplier,
+        "paper_loss_quarantine_adaptive_penalty_required": (
+            paper_loss_quarantine_risk_multiplier > 1.0
+        ),
         "original_router_trade_allowed": original_allowed,
         "original_router_selected_mode": original_mode,
         "original_router_block_reason": router.get("block_reason"),

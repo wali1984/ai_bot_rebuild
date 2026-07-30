@@ -48,9 +48,13 @@ def evaluate_reference_objective(
             + weights.funding_cost_penalty * action.expected_funding_cost_bps
             + weights.turnover_penalty * action.expected_turnover_bps
             + weights.concentration_penalty * action.expected_concentration_bps
+            + weights.correlation_penalty
+            * action.terminal_equity_projection.correlation_exposure_bps
         )
         utilities[action.action_id] = (
             weights.expected_after_cost_return * action.expected_after_cost_return_bps
+            + weights.expected_log_equity_growth_reward
+            * action.terminal_equity_projection.expected_log_equity_growth_per_opportunity
             - penalties
             + weights.information_gain_reward * action.expected_information_gain
         )
@@ -96,14 +100,13 @@ def select_reference_action_id(
 ) -> str | None:
     """Independently replay the final exploit/explore selection.
 
-    A positive information-seeking action is selected deterministically when
-    the champion is the hard-valid flat action.  While the profitability
-    posterior is prior-only, a validated bootstrap information-acquisition
-    designation may select the designated hard-valid venue-minimum action even
-    though its monetary utility is nonpositive.  Otherwise the fitted mode
-    allocation remains the selector.  This deliberately duplicates the small
-    production selection rule instead of importing it, so a production-only
-    change becomes a parity disagreement.
+    A positive learned-objective exploration action is selected
+    deterministically when the champion is the hard-valid flat action.  A
+    validated terminal-equity-ranked bootstrap designation may select its
+    designated hard-valid action even when its learned utility is nonpositive.
+    Otherwise the fitted mode allocation remains the selector.  This
+    deliberately duplicates the small production selection rule instead of
+    importing it, so a production-only change becomes a parity disagreement.
     """
 
     by_id = {item.action_id: item for item in actions}

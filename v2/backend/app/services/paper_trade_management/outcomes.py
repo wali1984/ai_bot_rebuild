@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import math
 from datetime import UTC, datetime
+from statistics import NormalDist
 from typing import Any
 
 from v2.backend.app.domain.adaptive_policy_action_v2 import (
@@ -31,6 +33,23 @@ PAPER_COST_RATE_SCOPE = "PER_SIDE_BPS_APPLIED_TO_CORRESPONDING_NOTIONAL"
 PAPER_NET_PNL_FORMULA = (
     "realized_gross_pnl_usd - entry_fee_usd - exit_fee_usd - "
     "entry_slippage_usd - exit_slippage_usd + funding_pnl_usd"
+)
+TERMINAL_PROBABILITY_AUTHORITY = (
+    "TELEMETRY_ONLY_NO_SELECTION_OR_SIZING_AUTHORITY"
+)
+# Honesty fields introduced by the terminal-wealth projection contract
+# (TerminalEquityProjectionV1).  Entry snapshots persisted before that
+# contract lack ALL of them; snapshots carrying only SOME are corrupt.
+# `evidence_supported_probability` is deliberately NOT a marker: the
+# pre-contract era also stamped it (unconditionally True), which is the
+# defect this classification exists to demote.
+TERMINAL_PROJECTION_HONESTY_FIELDS = (
+    "defaulted_fields",
+    "prior_only",
+    "probability_authority",
+    "terminal_state_evidence_supported",
+    "terminal_state_sha256",
+    "underdispersed",
 )
 
 
@@ -135,6 +154,291 @@ def _first_number(*values: Any) -> float | None:
         if parsed is not None:
             return parsed
     return None
+
+
+def _terminal_equity_after_completed_outcome(
+    *,
+    entry_projection: Any,
+    realized_net_pnl_usd: float,
+    hold_time_seconds: int,
+    close_event_time: str,
+) -> dict[str, Any]:
+    """Publish an honest outcome-conditioned day-90 terminal distribution."""
+
+    unavailable = {
+        "schema_version": "terminal_paper_equity_after_outcome_v1",
+        "status": "UNAVAILABLE_MISSING_AUTHENTICATED_ENTRY_PROJECTION",
+        "close_event_time": close_event_time,
+        "terminal_target_probability": None,
+        "terminal_equity_distribution_usd": None,
+        "evidence_supported_probability": False,
+        "prior_only": True,
+        "underdispersed": True,
+        "probability_authority": TERMINAL_PROBABILITY_AUTHORITY,
+        "guaranteed_target_claim": False,
+        "paper_only": True,
+        "live_gate": "blocked_human_only",
+        "routes_to_live": False,
+        "places_real_order": False,
+        "exchange_action_taken": False,
+    }
+    if not isinstance(entry_projection, dict):
+        return unavailable
+    for fingerprint_field in (
+        "objective_input_fingerprint_sha256",
+        "objective_score_fingerprint",
+        "objective_parameter_fingerprint",
+    ):
+        fingerprint = entry_projection.get(fingerprint_field)
+        if (
+            not isinstance(fingerprint, str)
+            or len(fingerprint) != 64
+            or any(character not in "0123456789abcdef" for character in fingerprint)
+        ):
+            return {
+                **unavailable,
+                "status": (
+                    "UNAVAILABLE_INVALID_ENTRY_FINGERPRINT:"
+                    f"{fingerprint_field}"
+                ),
+            }
+    present_honesty_fields = [
+        field
+        for field in TERMINAL_PROJECTION_HONESTY_FIELDS
+        if field in entry_projection
+    ]
+    legacy_entry_projection = not present_honesty_fields
+    if not legacy_entry_projection and len(present_honesty_fields) != len(
+        TERMINAL_PROJECTION_HONESTY_FIELDS
+    ):
+        return {
+            **unavailable,
+            "status": "UNAVAILABLE_PARTIAL_HONESTY_CONTRACT_ENTRY_PROJECTION",
+        }
+    if legacy_entry_projection:
+        # Pre-contract snapshot: whatever evidence claim it carries was
+        # produced by the fabricating-default era and must not be trusted.
+        entry_evidence_supported = False
+        entry_prior_only = True
+        entry_underdispersed = True
+        entry_defaulted_fields = (
+            "legacy_entry_projection_missing_honesty_fields",
+        )
+        entry_terminal_state_sha256 = None
+    else:
+        defaulted_raw = entry_projection.get("defaulted_fields")
+        state_sha = entry_projection.get("terminal_state_sha256")
+        if (
+            type(entry_projection.get("terminal_state_evidence_supported"))
+            is not bool
+            or type(entry_projection.get("evidence_supported_probability"))
+            is not bool
+            or type(entry_projection.get("prior_only")) is not bool
+            or type(entry_projection.get("underdispersed")) is not bool
+            or not isinstance(defaulted_raw, (list, tuple))
+            or any(not isinstance(item, str) for item in defaulted_raw)
+            or entry_projection.get("probability_authority")
+            != TERMINAL_PROBABILITY_AUTHORITY
+            or not isinstance(state_sha, str)
+            or len(state_sha) != 64
+            or any(
+                character not in "0123456789abcdef" for character in state_sha
+            )
+        ):
+            return {
+                **unavailable,
+                "status": "UNAVAILABLE_INVALID_HONESTY_CONTRACT_ENTRY_PROJECTION",
+            }
+        if entry_projection["evidence_supported_probability"] and (
+            entry_projection["terminal_state_evidence_supported"] is not True
+            or entry_projection["prior_only"] is True
+        ):
+            return {
+                **unavailable,
+                "status": "UNAVAILABLE_DISHONEST_ENTRY_EVIDENCE_FLAGS",
+            }
+        entry_evidence_supported = entry_projection[
+            "evidence_supported_probability"
+        ]
+        entry_prior_only = entry_projection["prior_only"]
+        entry_underdispersed = entry_projection["underdispersed"]
+        entry_defaulted_fields = tuple(sorted(set(defaulted_raw)))
+        entry_terminal_state_sha256 = state_sha
+    required = (
+        "starting_equity_usd",
+        "current_equity_usd",
+        "target_equity_usd",
+        "remaining_horizon_seconds",
+        "expected_compounded_log_equity_growth",
+        "terminal_log_equity_standard_deviation",
+        "liquidation_probability",
+    )
+    parsed: dict[str, float] = {}
+    for field in required:
+        value = _as_float(entry_projection.get(field))
+        if value is None or not math.isfinite(value):
+            return {**unavailable, "status": f"UNAVAILABLE_INVALID_ENTRY_FIELD:{field}"}
+        parsed[field] = value
+    if (
+        entry_projection.get("schema_version")
+        != "terminal_paper_equity_projection_v1"
+        or entry_projection.get("horizon_days") != 90.0
+        or entry_projection.get("target_multiple") != 1000.0
+        or entry_projection.get("latest_unclosed_kline_excluded") is not True
+        or entry_projection.get("paper_only") is not True
+        or entry_projection.get("live_gate") != "blocked_human_only"
+        or entry_projection.get("routes_to_live") is not False
+        or entry_projection.get("places_real_order") is not False
+        or entry_projection.get("exchange_action_taken") is not False
+        or entry_projection.get("guaranteed_target_claim") is not False
+        or parsed["starting_equity_usd"] <= 0.0
+        or parsed["current_equity_usd"] <= 0.0
+        or parsed["target_equity_usd"] <= 0.0
+        or not math.isclose(
+            parsed["target_equity_usd"],
+            parsed["starting_equity_usd"] * 1000.0,
+            rel_tol=1e-12,
+            abs_tol=1e-9,
+        )
+    ):
+        return {**unavailable, "status": "UNAVAILABLE_UNSAFE_ENTRY_PROJECTION"}
+    state_available_at_ms = entry_projection.get("state_available_at_ms")
+    decision_time_ms = entry_projection.get("decision_time_ms")
+    if (
+        type(state_available_at_ms) is not int
+        or type(decision_time_ms) is not int
+        or state_available_at_ms < 1
+        or state_available_at_ms > decision_time_ms
+    ):
+        return {
+            **unavailable,
+            "status": "UNAVAILABLE_NONCAUSAL_ENTRY_PROJECTION",
+        }
+
+    current_equity = max(
+        0.0,
+        parsed["current_equity_usd"] + realized_net_pnl_usd,
+    )
+    previous_remaining = max(0.0, parsed["remaining_horizon_seconds"])
+    remaining = max(0.0, previous_remaining - max(0, hold_time_seconds))
+    remaining_fraction = (
+        remaining / previous_remaining if previous_remaining > 0.0 else 0.0
+    )
+    expected_log_growth = (
+        parsed["expected_compounded_log_equity_growth"] * remaining_fraction
+    )
+    log_stddev = (
+        parsed["terminal_log_equity_standard_deviation"]
+        * math.sqrt(remaining_fraction)
+    )
+    entry_liquidation_probability = max(
+        0.0,
+        min(1.0, parsed["liquidation_probability"]),
+    )
+    liquidation_probability = (
+        0.0
+        if remaining_fraction <= 0.0
+        else 1.0
+        - (1.0 - entry_liquidation_probability) ** remaining_fraction
+    )
+    survival_probability = 1.0 - liquidation_probability
+    target_equity = parsed["target_equity_usd"]
+    if current_equity <= 0.0:
+        target_probability = 0.0
+    elif log_stddev > 0.0:
+        standardized = (
+            math.log(target_equity / current_equity) - expected_log_growth
+        ) / log_stddev
+        target_probability = survival_probability * (
+            1.0 - NormalDist().cdf(standardized)
+        )
+    else:
+        target_probability = survival_probability * float(
+            math.log(target_equity / current_equity) <= expected_log_growth
+        )
+    target_probability = max(0.0, min(1.0, target_probability))
+
+    def quantile(probability: float) -> float:
+        if current_equity <= 0.0 or probability <= liquidation_probability:
+            return 0.0
+        conditional_probability = (
+            (probability - liquidation_probability)
+            / max(1e-15, survival_probability)
+        )
+        conditional_probability = min(
+            1.0 - 1e-15,
+            max(1e-15, conditional_probability),
+        )
+        log_value = (
+            math.log(current_equity)
+            + expected_log_growth
+            + log_stddev * NormalDist().inv_cdf(conditional_probability)
+        )
+        return math.exp(min(700.0, max(-745.0, log_value)))
+
+    expected_terminal = (
+        0.0
+        if current_equity <= 0.0
+        else survival_probability
+        * math.exp(
+            min(
+                700.0,
+                max(
+                    -745.0,
+                    math.log(current_equity)
+                    + expected_log_growth
+                    + 0.5 * log_stddev**2,
+                ),
+            )
+        )
+    )
+    if entry_evidence_supported:
+        ready_status = "READY_EVIDENCE_SUPPORTED_NOT_GUARANTEED"
+    elif legacy_entry_projection:
+        ready_status = "READY_LEGACY_ENTRY_PRIOR_ONLY_NOT_EVIDENCE_SUPPORTED"
+    else:
+        ready_status = "READY_PRIOR_ONLY_NOT_EVIDENCE_SUPPORTED"
+    return {
+        "schema_version": "terminal_paper_equity_after_outcome_v1",
+        "status": ready_status,
+        "close_event_time": close_event_time,
+        "starting_equity_usd": parsed["starting_equity_usd"],
+        "outcome_conditioned_current_equity_usd": current_equity,
+        "outcome_conditioned_equity_formula": (
+            "entry_projection.current_equity_usd + realized_net_pnl_usd"
+        ),
+        "canonical_portfolio_reconciliation_required": True,
+        "target_equity_usd": target_equity,
+        "target_multiple": entry_projection.get("target_multiple"),
+        "horizon_days": entry_projection.get("horizon_days"),
+        "remaining_horizon_seconds": remaining,
+        "terminal_target_probability": target_probability,
+        "expected_compounded_log_equity_growth": expected_log_growth,
+        "terminal_log_equity_standard_deviation": log_stddev,
+        "terminal_liquidation_probability": liquidation_probability,
+        "expected_terminal_equity_usd": expected_terminal,
+        "terminal_equity_distribution_usd": {
+            "p10": quantile(0.1),
+            "p50": quantile(0.5),
+            "p90": quantile(0.9),
+        },
+        "entry_projection_objective_parameter_fingerprint": (
+            entry_projection.get("objective_parameter_fingerprint")
+        ),
+        "evidence_supported_probability": entry_evidence_supported,
+        "prior_only": entry_prior_only,
+        "underdispersed": entry_underdispersed,
+        "entry_defaulted_fields": list(entry_defaulted_fields),
+        "legacy_entry_projection": legacy_entry_projection,
+        "entry_terminal_state_sha256": entry_terminal_state_sha256,
+        "probability_authority": TERMINAL_PROBABILITY_AUTHORITY,
+        "guaranteed_target_claim": False,
+        "paper_only": True,
+        "live_gate": "blocked_human_only",
+        "routes_to_live": False,
+        "places_real_order": False,
+        "exchange_action_taken": False,
+    }
 
 
 def _funding_accrual(
@@ -533,12 +837,31 @@ def build_close_event(
         adaptive_policy_action_policy_mode
         == POLICY_MODE_BOOTSTRAP_INFORMATION_ACQUISITION
     )
+    terminal_equity_after_outcome = _terminal_equity_after_completed_outcome(
+        entry_projection=position.adaptive_policy_terminal_equity_objective,
+        realized_net_pnl_usd=realized,
+        hold_time_seconds=hold_time,
+        close_event_time=exit_time,
+    )
     telemetry = {
         "adaptive_allocation": adaptive_allocation,
         "adaptive_policy_authoritative": position.adaptive_policy_authoritative,
         "adaptive_policy_action_id": position.adaptive_policy_action_id,
         "adaptive_policy_action_sha256": position.adaptive_policy_action_sha256,
         "adaptive_policy_action_policy_mode": adaptive_policy_action_policy_mode,
+        "adaptive_policy_terminal_equity_objective_at_entry": (
+            position.adaptive_policy_terminal_equity_objective
+        ),
+        "terminal_equity_after_completed_outcome": (
+            terminal_equity_after_outcome
+        ),
+        "terminal_target_probability": terminal_equity_after_outcome.get(
+            "terminal_target_probability"
+        ),
+        "terminal_equity_distribution_usd": terminal_equity_after_outcome.get(
+            "terminal_equity_distribution_usd"
+        ),
+        "terminal_target_guaranteed": False,
         "policy_mode": adaptive_policy_action_policy_mode,
         "exploration_provenance": exploration_provenance,
         "counts_as_training_feedback": True,

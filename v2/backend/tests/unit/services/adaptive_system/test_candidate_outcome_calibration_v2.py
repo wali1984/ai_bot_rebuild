@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import replace
 
 import pytest
@@ -9,6 +10,7 @@ from v2.backend.app.services.adaptive_system.candidate_outcome_calibration_v2 im
     CandidateCalibrationObservationV2,
     CandidateOutcomeCalibrationError,
     _beta_bernoulli_information_gain,
+    _canonical_sha256,
     _effective_sample_evidence,
     extract_calibration_observation,
     fit_candidate_outcome_calibration_v2,
@@ -67,6 +69,7 @@ def _observation(index: int) -> CandidateCalibrationObservationV2:
         predicted_loss_probability_source=(10 - index % 10) / 10.0,
         exit_feasibility_source=(index % 5) / 5.0,
         expected_move_after_cost_source_bps=float(index % 7),
+        correlation_exposure_source=(index % 10) / 10.0,
         final_gross_return_bps=after_cost + 2.0,
         final_after_cost_return_bps=after_cost,
         max_favorable_excursion_bps=float(index % 20),
@@ -135,6 +138,9 @@ def test_fits_chronological_calibration_without_holdout_leakage() -> None:
     assert all(
         artifact["learned_objective_weights"][name] > 0.0
         for name in (
+            "expected_after_cost_return",
+            "terminal_target_probability_reward",
+            "expected_log_equity_growth_reward",
             "drawdown_penalty",
             "tail_loss_penalty",
             "liquidation_risk_penalty",
@@ -142,10 +148,85 @@ def test_fits_chronological_calibration_without_holdout_leakage() -> None:
             "funding_cost_penalty",
             "turnover_penalty",
             "concentration_penalty",
+            "correlation_penalty",
             "information_gain_reward",
         )
     )
+    optimizer = artifact["objective_weight_optimizer"]
+    assert optimizer["all_economic_tradeoff_weights_learned_online"] is False
+    assert optimizer["expected_log_equity_growth_reward_learned_online"] is False
+    assert optimizer["terminal_target_probability_reward_learned_online"] is False
+    assert optimizer["terminal_target_probability_selection_authority"] is False
+    assert optimizer["expected_log_equity_growth_reward_derivation"]["method"] == (
+        "RETURN_SCALE_DIVIDED_BY_MEAN_ABSOLUTE_REALIZED_LOG_RETURN"
+    )
+    assert optimizer["terminal_target_probability_reward_derivation"]["method"] == (
+        "EXPECTED_LOG_EQUITY_GROWTH_REWARD_TIMES_LN_TARGET_MULTIPLE"
+    )
     validate_candidate_outcome_calibration_v2(artifact)
+
+
+@pytest.mark.parametrize(
+    "field",
+    (
+        "terminal_target_probability_reward",
+        "expected_log_equity_growth_reward",
+        "correlation_penalty",
+    ),
+)
+def test_validation_requires_every_v3_objective_weight(field: str) -> None:
+    artifact = fit_candidate_outcome_calibration_v2(
+        [_observation(index) for index in range(100)],
+        generated_at_ms=3_000_000,
+        source_archive_chain_sha256="c" * 64,
+    )
+    malformed = deepcopy(artifact)
+    weights = malformed["learned_objective_weights"]
+    weights.pop(field)
+    parameter_material = dict(weights)
+    parameter_material.pop("objective_parameter_fingerprint")
+    weights["objective_parameter_fingerprint"] = _canonical_sha256(
+        parameter_material
+    )
+    material = dict(malformed)
+    material.pop("calibration_sha256")
+    malformed["calibration_sha256"] = _canonical_sha256(material)
+
+    with pytest.raises(
+        CandidateOutcomeCalibrationError,
+        match=rf"learned_objective_weights\.{field}:finite_number_required",
+    ):
+        validate_candidate_outcome_calibration_v2(malformed)
+
+
+@pytest.mark.parametrize(
+    "field",
+    (
+        "all_economic_tradeoff_weights_learned_online",
+        "expected_log_equity_growth_reward_learned_online",
+        "terminal_target_probability_reward_learned_online",
+        "terminal_target_probability_selection_authority",
+    ),
+)
+def test_validation_prohibits_false_terminal_weight_authority_claims(
+    field: str,
+) -> None:
+    artifact = fit_candidate_outcome_calibration_v2(
+        [_observation(index) for index in range(100)],
+        generated_at_ms=3_000_000,
+        source_archive_chain_sha256="c" * 64,
+    )
+    malformed = deepcopy(artifact)
+    malformed["objective_weight_optimizer"][field] = True
+    material = dict(malformed)
+    material.pop("calibration_sha256")
+    malformed["calibration_sha256"] = _canonical_sha256(material)
+
+    with pytest.raises(
+        CandidateOutcomeCalibrationError,
+        match="objective_weight_optimizer:optimizer_evidence_invalid",
+    ):
+        validate_candidate_outcome_calibration_v2(malformed)
 
 
 def test_validation_suffix_cannot_change_fitted_parameters() -> None:
@@ -296,6 +377,40 @@ def test_extracts_only_complete_point_in_time_matured_revision() -> None:
         matured.matured_labels.counterfactual_outcomes[0].scenarios[0].after_cost_pnl_bps
     )
     assert observation.realized_execution_outcome is False
+
+
+def test_extraction_rejects_missing_correlation_exposure() -> None:
+    status, intents, snapshots = _inputs(1)
+    intents[0]["correlation_exposure_after_trade"] = None
+    intents[0].update(
+        {
+            "entry_price": 100.1,
+            "paper_execution_mark_price": 100.0,
+            "observed_bid": 99.9,
+            "observed_ask": 100.1,
+            "observed_spread_bps": 20.0,
+            "fee_bps": 1.0,
+            "expected_slippage_bps": 2.0,
+            "expected_funding_bps": 0.5,
+            "depth_derived_price_impact_bps": 3.0,
+            "stop_distance_bps": 100.0,
+            "expected_move_after_cost_bps": 80.0,
+        }
+    )
+    decision_record = _build(status, intents, snapshots).decision_records[0]
+    rows, proof = _rows_and_proof(decision_record)
+    matured = mature_candidate(
+        decision_record,
+        rows=rows,
+        proof=proof,
+        label_generated_at_ms=proof["training_observed_at_ms"] + 1,
+    )
+
+    with pytest.raises(
+        CandidateOutcomeCalibrationError,
+        match="correlation_exposure_after_trade:finite_number_required",
+    ):
+        extract_calibration_observation(matured)
 
 
 def test_hold_observation_uses_predeclared_reference_side_missed_edge() -> None:

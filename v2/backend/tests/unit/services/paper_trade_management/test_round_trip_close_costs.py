@@ -61,6 +61,49 @@ def _position(*, quantity: float = 10.0, entry_price: float = 100.0):
     )
 
 
+def _terminal_projection() -> dict:
+    return {
+        "schema_version": "terminal_paper_equity_projection_v1",
+        "horizon_days": 90.0,
+        "target_multiple": 1000.0,
+        "starting_equity_usd": 1_000.0,
+        "current_equity_usd": 1_000.0,
+        "target_equity_usd": 1_000_000.0,
+        "target_distance_log": 6.907755278982137,
+        "remaining_horizon_seconds": 90.0 * 86_400.0,
+        "expected_compounding_opportunities": 100.0,
+        "terminal_target_probability": 0.0001,
+        "expected_compounded_log_equity_growth": 0.1,
+        "terminal_log_equity_standard_deviation": 0.5,
+        "expected_terminal_equity_usd": 1_250.0,
+        "terminal_equity_p10_usd": 600.0,
+        "terminal_equity_p50_usd": 1_100.0,
+        "terminal_equity_p90_usd": 2_000.0,
+        "current_drawdown_fraction": 0.0,
+        "posterior_edge_bps": 5.0,
+        "posterior_uncertainty": 0.2,
+        "expected_cost_drag_bps": 2.0,
+        "liquidity_fill_probability": 0.8,
+        "correlation_exposure_fraction": 0.1,
+        "correlation_exposure_bps": 1_000.0,
+        "regime_compatibility": 0.7,
+        "liquidation_probability": 0.01,
+        "state_available_at_ms": 1_000,
+        "decision_time_ms": 1_001,
+        "latest_unclosed_kline_excluded": True,
+        "evidence_supported_probability": True,
+        "guaranteed_target_claim": False,
+        "objective_input_fingerprint_sha256": "b" * 64,
+        "objective_score_fingerprint": "c" * 64,
+        "objective_parameter_fingerprint": "a" * 64,
+        "paper_only": True,
+        "live_gate": "blocked_human_only",
+        "routes_to_live": False,
+        "places_real_order": False,
+        "exchange_action_taken": False,
+    }
+
+
 def test_full_close_emits_complete_round_trip_cost_arithmetic() -> None:
     position = _position()
 
@@ -105,6 +148,14 @@ def test_full_close_emits_complete_round_trip_cost_arithmetic() -> None:
     assert close_event["exit_slippage_source"] == "EXIT_ORDERBOOK_TOP_OF_BOOK"
     assert close_event["outcome_targets"]["fees_usd"] == pytest.approx(0.84)
     assert close_event["outcome_targets"]["slippage_usd"] == pytest.approx(0.74)
+    for record in (close_event, outcome):
+        publication = record["terminal_equity_after_completed_outcome"]
+        assert publication["status"] == (
+            "UNAVAILABLE_MISSING_AUTHENTICATED_ENTRY_PROJECTION"
+        )
+        assert publication["guaranteed_target_claim"] is False
+        assert publication["paper_only"] is True
+        assert publication["routes_to_live"] is False
     for field in (
         "entry_fee_usd",
         "exit_fee_usd",
@@ -115,6 +166,167 @@ def test_full_close_emits_complete_round_trip_cost_arithmetic() -> None:
     ):
         assert outcome[field] == pytest.approx(close_event[field])
         assert outcome["outcome_targets"][field] == pytest.approx(close_event[field])
+
+
+def test_completed_outcome_publishes_conditioned_terminal_equity_distribution() -> None:
+    fill = _costed_fill()
+    fill["adaptive_policy_terminal_equity_objective"] = _terminal_projection()
+    position = position_from_fill(
+        fill,
+        fill_id=str(fill["fill_id"]),
+        side="long",
+        quantity=10.0,
+        price=100.0,
+    )
+
+    assert position.adaptive_policy_terminal_equity_objective == _terminal_projection()
+    persisted = position.to_payload(generated_utc="2026-07-17T10:30:00Z")
+    assert persisted["adaptive_policy_terminal_equity_objective"] == (
+        _terminal_projection()
+    )
+
+    close_event, outcome = build_close_event(
+        position=position,
+        close_quantity=10.0,
+        exit_price=110.0,
+        exit_time="2026-07-17T11:00:00Z",
+        close_reason="UNIT_TERMINAL_EQUITY_PUBLICATION",
+        exit_spread_bps=8.0,
+        exit_spread_source="EXIT_ORDERBOOK_TOP_OF_BOOK",
+        exit_spread_available_at="2026-07-17T10:59:59Z",
+    )
+
+    for record in (close_event, outcome):
+        publication = record["terminal_equity_after_completed_outcome"]
+        distribution = publication["terminal_equity_distribution_usd"]
+        # The fixture predates the honesty contract: its claimed evidence
+        # support comes from the fabricating-default era and must be demoted,
+        # never propagated.
+        assert publication["status"] == (
+            "READY_LEGACY_ENTRY_PRIOR_ONLY_NOT_EVIDENCE_SUPPORTED"
+        )
+        assert publication["evidence_supported_probability"] is False
+        assert publication["prior_only"] is True
+        assert publication["underdispersed"] is True
+        assert publication["legacy_entry_projection"] is True
+        assert publication["entry_defaulted_fields"] == [
+            "legacy_entry_projection_missing_honesty_fields"
+        ]
+        assert publication["entry_terminal_state_sha256"] is None
+        assert publication["probability_authority"] == (
+            "TELEMETRY_ONLY_NO_SELECTION_OR_SIZING_AUTHORITY"
+        )
+        assert publication["outcome_conditioned_current_equity_usd"] == pytest.approx(
+            1_098.42
+        )
+        assert 0.0 <= publication["terminal_target_probability"] <= 1.0
+        assert distribution["p10"] <= distribution["p50"] <= distribution["p90"]
+        assert publication["canonical_portfolio_reconciliation_required"] is True
+        assert publication["guaranteed_target_claim"] is False
+        assert publication["paper_only"] is True
+        assert publication["live_gate"] == "blocked_human_only"
+        assert publication["routes_to_live"] is False
+        assert publication["places_real_order"] is False
+        assert publication["exchange_action_taken"] is False
+        assert record["terminal_target_guaranteed"] is False
+
+
+def _honest_terminal_projection(**overrides) -> dict:
+    projection = {
+        **_terminal_projection(),
+        "terminal_state_evidence_supported": True,
+        "evidence_supported_probability": True,
+        "prior_only": False,
+        "underdispersed": False,
+        "defaulted_fields": [],
+        "probability_authority": (
+            "TELEMETRY_ONLY_NO_SELECTION_OR_SIZING_AUTHORITY"
+        ),
+        "terminal_state_sha256": "d" * 64,
+    }
+    projection.update(overrides)
+    return projection
+
+
+def _close_publication(projection: dict) -> dict:
+    fill = _costed_fill()
+    fill["adaptive_policy_terminal_equity_objective"] = projection
+    position = position_from_fill(
+        fill,
+        fill_id=str(fill["fill_id"]),
+        side="long",
+        quantity=10.0,
+        price=100.0,
+    )
+    close_event, _outcome = build_close_event(
+        position=position,
+        close_quantity=10.0,
+        exit_price=110.0,
+        exit_time="2026-07-17T11:00:00Z",
+        close_reason="UNIT_TERMINAL_HONESTY_CONTRACT",
+        exit_spread_bps=8.0,
+        exit_spread_source="EXIT_ORDERBOOK_TOP_OF_BOOK",
+        exit_spread_available_at="2026-07-17T10:59:59Z",
+    )
+    return close_event["terminal_equity_after_completed_outcome"]
+
+
+def test_evidence_supported_entry_projection_propagates_honestly() -> None:
+    publication = _close_publication(_honest_terminal_projection())
+
+    assert publication["status"] == "READY_EVIDENCE_SUPPORTED_NOT_GUARANTEED"
+    assert publication["evidence_supported_probability"] is True
+    assert publication["prior_only"] is False
+    assert publication["underdispersed"] is False
+    assert publication["legacy_entry_projection"] is False
+    assert publication["entry_defaulted_fields"] == []
+    assert publication["entry_terminal_state_sha256"] == "d" * 64
+    assert publication["guaranteed_target_claim"] is False
+
+
+def test_prior_only_entry_projection_never_upgrades_to_evidence_supported() -> None:
+    publication = _close_publication(
+        _honest_terminal_projection(
+            evidence_supported_probability=False,
+            prior_only=True,
+            underdispersed=True,
+            defaulted_fields=["posterior_effective_sample_size"],
+        )
+    )
+
+    assert publication["status"] == "READY_PRIOR_ONLY_NOT_EVIDENCE_SUPPORTED"
+    assert publication["evidence_supported_probability"] is False
+    assert publication["prior_only"] is True
+    assert publication["underdispersed"] is True
+    assert publication["legacy_entry_projection"] is False
+    assert publication["entry_defaulted_fields"] == [
+        "posterior_effective_sample_size"
+    ]
+
+
+def test_dishonest_entry_evidence_flags_fail_closed() -> None:
+    publication = _close_publication(
+        _honest_terminal_projection(
+            evidence_supported_probability=True,
+            prior_only=True,
+        )
+    )
+
+    assert publication["status"] == "UNAVAILABLE_DISHONEST_ENTRY_EVIDENCE_FLAGS"
+    assert publication["terminal_target_probability"] is None
+    assert publication["evidence_supported_probability"] is False
+
+
+def test_partial_honesty_contract_fails_closed() -> None:
+    projection = _honest_terminal_projection()
+    del projection["terminal_state_sha256"]
+
+    publication = _close_publication(projection)
+
+    assert publication["status"] == (
+        "UNAVAILABLE_PARTIAL_HONESTY_CONTRACT_ENTRY_PROJECTION"
+    )
+    assert publication["terminal_target_probability"] is None
 
 
 def test_tight_exit_book_uses_observed_half_spread_without_static_floor() -> None:

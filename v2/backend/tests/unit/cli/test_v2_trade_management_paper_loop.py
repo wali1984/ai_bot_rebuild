@@ -9,12 +9,18 @@ import subprocess
 import sys
 from copy import deepcopy
 from dataclasses import replace
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
 
 from v2.backend.app.cli import v2_trade_management_paper_loop as paper_loop
+from v2.backend.app.services.adaptive_capital_allocator.allocator import (
+    PAPER_ALLOCATOR_ARITHMETIC_FORMULA,
+    PAPER_ALLOCATOR_ARITHMETIC_RECEIPT_MODEL_INPUT_KEY,
+    PAPER_ALLOCATOR_ARITHMETIC_RECEIPT_SCHEMA_VERSION,
+    PAPER_ALLOCATOR_ARITHMETIC_VERSION,
+)
 from v2.backend.tests.unit.services.adaptive_capital_allocator.growth_receipt_test_utils import (
     authorize_growth,
     strict_growth_performance_status,
@@ -408,7 +414,7 @@ def _passing_final_admission_runtime_owner_status() -> dict[str, object]:
     }
 
 
-def _canonical_fail_closed_adaptive_tuning_state(
+def _canonical_evidence_backed_adaptive_tuning_state(
     monkeypatch,
     *,
     session_id: str,
@@ -424,11 +430,109 @@ def _canonical_fail_closed_adaptive_tuning_state(
         "places_real_order": False,
     }
     session_raw = json.dumps(session_payload, sort_keys=True)
+
+    def _canonical_utc(value: datetime) -> str:
+        return (
+            value.astimezone(timezone.utc)
+            .isoformat(timespec="microseconds")
+            .replace("+00:00", "Z")
+        )
+
+    base = datetime(2026, 7, 17, 12, 0, tzinfo=timezone.utc)
+
+    def _clean_outcome_row(index: int, *, pnl: float) -> dict[str, object]:
+        close_time = base - timedelta(minutes=60 - index)
+        feature_cutoff = close_time - timedelta(minutes=2)
+        feature_available_at = feature_cutoff + timedelta(milliseconds=100)
+        decision_time = feature_available_at + timedelta(milliseconds=100)
+        entry_execution_time = decision_time + timedelta(milliseconds=100)
+        return {
+            "close_id": f"close-{index}",
+            "position_id": f"position-{index}",
+            "prediction_id": f"prediction-{index}",
+            "entry_prediction_id": f"prediction-{index}",
+            "paper_session_id": session_id,
+            "session_id": session_id,
+            "reset_session_id": session_id,
+            "paper_only": True,
+            "places_real_order": False,
+            "routes_to_live": False,
+            "dirty_flag": False,
+            "dirty_reasons": [],
+            "future_labels_used_as_features": False,
+            "candidate_selected_after_outcome": False,
+            "post_outcome_candidate_selection": False,
+            "source_hashes": {
+                "prediction_hash": f"{index + 1:064x}",
+                "source_lineage_hash": f"{index + 10_001:064x}",
+            },
+            "realized_net_pnl_usd": pnl,
+            "confidence_calibrated": 0.60,
+            "feature_cutoff": _canonical_utc(feature_cutoff),
+            "entry_feature_cutoff": _canonical_utc(feature_cutoff),
+            "feature_available_at": _canonical_utc(feature_available_at),
+            "entry_feature_available_at": _canonical_utc(feature_available_at),
+            "available_at": _canonical_utc(feature_available_at),
+            "decision_time": _canonical_utc(decision_time),
+            "entry_execution_time": _canonical_utc(entry_execution_time),
+            "entry_time": _canonical_utc(entry_execution_time),
+            "closed_quantity": 0.1,
+            "entry_price": 100.0,
+            "exit_price": 101.0 if pnl > 0 else 99.0,
+            "close_reason": "TIER_1_PROFIT_TARGET" if pnl > 0 else "TIER_1_STOP",
+            "exit_time": _canonical_utc(close_time),
+            "outcome_available_at": _canonical_utc(close_time + timedelta(seconds=1)),
+            "grade": "B",
+        }
+
+    rows = [
+        _clean_outcome_row(index, pnl=1.0 if index < 14 else -0.25)
+        for index in range(20)
+    ]
+    market_values: dict[str, object] = {}
+    for market_symbol, market_key in zip(
+        tuner.MARKET_CANDLE_SYMBOLS,
+        tuner.MARKET_CANDLE_KEYS,
+        strict=True,
+    ):
+        candles: list[dict[str, object]] = []
+        for index in range(100):
+            close_time = base - timedelta(minutes=100 - index, milliseconds=1)
+            event_time = close_time + timedelta(milliseconds=100)
+            available_at = event_time + timedelta(milliseconds=100)
+            range_bps = 10.0 + float(index % 20)
+            half_range = (range_bps / 10_000.0) * 100.0 / 2.0
+            candles.append(
+                {
+                    "symbol": market_symbol,
+                    "timeframe": tuner.MARKET_CANDLE_TIMEFRAME,
+                    "open_time": int(
+                        (close_time - timedelta(minutes=1)).timestamp() * 1000
+                    ),
+                    "event_time": int(event_time.timestamp() * 1000),
+                    "candle_close_time": int(close_time.timestamp() * 1000),
+                    "close_time": int(close_time.timestamp() * 1000),
+                    "available_at": int(available_at.timestamp() * 1000),
+                    "is_closed": True,
+                    "closed_candle": True,
+                    "candle_closed_confirmed": True,
+                    "feature_eligible": True,
+                    "open": 100.0,
+                    "high": 100.0 + half_range,
+                    "low": 100.0 - half_range,
+                    "close": 100.0,
+                    "volume": 10.0,
+                }
+            )
+        market_values[market_key] = json.dumps(candles, sort_keys=True)
     source_values = {
-        tuner.OUTCOMES_KEY: "[]",
+        tuner.OUTCOMES_KEY: json.dumps(rows, sort_keys=True),
         tuner.PAPER_SESSION_KEY: session_raw,
-        **{key: None for key in tuner.MARKET_CANDLE_KEYS},
-        tuner.TRAINER_METRICS_KEY: None,
+        **market_values,
+        tuner.TRAINER_METRICS_KEY: json.dumps(
+            {"win_rate_percent": 60.0, "profit_factor": 1.5},
+            sort_keys=True,
+        ),
     }
     outcomes_cutoff = datetime(2026, 7, 17, 12, 0, tzinfo=timezone.utc)
     clock = iter(
@@ -522,7 +626,7 @@ def golden_a_grade_final_admission(
     allocation_decision_time = "2026-07-17T12:00:05Z"
     bracket_key_id = "paper-golden-bracket-key-v1"
     paper_session_id = "paper-golden-session-2026-07-17"
-    tuning_state, paper_session_raw = _canonical_fail_closed_adaptive_tuning_state(
+    tuning_state, paper_session_raw = _canonical_evidence_backed_adaptive_tuning_state(
         monkeypatch,
         session_id=paper_session_id,
     )
@@ -731,7 +835,10 @@ def golden_a_grade_final_admission(
         ),
         "portfolio_state_source": (
             paper_loop.PAPER_PORTFOLIO_STATE_REDIS_KEY,
-            revocable_sources["portfolio_state_source"],
+            paper_loop._paper_revocable_source_control_material(  # noqa: SLF001
+                "portfolio_state_source",
+                revocable_sources["portfolio_state_source"],
+            ),
         ),
         "adaptive_tuning_source": (
             paper_loop.PAPER_ADAPTIVE_TUNING_REDIS_KEY,
@@ -1405,6 +1512,111 @@ def test_golden_a_grade_passes_real_final_admission_contract(
     assert "paper-golden-local-evidence-auth-key" not in json.dumps(contract)
 
 
+def test_final_admission_positivity_veto_scoped_off_bootstrap_information_acquisition(
+    golden_a_grade_final_admission,
+) -> None:
+    """Continuous paper exploration at the final materialization boundary: the
+    Category-E positivity preference (FINAL_ADMISSION_CURRENT_EXPECTED_NET_PNL_
+    NOT_POSITIVE) carries no final authority over a bootstrap
+    information-acquisition intent — a bootstrap experiment's expected net PnL
+    is nonpositive in the normal case — while the veto is preserved verbatim
+    for every other lane, and the allocator-consistency integrity companion
+    (FINAL_ADMISSION_EXPECTED_NET_PNL_DIFFERS_FROM_ALLOCATOR) stays mandatory
+    for every lane including bootstrap.
+    """
+
+    base_intent, redis, bracket_security_context = golden_a_grade_final_admission
+
+    def _final_admission_with_negative_pnl(
+        policy_mode: str,
+        *,
+        allocation_expected_net_pnl_usd: float,
+    ) -> dict:
+        intent = deepcopy(base_intent)
+        allocation = intent["adaptive_allocation"]
+        intent["expected_net_pnl_usd"] = -0.42
+        allocation["expected_net_pnl_usd"] = allocation_expected_net_pnl_usd
+        intent["adaptive_policy_action_policy_mode"] = policy_mode
+        # Re-seal the mutated economics exactly as the fixture does so the
+        # ONLY difference under the real contract is the negative expectancy.
+        for field in (
+            "paper_allocator_economic_contract_sealed_at",
+            "paper_allocator_economic_contract_hash",
+            "paper_allocator_economic_contract_receipt_hash",
+            "paper_allocator_economic_contract_schema_version",
+        ):
+            allocation.pop(field, None)
+            intent.pop(field, None)
+        intent.pop("paper_allocator_economic_contract", None)
+        paper_loop._seal_paper_allocator_economic_contract(  # noqa: SLF001
+            intent=intent,
+            allocation=allocation,
+            sealed_at=datetime(2026, 7, 17, 12, 0, 6, tzinfo=timezone.utc),
+        )
+        a_plus_evaluation = intent["a_plus_gate_evaluation"]
+        a_plus_material = a_plus_evaluation["gate_input_material"]
+        a_plus_material["paper_allocator_economic_contract_hash"] = intent[
+            "paper_allocator_economic_contract_hash"
+        ]
+        a_plus_evaluation["gate_input_hash"] = paper_loop._paper_canonical_sha256(  # noqa: SLF001
+            a_plus_material
+        )
+        a_plus_evaluation.pop("receipt_hash", None)
+        a_plus_evaluation["receipt_hash"] = paper_loop._paper_canonical_sha256(  # noqa: SLF001
+            a_plus_evaluation
+        )
+        intent["a_plus_gate_evaluation_hash"] = a_plus_evaluation["receipt_hash"]
+        commit = paper_loop.build_candidate_commit_receipt(
+            snapshot=intent["paper_cycle_reservation_snapshot"],
+            adaptive_allocation=allocation,
+            prior_accepted_rows=[],
+        )
+        assert commit["status"] == "PASS"
+        intent["paper_cycle_reservation_commit_receipt"] = commit
+        intent["paper_cycle_reservation_commit_receipt_hash"] = commit["receipt_hash"]
+        intent["paper_cycle_reservation_commit_status"] = commit["status"]
+        return paper_loop._paper_final_admission_point_in_time_contract(  # noqa: SLF001
+            intent,
+            redis_client=redis,
+            maintenance_bracket_security_context=bracket_security_context,
+        )
+
+    # Bootstrap lane: negative expected net PnL passes the ENTIRE real final
+    # admission contract — the positivity preference has no authority here, so
+    # the flat-account information-acquisition lane can always materialize.
+    bootstrap_contract = _final_admission_with_negative_pnl(
+        "bootstrap_information_acquisition",
+        allocation_expected_net_pnl_usd=-0.42,
+    )
+    assert bootstrap_contract["status"] == "PASS", bootstrap_contract[
+        "rejection_reasons"
+    ]
+    assert bootstrap_contract["rejection_reasons"] == []
+
+    # Every non-bootstrap lane keeps the veto (scoped carve-out, not a
+    # weakening): same mutation, champion mode -> exactly the positivity veto.
+    champion_contract = _final_admission_with_negative_pnl(
+        "champion_exploitation",
+        allocation_expected_net_pnl_usd=-0.42,
+    )
+    assert champion_contract["status"] == "BLOCKED"
+    assert champion_contract["rejection_reasons"] == [
+        "FINAL_ADMISSION_CURRENT_EXPECTED_NET_PNL_NOT_POSITIVE"
+    ]
+
+    # The bootstrap exemption never extends to the allocator-consistency
+    # integrity check: a mismatched allocator value still rejects, and only
+    # the integrity reason fires (not the positivity preference).
+    mismatch_contract = _final_admission_with_negative_pnl(
+        "bootstrap_information_acquisition",
+        allocation_expected_net_pnl_usd=-0.50,
+    )
+    assert mismatch_contract["status"] == "BLOCKED"
+    assert mismatch_contract["rejection_reasons"] == [
+        "FINAL_ADMISSION_EXPECTED_NET_PNL_DIFFERS_FROM_ALLOCATOR"
+    ]
+
+
 def test_adaptive_tuning_consumer_rejects_legacy_unsealed_payload() -> None:
     receipt = paper_loop._paper_adaptive_tuning_semantic_validation(  # noqa: SLF001
         {
@@ -1426,7 +1638,7 @@ def test_adaptive_tuning_exact_reader_rejects_duplicate_outer_json_keys(
     from v2.backend.app.cli import v2_adaptive_gate_tuner as tuner
 
     session_id = "paper-strict-adaptive-reader-session"
-    state, _session_raw = _canonical_fail_closed_adaptive_tuning_state(
+    state, _session_raw = _canonical_evidence_backed_adaptive_tuning_state(
         monkeypatch,
         session_id=session_id,
     )
@@ -1462,7 +1674,7 @@ def test_adaptive_tuning_semantic_validation_blocks_huge_integer_without_raising
     monkeypatch,
 ) -> None:
     session_id = "paper-huge-integer-adaptive-session"
-    state, _session_raw = _canonical_fail_closed_adaptive_tuning_state(
+    state, _session_raw = _canonical_evidence_backed_adaptive_tuning_state(
         monkeypatch,
         session_id=session_id,
     )
@@ -1811,7 +2023,7 @@ def _portfolio_projection_fixture() -> dict[str, object]:
 @pytest.fixture
 def revocable_control_commit_fixture(monkeypatch):
     session_id = "paper-revocable-projection-test-session"
-    tuning_state, session_raw = _canonical_fail_closed_adaptive_tuning_state(
+    tuning_state, session_raw = _canonical_evidence_backed_adaptive_tuning_state(
         monkeypatch,
         session_id=session_id,
     )
@@ -2706,8 +2918,21 @@ def _synthetic_final_admission_sealed_row(
         prior_accepted_rows=[],
     )
     allocation_lineage = {paper_loop.CYCLE_RESERVATION_LINEAGE_KEY: cycle_snapshot["snapshot_hash"]}
+    timeframe = str(row["timeframe"])
+    action = str(row["side"])
+    price = float(row["fill_price"])
+    notional = float(row["gross_notional_usd"])
+    max_loss = float(row.get("expected_max_loss_usd") or max(0.01, notional * 0.01))
+    selected_leverage = float(row["effective_leverage"])
+    margin = notional / selected_leverage
+    quantity = notional / price
+    raw_notional = abs(quantity * price)
     allocation_input = {
         "symbol": symbol,
+        "timeframe": timeframe,
+        "action": action,
+        "price": price,
+        "permitted_leverage_values": [selected_leverage],
         "lineage_ids": allocation_lineage,
     }
     allocation_input_material = {
@@ -2718,27 +2943,64 @@ def _synthetic_final_admission_sealed_row(
     allocation_input_hash = paper_loop._paper_canonical_sha256(  # noqa: SLF001
         allocation_input_material
     )
-    notional = float(row["gross_notional_usd"])
-    margin = float(row["allocated_margin_usd"])
-    max_loss = float(row.get("expected_max_loss_usd") or max(0.01, notional * 0.01))
+    arithmetic_material = {
+        "schema_version": PAPER_ALLOCATOR_ARITHMETIC_RECEIPT_SCHEMA_VERSION,
+        "arithmetic_version": PAPER_ALLOCATOR_ARITHMETIC_VERSION,
+        "formula": PAPER_ALLOCATOR_ARITHMETIC_FORMULA,
+        "raw_post_step_quantity_binary64_hex": quantity.hex(),
+        "input_price_binary64_hex": price.hex(),
+        "raw_post_step_notional_binary64_hex": raw_notional.hex(),
+        "selected_leverage_binary64_hex": selected_leverage.hex(),
+    }
+    arithmetic_receipt = {
+        **arithmetic_material,
+        "receipt_sha256": paper_loop._paper_canonical_sha256(  # noqa: SLF001
+            arithmetic_material
+        ),
+    }
     allocation: dict[str, object] = {
         "allocation_id": f"alloc_{str(allocation_input_hash)[:24]}",
         "allocation_input_schema_version": "adaptive_capital_allocation_input_v1",
         "allocation_input_hash_algorithm": "sha256(canonical-json-v1)",
         "allocation_input_hash": allocation_input_hash,
         "allocation_input_material": allocation_input_material,
+        "model_inputs": {
+            "allocation_input_schema_version": "adaptive_capital_allocation_input_v1",
+            "allocation_input_hash": allocation_input_hash,
+            "allocation_input_hash_algorithm": "sha256(canonical-json-v1)",
+            "paper_post_quantization_exchange_filter_status": "PASS",
+            "paper_margin_configuration_uses_post_quantization_notional": True,
+            "paper_target_quantity_after_step_quantization": quantity,
+            "paper_target_notional_after_step_quantization_usd": notional,
+            "max_loss_usd": max_loss,
+            "paper_modeled_loss_bps": max_loss / notional * 10_000.0,
+            "selected_leverage": selected_leverage,
+            "selected_allocated_margin_usd": margin,
+            PAPER_ALLOCATOR_ARITHMETIC_RECEIPT_MODEL_INPUT_KEY: arithmetic_receipt,
+        },
         "allocator_decision": "ALLOW_WITH_SIZE",
         "symbol": symbol,
+        "timeframe": timeframe,
+        "action": action,
+        "target_quantity": quantity,
         "lineage_ids": allocation_lineage,
         "gross_notional_usd": notional,
         "target_notional_usdt": notional,
         "target_notional_usd": notional,
+        "recommended_leverage": selected_leverage,
+        "effective_leverage": selected_leverage,
         "allocated_margin_usd": margin,
+        "margin_mode": "isolated_paper_simulated",
+        "recommended_margin_mode": "isolated_paper_simulated",
         "max_loss_if_stop_hit": max_loss,
         "max_loss_usd": max_loss,
         "paper_only": True,
         "routes_to_live": False,
         "places_real_order": False,
+        "live_order": False,
+        "test_order": False,
+        "leverage_mutation": False,
+        "margin_mode_mutation": False,
     }
     row["adaptive_allocation"] = allocation
     row["allocation_id"] = allocation["allocation_id"]
@@ -2876,22 +3138,71 @@ def _current_mark_evidence(
     }
 
 
+def _sealed_proof_backed_fill(*, fill_id: str) -> tuple[dict, dict, dict]:
+    """Build a sealed typed admission row, its position, and the merged rail row.
+
+    The precycle join validates the SAME rail row against both the rail proof
+    material contract and the sealed-row final-admission contract, so the rail
+    row must be the sealed row merged with the built proof material.
+    """
+
+    full = _typed_adaptive_final_admission_fixture()
+    full.update(
+        {
+            "fill_id": fill_id,
+            "ledger_row_id": fill_id,
+            "position_id": f"paper-pos-{fill_id}",
+            "position_generation_id": "a" * 64,
+            "checkpoint_id": "SERVING_ABI_V2_PAPER_precycle_fixture",
+            "checkpoint_generation": 3,
+            "cohort_id": "paper-serving-v2-precycle-fixture",
+        }
+    )
+    full = _reseal_typed_adaptive_final_admission_fixture(full)
+    full = paper_loop._seal_paper_persisted_ledger_contract(full)  # noqa: SLF001
+    position = {
+        "position_id": full["position_id"],
+        "position_generation_id": full["position_generation_id"],
+        "checkpoint_id": full["checkpoint_id"],
+        "checkpoint_generation": full["checkpoint_generation"],
+        "cohort_id": full["cohort_id"],
+        "entry_fill_id": fill_id,
+        "source_fill_ids": [fill_id],
+        "prediction_id": full["prediction_id"],
+        "signal_id": full["signal_id"],
+        "symbol": full["symbol"],
+        "timeframe": full["timeframe"],
+        "side": full["side"],
+        "net_quantity": full["quantity"],
+        "avg_entry_price": full["fill_price"],
+        "gross_notional_usd": full["gross_notional_usd"],
+        "effective_leverage": full["effective_leverage"],
+        "allocated_margin_usd": full["allocated_margin_usd"],
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+    proof, reasons = paper_loop._paper_build_open_position_fill_proof(  # noqa: SLF001
+        full,
+        position,
+        generated_utc="2026-07-17T11:59:59Z",
+    )
+    assert reasons == []
+    assert proof is not None
+    return full, position, {**full, **proof}
+
+
 def test_precycle_current_mark_snapshot_joins_every_source_fill_and_sums_loss(
     monkeypatch,
 ) -> None:
-    first = _synthetic_final_admission_sealed_row(
-        intent_id="intent-source-fill-1",
-        signal_id="signal-source-fill-1",
-        prediction_id="prediction-source-fill-1",
+    _full1, pos1, merged1 = _sealed_proof_backed_fill(fill_id="fill-source-1")
+    _full2, pos2, merged2 = _sealed_proof_backed_fill(fill_id="fill-source-2")
+    redis = _FakeRedis(
+        _open_position_fill_proof_store_payload(
+            [merged1, merged2],
+            positions=[pos1, pos2],
+        )
     )
-    second = _synthetic_final_admission_sealed_row(
-        intent_id="intent-source-fill-2",
-        signal_id="signal-source-fill-2",
-        prediction_id="prediction-source-fill-2",
-    )
-    first["fill_id"] = first["ledger_row_id"] = "fill-source-1"
-    second["fill_id"] = second["ledger_row_id"] = "fill-source-2"
-    redis = _FakeRedis({"v2:paper:accepted_fills": [first, second]})
     times = iter(
         (
             "2026-07-17T12:00:00.750000Z",
@@ -2934,12 +3245,13 @@ def test_precycle_current_mark_snapshot_joins_every_source_fill_and_sums_loss(
 def test_precycle_current_mark_snapshot_blocks_missing_or_tampered_fill_proof(
     monkeypatch,
 ) -> None:
-    proof = _synthetic_final_admission_sealed_row()
-    proof["fill_id"] = proof["ledger_row_id"] = "fill-tampered"
-    allocation = proof["adaptive_allocation"]
+    _full, pos, merged = _sealed_proof_backed_fill(fill_id="fill-tampered")
+    allocation = merged["adaptive_allocation"]
     assert isinstance(allocation, dict)
     allocation["max_loss_usd"] = float(allocation["max_loss_if_stop_hit"]) + 1e-9
-    redis = _FakeRedis({"v2:paper:accepted_fills": [proof]})
+    redis = _FakeRedis(
+        _open_position_fill_proof_store_payload([merged], positions=[pos])
+    )
     times = iter(
         (
             "2026-07-17T12:00:00.750000Z",
@@ -2986,9 +3298,10 @@ def test_precycle_current_mark_snapshot_blocks_missing_or_tampered_fill_proof(
 def test_precycle_current_mark_snapshot_blocks_stale_mark_but_empty_book_is_ready(
     monkeypatch,
 ) -> None:
-    proof = _synthetic_final_admission_sealed_row()
-    proof["fill_id"] = proof["ledger_row_id"] = "fill-stale-mark"
-    redis = _FakeRedis({"v2:paper:accepted_fills": [proof]})
+    _full, pos, merged = _sealed_proof_backed_fill(fill_id="fill-stale-mark")
+    redis = _FakeRedis(
+        _open_position_fill_proof_store_payload([merged], positions=[pos])
+    )
     times = iter(
         (
             "2026-07-17T12:00:00.750000Z",
@@ -7467,6 +7780,42 @@ def test_paper_entry_freeze_halts_when_portfolio_truth_untrusted() -> None:
     assert freeze["source"] == "v2:portfolio:state"
     assert freeze["source_keys"] == ["v2:portfolio:state"]
     assert freeze["places_real_order"] is False
+
+
+def test_recorded_close_composes_no_entry_freeze() -> None:
+    """Continuous paper trading baseline: a TRUSTED post-close portfolio state
+    with no explicit freeze payload must never compose into an entry freeze.
+    Routine close bookkeeping (equity/pnl updates after a paper close) leaves
+    new entries allowed; only an explicit freeze payload or untrusted
+    portfolio truth halts (both covered by the halting-direction tests).
+    """
+
+    trusted_portfolio = {"equity_trusted": True, "pnl_trusted": True}
+
+    composed = paper_loop._compose_paper_entry_freeze(  # noqa: SLF001
+        None,
+        trusted_portfolio,
+    )
+    assert composed["schema_version"] == "paper_entry_freeze_v1"
+    assert composed["paper_new_entries_halted"] is False
+    assert composed["new_entries_allowed"] is True
+    assert composed["reason"] is None
+
+    # Same non-halted baseline when an explicit non-halting freeze payload is
+    # present alongside the trusted portfolio (the shape run_once composes
+    # every cycle after closes are recorded).
+    explicit_not_halted = paper_loop._compose_paper_entry_freeze(  # noqa: SLF001
+        {
+            "schema_version": "paper_entry_freeze_v1",
+            "paper_new_entries_halted": False,
+            "new_entries_allowed": True,
+            "reason": None,
+        },
+        trusted_portfolio,
+    )
+    assert explicit_not_halted["paper_new_entries_halted"] is False
+    assert explicit_not_halted["new_entries_allowed"] is True
+    assert explicit_not_halted["reason"] is None
 
 
 def _risk_controller_entry_freeze_intent(**overrides) -> dict[str, object]:
@@ -25243,6 +25592,63 @@ def test_non_negative_first_bootstrap_close_does_not_halt() -> None:
     assert status["new_entries_allowed"] is True
 
 
+def test_first_negative_bootstrap_close_is_bounded_penalty_not_next_cycle_veto() -> None:
+    """End-to-end composition of the ONE deliberate post-close latch: the REAL
+    circuit-breaker status produced by a single negative first bootstrap close
+    (FIRST_BOOTSTRAP_CLOSE_NEGATIVE, new_entries_allowed=False) must convert
+    to a bounded continuous risk penalty in
+    _paper_block_new_entry_by_performance_circuit — never a next-cycle veto —
+    so one losing close can never stop the next cycle's authorization.
+    """
+
+    status = paper_loop._paper_performance_circuit_breaker_status(  # noqa: SLF001
+        [
+            _phase1_closed_trade_row(
+                -1.0,
+                tier="A_GRADE_BOOTSTRAP_PAPER",
+                close_reason="TIER_1_ATR_VOLATILITY_STOP",
+            )
+        ],
+        generated_utc="2026-07-02T10:00:00Z",
+    )
+    # Preconditions: this is the real deliberate latch, not a hand-built dict.
+    assert "FIRST_BOOTSTRAP_CLOSE_NEGATIVE" in status["block_reasons"]
+    assert status["new_entries_allowed"] is False
+    assert status["catastrophic_loss_mandate"] is False
+
+    intent = {
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "symbol": "BTCUSDT",
+        "timeframe": "15m",
+        "side": "long",
+        "strategy_id": "trend_mode",
+        "market_regime": "TREND",
+        "paper_performance_circuit_breaker_authority_classification": (
+            "CATEGORY_E_POLICY_PERFORMANCE"
+        ),
+        "paper_performance_circuit_breaker_adaptive_policy_role": (
+            "CONTINUOUS_OBJECTIVE_RISK_INPUT"
+        ),
+        "paper_performance_circuit_breaker_hard_trading_authority": False,
+    }
+    allocation = _allowed_allocation()
+
+    blocked = paper_loop._paper_block_new_entry_by_performance_circuit(  # noqa: SLF001
+        intent=intent,
+        allocation=allocation,
+        performance_circuit_breaker_status=status,
+    )
+
+    assert blocked is False
+    assert intent["paper_performance_circuit_breaker_blocked"] is False
+    assert intent["paper_performance_static_veto_removed"] is True
+    assert 1.0 < intent["paper_performance_adaptive_risk_multiplier"] <= 10.0
+    assert allocation["allocator_decision"] == "ALLOW_WITH_SIZE"
+    assert intent.get("paper_fill_allowed") is not False
+
+
 def test_rolling_25_does_not_fire_with_fewer_than_5_trades() -> None:
     # With < 5 trades, rolling window checks must be silent regardless of PF.
     # This prevents a brand-new session (1-4 trades) from being permanently halted.
@@ -27974,10 +28380,22 @@ def test_portfolio_cascade_guard_decision_core() -> None:
     assert d["ALTBUSDT"]["action"] == "RIDE_TIGHTEN"  # winner rides the move
     assert "CALMUSDT" not in d
 
-    breach = {"worst_case_liquidation_breached": True}
+    breach = {"portfolio_level_computed": True, "worst_case_liquidation_breached": True}
     d2 = {x["symbol"]: x for x in decide_directives(positions, cascade, breach)}
     assert d2["CALMUSDT"]["action"] == "CLOSE"  # portfolio breach closes losers
     assert d2["ALTBUSDT"]["action"] == "RIDE_TIGHTEN"
+
+    # Non-authoritative breach claims must NOT trigger closes
+    # (evidence-gated fail-safe, 2026-07-24 contract).
+    d3 = {
+        x["symbol"]: x
+        for x in decide_directives(
+            positions,
+            cascade,
+            {"worst_case_liquidation_breached": True},
+        )
+    }
+    assert "CALMUSDT" not in d3
 
 
 def _quarantine_row(
@@ -28692,6 +29110,14 @@ def _bootstrap_designation_comparison(
     gain_nats: object = 0.9,
     expected_loss_usd: object = 3.0,
     utility: object = -0.5,
+    terminal_target_probability: object = 0.01,
+    expected_log_growth_per_opportunity: object = 0.002,
+    expected_log_growth: object = 0.02,
+    expected_terminal_equity_usd: object = 1_020.0,
+    terminal_p10: object = 800.0,
+    terminal_p50: object = 1_000.0,
+    terminal_p90: object = 1_300.0,
+    terminal_liquidation_probability: object = 0.01,
     hard_risk_pass: object = True,
     candidate_id: str = "cand_btc_long",
     action_id: str = (
@@ -28706,6 +29132,38 @@ def _bootstrap_designation_comparison(
         "venue_min_candidate_expected_information_gain_nats": gain_nats,
         "venue_min_candidate_expected_loss_usd": expected_loss_usd,
         "venue_min_candidate_utility": utility,
+        "terminal_target_probability": terminal_target_probability,
+        "expected_log_equity_growth_per_opportunity": (
+            expected_log_growth_per_opportunity
+        ),
+        "expected_compounded_log_equity_growth": expected_log_growth,
+        "expected_terminal_equity_usd": expected_terminal_equity_usd,
+        "terminal_equity_p10_usd": terminal_p10,
+        "terminal_equity_p50_usd": terminal_p50,
+        "terminal_equity_p90_usd": terminal_p90,
+        "terminal_liquidation_probability": terminal_liquidation_probability,
+        "terminal_projection": {
+            "schema_version": "terminal_paper_equity_projection_v1",
+            "horizon_days": 90.0,
+            "target_multiple": 1000.0,
+            "state_available_at_ms": 999,
+            "decision_time_ms": 1_000,
+            "latest_unclosed_kline_excluded": True,
+            "terminal_state_evidence_supported": True,
+            "evidence_supported_probability": False,
+            "prior_only": True,
+            "underdispersed": True,
+            "defaulted_fields": [],
+            "probability_authority": (
+                "TELEMETRY_ONLY_NO_SELECTION_OR_SIZING_AUTHORITY"
+            ),
+            "guaranteed_target_claim": False,
+            "paper_only": True,
+            "live_gate": "blocked_human_only",
+            "routes_to_live": False,
+            "places_real_order": False,
+            "exchange_action_taken": False,
+        },
     }
 
 
@@ -28733,6 +29191,36 @@ def _bootstrap_designation_intent(
         "paper_fill_gate_block_reasons": list(paper_fill_gate_block_reasons),
         "adaptive_policy_venue_minimum_objective_comparisons": comparisons,
     }
+
+
+def test_terminal_objective_survives_existing_persistence_compaction_paths() -> None:
+    terminal_objective = {
+        **_bootstrap_designation_comparison()["terminal_projection"],
+        "objective_input_fingerprint_sha256": "a" * 64,
+        "objective_score_fingerprint": "b" * 64,
+        "objective_parameter_fingerprint": "c" * 64,
+    }
+    row = {
+        "adaptive_policy_terminal_equity_objective": terminal_objective,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "exchange_action_taken": False,
+    }
+
+    runtime_projection = paper_loop._compact_runtime_intent_for_redis(  # noqa: SLF001
+        row
+    )
+    accepted_fill_projection = paper_loop._compact_accepted_fill_for_state(  # noqa: SLF001
+        row
+    )
+
+    assert runtime_projection["adaptive_policy_terminal_equity_objective"] == (
+        terminal_objective
+    )
+    assert accepted_fill_projection[
+        "adaptive_policy_terminal_equity_objective"
+    ] == terminal_objective
 
 
 def test_bootstrap_designation_requires_lineage_side_match() -> None:
@@ -28902,11 +29390,10 @@ def test_bootstrap_designation_cadence_blocks_on_epoch_bootstrap_rows() -> None:
     assert clean["current_epoch_bootstrap_open_positions"] == 0
 
 
-def test_bootstrap_designation_ranks_by_information_gain_per_expected_loss() -> None:
-    """The designated experiment maximizes expected information gain per dollar
-    of expected experiment loss; a more negative monetary utility never
-    outranks a higher gain/loss ratio, and the designation carries the full
-    paper-only safety contract.
+def test_bootstrap_designation_ranks_by_learned_terminal_equity_utility() -> None:
+    """The designated experiment maximizes the learned day-90 terminal-equity
+    utility even when another candidate has a higher information-gain/loss
+    ratio, and the designation carries the full paper-only safety contract.
     """
 
     loser = _bootstrap_designation_comparison(
@@ -28947,24 +29434,30 @@ def test_bootstrap_designation_ranks_by_information_gain_per_expected_loss() -> 
         "bootstrap_information_acquisition_designation_v1"
     )
     assert designation["policy_mode"] == "bootstrap_information_acquisition"
-    assert designation["policy_objective"] == "BOOTSTRAP_INFORMATION_ACQUISITION"
+    assert designation["policy_objective"] == (
+        "PER_OPPORTUNITY_EXPECTED_LOG_EQUITY_GROWTH"
+    )
     assert designation["selection_rule"] == (
-        "MAX_EXPECTED_INFORMATION_GAIN_NATS_PER_EXPECTED_LOSS_USD"
-        "_TIE_UTILITY_THEN_ACTION_ID"
+        "MAX_LEARNED_PER_OPPORTUNITY_UTILITY_THEN_INFORMATION_GAIN"
+        "_THEN_ACTION_ID;TERMINAL_PROBABILITY_TELEMETRY_ONLY"
     )
-    assert designation["symbol"] == "ETHUSDT"
-    assert designation["timeframe"] == "4h"
-    assert designation["side"] == "SHORT"
-    assert designation["source_candidate_id"] == "cand_eth_short"
+    assert designation["symbol"] == "BTCUSDT"
+    assert designation["timeframe"] == "1h"
+    assert designation["side"] == "LONG"
+    assert designation["source_candidate_id"] == "cand_btc_long"
     assert designation["source_action_id"] == (
-        "apa2_eth:bounded_information_seeking_exploration:short:venue_minimum"
+        "apa2_btc:bounded_information_seeking_exploration:long:venue_minimum"
     )
-    assert designation["expected_information_gain_nats"] == 0.9
-    assert designation["expected_experiment_loss_usd"] == 2.0
+    assert designation["expected_information_gain_nats"] == 0.8
+    assert designation["expected_experiment_loss_usd"] == 4.0
     assert designation["information_gain_per_expected_loss_usd"] == pytest.approx(
-        0.45
+        0.2
     )
-    assert designation["venue_min_candidate_utility"] == -1.75
+    assert designation["venue_min_candidate_utility"] == -0.25
+    assert designation["learned_terminal_objective_utility"] == -0.25
+    assert designation["terminal_target_probability"] == 0.01
+    assert designation["terminal_target_guaranteed"] is False
+    assert designation["information_gain_is_primary_allocation_objective"] is False
     assert designation["eligible_candidate_count"] == 2
     assert designation["bootstrap_trigger"] == {
         "natural_execution_count": 0,
@@ -28986,11 +29479,11 @@ def test_bootstrap_designation_ranks_by_information_gain_per_expected_loss() -> 
     assert designation["exchange_action_taken"] is False
 
 
-def test_bootstrap_designation_ratio_tie_breaks_on_utility_then_action_id() -> None:
-    """An exact gain/loss-ratio tie is broken by the higher (least negative)
-    utility, with non-numeric utility ranked strictly last; a full ratio and
-    utility tie is broken deterministically by the greatest
-    venue_minimum_action_id.
+def test_bootstrap_designation_utility_tie_breaks_deterministically() -> None:
+    """The higher learned terminal utility wins regardless of an information
+    ratio tie; malformed utility is ineligible, probability/full-horizon
+    telemetry cannot change eligibility or ranking, and an authoritative-input
+    tie is broken by stable action id.
     """
 
     calibration = _bootstrap_designation_calibration()
@@ -29036,22 +29529,26 @@ def test_bootstrap_designation_ratio_tie_breaks_on_utility_then_action_id() -> N
     assert by_utility is not None
     assert by_utility["source_candidate_id"] == "cand_mmm"
     assert by_utility["venue_min_candidate_utility"] == -1.0
-    assert by_utility["eligible_candidate_count"] == 3
+    assert by_utility["eligible_candidate_count"] == 2
 
     # Ratio AND utility tie: greatest venue_minimum_action_id wins.
     tie_low_id = _bootstrap_designation_comparison(
         gain_nats=0.5,
         expected_loss_usd=2.0,
         utility=-1.0,
+        terminal_target_probability="diagnostic-unavailable",
+        expected_log_growth="diagnostic-unavailable",
         candidate_id="cand_tie_low",
         action_id=(
             "apa2_alpha:bounded_information_seeking_exploration:long:venue_minimum"
         ),
     )
     tie_high_id = _bootstrap_designation_comparison(
-        gain_nats=1.0,
-        expected_loss_usd=4.0,
+        gain_nats=0.5,
+        expected_loss_usd=2.0,
         utility=-1.0,
+        terminal_target_probability=0.0,
+        expected_log_growth=-99.0,
         candidate_id="cand_tie_high",
         action_id=(
             "apa2_zulu:bounded_information_seeking_exploration:long:venue_minimum"
@@ -29167,6 +29664,452 @@ def test_bootstrap_designation_fails_closed_on_malformed_uncertainty_block() -> 
         )
         assert designation is not None
         assert designation["symbol"] == "BTCUSDT"
+
+
+def test_bootstrap_designation_epoch_scoping_never_freezes_fresh_campaign() -> None:
+    """Post-rotation continuity: a bootstrap OPEN row surviving from a
+    PREVIOUS paper-account epoch must never suppress designation in the fresh
+    campaign (the historical post-rotation freeze), while a current-epoch open
+    row still suppresses (concurrency rail) and an unstamped row suppresses
+    conservatively.  Previous-epoch closes also drop out of the telemetry
+    count.
+    """
+
+    calibration = _bootstrap_designation_calibration()
+    intents = [
+        _bootstrap_designation_intent(
+            "BTCUSDT", [_bootstrap_designation_comparison()]
+        )
+    ]
+    previous_epoch_row = {
+        "adaptive_policy_action_policy_mode": "bootstrap_information_acquisition",
+        "paper_account_epoch": 0,
+    }
+
+    # (a) Previous-epoch OPEN row: must NOT suppress the fresh campaign.
+    fresh_campaign = paper_loop._paper_bootstrap_information_acquisition_designation(  # noqa: SLF001
+        calibration=calibration,
+        previous_cycle_intents=intents,
+        current_epoch_closed_trade_rows=[],
+        current_epoch_open_position_rows=[dict(previous_epoch_row)],
+        current_paper_account_epoch=1,
+    )
+    assert fresh_campaign is not None
+    assert fresh_campaign["symbol"] == "BTCUSDT"
+    assert fresh_campaign["current_epoch_bootstrap_open_positions"] == 0
+
+    # (b) Current-epoch OPEN row: still suppresses (the concurrency rail is
+    # scoped, not weakened).
+    current_epoch_open = paper_loop._paper_bootstrap_information_acquisition_designation(  # noqa: SLF001
+        calibration=calibration,
+        previous_cycle_intents=intents,
+        current_epoch_closed_trade_rows=[],
+        current_epoch_open_position_rows=[
+            {
+                "adaptive_policy_action_policy_mode": (
+                    "bootstrap_information_acquisition"
+                ),
+                "paper_account_epoch": 1,
+            }
+        ],
+        current_paper_account_epoch=1,
+    )
+    assert current_epoch_open is None
+
+    # (c) Open row WITHOUT an epoch stamp: counted conservatively (suppress).
+    unstamped_open = paper_loop._paper_bootstrap_information_acquisition_designation(  # noqa: SLF001
+        calibration=calibration,
+        previous_cycle_intents=intents,
+        current_epoch_closed_trade_rows=[],
+        current_epoch_open_position_rows=[
+            {
+                "adaptive_policy_action_policy_mode": (
+                    "bootstrap_information_acquisition"
+                )
+            }
+        ],
+        current_paper_account_epoch=1,
+    )
+    assert unstamped_open is None
+
+    # (d) Previous-epoch CLOSED row: designation fires and the rotated close
+    # drops out of even the telemetry count.
+    rotated_close = paper_loop._paper_bootstrap_information_acquisition_designation(  # noqa: SLF001
+        calibration=calibration,
+        previous_cycle_intents=intents,
+        current_epoch_closed_trade_rows=[dict(previous_epoch_row)],
+        current_epoch_open_position_rows=[],
+        current_paper_account_epoch=1,
+    )
+    assert rotated_close is not None
+    assert rotated_close["current_epoch_bootstrap_closed_trades"] == 0
+
+
+def test_bootstrap_designation_unmatured_close_backlog_never_suppresses() -> None:
+    """Continuous paper trading: an arbitrarily large backlog of CLOSED
+    bootstrap outcomes still awaiting maturation/calibration/training
+    consumption must never become a designation precondition.  Any
+    'drain-the-learning-queue-first' cap (if epoch_bootstrap_closed > K:
+    return None) fails this test for every K < 50.
+    """
+
+    backlog_row = {
+        "adaptive_policy_action_policy_mode": "bootstrap_information_acquisition",
+        "paper_account_epoch": 1,
+    }
+    designation = paper_loop._paper_bootstrap_information_acquisition_designation(  # noqa: SLF001
+        calibration=_bootstrap_designation_calibration(),
+        previous_cycle_intents=[
+            _bootstrap_designation_intent(
+                "BTCUSDT", [_bootstrap_designation_comparison()]
+            )
+        ],
+        current_epoch_closed_trade_rows=[dict(backlog_row) for _ in range(50)],
+        current_epoch_open_position_rows=[],
+        current_paper_account_epoch=1,
+    )
+
+    assert designation is not None
+    assert designation["symbol"] == "BTCUSDT"
+    assert designation["current_epoch_bootstrap_closed_trades"] == 50
+
+
+def test_bootstrap_designation_emits_complete_ranked_candidate_list() -> None:
+    """Same-cycle fallback contract, designation side: the emitted
+    ranked_candidates list is COMPLETE (no fixed-count truncation), stamped
+    with ranks 1..N in strict learned-utility order, every entry carries the
+    keys the runtime queue matches on, and the flattened head fields equal the
+    rank-1 entry.
+    """
+
+    worst = _bootstrap_designation_intent(
+        "BTCUSDT",
+        [
+            _bootstrap_designation_comparison(
+                utility=-2.0,
+                candidate_id="cand_btc_long",
+                action_id=(
+                    "apa2_btc:bounded_information_seeking_exploration"
+                    ":long:venue_minimum"
+                ),
+            )
+        ],
+        timeframe="1h",
+    )
+    best = _bootstrap_designation_intent(
+        "ETHUSDT",
+        [
+            _bootstrap_designation_comparison(
+                side="SHORT",
+                utility=-0.5,
+                candidate_id="cand_eth_short",
+                action_id=(
+                    "apa2_eth:bounded_information_seeking_exploration"
+                    ":short:venue_minimum"
+                ),
+            )
+        ],
+        timeframe="4h",
+        side="short",
+    )
+    middle = _bootstrap_designation_intent(
+        "DDDUSDT",
+        [
+            _bootstrap_designation_comparison(
+                utility=-1.0,
+                candidate_id="cand_ddd_long",
+                action_id=(
+                    "apa2_ddd:bounded_information_seeking_exploration"
+                    ":long:venue_minimum"
+                ),
+            )
+        ],
+        timeframe="15m",
+    )
+
+    designation = paper_loop._paper_bootstrap_information_acquisition_designation(  # noqa: SLF001
+        calibration=_bootstrap_designation_calibration(),
+        # Best candidate deliberately NOT first in input order.
+        previous_cycle_intents=[worst, best, middle],
+        current_epoch_closed_trade_rows=[],
+        current_epoch_open_position_rows=[],
+    )
+
+    assert designation is not None
+    ranked = designation["ranked_candidates"]
+    assert len(ranked) == 3
+    assert designation["total_ranked_candidate_count"] == 3
+    assert designation["eligible_candidate_count"] == 3
+    assert [entry["rank"] for entry in ranked] == [1, 2, 3]
+    assert [entry["symbol"] for entry in ranked] == [
+        "ETHUSDT",
+        "DDDUSDT",
+        "BTCUSDT",
+    ]
+    utilities = [entry["learned_terminal_objective_utility"] for entry in ranked]
+    assert utilities == [-0.5, -1.0, -2.0]
+    assert utilities == sorted(utilities, reverse=True)
+    for entry in ranked:
+        for key in ("symbol", "timeframe", "side", "source_action_id", "rank"):
+            assert entry.get(key) not in (None, ""), (entry, key)
+    # Flattened head fields == rank-1 entry (the queue head the cycle starts
+    # from), so head selection and queue traversal share one source of truth.
+    assert designation["symbol"] == ranked[0]["symbol"]
+    assert designation["timeframe"] == ranked[0]["timeframe"]
+    assert designation["side"] == ranked[0]["side"]
+    assert designation["source_candidate_id"] == ranked[0]["source_candidate_id"]
+    assert designation["source_action_id"] == ranked[0]["source_action_id"]
+
+
+def test_bootstrap_ranked_candidate_dispositions_cover_full_set() -> None:
+    """Same-cycle fallback taxonomy: every ranked candidate receives exactly
+    one disposition in rank order — a failed head is CLASSIFIED
+    (hard-risk-rejected / not-in-universe), never terminal, and a lower rank
+    is selected and fill-admitted in the SAME cycle.
+    """
+
+    designation = paper_loop._paper_bootstrap_information_acquisition_designation(  # noqa: SLF001
+        calibration=_bootstrap_designation_calibration(),
+        previous_cycle_intents=[
+            _bootstrap_designation_intent(
+                "AAAUSDT",
+                [
+                    _bootstrap_designation_comparison(
+                        utility=-0.1,
+                        candidate_id="cand_aaa",
+                        action_id=(
+                            "apa2_aaa:bounded_information_seeking_exploration"
+                            ":long:venue_minimum"
+                        ),
+                    )
+                ],
+            ),
+            _bootstrap_designation_intent(
+                "BBBUSDT",
+                [
+                    _bootstrap_designation_comparison(
+                        utility=-0.2,
+                        candidate_id="cand_bbb",
+                        action_id=(
+                            "apa2_bbb:bounded_information_seeking_exploration"
+                            ":long:venue_minimum"
+                        ),
+                    )
+                ],
+            ),
+            _bootstrap_designation_intent(
+                "CCCUSDT",
+                [
+                    _bootstrap_designation_comparison(
+                        utility=-0.3,
+                        candidate_id="cand_ccc",
+                        action_id=(
+                            "apa2_ccc:bounded_information_seeking_exploration"
+                            ":long:venue_minimum"
+                        ),
+                    )
+                ],
+            ),
+        ],
+        current_epoch_closed_trade_rows=[],
+        current_epoch_open_position_rows=[],
+    )
+    assert designation is not None
+    assert [entry["symbol"] for entry in designation["ranked_candidates"]] == [
+        "AAAUSDT",
+        "BBBUSDT",
+        "CCCUSDT",
+    ]
+
+    finalized_intents = [
+        # Rank 1: present, hard rails clean, but its side-matching
+        # venue-minimum comparison hard-risk-FAILED this cycle.
+        _bootstrap_designation_intent(
+            "AAAUSDT",
+            [_bootstrap_designation_comparison(hard_risk_pass=False)],
+        ),
+        # Rank 2: absent from the finalized universe entirely.
+        # Rank 3: selected as the bootstrap experiment and fill-admitted in
+        # the SAME cycle after the higher ranks failed.
+        {
+            "symbol": "CCCUSDT",
+            "timeframe": "1h",
+            "side": "long",
+            "adaptive_policy_action_policy_mode": (
+                "bootstrap_information_acquisition"
+            ),
+            "paper_fill_allowed": True,
+        },
+    ]
+
+    dispositions = paper_loop._paper_bootstrap_ranked_candidate_dispositions(  # noqa: SLF001
+        designation,
+        finalized_intents,
+    )
+
+    assert [entry["rank"] for entry in dispositions] == [1, 2, 3]
+    assert [entry["symbol"] for entry in dispositions] == [
+        "AAAUSDT",
+        "BBBUSDT",
+        "CCCUSDT",
+    ]
+    assert [entry["first_failing_predicate"] for entry in dispositions] == [
+        "VENUE_MINIMUM_HARD_RISK_REJECTED",
+        "CANDIDATE_NOT_IN_CURRENT_CYCLE_UNIVERSE",
+        "SELECTED_AND_FILL_ADMITTED",
+    ]
+
+
+def test_bootstrap_queue_head_failure_predicate_classifications() -> None:
+    """Every classification branch of the queue-head failure predicate — the
+    helper that runs inline in the accept path to decide the same-cycle pop —
+    is pinned so shadow-result shape drift raises here instead of crashing a
+    live paper cycle.
+    """
+
+    from types import SimpleNamespace
+
+    def _input(
+        action_id: str,
+        *,
+        hard: bool = True,
+        gain: float = 0.5,
+        selected_action: str = "directional_trade",
+        policy_mode: str = "bounded_information_seeking_exploration",
+    ) -> SimpleNamespace:
+        return SimpleNamespace(
+            action_id=action_id,
+            policy_mode=policy_mode,
+            selected_action=selected_action,
+            hard_constraints_satisfied=hard,
+            expected_information_gain=gain,
+        )
+
+    def _result(
+        inputs: list,
+        *,
+        dispositions: tuple = (),
+        champion_action_id: str = "champ:flat",
+        champion_selected_action: str = "remain_flat",
+        exploration_action_id: str | None = None,
+    ) -> SimpleNamespace:
+        scores = [
+            SimpleNamespace(
+                action_id=champion_action_id,
+                selected_action=champion_selected_action,
+            )
+        ]
+        return SimpleNamespace(
+            objective_inputs=inputs,
+            action_dispositions=dispositions,
+            objective_evaluation=SimpleNamespace(
+                scores=scores,
+                champion_action_id=champion_action_id,
+                exploration_action_id=exploration_action_id,
+            ),
+        )
+
+    long_id = "apa2_x:bounded_information_seeking_exploration:long"
+    long_venue_min_id = (
+        "apa2_x:bounded_information_seeking_exploration:long:venue_minimum"
+    )
+
+    # 1) No exploration input for the lineage side.
+    assert (
+        paper_loop._paper_bootstrap_queue_head_failure_predicate(  # noqa: SLF001
+            _result([]), "LONG"
+        )
+        == "NO_EXPLORATION_INPUT_FOR_LINEAGE_SIDE"
+    )
+
+    # 2) Hard-invalid inputs: first sorted disposition reason is surfaced.
+    hard_invalid = _result(
+        [_input(long_id, hard=False), _input(long_venue_min_id, hard=False)],
+        dispositions=(
+            (long_id, ("ZETA_REASON",)),
+            (long_venue_min_id, ("ALPHA_REASON",)),
+        ),
+    )
+    assert (
+        paper_loop._paper_bootstrap_queue_head_failure_predicate(  # noqa: SLF001
+            hard_invalid, "LONG"
+        )
+        == "EXPLORATION_INPUT_HARD_INVALID:ALPHA_REASON"
+    )
+
+    # 3) Hard-valid but nonpositive expected information gain.
+    assert (
+        paper_loop._paper_bootstrap_queue_head_failure_predicate(  # noqa: SLF001
+            _result([_input(long_venue_min_id, gain=0.0)]), "LONG"
+        )
+        == "INFORMATION_GAIN_NONPOSITIVE"
+    )
+
+    # 4) A positive-utility exploration action exists (bootstrap must yield).
+    assert (
+        paper_loop._paper_bootstrap_queue_head_failure_predicate(  # noqa: SLF001
+            _result(
+                [_input(long_venue_min_id)],
+                exploration_action_id="some:exploration",
+            ),
+            "LONG",
+        )
+        == "POSITIVE_UTILITY_EXPLORATION_EXISTS"
+    )
+
+    # 5) Champion resolved directional (positive utility) — bootstrap yields.
+    assert (
+        paper_loop._paper_bootstrap_queue_head_failure_predicate(  # noqa: SLF001
+            _result(
+                [_input(long_venue_min_id)],
+                champion_selected_action="directional_trade",
+            ),
+            "LONG",
+        )
+        == "CHAMPION_DIRECTIONAL_POSITIVE_UTILITY"
+    )
+
+
+def test_run_once_bootstrap_queue_same_cycle_fallback_wiring() -> None:
+    """Source contract on the cycle wiring itself (the only affordable guard
+    on run_once's queue advance): the ranked queue is built from the full
+    designation before candidate evaluation, the builder receives ONLY the
+    current queue head (withheld after the first bootstrap authorization this
+    cycle), and BOTH failure paths — authority exception and
+    head-not-selected — pop the queue to the next rank in the SAME cycle.
+    """
+
+    source = inspect.getsource(paper_loop._run_once_without_writer_lock)  # noqa: SLF001
+
+    queue_build = source.index(
+        'adaptive_policy_cycle_context["bootstrap_ranked_queue"] = _bootstrap_ranked_queue'
+    )
+    first_shadow_build = source.index("build_adaptive_policy_shadow_candidate(")
+    assert queue_build < first_shadow_build
+
+    # Head-only designation handed to the builder + one-per-cycle withhold.
+    head_only = source.index(
+        '**adaptive_policy_cycle_context["bootstrap_ranked_queue"][0],'
+    )
+    assert queue_build < head_only < first_shadow_build
+    assert (
+        'adaptive_policy_cycle_context["bootstrap_ranked_queue"][0]'
+        in source[head_only : first_shadow_build]
+    )
+    assert source.count(
+        '"bootstrap_information_acquisition_cycle_authorizations"'
+    ) >= 3  # withhold condition + counter read + counter write
+
+    # BOTH failure paths pop to the next rank in the same cycle.
+    assert source.count("_bootstrap_queue[1:]") == 2
+    assert '"AUTHORITY_EXCEPTION:' in source or "AUTHORITY_EXCEPTION:{" in source
+    assert "_paper_bootstrap_queue_head_failure_predicate(" in source
+    # Selection terminates the traversal and records the selected rank.
+    assert '"first_failing_predicate": "SELECTED"' in source
+    assert '"bootstrap_first_current_hard_valid_rank"' in source
+    # Ranked members absent from the current signal universe are classified,
+    # never silently dropped.
+    assert '"CANDIDATE_NOT_IN_CURRENT_CYCLE_UNIVERSE"' in source
 
 
 def _bootstrap_liquidity_replay_material(

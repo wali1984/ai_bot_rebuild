@@ -172,6 +172,7 @@ def ordinary_source(
     microstructure_trust_score: float = 0.5,
     sweep_risk_score: float = 0.2,
     microstructure_action: str = "REDUCE_SIZE",
+    selected_action: str = "long",
     latency_within_bound: bool = True,
 ) -> tuple[dict[str, object], dict[str, object]]:
     prediction_id = f"pred_ordinary_{symbol}"
@@ -191,7 +192,7 @@ def ordinary_source(
         "confidence_head_schema_version": CONFIDENCE_HEAD_SCHEMA_VERSION,
         "confidence_head_actions": list(CONFIDENCE_HEAD_ACTIONS),
         "selected_action_is_directional": True,
-        "selected_action": "long",
+        "selected_action": selected_action,
         "model_parameter_fingerprint": "c" * 64,
     }
     source: dict[str, object] = {
@@ -202,7 +203,7 @@ def ordinary_source(
         "market_state_id": f"mstate_{prediction_id}",
         "symbol": symbol,
         "timeframe": "1m",
-        "selected_action": "long",
+        "selected_action": selected_action,
         "feature_snapshot_id": f"fs_{prediction_id}",
         "feature_vector_hash": "a" * 64,
         "input_feature_hash": "a" * 64,
