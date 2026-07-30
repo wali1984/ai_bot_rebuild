@@ -111,7 +111,10 @@ def test_fits_chronological_calibration_without_holdout_leakage() -> None:
     assert uncertainty["arbitrary_multiplier_used"] is False
     assert uncertainty["tuned_to_create_trades"] is False
     assert uncertainty["counterfactual_counts_as_realized_execution_profit"] is False
-    assert uncertainty["realized_execution_outcome_count"] == 9
+    # Authenticated realized closes are outcome EVIDENCE, never recency-
+    # excluded: the one realized close inside the holdout window still counts
+    # toward the profitability posterior (10 = 9 partitioned + 1 holdout).
+    assert uncertainty["realized_execution_outcome_count"] == 10
     assert artifact["global_statistics"]["posterior_uncertainty"] == uncertainty[
         "epistemic_parameter_uncertainty"
     ]
@@ -168,8 +171,34 @@ def test_validation_suffix_cannot_change_fitted_parameters() -> None:
     assert first["fit_row_digest"] == second["fit_row_digest"]
     assert first["learned_objective_weights"] == second["learned_objective_weights"]
     assert first["objective_weight_optimizer"] == second["objective_weight_optimizer"]
-    assert first["global_statistics"] == second["global_statistics"]
-    assert first["profitability_posterior_hierarchy"] == second[
+    # FITTED parameters never move with the suffix.  The profitability
+    # posterior is outcome EVIDENCE: mutating a realized close inside the
+    # suffix legitimately updates it, so only the posterior-evidence keys may
+    # differ; every other global statistic stays identical.
+    _posterior_evidence_keys = {
+        "posterior_alpha",
+        "posterior_beta",
+        "effective_sample_size",
+        "prior_entropy",
+        "expected_posterior_entropy",
+        "expected_information_gain_nats",
+        "posterior_uncertainty",
+        "win_rate_posterior_mean",
+        "posterior_uncertainty_source",
+        # loss probability blends the posterior mean, so it moves with
+        # realized-close evidence as well.
+        "loss_probability",
+    }
+    assert {
+        key: value
+        for key, value in first["global_statistics"].items()
+        if key not in _posterior_evidence_keys
+    } == {
+        key: value
+        for key, value in second["global_statistics"].items()
+        if key not in _posterior_evidence_keys
+    }
+    assert first["profitability_posterior_hierarchy"] != second[
         "profitability_posterior_hierarchy"
     ]
     assert first["validation"] != second["validation"]
