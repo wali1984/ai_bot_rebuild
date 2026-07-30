@@ -230,29 +230,70 @@ def check_gates() -> list[dict]:
             return 0.0
 
     def _g08_atomic_pair():
-        # Fetch portfolio:state and closed_trades in ONE pipeline round-trip so
-        # both reflect the same instant. Without this, attempt 0 compared a
-        # fresh portfolio read against the stale top-of-run closed_trades
-        # snapshot; if that read straddled the paper loop's two-key write
-        # (closed_trades and portfolio:state are separate SETs), the net sum
-        # lagged the accumulator by ~one trade's PnL and G08 false-failed
-        # (WQ-R15/R16/R17 transient recurrence). Atomic pair-read removes the
-        # read-skew; the retry loop still absorbs a genuine mid-write settle.
-        # Threshold ($0.02) and net-vs-net invariant are unchanged.
+        # Fetch portfolio:state, closed_trades, and the epoch pointer in ONE
+        # pipeline round-trip so all reflect the same instant. Without this,
+        # attempt 0 compared a fresh portfolio read against the stale
+        # top-of-run closed_trades snapshot; if that read straddled the paper
+        # loop's two-key write (closed_trades and portfolio:state are separate
+        # SETs), the net sum lagged the accumulator by ~one trade's PnL and
+        # G08 false-failed (WQ-R15/R16/R17 transient recurrence; CG-F045
+        # atomic pair-read). The retry loop still absorbs a genuine mid-write
+        # settle. Threshold ($0.02) and net-vs-net invariant are unchanged.
         if not (REDIS_OK and _r):
-            return (rget("v2:portfolio:state") or {}), (closed_trades or [])
+            return (
+                (rget("v2:portfolio:state") or {}),
+                (closed_trades or []),
+                (rget("v2:paper:account_epoch:current") or {}),
+            )
         try:
             pipe = _r.pipeline()
             pipe.get("v2:portfolio:state")
             pipe.get("v2:paper:closed_trades")
-            _ps_raw, _ct_raw = pipe.execute()
+            pipe.get("v2:paper:account_epoch:current")
+            _ps_raw, _ct_raw, _ep_raw = pipe.execute()
             _ps = json.loads(_ps_raw) if _ps_raw else {}
             _ct = json.loads(_ct_raw) if _ct_raw else []
-            return _ps, _ct
+            _ep = json.loads(_ep_raw) if _ep_raw else {}
+            return _ps, _ct, _ep
         except Exception:
-            return (rget("v2:portfolio:state") or {}), (closed_trades or [])
+            return (
+                (rget("v2:portfolio:state") or {}),
+                (closed_trades or []),
+                (rget("v2:paper:account_epoch:current") or {}),
+            )
 
-    _g08_portfolio, _g08_trades = _g08_atomic_pair()
+    def _g08_session_scope(_ps: dict, _ct: list, _ep: dict):
+        # Like-for-like accounting (post-rotation session awareness): the
+        # ledger accumulates ONLY its own paper session, while
+        # v2:paper:closed_trades preserves archived-session history by design
+        # (PaperAccountEpochV1 rotation never rewrites history). Summing
+        # archived rows against the current-session ledger false-failed G08 by
+        # exactly the archived PnL (observed 2026-07-30: |−14.6602 − (−0.2549)|
+        # = 14.4053 = archived epoch-0 net sum). Scope trades to the ledger's
+        # own session id (fallback: epoch pointer), mirroring
+        # paper_session.epoch.evaluate_preconditions/scope_rows semantics.
+        # Pre-rotation (no session id anywhere) keeps the full list — behavior
+        # identical to the pre-fix verifier. Net-vs-net and $0.02 unchanged.
+        session_id = str(
+            (_ps or {}).get("paper_session_id")
+            or (_ep or {}).get("paper_session_id")
+            or ""
+        )
+        if not session_id:
+            return list(_ct or []), None, 0
+        scoped = [
+            t
+            for t in (_ct or [])
+            if isinstance(t, dict)
+            and str(t.get("paper_session_id") or t.get("session_id") or "")
+            == session_id
+        ]
+        return scoped, session_id, max(0, len(_ct or []) - len(scoped))
+
+    _g08_portfolio, _g08_all_trades, _g08_epoch = _g08_atomic_pair()
+    _g08_trades, _g08_session_id, _g08_archived_excluded = _g08_session_scope(
+        _g08_portfolio, _g08_all_trades, _g08_epoch
+    )
     _g08_retries = 0
     while True:
         if _g08_trades and _g08_portfolio:
@@ -271,7 +312,10 @@ def check_gates() -> list[dict]:
             break
         time.sleep(2)
         _g08_retries += 1
-        _g08_portfolio, _g08_trades = _g08_atomic_pair()
+        _g08_portfolio, _g08_all_trades, _g08_epoch = _g08_atomic_pair()
+        _g08_trades, _g08_session_id, _g08_archived_excluded = _g08_session_scope(
+            _g08_portfolio, _g08_all_trades, _g08_epoch
+        )
 
     portfolio = _g08_portfolio  # re-expose for G14/G15 which use this variable
     if _g08_portfolio and isinstance(_g08_trades, list):
@@ -296,6 +340,9 @@ def check_gates() -> list[dict]:
                 "difference_usd": _g08_diff, "threshold_usd": 0.02,
                 "retries": _g08_retries,
                 "current_session_trade_count": len(_g08_trades),
+                "session_id_scope": _g08_session_id,
+                "archived_session_rows_excluded": _g08_archived_excluded,
+                "global_closed_trade_rows": len(_g08_all_trades or []),
             },
         ))
     else:
