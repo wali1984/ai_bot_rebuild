@@ -30,6 +30,31 @@ immutable_checkout_clean                 = true        (git diff --quiet vs a4cf
 NRestarts_baseline_recorded_after_cutover = true       (all four = 0 absolute)
 ```
 
+## BURN-IN MONITOR CORRECTION (operator-required, 2026-07-30 ~18:3x EDT)
+
+Evidence-monitor defect (NOT a production defect): the close counter was a
+row-count delta, proving appends rather than valid lifecycles. Corrected —
+each close appended after the baseline must now independently pass
+`PROTECTED_RECONCILED_LIFECYCLE_V1`:
+row-level `close_id` unique, `close_event_time` after the 21:52Z cutover,
+`remaining_quantity_after_close == 0`, `reduce_only == true`, mandatory
+protection existed at entry (`adaptive_policy_stop_price` /
+`stop_distance_bps > 0`), all four paper/live flags correct; account-level
+`paper_position_fill_reconciliation_status.status == PASS` with
+`phantom_position_count == 0` and `unresolved_position_count == 0`,
+`paper_position_close_transition_status.status == PASS`,
+`paper_account_margin_status.accounting_complete == true` and
+`invariant == true`. Total account margin is deliberately NOT required to be
+zero (concurrent positions are legitimate). A close failing qualification on
+two consecutive samples (one retry absorbs non-atomic status-block write
+skew, per the G08 hardening) is a lifecycle defect → burn-in
+FAILED_PREDICATE. Qualifier validated against real data before relaunch: the
+last genuine pre-cutover close fails only the cutover-time predicate; the
+same row shifted post-cutover fully qualifies; a corrupted variant lists
+exactly its broken predicates. Publication/cycle counters (6/12, both past
+threshold) were seeded across the monitor swap; the qualified-close counter
+started at zero. The frozen production line was NOT touched.
+
 ## CURRENT DEPLOYED LINE — `a4cf7ebc9f936fd774789fe9c1fdb32b7d50ef6d` (2026-07-30 ~17:5x EDT)
 
 `a4cf7ebc9f` = `f59dd15650` + the single operator-authorized correction:
