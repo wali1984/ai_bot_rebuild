@@ -1,5 +1,35 @@
 # TERMINAL-WEALTH CLEAN RELEASE MANIFEST
 
+## SHA-CHANGE RECONCILIATION (operator-required, 2026-07-30 ~17:55 EDT)
+
+Why the accepted SHA changed from `f59dd15650` to `a4cf7ebc9f`:
+
+- Parent: `a4cf7ebc9f936fd774789fe9c1fdb32b7d50ef6d` has exactly one parent,
+  `f59dd1565097ce7ff4525dc8000bf9797643d9cd` (verified:
+  `git log f59dd15650..a4cf7ebc9f` = one commit).
+- Exact diff: 2 files, +53/−6 —
+  `candidate_outcome_calibration_v2.py` (correlation attestation logic only:
+  `correlation_penalty_learned_online` made conditional on measured rows,
+  `correlation_penalty_evidence_available` added,
+  `correlation_penalty_derivation_or_initialization` added) and its unit test
+  file. No other runtime change of any kind.
+- Classification: this IS a production-code change → NEW runtime release per
+  operator rule. The burn-in therefore counts from zero on `a4cf7ebc9f`; no
+  `f59dd15650` runtime evidence is counted toward `a4cf7ebc9f` acceptance
+  (the monitor baseline was captured after the `a4cf7ebc9f` cutover; the
+  seeded 2-publication/3-cycle continuity events are all post-`a4cf7ebc9f`
+  events whose observation gap was verified clean — absolute NRestarts
+  unchanged at 0, closed-trade count unchanged at 96).
+
+Acceptance facts captured live at 17:55 EDT:
+
+```text
+all_four_process_cmdlines_sha            = a4cf7ebc9f  (via /proc/<pid>/cmdline)
+all_four_loaded_dropins_sha              = a4cf7ebc9f  (DropInPaths grep + NeedDaemonReload=no)
+immutable_checkout_clean                 = true        (git diff --quiet vs a4cf7ebc9f)
+NRestarts_baseline_recorded_after_cutover = true       (all four = 0 absolute)
+```
+
 ## CURRENT DEPLOYED LINE — `a4cf7ebc9f936fd774789fe9c1fdb32b7d50ef6d` (2026-07-30 ~17:5x EDT)
 
 `a4cf7ebc9f` = `f59dd15650` + the single operator-authorized correction:
