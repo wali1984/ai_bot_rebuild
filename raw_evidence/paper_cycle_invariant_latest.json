@@ -3,20 +3,20 @@
   "counts": {
     "accepted_fills": 1,
     "closed_trades": 96,
-    "intents": 261,
+    "intents": 41,
     "open_positions": 1,
     "proof_store": 1
   },
   "current_epoch": 1,
   "current_session": "paper_session_140989e198032b94",
   "failed_invariants": [],
-  "generated_utc": "2026-07-30T21:02:54.254209+00:00",
+  "generated_utc": "2026-07-30T21:39:56.713727+00:00",
   "invariants": {
     "I01_one_paper_writer": {
       "detail": "paper_loop=active legacy_online_runtime_active=False writer_id=v2_trade_management_paper_loop",
       "evidence": {
         "legacy_active": false,
-        "paper_main_pid": "4093604"
+        "paper_main_pid": "4155413"
       },
       "status": "PASS"
     },
@@ -30,16 +30,16 @@
       "status": "PASS"
     },
     "I03_intents_session_scoped": {
-      "detail": "0 intents mis-scoped; 261/261 carry a session tag",
+      "detail": "0 intents mis-scoped; 41/41 carry a session tag",
       "evidence": {
         "mis_scoped_examples": []
       },
       "status": "PASS"
     },
     "I04_directional_evidence_authenticated": {
-      "detail": "1 directional candidates; 0 missing authenticated feature/cost evidence",
+      "detail": "0 directional candidates; 0 missing authenticated feature/cost evidence",
       "evidence": {
-        "directional_count": 1,
+        "directional_count": 0,
         "missing_examples": []
       },
       "status": "PASS"
@@ -126,22 +126,22 @@
       "status": "PASS"
     },
     "I14_bounded_payloads": {
-      "detail": "largest mutable payload = 116106952 bytes; soft 8388608 / hard 268435456; intents ~444854 bytes/record x 261 candidates (per-cycle overwrite, LOAD-SCALING = CG-F065)",
+      "detail": "largest mutable payload = 24161390 bytes; soft 8388608 / hard 268435456; intents ~438925 bytes/record x 41 candidates (per-cycle overwrite, LOAD-SCALING = CG-F065)",
       "evidence": {
-        "bytes_per_intent": 444854,
-        "candidate_count": 261,
+        "bytes_per_intent": 438925,
+        "candidate_count": 41,
         "load_scaling_note": "intents is overwritten per cycle (not accumulating) but scales linearly with candidate count; WARN not a correctness defect; verify under full-universe load (Phase 5); tracked as CG-F065",
         "over_hard": {},
         "over_soft": {
           "v2:paper:closed_trades": 24161390,
-          "v2:paper:intents": 116106952
+          "v2:paper:intents": 17995938
         },
         "payload_bytes": {
           "v2:paper:accepted_fills": 1908272,
           "v2:paper:closed_trades": 24161390,
-          "v2:paper:intents": 116106952,
+          "v2:paper:intents": 17995938,
           "v2:paper:open_position_fill_proofs": 2302,
-          "v2:paper:positions": 280596
+          "v2:paper:positions": 280812
         }
       },
       "status": "WARN"

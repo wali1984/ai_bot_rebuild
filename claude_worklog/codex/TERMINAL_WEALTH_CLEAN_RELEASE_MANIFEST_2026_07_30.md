@@ -1,6 +1,33 @@
 # TERMINAL-WEALTH CLEAN RELEASE MANIFEST
 
-## DEPLOYED 2026-07-30 ~16:51 EDT — final release SHA `f59dd1565097ce7ff4525dc8000bf9797643d9cd`
+## CURRENT DEPLOYED LINE — `a4cf7ebc9f936fd774789fe9c1fdb32b7d50ef6d` (2026-07-30 ~17:5x EDT)
+
+`a4cf7ebc9f` = `f59dd15650` + the single operator-authorized correction:
+**truthful correlation-penalty attestation.** The live artifact had claimed
+`correlation_penalty_learned_online=true` against 0 measured / 20,506 missing
+correlation rows. Now: the flag is conditional on measured rows, with
+`correlation_penalty_evidence_available` and an explicit
+`correlation_penalty_derivation_or_initialization`
+(`REGULARIZED_LOGISTIC_PRIOR_ONLY_ZERO_FEATURE_NO_MEASURED_EXPOSURE_ROWS`
+in the current live state). The penalty remains present as a regularized
+prior; only its provenance claim changed. No consumer reads the flag
+(verified single producer site). Offline acceptance gate extended with an
+attestation-consistency predicate: 10/10 PASS on the real archive.
+Corrected artifact verified live (`corr_learned=False|evid=False`), then all
+four services cut over to `a4cf7ebc9f` (ordered, calibration first),
+verified active on the SHA via /proc. Cherry-picked to
+codex/pipeline-trust-refresh as `d41bc08707`.
+
+Per operator verdict, the line is FROZEN: further code changes require an
+exact runtime failure predicate. Event-based burn-in running
+(scratchpad/burn_in_monitor.py → burn_in_state.json): PASS requires
+calibration v3 publications ≥3, paper cycles on the SHA ≥5, post-deploy
+closes ≥3, while restarts/parity-disagreements/schema-mismatches stay 0.
+Status ladder: post-deployment execution smoke test PASS; continuous
+post-deployment operation PARTIAL (pending burn-in); permanent recovery NOT
+YET PROVEN. Economic edge remains the binding constraint (trainer lane).
+
+## PRIOR DEPLOY 2026-07-30 ~16:51 EDT — `f59dd1565097ce7ff4525dc8000bf9797643d9cd`
 
 `f59dd15650` = `f21fa6b672` (below) + one incident fix:
 **fix(calibration): admit legacy archive rows without correlation exposure.**
