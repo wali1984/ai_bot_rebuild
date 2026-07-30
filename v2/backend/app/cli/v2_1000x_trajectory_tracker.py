@@ -23,6 +23,13 @@ from typing import Any
 
 import redis
 
+from v2.backend.app.services.paper_session.epoch import (
+    EPOCH_POINTER_KEY,
+    LEGACY_SESSION_KEY,
+    PORTFOLIO_STATE_KEY,
+    scope_rows,
+)
+
 REDIS_URL = "redis://127.0.0.1:6379/0"
 OUT_KEY = "v2:goal:trajectory_1000x"
 TARGET_MULTIPLE = 1000.0
@@ -62,7 +69,9 @@ def _coerce_float(value: Any) -> float | None:
 
 
 def _session_start(session_id: str) -> dt.datetime | None:
-    # e.g. paper_3000_final_pre_live_20260713T190904Z
+    # Legacy fallback only, e.g. paper_3000_final_pre_live_20260713T190904Z.
+    # Post-rotation ids are hash-suffixed (paper_session_<digest>) and carry
+    # no timestamp; those sessions anchor on the epoch pointer instead.
     token = session_id.rsplit("_", 1)[-1]
     try:
         return dt.datetime.strptime(token, "%Y%m%dT%H%M%SZ").replace(
@@ -70,6 +79,104 @@ def _session_start(session_id: str) -> dt.datetime | None:
         )
     except Exception:
         return None
+
+
+def _parse_iso_utc(value: Any) -> dt.datetime | None:
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        parsed = dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=dt.timezone.utc)
+    return parsed.astimezone(dt.timezone.utc)
+
+
+def _session_anchor(r: Any, ledger: dict[str, Any]) -> dict[str, Any]:
+    """Authoritative session identity + day-0 anchor for the 90-day horizon.
+
+    Precedence: PaperAccountEpochV1 pointer (started_at written atomically at
+    rotation) -> legacy v2:paper:session (started_at field) -> ledger session
+    id with the legacy timestamp-suffix parse. Never guesses: a missing
+    anchor yields started_at=None and the payload reports days_elapsed=null
+    with the source recorded.
+    """
+    pointer = _get_json(r, EPOCH_POINTER_KEY)
+    if isinstance(pointer, dict) and pointer.get("paper_session_id"):
+        return {
+            "paper_session_id": str(pointer.get("paper_session_id")),
+            "paper_account_epoch": pointer.get("paper_account_epoch"),
+            "starting_equity_usd": _coerce_float(
+                pointer.get("starting_equity_usd")
+            ),
+            "started_at": _parse_iso_utc(pointer.get("started_at")),
+            "anchor_source": f"redis:{EPOCH_POINTER_KEY}",
+        }
+    legacy = _get_json(r, LEGACY_SESSION_KEY)
+    if isinstance(legacy, dict) and legacy.get("paper_session_id"):
+        session_id = str(legacy.get("paper_session_id"))
+        return {
+            "paper_session_id": session_id,
+            "paper_account_epoch": legacy.get("paper_account_epoch"),
+            "starting_equity_usd": _coerce_float(
+                legacy.get("starting_equity_usd")
+                if legacy.get("starting_equity_usd") is not None
+                else legacy.get("initial_capital")
+            ),
+            "started_at": (
+                _parse_iso_utc(legacy.get("started_at"))
+                or _session_start(session_id)
+            ),
+            "anchor_source": f"redis:{LEGACY_SESSION_KEY}",
+        }
+    session_id = str(ledger.get("paper_session_id") or "")
+    return {
+        "paper_session_id": session_id or None,
+        "paper_account_epoch": ledger.get("paper_account_epoch"),
+        "starting_equity_usd": _coerce_float(ledger.get("starting_equity_usd")),
+        "started_at": _session_start(session_id) if session_id else None,
+        "anchor_source": "redis:v2:paper:ledger",
+    }
+
+
+def _latest_terminal_outcome_projection(
+    closed: list[Any],
+) -> dict[str, Any] | None:
+    """Newest current-session close carrying the per-outcome terminal
+    projection stamped by the outcome pipeline (requirement: publish the
+    terminal-equity distribution after every completed outcome). Mirrored
+    verbatim — this tracker computes no probabilities of its own."""
+    newest: dict[str, Any] | None = None
+    newest_stamp = ""
+    for row in closed:
+        if not isinstance(row, dict):
+            continue
+        projection = row.get("terminal_equity_after_completed_outcome")
+        if not isinstance(projection, dict):
+            continue
+        stamp = str(
+            row.get("exit_price_utc")
+            or row.get("closed_utc")
+            or row.get("exit_time_utc")
+            or ""
+        )
+        if newest is None or stamp >= newest_stamp:
+            newest = {
+                "close_trade_id": row.get("trade_id")
+                or row.get("close_id")
+                or row.get("id"),
+                "close_stamp_utc": stamp or None,
+                "terminal_equity_after_completed_outcome": projection,
+                "terminal_target_probability": row.get(
+                    "terminal_target_probability"
+                ),
+                "terminal_equity_distribution_usd": row.get(
+                    "terminal_equity_distribution_usd"
+                ),
+            }
+            newest_stamp = stamp
+    return newest
 
 
 def _binding_constraint(r: Any) -> dict[str, Any]:
@@ -208,9 +315,27 @@ def run_once() -> dict[str, Any]:
     now = _utc_now()
     ledger = _get_json(r, "v2:paper:ledger") or {}
     positions = _get_json(r, "v2:paper:positions") or []
-    closed = _get_json(r, "v2:paper:closed_trades") or []
+    closed_all = _get_json(r, "v2:paper:closed_trades") or []
 
-    starting = _coerce_float(ledger.get("starting_equity_usd")) or 3000.0
+    anchor = _session_anchor(r, ledger)
+    session_id = anchor["paper_session_id"] or ""
+    # Current-session accounting only: post-rotation the global closed-trades
+    # history preserves archived sessions, and summing them re-mixed archived
+    # PnL into the live $3000 face (observed live as days_elapsed=null with
+    # blended equity). Rows without a session stamp are pre-rotation legacy
+    # and only count when no rotation pointer exists.
+    if session_id:
+        closed = scope_rows(closed_all, session_id, "current_session")
+        session_scope = "current_session"
+    else:
+        closed = [row for row in closed_all if isinstance(row, dict)]
+        session_scope = "all_unscoped_no_session_anchor"
+
+    starting = (
+        anchor["starting_equity_usd"]
+        or _coerce_float(ledger.get("starting_equity_usd"))
+        or 3000.0
+    )
     realized = sum(
         _coerce_float(row.get("realized_net_pnl_usd")) or 0.0
         for row in closed
@@ -222,9 +347,20 @@ def run_once() -> dict[str, Any]:
         if isinstance(row, dict)
     )
     equity = starting + realized + unrealized
+    equity_source = "session_scoped_recompute"
+    # Prefer the authoritative portfolio publisher when it describes the SAME
+    # session (it recomputes equity from scratch with reconciliation flags).
+    portfolio = _get_json(r, PORTFOLIO_STATE_KEY) or {}
+    portfolio_equity = _coerce_float(portfolio.get("equity_usd"))
+    if (
+        portfolio_equity is not None
+        and session_id
+        and str(portfolio.get("paper_session_id") or "") == session_id
+    ):
+        equity = portfolio_equity
+        equity_source = f"redis:{PORTFOLIO_STATE_KEY}"
 
-    session_id = str(ledger.get("paper_session_id") or "")
-    started = _session_start(session_id)
+    started = anchor["started_at"]
     days_elapsed = (
         max(0.0001, (now - started).total_seconds() / 86400.0) if started else None
     )
@@ -247,13 +383,35 @@ def run_once() -> dict[str, Any]:
         else None
     )
 
+    remaining_days = (
+        max(0.0, TARGET_DAYS - days_elapsed) if days_elapsed is not None else None
+    )
+    latest_terminal = _latest_terminal_outcome_projection(closed)
+
     payload: dict[str, Any] = {
         "schema_version": "v2_goal_trajectory_1000x_v1",
         "generated_utc": _iso(now),
         "objective": "1000x_in_90_days_research_objective_not_a_promise",
-        "paper_session_id": session_id,
+        "paper_session_id": session_id or None,
+        "paper_account_epoch": anchor["paper_account_epoch"],
+        "session_scope": session_scope,
+        "session_anchor_source": anchor["anchor_source"],
+        "equity_source": equity_source,
         "session_started_utc": _iso(started) if started else None,
         "days_elapsed": round(days_elapsed, 3) if days_elapsed else None,
+        "remaining_days_to_target": (
+            round(remaining_days, 3) if remaining_days is not None else None
+        ),
+        "target_equity_usd": round(starting * TARGET_MULTIPLE, 2),
+        "latest_outcome_terminal_projection": latest_terminal,
+        "terminal_projection_note": (
+            None
+            if latest_terminal is not None
+            else (
+                "NO_CURRENT_SESSION_CLOSE_CARRIES_TERMINAL_PROJECTION_YET"
+            )
+        ),
+        "target_guaranteed": False,
         "starting_equity_usd": round(starting, 2),
         "equity_usd": round(equity, 4),
         "realized_pnl_usd": round(realized, 4),
@@ -290,6 +448,10 @@ def run_once() -> dict[str, Any]:
         "growth_stage": _growth_stage(r, closed),
         "open_position_count": len(positions),
         "closed_trade_count": len(closed),
+        "historical_closed_trade_count": len(closed_all),
+        "historical_rows_excluded_from_current_view": max(
+            0, len(closed_all) - len(closed)
+        ),
         "paper_only": True,
         "places_real_order": False,
         "routes_to_live": False,
