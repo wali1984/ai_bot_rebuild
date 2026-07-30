@@ -9,12 +9,18 @@ import subprocess
 import sys
 from copy import deepcopy
 from dataclasses import replace
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
 
 from v2.backend.app.cli import v2_trade_management_paper_loop as paper_loop
+from v2.backend.app.services.adaptive_capital_allocator.allocator import (
+    PAPER_ALLOCATOR_ARITHMETIC_FORMULA,
+    PAPER_ALLOCATOR_ARITHMETIC_RECEIPT_MODEL_INPUT_KEY,
+    PAPER_ALLOCATOR_ARITHMETIC_RECEIPT_SCHEMA_VERSION,
+    PAPER_ALLOCATOR_ARITHMETIC_VERSION,
+)
 from v2.backend.tests.unit.services.adaptive_capital_allocator.growth_receipt_test_utils import (
     authorize_growth,
     strict_growth_performance_status,
@@ -408,7 +414,7 @@ def _passing_final_admission_runtime_owner_status() -> dict[str, object]:
     }
 
 
-def _canonical_fail_closed_adaptive_tuning_state(
+def _canonical_evidence_backed_adaptive_tuning_state(
     monkeypatch,
     *,
     session_id: str,
@@ -424,11 +430,109 @@ def _canonical_fail_closed_adaptive_tuning_state(
         "places_real_order": False,
     }
     session_raw = json.dumps(session_payload, sort_keys=True)
+
+    def _canonical_utc(value: datetime) -> str:
+        return (
+            value.astimezone(timezone.utc)
+            .isoformat(timespec="microseconds")
+            .replace("+00:00", "Z")
+        )
+
+    base = datetime(2026, 7, 17, 12, 0, tzinfo=timezone.utc)
+
+    def _clean_outcome_row(index: int, *, pnl: float) -> dict[str, object]:
+        close_time = base - timedelta(minutes=60 - index)
+        feature_cutoff = close_time - timedelta(minutes=2)
+        feature_available_at = feature_cutoff + timedelta(milliseconds=100)
+        decision_time = feature_available_at + timedelta(milliseconds=100)
+        entry_execution_time = decision_time + timedelta(milliseconds=100)
+        return {
+            "close_id": f"close-{index}",
+            "position_id": f"position-{index}",
+            "prediction_id": f"prediction-{index}",
+            "entry_prediction_id": f"prediction-{index}",
+            "paper_session_id": session_id,
+            "session_id": session_id,
+            "reset_session_id": session_id,
+            "paper_only": True,
+            "places_real_order": False,
+            "routes_to_live": False,
+            "dirty_flag": False,
+            "dirty_reasons": [],
+            "future_labels_used_as_features": False,
+            "candidate_selected_after_outcome": False,
+            "post_outcome_candidate_selection": False,
+            "source_hashes": {
+                "prediction_hash": f"{index + 1:064x}",
+                "source_lineage_hash": f"{index + 10_001:064x}",
+            },
+            "realized_net_pnl_usd": pnl,
+            "confidence_calibrated": 0.60,
+            "feature_cutoff": _canonical_utc(feature_cutoff),
+            "entry_feature_cutoff": _canonical_utc(feature_cutoff),
+            "feature_available_at": _canonical_utc(feature_available_at),
+            "entry_feature_available_at": _canonical_utc(feature_available_at),
+            "available_at": _canonical_utc(feature_available_at),
+            "decision_time": _canonical_utc(decision_time),
+            "entry_execution_time": _canonical_utc(entry_execution_time),
+            "entry_time": _canonical_utc(entry_execution_time),
+            "closed_quantity": 0.1,
+            "entry_price": 100.0,
+            "exit_price": 101.0 if pnl > 0 else 99.0,
+            "close_reason": "TIER_1_PROFIT_TARGET" if pnl > 0 else "TIER_1_STOP",
+            "exit_time": _canonical_utc(close_time),
+            "outcome_available_at": _canonical_utc(close_time + timedelta(seconds=1)),
+            "grade": "B",
+        }
+
+    rows = [
+        _clean_outcome_row(index, pnl=1.0 if index < 14 else -0.25)
+        for index in range(20)
+    ]
+    market_values: dict[str, object] = {}
+    for market_symbol, market_key in zip(
+        tuner.MARKET_CANDLE_SYMBOLS,
+        tuner.MARKET_CANDLE_KEYS,
+        strict=True,
+    ):
+        candles: list[dict[str, object]] = []
+        for index in range(100):
+            close_time = base - timedelta(minutes=100 - index, milliseconds=1)
+            event_time = close_time + timedelta(milliseconds=100)
+            available_at = event_time + timedelta(milliseconds=100)
+            range_bps = 10.0 + float(index % 20)
+            half_range = (range_bps / 10_000.0) * 100.0 / 2.0
+            candles.append(
+                {
+                    "symbol": market_symbol,
+                    "timeframe": tuner.MARKET_CANDLE_TIMEFRAME,
+                    "open_time": int(
+                        (close_time - timedelta(minutes=1)).timestamp() * 1000
+                    ),
+                    "event_time": int(event_time.timestamp() * 1000),
+                    "candle_close_time": int(close_time.timestamp() * 1000),
+                    "close_time": int(close_time.timestamp() * 1000),
+                    "available_at": int(available_at.timestamp() * 1000),
+                    "is_closed": True,
+                    "closed_candle": True,
+                    "candle_closed_confirmed": True,
+                    "feature_eligible": True,
+                    "open": 100.0,
+                    "high": 100.0 + half_range,
+                    "low": 100.0 - half_range,
+                    "close": 100.0,
+                    "volume": 10.0,
+                }
+            )
+        market_values[market_key] = json.dumps(candles, sort_keys=True)
     source_values = {
-        tuner.OUTCOMES_KEY: "[]",
+        tuner.OUTCOMES_KEY: json.dumps(rows, sort_keys=True),
         tuner.PAPER_SESSION_KEY: session_raw,
-        **{key: None for key in tuner.MARKET_CANDLE_KEYS},
-        tuner.TRAINER_METRICS_KEY: None,
+        **market_values,
+        tuner.TRAINER_METRICS_KEY: json.dumps(
+            {"win_rate_percent": 60.0, "profit_factor": 1.5},
+            sort_keys=True,
+        ),
     }
     outcomes_cutoff = datetime(2026, 7, 17, 12, 0, tzinfo=timezone.utc)
     clock = iter(
@@ -522,7 +626,7 @@ def golden_a_grade_final_admission(
     allocation_decision_time = "2026-07-17T12:00:05Z"
     bracket_key_id = "paper-golden-bracket-key-v1"
     paper_session_id = "paper-golden-session-2026-07-17"
-    tuning_state, paper_session_raw = _canonical_fail_closed_adaptive_tuning_state(
+    tuning_state, paper_session_raw = _canonical_evidence_backed_adaptive_tuning_state(
         monkeypatch,
         session_id=paper_session_id,
     )
@@ -731,7 +835,10 @@ def golden_a_grade_final_admission(
         ),
         "portfolio_state_source": (
             paper_loop.PAPER_PORTFOLIO_STATE_REDIS_KEY,
-            revocable_sources["portfolio_state_source"],
+            paper_loop._paper_revocable_source_control_material(  # noqa: SLF001
+                "portfolio_state_source",
+                revocable_sources["portfolio_state_source"],
+            ),
         ),
         "adaptive_tuning_source": (
             paper_loop.PAPER_ADAPTIVE_TUNING_REDIS_KEY,
@@ -1426,7 +1533,7 @@ def test_adaptive_tuning_exact_reader_rejects_duplicate_outer_json_keys(
     from v2.backend.app.cli import v2_adaptive_gate_tuner as tuner
 
     session_id = "paper-strict-adaptive-reader-session"
-    state, _session_raw = _canonical_fail_closed_adaptive_tuning_state(
+    state, _session_raw = _canonical_evidence_backed_adaptive_tuning_state(
         monkeypatch,
         session_id=session_id,
     )
@@ -1462,7 +1569,7 @@ def test_adaptive_tuning_semantic_validation_blocks_huge_integer_without_raising
     monkeypatch,
 ) -> None:
     session_id = "paper-huge-integer-adaptive-session"
-    state, _session_raw = _canonical_fail_closed_adaptive_tuning_state(
+    state, _session_raw = _canonical_evidence_backed_adaptive_tuning_state(
         monkeypatch,
         session_id=session_id,
     )
@@ -1811,7 +1918,7 @@ def _portfolio_projection_fixture() -> dict[str, object]:
 @pytest.fixture
 def revocable_control_commit_fixture(monkeypatch):
     session_id = "paper-revocable-projection-test-session"
-    tuning_state, session_raw = _canonical_fail_closed_adaptive_tuning_state(
+    tuning_state, session_raw = _canonical_evidence_backed_adaptive_tuning_state(
         monkeypatch,
         session_id=session_id,
     )
@@ -2706,8 +2813,21 @@ def _synthetic_final_admission_sealed_row(
         prior_accepted_rows=[],
     )
     allocation_lineage = {paper_loop.CYCLE_RESERVATION_LINEAGE_KEY: cycle_snapshot["snapshot_hash"]}
+    timeframe = str(row["timeframe"])
+    action = str(row["side"])
+    price = float(row["fill_price"])
+    notional = float(row["gross_notional_usd"])
+    max_loss = float(row.get("expected_max_loss_usd") or max(0.01, notional * 0.01))
+    selected_leverage = float(row["effective_leverage"])
+    margin = notional / selected_leverage
+    quantity = notional / price
+    raw_notional = abs(quantity * price)
     allocation_input = {
         "symbol": symbol,
+        "timeframe": timeframe,
+        "action": action,
+        "price": price,
+        "permitted_leverage_values": [selected_leverage],
         "lineage_ids": allocation_lineage,
     }
     allocation_input_material = {
@@ -2718,27 +2838,64 @@ def _synthetic_final_admission_sealed_row(
     allocation_input_hash = paper_loop._paper_canonical_sha256(  # noqa: SLF001
         allocation_input_material
     )
-    notional = float(row["gross_notional_usd"])
-    margin = float(row["allocated_margin_usd"])
-    max_loss = float(row.get("expected_max_loss_usd") or max(0.01, notional * 0.01))
+    arithmetic_material = {
+        "schema_version": PAPER_ALLOCATOR_ARITHMETIC_RECEIPT_SCHEMA_VERSION,
+        "arithmetic_version": PAPER_ALLOCATOR_ARITHMETIC_VERSION,
+        "formula": PAPER_ALLOCATOR_ARITHMETIC_FORMULA,
+        "raw_post_step_quantity_binary64_hex": quantity.hex(),
+        "input_price_binary64_hex": price.hex(),
+        "raw_post_step_notional_binary64_hex": raw_notional.hex(),
+        "selected_leverage_binary64_hex": selected_leverage.hex(),
+    }
+    arithmetic_receipt = {
+        **arithmetic_material,
+        "receipt_sha256": paper_loop._paper_canonical_sha256(  # noqa: SLF001
+            arithmetic_material
+        ),
+    }
     allocation: dict[str, object] = {
         "allocation_id": f"alloc_{str(allocation_input_hash)[:24]}",
         "allocation_input_schema_version": "adaptive_capital_allocation_input_v1",
         "allocation_input_hash_algorithm": "sha256(canonical-json-v1)",
         "allocation_input_hash": allocation_input_hash,
         "allocation_input_material": allocation_input_material,
+        "model_inputs": {
+            "allocation_input_schema_version": "adaptive_capital_allocation_input_v1",
+            "allocation_input_hash": allocation_input_hash,
+            "allocation_input_hash_algorithm": "sha256(canonical-json-v1)",
+            "paper_post_quantization_exchange_filter_status": "PASS",
+            "paper_margin_configuration_uses_post_quantization_notional": True,
+            "paper_target_quantity_after_step_quantization": quantity,
+            "paper_target_notional_after_step_quantization_usd": notional,
+            "max_loss_usd": max_loss,
+            "paper_modeled_loss_bps": max_loss / notional * 10_000.0,
+            "selected_leverage": selected_leverage,
+            "selected_allocated_margin_usd": margin,
+            PAPER_ALLOCATOR_ARITHMETIC_RECEIPT_MODEL_INPUT_KEY: arithmetic_receipt,
+        },
         "allocator_decision": "ALLOW_WITH_SIZE",
         "symbol": symbol,
+        "timeframe": timeframe,
+        "action": action,
+        "target_quantity": quantity,
         "lineage_ids": allocation_lineage,
         "gross_notional_usd": notional,
         "target_notional_usdt": notional,
         "target_notional_usd": notional,
+        "recommended_leverage": selected_leverage,
+        "effective_leverage": selected_leverage,
         "allocated_margin_usd": margin,
+        "margin_mode": "isolated_paper_simulated",
+        "recommended_margin_mode": "isolated_paper_simulated",
         "max_loss_if_stop_hit": max_loss,
         "max_loss_usd": max_loss,
         "paper_only": True,
         "routes_to_live": False,
         "places_real_order": False,
+        "live_order": False,
+        "test_order": False,
+        "leverage_mutation": False,
+        "margin_mode_mutation": False,
     }
     row["adaptive_allocation"] = allocation
     row["allocation_id"] = allocation["allocation_id"]
@@ -2876,22 +3033,71 @@ def _current_mark_evidence(
     }
 
 
+def _sealed_proof_backed_fill(*, fill_id: str) -> tuple[dict, dict, dict]:
+    """Build a sealed typed admission row, its position, and the merged rail row.
+
+    The precycle join validates the SAME rail row against both the rail proof
+    material contract and the sealed-row final-admission contract, so the rail
+    row must be the sealed row merged with the built proof material.
+    """
+
+    full = _typed_adaptive_final_admission_fixture()
+    full.update(
+        {
+            "fill_id": fill_id,
+            "ledger_row_id": fill_id,
+            "position_id": f"paper-pos-{fill_id}",
+            "position_generation_id": "a" * 64,
+            "checkpoint_id": "SERVING_ABI_V2_PAPER_precycle_fixture",
+            "checkpoint_generation": 3,
+            "cohort_id": "paper-serving-v2-precycle-fixture",
+        }
+    )
+    full = _reseal_typed_adaptive_final_admission_fixture(full)
+    full = paper_loop._seal_paper_persisted_ledger_contract(full)  # noqa: SLF001
+    position = {
+        "position_id": full["position_id"],
+        "position_generation_id": full["position_generation_id"],
+        "checkpoint_id": full["checkpoint_id"],
+        "checkpoint_generation": full["checkpoint_generation"],
+        "cohort_id": full["cohort_id"],
+        "entry_fill_id": fill_id,
+        "source_fill_ids": [fill_id],
+        "prediction_id": full["prediction_id"],
+        "signal_id": full["signal_id"],
+        "symbol": full["symbol"],
+        "timeframe": full["timeframe"],
+        "side": full["side"],
+        "net_quantity": full["quantity"],
+        "avg_entry_price": full["fill_price"],
+        "gross_notional_usd": full["gross_notional_usd"],
+        "effective_leverage": full["effective_leverage"],
+        "allocated_margin_usd": full["allocated_margin_usd"],
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+    proof, reasons = paper_loop._paper_build_open_position_fill_proof(  # noqa: SLF001
+        full,
+        position,
+        generated_utc="2026-07-17T11:59:59Z",
+    )
+    assert reasons == []
+    assert proof is not None
+    return full, position, {**full, **proof}
+
+
 def test_precycle_current_mark_snapshot_joins_every_source_fill_and_sums_loss(
     monkeypatch,
 ) -> None:
-    first = _synthetic_final_admission_sealed_row(
-        intent_id="intent-source-fill-1",
-        signal_id="signal-source-fill-1",
-        prediction_id="prediction-source-fill-1",
+    _full1, pos1, merged1 = _sealed_proof_backed_fill(fill_id="fill-source-1")
+    _full2, pos2, merged2 = _sealed_proof_backed_fill(fill_id="fill-source-2")
+    redis = _FakeRedis(
+        _open_position_fill_proof_store_payload(
+            [merged1, merged2],
+            positions=[pos1, pos2],
+        )
     )
-    second = _synthetic_final_admission_sealed_row(
-        intent_id="intent-source-fill-2",
-        signal_id="signal-source-fill-2",
-        prediction_id="prediction-source-fill-2",
-    )
-    first["fill_id"] = first["ledger_row_id"] = "fill-source-1"
-    second["fill_id"] = second["ledger_row_id"] = "fill-source-2"
-    redis = _FakeRedis({"v2:paper:accepted_fills": [first, second]})
     times = iter(
         (
             "2026-07-17T12:00:00.750000Z",
@@ -2934,12 +3140,13 @@ def test_precycle_current_mark_snapshot_joins_every_source_fill_and_sums_loss(
 def test_precycle_current_mark_snapshot_blocks_missing_or_tampered_fill_proof(
     monkeypatch,
 ) -> None:
-    proof = _synthetic_final_admission_sealed_row()
-    proof["fill_id"] = proof["ledger_row_id"] = "fill-tampered"
-    allocation = proof["adaptive_allocation"]
+    _full, pos, merged = _sealed_proof_backed_fill(fill_id="fill-tampered")
+    allocation = merged["adaptive_allocation"]
     assert isinstance(allocation, dict)
     allocation["max_loss_usd"] = float(allocation["max_loss_if_stop_hit"]) + 1e-9
-    redis = _FakeRedis({"v2:paper:accepted_fills": [proof]})
+    redis = _FakeRedis(
+        _open_position_fill_proof_store_payload([merged], positions=[pos])
+    )
     times = iter(
         (
             "2026-07-17T12:00:00.750000Z",
@@ -2986,9 +3193,10 @@ def test_precycle_current_mark_snapshot_blocks_missing_or_tampered_fill_proof(
 def test_precycle_current_mark_snapshot_blocks_stale_mark_but_empty_book_is_ready(
     monkeypatch,
 ) -> None:
-    proof = _synthetic_final_admission_sealed_row()
-    proof["fill_id"] = proof["ledger_row_id"] = "fill-stale-mark"
-    redis = _FakeRedis({"v2:paper:accepted_fills": [proof]})
+    _full, pos, merged = _sealed_proof_backed_fill(fill_id="fill-stale-mark")
+    redis = _FakeRedis(
+        _open_position_fill_proof_store_payload([merged], positions=[pos])
+    )
     times = iter(
         (
             "2026-07-17T12:00:00.750000Z",
@@ -27974,10 +28182,22 @@ def test_portfolio_cascade_guard_decision_core() -> None:
     assert d["ALTBUSDT"]["action"] == "RIDE_TIGHTEN"  # winner rides the move
     assert "CALMUSDT" not in d
 
-    breach = {"worst_case_liquidation_breached": True}
+    breach = {"portfolio_level_computed": True, "worst_case_liquidation_breached": True}
     d2 = {x["symbol"]: x for x in decide_directives(positions, cascade, breach)}
     assert d2["CALMUSDT"]["action"] == "CLOSE"  # portfolio breach closes losers
     assert d2["ALTBUSDT"]["action"] == "RIDE_TIGHTEN"
+
+    # Non-authoritative breach claims must NOT trigger closes
+    # (evidence-gated fail-safe, 2026-07-24 contract).
+    d3 = {
+        x["symbol"]: x
+        for x in decide_directives(
+            positions,
+            cascade,
+            {"worst_case_liquidation_breached": True},
+        )
+    }
+    assert "CALMUSDT" not in d3
 
 
 def _quarantine_row(

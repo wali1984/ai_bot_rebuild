@@ -3,14 +3,14 @@
   "counts": {
     "accepted_fills": 1,
     "closed_trades": 95,
-    "intents": 231,
+    "intents": 261,
     "open_positions": 1,
     "proof_store": 1
   },
   "current_epoch": 1,
   "current_session": "paper_session_140989e198032b94",
   "failed_invariants": [],
-  "generated_utc": "2026-07-30T07:37:24.944917+00:00",
+  "generated_utc": "2026-07-30T08:06:27.724927+00:00",
   "invariants": {
     "I01_one_paper_writer": {
       "detail": "paper_loop=active legacy_online_runtime_active=False writer_id=v2_trade_management_paper_loop",
@@ -30,7 +30,7 @@
       "status": "PASS"
     },
     "I03_intents_session_scoped": {
-      "detail": "0 intents mis-scoped; 231/231 carry a session tag",
+      "detail": "0 intents mis-scoped; 261/261 carry a session tag",
       "evidence": {
         "mis_scoped_examples": []
       },
@@ -126,22 +126,22 @@
       "status": "PASS"
     },
     "I14_bounded_payloads": {
-      "detail": "largest mutable payload = 100651746 bytes; soft 8388608 / hard 268435456; intents ~435721 bytes/record x 231 candidates (per-cycle overwrite, LOAD-SCALING = CG-F065)",
+      "detail": "largest mutable payload = 113159521 bytes; soft 8388608 / hard 268435456; intents ~433561 bytes/record x 261 candidates (per-cycle overwrite, LOAD-SCALING = CG-F065)",
       "evidence": {
-        "bytes_per_intent": 435721,
-        "candidate_count": 231,
+        "bytes_per_intent": 433561,
+        "candidate_count": 261,
         "load_scaling_note": "intents is overwritten per cycle (not accumulating) but scales linearly with candidate count; WARN not a correctness defect; verify under full-universe load (Phase 5); tracked as CG-F065",
         "over_hard": {},
         "over_soft": {
           "v2:paper:closed_trades": 20501154,
-          "v2:paper:intents": 100651746
+          "v2:paper:intents": 113159521
         },
         "payload_bytes": {
           "v2:paper:accepted_fills": 1827879,
           "v2:paper:closed_trades": 20501154,
-          "v2:paper:intents": 100651746,
+          "v2:paper:intents": 113159521,
           "v2:paper:open_position_fill_proofs": 2291,
-          "v2:paper:positions": 273834
+          "v2:paper:positions": 273837
         }
       },
       "status": "WARN"
