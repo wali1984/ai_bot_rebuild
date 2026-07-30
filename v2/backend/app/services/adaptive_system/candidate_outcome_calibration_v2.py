@@ -1197,6 +1197,9 @@ def _learned_weights(
         "turnover_penalty",
         "correlation_penalty",
     )
+    correlation_measured_rows = sum(
+        1 for row in rows if row.correlation_exposure_source is not None
+    )
     feature_rows = [
         (
             abs(row.max_adverse_excursion_bps),
@@ -1364,15 +1367,24 @@ def _learned_weights(
             },
             "derived_value": expected_log_equity_growth_reward,
         },
-        "correlation_penalty_learned_online": True,
         # Rows archived before the correlation-exposure contract carry no
         # measured exposure; they contribute zero to the correlation feature
-        # and are counted here rather than silently imputed.
-        "correlation_exposure_measured_row_count": sum(
-            1 for row in rows if row.correlation_exposure_source is not None
+        # and are counted here rather than silently imputed.  A coefficient
+        # cannot be claimed as empirically learned from a feature that was
+        # absent for every fit row: with zero measured rows the fitted value
+        # is pure regularized-prior initialization and is attested as such.
+        "correlation_penalty_learned_online": correlation_measured_rows > 0,
+        "correlation_penalty_evidence_available": correlation_measured_rows > 0,
+        "correlation_penalty_derivation_or_initialization": (
+            "CONSTRAINED_LOGISTIC_FIT_ON_MEASURED_CORRELATION_EXPOSURE"
+            "_TIMES_ABS_MAE"
+            if correlation_measured_rows > 0
+            else "REGULARIZED_LOGISTIC_PRIOR_ONLY_ZERO_FEATURE"
+            "_NO_MEASURED_EXPOSURE_ROWS"
         ),
-        "correlation_exposure_missing_row_count": sum(
-            1 for row in rows if row.correlation_exposure_source is None
+        "correlation_exposure_measured_row_count": correlation_measured_rows,
+        "correlation_exposure_missing_row_count": (
+            len(rows) - correlation_measured_rows
         ),
         "expected_after_cost_return_reward_learned_online": True,
         "all_economic_tradeoff_weights_learned_online": False,
