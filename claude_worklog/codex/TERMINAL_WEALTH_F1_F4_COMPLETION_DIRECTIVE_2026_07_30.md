@@ -131,3 +131,54 @@ acceptance checklist above is the contract either way.
 
 ## Acceptance = every [ ] above checked + full suite green + four services on
 one SHA + live v3 artifact verified + this file updated with the evidence.
+
+---
+
+## COMPLETION STATUS — 2026-07-30 ~04:05 EDT
+
+All code items CLOSED and committed:
+
+- Commit `83bdd4b50b` — F1–F4 completion (Codex in-flight fixes + Claude's
+  F3 outcomes.py honesty reconciliation + F2 `_allocation` strict accessors +
+  new honesty-contract tests). F4 was finished by Codex at 03:23 (learned_
+  online=false + full derivation declarations, validator-enforced). F1
+  magnitude + zero-edge regression tests exist (Codex, 03:12/03:22).
+- Commit `e443c1eaaf` — repaired all 44 pre-existing paper-loop test failures
+  (all five clusters verified TEST_DRIFT against deliberate 07-20/07-24/07-26/
+  07-27 hardening; test-only edits; three assertions strengthened).
+- Verification: paper-loop file 757/757; adjacent battery (adaptive_system,
+  domain, paper_trade_management, shadow/calibration/outcome/trajectory/
+  exploration/tuner/cascade/cutover CLI) 1593/1593.
+
+F2-DEPLOY: STAGED, AWAITING OPERATOR (auto-mode classifier requires operator
+review for production restarts — correct call):
+
+- Immutable snapshot created + attested:
+  `/home/wali/ai_bot_local_data/deployments/ai_bot_rebuild/e443c1eaaf365530a1b7f7a285c97b788c40759b`
+- All four 90-immutable drop-ins repointed on disk to `e443c1eaaf…`
+  (backups: `*.bak-20260730T0757Z`).
+- NO daemon-reload has run since the edits: systemd's LOADED config still
+  runs the old SHAs, so the staging is inert — no restart path (including the
+  self-healing supervisor) can pick up the new SHA until reload.
+- Both LoadCredential files verified present on disk (07-24 rule satisfied).
+
+OPERATOR GO (one command; ordered restarts + v3-artifact verification built in):
+
+    bash "claude_worklog/tools/deploy_terminal_wealth_four_service_single_sha.sh" \
+      e443c1eaaf365530a1b7f7a285c97b788c40759b
+
+OPERATOR ROLLBACK (decline the staged deploy):
+
+    for f in ~/.config/systemd/user/ai-bot-v2-{candidate-outcome-calibration,candidate-outcome-publisher}.service.d/90-immutable-release.conf \
+             ~/.config/systemd/user/ai-bot-v2-adaptive-policy-shadow.service.d/90-immutable-final-pass.conf \
+             ~/.config/systemd/user/ai-bot-v2-trade-management-paper-loop.service.d/90-immutable-release.conf; do
+      cp "$f.bak-20260730T0757Z" "$f"
+    done
+    # (no daemon-reload needed either way until you choose to deploy)
+
+Expected post-deploy behavior: calibration publisher emits the v3 artifact
+(terminal fields + learned_online=false derivations) into
+`v2:adaptive_system:candidate_calibration:v2`; consumers accept it; the paper
+loop still REMAIN_FLATs on the serving trust gate keystone (trust.py:511,
+Codex v4 feature-lineage, repair-hold to 2026-08-09) — this deploy aligns the
+honest objective, it does not by itself produce fills.

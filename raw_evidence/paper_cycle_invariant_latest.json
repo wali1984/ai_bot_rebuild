@@ -2,7 +2,7 @@
   "classification": "DETERMINISTIC_INVARIANTS_HOLD_WITH_WARNINGS",
   "counts": {
     "accepted_fills": 1,
-    "closed_trades": 95,
+    "closed_trades": 96,
     "intents": 261,
     "open_positions": 1,
     "proof_store": 1
@@ -10,13 +10,13 @@
   "current_epoch": 1,
   "current_session": "paper_session_140989e198032b94",
   "failed_invariants": [],
-  "generated_utc": "2026-07-30T08:06:27.724927+00:00",
+  "generated_utc": "2026-07-30T21:02:54.254209+00:00",
   "invariants": {
     "I01_one_paper_writer": {
       "detail": "paper_loop=active legacy_online_runtime_active=False writer_id=v2_trade_management_paper_loop",
       "evidence": {
         "legacy_active": false,
-        "paper_main_pid": "2362452"
+        "paper_main_pid": "4093604"
       },
       "status": "PASS"
     },
@@ -37,9 +37,9 @@
       "status": "PASS"
     },
     "I04_directional_evidence_authenticated": {
-      "detail": "0 directional candidates; 0 missing authenticated feature/cost evidence",
+      "detail": "1 directional candidates; 0 missing authenticated feature/cost evidence",
       "evidence": {
-        "directional_count": 0,
+        "directional_count": 1,
         "missing_examples": []
       },
       "status": "PASS"
@@ -60,19 +60,19 @@
       "status": "PASS"
     },
     "I07_close_references_one_position": {
-      "detail": "95 closed trades; 0 without a position ref (note: 63 distinct symbol-scoped position keys; sequential reuse is legitimate)",
+      "detail": "96 closed trades; 0 without a position ref (note: 64 distinct symbol-scoped position keys; sequential reuse is legitimate)",
       "evidence": {
         "unreferenced": 0
       },
       "status": "PASS"
     },
     "I08_accounting_conservation": {
-      "detail": "current-session trade_sum=0.014719 vs ledger=0.00080021 diff=0.013919 (session=paper_session_140989e198032b94, n=3)",
+      "detail": "current-session trade_sum=-0.256881 vs ledger=-0.27521019 diff=0.018329 (session=paper_session_140989e198032b94, n=4)",
       "evidence": {
-        "diff": 0.013919,
-        "ledger": 0.00080021,
+        "diff": 0.018329,
+        "ledger": -0.27521019,
         "note": "cross-session comparison is NOT an accounting break; historical sessions reconcile in their archive",
-        "trade_sum": 0.014719
+        "trade_sum": -0.256881
       },
       "status": "PASS"
     },
@@ -126,22 +126,22 @@
       "status": "PASS"
     },
     "I14_bounded_payloads": {
-      "detail": "largest mutable payload = 113159521 bytes; soft 8388608 / hard 268435456; intents ~433561 bytes/record x 261 candidates (per-cycle overwrite, LOAD-SCALING = CG-F065)",
+      "detail": "largest mutable payload = 116106952 bytes; soft 8388608 / hard 268435456; intents ~444854 bytes/record x 261 candidates (per-cycle overwrite, LOAD-SCALING = CG-F065)",
       "evidence": {
-        "bytes_per_intent": 433561,
+        "bytes_per_intent": 444854,
         "candidate_count": 261,
         "load_scaling_note": "intents is overwritten per cycle (not accumulating) but scales linearly with candidate count; WARN not a correctness defect; verify under full-universe load (Phase 5); tracked as CG-F065",
         "over_hard": {},
         "over_soft": {
-          "v2:paper:closed_trades": 20501154,
-          "v2:paper:intents": 113159521
+          "v2:paper:closed_trades": 24161390,
+          "v2:paper:intents": 116106952
         },
         "payload_bytes": {
-          "v2:paper:accepted_fills": 1827879,
-          "v2:paper:closed_trades": 20501154,
-          "v2:paper:intents": 113159521,
-          "v2:paper:open_position_fill_proofs": 2291,
-          "v2:paper:positions": 273837
+          "v2:paper:accepted_fills": 1908272,
+          "v2:paper:closed_trades": 24161390,
+          "v2:paper:intents": 116106952,
+          "v2:paper:open_position_fill_proofs": 2302,
+          "v2:paper:positions": 280596
         }
       },
       "status": "WARN"
