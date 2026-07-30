@@ -118,6 +118,41 @@ def test_fit_admits_mixed_legacy_and_measured_correlation_population() -> None:
         + optimizer["correlation_exposure_missing_row_count"]
         == artifact["fit_sample_count"]
     )
+    assert optimizer["correlation_penalty_learned_online"] is True
+    assert optimizer["correlation_penalty_evidence_available"] is True
+    assert optimizer["correlation_penalty_derivation_or_initialization"] == (
+        "CONSTRAINED_LOGISTIC_FIT_ON_MEASURED_CORRELATION_EXPOSURE"
+        "_TIMES_ABS_MAE"
+    )
+    assert artifact["learned_objective_weights"]["correlation_penalty"] > 0.0
+
+
+def test_zero_measured_correlation_rows_attest_prior_only_not_learned() -> None:
+    # A coefficient cannot be claimed as empirically learned from a feature
+    # absent for every fit row (the live 2026-07-30 archive state).  The
+    # penalty stays present as a regularized prior, attested as such.
+    observations = [
+        replace(_observation(index), correlation_exposure_source=None)
+        for index in range(100)
+    ]
+
+    artifact = fit_candidate_outcome_calibration_v2(
+        observations,
+        generated_at_ms=3_000_000,
+        source_archive_chain_sha256="c" * 64,
+    )
+
+    optimizer = artifact["objective_weight_optimizer"]
+    assert optimizer["correlation_penalty_learned_online"] is False
+    assert optimizer["correlation_penalty_evidence_available"] is False
+    assert optimizer["correlation_penalty_derivation_or_initialization"] == (
+        "REGULARIZED_LOGISTIC_PRIOR_ONLY_ZERO_FEATURE"
+        "_NO_MEASURED_EXPOSURE_ROWS"
+    )
+    assert optimizer["correlation_exposure_measured_row_count"] == 0
+    assert optimizer["correlation_exposure_missing_row_count"] == (
+        artifact["fit_sample_count"]
+    )
     assert artifact["learned_objective_weights"]["correlation_penalty"] > 0.0
 
 
