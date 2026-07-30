@@ -340,7 +340,18 @@ def extract_calibration_observation(
     return CandidateCalibrationObservationV2(
         schema_version=OBSERVATION_SCHEMA_VERSION,
         candidate_id=record.decision.candidate_id,
-        decision_time_ms=record.decision.decision_time_ms,
+        # For an EXECUTED observation the decision instant is the typed
+        # action's own authenticated ``action_decision_time_ms`` (bound to
+        # the close via the verified selected-action hash); the record-level
+        # ``decision_time_ms`` is the cycle ARCHIVAL stamp, which postdates
+        # an intra-cycle fill and would invert execution causality.
+        # Counterfactual observations keep the archival stamp exactly as
+        # before.
+        decision_time_ms=(
+            record.decision.decision_time_ms
+            if actual is None
+            else actual.action_decision_time_ms
+        ),
         label_record_available_at_ms=labels.record_available_at_ms,
         checkpoint_generation=record.decision.checkpoint_generation,
         checkpoint_id=record.decision.checkpoint_id,
