@@ -91,6 +91,36 @@ def _observation(index: int) -> CandidateCalibrationObservationV2:
     )
 
 
+def test_fit_admits_mixed_legacy_and_measured_correlation_population() -> None:
+    # Half the population predates the correlation-exposure contract (None):
+    # the fit must complete, report the split honestly in optimizer evidence,
+    # and keep the correlation penalty learned from the measured rows only.
+    observations = [
+        (
+            replace(_observation(index), correlation_exposure_source=None)
+            if index % 2 == 0
+            else _observation(index)
+        )
+        for index in range(100)
+    ]
+
+    artifact = fit_candidate_outcome_calibration_v2(
+        observations,
+        generated_at_ms=3_000_000,
+        source_archive_chain_sha256="c" * 64,
+    )
+
+    optimizer = artifact["objective_weight_optimizer"]
+    assert optimizer["correlation_exposure_measured_row_count"] > 0
+    assert optimizer["correlation_exposure_missing_row_count"] > 0
+    assert (
+        optimizer["correlation_exposure_measured_row_count"]
+        + optimizer["correlation_exposure_missing_row_count"]
+        == artifact["fit_sample_count"]
+    )
+    assert artifact["learned_objective_weights"]["correlation_penalty"] > 0.0
+
+
 def test_fits_chronological_calibration_without_holdout_leakage() -> None:
     observations = [_observation(index) for index in range(100)]
 
@@ -379,7 +409,7 @@ def test_extracts_only_complete_point_in_time_matured_revision() -> None:
     assert observation.realized_execution_outcome is False
 
 
-def test_extraction_rejects_missing_correlation_exposure() -> None:
+def _matured_without_correlation_exposure():
     status, intents, snapshots = _inputs(1)
     intents[0]["correlation_exposure_after_trade"] = None
     intents[0].update(
@@ -399,18 +429,24 @@ def test_extraction_rejects_missing_correlation_exposure() -> None:
     )
     decision_record = _build(status, intents, snapshots).decision_records[0]
     rows, proof = _rows_and_proof(decision_record)
-    matured = mature_candidate(
+    return mature_candidate(
         decision_record,
         rows=rows,
         proof=proof,
         label_generated_at_ms=proof["training_observed_at_ms"] + 1,
     )
 
-    with pytest.raises(
-        CandidateOutcomeCalibrationError,
-        match="correlation_exposure_after_trade:finite_number_required",
-    ):
-        extract_calibration_observation(matured)
+
+def test_extraction_admits_legacy_row_without_correlation_exposure() -> None:
+    # The production archive holds rows written before the correlation
+    # contract (2026-07-29).  They must be admitted with an honest None,
+    # never rejected (crash-looped the 2026-07-30 cutover) and never
+    # imputed as a measured 0.0.
+    observation = extract_calibration_observation(
+        _matured_without_correlation_exposure()
+    )
+
+    assert observation.correlation_exposure_source is None
 
 
 def test_hold_observation_uses_predeclared_reference_side_missed_edge() -> None:
