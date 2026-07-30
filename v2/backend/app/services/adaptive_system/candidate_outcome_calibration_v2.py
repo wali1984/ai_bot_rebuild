@@ -1313,7 +1313,18 @@ def fit_candidate_outcome_calibration_v2(
         _fail("minimum_calibration_rows_not_met", "observations")
     if len(holdout_rows) < MINIMUM_VALIDATION_ROWS:
         _fail("minimum_holdout_rows_not_met", "observations")
-    posterior_rows = [*fit_rows, *calibration_rows]
+    # The profitability Beta posterior counts AUTHENTICATED RECONCILED
+    # NATURAL EXECUTION CLOSES (its declared population): a realized close is
+    # ground-truth outcome evidence, not a fitted coefficient, so recency
+    # never excludes it.  Counterfactual rows keep the chronological
+    # partition discipline exactly as before (holdout counterfactuals stay
+    # out), and the learned weights / probability calibrations continue to
+    # fit only on the partitioned rows.
+    posterior_rows = [
+        *fit_rows,
+        *calibration_rows,
+        *[row for row in holdout_rows if row.realized_execution_outcome],
+    ]
     posterior_hierarchy = _hierarchical_profitability_posteriors(
         posterior_rows,
         source_archive_chain_sha256=source_archive_chain_sha256,
