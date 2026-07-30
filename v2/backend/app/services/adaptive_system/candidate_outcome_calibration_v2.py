@@ -120,7 +120,9 @@ class CandidateCalibrationObservationV2:
     predicted_loss_probability_source: float | None
     exit_feasibility_source: float | None
     expected_move_after_cost_source_bps: float | None
-    correlation_exposure_source: float
+    # None on archive rows written before the correlation-exposure contract
+    # (2026-07-29); such rows are admitted without correlation evidence.
+    correlation_exposure_source: float | None
     final_gross_return_bps: float
     final_after_cost_return_bps: float
     max_favorable_excursion_bps: float
@@ -213,12 +215,13 @@ class CandidateCalibrationObservationV2:
                 self.expected_move_after_cost_source_bps,
                 "expected_move_after_cost_source_bps",
             )
-        correlation_exposure = _finite(
-            self.correlation_exposure_source,
-            "correlation_exposure_source",
-        )
-        if not 0.0 <= correlation_exposure <= 1.0:
-            _fail("probability_0_1_required", "correlation_exposure_source")
+        if self.correlation_exposure_source is not None:
+            correlation_exposure = _finite(
+                self.correlation_exposure_source,
+                "correlation_exposure_source",
+            )
+            if not 0.0 <= correlation_exposure <= 1.0:
+                _fail("probability_0_1_required", "correlation_exposure_source")
         for field in (
             "final_gross_return_bps",
             "final_after_cost_return_bps",
@@ -409,15 +412,19 @@ def extract_calibration_observation(
             components.get("exit_feasibility_score"), "exit_feasibility_score"
         ),
         expected_move_after_cost_source_bps=expected_move,
-        correlation_exposure_source=max(
-            0.0,
-            min(
-                1.0,
-                _finite(
-                    portfolio.get("correlation_exposure_after_trade"),
-                    "correlation_exposure_after_trade",
+        correlation_exposure_source=(
+            None
+            if portfolio.get("correlation_exposure_after_trade") is None
+            else max(
+                0.0,
+                min(
+                    1.0,
+                    _finite(
+                        portfolio.get("correlation_exposure_after_trade"),
+                        "correlation_exposure_after_trade",
+                    ),
                 ),
-            ),
+            )
         ),
         final_gross_return_bps=float(gross),
         final_after_cost_return_bps=float(after_cost),
@@ -1198,7 +1205,11 @@ def _learned_weights(
             row.market_impact_bps,
             abs(row.funding_bps),
             row.transaction_cost_bps,
-            row.correlation_exposure_source
+            (
+                0.0
+                if row.correlation_exposure_source is None
+                else row.correlation_exposure_source
+            )
             * abs(row.max_adverse_excursion_bps),
         )
         for row in rows
@@ -1354,6 +1365,15 @@ def _learned_weights(
             "derived_value": expected_log_equity_growth_reward,
         },
         "correlation_penalty_learned_online": True,
+        # Rows archived before the correlation-exposure contract carry no
+        # measured exposure; they contribute zero to the correlation feature
+        # and are counted here rather than silently imputed.
+        "correlation_exposure_measured_row_count": sum(
+            1 for row in rows if row.correlation_exposure_source is not None
+        ),
+        "correlation_exposure_missing_row_count": sum(
+            1 for row in rows if row.correlation_exposure_source is None
+        ),
         "expected_after_cost_return_reward_learned_online": True,
         "all_economic_tradeoff_weights_learned_online": False,
     }
