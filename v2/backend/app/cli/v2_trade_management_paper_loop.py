@@ -61485,6 +61485,32 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                 or isinstance(_fr.get("risk_capacity_receipt"), dict)
             ):
                 _fill_receipts_by_position[_fr_pid] = _fr
+        # A position's source fill leaves the accepted ledger when the
+        # position closes, so close rows could never re-join their receipts
+        # from fills alone (observed 2026-07-31: ten receipted-era lifecycles
+        # closed with no receipt markers).  The persisted position rows carry
+        # the joined receipts from prior cycles and remain available at close
+        # commit — index them as the fallback receipt source.
+        for _receipt_source_rows in (
+            _paper_open_position_rows(existing_ledger),
+            open_positions,
+        ):
+            for _pr in _receipt_source_rows:
+                if not isinstance(_pr, Mapping):
+                    continue
+                _pr_pid = str(_pr.get("position_id") or "")
+                if (
+                    _pr_pid
+                    and _pr_pid not in _fill_receipts_by_position
+                    and (
+                        _pr.get("authorization_id")
+                        or isinstance(_pr.get("risk_capacity_receipt"), dict)
+                        or isinstance(
+                            _pr.get("mandatory_protection_receipt"), dict
+                        )
+                    )
+                ):
+                    _fill_receipts_by_position[_pr_pid] = dict(_pr)
 
         def _join_paper_authority_receipts(row: dict[str, Any]) -> None:
             source = _fill_receipts_by_position.get(
