@@ -20,6 +20,9 @@ from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from typing import Any
 
+from v2.backend.app.services.adaptive_system.paper_exploration_authority_v2 import (
+    paper_exploration_override_enabled as _paper_exploration_override_enabled,
+)
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.on_policy_behavior import (
     canonical_sha256,
 )
@@ -741,7 +744,16 @@ def interpret_ordinary_paper_router_result(
         verified_router.get("bucket_quarantined") is True
         or bucket_state.get("negative_bucket") is True
     ):
-        hard_reasons.append("NEGATIVE_BUCKET_PERFORMANCE_QUARANTINE")
+        # Authority correction (2026-07-31): historical bucket performance is
+        # TRADING_POLICY under the central paper-exploration classification —
+        # a bounded continuous risk input (same treatment as the recent-loss
+        # quarantine below), never a hard veto while the paper exploration
+        # override is active.  With the override disabled the legacy hard
+        # block applies.
+        if _paper_exploration_override_enabled():
+            softened_reasons.append("NEGATIVE_BUCKET_PERFORMANCE_QUARANTINE")
+        else:
+            hard_reasons.append("NEGATIVE_BUCKET_PERFORMANCE_QUARANTINE")
     # CG-F061: a bucket match against the recent-loss quarantine is a bounded
     # Category-E continuous risk input here (see ``paper_loss_quarantine_*``
     # fields on the returned interpretation), not a hard veto.  It is recorded

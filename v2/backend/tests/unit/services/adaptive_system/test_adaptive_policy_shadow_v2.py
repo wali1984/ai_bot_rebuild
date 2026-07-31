@@ -4,6 +4,13 @@ import hashlib
 from copy import deepcopy
 
 import pytest
+
+
+@pytest.fixture
+def legacy_paper_authority(monkeypatch):
+    """Pin the pre-2026-07-31 authority contracts (override disabled)."""
+    monkeypatch.setenv("PAPER_EXPLORATION_OVERRIDE", "false")
+
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
@@ -651,7 +658,7 @@ def test_missing_physical_evidence_during_open_position_persists_fail_closed_fla
     assert result.exchange_action_taken is False
 
 
-def test_existing_position_blocks_new_direction_but_not_nonexecuting_flat() -> None:
+def test_existing_position_blocks_new_direction_but_not_nonexecuting_flat(legacy_paper_authority) -> None:
     result = build_adaptive_policy_shadow_candidate(
         intent=_intent(),
         feature_snapshot=_feature_snapshot(),
@@ -679,6 +686,56 @@ def test_existing_position_blocks_new_direction_but_not_nonexecuting_flat() -> N
     assert flat.hard_constraints_satisfied is True
     assert dict(result.action_dispositions)[flat.action_id] == ()
     assert result.selected_adaptive_action.selected_action == "remain_flat"
+
+
+def test_open_positions_do_not_block_directional_hard_check_under_exploration_authority(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Central authority correction (2026-07-31): a coherent NON-empty paper
+    position state no longer fails position_transition_validity for
+    directional actions — the single-flight rail is replaced by allocator/
+    hard-risk governance — and every other hard family is byte-identical to
+    the flat-account baseline.
+    """
+
+    monkeypatch.setenv("PAPER_EXPLORATION_OVERRIDE", "true")
+    flat_baseline = build_adaptive_policy_shadow_candidate(
+        intent=_intent(),
+        feature_snapshot=_feature_snapshot(),
+        paper_status={"paper_only": True, "open_position_count": 0},
+        calibration=_calibration(),
+        registry=_registry(),
+        validator_seed=_SEED,
+        generated_at_ms=4_000_000,
+    )
+    result = build_adaptive_policy_shadow_candidate(
+        intent=_intent(),
+        feature_snapshot=_feature_snapshot(),
+        paper_status={"paper_only": True, "open_position_count": 1},
+        calibration=_calibration(),
+        registry=_registry(),
+        validator_seed=_SEED,
+        generated_at_ms=4_000_000,
+    )
+
+    directional = [
+        item for item in result.objective_inputs if item.selected_action == "directional_trade"
+    ]
+    assert directional
+    dispositions = dict(result.action_dispositions)
+    assert all(
+        "position_transition_validity" not in dispositions[item.action_id]
+        for item in directional
+    )
+    assert all(item.hard_constraints_satisfied is True for item in directional)
+    flat = next(
+        item for item in result.objective_inputs if item.selected_action == "remain_flat"
+    )
+    assert flat.hard_constraints_satisfied is True
+    # Every other hard family is unchanged versus the flat-account baseline.
+    assert dict(result.action_dispositions) == dict(flat_baseline.action_dispositions)
+    assert len(result.component_estimates) == 4
+    assert len(result.venue_attestations) == 4
 
 
 def test_close_or_reduce_only_microstructure_blocks_new_entry_but_remains_input() -> None:

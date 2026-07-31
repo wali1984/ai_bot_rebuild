@@ -11,6 +11,13 @@ from typing import Any
 
 import pytest
 
+
+@pytest.fixture
+def legacy_paper_authority(monkeypatch):
+    """Pin the pre-2026-07-31 authority contracts (override disabled)."""
+    monkeypatch.setenv("PAPER_EXPLORATION_OVERRIDE", "false")
+
+
 from v2.backend.tests.unit.services.test_ordinary_paper_admission import (
     _assess,
     ordinary_source,
@@ -350,7 +357,7 @@ def test_paper_loss_bucket_quarantine_becomes_continuous_reduce_size_not_hard_bl
     assert 0.0 < quarantined["continuous_weight"] < baseline["continuous_weight"]
 
 
-def test_genuinely_catastrophic_bucket_performance_still_hard_blocks_alongside_quarantine() -> None:
+def test_genuinely_catastrophic_bucket_performance_still_hard_blocks_alongside_quarantine(legacy_paper_authority) -> None:
     """A negative rolling profit-factor/expectancy bucket is a genuinely
     catastrophic condition and remains a hard veto even when a merely-
     recently-losing quarantine match is ALSO present -- proving the two are

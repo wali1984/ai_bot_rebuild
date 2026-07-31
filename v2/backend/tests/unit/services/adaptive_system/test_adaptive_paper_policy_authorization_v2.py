@@ -4,6 +4,13 @@ from dataclasses import fields, replace
 
 import pytest
 
+
+@pytest.fixture
+def legacy_paper_authority(monkeypatch):
+    """Pin the pre-2026-07-31 authority contracts (override disabled)."""
+    monkeypatch.setenv("PAPER_EXPLORATION_OVERRIDE", "false")
+
+
 from v2.backend.app.domain.adaptive_policy_action_v2 import AdaptivePolicyActionV2
 from v2.backend.app.services.adaptive_system import adaptive_hard_validator_v2
 from v2.backend.app.services.adaptive_system import adaptive_objective_v2
@@ -229,7 +236,7 @@ def test_reference_disagreement_never_receives_authority() -> None:
         object.__setattr__(result, "parity_disagreement_count", 0)
 
 
-def test_bootstrap_mode_rejected_when_positive_utility_exploration_exists() -> None:
+def test_bootstrap_mode_rejected_when_positive_utility_exploration_exists(legacy_paper_authority) -> None:
     """A bootstrap-tagged action is only legitimate when NO positive-utility
     exploration action exists: re-tagging a genuinely selected bounded
     exploration action (exploration_action_id set) as bootstrap mode fails
@@ -270,6 +277,68 @@ def test_bootstrap_mode_rejected_when_positive_utility_exploration_exists() -> N
             replace(result, selected_adaptive_action=retagged_action),
             authorized_at_ms=4_000_001,
         )
+
+
+def test_bootstrap_authorizes_alongside_positive_utility_exploration_under_exploration_authority(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Central authority correction (2026-07-31): bootstrap is a PARALLEL
+    paper lane — a bootstrap-tagged action authorizes even when a
+    positive-utility exploration action exists (exploration_action_id set),
+    while every hard gate (signed validator, exact venue attestation,
+    mandatory stop, paper-only rails) still applies unchanged.
+    """
+
+    monkeypatch.setenv("PAPER_EXPLORATION_OVERRIDE", "true")
+    calibration = _calibration_with_statistic(
+        _controlled_statistic(
+            after_cost_expectancy_bps=-0.5,
+            posterior_uncertainty=0.9,
+            tail_0_9=1.0,
+        )
+    )
+    result = build_adaptive_policy_shadow_candidate(
+        intent=_low_cost_intent(),
+        feature_snapshot=_feature_snapshot(),
+        paper_status={"paper_only": True, "open_position_count": 0},
+        calibration=calibration,
+        registry=_registry(),
+        validator_seed=_SEED,
+        generated_at_ms=4_000_000,
+    )
+    # Positive-utility exploration genuinely exists — the exact precondition
+    # the legacy contract fails closed on.
+    assert result.objective_evaluation.exploration_action_id is not None
+    action = result.selected_adaptive_action
+    assert action.policy_mode == "bounded_information_seeking_exploration"
+    retagged_action = _recreate_action(
+        action,
+        policy_mode="bootstrap_information_acquisition",
+    )
+
+    authorization = authorize_adaptive_paper_policy_action(
+        replace(result, selected_adaptive_action=retagged_action),
+        authorized_at_ms=4_000_001,
+    )
+
+    assert isinstance(authorization, AdaptivePaperPolicyAuthorizationV2)
+    assert authorization.policy_mode == "bootstrap_information_acquisition"
+    assert authorization.authorization_id == authorization.expected_authorization_id
+    assert authorization.policy_trading_action_authority is True
+    assert authorization.paper_entry_authority is True
+    assert authorization.hard_validator_passed is True
+    assert authorization.exact_action_venue_executable is True
+    assert authorization.mandatory_stop_present is True
+    assert authorization.exact_target_notional_usd > 0
+    assert authorization.exact_target_quantity > 0
+    assert authorization.static_confidence_final_authority is False
+    assert authorization.static_loss_final_authority is False
+    assert authorization.static_microstructure_final_authority is False
+    assert authorization.static_exit_feasibility_final_authority is False
+    assert authorization.static_exploration_tier_final_authority is False
+    assert authorization.routes_to_live is False
+    assert authorization.places_real_order is False
+    assert authorization.exchange_action_taken is False
 
 
 def test_authorization_record_rejects_static_authority_reintroduction() -> None:
