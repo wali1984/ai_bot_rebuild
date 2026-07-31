@@ -12933,6 +12933,10 @@ PERSISTENT_ACCEPTED_FILL_MODEL_INPUT_FIELDS = (
     "budget_equity_usd",
     "budget_total_exposure_usdt",
     "budget_envelope_max_total_portfolio_risk_pct",
+    # Adaptive margin/leverage learning exploration: the per-candidate
+    # sizing-floor receipt must persist for explainability and posterior
+    # attribution at close time.
+    "paper_exploration_sizing_floor",
     "confidence_raw",
     "confidence_calibrated",
     "selected_action_probability",
@@ -52694,10 +52698,53 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
     # Correlation fail-reduce (below) scales off the LIVE envelope so the
     # reduction is adaptive, never a static constant.
     _dynamic_envelope_base = RiskEnvelope()
+    # Learning-exploration evidence fallback (operator directive 2026-07-31):
+    # the pre-cycle circuit aggregate is often empty/null early in a session,
+    # which fed closed_trade_count=None into the envelope and pinned the
+    # exploration term at exactly zero (observed live 14:56Z).  Fall back to
+    # the authenticated session close rows already in memory — the SAME
+    # records the fast-path policy state counts — so exploration progresses
+    # with realized lifecycles AND the win-rate/profit-factor contraction
+    # keeps learning from losses.
+    _session_close_rows = [
+        row
+        for row in (
+            existing_closed_rows if isinstance(existing_closed_rows, list) else []
+        )
+        if isinstance(row, dict)
+        and str(row.get("paper_session_id") or "") == str(paper_session_id or "")
+    ]
+    _fallback_closed_count = len(_session_close_rows)
+    _fallback_wins = [
+        _coerce_float(row.get("realized_net_pnl_usd"))
+        for row in _session_close_rows
+    ]
+    _fallback_wins = [value for value in _fallback_wins if value is not None]
+    _fallback_win_rate = (
+        (sum(1 for value in _fallback_wins if value > 0.0) / len(_fallback_wins))
+        if _fallback_wins
+        else None
+    )
+    _fallback_gross_wins = sum(value for value in _fallback_wins if value > 0.0)
+    _fallback_gross_losses = abs(
+        sum(value for value in _fallback_wins if value < 0.0)
+    )
+    _fallback_profit_factor = (
+        (_fallback_gross_wins / _fallback_gross_losses)
+        if _fallback_gross_losses > 0.0
+        else None
+    )
+    _envelope_closed_count = _pre_cycle_closed_count
+    if not isinstance(_envelope_closed_count, int) or _envelope_closed_count < 1:
+        _envelope_closed_count = _fallback_closed_count
     _dynamic_envelope_arguments = {
-        "win_rate": _pre_cycle_aggregate.get("win_rate"),
-        "profit_factor": _pre_cycle_aggregate.get("profit_factor"),
-        "closed_trade_count": _pre_cycle_closed_count,
+        "win_rate": _first_present(
+            _pre_cycle_aggregate.get("win_rate"), _fallback_win_rate
+        ),
+        "profit_factor": _first_present(
+            _pre_cycle_aggregate.get("profit_factor"), _fallback_profit_factor
+        ),
+        "closed_trade_count": _envelope_closed_count,
         "current_drawdown_pct": _current_drawdown,
         "model_avg_confidence": (
             _coerce_float(trainer_hybrid_cuda_status.get("avg_prediction_confidence"))
