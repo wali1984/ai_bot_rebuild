@@ -133,6 +133,12 @@ from v2.backend.app.services.adaptive_system.adaptive_policy_shadow_v2 import (
     AdaptivePolicyShadowError,
     build_adaptive_policy_shadow_candidate,
 )
+from v2.backend.app.services.adaptive_system.paper_exploration_authority_v2 import (
+    TRADING_POLICY,
+    classify_paper_blocker,
+    paper_exploration_override_enabled,
+    partition_paper_exploration_blockers,
+)
 from v2.backend.app.services.market_structure.decision_context import (
     ADVANCED_CONTEXT_FIELDS,
 )
@@ -16259,6 +16265,18 @@ def _apply_paper_standalone_1m_gate(intent: dict[str, Any], gate: dict[str, Any]
     if gate.get("allowed") is True:
         return
     blockers = [str(reason) for reason in gate.get("blockers") or [] if reason]
+    # Authority correction (2026-07-31): standalone-1m eligibility is a
+    # labeling/strategy preference (TRADING_POLICY) — telemetry only under
+    # paper exploration; it never rejects a hard-valid paper candidate.
+    if (
+        paper_exploration_override_enabled()
+        and intent.get("paper_only") is not False
+        and intent.get("routes_to_live") is not True
+        and intent.get("places_real_order") is not True
+    ):
+        intent["paper_standalone_1m_trading_policy_telemetry_reasons"] = blockers
+        intent["paper_standalone_1m_trading_policy_final_authority"] = False
+        return
     intent["paper_fill_allowed"] = False
     intent["paper_standalone_1m_eligibility_blocked"] = True
     intent["paper_standalone_1m_eligibility_blockers"] = blockers
@@ -21775,7 +21793,25 @@ def _paper_preemptive_admission_rejection_reasons(
         PAPER_TIER_RISK_CONTROLLER_EXPLORATION,
     } and any(token in guardian_state for token in ("HALTED", "BLOCKED", "SHADOW_ONLY")):
         reasons.append("GUARDIAN_HALTED_PERFORMANCE_NO_NEW_ENTRY")
-    return sorted(set(reasons))
+    unique_reasons = sorted(set(reasons))
+    # Central authority correction (2026-07-31): loss-probability preference
+    # and preemptive policy verdicts are TRADING_POLICY — telemetry only under
+    # paper exploration.  Evidence-integrity reasons (missing probability,
+    # invalid threshold authority) and the guardian halt keep blocking.
+    if (
+        paper_exploration_override_enabled()
+        and intent.get("paper_only") is True
+        and intent.get("routes_to_live") is not True
+        and intent.get("places_real_order") is not True
+    ):
+        blocking, policy_telemetry = partition_paper_exploration_blockers(
+            unique_reasons
+        )
+        if policy_telemetry:
+            intent["preemptive_trading_policy_telemetry_reasons"] = policy_telemetry
+            intent["preemptive_trading_policy_final_authority"] = False
+        return blocking
+    return unique_reasons
 
 
 def _paper_entry_freeze_reason_texts(paper_entry_freeze: Mapping[str, Any]) -> list[str]:
@@ -22934,28 +22970,47 @@ def _non_relaxable_entry_gate_reasons(
         for reason in intent.get("entry_gate_block_reasons") or []
         if str(reason).strip()
     ]
-    if exploration_confidence_authority:
-        reasons = [reason for reason in reasons if not _strict_confidence_entry_gate_reason(reason)]
+    # Central authority correction (2026-07-31): ONE classification replaces
+    # the prior per-lane strip lists.  Under paper exploration, every
+    # TRADING_POLICY-classified entry-gate reason (confidence floors, side
+    # bucket/confidence preferences, outcome-memory, expected-move
+    # directionality) is telemetry only; HARD_SAFETY (operator exclusions,
+    # gap-risk), EXECUTION_INTEGRITY (missing runtime evidence, timeframe/
+    # mode config blocks) and unknown reasons keep blocking authority.
     if (
-        str(intent.get("adaptive_policy_action_policy_mode") or "")
-        == "bootstrap_information_acquisition"
+        paper_exploration_override_enabled()
+        and intent.get("paper_only") is not False
+        and intent.get("routes_to_live") is not True
+        and intent.get("places_real_order") is not True
     ):
-        # Continuous paper exploration: historical side-bucket performance
-        # and side-confidence-floor preferences are Category-E trading
-        # preferences with no final authority over a bounded
-        # information-acquisition experiment (it exists precisely because no
-        # demonstrated positive edge does).  Every integrity, lifecycle,
-        # accounting, and venue reason in this gate is left untouched.
-        reasons = [
-            reason
-            for reason in reasons
-            if not str(reason).startswith(
-                (
-                    "SIDE_GATE_BLOCK:SIDE_BUCKET_EXPECTANCY_NON_POSITIVE",
-                    "SIDE_GATE_BLOCK:SIDE_CONFIDENCE_BELOW_FLOOR",
+        reasons, policy_telemetry = partition_paper_exploration_blockers(reasons)
+        if policy_telemetry:
+            intent["entry_gate_trading_policy_telemetry_reasons"] = policy_telemetry
+            intent["entry_gate_trading_policy_final_authority"] = False
+    else:
+        if exploration_confidence_authority:
+            reasons = [
+                reason
+                for reason in reasons
+                if not _strict_confidence_entry_gate_reason(reason)
+            ]
+        if (
+            str(intent.get("adaptive_policy_action_policy_mode") or "")
+            == "bootstrap_information_acquisition"
+        ):
+            # Legacy per-lane strip (override disabled): historical side-bucket
+            # performance and side-confidence-floor preferences carry no final
+            # authority over a bounded information-acquisition experiment.
+            reasons = [
+                reason
+                for reason in reasons
+                if not str(reason).startswith(
+                    (
+                        "SIDE_GATE_BLOCK:SIDE_BUCKET_EXPECTANCY_NON_POSITIVE",
+                        "SIDE_GATE_BLOCK:SIDE_CONFIDENCE_BELOW_FLOOR",
+                    )
                 )
-            )
-        ]
+            ]
     lifecycle_or_no_trade_strategy_reasons = _paper_lifecycle_or_no_trade_strategy_reasons(
         signal={}, intent=intent
     )
@@ -30640,12 +30695,31 @@ def _paper_block_new_entry_by_performance_circuit(
     # risk input, never final entry authority. Catastrophic drawdown,
     # liquidation, margin, exposure, accounting, authorization and kill-switch
     # controls are separate hard validators and remain untouched.
+    #
+    # Authority correction (2026-07-31): under paper exploration EVERY
+    # historical-performance circuit reason is TRADING_POLICY by central
+    # classification, so the continuous (bounded-multiplier) path applies to
+    # all paper intents — not only those pre-stamped Category-E — unless the
+    # circuit carries a catastrophic-loss mandate (HARD_SAFETY, still blocks).
     category_e_continuous = bool(
-        intent.get("paper_performance_circuit_breaker_authority_classification")
-        == "CATEGORY_E_POLICY_PERFORMANCE"
-        and intent.get("paper_performance_circuit_breaker_adaptive_policy_role")
-        == "CONTINUOUS_OBJECTIVE_RISK_INPUT"
-        and intent.get("paper_performance_circuit_breaker_hard_trading_authority") is False
+        (
+            (
+                intent.get("paper_performance_circuit_breaker_authority_classification")
+                == "CATEGORY_E_POLICY_PERFORMANCE"
+                and intent.get("paper_performance_circuit_breaker_adaptive_policy_role")
+                == "CONTINUOUS_OBJECTIVE_RISK_INPUT"
+                and intent.get(
+                    "paper_performance_circuit_breaker_hard_trading_authority"
+                )
+                is False
+            )
+            or (
+                paper_exploration_override_enabled()
+                and intent.get("paper_only") is not False
+                and intent.get("routes_to_live") is not True
+                and intent.get("places_real_order") is not True
+            )
+        )
         and performance_circuit_breaker_status.get("catastrophic_loss_mandate") is not True
     )
     if category_e_continuous:
@@ -41514,11 +41588,13 @@ def _paper_bootstrap_information_acquisition_designation(
     epoch_bootstrap_open = sum(
         _bootstrap_mode(row) for row in current_epoch_open_position_rows
     )
-    # Only an OPEN experiment suppresses the next designation (the existing
-    # accounting-engine concurrency rail).  Closed experiments awaiting
-    # maturation or training consumption never do: the learning loop runs
-    # asynchronously and must not stall the execution loop.
-    if epoch_bootstrap_open:
+    # Authority correction (2026-07-31): an open experiment no longer
+    # suppresses designation of unrelated candidates.  Concurrency is governed
+    # by the adaptive allocator and the hard-risk envelope (margin buffer,
+    # exposure, correlation, liquidation capacity) plus the lifecycle's
+    # immutable per-symbol duplicate guard — not by a fixed one-experiment
+    # cap.  With the override disabled the legacy single-flight rail applies.
+    if epoch_bootstrap_open and not paper_exploration_override_enabled():
         return None
 
     eligible_count = 0
@@ -41853,8 +41929,16 @@ def _paper_bootstrap_information_acquisition_designation(
         },
         "current_epoch_bootstrap_closed_trades": epoch_bootstrap_closed,
         "current_epoch_bootstrap_open_positions": epoch_bootstrap_open,
-        "max_concurrent_bootstrap_positions": 1,
-        "max_bootstrap_authorizations_per_cycle": 1,
+        "max_concurrent_bootstrap_positions": (
+            "ADAPTIVE_RISK_CAPACITY_GOVERNED"
+            if paper_exploration_override_enabled()
+            else 1
+        ),
+        "max_bootstrap_authorizations_per_cycle": (
+            "ADAPTIVE_RISK_CAPACITY_GOVERNED"
+            if paper_exploration_override_enabled()
+            else 1
+        ),
         "information_gain_is_primary_allocation_objective": False,
         "terminal_target_guaranteed": False,
         "counts_as_champion_profitability_evidence": False,
@@ -44525,10 +44609,23 @@ def _paper_final_admission_point_in_time_contract(
 
     reasons: list[str] = []
     static_category_e_advisory_reasons: list[str] = []
+    trading_policy_telemetry_reasons: list[str] = []
     adaptive_policy_tier = bool(
         str(intent.get("paper_opportunity_tier") or "").strip().upper()
         == PAPER_TIER_ADAPTIVE_POLICY_V2
         and intent.get("adaptive_policy_entry_authorized") is True
+    )
+    # Central authority correction (operator directive 2026-07-31): under
+    # paper exploration, TRADING_POLICY-classified reasons are telemetry only
+    # at THIS boundary too — one classification, applied mechanically, instead
+    # of per-lane exemptions.  HARD_SAFETY / EXECUTION_INTEGRITY / unknown
+    # reasons keep full blocking authority.  Paper-only by construction: this
+    # contract runs exclusively on paper intents (live stays BLOCKED).
+    paper_exploration_policy_telemetry = bool(
+        paper_exploration_override_enabled()
+        and intent.get("paper_only") is True
+        and intent.get("routes_to_live") is not True
+        and intent.get("places_real_order") is not True
     )
     validation_started_utc = _strict_aware_utc_time(_utc_iso())
     # Component clocks are first checked against the start of validation.  A
@@ -44544,6 +44641,11 @@ def _paper_final_admission_point_in_time_contract(
             normalized
         ):
             static_category_e_advisory_reasons.append(normalized)
+        elif (
+            paper_exploration_policy_telemetry
+            and classify_paper_blocker(normalized) == TRADING_POLICY
+        ):
+            trading_policy_telemetry_reasons.append(normalized)
         else:
             reasons.append(normalized)
 
@@ -47996,6 +48098,13 @@ def _paper_final_admission_point_in_time_contract(
             set(static_category_e_advisory_reasons)
         ),
         "static_category_e_final_authority": False,
+        "paper_exploration_policy_telemetry_active": (
+            paper_exploration_policy_telemetry
+        ),
+        "trading_policy_telemetry_reasons": sorted(
+            set(trading_policy_telemetry_reasons)
+        ),
+        "trading_policy_final_authority": False,
     }
     receipt_hash = _paper_canonical_sha256(contract)
     if not _paper_valid_sha256(receipt_hash):
@@ -55407,8 +55516,16 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                         Mapping,
                     )
                     and adaptive_policy_cycle_context.get("bootstrap_ranked_queue")
-                    and not adaptive_policy_cycle_context.get(
-                        "bootstrap_information_acquisition_cycle_authorizations"
+                    and (
+                        # Authority correction (2026-07-31): no fixed
+                        # one-authorization-per-cycle cap under paper
+                        # exploration — the queue keeps serving ranked heads
+                        # while adaptive risk capacity admits them.  The
+                        # counter remains as telemetry.
+                        paper_exploration_override_enabled()
+                        or not adaptive_policy_cycle_context.get(
+                            "bootstrap_information_acquisition_cycle_authorizations"
+                        )
                     )
                     else None
                 ),

@@ -22,6 +22,9 @@ from typing import Any
 from v2.backend.app.domain.adaptive_component_estimates_v1 import (
     AUTHORITY_MODE as COMPONENT_AUTHORITY_MODE,
 )
+from v2.backend.app.services.adaptive_system.paper_exploration_authority_v2 import (
+    paper_exploration_override_enabled as _paper_exploration_override_enabled,
+)
 from v2.backend.app.domain.adaptive_component_estimates_v1 import (
     AVAILABLE,
     CALIBRATED_PROBABILITY,
@@ -1293,11 +1296,23 @@ def _hard_check_inputs(
     ):
         failures.append("venue_and_physical_feasibility")
     open_position_count = paper_status.get("open_position_count")
+    # Authority correction (2026-07-31): position-state validity means a
+    # COHERENT paper position state, not an EMPTY one.  The former
+    # `open_position_count == 0` requirement for directional actions was the
+    # binding single-flight rail (max one open position system-wide);
+    # concurrency is now governed by the adaptive allocator and hard-risk
+    # envelope (margin buffer, exposure, correlation, liquidation capacity)
+    # plus the lifecycle's per-symbol duplicate guard.  The legacy rail
+    # applies when the paper exploration override is disabled.
     position_state_valid = (
         paper_status.get("paper_only") is True
         and type(open_position_count) is int
         and open_position_count >= 0
-        and (not requires_physical_execution or open_position_count == 0)
+        and (
+            not requires_physical_execution
+            or open_position_count == 0
+            or _paper_exploration_override_enabled()
+        )
     )
     if not position_state_valid:
         failures.append("position_transition_validity")

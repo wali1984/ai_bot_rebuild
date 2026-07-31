@@ -32,6 +32,9 @@ from v2.backend.app.services.adaptive_system.adaptive_objective_v2 import (
 from v2.backend.app.services.adaptive_system.adaptive_policy_shadow_v2 import (
     AdaptivePolicyShadowCandidateV2,
 )
+from v2.backend.app.services.adaptive_system.paper_exploration_authority_v2 import (
+    paper_exploration_override_enabled as _paper_exploration_override_enabled,
+)
 from v2.backend.app.services.adaptive_system.selected_action_venue_feasibility_v2 import (
     DECISION_EXECUTABLE,
     SelectedActionVenueFeasibilityV2,
@@ -356,30 +359,36 @@ def _selected_input(
 ) -> ActionObjectiveInputsV2:
     if action.policy_mode == POLICY_MODE_BOOTSTRAP_INFORMATION_ACQUISITION:
         # A bootstrap information-acquisition action binds to the exact
-        # hard-valid venue-minimum exploration input by identity.  It can
-        # never ride the champion/exploration slots: its monetary utility may
-        # be nonpositive, so it is only legitimate when neither slot holds a
-        # positive-utility action.  Every downstream gate (signed hard
-        # validator receipt, exact venue attestation, mandatory stop) applies
-        # unchanged.
-        if evaluation.exploration_action_id is not None:
-            _fail(
-                "bootstrap_requires_no_positive_utility_exploration",
-                "objective_evaluation",
+        # hard-valid venue-minimum exploration input by identity.  Every
+        # downstream gate (signed hard validator receipt, exact venue
+        # attestation, mandatory stop) applies unchanged.
+        #
+        # Authority correction (2026-07-31): bootstrap is a PARALLEL paper
+        # lane, not a fallback-of-last-resort.  The former requirements that
+        # no positive-utility exploration exist and that the champion be flat
+        # were TRADING_POLICY preferences (positive-utility exploitation
+        # preference); under paper exploration they carry no blocking
+        # authority.  With the override disabled the legacy single-flight
+        # preconditions apply.
+        if not _paper_exploration_override_enabled():
+            if evaluation.exploration_action_id is not None:
+                _fail(
+                    "bootstrap_requires_no_positive_utility_exploration",
+                    "objective_evaluation",
+                )
+            champion_matches = tuple(
+                item
+                for item in result.objective_inputs
+                if item.action_id == evaluation.champion_action_id
             )
-        champion_matches = tuple(
-            item
-            for item in result.objective_inputs
-            if item.action_id == evaluation.champion_action_id
-        )
-        if (
-            len(champion_matches) != 1
-            or champion_matches[0].selected_action != ACTION_REMAIN_FLAT
-        ):
-            _fail(
-                "bootstrap_requires_flat_champion_baseline",
-                "objective_evaluation",
-            )
+            if (
+                len(champion_matches) != 1
+                or champion_matches[0].selected_action != ACTION_REMAIN_FLAT
+            ):
+                _fail(
+                    "bootstrap_requires_flat_champion_baseline",
+                    "objective_evaluation",
+                )
         if action.selected_action != ACTION_DIRECTIONAL_TRADE:
             _fail("bootstrap_requires_directional_trade", "selected_adaptive_action")
         bootstrap_side = action.primary_side.lower()
