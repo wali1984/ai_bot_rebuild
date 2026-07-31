@@ -1,5 +1,45 @@
 # TERMINAL-WEALTH CLEAN RELEASE MANIFEST
 
+## BURN-IN ACCEPTANCE — PASS (2026-07-31 00:04Z / 2026-07-30 20:04 EDT)
+
+The operator-defined event-based burn-in contract on frozen release
+`a4cf7ebc9f936fd774789fe9c1fdb32b7d50ef6d` is SATISFIED:
+
+```text
+calibration v3 publications:      20 / 3   PASS
+completed paper cycles on SHA:    42 / 5   PASS
+qualified protected closes:        3 / 3   PASS  (PROTECTED_RECONCILED_LIFECYCLE_V1)
+restart deltas:                   0/0/0/0  HELD
+production/reference disagreements:     0  HELD
+schema mismatches:                      0  HELD
+SHA drift:                              0  HELD
+failed runtime predicates:              0  HELD
+close candidates failing qualification: 0
+```
+
+The three qualified lifecycles (each passing all fourteen row-level +
+account-level predicates independently):
+
+```text
+PENGUUSDT short  TIER_2_ADAPTIVE_POLICY_PROFIT_EXIT  +96.0 bps  +$0.6430  22:38:20Z
+FETUSDT   long   TIER_2_ADAPTIVE_POLICY_PROFIT_EXIT  +41.7 bps  +$0.0354  23:36:13Z
+NEARUSDT  long   TIER_2_ADAPTIVE_POLICY_PROFIT_EXIT  +47.8 bps  +$0.0366  00:04:18Z
+```
+
+Both sides represented, three symbols, all three via configured profit-target
+exits with mandatory protection present at entry and full reconciliation.
+
+Status ladder:
+- post-deployment execution smoke test: PASS
+- continuous post-deployment operation: PROVEN (3 sequential qualified
+  lifecycles, no production code changes during observation)
+- permanent-recovery designation: operator's call on this evidence.
+
+Honest caveats: three profitable closes do not change the aggregate
+economics (99 trades, expectancy still negative; G13/G14 remain honest-red);
+the binding constraint remains trainer-lane edge. The frozen line stays
+frozen; live authority stays BLOCKED.
+
 ## SHA-CHANGE RECONCILIATION (operator-required, 2026-07-30 ~17:55 EDT)
 
 Why the accepted SHA changed from `f59dd15650` to `a4cf7ebc9f`:
