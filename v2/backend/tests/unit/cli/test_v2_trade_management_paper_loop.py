@@ -29086,7 +29086,13 @@ def test_candidate_correlation_requires_every_distinct_open_symbol_pair(
     assert context["correlation_pair_count"] == 1
     assert context["correlation_required_pair_count"] == 2
     assert context["correlation_unresolved_open_symbols"] == ["SOLUSDT"]
-    assert context["correlation_exposure_pct"] == (paper_loop.CORRELATION_FAIL_CLOSED_EXPOSURE_PCT)
+    # Final directive 2026-07-31: unmeasured pair coverage fails CONSERVATIVE,
+    # not binary — graduated with the open-book size (base cap x n/(n+1)), so
+    # exploration under missing coverage stays possible at reduced size
+    # instead of re-creating the single-flight latch.
+    assert context["correlation_exposure_pct"] == (
+        paper_loop._paper_unmeasured_correlation_fail_conservative_exposure(2)
+    )
 
 
 def test_candidate_correlation_includes_same_cycle_accepted_symbol_pair(
