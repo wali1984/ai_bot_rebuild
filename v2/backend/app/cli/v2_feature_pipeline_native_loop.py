@@ -138,6 +138,16 @@ TRAINER_OPTIONAL_EVENT_DEPENDENT_FEATURE_FIELDS = tuple(
     )
     if requirement == "OPTIONAL_EVENT_DEPENDENT"
 )
+# The model ABI requires 155 ``taf_*`` technical-analysis leaves
+# (RSI/MACD/EMA/SMA/ATR/BB + the full TA-Lib function and candlestick-pattern
+# family). They are computed by ``v2_full_talib_ta_loop`` against the CLOSED
+# candle window and published to ``v2:features:ta_closed:{symbol}:{timeframe}``.
+# The native producer's internal TA is a different (approximate) computation, so
+# these leaves must be sourced from the authenticated ta_closed candidate, bound
+# to the identical closed candle this snapshot selected (point-in-time safe).
+_TRAINER_REQUIRED_TAF_FEATURE_NAMES = tuple(
+    name for name in TRAINER_REQUIRED_FEATURE_FIELDS if str(name).startswith("taf_")
+)
 CORE_MARKET_COST_EVIDENCE_FIELDS = (
     "fee_bps",
     "expected_slippage_bps",
@@ -1661,6 +1671,104 @@ def _bound_market_structure_candles(
     return [dict(row) for row in rows], binding
 
 
+def _merge_ta_closed_indicator_features(
+    r,
+    symbol: str,
+    timeframe: str,
+    features: dict,
+    *,
+    required_taf_names: tuple[str, ...],
+    snapshot_candle_close_ms: int | None,
+) -> dict | None:
+    """Merge the authenticated full-TA-Lib ``ta_closed`` indicators into ``feats``.
+
+    The model ABI requires 155 ``taf_*`` technical-analysis leaves that the
+    native producer's internal TA does not compute (or computes under a different,
+    approximate method). The ``v2_full_talib_ta_loop`` producer computes the exact
+    TA-Lib values against the CLOSED candle window and publishes the authenticated
+    candidate to ``v2:features:ta_closed:{symbol}:{timeframe}`` (schema
+    ``v2_full_talib_ta_closed_candidate_v1``, ``compatibility_view=False``).
+
+    Values are merged under the exact ABI names — ``taf_<indicator>`` maps to
+    ``indicators[<indicator>]`` (with a case-insensitive fallback because TA-Lib
+    function leaves are upper-cased in the candidate, e.g. ``taf_ta_adx`` ->
+    ``ta_ADX``) — ONLY when the candidate binds to the identical last closed
+    candle this snapshot selected (``latest_closed_candle_close_ts_ms ==
+    snapshot_candle_close_ms``). Identical-candle binding proves the TA was
+    derived from the identical point-in-time window (no lookahead: both consume
+    only candles whose close <= this decision's feature cutoff).
+
+    This supplies feature VALUES only; it never self-attests consumability. The
+    producer-owned ``required_model_feature_pit_coverage_valid`` /
+    ``exact_feature_availability_valid`` holds are unchanged. Returns the
+    source-binding evidence, or None when no PIT-bound candidate is available.
+    """
+    if r is None or snapshot_candle_close_ms is None or not required_taf_names:
+        return None
+    key = f"{V2_REDIS_PREFIX}features:ta_closed:{symbol}:{timeframe}"
+    try:
+        raw = r.get(key)
+    except Exception:
+        return None
+    if not raw:
+        return None
+    try:
+        doc = json.loads(raw)
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(doc, dict):
+        return None
+    # Only the authenticated closed form — never a compatibility/unsafe view.
+    if (
+        doc.get("compatibility_view") is True
+        or doc.get("compatibility_unsafe_for_trainer") is True
+        or doc.get("candle_closed_confirmed") is not True
+        or doc.get("closed_candles_only") is not True
+    ):
+        return None
+    ta_close_ms = doc.get("latest_closed_candle_close_ts_ms")
+    if ta_close_ms is None:
+        ta_close_ms = doc.get("last_closed_candle_close_ts_ms")
+    try:
+        ta_close_ms = int(ta_close_ms)
+    except (TypeError, ValueError):
+        return None
+    # Point-in-time binding: identical last closed candle as this snapshot.
+    if ta_close_ms != int(snapshot_candle_close_ms):
+        return None
+    indicators = doc.get("indicators")
+    if not isinstance(indicators, dict) or not indicators:
+        return None
+    indicators_ci = {str(k).lower(): v for k, v in indicators.items()}
+    merged: list[str] = []
+    for name in required_taf_names:
+        indicator_key = name[4:]  # strip the "taf_" ABI prefix
+        value = indicators.get(indicator_key)
+        if value is None:
+            value = indicators_ci.get(indicator_key.lower())
+        if isinstance(value, bool):
+            continue
+        if isinstance(value, (int, float)) and math.isfinite(float(value)):
+            features[name] = float(value)
+            merged.append(name)
+    if not merged:
+        return None
+    return {
+        "ta_closed_source_key": key,
+        "ta_closed_schema_version": doc.get("schema_version"),
+        "ta_closed_feature_cutoff": doc.get("feature_cutoff"),
+        "ta_closed_latest_closed_candle_close_ts_ms": ta_close_ms,
+        "ta_closed_source_ohlcv_key": doc.get("source_ohlcv_key"),
+        "ta_closed_source_exact_payload_sha256": (doc.get("source_exact_payload_sha256")),
+        "ta_closed_calculation_window_candle_ids_sha256": (
+            doc.get("calculation_window_candle_ids_sha256")
+        ),
+        "ta_closed_source_available_at": doc.get("source_available_at"),
+        "ta_closed_generated_at": doc.get("generated_at"),
+        "ta_closed_merged_feature_count": len(merged),
+    }
+
+
 def _merge_external_v2_features(
     r,
     symbol: str,
@@ -2667,6 +2775,17 @@ def run_once(symbols: tuple[str, ...], timeframe: str, *, write_trainer_snapshot
                 candle_open_time = _ms_to_utc_iso(candle_open_ms)
             if candle_close_ms is not None:
                 candle_close_time = _ms_to_utc_iso(candle_close_ms)
+        # Supply the 155 required ``taf_*`` TA-Lib leaves from the authenticated
+        # closed-candle candidate, bound to this snapshot's identical closed
+        # candle (point-in-time safe). Values only; consumability holds unchanged.
+        ta_closed_feature_source_binding = _merge_ta_closed_indicator_features(
+            r,
+            sym,
+            timeframe,
+            feats,
+            required_taf_names=_TRAINER_REQUIRED_TAF_FEATURE_NAMES,
+            snapshot_candle_close_ms=candle_close_ms,
+        )
         # Honest finality proof for the latest-unclosed-kline exclusion (consumed
         # in the snapshot dict below + propagated to the durable archive).
         _latest_unclosed_excluded, _latest_unclosed_method = (
@@ -3007,6 +3126,10 @@ def run_once(symbols: tuple[str, ...], timeframe: str, *, write_trainer_snapshot
                 snap["provider_features"] = provider_feats
         except Exception:
             pass  # optional providers must never block core snapshots
+        if ta_closed_feature_source_binding is not None:
+            snap["ta_closed_feature_source_binding"] = (
+                ta_closed_feature_source_binding
+            )
         snap["feature_snapshot_id"] = _snapshot_id(snap)
         snapshots.append(snap)
         if r is not None:
