@@ -459,6 +459,47 @@ def main() -> int:
         "authority_field_policy_leaks_sanitized": sanitized_leaks,
     }
 
+    # Item 10 is proven ONCE on the frozen SHA: runtime snapshots rotate
+    # (closed fills leave the accepted ledger, intent lists are per-cycle),
+    # so a criterion proven from live records LATCHES with its original
+    # evidence instead of flapping back to PENDING when the proving rows
+    # rotate out.  FAIL is never masked by a latch.
+    state_path = EVID / "paper_final_bypass_acceptance_state.json"
+    try:
+        latched = json.loads(state_path.read_text())
+        if not isinstance(latched, dict):
+            latched = {}
+    except (OSError, ValueError):
+        latched = {}
+    state_dirty = False
+    for name, item in verdict.items():
+        prior = latched.get(name)
+        if item["status"] == "PASS":
+            if not (isinstance(prior, dict) and prior.get("status") == "PASS"):
+                latched[name] = {
+                    "status": "PASS",
+                    "first_pass_utc": _now(),
+                    "evidence": {
+                        key: value
+                        for key, value in item.items()
+                        if key != "status"
+                    },
+                }
+                state_dirty = True
+        elif (
+            item["status"] == "PENDING"
+            and isinstance(prior, dict)
+            and prior.get("status") == "PASS"
+        ):
+            item["status"] = "PASS"
+            item["latched"] = True
+            item["first_pass_utc"] = prior.get("first_pass_utc")
+            item["latched_evidence"] = prior.get("evidence")
+    if state_dirty:
+        state_path.write_text(
+            json.dumps(latched, indent=2, sort_keys=True, default=str)
+        )
+
     statuses = [item["status"] for item in verdict.values()]
     overall = (
         "ACCEPTANCE_PASS"

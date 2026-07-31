@@ -1,0 +1,88 @@
+{
+  "B_concurrent_protected_positions": {
+    "evidence": {
+      "historical_overlap_pairs": [
+        {
+          "a": "paper_pos_EGLDUSDT_d7c36cf4ff862cc4",
+          "b": "paper_pos_0GUSDT_2fd349c4f84a7221",
+          "symbols": [
+            "EGLDUSDT",
+            "0GUSDT"
+          ]
+        },
+        {
+          "a": "paper_pos_CAKEUSDT_58f32fe1f8cc0926",
+          "b": "paper_pos_0GUSDT_8fb648947c5704c9",
+          "symbols": [
+            "CAKEUSDT",
+            "0GUSDT"
+          ]
+        },
+        {
+          "a": "paper_pos_0GUSDT_c1bf6043a54af24c",
+          "b": "paper_pos_CAKEUSDT_1408ea4ef97d4db7",
+          "symbols": [
+            "0GUSDT",
+            "CAKEUSDT"
+          ]
+        }
+      ],
+      "open_symbols_now": [],
+      "protected_open_count": 0
+    },
+    "first_pass_utc": "2026-07-31T14:08:30.883238+00:00",
+    "status": "PASS"
+  },
+  "E_close_increments_and_next_decision_consumes": {
+    "evidence": {
+      "close_policy_state_versions": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "consuming_decisions": [
+        {
+          "policy_state_version": 14,
+          "record": "v2h_daebb191d638a020841da00ebc13b14d"
+        },
+        {
+          "policy_state_version": 14,
+          "record": "v2h_17172883a8cdf28945d9a9ff9ed232c0"
+        },
+        {
+          "policy_state_version": 14,
+          "record": "v2h_1f4ddd5208ae73a3f9bb3aac02111975"
+        },
+        {
+          "policy_state_version": 14,
+          "record": "v2h_53116899c729ae8c0860850d3126c08b"
+        },
+        {
+          "policy_state_version": 14,
+          "record": "v2h_3770912b40bc422db3ddc369b1de35f5"
+        }
+      ],
+      "current_policy_state_version": 15
+    },
+    "first_pass_utc": "2026-07-31T14:08:30.883253+00:00",
+    "status": "PASS"
+  },
+  "G_zero_defects": {
+    "evidence": {
+      "authority_field_invariant_violations": [],
+      "authority_field_policy_leaks_sanitized": 21,
+      "failed_invariants": [],
+      "live_authority_rows": [],
+      "parity_failures": []
+    },
+    "first_pass_utc": "2026-07-31T14:09:18.596537+00:00",
+    "status": "PASS"
+  }
+}
