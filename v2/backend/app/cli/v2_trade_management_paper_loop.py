@@ -37942,6 +37942,8 @@ def _paper_precycle_current_mark_exposure_snapshot(
             continue
         for alias in (
             _accepted_fill_identity(dict(ledger_fill_row)),
+            ledger_fill_row.get("fill_id"),
+            ledger_fill_row.get("accepted_fill_id"),
             ledger_fill_row.get("ledger_row_id"),
         ):
             if alias not in (None, ""):
@@ -38048,26 +38050,35 @@ def _paper_precycle_current_mark_exposure_snapshot(
                 )
                 source_fill_blocked = True
                 continue
+            # Admission + economics are validated against the row that
+            # actually CARRIES the sealed v3 admission contract and allocator
+            # payload.  Legacy proof sources embedded the full accepted-fill
+            # row; the durable proof rail deliberately stores compact lineage
+            # material only (see _paper_build_open_position_fill_proof), so
+            # for rail rows the persisted accepted-fill row proved by this
+            # SAME source_fill_id is authoritative.  Fail-closed is unchanged:
+            # no admission row, an invalid contract, or missing/unequal
+            # max-loss aliases still block.
+            ledger_fill = ledger_fills_by_id.get(source_fill_id)
+            if isinstance(
+                proof_row.get("paper_final_admission_contract"), Mapping
+            ) or isinstance(proof_row.get("adaptive_allocation"), Mapping):
+                admission_row: Mapping[str, Any] = proof_row
+            elif (
+                isinstance(ledger_fill, Mapping)
+                and str(ledger_fill.get("symbol") or "").strip().upper() == symbol
+            ):
+                admission_row = ledger_fill
+            else:
+                admission_row = proof_row
             persisted_reasons = list(
-                _paper_persisted_admission_rejection_reasons(proof_row)
+                _paper_persisted_admission_rejection_reasons(admission_row)
             )
             allocation = (
-                proof_row.get("adaptive_allocation")
-                if isinstance(proof_row.get("adaptive_allocation"), Mapping)
+                admission_row.get("adaptive_allocation")
+                if isinstance(admission_row.get("adaptive_allocation"), Mapping)
                 else {}
             )
-            if not allocation:
-                # Fallback to the persisted accepted-fill row proved by this
-                # source_fill_id; its own persisted-admission validation
-                # applies, so a quarantined/invalid fill still fails closed.
-                ledger_fill = ledger_fills_by_id.get(source_fill_id)
-                if isinstance(ledger_fill, Mapping) and isinstance(
-                    ledger_fill.get("adaptive_allocation"), Mapping
-                ):
-                    allocation = ledger_fill["adaptive_allocation"]
-                    persisted_reasons.extend(
-                        _paper_persisted_admission_rejection_reasons(ledger_fill)
-                    )
             max_loss = _paper_exact_positive_decimal_aliases(
                 allocation.get("max_loss_if_stop_hit"),
                 allocation.get("max_loss_usd"),
