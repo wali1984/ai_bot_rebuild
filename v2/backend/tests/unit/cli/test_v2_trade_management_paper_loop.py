@@ -11175,7 +11175,10 @@ def _explicit_durable_feature_clock_snapshot() -> dict[str, object]:
 def test_run_once_verifies_and_binds_durable_archive_before_candidate_pit() -> None:
     source = inspect.getsource(paper_loop._run_once_without_writer_lock)  # noqa: SLF001
 
-    archive_load = source.index("load_durable_feature_snapshot(")
+    # The durable load is wrapped in a bounded-retry helper that tolerates the
+    # archiver blob-before-index write race, but still runs verify=True and
+    # stays ordered before the candidate point-in-time contract and envelope.
+    archive_load = source.index("_paper_load_durable_feature_snapshot_with_retry(")
     archive_bind = source.index("_paper_bind_verified_durable_feature_snapshot(")
     first_candidate_pit = source.index(
         "preliminary_allocation_pit = _paper_allocation_point_in_time_contract("
@@ -11183,8 +11186,16 @@ def test_run_once_verifies_and_binds_durable_archive_before_candidate_pit() -> N
     candidate_envelope = source.index("_paper_candidate_dynamic_envelope_bundle(")
 
     assert archive_load < archive_bind < first_candidate_pit < candidate_envelope
-    assert source.count("load_durable_feature_snapshot(") == 1
-    assert "verify=True" in source[archive_load:archive_bind]
+    assert source.count("_paper_load_durable_feature_snapshot_with_retry(") == 1
+    assert "load_durable_feature_snapshot(" not in source
+
+    helper_source = inspect.getsource(
+        paper_loop._paper_load_durable_feature_snapshot_with_retry  # noqa: SLF001
+    )
+    assert "verify=True" in helper_source
+    # A genuine (non-blob-missing) verification failure must never be retried.
+    assert 'if "ARCHIVE_BLOB_MISSING" not in str(exc):' in helper_source
+    assert "raise" in helper_source
 
 
 def test_preallocation_durable_binding_yields_ready_candidate_envelope_and_reservation() -> None:

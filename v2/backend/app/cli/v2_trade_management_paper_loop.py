@@ -12102,6 +12102,44 @@ def _paper_refresh_adaptive_policy_execution_evidence(
     intent["adaptive_allocation"] = allocation
 
 
+def _paper_load_durable_feature_snapshot_with_retry(
+    snapshot_id: Any,
+    *,
+    root: Any,
+    total_budget_seconds: float = 1.2,
+) -> Mapping[str, Any] | None:
+    """Load a verified durable feature snapshot, tolerating the archiver-write race.
+
+    ``append_snapshot`` writes the blob BEFORE the index (both atomic tmp+replace),
+    so a consumer that reads the index a moment before the blob replace lands sees
+    ARCHIVE_BLOB_MISSING, and a consumer running before the index is written at all
+    sees a missing index (load returns None). Both are transient producer-timing
+    states — the same immutable, content-addressed snapshot lands within
+    sub-second — NOT integrity failures, so a short bounded retry loads the exact
+    verified record instead of hard-blocking the adaptive policy on a race. A
+    genuine verification failure (any SnapshotArchiveError that is not
+    ARCHIVE_BLOB_MISSING) is re-raised immediately and never retried.
+    """
+
+    deadline = time.monotonic() + max(0.0, float(total_budget_seconds))
+    delay = 0.05
+    while True:
+        try:
+            loaded = load_durable_feature_snapshot(
+                snapshot_id, root=root, verify=True
+            )
+        except SnapshotArchiveError as exc:
+            if "ARCHIVE_BLOB_MISSING" not in str(exc):
+                raise
+            loaded = None
+        if isinstance(loaded, Mapping):
+            return loaded
+        if time.monotonic() >= deadline:
+            return loaded
+        time.sleep(min(delay, max(0.0, deadline - time.monotonic())))
+        delay = min(delay * 1.6, 0.25)
+
+
 def _paper_bind_verified_durable_feature_snapshot(
     *,
     intent: dict[str, Any],
@@ -54686,10 +54724,11 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                 raise RuntimeError("ADAPTIVE_POLICY_FEATURE_SNAPSHOT_ID_MISSING")
             if adaptive_policy_feature_archive_root is None:
                 raise RuntimeError("ADAPTIVE_POLICY_FEATURE_ARCHIVE_ROOT_MISSING")
-            loaded_adaptive_feature_snapshot = load_durable_feature_snapshot(
-                adaptive_feature_snapshot_id,
-                root=adaptive_policy_feature_archive_root,
-                verify=True,
+            loaded_adaptive_feature_snapshot = (
+                _paper_load_durable_feature_snapshot_with_retry(
+                    adaptive_feature_snapshot_id,
+                    root=adaptive_policy_feature_archive_root,
+                )
             )
             if not isinstance(loaded_adaptive_feature_snapshot, Mapping):
                 raise RuntimeError("ADAPTIVE_POLICY_FEATURE_SNAPSHOT_MISSING")
