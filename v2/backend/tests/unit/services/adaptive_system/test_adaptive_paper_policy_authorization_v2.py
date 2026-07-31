@@ -5,12 +5,6 @@ from dataclasses import fields, replace
 import pytest
 
 
-@pytest.fixture
-def legacy_paper_authority(monkeypatch):
-    """Pin the pre-2026-07-31 authority contracts (override disabled)."""
-    monkeypatch.setenv("PAPER_EXPLORATION_LEGACY_AUTHORITY_FOR_TESTS", "true")
-
-
 from v2.backend.app.domain.adaptive_policy_action_v2 import AdaptivePolicyActionV2
 from v2.backend.app.services.adaptive_system import adaptive_hard_validator_v2
 from v2.backend.app.services.adaptive_system import adaptive_objective_v2
@@ -89,6 +83,13 @@ def _result(*, directional: bool):
     for index in range(128):
         intent = _intent()
         intent["policy_id"] = f"production-policy-{index}"
+        if not directional:
+            # FINAL directive 2026-07-31: nonpositive utility no longer keeps
+            # a hard-valid directional action out of the exploration slot, so
+            # calibration alone cannot produce remain_flat.  Hard-invalidate
+            # the directional actions (EXECUTION_INTEGRITY microstructure
+            # state) so remain_flat is the only hard-valid selection.
+            intent["microstructure_action"] = "CLOSE_OR_REDUCE_ONLY"
         result = build_adaptive_policy_shadow_candidate(
             intent=intent,
             feature_snapshot=_feature_snapshot(),
@@ -143,9 +144,7 @@ def test_authorizes_exact_directional_action_without_static_or_live_authority() 
     assert authorization.exchange_action_taken is False
 
 
-def test_flat_is_authoritative_learning_action_without_entry_authority(
-    legacy_paper_authority,
-) -> None:
+def test_flat_is_authoritative_learning_action_without_entry_authority() -> None:
     result = _result(directional=False)
     authorization = authorize_adaptive_paper_policy_action(
         result,
@@ -236,49 +235,6 @@ def test_reference_disagreement_never_receives_authority() -> None:
             )
     finally:
         object.__setattr__(result, "parity_disagreement_count", 0)
-
-
-def test_bootstrap_mode_rejected_when_positive_utility_exploration_exists(legacy_paper_authority) -> None:
-    """A bootstrap-tagged action is only legitimate when NO positive-utility
-    exploration action exists: re-tagging a genuinely selected bounded
-    exploration action (exploration_action_id set) as bootstrap mode fails
-    closed instead of borrowing the exploration slot's authority."""
-
-    # High posterior uncertainty -> positive learned exploration objective, so
-    # the bounded exploration action is selected and exploration_action_id is
-    # populated.
-    calibration = _calibration_with_statistic(
-        _controlled_statistic(
-            after_cost_expectancy_bps=-0.5,
-            posterior_uncertainty=0.9,
-            tail_0_9=1.0,
-        )
-    )
-    result = build_adaptive_policy_shadow_candidate(
-        intent=_low_cost_intent(),
-        feature_snapshot=_feature_snapshot(),
-        paper_status={"paper_only": True, "open_position_count": 0},
-        calibration=calibration,
-        registry=_registry(),
-        validator_seed=_SEED,
-        generated_at_ms=4_000_000,
-    )
-    assert result.objective_evaluation.exploration_action_id is not None
-    action = result.selected_adaptive_action
-    assert action.policy_mode == "bounded_information_seeking_exploration"
-    retagged_action = _recreate_action(
-        action,
-        policy_mode="bootstrap_information_acquisition",
-    )
-
-    with pytest.raises(
-        AdaptivePaperPolicyAuthorizationError,
-        match="bootstrap_requires_no_positive_utility_exploration",
-    ):
-        authorize_adaptive_paper_policy_action(
-            replace(result, selected_adaptive_action=retagged_action),
-            authorized_at_ms=4_000_001,
-        )
 
 
 def test_bootstrap_authorizes_alongside_positive_utility_exploration_under_exploration_authority(

@@ -43,12 +43,6 @@ from v2.backend.tests.unit.services.adaptive_system.test_adaptive_policy_shadow_
     _registry,
 )
 
-@pytest.fixture
-def legacy_paper_authority(monkeypatch):
-    """Pin the pre-2026-07-31 authority contracts (override disabled)."""
-    monkeypatch.setenv("PAPER_EXPLORATION_LEGACY_AUTHORITY_FOR_TESTS", "true")
-
-
 _PRIVATE = Ed25519PrivateKey.from_private_bytes(
     hashlib.sha256(b"adaptive-shadow-runtime-test-validator").digest()
 )
@@ -297,12 +291,12 @@ def test_exploration_fires_when_champion_flat_and_objective_positive() -> None:
     assert payload["selected_objective_input_id"] == evaluation.exploration_action_id
 
 
-def test_stays_flat_when_champion_flat_and_objective_nonpositive(
-    legacy_paper_authority,
-) -> None:
-    """Fixture 3 (legacy authority): champion=REMAIN_FLAT and NO
-    positive-objective exploration action (utility <= 0 ->
-    exploration_action_id is None) -> stays flat, no wasteful exploration."""
+def test_selects_directional_exploration_when_champion_flat_and_objective_nonpositive() -> None:  # noqa: E501
+    """Fixture 3 (FINAL directive 2026-07-31): champion=REMAIN_FLAT with a
+    nonpositive learned exploration objective no longer suppresses
+    exploration — utility positivity is TRADING_POLICY ranking input, so the
+    hard-valid bounded directional action still fills the exploration slot and
+    is selected with a positive notional."""
 
     result = _build(copy.deepcopy(_calibration()))  # default: exploration util < 0
     evaluation = result.objective_evaluation
@@ -313,17 +307,18 @@ def test_stays_flat_when_champion_flat_and_objective_nonpositive(
         if score.action_id == evaluation.champion_action_id
     )
     assert champion_score.selected_action == "remain_flat"
-    # A bounded exploration action exists in the scores but its utility is <= 0,
-    # so it is not an eligible exploration action.
-    assert evaluation.exploration_action_id is None
-    assert any(
-        score.policy_mode == BOUNDED
-        and score.utility is not None
-        and score.utility <= 0.0
+    assert evaluation.exploration_action_id is not None
+    exploration_score = next(
+        score
         for score in evaluation.scores
+        if score.action_id == evaluation.exploration_action_id
     )
-    assert result.selected_adaptive_action.selected_action == "remain_flat"
-    assert result.selected_adaptive_action.target_notional_usd == 0.0
+    assert exploration_score.utility is not None
+    assert exploration_score.utility <= 0.0
+    selected = result.selected_adaptive_action
+    assert selected.selected_action == "directional_trade"
+    assert selected.policy_mode == BOUNDED
+    assert selected.target_notional_usd > 0.0
 
 
 def test_paper_semantics_selects_nonpositive_utility_exploration() -> None:
@@ -399,10 +394,12 @@ def test_paper_semantics_bootstrap_designation_precedes_positive_utility_explora
     assert result.parity_disagreement_count == 0
 
 
-def test_bootstrap_selection_preconditions_are_policy_only(monkeypatch) -> None:
-    """A2 unit contract: under paper semantics the selection helper ignores
-    both legacy preconditions (exploration present, non-flat champion); under
-    the pinned legacy authority it refuses exactly as before."""
+def test_bootstrap_selection_preconditions_are_policy_only() -> None:
+    """A2 unit contract (FINAL directive 2026-07-31): the selection helper
+    ignores the legacy TRADING_POLICY preconditions (exploration present,
+    non-flat champion) unconditionally — the designated hard-valid match is
+    selected even when a positive exploration slot and a directional champion
+    both exist.  No environment seam can restore the legacy refusal."""
 
     from types import SimpleNamespace
 
@@ -431,16 +428,6 @@ def test_bootstrap_selection_preconditions_are_policy_only(monkeypatch) -> None:
             ordered_inputs=(match,),
         )
         == match.action_id
-    )
-
-    monkeypatch.setenv("PAPER_EXPLORATION_LEGACY_AUTHORITY_FOR_TESTS", "true")
-    assert (
-        _bootstrap_information_acquisition_selection(
-            designation=designation,
-            evaluation=evaluation,
-            ordered_inputs=(match,),
-        )
-        is None
     )
 
 
@@ -685,14 +672,15 @@ def _build_with_designation(
     )
 
 
-def test_bootstrap_designation_selects_negative_utility_venue_minimum(
-    legacy_paper_authority,
-) -> None:
-    """Prior-only posterior + this cycle's designation -> the hard-valid
-    venue-minimum information-acquisition action is selected even though its
-    recomputed monetary utility is negative, parity holds, every paper-only
-    safety flag stays intact, and the action authorizes through the standard
-    adaptive paper lane as a bootstrap-mode action."""
+def test_bootstrap_designation_selects_negative_utility_venue_minimum() -> None:
+    """Prior-only posterior + this cycle's designation (FINAL directive
+    2026-07-31 contract): the hard-valid venue-minimum information-acquisition
+    action is selected even though its recomputed monetary utility is
+    negative.  Nonpositive utility no longer empties the exploration slot, so
+    ``exploration_action_id`` is populated by an eligible venue-minimum input;
+    designation precedence still selects the designated LONG bootstrap-mode
+    action over it.  Parity holds, every paper-only safety flag stays intact,
+    and the action authorizes through the standard adaptive paper lane."""
 
     result = _build_with_designation(
         _sub_minimum_target_intent(),
@@ -701,15 +689,23 @@ def test_bootstrap_designation_selects_negative_utility_venue_minimum(
     )
     evaluation = result.objective_evaluation
 
-    # Preconditions the bootstrap rule requires: flat champion baseline and no
-    # positive-utility exploration action anywhere in the evaluation.
+    # Structural preconditions: flat champion baseline; the exploration slot
+    # is populated (venue-minimum input eligible) with nonpositive utility —
+    # positivity is TRADING_POLICY ranking input, not an eligibility veto.
     champion_score = next(
         score
         for score in evaluation.scores
         if score.action_id == evaluation.champion_action_id
     )
     assert champion_score.selected_action == "remain_flat"
-    assert evaluation.exploration_action_id is None
+    assert evaluation.exploration_action_id is not None
+    exploration_score = next(
+        score
+        for score in evaluation.scores
+        if score.action_id == evaluation.exploration_action_id
+    )
+    assert exploration_score.utility is not None
+    assert exploration_score.utility <= 0.0
 
     selected = result.selected_adaptive_action
     assert selected.selected_action == "directional_trade"
@@ -792,12 +788,12 @@ def test_bootstrap_designation_selects_with_evidenced_posterior() -> None:
     )
 
 
-def test_bootstrap_designation_ignored_for_other_symbol(
-    legacy_paper_authority,
-) -> None:
-    """A designation targeting a different symbol never fires here: under
-    legacy authority the candidate stays flat under the nonpositive-utility
-    rule."""
+def test_bootstrap_designation_ignored_for_other_symbol() -> None:
+    """A designation targeting a different symbol never fires the BOOTSTRAP
+    lane here — it is simply irrelevant.  Under the FINAL directive the
+    candidate still selects its own hard-valid directional exploration action
+    (plain BOUNDED mode, positive notional); no comparison row carries the
+    bootstrap selection reason."""
 
     result = _build_with_designation(
         _sub_minimum_target_intent(),
@@ -805,13 +801,14 @@ def test_bootstrap_designation_ignored_for_other_symbol(
         _bootstrap_designation(symbol="ETHUSDT"),
     )
 
-    assert result.selected_adaptive_action.selected_action == "remain_flat"
-    assert result.selected_adaptive_action.target_notional_usd == 0.0
-    assert result.selected_adaptive_action.policy_mode != BOOTSTRAP
-    assert all(
-        comparison.venue_min_candidate_selected is False
-        and comparison.selection_reason
-        == "VENUE_MINIMUM_RECOMPUTED_UTILITY_NONPOSITIVE"
+    selected = result.selected_adaptive_action
+    assert selected.selected_action == "directional_trade"
+    assert selected.target_notional_usd > 0.0
+    assert selected.policy_mode != BOOTSTRAP
+    assert selected.policy_mode == BOUNDED
+    assert not any(
+        comparison.selection_reason
+        == "VENUE_MINIMUM_BOOTSTRAP_INFORMATION_ACQUISITION_SELECTED"
         for comparison in result.venue_minimum_objective_comparisons
     )
 

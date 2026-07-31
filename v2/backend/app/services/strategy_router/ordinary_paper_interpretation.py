@@ -20,9 +20,6 @@ from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from typing import Any
 
-from v2.backend.app.services.adaptive_system.paper_exploration_authority_v2 import (
-    paper_exploration_override_enabled as _paper_exploration_override_enabled,
-)
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.on_policy_behavior import (
     canonical_sha256,
 )
@@ -74,16 +71,22 @@ _SOFT_MAGNITUDE_REASONS = frozenset(
         # treatment of the same bucket-quarantine evidence), never a
         # permanent binary veto.  Catastrophic conditions (drawdown,
         # liquidation, margin, exposure, position-state conflict, PIT/
-        # lookahead, negative rolling profit-factor/expectancy quarantine)
-        # remain in ``_HARD_ROUTER_REASONS`` below, untouched.
+        # lookahead) remain in ``_HARD_ROUTER_REASONS`` below, untouched.
         "PAPER_LOSS_BUCKET_QUARANTINE",
+        # Structural paper semantics (final directive 2026-07-31): negative
+        # rolling profit-factor/expectancy bucket performance is historical
+        # side/bucket performance — TRADING_POLICY — a bounded continuous
+        # sizing input, never a hard veto on a paper candidate.  Both the
+        # interpreted quarantine label and the router's raw reason code are
+        # covered so neither falls to the unclassified-hard fallback.
+        "NEGATIVE_BUCKET_PERFORMANCE_QUARANTINE",
+        "NEGATIVE_BUCKET_PERFORMANCE",
     }
 )
 
 _HARD_ROUTER_REASONS = frozenset(
     {
         "MASA_FUTURE_CUTOFF_BLOCK",
-        "NEGATIVE_BUCKET_PERFORMANCE_QUARANTINE",
         "POSITION_STATE_CONFLICT_BLOCK",
         "PPO_ACTION_NOT_TRADABLE",
         "PPO_HOLD_MASA_TRADE",
@@ -744,16 +747,13 @@ def interpret_ordinary_paper_router_result(
         verified_router.get("bucket_quarantined") is True
         or bucket_state.get("negative_bucket") is True
     ):
-        # Authority correction (2026-07-31): historical bucket performance is
-        # TRADING_POLICY under the central paper-exploration classification —
-        # a bounded continuous risk input (same treatment as the recent-loss
-        # quarantine below), never a hard veto while the paper exploration
-        # override is active.  With the override disabled the legacy hard
-        # block applies.
-        if _paper_exploration_override_enabled():
-            softened_reasons.append("NEGATIVE_BUCKET_PERFORMANCE_QUARANTINE")
-        else:
-            hard_reasons.append("NEGATIVE_BUCKET_PERFORMANCE_QUARANTINE")
+        # Structural paper semantics (final directive 2026-07-31): historical
+        # bucket performance is TRADING_POLICY under the central paper
+        # classification — a bounded continuous risk input (same treatment as
+        # the recent-loss quarantine below), never a hard veto on a paper
+        # candidate.  This module only interprets PAPER router results, so the
+        # softening is unconditional; no env lever carries authority.
+        softened_reasons.append("NEGATIVE_BUCKET_PERFORMANCE_QUARANTINE")
     # CG-F061: a bucket match against the recent-loss quarantine is a bounded
     # Category-E continuous risk input here (see ``paper_loss_quarantine_*``
     # fields on the returned interpretation), not a hard veto.  It is recorded

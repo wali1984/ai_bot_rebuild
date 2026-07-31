@@ -12,12 +12,6 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 
-@pytest.fixture
-def legacy_paper_authority(monkeypatch):
-    """Pin the pre-2026-07-31 authority contracts (override disabled)."""
-    monkeypatch.setenv("PAPER_EXPLORATION_LEGACY_AUTHORITY_FOR_TESTS", "true")
-
-
 from v2.backend.app.domain.adaptive_policy_action_v2 import (
     ACTION_DIRECTIONAL_TRADE,
     ACTION_REMAIN_FLAT,
@@ -900,9 +894,11 @@ def test_public_score_construction_cannot_forge_objective_arithmetic() -> None:
         _forged_score(score, utility=1_000_000.0)
 
 
-def test_zero_information_negative_utility_churn_is_not_exploration(
-    legacy_paper_authority,
-) -> None:
+def test_zero_information_negative_utility_churn_still_selectable_for_exploration() -> None:
+    """FINAL directive 2026-07-31: utility/information-gain positivity is
+    ranking input, not eligibility.  A hard-valid negative-utility, zero-IG
+    directional action IS the exploration selection."""
+
     flat = _action(
         "flat",
         CHAMPION_EXPLOITATION,
@@ -925,8 +921,8 @@ def test_zero_information_negative_utility_churn_is_not_exploration(
         expected_information_gain=0.0,
     )
     result = evaluate_shadow_objective((flat, churn), _weights(), _allocation())
-    assert result.exploration_action_id is None
-    assert "NO_EXECUTABLE_INFORMATION_SEEKING_ACTION" in result.failure_signals
+    assert result.exploration_action_id == "churn"
+    assert "NO_EXECUTABLE_INFORMATION_SEEKING_ACTION" not in result.failure_signals
 
 
 def test_nonpositive_utility_exploration_is_selectable_under_paper_semantics() -> None:

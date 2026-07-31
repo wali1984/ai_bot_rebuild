@@ -74,21 +74,34 @@ def adaptive_budget_pct(
     envelope: RiskEnvelope,
     *,
     continuous_confidence_from_zero: bool = False,
+    policy_factor_floor: float | None = None,
 ) -> float:
-    raw = (
-        envelope.max_loss_per_trade_pct
-        * confidence_adjustment(
+    # Factor split (final paper directive 2026-07-31): confidence, edge,
+    # cost-preference and regime are TRADING_POLICY inputs — in paper mode
+    # they scale size continuously but may never zero it (that would be a
+    # policy veto dressed as capacity).  The hard capacity factors (market
+    # integrity, volatility, liquidity, drawdown, exposure, correlation)
+    # retain full authority to zero the budget: their exhaustion is the only
+    # legitimate capacity-based REMAIN_FLAT.
+    policy_product = (
+        confidence_adjustment(
             row,
             continuous_from_zero=continuous_confidence_from_zero,
         )
         * edge_adjustment(row)
+        * spread_slippage_adjustment(row)
+        * regime_adjustment(row)
+    )
+    if policy_factor_floor is not None:
+        policy_product = max(policy_product, policy_factor_floor)
+    raw = (
+        envelope.max_loss_per_trade_pct
+        * policy_product
         * market_state_adjustment(row)
         * volatility_adjustment(row)
         * liquidity_adjustment(row)
-        * spread_slippage_adjustment(row)
         * drawdown_adjustment(row, envelope)
         * exposure_adjustment(row, envelope)
         * correlation_adjustment(row, envelope)
-        * regime_adjustment(row)
     )
     return clamp(raw, 0.0, envelope.max_single_symbol_exposure_pct)

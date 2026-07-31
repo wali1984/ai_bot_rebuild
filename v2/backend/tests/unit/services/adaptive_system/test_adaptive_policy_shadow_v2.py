@@ -6,11 +6,6 @@ from copy import deepcopy
 import pytest
 
 
-@pytest.fixture
-def legacy_paper_authority(monkeypatch):
-    """Pin the pre-2026-07-31 authority contracts (override disabled)."""
-    monkeypatch.setenv("PAPER_EXPLORATION_LEGACY_AUTHORITY_FOR_TESTS", "true")
-
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
@@ -658,11 +653,18 @@ def test_missing_physical_evidence_during_open_position_persists_fail_closed_fla
     assert result.exchange_action_taken is False
 
 
-def test_existing_position_blocks_new_direction_but_not_nonexecuting_flat(legacy_paper_authority) -> None:
+def test_incoherent_position_state_fails_position_transition_validity() -> None:
+    """RETAINED protection (FINAL directive 2026-07-31): the single-flight
+    ``open_position_count == 0`` rail is structurally gone, but position-state
+    COHERENCE still has blocking authority.  A negative open_position_count is
+    incoherent paper truth: directional actions fail
+    position_transition_validity and the candidate resolves to remain_flat.
+    """
+
     result = build_adaptive_policy_shadow_candidate(
         intent=_intent(),
         feature_snapshot=_feature_snapshot(),
-        paper_status={"paper_only": True, "open_position_count": 1},
+        paper_status={"paper_only": True, "open_position_count": -1},
         calibration=_calibration(),
         registry=_registry(),
         validator_seed=_SEED,
@@ -672,19 +674,14 @@ def test_existing_position_blocks_new_direction_but_not_nonexecuting_flat(legacy
     directional = [
         item for item in result.objective_inputs if item.selected_action == "directional_trade"
     ]
-    flat = next(
-        item for item in result.objective_inputs if item.selected_action == "remain_flat"
-    )
     assert len(result.component_estimates) == 4
     assert len(result.venue_attestations) == 4
     assert all(item.hard_constraints_satisfied is False for item in directional)
+    dispositions = dict(result.action_dispositions)
     assert all(
-        dict(result.action_dispositions)[item.action_id]
-        == ("position_transition_validity",)
+        "position_transition_validity" in dispositions[item.action_id]
         for item in directional
     )
-    assert flat.hard_constraints_satisfied is True
-    assert dict(result.action_dispositions)[flat.action_id] == ()
     assert result.selected_adaptive_action.selected_action == "remain_flat"
 
 

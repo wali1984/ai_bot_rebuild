@@ -134,11 +134,13 @@ from v2.backend.app.services.adaptive_system.adaptive_policy_shadow_v2 import (
     build_adaptive_policy_shadow_candidate,
 )
 from v2.backend.app.services.adaptive_system.paper_exploration_authority_v2 import (
+    PAPER_POLICY_GATE_AUTHORITY,
     TRADING_POLICY,
     classify_paper_blocker,
     paper_exploration_override_enabled,
     paper_exploration_override_env_status,
     partition_paper_exploration_blockers,
+    structural_paper_candidate,
 )
 from v2.backend.app.services.market_structure.decision_context import (
     ADVANCED_CONTEXT_FIELDS,
@@ -13110,6 +13112,20 @@ CANDIDATE_ALLOCATION_PUBLICATION_INTENT_FIELDS = tuple(
 COMPACT_ACCEPTED_FILL_FIELDS = tuple(
     dict.fromkeys(
         (
+            # Final directive 2026-07-31 item 8: the authority + receipt chain
+            # must SURVIVE compaction — stripping these here is why the runtime
+            # showed policy_gate_authority=None on persisted rows.
+            "policy_gate_authority",
+            "policy_state_version",
+            "entry_policy_state_version",
+            "close_policy_state_version",
+            "authorization_id",
+            "authoritative_hard_blockers",
+            "trading_policy_telemetry_reasons",
+            "trading_policy_final_authority",
+            "paper_authority_field_policy_leak",
+            "risk_capacity_receipt",
+            "mandatory_protection_receipt",
             "preemptive_decision_id",
             "preemptive_decision",
             "preemptive_decision_reasons",
@@ -14203,6 +14219,23 @@ PAPER_RUNTIME_INTENT_PROJECTION_FIELDS = (
     "paper_performance_circuit_breaker_hard_trading_authority",
     "legacy_category_e_comparator",
     "adaptive_policy_source_action_comparator",
+    # Final directive 2026-07-31 items 4+8: authority + receipt chain on the
+    # published per-candidate intent projection.
+    "policy_gate_authority",
+    "policy_state_version",
+    "authorization_id",
+    "authoritative_hard_blockers",
+    "trading_policy_telemetry_reasons",
+    "trading_policy_final_authority",
+    "paper_authority_field_policy_leak",
+    "risk_capacity_receipt",
+    "mandatory_protection_receipt",
+    "entry_gate_trading_policy_telemetry_reasons",
+    "entry_gate_trading_policy_final_authority",
+    "preemptive_trading_policy_telemetry_reasons",
+    "preemptive_trading_policy_final_authority",
+    "paper_standalone_1m_trading_policy_telemetry_reasons",
+    "paper_standalone_1m_trading_policy_final_authority",
 )
 
 
@@ -14237,6 +14270,90 @@ def _compact_runtime_intents_for_redis(
     rows: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
     return [_compact_runtime_intent_for_redis(row) for row in rows if isinstance(row, dict)]
+
+
+_PAPER_AUTHORITY_LIST_FIELDS = (
+    "rejection_reasons",
+    "paper_fill_gate_block_reasons",
+    "entry_gate_block_reasons",
+)
+
+
+def _enforce_paper_authority_field_invariant(
+    intent: dict[str, Any],
+    *,
+    policy_state_version: Any,
+) -> None:
+    """Mandatory invariant (final directive 2026-07-31 item 4).
+
+    Before an intent's authoritative rejection fields are published, every
+    reason is run through the central classifier: no TRADING_POLICY reason may
+    remain in an authoritative field of a structurally paper candidate.  Any
+    reason moved here indicates an upstream gate wrote policy authority — that
+    is recorded as ``paper_authority_field_policy_leak`` (a release-blocking
+    defect signal), never silently dropped.  This sanitizer does not resurrect
+    an already-blocked intent within the cycle; behavioral authority is
+    removed at the gates themselves.
+    """
+
+    if not structural_paper_candidate(intent):
+        return
+    moved: list[str] = []
+    for field in _PAPER_AUTHORITY_LIST_FIELDS:
+        reasons = intent.get(field)
+        if not isinstance(reasons, list) or not reasons:
+            continue
+        blocking, policy = partition_paper_exploration_blockers(
+            [str(reason) for reason in reasons]
+        )
+        if policy:
+            intent[field] = blocking
+            moved.extend(policy)
+    local_reasons = intent.get("local_block_reasons")
+    if isinstance(local_reasons, list) and local_reasons:
+        kept_local: list[str] = []
+        for item in local_reasons:
+            text = str(item)
+            _, _, bare = text.partition(":")
+            if TRADING_POLICY in (
+                classify_paper_blocker(text),
+                classify_paper_blocker(bare) if bare else None,
+            ):
+                moved.append(text)
+            else:
+                kept_local.append(text)
+        if len(kept_local) != len(local_reasons):
+            intent["local_block_reasons"] = kept_local
+    primary = intent.get("paper_fill_block_reason")
+    if (
+        isinstance(primary, str)
+        and primary
+        and classify_paper_blocker(primary) == TRADING_POLICY
+    ):
+        moved.append(primary)
+        remaining = [
+            str(reason)
+            for reason in intent.get("paper_fill_gate_block_reasons") or []
+            if str(reason) != primary
+        ]
+        intent["paper_fill_block_reason"] = remaining[0] if remaining else None
+    hard_blockers: list[str] = []
+    for field in _PAPER_AUTHORITY_LIST_FIELDS:
+        values = intent.get(field)
+        if isinstance(values, list):
+            hard_blockers.extend(str(reason) for reason in values)
+    if isinstance(intent.get("paper_fill_block_reason"), str):
+        hard_blockers.append(intent["paper_fill_block_reason"])
+    intent["authoritative_hard_blockers"] = sorted(set(hard_blockers))
+    if moved:
+        intent["trading_policy_telemetry_reasons"] = sorted(
+            set(list(intent.get("trading_policy_telemetry_reasons") or []) + moved)
+        )
+        intent["trading_policy_final_authority"] = False
+        intent["paper_authority_field_policy_leak"] = True
+    intent["policy_gate_authority"] = PAPER_POLICY_GATE_AUTHORITY
+    if intent.get("policy_state_version") is None:
+        intent["policy_state_version"] = policy_state_version
 
 
 def _sample_rows(
@@ -57496,6 +57613,19 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                 )
                 else {}
             )
+            _acceptance_allocation = (
+                accepted_intent.get("adaptive_allocation")
+                if isinstance(accepted_intent.get("adaptive_allocation"), Mapping)
+                else {}
+            )
+            _acceptance_authorization = (
+                accepted_intent.get("adaptive_paper_policy_authorization")
+                if isinstance(
+                    accepted_intent.get("adaptive_paper_policy_authorization"),
+                    Mapping,
+                )
+                else {}
+            )
             accepted_intent["risk_capacity_receipt"] = {
                 "free_margin_before_reservations_usd": _acceptance_margin_status.get(
                     "free_margin_before_reservations_usd"
@@ -57508,6 +57638,63 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                 "reservation_commit_receipt_hash": accepted_intent.get(
                     "paper_cycle_reservation_commit_receipt_hash"
                 ),
+                # Final directive 2026-07-31 item 8: the adaptive capacity
+                # envelope that admitted this fill, bound to the
+                # authorization identity.
+                "authorization_id": _acceptance_authorization.get(
+                    "authorization_id"
+                ),
+                "allocator_decision": _acceptance_allocation.get(
+                    "allocator_decision"
+                ),
+                "gross_notional_usd": _acceptance_allocation.get(
+                    "gross_notional_usd"
+                ),
+                "allocated_margin_usd": _acceptance_allocation.get(
+                    "allocated_margin_usd"
+                ),
+                "effective_leverage": _acceptance_allocation.get(
+                    "effective_leverage"
+                ),
+                "liquidation_buffer_bps": _acceptance_allocation.get(
+                    "liquidation_buffer_bps"
+                ),
+                "max_loss_if_stop_hit": _acceptance_allocation.get(
+                    "max_loss_if_stop_hit"
+                ),
+                "portfolio_exposure_after_trade": _acceptance_allocation.get(
+                    "portfolio_exposure_after_trade"
+                ),
+                "correlation_exposure_after_trade": _acceptance_allocation.get(
+                    "correlation_exposure_after_trade"
+                ),
+            }
+            # Final directive 2026-07-31 item 8: mandatory-protection receipt
+            # + authorization identity on the accepted fill (rides into the
+            # position and close records).
+            accepted_intent["authorization_id"] = _first_present(
+                accepted_intent.get("authorization_id"),
+                _acceptance_authorization.get("authorization_id"),
+            )
+            accepted_intent["mandatory_protection_receipt"] = {
+                "schema_version": "paper_mandatory_protection_receipt_v1",
+                "authorization_id": _acceptance_authorization.get(
+                    "authorization_id"
+                ),
+                "mandatory_stop_present": _acceptance_authorization.get(
+                    "mandatory_stop_present"
+                ),
+                "exact_stop_price": _acceptance_authorization.get(
+                    "exact_stop_price"
+                ),
+                "exact_bounded_loss_usd": _acceptance_authorization.get(
+                    "exact_bounded_loss_usd"
+                ),
+                "liquidation_atr_evidence_sha256": accepted_intent.get(
+                    "paper_liquidation_atr_evidence_sha256"
+                ),
+                "paper_only": True,
+                "live_gate": LIVE_GATE_BLOCKED,
             }
         # ``v2:paper:intents`` publishes the original per-candidate object.
         # Copy the finalized row back so PASS/BLOCKED receipts are durable on
@@ -60724,6 +60911,17 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
     feedback_quarantine_state_sample = _sample_rows(
         _compact_rows_for_state(trainer_feedback_quarantine_rows)
     )
+    # Final directive 2026-07-31 item 4: mechanical authority-field invariant
+    # applied to EVERY candidate before the per-candidate projection is
+    # published — no TRADING_POLICY reason survives in an authoritative field.
+    for _authority_row in intents:
+        if isinstance(_authority_row, dict):
+            _enforce_paper_authority_field_invariant(
+                _authority_row,
+                policy_state_version=adaptive_policy_cycle_context.get(
+                    "policy_state_version"
+                ),
+            )
     runtime_intent_state_rows = _compact_runtime_intents_for_redis(
         _with_paper_session_metadata_rows(
             intents,
@@ -61169,6 +61367,51 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                 )
             except Exception:
                 pass
+        # Final directive 2026-07-31 item 8: fills are dict copies of the
+        # authorized intent and already carry the authorization / capacity /
+        # protection receipts; position and close rows are rebuilt from the
+        # typed position state, so the receipts are re-joined here by
+        # position_id before the atomic critical-state write.  Every position
+        # and close row also carries policy_gate_authority=False.
+        _fill_receipts_by_position: dict[str, dict[str, Any]] = {}
+        for _fr in valid_accepted_for_ledger:
+            if not isinstance(_fr, dict):
+                continue
+            _fr_pid = str(_fr.get("position_id") or "")
+            if _fr_pid and (
+                _fr.get("authorization_id")
+                or isinstance(_fr.get("risk_capacity_receipt"), dict)
+            ):
+                _fill_receipts_by_position[_fr_pid] = _fr
+
+        def _join_paper_authority_receipts(row: dict[str, Any]) -> None:
+            source = _fill_receipts_by_position.get(
+                str(row.get("position_id") or "")
+            )
+            if isinstance(source, dict):
+                for receipt_field in (
+                    "authorization_id",
+                    "risk_capacity_receipt",
+                    "mandatory_protection_receipt",
+                    "intent_id",
+                    "candidate_id",
+                ):
+                    if row.get(receipt_field) in (None, "", [], {}):
+                        value = source.get(receipt_field)
+                        if value not in (None, "", [], {}):
+                            row[receipt_field] = value
+                if row.get("policy_state_version") is None:
+                    entry_version = source.get("policy_state_version")
+                    if entry_version is not None:
+                        row["policy_state_version"] = entry_version
+            row["policy_gate_authority"] = PAPER_POLICY_GATE_AUTHORITY
+
+        for _op_row in open_positions:
+            if isinstance(_op_row, dict):
+                _join_paper_authority_receipts(_op_row)
+        for _close_join_row in closes:
+            if isinstance(_close_join_row, dict):
+                _join_paper_authority_receipts(_close_join_row)
         keys_written.extend(
             _write_paper_critical_state_atomically(
                 r,
@@ -62672,6 +62915,117 @@ def _try_acquire_loop_lock(path: Path = PAPER_LOOP_LOCK_PATH) -> TextIO | None:
     return handle
 
 
+_EVALUATION_TRIGGER_NAMES = (
+    "paper_signals",
+    "accepted_fills",
+    "closed_trades",
+    "positions",
+    "policy_state_version",
+)
+_EVALUATION_TRIGGER_KEYS = (
+    f"{V2_REDIS_PREFIX}signals:paper",
+    f"{V2_REDIS_PREFIX}paper:accepted_fills",
+    f"{V2_REDIS_PREFIX}paper:closed_trades",
+    f"{V2_REDIS_PREFIX}paper:positions",
+)
+
+
+def _evaluation_trigger_fingerprint(r: Any) -> tuple[Any, ...]:
+    """O(1) trigger probe: STRLEN of the event-bearing payloads + the policy
+    state version.  Never a glob SCAN, never a large GET."""
+
+    parts: list[Any] = []
+    for key in _EVALUATION_TRIGGER_KEYS:
+        try:
+            parts.append(r.strlen(key))
+        except redis.RedisError:
+            parts.append(None)
+    try:
+        parts.append(r.hget(PAPER_POLICY_STATE_REDIS_KEY, "policy_state_version"))
+    except redis.RedisError:
+        parts.append(None)
+    return tuple(parts)
+
+
+def _wait_for_evaluation_trigger(
+    stop_event: threading.Event,
+    *,
+    heartbeat_seconds: int,
+    poll_seconds: float = 2.0,
+    minimum_spacing_seconds: float = 5.0,
+) -> str:
+    """Event-driven evaluation (final directive 2026-07-31 item 7).
+
+    Within the existing process, an immediate evaluation is triggered by: a
+    new authenticated signal (v2:signals:paper), a fill (accepted_fills), a
+    close (closed_trades), a material position-state update (positions), or a
+    policy_state_version update.  The former fixed interval is retained only
+    as the fallback heartbeat.  Returns "STOP", "EVENT:<sources>", or
+    "HEARTBEAT".
+    """
+
+    deadline = time.monotonic() + max(5, int(heartbeat_seconds))
+    if stop_event.wait(timeout=max(0.0, minimum_spacing_seconds)):
+        return "STOP"
+    trigger = "HEARTBEAT"
+    probe: Any = None
+    baseline: tuple[Any, ...] | None = None
+    try:
+        probe = redis.Redis(
+            host="127.0.0.1",
+            port=6379,
+            db=0,
+            decode_responses=True,
+            socket_timeout=2,
+        )
+        baseline = _evaluation_trigger_fingerprint(probe)
+    except Exception:
+        probe = None
+    while time.monotonic() < deadline:
+        remaining = deadline - time.monotonic()
+        if stop_event.wait(timeout=min(poll_seconds, max(0.1, remaining))):
+            return "STOP"
+        if probe is None or baseline is None:
+            continue
+        try:
+            current = _evaluation_trigger_fingerprint(probe)
+        except Exception:
+            continue
+        if current != baseline:
+            changed = [
+                name
+                for name, before, after in zip(
+                    _EVALUATION_TRIGGER_NAMES, baseline, current
+                )
+                if before != after
+            ]
+            trigger = "EVENT:" + ",".join(changed or ["unknown"])
+            break
+    if probe is not None:
+        try:
+            probe.set(
+                f"{V2_REDIS_PREFIX}paper:evaluation_trigger:last",
+                json.dumps(
+                    {
+                        "schema_version": "paper_evaluation_trigger_v1",
+                        "trigger": trigger,
+                        "generated_utc": _utc_iso(),
+                        "heartbeat_seconds": int(heartbeat_seconds),
+                        "paper_only": True,
+                    },
+                    sort_keys=True,
+                ),
+                ex=3600,
+            )
+        except Exception:
+            pass
+        try:
+            probe.close()
+        except Exception:
+            pass
+    return trigger
+
+
 def _main_with_writer_lock(args: argparse.Namespace) -> int:
     if args.loop:
         # Drain-on-SIGTERM: run_once persists paper state across MANY
@@ -62706,7 +63060,10 @@ def _main_with_writer_lock(args: argparse.Namespace) -> int:
                     )
                 )
                 return 0
-            _drain_stop.wait(timeout=max(5, int(args.interval_seconds)))
+            _wait_for_evaluation_trigger(
+                _drain_stop,
+                heartbeat_seconds=int(args.interval_seconds),
+            )
             if _drain_stop.is_set():
                 print(
                     json.dumps(

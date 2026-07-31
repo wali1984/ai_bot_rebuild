@@ -94,11 +94,13 @@ def test_weak_edge_keeps_paper_leverage_at_minimum() -> None:
 
 
 def test_high_loss_probability_shrinks_notional() -> None:
-    # A non-positive after-cost edge (high loss probability) must shrink the
-    # position to zero rather than size it at leverage.
+    # Final paper directive 2026-07-31: a non-positive after-cost edge
+    # (high loss probability) shrinks the paper position to the floored
+    # exploration minimum at 1x — it scales size continuously but may never
+    # zero it (that would be a policy veto expressed as capacity).
     strong = allocate_paper_candidate(_mk())
     losing = allocate_paper_candidate(_mk(expected_move_after_cost_bps=-15.0))
-    assert losing.gross_notional_usd == 0.0
+    assert losing.gross_notional_usd > 0.0
     assert losing.recommended_leverage == 1.0
     assert strong.gross_notional_usd > losing.gross_notional_usd
 

@@ -15,12 +15,6 @@ from pathlib import Path
 import pytest
 
 
-@pytest.fixture
-def legacy_paper_authority(monkeypatch):
-    """Pin the pre-2026-07-31 authority contracts (override disabled)."""
-    monkeypatch.setenv("PAPER_EXPLORATION_LEGACY_AUTHORITY_FOR_TESTS", "true")
-
-
 from v2.backend.app.cli import v2_trade_management_paper_loop as paper_loop
 from v2.backend.app.services.adaptive_capital_allocator.allocator import (
     PAPER_ALLOCATOR_ARITHMETIC_FORMULA,
@@ -1519,16 +1513,13 @@ def test_golden_a_grade_passes_real_final_admission_contract(
     assert "paper-golden-local-evidence-auth-key" not in json.dumps(contract)
 
 
-def test_final_admission_positivity_veto_scoped_off_bootstrap_information_acquisition(
-    legacy_paper_authority,
+def test_final_admission_positivity_never_blocks_any_lane_integrity_companion_mandatory(
     golden_a_grade_final_admission,
 ) -> None:
-    """Continuous paper exploration at the final materialization boundary: the
+    """FINAL directive 2026-07-31 at the final materialization boundary: the
     Category-E positivity preference (FINAL_ADMISSION_CURRENT_EXPECTED_NET_PNL_
-    NOT_POSITIVE) carries no final authority over a bootstrap
-    information-acquisition intent — a bootstrap experiment's expected net PnL
-    is nonpositive in the normal case — while the veto is preserved verbatim
-    for every other lane, and the allocator-consistency integrity companion
+    NOT_POSITIVE) is TRADING_POLICY telemetry for EVERY paper lane — bootstrap
+    and champion alike — while the allocator-consistency integrity companion
     (FINAL_ADMISSION_EXPECTED_NET_PNL_DIFFERS_FROM_ALLOCATOR) stays mandatory
     for every lane including bootstrap.
     """
@@ -1601,16 +1592,20 @@ def test_final_admission_positivity_veto_scoped_off_bootstrap_information_acquis
     ]
     assert bootstrap_contract["rejection_reasons"] == []
 
-    # Every non-bootstrap lane keeps the veto (scoped carve-out, not a
-    # weakening): same mutation, champion mode -> exactly the positivity veto.
+    # Non-bootstrap lanes no longer keep the veto: the positivity preference
+    # is telemetry for every paper lane, not a bootstrap-only carve-out.
     champion_contract = _final_admission_with_negative_pnl(
         "champion_exploitation",
         allocation_expected_net_pnl_usd=-0.42,
     )
-    assert champion_contract["status"] == "BLOCKED"
-    assert champion_contract["rejection_reasons"] == [
-        "FINAL_ADMISSION_CURRENT_EXPECTED_NET_PNL_NOT_POSITIVE"
+    assert champion_contract["status"] == "PASS", champion_contract[
+        "rejection_reasons"
     ]
+    assert champion_contract["rejection_reasons"] == []
+    assert (
+        "FINAL_ADMISSION_CURRENT_EXPECTED_NET_PNL_NOT_POSITIVE"
+        in champion_contract["trading_policy_telemetry_reasons"]
+    )
 
     # The bootstrap exemption never extends to the allocator-consistency
     # integrity check: a mismatched allocator value still rejects, and only
@@ -8293,7 +8288,7 @@ def test_b_grade_resumption_requests_patch_after_three_zero_fill_cycles() -> Non
     ]
 
 
-def test_paper_risk_controller_exploration_classifies_no_trade_guardian_override(legacy_paper_authority) -> None:
+def test_paper_risk_controller_exploration_classifies_no_trade_guardian_override() -> None:
     now = "2026-07-08T12:00:00.000Z"
     past = "2026-07-08T11:59:00.000Z"
     signal = {
@@ -8438,10 +8433,10 @@ def test_paper_risk_controller_exploration_classifies_no_trade_guardian_override
         high_confidence_loss_cluster_gate={"cluster_detected": False},
         preemptive_decision=preemptive,
     )
-    assert unresolved_risk["paper_opportunity_tier"] == paper_loop.PAPER_TIER_NO_TRADE
-    assert unresolved_risk["paper_opportunity_tier_reason"] == (
-        paper_loop.P0_ENTRY_GATE_NOT_EXPLORATION_RELAXABLE_REASON
-    )
+    # RETAINED protection (FINAL directive 2026-07-31): an unresolved risk-
+    # controller decision still prevents any paper fill — the candidate is
+    # demoted to non-executing SHADOW_ONLY rather than a policy NO_TRADE veto.
+    assert unresolved_risk["paper_opportunity_tier"] == paper_loop.PAPER_TIER_SHADOW_ONLY
     assert unresolved_risk["paper_exploration_paper_fill_allowed"] is False
     assert (
         "RISK_CONTROLLER_DECISION_NOT_FILL_ELIGIBLE:PENDING"
@@ -9443,7 +9438,11 @@ def test_preemptive_loss_probability_bound_is_telemetry_under_exploration_author
     assert "preemptive_trading_policy_telemetry_reasons" not in missing
 
 
-def test_scoped_exploration_uses_its_frozen_loss_bound_at_final_admission(legacy_paper_authority) -> None:
+def test_scoped_exploration_loss_bound_is_telemetry_on_paper_but_blocks_live_routing() -> None:
+    """FINAL directive 2026-07-31: on paper-only intents every loss-probability
+    preference (frozen exploration bound included) is TRADING_POLICY telemetry;
+    an intent claiming routes_to_live keeps the full blocking authority."""
+
     intent = {
         "paper_opportunity_tier": paper_loop.PAPER_TIER_RISK_CONTROLLER_EXPLORATION,
         "preemptive_edge_control": {
@@ -9475,10 +9474,11 @@ def test_scoped_exploration_uses_its_frozen_loss_bound_at_final_admission(legacy
     assert "PAPER_RISK_CONTROLLER_EXPLORATION_LOSS_PROBABILITY_ABOVE_BOUND" not in reasons
     assert reasons == []
 
+    # Paper-only variants: the loss-probability preference is demoted to
+    # telemetry, never a blocking reason.
     for changed_field, changed_value in (
         ("adaptive_loss_probability_threshold_applied", True),
         ("scoped_paper_lane_authorized", False),
-        ("routes_to_live", True),
     ):
         unsafe = {**intent, changed_field: changed_value}
         unsafe_reasons = paper_loop._paper_preemptive_admission_rejection_reasons(  # noqa: SLF001
@@ -9487,7 +9487,21 @@ def test_scoped_exploration_uses_its_frozen_loss_bound_at_final_admission(legacy
             adaptive_loss_probability_threshold_source="EXPLICIT_ADAPTIVE_TUNING_SNAPSHOT",
             adaptive_tuning_validation_status="PASS",
         )
-        assert "PRE_TRADE_LOSS_PROBABILITY_ABOVE_ALLOWED_BOUND" in unsafe_reasons
+        assert "PRE_TRADE_LOSS_PROBABILITY_ABOVE_ALLOWED_BOUND" not in unsafe_reasons
+        assert "PRE_TRADE_LOSS_PROBABILITY_ABOVE_ALLOWED_BOUND" in unsafe[
+            "preemptive_trading_policy_telemetry_reasons"
+        ]
+
+    # RETAINED live rail: an intent claiming routes_to_live keeps the full
+    # blocking authority for the same loss-probability bound.
+    live_claiming = {**intent, "routes_to_live": True}
+    live_reasons = paper_loop._paper_preemptive_admission_rejection_reasons(  # noqa: SLF001
+        live_claiming,
+        adaptive_loss_probability_threshold=0.0,
+        adaptive_loss_probability_threshold_source="EXPLICIT_ADAPTIVE_TUNING_SNAPSHOT",
+        adaptive_tuning_validation_status="PASS",
+    )
+    assert "PRE_TRADE_LOSS_PROBABILITY_ABOVE_ALLOWED_BOUND" in live_reasons
 
     above_exploration_bound = {
         **intent,
@@ -9502,7 +9516,13 @@ def test_scoped_exploration_uses_its_frozen_loss_bound_at_final_admission(legacy
         adaptive_tuning_validation_status="PASS",
     )
     assert "PRE_TRADE_LOSS_PROBABILITY_ABOVE_ALLOWED_BOUND" not in above_bound_reasons
-    assert "PAPER_RISK_CONTROLLER_EXPLORATION_LOSS_PROBABILITY_ABOVE_BOUND" in (above_bound_reasons)
+    assert (
+        "PAPER_RISK_CONTROLLER_EXPLORATION_LOSS_PROBABILITY_ABOVE_BOUND"
+        not in above_bound_reasons
+    )
+    assert "PAPER_RISK_CONTROLLER_EXPLORATION_LOSS_PROBABILITY_ABOVE_BOUND" in (
+        above_exploration_bound["preemptive_trading_policy_telemetry_reasons"]
+    )
 
 
 def test_materialization_queue_preserves_calibrated_loss_probability_on_revalidation() -> None:
@@ -10050,7 +10070,10 @@ def test_classifier_admits_positive_edge_probation_paper_only() -> None:
     assert classification["probation_paper_enabled"] is True
 
 
-def test_global_performance_halt_preserves_probation_allocator_evidence(legacy_paper_authority) -> None:
+def test_global_performance_halt_preserves_probation_allocator_evidence() -> None:
+    # Still-hard fixture variant (FINAL directive 2026-07-31): only a circuit
+    # carrying the catastrophic_loss_mandate retains blocking authority on
+    # paper intents; a bare policy halt converts to a continuous penalty.
     intent = {
         "paper_only": True,
         "symbol": "UNRELATEDUSDT",
@@ -10067,6 +10090,7 @@ def test_global_performance_halt_preserves_probation_allocator_evidence(legacy_p
         performance_circuit_breaker_status={
             "new_entries_allowed": False,
             "blocked_bucket_keys": [],
+            "catastrophic_loss_mandate": True,
         },
     )
 
@@ -10150,7 +10174,9 @@ def test_category_e_conversion_does_not_override_explicit_catastrophic_mandate()
     assert "paper_performance_static_veto_removed" not in intent
 
 
-def test_high_confidence_cannot_bypass_global_performance_halt(legacy_paper_authority) -> None:
+def test_high_confidence_cannot_bypass_global_performance_halt() -> None:
+    # Still-hard fixture variant: the catastrophic_loss_mandate circuit is the
+    # retained hard rail, and confidence is never authority against it.
     intent = {
         "paper_only": True,
         "symbol": "BTCUSDT",
@@ -10166,6 +10192,7 @@ def test_high_confidence_cannot_bypass_global_performance_halt(legacy_paper_auth
         performance_circuit_breaker_status={
             "new_entries_allowed": False,
             "blocked_bucket_keys": [],
+            "catastrophic_loss_mandate": True,
         },
     )
 
@@ -10174,7 +10201,9 @@ def test_high_confidence_cannot_bypass_global_performance_halt(legacy_paper_auth
     assert allocation["allocator_decision"] == "ALLOW_WITH_SIZE"
 
 
-def test_halted_probe_uses_explicit_calibrated_confidence_without_name_error(legacy_paper_authority) -> None:
+def test_halted_probe_uses_explicit_calibrated_confidence_without_name_error() -> None:
+    # Still-hard fixture variant: the halted-empty-book probe machinery lives
+    # on the catastrophic-mandate (retained-authority) path.
     intent = {
         "paper_only": True,
         "symbol": "BTCUSDT",
@@ -10206,6 +10235,7 @@ def test_halted_probe_uses_explicit_calibrated_confidence_without_name_error(leg
         performance_circuit_breaker_status={
             "new_entries_allowed": False,
             "blocked_bucket_keys": [],
+            "catastrophic_loss_mandate": True,
         },
         halted_empty_book_probe_context=probe_context,
     )
@@ -10230,7 +10260,7 @@ def test_halted_probe_uses_explicit_calibrated_confidence_without_name_error(leg
     assert intent["paper_probe_preserves_all_non_performance_gates"] is True
 
 
-def test_halted_probe_never_erases_or_overrides_existing_safety_blockers(legacy_paper_authority) -> None:
+def test_halted_probe_never_erases_or_overrides_existing_safety_blockers() -> None:
     intent = {
         "paper_only": True,
         "symbol": "BTCUSDT",
@@ -10258,6 +10288,7 @@ def test_halted_probe_never_erases_or_overrides_existing_safety_blockers(legacy_
         performance_circuit_breaker_status={
             "new_entries_allowed": False,
             "blocked_bucket_keys": [],
+            "catastrophic_loss_mandate": True,
         },
         halted_empty_book_probe_context=probe_context,
     )
@@ -10279,7 +10310,7 @@ def test_halted_probe_never_erases_or_overrides_existing_safety_blockers(legacy_
     )
 
 
-def test_halted_probe_missing_calibrated_confidence_fails_closed(legacy_paper_authority) -> None:
+def test_halted_probe_missing_calibrated_confidence_fails_closed() -> None:
     intent = {
         "paper_only": True,
         "symbol": "BTCUSDT",
@@ -10302,6 +10333,7 @@ def test_halted_probe_missing_calibrated_confidence_fails_closed(legacy_paper_au
         performance_circuit_breaker_status={
             "new_entries_allowed": False,
             "blocked_bucket_keys": [],
+            "catastrophic_loss_mandate": True,
         },
         halted_empty_book_probe_context=probe_context,
     )
@@ -10313,7 +10345,6 @@ def test_halted_probe_missing_calibrated_confidence_fails_closed(legacy_paper_au
 
 
 def test_halted_probe_downstream_rejection_releases_token_for_next_candidate(
-    legacy_paper_authority,
     monkeypatch,
 ) -> None:
     monkeypatch.setattr(
@@ -10336,7 +10367,11 @@ def test_halted_probe_downstream_rejection_releases_token_for_next_candidate(
         "provisional_admitted_symbols": [],
         "finalized_admission_count": 0,
     }
-    status = {"new_entries_allowed": False, "blocked_bucket_keys": []}
+    status = {
+        "new_entries_allowed": False,
+        "blocked_bucket_keys": [],
+        "catastrophic_loss_mandate": True,
+    }
     first = {
         "paper_only": True,
         "symbol": "AAAUSDT",
@@ -10417,7 +10452,7 @@ def test_halted_probe_downstream_rejection_releases_token_for_next_candidate(
     assert probe_context["remaining"] == 1
 
 
-def test_halted_probe_pending_token_is_candidate_identity_bound(legacy_paper_authority) -> None:
+def test_halted_probe_pending_token_is_candidate_identity_bound() -> None:
     probe_context = {
         "remaining": 3,
         "open_positions_since_last_close": 0,
@@ -10441,6 +10476,7 @@ def test_halted_probe_pending_token_is_candidate_identity_bound(legacy_paper_aut
             performance_circuit_breaker_status={
                 "new_entries_allowed": False,
                 "blocked_bucket_keys": [],
+                "catastrophic_loss_mandate": True,
             },
             halted_empty_book_probe_context=probe_context,
         )
@@ -10472,7 +10508,7 @@ def test_halted_probe_pending_token_is_candidate_identity_bound(legacy_paper_aut
     assert "pending_probe_token" not in probe_context
 
 
-def test_halted_probe_materialized_count_never_exceeds_adaptive_slots(legacy_paper_authority, monkeypatch) -> None:
+def test_halted_probe_materialized_count_never_exceeds_adaptive_slots(monkeypatch) -> None:
     monkeypatch.setattr(
         paper_loop,
         "_paper_final_admission_point_in_time_contract",
@@ -10494,7 +10530,11 @@ def test_halted_probe_materialized_count_never_exceeds_adaptive_slots(legacy_pap
         "provisional_admitted_symbols": [],
         "finalized_admission_count": 0,
     }
-    status = {"new_entries_allowed": False, "blocked_bucket_keys": []}
+    status = {
+        "new_entries_allowed": False,
+        "blocked_bucket_keys": [],
+        "catastrophic_loss_mandate": True,
+    }
     accepted: list[dict[str, object]] = []
 
     for symbol in (
@@ -12029,7 +12069,11 @@ def test_adaptive_hedge_runtime_interlock_overrides_env_and_redis_flags(
     assert paper_loop._adaptive_hedge_enabled(redis_client) is False  # noqa: SLF001
 
 
-def test_global_performance_halt_allows_clean_paper_risk_controller_exploration_bucket(legacy_paper_authority) -> None:
+def test_global_performance_halt_allows_clean_paper_risk_controller_exploration_bucket() -> None:
+    # Still-hard fixture variants (FINAL directive 2026-07-31): the advisory/
+    # hard exploration bucket split retains authority only when the circuit
+    # carries the catastrophic_loss_mandate; a bare policy halt converts to a
+    # continuous penalty and never reaches this machinery.
     intent = {
         "paper_only": True,
         "routes_to_live": False,
@@ -12052,6 +12096,7 @@ def test_global_performance_halt_allows_clean_paper_risk_controller_exploration_
         allocation=allocation,
         performance_circuit_breaker_status={
             "new_entries_allowed": False,
+            "catastrophic_loss_mandate": True,
             "blocked_bucket_keys": ["side:long"],
             "block_reasons": ["ROLLING_50_PROFIT_FACTOR_BELOW_1"],
             "recovery_high_confidence_loss_cluster_status": {
@@ -12077,7 +12122,7 @@ def test_global_performance_halt_allows_clean_paper_risk_controller_exploration_
     assert allocation["places_real_order"] is False
 
 
-def test_global_performance_halt_caps_exploration_matching_broad_side_bucket(legacy_paper_authority) -> None:
+def test_global_performance_halt_caps_exploration_matching_broad_side_bucket() -> None:
     intent = {
         "paper_only": True,
         "routes_to_live": False,
@@ -12100,6 +12145,7 @@ def test_global_performance_halt_caps_exploration_matching_broad_side_bucket(leg
         allocation=allocation,
         performance_circuit_breaker_status={
             "new_entries_allowed": False,
+            "catastrophic_loss_mandate": True,
             "blocked_bucket_keys": ["side:long"],
         },
     )
@@ -12113,7 +12159,7 @@ def test_global_performance_halt_caps_exploration_matching_broad_side_bucket(leg
     assert allocation["mandatory_size_haircut"] is True
 
 
-def test_global_performance_halt_caps_broad_negative_bucket_metadata(legacy_paper_authority) -> None:
+def test_global_performance_halt_caps_broad_negative_bucket_metadata() -> None:
     intent = {
         "paper_only": True,
         "routes_to_live": False,
@@ -12136,6 +12182,7 @@ def test_global_performance_halt_caps_broad_negative_bucket_metadata(legacy_pape
         allocation=allocation,
         performance_circuit_breaker_status={
             "new_entries_allowed": False,
+            "catastrophic_loss_mandate": True,
             "blocked_bucket_keys": ["side:long", "timeframe:4h"],
             "bucket_quarantine_status": {
                 "negative_bucket_min_count": 2,
@@ -12187,7 +12234,7 @@ def test_global_performance_halt_caps_broad_negative_bucket_metadata(legacy_pape
     assert allocation["mandatory_size_haircut"] is True
 
 
-def test_global_performance_halt_caps_immature_confidence_regime_bucket(legacy_paper_authority) -> None:
+def test_global_performance_halt_caps_immature_confidence_regime_bucket() -> None:
     intent = {
         "paper_only": True,
         "routes_to_live": False,
@@ -12211,6 +12258,7 @@ def test_global_performance_halt_caps_immature_confidence_regime_bucket(legacy_p
         allocation=allocation,
         performance_circuit_breaker_status={
             "new_entries_allowed": False,
+            "catastrophic_loss_mandate": True,
             "blocked_bucket_keys": ["confidence_regime:0.8-0.9|TREND"],
             "bucket_quarantine_status": {
                 "negative_bucket_min_count": 2,
@@ -12247,7 +12295,7 @@ def test_global_performance_halt_caps_immature_confidence_regime_bucket(legacy_p
     assert allocation["mandatory_size_haircut"] is True
 
 
-def test_global_performance_halt_blocks_mature_confidence_regime_bucket(legacy_paper_authority) -> None:
+def test_global_performance_halt_blocks_mature_confidence_regime_bucket() -> None:
     intent = {
         "paper_only": True,
         "routes_to_live": False,
@@ -12271,6 +12319,7 @@ def test_global_performance_halt_blocks_mature_confidence_regime_bucket(legacy_p
         allocation=allocation,
         performance_circuit_breaker_status={
             "new_entries_allowed": False,
+            "catastrophic_loss_mandate": True,
             "blocked_bucket_keys": ["confidence_regime:0.8-0.9|TREND"],
             "bucket_quarantine_status": {
                 "negative_bucket_min_count": 2,
@@ -12314,7 +12363,7 @@ def test_global_performance_halt_blocks_mature_confidence_regime_bucket(legacy_p
     assert allocation["allocator_decision"] == "BLOCK_PAPER_PERFORMANCE_CIRCUIT_BREAKER"
 
 
-def test_global_performance_halt_blocks_exploration_matching_quarantine_bucket(legacy_paper_authority) -> None:
+def test_global_performance_halt_blocks_exploration_matching_quarantine_bucket() -> None:
     intent = {
         "paper_only": True,
         "routes_to_live": False,
@@ -12337,6 +12386,7 @@ def test_global_performance_halt_blocks_exploration_matching_quarantine_bucket(l
         allocation=allocation,
         performance_circuit_breaker_status={
             "new_entries_allowed": False,
+            "catastrophic_loss_mandate": True,
             "blocked_bucket_keys": ["side_timeframe:long|15m"],
         },
     )
@@ -12355,7 +12405,7 @@ def test_global_performance_halt_blocks_exploration_matching_quarantine_bucket(l
     assert allocation["allocator_decision"] == "BLOCK_PAPER_PERFORMANCE_CIRCUIT_BREAKER"
 
 
-def test_global_performance_halt_caps_exploration_matching_broad_loss_cluster_dimension(legacy_paper_authority) -> None:
+def test_global_performance_halt_caps_exploration_matching_broad_loss_cluster_dimension() -> None:
     intent = {
         "paper_only": True,
         "routes_to_live": False,
@@ -12378,6 +12428,7 @@ def test_global_performance_halt_caps_exploration_matching_broad_loss_cluster_di
         allocation=allocation,
         performance_circuit_breaker_status={
             "new_entries_allowed": False,
+            "catastrophic_loss_mandate": True,
             "blocked_bucket_keys": ["side:long"],
             "recovery_high_confidence_loss_cluster_status": {
                 "cluster_detected": True,
@@ -12400,7 +12451,7 @@ def test_global_performance_halt_caps_exploration_matching_broad_loss_cluster_di
     assert allocation["allocator_decision"] == "ALLOW_WITH_SIZE"
 
 
-def test_global_performance_halt_blocks_exploration_matching_loss_cluster_symbol(legacy_paper_authority) -> None:
+def test_global_performance_halt_blocks_exploration_matching_loss_cluster_symbol() -> None:
     intent = {
         "paper_only": True,
         "routes_to_live": False,
@@ -12423,6 +12474,7 @@ def test_global_performance_halt_blocks_exploration_matching_loss_cluster_symbol
         allocation=allocation,
         performance_circuit_breaker_status={
             "new_entries_allowed": False,
+            "catastrophic_loss_mandate": True,
             "blocked_bucket_keys": ["side:long"],
             "recovery_high_confidence_loss_cluster_status": {
                 "cluster_detected": True,
@@ -14424,7 +14476,13 @@ def test_build_allocation_input_marks_missing_thesis_timeframe_unknown() -> None
     )
 
 
-def test_standalone_1m_without_dedicated_bucket_is_shadow_blocked(legacy_paper_authority) -> None:
+def test_standalone_1m_without_dedicated_bucket_is_telemetry_only() -> None:
+    """FINAL directive 2026-07-31: the standalone-1m dedicated-bucket
+    requirement is a TRADING_POLICY preference.  The gate still records its
+    evaluation (allowed False + blocker), but applying it to a paper intent
+    demotes the blocker to telemetry — the fill stays allowed and no hard
+    block fields are stamped."""
+
     intent = {
         "symbol": "BTCUSDT",
         "timeframe": "1m",
@@ -14450,17 +14508,13 @@ def test_standalone_1m_without_dedicated_bucket_is_shadow_blocked(legacy_paper_a
     assert gate["standalone_1m_thesis"] is True
     assert gate["dedicated_strategy_bucket"] is False
     assert gate["blockers"] == [paper_loop.PAPER_STANDALONE_1M_BLOCK_REASON]
-    assert intent["paper_fill_allowed"] is False
-    assert intent["paper_standalone_1m_eligibility_blocked"] is True
-    assert intent["paper_standalone_1m_eligibility_blockers"] == [
+    assert intent["paper_fill_allowed"] is True
+    assert "paper_standalone_1m_eligibility_blocked" not in intent
+    assert "paper_fill_block_reason" not in intent
+    assert intent["paper_standalone_1m_trading_policy_telemetry_reasons"] == [
         paper_loop.PAPER_STANDALONE_1M_BLOCK_REASON
     ]
-    assert intent["paper_fill_block_reason"] == paper_loop.PAPER_STANDALONE_1M_GATE_BLOCK_REASON
-    assert paper_loop.PAPER_STANDALONE_1M_BLOCK_REASON in intent["paper_fill_gate_block_reasons"]
-    assert (
-        f"standalone_1m_eligibility:{paper_loop.PAPER_STANDALONE_1M_BLOCK_REASON}"
-        in intent["local_block_reasons"]
-    )
+    assert intent["paper_standalone_1m_trading_policy_final_authority"] is False
 
 
 def test_standalone_1m_with_dedicated_bucket_remains_eligible_for_paper_gate() -> None:
@@ -20161,9 +20215,11 @@ def test_b_grade_exploration_budget_fraction_uses_uncertainty_and_drawdown() -> 
     )
 
 
-def test_b_grade_exploration_budget_fraction_adaptive_floor_is_fail_closed(
-    legacy_paper_authority,
-) -> None:
+def test_b_grade_exploration_budget_fraction_adaptive_floor_scales_never_zeroes() -> None:
+    """FINAL directive 2026-07-31: the adaptive confidence floor is a
+    TRADING_POLICY sizing input — a floor failure scales the budget down but
+    never zeroes it, and the floor verdict is retained as telemetry."""
+
     base = paper_loop._b_grade_exploration_budget_fraction(  # noqa: SLF001
         confidence_calibrated=0.55,
         drawdown_bps=0.0,
@@ -20185,10 +20241,10 @@ def test_b_grade_exploration_budget_fraction_adaptive_floor_is_fail_closed(
     assert pressured["b_grade_exploration_adaptive_confidence_floor"] > 0.5
     assert pressured["b_grade_exploration_floor_never_below_static"] is True
     assert pressured["b_grade_exploration_confidence_floor_pass"] is False
-    assert pressured["risk_budget_fraction_of_normal_adaptive"] == 0.0
-    assert pressured["b_grade_exploration_budget_formula"] == (
-        "confidence_below_adaptive_b_grade_exploration_floor"
-    )
+    assert 0.0 < pressured["risk_budget_fraction_of_normal_adaptive"] < base[
+        "risk_budget_fraction_of_normal_adaptive"
+    ]
+    assert pressured["b_grade_confidence_floor_trading_policy_telemetry"] is True
     penalties = pressured["b_grade_exploration_floor_penalties"]
     assert penalties["drawdown_pressure"] > 0.0
     assert penalties["cost_edge_pressure"] > 0.0
@@ -25337,7 +25393,12 @@ def test_paper_performance_circuit_breaker_blocks_negative_rolling_50_expectancy
     assert status["pass_conditions"]["negative_expectancy_blocks_new_entries"] is True
 
 
-def test_bucket_quarantine_blocks_same_bad_bucket_reentry(legacy_paper_authority) -> None:
+def test_bucket_quarantine_reentry_is_continuous_penalty_not_veto() -> None:
+    """FINAL directive 2026-07-31: same-bucket reentry quarantine is
+    historical-performance TRADING_POLICY — on a paper intent it converts to a
+    bounded continuous risk penalty (never a fill veto); the quarantine
+    evidence itself is still computed and carried."""
+
     rows = [
         _phase1_closed_trade_row(
             -12.0,
@@ -25386,11 +25447,22 @@ def test_bucket_quarantine_blocks_same_bad_bucket_reentry(legacy_paper_authority
         "HIGH_CONFIDENCE_LOSS_RATE_ABOVE_ADAPTIVE_BOUND"
         in quarantined_by_key["ETHUSDT|15m|breakout_squeeze|squeeze"]["block_reasons"]
     )
-    assert blocked is True
-    assert intent["paper_fill_allowed"] is False
+    assert blocked is False
+    assert intent["paper_performance_circuit_breaker_blocked"] is False
+    assert (
+        "PAPER_BUCKET_QUARANTINE_BLOCKED_REENTRY"
+        in intent["paper_performance_circuit_breaker_observed_reasons"]
+    )
+    assert (
+        "ETHUSDT|15m|breakout_squeeze|squeeze"
+        in intent["paper_performance_circuit_breaker_matched_blocked_bucket_keys"]
+    )
+    assert intent["paper_performance_static_veto_removed"] is True
+    assert intent["paper_performance_adaptive_risk_multiplier"] > 1.0
+    assert intent.get("paper_fill_allowed") is not False
     assert intent["places_real_order"] is False
     assert intent["routes_to_live"] is False
-    assert allocation["allocator_decision"] == "BLOCK_PAPER_PERFORMANCE_CIRCUIT_BREAKER"
+    assert allocation["allocator_decision"] == "ALLOW_WITH_SIZE"
 
 
 def test_bucket_quarantine_samples_are_bounded_hash_bound_operator_projections() -> None:
@@ -25460,7 +25532,12 @@ def test_bucket_quarantine_samples_are_bounded_hash_bound_operator_projections()
     assert len(json.dumps(status, sort_keys=True)) < 250_000
 
 
-def test_negative_phase3_side_and_strategy_regime_buckets_block_reentry(legacy_paper_authority) -> None:
+def test_negative_phase3_side_and_strategy_regime_buckets_soften_to_continuous_penalty() -> None:
+    """FINAL directive 2026-07-31: negative side/strategy-regime bucket
+    quarantines are TRADING_POLICY — the quarantine evidence is still computed
+    and matched, but on a paper intent it converts to a bounded continuous
+    penalty instead of a reentry veto."""
+
     rows = [
         {
             **_phase1_closed_trade_row(
@@ -25510,18 +25587,21 @@ def test_negative_phase3_side_and_strategy_regime_buckets_block_reentry(legacy_p
         performance_circuit_breaker_status=status,
     )
 
-    assert blocked is True
+    assert blocked is False
+    assert intent["paper_performance_circuit_breaker_blocked"] is False
     assert (
         "PAPER_BUCKET_QUARANTINE_BLOCKED_REENTRY"
-        in intent["paper_performance_circuit_breaker_block_reasons"]
+        in intent["paper_performance_circuit_breaker_observed_reasons"]
     )
     assert "side:short" in intent["paper_performance_circuit_breaker_matched_blocked_bucket_keys"]
     assert (
         "strategy_regime:trend_mode|TREND"
         in intent["paper_performance_circuit_breaker_matched_blocked_bucket_keys"]
     )
-    assert intent["paper_fill_allowed"] is False
-    assert allocation["allocator_decision"] == "BLOCK_PAPER_PERFORMANCE_CIRCUIT_BREAKER"
+    assert intent["paper_performance_static_veto_removed"] is True
+    assert intent["paper_performance_adaptive_risk_multiplier"] > 1.0
+    assert intent.get("paper_fill_allowed") is not False
+    assert allocation["allocator_decision"] == "ALLOW_WITH_SIZE"
 
 
 def test_positive_expectancy_pf_only_side_bucket_is_watch_only_not_quarantine() -> None:
@@ -25600,7 +25680,6 @@ def test_atr_stop_loss_cluster_quarantines_matching_bucket() -> None:
 
 
 def test_atr_stop_loss_cluster_quarantines_side_timeframe_bucket_when_aggregate_positive(
-    legacy_paper_authority,
     tmp_path, monkeypatch
 ) -> None:
     # Pin the exit-repair artifact and give rows post-repair exit timestamps so
@@ -25697,10 +25776,14 @@ def test_atr_stop_loss_cluster_quarantines_side_timeframe_bucket_when_aggregate_
         performance_circuit_breaker_status=status,
     )
 
-    assert blocked is True
+    # FINAL directive 2026-07-31: the bucket-scoped quarantine evidence stays
+    # bound to the intent, but reentry converts to a continuous penalty on
+    # paper — never a fill veto.
+    assert blocked is False
+    assert intent["paper_performance_circuit_breaker_blocked"] is False
     assert (
         "PAPER_BUCKET_QUARANTINE_BLOCKED_REENTRY"
-        in intent["paper_performance_circuit_breaker_block_reasons"]
+        in intent["paper_performance_circuit_breaker_observed_reasons"]
     )
     assert (
         "side_timeframe:short|1h"
@@ -25710,7 +25793,8 @@ def test_atr_stop_loss_cluster_quarantines_side_timeframe_bucket_when_aggregate_
         "strategy_side_timeframe:trend_mode|short|1h"
         in intent["paper_performance_circuit_breaker_matched_blocked_bucket_keys"]
     )
-    assert intent["paper_fill_allowed"] is False
+    assert intent["paper_performance_adaptive_risk_multiplier"] > 1.0
+    assert intent.get("paper_fill_allowed") is not False
     assert intent["places_real_order"] is False
     assert intent["routes_to_live"] is False
 
@@ -25855,14 +25939,16 @@ def test_rolling_50_does_not_fire_with_fewer_than_10_trades() -> None:
     assert "ROLLING_50_EXPECTANCY_NON_POSITIVE" not in status["block_reasons"]
 
 
-def test_no_trade_tier_blocks_executable_allocator_decision(
-    legacy_paper_authority,
-) -> None:
+def test_no_trade_tier_blocks_executable_allocator_decision() -> None:
+    # Still-hard fixture variant (FINAL directive 2026-07-31): tier gating is
+    # telemetry for paper-only intents; an intent claiming places_real_order
+    # keeps the full non-executable-tier hard block (and is forced back to
+    # paper-only by the block path).
     intent = {
         "paper_opportunity_tier": "NO_TRADE",
         "paper_opportunity_tier_reason": "EXPECTED_EDGE_NOT_FAVORABLE_AFTER_COST",
         "paper_only": True,
-        "places_real_order": False,
+        "places_real_order": True,
         "gross_notional_usd": 1000.0,
         "allocated_margin_usd": 500.0,
         "paper_fill_allowed": True,
@@ -25897,14 +25983,16 @@ def test_no_trade_tier_blocks_executable_allocator_decision(
     assert allocation["places_real_order"] is False
 
 
-def test_no_trade_tier_preserves_existing_performance_circuit_block(
-    legacy_paper_authority,
-) -> None:
+def test_no_trade_tier_preserves_existing_performance_circuit_block() -> None:
+    # Still-hard fixture variant (FINAL directive 2026-07-31): tier gating is
+    # telemetry for paper-only intents; an intent claiming places_real_order
+    # keeps the full non-executable-tier hard block (and is forced back to
+    # paper-only by the block path).
     intent = {
         "paper_opportunity_tier": "NO_TRADE",
         "paper_opportunity_tier_reason": "EXPECTED_EDGE_NOT_FAVORABLE_AFTER_COST",
         "paper_only": True,
-        "places_real_order": False,
+        "places_real_order": True,
         "gross_notional_usd": 1000.0,
         "allocated_margin_usd": 500.0,
         "paper_fill_allowed": True,
@@ -25944,14 +26032,16 @@ def test_no_trade_tier_preserves_existing_performance_circuit_block(
     assert allocation["gross_notional_usd"] == 0.0
 
 
-def test_no_trade_tier_preserves_existing_allocator_block_reason(
-    legacy_paper_authority,
-) -> None:
+def test_no_trade_tier_preserves_existing_allocator_block_reason() -> None:
+    # Still-hard fixture variant (FINAL directive 2026-07-31): tier gating is
+    # telemetry for paper-only intents; an intent claiming places_real_order
+    # keeps the full non-executable-tier hard block (and is forced back to
+    # paper-only by the block path).
     intent = {
         "paper_opportunity_tier": "NO_TRADE",
         "paper_opportunity_tier_reason": "EXPECTED_EDGE_NOT_FAVORABLE_AFTER_COST",
         "paper_only": True,
-        "places_real_order": False,
+        "places_real_order": True,
         "gross_notional_usd": 1000.0,
         "allocated_margin_usd": 500.0,
         "paper_fill_allowed": True,
@@ -29515,12 +29605,12 @@ def test_bootstrap_designation_persists_once_posterior_has_evidence() -> None:
     assert designation["bootstrap_trigger"]["natural_execution_count"] == 5
 
 
-def test_bootstrap_designation_cadence_blocks_on_epoch_bootstrap_rows(legacy_paper_authority) -> None:
-    """Continuous execution: only an OPEN bootstrap position suppresses the
-    next designation (the accounting-engine concurrency rail).  A CLOSED
-    experiment awaiting maturation or training consumption never does — the
-    learning loop is asynchronous.  Ordinary-mode and malformed epoch rows
-    never suppress.
+def test_bootstrap_designation_cadence_never_suppressed_by_epoch_bootstrap_rows() -> None:
+    """FINAL directive 2026-07-31: NO epoch bootstrap row suppresses the next
+    designation.  The legacy open-position single-flight rail is structurally
+    gone — concurrency is governed by adaptive risk capacity — so open and
+    closed experiment rows are COUNTED as evidence, never authority.
+    Ordinary-mode and malformed epoch rows never suppress either.
     """
 
     calibration = _bootstrap_designation_calibration()
@@ -29534,13 +29624,13 @@ def test_bootstrap_designation_cadence_blocks_on_epoch_bootstrap_rows(legacy_pap
     }
     ordinary_row = {"adaptive_policy_action_policy_mode": "champion_exploitation"}
 
-    closed_blocked = paper_loop._paper_bootstrap_information_acquisition_designation(  # noqa: SLF001
+    closed_counted = paper_loop._paper_bootstrap_information_acquisition_designation(  # noqa: SLF001
         calibration=calibration,
         previous_cycle_intents=intents,
         current_epoch_closed_trade_rows=[ordinary_row, bootstrap_row],
         current_epoch_open_position_rows=[],
     )
-    open_blocked = paper_loop._paper_bootstrap_information_acquisition_designation(  # noqa: SLF001
+    open_counted = paper_loop._paper_bootstrap_information_acquisition_designation(  # noqa: SLF001
         calibration=calibration,
         previous_cycle_intents=intents,
         current_epoch_closed_trade_rows=[],
@@ -29555,9 +29645,13 @@ def test_bootstrap_designation_cadence_blocks_on_epoch_bootstrap_rows(legacy_pap
         ],
     )
 
-    assert closed_blocked is not None
-    assert closed_blocked["current_epoch_bootstrap_closed_trades"] == 1
-    assert open_blocked is None
+    assert closed_counted is not None
+    assert closed_counted["current_epoch_bootstrap_closed_trades"] == 1
+    assert open_counted is not None
+    assert open_counted["current_epoch_bootstrap_open_positions"] == 1
+    assert open_counted["max_concurrent_bootstrap_positions"] == (
+        "ADAPTIVE_RISK_CAPACITY_GOVERNED"
+    )
     assert clean is not None
     assert clean["current_epoch_bootstrap_closed_trades"] == 0
     assert clean["current_epoch_bootstrap_open_positions"] == 0
@@ -29605,7 +29699,7 @@ def test_bootstrap_designation_proceeds_with_open_experiment_under_exploration_a
     assert designation["counts_as_live_profit"] is False
 
 
-def test_bootstrap_designation_ranks_by_learned_terminal_equity_utility(legacy_paper_authority) -> None:
+def test_bootstrap_designation_ranks_by_learned_terminal_equity_utility() -> None:
     """The designated experiment maximizes the learned day-90 terminal-equity
     utility even when another candidate has a higher information-gain/loss
     ratio, and the designation carries the full paper-only safety contract.
@@ -29683,8 +29777,12 @@ def test_bootstrap_designation_ranks_by_learned_terminal_equity_utility(legacy_p
     }
     assert designation["current_epoch_bootstrap_closed_trades"] == 0
     assert designation["current_epoch_bootstrap_open_positions"] == 0
-    assert designation["max_concurrent_bootstrap_positions"] == 1
-    assert designation["max_bootstrap_authorizations_per_cycle"] == 1
+    assert designation["max_concurrent_bootstrap_positions"] == (
+        "ADAPTIVE_RISK_CAPACITY_GOVERNED"
+    )
+    assert designation["max_bootstrap_authorizations_per_cycle"] == (
+        "ADAPTIVE_RISK_CAPACITY_GOVERNED"
+    )
     assert designation["counts_as_champion_profitability_evidence"] is False
     assert designation["counts_as_live_profit"] is False
     assert designation["paper_only"] is True
@@ -29784,22 +29882,20 @@ def test_bootstrap_designation_utility_tie_breaks_deterministically() -> None:
     )
 
 
-def test_bootstrap_designation_filters_ineligible_rows_and_returns_none(
-    legacy_paper_authority,
-) -> None:
-    """Rows failing hard risk, with non-positive gain or loss, FLAT side, or
+def test_bootstrap_designation_filters_ineligible_rows_and_returns_none() -> None:
+    """Rows failing hard risk, with non-positive bounded loss, FLAT side, or
     structural malformation are invisible to the ranking; with nothing
-    eligible the designation is None.  (Legacy authority: under paper
-    exploration nonpositive GAIN no longer vetoes — see the override-on
-    companion test below.)
+    eligible the designation is None.  Nonpositive INFORMATION GAIN is a
+    TRADING_POLICY ranking feature (FINAL directive 2026-07-31) and never a
+    veto — see the ranking companion test below — so it is deliberately
+    absent from this ineligible set (only a structurally malformed gain
+    value stays ineligible).
     """
 
     calibration = _bootstrap_designation_calibration()
     ineligible = [
         _bootstrap_designation_comparison(hard_risk_pass=False),
         _bootstrap_designation_comparison(hard_risk_pass="true"),
-        _bootstrap_designation_comparison(gain_nats=0.0),
-        _bootstrap_designation_comparison(gain_nats=-0.4),
         _bootstrap_designation_comparison(expected_loss_usd=0.0),
         _bootstrap_designation_comparison(expected_loss_usd=-2.0),
         _bootstrap_designation_comparison(side="FLAT"),
@@ -29936,13 +30032,14 @@ def test_bootstrap_designation_fails_closed_on_malformed_uncertainty_block() -> 
         assert designation["symbol"] == "BTCUSDT"
 
 
-def test_bootstrap_designation_epoch_scoping_never_freezes_fresh_campaign(legacy_paper_authority) -> None:
-    """Post-rotation continuity: a bootstrap OPEN row surviving from a
-    PREVIOUS paper-account epoch must never suppress designation in the fresh
-    campaign (the historical post-rotation freeze), while a current-epoch open
-    row still suppresses (concurrency rail) and an unstamped row suppresses
-    conservatively.  Previous-epoch closes also drop out of the telemetry
-    count.
+def test_bootstrap_designation_epoch_scoping_never_freezes_fresh_campaign() -> None:
+    """Post-rotation continuity under the FINAL directive (2026-07-31): epoch
+    scoping is evidence ATTRIBUTION, never authority.  A bootstrap OPEN row
+    from a PREVIOUS paper-account epoch never counts against the fresh
+    campaign; current-epoch and conservatively-attributed unstamped open rows
+    are COUNTED but no longer suppress (the single-flight concurrency rail is
+    structurally gone — adaptive risk capacity governs).  Previous-epoch
+    closes also drop out of the telemetry count.
     """
 
     calibration = _bootstrap_designation_calibration()
@@ -29968,8 +30065,8 @@ def test_bootstrap_designation_epoch_scoping_never_freezes_fresh_campaign(legacy
     assert fresh_campaign["symbol"] == "BTCUSDT"
     assert fresh_campaign["current_epoch_bootstrap_open_positions"] == 0
 
-    # (b) Current-epoch OPEN row: still suppresses (the concurrency rail is
-    # scoped, not weakened).
+    # (b) Current-epoch OPEN row: counted as current-epoch evidence, no
+    # longer a suppression (adaptive risk capacity governs concurrency).
     current_epoch_open = paper_loop._paper_bootstrap_information_acquisition_designation(  # noqa: SLF001
         calibration=calibration,
         previous_cycle_intents=intents,
@@ -29984,9 +30081,14 @@ def test_bootstrap_designation_epoch_scoping_never_freezes_fresh_campaign(legacy
         ],
         current_paper_account_epoch=1,
     )
-    assert current_epoch_open is None
+    assert current_epoch_open is not None
+    assert current_epoch_open["current_epoch_bootstrap_open_positions"] == 1
+    assert current_epoch_open["max_concurrent_bootstrap_positions"] == (
+        "ADAPTIVE_RISK_CAPACITY_GOVERNED"
+    )
 
-    # (c) Open row WITHOUT an epoch stamp: counted conservatively (suppress).
+    # (c) Open row WITHOUT an epoch stamp: conservatively attributed to the
+    # current epoch (counted), still never a suppression.
     unstamped_open = paper_loop._paper_bootstrap_information_acquisition_designation(  # noqa: SLF001
         calibration=calibration,
         previous_cycle_intents=intents,
@@ -30000,7 +30102,8 @@ def test_bootstrap_designation_epoch_scoping_never_freezes_fresh_campaign(legacy
         ],
         current_paper_account_epoch=1,
     )
-    assert unstamped_open is None
+    assert unstamped_open is not None
+    assert unstamped_open["current_epoch_bootstrap_open_positions"] == 1
 
     # (d) Previous-epoch CLOSED row: designation fires and the rotated close
     # drops out of even the telemetry count.
@@ -30467,11 +30570,15 @@ def test_liquidity_replay_still_enforces_reduction_for_allow_below_minimum() -> 
     assert "CANDIDATE_LIQUIDITY_FINAL_SCORE_REPLAY_MISMATCH" in reasons
 
 
-def test_non_relaxable_entry_gate_scopes_side_performance_off_bootstrap(legacy_paper_authority) -> None:
-    """Continuous paper exploration: side-bucket expectancy and
-    side-confidence-floor preferences (Category E) carry no final authority
-    over a bootstrap information-acquisition intent; every other entry-gate
-    reason is preserved, and non-bootstrap intents keep the full gate.
+def test_non_relaxable_entry_gate_scopes_side_performance_off_bootstrap() -> None:
+    """Still-hard fixture variant (FINAL directive 2026-07-31): on paper-only
+    intents the central classifier demotes every TRADING_POLICY entry-gate
+    reason for ALL lanes, so the legacy per-lane scoping is only observable on
+    an intent flagged for a real order — there the side-bucket expectancy and
+    side-confidence-floor preferences (Category E) still carry no final
+    authority over a bootstrap information-acquisition intent, every other
+    entry-gate reason is preserved, and non-bootstrap intents keep the full
+    gate.
     """
 
     reasons = [
@@ -30482,10 +30589,12 @@ def test_non_relaxable_entry_gate_scopes_side_performance_off_bootstrap(legacy_p
     bootstrap_intent = {
         "adaptive_policy_action_policy_mode": "bootstrap_information_acquisition",
         "entry_gate_block_reasons": list(reasons),
+        "places_real_order": True,
     }
     ordinary_intent = {
         "adaptive_policy_action_policy_mode": "champion_exploitation",
         "entry_gate_block_reasons": list(reasons),
+        "places_real_order": True,
     }
     bootstrap_out = paper_loop._non_relaxable_entry_gate_reasons(  # noqa: SLF001
         bootstrap_intent
@@ -30577,27 +30686,6 @@ def test_b_grade_calibration_safety_halt_is_telemetry_under_paper_semantics() ->
         "b_grade_calibration_safety_trading_policy_telemetry_reasons"
     ] == ["B_GRADE_EXPECTANCY_NON_POSITIVE"]
     assert intent["b_grade_calibration_safety_status"] == status
-
-
-def test_b_grade_calibration_safety_halt_blocks_under_legacy_authority(
-    legacy_paper_authority,
-) -> None:
-    intent = {
-        "paper_opportunity_tier": paper_loop.PAPER_TIER_B_GRADE_EXPLORATION,
-        "paper_fill_allowed": True,
-    }
-    status = {
-        "new_b_grade_entries_allowed": False,
-        "blockers": ["B_GRADE_EXPECTANCY_NON_POSITIVE"],
-    }
-
-    halted = paper_loop._apply_b_grade_calibration_safety_halt(  # noqa: SLF001
-        intent, status
-    )
-
-    assert halted is True
-    assert intent["paper_fill_allowed"] is False
-    assert intent["paper_fill_block_reason"] == "B_GRADE_CALIBRATION_SAFETY_HALTED"
 
 
 def test_non_executable_tier_is_telemetry_under_paper_semantics() -> None:

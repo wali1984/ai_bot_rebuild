@@ -53,6 +53,13 @@ from .sizing_model import (
 
 MAX_DYNAMIC_HEDGE_BUDGET_PCT_OF_RISK = 0.35
 LIVE_LEGACY_MAINTENANCE_MARGIN_RATE = 0.005
+# Final paper directive 2026-07-31: the product of the TRADING_POLICY sizing
+# factors (confidence, edge, cost-preference, regime) may scale a paper
+# allocation down to this fraction of the envelope's per-trade budget but
+# never to zero — a zero would be a policy veto expressed as capacity.  Hard
+# capacity factors (market integrity, liquidity, drawdown, exposure,
+# correlation) retain full zeroing authority.
+PAPER_POLICY_SIZING_FLOOR = 0.05
 PAPER_GROWTH_ENVELOPE_AUTHORIZATION_LINEAGE_KEY = "paper_growth_envelope_authorization_receipt"
 PAPER_GROWTH_ENVELOPE_AUTHORIZATION_HASH_LINEAGE_KEY = (
     "paper_growth_envelope_authorization_receipt_sha256"
@@ -2988,7 +2995,10 @@ def _allocate(row: AllocationInput, *, mode: str, envelope: RiskEnvelope) -> All
             envelope=envelope,
         )
 
-    if economic_edge_bps <= 0.0:
+    # Final paper directive 2026-07-31: nonpositive expected after-cost edge
+    # is TRADING_POLICY — in paper mode it ranks and sizes but may not reject
+    # an otherwise hard-valid candidate.  Live keeps the historical hard gate.
+    if mode == "live" and economic_edge_bps <= 0.0:
         return _block(
             row,
             mode=mode,
@@ -3070,6 +3080,7 @@ def _allocate(row: AllocationInput, *, mode: str, envelope: RiskEnvelope) -> All
         sizing_row,
         envelope,
         continuous_confidence_from_zero=mode == "paper",
+        policy_factor_floor=PAPER_POLICY_SIZING_FLOOR if mode == "paper" else None,
     )
     risk_budget_before_paper_fraction_usd = row.equity * budget_pct
     risk_budget_after_paper_fraction_usd = (
@@ -3104,10 +3115,14 @@ def _allocate(row: AllocationInput, *, mode: str, envelope: RiskEnvelope) -> All
                 envelope.max_total_portfolio_risk_pct, 8
             ),
         }
+        # In paper mode the policy factors are floored above zero, so a zero
+        # budget here can only come from the hard capacity factors (market
+        # integrity, liquidity, drawdown, exposure, correlation) — genuine
+        # capacity exhaustion, not an edge preference.
         return _block(
             row,
             mode=mode,
-            decision="BLOCK_NO_EDGE",
+            decision="BLOCK_EXPOSURE_BUDGET" if mode == "paper" else "BLOCK_NO_EDGE",
             reason="risk_budget_after_adjustments_is_zero",
             envelope=envelope,
             extra_diagnostics=zero_diag,

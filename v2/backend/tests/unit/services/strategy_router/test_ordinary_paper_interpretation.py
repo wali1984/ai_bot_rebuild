@@ -12,12 +12,6 @@ from typing import Any
 import pytest
 
 
-@pytest.fixture
-def legacy_paper_authority(monkeypatch):
-    """Pin the pre-2026-07-31 authority contracts (override disabled)."""
-    monkeypatch.setenv("PAPER_EXPLORATION_LEGACY_AUTHORITY_FOR_TESTS", "true")
-
-
 from v2.backend.tests.unit.services.test_ordinary_paper_admission import (
     _assess,
     ordinary_source,
@@ -275,7 +269,12 @@ def test_future_masa_input_clock_remains_hard() -> None:
     assert "ORDINARY_ROUTER_MASA_PIT_CLOCK_FUTURE:feature_cutoff" in result["hard_reasons"]
 
 
-def test_negative_performance_bucket_remains_hard() -> None:
+def test_negative_performance_bucket_softens_to_reduced_weight() -> None:
+    """FINAL directive 2026-07-31: NEGATIVE_BUCKET_PERFORMANCE_QUARANTINE is
+    TRADING_POLICY — a historical-performance preference, not a hard veto.
+    The trade stays allowed with a reduced (never zero) continuous weight.
+    """
+
     def mutate(material: dict[str, Any]) -> None:
         material["recent_execution_success_metrics"]["bucket_performance"] = {
             "profit_factor": 0.9,
@@ -285,8 +284,10 @@ def test_negative_performance_bucket_remains_hard() -> None:
 
     result, _, _ = _run(mutate_input=mutate)
 
-    assert result["strategy_trade_allowed"] is False
-    assert "NEGATIVE_BUCKET_PERFORMANCE_QUARANTINE" in result["hard_reasons"]
+    assert result["strategy_trade_allowed"] is True
+    assert "NEGATIVE_BUCKET_PERFORMANCE_QUARANTINE" not in result["hard_reasons"]
+    assert "NEGATIVE_BUCKET_PERFORMANCE_QUARANTINE" in result["softened_reasons"]
+    assert 0.0 < result["continuous_weight"] < 1.0
 
 
 @pytest.mark.parametrize(
@@ -357,11 +358,12 @@ def test_paper_loss_bucket_quarantine_becomes_continuous_reduce_size_not_hard_bl
     assert 0.0 < quarantined["continuous_weight"] < baseline["continuous_weight"]
 
 
-def test_genuinely_catastrophic_bucket_performance_still_hard_blocks_alongside_quarantine(legacy_paper_authority) -> None:
-    """A negative rolling profit-factor/expectancy bucket is a genuinely
-    catastrophic condition and remains a hard veto even when a merely-
-    recently-losing quarantine match is ALSO present -- proving the two are
-    distinguished rather than the catastrophic control being weakened.
+def test_combined_bucket_performance_and_quarantine_both_soften() -> None:
+    """FINAL directive 2026-07-31: both the negative-performance bucket and
+    the loss-bucket quarantine are TRADING_POLICY router preferences and
+    soften together to a reduced continuous weight.  Catastrophic-loss
+    capacity is guarded by the allocator envelope and the circuit's
+    catastrophic_loss_mandate, not by this router preference.
     """
 
     def mutate(material: dict[str, Any]) -> None:
@@ -379,10 +381,12 @@ def test_genuinely_catastrophic_bucket_performance_still_hard_blocks_alongside_q
 
     result, _, _ = _run(mutate_input=mutate)
 
-    assert result["strategy_trade_allowed"] is False
-    assert "NEGATIVE_BUCKET_PERFORMANCE_QUARANTINE" in result["hard_reasons"]
+    assert result["strategy_trade_allowed"] is True
+    assert "NEGATIVE_BUCKET_PERFORMANCE_QUARANTINE" not in result["hard_reasons"]
+    assert "NEGATIVE_BUCKET_PERFORMANCE_QUARANTINE" in result["softened_reasons"]
     assert "PAPER_LOSS_BUCKET_QUARANTINE" not in result["hard_reasons"]
     assert "PAPER_LOSS_BUCKET_QUARANTINE" in result["softened_reasons"]
+    assert 0.0 < result["continuous_weight"] < 1.0
 
 
 def test_absent_optional_magnitudes_are_explicit_and_not_promoted_to_hard_inputs() -> None:

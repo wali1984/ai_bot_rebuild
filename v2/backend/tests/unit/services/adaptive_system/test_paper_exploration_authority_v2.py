@@ -143,10 +143,19 @@ def test_paper_semantics_are_structural_not_env_dependent(
     assert status == ("<unset>" if raw is None else str(raw))
 
 
-def test_legacy_authority_hook_is_test_seam_only(
+def test_no_environment_variable_conditions_paper_semantics(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """FINAL directive 2026-07-31: the legacy authority hook is inert.
+
+    Setting PAPER_EXPLORATION_LEGACY_AUTHORITY_FOR_TESTS (any value) has NO
+    effect — paper_exploration_override_enabled() returns True unconditionally.
+    No environment variable conditions paper execution semantics.
+    """
+
     monkeypatch.setenv(LEGACY_AUTHORITY_TEST_HOOK_ENV, "true")
-    assert paper_exploration_override_enabled() is False
+    assert paper_exploration_override_enabled() is True
     monkeypatch.setenv(LEGACY_AUTHORITY_TEST_HOOK_ENV, "false")
+    assert paper_exploration_override_enabled() is True
+    monkeypatch.delenv(LEGACY_AUTHORITY_TEST_HOOK_ENV, raising=False)
     assert paper_exploration_override_enabled() is True

@@ -109,6 +109,34 @@ _TRADING_POLICY_EXACT = frozenset(
         "B_GRADE_CHURN_INCREASED",
         # -- exploration quota / probe slots (policy quota) -----------------
         "HALTED_PROBE_SLOT_CAPACITY_EXHAUSTED",
+        # -- allocator economics (final directive 2026-07-31 item 3) --------
+        # The runtime allocator emits lowercase reason strings; the prior
+        # uppercase-only enumeration missed them, which kept BLOCK_NO_EDGE
+        # authoritative on paper intents (observed live 2026-07-31T03:32Z:
+        # allocator_decision=BLOCK_NO_EDGE,
+        # reason=expected_move_after_cost_not_positive -> REMAIN_FLAT).
+        "expected_move_after_cost_not_positive",
+        "BLOCK_NO_EDGE",
+        "ALLOCATOR_HARD_BLOCK:BLOCK_NO_EDGE",
+        "BLOCK_LOW_CONFIDENCE",
+        "ALLOCATOR_HARD_BLOCK:BLOCK_LOW_CONFIDENCE",
+        "confidence_below_adaptive_minimum",
+        "CONFIDENCE_EXECUTABLE_TRADE_BELOW_DYNAMIC_EXPLORATION_FLOOR",
+        "CONFIDENCE_EXECUTABLE_TRADE_MISSING",
+        # -- loss-cluster / previous-losses preference ----------------------
+        "LOSS_CLUSTER_OR_QUARANTINE_ACTIVE",
+        "SIDE_BUCKET_EXPECTANCY_NON_POSITIVE",
+        "SIDE_CONFIDENCE_BELOW_FLOOR",
+        "PAPER_CHURN_EQUITY_BLEED_GOVERNOR_BLOCKED",
+        # -- router raw bucket-performance code (historical performance) ----
+        "NEGATIVE_BUCKET_PERFORMANCE",
+        # -- champion/challenger state preferences (lowercase runtime forms) -
+        "bootstrap_requires_no_positive_utility_exploration",
+        "bootstrap_requires_flat_champion_baseline",
+        "bootstrap_requires_positive_information_gain",
+        "CHAMPION_DIRECTIONAL_POSITIVE_UTILITY",
+        # -- opportunity grade gating ---------------------------------------
+        "NOT_A_PLUS_CANDIDATE",
     }
 )
 
@@ -134,6 +162,8 @@ _TRADING_POLICY_PREFIXES = (
     "A_PLUS_REDUCED_SIZE_BOOTSTRAP_BUDGET_FRACTION_ZERO",
     "PAPER_RISK_CONTROLLER_EXPLORATION_BUDGET_FRACTION_ZERO",
     "EXPECTED_EDGE_NOT_FAVORABLE_AFTER_COST",
+    # lowercase allocator expected-move family (final directive 2026-07-31)
+    "expected_move_",
 )
 
 # ---------------------------------------------------------------------------
@@ -192,27 +222,43 @@ def classify_paper_blocker(reason: object) -> str:
     return EXECUTION_INTEGRITY
 
 
+PAPER_POLICY_GATE_AUTHORITY = False
+"""Structural constant: no policy gate has blocking authority over paper."""
+
+# Retained as a NAME only so older imports don't break; the hook itself has
+# no behavior anymore (final directive 2026-07-31 item 1: no environment
+# variable — test-named or otherwise — may condition paper semantics).
 LEGACY_AUTHORITY_TEST_HOOK_ENV = "PAPER_EXPLORATION_LEGACY_AUTHORITY_FOR_TESTS"
 
 
 def paper_exploration_override_enabled() -> bool:
     """Paper execution semantics: policy gates carry ZERO authority.
 
-    STRUCTURAL, not configuration (operator directive 2026-07-31 §1): paper
-    mode itself implies the policy-vs-safety partition; a missing or unset
-    PAPER_EXPLORATION_OVERRIDE variable must never revert paper execution to
-    policy blocking.  The variable remains readable via
-    paper_exploration_override_env_status() for observability only.
-
-    The legacy-authority hook below exists SOLELY so regression tests can pin
-    the pre-correction contracts of the retained legacy code paths; it is a
-    test seam, not an operational lever, and is named accordingly.
+    FINAL directive 2026-07-31 item 1: this is STRUCTURAL and derives from
+    the candidate being paper — never from an environment variable, bootstrap
+    mode, exploration mode, opportunity tier, champion/challenger state,
+    Guardian status or trainer readiness.  The former
+    PAPER_EXPLORATION_LEGACY_AUTHORITY_FOR_TESTS hook is removed: even a
+    test-named env var was an environment lever over production semantics.
+    PAPER_EXPLORATION_OVERRIDE remains readable via
+    paper_exploration_override_env_status() for telemetry only.
     """
 
-    raw = os.environ.get(LEGACY_AUTHORITY_TEST_HOOK_ENV, "")
-    if str(raw).strip().lower() in ("1", "true", "yes", "on"):
-        return False
     return True
+
+
+def structural_paper_candidate(intent) -> bool:
+    """True iff the candidate is structurally paper (the ONLY basis on which
+    TRADING_POLICY reasons lose blocking authority)."""
+
+    try:
+        return bool(
+            intent.get("paper_only") is True
+            and intent.get("routes_to_live") is not True
+            and intent.get("places_real_order") is not True
+        )
+    except AttributeError:
+        return False
 
 
 def paper_exploration_override_env_status() -> str:
@@ -227,8 +273,8 @@ def partition_paper_exploration_blockers(
     """Mechanical partition: (still_blocking, trading_policy_telemetry).
 
     Order-preserving and duplicate-preserving so downstream evidence records
-    keep their exact shape.  The caller applies this ONLY on paper intents and
-    ONLY when paper_exploration_override_enabled() is True.
+    keep their exact shape.  The caller applies this on every structurally
+    paper candidate; no env lever conditions it.
     """
 
     blocking: list[str] = []
