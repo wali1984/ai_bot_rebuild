@@ -1,0 +1,135 @@
+{
+  "counts": {
+    "intents": 7,
+    "open_positions": 1,
+    "session_closes": 12,
+    "session_fills": 1
+  },
+  "criteria": {
+    "A_negative_policy_metric_executes": {
+      "evidence": [
+        {
+          "authorization_id": "appa2_7fe131471511b3495e74e14629031f824f6ea5124338728a8f8a09101da675ac",
+          "negative_policy_evidence": [
+            "authorization.expected_after_cost_return_bps=-76.64178632178476"
+          ],
+          "position_id": "paper_pos_0GUSDT_2fd349c4f84a7221",
+          "symbol": "0GUSDT"
+        }
+      ],
+      "status": "PASS"
+    },
+    "B_concurrent_protected_positions": {
+      "historical_overlap_pairs": [],
+      "open_symbols_now": [
+        "0GUSDT"
+      ],
+      "protected_open_count": 1,
+      "status": "PENDING"
+    },
+    "C_authorization_while_position_open": {
+      "evidence": [
+        {
+          "authorized_at_ms": 1785476645912.0,
+          "earlier_position": "paper_pos_EGLDUSDT_d7c36cf4ff862cc4",
+          "earlier_symbol": "EGLDUSDT",
+          "later_fill_position": "paper_pos_0GUSDT_2fd349c4f84a7221",
+          "later_symbol": "0GUSDT",
+          "open_interval_ms": [
+            1785473316848.439,
+            1785477025981.448
+          ]
+        }
+      ],
+      "status": "PASS"
+    },
+    "D_authorization_before_maturation": {
+      "evidence": [
+        {
+          "close_maturation_status": "PENDING_DECISION_HORIZON_MATURATION",
+          "close_training_consumption_status": "NOT_YET_CONSUMED",
+          "earlier_close": "paper_close_paper_pos_MMTUSDT_344d23e714745e2e_1_796554",
+          "later_authorized_at_ms": 1785476645912.0,
+          "later_fill_position": "paper_pos_0GUSDT_2fd349c4f84a7221"
+        },
+        {
+          "close_maturation_status": "PENDING_DECISION_HORIZON_MATURATION",
+          "close_training_consumption_status": "NOT_YET_CONSUMED",
+          "earlier_close": "paper_close_paper_pos_PENDLEUSDT_ad997763f7048063_1_125793",
+          "later_authorized_at_ms": 1785476645912.0,
+          "later_fill_position": "paper_pos_0GUSDT_2fd349c4f84a7221"
+        },
+        {
+          "close_maturation_status": "PENDING_DECISION_HORIZON_MATURATION",
+          "close_training_consumption_status": "NOT_YET_CONSUMED",
+          "earlier_close": "paper_close_paper_pos_PENDLEUSDT_9c885d91ca862930_1_52010",
+          "later_authorized_at_ms": 1785476645912.0,
+          "later_fill_position": "paper_pos_0GUSDT_2fd349c4f84a7221"
+        }
+      ],
+      "status": "PASS"
+    },
+    "E_close_increments_and_next_decision_consumes": {
+      "close_policy_state_versions": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "consuming_decisions": [
+        {
+          "policy_state_version": 4,
+          "record": "v2h_31ceb1978ae967ca339025e8b91399d3"
+        },
+        {
+          "policy_state_version": 4,
+          "record": "sig_v2h_04904d9fe04c7bce6cc7f3984ec1d35b"
+        },
+        {
+          "policy_state_version": 4,
+          "record": "sig_v2h_36519a14beec188fb46f45562460f7b2"
+        },
+        {
+          "policy_state_version": 4,
+          "record": "v2h_8ed9337bc9059a35a69acf9fe4c52658"
+        },
+        {
+          "policy_state_version": 4,
+          "record": "v2h_0299971c13a5dac5ce63c9450e5bdaa4"
+        }
+      ],
+      "current_policy_state_version": 4,
+      "status": "PASS"
+    },
+    "F_protected_reconciled_closes": {
+      "I08_accounting_conservation": null,
+      "defects": [],
+      "post_deployment_closes_checked": 0,
+      "status": "PENDING"
+    },
+    "G_zero_defects": {
+      "authority_field_invariant_violations": [],
+      "authority_field_policy_leaks_sanitized": 4,
+      "failed_invariants": [],
+      "live_authority_rows": [],
+      "parity_failures": [],
+      "status": "PASS"
+    }
+  },
+  "expected_sha": null,
+  "generated_utc": "2026-07-31T05:53:34.282982+00:00",
+  "overall": "ACCRUING",
+  "paper_only": true,
+  "paper_session_id": "paper_session_140989e198032b94",
+  "places_real_order": false,
+  "policy_state": {
+    "last_close_event_time": "2026-07-31T05:50:25.981448Z",
+    "last_close_id": "paper_close_paper_pos_EGLDUSDT_d7c36cf4ff862cc4_1_32841",
+    "last_realized_net_pnl_usd": "-0.03820111786377878",
+    "policy_state_version": "4",
+    "realized_outcome_count": "4",
+    "updated_at_ms": "1785477057602"
+  },
+  "runtime_sha_hint": "",
+  "schema_version": "paper_final_bypass_acceptance_v1"
+}
