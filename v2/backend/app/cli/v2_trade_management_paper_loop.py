@@ -39214,8 +39214,11 @@ def _paper_growth_authorization_rejection_reasons(
         # Realized-lifecycle fields bind exactly to the learning receipt;
         # every strict-edge and market-context growth field stays withheld
         # (the envelope's growth path remains inert — only the bounded
-        # exploration term acts); the configured base may not exceed the
-        # conservative default ceiling.
+        # exploration term acts). Operator directive 2026-07-31: leverage is
+        # market-driven during learning, so the configured base may reach the
+        # absolute paper ceiling (PAPER_MAX_LEVERAGE); the evidence-scaled
+        # exploration term, the ATR-adaptive liquidation-safe ceiling and the
+        # authenticated venue bracket remain the binding caps.
         learning_fields = (
             "win_rate",
             "profit_factor",
@@ -39234,13 +39237,10 @@ def _paper_growth_authorization_rejection_reasons(
         ):
             reasons.append("LEARNING_EXPLORATION_GROWTH_ARGUMENTS_NOT_WITHHELD")
         configured_leverage = _coerce_float(base_material.get("max_effective_leverage"))
-        from v2.backend.app.services.adaptive_capital_allocator.contracts import (  # noqa: PLC0415
-            RiskEnvelope as _LearningBaseEnvelope,
-        )
         if configured_leverage is None or configured_leverage > float(
-            _LearningBaseEnvelope().max_effective_leverage
+            PAPER_MAX_LEVERAGE
         ):
-            reasons.append("LEARNING_EXPLORATION_BASE_EXCEEDS_DEFAULT_CEILING")
+            reasons.append("LEARNING_EXPLORATION_BASE_EXCEEDS_PAPER_CEILING")
     else:
         if any(arguments.get(field) is not None for field in growth_fields):
             reasons.append("BLOCKED_CANDIDATE_GROWTH_ARGUMENTS_NOT_WITHHELD")
