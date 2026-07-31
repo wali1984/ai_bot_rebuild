@@ -32,9 +32,6 @@ from v2.backend.app.services.adaptive_system.adaptive_objective_v2 import (
 from v2.backend.app.services.adaptive_system.adaptive_policy_shadow_v2 import (
     AdaptivePolicyShadowCandidateV2,
 )
-from v2.backend.app.services.adaptive_system.paper_exploration_authority_v2 import (
-    paper_exploration_override_enabled as _paper_exploration_override_enabled,
-)
 from v2.backend.app.services.adaptive_system.selected_action_venue_feasibility_v2 import (
     DECISION_EXECUTABLE,
     SelectedActionVenueFeasibilityV2,
@@ -363,32 +360,12 @@ def _selected_input(
         # downstream gate (signed hard validator receipt, exact venue
         # attestation, mandatory stop) applies unchanged.
         #
-        # Authority correction (2026-07-31): bootstrap is a PARALLEL paper
-        # lane, not a fallback-of-last-resort.  The former requirements that
-        # no positive-utility exploration exist and that the champion be flat
-        # were TRADING_POLICY preferences (positive-utility exploitation
-        # preference); under paper exploration they carry no blocking
-        # authority.  With the override disabled the legacy single-flight
-        # preconditions apply.
-        if not _paper_exploration_override_enabled():
-            if evaluation.exploration_action_id is not None:
-                _fail(
-                    "bootstrap_requires_no_positive_utility_exploration",
-                    "objective_evaluation",
-                )
-            champion_matches = tuple(
-                item
-                for item in result.objective_inputs
-                if item.action_id == evaluation.champion_action_id
-            )
-            if (
-                len(champion_matches) != 1
-                or champion_matches[0].selected_action != ACTION_REMAIN_FLAT
-            ):
-                _fail(
-                    "bootstrap_requires_flat_champion_baseline",
-                    "objective_evaluation",
-                )
+        # Structural paper semantics (final directive 2026-07-31): bootstrap
+        # is a PARALLEL paper lane, not a fallback-of-last-resort.  The former
+        # no-positive-utility-exploration and flat-champion preconditions were
+        # TRADING_POLICY preferences and are removed structurally (not behind
+        # an env lever).  Nonpositive expected information gain is telemetry;
+        # it may rank the candidate but cannot reject a hard-valid input.
         if action.selected_action != ACTION_DIRECTIONAL_TRADE:
             _fail("bootstrap_requires_directional_trade", "selected_adaptive_action")
         bootstrap_side = action.primary_side.lower()
@@ -407,11 +384,6 @@ def _selected_input(
         if len(matches) != 1:
             _fail("selected_objective_input_not_unique", "objective_inputs")
         selected = matches[0]
-        if selected.expected_information_gain <= 0.0:
-            _fail(
-                "bootstrap_requires_positive_information_gain",
-                "selected_objective_input",
-            )
         if selected.selected_action != action.selected_action:
             _fail("selected_action_mismatch", "selected_objective_input")
         return selected

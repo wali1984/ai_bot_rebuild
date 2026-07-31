@@ -658,11 +658,19 @@ def test_missing_physical_evidence_during_open_position_persists_fail_closed_fla
     assert result.exchange_action_taken is False
 
 
-def test_existing_position_blocks_new_direction_but_not_nonexecuting_flat(legacy_paper_authority) -> None:
+def test_incoherent_position_state_still_fails_position_transition_validity() -> None:
+    """Structural paper semantics (final directive 2026-07-31): a coherent
+    non-empty position state never blocks directional actions (the
+    single-flight rail is gone, with no env lever), but an INCOHERENT position
+    state (negative count) still fails position_transition_validity — that is
+    the retained EXECUTION_INTEGRITY protection, and the candidate resolves to
+    the non-executable blocked FLAT disposition.
+    """
+
     result = build_adaptive_policy_shadow_candidate(
         intent=_intent(),
         feature_snapshot=_feature_snapshot(),
-        paper_status={"paper_only": True, "open_position_count": 1},
+        paper_status={"paper_only": True, "open_position_count": -1},
         calibration=_calibration(),
         registry=_registry(),
         validator_seed=_SEED,
@@ -672,19 +680,14 @@ def test_existing_position_blocks_new_direction_but_not_nonexecuting_flat(legacy
     directional = [
         item for item in result.objective_inputs if item.selected_action == "directional_trade"
     ]
-    flat = next(
-        item for item in result.objective_inputs if item.selected_action == "remain_flat"
-    )
     assert len(result.component_estimates) == 4
     assert len(result.venue_attestations) == 4
     assert all(item.hard_constraints_satisfied is False for item in directional)
     assert all(
-        dict(result.action_dispositions)[item.action_id]
-        == ("position_transition_validity",)
+        "position_transition_validity"
+        in dict(result.action_dispositions)[item.action_id]
         for item in directional
     )
-    assert flat.hard_constraints_satisfied is True
-    assert dict(result.action_dispositions)[flat.action_id] == ()
     assert result.selected_adaptive_action.selected_action == "remain_flat"
 
 

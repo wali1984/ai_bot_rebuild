@@ -66,6 +66,10 @@ def evaluate_reference_objective(
     )
 
     def best(mode: str) -> str | None:
+        # Final paper directive 2026-07-31 (parity mirror of
+        # adaptive_objective_v2.best): negative utility and nonpositive
+        # information gain rank candidates; they may not exclude a hard-valid
+        # directional action from selection.
         eligible: list[tuple[float, str]] = []
         for action in actions:
             utility = utilities[action.action_id]
@@ -73,8 +77,6 @@ def evaluate_reference_objective(
                 continue
             if mode == BOUNDED_EXPLORATION and (
                 action.selected_action == ACTION_REMAIN_FLAT
-                or utility <= 0.0
-                or action.expected_information_gain <= 0.0
             ):
                 continue
             eligible.append((utility, action.action_id))
@@ -153,7 +155,6 @@ def select_reference_action_id(
             and action.selected_action == ACTION_DIRECTIONAL_TRADE
             and action.action_id.endswith(side_suffixes)
             and action.hard_constraints_satisfied is True
-            and action.expected_information_gain > 0.0
         ]
         if len(bootstrap_matches) == 1:
             return bootstrap_matches[0].action_id

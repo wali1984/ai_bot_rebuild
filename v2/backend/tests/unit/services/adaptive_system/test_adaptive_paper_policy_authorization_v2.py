@@ -89,6 +89,13 @@ def _result(*, directional: bool):
     for index in range(128):
         intent = _intent()
         intent["policy_id"] = f"production-policy-{index}"
+        if not directional:
+            # Final directive 2026-07-31: a hard-valid directional action is
+            # always selectable (negative utility no longer forces flat), so a
+            # genuinely FLAT selection requires the directional actions to be
+            # hard-INVALID.  CLOSE_OR_REDUCE_ONLY fails the directional
+            # position-transition hard check while leaving flat hard-valid.
+            intent["microstructure_action"] = "CLOSE_OR_REDUCE_ONLY"
         result = build_adaptive_policy_shadow_candidate(
             intent=intent,
             feature_snapshot=_feature_snapshot(),
@@ -234,49 +241,6 @@ def test_reference_disagreement_never_receives_authority() -> None:
             )
     finally:
         object.__setattr__(result, "parity_disagreement_count", 0)
-
-
-def test_bootstrap_mode_rejected_when_positive_utility_exploration_exists(legacy_paper_authority) -> None:
-    """A bootstrap-tagged action is only legitimate when NO positive-utility
-    exploration action exists: re-tagging a genuinely selected bounded
-    exploration action (exploration_action_id set) as bootstrap mode fails
-    closed instead of borrowing the exploration slot's authority."""
-
-    # High posterior uncertainty -> positive learned exploration objective, so
-    # the bounded exploration action is selected and exploration_action_id is
-    # populated.
-    calibration = _calibration_with_statistic(
-        _controlled_statistic(
-            after_cost_expectancy_bps=-0.5,
-            posterior_uncertainty=0.9,
-            tail_0_9=1.0,
-        )
-    )
-    result = build_adaptive_policy_shadow_candidate(
-        intent=_low_cost_intent(),
-        feature_snapshot=_feature_snapshot(),
-        paper_status={"paper_only": True, "open_position_count": 0},
-        calibration=calibration,
-        registry=_registry(),
-        validator_seed=_SEED,
-        generated_at_ms=4_000_000,
-    )
-    assert result.objective_evaluation.exploration_action_id is not None
-    action = result.selected_adaptive_action
-    assert action.policy_mode == "bounded_information_seeking_exploration"
-    retagged_action = _recreate_action(
-        action,
-        policy_mode="bootstrap_information_acquisition",
-    )
-
-    with pytest.raises(
-        AdaptivePaperPolicyAuthorizationError,
-        match="bootstrap_requires_no_positive_utility_exploration",
-    ):
-        authorize_adaptive_paper_policy_action(
-            replace(result, selected_adaptive_action=retagged_action),
-            authorized_at_ms=4_000_001,
-        )
 
 
 def test_bootstrap_authorizes_alongside_positive_utility_exploration_under_exploration_authority(

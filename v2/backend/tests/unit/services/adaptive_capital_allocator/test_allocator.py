@@ -179,7 +179,11 @@ def test_paper_confidence_sizes_continuously_from_zero_while_live_gate_is_unchan
     )
     assert below_former_sizing_cliff.decision in {"ALLOW_WITH_SIZE", "REDUCE_SIZE"}
     assert above_former_sizing_cliff.risk_budget_usd > below_former_sizing_cliff.risk_budget_usd
-    assert zero.target_notional_usdt == 0.0
+    # Final paper directive 2026-07-31: zero confidence floors the size, it
+    # never zeroes it (confidence is TRADING_POLICY; it scales, not vetoes).
+    assert zero.decision in {"ALLOW_WITH_SIZE", "REDUCE_SIZE"}
+    assert zero.target_notional_usdt > 0.0
+    assert zero.target_notional_usdt <= below_former_admission_cliff.target_notional_usdt
 
     # Live mode keeps the stricter 0.50 confidence floor.
     live = allocate_live_candidate(_row(confidence_calibrated=0.49))
@@ -287,7 +291,10 @@ def test_paper_long_and_short_symmetric_edge_have_equal_raw_leverage() -> None:
     assert long.model_inputs["leverage_target"] == short.model_inputs["leverage_target"]
 
 
-def test_paper_short_blocks_positive_signed_move_as_no_edge() -> None:
+def test_paper_short_with_positive_signed_move_floors_size_at_1x() -> None:
+    # Final paper directive 2026-07-31: a direction-misaligned expected move
+    # is zero economic edge — TRADING_POLICY.  It floors the paper size at 1x
+    # instead of rejecting the hard-valid candidate.
     result = allocate_paper_candidate(
         _row(
             action="short",
@@ -297,13 +304,14 @@ def test_paper_short_blocks_positive_signed_move_as_no_edge() -> None:
         )
     )
 
-    assert result.decision == "BLOCK_NO_EDGE"
+    assert result.decision in {"ALLOW_WITH_SIZE", "REDUCE_SIZE"}
+    assert result.target_notional_usdt > 0.0
     assert result.recommended_leverage == 1.0
     assert result.model_inputs["signed_expected_move_after_cost_bps"] == 80.0
     assert result.model_inputs["allocator_economic_edge_after_cost_bps"] == 0.0
 
 
-def test_paper_long_blocks_negative_signed_move_at_1x() -> None:
+def test_paper_long_with_negative_signed_move_floors_size_at_1x() -> None:
     result = allocate_paper_candidate(
         _row(
             action="long",
@@ -313,7 +321,8 @@ def test_paper_long_blocks_negative_signed_move_at_1x() -> None:
         )
     )
 
-    assert result.decision == "BLOCK_NO_EDGE"
+    assert result.decision in {"ALLOW_WITH_SIZE", "REDUCE_SIZE"}
+    assert result.target_notional_usdt > 0.0
     assert result.recommended_leverage == 1.0
     assert result.model_inputs["signed_expected_move_after_cost_bps"] == -80.0
     assert result.model_inputs["allocator_economic_edge_after_cost_bps"] == 0.0
@@ -363,13 +372,18 @@ def test_missing_or_nonfinite_paper_policy_evidence_still_fails_closed(
     assert reason in result.model_inputs["paper_allocator_input_rejection_reasons"]
 
 
-def test_paper_after_cost_edge_must_remain_strictly_positive() -> None:
+def test_paper_after_cost_edge_ranks_and_sizes_but_never_rejects() -> None:
+    # Final paper directive 2026-07-31: nonpositive after-cost edge is
+    # TRADING_POLICY — it floors the size, it may not reject.  Live keeps the
+    # historical strict gate (see test_live_policy_cliff_decisions_are_unchanged).
     negative = allocate_paper_candidate(_row(expected_move_after_cost_bps=-0.1))
     zero = allocate_paper_candidate(_row(expected_move_after_cost_bps=0.0))
     positive = allocate_paper_candidate(_row(expected_move_after_cost_bps=0.1))
 
-    assert negative.decision == "BLOCK_NO_EDGE"
-    assert zero.decision == "BLOCK_NO_EDGE"
+    assert negative.decision in {"ALLOW_WITH_SIZE", "REDUCE_SIZE"}
+    assert negative.target_notional_usdt > 0.0
+    assert zero.decision in {"ALLOW_WITH_SIZE", "REDUCE_SIZE"}
+    assert zero.target_notional_usdt > 0.0
     assert positive.decision in {"ALLOW_WITH_SIZE", "REDUCE_SIZE"}
     assert positive.target_notional_usdt > 0.0
 

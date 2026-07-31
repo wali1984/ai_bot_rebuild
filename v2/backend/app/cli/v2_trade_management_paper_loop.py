@@ -134,10 +134,11 @@ from v2.backend.app.services.adaptive_system.adaptive_policy_shadow_v2 import (
     build_adaptive_policy_shadow_candidate,
 )
 from v2.backend.app.services.adaptive_system.paper_exploration_authority_v2 import (
+    PAPER_POLICY_GATE_AUTHORITY,
     TRADING_POLICY,
     classify_paper_blocker,
-    paper_exploration_override_enabled,
     partition_paper_exploration_blockers,
+    structural_paper_candidate,
 )
 from v2.backend.app.services.market_structure.decision_context import (
     ADVANCED_CONTEXT_FIELDS,
@@ -217,6 +218,12 @@ PAPER_LEDGER_REDIS_KEY = f"{V2_REDIS_PREFIX}paper:ledger"
 PAPER_CLOSED_TRADES_REDIS_KEY = f"{V2_REDIS_PREFIX}paper:closed_trades"
 PAPER_SESSION_REDIS_KEY = f"{V2_REDIS_PREFIX}paper:session"
 PAPER_ADAPTIVE_TUNING_REDIS_KEY = f"{V2_REDIS_PREFIX}orchestrator:adaptive_gate_tuning_state"
+# Final paper directive 2026-07-31 item 9: monotonic realized-outcome policy
+# state version.  Every authenticated reconciled close increments it (fast
+# path, alongside the same-cycle outcome-memory/side-performance posterior
+# rebuild); every candidate evaluation stamps the version it consumed so the
+# close -> posterior -> next-decision chain is provable from runtime records.
+PAPER_POLICY_STATE_VERSION_REDIS_KEY = f"{V2_REDIS_PREFIX}paper:policy_state_version"
 PAPER_EXPLORATION_MATERIALIZATION_QUEUE_KEY = (
     f"{V2_REDIS_PREFIX}paper:exploration:materialization_queue"
 )
@@ -7458,30 +7465,21 @@ def _apply_materialization_queue_fill_gate_snapshot_if_safe(
     blockers = list(fill_gate.get("paper_fill_block_reasons") or [])
     if not blockers:
         return fill_gate
-    residual_blockers = [
-        blocker
-        for blocker in blockers
-        if blocker
-        not in (
-            "CONFIDENCE_EXECUTABLE_TRADE_BELOW_DYNAMIC_EXPLORATION_FLOOR",
-            "ALLOCATOR_HARD_BLOCK:BLOCK_LOW_CONFIDENCE",
-        )
-    ]
-    if (
-        "LOSS_CLUSTER_OR_QUARANTINE_ACTIVE" in residual_blockers
-        and _paper_risk_exploration_advisory_only_quarantine_context(policy_row)
-    ):
-        residual_blockers = [
-            blocker
-            for blocker in residual_blockers
-            if blocker != "LOSS_CLUSTER_OR_QUARANTINE_ACTIVE"
-        ]
+    # Final paper directive 2026-07-31: the former per-lane strip list here
+    # bypassed the central classifier.  The one classification is applied
+    # mechanically instead: TRADING_POLICY reasons become telemetry; hard
+    # safety / execution integrity reasons retain full blocking authority.
+    residual_blockers, policy_telemetry = partition_paper_exploration_blockers(
+        blockers
+    )
     if residual_blockers == blockers:
         return fill_gate
     updated = dict(fill_gate)
     updated["runtime_recomputed_paper_fill_block_reasons"] = blockers
     updated["paper_fill_block_reasons"] = sorted(set(residual_blockers))
     updated["paper_fill_allowed"] = not residual_blockers
+    updated["trading_policy_telemetry_reasons"] = sorted(set(policy_telemetry))
+    updated["trading_policy_final_authority"] = False
     updated["materialization_queue_policy_snapshot_retained"] = True
     return updated
 
@@ -13105,6 +13103,17 @@ CANDIDATE_ALLOCATION_PUBLICATION_INTENT_FIELDS = tuple(
 COMPACT_ACCEPTED_FILL_FIELDS = tuple(
     dict.fromkeys(
         (
+            # Final directive 2026-07-31 item 8: authority + receipt chain.
+            "policy_gate_authority",
+            "policy_state_version",
+            "policy_state_version_consumed_at_entry",
+            "authorization_id",
+            "authoritative_hard_blockers",
+            "trading_policy_telemetry_reasons",
+            "trading_policy_final_authority",
+            "paper_authority_field_policy_leak",
+            "adaptive_risk_capacity_receipt",
+            "mandatory_protection_receipt",
             "preemptive_decision_id",
             "preemptive_decision",
             "preemptive_decision_reasons",
@@ -14198,6 +14207,24 @@ PAPER_RUNTIME_INTENT_PROJECTION_FIELDS = (
     "paper_performance_circuit_breaker_hard_trading_authority",
     "legacy_category_e_comparator",
     "adaptive_policy_source_action_comparator",
+    # Final directive 2026-07-31 items 4+8: authority + receipt chain on the
+    # published per-candidate intent projection.
+    "policy_gate_authority",
+    "policy_state_version",
+    "policy_state_version_consumed_at_entry",
+    "authorization_id",
+    "authoritative_hard_blockers",
+    "trading_policy_telemetry_reasons",
+    "trading_policy_final_authority",
+    "paper_authority_field_policy_leak",
+    "adaptive_risk_capacity_receipt",
+    "mandatory_protection_receipt",
+    "entry_gate_trading_policy_telemetry_reasons",
+    "entry_gate_trading_policy_final_authority",
+    "preemptive_trading_policy_telemetry_reasons",
+    "preemptive_trading_policy_final_authority",
+    "paper_standalone_1m_trading_policy_telemetry_reasons",
+    "paper_standalone_1m_trading_policy_final_authority",
 )
 
 
@@ -14232,6 +14259,90 @@ def _compact_runtime_intents_for_redis(
     rows: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
     return [_compact_runtime_intent_for_redis(row) for row in rows if isinstance(row, dict)]
+
+
+_PAPER_AUTHORITY_LIST_FIELDS = (
+    "rejection_reasons",
+    "paper_fill_gate_block_reasons",
+    "entry_gate_block_reasons",
+)
+
+
+def _enforce_paper_authority_field_invariant(
+    intent: dict[str, Any],
+    *,
+    policy_state_version: int,
+) -> None:
+    """Mandatory invariant (final directive 2026-07-31 item 4).
+
+    Before an intent's authoritative rejection fields are published, every
+    reason is run through the central classifier: no TRADING_POLICY reason may
+    remain in an authoritative field of a structurally paper candidate.  Any
+    reason moved here indicates an upstream gate wrote policy authority — that
+    is recorded as ``paper_authority_field_policy_leak`` (a release-blocking
+    defect signal), never silently dropped.  This sanitizer does not resurrect
+    an already-blocked intent within the cycle; behavioral authority is
+    removed at the gates themselves.
+    """
+
+    if not structural_paper_candidate(intent):
+        return
+    moved: list[str] = []
+    for field in _PAPER_AUTHORITY_LIST_FIELDS:
+        reasons = intent.get(field)
+        if not isinstance(reasons, list) or not reasons:
+            continue
+        blocking, policy = partition_paper_exploration_blockers(
+            [str(reason) for reason in reasons]
+        )
+        if policy:
+            intent[field] = blocking
+            moved.extend(policy)
+    local_reasons = intent.get("local_block_reasons")
+    if isinstance(local_reasons, list) and local_reasons:
+        kept_local: list[str] = []
+        for item in local_reasons:
+            text = str(item)
+            _, _, bare = text.partition(":")
+            if TRADING_POLICY in (
+                classify_paper_blocker(text),
+                classify_paper_blocker(bare) if bare else None,
+            ):
+                moved.append(text)
+            else:
+                kept_local.append(text)
+        if len(kept_local) != len(local_reasons):
+            intent["local_block_reasons"] = kept_local
+    primary = intent.get("paper_fill_block_reason")
+    if (
+        isinstance(primary, str)
+        and primary
+        and classify_paper_blocker(primary) == TRADING_POLICY
+    ):
+        moved.append(primary)
+        remaining = [
+            str(reason)
+            for reason in intent.get("paper_fill_gate_block_reasons") or []
+            if str(reason) != primary
+        ]
+        intent["paper_fill_block_reason"] = remaining[0] if remaining else None
+    hard_blockers: list[str] = []
+    for field in _PAPER_AUTHORITY_LIST_FIELDS:
+        values = intent.get(field)
+        if isinstance(values, list):
+            hard_blockers.extend(str(reason) for reason in values)
+    if isinstance(intent.get("paper_fill_block_reason"), str):
+        hard_blockers.append(intent["paper_fill_block_reason"])
+    intent["authoritative_hard_blockers"] = sorted(set(hard_blockers))
+    if moved:
+        intent["trading_policy_telemetry_reasons"] = sorted(
+            set(list(intent.get("trading_policy_telemetry_reasons") or []) + moved)
+        )
+        intent["trading_policy_final_authority"] = False
+        intent["paper_authority_field_policy_leak"] = True
+    intent["policy_gate_authority"] = PAPER_POLICY_GATE_AUTHORITY
+    if intent.get("policy_state_version") is None:
+        intent["policy_state_version"] = policy_state_version
 
 
 def _sample_rows(
@@ -16265,12 +16376,12 @@ def _apply_paper_standalone_1m_gate(intent: dict[str, Any], gate: dict[str, Any]
     if gate.get("allowed") is True:
         return
     blockers = [str(reason) for reason in gate.get("blockers") or [] if reason]
-    # Authority correction (2026-07-31): standalone-1m eligibility is a
-    # labeling/strategy preference (TRADING_POLICY) — telemetry only under
-    # paper exploration; it never rejects a hard-valid paper candidate.
+    # Structural paper semantics (final directive 2026-07-31): standalone-1m
+    # eligibility is a labeling/strategy preference (TRADING_POLICY) —
+    # telemetry only on any structurally paper candidate; it never rejects a
+    # hard-valid paper candidate.  No env lever conditions this.
     if (
-        paper_exploration_override_enabled()
-        and intent.get("paper_only") is not False
+        intent.get("paper_only") is not False
         and intent.get("routes_to_live") is not True
         and intent.get("places_real_order") is not True
     ):
@@ -21794,16 +21905,12 @@ def _paper_preemptive_admission_rejection_reasons(
     } and any(token in guardian_state for token in ("HALTED", "BLOCKED", "SHADOW_ONLY")):
         reasons.append("GUARDIAN_HALTED_PERFORMANCE_NO_NEW_ENTRY")
     unique_reasons = sorted(set(reasons))
-    # Central authority correction (2026-07-31): loss-probability preference
-    # and preemptive policy verdicts are TRADING_POLICY — telemetry only under
-    # paper exploration.  Evidence-integrity reasons (missing probability,
-    # invalid threshold authority) and the guardian halt keep blocking.
-    if (
-        paper_exploration_override_enabled()
-        and intent.get("paper_only") is True
-        and intent.get("routes_to_live") is not True
-        and intent.get("places_real_order") is not True
-    ):
+    # Structural paper semantics (final directive 2026-07-31): loss-probability
+    # preference and preemptive policy verdicts are TRADING_POLICY — telemetry
+    # only on any structurally paper candidate.  Evidence-integrity reasons
+    # (missing probability, invalid threshold authority) and the guardian halt
+    # keep blocking.  No env lever conditions this.
+    if structural_paper_candidate(intent):
         blocking, policy_telemetry = partition_paper_exploration_blockers(
             unique_reasons
         )
@@ -22970,16 +23077,16 @@ def _non_relaxable_entry_gate_reasons(
         for reason in intent.get("entry_gate_block_reasons") or []
         if str(reason).strip()
     ]
-    # Central authority correction (2026-07-31): ONE classification replaces
-    # the prior per-lane strip lists.  Under paper exploration, every
+    # Structural paper semantics (final directive 2026-07-31): ONE
+    # classification replaces the prior per-lane strip lists, applied on every
+    # structurally paper candidate with no env condition.  Every
     # TRADING_POLICY-classified entry-gate reason (confidence floors, side
     # bucket/confidence preferences, outcome-memory, expected-move
     # directionality) is telemetry only; HARD_SAFETY (operator exclusions,
     # gap-risk), EXECUTION_INTEGRITY (missing runtime evidence, timeframe/
     # mode config blocks) and unknown reasons keep blocking authority.
     if (
-        paper_exploration_override_enabled()
-        and intent.get("paper_only") is not False
+        intent.get("paper_only") is not False
         and intent.get("routes_to_live") is not True
         and intent.get("places_real_order") is not True
     ):
@@ -22987,30 +23094,6 @@ def _non_relaxable_entry_gate_reasons(
         if policy_telemetry:
             intent["entry_gate_trading_policy_telemetry_reasons"] = policy_telemetry
             intent["entry_gate_trading_policy_final_authority"] = False
-    else:
-        if exploration_confidence_authority:
-            reasons = [
-                reason
-                for reason in reasons
-                if not _strict_confidence_entry_gate_reason(reason)
-            ]
-        if (
-            str(intent.get("adaptive_policy_action_policy_mode") or "")
-            == "bootstrap_information_acquisition"
-        ):
-            # Legacy per-lane strip (override disabled): historical side-bucket
-            # performance and side-confidence-floor preferences carry no final
-            # authority over a bounded information-acquisition experiment.
-            reasons = [
-                reason
-                for reason in reasons
-                if not str(reason).startswith(
-                    (
-                        "SIDE_GATE_BLOCK:SIDE_BUCKET_EXPECTANCY_NON_POSITIVE",
-                        "SIDE_GATE_BLOCK:SIDE_CONFIDENCE_BELOW_FLOOR",
-                    )
-                )
-            ]
     lifecycle_or_no_trade_strategy_reasons = _paper_lifecycle_or_no_trade_strategy_reasons(
         signal={}, intent=intent
     )
@@ -30696,11 +30779,12 @@ def _paper_block_new_entry_by_performance_circuit(
     # liquidation, margin, exposure, accounting, authorization and kill-switch
     # controls are separate hard validators and remain untouched.
     #
-    # Authority correction (2026-07-31): under paper exploration EVERY
+    # Structural paper semantics (final directive 2026-07-31): EVERY
     # historical-performance circuit reason is TRADING_POLICY by central
     # classification, so the continuous (bounded-multiplier) path applies to
-    # all paper intents — not only those pre-stamped Category-E — unless the
-    # circuit carries a catastrophic-loss mandate (HARD_SAFETY, still blocks).
+    # every structurally paper intent — not only those pre-stamped
+    # Category-E — unless the circuit carries a catastrophic-loss mandate
+    # (HARD_SAFETY, still blocks).  No env lever conditions this.
     category_e_continuous = bool(
         (
             (
@@ -30714,8 +30798,7 @@ def _paper_block_new_entry_by_performance_circuit(
                 is False
             )
             or (
-                paper_exploration_override_enabled()
-                and intent.get("paper_only") is not False
+                intent.get("paper_only") is not False
                 and intent.get("routes_to_live") is not True
                 and intent.get("places_real_order") is not True
             )
@@ -41588,14 +41671,13 @@ def _paper_bootstrap_information_acquisition_designation(
     epoch_bootstrap_open = sum(
         _bootstrap_mode(row) for row in current_epoch_open_position_rows
     )
-    # Authority correction (2026-07-31): an open experiment no longer
-    # suppresses designation of unrelated candidates.  Concurrency is governed
-    # by the adaptive allocator and the hard-risk envelope (margin buffer,
-    # exposure, correlation, liquidation capacity) plus the lifecycle's
-    # immutable per-symbol duplicate guard — not by a fixed one-experiment
-    # cap.  With the override disabled the legacy single-flight rail applies.
-    if epoch_bootstrap_open and not paper_exploration_override_enabled():
-        return None
+    # Structural paper semantics (final directive 2026-07-31): an open
+    # experiment never suppresses designation of unrelated candidates.
+    # Concurrency is governed by the adaptive allocator and the hard-risk
+    # envelope (margin buffer, exposure, correlation, liquidation capacity)
+    # plus the lifecycle's immutable per-symbol duplicate guard — not by a
+    # fixed one-experiment cap.  No env lever conditions this;
+    # epoch_bootstrap_open remains telemetry below.
 
     eligible_count = 0
     ranked_entries: list[tuple[tuple[float, float, str], dict[str, Any]]] = []
@@ -41756,7 +41838,12 @@ def _paper_bootstrap_information_acquisition_designation(
                 math.isfinite(gain_nats) and math.isfinite(expected_loss_usd)
             ):
                 continue
-            if gain_nats <= 0.0 or expected_loss_usd <= 0.0:
+            # Final paper directive 2026-07-31: nonpositive expected
+            # information gain RANKS the candidate (it sorts last) but may not
+            # exclude it.  The bounded-loss positivity stays: a nonpositive
+            # expected experiment loss means the stop geometry is invalid,
+            # which is a hard exit-contract failure, not an economics veto.
+            if expected_loss_usd <= 0.0:
                 continue
             side = row.get("side")
             if side not in ("LONG", "SHORT"):
@@ -41929,16 +42016,8 @@ def _paper_bootstrap_information_acquisition_designation(
         },
         "current_epoch_bootstrap_closed_trades": epoch_bootstrap_closed,
         "current_epoch_bootstrap_open_positions": epoch_bootstrap_open,
-        "max_concurrent_bootstrap_positions": (
-            "ADAPTIVE_RISK_CAPACITY_GOVERNED"
-            if paper_exploration_override_enabled()
-            else 1
-        ),
-        "max_bootstrap_authorizations_per_cycle": (
-            "ADAPTIVE_RISK_CAPACITY_GOVERNED"
-            if paper_exploration_override_enabled()
-            else 1
-        ),
+        "max_concurrent_bootstrap_positions": "ADAPTIVE_RISK_CAPACITY_GOVERNED",
+        "max_bootstrap_authorizations_per_cycle": "ADAPTIVE_RISK_CAPACITY_GOVERNED",
         "information_gain_is_primary_allocation_objective": False,
         "terminal_target_guaranteed": False,
         "counts_as_champion_profitability_evidence": False,
@@ -44615,18 +44694,13 @@ def _paper_final_admission_point_in_time_contract(
         == PAPER_TIER_ADAPTIVE_POLICY_V2
         and intent.get("adaptive_policy_entry_authorized") is True
     )
-    # Central authority correction (operator directive 2026-07-31): under
-    # paper exploration, TRADING_POLICY-classified reasons are telemetry only
-    # at THIS boundary too — one classification, applied mechanically, instead
-    # of per-lane exemptions.  HARD_SAFETY / EXECUTION_INTEGRITY / unknown
-    # reasons keep full blocking authority.  Paper-only by construction: this
-    # contract runs exclusively on paper intents (live stays BLOCKED).
-    paper_exploration_policy_telemetry = bool(
-        paper_exploration_override_enabled()
-        and intent.get("paper_only") is True
-        and intent.get("routes_to_live") is not True
-        and intent.get("places_real_order") is not True
-    )
+    # Structural paper semantics (final directive 2026-07-31): on every
+    # structurally paper candidate, TRADING_POLICY-classified reasons are
+    # telemetry only at THIS boundary too — one classification, applied
+    # mechanically, instead of per-lane exemptions.  HARD_SAFETY /
+    # EXECUTION_INTEGRITY / unknown reasons keep full blocking authority.
+    # No env lever conditions this; live stays BLOCKED.
+    paper_exploration_policy_telemetry = structural_paper_candidate(intent)
     validation_started_utc = _strict_aware_utc_time(_utc_iso())
     # Component clocks are first checked against the start of validation.  A
     # second commit clock is captured after all authoritative re-reads and is
@@ -51952,6 +52026,15 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         and not isinstance(_paper_account_epoch_raw, bool)
         else None
     )
+    # Final directive 2026-07-31 item 9: the realized-outcome policy state
+    # version this evaluation consumes.  Incremented on every authenticated
+    # reconciled close (see the close-commit path); stamped on every intent,
+    # authorization receipt, fill and close so consumption is provable.
+    try:
+        _policy_state_version_raw = r.get(PAPER_POLICY_STATE_VERSION_REDIS_KEY)
+        paper_policy_state_version = int(_policy_state_version_raw or 0)
+    except (TypeError, ValueError, redis.RedisError):
+        paper_policy_state_version = 0
     existing_invalid_admission_quarantine_rows = [
         _paper_quarantine_row_with_exact_reasons(row)
         for row in _read_json_list_redis_key_if_small(
@@ -55492,13 +55575,12 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                     _paper_existing_open_position_rows(existing_ledger)
                 )
                 + len(accepted),
-                # At most one bootstrap authorization per completed paper
-                # cycle: only the CURRENT rank-order queue head is handed to
-                # the builder (signals are processed in prior-rank order for
-                # queue members, so the head's complete current evaluation
-                # happens before any lower rank can select), and the
-                # designation is withheld entirely after the first bootstrap
-                # authorization this cycle.
+                # Structural paper semantics (final directive 2026-07-31): no
+                # one-authorization-per-cycle rule.  The CURRENT rank-order
+                # queue head is handed to the builder (signals are processed
+                # in prior-rank order for queue members) and the queue keeps
+                # serving ranked heads while adaptive risk capacity admits
+                # them; the authorization counter remains as telemetry.
                 "bootstrap_information_acquisition_designation": (
                     {
                         **adaptive_policy_cycle_context[
@@ -55516,17 +55598,6 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                         Mapping,
                     )
                     and adaptive_policy_cycle_context.get("bootstrap_ranked_queue")
-                    and (
-                        # Authority correction (2026-07-31): no fixed
-                        # one-authorization-per-cycle cap under paper
-                        # exploration — the queue keeps serving ranked heads
-                        # while adaptive risk capacity admits them.  The
-                        # counter remains as telemetry.
-                        paper_exploration_override_enabled()
-                        or not adaptive_policy_cycle_context.get(
-                            "bootstrap_information_acquisition_cycle_authorizations"
-                        )
-                    )
                     else None
                 ),
                 "performance_risk_state": {
@@ -55785,9 +55856,11 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                 + 1
             )
         # Rank-order queue bookkeeping: when this candidate is the current
-        # queue head, either the traversal stops on selection or the queue
-        # falls back to the next rank IN THE SAME CYCLE with the head's first
-        # failing current predicate recorded.
+        # queue head, record its disposition and advance to the next rank IN
+        # THE SAME CYCLE.  Final directive 2026-07-31: selection no longer
+        # empties the queue (that was the residual one-bootstrap-fill-per-
+        # cycle latch); every ranked candidate is served this cycle and
+        # concurrency is governed by adaptive risk capacity.
         _bootstrap_queue = (
             adaptive_policy_cycle_context.get("bootstrap_ranked_queue") or []
         )
@@ -55809,10 +55882,18 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                         "first_failing_predicate": "SELECTED",
                     }
                 )
-                adaptive_policy_cycle_context[
-                    "bootstrap_first_current_hard_valid_rank"
-                ] = _bootstrap_head.get("rank")
-                adaptive_policy_cycle_context["bootstrap_ranked_queue"] = []
+                if (
+                    adaptive_policy_cycle_context.get(
+                        "bootstrap_first_current_hard_valid_rank"
+                    )
+                    is None
+                ):
+                    adaptive_policy_cycle_context[
+                        "bootstrap_first_current_hard_valid_rank"
+                    ] = _bootstrap_head.get("rank")
+                adaptive_policy_cycle_context["bootstrap_ranked_queue"] = (
+                    _bootstrap_queue[1:]
+                )
             else:
                 adaptive_policy_cycle_context["bootstrap_rank_dispositions"].append(
                     {
@@ -55959,6 +56040,37 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         intent["routes_to_live"] = False
         intent["places_real_order"] = False
         intent["exchange_action_taken"] = False
+        # Final directive 2026-07-31 items 1+8+9: structural paper receipt.
+        # policy_gate_authority is False for every paper candidate at every
+        # boundary — derived from paper_only, never from an env lever — and
+        # the identity chain (candidate/intent/authorization) plus the
+        # consumed policy_state_version ride the intent into every fill,
+        # position and close record.
+        intent["policy_gate_authority"] = PAPER_POLICY_GATE_AUTHORITY
+        intent["policy_state_version"] = paper_policy_state_version
+        intent["candidate_id"] = (
+            intent.get("candidate_id") or adaptive_policy_authorization.candidate_id
+        )
+        intent["intent_id"] = intent.get("intent_id") or (
+            f"pint_{adaptive_policy_authorization.source_intent_sha256}"
+        )
+        intent["authorization_id"] = adaptive_policy_authorization.authorization_id
+        intent["mandatory_protection_receipt"] = {
+            "schema_version": "paper_mandatory_protection_receipt_v1",
+            "authorization_id": adaptive_policy_authorization.authorization_id,
+            "mandatory_stop_present": (
+                adaptive_policy_authorization.mandatory_stop_present
+            ),
+            "exact_stop_price": str(adaptive_policy_authorization.exact_stop_price),
+            "exact_bounded_loss_usd": str(
+                adaptive_policy_authorization.exact_bounded_loss_usd
+            ),
+            "liquidation_atr_evidence_sha256": intent.get(
+                "paper_liquidation_atr_evidence_sha256"
+            ),
+            "paper_only": True,
+            "live_gate": LIVE_GATE_BLOCKED,
+        }
 
         adaptive_cycle_receipt, adaptive_cycle_receipt_reasons = (
             _paper_adaptive_policy_cycle_receipt(
@@ -56132,6 +56244,43 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             blocked.append(intent)
             continue
 
+        # Final directive 2026-07-31 item 8: machine-readable adaptive
+        # risk-capacity receipt — the authenticated capacity envelope that
+        # admitted this authorization (margin, exposure, leverage,
+        # correlation, liquidation distance).  Rides the intent into the
+        # accepted fill, the open position and the close record.
+        intent["adaptive_risk_capacity_receipt"] = {
+            "schema_version": "paper_adaptive_risk_capacity_receipt_v1",
+            "authorization_id": adaptive_policy_authorization.authorization_id,
+            "candidate_id": adaptive_policy_authorization.candidate_id,
+            "policy_state_version": paper_policy_state_version,
+            "allocator_decision": allocation_payload.get("allocator_decision"),
+            "gross_notional_usd": allocation_payload.get("gross_notional_usd"),
+            "allocated_margin_usd": allocation_payload.get("allocated_margin_usd"),
+            "effective_leverage": allocation_payload.get("effective_leverage"),
+            "liquidation_price_estimate": allocation_payload.get(
+                "liquidation_price_estimate"
+            ),
+            "liquidation_buffer_bps": allocation_payload.get("liquidation_buffer_bps"),
+            "max_loss_if_stop_hit": allocation_payload.get("max_loss_if_stop_hit"),
+            "portfolio_exposure_after_trade": allocation_payload.get(
+                "portfolio_exposure_after_trade"
+            ),
+            "correlation_exposure_after_trade": allocation_payload.get(
+                "correlation_exposure_after_trade"
+            ),
+            "cross_margin_available_buffer_usd": allocation_payload.get(
+                "cross_margin_available_buffer_usd"
+            ),
+            "worst_case_portfolio_loss_usd": allocation_payload.get(
+                "worst_case_portfolio_loss_usd"
+            ),
+            "maintenance_margin_estimate_usd": allocation_payload.get(
+                "maintenance_margin_estimate_usd"
+            ),
+            "paper_only": True,
+            "live_gate": LIVE_GATE_BLOCKED,
+        }
         exact_entry_price = float(adaptive_policy_authorization.exact_entry_price)
         exact_stop_price = float(adaptive_policy_authorization.exact_stop_price)
         exact_target_notional = float(
@@ -60508,6 +60657,15 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
     feedback_quarantine_state_sample = _sample_rows(
         _compact_rows_for_state(trainer_feedback_quarantine_rows)
     )
+    # Final directive 2026-07-31 item 4: mechanical authority-field invariant
+    # applied to EVERY candidate before the per-candidate projection is
+    # published — no TRADING_POLICY reason survives in an authoritative field.
+    for _authority_row in intents:
+        if isinstance(_authority_row, dict):
+            _enforce_paper_authority_field_invariant(
+                _authority_row,
+                policy_state_version=paper_policy_state_version,
+            )
     runtime_intent_state_rows = _compact_runtime_intents_for_redis(
         _with_paper_session_metadata_rows(
             intents,
@@ -60920,6 +61078,82 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                 )
             except Exception:
                 pass
+        # Final directive 2026-07-31 item 9 (fast path): every authenticated
+        # reconciled close increments the realized-outcome policy state
+        # version in the same cycle as the outcome-memory/side-performance
+        # posterior rebuild above, and each close record carries the version
+        # it produced.  The next candidate evaluation (triggered immediately
+        # by the event-driven wait) reads and stamps the incremented version,
+        # making close -> posterior -> next-decision consumption provable.
+        _new_close_events = [
+            row
+            for row in (lifecycle_result.get("new_close_events") or [])
+            if isinstance(row, dict)
+        ]
+        # Item 8 receipt propagation: fills are dict copies of the authorized
+        # intent and already carry the authorization/capacity/protection
+        # receipts; position and close rows are rebuilt from the typed
+        # position state, so the receipts are re-joined here by position_id
+        # before the atomic critical-state write.
+        _fill_receipts_by_position: dict[str, dict[str, Any]] = {}
+        for _fr in valid_accepted_for_ledger:
+            if not isinstance(_fr, dict):
+                continue
+            _fr_pid = str(_fr.get("position_id") or "")
+            if _fr_pid and (
+                _fr.get("authorization_id")
+                or isinstance(_fr.get("adaptive_risk_capacity_receipt"), dict)
+            ):
+                _fill_receipts_by_position[_fr_pid] = _fr
+
+        def _join_paper_authority_receipts(row: dict[str, Any]) -> None:
+            source = _fill_receipts_by_position.get(str(row.get("position_id") or ""))
+            if isinstance(source, dict):
+                for receipt_field in (
+                    "authorization_id",
+                    "adaptive_risk_capacity_receipt",
+                    "mandatory_protection_receipt",
+                    "intent_id",
+                    "candidate_id",
+                ):
+                    if row.get(receipt_field) in (None, "", [], {}):
+                        value = source.get(receipt_field)
+                        if value not in (None, "", [], {}):
+                            row[receipt_field] = value
+                if row.get("policy_state_version_consumed_at_entry") is None:
+                    entry_version = source.get("policy_state_version")
+                    if entry_version is not None:
+                        row["policy_state_version_consumed_at_entry"] = entry_version
+            row["policy_gate_authority"] = PAPER_POLICY_GATE_AUTHORITY
+
+        for _op_row in open_positions:
+            if isinstance(_op_row, dict):
+                _join_paper_authority_receipts(_op_row)
+                if _op_row.get("policy_state_version") is None:
+                    _op_row["policy_state_version"] = (
+                        _op_row.get("policy_state_version_consumed_at_entry")
+                        if _op_row.get("policy_state_version_consumed_at_entry")
+                        is not None
+                        else paper_policy_state_version
+                    )
+        if _new_close_events:
+            try:
+                _psv_after = int(
+                    r.incrby(
+                        PAPER_POLICY_STATE_VERSION_REDIS_KEY,
+                        len(_new_close_events),
+                    )
+                )
+            except (TypeError, ValueError, redis.RedisError):
+                _psv_after = paper_policy_state_version + len(_new_close_events)
+            _psv_base = _psv_after - len(_new_close_events)
+            for _psv_index, _close_row in enumerate(_new_close_events, start=1):
+                _join_paper_authority_receipts(_close_row)
+                _close_row["policy_state_version"] = _psv_base + _psv_index
+                if _close_row.get("policy_state_version_consumed_at_entry") is None:
+                    _close_row["policy_state_version_consumed_at_entry"] = (
+                        paper_policy_state_version
+                    )
         keys_written.extend(
             _write_paper_critical_state_atomically(
                 r,
@@ -62385,6 +62619,117 @@ def _try_acquire_loop_lock(path: Path = PAPER_LOOP_LOCK_PATH) -> TextIO | None:
     return handle
 
 
+_EVALUATION_TRIGGER_NAMES = (
+    "paper_signals",
+    "accepted_fills",
+    "closed_trades",
+    "positions",
+    "policy_state_version",
+)
+_EVALUATION_TRIGGER_KEYS = (
+    f"{V2_REDIS_PREFIX}signals:paper",
+    f"{V2_REDIS_PREFIX}paper:accepted_fills",
+    f"{V2_REDIS_PREFIX}paper:closed_trades",
+    f"{V2_REDIS_PREFIX}paper:positions",
+)
+
+
+def _evaluation_trigger_fingerprint(r: Any) -> tuple[Any, ...]:
+    """O(1) trigger probe: STRLEN of the event-bearing payloads + the policy
+    state version.  Never a glob SCAN, never a large GET."""
+
+    parts: list[Any] = []
+    for key in _EVALUATION_TRIGGER_KEYS:
+        try:
+            parts.append(r.strlen(key))
+        except redis.RedisError:
+            parts.append(None)
+    try:
+        parts.append(r.get(PAPER_POLICY_STATE_VERSION_REDIS_KEY))
+    except redis.RedisError:
+        parts.append(None)
+    return tuple(parts)
+
+
+def _wait_for_evaluation_trigger(
+    stop_event: threading.Event,
+    *,
+    heartbeat_seconds: int,
+    poll_seconds: float = 2.0,
+    minimum_spacing_seconds: float = 5.0,
+) -> str:
+    """Event-driven evaluation (final directive 2026-07-31 item 7).
+
+    Within the existing process, an immediate evaluation is triggered by: a
+    new authenticated signal (v2:signals:paper), a fill (accepted_fills), a
+    close (closed_trades), a material position-state update (positions), or a
+    policy_state_version update.  The former fixed interval is retained only
+    as the fallback heartbeat.  Returns "STOP", "EVENT:<sources>", or
+    "HEARTBEAT".
+    """
+
+    deadline = time.monotonic() + max(5, int(heartbeat_seconds))
+    if stop_event.wait(timeout=max(0.0, minimum_spacing_seconds)):
+        return "STOP"
+    trigger = "HEARTBEAT"
+    probe: Any = None
+    baseline: tuple[Any, ...] | None = None
+    try:
+        probe = redis.Redis(
+            host="127.0.0.1",
+            port=6379,
+            db=0,
+            decode_responses=True,
+            socket_timeout=2,
+        )
+        baseline = _evaluation_trigger_fingerprint(probe)
+    except Exception:
+        probe = None
+    while time.monotonic() < deadline:
+        remaining = deadline - time.monotonic()
+        if stop_event.wait(timeout=min(poll_seconds, max(0.1, remaining))):
+            return "STOP"
+        if probe is None or baseline is None:
+            continue
+        try:
+            current = _evaluation_trigger_fingerprint(probe)
+        except Exception:
+            continue
+        if current != baseline:
+            changed = [
+                name
+                for name, before, after in zip(
+                    _EVALUATION_TRIGGER_NAMES, baseline, current
+                )
+                if before != after
+            ]
+            trigger = "EVENT:" + ",".join(changed or ["unknown"])
+            break
+    if probe is not None:
+        try:
+            probe.set(
+                f"{V2_REDIS_PREFIX}paper:evaluation_trigger:last",
+                json.dumps(
+                    {
+                        "schema_version": "paper_evaluation_trigger_v1",
+                        "trigger": trigger,
+                        "generated_utc": _utc_iso(),
+                        "heartbeat_seconds": int(heartbeat_seconds),
+                        "paper_only": True,
+                    },
+                    sort_keys=True,
+                ),
+                ex=3600,
+            )
+        except Exception:
+            pass
+        try:
+            probe.close()
+        except Exception:
+            pass
+    return trigger
+
+
 def _main_with_writer_lock(args: argparse.Namespace) -> int:
     if args.loop:
         # Drain-on-SIGTERM: run_once persists paper state across MANY
@@ -62419,7 +62764,10 @@ def _main_with_writer_lock(args: argparse.Namespace) -> int:
                     )
                 )
                 return 0
-            _drain_stop.wait(timeout=max(5, int(args.interval_seconds)))
+            _wait_for_evaluation_trigger(
+                _drain_stop,
+                heartbeat_seconds=int(args.interval_seconds),
+            )
             if _drain_stop.is_set():
                 print(
                     json.dumps(

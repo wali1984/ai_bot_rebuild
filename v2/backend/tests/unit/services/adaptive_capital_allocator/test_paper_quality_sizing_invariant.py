@@ -157,22 +157,27 @@ def test_risk_limited_paper_size_uses_every_reported_loss_component() -> None:
 
 
 def test_ordinary_fraction_one_never_rounds_tiny_target_up_to_venue_minimum() -> None:
+    # Final paper directive 2026-07-31: the policy-factor floor keeps a tiny
+    # confidence/edge candidate above zero size, so a venue minimum of 5 USD
+    # is now genuinely affordable for this fixture.  The invariant under test
+    # is unchanged: a target BELOW the venue minimum is never silently
+    # rounded up — it hard-blocks as venue-infeasible.
     result = allocate_paper_candidate(
         _row(
             confidence_calibrated=0.001,
             expected_move_after_cost_bps=0.001,
             paper_quality_sizing_weight=1.0,
             paper_risk_budget_fraction=1.0,
-            min_notional=5.0,
+            min_notional=1_000.0,
         )
     )
 
-    assert result.decision == "BLOCK_EXCHANGE_MIN_ORDER"
+    assert result.decision == "BLOCK_RISK_BUDGET_BELOW_EXECUTABLE_MINIMUM"
     assert result.target_notional_usdt == 0.0
     assert result.max_loss_if_stop_hit == 0.0
-    assert result.final_size_reason == "paper_continuous_target_below_exchange_min_order"
-    assert result.model_inputs["target_notional_before_exchange_minimum_usd"] < 5.0
-    assert result.model_inputs["exchange_min_order_notional_usd"] == 5.0
+    assert result.final_size_reason == "paper_risk_budget_below_exact_executable_minimum"
+    assert result.model_inputs["target_notional_before_exchange_minimum_usd"] < 1_000.0
+    assert result.model_inputs["exchange_min_order_notional_usd"] == 1_000.0
     assert result.model_inputs["paper_risk_budget_fraction"] == 1.0
 
 

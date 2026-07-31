@@ -289,10 +289,11 @@ def test_exploration_fires_when_champion_flat_and_objective_positive() -> None:
     assert payload["selected_objective_input_id"] == evaluation.exploration_action_id
 
 
-def test_stays_flat_when_champion_flat_and_objective_nonpositive() -> None:
-    """Fixture 3: champion=REMAIN_FLAT and NO positive-objective exploration
-    action (utility <= 0 -> exploration_action_id is None) -> stays flat, no
-    wasteful exploration."""
+def test_nonpositive_objective_no_longer_forces_flat() -> None:
+    """Final paper directive 2026-07-31 item 5: champion=REMAIN_FLAT with a
+    hard-valid bounded exploration action whose utility is <= 0 now SELECTS
+    that exploration action (negative utility ranks, it does not veto).
+    REMAIN_FLAT is valid only when no hard-valid candidate exists."""
 
     result = _build(copy.deepcopy(_calibration()))  # default: exploration util < 0
     evaluation = result.objective_evaluation
@@ -303,17 +304,19 @@ def test_stays_flat_when_champion_flat_and_objective_nonpositive() -> None:
         if score.action_id == evaluation.champion_action_id
     )
     assert champion_score.selected_action == "remain_flat"
-    # A bounded exploration action exists in the scores but its utility is <= 0,
-    # so it is not an eligible exploration action.
-    assert evaluation.exploration_action_id is None
-    assert any(
-        score.policy_mode == BOUNDED
-        and score.utility is not None
-        and score.utility <= 0.0
+    # The bounded exploration action's utility is <= 0, and it is STILL the
+    # eligible exploration selection.
+    assert evaluation.exploration_action_id is not None
+    exploration_score = next(
+        score
         for score in evaluation.scores
+        if score.action_id == evaluation.exploration_action_id
     )
-    assert result.selected_adaptive_action.selected_action == "remain_flat"
-    assert result.selected_adaptive_action.target_notional_usd == 0.0
+    assert exploration_score.policy_mode == BOUNDED
+    assert exploration_score.utility is not None
+    assert exploration_score.utility <= 0.0
+    assert result.selected_adaptive_action.selected_action == "directional_trade"
+    assert result.selected_adaptive_action.target_notional_usd > 0.0
 
 
 def test_reference_parity_maintained_when_information_seeking_fires() -> None:
@@ -557,12 +560,13 @@ def _build_with_designation(
     )
 
 
-def test_bootstrap_designation_selects_negative_utility_venue_minimum() -> None:
-    """Prior-only posterior + this cycle's designation -> the hard-valid
-    venue-minimum information-acquisition action is selected even though its
-    recomputed monetary utility is negative, parity holds, every paper-only
-    safety flag stays intact, and the action authorizes through the standard
-    adaptive paper lane as a bootstrap-mode action."""
+def test_negative_utility_venue_minimum_selected_through_exploration_lane() -> None:
+    """Final paper directive 2026-07-31 item 5: the hard-valid venue-minimum
+    experiment with negative recomputed monetary utility is now selected
+    through the STANDARD exploration lane (no designation precedence, no
+    positivity precondition), parity holds, every paper-only safety flag stays
+    intact, and the action authorizes through the standard adaptive paper
+    lane."""
 
     result = _build_with_designation(
         _sub_minimum_target_intent(),
@@ -571,19 +575,20 @@ def test_bootstrap_designation_selects_negative_utility_venue_minimum() -> None:
     )
     evaluation = result.objective_evaluation
 
-    # Preconditions the bootstrap rule requires: flat champion baseline and no
-    # positive-utility exploration action anywhere in the evaluation.
     champion_score = next(
         score
         for score in evaluation.scores
         if score.action_id == evaluation.champion_action_id
     )
     assert champion_score.selected_action == "remain_flat"
-    assert evaluation.exploration_action_id is None
+    # The venue-minimum input is the eligible exploration selection despite
+    # its nonpositive utility.
+    assert evaluation.exploration_action_id is not None
+    assert evaluation.exploration_action_id.endswith(":venue_minimum")
 
     selected = result.selected_adaptive_action
     assert selected.selected_action == "directional_trade"
-    assert selected.policy_mode == BOOTSTRAP
+    assert selected.policy_mode == BOUNDED
     assert selected.expected_information_gain > 0.0
     assert selected.target_notional_usd > 0.0
 
@@ -592,10 +597,13 @@ def test_bootstrap_designation_selects_negative_utility_venue_minimum() -> None:
         for item in result.venue_minimum_objective_comparisons
         if item.venue_min_candidate_selected
     )
-    assert comparison.side == "LONG"
+    # The exploration lane ranks BOTH sides by utility (the designation no
+    # longer pins the side); the selected comparison must match the selected
+    # action's side.
+    assert comparison.side == selected.primary_side.upper()
     assert (
         comparison.selection_reason
-        == "VENUE_MINIMUM_BOOTSTRAP_INFORMATION_ACQUISITION_SELECTED"
+        == "VENUE_MINIMUM_EXPLORATION_SELECTED_UTILITY_NONPOSITIVE"
     )
     assert comparison.venue_min_candidate_hard_risk_pass is True
     assert comparison.venue_min_candidate_utility is not None
@@ -630,7 +638,7 @@ def test_bootstrap_designation_selects_negative_utility_venue_minimum() -> None:
     authorization = authorize_adaptive_paper_policy_action(
         result, authorized_at_ms=5_000_000
     )
-    assert authorization.policy_mode == BOOTSTRAP
+    assert authorization.policy_mode == BOUNDED
     assert authorization.paper_entry_authority is True
     assert authorization.mandatory_stop_present is True
     assert authorization.hard_validator_passed is True
@@ -639,12 +647,13 @@ def test_bootstrap_designation_selects_negative_utility_venue_minimum() -> None:
     assert authorization.exchange_action_taken is False
 
 
-def test_bootstrap_designation_selects_with_evidenced_posterior() -> None:
+def test_venue_minimum_selected_with_evidenced_posterior() -> None:
     """Continuous paper learning: posterior evidence carries no authorization
-    authority.  The same designation still selects the hard-valid
-    venue-minimum experiment when the posterior already has authenticated
-    evidence (natural closes, positive effective N, non-Beta(1,1)); the
-    learned allocation, not a posterior gate, governs exploration."""
+    authority.  The hard-valid venue-minimum experiment is still selected
+    (through the standard exploration lane) when the posterior already has
+    authenticated evidence (natural closes, positive effective N,
+    non-Beta(1,1)); the learned allocation, not a posterior gate, governs
+    exploration."""
 
     result = _build_with_designation(
         _sub_minimum_target_intent(),
@@ -652,19 +661,22 @@ def test_bootstrap_designation_selects_with_evidenced_posterior() -> None:
         _bootstrap_designation(),
     )
 
-    assert result.selected_adaptive_action.policy_mode == BOOTSTRAP
+    assert result.selected_adaptive_action.policy_mode == BOUNDED
     assert result.selected_adaptive_action.selected_action == "directional_trade"
     assert any(
         comparison.venue_min_candidate_selected is True
         and comparison.selection_reason
-        == "VENUE_MINIMUM_BOOTSTRAP_INFORMATION_ACQUISITION_SELECTED"
+        == "VENUE_MINIMUM_EXPLORATION_SELECTED_UTILITY_NONPOSITIVE"
         for comparison in result.venue_minimum_objective_comparisons
     )
 
 
-def test_bootstrap_designation_ignored_for_other_symbol() -> None:
-    """A designation targeting a different symbol never fires here: the
-    candidate stays flat under the unchanged nonpositive-utility rule."""
+def test_other_symbol_designation_no_longer_forces_flat() -> None:
+    """Final paper directive 2026-07-31 item 6: a designation targeting a
+    different symbol is irrelevant — each candidate executes its own hard-valid
+    experiment through the exploration lane instead of waiting flat for a
+    designation slot (no positive-exploration precedence, no per-cycle
+    designation latch)."""
 
     result = _build_with_designation(
         _sub_minimum_target_intent(),
@@ -672,13 +684,13 @@ def test_bootstrap_designation_ignored_for_other_symbol() -> None:
         _bootstrap_designation(symbol="ETHUSDT"),
     )
 
-    assert result.selected_adaptive_action.selected_action == "remain_flat"
-    assert result.selected_adaptive_action.target_notional_usd == 0.0
-    assert result.selected_adaptive_action.policy_mode != BOOTSTRAP
-    assert all(
-        comparison.venue_min_candidate_selected is False
+    assert result.selected_adaptive_action.selected_action == "directional_trade"
+    assert result.selected_adaptive_action.policy_mode == BOUNDED
+    assert result.selected_adaptive_action.target_notional_usd > 0.0
+    assert any(
+        comparison.venue_min_candidate_selected is True
         and comparison.selection_reason
-        == "VENUE_MINIMUM_RECOMPUTED_UTILITY_NONPOSITIVE"
+        == "VENUE_MINIMUM_EXPLORATION_SELECTED_UTILITY_NONPOSITIVE"
         for comparison in result.venue_minimum_objective_comparisons
     )
 

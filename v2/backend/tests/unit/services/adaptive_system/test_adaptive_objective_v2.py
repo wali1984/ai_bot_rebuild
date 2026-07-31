@@ -893,7 +893,12 @@ def test_public_score_construction_cannot_forge_objective_arithmetic() -> None:
         _forged_score(score, utility=1_000_000.0)
 
 
-def test_zero_information_negative_utility_churn_is_not_exploration() -> None:
+def test_zero_information_negative_utility_still_selectable_for_exploration() -> None:
+    # Final paper directive 2026-07-31 item 3: negative utility and
+    # nonpositive information gain RANK a hard-valid directional action but
+    # may never exclude it from exploration selection.  The former churn
+    # exclusion was a TRADING_POLICY veto; economics now shape size (allocator
+    # policy-factor floor), not admission.
     flat = _action(
         "flat",
         CHAMPION_EXPLOITATION,
@@ -916,8 +921,8 @@ def test_zero_information_negative_utility_churn_is_not_exploration() -> None:
         expected_information_gain=0.0,
     )
     result = evaluate_shadow_objective((flat, churn), _weights(), _allocation())
-    assert result.exploration_action_id is None
-    assert "NO_EXECUTABLE_INFORMATION_SEEKING_ACTION" in result.failure_signals
+    assert result.exploration_action_id == "churn"
+    assert "NO_EXECUTABLE_INFORMATION_SEEKING_ACTION" not in result.failure_signals
 
 
 @pytest.mark.parametrize("invalid", [None, object(), "not-an-allocation"])

@@ -330,7 +330,11 @@ def test_paper_fill_materializes_with_positive_edge_and_clean_gates() -> None:
 
 
 def test_paper_fill_rejected_with_exact_true_blocker() -> None:
-    res = allocate_paper_candidate(_alloc(expected_move_after_cost_bps=-15.0))
+    # Final paper directive 2026-07-31: nonpositive expected edge is
+    # TRADING_POLICY and no longer blocks a paper candidate (it floors the
+    # size instead); the exact-true-blocker fixture uses a genuine HARD
+    # blocker — zero liquidity evidence — which retains full authority.
+    res = allocate_paper_candidate(_alloc(liquidity_score=0.0))
     assert str(res.decision).startswith("BLOCK")
     assert res.gross_notional_usd == 0.0
     reason = res.risk_veto_reason_if_blocked or res.capital_allocation_reason

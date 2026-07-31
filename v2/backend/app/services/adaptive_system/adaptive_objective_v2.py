@@ -1112,6 +1112,9 @@ class AdaptiveObjectiveEvaluationV2:
         )
 
         def best(mode: str) -> str | None:
+            # Final paper directive 2026-07-31: negative utility and
+            # nonpositive information gain RANK candidates; they may not
+            # exclude a hard-valid directional action from selection.
             eligible = [
                 item
                 for item in by_mode[mode]
@@ -1119,9 +1122,7 @@ class AdaptiveObjectiveEvaluationV2:
                 or (
                     item.selected_action != ACTION_REMAIN_FLAT
                     and item.utility is not None
-                    and item.utility > 0.0
                     and item.information_gain_contribution is not None
-                    and item.information_gain_contribution > 0.0
                 )
             ]
             if mode == CHAMPION_EXPLOITATION and not hard_valid_flat_baseline:
@@ -1269,6 +1270,9 @@ def evaluate_shadow_objective(
     )
 
     def best(mode: str) -> str | None:
+        # Final paper directive 2026-07-31: negative utility and nonpositive
+        # information gain RANK candidates; they may not exclude a hard-valid
+        # directional action from selection.  Mirrors the validator exactly.
         eligible = [
             item
             for item in scores
@@ -1279,9 +1283,7 @@ def evaluate_shadow_objective(
                 or (
                     item.selected_action != ACTION_REMAIN_FLAT
                     and item.utility is not None
-                    and item.utility > 0.0
                     and item.information_gain_contribution is not None
-                    and item.information_gain_contribution > 0.0
                 )
             )
         ]

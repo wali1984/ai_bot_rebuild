@@ -275,7 +275,11 @@ def test_future_masa_input_clock_remains_hard() -> None:
     assert "ORDINARY_ROUTER_MASA_PIT_CLOCK_FUTURE:feature_cutoff" in result["hard_reasons"]
 
 
-def test_negative_performance_bucket_remains_hard() -> None:
+def test_negative_performance_bucket_softens_to_continuous_sizing() -> None:
+    """Structural paper semantics (final directive 2026-07-31): a negative
+    rolling profit-factor/expectancy bucket is historical bucket performance —
+    TRADING_POLICY — a bounded continuous sizing input, never a hard veto."""
+
     def mutate(material: dict[str, Any]) -> None:
         material["recent_execution_success_metrics"]["bucket_performance"] = {
             "profit_factor": 0.9,
@@ -285,8 +289,10 @@ def test_negative_performance_bucket_remains_hard() -> None:
 
     result, _, _ = _run(mutate_input=mutate)
 
-    assert result["strategy_trade_allowed"] is False
-    assert "NEGATIVE_BUCKET_PERFORMANCE_QUARANTINE" in result["hard_reasons"]
+    assert result["strategy_trade_allowed"] is True
+    assert "NEGATIVE_BUCKET_PERFORMANCE_QUARANTINE" not in result["hard_reasons"]
+    assert "NEGATIVE_BUCKET_PERFORMANCE_QUARANTINE" in result["softened_reasons"]
+    assert 0.0 < result["continuous_weight"] < 1.0
 
 
 @pytest.mark.parametrize(
@@ -357,11 +363,13 @@ def test_paper_loss_bucket_quarantine_becomes_continuous_reduce_size_not_hard_bl
     assert 0.0 < quarantined["continuous_weight"] < baseline["continuous_weight"]
 
 
-def test_genuinely_catastrophic_bucket_performance_still_hard_blocks_alongside_quarantine(legacy_paper_authority) -> None:
-    """A negative rolling profit-factor/expectancy bucket is a genuinely
-    catastrophic condition and remains a hard veto even when a merely-
-    recently-losing quarantine match is ALSO present -- proving the two are
-    distinguished rather than the catastrophic control being weakened.
+def test_negative_bucket_performance_softens_alongside_quarantine() -> None:
+    """Structural paper semantics (final directive 2026-07-31): historical
+    bucket performance (rolling profit factor / expectancy) is TRADING_POLICY
+    for a paper candidate — a bounded continuous risk input alongside the
+    recent-loss quarantine, never a hard veto, with no env lever conditioning
+    it.  Catastrophic-loss capacity remains guarded separately by the
+    allocator envelope and the circuit's catastrophic-loss mandate.
     """
 
     def mutate(material: dict[str, Any]) -> None:
@@ -379,10 +387,13 @@ def test_genuinely_catastrophic_bucket_performance_still_hard_blocks_alongside_q
 
     result, _, _ = _run(mutate_input=mutate)
 
-    assert result["strategy_trade_allowed"] is False
-    assert "NEGATIVE_BUCKET_PERFORMANCE_QUARANTINE" in result["hard_reasons"]
+    assert result["strategy_trade_allowed"] is True
+    assert "NEGATIVE_BUCKET_PERFORMANCE_QUARANTINE" not in result["hard_reasons"]
+    assert "NEGATIVE_BUCKET_PERFORMANCE_QUARANTINE" in result["softened_reasons"]
     assert "PAPER_LOSS_BUCKET_QUARANTINE" not in result["hard_reasons"]
     assert "PAPER_LOSS_BUCKET_QUARANTINE" in result["softened_reasons"]
+    # Both stay bounded continuous inputs: sizing is reduced, never zeroed.
+    assert 0.0 < result["continuous_weight"] < 1.0
 
 
 def test_absent_optional_magnitudes_are_explicit_and_not_promoted_to_hard_inputs() -> None:

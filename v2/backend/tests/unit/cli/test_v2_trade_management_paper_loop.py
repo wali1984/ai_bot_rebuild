@@ -1523,14 +1523,13 @@ def test_final_admission_positivity_veto_scoped_off_bootstrap_information_acquis
     legacy_paper_authority,
     golden_a_grade_final_admission,
 ) -> None:
-    """Continuous paper exploration at the final materialization boundary: the
-    Category-E positivity preference (FINAL_ADMISSION_CURRENT_EXPECTED_NET_PNL_
-    NOT_POSITIVE) carries no final authority over a bootstrap
-    information-acquisition intent — a bootstrap experiment's expected net PnL
-    is nonpositive in the normal case — while the veto is preserved verbatim
-    for every other lane, and the allocator-consistency integrity companion
-    (FINAL_ADMISSION_EXPECTED_NET_PNL_DIFFERS_FROM_ALLOCATOR) stays mandatory
-    for every lane including bootstrap.
+    """Continuous paper exploration at the final materialization boundary
+    (final directive 2026-07-31): the Category-E positivity preference
+    (FINAL_ADMISSION_CURRENT_EXPECTED_NET_PNL_NOT_POSITIVE) is TRADING_POLICY
+    telemetry for EVERY structurally paper intent — bootstrap AND non-bootstrap
+    lanes alike, with no env lever involved — while the allocator-consistency
+    integrity companion (FINAL_ADMISSION_EXPECTED_NET_PNL_DIFFERS_FROM_
+    ALLOCATOR) stays mandatory for every lane including bootstrap.
     """
 
     base_intent, redis, bracket_security_context = golden_a_grade_final_admission
@@ -1601,16 +1600,21 @@ def test_final_admission_positivity_veto_scoped_off_bootstrap_information_acquis
     ]
     assert bootstrap_contract["rejection_reasons"] == []
 
-    # Every non-bootstrap lane keeps the veto (scoped carve-out, not a
-    # weakening): same mutation, champion mode -> exactly the positivity veto.
+    # Non-bootstrap lanes (final directive 2026-07-31): the positivity veto is
+    # telemetry for every structurally paper intent — champion mode passes with
+    # the reason diverted to trading_policy_telemetry_reasons.
     champion_contract = _final_admission_with_negative_pnl(
         "champion_exploitation",
         allocation_expected_net_pnl_usd=-0.42,
     )
-    assert champion_contract["status"] == "BLOCKED"
-    assert champion_contract["rejection_reasons"] == [
-        "FINAL_ADMISSION_CURRENT_EXPECTED_NET_PNL_NOT_POSITIVE"
+    assert champion_contract["status"] == "PASS", champion_contract[
+        "rejection_reasons"
     ]
+    assert champion_contract["rejection_reasons"] == []
+    assert (
+        "FINAL_ADMISSION_CURRENT_EXPECTED_NET_PNL_NOT_POSITIVE"
+        in champion_contract["trading_policy_telemetry_reasons"]
+    )
 
     # The bootstrap exemption never extends to the allocator-consistency
     # integrity check: a mismatched allocator value still rejects, and only
@@ -9444,6 +9448,10 @@ def test_preemptive_loss_probability_bound_is_telemetry_under_exploration_author
 
 
 def test_scoped_exploration_uses_its_frozen_loss_bound_at_final_admission(legacy_paper_authority) -> None:
+    """Final directive 2026-07-31: loss-probability preference reasons are
+    TRADING_POLICY telemetry on every structurally paper intent (env lever has
+    no effect); only a live-routing candidate (routes_to_live=True) keeps the
+    hard PRE_TRADE_LOSS_PROBABILITY_ABOVE_ALLOWED_BOUND block."""
     intent = {
         "paper_opportunity_tier": paper_loop.PAPER_TIER_RISK_CONTROLLER_EXPLORATION,
         "preemptive_edge_control": {
@@ -9475,19 +9483,35 @@ def test_scoped_exploration_uses_its_frozen_loss_bound_at_final_admission(legacy
     assert "PAPER_RISK_CONTROLLER_EXPLORATION_LOSS_PROBABILITY_ABOVE_BOUND" not in reasons
     assert reasons == []
 
+    # Structurally paper mutations: the loss bound is policy telemetry, never
+    # blocking authority (final directive 2026-07-31).
     for changed_field, changed_value in (
         ("adaptive_loss_probability_threshold_applied", True),
         ("scoped_paper_lane_authorized", False),
-        ("routes_to_live", True),
     ):
-        unsafe = {**intent, changed_field: changed_value}
-        unsafe_reasons = paper_loop._paper_preemptive_admission_rejection_reasons(  # noqa: SLF001
-            unsafe,
+        paper_mutated = {**intent, changed_field: changed_value}
+        paper_reasons = paper_loop._paper_preemptive_admission_rejection_reasons(  # noqa: SLF001
+            paper_mutated,
             adaptive_loss_probability_threshold=0.0,
             adaptive_loss_probability_threshold_source="EXPLICIT_ADAPTIVE_TUNING_SNAPSHOT",
             adaptive_tuning_validation_status="PASS",
         )
-        assert "PRE_TRADE_LOSS_PROBABILITY_ABOVE_ALLOWED_BOUND" in unsafe_reasons
+        assert "PRE_TRADE_LOSS_PROBABILITY_ABOVE_ALLOWED_BOUND" not in paper_reasons
+        assert "PRE_TRADE_LOSS_PROBABILITY_ABOVE_ALLOWED_BOUND" in (
+            paper_mutated["preemptive_trading_policy_telemetry_reasons"]
+        )
+        assert paper_mutated["preemptive_trading_policy_final_authority"] is False
+
+    # PROTECTIVE RAIL PRESERVED: a live-routing candidate is not structurally
+    # paper, so the loss bound keeps full blocking authority.
+    live_routing = {**intent, "routes_to_live": True}
+    live_reasons = paper_loop._paper_preemptive_admission_rejection_reasons(  # noqa: SLF001
+        live_routing,
+        adaptive_loss_probability_threshold=0.0,
+        adaptive_loss_probability_threshold_source="EXPLICIT_ADAPTIVE_TUNING_SNAPSHOT",
+        adaptive_tuning_validation_status="PASS",
+    )
+    assert "PRE_TRADE_LOSS_PROBABILITY_ABOVE_ALLOWED_BOUND" in live_reasons
 
     above_exploration_bound = {
         **intent,
@@ -9502,7 +9526,12 @@ def test_scoped_exploration_uses_its_frozen_loss_bound_at_final_admission(legacy
         adaptive_tuning_validation_status="PASS",
     )
     assert "PRE_TRADE_LOSS_PROBABILITY_ABOVE_ALLOWED_BOUND" not in above_bound_reasons
-    assert "PAPER_RISK_CONTROLLER_EXPLORATION_LOSS_PROBABILITY_ABOVE_BOUND" in (above_bound_reasons)
+    assert "PAPER_RISK_CONTROLLER_EXPLORATION_LOSS_PROBABILITY_ABOVE_BOUND" not in (
+        above_bound_reasons
+    )
+    assert "PAPER_RISK_CONTROLLER_EXPLORATION_LOSS_PROBABILITY_ABOVE_BOUND" in (
+        above_exploration_bound["preemptive_trading_policy_telemetry_reasons"]
+    )
 
 
 def test_materialization_queue_preserves_calibrated_loss_probability_on_revalidation() -> None:

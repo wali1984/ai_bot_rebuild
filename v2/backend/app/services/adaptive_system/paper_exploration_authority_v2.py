@@ -1,29 +1,41 @@
-"""Central paper-exploration blocker classification (operator directive 2026-07-31).
+"""Central paper blocker classification (operator directives 2026-07-31).
 
 One classification, applied mechanically at every downstream boundary:
 
     HARD_SAFETY          -> may block
     EXECUTION_INTEGRITY  -> may block
-    TRADING_POLICY       -> telemetry only under paper exploration; never blocks
+    TRADING_POLICY       -> telemetry only in paper mode; never blocks
 
-The prior design scattered per-lane exemptions (bootstrap positivity carve-out,
-side-gate strip lists, Category-E advisory allow-lists) across the funnel.  This
-module replaces that pattern with a single fail-closed taxonomy: a reason is
-telemetry-only if and only if it is explicitly classified TRADING_POLICY here.
-Anything unknown blocks exactly as before (UNCLASSIFIED == blocking), so a new
-reason string can never silently lose authority.
+STRUCTURAL PAPER SEMANTICS (final directive 2026-07-31): for every paper
+candidate, at every boundary, policy_gate_authority is False.  That authority
+loss derives from the candidate being structurally paper
+(paper_only=True, routes_to_live!=True, places_real_order!=True) — NOT from an
+environment variable, bootstrap mode, exploration mode, opportunity tier,
+champion/challenger state, Guardian status or trainer readiness.  The env
+lever PAPER_EXPLORATION_OVERRIDE is retained as TELEMETRY ONLY and has no
+authority over production paper semantics.
+
+The taxonomy is fail-closed: a reason is telemetry-only if and only if it is
+explicitly classified TRADING_POLICY here.  Anything unknown blocks exactly as
+before (UNCLASSIFIED == blocking), so a new reason string can never silently
+lose authority.
 
 TRADING_POLICY covers exactly the operator-enumerated families: expectancy,
-expected P&L, utility, confidence, loss-probability preference, historical
-side/bucket performance, regime preference, positive-edge requirement, trainer
-readiness, posterior state, maturation state and serving-trust preference.
+expected P&L/return/utility, information gain (including nonpositive),
+confidence and calibrated confidence, loss-probability preference, historical
+side/bucket performance and previous losses, regime preference, opportunity
+grade/tier, exploration quota, champion/challenger state, positive-edge
+requirement, trainer readiness, serving-trust preference, posterior maturity/
+uncertainty/prior-only state, calibration age/tuning TTL, maturation and
+training-consumption state, held-out coverage, first-bootstrap-close result,
+and reduced-budget/B/A-grade economic qualification.
 
 Explicitly NOT policy (always retain blocking authority): authentication,
 PIT/causality/clock integrity, venue feasibility and exchange filters,
 accounting/reservation/duplicate protection, exposure/leverage/liquidation/
 drawdown envelopes, mandatory protective exits, portfolio-truth freezes,
 kill-switch/guardian halts with catastrophic mandate, operator symbol
-exclusions, allocator sizing authority, and every live-authorization rail.
+exclusions, allocator capacity authority, and every live-authorization rail.
 
 Paper-only: this module is consulted only on paper intents; live authority is
 untouched and remains BLOCKED.
@@ -31,6 +43,9 @@ untouched and remains BLOCKED.
 from __future__ import annotations
 
 import os
+
+PAPER_POLICY_GATE_AUTHORITY = False
+"""Structural constant: no policy gate has blocking authority over paper."""
 
 HARD_SAFETY = "HARD_SAFETY"
 EXECUTION_INTEGRITY = "EXECUTION_INTEGRITY"
@@ -93,6 +108,36 @@ _TRADING_POLICY_EXACT = frozenset(
         # -- authorization-lane policy preferences --------------------------
         "BOOTSTRAP_REQUIRES_NO_POSITIVE_UTILITY_EXPLORATION",
         "BOOTSTRAP_REQUIRES_FLAT_CHAMPION_BASELINE",
+        "bootstrap_requires_no_positive_utility_exploration",
+        "bootstrap_requires_flat_champion_baseline",
+        # -- information gain (directive: nonpositive gain may not block) ----
+        "BOOTSTRAP_REQUIRES_POSITIVE_INFORMATION_GAIN",
+        "bootstrap_requires_positive_information_gain",
+        "INFORMATION_GAIN_NONPOSITIVE",
+        "POSITIVE_UTILITY_EXPLORATION_EXISTS",
+        "CHAMPION_DIRECTIONAL_POSITIVE_UTILITY",
+        # -- allocator economics (expected return / confidence preference) --
+        # The runtime allocator emits lowercase reason strings; the prior
+        # uppercase-only enumeration missed them, which kept BLOCK_NO_EDGE
+        # authoritative on paper intents.
+        "expected_move_after_cost_not_positive",
+        "BLOCK_NO_EDGE",
+        "ALLOCATOR_HARD_BLOCK:BLOCK_NO_EDGE",
+        "BLOCK_LOW_CONFIDENCE",
+        "ALLOCATOR_HARD_BLOCK:BLOCK_LOW_CONFIDENCE",
+        "confidence_below_adaptive_minimum",
+        "CONFIDENCE_EXECUTABLE_TRADE_BELOW_DYNAMIC_EXPLORATION_FLOOR",
+        "CONFIDENCE_EXECUTABLE_TRADE_MISSING",
+        # -- loss-cluster / quarantine preference (previous losses) ---------
+        "LOSS_CLUSTER_OR_QUARANTINE_ACTIVE",
+        "SIDE_BUCKET_EXPECTANCY_NON_POSITIVE",
+        "SIDE_CONFIDENCE_BELOW_FLOOR",
+        # -- churn/equity-bleed governor (previous-losses economics) --------
+        "PAPER_CHURN_EQUITY_BLEED_GOVERNOR_BLOCKED",
+        # -- calibration age / B-grade economic qualification ---------------
+        "B_GRADE_CALIBRATION_SAFETY_HALTED",
+        # -- opportunity grade / tier gating --------------------------------
+        "NOT_A_PLUS_CANDIDATE",
     }
 )
 
@@ -102,10 +147,13 @@ _TRADING_POLICY_PREFIXES = (
     "SIDE_GATE_BLOCK:",
     "OUTCOME_MEMORY_BLOCK:",
     "EXPECTED_MOVE_",
+    "expected_move_",
     "PRE_TRADE_LOSS_PROBABILITY_AT_OR_ABOVE_ADAPTIVE_THRESHOLD",
     "PREEMPTIVE_DECISION_DENIES_",
     "PAPER_LOSS_BUCKET_QUARANTINE_MATCH:",
     "FINAL_ADMISSION_CURRENT_EXPECTED_NET_PNL_NOT_POSITIVE",
+    # opportunity grade / tier gating (grade may rank and size, never reject)
+    "NON_EXECUTABLE_PAPER_TIER:",
 )
 
 # ---------------------------------------------------------------------------
@@ -165,10 +213,35 @@ def classify_paper_blocker(reason: object) -> str:
 
 
 def paper_exploration_override_enabled() -> bool:
-    """Operator lever (paper lane only).  Default ON per 2026-07-31 directive."""
+    """TELEMETRY ONLY (final directive 2026-07-31).
+
+    This env lever must have NO authority over production paper semantics.
+    Paper policy-gate bypass derives structurally from the candidate being
+    paper (see structural_paper_candidate); this function exists only so the
+    lever's observed value can be recorded in telemetry.
+    """
 
     raw = os.environ.get(PAPER_EXPLORATION_OVERRIDE_ENV, "true")
     return str(raw).strip().lower() in ("1", "true", "yes", "on")
+
+
+def structural_paper_candidate(intent) -> bool:
+    """True iff the candidate is structurally paper (the ONLY basis on which
+    TRADING_POLICY reasons lose blocking authority).
+
+    Derives from paper_only=True plus the two live-authority negatives; never
+    from env vars, bootstrap/exploration mode, tier, champion state, Guardian
+    status or trainer readiness.
+    """
+
+    try:
+        return bool(
+            intent.get("paper_only") is True
+            and intent.get("routes_to_live") is not True
+            and intent.get("places_real_order") is not True
+        )
+    except AttributeError:
+        return False
 
 
 def partition_paper_exploration_blockers(
@@ -177,8 +250,9 @@ def partition_paper_exploration_blockers(
     """Mechanical partition: (still_blocking, trading_policy_telemetry).
 
     Order-preserving and duplicate-preserving so downstream evidence records
-    keep their exact shape.  The caller applies this ONLY on paper intents and
-    ONLY when paper_exploration_override_enabled() is True.
+    keep their exact shape.  The caller applies this on every structurally
+    paper candidate (structural_paper_candidate); the PAPER_EXPLORATION_OVERRIDE
+    env lever must not condition it.
     """
 
     blocking: list[str] = []

@@ -256,8 +256,13 @@ def evaluate(r) -> dict:
     dup_closes = len(close_ids) - len(set(close_ids))
 
     # I08 accounting conservation (current-session scope)
+    # The portfolio ledger's realized_pnl_usd is NET (paper_net_pnl_formula:
+    # gross - entry/exit fees - slippage + funding), so the per-close sum must
+    # use the matching net field first; summing gross against the net ledger
+    # produced a false FAIL equal to total costs (verified 2026-07-31: net sum
+    # reconciled to ledger within 1e-9 while gross diff was 0.0718).
     def _pnl(t):
-        for k in ("realized_pnl_usd", "net_realized_pnl_usd", "realized_pnl"):
+        for k in ("realized_net_pnl_usd", "net_realized_pnl_usd", "realized_pnl_usd", "realized_pnl"):
             if isinstance(t, dict) and t.get(k) is not None:
                 try:
                     return float(t[k])

@@ -22,9 +22,6 @@ from typing import Any
 from v2.backend.app.domain.adaptive_component_estimates_v1 import (
     AUTHORITY_MODE as COMPONENT_AUTHORITY_MODE,
 )
-from v2.backend.app.services.adaptive_system.paper_exploration_authority_v2 import (
-    paper_exploration_override_enabled as _paper_exploration_override_enabled,
-)
 from v2.backend.app.domain.adaptive_component_estimates_v1 import (
     AVAILABLE,
     CALIBRATED_PROBABILITY,
@@ -1296,23 +1293,17 @@ def _hard_check_inputs(
     ):
         failures.append("venue_and_physical_feasibility")
     open_position_count = paper_status.get("open_position_count")
-    # Authority correction (2026-07-31): position-state validity means a
-    # COHERENT paper position state, not an EMPTY one.  The former
-    # `open_position_count == 0` requirement for directional actions was the
-    # binding single-flight rail (max one open position system-wide);
-    # concurrency is now governed by the adaptive allocator and hard-risk
-    # envelope (margin buffer, exposure, correlation, liquidation capacity)
-    # plus the lifecycle's per-symbol duplicate guard.  The legacy rail
-    # applies when the paper exploration override is disabled.
+    # Structural paper semantics (final directive 2026-07-31): position-state
+    # validity means a COHERENT paper position state, not an EMPTY one.  The
+    # former `open_position_count == 0` requirement for directional actions
+    # was the binding single-flight rail (max one open position system-wide);
+    # concurrency is governed by the adaptive allocator and hard-risk envelope
+    # (margin buffer, exposure, correlation, liquidation capacity) plus the
+    # lifecycle's per-symbol duplicate guard.  No env lever conditions this.
     position_state_valid = (
         paper_status.get("paper_only") is True
         and type(open_position_count) is int
         and open_position_count >= 0
-        and (
-            not requires_physical_execution
-            or open_position_count == 0
-            or _paper_exploration_override_enabled()
-        )
     )
     if not position_state_valid:
         failures.append("position_transition_validity")
@@ -2688,12 +2679,12 @@ def _bootstrap_information_acquisition_selection(
 ) -> str | None:
     """Resolve the designated venue-minimum information-acquisition action.
 
-    Fires only when no positive-utility action exists anywhere in the
-    evaluation (the champion resolved to the hard-valid flat baseline and no
-    exploration action cleared the positive learned objective).  Monetary
-    utility is deliberately not required to be positive; the selected input
-    must already be hard-valid and venue-executable with strictly positive
-    expected information gain.  The SELECTION predicate is mirrored in
+    Fires only when the evaluation surfaced no exploration action at all (the
+    champion resolved to the hard-valid flat baseline and no hard-valid
+    directional input existed for exploration selection).  Neither monetary
+    utility nor expected information gain is required to be positive (final
+    paper directive 2026-07-31): the selected input must already be hard-valid
+    and venue-executable.  The SELECTION predicate is mirrored in
     ``select_reference_action_id`` (same validated designation object passed
     to both sides, like ``bounded_exploration_probability``), so a
     production-only change to the selection rule becomes a parity
@@ -2736,7 +2727,6 @@ def _bootstrap_information_acquisition_selection(
         and item.selected_action == ACTION_DIRECTIONAL_TRADE
         and item.action_id.endswith(side_suffixes)
         and item.hard_constraints_satisfied is True
-        and item.expected_information_gain > 0.0
     )
     if len(matches) != 1:
         return None
@@ -3285,22 +3275,19 @@ def build_adaptive_policy_shadow_candidate(
         16,
     ) / float(2**64)
     choose_exploration = draw < allocation.bounded_exploration_probability
-    # Bounded exploration escape from the data-starvation deadlock.  When
-    # the champion (exploitation) action resolves to REMAIN_FLAT -- i.e. no
-    # positive-edge directional action exists, so every candidate would
-    # otherwise stay flat and generate no training feedback -- and a bounded
-    # exploration action carries a strictly positive LEARNED OBJECTIVE,
-    # deterministically select it.
-    # ``exploration_action_id`` is only
-    # non-None when the exploration score already satisfies utility > 0.0 AND
-    # information_gain_contribution > 0.0 (adaptive_objective_v2.best), and
-    # Utility includes per-opportunity log growth, return, information, and all
-    # learned risk/cost penalties.  Terminal probability and full-horizon
-    # compounded growth are telemetry only.  It is a no-op when
-    # the champion is already directional or when no positive-objective
-    # exploration action exists, and it runs strictly AFTER the reference-parity
-    # formula check above.  The final action id is independently replayed below
-    # as a second parity check, so selection itself cannot drift silently.
+    # Bounded exploration escape from the data-starvation deadlock.  When the
+    # champion (exploitation) action resolves to REMAIN_FLAT and a hard-valid
+    # bounded exploration action exists, deterministically select it.  Final
+    # paper directive 2026-07-31 item 5: the former strictly-positive learned
+    # objective precondition was a TRADING_POLICY veto (negative utility /
+    # nonpositive information gain may rank and size but never force
+    # REMAIN_FLAT while a hard-valid candidate exists).  Utility still ranks
+    # candidates inside adaptive_objective_v2.best; terminal probability and
+    # full-horizon compounded growth remain telemetry only.  This mirrors
+    # select_reference_action_id exactly and runs strictly AFTER the
+    # reference-parity formula check above; the final action id is
+    # independently replayed below as a second parity check, so selection
+    # itself cannot drift silently.
     champion_score = next(
         (
             score
@@ -3313,27 +3300,9 @@ def build_adaptive_policy_shadow_candidate(
         champion_score is not None
         and champion_score.selected_action == ACTION_REMAIN_FLAT
     )
-    exploration_score = (
-        next(
-            (
-                score
-                for score in evaluation.scores
-                if score.action_id == evaluation.exploration_action_id
-            ),
-            None,
-        )
-        if evaluation.exploration_action_id is not None
-        else None
-    )
-    information_gain_exploration_objective_positive = (
-        exploration_score is not None
-        and exploration_score.utility is not None
-        and exploration_score.utility > 0.0
-    )
     deterministic_information_seeking_exploration = (
         champion_is_remain_flat
         and evaluation.exploration_action_id is not None
-        and information_gain_exploration_objective_positive
     )
     selected_id = (
         evaluation.exploration_action_id
@@ -3458,11 +3427,23 @@ def build_adaptive_policy_shadow_candidate(
             / 10_000.0
         )
         selected_minimum = selected_id == minimum_action_id
+        # Final paper directive 2026-07-31: a SELECTED venue-minimum action is
+        # labeled as selected regardless of utility/information-gain sign —
+        # nonpositive learned metrics rank and size, they no longer reject, so
+        # a rejection-flavored reason on a selected action would be dishonest
+        # telemetry.
         if not minimum_input.hard_constraints_satisfied:
             selection_reason = "VENUE_MINIMUM_HARD_RISK_OR_INTEGRITY_REJECTED"
         elif selected_minimum and bootstrap_selected_id == minimum_action_id:
             selection_reason = (
                 "VENUE_MINIMUM_BOOTSTRAP_INFORMATION_ACQUISITION_SELECTED"
+            )
+        elif selected_minimum:
+            selection_reason = (
+                "VENUE_MINIMUM_POSITIVE_UTILITY_SELECTED"
+                if minimum_score.utility is not None
+                and minimum_score.utility > 0.0
+                else "VENUE_MINIMUM_EXPLORATION_SELECTED_UTILITY_NONPOSITIVE"
             )
         elif minimum_score.utility is None or minimum_score.utility <= 0.0:
             selection_reason = "VENUE_MINIMUM_RECOMPUTED_UTILITY_NONPOSITIVE"
@@ -3470,8 +3451,6 @@ def build_adaptive_policy_shadow_candidate(
             minimum_score.information_gain_contribution <= 0.0
         ):
             selection_reason = "VENUE_MINIMUM_INFORMATION_GAIN_NONPOSITIVE"
-        elif selected_minimum:
-            selection_reason = "VENUE_MINIMUM_POSITIVE_UTILITY_SELECTED"
         else:
             selection_reason = "VENUE_MINIMUM_POSITIVE_BUT_SUPERIOR_ACTION_SELECTED"
         venue_minimum_comparisons.append(
