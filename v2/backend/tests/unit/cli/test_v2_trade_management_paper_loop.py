@@ -10723,9 +10723,9 @@ def test_paper_allocation_keeps_conservative_high_water_bracket_after_rounding()
 @pytest.mark.parametrize(
     ("symbol", "authenticated_max_leverage", "expected_ceiling"),
     (
-        ("BTCUSDT", 100, 75),
-        ("SOLUSDT", 100, 50),
-        ("DOGEUSDT", 100, 20),
+        ("BTCUSDT", 100, 100),
+        ("SOLUSDT", 100, 100),
+        ("DOGEUSDT", 100, 25),
         ("BTCUSDT", 17, 17),
     ),
 )
@@ -10747,9 +10747,9 @@ def test_paper_allocation_derives_integer_leverage_ladder_from_authenticated_bra
         redis_key,
     )
 
-    monkeypatch.setenv("PAPER_MAX_LEVERAGE_MAJOR_TIER1", "75")
-    monkeypatch.setenv("PAPER_MAX_LEVERAGE_MAJOR_TIER2", "50")
-    monkeypatch.setenv("PAPER_MAX_LEVERAGE_ALT", "20")
+    monkeypatch.setenv("PAPER_MAX_LEVERAGE_MAJOR_TIER1", "100")
+    monkeypatch.setenv("PAPER_MAX_LEVERAGE_MAJOR_TIER2", "100")
+    monkeypatch.setenv("PAPER_MAX_LEVERAGE_ALT", "25")
     observed = datetime(2026, 7, 17, 12, 0, tzinfo=timezone.utc)
     decision_time = observed.replace(minute=1)
     security_context = build_evidence_security_context(
@@ -10815,7 +10815,7 @@ def test_paper_allocation_derives_integer_leverage_ladder_from_authenticated_bra
         float(value) for value in range(1, expected_ceiling + 1)
     )
     assert effective_input.lineage_ids["authorized_symbol_leverage_ceiling"] == (
-        75.0 if symbol == "BTCUSDT" else 50.0 if symbol == "SOLUSDT" else 20.0
+        100.0 if symbol in {"BTCUSDT", "SOLUSDT"} else 25.0
     )
     assert effective_input.lineage_ids["evidence_bound_leverage_ceiling"] == (expected_ceiling)
     assert effective_input.lineage_ids["permitted_leverage_values_source"] == (

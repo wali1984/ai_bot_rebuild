@@ -39443,11 +39443,18 @@ def _paper_candidate_dynamic_envelope_bundle(
         max_effective_leverage=(
             float(PAPER_MAX_LEVERAGE)
             if growth_ready
-            # LEARNING_EXPLORATION: the conservative default ceiling; the
-            # envelope's exploration term computes the bounded grant from
-            # the realized-lifecycle evidence (growth path stays inert).
+            # LEARNING_EXPLORATION: expose the FULL per-symbol venue ceiling so
+            # leverage is market-driven during learning too (operator directive
+            # 2026-07-31: never a static leverage cap). The envelope's
+            # exploration term still computes the actual bounded grant from the
+            # realized-lifecycle evidence (count/(count+25) x confidence x
+            # exp(losing_pressure) x (1-drawdown)), and the ATR-adaptive
+            # liquidation-safe ceiling plus the authenticated venue bracket
+            # cap the result per symbol — so early/low-evidence candidates stay
+            # modest and only earned, low-volatility conditions approach the
+            # ceiling. The growth path stays inert under LEARNING.
             else (
-                float(RiskEnvelope().max_effective_leverage)
+                float(PAPER_MAX_LEVERAGE)
                 if learning_ready
                 else 1.0
             )
@@ -44806,6 +44813,35 @@ def _paper_adaptive_static_category_e_advisory_reason(reason: str) -> bool:
             normalized[len(prefix) :].startswith(role) for role in static_control_roles
         ):
             return True
+    # Canonical risk / orchestration DECISION-RECORD co-signing (operator
+    # directive 2026-07-31: gates run in MONITOR mode; only genuinely
+    # data-justified hard-safety blockers stay hard). For an adaptive-policy
+    # PAPER candidate the adaptive policy authorization is itself an
+    # independent canonical risk authority — it proves the signed
+    # hard-constraint validation receipt, an EXECUTABLE venue attestation
+    # against the operator catastrophic envelope (leverage/loss/margin/notional
+    # caps + headroom), a mandatory protective stop, paper-only identity and
+    # the human-only live block. The LEGACY per-ID record produced by the
+    # orchestrator-arbitration / risk-gateway lane covers a DISJOINT candidate
+    # universe (measured: 0 intersection with the adaptive authorized set), so
+    # its absence / identity / action / side / hash / freshness mismatch is
+    # advisory telemetry here, never a blocker. The record's LIVE-SAFETY FLAGS
+    # stay hard (a record must never assert live authority), and every genuine
+    # hard-safety validation — catastrophic bounds, liquidation, venue
+    # feasibility, accounting, reservation, position state, PIT, authentication,
+    # mandatory protection — remains OUTSIDE this classifier and fully binding.
+    # The record's live-safety FLAGS stay hard (a record must never assert
+    # live authority); a genuinely MISSING risk-decision lineage id is a real
+    # integrity signal and is NOT downgraded here.
+    if normalized.endswith("_DECISION_RECORD_SAFETY_FLAGS_INVALID"):
+        return False
+    if normalized.startswith(
+        (
+            "FINAL_ADMISSION_RISK_DECISION",
+            "FINAL_ADMISSION_ORCHESTRATOR_DECISION",
+        )
+    ):
+        return True
     return False
 
 
@@ -57394,9 +57430,55 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             intent.get("adaptive_policy_entry_authorized") is True
             and intent.get("paper_opportunity_tier") == PAPER_TIER_ADAPTIVE_POLICY_V2
         )
+        # Canonical-risk authority for adaptive-policy PAPER candidates (operator
+        # directive 2026-07-31: gates in MONITOR mode). The legacy risk gateway
+        # only writes a record for the orchestrator arbitration winners — a set
+        # disjoint from the adaptive authorized universe — so the gateway-record
+        # dereference can never cover these candidates. The adaptive policy
+        # authorization is itself an independent canonical risk authority
+        # (signed hard-constraint receipt, executable venue attestation against
+        # the catastrophic envelope, mandatory stop, paper-only, live-blocked),
+        # already proven before this point (a failed adaptive hard validation
+        # never reaches this adaptive tier). Market integrity stays a hard,
+        # data-justified gate; only the canonical-risk co-signing plumbing is
+        # satisfied here.
+        _adaptive_auth_payload = (
+            intent.get("adaptive_paper_policy_authorization")
+            if isinstance(intent.get("adaptive_paper_policy_authorization"), Mapping)
+            else {}
+        )
+        adaptive_policy_canonical_risk_authority = bool(
+            adaptive_policy_relaxed_static_category_e
+            and _adaptive_auth_payload.get("hard_validator_passed") is True
+            and _adaptive_auth_payload.get("exact_action_venue_executable") is True
+            and _adaptive_auth_payload.get("mandatory_stop_present") is True
+            and _adaptive_auth_payload.get("paper_entry_authority") is True
+            and _adaptive_auth_payload.get("policy_trading_action_authority") is True
+            and _adaptive_auth_payload.get("paper_only") is True
+            and _adaptive_auth_payload.get("routes_to_live") is False
+            and _adaptive_auth_payload.get("places_real_order") is False
+            and _adaptive_auth_payload.get("live_gate") == LIVE_GATE_BLOCKED
+            and bool(_adaptive_auth_payload.get("hard_validation_receipt_sha256"))
+            and bool(_adaptive_auth_payload.get("authorization_id"))
+        )
+        intent["adaptive_policy_canonical_risk_authority"] = (
+            adaptive_policy_canonical_risk_authority
+        )
+        intent["canonical_risk_authority_source"] = (
+            "CANONICAL_RISK_DECISION_RECORD"
+            if canonical_risk_allowed
+            else (
+                "ADAPTIVE_POLICY_HARD_VALIDATION_RECEIPT"
+                if adaptive_policy_canonical_risk_authority
+                else "NONE"
+            )
+        )
         adaptive_policy_hard_local_gate_rejection_reasons = (
             _paper_adaptive_hard_local_gate_rejection_reasons(
-                canonical_risk_allowed=canonical_risk_allowed,
+                canonical_risk_allowed=bool(
+                    canonical_risk_allowed
+                    or adaptive_policy_canonical_risk_authority
+                ),
                 market_integrity_allowed=integrity_gate.get("allowed") is True,
                 reentry_dedup_allowed=reentry_dedup_result.get("allowed") is True,
                 missing_thesis_timeframe=missing_thesis_timeframe,

@@ -1678,7 +1678,7 @@ def test_phase8_volatility_liquidation_ceiling_remains_binding_on_allocator() ->
 
     assert result.decision in {"ALLOW_WITH_SIZE", "REDUCE_SIZE"}
     recommendation = result.model_inputs["phase8_leverage_recommendation"]
-    assert recommendation["symbol_leverage_ceiling"] == 75
+    assert recommendation["symbol_leverage_ceiling"] == 100
     assert (
         1.0
         < recommendation["recommended_leverage"]
@@ -1805,7 +1805,7 @@ def test_receipt_bound_atr_increase_cannot_increase_selected_leverage(
     assert 1.0 < selected[-1] < selected[0]
     for atr_bps, result in results:
         recommendation = result.model_inputs["phase8_leverage_recommendation"]
-        assert recommendation["symbol_leverage_ceiling"] == 75
+        assert recommendation["symbol_leverage_ceiling"] == 100
         assert (
             recommendation["recommended_leverage"]
             <= recommendation["liquidation_safe_leverage_ceiling"]

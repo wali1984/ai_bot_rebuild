@@ -913,7 +913,7 @@ def test_operator_symbol_ceiling_is_enforced_independently() -> None:
         "DOGEUSDT",
         fill_id="fill-symbol-cap",
         notional=100.0,
-        leverage=21.0,
+        leverage=26.0,
         confidence=0.9,
     )
     candidate["adaptive_allocation"]["model_inputs"][  # type: ignore[index]
@@ -924,7 +924,7 @@ def test_operator_symbol_ceiling_is_enforced_independently() -> None:
     requirement = canonical_margin_requirement(candidate)
 
     assert requirement["valid"] is False
-    assert requirement["operator_authorized_symbol_leverage_ceiling"] == 20.0
+    assert requirement["operator_authorized_symbol_leverage_ceiling"] == 25.0
     assert "EFFECTIVE_LEVERAGE_EXCEEDS_OPERATOR_SYMBOL_CEILING" in requirement["invalid_reasons"]
 
 
@@ -1168,7 +1168,7 @@ def test_valid_usdc_perpetual_symbol_uses_alt_ceiling_without_static_allowlist()
     requirement = canonical_margin_requirement(candidate)
 
     assert requirement["valid"] is True
-    assert requirement["operator_authorized_symbol_leverage_ceiling"] == 20.0
+    assert requirement["operator_authorized_symbol_leverage_ceiling"] == 25.0
 
 
 def test_bracket_symbol_binding_must_match_candidate() -> None:

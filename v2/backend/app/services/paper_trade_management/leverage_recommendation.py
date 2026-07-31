@@ -56,26 +56,37 @@ def _env_float(name: str, default: float) -> float:
         return default
 
 
-# Immutable per-symbol leverage CEILINGS (the MAX of an adaptive range, not a
-# static market-selection grant). Operator directive 2026-07-18.
-#   Tier-1 majors  BTC/ETH        -> up to 75x
-#   Tier-2 majors  SOL/LTC/XRP    -> up to 50x
-#   All other alts                -> up to 20x
-# Every tier is still EARNED through positive after-cost edge + calibrated
-# confidence + low volatility + liquidation safety. A non-positive after-cost
-# edge caps at 1x regardless of symbol, so a negative-edge book stays at 1x.
-_TIER1_MAJOR_SYMBOLS = frozenset({"BTCUSDT", "ETHUSDT"})
-_TIER2_MAJOR_SYMBOLS = frozenset({"SOLUSDT", "LTCUSDT", "XRPUSDT"})
+# Per-symbol leverage CEILINGS = the MAX of a fully market-driven adaptive
+# range, NEVER a static grant. Operator directive 2026-07-31: the pipeline
+# decides leverage/margin from market conditions; top-tier majors may reach up
+# to 100x, alts up to 25x.
+#   Top-tier majors  BTC/ETH/SOL/LTC/XRP -> up to 100x
+#   All other alts                        -> up to 25x
+# This ceiling is only the OUTER operator-safety bound. The BINDING per-symbol
+# max is the smaller of: the authenticated Binance venue leverage bracket for
+# the symbol (read at decision time from maintenance-bracket evidence) and the
+# ADAPTIVE liquidation-safe ceiling (_liquidation_safe_max_leverage, a
+# continuous function of ATR — tight ranges permit more, choppy markets force
+# it down). Every point in the range is still EARNED through the realized
+# evidence envelope; a non-positive after-cost edge collapses to 1x. No static
+# strategy threshold selects a leverage; only these data-derived safety bounds
+# cap it.
+_TOP_TIER_MAJOR_SYMBOLS = frozenset(
+    {"BTCUSDT", "ETHUSDT", "SOLUSDT", "LTCUSDT", "XRPUSDT"}
+)
 
 
 def symbol_leverage_ceiling(symbol: str) -> int:
-    """Return the immutable operator-authorized PAPER symbol ceiling."""
+    """Return the operator-authorized PAPER outer leverage ceiling.
+
+    Top-tier majors are capped at 100x, all other symbols at 25x. The
+    authenticated venue bracket and the adaptive liquidation-safe ceiling
+    constrain the actual usable leverage per symbol below this bound.
+    """
     s = (symbol or "").upper().strip()
-    if s in _TIER1_MAJOR_SYMBOLS:
-        return 75
-    if s in _TIER2_MAJOR_SYMBOLS:
-        return 50
-    return 20
+    if s in _TOP_TIER_MAJOR_SYMBOLS:
+        return 100
+    return 25
 
 
 def _liquidation_safe_max_leverage(
@@ -111,14 +122,16 @@ def _liquidation_safe_max_leverage(
 
 SCHEMA_VERSION = "v2_leverage_recommendation_v2"
 
-# Absolute paper safety ceiling = the highest symbol tier (Tier-1, 75x).
-# 2026-07-18 operator directive: leverage is now per-symbol adaptive
-# (BTC/ETH<=75x, SOL/LTC/XRP<=50x, alts<=20x) — see symbol_leverage_ceiling().
-# The recommendation is a continuous point in an adaptive range;
-# the dynamic risk envelope (scaled by REALIZED win rate / profit factor /
-# confidence / drawdown) remains the BINDING per-cycle cap, so higher tiers are
-# earned, never granted statically, and a non-positive after-cost edge -> 1x.
-PAPER_MAX_LEVERAGE = 75
+# Absolute paper safety ceiling = the highest symbol tier (top-tier majors,
+# 100x). 2026-07-31 operator directive: leverage is fully market-driven and
+# per-symbol adaptive (top-tier majors <=100x, alts <=25x) — see
+# symbol_leverage_ceiling(). The recommendation is a continuous point in an
+# adaptive range; the dynamic risk envelope (scaled by REALIZED win rate /
+# profit factor / confidence / drawdown) plus the authenticated venue bracket
+# and the ATR-adaptive liquidation-safe ceiling remain the BINDING caps, so
+# higher leverage is EARNED by market/realized evidence, never granted
+# statically, and a non-positive after-cost edge -> 1x.
+PAPER_MAX_LEVERAGE = 100
 PAPER_MAX_CONFIDENCE_BUDGET_PCT = 0.05  # 5% of equity max per trade
 PAPER_MAX_LOSS_BUDGET_USD = 50.0
 

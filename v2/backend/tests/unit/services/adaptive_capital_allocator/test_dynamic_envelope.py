@@ -186,7 +186,7 @@ def test_favorable_realized_evidence_can_earn_higher_paper_leverage() -> None:
 
 def test_favorable_evidence_respects_authorized_per_symbol_ceiling() -> None:
     arguments: dict[str, Any] = {
-        "base_envelope": RiskEnvelope(max_effective_leverage=75.0),
+        "base_envelope": RiskEnvelope(max_effective_leverage=100.0),
         "win_rate": 0.90,
         "profit_factor": 5.0,
         "closed_trade_count": 500,
@@ -204,9 +204,9 @@ def test_favorable_evidence_respects_authorized_per_symbol_ceiling() -> None:
     sol = calculate_dynamic_risk_envelope(symbol="SOLUSDT", **arguments)
     alt = calculate_dynamic_risk_envelope(symbol="DOGEUSDT", **arguments)
 
-    assert 1.0 < alt.max_effective_leverage <= 20.0
-    assert alt.max_effective_leverage < sol.max_effective_leverage <= 50.0
-    assert sol.max_effective_leverage < btc.max_effective_leverage <= 75.0
+    assert 1.0 < alt.max_effective_leverage <= 25.0
+    assert alt.max_effective_leverage < sol.max_effective_leverage <= 100.0
+    assert sol.max_effective_leverage == btc.max_effective_leverage <= 100.0
 
 
 def test_configured_cap_intersects_symbol_and_global_ceiling() -> None:
@@ -243,7 +243,7 @@ def test_configured_cap_intersects_symbol_and_global_ceiling() -> None:
 
 def test_exact_operator_symbol_tier_ceilings_remain_binding() -> None:
     arguments: dict[str, Any] = {
-        "base_envelope": RiskEnvelope(max_effective_leverage=75.0),
+        "base_envelope": RiskEnvelope(max_effective_leverage=100.0),
         "win_rate": 1.0,
         "profit_factor": 1e300,
         "closed_trade_count": 10**100,
@@ -260,12 +260,12 @@ def test_exact_operator_symbol_tier_ceilings_remain_binding() -> None:
     }
 
     expected = {
-        "BTCUSDT": 75.0,
-        "ETHUSDT": 75.0,
-        "SOLUSDT": 50.0,
-        "LTCUSDT": 50.0,
-        "XRPUSDT": 50.0,
-        "DOGEUSDT": 20.0,
+        "BTCUSDT": 100.0,
+        "ETHUSDT": 100.0,
+        "SOLUSDT": 100.0,
+        "LTCUSDT": 100.0,
+        "XRPUSDT": 100.0,
+        "DOGEUSDT": 25.0,
     }
 
     observed = {
