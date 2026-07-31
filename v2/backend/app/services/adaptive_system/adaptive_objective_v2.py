@@ -20,6 +20,9 @@ from v2.backend.app.domain.adaptive_policy_action_v2 import (
     POLICY_MODE_BOUNDED_EXPLORATION,
     POLICY_MODE_CHAMPION_EXPLOITATION,
 )
+from v2.backend.app.services.adaptive_system.paper_exploration_authority_v2 import (
+    paper_exploration_override_enabled as _paper_exploration_override_enabled,
+)
 
 SCHEMA_VERSION = "adaptive_portfolio_objective_v3"
 FIT_EVIDENCE_SCHEMA_VERSION = "fitted_objective_evidence_v2"
@@ -1112,6 +1115,10 @@ class AdaptiveObjectiveEvaluationV2:
         )
 
         def best(mode: str) -> str | None:
+            # Paper exploration semantics: utility/information-gain positivity
+            # is TRADING_POLICY ranking input, never an eligibility veto; only
+            # directionality and data validity (non-None) remain structural.
+            positivity_required = not _paper_exploration_override_enabled()
             eligible = [
                 item
                 for item in by_mode[mode]
@@ -1119,9 +1126,14 @@ class AdaptiveObjectiveEvaluationV2:
                 or (
                     item.selected_action != ACTION_REMAIN_FLAT
                     and item.utility is not None
-                    and item.utility > 0.0
                     and item.information_gain_contribution is not None
-                    and item.information_gain_contribution > 0.0
+                    and (
+                        not positivity_required
+                        or (
+                            item.utility > 0.0
+                            and item.information_gain_contribution > 0.0
+                        )
+                    )
                 )
             ]
             if mode == CHAMPION_EXPLOITATION and not hard_valid_flat_baseline:
@@ -1269,6 +1281,9 @@ def evaluate_shadow_objective(
     )
 
     def best(mode: str) -> str | None:
+        # Mirrors AdaptiveObjectiveEvaluationV2.__post_init__.best: positivity
+        # is policy ranking input under paper exploration, not eligibility.
+        positivity_required = not _paper_exploration_override_enabled()
         eligible = [
             item
             for item in scores
@@ -1279,9 +1294,14 @@ def evaluate_shadow_objective(
                 or (
                     item.selected_action != ACTION_REMAIN_FLAT
                     and item.utility is not None
-                    and item.utility > 0.0
                     and item.information_gain_contribution is not None
-                    and item.information_gain_contribution > 0.0
+                    and (
+                        not positivity_required
+                        or (
+                            item.utility > 0.0
+                            and item.information_gain_contribution > 0.0
+                        )
+                    )
                 )
             )
         ]

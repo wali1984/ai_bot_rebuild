@@ -11,6 +11,13 @@ import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
+
+@pytest.fixture
+def legacy_paper_authority(monkeypatch):
+    """Pin the pre-2026-07-31 authority contracts (override disabled)."""
+    monkeypatch.setenv("PAPER_EXPLORATION_LEGACY_AUTHORITY_FOR_TESTS", "true")
+
+
 from v2.backend.app.domain.adaptive_policy_action_v2 import (
     ACTION_DIRECTIONAL_TRADE,
     ACTION_REMAIN_FLAT,
@@ -893,7 +900,9 @@ def test_public_score_construction_cannot_forge_objective_arithmetic() -> None:
         _forged_score(score, utility=1_000_000.0)
 
 
-def test_zero_information_negative_utility_churn_is_not_exploration() -> None:
+def test_zero_information_negative_utility_churn_is_not_exploration(
+    legacy_paper_authority,
+) -> None:
     flat = _action(
         "flat",
         CHAMPION_EXPLOITATION,
@@ -918,6 +927,49 @@ def test_zero_information_negative_utility_churn_is_not_exploration() -> None:
     result = evaluate_shadow_objective((flat, churn), _weights(), _allocation())
     assert result.exploration_action_id is None
     assert "NO_EXECUTABLE_INFORMATION_SEEKING_ACTION" in result.failure_signals
+
+
+def test_nonpositive_utility_exploration_is_selectable_under_paper_semantics() -> None:
+    """Paper semantics (operator directive 2026-07-31): positivity of utility
+    and information gain is ranking input, not eligibility — the hard-valid
+    directional exploration input becomes ``exploration_action_id`` and the
+    independent reference implementation agrees in lockstep."""
+
+    from v2.backend.app.services.adaptive_system.adaptive_objective_reference_v2 import (
+        evaluate_reference_objective,
+    )
+
+    flat = _action(
+        "flat",
+        CHAMPION_EXPLOITATION,
+        selected_action=ACTION_REMAIN_FLAT,
+        expected_after_cost_return_bps=0.0,
+        expected_drawdown_contribution_bps=0.0,
+        expected_tail_loss_bps=0.0,
+        liquidation_risk_probability=0.0,
+        expected_market_impact_bps=0.0,
+        expected_funding_cost_bps=0.0,
+        expected_turnover_bps=0.0,
+        expected_concentration_bps=0.0,
+        expected_information_gain=0.0,
+    )
+    churn = _action(
+        "churn",
+        BOUNDED_EXPLORATION,
+        expected_after_cost_return_bps=-100.0,
+        expected_turnover_bps=10_000.0,
+        expected_information_gain=0.0,
+    )
+    result = evaluate_shadow_objective((flat, churn), _weights(), _allocation())
+    assert result.exploration_action_id == "churn"
+    churn_score = next(
+        score for score in result.scores if score.action_id == "churn"
+    )
+    assert churn_score.utility is not None
+    assert churn_score.utility <= 0.0
+    assert "NO_EXECUTABLE_INFORMATION_SEEKING_ACTION" not in result.failure_signals
+    reference = evaluate_reference_objective((flat, churn), _weights())
+    assert reference.exploration_action_id == "churn"
 
 
 @pytest.mark.parametrize("invalid", [None, object(), "not-an-allocation"])

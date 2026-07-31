@@ -12,11 +12,13 @@ import pytest
 from v2.backend.app.services.adaptive_system.paper_exploration_authority_v2 import (
     EXECUTION_INTEGRITY,
     HARD_SAFETY,
+    LEGACY_AUTHORITY_TEST_HOOK_ENV,
     PAPER_EXPLORATION_OVERRIDE_ENV,
     TRADING_POLICY,
     UNCLASSIFIED_FAIL_CLOSED,
     classify_paper_blocker,
     paper_exploration_override_enabled,
+    paper_exploration_override_env_status,
     partition_paper_exploration_blockers,
 )
 
@@ -119,19 +121,32 @@ def test_partition_preserves_order_and_splits_mixed_list() -> None:
 
 
 @pytest.mark.parametrize(
-    ("raw", "expected"),
-    [
-        (None, True),  # unset -> default ON per 2026-07-31 directive
-        ("false", False),
-        ("0", False),
-        ("on", True),
-    ],
+    "raw",
+    [None, "false", "0", "on", "true", "garbage"],
 )
-def test_override_env_lever(
-    monkeypatch: pytest.MonkeyPatch, raw: object, expected: bool
+def test_paper_semantics_are_structural_not_env_dependent(
+    monkeypatch: pytest.MonkeyPatch, raw: object
 ) -> None:
+    """Directive 2026-07-31 §1: paper execution semantics never revert to
+    policy blocking based on PAPER_EXPLORATION_OVERRIDE — missing, false, or
+    garbage values all leave the partition ACTIVE.  The variable is
+    observability only.
+    """
+
+    monkeypatch.delenv(LEGACY_AUTHORITY_TEST_HOOK_ENV, raising=False)
     if raw is None:
         monkeypatch.delenv(PAPER_EXPLORATION_OVERRIDE_ENV, raising=False)
     else:
         monkeypatch.setenv(PAPER_EXPLORATION_OVERRIDE_ENV, str(raw))
-    assert paper_exploration_override_enabled() is expected
+    assert paper_exploration_override_enabled() is True
+    status = paper_exploration_override_env_status()
+    assert status == ("<unset>" if raw is None else str(raw))
+
+
+def test_legacy_authority_hook_is_test_seam_only(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(LEGACY_AUTHORITY_TEST_HOOK_ENV, "true")
+    assert paper_exploration_override_enabled() is False
+    monkeypatch.setenv(LEGACY_AUTHORITY_TEST_HOOK_ENV, "false")
+    assert paper_exploration_override_enabled() is True

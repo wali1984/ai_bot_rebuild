@@ -17,6 +17,9 @@ from v2.backend.app.services.adaptive_system.adaptive_objective_v2 import (
     ActionObjectiveInputsV2,
     LearnedObjectiveWeightsV2,
 )
+from v2.backend.app.services.adaptive_system.paper_exploration_authority_v2 import (
+    paper_exploration_override_enabled as _paper_exploration_override_enabled,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -66,6 +69,9 @@ def evaluate_reference_objective(
     )
 
     def best(mode: str) -> str | None:
+        # Lockstep with production best(): positivity is policy ranking input
+        # under paper exploration, not an eligibility veto.
+        positivity_required = not _paper_exploration_override_enabled()
         eligible: list[tuple[float, str]] = []
         for action in actions:
             utility = utilities[action.action_id]
@@ -73,8 +79,10 @@ def evaluate_reference_objective(
                 continue
             if mode == BOUNDED_EXPLORATION and (
                 action.selected_action == ACTION_REMAIN_FLAT
-                or utility <= 0.0
-                or action.expected_information_gain <= 0.0
+                or (
+                    positivity_required
+                    and (utility <= 0.0 or action.expected_information_gain <= 0.0)
+                )
             ):
                 continue
             eligible.append((utility, action.action_id))
@@ -130,15 +138,16 @@ def select_reference_action_id(
         16,
     ) / float(2**64)
     choose_exploration = draw < bounded_exploration_probability
-    if (
-        result.exploration_action_id is not None
-        and (choose_exploration or deterministic_information_seeking)
-    ):
-        return result.exploration_action_id
+    # Bootstrap designation precedes exploration selection (lockstep with the
+    # production override at bootstrap_selected_id).  Under paper exploration
+    # semantics the exploration-absence and flat-champion preconditions are
+    # TRADING_POLICY and carry no selection authority; legacy retains both.
     if (
         bootstrap_designation is not None
-        and result.exploration_action_id is None
-        and champion_is_flat
+        and (
+            _paper_exploration_override_enabled()
+            or (result.exploration_action_id is None and champion_is_flat)
+        )
         and bootstrap_designation.get("side") in {"LONG", "SHORT"}
     ):
         bootstrap_side = str(bootstrap_designation["side"]).lower()
@@ -157,6 +166,11 @@ def select_reference_action_id(
         ]
         if len(bootstrap_matches) == 1:
             return bootstrap_matches[0].action_id
+    if (
+        result.exploration_action_id is not None
+        and (choose_exploration or deterministic_information_seeking)
+    ):
+        return result.exploration_action_id
     return result.champion_action_id
 
 

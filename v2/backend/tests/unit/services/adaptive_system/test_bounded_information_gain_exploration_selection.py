@@ -43,6 +43,12 @@ from v2.backend.tests.unit.services.adaptive_system.test_adaptive_policy_shadow_
     _registry,
 )
 
+@pytest.fixture
+def legacy_paper_authority(monkeypatch):
+    """Pin the pre-2026-07-31 authority contracts (override disabled)."""
+    monkeypatch.setenv("PAPER_EXPLORATION_LEGACY_AUTHORITY_FOR_TESTS", "true")
+
+
 _PRIVATE = Ed25519PrivateKey.from_private_bytes(
     hashlib.sha256(b"adaptive-shadow-runtime-test-validator").digest()
 )
@@ -291,10 +297,12 @@ def test_exploration_fires_when_champion_flat_and_objective_positive() -> None:
     assert payload["selected_objective_input_id"] == evaluation.exploration_action_id
 
 
-def test_stays_flat_when_champion_flat_and_objective_nonpositive() -> None:
-    """Fixture 3: champion=REMAIN_FLAT and NO positive-objective exploration
-    action (utility <= 0 -> exploration_action_id is None) -> stays flat, no
-    wasteful exploration."""
+def test_stays_flat_when_champion_flat_and_objective_nonpositive(
+    legacy_paper_authority,
+) -> None:
+    """Fixture 3 (legacy authority): champion=REMAIN_FLAT and NO
+    positive-objective exploration action (utility <= 0 ->
+    exploration_action_id is None) -> stays flat, no wasteful exploration."""
 
     result = _build(copy.deepcopy(_calibration()))  # default: exploration util < 0
     evaluation = result.objective_evaluation
@@ -316,6 +324,124 @@ def test_stays_flat_when_champion_flat_and_objective_nonpositive() -> None:
     )
     assert result.selected_adaptive_action.selected_action == "remain_flat"
     assert result.selected_adaptive_action.target_notional_usd == 0.0
+
+
+def test_paper_semantics_selects_nonpositive_utility_exploration() -> None:
+    """Operator directive 2026-07-31 (paper semantics): utility/information-
+    gain positivity is TRADING_POLICY ranking input, never an eligibility
+    veto.  The hard-valid directional exploration input becomes
+    ``exploration_action_id`` even with nonpositive learned utility, the
+    deterministic information-seeking selection fires, and reference parity
+    holds."""
+
+    result = _build(copy.deepcopy(_calibration()))  # default: exploration util < 0
+    evaluation = result.objective_evaluation
+
+    champion_score = next(
+        score
+        for score in evaluation.scores
+        if score.action_id == evaluation.champion_action_id
+    )
+    assert champion_score.selected_action == "remain_flat"
+    assert evaluation.exploration_action_id is not None
+    exploration_score = next(
+        score
+        for score in evaluation.scores
+        if score.action_id == evaluation.exploration_action_id
+    )
+    assert exploration_score.utility is not None
+    assert exploration_score.utility <= 0.0
+
+    selected = result.selected_adaptive_action
+    assert selected.selected_action == "directional_trade"
+    assert selected.policy_mode == BOUNDED
+    assert result.parity_status == "PASS"
+    assert result.parity_disagreement_count == 0
+    # No live rail weakened.
+    assert result.paper_only is True
+    assert result.live_gate == "blocked_human_only"
+    assert result.routes_to_live is False
+    assert result.places_real_order is False
+
+
+def test_paper_semantics_bootstrap_designation_precedes_positive_utility_exploration() -> None:  # noqa: E501
+    """A designation keeps its BOOTSTRAP selection authority even when a
+    positive-utility exploration action exists (the legacy exploration-absence
+    precondition is TRADING_POLICY and carries no authority under paper
+    semantics), and the independent reference replay agrees."""
+
+    calibration = _calibration_with_statistic(
+        _controlled_statistic(
+            after_cost_expectancy_bps=-0.5,
+            posterior_uncertainty=0.9,
+            tail_0_9=1.0,
+        )
+    )
+    result = _build_with_designation(
+        _sub_minimum_target_intent(),
+        calibration,
+        _bootstrap_designation(),
+    )
+    evaluation = result.objective_evaluation
+
+    assert evaluation.exploration_action_id is not None
+    exploration_score = next(
+        score
+        for score in evaluation.scores
+        if score.action_id == evaluation.exploration_action_id
+    )
+    assert exploration_score.utility is not None
+    assert exploration_score.utility > 0.0
+
+    assert result.selected_adaptive_action.policy_mode == BOOTSTRAP
+    assert result.selected_adaptive_action.selected_action == "directional_trade"
+    assert result.parity_status == "PASS"
+    assert result.parity_disagreement_count == 0
+
+
+def test_bootstrap_selection_preconditions_are_policy_only(monkeypatch) -> None:
+    """A2 unit contract: under paper semantics the selection helper ignores
+    both legacy preconditions (exploration present, non-flat champion); under
+    the pinned legacy authority it refuses exactly as before."""
+
+    from types import SimpleNamespace
+
+    from v2.backend.app.services.adaptive_system.adaptive_policy_shadow_v2 import (
+        _bootstrap_information_acquisition_selection,
+    )
+
+    match = SimpleNamespace(
+        policy_mode=BOUNDED,
+        selected_action="directional_trade",
+        action_id=f"cdo2_unit:{BOUNDED}:long",
+        hard_constraints_satisfied=True,
+        expected_information_gain=0.5,
+    )
+    evaluation = SimpleNamespace(
+        exploration_action_id=f"cdo2_unit:{BOUNDED}:short",
+        champion_action_id="cdo2_unit:champion_exploitation:directional",
+        scores=(),
+    )
+    designation = {"side": "LONG"}
+
+    assert (
+        _bootstrap_information_acquisition_selection(
+            designation=designation,
+            evaluation=evaluation,
+            ordered_inputs=(match,),
+        )
+        == match.action_id
+    )
+
+    monkeypatch.setenv("PAPER_EXPLORATION_LEGACY_AUTHORITY_FOR_TESTS", "true")
+    assert (
+        _bootstrap_information_acquisition_selection(
+            designation=designation,
+            evaluation=evaluation,
+            ordered_inputs=(match,),
+        )
+        is None
+    )
 
 
 def test_reference_parity_maintained_when_information_seeking_fires() -> None:
@@ -559,7 +685,9 @@ def _build_with_designation(
     )
 
 
-def test_bootstrap_designation_selects_negative_utility_venue_minimum() -> None:
+def test_bootstrap_designation_selects_negative_utility_venue_minimum(
+    legacy_paper_authority,
+) -> None:
     """Prior-only posterior + this cycle's designation -> the hard-valid
     venue-minimum information-acquisition action is selected even though its
     recomputed monetary utility is negative, parity holds, every paper-only
@@ -664,9 +792,12 @@ def test_bootstrap_designation_selects_with_evidenced_posterior() -> None:
     )
 
 
-def test_bootstrap_designation_ignored_for_other_symbol() -> None:
-    """A designation targeting a different symbol never fires here: the
-    candidate stays flat under the unchanged nonpositive-utility rule."""
+def test_bootstrap_designation_ignored_for_other_symbol(
+    legacy_paper_authority,
+) -> None:
+    """A designation targeting a different symbol never fires here: under
+    legacy authority the candidate stays flat under the nonpositive-utility
+    rule."""
 
     result = _build_with_designation(
         _sub_minimum_target_intent(),
@@ -892,8 +1023,16 @@ def test_bootstrap_ranked_lower_rank_member_executes() -> None:
         _negative_utility_venue_minimum_calibration(_PRIOR_ONLY_UNCERTAINTY),
         foreign_only_designation,
     )
-    assert foreign_result.selected_adaptive_action.selected_action == "remain_flat"
+    # No scope widening: a ranked list without this candidate never fires the
+    # BOOTSTRAP lane.  Under paper exploration semantics the candidate may
+    # still explore as a plain BOUNDED action, so the contract is the mode,
+    # not flatness.
     assert foreign_result.selected_adaptive_action.policy_mode != BOOTSTRAP
+    assert not any(
+        comparison.selection_reason
+        == "VENUE_MINIMUM_BOOTSTRAP_INFORMATION_ACQUISITION_SELECTED"
+        for comparison in foreign_result.venue_minimum_objective_comparisons
+    )
 
 
 def test_venue_minimum_recompute_is_exact_smallest_executable_lot_and_authorizes() -> None:

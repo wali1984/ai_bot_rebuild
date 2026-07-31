@@ -2704,22 +2704,26 @@ def _bootstrap_information_acquisition_selection(
 
     if designation is None:
         return None
-    if evaluation.exploration_action_id is not None:
-        return None
-    champion_score = next(
-        (
-            score
-            for score in evaluation.scores
-            if score.action_id == evaluation.champion_action_id
-        ),
-        None,
-    )
-    if (
-        champion_score is None
-        or champion_score.selected_action != ACTION_REMAIN_FLAT
-        or champion_score.utility is None
-    ):
-        return None
+    if not _paper_exploration_override_enabled():
+        # Legacy preconditions (exploration absence, flat champion baseline)
+        # are TRADING_POLICY and carry no selection authority under paper
+        # exploration semantics; the reference selector skips them in lockstep.
+        if evaluation.exploration_action_id is not None:
+            return None
+        champion_score = next(
+            (
+                score
+                for score in evaluation.scores
+                if score.action_id == evaluation.champion_action_id
+            ),
+            None,
+        )
+        if (
+            champion_score is None
+            or champion_score.selected_action != ACTION_REMAIN_FLAT
+            or champion_score.utility is None
+        ):
+            return None
     designated_side = str(designation["side"]).lower()
     # The experiment may execute at the LEARNED notional or, when the learned
     # target is below the venue minimum, at the exact venue-minimum notional
@@ -3325,10 +3329,16 @@ def build_adaptive_policy_shadow_candidate(
         if evaluation.exploration_action_id is not None
         else None
     )
+    # Under paper exploration semantics utility positivity is ranking input
+    # only; the reference deterministic predicate requires exploration
+    # presence, not positivity, so this stays in lockstep with it.
     information_gain_exploration_objective_positive = (
         exploration_score is not None
         and exploration_score.utility is not None
-        and exploration_score.utility > 0.0
+        and (
+            exploration_score.utility > 0.0
+            or _paper_exploration_override_enabled()
+        )
     )
     deterministic_information_seeking_exploration = (
         champion_is_remain_flat

@@ -137,6 +137,7 @@ from v2.backend.app.services.adaptive_system.paper_exploration_authority_v2 impo
     TRADING_POLICY,
     classify_paper_blocker,
     paper_exploration_override_enabled,
+    paper_exploration_override_env_status,
     partition_paper_exploration_blockers,
 )
 from v2.backend.app.services.market_structure.decision_context import (
@@ -576,6 +577,10 @@ PAPER_TIER_RISK_CONTROLLER_EXPLORATION = PAPER_RISK_CONTROLLER_EXPLORATION_TIER
 PAPER_TIER_ADAPTIVE_POLICY_V2 = "ADAPTIVE_POLICY_V2"
 ADAPTIVE_POLICY_CALIBRATION_REDIS_KEY = "v2:adaptive_system:candidate_calibration:v2"
 ADAPTIVE_POLICY_REGISTRY_REDIS_KEY = "v2:model_registry:paper:active"
+# Fast-path adaptation state: monotonically versioned per realized paper close
+# (producer: close-commit site after the atomic critical-state write; consumer:
+# cycle-top read).  Version 0 means no realized outcome has been committed yet.
+PAPER_POLICY_STATE_REDIS_KEY = "v2:adaptive_system:paper_policy_state:v1"
 ADAPTIVE_POLICY_VALIDATOR_SEED_PATH_ENV = "V2_ADAPTIVE_HARD_VALIDATOR_SEED_PATH"
 ADAPTIVE_POLICY_FEATURE_ARCHIVE_ROOT_ENV = "V2_ADAPTIVE_FEATURE_ARCHIVE_ROOT"
 ADAPTIVE_POLICY_AUTHORITY_ID = "canonical_adaptive_paper_policy_authority_v2"
@@ -22313,7 +22318,13 @@ def _b_grade_exploration_budget_fraction(
     )
     adaptive_floor = float(floor["b_grade_exploration_adaptive_confidence_floor"])
     drawdown = _coerce_float(drawdown_bps) or 0.0
-    if confidence is None or confidence < adaptive_floor:
+    confidence_below_floor = confidence is not None and confidence < adaptive_floor
+    # Missing confidence is missing evidence (integrity): always zero.  A
+    # sub-floor confidence is TRADING_POLICY under paper exploration
+    # semantics: the normal adaptive fraction computation sizes it instead.
+    if confidence is None or (
+        confidence_below_floor and not paper_exploration_override_enabled()
+    ):
         return {
             **floor,
             "risk_budget_fraction_of_normal_adaptive": 0.0,
@@ -22351,19 +22362,22 @@ def _b_grade_exploration_budget_fraction(
         * drawdown_factor
         * performance_factor,
     )
-    return {
+    result = {
         **floor,
         **performance,
         "risk_budget_fraction_of_normal_adaptive": round(max(0.0, fraction), 8),
         "b_grade_exploration_uncertainty_factor": round(uncertainty_factor, 8),
         "b_grade_exploration_drawdown_factor": round(drawdown_factor, 8),
-        "b_grade_exploration_confidence_floor_pass": True,
+        "b_grade_exploration_confidence_floor_pass": not confidence_below_floor,
         "b_grade_exploration_budget_formula": (
             "min(1.0, max_fraction_of_normal_adaptive"
             "*confidence_uncertainty_factor*drawdown_guard_factor"
             "*session_performance_sizing_factor)"
         ),
     }
+    if confidence_below_floor:
+        result["b_grade_confidence_floor_trading_policy_telemetry"] = True
+    return result
 
 
 def _a_plus_reduced_size_bootstrap_budget_fraction(
@@ -24206,6 +24220,23 @@ def _block_non_executable_paper_tier(
 ) -> bool:
     tier = str(intent.get("paper_opportunity_tier") or "").strip().upper()
     if tier not in NON_EXECUTABLE_PAPER_TIERS:
+        return False
+    if (
+        paper_exploration_override_enabled()
+        and intent.get("places_real_order") is not True
+        and intent.get("live_order") is not True
+    ):
+        # Tier gating is TRADING_POLICY under paper exploration semantics:
+        # annotate, never reject.  An unsized SHADOW_ONLY/NO_TRADE intent
+        # still fails allocator sizing downstream (EXECUTION_INTEGRITY).
+        telemetry = sorted(
+            set(
+                list(intent.get("paper_tier_trading_policy_telemetry_reasons") or [])
+                + [f"NON_EXECUTABLE_PAPER_TIER:{tier}"]
+            )
+        )
+        intent["paper_tier_trading_policy_telemetry_reasons"] = telemetry
+        allocation["paper_tier_trading_policy_telemetry_reasons"] = list(telemetry)
         return False
 
     original_tier_reason = _first_present(
@@ -27447,6 +27478,22 @@ def _apply_b_grade_calibration_safety_halt(
     if intent.get("paper_opportunity_tier") != PAPER_TIER_B_GRADE_EXPLORATION:
         return False
     if status.get("new_b_grade_entries_allowed") is not False:
+        return False
+    if paper_exploration_override_enabled():
+        # Historical-performance halt is TRADING_POLICY under paper
+        # exploration semantics: annotate, never reject.
+        intent["b_grade_calibration_safety_trading_policy_telemetry_reasons"] = sorted(
+            set(
+                list(
+                    intent.get(
+                        "b_grade_calibration_safety_trading_policy_telemetry_reasons"
+                    )
+                    or []
+                )
+                + list(status.get("blockers") or ["B_GRADE_CALIBRATION_SAFETY_HALTED"])
+            )
+        )
+        intent["b_grade_calibration_safety_status"] = status
         return False
     reason = "B_GRADE_CALIBRATION_SAFETY_HALTED"
     intent["paper_fill_allowed"] = False
@@ -42520,6 +42567,93 @@ def _paper_adaptive_policy_runtime_coverage(
     }
 
 
+def _paper_candidate_dispositions(
+    intents: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """§9 universal per-candidate dispositions: one row per evaluated intent.
+
+    ``authoritative_hard_blockers`` is mechanically filtered through
+    ``classify_paper_blocker`` so a TRADING_POLICY reason can never appear in
+    the authoritative field; policy reasons surface only under
+    ``trading_policy_telemetry``.
+    """
+
+    dispositions: list[dict[str, Any]] = []
+    for row in intents:
+        if not isinstance(row, dict):
+            continue
+        raw_blockers = (
+            list(row.get("paper_fill_gate_block_reasons") or [])
+            + list(row.get("entry_gate_block_reasons") or [])
+            + list(row.get("local_block_reasons") or [])
+        )
+        seen_blockers: set[str] = set()
+        hard_blockers: list[str] = []
+        for reason in raw_blockers:
+            reason_text = str(reason)
+            if reason_text in seen_blockers:
+                continue
+            seen_blockers.add(reason_text)
+            # Strip the local_block_reasons namespace prefix before
+            # classification so "entry_gate:CONFIDENCE_..." classifies as its
+            # underlying reason; the recorded string keeps its original shape.
+            classified = reason_text.split(":", 1)[1] if reason_text.startswith(
+                ("entry_gate:", "paper_tier:")
+            ) else reason_text
+            if classify_paper_blocker(classified) != TRADING_POLICY:
+                hard_blockers.append(reason_text)
+        policy_telemetry: list[str] = []
+        seen_telemetry: set[str] = set()
+        telemetry_fields = sorted(
+            key
+            for key in row
+            if isinstance(key, str)
+            and key.endswith("_trading_policy_telemetry_reasons")
+        )
+        final_contract = row.get("paper_final_admission_contract")
+        telemetry_sources: list[Any] = [
+            row.get(field) for field in telemetry_fields
+        ]
+        if isinstance(final_contract, Mapping):
+            telemetry_sources.append(
+                final_contract.get("trading_policy_telemetry_reasons")
+            )
+        for source in telemetry_sources:
+            for reason in source or []:
+                reason_text = str(reason)
+                if reason_text in seen_telemetry:
+                    continue
+                seen_telemetry.add(reason_text)
+                policy_telemetry.append(reason_text)
+        reservation_snapshot = row.get("paper_cycle_reservation_snapshot")
+        dispositions.append(
+            {
+                "candidate_id": _first_present(
+                    row.get("candidate_id"),
+                    row.get("prediction_id"),
+                    row.get("intent_id"),
+                ),
+                "symbol": str(row.get("symbol") or "").upper(),
+                "timeframe": str(row.get("timeframe") or ""),
+                "side": str(row.get("side") or "").lower(),
+                "disposition": (
+                    "FILLED" if row.get("paper_fill_allowed") is True else "BLOCKED"
+                ),
+                "authoritative_hard_blockers": hard_blockers,
+                "trading_policy_telemetry": policy_telemetry,
+                "adaptive_capacity_decision": _first_present(
+                    row.get("allocator_decision"),
+                    (
+                        reservation_snapshot.get("status")
+                        if isinstance(reservation_snapshot, Mapping)
+                        else None
+                    ),
+                ),
+            }
+        )
+    return dispositions
+
+
 def _paper_cycle_reservation_contract_rejection_reasons(
     row: Mapping[str, Any],
     allocation: Mapping[str, Any],
@@ -52052,6 +52186,21 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         "places_real_order": False,
         "exchange_action_taken": False,
     }
+    # Fast-path adaptation consumer: the policy-state version current at cycle
+    # start.  Absent hash means no realized outcome has ever been committed
+    # (version 0); a read failure must never block the cycle.
+    try:
+        _policy_state_hash = r.hgetall(PAPER_POLICY_STATE_REDIS_KEY) or {}
+    except Exception:
+        _policy_state_hash = {}
+    try:
+        _policy_state_version = int(_policy_state_hash.get("policy_state_version") or 0)
+    except (TypeError, ValueError):
+        _policy_state_version = 0
+    adaptive_policy_cycle_context["policy_state_version"] = _policy_state_version
+    adaptive_policy_cycle_context["policy_state_env_status"] = (
+        paper_exploration_override_env_status()
+    )
     try:
         adaptive_policy_calibration = _read_json_key(
             r,
@@ -53321,6 +53470,12 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             "intent_id": intent_id,
             "symbol": symbol,
             "side": side,
+            # Operator directive 2026-07-31 §1: paper mode carries zero
+            # policy-gate authority; policy conditions rank/size/annotate.
+            "policy_gate_authority": False,
+            "policy_state_version": adaptive_policy_cycle_context.get(
+                "policy_state_version"
+            ),
             "signal_id": s.get("signal_id"),
             "expected_move_after_cost_bps": em_after,
             "expected_move_after_cost_bps_directional": (
@@ -54922,14 +55077,28 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         # Recovery probes remain subject to every P0 reason, including broad
         # outcome-memory aggregates.  Evidence starvation is a liveness issue,
         # not authority to bypass a safety or integrity gate.
-        entry_gate_allowed_for_candidate = not _p0_reasons
-        if _p0_reasons:
+        # Paper exploration semantics: TRADING_POLICY reasons are telemetry
+        # only and must never land in authoritative rejection fields; only the
+        # blocking remainder (safety/integrity/unclassified) retains authority.
+        if paper_exploration_override_enabled():
+            _p0_blocking, _p0_policy_telemetry = partition_paper_exploration_blockers(
+                _p0_reasons
+            )
+        else:
+            _p0_blocking, _p0_policy_telemetry = list(_p0_reasons), []
+        if _p0_policy_telemetry:
+            intent["entry_gate_trading_policy_telemetry_reasons"] = list(
+                intent.get("entry_gate_trading_policy_telemetry_reasons") or []
+            ) + list(_p0_policy_telemetry)
+            intent["entry_gate_trading_policy_final_authority"] = False
+        entry_gate_allowed_for_candidate = not _p0_blocking
+        if _p0_blocking:
             intent["paper_fill_block_reason"] = "P0_ENTRY_GATE_BLOCKED"
-            intent["entry_gate_block_reasons"] = _p0_reasons
+            intent["entry_gate_block_reasons"] = _p0_blocking
             intent["local_block_reasons"] = sorted(
                 set(
                     list(intent.get("local_block_reasons") or [])
-                    + [f"entry_gate:{r}" for r in _p0_reasons]
+                    + [f"entry_gate:{r}" for r in _p0_blocking]
                 )
             )
         # Phase 8: A+ zero-tolerance gate. Only candidates where trainer
@@ -55819,7 +55988,16 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                 adaptive_policy_cycle_context[
                     "bootstrap_first_current_hard_valid_rank"
                 ] = _bootstrap_head.get("rank")
-                adaptive_policy_cycle_context["bootstrap_ranked_queue"] = []
+                # Paper exploration semantics: one-fill-per-cycle is a
+                # structural frequency limit with no safety mandate; pop only
+                # the served head so later ranked heads can authorize in the
+                # SAME cycle.  Legacy empties the queue (single bootstrap
+                # authorization per cycle).
+                adaptive_policy_cycle_context["bootstrap_ranked_queue"] = (
+                    _bootstrap_queue[1:]
+                    if paper_exploration_override_enabled()
+                    else []
+                )
             else:
                 adaptive_policy_cycle_context["bootstrap_rank_dispositions"].append(
                     {
@@ -57308,6 +57486,29 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             authoritative_ordinary_router_input_material=(ordinary_router_input_material),
             authoritative_current_position_state=current_position_state,
         )
+        if final_append_succeeded:
+            # §7 adaptive-risk-capacity receipt: the exact margin capacity
+            # evidence in scope when this intent was accepted.
+            _acceptance_margin_status = (
+                portfolio_context.get("paper_account_margin_status")
+                if isinstance(
+                    portfolio_context.get("paper_account_margin_status"), Mapping
+                )
+                else {}
+            )
+            accepted_intent["risk_capacity_receipt"] = {
+                "free_margin_before_reservations_usd": _acceptance_margin_status.get(
+                    "free_margin_before_reservations_usd"
+                ),
+                "free_margin_after_buffer_usd": _acceptance_margin_status.get(
+                    "free_margin_after_buffer_usd"
+                ),
+                "buffer": _acceptance_margin_status.get("buffer"),
+                "equity_usd": _acceptance_margin_status.get("equity_usd"),
+                "reservation_commit_receipt_hash": accepted_intent.get(
+                    "paper_cycle_reservation_commit_receipt_hash"
+                ),
+            }
         # ``v2:paper:intents`` publishes the original per-candidate object.
         # Copy the finalized row back so PASS/BLOCKED receipts are durable on
         # both the intent stream and the accepted/blocked lifecycle path.
@@ -58468,6 +58669,14 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             ),
             "performance_circuit_breaker_hard_trading_authority": False,
             "physical_feasibility_is_policy": False,
+            "policy_state_version": adaptive_policy_cycle_context.get(
+                "policy_state_version"
+            ),
+            "policy_state_env_status": adaptive_policy_cycle_context.get(
+                "policy_state_env_status"
+            ),
+            "policy_gate_authority": False,
+            "paper_candidate_dispositions": _paper_candidate_dispositions(intents),
             "paper_only": True,
             "live_gate": LIVE_GATE_BLOCKED,
             "routes_to_live": False,
@@ -60895,6 +61104,39 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             r, closes, session_id=paper_session_id
         )
         closes = _normalize_closed_paper_exploration_economics_rows(closes)
+        # Fast-path adaptation (§6): stamp each close COMMITTED THIS CYCLE with
+        # the policy-state version it will produce (cycle-start version + its
+        # 1-based commit index); the hash increments happen only after the
+        # atomic critical-state write succeeds below.
+        _cycle_committed_close_rows: list[dict[str, Any]] = []
+        _cycle_start_policy_state_version = 0
+        try:
+            _cycle_start_policy_state_version = int(
+                adaptive_policy_cycle_context.get("policy_state_version") or 0
+            )
+            _new_close_ids = [
+                str(_nce.get("close_id"))
+                for _nce in (lifecycle_result.get("new_close_events") or [])
+                if isinstance(_nce, Mapping) and _nce.get("close_id") not in (None, "")
+            ]
+            _close_rows_by_id = {
+                str(_cr.get("close_id")): _cr
+                for _cr in closes
+                if isinstance(_cr, dict) and _cr.get("close_id") not in (None, "")
+            }
+            for _new_close_index, _new_close_id in enumerate(_new_close_ids):
+                _committed_row = _close_rows_by_id.get(_new_close_id)
+                if _committed_row is None:
+                    continue
+                _committed_row["close_policy_state_version"] = (
+                    _cycle_start_policy_state_version + _new_close_index + 1
+                )
+                _cycle_committed_close_rows.append(_committed_row)
+        except Exception as _policy_state_stamp_exc:
+            adaptive_policy_cycle_context["policy_state_fast_path_error"] = (
+                f"STAMP:{type(_policy_state_stamp_exc).__name__}:"
+                f"{_policy_state_stamp_exc}"
+            )
         _safe_write(
             r,
             f"{V2_REDIS_PREFIX}monitor:closed_trades_shrink_guard",
@@ -60951,6 +61193,44 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                 ),
             )
         )
+        # Fast-path adaptation (§6) producer: after the atomic critical-state
+        # write commits, advance the policy-state hash once per committed
+        # close.  The fast path must never break the close path.
+        if _cycle_committed_close_rows:
+            try:
+                for _committed_close in _cycle_committed_close_rows:
+                    r.hincrby(
+                        PAPER_POLICY_STATE_REDIS_KEY, "policy_state_version", 1
+                    )
+                    r.hincrby(
+                        PAPER_POLICY_STATE_REDIS_KEY, "realized_outcome_count", 1
+                    )
+                    r.hset(
+                        PAPER_POLICY_STATE_REDIS_KEY,
+                        mapping={
+                            "last_close_id": str(
+                                _committed_close.get("close_id") or ""
+                            ),
+                            "last_close_event_time": str(
+                                _committed_close.get("close_event_time")
+                                or _committed_close.get("exit_time")
+                                or ""
+                            ),
+                            "last_realized_net_pnl_usd": str(
+                                _committed_close.get("realized_net_pnl_usd")
+                            ),
+                            "updated_at_ms": str(int(time.time() * 1_000)),
+                        },
+                    )
+                adaptive_policy_cycle_context["policy_state_version"] = (
+                    _cycle_start_policy_state_version
+                    + len(_cycle_committed_close_rows)
+                )
+            except Exception as _policy_state_publish_exc:
+                adaptive_policy_cycle_context["policy_state_fast_path_error"] = (
+                    f"PUBLISH:{type(_policy_state_publish_exc).__name__}:"
+                    f"{_policy_state_publish_exc}"
+                )
         _append_paper_position_fill_reconciliation_receipt(
             paper_position_fill_reconciliation_status
         )

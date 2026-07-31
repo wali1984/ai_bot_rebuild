@@ -9,7 +9,7 @@ import pytest
 @pytest.fixture
 def legacy_paper_authority(monkeypatch):
     """Pin the pre-2026-07-31 authority contracts (override disabled)."""
-    monkeypatch.setenv("PAPER_EXPLORATION_OVERRIDE", "false")
+    monkeypatch.setenv("PAPER_EXPLORATION_LEGACY_AUTHORITY_FOR_TESTS", "true")
 
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey

@@ -18,7 +18,7 @@ import pytest
 @pytest.fixture
 def legacy_paper_authority(monkeypatch):
     """Pin the pre-2026-07-31 authority contracts (override disabled)."""
-    monkeypatch.setenv("PAPER_EXPLORATION_OVERRIDE", "false")
+    monkeypatch.setenv("PAPER_EXPLORATION_LEGACY_AUTHORITY_FOR_TESTS", "true")
 
 
 from v2.backend.app.cli import v2_trade_management_paper_loop as paper_loop
@@ -20161,7 +20161,9 @@ def test_b_grade_exploration_budget_fraction_uses_uncertainty_and_drawdown() -> 
     )
 
 
-def test_b_grade_exploration_budget_fraction_adaptive_floor_is_fail_closed() -> None:
+def test_b_grade_exploration_budget_fraction_adaptive_floor_is_fail_closed(
+    legacy_paper_authority,
+) -> None:
     base = paper_loop._b_grade_exploration_budget_fraction(  # noqa: SLF001
         confidence_calibrated=0.55,
         drawdown_bps=0.0,
@@ -25853,7 +25855,9 @@ def test_rolling_50_does_not_fire_with_fewer_than_10_trades() -> None:
     assert "ROLLING_50_EXPECTANCY_NON_POSITIVE" not in status["block_reasons"]
 
 
-def test_no_trade_tier_blocks_executable_allocator_decision() -> None:
+def test_no_trade_tier_blocks_executable_allocator_decision(
+    legacy_paper_authority,
+) -> None:
     intent = {
         "paper_opportunity_tier": "NO_TRADE",
         "paper_opportunity_tier_reason": "EXPECTED_EDGE_NOT_FAVORABLE_AFTER_COST",
@@ -25893,7 +25897,9 @@ def test_no_trade_tier_blocks_executable_allocator_decision() -> None:
     assert allocation["places_real_order"] is False
 
 
-def test_no_trade_tier_preserves_existing_performance_circuit_block() -> None:
+def test_no_trade_tier_preserves_existing_performance_circuit_block(
+    legacy_paper_authority,
+) -> None:
     intent = {
         "paper_opportunity_tier": "NO_TRADE",
         "paper_opportunity_tier_reason": "EXPECTED_EDGE_NOT_FAVORABLE_AFTER_COST",
@@ -25938,7 +25944,9 @@ def test_no_trade_tier_preserves_existing_performance_circuit_block() -> None:
     assert allocation["gross_notional_usd"] == 0.0
 
 
-def test_no_trade_tier_preserves_existing_allocator_block_reason() -> None:
+def test_no_trade_tier_preserves_existing_allocator_block_reason(
+    legacy_paper_authority,
+) -> None:
     intent = {
         "paper_opportunity_tier": "NO_TRADE",
         "paper_opportunity_tier_reason": "EXPECTED_EDGE_NOT_FAVORABLE_AFTER_COST",
@@ -30362,8 +30370,15 @@ def test_run_once_bootstrap_queue_same_cycle_fallback_wiring() -> None:
         '"bootstrap_information_acquisition_cycle_authorizations"'
     ) >= 3  # withhold condition + counter read + counter write
 
-    # BOTH failure paths pop to the next rank in the same cycle.
-    assert source.count("_bootstrap_queue[1:]") == 2
+    # BOTH failure paths pop to the next rank in the same cycle, and the
+    # success path pops only the served head under paper exploration
+    # semantics (legacy empties the queue: one bootstrap fill per cycle).
+    assert source.count("_bootstrap_queue[1:]") == 3
+    assert (
+        "_bootstrap_queue[1:]\n"
+        "                    if paper_exploration_override_enabled()\n"
+        "                    else []"
+    ) in source
     assert '"AUTHORITY_EXCEPTION:' in source or "AUTHORITY_EXCEPTION:{" in source
     assert "_paper_bootstrap_queue_head_failure_predicate(" in source
     # Selection terminates the traversal and records the selected rank.
@@ -30483,3 +30498,296 @@ def test_non_relaxable_entry_gate_scopes_side_performance_off_bootstrap(legacy_p
     assert any(
         "SIDE_BUCKET_EXPECTANCY_NON_POSITIVE" in reason for reason in ordinary_out
     )
+
+
+# ---------------------------------------------------------------------------
+# Operator directive 2026-07-31: paper mode = zero policy-gate authority.
+# ---------------------------------------------------------------------------
+
+
+def test_p0_entry_gate_policy_partition_wiring() -> None:
+    """B1 source contract: raw P0 reasons are partitioned FIRST under paper
+    semantics; only the blocking remainder reaches the authoritative fields
+    (entry_gate_block_reasons / local_block_reasons / paper_fill_block_reason),
+    and entry_gate_allowed_for_candidate derives from that remainder."""
+
+    source = inspect.getsource(paper_loop._run_once_without_writer_lock)  # noqa: SLF001
+
+    partition_idx = source.index(
+        "_p0_blocking, _p0_policy_telemetry = partition_paper_exploration_blockers("
+    )
+    allowed_idx = source.index("entry_gate_allowed_for_candidate = not _p0_blocking")
+    stamp_idx = source.index('intent["entry_gate_block_reasons"] = _p0_blocking')
+    assert partition_idx < allowed_idx < stamp_idx
+    # The P0 primary block reason only fires on the blocking remainder.
+    assert "if _p0_blocking:" in source
+    assert '"paper_fill_block_reason"] = "P0_ENTRY_GATE_BLOCKED"' in source
+    # Policy telemetry lands ONLY in the non-authoritative telemetry fields.
+    assert (
+        'intent["entry_gate_trading_policy_telemetry_reasons"]' in source
+    )
+    assert 'intent["entry_gate_trading_policy_final_authority"] = False' in source
+    # The authoritative fields are never stamped from the raw reason list.
+    assert 'intent["entry_gate_block_reasons"] = _p0_reasons' not in source
+
+
+def test_p0_partition_keeps_integrity_blocking_and_strips_policy() -> None:
+    """B1 behavior: representative P0 policy reasons are telemetry-only while
+    integrity/unknown reasons keep full blocking authority."""
+
+    blocking, telemetry = paper_loop.partition_paper_exploration_blockers(
+        [
+            "CONFIDENCE_BELOW_ENTRY_GATE:0.61<0.70",
+            "SIDE_GATE_BLOCK:SHORT_EXPECTANCY_NON_POSITIVE",
+            "ADAPTIVE_TUNING_AUTHORITY_NOT_VALID",
+            "RISK_DECISION_LINEAGE_MISSING",
+            "SOME_NEVER_SEEN_REASON",
+        ]
+    )
+    assert blocking == [
+        "RISK_DECISION_LINEAGE_MISSING",
+        "SOME_NEVER_SEEN_REASON",
+    ]
+    assert telemetry == [
+        "CONFIDENCE_BELOW_ENTRY_GATE:0.61<0.70",
+        "SIDE_GATE_BLOCK:SHORT_EXPECTANCY_NON_POSITIVE",
+        "ADAPTIVE_TUNING_AUTHORITY_NOT_VALID",
+    ]
+
+
+def test_b_grade_calibration_safety_halt_is_telemetry_under_paper_semantics() -> None:
+    intent = {
+        "paper_opportunity_tier": paper_loop.PAPER_TIER_B_GRADE_EXPLORATION,
+        "paper_fill_allowed": True,
+    }
+    status = {
+        "new_b_grade_entries_allowed": False,
+        "blockers": ["B_GRADE_EXPECTANCY_NON_POSITIVE"],
+    }
+
+    halted = paper_loop._apply_b_grade_calibration_safety_halt(  # noqa: SLF001
+        intent, status
+    )
+
+    assert halted is False
+    assert intent["paper_fill_allowed"] is True
+    assert intent.get("paper_fill_block_reason") is None
+    assert intent.get("paper_fill_gate_block_reasons") is None
+    assert intent[
+        "b_grade_calibration_safety_trading_policy_telemetry_reasons"
+    ] == ["B_GRADE_EXPECTANCY_NON_POSITIVE"]
+    assert intent["b_grade_calibration_safety_status"] == status
+
+
+def test_b_grade_calibration_safety_halt_blocks_under_legacy_authority(
+    legacy_paper_authority,
+) -> None:
+    intent = {
+        "paper_opportunity_tier": paper_loop.PAPER_TIER_B_GRADE_EXPLORATION,
+        "paper_fill_allowed": True,
+    }
+    status = {
+        "new_b_grade_entries_allowed": False,
+        "blockers": ["B_GRADE_EXPECTANCY_NON_POSITIVE"],
+    }
+
+    halted = paper_loop._apply_b_grade_calibration_safety_halt(  # noqa: SLF001
+        intent, status
+    )
+
+    assert halted is True
+    assert intent["paper_fill_allowed"] is False
+    assert intent["paper_fill_block_reason"] == "B_GRADE_CALIBRATION_SAFETY_HALTED"
+
+
+def test_non_executable_tier_is_telemetry_under_paper_semantics() -> None:
+    intent = {
+        "paper_opportunity_tier": "NO_TRADE",
+        "paper_opportunity_tier_reason": "EXPECTED_EDGE_NOT_FAVORABLE_AFTER_COST",
+        "paper_only": True,
+        "places_real_order": False,
+        "gross_notional_usd": 1000.0,
+        "allocated_margin_usd": 500.0,
+        "paper_fill_allowed": True,
+        "paper_sizing_complete": True,
+    }
+    allocation = _allowed_allocation(paper_opportunity_tier="NO_TRADE")
+
+    blocked = paper_loop._block_non_executable_paper_tier(  # noqa: SLF001
+        intent=intent,
+        allocation=allocation,
+    )
+
+    assert blocked is False
+    # Tier gating is annotation, not authority: nothing zeroed or blocked.
+    assert intent["paper_fill_allowed"] is True
+    assert intent["gross_notional_usd"] == 1000.0
+    assert allocation["gross_notional_usd"] == 1000.0
+    assert allocation["allocator_decision"] == "ALLOW_WITH_SIZE"
+    assert intent.get("paper_fill_block_reason") is None
+    assert intent["paper_tier_trading_policy_telemetry_reasons"] == [
+        "NON_EXECUTABLE_PAPER_TIER:NO_TRADE"
+    ]
+    assert allocation["paper_tier_trading_policy_telemetry_reasons"] == [
+        "NON_EXECUTABLE_PAPER_TIER:NO_TRADE"
+    ]
+
+
+def test_non_executable_tier_retains_block_for_real_order_flagged_intent() -> None:
+    """Fail-closed guard: an intent flagged for a real order never receives
+    the paper-semantics tier exemption."""
+
+    intent = {
+        "paper_opportunity_tier": "NO_TRADE",
+        "paper_opportunity_tier_reason": "EXPECTED_EDGE_NOT_FAVORABLE_AFTER_COST",
+        "places_real_order": True,
+        "gross_notional_usd": 1000.0,
+        "paper_fill_allowed": True,
+    }
+    allocation = _allowed_allocation(paper_opportunity_tier="NO_TRADE")
+
+    blocked = paper_loop._block_non_executable_paper_tier(  # noqa: SLF001
+        intent=intent,
+        allocation=allocation,
+    )
+
+    assert blocked is True
+    assert intent["paper_fill_allowed"] is False
+    assert intent["places_real_order"] is False
+
+
+def test_b_grade_budget_fraction_sub_floor_sizes_instead_of_zero() -> None:
+    """B4: sub-floor confidence is TRADING_POLICY — the normal adaptive
+    fraction computation sizes it (bounded, minimum uncertainty factor) with
+    honest floor-pass telemetry; missing confidence stays zero (integrity)."""
+
+    pressured = paper_loop._b_grade_exploration_budget_fraction(  # noqa: SLF001
+        confidence_calibrated=0.52,
+        drawdown_bps=450.0,
+        expected_move_after_cost_bps=6.0,
+        observed_spread_bps=4.0,
+        expected_slippage_bps=3.0,
+        fee_bps=4.0,
+        depth_utilization_pct=0.40,
+        long_short_ratio_status="REJECTED_LONG_SHORT_AVAILABLE_AFTER_DECISION",
+    )
+    assert pressured["b_grade_exploration_adaptive_confidence_floor"] > 0.52
+    assert pressured["b_grade_exploration_confidence_floor_pass"] is False
+    assert pressured["b_grade_confidence_floor_trading_policy_telemetry"] is True
+    assert pressured["risk_budget_fraction_of_normal_adaptive"] > 0.0
+    assert (
+        pressured["risk_budget_fraction_of_normal_adaptive"]
+        <= paper_loop.B_GRADE_EXPLORATION_MAX_RISK_FRACTION_OF_NORMAL
+    )
+
+    missing = paper_loop._b_grade_exploration_budget_fraction(  # noqa: SLF001
+        confidence_calibrated=None,
+        drawdown_bps=0.0,
+    )
+    assert missing["risk_budget_fraction_of_normal_adaptive"] == 0.0
+    assert missing["b_grade_exploration_confidence_floor_pass"] is False
+    assert "b_grade_confidence_floor_trading_policy_telemetry" not in missing
+
+
+def test_fast_path_policy_state_wiring() -> None:
+    """C1/C2/C3 source contract on run_once: cycle-top hash read, pre-write
+    close-row stamping, post-atomic-write hash increments, and the universal
+    intent stamp (policy_gate_authority=False + policy_state_version)."""
+
+    source = inspect.getsource(paper_loop._run_once_without_writer_lock)  # noqa: SLF001
+
+    read_idx = source.index("r.hgetall(PAPER_POLICY_STATE_REDIS_KEY)")
+    intent_stamp_idx = source.index('"policy_gate_authority": False,')
+    stamp_idx = source.index('"close_policy_state_version"')
+    write_idx = source.index(
+        "_write_paper_critical_state_atomically(", stamp_idx
+    )
+    incr_idx = source.index(
+        'PAPER_POLICY_STATE_REDIS_KEY, "policy_state_version", 1'
+    )
+    assert read_idx < intent_stamp_idx < stamp_idx < write_idx < incr_idx
+    assert 'PAPER_POLICY_STATE_REDIS_KEY, "realized_outcome_count", 1' in source
+    for field in (
+        '"last_close_id"',
+        '"last_close_event_time"',
+        '"last_realized_net_pnl_usd"',
+        '"updated_at_ms"',
+    ):
+        assert source.index(field) > write_idx
+    # The fast path must never break the close path: publish failures are
+    # recorded, not raised.
+    assert 'adaptive_policy_cycle_context["policy_state_fast_path_error"]' in source
+    # Cycle status carries the version, env status, and the zero-authority stamp.
+    assert '"policy_state_env_status": adaptive_policy_cycle_context.get(' in source
+    assert '"paper_candidate_dispositions": _paper_candidate_dispositions(intents)' in source
+
+
+def test_paper_candidate_dispositions_partition() -> None:
+    """D1: one disposition per evaluated intent; policy reasons appear only in
+    trading_policy_telemetry and can never reach authoritative_hard_blockers."""
+
+    filled = {
+        "candidate_id": "cand-1",
+        "symbol": "btcusdt",
+        "timeframe": "15m",
+        "side": "LONG",
+        "paper_fill_allowed": True,
+        "allocator_decision": "ALLOW_WITH_SIZE",
+        "entry_gate_trading_policy_telemetry_reasons": [
+            "CONFIDENCE_BELOW_ENTRY_GATE:0.61<0.70"
+        ],
+    }
+    blocked = {
+        "prediction_id": "pred-2",
+        "symbol": "ethusdt",
+        "timeframe": "1h",
+        "side": "SHORT",
+        "paper_fill_allowed": False,
+        "paper_fill_gate_block_reasons": [
+            "PORTFOLIO_TRUTH_UNTRUSTED",
+            "B_GRADE_CALIBRATION_SAFETY_HALTED",
+        ],
+        "entry_gate_block_reasons": ["RISK_DECISION_LINEAGE_MISSING"],
+        "local_block_reasons": [
+            "entry_gate:CONFIDENCE_BELOW_ENTRY_GATE:0.50<0.70",
+            "paper_tier:NON_EXECUTABLE_PAPER_TIER:NO_TRADE",
+        ],
+        "paper_final_admission_contract": {
+            "trading_policy_telemetry_reasons": [
+                "FINAL_ADMISSION_TIER_NOT_EXECUTABLE"
+            ]
+        },
+        "paper_cycle_reservation_snapshot": {"status": "PASS"},
+    }
+
+    dispositions = paper_loop._paper_candidate_dispositions(  # noqa: SLF001
+        [filled, blocked]
+    )
+
+    assert len(dispositions) == 2
+    first, second = dispositions
+    assert first["candidate_id"] == "cand-1"
+    assert first["symbol"] == "BTCUSDT"
+    assert first["disposition"] == "FILLED"
+    assert first["authoritative_hard_blockers"] == []
+    assert first["trading_policy_telemetry"] == [
+        "CONFIDENCE_BELOW_ENTRY_GATE:0.61<0.70"
+    ]
+    assert first["adaptive_capacity_decision"] == "ALLOW_WITH_SIZE"
+
+    assert second["candidate_id"] == "pred-2"
+    assert second["disposition"] == "BLOCKED"
+    # Integrity blockers retained; every TRADING_POLICY reason (including
+    # namespaced local reasons) is excluded from the authoritative field.
+    assert second["authoritative_hard_blockers"] == [
+        "PORTFOLIO_TRUTH_UNTRUSTED",
+        "RISK_DECISION_LINEAGE_MISSING",
+    ]
+    assert all(
+        paper_loop.classify_paper_blocker(reason) != paper_loop.TRADING_POLICY
+        for reason in second["authoritative_hard_blockers"]
+    )
+    assert second["trading_policy_telemetry"] == [
+        "FINAL_ADMISSION_TIER_NOT_EXECUTABLE"
+    ]
+    assert second["adaptive_capacity_decision"] == "PASS"

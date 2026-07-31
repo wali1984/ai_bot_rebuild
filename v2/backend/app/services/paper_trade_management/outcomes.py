@@ -864,6 +864,11 @@ def build_close_event(
         "terminal_target_guaranteed": False,
         "policy_mode": adaptive_policy_action_policy_mode,
         "exploration_provenance": exploration_provenance,
+        # Fast-path adaptation lineage: bind the outcome to the policy state
+        # current at entry and declare its consumption lifecycle explicitly.
+        "entry_policy_state_version": position.policy_state_version,
+        "maturation_status": "PENDING_DECISION_HORIZON_MATURATION",
+        "training_consumption_status": "NOT_YET_CONSUMED",
         "counts_as_training_feedback": True,
         "counts_as_live_profit": False,
         **(

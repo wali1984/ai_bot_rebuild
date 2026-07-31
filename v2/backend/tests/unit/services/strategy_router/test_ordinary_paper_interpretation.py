@@ -15,7 +15,7 @@ import pytest
 @pytest.fixture
 def legacy_paper_authority(monkeypatch):
     """Pin the pre-2026-07-31 authority contracts (override disabled)."""
-    monkeypatch.setenv("PAPER_EXPLORATION_OVERRIDE", "false")
+    monkeypatch.setenv("PAPER_EXPLORATION_LEGACY_AUTHORITY_FOR_TESTS", "true")
 
 
 from v2.backend.tests.unit.services.test_ordinary_paper_admission import (

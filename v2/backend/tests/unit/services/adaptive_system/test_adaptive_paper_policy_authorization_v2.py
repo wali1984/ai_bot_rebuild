@@ -8,7 +8,7 @@ import pytest
 @pytest.fixture
 def legacy_paper_authority(monkeypatch):
     """Pin the pre-2026-07-31 authority contracts (override disabled)."""
-    monkeypatch.setenv("PAPER_EXPLORATION_OVERRIDE", "false")
+    monkeypatch.setenv("PAPER_EXPLORATION_LEGACY_AUTHORITY_FOR_TESTS", "true")
 
 
 from v2.backend.app.domain.adaptive_policy_action_v2 import AdaptivePolicyActionV2
@@ -143,7 +143,9 @@ def test_authorizes_exact_directional_action_without_static_or_live_authority() 
     assert authorization.exchange_action_taken is False
 
 
-def test_flat_is_authoritative_learning_action_without_entry_authority() -> None:
+def test_flat_is_authoritative_learning_action_without_entry_authority(
+    legacy_paper_authority,
+) -> None:
     result = _result(directional=False)
     authorization = authorize_adaptive_paper_policy_action(
         result,

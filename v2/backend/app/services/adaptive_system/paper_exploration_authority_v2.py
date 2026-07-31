@@ -98,6 +98,17 @@ _TRADING_POLICY_EXACT = frozenset(
         "INFORMATION_GAIN_NONPOSITIVE",
         "NO_EXECUTABLE_INFORMATION_SEEKING_ACTION",
         "POSITIVE_UTILITY_EXPLORATION_EXISTS",
+        # -- calibration age / tuning freshness (policy, not integrity) -----
+        "ADAPTIVE_TUNING_EXPIRED_OR_INVALID_DURING_FINAL_ADMISSION",
+        "ADAPTIVE_TUNING_AUTHORITY_NOT_VALID",
+        # -- previous-paper-losses safety halts (historical performance) ----
+        "B_GRADE_CALIBRATION_SAFETY_HALTED",
+        "B_GRADE_PROFIT_FACTOR_BELOW_1",
+        "B_GRADE_EXPECTANCY_NON_POSITIVE",
+        "B_GRADE_HIGH_CONFIDENCE_LOSS",
+        "B_GRADE_CHURN_INCREASED",
+        # -- exploration quota / probe slots (policy quota) -----------------
+        "HALTED_PROBE_SLOT_CAPACITY_EXHAUSTED",
     }
 )
 
@@ -111,6 +122,18 @@ _TRADING_POLICY_PREFIXES = (
     "PREEMPTIVE_DECISION_DENIES_",
     "PAPER_LOSS_BUCKET_QUARANTINE_MATCH:",
     "FINAL_ADMISSION_CURRENT_EXPECTED_NET_PNL_NOT_POSITIVE",
+    # opportunity grade / tier gating (value-suffixed variants included)
+    "NON_EXECUTABLE_PAPER_TIER",
+    "BLOCK_NON_EXECUTABLE_PAPER_TIER",
+    "FINAL_ADMISSION_TIER_NOT_EXECUTABLE",
+    "FINAL_ADMISSION_REDUCED_TIER_FLAG_NOT_TRUE",
+    "FINAL_ADMISSION_REDUCED_TIER_FLAG_NOT_FALSE",
+    # budget-fraction zeroing families (confidence/eligibility economics)
+    "B_GRADE_EXPLORATION_BUDGET_FRACTION_ZERO",
+    "POSITIVE_EDGE_PROBATION_BUDGET_FRACTION_ZERO",
+    "A_PLUS_REDUCED_SIZE_BOOTSTRAP_BUDGET_FRACTION_ZERO",
+    "PAPER_RISK_CONTROLLER_EXPLORATION_BUDGET_FRACTION_ZERO",
+    "EXPECTED_EDGE_NOT_FAVORABLE_AFTER_COST",
 )
 
 # ---------------------------------------------------------------------------
@@ -169,11 +192,33 @@ def classify_paper_blocker(reason: object) -> str:
     return EXECUTION_INTEGRITY
 
 
-def paper_exploration_override_enabled() -> bool:
-    """Operator lever (paper lane only).  Default ON per 2026-07-31 directive."""
+LEGACY_AUTHORITY_TEST_HOOK_ENV = "PAPER_EXPLORATION_LEGACY_AUTHORITY_FOR_TESTS"
 
-    raw = os.environ.get(PAPER_EXPLORATION_OVERRIDE_ENV, "true")
-    return str(raw).strip().lower() in ("1", "true", "yes", "on")
+
+def paper_exploration_override_enabled() -> bool:
+    """Paper execution semantics: policy gates carry ZERO authority.
+
+    STRUCTURAL, not configuration (operator directive 2026-07-31 §1): paper
+    mode itself implies the policy-vs-safety partition; a missing or unset
+    PAPER_EXPLORATION_OVERRIDE variable must never revert paper execution to
+    policy blocking.  The variable remains readable via
+    paper_exploration_override_env_status() for observability only.
+
+    The legacy-authority hook below exists SOLELY so regression tests can pin
+    the pre-correction contracts of the retained legacy code paths; it is a
+    test seam, not an operational lever, and is named accordingly.
+    """
+
+    raw = os.environ.get(LEGACY_AUTHORITY_TEST_HOOK_ENV, "")
+    if str(raw).strip().lower() in ("1", "true", "yes", "on"):
+        return False
+    return True
+
+
+def paper_exploration_override_env_status() -> str:
+    """Observability only: the raw PAPER_EXPLORATION_OVERRIDE env value."""
+
+    return str(os.environ.get(PAPER_EXPLORATION_OVERRIDE_ENV, "<unset>"))
 
 
 def partition_paper_exploration_blockers(
