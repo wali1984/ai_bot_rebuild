@@ -536,6 +536,33 @@ CORRELATION_CANDLE_TIMEFRAME = "1m"
 CORRELATION_MIN_RETURN_POINTS = 30
 CORRELATION_MAX_CANDLE_AGE_SECONDS = 6 * 60 * 60
 CORRELATION_FAIL_CLOSED_EXPOSURE_PCT = 1.0
+
+def _paper_unmeasured_correlation_fail_conservative_exposure(
+    open_pair_symbol_count: Any,
+) -> float:
+    """Missing pairwise-correlation EVIDENCE is not proof of a correlated book.
+
+    Fail CONSERVATIVE, not binary (operator directive 2026-07-31: fully
+    adaptive allocation — a data-coverage gap must contract sizing, never
+    re-create the single-flight latch): charge the unmeasured candidate a
+    correlation exposure that rises with how many OTHER positions are open —
+    half the base cap with one, two thirds with two, asymptotically the full
+    cap as the book crowds — so exploration under missing coverage remains
+    possible at reduced size while a crowded book still shuts it off.
+    Measured correlation keeps its exact math, including the hard zero at
+    the envelope cap.
+    """
+
+    from v2.backend.app.services.adaptive_capital_allocator.contracts import (  # noqa: PLC0415
+        RiskEnvelope,
+    )
+
+    count = _coerce_float(open_pair_symbol_count)
+    n = max(0.0, float(int(count))) if count is not None and count >= 0 else 0.0
+    base_cap = float(RiskEnvelope().max_correlation_exposure_pct)
+    return round(base_cap * (n / (n + 1.0)), 8)
+
+
 CORRELATION_CHILD_SOURCE_HASH_CONTRACT = (
     "SOURCE_KEY_DECISION_TIME_ACCEPTED_CLOSE_AVAILABLE_FINALITY_"
     "AND_REJECT_COUNTS_CANONICAL_SHA256_V2"
@@ -40095,7 +40122,11 @@ def _derive_candidate_correlation_contexts(
         candidate_returns = returns_by_symbol.get(symbol)
         if candidate_returns is None:
             contexts[symbol] = {
-                "correlation_exposure_pct": CORRELATION_FAIL_CLOSED_EXPOSURE_PCT,
+                "correlation_exposure_pct": (
+                    _paper_unmeasured_correlation_fail_conservative_exposure(
+                        len(required_pair_symbols)
+                    )
+                ),
                 "correlation_input_status": diagnostics_by_symbol.get(symbol, {}).get(
                     "status", "MISSING_MARKET_CANDLES"
                 ),
@@ -40134,7 +40165,11 @@ def _derive_candidate_correlation_contexts(
             )
         if unresolved_pair_symbols:
             contexts[symbol] = {
-                "correlation_exposure_pct": CORRELATION_FAIL_CLOSED_EXPOSURE_PCT,
+                "correlation_exposure_pct": (
+                    _paper_unmeasured_correlation_fail_conservative_exposure(
+                        len(required_pair_symbols)
+                    )
+                ),
                 "correlation_input_status": "INCOMPLETE_REQUIRED_OPEN_PAIR_COVERAGE",
                 "correlation_input_source": "MISSING_PAIRWISE_RETURNS_FAIL_CLOSED",
                 "correlation_pair_count": pair_count,
@@ -40156,7 +40191,11 @@ def _derive_candidate_correlation_contexts(
                 }
             else:
                 contexts[symbol] = {
-                    "correlation_exposure_pct": CORRELATION_FAIL_CLOSED_EXPOSURE_PCT,
+                    "correlation_exposure_pct": (
+                        _paper_unmeasured_correlation_fail_conservative_exposure(
+                            len(required_pair_symbols)
+                        )
+                    ),
                     "correlation_input_status": "INSUFFICIENT_ALIGNED_OPEN_RETURNS",
                     "correlation_input_source": "MISSING_PAIRWISE_RETURNS_FAIL_CLOSED",
                     "correlation_pair_count": pair_count,
