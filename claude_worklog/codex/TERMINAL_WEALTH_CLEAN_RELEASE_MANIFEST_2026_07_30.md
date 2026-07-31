@@ -40,6 +40,30 @@ economics (99 trades, expectancy still negative; G13/G14 remain honest-red);
 the binding constraint remains trainer-lane edge. The frozen line stays
 frozen; live authority stays BLOCKED.
 
+### Post-acceptance sentinel (operator caveat: session-independent observation)
+
+Because interactive-session teardown killed the in-session monitor twice
+during the burn-in (counters preserved via persisted state both times),
+standing observation now runs OUTSIDE any Claude session as a transient
+user-systemd unit:
+
+```text
+unit:    ai-bot-v2-terminal-wealth-watch.service (systemd-run --user, Restart=no)
+script:  /home/wali/ai_bot_local_data/terminal_wealth_watch/terminal_wealth_watch.py
+state:   /home/wali/ai_bot_local_data/terminal_wealth_watch/watch_state.json (60s samples)
+closes:  /home/wali/ai_bot_local_data/terminal_wealth_watch/qualified_closes.jsonl (append-only)
+role:    fail-fast only — no pass condition; HOLDING until a precise predicate
+         fails (restart delta, SHA drift, parity disagreement, schema-mismatch
+         marker, or any new close failing PROTECTED_RECONCILED_LIFECYCLE_V1
+         on two consecutive samples)
+stop:    systemctl --user stop ai-bot-v2-terminal-wealth-watch.service
+         (stop FIRST before any deliberate redeploy of the four units,
+         else the redeploy correctly trips the sentinel)
+```
+
+Monitor-only; no production code, no gates, no thresholds touched. First
+sample 2026-07-31T00:17Z: verdict HOLDING, all deltas zero.
+
 ## SHA-CHANGE RECONCILIATION (operator-required, 2026-07-30 ~17:55 EDT)
 
 Why the accepted SHA changed from `f59dd15650` to `a4cf7ebc9f`:
