@@ -37934,8 +37934,22 @@ def _paper_precycle_current_mark_exposure_snapshot(
     # entries upstream anyway) and surfaced 2026-07-31 when concurrency was
     # restored: every open position blocked ALL new entries via
     # OPEN_POSITION_SOURCE_FILL_MAX_LOSS_ALIASES_INVALID.
-    ledger_fill_rows = ledger.get("accepted")
-    ledger_fill_rows = ledger_fill_rows if isinstance(ledger_fill_rows, list) else []
+    ledger_fill_rows: list[Any] = []
+    for ledger_fill_key in ("accepted", "accepted_fills"):
+        candidate_rows = ledger.get(ledger_fill_key)
+        if isinstance(candidate_rows, list) and candidate_rows:
+            ledger_fill_rows = candidate_rows
+            break
+    if not ledger_fill_rows and r is not None:
+        # The runtime ledger projection carries positions/closes only; the
+        # persisted accepted-fill rows live on their own bounded key.
+        ledger_fill_rows = [
+            fill_row
+            for fill_row in _read_json_list_redis_key_if_small(
+                r, f"{V2_REDIS_PREFIX}paper:accepted_fills"
+            )
+            if isinstance(fill_row, Mapping)
+        ]
     ledger_fills_by_id: dict[str, Mapping[str, Any]] = {}
     for ledger_fill_row in ledger_fill_rows:
         if not isinstance(ledger_fill_row, Mapping):
@@ -55695,18 +55709,40 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                 strategy_router.get("block_reason")
             )
         if not strategy_trade_allowed and not strategy_quarantine_advisory_only:
-            intent["paper_fill_block_reason"] = (
-                intent.get("paper_fill_block_reason") or "STRATEGY_ROUTER_BLOCKED"
-            )
             local_reason = str(
                 strategy_router.get("block_reason") or "ACTION_NOT_ALLOWED_BY_ROUTER"
             )
-            intent["local_block_reasons"] = sorted(
-                set(
-                    list(intent.get("local_block_reasons") or [])
-                    + [f"strategy_router:{local_reason}"]
+            # Final directive 2026-07-31 item 4 (at source): a TRADING_POLICY
+            # router reason (e.g. PAPER_LOSS_BUCKET_QUARANTINE) may never be
+            # written into an authoritative field of a structurally paper
+            # candidate — it was the leak the publish-time invariant flagged
+            # on the first frozen-SHA cycles.
+            if (
+                structural_paper_candidate(intent)
+                and classify_paper_blocker(local_reason) == TRADING_POLICY
+            ):
+                intent["strategy_router_trading_policy_telemetry_reasons"] = sorted(
+                    set(
+                        list(
+                            intent.get(
+                                "strategy_router_trading_policy_telemetry_reasons"
+                            )
+                            or []
+                        )
+                        + [local_reason]
+                    )
                 )
-            )
+                intent["strategy_router_trading_policy_final_authority"] = False
+            else:
+                intent["paper_fill_block_reason"] = (
+                    intent.get("paper_fill_block_reason") or "STRATEGY_ROUTER_BLOCKED"
+                )
+                intent["local_block_reasons"] = sorted(
+                    set(
+                        list(intent.get("local_block_reasons") or [])
+                        + [f"strategy_router:{local_reason}"]
+                    )
+                )
         if strategy_mode_guard.get("allowed") is not True:
             reason = str(
                 strategy_mode_guard.get("block_reason") or STRATEGY_MODE_COLLAPSE_BLOCK_REASON
