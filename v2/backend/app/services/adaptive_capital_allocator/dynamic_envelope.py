@@ -243,6 +243,7 @@ def calculate_dynamic_risk_envelope(
     market_context_available_at: str | None = None,
     decision_time: str | None = None,
     symbol: str | None = None,
+    learning_exploration_intensity: float | None = None,
 ) -> RiskEnvelope:
     """Calculate a smooth, evidence-weighted paper operating envelope.
 
@@ -508,11 +509,21 @@ def calculate_dynamic_risk_envelope(
     #     liquidation buffers, bounded-loss, margin and catastrophic
     #     validators all still bind downstream.
     exploration_progress = sample_count / (sample_count + 25.0)
+    # Terminal-wealth trajectory steering: the goal-track controller's
+    # bounded intensity ([0.5, 1.5], continuous) widens exploration when
+    # realized log-growth lags the required trajectory and consolidates when
+    # ahead.  It multiplies a capacity that already embeds the loss and
+    # drawdown contractions, so adversity always dominates the goal.
+    intensity_value = _finite_float(learning_exploration_intensity)
+    trajectory_intensity = (
+        _clamp(intensity_value, 0.5, 1.5) if intensity_value is not None else 1.0
+    )
     exploration_capacity = (
         exploration_progress
         * confidence_quality
         * math.exp(losing_evidence_pressure)
         * max(0.0, 1.0 - drawdown_pressure)
+        * trajectory_intensity
     )
     exploration_leverage = 1.0 + (
         0.5 * exploration_capacity * (leverage_ceiling - 1.0)

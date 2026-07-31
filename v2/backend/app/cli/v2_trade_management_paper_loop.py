@@ -38838,6 +38838,7 @@ def _paper_learning_realized_evidence_receipt(
     profit_factor: Any,
     evidence_source: Any,
     decision_time: str,
+    learning_exploration_intensity: Any = None,
 ) -> dict[str, Any]:
     """Hash-bound realized-lifecycle evidence for LEARNING_EXPLORATION.
 
@@ -38861,6 +38862,9 @@ def _paper_learning_realized_evidence_receipt(
     bounded_profit_factor = _coerce_float(profit_factor)
     if bounded_profit_factor is not None and bounded_profit_factor < 0.0:
         reasons.append("LEARNING_EVIDENCE_PROFIT_FACTOR_INVALID")
+    bounded_intensity = _coerce_float(learning_exploration_intensity)
+    if bounded_intensity is not None and not 0.5 <= bounded_intensity <= 1.5:
+        reasons.append("LEARNING_EVIDENCE_INTENSITY_OUT_OF_BOUNDS")
     material = {
         "schema_version": "paper_learning_realized_evidence_receipt_v1",
         "closed_trade_count": int(count) if not reasons and count is not None else None,
@@ -38868,6 +38872,7 @@ def _paper_learning_realized_evidence_receipt(
         "profit_factor": bounded_profit_factor,
         "evidence_source": str(evidence_source or "SESSION_CLOSED_TRADE_ROWS"),
         "decision_time": decision_time,
+        "learning_exploration_intensity": bounded_intensity,
         "status": "READY" if not reasons else "BLOCKED",
         "rejection_reasons": sorted(set(reasons)),
         "paper_only": True,
@@ -39208,7 +39213,12 @@ def _paper_growth_authorization_rejection_reasons(
         # (the envelope's growth path remains inert — only the bounded
         # exploration term acts); the configured base may not exceed the
         # conservative default ceiling.
-        learning_fields = ("win_rate", "profit_factor", "closed_trade_count")
+        learning_fields = (
+            "win_rate",
+            "profit_factor",
+            "closed_trade_count",
+            "learning_exploration_intensity",
+        )
         if learning_receipt is None or any(
             arguments.get(field) != learning_receipt.get(field)
             for field in learning_fields
@@ -39403,6 +39413,9 @@ def _paper_candidate_dynamic_envelope_bundle(
             profit_factor=learning_evidence.get("profit_factor"),
             evidence_source=learning_evidence.get("evidence_source"),
             decision_time=decision_time,
+            learning_exploration_intensity=learning_evidence.get(
+                "learning_exploration_intensity"
+            ),
         )
         if isinstance(learning_evidence, Mapping)
         else None
@@ -39497,6 +39510,11 @@ def _paper_candidate_dynamic_envelope_bundle(
         ),
         "decision_time": decision_time,
         "symbol": str(symbol or "").strip().upper(),
+        "learning_exploration_intensity": (
+            learning_material.get("learning_exploration_intensity")
+            if learning_ready
+            else None
+        ),
     }
     calculation_input = {
         "schema_version": "paper_dynamic_envelope_calculation_input_v2",
@@ -52962,6 +52980,70 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
     _envelope_closed_count = _pre_cycle_closed_count
     if not isinstance(_envelope_closed_count, int) or _envelope_closed_count < 1:
         _envelope_closed_count = _fallback_closed_count
+    # Terminal-wealth trajectory controller (operator directive 2026-07-31):
+    # the aspirational target (ln(target_multiple) nats over horizon_days) is
+    # tracked as REQUIRED vs REALIZED log-growth per day — both pure
+    # continuous functions of authenticated session state, no static
+    # thresholds.  The gap steers the LEARNING-EXPLORATION intensity
+    # (bounded [0.5, 1.5]): lagging the trajectory widens bounded
+    # exploration, being ahead consolidates — while adverse realized
+    # evidence and drawdown still contract exploration multiplicatively, so
+    # survival and liquidation avoidance stay lexically first.  This is a
+    # research objective, never a promise: the telemetry publishes the honest
+    # distance every cycle.
+    _tw_target_multiple = 1000.0
+    _tw_horizon_days = 90.0
+    _tw_session_started = _strict_aware_utc_time(paper_session_state.get("started_at"))
+    _tw_elapsed_days = (
+        max(
+            0.0,
+            (datetime.now(timezone.utc) - _tw_session_started).total_seconds()
+            / 86400.0,
+        )
+        if _tw_session_started is not None
+        else 0.0
+    )
+    _tw_days_remaining = max(1.0, _tw_horizon_days - _tw_elapsed_days)
+    _tw_progress_nats = (
+        math.log(max(1e-9, _current_equity / _dd_baseline_equity))
+        if _dd_baseline_equity > 0
+        else 0.0
+    )
+    _tw_required_nats_per_day = (
+        max(0.0, math.log(_tw_target_multiple) - _tw_progress_nats)
+        / _tw_days_remaining
+    )
+    _tw_realized_nats_per_day = (
+        _tw_progress_nats / _tw_elapsed_days if _tw_elapsed_days > 0 else 0.0
+    )
+    _tw_gap = math.tanh(
+        (_tw_required_nats_per_day - _tw_realized_nats_per_day)
+        / max(1e-9, _tw_required_nats_per_day)
+    )
+    _tw_exploration_intensity = round(1.0 + 0.5 * _tw_gap, 8)
+    _safe_write(
+        r,
+        f"{V2_REDIS_PREFIX}paper:terminal_wealth_trajectory",
+        json.dumps(
+            {
+                "schema_version": "paper_terminal_wealth_trajectory_v1",
+                "generated_utc": _utc_iso(),
+                "target_multiple": _tw_target_multiple,
+                "horizon_days": _tw_horizon_days,
+                "elapsed_days": round(_tw_elapsed_days, 4),
+                "progress_nats": round(_tw_progress_nats, 8),
+                "required_nats_per_day": round(_tw_required_nats_per_day, 8),
+                "realized_nats_per_day": round(_tw_realized_nats_per_day, 8),
+                "trajectory_gap": round(_tw_gap, 8),
+                "learning_exploration_intensity": _tw_exploration_intensity,
+                "research_objective_not_a_promise": True,
+                "paper_only": True,
+                "places_real_order": False,
+            },
+            sort_keys=True,
+        ),
+        ex=3600,
+    )
     _dynamic_envelope_arguments = {
         "win_rate": _first_present(
             _pre_cycle_aggregate.get("win_rate"), _fallback_win_rate
@@ -54948,6 +55030,7 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                     _fallback_profit_factor,
                 ),
                 "evidence_source": "SESSION_CLOSED_TRADE_ROWS",
+                "learning_exploration_intensity": _tw_exploration_intensity,
             },
         )
         allocation_lineage = dict(allocation_input.lineage_ids)
