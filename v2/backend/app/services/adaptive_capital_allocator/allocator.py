@@ -301,15 +301,16 @@ def build_paper_liquidation_atr_evidence(
     if snapshot.get("latest_unclosed_kline_excluded") is not True:
         reasons.append("PAPER_LIQUIDATION_ATR_UNCLOSED_KLINE_EXCLUSION_NOT_PROVEN")
 
-    # Record-availability clock. The record publication time is the binding
-    # availability instant; a verified durable-archive snapshot has no
-    # self-attested available_at, so fall back to the genuine source
-    # availability clock (record_available_at / source_available_at), each of
-    # which is >= feature_cutoff and <= the decision and is order-checked below.
+    # Record-availability clock. The feature record is available no earlier
+    # than it is generated; a verified durable-archive snapshot has no
+    # self-attested available_at, so fall back to the record publication clock
+    # when present, else to generated_at (>= feature_cutoff, <= decision,
+    # preserving the generated<=available ordering). source_* clocks describe
+    # INPUT availability (before generation) and are not the record instant.
     _availability_clock = (
         snapshot.get("available_at")
         or snapshot.get("record_available_at")
-        or snapshot.get("source_available_at")
+        or snapshot.get("generated_at")
     )
     parsed_times = {
         "candle_close_time": _aware_utc(snapshot.get("candle_close_time")),

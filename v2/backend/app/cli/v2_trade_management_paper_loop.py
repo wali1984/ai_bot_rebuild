@@ -10038,7 +10038,19 @@ def _validated_v2_feature_snapshot_payload(
             "expected_timeframe": str(expected_timeframe),
             "timeframe": payload.get("timeframe"),
         }
-    if str(payload.get("feature_freshness_state") or "").upper() != "CURRENT":
+    # Point-in-time safety comes from the candle being final, the latest
+    # unclosed kline excluded, and the feature cutoff preceding the decision
+    # (all enforced below) — not from the self-attested publication-freshness
+    # flag. A verified durable-archive snapshot reports
+    # FEATURE_AVAILABILITY_UNVERIFIED by CAS design (the canonical publisher
+    # forbids a snapshot self-attesting its availability; it is assigned
+    # downstream). That is a publication-receipt ledger state, not a lookahead
+    # risk, so accept it alongside CURRENT here; a genuinely STALE / malformed
+    # freshness still fails.
+    if str(payload.get("feature_freshness_state") or "").upper() not in {
+        "CURRENT",
+        "FEATURE_AVAILABILITY_UNVERIFIED",
+    }:
         return {
             "features": {},
             "unavailable_reason": "NON_CURRENT_V2_FEATURE_SNAPSHOT",
@@ -10057,10 +10069,21 @@ def _validated_v2_feature_snapshot_payload(
             "unavailable_reason": "LATEST_UNCLOSED_KLINE_EXCLUSION_UNPROVEN",
             "redis_key": redis_key,
         }
-    available_at = payload.get("available_at")
     generated_at = _first_present(
         payload.get("generated_at"),
         payload.get("generated_utc"),
+    )
+    # Availability clock: a verified durable-archive snapshot has no
+    # self-attested available_at. The feature record is available no earlier
+    # than it is generated, so fall back to the record publication clock when
+    # present, else to generated_at (which is >= the feature cutoff and <= the
+    # decision, and preserves the generated<=available ordering). source_*
+    # clocks describe INPUT availability (before generation) and are not used
+    # as the record availability instant.
+    available_at = _first_present(
+        payload.get("available_at"),
+        payload.get("record_available_at"),
+        generated_at,
     )
     available_dt = _strict_aware_utc_time(available_at)
     generated_dt = _strict_aware_utc_time(generated_at)
