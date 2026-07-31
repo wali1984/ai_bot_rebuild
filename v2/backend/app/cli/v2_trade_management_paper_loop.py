@@ -38804,6 +38804,52 @@ def _paper_candidate_market_context_growth_receipt(
     return {**material, "evidence_hash": _paper_canonical_sha256(material)}
 
 
+def _paper_learning_realized_evidence_receipt(
+    *,
+    closed_trade_count: Any,
+    win_rate: Any,
+    profit_factor: Any,
+    evidence_source: Any,
+    decision_time: str,
+) -> dict[str, Any]:
+    """Hash-bound realized-lifecycle evidence for LEARNING_EXPLORATION.
+
+    The learning-exploration authorization state (operator directive
+    2026-07-31: the paper trader is a learning instrument) permits the
+    dynamic envelope's bounded exploration term to act BEFORE the full
+    growth-authorization chain is READY.  It binds exactly three realized,
+    backward-looking inputs — closed lifecycle count, win rate and profit
+    factor — so the envelope's loss-driven contraction keeps learning from
+    mistakes; every strict-edge and market-context growth field stays
+    withheld under this state.
+    """
+
+    reasons: list[str] = []
+    count = _coerce_float(closed_trade_count)
+    if count is None or count < 1 or float(count) != int(count):
+        reasons.append("LEARNING_EVIDENCE_CLOSED_COUNT_INVALID")
+    bounded_win_rate = _coerce_float(win_rate)
+    if bounded_win_rate is not None and not 0.0 <= bounded_win_rate <= 1.0:
+        reasons.append("LEARNING_EVIDENCE_WIN_RATE_INVALID")
+    bounded_profit_factor = _coerce_float(profit_factor)
+    if bounded_profit_factor is not None and bounded_profit_factor < 0.0:
+        reasons.append("LEARNING_EVIDENCE_PROFIT_FACTOR_INVALID")
+    material = {
+        "schema_version": "paper_learning_realized_evidence_receipt_v1",
+        "closed_trade_count": int(count) if not reasons and count is not None else None,
+        "win_rate": bounded_win_rate,
+        "profit_factor": bounded_profit_factor,
+        "evidence_source": str(evidence_source or "SESSION_CLOSED_TRADE_ROWS"),
+        "decision_time": decision_time,
+        "status": "READY" if not reasons else "BLOCKED",
+        "rejection_reasons": sorted(set(reasons)),
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+    return {**material, "evidence_hash": _paper_canonical_sha256(material)}
+
+
 def _paper_candidate_growth_authorization_receipt(
     *,
     symbol: str,
@@ -38811,6 +38857,7 @@ def _paper_candidate_growth_authorization_receipt(
     checkpoint_receipt: Mapping[str, Any],
     edge_receipt: Mapping[str, Any],
     market_context_receipt: Mapping[str, Any],
+    learning_evidence_receipt: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     component_receipts = {
         "promoted_checkpoint": deepcopy(dict(checkpoint_receipt)),
@@ -38827,6 +38874,26 @@ def _paper_candidate_growth_authorization_receipt(
             )
         }
     )
+    learning_receipt = (
+        deepcopy(dict(learning_evidence_receipt))
+        if isinstance(learning_evidence_receipt, Mapping)
+        else None
+    )
+    # Three-state authorization (operator directive 2026-07-31): READY when
+    # the full growth chain proves positive realized edge;
+    # LEARNING_EXPLORATION when growth is not yet earned but hash-bound
+    # realized-lifecycle evidence exists (bounded exploration only — the
+    # envelope's exploration term, never the growth path); BLOCKED otherwise.
+    if not reasons:
+        status = "READY"
+    elif (
+        learning_receipt is not None
+        and learning_receipt.get("status") == "READY"
+        and _paper_embedded_receipt_hash_valid(learning_receipt)
+    ):
+        status = "LEARNING_EXPLORATION"
+    else:
+        status = "BLOCKED"
     material = {
         "schema_version": "paper_candidate_growth_authorization_receipt_v1",
         "symbol": str(symbol or "").strip().upper() or None,
@@ -38839,7 +38906,11 @@ def _paper_candidate_growth_authorization_receipt(
         "component_receipt_hashes": {
             name: receipt.get("evidence_hash") for name, receipt in component_receipts.items()
         },
-        "status": "READY" if not reasons else "BLOCKED",
+        "learning_evidence_receipt": learning_receipt,
+        "learning_evidence_receipt_hash": (
+            learning_receipt.get("evidence_hash") if learning_receipt else None
+        ),
+        "status": status,
         "rejection_reasons": reasons,
         "missing_or_invalid_growth_evidence_caps_leverage_at_1x": True,
         "paper_only": True,
@@ -39017,12 +39088,43 @@ def _paper_growth_authorization_rejection_reasons(
             for name in required_components
         )
     )
-    expected_status = "READY" if component_ready else "BLOCKED"
+    learning_receipt_value = authorization.get("learning_evidence_receipt")
+    learning_receipt = (
+        dict(learning_receipt_value)
+        if isinstance(learning_receipt_value, Mapping)
+        else None
+    )
+    learning_valid = bool(
+        learning_receipt is not None
+        and learning_receipt.get("status") == "READY"
+        and _paper_embedded_receipt_hash_valid(learning_receipt)
+        and authorization.get("learning_evidence_receipt_hash")
+        == learning_receipt.get("evidence_hash")
+        and learning_receipt.get("decision_time") == arguments.get("decision_time")
+    )
+    if learning_receipt is not None:
+        replayed_learning = _paper_learning_realized_evidence_receipt(
+            closed_trade_count=learning_receipt.get("closed_trade_count"),
+            win_rate=learning_receipt.get("win_rate"),
+            profit_factor=learning_receipt.get("profit_factor"),
+            evidence_source=learning_receipt.get("evidence_source"),
+            decision_time=learning_receipt.get("decision_time"),
+        )
+        if learning_receipt != replayed_learning:
+            reasons.append("LEARNING_EVIDENCE_RECEIPT_SEMANTIC_REPLAY_MISMATCH")
+            learning_valid = False
+    expected_status = (
+        "READY"
+        if component_ready
+        else ("LEARNING_EXPLORATION" if learning_valid else "BLOCKED")
+    )
     if authorization.get("status") != expected_status:
         reasons.append("CANDIDATE_GROWTH_AUTHORIZATION_STATUS_MISMATCH")
     if expected_status == "READY" and authorization.get("rejection_reasons") != []:
         reasons.append("CANDIDATE_GROWTH_AUTHORIZATION_READY_REASONS_INVALID")
-    if expected_status == "BLOCKED" and not authorization.get("rejection_reasons"):
+    if expected_status in ("BLOCKED", "LEARNING_EXPLORATION") and not authorization.get(
+        "rejection_reasons"
+    ):
         reasons.append("CANDIDATE_GROWTH_AUTHORIZATION_BLOCK_REASONS_MISSING")
     if authorization.get("symbol") != arguments.get("symbol"):
         reasons.append("CANDIDATE_GROWTH_AUTHORIZATION_SYMBOL_MISMATCH")
@@ -39073,6 +39175,32 @@ def _paper_growth_authorization_rejection_reasons(
             }.items()
         ):
             reasons.append("CANDIDATE_GROWTH_ARGUMENT_BINDING_MISMATCH")
+    elif expected_status == "LEARNING_EXPLORATION":
+        # Realized-lifecycle fields bind exactly to the learning receipt;
+        # every strict-edge and market-context growth field stays withheld
+        # (the envelope's growth path remains inert — only the bounded
+        # exploration term acts); the configured base may not exceed the
+        # conservative default ceiling.
+        learning_fields = ("win_rate", "profit_factor", "closed_trade_count")
+        if learning_receipt is None or any(
+            arguments.get(field) != learning_receipt.get(field)
+            for field in learning_fields
+        ):
+            reasons.append("LEARNING_EXPLORATION_ARGUMENT_BINDING_MISMATCH")
+        if any(
+            arguments.get(field) is not None
+            for field in growth_fields
+            if field not in learning_fields
+        ):
+            reasons.append("LEARNING_EXPLORATION_GROWTH_ARGUMENTS_NOT_WITHHELD")
+        configured_leverage = _coerce_float(base_material.get("max_effective_leverage"))
+        from v2.backend.app.services.adaptive_capital_allocator.contracts import (  # noqa: PLC0415
+            RiskEnvelope as _LearningBaseEnvelope,
+        )
+        if configured_leverage is None or configured_leverage > float(
+            _LearningBaseEnvelope().max_effective_leverage
+        ):
+            reasons.append("LEARNING_EXPLORATION_BASE_EXCEEDS_DEFAULT_CEILING")
     else:
         if any(arguments.get(field) is not None for field in growth_fields):
             reasons.append("BLOCKED_CANDIDATE_GROWTH_ARGUMENTS_NOT_WITHHELD")
@@ -39208,6 +39336,7 @@ def _paper_candidate_dynamic_envelope_bundle(
     candidate_checkpoint_id: Any,
     candidate_checkpoint_id_source: Any,
     current_drawdown_pct: Any,
+    learning_evidence: Mapping[str, Any] | None = None,
 ) -> tuple[Any, dict[str, Any]]:
     """Return one candidate envelope and its fully replayable reservation receipt."""
 
@@ -39240,31 +39369,70 @@ def _paper_candidate_dynamic_envelope_bundle(
         point_in_time_evidence=point_in_time_evidence,
         decision_time=decision_time,
     )
+    learning_evidence_receipt = (
+        _paper_learning_realized_evidence_receipt(
+            closed_trade_count=learning_evidence.get("closed_trade_count"),
+            win_rate=learning_evidence.get("win_rate"),
+            profit_factor=learning_evidence.get("profit_factor"),
+            evidence_source=learning_evidence.get("evidence_source"),
+            decision_time=decision_time,
+        )
+        if isinstance(learning_evidence, Mapping)
+        else None
+    )
     authorization = _paper_candidate_growth_authorization_receipt(
         symbol=symbol,
         decision_time=decision_time,
         checkpoint_receipt=checkpoint_receipt,
         edge_receipt=edge_receipt,
         market_context_receipt=context_receipt,
+        learning_evidence_receipt=learning_evidence_receipt,
     )
     growth_ready = authorization.get("status") == "READY"
+    learning_ready = authorization.get("status") == "LEARNING_EXPLORATION"
+    learning_material = (
+        dict(authorization.get("learning_evidence_receipt"))
+        if isinstance(authorization.get("learning_evidence_receipt"), Mapping)
+        else {}
+    )
     configured_base = replace(
         RiskEnvelope(),
-        max_effective_leverage=(float(PAPER_MAX_LEVERAGE) if growth_ready else 1.0),
+        max_effective_leverage=(
+            float(PAPER_MAX_LEVERAGE)
+            if growth_ready
+            # LEARNING_EXPLORATION: the conservative default ceiling; the
+            # envelope's exploration term computes the bounded grant from
+            # the realized-lifecycle evidence (growth path stays inert).
+            else (
+                float(RiskEnvelope().max_effective_leverage)
+                if learning_ready
+                else 1.0
+            )
+        ),
     )
     edge_material_value = edge_receipt.get("source_material")
     edge_material = dict(edge_material_value) if isinstance(edge_material_value, Mapping) else {}
     arguments: dict[str, Any] = {
         "win_rate": (
-            edge_material.get("strict_after_cost_edge_win_rate") if growth_ready else None
+            edge_material.get("strict_after_cost_edge_win_rate")
+            if growth_ready
+            else (learning_material.get("win_rate") if learning_ready else None)
         ),
         "profit_factor": (
             edge_material.get("strict_after_cost_edge_profit_factor_numeric")
             if growth_ready
-            else None
+            else (
+                learning_material.get("profit_factor") if learning_ready else None
+            )
         ),
         "closed_trade_count": (
-            edge_material.get("after_cost_edge_evidence_count") if growth_ready else None
+            edge_material.get("after_cost_edge_evidence_count")
+            if growth_ready
+            else (
+                learning_material.get("closed_trade_count")
+                if learning_ready
+                else None
+            )
         ),
         "current_drawdown_pct": current_drawdown_pct,
         # The pure envelope's historical parameter name is
@@ -54714,6 +54882,17 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             candidate_checkpoint_id=candidate_growth_checkpoint_id,
             candidate_checkpoint_id_source=(candidate_growth_checkpoint_id_source),
             current_drawdown_pct=_current_drawdown,
+            learning_evidence={
+                "closed_trade_count": _envelope_closed_count,
+                "win_rate": _first_present(
+                    _pre_cycle_aggregate.get("win_rate"), _fallback_win_rate
+                ),
+                "profit_factor": _first_present(
+                    _pre_cycle_aggregate.get("profit_factor"),
+                    _fallback_profit_factor,
+                ),
+                "evidence_source": "SESSION_CLOSED_TRADE_ROWS",
+            },
         )
         allocation_lineage = dict(allocation_input.lineage_ids)
         allocation_lineage[PAPER_GROWTH_ENVELOPE_AUTHORIZATION_LINEAGE_KEY] = deepcopy(
