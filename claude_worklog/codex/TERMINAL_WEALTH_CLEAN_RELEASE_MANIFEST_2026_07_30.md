@@ -1,5 +1,41 @@
 # TERMINAL-WEALTH CLEAN RELEASE MANIFEST
 
+## PAPER EXPLORATION AUTHORITY CORRECTION — DEPLOYED `7b07910eb6` (2026-07-31 ~01:16Z)
+
+Operator directive 2026-07-31 implemented as ONE in-place correction (no new
+service/selector): central module `paper_exploration_authority_v2.py` with the
+three-class taxonomy (HARD_SAFETY / EXECUTION_INTEGRITY / TRADING_POLICY),
+fail-closed on unknown reasons, env lever `PAPER_EXPLORATION_OVERRIDE`
+(default true, paper lane only).  Wired mechanically at: final-admission
+reject() (telemetry published in the contract), preemptive edge control, P0/
+non-relaxable entry gates (replaces bespoke strip lists), performance circuit
+(continuous bounded-multiplier for all paper intents absent catastrophic
+mandate), router bucket-performance quarantine, standalone-1m gate.
+Single-flight removals: open experiment no longer suppresses designation; no
+per-cycle authorization cap; shadow hard-check no longer requires zero open
+positions for directional actions; authorization bootstrap lane is parallel
+(info-gain>0 retained).  Concurrency now governed by the adaptive allocator
+envelope + margin/reservation + per-symbol duplicate guard + 32-position
+capacity backstop.  All authentication/PIT/venue/accounting/reservation/
+duplicate/exposure/liquidation/mandatory-protection/catastrophic/live rails
+unchanged (live BLOCKED).
+
+Verification: 3-agent boundary recon (114+wrapped final-admission reasons
+classified; every upstream boundary vocabulary mapped; 5 single-flight sites
+pinned); 30 legacy-contract tests pinned under override-off; 30 new
+override-on tests with probe-verified non-tautology; full battery 2,842
+passed; offline calibration acceptance gate 10/10 PASS from the new snapshot;
+ordered four-unit cutover (sentinel stopped first per runbook); first cycle
+COMPLETED with 1 accepted ADAPTIVE_POLICY_V2 fill, 1 open position, zero
+contract errors.  Runtime proof (directive point 9) accumulating in
+session-independent `ai-bot-v2-paper-exploration-proof-watch.service`
+(P1 concurrent protected positions / P2 policy-negative hard-valid fill /
+P3 authorization while positions open / P4 qualified protected closes;
+fail-fast on restart/SHA-drift/parity/schema/duplicate/lifecycle defects;
+state at terminal_wealth_watch/proof_watch_state.json, events at
+proof_events.jsonl).  Cherry-picked to codex/pipeline-trust-refresh as
+`8a61f56a49`.  Guardian gates untouched.
+
 ## BURN-IN ACCEPTANCE — PASS (2026-07-31 00:04Z / 2026-07-30 20:04 EDT)
 
 The operator-defined event-based burn-in contract on frozen release
