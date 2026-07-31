@@ -29776,10 +29776,14 @@ def test_bootstrap_designation_utility_tie_breaks_deterministically() -> None:
     )
 
 
-def test_bootstrap_designation_filters_ineligible_rows_and_returns_none() -> None:
+def test_bootstrap_designation_filters_ineligible_rows_and_returns_none(
+    legacy_paper_authority,
+) -> None:
     """Rows failing hard risk, with non-positive gain or loss, FLAT side, or
     structural malformation are invisible to the ranking; with nothing
-    eligible the designation is None.
+    eligible the designation is None.  (Legacy authority: under paper
+    exploration nonpositive GAIN no longer vetoes — see the override-on
+    companion test below.)
     """
 
     calibration = _bootstrap_designation_calibration()
@@ -29831,6 +29835,57 @@ def test_bootstrap_designation_filters_ineligible_rows_and_returns_none() -> Non
     assert only_eligible["eligible_candidate_count"] == 1
     assert only_eligible["symbol"] == "BTCUSDT"
     assert only_eligible["side"] == "LONG"
+
+
+def test_nonpositive_information_gain_is_ranking_not_veto_under_exploration_authority(
+    monkeypatch,
+) -> None:
+    """Authority-correction completion (2026-07-31): information gain is a
+    TRADING_POLICY estimate — a ranking feature, never an eligibility veto.
+    A hard-valid bounded experiment whose estimated gain is nonpositive stays
+    designatable (gain<=0 for every candidate must not force the paper
+    account flat).  Bounded loss remains mandatory: nonpositive expected loss
+    still fails closed, as do hard-risk failures and structural malformation.
+    """
+
+    monkeypatch.setenv("PAPER_EXPLORATION_OVERRIDE", "true")
+    calibration = _bootstrap_designation_calibration()
+
+    zero_gain = paper_loop._paper_bootstrap_information_acquisition_designation(  # noqa: SLF001
+        calibration=calibration,
+        previous_cycle_intents=[
+            _bootstrap_designation_intent(
+                "BTCUSDT",
+                [
+                    _bootstrap_designation_comparison(gain_nats=0.0),
+                    _bootstrap_designation_comparison(gain_nats=-0.4),
+                ],
+            )
+        ],
+        current_epoch_closed_trade_rows=[],
+        current_epoch_open_position_rows=[],
+    )
+    assert zero_gain is not None
+    assert zero_gain["eligible_candidate_count"] == 2
+    assert zero_gain["symbol"] == "BTCUSDT"
+
+    # Bounded loss and hard risk keep full veto authority.
+    still_none = paper_loop._paper_bootstrap_information_acquisition_designation(  # noqa: SLF001
+        calibration=calibration,
+        previous_cycle_intents=[
+            _bootstrap_designation_intent(
+                "BTCUSDT",
+                [
+                    _bootstrap_designation_comparison(expected_loss_usd=0.0),
+                    _bootstrap_designation_comparison(expected_loss_usd=-2.0),
+                    _bootstrap_designation_comparison(hard_risk_pass=False),
+                ],
+            )
+        ],
+        current_epoch_closed_trade_rows=[],
+        current_epoch_open_position_rows=[],
+    )
+    assert still_none is None
 
 
 def test_bootstrap_designation_fails_closed_on_malformed_uncertainty_block() -> None:

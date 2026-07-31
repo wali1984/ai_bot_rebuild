@@ -407,7 +407,17 @@ def _selected_input(
         if len(matches) != 1:
             _fail("selected_objective_input_not_unique", "objective_inputs")
         selected = matches[0]
-        if selected.expected_information_gain <= 0.0:
+        # Authority correction completion (2026-07-31): information gain is a
+        # TRADING_POLICY estimate — a ranking feature, never an all-candidate
+        # veto.  A nonpositive estimate must not force the paper account flat
+        # (estimated-gain<=0 for every candidate would otherwise deadlock the
+        # information model: no authorization -> no new outcomes -> the
+        # estimate never improves).  Bounded loss, the signed hard validator,
+        # venue attestation and mandatory protection remain mandatory.  With
+        # the override disabled the legacy positive-gain precondition applies.
+        if selected.expected_information_gain <= 0.0 and not (
+            _paper_exploration_override_enabled()
+        ):
             _fail(
                 "bootstrap_requires_positive_information_gain",
                 "selected_objective_input",

@@ -93,6 +93,11 @@ _TRADING_POLICY_EXACT = frozenset(
         # -- authorization-lane policy preferences --------------------------
         "BOOTSTRAP_REQUIRES_NO_POSITIVE_UTILITY_EXPLORATION",
         "BOOTSTRAP_REQUIRES_FLAT_CHAMPION_BASELINE",
+        # -- information-gain estimate: ranking feature, never a veto -------
+        "BOOTSTRAP_REQUIRES_POSITIVE_INFORMATION_GAIN",
+        "INFORMATION_GAIN_NONPOSITIVE",
+        "NO_EXECUTABLE_INFORMATION_SEEKING_ACTION",
+        "POSITIVE_UTILITY_EXPLORATION_EXISTS",
     }
 )
 

@@ -41756,7 +41756,14 @@ def _paper_bootstrap_information_acquisition_designation(
                 math.isfinite(gain_nats) and math.isfinite(expected_loss_usd)
             ):
                 continue
-            if gain_nats <= 0.0 or expected_loss_usd <= 0.0:
+            # Bounded loss is mandatory (a nonpositive expected loss means the
+            # loss bound is absent or broken — fail closed).  Information gain
+            # is TRADING_POLICY: a ranking feature, never an eligibility veto
+            # under paper exploration (2026-07-31 completion) — an estimated
+            # gain<=0 for every candidate must not force the account flat.
+            if expected_loss_usd <= 0.0:
+                continue
+            if gain_nats <= 0.0 and not paper_exploration_override_enabled():
                 continue
             side = row.get("side")
             if side not in ("LONG", "SHORT"):
