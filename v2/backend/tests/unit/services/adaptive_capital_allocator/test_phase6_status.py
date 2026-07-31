@@ -75,13 +75,21 @@ def _row(**overrides: object) -> AllocationInput:
 
 
 def _payloads() -> list[dict[str, object]]:
+    # Distinct per-candidate reservation lineage seeds the deterministic
+    # paper learning-exploration sizing floor (sha256 of
+    # symbol:timeframe:reservation-hash) exactly as real cycles do.  These
+    # draws keep the weak candidate's floor below its own policy product, so
+    # the two target notionals stay non-static for the phase6 pass condition.
     weak = allocate_authorized_growth(
         _row(
             confidence_calibrated=0.62,
             expected_move_after_cost_bps=40.0,
             volatility_bps=45.0,
             stop_distance_bps=600.0,
-            lineage_ids={"prediction_id": "weak"},
+            lineage_ids={
+                "prediction_id": "weak",
+                "paper_cycle_reservation_snapshot_hash": "phase6-weak",
+            },
         )
     ).to_payload()
     strong = allocate_authorized_growth(
@@ -90,7 +98,10 @@ def _payloads() -> list[dict[str, object]]:
             expected_move_after_cost_bps=180.0,
             volatility_bps=15.0,
             stop_distance_bps=80.0,
-            lineage_ids={"prediction_id": "strong"},
+            lineage_ids={
+                "prediction_id": "strong",
+                "paper_cycle_reservation_snapshot_hash": "phase6-strong",
+            },
         )
     ).to_payload()
     return [weak, strong]

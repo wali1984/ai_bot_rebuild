@@ -60,6 +60,64 @@ LIVE_LEGACY_MAINTENANCE_MARGIN_RATE = 0.005
 # capacity factors (market integrity, liquidity, drawdown, exposure,
 # correlation) retain full zeroing authority.
 PAPER_POLICY_SIZING_FLOOR = 0.05
+
+
+def _paper_exploration_sizing_floor(
+    row: AllocationInput,
+    envelope: RiskEnvelope,
+) -> dict[str, Any]:
+    """Per-candidate exploratory sizing floor (learning instrument, paper only).
+
+    A constant floor made every exploratory fill the same tiny size, so the
+    learner observed no variation across the sizing dimension.  The floor is
+    now sampled deterministically per candidate inside
+    [PAPER_POLICY_SIZING_FLOOR, floor + span]:
+
+      - the SPAN is the dynamic envelope's learning-exploration leverage
+        grant normalised over the configured ceiling — the same
+        evidence-grows / adversity-contracts capacity signal, so sizing
+        exploration widens with observed lifecycles and pulls back when the
+        system is losing or in drawdown;
+      - the DRAW is a pure function of the candidate's reservation lineage
+        (sha256 of symbol:timeframe:reservation-hash) — reproducible,
+        point-in-time safe, and different per candidate so one cycle
+        explores multiple sizes;
+      - the result only ever raises the TRADING_POLICY factor product — the
+        per-trade loss cap, notional ceilings, margin, liquidation and
+        catastrophic validators all still bind downstream.
+    """
+
+    base_span = max(1e-9, float(RiskEnvelope().max_effective_leverage) - 1.0)
+    exploration_span = _clamp(
+        (float(envelope.max_effective_leverage) - 1.0) / base_span,
+        0.0,
+        1.0,
+    )
+    # Literal key (== cycle_reservation.CYCLE_RESERVATION_LINEAGE_KEY);
+    # importing it here would create a cross-package cycle.
+    reservation_hash = str(
+        row.lineage_ids.get("paper_cycle_reservation_snapshot_hash")
+        or row.lineage_ids.get("allocation_id")
+        or ""
+    )
+    seed_material = f"{row.symbol}:{row.timeframe}:{reservation_hash}"
+    draw = (
+        int(hashlib.sha256(seed_material.encode("utf-8")).hexdigest()[:12], 16)
+        / float(16**12)
+    )
+    floor = PAPER_POLICY_SIZING_FLOOR + (
+        draw * exploration_span * (1.0 - PAPER_POLICY_SIZING_FLOOR)
+    )
+    return {
+        "schema_version": "paper_exploration_sizing_floor_v1",
+        "floor": round(_clamp(floor, PAPER_POLICY_SIZING_FLOOR, 1.0), 8),
+        "base_floor": PAPER_POLICY_SIZING_FLOOR,
+        "exploration_span": round(exploration_span, 8),
+        "deterministic_draw": round(draw, 8),
+        "seed_material": seed_material,
+        "envelope_max_effective_leverage": float(envelope.max_effective_leverage),
+        "paper_only": True,
+    }
 PAPER_GROWTH_ENVELOPE_AUTHORIZATION_LINEAGE_KEY = "paper_growth_envelope_authorization_receipt"
 PAPER_GROWTH_ENVELOPE_AUTHORIZATION_HASH_LINEAGE_KEY = (
     "paper_growth_envelope_authorization_receipt_sha256"
@@ -3076,11 +3134,18 @@ def _allocate(row: AllocationInput, *, mode: str, envelope: RiskEnvelope) -> All
             envelope=envelope,
         )
 
+    paper_exploration_sizing_floor = (
+        _paper_exploration_sizing_floor(row, envelope) if mode == "paper" else None
+    )
     budget_pct = adaptive_budget_pct(
         sizing_row,
         envelope,
         continuous_confidence_from_zero=mode == "paper",
-        policy_factor_floor=PAPER_POLICY_SIZING_FLOOR if mode == "paper" else None,
+        policy_factor_floor=(
+            paper_exploration_sizing_floor["floor"]
+            if paper_exploration_sizing_floor is not None
+            else None
+        ),
     )
     risk_budget_before_paper_fraction_usd = row.equity * budget_pct
     risk_budget_after_paper_fraction_usd = (
@@ -3553,6 +3618,13 @@ def _allocate(row: AllocationInput, *, mode: str, envelope: RiskEnvelope) -> All
             **leverage_selection,
             "selected_leverage": round(leverage, 8),
             "selected_allocated_margin_usd": round(allocated_margin, 8),
+            # Signal Explainability: the per-candidate exploratory sizing
+            # floor that raised (never lowered) the policy factor product.
+            **(
+                {"paper_exploration_sizing_floor": paper_exploration_sizing_floor}
+                if paper_exploration_sizing_floor is not None
+                else {}
+            ),
         },
         margin_mode=margin_mode,
         margin_mode_selection=margin_mode_selection,

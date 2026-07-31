@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from v2.backend.app.services.adaptive_capital_allocator import (
     AllocationInput,
+    RiskEnvelope,
     allocate_live_candidate,
 )
 from v2.backend.app.services.adaptive_capital_allocator.allocator import (
@@ -98,8 +99,12 @@ def test_high_loss_probability_shrinks_notional() -> None:
     # (high loss probability) shrinks the paper position to the floored
     # exploration minimum at 1x — it scales size continuously but may never
     # zero it (that would be a policy veto expressed as capacity).
-    strong = allocate_paper_candidate(_mk())
-    losing = allocate_paper_candidate(_mk(expected_move_after_cost_bps=-15.0))
+    # A 1x configured base pins the learning-exploration sizing floor to its
+    # constant 0.05 base (span == 0); with a wider envelope the shared
+    # candidate-seeded floor would bind for both candidates and equalize them.
+    base = RiskEnvelope(max_effective_leverage=1.0)
+    strong = allocate_paper_candidate(_mk(), base)
+    losing = allocate_paper_candidate(_mk(expected_move_after_cost_bps=-15.0), base)
     assert losing.gross_notional_usd > 0.0
     assert losing.recommended_leverage == 1.0
     assert strong.gross_notional_usd > losing.gross_notional_usd

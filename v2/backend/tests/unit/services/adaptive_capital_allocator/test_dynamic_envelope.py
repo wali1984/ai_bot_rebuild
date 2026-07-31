@@ -379,7 +379,11 @@ def test_hostile_string_subclasses_cannot_spoof_provenance_sources() -> None:
                 base_envelope=configured,
                 win_rate=0.70,
                 profit_factor=2.0,
-                closed_trade_count=100,
+                # One lifecycle keeps the paper learning-exploration term below
+                # the base envelope while the growth path stays observable: a
+                # spoofed source must fail the growth gate, not hide behind
+                # exploration leverage.
+                closed_trade_count=1,
                 current_drawdown_pct=0.0,
                 model_avg_confidence=0.95,
                 paper_mode=True,
@@ -408,7 +412,10 @@ def test_hostile_string_subclasses_cannot_spoof_any_pit_timestamp() -> None:
                 base_envelope=configured,
                 win_rate=0.70,
                 profit_factor=2.0,
-                closed_trade_count=100,
+                # One lifecycle: exploration leverage stays below the base
+                # envelope, so a spoofed PIT timestamp must fail the growth
+                # gate itself for this bound to hold.
+                closed_trade_count=1,
                 current_drawdown_pct=0.0,
                 model_avg_confidence=0.95,
                 paper_mode=True,
@@ -424,7 +431,10 @@ def test_configured_cap_is_not_the_starting_leverage_grant() -> None:
         base_envelope=configured,
         win_rate=0.70,
         profit_factor=2.0,
-        closed_trade_count=100,
+        # A starting grant is judged at the start: one lifecycle keeps the
+        # paper learning-exploration term below the base envelope, so the
+        # configured cap alone must not move leverage off the base.
+        closed_trade_count=1,
         current_drawdown_pct=0.0,
         model_avg_confidence=0.95,
         paper_mode=True,
@@ -459,7 +469,9 @@ def test_non_positive_after_cost_lower_bound_cannot_grow_leverage() -> None:
             base_envelope=configured,
             win_rate=0.70,
             profit_factor=2.0,
-            closed_trade_count=100,
+            # One lifecycle keeps exploration below the base envelope; a
+            # non-positive LCB must fail the growth gate itself.
+            closed_trade_count=1,
             current_drawdown_pct=0.0,
             model_avg_confidence=0.95,
             paper_mode=True,
@@ -480,7 +492,9 @@ def test_after_cost_edge_scale_is_required_and_must_be_positive() -> None:
             base_envelope=configured,
             win_rate=0.70,
             profit_factor=2.0,
-            closed_trade_count=100,
+            # One lifecycle keeps exploration below the base envelope; a
+            # missing/non-positive scale must fail the growth gate itself.
+            closed_trade_count=1,
             current_drawdown_pct=0.0,
             model_avg_confidence=0.95,
             paper_mode=True,
@@ -515,7 +529,9 @@ def test_edge_scale_must_match_finite_data_resolution_contract() -> None:
             base_envelope=configured,
             win_rate=0.70,
             profit_factor=2.0,
-            closed_trade_count=100,
+            # One lifecycle keeps exploration below the base envelope; an
+            # under-resolved scale must fail the growth gate itself.
+            closed_trade_count=1,
             current_drawdown_pct=0.0,
             model_avg_confidence=0.95,
             paper_mode=True,
@@ -531,7 +547,9 @@ def test_after_cost_lcb_magnitude_scales_growth_continuously() -> None:
         "base_envelope": configured,
         "win_rate": 0.70,
         "profit_factor": 2.0,
-        "closed_trade_count": 100,
+        # One lifecycle keeps the paper learning-exploration term below the
+        # base envelope, so the ordering below observes the growth path alone.
+        "closed_trade_count": 1,
         "current_drawdown_pct": 0.0,
         "model_avg_confidence": 0.95,
         "paper_mode": True,
@@ -569,7 +587,9 @@ def test_after_cost_lcb_is_nondecreasing_from_zero() -> None:
         "base_envelope": configured,
         "win_rate": 0.70,
         "profit_factor": 2.0,
-        "closed_trade_count": 100,
+        # One lifecycle keeps the paper learning-exploration term below the
+        # base envelope, so the zero-LCB case still lands exactly on the base.
+        "closed_trade_count": 1,
         "current_drawdown_pct": 0.0,
         "model_avg_confidence": 0.95,
         "paper_mode": True,
@@ -605,7 +625,9 @@ def test_future_or_naive_evidence_timestamps_cannot_grow_leverage() -> None:
             base_envelope=configured,
             win_rate=0.70,
             profit_factor=2.0,
-            closed_trade_count=100,
+            # One lifecycle keeps exploration below the base envelope; future
+            # or naive timestamps must fail the growth gate itself.
+            closed_trade_count=1,
             current_drawdown_pct=0.0,
             model_avg_confidence=0.95,
             paper_mode=True,
@@ -629,7 +651,9 @@ def test_missing_edge_provenance_or_count_cannot_grow_leverage() -> None:
             base_envelope=configured,
             win_rate=0.70,
             profit_factor=2.0,
-            closed_trade_count=100,
+            # One lifecycle keeps exploration below the base envelope; missing
+            # provenance or counts must fail the growth gate itself.
+            closed_trade_count=1,
             current_drawdown_pct=0.0,
             model_avg_confidence=0.95,
             paper_mode=True,
@@ -646,7 +670,9 @@ def test_adverse_liquidity_and_regime_context_withholds_growth_smoothly() -> Non
         base_envelope=configured,
         win_rate=0.70,
         profit_factor=2.0,
-        closed_trade_count=100,
+        # One lifecycle keeps the paper learning-exploration term below the
+        # base envelope, so context quality alone separates these envelopes.
+        closed_trade_count=1,
         current_drawdown_pct=0.0,
         model_avg_confidence=0.95,
         paper_mode=True,
@@ -656,7 +682,7 @@ def test_adverse_liquidity_and_regime_context_withholds_growth_smoothly() -> Non
         base_envelope=configured,
         win_rate=0.70,
         profit_factor=2.0,
-        closed_trade_count=100,
+        closed_trade_count=1,
         current_drawdown_pct=0.0,
         model_avg_confidence=0.95,
         paper_mode=True,
@@ -697,8 +723,32 @@ def test_leverage_is_continuous_at_favorable_growth_drawdown_boundary() -> None:
         for drawdown in (boundary - epsilon, boundary, boundary + epsilon)
     ]
 
+    # At the favorable-growth boundary the growth path contributes exactly the
+    # base envelope; with 100 lifecycles the PAPER LEARNING EXPLORATION term
+    # (progress * confidence_quality * exp(losing_pressure) * drawdown headroom,
+    # capped at half the ceiling distance) is the binding leverage.  Both terms
+    # are continuous in drawdown, so the max() stays continuous across the
+    # boundary.  Recomputed from the fixture inputs (win_rate=1.0 and
+    # profit_factor=1.0 give non-negative realized evidence, so
+    # losing_evidence_pressure == 0).
+    exploration_progress = 100 / (100 + 25.0)
+    confidence_quality = 0.5 + (0.5 * 0.0)
+    drawdown_pressure = boundary / max(RiskEnvelope().max_daily_drawdown_pct, 1e-9)
+    exploration_capacity = (
+        exploration_progress
+        * confidence_quality
+        * math.exp(0.0)
+        * max(0.0, 1.0 - drawdown_pressure)
+    )
+    expected_boundary_leverage = 1.0 + (0.5 * exploration_capacity * (75.0 - 1.0))
+    assert expected_boundary_leverage > RiskEnvelope().max_effective_leverage
     assert leverages[0] >= leverages[1] >= leverages[2]
-    assert leverages[1] == RiskEnvelope().max_effective_leverage
+    assert math.isclose(
+        leverages[1],
+        expected_boundary_leverage,
+        rel_tol=0.0,
+        abs_tol=1e-12,
+    )
     assert max(abs(value - leverages[1]) for value in leverages) < 2e-6
 
 

@@ -148,8 +148,13 @@ def _replace_growth_receipt(
 
 
 def test_high_confidence_and_edge_sizes_larger_than_weak_edge() -> None:
+    # A 1x envelope pins the paper learning-exploration sizing floor to its
+    # 0.05 base (span == 0), so the continuous policy-factor ordering stays
+    # observable instead of both candidates riding a candidate-seeded floor.
+    envelope = RiskEnvelope(max_effective_leverage=1.0)
     strong = allocate_paper_candidate(
-        _row(confidence_calibrated=0.85, expected_move_after_cost_bps=90.0)
+        _row(confidence_calibrated=0.85, expected_move_after_cost_bps=90.0),
+        envelope,
     )
     weak = allocate_paper_candidate(
         _row(
@@ -158,7 +163,8 @@ def test_high_confidence_and_edge_sizes_larger_than_weak_edge() -> None:
             spread_bps=1.0,
             slippage_bps=1.0,
             stop_distance_bps=300.0,
-        )
+        ),
+        envelope,
     )
 
     assert strong.decision in {"ALLOW_WITH_SIZE", "REDUCE_SIZE"}
@@ -167,11 +173,23 @@ def test_high_confidence_and_edge_sizes_larger_than_weak_edge() -> None:
 
 
 def test_paper_confidence_sizes_continuously_from_zero_while_live_gate_is_unchanged() -> None:
-    below_former_admission_cliff = allocate_paper_candidate(_row(confidence_calibrated=0.29))
-    above_former_admission_cliff = allocate_paper_candidate(_row(confidence_calibrated=0.31))
-    below_former_sizing_cliff = allocate_paper_candidate(_row(confidence_calibrated=0.49))
-    above_former_sizing_cliff = allocate_paper_candidate(_row(confidence_calibrated=0.51))
-    zero = allocate_paper_candidate(_row(confidence_calibrated=0.0))
+    # A 1x envelope pins the paper learning-exploration sizing floor to its
+    # 0.05 base (span == 0) so confidence continuity is observable; with a
+    # wider envelope the candidate-seeded floor may bind for every candidate.
+    envelope = RiskEnvelope(max_effective_leverage=1.0)
+    below_former_admission_cliff = allocate_paper_candidate(
+        _row(confidence_calibrated=0.29), envelope
+    )
+    above_former_admission_cliff = allocate_paper_candidate(
+        _row(confidence_calibrated=0.31), envelope
+    )
+    below_former_sizing_cliff = allocate_paper_candidate(
+        _row(confidence_calibrated=0.49), envelope
+    )
+    above_former_sizing_cliff = allocate_paper_candidate(
+        _row(confidence_calibrated=0.51), envelope
+    )
+    zero = allocate_paper_candidate(_row(confidence_calibrated=0.0), envelope)
 
     assert below_former_admission_cliff.decision in {"ALLOW_WITH_SIZE", "REDUCE_SIZE"}
     assert above_former_admission_cliff.risk_budget_usd > (
@@ -216,11 +234,16 @@ def test_high_volatility_reduces_size() -> None:
 
 
 def test_paper_wide_spread_continuously_reduces_size_while_live_gate_is_unchanged() -> None:
+    # A 1x envelope pins the paper learning-exploration sizing floor to its
+    # 0.05 base (span == 0) so cost-pressure continuity is observable.
+    envelope = RiskEnvelope(max_effective_leverage=1.0)
     lower_cost = allocate_paper_candidate(
-        _row(expected_move_after_cost_bps=8.0, spread_bps=11.0, slippage_bps=4.0)
+        _row(expected_move_after_cost_bps=8.0, spread_bps=11.0, slippage_bps=4.0),
+        envelope,
     )
     above_former_two_x_cliff = allocate_paper_candidate(
-        _row(expected_move_after_cost_bps=8.0, spread_bps=12.0, slippage_bps=5.0)
+        _row(expected_move_after_cost_bps=8.0, spread_bps=12.0, slippage_bps=5.0),
+        envelope,
     )
 
     assert above_former_two_x_cliff.decision in {"ALLOW_WITH_SIZE", "REDUCE_SIZE"}

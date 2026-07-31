@@ -487,6 +487,38 @@ def calculate_dynamic_risk_envelope(
         )
     leverage = _clamp(leverage, 1.0, leverage_ceiling)
 
+    # PAPER LEARNING EXPLORATION (operator directive 2026-07-31): the paper
+    # trader is a learning instrument — margin/leverage behaviour must be
+    # explored (bounded) to generate the realized-outcome evidence the
+    # evidence-earned growth path above requires.  Pinning the ceiling at the
+    # base until positive realized edge exists is the same cold-start
+    # circularity as the confidence floor: the envelope could never learn
+    # sizing because it never varied sizing.  Exploration capacity
+    #   - grows smoothly with observed lifecycle count (same 25-sample
+    #     half-life as the evidence weight — no sample-count cliff),
+    #   - is scaled by model confidence quality,
+    #   - contracts exponentially under adverse realized evidence
+    #     (losing_evidence_pressure <= 0) and linearly under drawdown
+    #     pressure — the system pulls its own exploration back when it is
+    #     losing, which IS the learning-from-mistakes contract,
+    #   - is capped at HALF the distance to the hard ceiling — full ceiling
+    #     access stays reserved for positive realized evidence via the
+    #     growth path above,
+    #   - never overrides any hard rail: symbol tiers, bracket ladders, ATR
+    #     liquidation buffers, bounded-loss, margin and catastrophic
+    #     validators all still bind downstream.
+    exploration_progress = sample_count / (sample_count + 25.0)
+    exploration_capacity = (
+        exploration_progress
+        * confidence_quality
+        * math.exp(losing_evidence_pressure)
+        * max(0.0, 1.0 - drawdown_pressure)
+    )
+    exploration_leverage = 1.0 + (
+        0.5 * exploration_capacity * (leverage_ceiling - 1.0)
+    )
+    leverage = _clamp(max(leverage, exploration_leverage), 1.0, leverage_ceiling)
+
     defensive_factor = max(1.0, 1.0 / risk_factor)
     return RiskEnvelope(
         max_total_portfolio_risk_pct=base.max_total_portfolio_risk_pct * risk_factor,
