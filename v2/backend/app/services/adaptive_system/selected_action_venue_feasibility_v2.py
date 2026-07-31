@@ -246,7 +246,14 @@ def attest_selected_action_venue_feasibility(
                 request.remaining_catastrophic_notional_headroom_usd,
             ),
             "entry_on_price_tick": request.selected_entry_price % request.venue_price_tick == _ZERO,
-            "margin_arithmetic_exact": request.selected_margin_usd == exact_margin,
+            # The executable margin contract is the float-canonical
+            # quantization of the exact quotient: typed actions carry margin
+            # as a float, so infinite-precision equality is unsatisfiable for
+            # non-terminating notional/leverage.  Both sides quantize the
+            # identical 120-digit quotient, keeping the check deterministic
+            # and drift-free to <1 ulp.
+            "margin_arithmetic_exact": request.selected_margin_usd
+            == Decimal(repr(float(exact_margin))),
             "notional_arithmetic_exact": request.selected_notional_usd == exact_notional,
             "quantity_on_venue_step": quantity % request.venue_qty_step == _ZERO,
             "stop_on_price_tick": request.selected_stop_price % request.venue_price_tick == _ZERO,

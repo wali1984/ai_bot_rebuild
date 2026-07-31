@@ -667,7 +667,15 @@ def _physical_plan(
         if selected_quantity > maximum_quantity:
             selected_quantity = maximum_quantity
         notional = selected_quantity * entry
-        margin = notional / leverage
+        # Margin is stored on the typed action as a float and replayed by the
+        # authorization validator via Decimal(str(float)).  A full-precision
+        # quotient is unrepresentable there for any non-terminating
+        # notional/leverage (every non-integer leverage), so the executable
+        # margin is defined as the float-canonical quantization of the exact
+        # quotient.  Deterministic (correctly-rounded twice), conservative to
+        # <1 ulp, and mirrored by margin_arithmetic_exact in the venue
+        # attestation.
+        margin = Decimal(repr(float(notional / leverage)))
         raw_stop = (
             entry * (Decimal("1") - tail / Decimal("10000"))
             if side == "LONG"
