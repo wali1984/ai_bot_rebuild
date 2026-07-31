@@ -600,7 +600,15 @@ def _physical_plan(
     minimum_quantity = _positive_decimal(filters.get("min_qty"), "min_qty")
     maximum_quantity = _positive_decimal(filters.get("max_qty"), "max_qty")
     minimum_notional = _positive_decimal(filters.get("min_notional"), "min_notional")
-    leverage = _positive_decimal(envelope.get("max_effective_leverage"), "max_leverage")
+    # The continuous envelope grant is a leverage CAP, not a venue-settable
+    # value: Binance USD-M initial leverage is integer-valued and the
+    # allocator's exact physical validation replays membership in the
+    # authenticated integer bracket ladder.  Execute at the largest integer
+    # leverage the grant admits (never below 1x); the continuous grant value
+    # itself remains sizing/telemetry input upstream.
+    leverage = Decimal(
+        max(1, int(_positive_decimal(envelope.get("max_effective_leverage"), "max_leverage")))
+    )
     maximum_notional = min(
         _positive_decimal(derived.get("remaining_total_notional_usd"), "remaining_total"),
         _positive_decimal(derived.get("remaining_symbol_notional_usd"), "remaining_symbol"),
