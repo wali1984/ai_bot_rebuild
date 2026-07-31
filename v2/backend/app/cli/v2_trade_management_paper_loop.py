@@ -39515,6 +39515,12 @@ def _paper_candidate_dynamic_envelope_bundle(
         "configured_growth_ceiling": float(configured_base.max_effective_leverage),
         "default_operating_baseline": float(RiskEnvelope().max_effective_leverage),
         "missing_or_invalid_growth_evidence_caps_leverage_at_1x": True,
+        "growth_authorization_status": authorization.get("status"),
+        "learning_evidence_receipt_hash": (
+            learning_evidence_receipt.get("evidence_hash")
+            if isinstance(learning_evidence_receipt, Mapping)
+            else None
+        ),
     }
     receipt = _paper_dynamic_envelope_reservation_evidence(
         envelope,
@@ -41699,7 +41705,18 @@ def _paper_allocation_point_in_time_contract(
                 "dynamic_envelope_computed_at",
             }
         )
-        if (_coerce_float(intent.get("dynamic_envelope_max_effective_leverage")) or 1.0) > 1.0:
+        if (
+            (_coerce_float(intent.get("dynamic_envelope_max_effective_leverage")) or 1.0)
+            > 1.0
+            # LEARNING_EXPLORATION grants derive from backward-looking
+            # realized-lifecycle evidence (hash-bound learning receipt whose
+            # decision_time equals the envelope decision_time, validated by
+            # the growth-authorization replay); the strict-edge and market-
+            # context availability anchors exist only on the evidence-earned
+            # READY path and are structurally withheld here.
+            and intent.get("dynamic_envelope_growth_authorization_status")
+            != "LEARNING_EXPLORATION"
+        ):
             required_fields.update(
                 {
                     "dynamic_envelope_edge_available_at",
@@ -55012,6 +55029,9 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         )
         intent["dynamic_envelope_decision_time"] = candidate_envelope_source.get("decision_time")
         intent["dynamic_envelope_computed_at"] = candidate_envelope_source.get("computed_at")
+        intent["dynamic_envelope_growth_authorization_status"] = (
+            candidate_envelope_source.get("growth_authorization_status")
+        )
         intent["dynamic_envelope_max_effective_leverage"] = float(
             candidate_dynamic_paper_envelope.max_effective_leverage
         )
