@@ -13149,6 +13149,7 @@ COMPACT_ACCEPTED_FILL_FIELDS = tuple(
             "paper_authority_field_policy_leak",
             "risk_capacity_receipt",
             "mandatory_protection_receipt",
+            "paper_exploration_sizing_floor_value",
             "preemptive_decision_id",
             "preemptive_decision",
             "preemptive_decision_reasons",
@@ -57845,6 +57846,27 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                 "paper_only": True,
                 "live_gate": LIVE_GATE_BLOCKED,
             }
+            # Sizing-exploration posterior attribution: surface the applied
+            # exploratory floor as a top-level scalar so it survives
+            # compaction, joins onto the position/close rows, and keys the
+            # per-bucket reward counters at close commit.
+            _acceptance_model_inputs = (
+                _acceptance_allocation.get("model_inputs")
+                if isinstance(_acceptance_allocation.get("model_inputs"), Mapping)
+                else {}
+            )
+            _acceptance_floor = (
+                _acceptance_model_inputs.get("paper_exploration_sizing_floor")
+                if isinstance(
+                    _acceptance_model_inputs.get("paper_exploration_sizing_floor"),
+                    Mapping,
+                )
+                else {}
+            )
+            if _acceptance_floor.get("floor") is not None:
+                accepted_intent["paper_exploration_sizing_floor_value"] = (
+                    _coerce_float(_acceptance_floor.get("floor"))
+                )
         # ``v2:paper:intents`` publishes the original per-candidate object.
         # Copy the finalized row back so PASS/BLOCKED receipts are durable on
         # both the intent stream and the accepted/blocked lifecycle path.
@@ -61568,6 +61590,7 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                     "authorization_id",
                     "risk_capacity_receipt",
                     "mandatory_protection_receipt",
+                    "paper_exploration_sizing_floor_value",
                     "intent_id",
                     "candidate_id",
                 ):
@@ -61640,6 +61663,49 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                             "updated_at_ms": str(int(time.time() * 1_000)),
                         },
                     )
+                    # Sizing-exploration posterior: per-floor-bucket
+                    # risk-normalised reward so arm selection can learn which
+                    # exploratory sizes earn their keep.  Reward = realized
+                    # net over the bounded risk at stop, clamped to [-3, 3];
+                    # bucket = floor rounded to one decimal.
+                    _floor_value = _coerce_float(
+                        _committed_close.get("paper_exploration_sizing_floor_value")
+                    )
+                    _close_rcr = (
+                        _committed_close.get("risk_capacity_receipt")
+                        if isinstance(
+                            _committed_close.get("risk_capacity_receipt"), dict
+                        )
+                        else {}
+                    )
+                    _bounded_risk = _coerce_float(
+                        _close_rcr.get("max_loss_if_stop_hit")
+                    )
+                    _realized_net = _coerce_float(
+                        _committed_close.get("realized_net_pnl_usd")
+                    )
+                    if (
+                        _floor_value is not None
+                        and _realized_net is not None
+                        and _bounded_risk is not None
+                        and _bounded_risk > 0.0
+                    ):
+                        _floor_bucket = round(
+                            max(0.0, min(1.0, _floor_value)), 1
+                        )
+                        _arm_reward = max(
+                            -3.0, min(3.0, _realized_net / _bounded_risk)
+                        )
+                        r.hincrby(
+                            PAPER_POLICY_STATE_REDIS_KEY,
+                            f"sizing_floor_bucket:{_floor_bucket}:count",
+                            1,
+                        )
+                        r.hincrbyfloat(
+                            PAPER_POLICY_STATE_REDIS_KEY,
+                            f"sizing_floor_bucket:{_floor_bucket}:reward_sum",
+                            _arm_reward,
+                        )
                 adaptive_policy_cycle_context["policy_state_version"] = (
                     _cycle_start_policy_state_version
                     + len(_cycle_committed_close_rows)
