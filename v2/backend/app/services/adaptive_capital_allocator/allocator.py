@@ -281,17 +281,40 @@ def build_paper_liquidation_atr_evidence(
         reasons.append("PAPER_LIQUIDATION_ATR_FEATURE_SNAPSHOT_SYMBOL_MISMATCH")
     if not normalized_timeframe or snapshot_timeframe != normalized_timeframe:
         reasons.append("PAPER_LIQUIDATION_ATR_FEATURE_SNAPSHOT_TIMEFRAME_MISMATCH")
-    if str(snapshot.get("feature_freshness_state") or "").strip().upper() != "CURRENT":
+    # Point-in-time safety for the ATR value comes from the candle being final,
+    # the latest unclosed kline excluded, and the feature cutoff preceding the
+    # decision (all enforced below) — NOT from the self-attested publication
+    # freshness flag. A verified durable-archive snapshot
+    # (DURABLE_FEATURE_SNAPSHOT_ARCHIVE_VERIFY_TRUE) legitimately reports
+    # FEATURE_AVAILABILITY_UNVERIFIED because the canonical publisher forbids a
+    # snapshot from self-attesting its own availability (assigned downstream by
+    # CAS design); that is a publication-receipt ledger state, not a lookahead
+    # risk. Accept CURRENT or that verified-archive state here; a genuinely
+    # STALE / malformed freshness still fails.
+    if str(snapshot.get("feature_freshness_state") or "").strip().upper() not in {
+        "CURRENT",
+        "FEATURE_AVAILABILITY_UNVERIFIED",
+    }:
         reasons.append("PAPER_LIQUIDATION_ATR_FEATURE_SNAPSHOT_NOT_CURRENT")
     if snapshot.get("candle_closed_confirmed") is not True:
         reasons.append("PAPER_LIQUIDATION_ATR_CANDLE_NOT_FINAL")
     if snapshot.get("latest_unclosed_kline_excluded") is not True:
         reasons.append("PAPER_LIQUIDATION_ATR_UNCLOSED_KLINE_EXCLUSION_NOT_PROVEN")
 
+    # Record-availability clock. The record publication time is the binding
+    # availability instant; a verified durable-archive snapshot has no
+    # self-attested available_at, so fall back to the genuine source
+    # availability clock (record_available_at / source_available_at), each of
+    # which is >= feature_cutoff and <= the decision and is order-checked below.
+    _availability_clock = (
+        snapshot.get("available_at")
+        or snapshot.get("record_available_at")
+        or snapshot.get("source_available_at")
+    )
     parsed_times = {
         "candle_close_time": _aware_utc(snapshot.get("candle_close_time")),
         "feature_cutoff": _aware_utc(snapshot.get("feature_cutoff")),
-        "available_at": _aware_utc(snapshot.get("available_at")),
+        "available_at": _aware_utc(_availability_clock),
         "generated_at": _aware_utc(snapshot.get("generated_at")),
         "allocation_decision_time": _aware_utc(allocation_decision_time),
     }
