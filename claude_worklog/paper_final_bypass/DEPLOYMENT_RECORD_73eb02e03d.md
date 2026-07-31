@@ -2,7 +2,24 @@
 
 - Directive: operator 2026-07-31 "FINAL PAPER POLICY-GATE BYPASS — NO MORE
   EXCEPTIONS OR MONITOR-ONLY COMPLETION" (items 1-11).
-- **Frozen acceptance SHA: `1811ec94689448234d6af82f51645c263c67657c`**
+- **Frozen acceptance SHA: `ea3e358fc7a5a07b79540dc6e7c76829086c72f7`**
+  (deployed 2026-07-31T14:1xZ; = 1811ec9468 + close-side receipt re-join from
+  persisted position rows — a position's source fill leaves the accepted
+  ledger at close, so ten receipted-era lifecycles closed 05:50-14:00Z with
+  no receipt markers, holding criterion F open.  The open ETHUSDT short
+  carries the full chain (appa2_a7476a775d66dc…, rcr+mpr, psv=14) and closes
+  under the fixed join.)
+- Collector latches proven criteria durably
+  (raw_evidence/paper_final_bypass_acceptance_state.json): B and E latched;
+  A/C/D re-prove from the next receipted lifecycles on the final SHA (their
+  05:52Z proofs on 1811ec9468 are recorded below; the latch was added after
+  their proving rows rotated out of the live snapshots).
+- Runtime flywheel evidence 05:50-14:00Z: ten protected lifecycles closed
+  (0GUSDT×3, CAKEUSDT×4, ETHUSDT×2, EGLDUSDT), close_policy_state_version
+  marching 4→14, TIER_2 profit exits + TIER_3 time exits, concurrent
+  positions achieved (criterion B), correlation capacity governing
+  correlated candidates continuously.
+- Prior hardening step: `1811ec94689448234d6af82f51645c263c67657c`
   (deployed 05:50Z; = 84ff48c1e7 + persisted allocator zero-diagnostics
   (Signal Explainability) + TRADING_POLICY classification for
   calibration-unfitted and after-cost-edge-zero/direction families.)
@@ -106,12 +123,44 @@ Pre-existing failure NOT from this work:
 `services/allocator/test_allocator_simulation.py::test_allocated_margin_derives_from_final_notional_and_leverage`
 (fails identically on pristine 53dec2e343).
 
-## Acceptance (item 10) — A-G
+## Acceptance (item 10) — A-G runtime facts (as of 2026-07-31T05:55Z)
 
 Collector: `tools/paper_final_bypass_acceptance_proof.py` (READ-ONLY;
-frozen-SHA discrimination via `mandatory_protection_receipt` on fills and
-`policy_gate_authority` on closes).  Verdict at deploy time: ACCRUING (all
-criteria PENDING pre-deployment, G zero-defects PASS).
+frozen-SHA discrimination via the receipt chain).  Verdict: ACCRUING —
+**A, C, D, E, G PASS; B, F pending runtime accrual.**
+
+- **A PASS** — 0GUSDT long executed with
+  `expected_after_cost_return_bps = -76.64` (negative policy metric),
+  `authorization_id = appa2_7fe131471511…`, hard validator passed, mandatory
+  stop present, risk-capacity receipt attached; position
+  `paper_pos_0GUSDT_2fd349c4f84a7221` carries `policy_gate_authority=false`.
+- **C PASS** — that authorization (authorized_at_ms 1785476645912) occurred
+  inside the open interval of `paper_pos_EGLDUSDT_d7c36cf4ff862cc4`.
+- **D PASS** — it also occurred while close
+  `paper_close_paper_pos_MMTUSDT_…` was `PENDING_DECISION_HORIZON_MATURATION`
+  / `NOT_YET_CONSUMED`.
+- **E PASS** — closes carry `close_policy_state_version` (EGLD close at
+  psv=4) and subsequent decisions consume the incremented version.
+- **G PASS** — zero TRADING_POLICY residue in any authoritative field across
+  all published intents (verified directly with the central classifier);
+  zero parity failures, zero live-authority rows, zero failed invariants.
+  Upstream trainer-signal annotations that the publish-time invariant
+  sanitized are tracked as `authority_field_policy_leaks_sanitized` (source
+  is the separately-deployed trainer-lane publisher).
+- **B PENDING** — needs a second protected position concurrent with 0GUSDT;
+  correlation capacity (hard factor, envelope max 0.18) currently zeroes
+  correlated candidates — the allocator-governed concurrency the directive
+  prescribes.  Sub-venue-minimum and liquidation-risk blocks on the rest are
+  honest hard families.
+- **F PENDING** — needs the first receipted position (0GUSDT, opened
+  ~05:50Z) to close with protection + reconciled accounting; its adaptive
+  exit plan governs the horizon.
+
+Funnel evolution on the frozen line (per cycle, from runtime records):
+BLOCK_NO_EDGE 100% → reservation-blocked 100% (latent proof-rail defect) →
+after fixes: ALLOW_WITH_SIZE + honest hard-capacity blocks →
+3 DIRECTIONAL_AUTHORIZED → 1 receipted fill (same-symbol duplicates
+correctly blocked by the hard local gate).
 
 ## Hard rails unchanged
 
