@@ -56639,6 +56639,9 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             )
             for attestation in adaptive_policy_result.venue_attestations
         }
+        _bootstrap_dispositions_by_action_id = dict(
+            adaptive_policy_result.action_dispositions
+        )
         _bootstrap_exploration_rows: list[dict[str, Any]] = []
         for _b_input in adaptive_policy_result.objective_inputs:
             if (
@@ -56661,6 +56664,12 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                     "action_sha256": _b_input.action_sha256,
                     "venue_minimum_variant": _b_parts[-1] == "venue_minimum",
                     "hard_valid": _b_input.hard_constraints_satisfied is True,
+                    "hard_invalid_reasons": sorted(
+                        _bootstrap_dispositions_by_action_id.get(
+                            _b_input.action_id
+                        )
+                        or ()
+                    ),
                     "expected_information_gain_nats": float(
                         _b_input.expected_information_gain
                     ),
