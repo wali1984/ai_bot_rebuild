@@ -12914,6 +12914,25 @@ PERSISTENT_ACCEPTED_FILL_METADATA_FIELDS = (
     "index_price",
 )
 PERSISTENT_ACCEPTED_FILL_MODEL_INPUT_FIELDS = (
+    # Signal Explainability Rule: a zeroed adaptive budget must persist WHICH
+    # multiplicative factor zeroed it (the allocator's zero_diag), or the
+    # block is undiagnosable from runtime records — observed 2026-07-31 when
+    # 74/114 candidates blocked risk_budget_after_adjustments_is_zero with
+    # empty persisted diagnostics.
+    "budget_factor_confidence",
+    "budget_factor_edge",
+    "budget_factor_market_state",
+    "budget_factor_volatility",
+    "budget_factor_liquidity",
+    "budget_factor_spread_slippage",
+    "budget_factor_drawdown",
+    "budget_factor_exposure",
+    "budget_factor_correlation",
+    "budget_factor_regime",
+    "budget_max_loss_per_trade_pct",
+    "budget_equity_usd",
+    "budget_total_exposure_usdt",
+    "budget_envelope_max_total_portfolio_risk_pct",
     "confidence_raw",
     "confidence_calibrated",
     "selected_action_probability",

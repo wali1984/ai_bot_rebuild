@@ -137,6 +137,16 @@ _TRADING_POLICY_EXACT = frozenset(
         "CHAMPION_DIRECTIONAL_POSITIVE_UTILITY",
         # -- opportunity grade gating ---------------------------------------
         "NOT_A_PLUS_CANDIDATE",
+        # -- calibration age / prior-only calibration state (item 3) --------
+        # An unfitted calibration is the cold-start prior-only state; the
+        # calibrated-confidence estimate may rank and size, never reject.
+        "confidence_calibration_unfitted_or_semantics_invalid",
+        "ordinary_paper_confidence_calibration_unfitted_or_semantics_invalid",
+        # -- expected-return family (lowercase ordinary-admission forms) ----
+        "after_cost_edge_zero",
+        "after_cost_edge_direction_mismatch",
+        "ordinary_paper_after_cost_edge_zero",
+        "ordinary_paper_after_cost_edge_direction_mismatch",
     }
 )
 
