@@ -52250,6 +52250,46 @@ def _paper_ordinary_router_proof_fields(
     }
 
 
+_PAPER_MASKED_FEATURE_FAMILY_REASON_TOKENS = (
+    "MISSING_CRITICAL_FEATURE_FAMILY",
+    "STALE_FEATURE_FAMILY",
+    "MISSING_FEATURE_FAMILY",
+    "MASKED_FEATURE",
+)
+
+
+def _paper_masked_feature_family_reason(reason: Any) -> bool:
+    """A missing / stale feature FAMILY is MASKED (imputed) and consumed by the
+    model, never a paper blocker (operator directive 2026-07-31: nothing stops
+    working because a feature is absent — it is masked). Genuine market-state
+    integrity, point-in-time / lookahead / timestamp, market-state-id and
+    validity reasons are NOT masked and continue to block.
+    """
+
+    text = str(reason or "").strip().upper()
+    if not text:
+        return False
+    if "INTEGRITY_SCORE" in text or "MARKET_STATE_ID" in text:
+        return False
+    return any(token in text for token in _PAPER_MASKED_FEATURE_FAMILY_REASON_TOKENS)
+
+
+def _paper_partition_masked_feature_reasons(
+    reasons: Sequence[Any],
+) -> tuple[list[str], list[str]]:
+    """Split integrity reasons into (hard-blocking, masked-advisory)."""
+
+    blocking: list[str] = []
+    masked: list[str] = []
+    for reason in reasons:
+        text = str(reason)
+        if _paper_masked_feature_family_reason(text):
+            masked.append(text)
+        else:
+            blocking.append(text)
+    return blocking, masked
+
+
 def _paper_signal_integrity_gate(signal: dict, redis_client: Any = None) -> dict:
     score = _coerce_float(signal.get("market_state_integrity_score"))
     reasons = list(signal.get("market_state_reject_reasons") or [])
@@ -52259,9 +52299,12 @@ def _paper_signal_integrity_gate(signal: dict, redis_client: Any = None) -> dict
         signal,
     )
     if ordinary_assessment.claimed:
-        ordinary_reasons = list(ordinary_assessment.rejection_reasons)
+        ordinary_reasons_all = list(ordinary_assessment.rejection_reasons)
         if not signal.get("market_state_id"):
-            ordinary_reasons.append("MARKET_STATE_ID_MISSING")
+            ordinary_reasons_all.append("MARKET_STATE_ID_MISSING")
+        ordinary_reasons, ordinary_masked = _paper_partition_masked_feature_reasons(
+            ordinary_reasons_all
+        )
         allowed = ordinary_assessment.accepted and not ordinary_reasons
         return {
             "allowed": allowed,
@@ -52269,6 +52312,9 @@ def _paper_signal_integrity_gate(signal: dict, redis_client: Any = None) -> dict
             "market_state_integrity_score": score,
             "valid_for_paper": valid_for_paper,
             "reasons": sorted(set(str(reason) for reason in ordinary_reasons if reason)),
+            "masked_feature_reasons": sorted(
+                set(str(reason) for reason in ordinary_masked if reason)
+            ),
             "ordinary_paper_claimed": True,
             "ordinary_paper_revalidated": allowed,
             "ordinary_paper_publisher_sizing_weight": (ordinary_assessment.publisher_sizing_weight),
@@ -52285,21 +52331,28 @@ def _paper_signal_integrity_gate(signal: dict, redis_client: Any = None) -> dict
             "_ordinary_paper_admission_result": ordinary_assessment,
             "legacy_integrity_threshold_controls_admission": False,
         }
+    # Masked feature families (missing / stale) are imputed and consumed by the
+    # model; partition them out of the blocking set before the hard market-state
+    # / validity checks are appended (operator directive 2026-07-31).
+    blocking_reasons, masked_reasons = _paper_partition_masked_feature_reasons(reasons)
     if not signal.get("market_state_id"):
-        reasons.append("MARKET_STATE_ID_MISSING")
+        blocking_reasons.append("MARKET_STATE_ID_MISSING")
     if score is None:
-        reasons.append("MARKET_STATE_INTEGRITY_SCORE_MISSING")
+        blocking_reasons.append("MARKET_STATE_INTEGRITY_SCORE_MISSING")
     elif score < 70.0:
-        reasons.append("MARKET_STATE_INTEGRITY_SCORE_BELOW_PAPER_MIN")
+        blocking_reasons.append("MARKET_STATE_INTEGRITY_SCORE_BELOW_PAPER_MIN")
     if valid_for_paper is not True:
-        reasons.append("VALID_FOR_PAPER_NOT_TRUE")
-    allowed = not reasons
+        blocking_reasons.append("VALID_FOR_PAPER_NOT_TRUE")
+    allowed = not blocking_reasons
     return {
         "allowed": allowed,
         "market_state_id": signal.get("market_state_id"),
         "market_state_integrity_score": score,
         "valid_for_paper": valid_for_paper,
-        "reasons": sorted(set(str(reason) for reason in reasons if reason)),
+        "reasons": sorted(set(str(reason) for reason in blocking_reasons if reason)),
+        "masked_feature_reasons": sorted(
+            set(str(reason) for reason in masked_reasons if reason)
+        ),
         "ordinary_paper_claimed": False,
         "ordinary_paper_revalidated": False,
         "ordinary_paper_effective_sizing_weight": None,
