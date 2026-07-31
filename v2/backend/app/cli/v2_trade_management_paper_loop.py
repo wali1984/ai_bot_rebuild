@@ -39236,9 +39236,12 @@ def _paper_growth_authorization_rejection_reasons(
             if field not in learning_fields
         ):
             reasons.append("LEARNING_EXPLORATION_GROWTH_ARGUMENTS_NOT_WITHHELD")
+        from v2.backend.app.services.paper_trade_management.leverage_recommendation import (  # noqa: PLC0415
+            PAPER_MAX_LEVERAGE as _paper_max_leverage_ceiling,
+        )
         configured_leverage = _coerce_float(base_material.get("max_effective_leverage"))
         if configured_leverage is None or configured_leverage > float(
-            PAPER_MAX_LEVERAGE
+            _paper_max_leverage_ceiling
         ):
             reasons.append("LEARNING_EXPLORATION_BASE_EXCEEDS_PAPER_CEILING")
     else:
