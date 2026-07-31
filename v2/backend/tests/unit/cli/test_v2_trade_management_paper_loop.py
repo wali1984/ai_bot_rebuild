@@ -11899,11 +11899,14 @@ def test_paper_liquidation_atr_receipt_binds_only_canonical_final_snapshot(
             "PAPER_LIQUIDATION_ATR_TIME_INVALID:generated_at",
         ),
         (
-            {
-                "available_at": "2026-07-18T12:00:02.500000Z",
-                "generated_at": "2026-07-18T12:00:02Z",
-            },
-            "PAPER_LIQUIDATION_ATR_TIME_ORDER_INVALID:available_at>generated_at",
+            # A record cannot become available AFTER the decision consumes it
+            # (genuine point-in-time leak).  The relative order of generated_at
+            # and available_at is NOT constrained — the live feature publisher
+            # emits available_at (record publication) >= generated_at, so only
+            # the cutoff<->record-clock and record-clock<->decision edges are
+            # safety-critical.
+            {"available_at": "2026-07-18T12:00:04Z"},
+            "PAPER_LIQUIDATION_ATR_TIME_ORDER_INVALID:available_at>allocation_decision_time",
         ),
     ),
 )

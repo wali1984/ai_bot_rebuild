@@ -299,14 +299,24 @@ def build_paper_liquidation_atr_evidence(
         if parsed is None:
             reasons.append(f"PAPER_LIQUIDATION_ATR_TIME_INVALID:{field}")
     if all(parsed_times.values()):
-        ordered_fields = (
-            "candle_close_time",
-            "feature_cutoff",
-            "available_at",
-            "generated_at",
-            "allocation_decision_time",
-        )
-        for left, right in zip(ordered_fields, ordered_fields[1:], strict=False):
+        # Point-in-time SAFETY partial order.  ``generated_at`` (feature
+        # computation) and ``available_at`` (record publication /
+        # record_available_at) are BOTH post-cutoff record clocks; different
+        # valid producers legitimately emit them in either order (the live
+        # feature publisher writes available_at >= generated_at by the publish
+        # gap, while older receipt fixtures used the reverse), so their
+        # relative order is provenance metadata, not a leak vector.  What must
+        # hold to prevent future-data leakage is: neither record clock
+        # precedes the feature cutoff, and neither is after the allocation
+        # decision.  Enforcing a specific generated<->available order was the
+        # defect that kept every >1x candidate flat.
+        for left, right in (
+            ("candle_close_time", "feature_cutoff"),
+            ("feature_cutoff", "generated_at"),
+            ("feature_cutoff", "available_at"),
+            ("generated_at", "allocation_decision_time"),
+            ("available_at", "allocation_decision_time"),
+        ):
             left_time = parsed_times[left]
             right_time = parsed_times[right]
             if left_time is not None and right_time is not None and left_time > right_time:
@@ -483,14 +493,16 @@ def validate_paper_liquidation_atr_evidence(
         if parsed is None:
             reasons.append(f"PAPER_LIQUIDATION_ATR_EVIDENCE_TIME_INVALID:{field}")
     if all(parsed_times.values()):
-        ordered_fields = (
-            "candle_close_time",
-            "feature_cutoff",
-            "available_at",
-            "generated_at",
-            "allocation_decision_time",
-        )
-        for left, right in zip(ordered_fields, ordered_fields[1:], strict=False):
+        # Same point-in-time SAFETY partial order as the builder: cutoff before
+        # both record clocks, both record clocks before the decision; the
+        # generated<->available order is not constrained.
+        for left, right in (
+            ("candle_close_time", "feature_cutoff"),
+            ("feature_cutoff", "generated_at"),
+            ("feature_cutoff", "available_at"),
+            ("generated_at", "allocation_decision_time"),
+            ("available_at", "allocation_decision_time"),
+        ):
             left_time = parsed_times[left]
             right_time = parsed_times[right]
             if left_time is not None and right_time is not None and left_time > right_time:
