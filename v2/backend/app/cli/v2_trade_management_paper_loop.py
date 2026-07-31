@@ -39141,6 +39141,9 @@ def _paper_growth_authorization_rejection_reasons(
             profit_factor=learning_receipt.get("profit_factor"),
             evidence_source=learning_receipt.get("evidence_source"),
             decision_time=learning_receipt.get("decision_time"),
+            learning_exploration_intensity=learning_receipt.get(
+                "learning_exploration_intensity"
+            ),
         )
         if learning_receipt != replayed_learning:
             reasons.append("LEARNING_EVIDENCE_RECEIPT_SEMANTIC_REPLAY_MISMATCH")
