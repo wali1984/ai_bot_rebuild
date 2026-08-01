@@ -1019,6 +1019,38 @@ class DurableCanonical5mLabelArchive:
         connection.execute("PRAGMA query_only=ON")
         return connection
 
+    def symbol_latest_close_ms(self, symbol: str) -> int | None:
+        """Cheap coverage-frontier hint: the newest canonical-5m candle close
+        (ms) recorded for ``symbol``, or None when the symbol has no rows.
+
+        This is a NON-authoritative progress hint only — it never substitutes
+        for ``verified_label_path``/``verified_range`` when reading the labels
+        themselves.  Callers use it solely to distinguish a permanent interior
+        coverage hole (frontier already past the requested range) from a
+        transient not-yet-written tail (frontier still behind the range).
+        """
+
+        normalized_symbol = str(symbol).strip().upper()
+        if not _SYMBOL_RE.fullmatch(normalized_symbol) or not self.path.is_file():
+            return None
+        connection = self._connect_readonly()
+        try:
+            row = connection.execute(
+                "SELECT MAX(candle_close_time_ms) FROM canonical_5m_candles "
+                "WHERE symbol = ?",
+                (normalized_symbol,),
+            ).fetchone()
+        except sqlite3.Error:
+            return None
+        finally:
+            connection.close()
+        if row is None or row[0] is None:
+            return None
+        try:
+            return int(row[0])
+        except (TypeError, ValueError):
+            return None
+
     def _ensure_initialized(
         self,
         *,

@@ -86,7 +86,7 @@ def test_legacy_object_cache_is_never_deserialized_or_overwritten(
         def load_training_examples(self, **_kwargs):
             return []
 
-        def load_trusted_replay_examples(self, *, limit):
+        def load_trusted_replay_examples(self, *, limit, backfill=False):
             return [example] if limit else []
 
     monkeypatch.setattr(archive_mod, "default_archive_root", lambda: archive)

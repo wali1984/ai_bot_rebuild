@@ -600,6 +600,16 @@ def _snapshot_decision_time_lineage(snapshot: Any) -> dict[str, Any] | None:
     }
 
 
+# A critical family counts as present at decision time when ANY of its
+# representatives carried a value.  The representatives include both the full
+# 446-slot training-ABI names AND the names the leaner serving ABI
+# (SERVING_ABI_V2_PAPER_*) actually captures for the same family — e.g. the
+# serving snapshot records the orderbook top-of-book as ``spread_bps`` and the
+# funding regime as ``expected_funding_bps``.  These are genuine decision-time
+# features from the same data sources (no lookahead), so a serving-ABI snapshot
+# that carries them has the family present, not absent (operator directive
+# 2026-08-01: a family whose signal is genuinely present must never block
+# training as "critical family absent").
 _CRITICAL_FAMILY_REPRESENTATIVES: dict[str, tuple[str, ...]] = {
     "ohlcv_core": ("open", "high", "low", "close", "ohlcv_close", "last_price"),
     "orderbook_depth": (
@@ -610,6 +620,7 @@ _CRITICAL_FAMILY_REPRESENTATIVES: dict[str, tuple[str, ...]] = {
         "ob_best_bid",
         "ob_best_ask",
         "orderbook_spread_bps",
+        "spread_bps",
     ),
     "funding_open_interest": (
         "funding_rate",
@@ -617,6 +628,7 @@ _CRITICAL_FAMILY_REPRESENTATIVES: dict[str, tuple[str, ...]] = {
         "oi_change_pct",
         "basis_pct",
         "mark_price",
+        "expected_funding_bps",
     ),
 }
 
@@ -703,9 +715,31 @@ def _classification_from_lineage(
         ):
             usable_observation = True
             break
-    if not usable_observation:
+    if not usable_observation and lineage is None:
         return "NO_VERIFIABLE_OBSERVED_FEATURE_EVIDENCE"
     if lineage is not None:
+        # An archived snapshot cannot always re-derive live-only payloads into a
+        # rebuilt tensor, so the tensor masks can read all-missing even when the
+        # authenticated decision-time lineage recorded genuine observed features.
+        # Per this function's own contract, integrity must reflect what was
+        # observed AT DECISION TIME, not what can be re-derived from the archive.
+        # When the lossy rebuild yields no usable slot, fall back to the
+        # authenticated lineage: require a recorded source-availability vector
+        # AND at least one feature that was NOT missing at decision time.  This
+        # trusts the same authenticated producer record already relied on for
+        # ``trainer_consumable`` — it does not manufacture evidence.
+        if not usable_observation:
+            source_availability = lineage.get("source_availability")
+            source_recorded = (
+                isinstance(source_availability, (Mapping, list, tuple))
+                and len(source_availability) > 0
+            )
+            observed_present = (
+                len(tensor.feature_names)
+                - int(lineage.get("missing_feature_count") or 0)
+            ) > 0
+            if not (source_recorded and observed_present):
+                return "NO_VERIFIABLE_OBSERVED_FEATURE_EVIDENCE"
         if int(lineage.get("stale_feature_count") or 0) > 0:
             return "STALE_MASKED"
         if int(lineage.get("missing_feature_count") or 0) > 0:
@@ -2494,6 +2528,29 @@ class V2HybridTrainerDataLoader:
                         rejections[str(reason)] = (
                             rejections.get(str(reason), 0) + 1
                         )
+                    # Distinguish a PERMANENT interior coverage hole from a
+                    # TRANSIENT not-yet-written tail using the archive's own
+                    # coverage frontier for this symbol.  If the frontier is at
+                    # or past this snapshot's 4h label-window end, the archive
+                    # has progressed beyond the range yet a candle is still
+                    # absent — a permanent hole (e.g. a canonical-5m WSS gap);
+                    # SKIP it and advance so one gapped symbol can never halt the
+                    # whole offline scan.  Otherwise the tail is still being
+                    # written: PRESERVE the cursor and wait for coverage to fill
+                    # (retryable).  Skipping never accepts an unverified label —
+                    # it only excludes a permanently unlabelable row.
+                    frontier_close_ms = (
+                        historical_label_archive.symbol_latest_close_ms(symbol)
+                    )
+                    label_window_end_ms = int(
+                        decision_time.timestamp() * 1000
+                    ) + HORIZON_SECONDS["4h"] * 1000
+                    if (
+                        frontier_close_ms is not None
+                        and frontier_close_ms >= label_window_end_ms
+                    ):
+                        consumed_offset = next_offset
+                        continue
                     archive_coverage_retry_pending = True
                     break
                 durable_label_ranges_verified += 1

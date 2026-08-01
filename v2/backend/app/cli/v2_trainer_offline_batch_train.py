@@ -158,6 +158,9 @@ def seed_offline_view_cursor_near_tail(
     view_root: Path,
     *,
     hours_back: float = float(os.getenv("V2_OFFLINE_SEED_HOURS_BACK", "16") or 16.0),
+    backfill_hours_back: float = float(
+        os.getenv("V2_OFFLINE_BACKFILL_HOURS_BACK", "96") or 96.0
+    ),
 ) -> dict[str, Any]:
     """Seed the offline view's replay cursor ~hours_back before the manifest tail.
 
@@ -202,24 +205,30 @@ def seed_offline_view_cursor_near_tail(
         except Exception:
             return None
 
-    first_created = _created_at_after(0)
-    if first_created is None or first_created >= target_iso:
+    def _seek(target: str) -> int | None:
+        first = _created_at_after(0)
+        if first is None or first >= target:
+            return None  # archive younger than the requested window
+        lo, hi = 0, size
+        while hi - lo > 65536:
+            mid = (lo + hi) // 2
+            created = _created_at_after(mid)
+            if created is None or created >= target:
+                hi = mid
+            else:
+                lo = mid
+        return int(lo)
+
+    frontier_offset = _seek(target_iso)
+    if frontier_offset is None:
         # Archive younger than the window: start at 0, nothing to seed.
         meta["reason"] = "archive_younger_than_window"
         return meta
-    lo, hi = 0, size
-    while hi - lo > 65536:
-        mid = (lo + hi) // 2
-        created = _created_at_after(mid)
-        if created is None or created >= target_iso:
-            hi = mid
-        else:
-            lo = mid
     try:
         (view_root / "trusted_replay_cursor.json").write_text(
             json.dumps(
                 {
-                    "manifest_offset": int(lo),
+                    "manifest_offset": int(frontier_offset),
                     "frontier_reached": False,
                     "backfill_lane": False,
                     "seeded_near_tail": True,
@@ -230,12 +239,43 @@ def seed_offline_view_cursor_near_tail(
         )
     except OSError:
         return meta
+    # Seed the durable-label BACKFILL cursor DEEPER than the frontier so the
+    # backfill lane scans the [deep, frontier] window of trainer-consumable,
+    # matured rows.  Seeding it AT the frontier makes the loader treat the lane
+    # as exhausted (cursor >= backfill_stop) and wrap to byte 0 — the ancient
+    # pre-consumable head — which yields zero trainable rows.  The default
+    # lookback stays inside the trainer-consumable era (began ~2026-07-28).
+    backfill_target_iso = (
+        datetime.now(tz=timezone.utc) - timedelta(hours=backfill_hours_back)
+    ).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+    backfill_offset = _seek(backfill_target_iso)
+    backfill_offset = min(
+        int(backfill_offset if backfill_offset is not None else 0),
+        int(frontier_offset),
+    )
+    try:
+        (view_root / "trusted_replay_backfill_cursor.json").write_text(
+            json.dumps(
+                {
+                    "manifest_offset": int(backfill_offset),
+                    "frontier_reached": False,
+                    "backfill_lane": True,
+                    "seeded_near_tail": True,
+                    "seed_target_created_at": backfill_target_iso,
+                }
+            ),
+            encoding="utf-8",
+        )
+    except OSError:
+        pass
     meta.update(
         {
             "seeded": True,
-            "manifest_offset": int(lo),
+            "manifest_offset": int(frontier_offset),
+            "backfill_manifest_offset": int(backfill_offset),
             "manifest_size": int(size),
             "seed_target_created_at": target_iso,
+            "backfill_seed_target_created_at": backfill_target_iso,
         }
     )
     return meta
@@ -307,6 +347,15 @@ def load_or_build_examples(
     meta["live_cursor_untouched"] = True
     meta["offline_cursor_seed"] = seed_offline_view_cursor_near_tail(view_root)
     loader = V2HybridTrainerDataLoader(trusted_replay_archive_root=view_root)
+    # The offline bulk lane trains from the durable canonical-5m label archive
+    # (backfill=True in the load loop below).  The frontier lane sources labels
+    # from the short-retention Redis 5m working set, which has already expired
+    # for the >4h-matured snapshots the offline cursor targets
+    # (NO_CANONICAL_5M_LABEL_CANDLES_AFTER_DECISION), so it can never label
+    # historical rows.  seed_offline_view_cursor_near_tail seeds BOTH the
+    # frontier cursor (near tail) and the deeper backfill cursor, so the backfill
+    # lane scans recent, trainer-consumable, matured rows instead of the ancient
+    # pre-consumable archive head at byte 0.
 
     started = time.perf_counter()
     examples: list[Any] = []
@@ -325,7 +374,9 @@ def load_or_build_examples(
     stagnation = 0
     while len(examples) < limit and stagnation < 3:
         before = len(examples)
-        chunk = loader.load_trusted_replay_examples(limit=limit - len(examples))
+        chunk = loader.load_trusted_replay_examples(
+            limit=limit - len(examples), backfill=True
+        )
         examples.extend(chunk)
         if len(examples) <= before or not chunk:
             stagnation += 1
