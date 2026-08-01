@@ -234,7 +234,33 @@ def _canonical_positions(positions_response: dict[str, Any]) -> tuple[list[dict[
             "mark_age_ms": _integer(row.get("mark_age_ms") or row.get("price_age_ms")),
             "exit_price": _finite_number(row.get("exit_price")),
             "exit_price_source": row.get("exit_price_source"),
-            "notional": _finite_number(row.get("notional")),
+            "notional": _finite_number(
+                row.get("notional")
+                or row.get("gross_notional_usd")
+                or row.get("target_notional_usd")
+                or row.get("position_notional_usd")
+            ),
+            # The paper allocator records leverage/margin under the exact-policy
+            # field names (effective_leverage / allocated_margin_usd); surface
+            # them (and their aliases) so the trader UI can show them instead of
+            # a blank.  effective_leverage==1.0 while learning is the evidence-
+            # gated compounding policy, not a missing value.
+            "leverage": _finite_number(
+                row.get("effective_leverage")
+                or row.get("leverage")
+                or row.get("recommended_leverage")
+            ),
+            "margin": _finite_number(
+                row.get("margin")
+                or row.get("allocated_margin_usd")
+                or row.get("used_margin_usd")
+                or row.get("initial_margin_usd")
+            ),
+            "confidence": _finite_number(
+                row.get("confidence")
+                or row.get("confidence_calibrated")
+                or row.get("confidence_raw")
+            ),
             "unrealized_pnl": _finite_number(row.get("unrealized_pnl") or row.get("unrealized_pnl_usd")),
             "realized_pnl": _finite_number(row.get("realized_pnl") or row.get("realized_pnl_usd")),
             "pnl_percent": _finite_number(row.get("pnl_percent") or row.get("unrealized_pnl_pct")),
@@ -249,7 +275,7 @@ def _canonical_positions(positions_response: dict[str, Any]) -> tuple[list[dict[
             "updated_at": row.get("updated_at") or row.get("time"),
         }
         for key, value in position.items():
-            if value is None and key not in {"exit_price", "exit_price_source", "stop", "targets", "liquidation_price", "strategy_id", "signal_id", "prediction_id", "decision_reasoning"}:
+            if value is None and key not in {"exit_price", "exit_price_source", "stop", "targets", "liquidation_price", "strategy_id", "signal_id", "prediction_id", "decision_reasoning", "leverage", "margin", "confidence"}:
                 missing.add(f"position.{key}")
         normalized.append(position)
     if not normalized:
