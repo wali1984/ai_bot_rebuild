@@ -1811,6 +1811,13 @@ _KLINE_DERIVED_ABI_NAMES = frozenset(
         "high_volume_node_below",
         "low_volume_node_above",
         "low_volume_node_below",
+        "bos_direction_code",
+        "choch_direction_code",
+        "breaker_block_active",
+        "mitigation_block_active",
+        "premium_discount_zone_code",
+        "fvg_retest_confirmed",
+        "fast_squeeze_direction_code",
     )
     if name in set(TRAINER_REQUIRED_FEATURE_FIELDS)
 )
@@ -1955,6 +1962,54 @@ def _compute_kline_derived_abi_features(
         _set("low_volume_node_above", 1.0 - (vol_above / vol_sum))
         _set("high_volume_node_below", vol_below / vol_sum)
         _set("low_volume_node_below", 1.0 - (vol_below / vol_sum))
+
+    # Market-structure codes from swing pivots (fractal highs/lows).
+    swing_highs: list[float] = []
+    swing_lows: list[float] = []
+    for i in range(1, n - 1):
+        if highs[i] >= highs[i - 1] and highs[i] >= highs[i + 1]:
+            swing_highs.append(highs[i])
+        if lows[i] <= lows[i - 1] and lows[i] <= lows[i + 1]:
+            swing_lows.append(lows[i])
+    last_swing_high = swing_highs[-1] if swing_highs else recent_high
+    last_swing_low = swing_lows[-1] if swing_lows else recent_low
+    # Break of structure: close pierced the most recent swing pivot.
+    if close > last_swing_high:
+        bos = 1.0
+    elif close < last_swing_low:
+        bos = -1.0
+    else:
+        bos = 0.0
+    _set("bos_direction_code", bos)
+    # Change of character: prior swing sequence direction vs the latest break.
+    prev_high = swing_highs[-2] if len(swing_highs) >= 2 else last_swing_high
+    prev_low = swing_lows[-2] if len(swing_lows) >= 2 else last_swing_low
+    uptrend = last_swing_high > prev_high and last_swing_low > prev_low
+    downtrend = last_swing_high < prev_high and last_swing_low < prev_low
+    if uptrend and bos < 0.0:
+        choch = -1.0
+    elif downtrend and bos > 0.0:
+        choch = 1.0
+    else:
+        choch = 0.0
+    _set("choch_direction_code", choch)
+    _set("fast_squeeze_direction_code", bos)
+    # Premium/discount: position of close within the recent range.
+    rng = recent_high - recent_low
+    if rng > 0.0:
+        pos = (close - recent_low) / rng
+        pd = 1.0 if pos > 0.66 else (-1.0 if pos < 0.34 else 0.0)
+    else:
+        pd = 0.0
+    _set("premium_discount_zone_code", pd)
+    # Breaker / mitigation blocks: a broken structure level acting as flip zone.
+    _set("breaker_block_active", 1.0 if bull_present and bos > 0.0 else 0.0)
+    _set("mitigation_block_active", 1.0 if bear_present and bos < 0.0 else 0.0)
+    # FVG retest: price returned into a recent gap zone (close within window).
+    _set(
+        "fvg_retest_confirmed",
+        1.0 if (bull_present or bear_present) and min(bull_age, bear_age) <= 3.0 else 0.0,
+    )
     return filled
 
 
