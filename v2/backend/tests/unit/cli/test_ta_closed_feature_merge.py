@@ -70,7 +70,9 @@ def test_merge_binds_and_maps_names_case_insensitively() -> None:
         snapshot_candle_close_ms=close_ms,
     )
     assert binding is not None
-    assert binding["ta_closed_merged_feature_count"] == len(required)
+    # At least the requested taf_ leaves merge; the helper additionally fills any
+    # bare-name TA aliases (ATR/EMA/MACD/RSI/bollinger) the candidate exposes.
+    assert binding["ta_closed_merged_feature_count"] >= len(required)
     assert binding["ta_closed_latest_closed_candle_close_ts_ms"] == close_ms
     # exact-name and case-insensitive (ta_ADX / ta_CCI) both resolve
     assert feats.get("taf_atr_14") == 0.0019

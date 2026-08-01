@@ -148,6 +148,45 @@ TRAINER_OPTIONAL_EVENT_DEPENDENT_FEATURE_FIELDS = tuple(
 _TRAINER_REQUIRED_TAF_FEATURE_NAMES = tuple(
     name for name in TRAINER_REQUIRED_FEATURE_FIELDS if str(name).startswith("taf_")
 )
+# Additional required model-ABI leaves that are the SAME already-computed
+# closed-candle TA-Lib values under bare / differently-prefixed names. They are
+# supplied from the authenticated ta_closed candidate (5m current timeframe)
+# exactly like the taf_ leaves — value only, point-in-time bound to the same
+# closed candle. Map: required ABI name -> ta_closed indicator key (resolved
+# case-insensitively). Only names actually in the model requirement set are used.
+_TA_CLOSED_BARE_ALIAS_SOURCE_MAP = {
+    "ATR": "atr_14",
+    "EMA_12": "ema_12",
+    "EMA_26": "ema_26",
+    "MACD": "macd",
+    "MACD_hist": "macd_hist",
+    "MACD_signal": "macd_signal",
+    "RSI": "rsi_14",
+    "bollinger_lower": "ta_bbands_lowerband",
+    "bollinger_middle": "ta_bbands_middleband",
+    "bollinger_upper": "ta_bbands_upperband",
+    "bollinger_width_pct": "bb_width_pct",
+}
+_TA_CLOSED_BARE_ALIAS_MAP = {
+    name: source
+    for name, source in _TA_CLOSED_BARE_ALIAS_SOURCE_MAP.items()
+    if name in set(TRAINER_REQUIRED_FEATURE_FIELDS)
+}
+# Core OHLCV identity leaves the model ABI names differently from the raw
+# feature dict (aliases, not new computation): required ABI name -> feats key(s).
+_OHLCV_CORE_IDENTITY_ALIAS_MAP = {
+    "ohlcv_close": ("close",),
+    "ohlcv_volume": ("volume",),
+    "ohlcv_open": ("open",),
+    "ohlcv_high": ("high",),
+    "ohlcv_low": ("low",),
+    "price_last": ("close", "last_price", "mark_price"),
+}
+_OHLCV_CORE_IDENTITY_ALIASES = tuple(
+    (name, sources)
+    for name, sources in _OHLCV_CORE_IDENTITY_ALIAS_MAP.items()
+    if name in set(TRAINER_REQUIRED_FEATURE_FIELDS)
+)
 CORE_MARKET_COST_EVIDENCE_FIELDS = (
     "fee_bps",
     "expected_slippage_bps",
@@ -1751,6 +1790,34 @@ def _merge_ta_closed_indicator_features(
         if isinstance(value, (int, float)) and math.isfinite(float(value)):
             features[name] = float(value)
             merged.append(name)
+    # Bare / differently-named required TA leaves are the SAME closed-candle
+    # TA-Lib values (ATR<-atr_14, EMA_12<-ema_12, MACD<-macd, RSI<-rsi_14,
+    # bollinger_*<-ta_bbands_*). Only fill a slot the producer has not already
+    # populated; never overwrite an existing computed value.
+    for abi_name, source_key in _TA_CLOSED_BARE_ALIAS_MAP.items():
+        if features.get(abi_name) is not None:
+            continue
+        value = indicators.get(source_key)
+        if value is None:
+            value = indicators_ci.get(str(source_key).lower())
+        if isinstance(value, bool):
+            continue
+        if isinstance(value, (int, float)) and math.isfinite(float(value)):
+            features[abi_name] = float(value)
+            merged.append(abi_name)
+    # Core OHLCV identity leaves the ABI names differently (aliases, not new
+    # computation): sourced from the snapshot's own raw feats, PIT-identical.
+    for abi_name, source_keys in _OHLCV_CORE_IDENTITY_ALIASES:
+        if features.get(abi_name) is not None:
+            continue
+        for source_key in source_keys:
+            value = features.get(source_key)
+            if isinstance(value, bool):
+                continue
+            if isinstance(value, (int, float)) and math.isfinite(float(value)):
+                features[abi_name] = float(value)
+                merged.append(abi_name)
+                break
     if not merged:
         return None
     return {
