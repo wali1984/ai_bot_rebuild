@@ -1793,6 +1793,171 @@ def _bound_market_structure_candles(
     return [dict(row) for row in rows], binding
 
 
+_KLINE_DERIVED_ABI_NAMES = frozenset(
+    name
+    for name in (
+        "session_vwap",
+        "anchored_vwap",
+        "distance_to_vwap_bps",
+        "volume_profile_poc",
+        "bullish_fvg_present",
+        "bearish_fvg_present",
+        "fvg_age_candles",
+        "equal_highs_distance_bps",
+        "equal_lows_distance_bps",
+        "session_high_sweep",
+        "session_low_sweep",
+        "high_volume_node_above",
+        "high_volume_node_below",
+        "low_volume_node_above",
+        "low_volume_node_below",
+    )
+    if name in set(TRAINER_REQUIRED_FEATURE_FIELDS)
+)
+
+
+def _compute_kline_derived_abi_features(
+    r,
+    symbol: str,
+    timeframe: str,
+    features: dict,
+    *,
+    snapshot_candle_close_ms: int | None,
+) -> int:
+    """Compute standard OHLCV-window SMC/VWAP required leaves from the raw closed
+    klines (VWAP, fair-value-gaps, equal highs/lows, session sweeps, volume POC).
+
+    Point-in-time safe: only candles whose close is at/before this decision
+    candle are used (closed klines, filtered <= snapshot_candle_close_ms). Value
+    only; never overwrites an existing computed value. Returns the count filled.
+    """
+    if r is None or not _KLINE_DERIVED_ABI_NAMES:
+        return 0
+    if all(features.get(name) is not None for name in _KLINE_DERIVED_ABI_NAMES):
+        return 0
+    key = f"{V2_REDIS_PREFIX}market:ohlcv_closed:binance:{symbol}:{timeframe}"
+    try:
+        raw = r.get(key)
+    except Exception:
+        return 0
+    if not raw:
+        return 0
+    try:
+        rows = json.loads(raw)
+    except (TypeError, ValueError):
+        return 0
+    if not isinstance(rows, list) or len(rows) < 5:
+        return 0
+    def _f(value: Any) -> float | None:
+        if isinstance(value, bool) or value is None:
+            return None
+        try:
+            out = float(value)
+        except (TypeError, ValueError):
+            return None
+        return out if math.isfinite(out) else None
+
+    highs: list[float] = []
+    lows: list[float] = []
+    closes: list[float] = []
+    vols: list[float] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        if row.get("is_closed") is False:
+            continue
+        close_ms = _parse_time_ms(
+            row.get("candle_close_time") or row.get("close_time")
+        )
+        if (
+            close_ms is not None
+            and snapshot_candle_close_ms is not None
+            and int(close_ms) > int(snapshot_candle_close_ms)
+        ):
+            continue  # no lookahead: skip candles closing after this decision
+        h = _f(row.get("high"))
+        low = _f(row.get("low"))
+        c = _f(row.get("close"))
+        v = _f(row.get("volume"))
+        if None in (h, low, c) or h <= 0.0 or low <= 0.0 or c <= 0.0:
+            continue
+        highs.append(h)
+        lows.append(low)
+        closes.append(c)
+        vols.append(v if (v is not None and v >= 0.0) else 0.0)
+    n = len(closes)
+    if n < 5:
+        return 0
+    close = closes[-1]
+    filled = 0
+
+    def _set(name: str, value: float) -> None:
+        nonlocal filled
+        if name in _KLINE_DERIVED_ABI_NAMES and features.get(name) is None:
+            if math.isfinite(value):
+                features[name] = float(value)
+                filled += 1
+
+    # Volume-weighted average price over the window (typical price x volume).
+    typ = [(highs[i] + lows[i] + closes[i]) / 3.0 for i in range(n)]
+    vol_sum = sum(vols)
+    if vol_sum > 0.0:
+        vwap = sum(typ[i] * vols[i] for i in range(n)) / vol_sum
+        if vwap > 0.0:
+            _set("session_vwap", vwap)
+            _set("anchored_vwap", vwap)
+            _set("distance_to_vwap_bps", (close - vwap) / vwap * 10000.0)
+        # Volume point-of-control: typical price of the max-volume candle.
+        poc_idx = max(range(n), key=lambda i: vols[i])
+        _set("volume_profile_poc", typ[poc_idx])
+
+    # Fair value gaps (3-candle imbalance) over a bounded recent window.
+    window = min(n, 40)
+    bull_present = 0.0
+    bear_present = 0.0
+    bull_age = float(window)
+    bear_age = float(window)
+    for i in range(2, window):
+        idx = n - window + i
+        # bullish FVG: current low above the high two candles back (gap up)
+        if lows[idx] > highs[idx - 2]:
+            bull_present = 1.0
+            bull_age = float(window - i)
+        if highs[idx] < lows[idx - 2]:
+            bear_present = 1.0
+            bear_age = float(window - i)
+    _set("bullish_fvg_present", bull_present)
+    _set("bearish_fvg_present", bear_present)
+    _set("fvg_age_candles", min(bull_age, bear_age))
+
+    # Equal highs / lows: distance from current close to the recent swing
+    # high / low cluster (bps).
+    swing = highs[-window:]
+    swing_low = lows[-window:]
+    recent_high = max(swing)
+    recent_low = min(swing_low)
+    _set("equal_highs_distance_bps", (recent_high - close) / close * 10000.0)
+    _set("equal_lows_distance_bps", (close - recent_low) / close * 10000.0)
+
+    # Session sweep: did the latest candle take out the prior window extreme.
+    if n >= 2:
+        prior_high = max(highs[-window:-1]) if window > 1 else highs[-1]
+        prior_low = min(lows[-window:-1]) if window > 1 else lows[-1]
+        _set("session_high_sweep", 1.0 if highs[-1] > prior_high else 0.0)
+        _set("session_low_sweep", 1.0 if lows[-1] < prior_low else 0.0)
+
+    # Volume nodes above / below current price (share of window volume traded
+    # above vs below the current close).
+    if vol_sum > 0.0:
+        vol_above = sum(vols[i] for i in range(n) if typ[i] > close)
+        vol_below = sum(vols[i] for i in range(n) if typ[i] < close)
+        _set("high_volume_node_above", vol_above / vol_sum)
+        _set("low_volume_node_above", 1.0 - (vol_above / vol_sum))
+        _set("high_volume_node_below", vol_below / vol_sum)
+        _set("low_volume_node_below", 1.0 - (vol_below / vol_sum))
+    return filled
+
+
 def _merge_ta_closed_indicator_features(
     r,
     symbol: str,
@@ -1990,6 +2155,16 @@ def _merge_ta_closed_indicator_features(
                 float(buy) + float(sell)
             )
             merged.append("trade_imbalance")
+    # Standard OHLCV-window SMC/VWAP leaves computed from the raw closed klines.
+    kline_derived = _compute_kline_derived_abi_features(
+        r,
+        symbol,
+        timeframe,
+        features,
+        snapshot_candle_close_ms=snapshot_candle_close_ms,
+    )
+    if kline_derived:
+        merged.append(f"kline_derived:{kline_derived}")
     if not merged:
         return None
     return {
