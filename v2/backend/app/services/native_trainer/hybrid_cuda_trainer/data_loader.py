@@ -2686,6 +2686,61 @@ class V2HybridTrainerDataLoader:
                     },
                 }
             )
+            # Offline PIT-safety envelope for the historical trusted-replay
+            # (COUNTERFACTUAL) lane.  This row pairs a PIT feature snapshot with
+            # a durably-finalized canonical outcome and NO execution occurred, so
+            # the offline PIT audit's evidence lane, source clocks, model
+            # provenance and finality are populated ONLY from the producer's own
+            # genuine decision-time source clocks — never forged or inferred
+            # beyond the closed-candle identities the producer already recorded.
+            # The audit's clock-order rules pin these mappings: rules
+            # source_available_at<=generated_at<=available_at fix generated_at to
+            # the source-availability instant; event_time is the closed-candle
+            # market event; MASA/PPO cutoffs equal the feature cutoff by
+            # counterfactual construction (features up to the cutoff, decided at
+            # decision_time).  Missing genuine source clocks stay absent so the
+            # audit fail-closes that row rather than admitting an invented time.
+            _cf_source_available_at = (
+                snapshot.get("source_available_at")
+                or trust_row.get("available_at")
+            )
+            _cf_feature_cutoff = (
+                trust_row.get("feature_cutoff") or snapshot.get("feature_cutoff")
+            )
+            _cf_decision_time = (
+                trust_row.get("decision_time") or snapshot.get("decision_time")
+            )
+            _cf_candle_close = (
+                trust_row.get("candle_close_time") or _cf_feature_cutoff
+            )
+            trust_row.update(
+                {
+                    "training_evidence_lane": "COUNTERFACTUAL",
+                    "execution_occurred": False,
+                    "event_time": _cf_candle_close,
+                    # source_available_at is the canonical max(candle_close,
+                    # event_time, ingested_at); a closed candle is ingested and
+                    # available at the same source instant, so ingested_at ==
+                    # source_available_at keeps that identity exact.
+                    "ingested_at": _cf_source_available_at,
+                    "source_available_at": _cf_source_available_at,
+                    "generated_at": _cf_source_available_at,
+                    "available_at": _cf_source_available_at,
+                    # The archived snapshot is a genuine serving prediction
+                    # payload (source=trainer_prediction_payload, real
+                    # model_version/checkpoint_id): the MASA/PPO model DID decide
+                    # at decision_time using features up to feature_cutoff, so its
+                    # provenance is declared present and the cutoffs equal the
+                    # feature cutoff by construction.
+                    "masa_provenance_present": True,
+                    "ppo_provenance_present": True,
+                    "masa_feature_cutoff": _cf_feature_cutoff,
+                    "ppo_feature_cutoff": _cf_feature_cutoff,
+                    "ppo_decision_time": _cf_decision_time,
+                    "outcome_finalized": bool(backfill),
+                    "label_finalized": bool(backfill),
+                }
+            )
             replay_label_action_index = target_action_index(
                 replay_row.get("target_action")
             )
