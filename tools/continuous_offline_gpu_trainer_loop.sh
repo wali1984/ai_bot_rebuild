@@ -49,6 +49,20 @@ REPORT="$REPO/claude_worklog/trainer_atlas/continuous_offline_last_report.json"
 CACHE="${V2_OFFLINE_CACHE_PATH:-$REPO/claude_worklog/trainer_atlas/offline_batch_example_cache.pkl}"
 mkdir -p "$(dirname "$REPORT")"
 
+# Warm-start from the LIVE checkpoint only when explicitly enabled.  The current
+# live checkpoint's causal ledger (.local_models/v2_native_rl_masa_ppo/
+# .checkpoint-causal-order.jsonl) has a mid-chain integrity break
+# (checkpoint_causal_ledger_invalid), so --from-checkpoint fail-closes every
+# run and the loop can never emit a checkpoint.  Default to COLD START so the
+# loop trains on the now-flowing durable-archive data and starts a clean
+# offline causal lineage.  Re-enable with V2_OFFLINE_FROM_CHECKPOINT=1 once the
+# live checkpoint is repaired or a fresh offline checkpoint is promoted to live.
+if [ "${V2_OFFLINE_FROM_CHECKPOINT:-0}" = "1" ]; then
+  WARMSTART_FLAG="--from-checkpoint"
+else
+  WARMSTART_FLAG=""
+fi
+
 _running=1
 trap '_running=0' INT TERM
 
@@ -64,7 +78,7 @@ while [ "$_running" -eq 1 ]; do
   fi
   echo "[continuous-offline] iter=$iter rebuild=${rebuild:-no} $(date -Is)"
   "$PY" -m v2.backend.app.cli.v2_trainer_offline_batch_train \
-    --from-checkpoint \
+    $WARMSTART_FLAG \
     --save-offline \
     --epochs "$EPOCHS" \
     --steps-per-epoch "$STEPS_PER_EPOCH" \
