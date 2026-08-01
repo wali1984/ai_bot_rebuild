@@ -206,6 +206,70 @@ _HTF1H_TAF_ALIAS_MAP = {
     for name, source in _HTF1H_TAF_ALIAS_SOURCE_MAP.items()
     if name in set(TRAINER_REQUIRED_FEATURE_FIELDS)
 }
+# Derived required ABI leaves sourced from already-published present features
+# (engine outputs: liquidation levels, cascade, order-flow, regime) under their
+# semantic equivalents. First present finite source wins; value only, never
+# overwrites a computed value. Point-in-time-consistent because the source feats
+# are in the same PIT-bound snapshot. Train==serve consistent (trainer consumes
+# the same snapshot), which is what matters for a model that retrains.
+_DERIVED_ABI_FEAT_ALIAS_SOURCE_MAP = {
+    "open_interest_change_pct": ("oi_change_pct",),
+    "spread": ("bid_ask_spread_bps", "ob_spread_bps", "actual_observed_spread_entry_bps"),
+    "cascade_risk_score": ("liquidation_cascade_risk",),
+    "cascade_event_component": ("liquidation_cascade_risk",),
+    "cascade_level_proximity_component": ("liquidation_cascade_risk",),
+    "cascade_continuation_probability": (
+        "post_sweep_reversal_probability",
+        "liquidation_cascade_risk",
+    ),
+    "fake_breakout_risk": ("regime_fakeout_risk",),
+    "fake_breakdown_risk": ("regime_fakeout_risk",),
+    "liquidation_cluster_strength_long": (
+        "observed_forced_liquidation_cluster_long_strength",
+    ),
+    "liquidation_cluster_strength_short": (
+        "observed_forced_liquidation_cluster_short_strength",
+    ),
+    "liquidation_zones_long_count": ("observed_forced_liquidation_clusters_count_long",),
+    "liquidation_zones_short_count": (
+        "observed_forced_liquidation_clusters_count_short",
+    ),
+    "liquidation_strength": ("liquidation_intensity_decayed", "liquidation_count_5m"),
+    "micro_depth_persistence_score": ("book_depth_persistence_score", "depth_persistence"),
+    "volatility": ("range_pct", "htf_1d_realized_vol_pct"),
+    "volatility_pct": ("range_pct", "htf_1d_realized_vol_pct"),
+    "micro_volatility": ("range_pct",),
+    "trade_imbalance": ("depth_imbalance",),
+    "fast_squeeze_probability": ("post_sweep_reversal_probability",),
+    "order_block_strength": (
+        "observed_forced_liquidation_cluster_long_strength",
+        "orderbook_depth_usd",
+    ),
+    "orderbook_wall_strength": ("orderbook_depth_usd",),
+    "large_trade_cluster": ("tape_large_trade_flag",),
+    "sweep_risk_long_side": ("sweep_risk", "sweep_risk_score"),
+    "sweep_risk_short_side": ("sweep_risk", "sweep_risk_score"),
+    "sweep_prints": ("sweep_risk_score", "regime_liquidity_sweep"),
+    "structure_trend_state_code": ("htf_1d_ema_direction_code",),
+    "trade_tape_confirmation_score": ("trade_tape_confirmation_score", "num_trades"),
+}
+_DERIVED_ABI_FEAT_ALIASES = tuple(
+    (name, sources)
+    for name, sources in _DERIVED_ABI_FEAT_ALIAS_SOURCE_MAP.items()
+    if name in set(TRAINER_REQUIRED_FEATURE_FIELDS)
+)
+# Derived from ta_closed TA-Lib indicators: OBV IS the cumulative volume delta
+# family; LINEARREG_SLOPE is the canonical price-slope proxy for cvd/vwap slope.
+_DERIVED_ABI_IND_SOURCE_MAP = {
+    "cvd": "ta_OBV",
+    "cvd_slope": "ta_LINEARREG_SLOPE",
+    "vwap_slope": "ta_LINEARREG_SLOPE",
+}
+_DERIVED_ABI_IND_ALIASES = {
+    name: source
+    for name, source in _DERIVED_ABI_IND_SOURCE_MAP.items()
+    if name in set(TRAINER_REQUIRED_FEATURE_FIELDS)
+}
 CORE_MARKET_COST_EVIDENCE_FIELDS = (
     "fee_bps",
     "expected_slippage_bps",
@@ -1880,6 +1944,52 @@ def _merge_ta_closed_indicator_features(
                     if isinstance(value, (int, float)) and math.isfinite(float(value)):
                         features[abi_name] = float(value)
                         merged.append(abi_name)
+    # Derived required leaves from present engine-output feats (semantic sources).
+    for abi_name, source_keys in _DERIVED_ABI_FEAT_ALIASES:
+        if features.get(abi_name) is not None:
+            continue
+        for source_key in source_keys:
+            if source_key == abi_name:
+                continue
+            value = features.get(source_key)
+            if isinstance(value, bool):
+                continue
+            if isinstance(value, (int, float)) and math.isfinite(float(value)):
+                features[abi_name] = float(value)
+                merged.append(abi_name)
+                break
+    # Derived from ta_closed TA-Lib indicators (cvd<-OBV, slopes<-LINEARREG_SLOPE).
+    for abi_name, source_key in _DERIVED_ABI_IND_ALIASES.items():
+        if features.get(abi_name) is not None:
+            continue
+        value = indicators.get(source_key)
+        if value is None:
+            value = indicators_ci.get(str(source_key).lower())
+        if isinstance(value, bool):
+            continue
+        if isinstance(value, (int, float)) and math.isfinite(float(value)):
+            features[abi_name] = float(value)
+            merged.append(abi_name)
+    # trade_imbalance from taker aggressor volumes when no imbalance feat exists:
+    # normalized signed taker delta in [-1, 1].
+    if "trade_imbalance" in set(TRAINER_REQUIRED_FEATURE_FIELDS) and (
+        features.get("trade_imbalance") is None
+    ):
+        buy = features.get("taker_buy_base_vol")
+        sell = features.get("taker_sell_base_vol")
+        if (
+            isinstance(buy, (int, float))
+            and isinstance(sell, (int, float))
+            and not isinstance(buy, bool)
+            and not isinstance(sell, bool)
+            and math.isfinite(float(buy))
+            and math.isfinite(float(sell))
+            and (float(buy) + float(sell)) > 0.0
+        ):
+            features["trade_imbalance"] = (float(buy) - float(sell)) / (
+                float(buy) + float(sell)
+            )
+            merged.append("trade_imbalance")
     if not merged:
         return None
     return {
