@@ -187,6 +187,25 @@ _OHLCV_CORE_IDENTITY_ALIASES = tuple(
     for name, sources in _OHLCV_CORE_IDENTITY_ALIAS_MAP.items()
     if name in set(TRAINER_REQUIRED_FEATURE_FIELDS)
 )
+# Higher-timeframe (1h) TA leaves: htf1h_taf_<X> is the SAME TA-Lib value computed
+# on the CLOSED 1h candle. Sourced from the authenticated 1h ta_closed candidate,
+# bound point-in-time (its closed 1h candle must close at/before the current 5m
+# decision candle). Map: required ABI name -> 1h ta_closed indicator key.
+_HTF1H_TAF_ALIAS_SOURCE_MAP = {
+    "htf1h_taf_adx": "ta_ADX",
+    "htf1h_taf_cci": "ta_CCI",
+    "htf1h_taf_mfi": "ta_MFI",
+    "htf1h_taf_willr": "ta_WILLR",
+    "htf1h_taf_atr": "atr_14",
+    "htf1h_taf_natr": "ta_NATR",
+    "htf1h_taf_rsi": "rsi_14",
+    "htf1h_taf_macd_hist": "macd_hist",
+}
+_HTF1H_TAF_ALIAS_MAP = {
+    name: source
+    for name, source in _HTF1H_TAF_ALIAS_SOURCE_MAP.items()
+    if name in set(TRAINER_REQUIRED_FEATURE_FIELDS)
+}
 CORE_MARKET_COST_EVIDENCE_FIELDS = (
     "fee_bps",
     "expected_slippage_bps",
@@ -1818,6 +1837,49 @@ def _merge_ta_closed_indicator_features(
                 features[abi_name] = float(value)
                 merged.append(abi_name)
                 break
+    # Higher-timeframe (1h) TA leaves from the authenticated 1h ta_closed candidate,
+    # point-in-time bound: the 1h candle must close at/before this decision candle.
+    if _HTF1H_TAF_ALIAS_MAP and any(
+        features.get(name) is None for name in _HTF1H_TAF_ALIAS_MAP
+    ):
+        try:
+            htf_raw = r.get(f"{V2_REDIS_PREFIX}features:ta_closed:{symbol}:1h")
+        except Exception:
+            htf_raw = None
+        htf_doc = None
+        if htf_raw:
+            try:
+                htf_doc = json.loads(htf_raw)
+            except (TypeError, ValueError):
+                htf_doc = None
+        if (
+            isinstance(htf_doc, dict)
+            and htf_doc.get("compatibility_view") is not True
+            and htf_doc.get("compatibility_unsafe_for_trainer") is not True
+            and htf_doc.get("candle_closed_confirmed") is True
+            and isinstance(htf_doc.get("indicators"), dict)
+        ):
+            htf_close_ms = htf_doc.get("latest_closed_candle_close_ts_ms")
+            if htf_close_ms is None:
+                htf_close_ms = htf_doc.get("last_closed_candle_close_ts_ms")
+            try:
+                htf_close_ms = int(htf_close_ms)
+            except (TypeError, ValueError):
+                htf_close_ms = None
+            if htf_close_ms is not None and htf_close_ms <= int(snapshot_candle_close_ms):
+                htf_ind = htf_doc["indicators"]
+                htf_ci = {str(hk).lower(): hv for hk, hv in htf_ind.items()}
+                for abi_name, source_key in _HTF1H_TAF_ALIAS_MAP.items():
+                    if features.get(abi_name) is not None:
+                        continue
+                    value = htf_ind.get(source_key)
+                    if value is None:
+                        value = htf_ci.get(str(source_key).lower())
+                    if isinstance(value, bool):
+                        continue
+                    if isinstance(value, (int, float)) and math.isfinite(float(value)):
+                        features[abi_name] = float(value)
+                        merged.append(abi_name)
     if not merged:
         return None
     return {
