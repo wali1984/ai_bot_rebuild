@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import os
 from collections.abc import Mapping
 from dataclasses import asdict, replace
 from datetime import UTC, datetime
@@ -74,6 +75,24 @@ PAPER_LIQUIDATION_ATR_EVIDENCE_SCHEMA_VERSION = "paper_liquidation_atr_evidence_
 PAPER_LIQUIDATION_ATR_SOURCE_MATERIAL_SCHEMA_VERSION = "paper_liquidation_atr_source_material_v1"
 PAPER_LIQUIDATION_ATR_EVIDENCE_LINEAGE_KEY = "paper_liquidation_atr_evidence"
 PAPER_LIQUIDATION_ATR_EVIDENCE_HASH_LINEAGE_KEY = "paper_liquidation_atr_evidence_sha256"
+# Paper learning-lane leverage policy (operator directive 2026-08-01, PAPER
+# ONLY).  When enabled, PAPER leverage is governed by the market-adaptive
+# quality term AND the liquidation-ATR safety recommender (the 5x-ATR
+# liquidation-distance bound), NOT by a growth-authorization / proven-edge
+# receipt.  The liquidation-ATR bound remains the BINDING safety constraint —
+# ``raw_target`` still caps leverage so a position cannot be liquidated within
+# that distance — so this compounds for FASTER learning toward the 1000x paper
+# objective on an as-yet-unproven model WITHOUT introducing liquidation risk.
+# Every other safety fail-close (invalid/missing liquidation-ATR evidence,
+# invalid safety multiple, recommendation-contract violations, live mode) is
+# untouched and still forces 1x.  Set
+# PAPER_LEARNING_LIQUIDATION_BOUNDED_LEVERAGE=0 to restore edge-proof gating.
+PAPER_LEARNING_LIQUIDATION_BOUNDED_LEVERAGE = (
+    os.getenv("PAPER_LEARNING_LIQUIDATION_BOUNDED_LEVERAGE", "1")
+    .strip()
+    .lower()
+    not in {"0", "false", "no", "off"}
+)
 PAPER_ALLOCATOR_ARITHMETIC_RECEIPT_MODEL_INPUT_KEY = "paper_allocator_arithmetic_receipt"
 PAPER_ALLOCATOR_ARITHMETIC_RECEIPT_SCHEMA_VERSION = "paper_allocator_arithmetic_receipt_v1"
 PAPER_ALLOCATOR_ARITHMETIC_VERSION = "adaptive_capital_allocator_binary64_arithmetic_v1"
@@ -1979,7 +1998,10 @@ def _adaptive_leverage_target_selection(
     if not growth_authorization_required:
         target = 1.0
         reason = "paper_dynamic_envelope_already_caps_at_1x"
-    elif growth_authorization_rejection_reasons:
+    elif (
+        growth_authorization_rejection_reasons
+        and not PAPER_LEARNING_LIQUIDATION_BOUNDED_LEVERAGE
+    ):
         target = 1.0
         reason = "paper_growth_envelope_authorization_invalid_fail_closed_1x"
     elif liquidation_atr_rejection_reasons:
