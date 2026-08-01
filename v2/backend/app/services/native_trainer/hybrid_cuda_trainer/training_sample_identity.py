@@ -42,6 +42,9 @@ from v2.backend.app.services.native_trainer.durable_feature_snapshot_ledger impo
     MAX_QUERY_ROWS as FEATURE_LEDGER_MAX_QUERY_ROWS,
 )
 from v2.backend.app.services.native_trainer.durable_feature_snapshot_ledger import (
+    SAFE_QUERY_PAGE_ROWS as FEATURE_LEDGER_SAFE_QUERY_PAGE_ROWS,
+)
+from v2.backend.app.services.native_trainer.durable_feature_snapshot_ledger import (
     PROVENANCE_CANONICAL_V3,
     DurableFeatureSnapshotLedger,
     FeatureSnapshotIntegrityReport,
@@ -1479,7 +1482,7 @@ def _scan_fixed_cutoff(
             decision_time_cutoff=strict_prior,
             training_observed_at=strict_prior,
             limit=min(
-                FEATURE_LEDGER_MAX_QUERY_ROWS,
+                FEATURE_LEDGER_SAFE_QUERY_PAGE_ROWS,
                 scan_limit + 1 - len(rows),
             ),
             after_sequence=after_sequence,

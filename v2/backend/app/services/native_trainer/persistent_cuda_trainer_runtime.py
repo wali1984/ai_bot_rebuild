@@ -64,6 +64,9 @@ from v2.backend.app.services.native_trainer.durable_feature_snapshot_ledger impo
     MAX_QUERY_ROWS as FEATURE_LEDGER_MAX_QUERY_ROWS,
 )
 from v2.backend.app.services.native_trainer.durable_feature_snapshot_ledger import (
+    SAFE_QUERY_PAGE_ROWS as FEATURE_LEDGER_SAFE_QUERY_PAGE_ROWS,
+)
+from v2.backend.app.services.native_trainer.durable_feature_snapshot_ledger import (
     default_ledger_path as default_feature_snapshot_ledger_path,
 )
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.checkpoint import (
@@ -2701,7 +2704,7 @@ def _trusted_replay_holdout_examples(
                     feature_strict_prior_cutoff.isoformat()
                 ),
                 limit=min(
-                    FEATURE_LEDGER_MAX_QUERY_ROWS,
+                    FEATURE_LEDGER_SAFE_QUERY_PAGE_ROWS,
                     bounded_scan_limit + 1 - len(scanned),
                 ),
                 after_sequence=after_sequence,

@@ -71,6 +71,15 @@ MAX_APPEND_BYTES = 64 * 1024 * 1024
 MAX_QUERY_BYTES = 64 * 1024 * 1024
 MAX_APPEND_ROWS = 1_024
 MAX_QUERY_ROWS = 4_096
+# A fixed-cutoff query charges every returned record's material bytes against a
+# single MAX_QUERY_BYTES read budget.  MAX_QUERY_ROWS (4096) is only a row cap;
+# at the MAX_RECORD_BYTES worst case a page that large would blow the byte
+# budget and raise ``feature_snapshot_query_bytes_exceeded`` before returning a
+# single row, starving every keyset-paging caller.  This is the provably
+# byte-safe page size — the same worst-case invariant used for integrity
+# streaming (``MAX_QUERY_BYTES // MAX_RECORD_BYTES``) — so a caller that pages
+# with it can never exceed the read budget regardless of record content.
+SAFE_QUERY_PAGE_ROWS = max(1, MAX_QUERY_BYTES // MAX_RECORD_BYTES)
 # A fixed-cutoff page can reference append transactions whose other rows must
 # also be proved.  Bound that proof fan-out independently from the public page
 # size so fragmented append histories cannot force an unbounded SQL walk.

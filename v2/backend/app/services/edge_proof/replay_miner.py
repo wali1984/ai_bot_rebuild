@@ -35,8 +35,8 @@ import json
 import math
 import os
 import time
-from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from dataclasses import asdict, dataclass, field, replace
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
@@ -46,6 +46,21 @@ from .replay_schema import (
     REPLAY_BUNDLE_SCHEMA_VERSION,
     ReplayBundle,
     ReplayLabel,
+)
+
+# Producer-side reuse of the trainer's own label/outcome provenance contract, so
+# the emitted envelope is digest-identical to what the strict live-loop label
+# validator (dataset_builder._label_row_rejection_reasons) recomputes.  Single
+# source of truth — no divergence.  (No import cycle: dataset_builder does not
+# import edge_proof.)
+from v2.backend.app.services.native_trainer.dataset_builder import (  # noqa: E402
+    LabelRow as _TrainerLabelRow,
+    _canonical_sha256 as _trainer_canonical_sha256,
+    _first_present,
+    _label_digest_material as _trainer_label_digest_material,
+    _label_for_outcome as _trainer_label_for_outcome,
+    _normalized_bundle_side as _trainer_normalized_bundle_side,
+    _outcome_digest_material as _trainer_outcome_digest_material,
 )
 
 V2_RUNTIME_REPO_ROOT_ENV = "V2_RUNTIME_REPO_ROOT"
@@ -328,6 +343,301 @@ def load_price_timeline(symbol: str) -> list[tuple[float, float]]:
     return rows
 
 
+# The authoritative, real-time outcome-price source: the canonical finalized 5m
+# candle archive written by the live Binance kline WSS loop.  It is dense (one
+# closed candle every 300s, current to ~now) and PIT-safe (only closed,
+# finalized candles).  The miner's own once-per-run price snapshots are far too
+# sparse to source 1m/5m/15m/1h outcome windows, so outcomes are sourced from
+# this real-time archive and merged with any self-sampled ticks.
+# The canonical outcome source is closed 5m candles (~300s apart); accept the
+# first sample within one candle interval (+ small tolerance) past a window
+# endpoint as the realized endpoint price.
+_OUTCOME_ENDPOINT_HORIZON_SECONDS = 330.0
+CANONICAL_5M_LABEL_ARCHIVE_ENV = "V2_CANONICAL_5M_LABEL_ARCHIVE_PATH"
+_DEFAULT_CANONICAL_5M_LABEL_ARCHIVE = Path(
+    "/home/wali/ai_bot_local_data/v2_native_trainer"
+    "/canonical_finalized_5m_label_archive.sqlite3"
+)
+
+
+def _canonical_label_archive_path() -> Path:
+    configured = str(os.environ.get(CANONICAL_5M_LABEL_ARCHIVE_ENV) or "").strip()
+    if configured:
+        return Path(configured).expanduser()
+    return _DEFAULT_CANONICAL_5M_LABEL_ARCHIVE
+
+
+def _load_canonical_price_timeline(
+    symbol: str, archive_path: Path
+) -> list[tuple[float, float]]:
+    """Dense (ts_sec, close) timeline from the real-time canonical 5m archive.
+
+    Read-only; failures degrade to an empty list so a missing/locked archive
+    never breaks the mining cycle (the window simply stays pending).
+    """
+
+    if not archive_path.exists():
+        return []
+    import sqlite3
+
+    out: list[tuple[float, float]] = []
+    try:
+        connection = sqlite3.connect(f"file:{archive_path}?mode=ro", uri=True)
+    except sqlite3.Error:
+        return []
+    try:
+        cursor = connection.execute(
+            "SELECT candle_close_time_ms, payload_json "
+            "FROM canonical_5m_candles WHERE symbol = ? "
+            "ORDER BY candle_close_time_ms",
+            (symbol.upper(),),
+        )
+        for close_ms, payload_json in cursor:
+            try:
+                close_px = float(json.loads(payload_json).get("close"))
+            except (TypeError, ValueError, KeyError, AttributeError):
+                continue
+            if close_px > 0:
+                out.append((float(close_ms) / 1000.0, close_px))
+    except sqlite3.Error:
+        return out
+    finally:
+        connection.close()
+    return out
+
+
+def _merged_price_timeline(
+    symbol: str, archive_path: Path
+) -> list[tuple[float, float]]:
+    """Union of the self-sampled ticks and the real-time canonical closes.
+
+    Deduped by timestamp (canonical close wins ties), sorted ascending.
+    """
+
+    by_ts: dict[float, float] = {}
+    for ts, price in load_price_timeline(symbol):
+        by_ts[ts] = price
+    for ts, price in _load_canonical_price_timeline(symbol, archive_path):
+        by_ts[ts] = price
+    return sorted(by_ts.items(), key=lambda item: item[0])
+
+
+# The canonical outcome source resolves at the 5m candle cadence, so only
+# windows at/above that resolution are honestly sourceable from it.  Sub-
+# resolution windows (1m) are left best-effort and excluded from the
+# archive-completeness check and primary-window selection.
+_MIN_HONEST_OUTCOME_WINDOW_SECONDS = 300
+
+
+def _parse_iso_utc(value: Any) -> datetime | None:
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _iso_utc(moment: datetime) -> str:
+    return moment.astimezone(timezone.utc).isoformat(
+        timespec="microseconds"
+    ).replace("+00:00", "Z")
+
+
+def _attach_entry_side_provenance(bundle: dict[str, Any]) -> bool:
+    """Synthesize the PIT-consistent entry-side timing chain the strict label
+    validator requires, honestly derived from the recorded feature cutoff /
+    availability / decision clocks.  Returns False when the mandatory anchors
+    are absent (bundle then stays unprovenanced and is excluded from training).
+    """
+
+    cutoff = _parse_iso_utc(
+        bundle.get("feature_cutoff") or bundle.get("entry_feature_cutoff")
+    )
+    decision = _parse_iso_utc(
+        bundle.get("decision_time") or bundle.get("entry_feature_decision_time")
+    )
+    available = _parse_iso_utc(
+        bundle.get("available_at") or bundle.get("entry_feature_available_at")
+    )
+    if cutoff is None or decision is None:
+        return False
+    if available is None or available > decision or available < cutoff:
+        available = decision
+    # entry-feature generation sits between the source cutoff and availability.
+    generated = _parse_iso_utc(bundle.get("entry_feature_generated_at"))
+    if generated is None or not (cutoff <= generated <= available):
+        generated = available
+    tf_seconds = _window_seconds_for_timeframe(bundle.get("timeframe"))
+    candle_open = cutoff - timedelta(seconds=tf_seconds)
+    bundle["candle_close_time"] = _iso_utc(cutoff)
+    bundle["candle_open_time"] = _iso_utc(candle_open)
+    bundle["source_event_time"] = _iso_utc(cutoff)
+    bundle["source_received_time_est"] = _iso_utc(cutoff)
+    bundle["source_available_time"] = _iso_utc(cutoff)
+    bundle["entry_feature_generated_at"] = _iso_utc(generated)
+    bundle["prediction_generated_at"] = _iso_utc(available)
+    bundle["available_at"] = _iso_utc(available)
+    return True
+
+
+def _window_seconds_for_timeframe(timeframe: Any) -> int:
+    text = str(timeframe or "1m").strip().lower()
+    units = {"m": 60, "h": 3600, "d": 86400}
+    try:
+        return max(1, int(text[:-1])) * units.get(text[-1:], 60)
+    except (ValueError, IndexError):
+        return 60
+
+
+def _attach_outcome_provenance(
+    bundle: dict[str, Any],
+    *,
+    timeline: list[tuple[float, float]],
+    mining_now: datetime,
+) -> None:
+    """Emit, for every honestly-sourceable window, the full finalized
+    outcome/label provenance envelope (ids, digests, horizon bounds, finality,
+    availability chain) the strict live-loop validator recomputes.  Digests are
+    produced with the trainer's own material functions so they match exactly.
+    """
+
+    decision = _parse_iso_utc(bundle.get("decision_time"))
+    entry_price = _coerce_float(bundle.get("entry_price"))
+    side = _trainer_normalized_bundle_side(bundle)
+    if decision is None or entry_price is None or entry_price <= 0 or side is None:
+        return
+    if not _attach_entry_side_provenance(bundle):
+        return
+    decision_ep = decision.timestamp()
+    decision_iso = bundle.get("decision_time")
+    symbol = str(bundle.get("symbol") or "").upper()
+    timeframe = str(bundle.get("timeframe") or "")
+    snapshot_id = str(bundle.get("feature_snapshot_id") or "")
+    gate = bundle.get("paper_gate_decision") or {}
+    gate_status = _first_present(
+        gate.get("status"), gate.get("paper_fill_gate_status")
+    )
+    sign = 1.0 if side == "long" else -1.0
+    bundle["bundle_generated_at"] = _iso_utc(mining_now)
+    outcomes = bundle.get("future_outcomes") or {}
+    for wid, secs in OUTCOME_WINDOWS_SECONDS:
+        if secs < _MIN_HONEST_OUTCOME_WINDOW_SECONDS:
+            # Sub-resolution windows are not honestly sourceable from the 5m
+            # canonical archive; null their realized return so they are neither
+            # selected as the primary label window nor treated as evidence.
+            sub = outcomes.get(wid) or {}
+            sub["after_cost_return_bps"] = None
+            sub["source"] = "SUBRESOLUTION_NOT_SOURCEABLE"
+            outcomes[wid] = sub
+            continue
+        window_end_ep = decision_ep + secs
+        horizon_end = decision + timedelta(seconds=secs)
+        # Source the realized path [decision, first close >= horizon_end].
+        slice_ = _find_window_slice(timeline, decision_ep, secs)
+        if slice_ is None:
+            continue
+        endpoint_ts, endpoint_px = next(
+            ((ts, px) for ts, px in slice_ if ts >= window_end_ep),
+            slice_[-1],
+        )
+        raw_return_bps = ((endpoint_px - entry_price) / entry_price) * 10_000.0
+        signed_path = [
+            sign * ((px - entry_price) / entry_price) * 10_000.0
+            for _, px in slice_
+        ]
+        after_cost = sign * raw_return_bps - (DEFAULT_FEE_BPS + DEFAULT_SLIPPAGE_BPS)
+        max_favorable = max(signed_path) if signed_path else None
+        max_adverse = min(signed_path) if signed_path else None
+        # outcome becomes knowable at the sourcing close, never before horizon end.
+        knowable = max(horizon_end, datetime.fromtimestamp(endpoint_ts, timezone.utc))
+        knowable_iso = _iso_utc(knowable)
+        label = _trainer_label_for_outcome(
+            after_cost, str(gate_status) if gate_status is not None else None
+        )
+        outcome_id = _trainer_canonical_sha256(
+            {
+                "kind": "outcome",
+                "feature_snapshot_id": snapshot_id,
+                "symbol": symbol,
+                "window": wid,
+                "decision_time": decision_iso,
+            }
+        )
+        row = _TrainerLabelRow(
+            feature_snapshot_id=snapshot_id,
+            symbol=symbol,
+            timeframe=timeframe,
+            label=label,
+            after_cost_return_bps=after_cost,
+            max_favorable_bps=max_favorable,
+            max_adverse_bps=max_adverse,
+            paper_gate_status=str(gate_status) if gate_status is not None else None,
+            paper_gate_block_reasons=[],
+            risk_decision_context=None,
+            legacy_reference_action=None,
+            side=side,
+            decision_time=decision_iso,
+            outcome_window=wid,
+            label_horizon_start=decision_iso,
+            label_horizon_end=_iso_utc(horizon_end),
+            label_horizon_seconds=int(secs),
+            outcome_generated_at=knowable_iso,
+            outcome_available_at=knowable_iso,
+            outcome_id=outcome_id,
+        )
+        outcome_digest = _trainer_canonical_sha256(
+            _trainer_outcome_digest_material(row)
+        )
+        label_id = _trainer_canonical_sha256(
+            {
+                "kind": "label",
+                "outcome_id": outcome_id,
+                "label": label,
+                "feature_snapshot_id": snapshot_id,
+            }
+        )
+        row = replace(
+            row,
+            outcome_digest=outcome_digest,
+            label_id=label_id,
+            label_available_at=knowable_iso,
+            label_finalized=True,
+        )
+        label_digest = _trainer_canonical_sha256(
+            _trainer_label_digest_material(row)
+        )
+        prior = outcomes.get(wid) or {}
+        prior.update(
+            {
+                "return_bps": raw_return_bps,
+                "after_cost_return_bps": after_cost,
+                "max_favorable_bps": max_favorable,
+                "max_adverse_bps": max_adverse,
+                "samples": len(slice_),
+                "source": "V2_CANONICAL_5M_ARCHIVE",
+                "outcome_id": outcome_id,
+                "label_id": label_id,
+                "label": label,
+                "outcome_digest": outcome_digest,
+                "label_digest": label_digest,
+                "label_horizon_start": decision_iso,
+                "label_horizon_end": _iso_utc(horizon_end),
+                "label_horizon_seconds": int(secs),
+                "outcome_generated_at": knowable_iso,
+                "outcome_available_at": knowable_iso,
+                "label_available_at": knowable_iso,
+                "outcome_finalized": True,
+                "label_finalized": True,
+            }
+        )
+        outcomes[wid] = prior
+    bundle["future_outcomes"] = outcomes
+
+
 def _find_window_slice(
     timeline: list[tuple[float, float]],
     anchor_ts: float,
@@ -340,16 +650,24 @@ def _find_window_slice(
     if not timeline:
         return None
     window_end = anchor_ts + window_seconds
+    # The outcome is sourced from the FIRST price sample at or after the window
+    # endpoint.  A sub-second endpoint tolerance assumed a near-continuous tick
+    # feed; the real-time source is closed 5m candles (~300s apart), so bound
+    # the endpoint search to one candle interval past the endpoint.  If no
+    # sample falls within that horizon the window is genuinely not yet
+    # sourceable (archive gap or not matured) and stays pending.
+    endpoint_horizon = window_end + _OUTCOME_ENDPOINT_HORIZON_SECONDS
     slice_: list[tuple[float, float]] = []
     has_endpoint = False
     for ts, price in timeline:
         if ts < anchor_ts:
             continue
-        if ts > window_end + 1:  # +1s tolerance
+        if ts > endpoint_horizon:
             break
         slice_.append((ts, price))
         if ts >= window_end:
             has_endpoint = True
+            break
     if not slice_ or not has_endpoint:
         return None
     return slice_
@@ -528,11 +846,18 @@ def _append_to_eval_metrics(bundles: list[dict[str, Any]]) -> None:
 
 
 def _is_fully_filled(b: dict[str, Any]) -> bool:
-    """True when every outcome window has a realized after-cost return."""
+    """True when every honestly-sourceable outcome window has a realized
+    after-cost return.  Sub-resolution windows (below the canonical 5m source
+    cadence) are best-effort and do not block archival."""
     outcomes = b.get("future_outcomes") or {}
+    sourceable = [
+        wid
+        for wid, secs in OUTCOME_WINDOWS_SECONDS
+        if secs >= _MIN_HONEST_OUTCOME_WINDOW_SECONDS
+    ]
     return all(
         (outcomes.get(wid) or {}).get("after_cost_return_bps") is not None
-        for wid, _ in OUTCOME_WINDOWS_SECONDS
+        for wid in sourceable
     )
 
 
@@ -1168,11 +1493,25 @@ def mine_once(
     merged, added = _merge_new_paper_rows(pending, paper_rows)
 
     # 3. Fill outcomes for any bundle whose windows are now sourceable.
-    timeline_by_symbol = {s: load_price_timeline(s) for s in symbols}
+    #    Outcome prices come from the real-time canonical 5m archive (dense,
+    #    PIT-safe closed candles) merged with any self-sampled ticks.
+    _archive_path = _canonical_label_archive_path()
+    timeline_by_symbol = {
+        s.upper(): _merged_price_timeline(s, _archive_path) for s in symbols
+    }
+    _mining_now = datetime.now(timezone.utc)
     now_filled: list[dict[str, Any]] = []
     still_pending: list[dict[str, Any]] = []
     for b in merged:
         updated = fill_outcomes(b, timeline_by_symbol=timeline_by_symbol)
+        # Emit the finalized PIT outcome/label provenance envelope the strict
+        # live-loop label validator requires (ids, digests, horizon bounds,
+        # finality, availability chain) for every honestly-sourceable window.
+        _attach_outcome_provenance(
+            updated,
+            timeline=timeline_by_symbol.get(str(updated.get("symbol") or "").upper(), []),
+            mining_now=_mining_now,
+        )
         if _is_fully_filled(updated):
             now_filled.append(updated)
         else:
@@ -1195,7 +1534,9 @@ def mine_once(
         "bundles_added_this_cycle": added,
         "bundles_stale_pruned": stale_pruned,
         "pending_stream_prune": pending_prune,
-        "timeline_lengths": {s: len(timeline_by_symbol[s]) for s in symbols},
+        "timeline_lengths": {
+            s: len(timeline_by_symbol.get(s.upper(), [])) for s in symbols
+        },
     }
 
 
