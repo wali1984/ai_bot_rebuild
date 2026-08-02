@@ -6,8 +6,10 @@ market-admission logic and does not read from or write to an exchange.
 """
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
+import os
 import sqlite3
 from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass
@@ -16,6 +18,15 @@ from pathlib import Path
 from typing import Any
 
 ARCHIVE_SCHEMA_VERSION = "durable_paper_evidence_archive_v2"
+# The readiness proof is O(total archive bytes). It is reused only while the
+# archive's on-disk content identity is unchanged, so a cache hit is provably
+# equivalent to recomputing it. Set to 0 to always recompute.
+DURABLE_ARCHIVE_READINESS_PROOF_CACHE = (
+    os.getenv("DURABLE_ARCHIVE_READINESS_PROOF_CACHE", "1").strip().lower()
+    not in {"0", "false", "no", "off"}
+)
+_READINESS_PROOF_CACHE: dict[tuple[Any, ...], tuple[tuple[Any, ...], dict[str, Any]]] = {}
+_READINESS_PROOF_CACHE_MAX_ENTRIES = 32
 COUNTERFACTUAL_ARCHIVE_STREAM_ID = (
     "v2_trainer_feedback_counterfactuals_unique_v1"
 )
@@ -1542,7 +1553,88 @@ class DurablePaperEvidenceArchive:
             "recorded_at": str(row[4]),
         }
 
+    def _archive_content_fingerprint(self) -> tuple[Any, ...] | None:
+        """Identity of the exact on-disk archive content, or None if unknowable.
+
+        The archive runs in WAL mode, so every producer commit changes the
+        ``-wal`` sidecar (and a checkpoint changes both files).  Size plus
+        nanosecond mtime of the database and its sidecars therefore changes on
+        any write.  Returning None forces a full recomputation, so an
+        unreadable or unstat-able archive never reuses a proof.
+        """
+
+        parts: list[Any] = []
+        for suffix in ("", "-wal", "-shm"):
+            candidate = Path(str(self.path) + suffix)
+            try:
+                stat = candidate.stat()
+            except OSError:
+                parts.append((suffix, None))
+                continue
+            parts.append((suffix, stat.st_size, stat.st_mtime_ns, stat.st_ino))
+        return tuple(parts)
+
     def verified_replacement_readiness(
+        self,
+        *,
+        source_key: str,
+        intent_operation_kind: str = COUNTERFACTUAL_REPLACEMENT_INTENT_KIND,
+        outcome_operation_kind: str = COUNTERFACTUAL_REPLACEMENT_OUTCOME_KIND,
+    ) -> dict[str, Any]:
+        """Full proof, reused only while the archive is provably unwritten.
+
+        The underlying proof is O(total archive bytes) and the trainer calls it
+        every cycle, which made data assembly -- not gradient work -- dominate
+        the trainer's wall clock (measured: ~51.5k 4 KiB page reads per second,
+        re-reading the whole archive roughly every 7 seconds, with the GPU idle
+        throughout).
+
+        Caching here is integrity-preserving rather than integrity-reducing: the
+        proof is returned from cache only when the archive's on-disk content
+        identity is byte-for-byte unchanged, in which case recomputing it could
+        not produce a different answer.  Any producer commit, checkpoint,
+        truncation or replacement changes the fingerprint and forces the full
+        proof to run again.  Set
+        DURABLE_ARCHIVE_READINESS_PROOF_CACHE=0 to always recompute.
+        """
+
+        fingerprint = (
+            self._archive_content_fingerprint()
+            if DURABLE_ARCHIVE_READINESS_PROOF_CACHE
+            else None
+        )
+        cache_key = (
+            str(self.path),
+            self.stream_id,
+            str(source_key),
+            str(intent_operation_kind),
+            str(outcome_operation_kind),
+        )
+        if fingerprint is not None:
+            cached = _READINESS_PROOF_CACHE.get(cache_key)
+            if cached is not None and cached[0] == fingerprint:
+                result = copy.deepcopy(cached[1])
+                result["readiness_proof_served_from_cache"] = True
+                result["readiness_proof_cache_fingerprint_verified"] = True
+                return result
+
+        result = self._verified_replacement_readiness_uncached(
+            source_key=source_key,
+            intent_operation_kind=intent_operation_kind,
+            outcome_operation_kind=outcome_operation_kind,
+        )
+
+        if fingerprint is not None:
+            # Re-read the fingerprint: a commit that landed *while* the proof was
+            # being computed must not be cached against the pre-commit identity.
+            if self._archive_content_fingerprint() == fingerprint:
+                if len(_READINESS_PROOF_CACHE) >= _READINESS_PROOF_CACHE_MAX_ENTRIES:
+                    _READINESS_PROOF_CACHE.clear()
+                _READINESS_PROOF_CACHE[cache_key] = (fingerprint, copy.deepcopy(result))
+        result["readiness_proof_served_from_cache"] = False
+        return result
+
+    def _verified_replacement_readiness_uncached(
         self,
         *,
         source_key: str,
