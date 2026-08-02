@@ -74,6 +74,13 @@ OFFLINE_TRAINER_REPORT_CANDIDATES: tuple[Path, ...] = tuple(
     )
 )
 OFFLINE_TRAINER_REPORT_PATH = OFFLINE_TRAINER_REPORT_CANDIDATES[0]
+# side_bucket_positive demands positive realised expectancy before a side may
+# trade, while expectancy can only move by trading that side. Observed rather
+# than enforced in the paper learning lane; set to 0 to restore blocking.
+A_PLUS_SIDE_BUCKET_MONITOR_ONLY = (
+    os.getenv("A_PLUS_SIDE_BUCKET_MONITOR_ONLY", "1").strip().lower()
+    not in {"0", "false", "no", "off"}
+)
 # A cycle older than this is not evidence that the trainer is learning *now*.
 OFFLINE_TRAINER_EVIDENCE_MAX_AGE_SECONDS = float(
     os.getenv("A_PLUS_OFFLINE_TRAINER_EVIDENCE_MAX_AGE_SECONDS", "5400") or 5400
@@ -391,6 +398,28 @@ def _trainer_learning_check(
     )
 
 
+def _side_bucket_monitor_only(reason: str) -> dict[str, Any]:
+    """Observe a circular side-expectancy block instead of enforcing it.
+
+    ``side_bucket_positive`` requires a side's realised expectancy to already be
+    positive, but expectancy can only move by trading that side. With the book
+    at -5.66 bps this blocked every candidate on both sides permanently, which
+    is the same self-sealing pattern as the A-grade gate and the bucket
+    quarantine that are already observed rather than enforced in the paper
+    learning lane.
+
+    Only the circular expectancy verdicts are demoted. Missing side-performance
+    evidence still fails closed -- absence of evidence is never permission --
+    and every other A+ check (regime, HTF, microstructure trust, risk,
+    allocator, quarantine) still has to agree, as do the downstream loss cap,
+    liquidation and drawdown validators.
+
+    Set A_PLUS_SIDE_BUCKET_MONITOR_ONLY=0 to restore blocking.
+    """
+
+    return _check(True, f"MONITOR_ONLY_OBSERVED:{reason}")
+
+
 def _side_bucket_check(
     side_performance: Any,
     *,
@@ -413,11 +442,17 @@ def _side_bucket_check(
     trade_count = int(_finite(bucket.get("trade_count")) or 0)
     expectancy = _finite(bucket.get("expectancy_bps"))
     if not gate.get("allowed", False):
-        return _check(False, f"SIDE_GATE_BLOCKED:{';'.join(gate.get('reasons') or [])}")
+        reason = f"SIDE_GATE_BLOCKED:{';'.join(gate.get('reasons') or [])}"
+        if A_PLUS_SIDE_BUCKET_MONITOR_ONLY:
+            return _side_bucket_monitor_only(reason)
+        return _check(False, reason)
     # Enough evidence: expectancy must be strictly positive.
     if trade_count >= config.side_gate.min_trades_for_expectancy_block:
         if expectancy is None or expectancy <= 0:
-            return _check(False, f"SIDE_EXPECTANCY_NOT_POSITIVE:{expectancy};trades={trade_count}")
+            reason = f"SIDE_EXPECTANCY_NOT_POSITIVE:{expectancy};trades={trade_count}"
+            if A_PLUS_SIDE_BUCKET_MONITOR_ONLY:
+                return _side_bucket_monitor_only(reason)
+            return _check(False, reason)
         return _check(True, f"side={side.upper()};expectancy_bps={expectancy:.2f};trades={trade_count}")
     if trade_count >= config.min_side_trades_for_a_plus and expectancy is not None and expectancy > 0:
         return _check(True, f"side={side.upper()};expectancy_bps={expectancy:.2f};trades={trade_count}")
@@ -426,7 +461,10 @@ def _side_bucket_check(
     # A+ check still has to agree — this is not a threshold reduction, it is
     # the only path by which a starved side (LONG) can ever build a bucket.
     if expectancy is not None and expectancy <= 0 and trade_count >= config.min_side_trades_for_a_plus:
-        return _check(False, f"SIDE_EXPECTANCY_NOT_POSITIVE:{expectancy};trades={trade_count}")
+        reason = f"SIDE_EXPECTANCY_NOT_POSITIVE:{expectancy};trades={trade_count}"
+        if A_PLUS_SIDE_BUCKET_MONITOR_ONLY:
+            return _side_bucket_monitor_only(reason)
+        return _check(False, reason)
     return _check(True, f"SIDE_EXPLORATION_WINDOW:side={side.upper()};trades={trade_count}")
 
 

@@ -119,3 +119,52 @@ def test_inactive_online_lane_falls_through_to_offline_evidence() -> None:
     assert _trainer_learning_check(idle, _report(), now=NOW)["passed"] is True
     # ...and with no offline cycle it stays false rather than silently passing.
     assert _trainer_learning_check(idle, None, now=NOW)["passed"] is not True
+
+
+# --------------------------------------------------------------------------- #
+# side_bucket_positive is circular: a side needs positive realised expectancy
+# to trade, but expectancy only moves by trading that side. It is observed in
+# the paper learning lane -- but absence of evidence must never become
+# permission, and genuine positives must not be relabelled.
+# --------------------------------------------------------------------------- #
+from v2.backend.app.services.a_plus_trade_gate.service import (  # noqa: E402
+    APlusGateConfig,
+    _side_bucket_check,
+)
+
+CFG = APlusGateConfig()
+
+
+def _side(expectancy: float, trades: int = 80) -> dict:
+    return {"sides": {"LONG": {"trade_count": trades, "expectancy_bps": expectancy}}}
+
+
+def test_negative_expectancy_is_observed_not_enforced() -> None:
+    result = _side_bucket_check(
+        _side(-5.66), side="long", confidence_calibrated=0.8, config=CFG
+    )
+    assert result["passed"] is True
+    # The real verdict survives for the operator/GUI.
+    assert result["reason"].startswith("MONITOR_ONLY_OBSERVED:")
+    assert "-5.66" in result["reason"]
+
+
+@pytest.mark.parametrize(
+    "performance", [None, {}, {"sides": {}}, {"sides": {"SHORT": {"trade_count": 5}}}]
+)
+def test_missing_side_evidence_still_fails_closed(performance: object) -> None:
+    result = _side_bucket_check(
+        performance, side="long", confidence_calibrated=0.8, config=CFG
+    )
+    assert result["passed"] is not True
+    assert result["missing_evidence"] is True
+
+
+def test_genuine_positive_expectancy_passes_on_its_own_merit() -> None:
+    result = _side_bucket_check(
+        _side(12.5), side="long", confidence_calibrated=0.8, config=CFG
+    )
+    assert result["passed"] is True
+    # Not a monitor-only pass -- it earned it.
+    assert "MONITOR_ONLY_OBSERVED" not in result["reason"]
+    assert "expectancy_bps=12.50" in result["reason"]
