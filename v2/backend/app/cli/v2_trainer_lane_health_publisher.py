@@ -38,12 +38,17 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, Mapping, Sequence
 
 SCHEMA_VERSION = "trainer_lane_health_v1"
 LANE_HEALTH_KEY = "v2:trainer:lane_health:status"
 HYBRID_STATUS_KEY = "v2:trainer:hybrid_cuda:status"
 HYBRID_METRICS_KEY = "v2:trainer:hybrid_cuda:metrics"
+# The resident research lane writes this signed status file every cycle but
+# performs no Redis I/O, so it is the only evidence of its true runtime state.
+RESEARCH_LANE_STATUS_PATH = Path(
+    "/home/wali/ai_bot_local_data/v2_native_trainer/local_profiled_research_v1/status.json"
+)
 # .../<repo>/v2/backend/app/cli/<this file> -> parents[4] is the repo root.
 REPO_ROOT = Path(__file__).resolve().parents[4]
 
@@ -109,9 +114,17 @@ LANE_SPECS: tuple[LaneSpec, ...] = (
         unit="ai-bot-v2-native-cuda-trainer-persistent.service",
         process_match="v2_native_cuda_trainer_persistent_loop",
         redis_key=HYBRID_STATUS_KEY,
+        # The resident research lane writes candidate checkpoints, not a Redis
+        # status. Verifying those artifacts is what catches a lane that reports
+        # "cycle running" while producing nothing.
+        artifact_globs=(
+            ".local_models/v2_native_rl_masa_ppo/local_profiled_research_candidates/*.weights.npz",
+        ),
+        max_artifact_age_seconds=6 * 60 * 60,
         notes=(
             "Sole publisher of v2:trainer:hybrid_cuda:status. Runs in "
-            "waiting-for-authenticated-samples research mode, so the deep "
+            "locally-authenticated-profiled-research mode, which is "
+            "non-promotable and emits no training telemetry, so the deep "
             "telemetry blocks sourced from that key stay unpublished."
         ),
     ),
@@ -348,6 +361,81 @@ def evaluate_lane(
     }
 
 
+def _research_lane_runtime() -> dict[str, Any]:
+    """Bridge the resident research lane's real on-disk status into the payload.
+
+    The lane writes a signed status file every cycle but performs no Redis I/O
+    at all, so its genuine runtime state is invisible to the GUI.  This copies
+    the observed fields verbatim -- it never synthesises training telemetry the
+    lane does not emit.
+    """
+    out: dict[str, Any] = {
+        "status_path": str(RESEARCH_LANE_STATUS_PATH),
+        "status_present": False,
+    }
+    try:
+        raw = json.loads(RESEARCH_LANE_STATUS_PATH.read_text())
+    except (OSError, ValueError):
+        return out
+    if not isinstance(raw, dict):
+        return out
+    cuda = raw.get("cuda_runtime") if isinstance(raw.get("cuda_runtime"), dict) else {}
+    out.update(
+        {
+            "status_present": True,
+            "classification": raw.get("classification"),
+            "cycle_in_progress": raw.get("cycle_in_progress"),
+            "cycle_result": raw.get("cycle_result"),
+            "runtime_wired": raw.get("runtime_wired"),
+            "non_promotable": raw.get("local_research_non_promotable"),
+            "service_process_active": raw.get("service_process_active"),
+            "error": raw.get("error"),
+            "code_sha": raw.get("code_sha"),
+            "status_generated_at": raw.get("status_generated_at"),
+            "gpu_name": cuda.get("gpu_name"),
+            "cuda_available": cuda.get("cuda_available"),
+            "memory_allocated_bytes": cuda.get("memory_allocated_bytes"),
+            "peak_memory_allocated_bytes": cuda.get("peak_memory_allocated_bytes"),
+            "prediction_authorized": raw.get("prediction_authorized"),
+            "serving_promotion_authorized": raw.get("serving_promotion_authorized"),
+            "paper_trading_authorized": raw.get("paper_trading_authorized"),
+        }
+    )
+    return out
+
+
+def _idle_gpu_alert(research: Mapping[str, Any]) -> dict[str, Any] | None:
+    """Catch a lane that reports a running cycle while doing no GPU work.
+
+    A resident trainer can report ``cycle_in_progress`` indefinitely while never
+    allocating a single byte of device memory.  Unit state alone reads healthy,
+    so this compares the lane's own claim against its own CUDA counters.
+    """
+    if research.get("status_present") is not True:
+        return None
+    if research.get("cycle_in_progress") is not True:
+        return None
+    peak = research.get("peak_memory_allocated_bytes")
+    allocated = research.get("memory_allocated_bytes")
+    if not (isinstance(peak, (int, float)) and isinstance(allocated, (int, float))):
+        return None
+    if peak > 0 or allocated > 0:
+        return None
+    return {
+        "severity": "error",
+        "lane_id": "hybrid_online",
+        "label": "Persistent CUDA trainer (hybrid/online lane)",
+        "code": "TRAINER_LANE_CYCLE_CLAIMED_BUT_GPU_NEVER_ALLOCATED",
+        "message": (
+            "Persistent CUDA trainer reports a research cycle in progress on "
+            f"{research.get('gpu_name') or 'the GPU'} but has never allocated "
+            "device memory (peak allocated is 0 bytes), so no training work is "
+            "actually running."
+        ),
+        "evidence_pointer": str(RESEARCH_LANE_STATUS_PATH),
+    }
+
+
 def build_lane_health(
     *,
     repo_root: Path = REPO_ROOT,
@@ -387,6 +475,10 @@ def build_lane_health(
         for lane in lanes
         if lane["severity"] != "ok"
     ]
+    research = _research_lane_runtime()
+    idle_gpu = _idle_gpu_alert(research)
+    if idle_gpu is not None:
+        alerts.append(idle_gpu)
     alerts.sort(key=lambda a: -SEVERITY_RANK.get(a["severity"], 0))
     worst = max((SEVERITY_RANK.get(a["severity"], 0) for a in alerts), default=0)
 
@@ -409,6 +501,7 @@ def build_lane_health(
             for lane in lanes
         ),
         "gpu_runtime_observed": _gpu_evidence(),
+        "research_lane_runtime": research,
     }
 
 

@@ -15,6 +15,8 @@ from v2.backend.app.cli.v2_trainer_lane_health_publisher import (
     HEALTH_STALLED,
     HEALTH_STOPPED,
     LaneSpec,
+    _idle_gpu_alert,
+    _research_lane_runtime,
     build_lane_health,
     evaluate_lane,
 )
@@ -114,3 +116,85 @@ def test_build_lane_health_surfaces_alerts_and_worst_severity(tmp_path) -> None:
     assert payload["alerts"][0]["severity"] == "error"
     assert payload["paper_only"] is True
     assert payload["routes_to_live"] is False
+
+
+# --------------------------------------------------------------------------- #
+# A resident trainer can report "cycle in progress" forever while never doing
+# any GPU work. Unit state alone reads healthy, so the lane's own claim must be
+# checked against its own CUDA counters.
+# --------------------------------------------------------------------------- #
+def _running_cycle(**overrides: object) -> dict[str, object]:
+    base: dict[str, object] = {
+        "status_present": True,
+        "cycle_in_progress": True,
+        "gpu_name": "NVIDIA GeForce RTX 5080",
+        "memory_allocated_bytes": 0,
+        "peak_memory_allocated_bytes": 0,
+    }
+    base.update(overrides)
+    return base
+
+
+def test_cycle_claimed_with_zero_gpu_allocation_raises_error_alert() -> None:
+    alert = _idle_gpu_alert(_running_cycle())
+    assert alert is not None
+    assert alert["severity"] == "error"
+    assert alert["code"] == "TRAINER_LANE_CYCLE_CLAIMED_BUT_GPU_NEVER_ALLOCATED"
+    assert "never allocated device memory" in alert["message"]
+    assert "RTX 5080" in alert["message"]
+
+
+def test_cycle_that_actually_used_the_gpu_is_not_alerted() -> None:
+    assert _idle_gpu_alert(_running_cycle(peak_memory_allocated_bytes=1_048_576)) is None
+    assert _idle_gpu_alert(_running_cycle(memory_allocated_bytes=4096)) is None
+
+
+def test_idle_gpu_alert_requires_a_claimed_running_cycle() -> None:
+    # Not claiming a cycle => zero allocation is expected, not a fault.
+    assert _idle_gpu_alert(_running_cycle(cycle_in_progress=False)) is None
+    assert _idle_gpu_alert(_running_cycle(status_present=False)) is None
+
+
+def test_idle_gpu_alert_stays_silent_without_counter_evidence() -> None:
+    # Absent/unusable counters must not be treated as "zero" -- no evidence is
+    # not evidence of failure.
+    assert _idle_gpu_alert(_running_cycle(peak_memory_allocated_bytes=None)) is None
+    assert _idle_gpu_alert(_running_cycle(memory_allocated_bytes="n/a")) is None
+
+
+def test_research_lane_runtime_reports_absent_status_honestly(tmp_path, monkeypatch) -> None:
+    import v2.backend.app.cli.v2_trainer_lane_health_publisher as mod
+
+    monkeypatch.setattr(mod, "RESEARCH_LANE_STATUS_PATH", tmp_path / "missing.json")
+    out = _research_lane_runtime()
+    assert out["status_present"] is False
+    # Never invents fields the lane did not publish.
+    assert "cycle_in_progress" not in out
+
+
+def test_research_lane_runtime_bridges_real_fields(tmp_path, monkeypatch) -> None:
+    import json
+
+    import v2.backend.app.cli.v2_trainer_lane_health_publisher as mod
+
+    path = tmp_path / "status.json"
+    path.write_text(
+        json.dumps(
+            {
+                "classification": "LOCAL_PROFILED_RESEARCH_CYCLE_RUNNING",
+                "cycle_in_progress": True,
+                "runtime_wired": False,
+                "local_research_non_promotable": True,
+                "prediction_authorized": False,
+                "cuda_runtime": {"gpu_name": "RTX 5080", "peak_memory_allocated_bytes": 0},
+            }
+        )
+    )
+    monkeypatch.setattr(mod, "RESEARCH_LANE_STATUS_PATH", path)
+    out = _research_lane_runtime()
+    assert out["status_present"] is True
+    assert out["classification"] == "LOCAL_PROFILED_RESEARCH_CYCLE_RUNNING"
+    assert out["runtime_wired"] is False
+    assert out["non_promotable"] is True
+    assert out["gpu_name"] == "RTX 5080"
+    assert out["peak_memory_allocated_bytes"] == 0
