@@ -58,13 +58,22 @@ TRAINER_METRICS_KEY = "v2:trainer:hybrid_cuda:metrics"
 # configured, so it never writes the metrics key above. The continuous offline
 # lane does train (on the GPU) and publishes this cycle report, which is the
 # honest evidence that the trainer is learning.
-OFFLINE_TRAINER_REPORT_PATH = (
-    Path(__file__).resolve().parents[5]
-    / "claude_worklog"
-    / "trainer_atlas"
-    / "continuous_offline_last_report.json"
-)
 OFFLINE_TRAINER_REPORT_PATH_TEXT = "claude_worklog/trainer_atlas/continuous_offline_last_report.json"
+# Consumers run from immutable per-SHA deployment worktrees while the trainer
+# writes its report into the live repo, so a path derived only from __file__
+# resolves inside the worktree and finds nothing. Resolve against the explicit
+# repo root first, then the working directory, then the module location.
+OFFLINE_TRAINER_REPORT_CANDIDATES: tuple[Path, ...] = tuple(
+    dict.fromkeys(
+        base / OFFLINE_TRAINER_REPORT_PATH_TEXT
+        for base in (
+            Path(os.getenv("V2_REPO_ROOT", "").strip() or "/home/wali/Desktop/AI BOT REBUILD"),
+            Path.cwd(),
+            Path(__file__).resolve().parents[5],
+        )
+    )
+)
+OFFLINE_TRAINER_REPORT_PATH = OFFLINE_TRAINER_REPORT_CANDIDATES[0]
 # A cycle older than this is not evidence that the trainer is learning *now*.
 OFFLINE_TRAINER_EVIDENCE_MAX_AGE_SECONDS = float(
     os.getenv("A_PLUS_OFFLINE_TRAINER_EVIDENCE_MAX_AGE_SECONDS", "5400") or 5400
@@ -273,11 +282,15 @@ def _report_age_seconds(generated: Any, *, now: datetime | None = None) -> float
 
 def _load_offline_trainer_report(path: Path | None = None) -> dict[str, Any] | None:
     """Read the continuous offline lane's last cycle report, if present."""
-    try:
-        raw = json.loads((path or OFFLINE_TRAINER_REPORT_PATH).read_text("utf-8"))
-    except (OSError, ValueError):
-        return None
-    return raw if isinstance(raw, dict) else None
+    candidates = (path,) if path is not None else OFFLINE_TRAINER_REPORT_CANDIDATES
+    for candidate in candidates:
+        try:
+            raw = json.loads(candidate.read_text("utf-8"))
+        except (OSError, ValueError):
+            continue
+        if isinstance(raw, dict):
+            return raw
+    return None
 
 
 def _offline_training_evidence(report: Any, *, now: datetime | None = None) -> dict[str, Any] | None:
