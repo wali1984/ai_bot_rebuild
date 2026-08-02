@@ -657,6 +657,13 @@ CONTINUOUS_EDGE_GUARDIAN_STATUS_REDIS_KEY = "v2:continuous_edge_guardian:status"
 CONTINUOUS_EDGE_GUARDIAN_GATE_PATH = Path(
     "v2/frontend/public/operator_runtime/v2_continuous_edge_guardian/latest/a_grade_execution_gate.json"
 )
+# The A-grade performance gate is observed, not enforced, in the paper learning
+# lane: it demands a rolling 100/300-trade window while blocking the entries
+# that would build it.  Set PAPER_GUARDIAN_MONITOR_ONLY=0 to restore blocking.
+PAPER_GUARDIAN_MONITOR_ONLY = (
+    os.getenv("PAPER_GUARDIAN_MONITOR_ONLY", "1").strip().lower()
+    not in {"0", "false", "no", "off"}
+)
 STRATEGY_SUPPLY_SHADOW_CANDIDATE_ALLOCATION_LIMIT = 25
 OUT_OF_SAMPLE_REVERIFY_SELECTOR_POLICY_FINGERPRINT = (
     "c4b8fb1ed12aabcb87224723f1758563eefff10de90288be09866d2bf3fa74b5"
@@ -21259,6 +21266,55 @@ def _explicit_paper_opportunity_tier(row: dict[str, Any]) -> str | None:
     return None
 
 
+def _apply_guardian_monitor_only(gate: dict[str, Any]) -> dict[str, Any]:
+    """Demote the A-grade *performance* gate to monitor-only in the paper lane.
+
+    The gate is circular by construction: it blocks every new entry until a
+    rolling 100/300-trade window exists, while blocking the entries that would
+    build that window, so the learning lane can never accumulate the evidence
+    the gate demands.  Those windows and the 90% win-rate floor are also exactly
+    the static thresholds the adaptive mandate forbids.
+
+    Monitor-only preserves the verdict verbatim under ``monitor_only_observed_*``
+    so the GUI still shows the real (blocking) truth, and only stops it from
+    vetoing admission.  It is scoped to this paper loop and deliberately does
+    NOT touch the hard safety validators -- per-trade loss cap, liquidation-ATR
+    bound, margin, drawdown and the live gate all still bind downstream.
+
+    Set PAPER_GUARDIAN_MONITOR_ONLY=0 to restore blocking enforcement.
+    """
+    if not PAPER_GUARDIAN_MONITOR_ONLY or not gate:
+        return gate
+    # Fail closed: never relax the gate on anything that can reach an exchange.
+    if gate.get("routes_to_live") is True or gate.get("places_real_order") is True:
+        return gate
+
+    observed_allowed = gate.get("a_grade_new_entries_allowed")
+    observed_block = gate.get("block_all_new_a_grade_entries")
+    if observed_allowed is not False and observed_block is not True:
+        return gate
+
+    monitored = dict(gate)
+    monitored["guardian_enforcement_mode"] = "MONITOR_ONLY"
+    monitored["monitor_only_observed_a_grade_new_entries_allowed"] = observed_allowed
+    monitored["monitor_only_observed_block_all_new_a_grade_entries"] = observed_block
+    monitored["monitor_only_observed_status"] = gate.get("status")
+    monitored["monitor_only_observed_failure_reasons"] = gate.get("failure_reasons")
+    monitored["a_grade_new_entries_allowed"] = True
+    monitored["block_all_new_a_grade_entries"] = False
+    # _continuous_edge_guardian_allows_new_entries() also rejects a HALTED /
+    # BLOCKED / SHADOW_ONLY status string, so the observed status is preserved
+    # above and the enforced one is restated as monitoring.
+    monitored["status"] = "MONITOR_ONLY_OBSERVING"
+    actions = gate.get("allowed_runtime_actions")
+    actions = list(actions) if isinstance(actions, (list, tuple)) else []
+    for action in ("open", "increase"):
+        if action not in actions:
+            actions.append(action)
+    monitored["allowed_runtime_actions"] = actions
+    return monitored
+
+
 def _read_continuous_edge_guardian_gate(r) -> dict[str, Any]:
     payload = None
     if r is not None:
@@ -21272,12 +21328,12 @@ def _read_continuous_edge_guardian_gate(r) -> dict[str, Any]:
         except (TypeError, json.JSONDecodeError):
             decoded = None
         if isinstance(decoded, dict):
-            return decoded
+            return _apply_guardian_monitor_only(decoded)
     try:
         decoded = json.loads(CONTINUOUS_EDGE_GUARDIAN_GATE_PATH.read_text(encoding="utf-8"))
     except Exception:
         return {}
-    return decoded if isinstance(decoded, dict) else {}
+    return _apply_guardian_monitor_only(decoded) if isinstance(decoded, dict) else {}
 
 
 def _continuous_edge_guardian_gate_context(gate: dict[str, Any] | None) -> dict[str, Any]:
