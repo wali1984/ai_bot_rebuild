@@ -767,6 +767,11 @@ def evaluate_a_plus_candidate(
     ctx = dict(context) if context is not None else load_a_plus_context(
         redis_client, symbol=symbol, timeframe=timeframe
     )
+    # Callers that assemble their own context (the paper loop does) predate the
+    # offline-lane evidence, so fill it in rather than silently failing the
+    # trainer check for every candidate.
+    if "offline_trainer_report" not in ctx:
+        ctx["offline_trainer_report"] = _load_offline_trainer_report()
     checks: dict[str, dict[str, Any]] = {
         "trainer_online_learning_active": _trainer_learning_check(
             ctx.get("trainer_metrics"),
