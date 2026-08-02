@@ -913,6 +913,13 @@ class DurableCanonical5mLabelArchive:
                 ON canonical_5m_candles(symbol, available_at_ms);
             CREATE INDEX IF NOT EXISTS canonical_5m_append_transaction
                 ON canonical_5m_candles(append_transaction_id);
+            -- The integrity-proof staleness check runs
+            -- "ORDER BY <clock> DESC LIMIT 1" over both receipt tables on every
+            -- verified_range() call, i.e. on every label lookup. Without these
+            -- the query full-scans and sorts ~39k receipt rows each time, which
+            -- profiled as ~33% of the trainer's total CPU.
+            CREATE INDEX IF NOT EXISTS canonical_5m_append_receipt_commit_clock
+                ON canonical_5m_append_receipts(commit_prepared_at);
             CREATE TABLE IF NOT EXISTS canonical_5m_append_receipts (
                 transaction_id TEXT PRIMARY KEY,
                 receipt_schema_version TEXT NOT NULL,
@@ -939,6 +946,8 @@ class DurableCanonical5mLabelArchive:
                 FOREIGN KEY(transaction_id)
                     REFERENCES canonical_5m_append_receipts(transaction_id)
             );
+            CREATE INDEX IF NOT EXISTS canonical_5m_postcommit_readback_clock
+                ON canonical_5m_postcommit_readback_receipts(postcommit_readback_at);
             CREATE TABLE IF NOT EXISTS canonical_5m_archive_metadata (
                 metadata_key TEXT PRIMARY KEY,
                 metadata_value TEXT NOT NULL,
