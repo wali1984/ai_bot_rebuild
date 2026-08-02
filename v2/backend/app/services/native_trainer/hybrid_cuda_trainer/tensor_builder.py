@@ -6,7 +6,8 @@ import json
 import math
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Mapping
+from collections.abc import Mapping
+from typing import Any
 
 from v2.backend.app.services.market_structure.common import (
     bool_num,
@@ -234,12 +235,12 @@ def _finite_float(value: Any) -> float | None:
 
 
 def _dig(payload: Mapping[str, Any] | None, *keys: str) -> Any:
-    if not isinstance(payload, Mapping):
+    if not isinstance(payload, _MAPPING_TYPES):
         return None
     for key in keys:
         cur: Any = payload
         for part in key.split("."):
-            if not isinstance(cur, Mapping):
+            if not isinstance(cur, _MAPPING_TYPES):
                 cur = None
                 break
             cur = cur.get(part)
@@ -251,8 +252,8 @@ def _dig(payload: Mapping[str, Any] | None, *keys: str) -> Any:
 def _provider_feature_values(payloads: Mapping[str, Any]) -> dict[str, float]:
     """Extract point-in-time checked provider bridge features supplied by callers."""
     context = payloads.get("provider_feature_context")
-    candidate = context.get("provider_features") if isinstance(context, Mapping) else None
-    if not isinstance(candidate, Mapping):
+    candidate = context.get("provider_features") if isinstance(context, _MAPPING_TYPES) else None
+    if not isinstance(candidate, _MAPPING_TYPES):
         return {}
     out: dict[str, float] = {}
     for name, value in candidate.items():
@@ -317,7 +318,7 @@ def _iso_utc(value: datetime) -> str:
 
 
 def _kline_close_ms(row: Any) -> int | None:
-    if isinstance(row, Mapping):
+    if isinstance(row, _MAPPING_TYPES):
         return _strict_utc_ms(
             _first_present(
                 row.get("close_time"),
@@ -344,7 +345,7 @@ def _latest_kline(
     therefore never promoted to closed candles in this consumer.
     """
 
-    if isinstance(ohlcv, Mapping):
+    if isinstance(ohlcv, _MAPPING_TYPES):
         candidates: tuple[Any, ...] = (ohlcv,)
     elif isinstance(ohlcv, list):
         candidates = tuple(reversed(ohlcv))
@@ -355,7 +356,7 @@ def _latest_kline(
 
     reasons: list[str] = []
     for candidate in candidates:
-        if not isinstance(candidate, Mapping):
+        if not isinstance(candidate, _MAPPING_TYPES):
             reasons.append("OHLCV_FINALITY_UNKNOWN")
             continue
         finality = _first_present(
@@ -519,6 +520,9 @@ def _resolve_decision_time(
 # and tests the concrete C types first, reaching the Mapping ABC only for
 # non-dict mappings.
 _NESTED_CONTAINER_TYPES: tuple[type, ...] = (dict, list, tuple, Mapping)
+# Same reasoning for plain Mapping checks: dict is a Mapping, so testing
+# the concrete type first is identical in meaning and skips the ABC path.
+_MAPPING_TYPES: tuple[type, ...] = (dict, Mapping)
 
 
 def _explicit_false_source_authority_reasons(
@@ -543,7 +547,7 @@ def _explicit_false_source_authority_reasons(
     seen_ids.add(payload_id)
 
     reasons: list[str] = []
-    if isinstance(payload, Mapping):
+    if isinstance(payload, _MAPPING_TYPES):
         prefix = payload_name.upper()
         reasons.extend(
             f"{prefix}_{field.upper()}_EXPLICIT_FALSE"
@@ -576,7 +580,7 @@ def _source_temporal_state(
 ) -> tuple[int | None, tuple[str, ...]]:
     prefix = payload_name.upper()
     seen_ids = set() if _seen_ids is None else set(_seen_ids)
-    if isinstance(payload, (Mapping, list, tuple)):
+    if isinstance(payload, _NESTED_CONTAINER_TYPES):
         payload_id = id(payload)
         if payload_id in seen_ids:
             return None, (f"{payload_name.upper()}_NESTED_PAYLOAD_CYCLE",)
@@ -595,7 +599,7 @@ def _source_temporal_state(
         available_times: list[int] = []
         row_reasons: list[str] = []
         for row in payload:
-            if not isinstance(row, (Mapping, list, tuple)):
+            if not isinstance(row, _NESTED_CONTAINER_TYPES):
                 row_reasons.append(f"{prefix}_ROW_TYPE_INVALID")
                 continue
             available_ms, reasons = _source_temporal_state(
@@ -611,7 +615,7 @@ def _source_temporal_state(
             row_reasons.extend(reasons)
         unique = tuple(sorted(set(row_reasons)))
         return (max(available_times) if available_times and not unique else None, unique)
-    if not isinstance(payload, Mapping) or not payload:
+    if not isinstance(payload, _MAPPING_TYPES) or not payload:
         return None, ()
 
     parsed_clocks: dict[str, datetime] = {}
@@ -670,7 +674,7 @@ def _source_temporal_state(
     for key, nested in payload.items():
         if key in _SOURCE_CLOCK_FIELDS or key in _FRESHNESS_FIELDS:
             continue
-        if not isinstance(nested, (Mapping, list, tuple)):
+        if not isinstance(nested, _NESTED_CONTAINER_TYPES):
             continue
         _nested_available_ms, nested_reasons = _source_temporal_state(
             payload_name=payload_name,
@@ -701,7 +705,7 @@ def _provider_context_temporal_view(payload: Any) -> tuple[Any, tuple[str, ...]]
     closed.
     """
 
-    if not isinstance(payload, Mapping):
+    if not isinstance(payload, _MAPPING_TYPES):
         return payload, ()
     view = {
         field: payload[field]
@@ -709,7 +713,7 @@ def _provider_context_temporal_view(payload: Any) -> tuple[Any, tuple[str, ...]]
         if field in payload
     }
     features = payload.get("provider_features")
-    if isinstance(features, Mapping):
+    if isinstance(features, _MAPPING_TYPES):
         view["provider_features"] = features
 
     reasons: list[str] = []
@@ -724,14 +728,14 @@ def _provider_context_temporal_view(payload: Any) -> tuple[Any, tuple[str, ...]]
             if type(value) is not list or value:
                 reasons.append(f"PROVIDER_FEATURE_CONTEXT_{field.upper()}_PRESENT")
         lineage = payload.get("feature_source_lineage")
-        feature_names = {str(name) for name in features} if isinstance(features, Mapping) else set()
-        if not isinstance(lineage, Mapping) or set(map(str, lineage)) != feature_names:
+        feature_names = {str(name) for name in features} if isinstance(features, _MAPPING_TYPES) else set()
+        if not isinstance(lineage, _MAPPING_TYPES) or set(map(str, lineage)) != feature_names:
             reasons.append("PROVIDER_FEATURE_CONTEXT_FEATURE_LINEAGE_NOT_EXACT")
         else:
             admitted_lineage: dict[str, Any] = {}
             for name in sorted(feature_names):
                 row = lineage.get(name)
-                if not isinstance(row, Mapping):
+                if not isinstance(row, _MAPPING_TYPES):
                     reasons.append("PROVIDER_FEATURE_CONTEXT_FEATURE_LINEAGE_ROW_INVALID")
                     continue
                 digest = row.get("source_payload_sha256")
@@ -751,7 +755,7 @@ def _provider_context_temporal_view(payload: Any) -> tuple[Any, tuple[str, ...]]
 
 
 def _canonical_json_value(value: Any) -> Any:
-    if isinstance(value, Mapping):
+    if isinstance(value, _MAPPING_TYPES):
         return {
             str(key): _canonical_json_value(item)
             for key, item in sorted(value.items(), key=lambda pair: str(pair[0]))
@@ -797,7 +801,7 @@ def _is_lineage_key(key: str) -> bool:
 
 
 def _lineage_projection(value: Any) -> Any:
-    if isinstance(value, Mapping):
+    if isinstance(value, _MAPPING_TYPES):
         projected = {
             str(key): _canonical_json_value(item)
             for key, item in value.items()
@@ -822,7 +826,7 @@ def _source_lineage_material(payloads: Mapping[str, Any]) -> dict[str, Any]:
         if item:
             projected[str(payload_name)] = item
     keys = payloads.get("_keys")
-    if isinstance(keys, Mapping):
+    if isinstance(keys, _MAPPING_TYPES):
         projected["_keys"] = _canonical_json_value(keys)
     return projected
 
@@ -838,7 +842,7 @@ def _sha256_json(value: Any) -> str:
 
 
 def _oi_change_pct(open_interest_hist: Any) -> float | None:
-    if isinstance(open_interest_hist, Mapping):
+    if isinstance(open_interest_hist, _MAPPING_TYPES):
         direct = _finite_float(_dig(open_interest_hist, "change_pct", "oi_change_pct"))
         if direct is not None:
             return direct
@@ -847,7 +851,7 @@ def _oi_change_pct(open_interest_hist: Any) -> float | None:
         return None
     first = open_interest_hist[0]
     last = open_interest_hist[-1]
-    if not isinstance(first, Mapping) or not isinstance(last, Mapping):
+    if not isinstance(first, _MAPPING_TYPES) or not isinstance(last, _MAPPING_TYPES):
         return None
     first_oi = _finite_float(_first_present(first.get("sumOpenInterest"), first.get("openInterest"), first.get("open_interest")))
     last_oi = _finite_float(_first_present(last.get("sumOpenInterest"), last.get("openInterest"), last.get("open_interest")))
@@ -857,14 +861,14 @@ def _oi_change_pct(open_interest_hist: Any) -> float | None:
 
 
 def _best_book_side(orderbook: Any, side: str) -> tuple[float | None, float | None]:
-    if not isinstance(orderbook, Mapping):
+    if not isinstance(orderbook, _MAPPING_TYPES):
         return None, None
     price = _finite_float(_dig(orderbook, f"best_{side}", f"{side}_price", side))
     size = _finite_float(_dig(orderbook, f"best_{side}_size", f"{side}_size", f"{side}_qty"))
     rows = orderbook.get(f"{side}s")
     if price is None and isinstance(rows, list) and rows:
         first = rows[0]
-        if isinstance(first, Mapping):
+        if isinstance(first, _MAPPING_TYPES):
             price = _finite_float(_first_present(first.get("price"), first.get("p")))
             size = _finite_float(_first_present(first.get("qty"), first.get("quantity"), first.get("size"), first.get("q")))
         elif isinstance(first, (list, tuple)) and len(first) >= 2:
@@ -874,7 +878,7 @@ def _best_book_side(orderbook: Any, side: str) -> tuple[float | None, float | No
 
 
 def _book_depth_usd(orderbook: Any) -> float | None:
-    if not isinstance(orderbook, Mapping):
+    if not isinstance(orderbook, _MAPPING_TYPES):
         return None
     explicit = _finite_float(
         _first_present(
@@ -892,7 +896,7 @@ def _book_depth_usd(orderbook: Any) -> float | None:
         if not isinstance(rows, list):
             continue
         for row in rows[:25]:
-            if isinstance(row, Mapping):
+            if isinstance(row, _MAPPING_TYPES):
                 px = _finite_float(_first_present(row.get("price"), row.get("p")))
                 qty = _finite_float(_first_present(row.get("qty"), row.get("quantity"), row.get("size"), row.get("q")))
             elif isinstance(row, (list, tuple)) and len(row) >= 2:
@@ -909,12 +913,12 @@ def _book_depth_usd(orderbook: Any) -> float | None:
 
 def _ta_value(*payloads: Any, names: tuple[str, ...]) -> Any:
     for payload in payloads:
-        if not isinstance(payload, Mapping):
+        if not isinstance(payload, _MAPPING_TYPES):
             continue
         indicators = payload.get("indicators") if isinstance(payload.get("indicators"), Mapping) else None
         features = payload.get("features") if isinstance(payload.get("features"), Mapping) else None
         for source in (indicators, features, payload):
-            if not isinstance(source, Mapping):
+            if not isinstance(source, _MAPPING_TYPES):
                 continue
             for name in names:
                 if name in source:
@@ -923,11 +927,11 @@ def _ta_value(*payloads: Any, names: tuple[str, ...]) -> Any:
 
 
 def _coinank_data(payload: Any) -> Any:
-    if not isinstance(payload, Mapping):
+    if not isinstance(payload, _MAPPING_TYPES):
         return None
     data: Any = payload.get("data")
     for _ in range(4):
-        if isinstance(data, Mapping) and "data" in data and (
+        if isinstance(data, _MAPPING_TYPES) and "data" in data and (
             "success" in data or "code" in data or isinstance(data.get("data"), (Mapping, list))
         ):
             data = data.get("data")
@@ -945,7 +949,7 @@ def _coinank_last_row(payload: Any) -> Any:
 
 def _coinank_last_float(payload: Any, names: tuple[str, ...], indexes: tuple[int, ...] = ()) -> float | None:
     row = _coinank_last_row(payload)
-    if isinstance(row, Mapping):
+    if isinstance(row, _MAPPING_TYPES):
         for name in names:
             value = row.get(name)
             if isinstance(value, list) and value:
@@ -961,7 +965,7 @@ def _coinank_last_float(payload: Any, names: tuple[str, ...], indexes: tuple[int
                 if parsed is not None:
                     return parsed
     data = _coinank_data(payload)
-    if isinstance(data, Mapping):
+    if isinstance(data, _MAPPING_TYPES):
         for name in names:
             value = data.get(name)
             if isinstance(value, list) and value:
@@ -979,7 +983,7 @@ def _coinank_oi_change_pct(payload: Any) -> float | None:
         return None
     first = data[0]
     last = data[-1]
-    if not isinstance(first, Mapping) or not isinstance(last, Mapping):
+    if not isinstance(first, _MAPPING_TYPES) or not isinstance(last, _MAPPING_TYPES):
         return None
     first_oi = _finite_float(_first_present(first.get("coinValue"), first.get("close"), first.get("volume")))
     last_oi = _finite_float(_first_present(last.get("coinValue"), last.get("close"), last.get("volume")))
@@ -990,7 +994,7 @@ def _coinank_oi_change_pct(payload: Any) -> float | None:
 
 def _coinank_liquidation_turnover(payload: Any) -> float | None:
     row = _coinank_last_row(payload)
-    if not isinstance(row, Mapping):
+    if not isinstance(row, _MAPPING_TYPES):
         return None
     long_turn = _finite_float(row.get("longTurnover"))
     short_turn = _finite_float(row.get("shortTurnover"))
@@ -1006,7 +1010,7 @@ def _coinank_order_flow_imbalance(payload: Any) -> float | None:
     if isinstance(row, (list, tuple)) and len(row) >= 3:
         buy_value = _finite_float(row[1])
         sell_value = _finite_float(row[2])
-    elif isinstance(row, Mapping):
+    elif isinstance(row, _MAPPING_TYPES):
         buy_value = _finite_float(_first_present(row.get("buy"), row.get("buyValue"), row.get("buyCount")))
         sell_value = _finite_float(_first_present(row.get("sell"), row.get("sellValue"), row.get("sellCount")))
     if buy_value is None or sell_value is None:
@@ -1093,7 +1097,7 @@ class V2UnifiedFeatureTensorBuilder:
                 invalid_payload_names.add(payload_name)
 
         raw_provider_features = source_payloads.get("provider_features")
-        if isinstance(raw_provider_features, Mapping) and raw_provider_features:
+        if isinstance(raw_provider_features, _MAPPING_TYPES) and raw_provider_features:
             # Top-level provider_features has no identity-bound source context
             # and is never an admissible bridge, even if it happens to contain
             # numeric values. Only provider_feature_context is read below.
@@ -1104,7 +1108,7 @@ class V2UnifiedFeatureTensorBuilder:
             validated_payloads[payload_name] = {}
 
         latest = validated_payloads.get("features_latest")
-        latest_features = latest.get("features") if isinstance(latest, Mapping) else None
+        latest_features = latest.get("features") if isinstance(latest, _MAPPING_TYPES) else None
 
         ohlcv, candle_reasons = _latest_kline(
             validated_payloads.get("ohlcv"),
@@ -1127,9 +1131,9 @@ class V2UnifiedFeatureTensorBuilder:
         raw_orderbook = validated_payloads.get("orderbook")
         orderbook_available_override = None
         if (
-            isinstance(raw_orderbook, Mapping)
-            and isinstance(latest, Mapping)
-            and isinstance(latest_features, Mapping)
+            isinstance(raw_orderbook, _MAPPING_TYPES)
+            and isinstance(latest, _MAPPING_TYPES)
+            and isinstance(latest_features, _MAPPING_TYPES)
             and dict(raw_orderbook) == dict(latest_features)
             and isinstance(latest.get("source_hashes"), Mapping)
             and bool(latest.get("source_hashes"))
@@ -1160,9 +1164,9 @@ class V2UnifiedFeatureTensorBuilder:
 
         # All references below are derived only from the sanitized payload map.
         latest = payloads.get("features_latest")
-        latest_features = latest.get("features") if isinstance(latest, Mapping) else None
+        latest_features = latest.get("features") if isinstance(latest, _MAPPING_TYPES) else None
         ta = payloads.get("features_ta")
-        ta_indicators = ta.get("indicators") if isinstance(ta, Mapping) else None
+        ta_indicators = ta.get("indicators") if isinstance(ta, _MAPPING_TYPES) else None
         ta_full = payloads.get("features_ta_full")
         technical_analysis = payloads.get("technical_analysis")
 
@@ -1199,7 +1203,7 @@ class V2UnifiedFeatureTensorBuilder:
             return []
 
         def _allow_rate(payload, *action_fields):
-            if isinstance(payload, Mapping):
+            if isinstance(payload, _MAPPING_TYPES):
                 winners = payload.get("bucket_winners")
                 considered = payload.get("considered_count")
                 try:
@@ -1707,7 +1711,7 @@ class V2UnifiedFeatureTensorBuilder:
         # the taf_->indicator name map. A missing indicator stays None -> honest
         # missing_mask, exactly like every other source.
         cascade_ctx = payloads.get("cascade_context")
-        if isinstance(cascade_ctx, Mapping):
+        if isinstance(cascade_ctx, _MAPPING_TYPES):
             _sq_dir = str(cascade_ctx.get("fast_squeeze_squeeze_direction") or "").lower()
             for _cc_name, _cc_val in (
                 ("cascade_risk_score", cascade_ctx.get("cascade_risk_score")),
@@ -1725,9 +1729,9 @@ class V2UnifiedFeatureTensorBuilder:
                     raw_by_name[_cc_name] = _cc_val
         htf1h = payloads.get("ta_full_htf_1h")
         htf1h_ind = None
-        if isinstance(htf1h, Mapping):
+        if isinstance(htf1h, _MAPPING_TYPES):
             htf1h_ind = htf1h.get("indicators") or htf1h.get("features")
-        if isinstance(htf1h_ind, Mapping):
+        if isinstance(htf1h_ind, _MAPPING_TYPES):
             for _h_name, _h_keys in (
                 ("htf1h_taf_rsi", ("rsi_14", "ta_RSI")),
                 ("htf1h_taf_adx", ("ta_ADX",)),
@@ -1744,7 +1748,7 @@ class V2UnifiedFeatureTensorBuilder:
                             raw_by_name[_h_name] = htf1h_ind.get(_hk)
                             break
         micro_trust_payload = payloads.get("microstructure_trust")
-        if isinstance(micro_trust_payload, Mapping):
+        if isinstance(micro_trust_payload, _MAPPING_TYPES):
             for _m_name, _m_key in (
                 ("micro_cancel_pressure_score", "book_cancel_pressure_score"),
                 ("micro_depth_persistence_score", "book_depth_persistence_score"),
@@ -1754,11 +1758,11 @@ class V2UnifiedFeatureTensorBuilder:
                 if raw_by_name.get(_m_name) is None and micro_trust_payload.get(_m_key) is not None:
                     raw_by_name[_m_name] = micro_trust_payload.get(_m_key)
         ta_full_indicators = None
-        if isinstance(ta_full, Mapping):
+        if isinstance(ta_full, _MAPPING_TYPES):
             # Real talib payload nests values under "indicators"; the synthetic
             # loader path nests them under "features".
             ta_full_indicators = ta_full.get("indicators") or ta_full.get("features")
-        if isinstance(ta_full_indicators, Mapping):
+        if isinstance(ta_full_indicators, _MAPPING_TYPES):
             for taf_name, indicator_name in TA_FULL_FEATURE_MAP.items():
                 if raw_by_name.get(taf_name) is None:
                     raw_by_name[taf_name] = ta_full_indicators.get(indicator_name)
@@ -1808,9 +1812,9 @@ class V2UnifiedFeatureTensorBuilder:
             ("v2:altdata:confluence", payloads.get("altdata_confluence")),
         ):
             bridge_features = (
-                bridge_payload.get("features") if isinstance(bridge_payload, Mapping) else None
+                bridge_payload.get("features") if isinstance(bridge_payload, _MAPPING_TYPES) else None
             )
-            if not isinstance(bridge_features, Mapping):
+            if not isinstance(bridge_features, _MAPPING_TYPES):
                 continue
             for bridge_name, bridge_value in bridge_features.items():
                 name = str(bridge_name)
@@ -1854,7 +1858,7 @@ class V2UnifiedFeatureTensorBuilder:
 
         stale_input_flags = set()
         for payload in payloads.values():
-            if isinstance(payload, Mapping):
+            if isinstance(payload, _MAPPING_TYPES):
                 for flag in payload.get("stale_feature_flags") or payload.get("stale_flags") or ():
                     stale_input_flags.add(str(flag))
         latest_stale_state = str(_dig(latest, "feature_freshness_state", "freshness_state") or "").upper()
