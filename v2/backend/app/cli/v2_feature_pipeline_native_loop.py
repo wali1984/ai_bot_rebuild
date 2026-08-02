@@ -23,6 +23,9 @@ from pathlib import Path
 
 from v2.backend.app.services.adaptive_capital_allocator.contracts import AllocationInput
 from v2.backend.app.services.feature_pipeline_and_ta.service import (
+    _adx as _ta_adx,
+)
+from v2.backend.app.services.feature_pipeline_and_ta.service import (
     _atr as _ta_atr,
 )
 from v2.backend.app.services.feature_pipeline_and_ta.service import (
@@ -2957,6 +2960,15 @@ def _features_from_market(market: dict) -> dict:
         macd_line, macd_signal_v, macd_hist = _ta_macd(closes, 12, 26, 9)
     ema_12 = _ta_ema(closes, 12) if closes else None
     ema_26 = _ta_ema(closes, 26) if closes else None
+    # The adaptive regime classifier scores its EMA stack from close/20/50 and
+    # its trend strength from ADX. Only the MACD-period EMAs (12/26) were being
+    # published, so every regime gate fail-closed with MISSING_REGIME_INPUT and
+    # regime_aligned failed 100% of candidates. Derived from the same closed
+    # candle series as every other indicator here, so they carry the same
+    # point-in-time guarantees.
+    ema_20 = _ta_ema(closes, 20) if closes else None
+    ema_50 = _ta_ema(closes, 50) if closes else None
+    adx_14 = _ta_adx(highs, lows, closes, 14) if (highs and lows and closes) else None
     sma_20 = _ta_sma(closes, 20) if closes else None
     atr_14 = _ta_atr(highs, lows, closes, 14) if (highs and lows and closes) else None
     true_range_pct = (
@@ -3210,6 +3222,11 @@ def _features_from_market(market: dict) -> dict:
         "gap_pct": gap_pct,
         "ema_12": ema_12,
         "ema_26": ema_26,
+        "ema_20": ema_20,
+        "ema_50": ema_50,
+        "adx_14": adx_14,
+        # Canonical TA-name alias the regime classifier reads directly.
+        "ta_ADX": adx_14,
         "sma_20": sma_20,
         "rsi_14": rsi_14,
         "macd": macd_line,
