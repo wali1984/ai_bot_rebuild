@@ -311,6 +311,13 @@ CANONICAL_MARKET_INPUT_FIELDS = (
     "gap_pct",
     "ema_12",
     "ema_26",
+    # Regime-classifier inputs: the EMA stack (close/20/50) and Wilder ADX.
+    # Derived in _features_from_market from the same closed candle series as
+    # every other entry here, so they carry the same point-in-time guarantees.
+    "ema_20",
+    "ema_50",
+    "adx_14",
+    "ta_ADX",
     "sma_20",
     "rsi_14",
     "macd",
