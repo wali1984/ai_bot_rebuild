@@ -38,6 +38,7 @@ from v2.backend.app.services.native_trainer.feedback_enrichment import (
     audit_quality_rejection_reasons,
 )
 from v2.backend.app.services.native_trainer.durable_canonical_5m_label_archive import (
+    Canonical5mArchiveError,
     DurableCanonical5mLabelArchive,
     default_archive_path as default_canonical_5m_label_archive_path,
 )
@@ -2347,9 +2348,32 @@ class V2HybridTrainerDataLoader:
                 ):
                     historical_archive_integrity = cached_integrity
                 else:
-                    historical_archive_integrity = (
-                        historical_label_archive.verify_integrity()
-                    )
+                    # The 5m label archive is appended continuously by the live
+                    # candle feed, so a cached proof stops being "current" almost
+                    # immediately -- which previously forced a full O(archive)
+                    # re-verification of ~1.3 GB on nearly every cycle and kept
+                    # the trainer pinned to the CPU instead of the GPU.
+                    # extend_integrity_proof rebinds the immutable prefix and
+                    # streams/validates only the new suffix rows and receipts, so
+                    # it is the same guarantee at append-sized cost. Any prefix
+                    # or suffix rejection falls through to the full proof below.
+                    historical_archive_integrity = None
+                    if cached_integrity is not None:
+                        try:
+                            extended = historical_label_archive.extend_integrity_proof(
+                                cached_integrity
+                            )
+                        except (Canonical5mArchiveError, sqlite3.Error, TypeError, ValueError):
+                            extended = None
+                        if (
+                            isinstance(extended, Mapping)
+                            and extended.get("archive_integrity_verified") is True
+                        ):
+                            historical_archive_integrity = dict(extended)
+                    if historical_archive_integrity is None:
+                        historical_archive_integrity = (
+                            historical_label_archive.verify_integrity()
+                        )
                     if historical_archive_integrity.get(
                         "archive_integrity_verified"
                     ) is True:
