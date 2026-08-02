@@ -11,6 +11,7 @@ import { useTraderSnapshot } from '../../hooks/useTraderSnapshot';
 import { canSee, normalizeRole } from '../../auth/rbac';
 import { MissionControlReadinessBanner } from '../../components/banners/MissionControlReadinessBanner';
 import { SelfHealingBanner } from '../../components/banners/SelfHealingBanner';
+import { TrainerLaneHealthBanner } from '../../components/trainer/TrainerLaneHealthBanner';
 import { StaleStateAlertsPanel } from '../../components/dashboard/StaleStateAlertsPanel';
 import { CanonicalMetricValue } from '../../components/data/CanonicalMetric';
 import { healthStatusTone } from '../../components/system/healthStatus';
@@ -1665,6 +1666,10 @@ export default function DashboardPage(): JSX.Element {
     >
       {/* Global service-down alert (auto-heal exhausted / supervisor stale) */}
       <SelfHealingBanner />
+
+      {/* Auto-generated trainer lane health: a stopped, crashed or stalled
+          trainer surfaces here instead of silently emptying telemetry cells. */}
+      <TrainerLaneHealthBanner />
 
       {/* Header */}
       <div className="nervyx-dashboard__header">

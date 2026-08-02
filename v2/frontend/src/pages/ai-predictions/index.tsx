@@ -5,6 +5,7 @@ import { FreshnessBadge } from '../../components/data/FreshnessBadge';
 import { SourceBadge } from '../../components/data/SourceBadge';
 import { CanonicalMetricCard } from '../../components/data/CanonicalMetric';
 import { LoadingSkeleton } from '../../components/ui/LoadingSkeleton';
+import { TrainerLaneHealthBanner } from '../../components/trainer/TrainerLaneHealthBanner';
 import { AdaptiveCapitalTelemetryPanel } from '../../components/trading/AdaptiveCapitalTelemetryPanel';
 import { Donut, DonutLegend, MetricBars, RadialGauge, ChartFrame, pctThresholdColor } from '../../components/charts/NervyxCharts';
 import { selectActiveSignal, selectSignalMetric } from '../../selectors/signalSelectors';
@@ -900,6 +901,20 @@ function TrainerDeepTelemetry(): JSX.Element | null {
   const redisEvidenceStale = (d.state ?? '').toUpperCase().includes('STALE')
     || (typeof d.staleness_seconds === 'number' && d.staleness_seconds > 600);
 
+  // Provenance for empty cells: these blocks are published only by
+  // run_hybrid_trainer_cycle into v2:trainer:hybrid_cuda:status. When that key
+  // is absent every field below renders a dash — say so explicitly instead of
+  // leaving the operator to guess whether the value is zero or unknown.
+  const unpublishedBlocks = ([
+    ['online learning', learn],
+    ['model architecture', arch],
+    ['model edge backtest', edge],
+    ['PPO runtime', ppo],
+    ['extra learning metrics', lm],
+  ] as Array<[string, Record<string, unknown>]>)
+    .filter(([, block]) => !block || Object.keys(block).length === 0)
+    .map(([name]) => name);
+
   return (
     <section
       data-testid="ai-trainer-deep-telemetry"
@@ -926,6 +941,30 @@ function TrainerDeepTelemetry(): JSX.Element | null {
           <FreshnessBadge status={envelope.freshness_status} lagMs={envelope.lag_ms} />
         </div>
       </div>
+
+      {unpublishedBlocks.length > 0 ? (
+        <div
+          data-testid="ai-trainer-deep-telemetry-provenance"
+          style={{
+            marginBottom: 10,
+            padding: '7px 10px',
+            borderRadius: 8,
+            border: '1px solid rgba(245,158,11,0.35)',
+            background: 'rgba(245,158,11,0.07)',
+            fontSize: 10.5,
+            color: 'var(--text-secondary)',
+          }}
+        >
+          <strong style={{ color: '#f59e0b' }}>Unpublished evidence — cells below read “—” because there is no data, not zero.</strong>
+          <div style={{ marginTop: 3 }}>
+            Missing block{unpublishedBlocks.length > 1 ? 's' : ''}: {unpublishedBlocks.join(', ')}.
+            {' '}These are written only by the hybrid trainer cycle into
+            <span style={{ fontFamily: 'var(--font-mono)' }}> v2:trainer:hybrid_cuda:status</span>;
+            while that lane publishes nothing, every field sourced from it stays blank.
+            See the trainer health banner at the top of this page for the lane verdict.
+          </div>
+        </div>
+      ) : null}
 
       <TSection title="Runtime & online learning" accent="#26c281">
         <TCell label="Trainer mode" value={(mode.effective_trainer_mode ?? '—').replace(/_/g, ' ')} color="#8bd6ff" />
@@ -1238,6 +1277,7 @@ export default function AIPredictionsPage(): JSX.Element {
         </div>
 
         <div style={{ marginBottom: 12 }}><TrainerCard /></div>
+        <TrainerLaneHealthBanner />
         <TrainerBrainSummary />
         <TrainerDeepTelemetry />
 

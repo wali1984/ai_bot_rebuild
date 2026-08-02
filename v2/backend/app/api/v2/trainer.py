@@ -124,6 +124,9 @@ def validate_trainer_argv(argv: list[str]) -> None:
 CACHE_KEY = "v2:trainer:summary"
 CHAMPION_CHALLENGER_STATUS_KEY = "v2:trainer:champion_challenger_status"
 HYBRID_CUDA_METRICS_KEY = "v2:trainer:hybrid_cuda:metrics"
+# Per-lane trainer health (unit state, process residency, artifact staleness)
+# published by v2_trainer_lane_health_publisher. Read fresh, never cached.
+TRAINER_LANE_HEALTH_KEY = "v2:trainer:lane_health:status"
 PREEMPTIVE_COUNTERFACTUAL_STATUS_KEY = (
     "v2:trainer:preemptive_blocked_counterfactual_status"
 )
@@ -847,6 +850,49 @@ def _read_champion_challenger_status(r: Any) -> dict[str, Any]:
     return out
 
 
+def _attach_trainer_lane_health(shape: dict[str, Any], r: Any) -> dict[str, Any]:
+    """Attach per-lane trainer health published by the lane-health publisher.
+
+    Deliberately never cached with the rest of the shape: a stalled or crashed
+    trainer must surface immediately, not after the status TTL expires.  When
+    the publisher itself is not running we say so explicitly rather than
+    implying every lane is healthy.
+    """
+    out = dict(shape)
+    health = _read_redis_json(r, TRAINER_LANE_HEALTH_KEY)
+    if not health:
+        out["trainer_lane_health"] = {
+            "schema_version": "trainer_lane_health_unavailable_v1",
+            "source": f"redis:{TRAINER_LANE_HEALTH_KEY}",
+            "available": False,
+            "reason": (
+                "Lane-health evidence is not published; run "
+                "v2_trainer_lane_health_publisher to populate it."
+            ),
+            "lanes": [],
+            "alerts": [],
+        }
+        out["trainer_alerts"] = [
+            {
+                "severity": "warn",
+                "lane_id": "lane_health_publisher",
+                "code": "TRAINER_LANE_HEALTH_UNAVAILABLE",
+                "message": (
+                    "Trainer lane health is unavailable - the lane-health publisher "
+                    "is not running, so trainer failures cannot be detected."
+                ),
+                "evidence_pointer": TRAINER_LANE_HEALTH_KEY,
+            }
+        ]
+        return out
+    health = dict(health)
+    health["available"] = True
+    out["trainer_lane_health"] = health
+    alerts = health.get("alerts")
+    out["trainer_alerts"] = alerts if isinstance(alerts, list) else []
+    return out
+
+
 def _attach_champion_challenger_status(shape: dict[str, Any], r: Any) -> dict[str, Any]:
     out = dict(shape)
     status = _read_champion_challenger_status(r)
@@ -1070,6 +1116,7 @@ async def get_trainer_summary() -> dict[str, Any]:
                     r.set(CACHE_KEY, json.dumps(redis_shape), ex=_ttl_seconds())
                 except Exception:
                     pass
+            redis_shape = _attach_trainer_lane_health(redis_shape, r)
             return _with_control_center_contract(
                 redis_shape,
                 source="trainer.summary.redis_fallback",
@@ -1078,6 +1125,7 @@ async def get_trainer_summary() -> dict[str, Any]:
         shape = _empty_shape("MISSING_EVIDENCE")
         shape = _attach_champion_challenger_status(shape, r)
         shape = _attach_preemptive_feedback_status(shape, r)
+        shape = _attach_trainer_lane_health(shape, r)
         _audit(
             r,
             source="trainer.summary.stub",
@@ -1105,6 +1153,7 @@ async def get_trainer_summary() -> dict[str, Any]:
                 cached = _attach_model_identity_status(cached, r)
                 cached = _attach_champion_challenger_status(cached, r)
                 cached = _attach_preemptive_feedback_status(cached, r)
+                cached = _attach_trainer_lane_health(cached, r)
                 _audit(
                     r,
                     source="trainer.summary.cache_hit",
@@ -1141,6 +1190,10 @@ async def get_trainer_summary() -> dict[str, Any]:
             r.set(CACHE_KEY, json.dumps(shape), ex=_ttl_seconds())
         except Exception:
             pass
+
+    # Attached after the cache write so a stalled trainer surfaces immediately
+    # instead of waiting for the status TTL to expire.
+    shape = _attach_trainer_lane_health(shape, r)
 
     return _with_control_center_contract(
         shape,
