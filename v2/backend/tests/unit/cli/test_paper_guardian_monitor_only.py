@@ -80,3 +80,55 @@ def test_empty_gate_is_not_promoted_into_permission() -> None:
     # No evidence must never become "allowed".
     assert _apply_guardian_monitor_only({}) == {}
     assert _continuous_edge_guardian_allows_new_entries({}) is False
+
+
+# --------------------------------------------------------------------------- #
+# The performance circuit breaker is circular in the same way: a negative
+# expectancy window plus a bucket quarantine covering BOTH sides blocks every
+# entry, so no evidence can ever be gathered to clear it.
+# --------------------------------------------------------------------------- #
+def _losing_closed_rows(count: int = 12) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    for i in range(count):
+        rows.append(
+            {
+                "symbol": f"SYM{i}USDT",
+                "side": "long" if i % 2 else "short",
+                "realized_pnl_bps": -25.0,
+                "realized_pnl_usd": -1.0,
+                "gross_notional_usd": 10.0,
+                "effective_leverage": 1.0,
+                "timeframe": "15m",
+                "exit_price_utc": f"2026-08-01T{i:02d}:00:00.000000Z",
+                "paper_only": True,
+                "places_real_order": False,
+            }
+        )
+    return rows
+
+
+def test_circuit_breaker_reports_monitor_only_and_allows_entries() -> None:
+    from v2.backend.app.cli.v2_trade_management_paper_loop import (
+        _paper_performance_circuit_breaker_status,
+    )
+
+    status = _paper_performance_circuit_breaker_status(_losing_closed_rows())
+    # Admission is no longer vetoed...
+    assert status["new_entries_allowed"] is True
+    assert status["governor_enforcement_mode"] == "MONITOR_ONLY"
+    assert status["monitor_only_active"] is True
+    # ...but the real verdict is still reported truthfully.
+    assert status["monitor_only_observed_new_entries_allowed"] is False
+    assert status["monitor_only_observed_block_reasons"]
+
+
+def test_circuit_breaker_never_claims_to_route_live() -> None:
+    from v2.backend.app.cli.v2_trade_management_paper_loop import (
+        _paper_performance_circuit_breaker_status,
+    )
+
+    status = _paper_performance_circuit_breaker_status(_losing_closed_rows())
+    assert status["paper_only"] is True
+    assert status["routes_to_live"] is False
+    assert status["places_real_order"] is False
+    assert status["live_path_changed"] is False

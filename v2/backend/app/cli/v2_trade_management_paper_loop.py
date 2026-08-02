@@ -28779,7 +28779,16 @@ def _paper_performance_circuit_breaker_status(
     if high_confidence_cluster["cluster_detected"] and not _cluster_release.get("released"):
         block_reasons.append("HIGH_CONFIDENCE_LOSS_CLUSTER")
 
-    new_entries_allowed = not block_reasons
+    # Monitor-only (paper learning lane): the performance breaker is circular in
+    # the same way the A-grade gate is -- a negative-expectancy window and a
+    # bucket quarantine that covers BOTH sides block every entry, so no evidence
+    # can ever be gathered to clear them. The observed reasons are preserved
+    # verbatim below for the GUI; only their veto over admission is suspended.
+    # Hard safety (loss cap, liquidation-ATR, margin, drawdown, live gate) is
+    # unaffected. Set PAPER_GUARDIAN_MONITOR_ONLY=0 to restore blocking.
+    monitor_only_observed_block_reasons = list(block_reasons)
+    monitor_only_active = bool(PAPER_GUARDIAN_MONITOR_ONLY and block_reasons)
+    new_entries_allowed = True if monitor_only_active else not block_reasons
     # Cohort-scoped breaker (Phase 6): when this is a cohort-scoped evaluation with
     # no completed cohort trades, the strict rolling detectors cannot fire (they
     # require >=5 cohort rows), so it is ACTIVE by construction. Label that state
@@ -28802,6 +28811,14 @@ def _paper_performance_circuit_breaker_status(
         "places_real_order": False,
         "live_path_changed": False,
         "new_entries_allowed": new_entries_allowed,
+        # Observed truth, preserved verbatim so the GUI never reads healthier
+        # than reality while the breaker is demoted to monitoring.
+        "governor_enforcement_mode": ("MONITOR_ONLY" if monitor_only_active else "ENFORCING"),
+        "monitor_only_active": monitor_only_active,
+        "monitor_only_observed_new_entries_allowed": not monitor_only_observed_block_reasons,
+        "monitor_only_observed_block_reasons": sorted(
+            set(str(reason) for reason in monitor_only_observed_block_reasons)
+        ),
         "authority_classification": "CATEGORY_E_POLICY_PERFORMANCE",
         "adaptive_policy_role": "CONTINUOUS_OBJECTIVE_RISK_INPUT",
         "hard_trading_authority": False,
