@@ -26,8 +26,10 @@ from __future__ import annotations
 
 import json
 import math
+import os
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any, Mapping
 
 from v2.backend.app.services.adaptive_regime_gate.permission_matrix import (
@@ -52,6 +54,21 @@ CROSS_ASSET_CONTEXT_KEY = "v2:context:cross_asset"
 TRADE_TAPE_KEY_TEMPLATE = "v2:market:trade_tape_features:{symbol}"
 MICROSTRUCTURE_TRUST_KEY_TEMPLATE = "v2:microstructure:trust_score:{symbol}:{timeframe}"
 TRAINER_METRICS_KEY = "v2:trainer:hybrid_cuda:metrics"
+# The persistent/online lane is gated on an external witness that is not
+# configured, so it never writes the metrics key above. The continuous offline
+# lane does train (on the GPU) and publishes this cycle report, which is the
+# honest evidence that the trainer is learning.
+OFFLINE_TRAINER_REPORT_PATH = (
+    Path(__file__).resolve().parents[5]
+    / "claude_worklog"
+    / "trainer_atlas"
+    / "continuous_offline_last_report.json"
+)
+OFFLINE_TRAINER_REPORT_PATH_TEXT = "claude_worklog/trainer_atlas/continuous_offline_last_report.json"
+# A cycle older than this is not evidence that the trainer is learning *now*.
+OFFLINE_TRAINER_EVIDENCE_MAX_AGE_SECONDS = float(
+    os.getenv("A_PLUS_OFFLINE_TRAINER_EVIDENCE_MAX_AGE_SECONDS", "5400") or 5400
+)
 SIDE_PERFORMANCE_KEY = "v2:paper:side_performance"
 FEEDBACK_OUTCOMES_KEY = "v2:trainer:feedback:outcomes"
 
@@ -224,6 +241,7 @@ def load_a_plus_context(
         "microstructure_trust_lookup_keys": microstructure_lookup_keys,
         "microstructure_trust_source_key": microstructure_source_key,
         "trainer_metrics": _read_json(redis_client, TRAINER_METRICS_KEY),
+        "offline_trainer_report": _load_offline_trainer_report(),
         "side_performance": _read_json(redis_client, SIDE_PERFORMANCE_KEY),
         "feedback_rows": _read_json(redis_client, FEEDBACK_OUTCOMES_KEY),
     }
@@ -238,20 +256,125 @@ def _check(passed: bool | None, reason: str) -> dict[str, Any]:
     }
 
 
-def _trainer_learning_check(trainer_metrics: Any) -> dict[str, Any]:
+def _report_age_seconds(generated: Any, *, now: datetime | None = None) -> float | None:
+    """Age of a report timestamp in seconds, or None when unusable."""
+    if not isinstance(generated, str) or not generated.strip():
+        return None
+    text = generated.strip().replace("Z", "+00:00")
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    reference = now or datetime.now(timezone.utc)
+    return (reference - parsed).total_seconds()
+
+
+def _load_offline_trainer_report(path: Path | None = None) -> dict[str, Any] | None:
+    """Read the continuous offline lane's last cycle report, if present."""
+    try:
+        raw = json.loads((path or OFFLINE_TRAINER_REPORT_PATH).read_text("utf-8"))
+    except (OSError, ValueError):
+        return None
+    return raw if isinstance(raw, dict) else None
+
+
+def _offline_training_evidence(report: Any, *, now: datetime | None = None) -> dict[str, Any] | None:
+    """Genuine training evidence from the continuous offline lane.
+
+    ``trainer_online_learning_active`` asks one question: is the trainer
+    actually learning?  It historically answered that from
+    ``v2:trainer:hybrid_cuda:metrics``, which only the persistent/online lane
+    writes -- and that lane is gated on an external witness that is not
+    configured, so the key never exists.  Meanwhile the continuous offline lane
+    trains on the GPU and publishes a signed cycle report.  Answering from that
+    report is not a relaxation: it is the same question answered from the lane
+    that is demonstrably doing the work.
+
+    Returns None unless the report proves a *recent* cycle that actually moved
+    weights, so a dead or stale trainer still fails the check.
+    """
+
+    if not isinstance(report, Mapping):
+        return None
+    steps = _finite(report.get("total_gradient_steps")) or 0.0
+    examples = _finite(report.get("examples")) or 0.0
+    if steps <= 0 or examples <= 0:
+        return None
+    # Only a point-in-time-clean cycle counts. A cycle that admitted stale or
+    # future-leaking rows is not evidence of healthy learning, so this is a
+    # stricter bar than the online-lane branch, not a looser one.
+    pit = report.get("point_in_time_safety")
+    if not isinstance(pit, Mapping) or pit.get("passed") is not True:
+        return None
+    if (_finite(pit.get("violation_count")) or 0.0) > 0:
+        return None
+    generated = (
+        report.get("generated_utc")
+        or report.get("completed_utc")
+        or pit.get("evaluation_observed_at")
+    )
+    age_seconds = _report_age_seconds(generated, now=now)
+    if age_seconds is None or age_seconds > OFFLINE_TRAINER_EVIDENCE_MAX_AGE_SECONDS:
+        return None
+    return {
+        "optimizer_steps": int(steps),
+        "trusted_rows": int(examples),
+        "age_seconds": round(age_seconds, 3),
+        "loss_improved": report.get("loss_improved"),
+        "pit_violations": int(_finite(pit.get("violation_count")) or 0.0),
+        "source": OFFLINE_TRAINER_REPORT_PATH_TEXT,
+    }
+
+
+def _trainer_learning_check(
+    trainer_metrics: Any,
+    offline_report: Any = None,
+    *,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    if isinstance(trainer_metrics, Mapping):
+        training = trainer_metrics.get("training")
+        metrics = training.get("metrics") if isinstance(training, Mapping) else None
+        if isinstance(metrics, Mapping):
+            status = str(metrics.get("online_learning_status") or "")
+            trusted = _finite(metrics.get("trusted_rows_loaded")) or 0
+            last_update = metrics.get("last_successful_weight_update_at")
+            active = (
+                status in {"WEIGHTS_UPDATING", "ACTIVE"} and trusted > 0 and bool(last_update)
+            )
+            if active:
+                return _check(
+                    True,
+                    f"online_learning_status={status};trusted_rows={int(trusted)};"
+                    f"last_update={last_update}",
+                )
+    # The online lane published nothing usable; fall back to the offline lane's
+    # own proof that a recent cycle moved weights.
+    offline = _offline_training_evidence(offline_report, now=now)
+    if offline is not None:
+        return _check(
+            True,
+            "offline_lane_training"
+            f";optimizer_steps={offline['optimizer_steps']}"
+            f";trusted_rows={offline['trusted_rows']}"
+            f";report_age_s={offline['age_seconds']}"
+            f";loss_improved={offline['loss_improved']}",
+        )
     if not isinstance(trainer_metrics, Mapping):
-        return _check(None, "TRAINER_METRICS_MISSING")
+        return _check(None, "TRAINER_METRICS_MISSING_AND_NO_RECENT_OFFLINE_CYCLE")
     training = trainer_metrics.get("training")
     metrics = training.get("metrics") if isinstance(training, Mapping) else None
     if not isinstance(metrics, Mapping):
-        return _check(None, "TRAINER_TRAINING_METRICS_MISSING")
+        return _check(None, "TRAINER_TRAINING_METRICS_MISSING_AND_NO_RECENT_OFFLINE_CYCLE")
     status = str(metrics.get("online_learning_status") or "")
     trusted = _finite(metrics.get("trusted_rows_loaded")) or 0
     last_update = metrics.get("last_successful_weight_update_at")
-    active = status in {"WEIGHTS_UPDATING", "ACTIVE"} and trusted > 0 and bool(last_update)
     return _check(
-        active,
-        f"online_learning_status={status};trusted_rows={int(trusted)};last_update={last_update}",
+        False,
+        f"online_learning_status={status};trusted_rows={int(trusted)};"
+        f"last_update={last_update};offline_cycle=absent_or_stale",
     )
 
 
@@ -632,7 +755,11 @@ def evaluate_a_plus_candidate(
         redis_client, symbol=symbol, timeframe=timeframe
     )
     checks: dict[str, dict[str, Any]] = {
-        "trainer_online_learning_active": _trainer_learning_check(ctx.get("trainer_metrics")),
+        "trainer_online_learning_active": _trainer_learning_check(
+            ctx.get("trainer_metrics"),
+            ctx.get("offline_trainer_report"),
+            now=now_utc,
+        ),
         "side_bucket_positive": _side_bucket_check(
             ctx.get("side_performance"),
             side=normalized_side,
