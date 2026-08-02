@@ -87,6 +87,69 @@ TRAINER_FEEDBACK_PAPER_EXPLORATION_MATERIALIZATION_KEY = (
     "v2:trainer:paper_exploration_materialization_counterfactual_feedback"
 )
 CANONICAL_REPO_ROOT = Path(__file__).resolve().parents[6]
+
+# The trainer is re-executed as a fresh process every cycle, so an in-process
+# integrity-proof cache is always cold and each cycle paid one full O(archive)
+# verification of the ~1.3 GB label archive. The proof is durable evidence about
+# an append-only archive, so it is persisted beside the archive and re-validated
+# on load: `integrity_proof_is_current` when nothing was appended, otherwise
+# `extend_integrity_proof`, which rebinds the immutable prefix and streams every
+# new row/receipt. A rejected or unreadable proof falls back to the full proof,
+# so this can only ever save work, never grant unverified trust.
+_LABEL_ARCHIVE_PROOF_CACHE_SUFFIX = ".integrity_proof_cache.json"
+# The archive's own directory is write-protected for some runtimes, so the proof
+# cache falls back to a writable trainer-owned directory. The file name is keyed
+# by the archive path, and the proof is re-validated against the archive on load
+# either way, so location never affects trust.
+_LABEL_ARCHIVE_PROOF_CACHE_FALLBACK_DIR = (
+    CANONICAL_REPO_ROOT / "claude_worklog" / "trainer_atlas" / "integrity_proof_cache"
+)
+
+
+def _label_archive_proof_cache_paths(archive_path: Path) -> tuple[Path, ...]:
+    digest = hashlib.sha256(str(archive_path).encode("utf-8")).hexdigest()[:32]
+    return (
+        Path(str(archive_path) + _LABEL_ARCHIVE_PROOF_CACHE_SUFFIX),
+        _LABEL_ARCHIVE_PROOF_CACHE_FALLBACK_DIR / f"{digest}{_LABEL_ARCHIVE_PROOF_CACHE_SUFFIX}",
+    )
+
+
+def _load_persisted_label_archive_proof(archive_path: Path) -> dict[str, Any] | None:
+    """Load a previously persisted full proof, or None when unusable."""
+    for path in _label_archive_proof_cache_paths(archive_path):
+        try:
+            raw = json.loads(path.read_text("utf-8"))
+        except (OSError, ValueError):
+            continue
+        if not isinstance(raw, dict):
+            continue
+        # Bind the proof to this exact archive; a proof for another file is useless.
+        if str(raw.get("archive_path") or "") != str(archive_path):
+            continue
+        if raw.get("archive_integrity_verified") is not True:
+            continue
+        return raw
+    return None
+
+
+def _persist_label_archive_proof(archive_path: Path, proof: Mapping[str, Any]) -> None:
+    """Persist a verified proof atomically; failure is never fatal."""
+    if proof.get("archive_integrity_verified") is not True:
+        return
+    payload = json.dumps(dict(proof), sort_keys=True, default=str)
+    for path in _label_archive_proof_cache_paths(archive_path):
+        temporary = path.with_suffix(path.suffix + ".tmp")
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            temporary.write_text(payload, "utf-8")
+            os.replace(temporary, path)
+            return
+        except (OSError, TypeError, ValueError):
+            try:
+                temporary.unlink(missing_ok=True)
+            except OSError:
+                pass
+
 DEFAULT_COUNTERFACTUAL_ARCHIVE_PATH = (
     CANONICAL_REPO_ROOT
     / ".local_data/v2_edge_replay_factory/counterfactual_evidence.sqlite3"
@@ -2340,6 +2403,15 @@ class V2HybridTrainerDataLoader:
                 cached_integrity = (
                     self._canonical_5m_label_archive_integrity_proof
                 )
+                if cached_integrity is None:
+                    # The trainer is re-executed as a fresh process every cycle,
+                    # so an in-process cache alone is always cold and every cycle
+                    # paid one full O(archive) proof. The proof is durable
+                    # evidence, so it is persisted and re-validated below rather
+                    # than recomputed from scratch.
+                    cached_integrity = _load_persisted_label_archive_proof(
+                        self.canonical_5m_label_archive_path
+                    )
                 if (
                     cached_integrity is not None
                     and historical_label_archive.integrity_proof_is_current(
@@ -2377,6 +2449,10 @@ class V2HybridTrainerDataLoader:
                     if historical_archive_integrity.get(
                         "archive_integrity_verified"
                     ) is True:
+                        _persist_label_archive_proof(
+                            self.canonical_5m_label_archive_path,
+                            historical_archive_integrity,
+                        )
                         self._canonical_5m_label_archive_integrity_proof = (
                             historical_archive_integrity
                         )

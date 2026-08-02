@@ -124,3 +124,49 @@ def test_cache_does_not_grow_without_bound(tmp_path) -> None:
     for i in range(mod._READINESS_PROOF_CACHE_MAX_ENTRIES + 5):
         archive.verified_replacement_readiness(source_key=f"key-{i}")
     assert len(mod._READINESS_PROOF_CACHE) <= mod._READINESS_PROOF_CACHE_MAX_ENTRIES
+
+
+# --------------------------------------------------------------------------- #
+# The consumer is re-executed as a fresh process every cycle, so an in-process
+# cache alone is always cold. The persisted proof must survive that, and must
+# still be bound to the exact archive fingerprint.
+# --------------------------------------------------------------------------- #
+def test_proof_survives_a_fresh_process(tmp_path) -> None:
+    archive = _archive(tmp_path)
+    _proof(archive)
+    # Simulate a brand-new process: in-memory cache empty, same files on disk.
+    mod._READINESS_PROOF_CACHE.clear()
+    revived = DurablePaperEvidenceArchive(archive.path, stream_id=STREAM)
+    assert _proof(revived)["readiness_proof_served_from_cache"] is True
+
+
+def test_persisted_proof_is_rejected_after_the_archive_changes(tmp_path) -> None:
+    archive = _archive(tmp_path)
+    _proof(archive)
+    archive.append_unique([ArchiveCandidate(record_id="rec-z", sort_key="7777", payload={"i": 7})])
+    mod._READINESS_PROOF_CACHE.clear()
+    revived = DurablePaperEvidenceArchive(archive.path, stream_id=STREAM)
+    assert _proof(revived)["readiness_proof_served_from_cache"] is False
+
+
+def test_corrupt_persisted_proof_falls_back_to_recomputation(tmp_path) -> None:
+    archive = _archive(tmp_path)
+    _proof(archive)
+    Path(str(archive.path) + ".readiness_proof_cache.json").write_text("{not json")
+    mod._READINESS_PROOF_CACHE.clear()
+    revived = DurablePaperEvidenceArchive(archive.path, stream_id=STREAM)
+    assert _proof(revived)["readiness_proof_served_from_cache"] is False
+
+
+def test_persisted_proof_for_another_archive_is_not_reused(tmp_path) -> None:
+    archive = _archive(tmp_path)
+    _proof(archive)
+    stolen = Path(str(archive.path) + ".readiness_proof_cache.json").read_text()
+
+    other_dir = tmp_path / "other"
+    other_dir.mkdir()
+    other = _archive(other_dir)
+    Path(str(other.path) + ".readiness_proof_cache.json").write_text(stolen)
+    mod._READINESS_PROOF_CACHE.clear()
+    # The key/fingerprint bind the proof to its own archive.
+    assert _proof(other)["readiness_proof_served_from_cache"] is False

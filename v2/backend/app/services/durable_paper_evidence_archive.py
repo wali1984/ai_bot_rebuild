@@ -1617,6 +1617,16 @@ class DurablePaperEvidenceArchive:
                 result["readiness_proof_served_from_cache"] = True
                 result["readiness_proof_cache_fingerprint_verified"] = True
                 return result
+            # Consumers are re-executed as fresh processes, so an in-process
+            # cache alone is always cold. The proof is durable evidence bound to
+            # an exact archive fingerprint, so it is also persisted on disk and
+            # only reused when that fingerprint still matches byte-for-byte.
+            persisted = self._load_persisted_proof(cache_key, fingerprint)
+            if persisted is not None:
+                _READINESS_PROOF_CACHE[cache_key] = (fingerprint, copy.deepcopy(persisted))
+                persisted["readiness_proof_served_from_cache"] = True
+                persisted["readiness_proof_cache_fingerprint_verified"] = True
+                return persisted
 
         result = self._verified_replacement_readiness_uncached(
             source_key=source_key,
@@ -1631,8 +1641,59 @@ class DurablePaperEvidenceArchive:
                 if len(_READINESS_PROOF_CACHE) >= _READINESS_PROOF_CACHE_MAX_ENTRIES:
                     _READINESS_PROOF_CACHE.clear()
                 _READINESS_PROOF_CACHE[cache_key] = (fingerprint, copy.deepcopy(result))
+                self._persist_proof(cache_key, fingerprint, result)
         result["readiness_proof_served_from_cache"] = False
         return result
+
+    def _proof_cache_path(self) -> Path:
+        return Path(str(self.path) + ".readiness_proof_cache.json")
+
+    def _load_persisted_proof(
+        self, cache_key: tuple[Any, ...], fingerprint: tuple[Any, ...]
+    ) -> dict[str, Any] | None:
+        """Return a persisted proof only when its fingerprint still matches."""
+        try:
+            raw = json.loads(self._proof_cache_path().read_text("utf-8"))
+        except (OSError, ValueError):
+            return None
+        if not isinstance(raw, dict):
+            return None
+        if raw.get("cache_key") != list(cache_key):
+            return None
+        # json round-trips tuples to lists, so compare in a list-normalised form.
+        if raw.get("fingerprint") != json.loads(json.dumps(fingerprint)):
+            return None
+        proof = raw.get("proof")
+        return dict(proof) if isinstance(proof, dict) else None
+
+    def _persist_proof(
+        self,
+        cache_key: tuple[Any, ...],
+        fingerprint: tuple[Any, ...],
+        proof: dict[str, Any],
+    ) -> None:
+        """Persist a proof atomically; a failure here is never fatal."""
+        path = self._proof_cache_path()
+        temporary = path.with_suffix(path.suffix + ".tmp")
+        try:
+            temporary.write_text(
+                json.dumps(
+                    {
+                        "cache_key": list(cache_key),
+                        "fingerprint": fingerprint,
+                        "proof": proof,
+                    },
+                    sort_keys=True,
+                    default=str,
+                ),
+                "utf-8",
+            )
+            os.replace(temporary, path)
+        except (OSError, TypeError, ValueError):
+            try:
+                temporary.unlink(missing_ok=True)
+            except OSError:
+                pass
 
     def _verified_replacement_readiness_uncached(
         self,

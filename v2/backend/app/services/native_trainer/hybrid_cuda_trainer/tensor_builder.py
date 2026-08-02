@@ -511,6 +511,16 @@ def _resolve_decision_time(
     return datetime.now(tz=timezone.utc), "builder.observed_at"
 
 
+# ``isinstance(x, Mapping | list | tuple)`` builds a types.UnionType on every
+# call and routes each check through ABC __subclasscheck__. This walk recurses
+# over every nested value of every payload, so that one expression accounted for
+# ~27% of the trainer's total CPU (profiled: typing __or__ / __instancecheck__ /
+# __subclasscheck__ / __hash__). A module-level tuple is semantically identical
+# and tests the concrete C types first, reaching the Mapping ABC only for
+# non-dict mappings.
+_NESTED_CONTAINER_TYPES: tuple[type, ...] = (dict, list, tuple, Mapping)
+
+
 def _explicit_false_source_authority_reasons(
     *,
     payload_name: str,
@@ -524,7 +534,7 @@ def _explicit_false_source_authority_reasons(
     producer instruction that the payload is not eligible at this consumer.
     """
 
-    if not isinstance(payload, Mapping | list | tuple):
+    if not isinstance(payload, _NESTED_CONTAINER_TYPES):
         return ()
     seen_ids = set() if _seen_ids is None else _seen_ids
     payload_id = id(payload)
@@ -544,7 +554,7 @@ def _explicit_false_source_authority_reasons(
     else:
         nested_values = payload
     for nested in nested_values:
-        if isinstance(nested, Mapping | list | tuple):
+        if isinstance(nested, _NESTED_CONTAINER_TYPES):
             reasons.extend(
                 _explicit_false_source_authority_reasons(
                     payload_name=payload_name,
