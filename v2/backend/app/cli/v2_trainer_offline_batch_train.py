@@ -32,6 +32,7 @@ import os
 import threading
 import time
 from pathlib import Path
+from collections.abc import Mapping
 from typing import Any, Sequence
 
 # Reuse the point-in-time leakage audit + safety helpers from the sweep tool so
@@ -281,6 +282,147 @@ def seed_offline_view_cursor_near_tail(
     return meta
 
 
+# --------------------------------------------------------------------------
+# Safe example-tensor cache (non-executable). The legacy pickle cache is
+# deliberately never opened (executable object graphs). This cache serializes
+# the built TrainingExamples to gzipped JSON via dataclasses.fields (numbers,
+# strings, lists, and the trust_row provenance dict only -- no code), so the
+# expensive CPU example-assembly runs once and the GPU then trains continuously
+# across cycles instead of idling ~15 min per rebuild. SAFETY NET: reconstructed
+# examples are re-run through point_in_time_safety_report before use, so a
+# malformed or stale cache can never feed the trainer -- it falls back to a fresh
+# build. Env-gated (default OFF): V2_OFFLINE_EXAMPLE_TENSOR_CACHE_PATH +
+# V2_OFFLINE_EXAMPLE_TENSOR_CACHE_MAX_AGE_SECONDS (default 600s TTL so data still
+# refreshes). The loop's --rebuild-cache (REBUILD_EVERY) forces a fresh build.
+_EXAMPLE_TENSOR_CACHE_SCHEMA = "offline_example_tensor_cache_v1"
+
+
+def _example_tensor_cache_config() -> tuple[str | None, float]:
+    path = os.getenv("V2_OFFLINE_EXAMPLE_TENSOR_CACHE_PATH", "").strip()
+    if not path:
+        return None, 0.0
+    try:
+        max_age = float(
+            os.getenv("V2_OFFLINE_EXAMPLE_TENSOR_CACHE_MAX_AGE_SECONDS", "600") or 600
+        )
+    except (TypeError, ValueError):
+        max_age = 600.0
+    return path, max(0.0, max_age)
+
+
+def _training_example_to_jsonable(example: Any) -> dict[str, Any]:
+    import dataclasses  # noqa: PLC0415
+
+    tensor = example.tensor
+    tensor_dict = {}
+    for f in dataclasses.fields(tensor):
+        if not f.init:
+            continue
+        value = getattr(tensor, f.name)
+        tensor_dict[f.name] = list(value) if isinstance(value, tuple) else value
+    row: dict[str, Any] = {}
+    for f in dataclasses.fields(example):
+        if not f.init:
+            continue
+        if f.name == "tensor":
+            row["tensor"] = tensor_dict
+            continue
+        value = getattr(example, f.name)
+        row[f.name] = list(value) if isinstance(value, tuple) else value
+    return row
+
+
+def _training_example_from_jsonable(row: Mapping[str, Any], example_cls: Any, tensor_cls: Any) -> Any:
+    import dataclasses  # noqa: PLC0415
+
+    tensor_row = row.get("tensor") or {}
+    tensor_kwargs: dict[str, Any] = {}
+    for f in dataclasses.fields(tensor_cls):
+        if not f.init:
+            continue
+        value = tensor_row.get(f.name)
+        tensor_kwargs[f.name] = tuple(value) if isinstance(value, list) else value
+    tensor = tensor_cls(**tensor_kwargs)
+    example_kwargs: dict[str, Any] = {}
+    for f in dataclasses.fields(example_cls):
+        if not f.init:
+            continue
+        if f.name == "tensor":
+            example_kwargs["tensor"] = tensor
+            continue
+        value = row.get(f.name)
+        if f.name == "payload_keys" and isinstance(value, list):
+            value = tuple(value)
+        example_kwargs[f.name] = value
+    return example_cls(**example_kwargs)
+
+
+def _save_examples_tensor_cache(examples: Sequence[Any], path: str) -> None:
+    import gzip  # noqa: PLC0415
+
+    payload = {
+        "schema_version": _EXAMPLE_TENSOR_CACHE_SCHEMA,
+        "count": len(examples),
+        "rows": [_training_example_to_jsonable(ex) for ex in examples],
+    }
+    tmp = f"{path}.tmp"
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    with gzip.open(tmp, "wt", encoding="utf-8") as handle:
+        json.dump(payload, handle)
+    os.replace(tmp, path)
+
+
+def _load_examples_tensor_cache(path: str, max_age_seconds: float) -> tuple[list[Any] | None, str]:
+    import gzip  # noqa: PLC0415
+
+    p = Path(path)
+    if not p.is_file():
+        return None, "CACHE_ABSENT"
+    try:
+        age = time.time() - p.stat().st_mtime
+    except OSError:
+        return None, "CACHE_STAT_FAILED"
+    if age > max_age_seconds:
+        return None, f"CACHE_STALE:{int(age)}s>{int(max_age_seconds)}s"
+    try:
+        with gzip.open(p, "rt", encoding="utf-8") as handle:
+            payload = json.load(handle)
+    except Exception as exc:  # noqa: BLE001
+        return None, f"CACHE_UNREADABLE:{type(exc).__name__}"
+    if not isinstance(payload, Mapping) or payload.get("schema_version") != _EXAMPLE_TENSOR_CACHE_SCHEMA:
+        return None, "CACHE_SCHEMA_MISMATCH"
+    from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.data_loader import (  # noqa: PLC0415
+        TrainingExample,
+    )
+    from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.tensor_builder import (  # noqa: PLC0415
+        FeatureTensorRecord,
+    )
+    try:
+        examples = [
+            _training_example_from_jsonable(row, TrainingExample, FeatureTensorRecord)
+            for row in payload.get("rows", [])
+            if isinstance(row, Mapping)
+        ]
+    except Exception as exc:  # noqa: BLE001
+        return None, f"CACHE_RECONSTRUCT_FAILED:{type(exc).__name__}"
+    if not examples:
+        return None, "CACHE_EMPTY"
+    # SAFETY NET: re-validate the reconstructed examples through the same
+    # point-in-time audit the trainer enforces. A faithful round-trip passes; any
+    # reconstruction defect fails here and forces a fresh build (never trains).
+    try:
+        from v2.backend.app.cli.v2_trainer_offline_hyperparameter_sweep import (  # noqa: PLC0415
+            point_in_time_safety_report,
+        )
+
+        pit = point_in_time_safety_report(examples)
+    except Exception as exc:  # noqa: BLE001
+        return None, f"CACHE_PIT_REVALIDATION_ERROR:{type(exc).__name__}"
+    if not pit.get("passed"):
+        return None, "CACHE_PIT_REVALIDATION_FAILED"
+    return examples, "CACHE_HIT"
+
+
 def load_or_build_examples(
     *,
     symbols: Sequence[str],
@@ -314,6 +456,23 @@ def load_or_build_examples(
         "durable_archive_rebuilt": True,
         "external_object_deserialization_used": False,
     }
+
+    # Safe example-tensor cache fast path: reuse a fresh, PIT-revalidated cache so
+    # the GPU trains continuously instead of rebuilding the whole example set
+    # every cycle. Skipped when the loop requests a rebuild (REBUILD_EVERY).
+    _tensor_cache_path, _tensor_cache_max_age = _example_tensor_cache_config()
+    meta["example_tensor_cache_enabled"] = bool(_tensor_cache_path)
+    if _tensor_cache_path and not rebuild_cache:
+        _cached, _cache_reason = _load_examples_tensor_cache(
+            _tensor_cache_path, _tensor_cache_max_age
+        )
+        meta["example_tensor_cache_reason"] = _cache_reason
+        if _cached is not None:
+            meta["example_tensor_cache_hit"] = True
+            meta["examples"] = len(_cached)
+            meta["cache_hit"] = True
+            return _cached, meta
+        meta["example_tensor_cache_hit"] = False
 
     import tempfile  # noqa: PLC0415
 
@@ -384,6 +543,14 @@ def load_or_build_examples(
             stagnation = 0
     meta["load_seconds"] = round(time.perf_counter() - started, 3)
     meta["examples"] = len(examples)
+    # Persist the freshly-built examples to the safe tensor cache so subsequent
+    # cycles (within the TTL) skip the expensive rebuild and keep the GPU busy.
+    if _tensor_cache_path and examples:
+        try:
+            _save_examples_tensor_cache(examples, _tensor_cache_path)
+            meta["example_tensor_cache_written"] = True
+        except Exception as exc:  # noqa: BLE001 - cache is best-effort, never fatal
+            meta["example_tensor_cache_write_error"] = f"{type(exc).__name__}"
     return examples, meta
 
 
