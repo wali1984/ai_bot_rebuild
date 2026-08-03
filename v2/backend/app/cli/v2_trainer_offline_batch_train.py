@@ -516,6 +516,7 @@ def run_batch_training(
         else:
             os.environ["V2_TRAINER_DROPOUT"] = prev_dropout
 
+    _warm_start_info: dict[str, Any] | None = None
     if from_checkpoint:
         from pathlib import Path as _P  # noqa: PLC0415
 
@@ -526,11 +527,35 @@ def run_batch_training(
             VERIFIED_SERVING_LINEAGE,
         )
 
+        # Warm-start source. By default the offline lane warm-starts from the
+        # canonical VERIFIED_SERVING live checkpoint. When the live checkpoint's
+        # causal ledger is corrupt/unavailable (blocking warm-start and forcing a
+        # cold start that reproduces identical checkpoints every cycle), the
+        # offline lane can instead continue its OWN clean candidate lineage:
+        # V2_OFFLINE_WARMSTART_FROM_OWN_LINEAGE=1 warm-starts from the offline save
+        # dir (default DEFAULT_OFFLINE_DIR) and accepts its SERVING_CANDIDATE
+        # lineage. EVERY integrity check (loadable, model_state_restored,
+        # identity, evidence, weight sha256) is preserved unchanged -- only the
+        # lineage-KIND requirement is widened to the offline candidate lineages,
+        # so a corrupt or forged checkpoint is still rejected. This turns the
+        # offline lane into a genuine self-improving loop (gen N -> gen N+1) that
+        # gives the GPU meaningful work each cycle instead of a cold-start no-op.
+        _warm_own_lineage = os.getenv(
+            "V2_OFFLINE_WARMSTART_FROM_OWN_LINEAGE", "0"
+        ).strip().lower() in {"1", "true", "yes", "on"}
+        if _warm_own_lineage:
+            _warm_dir = os.getenv("V2_OFFLINE_WARMSTART_DIR", DEFAULT_OFFLINE_DIR)
+            _allowed_lineages = frozenset(
+                {VERIFIED_SERVING_LINEAGE, "SERVING_CANDIDATE", "LEGACY_SERVING_CANDIDATE"}
+            )
+        else:
+            _warm_dir = LIVE_CHECKPOINT_DIR
+            _allowed_lineages = frozenset({VERIFIED_SERVING_LINEAGE})
         warm_start = V2HybridCheckpointManager(
-            _P(LIVE_CHECKPOINT_DIR)
+            _P(_warm_dir)
         ).load_latest_weights(
             model,
-            allowed_lineage_kinds=frozenset({VERIFIED_SERVING_LINEAGE}),
+            allowed_lineage_kinds=_allowed_lineages,
         )
         required_warm_start = (
             warm_start.get("latest_checkpoint_loadable") is True
@@ -538,14 +563,38 @@ def run_batch_training(
             and warm_start.get("checkpoint_identity_verified") is True
             and warm_start.get("checkpoint_evidence_verified") is True
             and warm_start.get("weight_file_sha256_verified") is True
-            and warm_start.get("lineage_kind") == VERIFIED_SERVING_LINEAGE
+            and warm_start.get("lineage_kind") in _allowed_lineages
         )
         if not required_warm_start:
-            raise ValueError(
-                "offline warm-start requires an integrity-verified canonical "
-                "serving checkpoint: "
-                + json.dumps(warm_start, sort_keys=True, default=str)
-            )
+            if _warm_own_lineage:
+                # Own-lineage warm-start is best-effort: an incompatible or
+                # absent prior candidate (e.g. feature-ABI/input-dim drift since
+                # the last offline checkpoint) must NOT crash the lane. Fall back
+                # to a fresh cold start (the model keeps its random init) and
+                # record why, so a mismatch degrades to cold-start instead of a
+                # restart loop. Integrity is unaffected: a checkpoint that failed
+                # verification is simply not loaded.
+                meta_warm_start_fallback = {
+                    "warm_start_attempted": True,
+                    "warm_start_source": _warm_dir,
+                    "warm_start_applied": False,
+                    "warm_start_fallback_reason": "OWN_LINEAGE_WARM_START_NOT_LOADABLE_COLD_START_FALLBACK",
+                    "warm_start_detail": warm_start,
+                }
+                _warm_start_info = meta_warm_start_fallback
+            else:
+                raise ValueError(
+                    "offline warm-start requires an integrity-verified checkpoint "
+                    f"(source={_warm_dir}, allowed_lineages={sorted(_allowed_lineages)}): "
+                    + json.dumps(warm_start, sort_keys=True, default=str)
+                )
+        else:
+            _warm_start_info = {
+                "warm_start_attempted": True,
+                "warm_start_source": _warm_dir,
+                "warm_start_applied": True,
+                "lineage_kind": warm_start.get("lineage_kind"),
+            }
 
     trainer = V2HybridPPOTrainer(
         model=model,
@@ -648,6 +697,7 @@ def run_batch_training(
     rows_processed = int(len(examples)) * total_steps
     return {
         "schema_version": "trainer_offline_batch_train_v1",
+        "warm_start": _warm_start_info,
         "examples": len(examples),
         "epochs": int(max(1, epochs)),
         "steps_per_epoch": int(steps_per_epoch),
