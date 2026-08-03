@@ -862,9 +862,30 @@ def run_batch_training(
     wall_seconds = max(1e-6, time.perf_counter() - wall_started)
 
     rows_processed = int(len(examples)) * total_steps
+    # Model identity/architecture — surfaced so the read-only trainer-status API
+    # can populate the deep-telemetry panel (tensor input dim, feature count,
+    # architecture) from the lane that is ACTUALLY training, instead of leaving
+    # those cells blank while the hybrid/online observer publishes nothing.
+    _arch: dict[str, Any] = {}
+    try:
+        _arch = {
+            "input_dim": int(model.input_dim),
+            "hidden_size": int(getattr(model, "hidden_size", 0)) or None,
+            "residual_blocks": int(getattr(model, "residual_block_count", 0)) or None,
+            "attention_heads": int(getattr(model, "attention_heads", 0)) or None,
+            "temporal_encoder": getattr(model, "temporal_encoder", "") or "",
+            "temporal_encoder_enabled": bool(getattr(model, "temporal_encoder_enabled", False)),
+            "temporal_seq_len": int(getattr(model, "temporal_seq_len", 0)) or None,
+        }
+    except Exception:  # pragma: no cover - telemetry must never break training
+        _arch = {}
+
     return {
         "schema_version": "trainer_offline_batch_train_v1",
         "warm_start": _warm_start_info,
+        "input_dim": _arch.get("input_dim"),
+        "feature_dim": _arch.get("input_dim"),
+        "model_architecture": _arch or None,
         "examples": len(examples),
         "epochs": int(max(1, epochs)),
         "steps_per_epoch": int(steps_per_epoch),

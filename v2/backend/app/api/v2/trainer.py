@@ -1091,6 +1091,117 @@ def _redis_fallback_shape(r: Any) -> dict[str, Any] | None:
     return shape
 
 
+def _read_continuous_offline_report() -> dict[str, Any] | None:
+    """Newest continuous offline GPU trainer report -- the lane that ACTUALLY
+    trains the RL MASA/PPO model on the RTX 5080. Read-only; failure-safe."""
+    try:
+        import time as _time  # noqa: PLC0415
+
+        repo_root = Path(__file__).resolve().parents[5]
+        p = repo_root / "claude_worklog" / "trainer_atlas" / "continuous_offline_last_report.json"
+        if not p.is_file():
+            return None
+        data = json.loads(p.read_text())
+        if not isinstance(data, dict):
+            return None
+        data["_report_age_seconds"] = max(0.0, _time.time() - p.stat().st_mtime)
+        return data
+    except Exception:  # noqa: BLE001 - status surface must never fail the route
+        return None
+
+
+def _attach_offline_trainer_telemetry(shape: dict[str, Any], r: Any) -> dict[str, Any]:
+    """Surface the offline GPU trainer's real last-cycle telemetry when the
+    hybrid/online lane publishes nothing.
+
+    The persistent CUDA trainer runs a deliberate non-promotable observer that
+    emits no telemetry, so input_dim / GPU / loss / optimizer-step cells render
+    blank even though a different lane (the continuous offline GPU trainer) IS
+    training the same RL MASA/PPO model on the RTX 5080. This fills those cells
+    from that lane's already-computed report. It DEFERS entirely to the live
+    hybrid keys: if the online trainer ever publishes, that wins ("one version").
+    """
+    # One canonical publisher wins: if the hybrid/online trainer is publishing
+    # any live telemetry, do not shadow it with the offline lane's report.
+    if _read_redis_json(r, TRAINER_HYBRID_CUDA_STATUS_KEY) or _read_redis_json(
+        r, HYBRID_CUDA_METRICS_KEY
+    ):
+        return shape
+    report = _read_continuous_offline_report()
+    if not report:
+        return shape
+    out = dict(shape)
+    src = "file:claude_worklog/trainer_atlas/continuous_offline_last_report.json"
+
+    # identity / architecture
+    arch = _dict_value(report.get("model_architecture"))
+    input_dim = report.get("input_dim") or arch.get("input_dim")
+    if input_dim and not out.get("input_dim"):
+        out["input_dim"] = input_dim
+    if report.get("feature_dim") and not out.get("feature_count"):
+        out["feature_count"] = report.get("feature_dim")
+    if arch and not out.get("model_architecture"):
+        out["model_architecture"] = arch
+        out["temporal_encoder"] = arch.get("temporal_encoder") or ""
+        out["temporal_encoder_enabled"] = bool(arch.get("temporal_encoder_enabled"))
+        out["temporal_seq_len"] = arch.get("temporal_seq_len") or 0
+
+    # GPU / throughput -- real per-cycle sampler telemetry from the RTX 5080
+    gpu = _dict_value(report.get("gpu"))
+    wall = _numeric_metric(report.get("wall_seconds"))
+    steps = _numeric_metric(report.get("total_gradient_steps"))
+    if gpu and not out.get("gpu_runtime"):
+        _obs = _read_profiled_research_cuda_runtime() or {}
+        steps_per_min = round(steps / (wall / 60.0), 2) if (steps and wall) else None
+        out["gpu_runtime"] = {
+            "schema_version": "trainer_status_gpu_runtime_v1",
+            "source": src,
+            "gpu_name": _obs.get("gpu_name"),
+            "cuda_available": True,
+            "current_vram_used_mb": _numeric_metric(gpu.get("vram_used_max_mb")),
+            "vram_cap_mb": round((_obs.get("memory_total_bytes") or 0) / 1e6, 1) or None,
+            "gpu_train_time_ms": round(wall * 1000.0, 1) if wall else None,
+            "training_steps_per_minute": steps_per_min,
+            "target_batch_size": _numeric_metric(report.get("batch_size")),
+            "actual_batch_size": _numeric_metric(report.get("batch_size")),
+            "gpu_utilization_mean_pct": _numeric_metric(gpu.get("gpu_utilization_mean_pct")),
+            "gpu_utilization_max_pct": _numeric_metric(gpu.get("gpu_utilization_max_pct")),
+            "oom_count": 0,
+        }
+
+    # learning / loss / optimizer steps -- real
+    examples = _numeric_metric(report.get("examples"))
+    learning_active = bool(steps and steps > 0)
+    if not out.get("trainer_learning_status"):
+        out["trainer_learning_status"] = {
+            "schema_version": "trainer_status_learning_runtime_v1",
+            "source": src,
+            "learning_active": learning_active,
+            "learning_update_lane": "OFFLINE_BATCH_OUTCOME_SUPERVISED_GPU",
+            "outcome_supervised_update_used": learning_active,
+            "loss_before": _numeric_metric(report.get("loss_first")),
+            "loss_after": _numeric_metric(report.get("loss_last")),
+            "optimizer_steps_this_cycle": steps,
+            "trusted_replay_rows_loaded": examples,
+            "best_validation_loss": _numeric_metric(report.get("best_validation_loss")),
+        }
+        out["learning_active"] = learning_active
+        out["trusted_replay_rows_loaded"] = examples
+
+    if not _dict_value(out.get("runtime_mode")).get("effective_trainer_mode"):
+        out["runtime_mode"] = {
+            "schema_version": "trainer_status_runtime_mode_v1",
+            "source": src,
+            "effective_trainer_mode": "CONTINUOUS_OFFLINE_GPU_BATCH_TRAINING",
+            "online_learning_status": "OFFLINE_BATCH_ACTIVE" if learning_active else "IDLE",
+            "examples_built": examples,
+        }
+
+    out["offline_gpu_trainer_telemetry_source"] = src
+    out["offline_gpu_trainer_report_age_seconds"] = _numeric_metric(report.get("_report_age_seconds"))
+    return out
+
+
 @router.get("/status")
 @router.get("/summary")
 async def get_trainer_summary() -> dict[str, Any]:
@@ -1103,6 +1214,7 @@ async def get_trainer_summary() -> dict[str, Any]:
         if redis_shape is not None:
             redis_shape = _attach_hybrid_cuda_learning_status(redis_shape, r)
             redis_shape = _attach_model_identity_status(redis_shape, r)
+            redis_shape = _attach_offline_trainer_telemetry(redis_shape, r)
             redis_shape = _attach_champion_challenger_status(redis_shape, r)
             redis_shape = _attach_preemptive_feedback_status(redis_shape, r)
             _audit(
@@ -1151,6 +1263,7 @@ async def get_trainer_summary() -> dict[str, Any]:
             if isinstance(cached, dict):
                 cached = _attach_hybrid_cuda_learning_status(cached, r)
                 cached = _attach_model_identity_status(cached, r)
+                cached = _attach_offline_trainer_telemetry(cached, r)
                 cached = _attach_champion_challenger_status(cached, r)
                 cached = _attach_preemptive_feedback_status(cached, r)
                 cached = _attach_trainer_lane_health(cached, r)
@@ -1175,6 +1288,7 @@ async def get_trainer_summary() -> dict[str, Any]:
             shape = redis_shape
     shape = _attach_hybrid_cuda_learning_status(shape, r)
     shape = _attach_model_identity_status(shape, r)
+    shape = _attach_offline_trainer_telemetry(shape, r)
     shape = _attach_champion_challenger_status(shape, r)
     shape = _attach_preemptive_feedback_status(shape, r)
 
